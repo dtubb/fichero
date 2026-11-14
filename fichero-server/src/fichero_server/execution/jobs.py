@@ -58,7 +58,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, NoReturn
+from typing import TYPE_CHECKING, Any, Callable, Iterator, NoReturn
 
 from fichero_server.core.background_compute import set_background_qos, set_utility_qos
 from fichero_server.core.failure_text import MissingInWords
@@ -412,6 +412,7 @@ for _attached in (
 #: True while this task holds a lane slot: a model call made inside work that already holds one
 #: (a vision page's own `llm.vision` call) does not ask for a second, which a one-wide lane could
 #: never grant.
+_skip_deleted: ContextVar[bool] = ContextVar("_skip_deleted", default=False)
 _holding: ContextVar[bool] = ContextVar("_holding_a_lane", default=False)
 #: The row of this task's latest model call's slot. Kept after the slot closes, because a call's
 #: usage is read from its answer after the call (`llm.chat_structured`); cleared when this task's
@@ -1321,6 +1322,41 @@ def _clear_waiting_on(db: "Database") -> str:
     return ", waiting_on = NULL" if _has_column(db, "waiting_on") else ""
 
 
+def _not_deleted(db: "Database") -> str:
+    return " AND deleted_at IS NULL" if _has_deleted_at(db) else ""
+
+
+def _was_deleted(db: "Database", kind: str, subjects: list[str]) -> set[str]:
+    """The subjects among `subjects` that have a row of this kind a person deleted."""
+    if not _has_deleted_at(db):
+        return set()
+    found: set[str] = set()
+    for chunk in _chunks(list(subjects), 500):
+        marks = ", ".join("?" for _ in chunk)
+        found.update(r[0] for r in db.execute_fetchall(
+            f"SELECT DISTINCT subject FROM jobs WHERE kind = ? AND deleted_at IS NOT NULL AND subject IN ({marks})",
+            [kind, *chunk]))
+    return found
+
+
+def _live_row(db: "Database", kind: str, subject: str) -> bool:
+    """A waiting or paused, not deleted row of this kind and subject exists."""
+    return db.execute_fetchone(
+        f"SELECT 1 FROM jobs WHERE kind = ? AND subject = ? AND state IN ('waiting', 'paused'){_not_deleted(db)}",
+        [kind, subject]) is not None
+
+
+@contextlib.contextmanager
+def not_what_was_deleted() -> Iterator[None]:
+    """Inside it, `enqueue_many` does not queue a subject whose row of that kind a person deleted: the open's
+    re-queue of stranded work is not new material (`activity.engine.open-queues-nothing-twice`)."""
+    token = _skip_deleted.set(True)
+    try:
+        yield
+    finally:
+        _skip_deleted.reset(token)
+
+
 def enqueue(
     db: "Database",
     kind: str,
@@ -1338,7 +1374,7 @@ def enqueue(
     (`activity.throttle.watched-first`); a reused job becomes watched too. Returns the job id."""
     _ensure(db)
     row = db.execute_fetchone(
-        "SELECT id FROM jobs WHERE kind = ? AND subject = ? AND state = 'waiting'",
+        f"SELECT id FROM jobs WHERE kind = ? AND subject = ? AND state IN ('waiting', 'paused'){_not_deleted(db)}",
         [kind, subject],
     )
     if row:
@@ -1692,11 +1728,15 @@ def enqueue_many(
         marks = ", ".join("?" for _ in chunk)
         ids.update(
             db.execute_fetchall(
-                f"SELECT subject, id FROM jobs WHERE kind = ? AND state = 'waiting' AND subject IN ({marks})",
+                f"SELECT subject, id FROM jobs WHERE kind = ? AND state IN ('waiting', 'paused') "
+                f"AND subject IN ({marks}){_not_deleted(db)}",
                 [kind, *chunk],
             )
         )
     new = [subject for subject in dict.fromkeys(subjects) if subject not in ids]
+    if new and _skip_deleted.get():
+        gone = _was_deleted(db, kind, new)
+        new = [subject for subject in new if subject not in gone]
     model = KINDS[kind].model if kind in KINDS else None
     now = utc_now()
     for chunk in _chunks(new, 200):
@@ -1711,7 +1751,7 @@ def enqueue_many(
                 for value in (job_id, kind, subject, model, started_by, now)
             ],
         )
-    futures = [_scheduler.watch(ids[subject]) for subject in subjects]
+    futures = [_scheduler.watch(ids[subject]) for subject in subjects if subject in ids]
     key = _key(db)
     db.add_after_commit_hook(lambda: _scheduler.wake(key))
     return futures
