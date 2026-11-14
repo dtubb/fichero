@@ -29,7 +29,17 @@ struct ActivityGroupsView: View {
     @State private var selection: Set<ActivityMonitorRow.ID> = []
 
     private var allShown: [ActivityMonitorRow] { groups.now + groups.upNext + (doneExpanded ? groups.doneToday : []) }
-    private func deletable(_ rows: [ActivityMonitorRow]) -> [ActivityMonitorRow] { rows.filter { $0.kind == .run && !$0.phase.isLive } }
+    /// What Delete acts on (`activity.window.delete-any-row`, #6583): a run row that is not live, and any job row of its
+    /// own that is not running now (finished, failed, paused or queued; a kind's row for its whole group).
+    private func deletable(_ rows: [ActivityMonitorRow]) -> [ActivityMonitorRow] { rows.filter(Self.isDeletable) }
+
+    static func isDeletable(_ row: ActivityMonitorRow) -> Bool {
+        switch row.kind {
+        case .run: return !row.phase.isLive
+        case .job: return row.phase != .running
+        case .step, .page: return false
+        }
+    }
 
     /// The one selected row's Stop / Read Again target, for Project › Activity in the menu bar (`FocusedActivityRunButtons`);
     /// nil with none or several selected, so those commands are disabled.
@@ -94,7 +104,7 @@ struct ActivityGroupsView: View {
             }
             let targets = deletable(rows)
             if !targets.isEmpty {
-                Button(targets.count > 1 ? "Delete \(targets.count) Runs" : "Delete", role: .destructive) { delete(targets) }
+                Button(targets.count > 1 ? "Delete \(targets.count) Items" : "Delete", role: .destructive) { delete(targets) }
             }
         } primaryAction: { ids in
             if ids.count == 1, let row = allShown.first(where: { ids.contains($0.id) }) { open(row) }
