@@ -59,7 +59,8 @@ extension ActionLibraryService {
                 auditId: json.auditId,
                 changedDomains: json.changedDomains,
                 resultId: (json.result.value as? [String: (any Sendable)?])?["id"] as? String,
-                resultListCounts: ActionInvokeResult.listCounts(json.result.value)
+                resultListCounts: ActionInvokeResult.listCounts(json.result.value),
+                resultIdPairs: ActionInvokeResult.idPairs(json.result.value)
             )
             invokeLogger.info("invokeAction(\(name)) ok — audit \(result.auditId)")
             return result
@@ -233,6 +234,26 @@ struct ActionInvokeResult: Decodable {
     /// How many entries each list in the answer holds (`splits`, `left_alone` for the Knife), so a surface can say what
     /// the action did without decoding its whole answer.
     var resultListCounts: [String: Int] = [:]
+
+    /// Each top-level list of id pairs in the answer (`joinable` from Cut Words, `segment-editor.edge.word-across-lines`),
+    /// by key: only lists whose every entry is two strings.
+    var resultIdPairs: [String: [[String]]] = [:]
+
+    /// The answer's top-level lists of string pairs; empty for anything that is not an object.
+    static func idPairs(_ value: Any?) -> [String: [[String]]] {
+        guard let object = value as? [String: (any Sendable)?] else { return [:] }
+        var pairs: [String: [[String]]] = [:]
+        for (key, entry) in object {
+            guard let list = entry as? [Any], !list.isEmpty else { continue }
+            let found = list.compactMap { item -> [String]? in
+                guard let pair = item as? [Any], pair.count == 2 else { return nil }
+                let ids = pair.compactMap { $0 as? String }
+                return ids.count == 2 ? ids : nil
+            }
+            if found.count == list.count { pairs[key] = found }
+        }
+        return pairs
+    }
 
     /// The list lengths of an answer's top level; empty for anything that is not an object.
     static func listCounts(_ value: Any?) -> [String: Int] {

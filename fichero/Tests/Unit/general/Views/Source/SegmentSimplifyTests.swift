@@ -115,4 +115,26 @@ struct CutWordsTests {
         #expect(params["expected_versions"] as? [String: Int] == ["w": 4])
         #expect(SegmentEdit.cutCharacters([line("l", version: 1)]) == .failure(.tooFew))
     }
+    /// `segment-editor.edge.word-across-lines`: Cut Words' `joinable` pairs are read from its answer, offered in words,
+    /// and each joins as ONE merge keeping both pieces' shapes.
+    @Test("a word broken at a line's end is offered after Cut Words and joins as one merge keeping both shapes")
+    func brokenWords() throws {
+        let answer: [String: (any Sendable)?] = ["joinable": [["a", "b"], ["c", "d"]], "segment_ids": ["a", "b"], "left_alone": [String]()]
+        #expect(ActionInvokeResult.idPairs(answer) == ["joinable": [["a", "b"], ["c", "d"]]])
+        #expect(ActionInvokeResult.idPairs(["joinable": [[String]]()]).isEmpty)
+        #expect(SegmentEdit.brokenWordsNotice(0) == nil)
+        #expect(SegmentEdit.brokenWordsNotice(2)?.contains("Join Broken Words") == true)
+
+        var first = line("a", version: 2), second = line("b", version: 3)
+        first.kind = "word"
+        second.kind = "word"
+        let call = try SegmentEdit.joinBrokenWord(first, second).get()
+        let data = try JSONEncoder().encode(call.params)
+        let params = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(call.action == "segment.merge")
+        #expect(params["keep_id"] as? String == "a")
+        #expect(params["keep_shapes"] as? Bool == true)
+        #expect(params["move_into_region"] as? Bool == true)
+        #expect(params["expected_versions"] as? [String: Int] == ["a": 2, "b": 3])
+    }
 }

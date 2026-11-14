@@ -295,10 +295,12 @@ struct SegmentMergeRequest: Encodable, Equatable {
     /// Absent unless set, so every other join sends what it always sent.
     var joinGeometry: Bool?
     var moveIntoRegion: Bool?
+    /// A word broken at a line's end joined as one word with both pieces' shapes (`segment-editor.edge.word-across-lines`).
+    var keepShapes: Bool?
 
     enum CodingKeys: String, CodingKey {
         case segmentIds = "segment_ids", keepId = "keep_id", expectedVersions = "expected_versions"
-        case joinGeometry = "join_geometry", moveIntoRegion = "move_into_region"
+        case joinGeometry = "join_geometry", moveIntoRegion = "move_into_region", keepShapes = "keep_shapes"
     }
 }
 

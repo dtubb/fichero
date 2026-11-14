@@ -245,6 +245,10 @@ class WindowState {
         paintWidth = min(max(paintWidth * (larger ? 1.25 : 0.8), 4), 120)
     }
 
+    /// Words the last Cut Words found broken at a line's end, [first piece, second piece] each
+    /// (`segment-editor.edge.word-across-lines`): what Join Broken Words joins; emptied once joined.
+    var brokenWords: [[String]] = []
+
     /// The Order tool (`segment-editor.order-by-clicking`): while it is chosen, segments clicked in turn are numbered
     /// 1, 2, 3 …; leaving it (O, Return, Esc, another tool) sends the clicks once as `reading_order.sequence`.
     var orderArmed = false
