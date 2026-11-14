@@ -182,6 +182,10 @@ class WindowState {
     var paintStroke: [[Double]] = []
     var paintWidth = 20.0
 
+    /// The cut mark last clicked, [the piece before it, the piece after it] (`segment-editor.cut-marks-editable`): ⌫
+    /// removes that cut. A press anywhere else lets it go.
+    var selectedCutMark: [String]?
+
     /// Words the last Cut Words found broken at a line's end, [first piece, second piece] each
     /// (`segment-editor.edge.word-across-lines`): what Join Broken Words joins; emptied once joined.
     var brokenWords: [[String]] = []

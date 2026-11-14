@@ -231,6 +231,16 @@ extension ZoomableImagePreview {
         )
     }
 
+    /// REMOVE THE CUT last clicked (`segment-editor.cut-marks-editable`): its two pieces joined as one, one ⌘Z.
+    func removeSelectedCut() {
+        guard let windowState, let pair = windowState.selectedCutMark, let documentId, let store = segmentEditStore else { return }
+        windowState.selectedCutMark = nil
+        let byId = Dictionary(store.segments(documentId: documentId).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let pieces = pair.compactMap { byId[$0] }
+        guard pieces.count == 2 else { return }
+        runSegmentEdit(SegmentEdit.join(pieces, asLines: true), documentId: documentId, name: "Remove Cut")
+    }
+
     /// DELETE the selected boxes on an artifact-less pass. True when handled here.
     func deleteSelectedSegments() -> Bool {
         guard shownArtifactlessPassId != nil, let documentId else { return false }
