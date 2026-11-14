@@ -139,6 +139,7 @@ struct RegionInteractionLayer: View {
                     liveDrawing(in: geo.size)
                     liveKnife(in: geo.size)
                     liveLasso(in: geo.size)
+                    liveOrderNumbers(in: geo.size)
                     liveSimplify(in: geo.size)
                     segmentNotice()
                     if let rect = liveBandRect {
@@ -336,7 +337,7 @@ extension RegionInteractionLayer {
         // was taken by Reshape and the region, not the drawing, got it.
         if handleKnife(event) || handleMarker(event, in: size) || handleDrawShape(event, in: size)
             || handleReshape(event, in: size) { return }
-        if handleLasso(event, at: point, in: size) { return }
+        if handleOrderClick(event, at: point, in: size) || handleLasso(event, at: point, in: size) { return }
         switch event.phase {
         case .pressed:
             handlePress(at: point, clickCount: event.clickCount, in: size)

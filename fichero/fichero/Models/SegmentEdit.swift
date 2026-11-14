@@ -36,6 +36,8 @@ enum SegmentEdit {
         case cutWords(SegmentCutWordsRequest)
         /// Add Baseline (`segment.add_baseline`).
         case addBaseline(SegmentCutWordsRequest)
+        /// Order by clicking (`reading_order.sequence`).
+        case sequence(ReadingOrderSequenceRequest)
 
         func encode(to encoder: any Encoder) throws {
             try payload.encode(to: encoder)
@@ -89,6 +91,8 @@ enum SegmentEdit {
         case tooFew
         /// A line with no baseline has nothing to redraw its outline from (`segment-editor.edge.no-baseline`).
         case noBaseline
+        /// The page has no `as-written` order for the Order tool to set (`segment-editor.order-by-clicking`).
+        case noOrder
     }
 
     /// MOVE: the box goes to `rect`, and its outline and every extra shape move by the same offset, so

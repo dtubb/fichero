@@ -44,6 +44,7 @@ enum SegmentDeleter {
         case .tooFew: "Select a line to delete."
         case .versionUnknown: "These lines are not saved yet, so they cannot be deleted."
         case .noBaseline: "A line with no baseline cannot be redrawn from one."
+        case .noOrder: "This page has no reading order to set."
         }
     }
 

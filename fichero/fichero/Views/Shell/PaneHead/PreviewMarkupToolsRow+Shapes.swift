@@ -15,6 +15,7 @@ extension PreviewMarkupToolsRow {
                         help: "Line — click points along the text, double-click to finish")
             knifeButton
             markerButton
+            orderButton
             labeled("Simplify") { SimplifySliderButton(windowState: windowState) }
         }
     }
@@ -25,7 +26,7 @@ extension PreviewMarkupToolsRow {
         let armed = windowState?.knifeArmed == true
         return labeled("Knife") {
             Button {
-                if !armed { windowState?.activeMarkupTool = .select; windowState?.markerArmed = false }
+                if !armed { windowState?.activeMarkupTool = .select; windowState?.markerArmed = false; windowState?.orderArmed = false }
                 windowState?.knifeArmed = !armed
             } label: {
                 Image(systemName: "scissors")
@@ -44,7 +45,7 @@ extension PreviewMarkupToolsRow {
         let armed = windowState?.markerArmed == true
         return labeled("Marker") {
             Button {
-                if !armed { windowState?.activeMarkupTool = .select; windowState?.knifeArmed = false }
+                if !armed { windowState?.activeMarkupTool = .select; windowState?.knifeArmed = false; windowState?.orderArmed = false }
                 windowState?.markerArmed = !armed
             } label: {
                 Image(systemName: "pencil.tip")
@@ -57,6 +58,29 @@ extension PreviewMarkupToolsRow {
         }
     }
 
+    /// Order (`segment-editor.order-by-clicking`): click segments in turn to number them; choosing it again (or O,
+    /// Return, Esc, another tool) sets the order, one undo.
+    private var orderButton: some View {
+        let armed = windowState?.orderArmed == true
+        return labeled("Order") {
+            Button {
+                if !armed {
+                    windowState?.activeMarkupTool = .select
+                    windowState?.knifeArmed = false
+                    windowState?.markerArmed = false
+                }
+                windowState?.orderArmed = !armed
+            } label: {
+                Image(systemName: "list.number")
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(armed ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
+            .help("Order — click segments in the order they are read (O); choose it again to set the order")
+            .accessibilityLabel("Order")
+            .accessibilityIdentifier("segmentEditor.tool.order")
+        }
+    }
+
     private func shapeButton(
         _ kind: SegmentShapes.DrawKind, label: String, icon: String, key: KeyEquivalent?, help: String
     ) -> some View {
@@ -66,6 +90,7 @@ extension PreviewMarkupToolsRow {
                 if armed { windowState?.activeMarkupTool = nil; return }
                 windowState?.knifeArmed = false
                 windowState?.markerArmed = false
+                windowState?.orderArmed = false
                 windowState?.shapeKind = kind
                 windowState?.activeMarkupTool = .drawRegion
                 NotificationCenter.default.post(name: .previewRegionVerb, object: PreviewRegionVerb.draw.rawValue)

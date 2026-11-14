@@ -105,6 +105,21 @@ extension SegmentEdit {
         ))
     }
 
+    /// ORDER BY CLICKING (`segment-editor.order-by-clicking`): the clicks, in one order, as one `reading_order.sequence`,
+    /// one undo. The order is the pass's `as-written` (the order the page draws; a named order the Segments pane chose is
+    /// not known here yet).
+    static func sequence(
+        _ clicks: [String], after: String?, passId: String, orders: [ReadingOrderSummary]
+    ) -> Result<Call, Refusal> {
+        guard !clicks.isEmpty else { return .failure(.tooFew) }
+        guard let order = orders.first(where: { $0.passId == passId && $0.name == "as-written" }) else {
+            return .failure(.noOrder)
+        }
+        return .success(Call(action: "reading_order.sequence", params: .sequence(ReadingOrderSequenceRequest(
+            orderId: order.id, segmentIds: clicks, afterSegmentId: after
+        ))))
+    }
+
     /// CUT WORDS on the selected lines (`segment-editor.cut-words-from-positions`): one `segment.cut_words`, one undo.
     /// The engine cuts each line's reading at its spaces, from the recogniser's positions or the ink, and says which
     /// lines it could not cut.
@@ -198,6 +213,7 @@ extension SegmentEdit.Params {
         case .simplify(let params): params
         case .cutWords(let params): params
         case .addBaseline(let params): params
+        case .sequence(let params): params
         case .update, .baseline, .create, .delete, .merge, .updateMany: payload
         }
     }

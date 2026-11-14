@@ -144,6 +144,25 @@ extension ZoomableImagePreview {
         if !closed { windowState?.lastDrawnKind = "line" }
     }
 
+    /// The Order tool left (`segment-editor.order-by-clicking`): its clicks as ONE `reading_order.sequence` in the pass's
+    /// `as-written` order, one ⌘Z; the page says why when there is no such order.
+    func sendOrderClicks() {
+        guard let windowState, let taken = windowState.takeOrderClicks(), let documentId,
+              let store = segmentEditStore, let readingOrderService else { return }
+        let (clicks, after) = (taken.segmentIds, taken.after)
+        guard let passId = store.segments(documentId: documentId).first(where: { $0.id == clicks[0] })?.passId else { return }
+        Task {
+            do {
+                let orders = try await readingOrderService.orders(documentId: documentId)
+                let planned = SegmentEdit.sequence(clicks, after: after, passId: passId, orders: orders)
+                if case .failure(let refusal) = planned { windowState.segmentNotice = SegmentMover.problem(refusal) }
+                runSegmentEdit(planned, documentId: documentId, name: "Set Reading Order")
+            } catch {
+                Self.logger.error("Set Reading Order not sent: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+
     /// DELETE the selected boxes on an artifact-less pass. True when handled here.
     func deleteSelectedSegments() -> Bool {
         guard shownArtifactlessPassId != nil, let documentId else { return false }

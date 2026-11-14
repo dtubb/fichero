@@ -29,6 +29,36 @@ extension RegionInteractionLayer {
         }
     }
 
+    /// The Order tool (`segment-editor.order-by-clicking`): a click on a segment numbers it next, or takes its number
+    /// away; ⇧ on the first click continues after the selected segment. True while the tool is chosen, so nothing else
+    /// acts on the page meanwhile. Nothing is sent until the tool is left.
+    func handleOrderClick(_ event: PreviewPointerEvent, at viewPoint: CGPoint, in size: CGSize) -> Bool {
+        guard let windowState, windowState.orderArmed, drawsSegments else { return false }
+        guard event.phase == .pressed,
+              let picked = RegionHitTesting.pick(at: viewPoint, boxes: boxes.map { $0.box.bbox }, in: size, visible: visible),
+              let segmentId = boxes[picked].box.segmentId else { return true }
+        let selected = selection.resolvedIndices(in: allBoxes).first.flatMap { allBoxes[$0].segmentId }
+        windowState.clickInOrder(segmentId, after: event.shift ? selected : nil)
+        return true
+    }
+
+    /// The numbers clicked so far, on each segment's top-left corner.
+    @ViewBuilder
+    func liveOrderNumbers(in size: CGSize) -> some View {
+        let clicks = windowState?.orderClicks ?? []
+        ForEach(Array(clicks.enumerated()), id: \.element) { number, segmentId in
+            if let box = allBoxes.first(where: { $0.segmentId == segmentId }),
+               let rect = BoundingBoxGeometry.viewRect(normalized: box.bbox, in: size, visible: visible) {
+                Text("\(number + 1)")
+                    .font(.caption.bold().monospacedDigit())
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 5).padding(.vertical, 1)
+                    .background(Color.accentColor, in: Capsule())
+                    .offset(x: rect.minX, y: rect.minY)
+            }
+        }
+    }
+
     /// The loop so far, drawn over the page.
     @ViewBuilder
     func liveLasso(in size: CGSize) -> some View {

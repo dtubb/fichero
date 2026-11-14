@@ -118,6 +118,8 @@ struct ZoomableImagePreview: View {
     /// for the same reason as `artifactService`: a preview or a host without the
     /// library environment must not trap, it simply draws from the artifact path.
     @Environment(SegmentService.self) var segmentService: SegmentService?
+    /// The page's reading orders, for the Order tool's one call (`segment-editor.order-by-clicking`).
+    @Environment(ReadingOrderService.self) var readingOrderService: ReadingOrderService?
     /// ⌘Z for region edits (`source.editor.system-undo`, #4941). The system undo manager
     /// the window provides, and the action store whose service asks the engine to invert
     /// an audited row. Both optional: a host without them simply offers no undo.
@@ -498,7 +500,7 @@ extension ZoomableImagePreview {
             .onKeyPress(.return, phases: .down) { _ in finishShapeDrawingFromKey() }
             // Hold K for the Knife, M for the Marker, one stroke; a tap chooses the tool (`segment-editor.split-knife`,
             // `segment-editor.marker`).
-            .onKeyPress(keys: [.init("k"), .init("m")], phases: [.down, .up]) { press in holdSpringTool(press) }
+            .onKeyPress(keys: [.init("k"), .init("m"), .init("o")], phases: [.down, .up]) { press in holdSpringTool(press) }
             // Daniel's ruling (2026-08-10, audit 3c): left/right mean
             // PREVIOUS/NEXT item, up/down pan the current image. ←/→ pan
             // only when the zoomed image can actually travel horizontally;

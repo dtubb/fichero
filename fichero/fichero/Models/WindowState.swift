@@ -90,7 +90,7 @@ class WindowState {
     /// first opening the markup bar.
     var activeMarkupTool: PreviewMarkupTool? = .select {
         // Another tool chosen puts the Knife down (`segment-editor.split-knife`).
-        didSet { if activeMarkupTool != oldValue { knifeArmed = false; markerArmed = false } }
+        didSet { if activeMarkupTool != oldValue { knifeArmed = false; markerArmed = false; orderArmed = false } }
     }
 
     /// Segment editing is a MODE of the Source view (`source.editor.segment-focus`, #5114,
@@ -190,6 +190,30 @@ class WindowState {
         }
         markerHeld = false
         markerStrokedWhileHeld = false
+    }
+
+    /// The Order tool (`segment-editor.order-by-clicking`): while it is chosen, segments clicked in turn are numbered
+    /// 1, 2, 3 …; leaving it (O, Return, Esc, another tool) sends the clicks once as `reading_order.sequence`.
+    var orderArmed = false
+    var orderClicks: [String] = []
+    /// ⇧ on the first click: the clicked segments read right after this one (the selection's).
+    var orderAfter: String?
+
+    /// A click on a segment in Order: numbered next, or, clicked again, its number taken away.
+    func clickInOrder(_ segmentId: String, after selected: String?) {
+        if let index = orderClicks.firstIndex(of: segmentId) {
+            orderClicks.remove(at: index)
+            return
+        }
+        if orderClicks.isEmpty { orderAfter = selected == segmentId ? nil : selected }
+        orderClicks.append(segmentId)
+    }
+
+    /// Once Order is left (`orderArmed` false): the clicks to send, taken so they are sent once; nil when there are none.
+    func takeOrderClicks() -> (segmentIds: [String], after: String?)? {
+        guard !orderArmed, !orderClicks.isEmpty else { return nil }
+        defer { orderClicks = []; orderAfter = nil }
+        return (orderClicks, orderAfter)
     }
 
     /// The Shape popover's Simplify slider (`segment-editor.vertices`): the tolerance in image pixels while the slider is
@@ -403,5 +427,23 @@ struct SimplifyRelease: Equatable {
             return polygon + [first]
         }
         return outlines + baselines.compactMap { $0 }
+    }
+}
+
+/// `reading_order.sequence`: the segments clicked in the Order tool, in click order, in one order.
+struct ReadingOrderSequenceRequest: Encodable, Equatable {
+    let orderId: String
+    let segmentIds: [String]
+    let afterSegmentId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case orderId = "order_id", segmentIds = "segment_ids", afterSegmentId = "after_segment_id"
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(orderId, forKey: .orderId)
+        try container.encode(segmentIds, forKey: .segmentIds)
+        try container.encodeIfPresent(afterSegmentId, forKey: .afterSegmentId)
     }
 }
