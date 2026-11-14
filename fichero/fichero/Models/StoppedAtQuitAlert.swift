@@ -34,7 +34,7 @@ final class StoppedAtQuitAlert {
     var isPresented = false
     /// Projects already asked this launch: each is asked once, when it opens.
     @ObservationIgnored private var asked: Set<UUID> = []
-    private let log = Logger(subsystem: "app.fichero", category: "StoppedAtQuitAlert")
+    private let log = Logger(subsystem: "app.fichero.fichero", category: "StoppedAtQuitAlert")
 
     /// The alert's title, by the count: "3 runs were stopped when Fichero quit".
     static func title(count: Int) -> String {
