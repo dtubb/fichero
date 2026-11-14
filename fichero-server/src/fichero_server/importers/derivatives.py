@@ -24,6 +24,8 @@ what a retry can select on.
 
 from __future__ import annotations
 
+from contextvars import ContextVar
+
 import contextlib
 import itertools
 import logging
@@ -829,6 +831,11 @@ class SourceMissing(Exception):
     """A page's original is not where it was imported from; the message is the sentence the job row shows (#5818)."""
 
 
+#: True while a derivative stage runs as a JOB on the lane (`_embed_job`): a failure then ends the job failed in words. An
+#: import's inline pass (`generate_derivative`) runs with it False: the error is recorded and the import goes on.
+LOUD: ContextVar[bool] = ContextVar("fichero_derivatives_loud", default=False)
+
+
 class DerivativeFailed(Exception):
     """A thumbnail or an embed could not be made: the message is the plain sentence with its fix that the job row shows
     (owner 2026-11-13: never fail silently; `activity.run.failed-is-never-requeued-by-itself`). The raw error stays on the
@@ -1039,9 +1046,10 @@ def _embed_stage(doc_id: str, library: str) -> None:
                 "Could not persist derivative outcome for %s: %s", doc_id, exc
             )
             return
-        if embed_error:
-            # Loud, never silent (owner 2026-11-13): the embed job ends failed with a plain sentence; the raw error is on the
-            # document's metadata (`embedding_error`) for Copy Details.
+        if embed_error and LOUD.get():
+            # Loud, never silent (owner 2026-11-13): the embed JOB ends failed with a plain sentence; the raw error is on the
+            # document's metadata (`embedding_error`) for Copy Details. An inline call (an import's own derivative pass,
+            # `generate_derivative`) records the error and goes on: the import is not the thing that failed.
             raise DerivativeFailed(f"Search could not index {doc.name}. Try again; if it fails again, the page's text may "
                                    "be unreadable.")
 
@@ -1216,6 +1224,15 @@ def _thumbnail_job(db: "Database", doc_id: str) -> Path | None:
     return thumb
 
 
+def _embed_job(db: "Database", doc_id: str) -> None:
+    """The embed kind: the stage, loud (a failure ends the job failed in words, owner 2026-11-13)."""
+    token = LOUD.set(True)
+    try:
+        _embed_stage(doc_id, _library_of(db))
+    finally:
+        LOUD.reset(token)
+
+
 def _embed_knowledge_job(db: "Database", subject: str) -> None:
     from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
 
@@ -1256,7 +1273,7 @@ def register_job_kinds() -> None:
                        # Cheap, and what the person sees: made before the heavy local work queued
                        # after them (`activity.lane.thumbnails-first`, #5585).
                        first=True)
-    jobs.register_kind(EMBED_KIND, lambda db, doc_id: _embed_stage(doc_id, _library_of(db)),
+    jobs.register_kind(EMBED_KIND, lambda db, doc_id: _embed_job(db, doc_id),
                        model="embedder", name="Embed for search",
                        # Its own lane (#5847: the embedder is a child process): an embed beside a Kraken page must not
                        # unload Kraken's models at the end of a step and reload them for the next.

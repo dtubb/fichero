@@ -127,6 +127,27 @@ def test_a_group_member_that_started_meanwhile_is_skipped_and_named(held, client
     assert _state(held, taken)[0] == "running"
 
 
+def test_stop_then_delete_on_a_running_row_asks_it_to_stop_and_hides_it_at_once(held, client, monkeypatch):
+    """`activity.pane.row-actions-on-the-table`: Delete on a running row is Stop then Delete after the person's one confirmation
+    (`stop_running`); the row leaves every list now and ends under the mark when its lane thread returns."""
+    stopped: list[str] = []
+    monkeypatch.setitem(jobs.KINDS, "t-stoppable", jobs.Kind(run=lambda db, subject: None, model=None, name="A long job",
+                                                              cancel=lambda db, job_id: stopped.append(job_id) or "stopping"))
+    running = jobs.enqueue(held, "t-stoppable", "sd:1")
+    held.execute("UPDATE jobs SET state = 'running' WHERE id = ?", [running])
+    jobs._scheduler.running_ids = lambda: [running]
+
+    plain = client.post("/api/activity/jobs/delete", json={"ids": [running]}).json()
+    assert plain["skipped_ids"] == [running], "without the confirmation a running row is skipped and named"
+
+    confirmed = client.post("/api/activity/jobs/delete", json={"ids": [running], "stop_running": True}).json()
+
+    assert confirmed["deleted_ids"] == [running] and stopped == [running], "asked to stop through its kind's own Stop"
+    assert running not in {j["id"] for j in client.get("/api/activity/jobs").json()["jobs"]}, "gone from the list at once"
+    held.execute("UPDATE jobs SET state = 'cancelled', finished_at = now() WHERE id = ?", [running])  # the lane's end
+    assert running not in {j["id"] for j in client.get("/api/activity/jobs", params={"archived": True}).json()["jobs"]}
+
+
 def test_an_unknown_id_is_skipped_not_an_error(held, client):
     r = client.post("/api/activity/jobs/delete", json={"ids": ["no-such-job"]})
     assert r.status_code == 200, r.text

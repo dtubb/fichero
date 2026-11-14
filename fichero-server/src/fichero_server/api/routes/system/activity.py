@@ -953,7 +953,7 @@ async def list_background_jobs(
     from fichero_server.recipes import runner as recipe_runner
 
     # Once per poll: the summary reads this one too. Off the loop (#5843): the reads wait on the transaction gate.
-    listed = await asyncio.to_thread(lambda: job_queue.snapshot(db, archived=archived))
+    listed = await asyncio.to_thread(job_queue.snapshot, db, archived=archived)
     recipe_statuses: dict[str, dict[str, Any]] = {}  # each live recipe run's status, read once for the list and the summary
     for row in listed:
         state, reason = row["state"], row["reason"]
@@ -1639,6 +1639,8 @@ class DeleteJobsParams(BaseModel):
     ids: list[str] = Field(default_factory=list, description="job ids, or a kind's row (`waiting:<kind>`, `paused:<kind>`)")
     states: Optional[list[str]] = Field(default=None, description=(
         "also every top-level job of its own in these states (Clear Finished…: done, failed, cancelled)"))
+    stop_running: bool = Field(default=False, description=(
+        "Stop then Delete (the person confirmed): a running row is asked to stop and deleted at once instead of skipped"))
 
 
 class DeleteJobsResponse(BaseModel):
@@ -1669,7 +1671,7 @@ def _invert_job_delete(before: dict | None, after: dict | None, ctx: ActionConte
 def _action_job_delete(db: Database, params: DeleteJobsParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     from fichero_server.execution import jobs as job_queue
 
-    deleted, skipped = job_queue.delete_jobs(db, params.ids, params.states)
+    deleted, skipped = job_queue.delete_jobs(db, params.ids, params.states, stop_running=params.stop_running)
     result = {"deleted_ids": deleted, "skipped_ids": skipped, "count": len(deleted)}
     return result, ChangeSpec(
         domains=["activity"], target_ids=deleted, before={"asked": params.ids, "states": params.states},

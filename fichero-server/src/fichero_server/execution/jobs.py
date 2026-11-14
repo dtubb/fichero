@@ -2495,10 +2495,11 @@ def resume(db: "Database") -> None:
     )
     # A job a person stopped that was still winding down when the engine went away is not taken up again
     # (#5609): it ends as stopped. (A workflow run's row is settled with its record, `mark_interrupted_runs`.)
+    # (Any "Stopping…" words: a page's, a recipe's; the states table: at open stopping → stopped.)
     db.execute(
         f"UPDATE jobs SET state = 'cancelled', reason = 'Stopped by you', finished_at = ? "
-        f"WHERE state = 'running' AND reason = ? AND kind NOT IN ({', '.join('?' for _ in RUN_KINDS)}){not_live}",
-        [utc_now(), STOPPING, *RUN_KINDS, *live],
+        f"WHERE state = 'running' AND reason LIKE 'Stopping%' AND kind NOT IN ({', '.join('?' for _ in RUN_KINDS)}){not_live}",
+        [utc_now(), *RUN_KINDS, *live],
     )
     # Only work that was running at quit, and that nobody cancelled or deleted, carries on (owner 2026-11-13, #6584,
     # `activity.relaunch.only-running-work-resumes`). A row deleted in Activity (`cleared_at`) ends instead of coming back.
@@ -3658,11 +3659,15 @@ def undelete_jobs(db: "Database", ids: list[str]) -> list[str]:
     return out
 
 
-def delete_jobs(db: "Database", ids: list[str], states: list[str] | None = None) -> tuple[list[str], list[str]]:
+def delete_jobs(db: "Database", ids: list[str], states: list[str] | None = None, *,
+                stop_running: bool = False) -> tuple[list[str], list[str]]:
     """Delete in Activity (`activity.window.delete-any-row`, #6583): each id a job row, or a kind's row
     (`waiting:<kind>`, `paused:<kind>`: every job of that kind not started); with `states`, every top-level job of its
     own in one of those states as well (Clear Finished…: done, failed, cancelled; `activity.pane.automatic-runs-easy-to-delete`;
-    workflow runs and batches keep their own delete). A row still running on a lane is skipped.
+    workflow runs and batches keep their own delete). A row still running on a lane is skipped and named, unless
+    `stop_running` (Stop then Delete, the person's one confirmation): it is asked to stop through its kind's own Stop (a page
+    mid-read drops its result when it returns, `mark_stopping`), marked deleted at once so no list shows it, and ends under
+    the mark.
     A waiting or paused row is cancelled first ("Deleted by you"), so no lane picks it; then the row and every row under
     it are marked `cleared_at` (kept for the tree, the record and a Retry, never listed again; `resume` ends a marked
     row instead of taking it up). Returns (the ids deleted, the ids skipped)."""
@@ -3694,9 +3699,20 @@ def delete_jobs(db: "Database", ids: list[str], states: list[str] | None = None)
             # Judged at receipt (review 2026-11-13): a row that started between the person's click and this request is
             # skipped and named, never deleted under its lane thread; `live` is this engine's guard, the row's state the truth.
             now_state = db.execute_fetchone("SELECT state FROM jobs WHERE id = ?", [job_id])
-            if now_state is None or (now_state[0] == "running" and job_id in live):
+            if now_state is None or (now_state[0] == "running" and job_id in live and not stop_running):
                 skipped.append(job_id)
                 continue
+            if now_state[0] == "running" and job_id in live:
+                # Stop then Delete (`activity.pane.row-actions-on-the-table`): the kind's own Stop; a page mid-read drops
+                # what it reads; the lane writes the row's end under the deleted mark set below, where no list reads it.
+                kind_now = db.execute_fetchone("SELECT kind FROM jobs WHERE id = ?", [job_id])[0]
+                if _is_attached(kind_now):
+                    _scheduler.mark_stopping(db, job_id)
+                else:
+                    try:
+                        cancel_job(db, job_id)
+                    except (ValueError, KeyError):  # a kind with no Stop of its own finishes its item; the mark hides it
+                        pass
             under = _under(db, job_id)
             marks = ", ".join("?" for _ in under)
             # What Delete stops remembers its state, so Undo (`undelete_jobs`) puts it back as it was.
