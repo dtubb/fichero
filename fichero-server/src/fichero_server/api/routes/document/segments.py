@@ -4089,6 +4089,76 @@ def _hyphenated_pairs(db: Database, cut: list[tuple[Segment, list]]) -> list[lis
     return pairs
 
 
+class SegmentMoveCutParams(BaseModel):
+    """`segment-editor.cut-marks-editable`: a cut mark dragged along the baseline."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    first_id: str = Field(description="The word (or character) before the cut, in reading order.")
+    second_id: str = Field(description="The word (or character) after it, on the same line.")
+    at: float = Field(gt=0, lt=1, description="Where the cut goes, as a fraction along the line's baseline.")
+    expected_versions: dict[str, int] = Field(description="Both pieces' versions as last read, {segment_id: version}.")
+
+
+@action(
+    "segment.move_cut",
+    SegmentMoveCutParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_many_via_previous_version,
+)
+def _action_move_cut(db: Database, params: SegmentMoveCutParams, ctx: ActionContext):
+    """The boundary between two neighbouring pieces of one line moved (`segment-editor.cut-marks-editable`): the two
+    pieces' joined outline and baseline cut again across the line's baseline at `at`; both become a person's cut
+    (`cut_source: person`, confidence 1); their stretches of the reading are unchanged (the text still splits where it
+    did). A cut outside the two pieces is refused. One action, one undo."""
+    from fichero_server.media import line_cut, line_join
+
+    first = _live_current_row(db, params.first_id, _require_expected_version(params.expected_versions, params.first_id))
+    second = _live_current_row(db, params.second_id, _require_expected_version(params.expected_versions, params.second_id))
+    if first.parent_segment_id is None or first.parent_segment_id != second.parent_segment_id or first.kind != second.kind:
+        raise HTTPException(status_code=422, detail="a cut is moved between two pieces of the same kind on one line")
+    line = db.get(Segment, first.parent_segment_id)
+    outlines = [line_join.outline_of(row.anchor) for row in (first, second)]
+    if line is None or not line.baseline or len(line.baseline) < 2 or None in outlines or not first.baseline or not second.baseline:
+        raise HTTPException(status_code=422, detail="the two pieces and their line need outlines and baselines to move a cut")
+    x0, y0, x1, y1 = line_join.bounds(outlines[0] + outlines[1])
+    stroke = line_cut.across(line.baseline, params.at, max(x1 - x0, y1 - y0) * 4)
+    joined = first.baseline + second.baseline[1:]
+    hits = line_cut.crossings(joined, stroke)
+    if not hits:
+        raise HTTPException(status_code=422, detail="the cut must stay between the start of the first piece and the end of the second")
+    pieces = line_cut.baseline_pieces(joined, hits[:1])
+    polygons = line_cut.cut_outline_along(line_join.joined_outline(outlines, None), pieces, [stroke])
+    if polygons is None:
+        raise HTTPException(status_code=422, detail="the outline could not be cut there")
+
+    audit_id = uuid.uuid4().hex
+    before_versions, after_versions = [], []
+    for row, polygon, piece in zip((first, second), polygons, pieces):
+        before_versions.append({"segment_id": row.id, "version": row.version})
+        snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        px0, py0, px1, py1 = line_join.bounds(polygon)
+        row.anchor = row.anchor.model_copy(update={"polygon": polygon, "rect": [px0, py0, px1 - px0, py1 - py0]})
+        row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_and_tile_from_anchor(row.anchor)
+        row.baseline = piece
+        row.metadata = {**(row.metadata or {}), "cut_source": "person", "cut_confidence": 1.0}
+        db.save(row)
+        after_versions.append({"segment_id": row.id, "version": row.version})
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=[first.id, second.id],
+        before={"versions": before_versions},
+        after={"versions": after_versions},
+        emit_type="segment.updated",
+        segment_ids=[first.id, second.id],
+        pass_ids=[first.pass_id],
+        document_ids=[first.document_id],
+    )
+    return {"versions": after_versions}, spec
+
+
 class SegmentCutCharactersParams(BaseModel):
     """`segment-editor.cut-characters`: Cut Characters on words."""
 

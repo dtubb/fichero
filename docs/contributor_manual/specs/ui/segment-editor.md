@@ -487,13 +487,18 @@ See section 7.2 below for what exists. The design:
   export can tell a measured cut from a guessed one and a person's from a machine's.
   *Built (2026-11-13):* `cut_source` (`ctc`, `ink-gap`), `cut_confidence`, `cut_from_representation_id`
   and `reading_span` on every word `segment.cut_words` makes. *Not built:* `person` (the cut marks).
-- `segment-editor.cut-marks-editable` — **[GAP]** (→ #5212; app + engine) in the word layer each cut is a short mark
+- `segment-editor.cut-marks-editable` — **[PARTIAL]** (→ #5212; app + engine) in the word layer each cut is a short mark
   across the baseline: drag it to move the cut (one `segment.update` of the two words' anchors
   and spans, `cut_source: person`); click on the baseline between two words to add a cut
   (`segment.split` of the word under the click, `at_offset` chosen from the positions); click
   a mark and press ⌫ to remove it (`segment.merge` of the two words). The same marks appear for
   characters inside a word at a deeper zoom. A mark whose confidence is under 0.5 is drawn
-  dashed; a person's is solid.
+  dashed; a person's is solid. *Built (2026-11-14):* the engine for the drag: `segment.move_cut` (two neighbouring
+  pieces of one line, a word's or a character's, their joined outline and baseline cut again across the line's
+  baseline at the new place; both become `cut_source: person` with confidence 1; spans unchanged; a cut outside the
+  two pieces refused; one undo), a new action rather than the `segment.update` named above, as one update cannot
+  change two rows. *Not built:* the marks, adding a cut by a click, ⌫ on a mark. *Tests:*
+  `fichero-server/tests/unit/api/test_segment_move_cut.py`.
 - `segment-editor.word-view` — **[GAP]** (→ #5212; app; ties to `../source/line-editor.md`) with the word layer on, words
   are shown as alternating tints of the line's hue (two steps) or, by a setting, as outlines
   only; hovering a word shows its text; selecting a word selects its stretch of the reading in
