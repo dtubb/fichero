@@ -178,7 +178,7 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   `fichero-server/tests/unit/jobs/test_relaunch_resumes_only_running_work_6584.py`,
   `fichero-server/tests/unit/workflows/test_quit_paused_runs_resume_5357.py` (inverted: they stay paused),
   `fichero/Tests/Unit/general/Models/ActivityLaunchAlertTests.swift`.
-- `activity.run.failed-is-never-requeued-by-itself` — **[GAP]** (#6584, decision 15) a row that ended `failed` or `stopped` is run
+- `activity.run.failed-is-never-requeued-by-itself` — **[PARTIAL]** (#6584, decision 15) a row that ended `failed` or `stopped` is run
   again ONLY by a person's Retry (the row's, the alert's, Read Again): not by the open (above), not by automatic work (the open's
   derivative recovery skips a document whose derivative failed, built in `jobs`/`derivatives` 2026-11-13; a recipe's automatic
   start runs only over material that ARRIVED, never over pages whose last run failed), not by a recipe that finds its awaited step
@@ -186,8 +186,17 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   re-queueing it by itself), and not by a lane's attempts counter (`MAX_ATTEMPTS` applies to interruptions, and an interruption
   now pauses). Acceptance: a library with yesterday's failed recipe run, a failed thumbnail and a recipe parked on a step run that
   was deleted is opened and left for a minute with Run Automatically on: no new row, no model call, the failed rows unchanged, the
-  parked recipe paused with the line above. *Tests:* `test_failed_is_never_requeued_6584.py` (to
-  write), the existing `test_relaunch_resumes_only_running_work_6584.py` (the failed and derivative halves).
+  parked recipe paused with the line above. **Built (2026-11-13 night):** the open touches no failed row; a document whose
+  derivative failed is not queued again at open, and the failure is LOUD: a thumbnail or embed that cannot be made ends its
+  job failed with a plain sentence and its fix ("The thumbnail for page.png could not be made. Try again, or open the file to
+  check it is a readable image."), the raw error kept on the document for Copy Details (`derivatives.DerivativeFailed`); a
+  rescan at open holds the synced folder's read for the launch alert instead of importing and starting a recipe run
+  (`sync_folder.rescan(hold=True)`, `jobs.NEW_MATERIAL_REASON`). Not built: the parked recipe staying paused when its step run
+  is gone (today a person's Continue re-runs that step; no self-restart was found there). *Tests:*
+  `fichero-server/tests/unit/importers/test_derivative_failures_are_loud_6584.py`,
+  `fichero-server/tests/unit/jobs/test_rescan_at_open_holds_for_the_alert_6584.py`,
+  `fichero-server/tests/unit/jobs/test_relaunch_resumes_only_running_work_6584.py` (the failed and derivative halves);
+  not yet written: test_failed_is_never_requeued_6584.py (the minute-long automatic tick).
 - `activity.run.never-repeats-done-work` — **[PARTIAL]** (#6584, decision 18; the owner's standing rule that every model call reuses an
   existing result for the same input and model first, `reviewer-no-model-reruns`) when a run continues (Continue after a pause or a
   quit, Retry on a failed run, a recipe re-run over the same pages) every page or item that already has a result for the same

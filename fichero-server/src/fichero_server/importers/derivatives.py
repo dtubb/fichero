@@ -829,6 +829,12 @@ class SourceMissing(Exception):
     """A page's original is not where it was imported from; the message is the sentence the job row shows (#5818)."""
 
 
+class DerivativeFailed(Exception):
+    """A thumbnail or an embed could not be made: the message is the plain sentence with its fix that the job row shows
+    (owner 2026-11-13: never fail silently; `activity.run.failed-is-never-requeued-by-itself`). The raw error stays on the
+    document's metadata for Copy Details."""
+
+
 def _thumbnail_stage(doc_id: str, library: str) -> Path | None:
     """Generate one document's thumbnail and announce it IMMEDIATELY — the
     change event used to wait behind that document's ~1.3s embed, so the grid
@@ -1033,6 +1039,11 @@ def _embed_stage(doc_id: str, library: str) -> None:
                 "Could not persist derivative outcome for %s: %s", doc_id, exc
             )
             return
+        if embed_error:
+            # Loud, never silent (owner 2026-11-13): the embed job ends failed with a plain sentence; the raw error is on the
+            # document's metadata (`embedding_error`) for Copy Details.
+            raise DerivativeFailed(f"Search could not index {doc.name}. Try again; if it fails again, the page's text may "
+                                   "be unreadable.")
 
         # NO per-doc document.updated here — see the docstring. The bulk-embed
         # flood re-fired heavy content loads and made the UI unusable.
@@ -1196,6 +1207,12 @@ def _thumbnail_job(db: "Database", doc_id: str) -> Path | None:
     error = str((doc.metadata or {}).get("derivative_error") or "") if doc is not None else ""
     if error.endswith(MISSING_ORIGINAL_TAIL):
         raise SourceMissing(error)
+    if error:
+        # Loud, never silent (owner 2026-11-13): the job ends failed with a plain sentence and its fix, shown in Activity, and
+        # is not run again at the next open (`queue_derivatives` skips a document whose derivative failed).
+        raise DerivativeFailed(
+            f"The thumbnail for {doc.name if doc is not None else 'this page'} could not be made. "
+            "Try again, or open the file to check it is a readable image.")
     return thumb
 
 
