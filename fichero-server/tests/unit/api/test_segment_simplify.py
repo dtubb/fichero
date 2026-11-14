@@ -145,3 +145,17 @@ def test_the_preview_leaves_out_a_shape_the_tolerance_does_not_change(db, client
     )
     assert response.status_code == 200, response.text
     assert response.json()["shapes"] == []
+
+
+def test_the_preview_refuses_a_segment_of_another_page(db, client):
+    """The page in the path is the one the caller's access is checked on, so a segment of another page is refused
+    rather than previewed (the page-deny sweep's declared list, `test_a_page_deny_reaches_every_read.py`)."""
+    doc, pass_id = _page(db, client)
+    line = _dense_line(client, doc, pass_id)
+    other = Document(name="other.png", doc_type=DocType.file, file_type=FileType.image, path=doc.path,
+                     status=Status.completed)
+    db.save(other)
+    response = client.get(
+        f"/api/segments/document/{other.id}/simplify-preview", params={"segment_ids": [line], "tolerance": 2.0},
+    )
+    assert response.status_code == 404, response.text

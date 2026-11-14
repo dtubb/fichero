@@ -87,6 +87,8 @@ FILTERED_LISTS = {
     "ids": "test_every_listing_of_documents_leaves_out_a_denied_one",
     "scope_ids": "test_a_training_set_preview_leaves_out_a_denied_page",
     "held_out_ids": "test_a_training_set_preview_leaves_out_a_denied_page",
+    # Simplify's preview: every id must be a segment of the page in the path, the id the read is checked on.
+    "segment_ids": "test_the_preview_refuses_a_segment_of_another_page",
 }
 
 #: GET routes that take an id and do not read the library through the library dependency, with why.
