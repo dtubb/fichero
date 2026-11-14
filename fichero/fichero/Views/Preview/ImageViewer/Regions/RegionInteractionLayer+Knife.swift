@@ -21,6 +21,7 @@ extension RegionInteractionLayer {
         case .released:
             let stroke = KnifeStroke.thinned(windowState.knifeStroke + [point])
             windowState.knifeStroke = []
+            if windowState.knifeHeld { windowState.knifeStrokedWhileHeld = true }
             if stroke.count >= 2 { onKnifeCommit?(stroke) }
         }
         return true
