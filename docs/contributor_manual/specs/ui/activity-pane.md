@@ -537,7 +537,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ ●●●  Activity      ⏸ ▶ ⏹   ⋯▾     [ Runs │ Files │ Cost │ Where ]                    ⌕ Filter            [◫]  │
+│ ●●●  Activity      ⏸ ▶ ⏹   ⋯▾     [ Runs │ Files │ Cost │ Where ]                                        [◫]  │
 ├────────────────────────────────────────────────────────────────────────────────┬───────────────────────────────┤
 │    Name                            State                      Steps        Time │ ✗ Download bge-m3             │
 │ ▾⚙ Download bge-m3                 ✗ Can't load [Download Again]          3 min │   Search model · automatic    │
@@ -551,6 +551,8 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
 │ ▸👤 Find names · Diary 1912 · 40    ✓(green)  Done                         14 m │ 14:00:15 info  Fetching …     │
 ├────────────────────────────────────────────────────────────────────────────────┴───────────────────────────────┤
 │ RUNS  ▁▂▅▇▆▃ pages/min (last hour)   │ 2 running · 3 waiting · 2 blocked · 2 need you │ $0.50 today            │
+├────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ☰ Metadata ▾   (≡▾ Filter: state: failed               ⊗)                                                     │
 └────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
   Cost tab's panel:  ▁▃▅ spend/hour │ today $0.50 · OpenRouter $0.42 · Gemini $0.08 │ 12,400 tokens
   Where tab's panel: This Mac ▇▇▇░ 3 of 4 lanes │ Other Mac — │ Cloud 2 calls in flight │ Cluster —
@@ -608,12 +610,22 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
 
 - `activity.window.toolbar-tabs` — **[GAP]** (#6588; decision 23; supersedes the Group by control of
   `activity.pane.group-by-run-or-by-file`) the Activity window's toolbar has ONE segmented control **Runs | Files | Cost |
-  Where** and a search field (the filter tokens, `activity.pane.history-kept-and-filterable`); each tab is a grouping plus a
+  Where** and no search field (the filter is the bottom bar's, `activity.pane.bottom-bar-like-every-pane`); each tab is a grouping plus a
   column set over the same rows: **Runs** by run (Name, State, Steps, Time, Cost); **Files** by file (File, State, Steps it
   went through as its trail, Last run); **Cost** by run (Name, Model, Tokens, Time, Spent, To finish); **Where** by run (Name,
   Runs on: This Mac / Other Mac / Cloud / Cluster, Lane, State). The tab is per pane and remembered; a main window's Activity
   pane offers the same four in its head's lens menu. Acceptance: each tab shows its columns; switching keeps a selected row
   selected when it is listed in both. *Test:* not yet written: `ActivityToolbarTabsTests.swift`.
+- `activity.pane.bottom-bar-like-every-pane` — **[GAP]** (#6588; the owner 2026-11-14: "filter bar and metadata button at the
+  bottom like in the rest of the app"; `panes.chrome.one-filter-pattern`, `PaneFilterBar`, `PaneFilterField`; supersedes the
+  filter field at the top of `activity.pane.history-kept-and-filterable` and the window's Group by row) the pane's one bottom
+  bar is the app's: **Metadata** (the column toggles of the one column table, `activity.pane.default-columns`, the same as the
+  header's menu) and the **Filter** field (`PaneFilterField`: the tokens as typed, its menu what the list shows: Show
+  Archived, Failed, Needs You, Started by automatic, Today); the status line's figures move to the bottom panel in the window
+  and stay as the bar's trailing text in a main window's pane. Nothing of Activity's is a custom control at the top but the
+  toolbar's verbs and tabs. Acceptance: the pane's view tree has one `PaneFilterBar` at the bottom holding a
+  `PaneFilterField` and the Metadata menu, and no filter field above the table. *Test:* not yet written:
+  `ActivityBottomBarTests.swift`.
 - `activity.window.toolbar-verbs` — **[GAP]** (#6588; decision 24) **Pause**, **Continue** and **Stop** are toolbar buttons of
   the Activity window and of a main window while its Activity pane holds the focus, enabled by the Mail rule over the
   selection (the one verb list's definitions, `ActivityPaneVerb`), with the Inspector toggle; the More menu (⋯) keeps Show
