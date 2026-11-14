@@ -7,7 +7,7 @@
 import Testing
 
 struct ActivityRowActionsTests {
-    typealias F = ActivityPaneFixture
+    typealias Fix = ActivityPaneFixture
     typealias Verb = ActivityPaneVerb
 
     /// The spec's states table: each state and the verbs it allows.
@@ -25,21 +25,21 @@ struct ActivityRowActionsTests {
     @Test("every state allows exactly its verbs from the states table")
     func statesTable() {
         for (phase, verbs) in Self.table {
-            let row = F.row("x", phase)
+            let row = Fix.row("x", phase)
             #expect(Set(Verb.allCases.filter { $0.allows(row) }) == verbs, "\(phase)")
         }
-        var stopping = F.row("s", .running)
+        var stopping = Fix.row("s", .running)
         stopping.transientState = "Stopping"
         #expect(Set(Verb.allCases.filter { $0.allows(stopping) }) == [.stop, .delete])
-        var archived = F.row("a", .done)
+        var archived = Fix.row("a", .done)
         archived.isArchived = true
         #expect(Set(Verb.allCases.filter { $0.allows(archived) }) == [.putBack, .delete])
-        #expect(Verb.allCases.allSatisfy { !$0.allows(F.page("p", .failed, doc: "d")) }, "a file goes with its run")
+        #expect(Verb.allCases.allSatisfy { !$0.allows(Fix.page("p", .failed, doc: "d")) }, "a file goes with its run")
     }
 
     @Test("Mail rule: failed + paused + running enables Delete, Stop, Continue and Pause (the running one allows it)")
     func mailRule() {
-        let rows = [F.row("f", .failed), F.row("p", .paused), F.row("r", .running)]
+        let rows = [Fix.row("f", .failed), Fix.row("p", .paused), Fix.row("r", .running)]
         #expect(Set(Verb.allCases.filter { $0.isEnabled(for: rows) }) == [.delete, .stop, .resume, .pause, .retry, .archive])
         #expect(!Verb.putBack.isEnabled(for: rows))
         let (targets, skipped) = Verb.resume.split(rows)
@@ -51,11 +51,11 @@ struct ActivityRowActionsTests {
 
     @Test("one button per row: the failed row's fix, else its state's verb; none when the state has no verb")
     func oneButton() {
-        #expect(F.row("r", .running).paneButton == .verb(.pause))
-        #expect(F.row("p", .paused).paneButton == .verb(.resume))
-        #expect(F.row("f", .failed).paneButton == .verb(.retry))
-        #expect(F.row("d", .done).paneButton == nil)
-        var keyMissing = F.row("k", .failed)
+        #expect(Fix.row("r", .running).paneButton == .verb(.pause))
+        #expect(Fix.row("p", .paused).paneButton == .verb(.resume))
+        #expect(Fix.row("f", .failed).paneButton == .verb(.retry))
+        #expect(Fix.row("d", .done).paneButton == nil)
+        var keyMissing = Fix.row("k", .failed)
         keyMissing.failure = .init(kind: "missing-key", words: "", fix: "", actions: ["open-settings"])
         #expect(keyMissing.paneButton == .settings)
         #expect(Verb.resume.title == "Continue", "Continue, never Resume")

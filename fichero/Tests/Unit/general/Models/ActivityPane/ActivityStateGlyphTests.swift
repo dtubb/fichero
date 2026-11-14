@@ -7,18 +7,18 @@
 import Testing
 
 struct ActivityStateGlyphTests {
-    typealias F = ActivityPaneFixture
+    typealias Fix = ActivityPaneFixture
 
     @Test("each state's one glyph: a spinner for running, a hollow circle waiting, a red X failed, its word for VoiceOver")
     func glyphs() {
-        #expect(ActivityPane.glyph(F.row("r", .running)) == .init(symbol: nil, word: "Running", isFailure: false))
-        #expect(ActivityPane.glyph(F.row("w", .waiting)).symbol == "circle")
-        #expect(ActivityPane.glyph(F.row("d", .done)).symbol == "checkmark.circle.fill")
-        #expect(ActivityPane.glyph(F.row("f", .failed)) == .init(symbol: "xmark.circle.fill", word: "Failed", isFailure: true))
-        #expect(ActivityPane.glyph(F.row("p", .paused)).symbol == "pause.circle")
-        #expect(ActivityPane.glyph(F.row("s", .cancelled)).symbol == "stop.circle")
-        #expect(ActivityPane.glyph(F.row("k", .notRun)).symbol == "minus")
-        var stopping = F.row("x", .running)
+        #expect(ActivityPane.glyph(Fix.row("r", .running)) == .init(symbol: nil, word: "Running", isFailure: false))
+        #expect(ActivityPane.glyph(Fix.row("w", .waiting)).symbol == "circle")
+        #expect(ActivityPane.glyph(Fix.row("d", .done)).symbol == "checkmark.circle.fill")
+        #expect(ActivityPane.glyph(Fix.row("f", .failed)) == .init(symbol: "xmark.circle.fill", word: "Failed", isFailure: true))
+        #expect(ActivityPane.glyph(Fix.row("p", .paused)).symbol == "pause.circle")
+        #expect(ActivityPane.glyph(Fix.row("s", .cancelled)).symbol == "stop.circle")
+        #expect(ActivityPane.glyph(Fix.row("k", .notRun)).symbol == "minus")
+        var stopping = Fix.row("x", .running)
         stopping.transientState = "Stopping"
         #expect(ActivityPane.glyph(stopping) == .init(symbol: nil, word: "Stopping", isFailure: false))
     }
@@ -26,20 +26,20 @@ struct ActivityStateGlyphTests {
     @Test("a row that is not failed or held writes no state word; a running row writes no clock time")
     func noStateWord() {
         for phase: ActivityMonitorRow.Phase in [.running, .waiting, .done, .cancelled] {
-            #expect(ActivityPane.stateLine(F.row("x", phase)).isEmpty)
+            #expect(ActivityPane.stateLine(Fix.row("x", phase)).isEmpty)
         }
-        let running = F.row("r", .running, started: F.day, done: 3, total: 10)
+        let running = Fix.row("r", .running, started: Fix.day, done: 3, total: 10)
         #expect(!ActivityPane.cellWords(running).joined().contains(":"), "no 14:02 on a running row")
     }
 
     @Test("the text budget: every fixture row's cells hold at most eight words and no full stop")
     func budget() {
-        var failed = F.row("f", .failed)
+        var failed = Fix.row("f", .failed)
         failed.failure = .init(kind: "missing-key", words: "There is no key for OpenRouter.", fix: "Add a key in Settings.",
                                actions: ["open-settings"], rowWords: "No key for OpenRouter.")
-        var long = F.row("l", .failed)
+        var long = Fix.row("l", .failed)
         long.reason = "The provider refused the page because the request was too large for its context window."
-        let rows = ActivityPane.outline([F.letters, F.names, failed, long]) + ActivityPane.byFile([F.letters, F.names])
+        let rows = ActivityPane.outline([Fix.letters, Fix.names, failed, long]) + ActivityPane.byFile([Fix.letters, Fix.names])
         for row in rows + rows.flatMap { $0.children ?? [] } {
             for words in ActivityPane.cellWords(row) {
                 #expect(ActivityPane.words(words) <= ActivityPane.wordBudget, "\(words)")

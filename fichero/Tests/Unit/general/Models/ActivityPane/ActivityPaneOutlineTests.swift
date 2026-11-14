@@ -8,21 +8,21 @@ import Foundation
 import Testing
 
 struct ActivityPaneOutlineTests {
-    typealias F = ActivityPaneFixture
+    typealias Fix = ActivityPaneFixture
 
     @Test("rows sort by state then start: running, paused, waiting, failed, done; newest first within a state")
     func flatOrder() {
         let rows = ActivityPane.outline([
-            F.row("done-old", .done, started: F.day), F.row("failed", .failed, started: F.day),
-            F.row("running", .running), F.row("done-new", .done, started: F.day.addingTimeInterval(60)),
-            F.row("paused", .paused), F.row("waiting", .waiting)
+            Fix.row("done-old", .done, started: Fix.day), Fix.row("failed", .failed, started: Fix.day),
+            Fix.row("running", .running), Fix.row("done-new", .done, started: Fix.day.addingTimeInterval(60)),
+            Fix.row("paused", .paused), Fix.row("waiting", .waiting)
         ])
         #expect(rows.map(\.id) == ["running", "paused", "waiting", "failed", "done-new", "done-old"])
     }
 
     @Test("a run opens to its files, one per document, never to its steps; a file holds its pages' worst state")
     func twoLevels() throws {
-        let run = try #require(ActivityPane.outline([F.letters]).first)
+        let run = try #require(ActivityPane.outline([Fix.letters]).first)
         let files = try #require(run.children)
         #expect(files.map(\.documentId) == ["p1", "p2"])
         #expect(files.allSatisfy { $0.kind == .page && $0.children == nil }, "two levels: a file has no rows under it")
@@ -33,7 +33,7 @@ struct ActivityPaneOutlineTests {
 
     @Test("a job with no tree has no disclosure")
     func noTreeNoDisclosure() {
-        #expect(ActivityPane.outline([F.row("thumbs", .waiting)]).first?.children == nil)
+        #expect(ActivityPane.outline([Fix.row("thumbs", .waiting)]).first?.children == nil)
     }
 
     @Test("the disclosure state is remembered per pane, and survives a relaunch through the stored prefs")

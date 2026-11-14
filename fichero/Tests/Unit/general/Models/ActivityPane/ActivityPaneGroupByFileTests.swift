@@ -12,13 +12,13 @@ struct ActivityPaneGroupByFileTests {
     func pathThroughTheSteps() throws {
         let files = ActivityPane.byFile([ActivityPaneFixture.names, ActivityPaneFixture.letters])
         #expect(files.map(\.documentId) == ["p1", "p2"])
-        let p2 = try #require(files.last)
-        #expect(p2.name == "Page p2")
-        let path = try #require(p2.children)
+        let page2 = try #require(files.last)
+        #expect(page2.name == "Page p2")
+        let path = try #require(page2.children)
         #expect(path.map(\.name) == ["Letters › Segment", "Letters › Read", "Letters › Read", "Names › Names"])
         #expect(path.map(\.model) == ["Kraken", "Kraken", "Qwen 2 VL", "Claude"], "a page with no model of its own takes its step's")
         #expect(path.map(\.counts) == [true, false, true, false])
-        #expect(p2.phase == .running, "a file row shows what runs on it now")
+        #expect(page2.phase == .running, "a file row shows what runs on it now")
     }
 
     @Test("the selection survives the switch: a file's id is the same whichever run it is reached from")

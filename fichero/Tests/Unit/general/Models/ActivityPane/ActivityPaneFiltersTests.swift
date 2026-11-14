@@ -8,7 +8,7 @@ import Foundation
 import Testing
 
 struct ActivityPaneFiltersTests {
-    typealias F = ActivityPaneFixture
+    typealias Fix = ActivityPaneFixture
 
     @Test("the grammar: keys, plain text, an unknown key as text, an empty value dropped")
     func grammar() {
@@ -24,7 +24,7 @@ struct ActivityPaneFiltersTests {
 
     @Test("model: Kraken with state: failed keeps the one failed Kraken read and the way to it; clearing shows everything")
     func krakenFailed() throws {
-        let rows = ActivityPane.byFile([F.letters])
+        let rows = ActivityPane.byFile([Fix.letters])
         let kept = ActivityPaneFilter("model: Kraken state: failed").apply(rows)
         #expect(kept.map(\.documentId) == ["p2"])
         #expect(kept.first?.children?.map(\.name) == ["Letters › Read"])
