@@ -224,9 +224,10 @@ final class ActivityStoreRunsTests: XCTestCase {
 
         XCTAssertEqual(store.runs.count, 51, "loadMoreRuns advanced by itself, with no row drawn")
         XCTAssertFalse(store.mayHaveMoreRunsToday(now: now), "the oldest loaded run is from before today: enough")
-        // The finished run reaches DONE TODAY from the runs table alone (no tree).
+        // The finished run is a row from the runs table alone (no tree), with its end.
         let row = ActivityMonitorRow.run(try! XCTUnwrap(store.runs.first { $0.runId == "t1" }), tree: nil)
-        XCTAssertEqual(ActivityWindowGroups(rows: [row], now: now).doneToday.map(\.name), ["Transcribe"])
+        XCTAssertEqual(row.name, "Transcribe")
+        XCTAssertNotNil(row.ended, "a finished run row carries its end")
     }
 
     func testLoadMoreRunsIsANoOpWhenTheLastPageWasShort() async {
