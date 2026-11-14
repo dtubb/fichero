@@ -559,15 +559,15 @@ See section 7.2 below for what exists. The design:
   check does), reviewed in the Check lens, accepted per page or all at once. Regions are placed
   by the page box where one exists (`image.enhance.page-crop`) so a shift in the scan does not
   shift the template. A line correction has no template: lines are found, not copied.
-- `segment-editor.validate-before-export` — **[PARTIAL]** (→ #4943; engine + app) `GET /api/documents/{id}/segments/validate`
+- `segment-editor.validate-before-export` — **[PARTIAL]** (→ #4943; engine + app) `GET /api/segments/document/{doc_id}/validate`
   lists, per page: lines outside every region; outlines that cross themselves; outlines that
   overlap another of the same level by more than a tenth; segments with no shape; lines with
   no baseline; a reading order with a gap, a repeat or a segment missing from it; words whose
   spans do not tile their line's reading. The export sheet runs it first and shows the count
   with Fix (opens the lens) or Export Anyway; the loss report names what was exported invalid.
   MCP and the CLI get the same list. *Built (2026-11-13):* the checks (`media/segment_checks.py`,
-  per pass, plus empty regions) behind `GET /api/segments/document/{doc_id}/validate` (beside the
-  other per-page segment reads rather than under `/api/documents`). *Built (2026-11-14):* Export Page
+  per pass, plus empty regions) behind that route (beside the other per-page segment reads rather than under
+  `/api/documents`, where the first draft put it). *Built (2026-11-14):* Export Page
   As and the Inspector's per-pass Export check the page first (`PageExportRunner.checkedBeforeExport`):
   problems show their count, each kind in words, with Export Anyway or Cancel, and the report then
   begins "Exported with N segment problems"; a check that fails does not block the export and the
