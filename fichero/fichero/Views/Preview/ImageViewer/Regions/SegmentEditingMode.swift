@@ -38,8 +38,8 @@ enum SegmentEditingMode {
         }
     }
 
-    /// ⌫: the most recent, most ephemeral thing first -- a picked marquee -- then a pressed shape point, then the
-    /// selected regions.
+    /// ⌫: the most recent, most ephemeral thing first -- a picked marquee -- then a picked cut mark, then a pressed
+    /// shape point, then the selected regions.
     static func deleteKey(
         marqueePicked: Bool, selectionCount: Int, pointPressed: Bool = false, cutMarkPicked: Bool = false
     ) -> SegmentDeleteKeyAction {
