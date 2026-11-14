@@ -593,6 +593,9 @@ PAUSING = "Pausing at its next step"
 #: A recipe run off the lane while its pause holds (`recipes/runner.py`): parked on its paused step run, or between steps.
 PAUSED_WITH_RUN = "Paused with its run"
 PAUSED_BETWEEN_STEPS = "Paused between steps"
+#: What the open gives every row the quit (or a crash) left unfinished: paused, for the person to continue
+#: (`activity.launch.nothing-starts-one-alert`, owner 2026-11-13).
+QUIT_REASON = "Stopped when Fichero quit"
 STOPPING = "Stopping at its next step"
 #: A running page a person stopped: its result is dropped when it returns.
 STOPPING_PAGE = "Stopping: what it reads is not kept"
@@ -2390,7 +2393,7 @@ def settle_made_thumbnails(db: "Database") -> int:
     made = [
         row[0]
         for row in db.execute_fetchall(
-            f"SELECT id, subject FROM jobs WHERE kind IN ({marks}) AND state IN ('waiting', 'failed') "
+            f"SELECT id, subject FROM jobs WHERE kind IN ({marks}) AND state IN ('waiting', 'paused', 'failed') "
             "AND parent_id IS NULL",
             first_kinds,
         )
@@ -2435,9 +2438,9 @@ def requeue_orphaned_first(db: "Database") -> int:
 
 
 def resume(db: "Database") -> None:
-    """On library open: jobs left running were interrupted. Back to waiting, or failed after
-    `MAX_ATTEMPTS`; then, if anything is waiting, wake the scheduler for this library. A library
-    with nothing waiting is never scanned, so opening one adds no traffic on its connection."""
+    """On library open: every job the quit left unfinished is paused ("Stopped when Fichero quit") for the
+    person to continue; nothing starts by itself (`activity.launch.nothing-starts-one-alert`). Then, if anything
+    is waiting (a far-side watcher), wake the scheduler for this library."""
     global _gentle_until
     _ensure(db)
     db.execute(
@@ -2470,23 +2473,6 @@ def resume(db: "Database") -> None:
         f"WHERE state IN ('waiting', 'running') AND kind = 'batch'{not_live}",
         [utc_now(), *live],
     )
-    # A job watching a Job on Hugging Face or a cluster is never set aside for being interrupted: the Job runs (and
-    # costs) there whatever happens here, and only a watcher can follow or cancel it (#5449, #5769).
-    now = utc_now()
-    for job_id, attempts, started_at in db.execute_fetchall(
-        "SELECT id, attempts, started_at FROM jobs "
-        "WHERE state = 'running' AND attempts >= ? AND COALESCE(target, '') <> 'huggingface-jobs' "
-        f"AND kind NOT IN ({', '.join('?' for _ in FAR_SIDE_KINDS)}) "
-        # a recipe run with a read or batch still out for it is not set aside either: its restarts would cancel it (#5540)
-        f"AND NOT EXISTS (SELECT 1 FROM jobs c WHERE c.parent_id = jobs.id AND c.state IN ('waiting', 'running', 'paused') "
-        f"AND c.kind IN ({', '.join('?' for _ in FAR_SIDE_KINDS)})){not_live}",
-        [MAX_ATTEMPTS, *FAR_SIDE_KINDS, *FAR_SIDE_KINDS, *live],
-    ):
-        # What interrupted it, when, and what carries it on, in words (#5615): not "Interrupted 3 times; set aside".
-        db.execute(
-            "UPDATE jobs SET state = 'failed', finished_at = ?, reason = ? WHERE id = ?",
-            [now, set_aside_reason(attempts, started_at, now), job_id],
-        )
     # A job a person stopped that was still winding down when the engine went away is not taken up again
     # (#5609): it ends as stopped. (A workflow run's row is settled with its record, `mark_interrupted_runs`.)
     db.execute(
@@ -2510,11 +2496,16 @@ def resume(db: "Database") -> None:
         f"WHERE state IN ('waiting', 'running') AND reason IN (?, ?, ?){not_live}",
         [PAUSING, PAUSED_REASON, PAUSING, PAUSED_WITH_RUN, PAUSED_BETWEEN_STEPS, *live],
     )
-    # (Same rule: only rows no live thread runs were left by an engine that is gone; owner, 2026-10-19.)
+    # Nothing starts by itself after a quit (owner 2026-11-13, `activity.launch.nothing-starts-one-alert`): every row the
+    # quit or a crash left unfinished, running or still queued, is PAUSED and says so; the launch alert lists them
+    # (`stopped_at_quit`) and only the person's Continue lets them go (`continue_after_quit`). A job on Hugging Face or a
+    # cluster runs there whatever happens here (#5449, #5769): its watcher row is left as it is, to follow or cancel it.
+    # (Only rows no live thread runs were left by an engine that is gone; owner, 2026-10-19.)
     db.execute(
-        f"UPDATE jobs SET state = 'waiting', reason = 'Interrupted; carries on'{_clear_waiting_on(db)} "
-        f"WHERE state = 'running'{not_live}",
-        live,
+        f"UPDATE jobs SET state = 'paused', reason = ?, run_after = NULL{_clear_waiting_on(db)} "
+        f"WHERE state IN ('waiting', 'running') AND COALESCE(target, '') <> 'huggingface-jobs' "
+        f"AND kind NOT IN ({', '.join('?' for _ in FAR_SIDE_KINDS)}){not_live}",
+        [QUIT_REASON, *FAR_SIDE_KINDS, *live],
     )
     # A page whose thumbnail is already there needs no job: one left queued, interrupted just now, or set aside after
     # its kills, would hold the heavy work queued after it for good (#5845). After the reset above, so a thumbnail job
@@ -3583,6 +3574,35 @@ def delete_jobs(db: "Database", ids: list[str]) -> tuple[list[str], list[str]]:
             db.execute(f"UPDATE jobs SET cleared_at = ? WHERE id IN ({marks})", [now, *under])
             deleted.append(job_id)
     return deleted, skipped
+
+
+def stopped_at_quit(db: "Database") -> list[dict[str, Any]]:
+    """The top-level rows the open paused because the quit left them unfinished (`QUIT_REASON`), for the launch alert:
+    id, kind, name, subject, done/total when known, when they last started. Nothing a person paused, nothing failed."""
+    _ensure(db)
+    out: list[dict[str, Any]] = []
+    for job_id, kind, subject, started_at in db.execute_fetchall(
+        "SELECT id, kind, subject, started_at FROM jobs WHERE state = 'paused' AND reason = ? AND parent_id IS NULL "
+        f"{' AND cleared_at IS NULL' if _has_cleared_at(db) else ''} ORDER BY created_at, id",
+        [QUIT_REASON],
+        committed=True,
+    ):
+        out.append({"id": job_id, "kind": kind, "name": kind_name(kind), "subject": subject, "started_at": started_at})
+    return out
+
+
+def continue_after_quit(db: "Database", ids: list[str] | None) -> list[str]:
+    """The person's Continue on the launch alert: the chosen rows the quit stopped (all of them when `ids` is None) are
+    let go, the stored pause lifted through each kind's own resume (`pause_job`), and the lane woken. Returns the ids."""
+    stopped = [row["id"] for row in stopped_at_quit(db)]
+    chosen = stopped if ids is None else [i for i in ids if i in stopped]
+    for job_id in chosen:
+        db.execute("UPDATE jobs SET reason = NULL WHERE id = ? AND state = 'paused'", [job_id])  # not "stopped" any more
+        pause_job(db, job_id, False)
+    if chosen:
+        key = _key(db)
+        db.add_after_commit_hook(lambda: _scheduler.wake(key))
+    return chosen
 
 
 #: Kinds whose every job is a row of its own in Activity, however many are queued (`snapshot`).

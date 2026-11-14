@@ -59,10 +59,11 @@ class TestDurability:
 
         db_manager.close_database(test_package)  # quit
         monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())  # a new engine process
-        db = db_manager.get_database(test_package)  # relaunch: the open resumes its jobs
-        assert _states(db) == {"page-1": ("waiting", None)}
+        db = db_manager.get_database(test_package)  # relaunch: the open pauses what the quit left (owner 2026-11-13)
+        assert _states(db) == {"page-1": ("paused", jobs.QUIT_REASON)}
         assert ran == []
 
+        jobs.continue_after_quit(db, None)  # the person's Continue All on the launch alert
         jobs.set_paused(False)
         assert _wait_for(lambda: ran == ["page-1"])
         assert _wait_for(lambda: _states(db)["page-1"][0] == "done")
@@ -83,9 +84,10 @@ class TestDurability:
         monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())
         db = db_manager.get_database(test_package)
 
-        states = _states(db)
-        assert states["once"] == ("waiting", "Interrupted; carries on")
-        assert states["poison"][0] == "failed" and states["poison"][1] == "Stopped 3 times by the engine stopping; set aside. Resume to carry on."
+        states = _states(db)  # owner 2026-11-13: nothing carries on by itself, however many times it was interrupted
+        assert states["once"] == ("paused", jobs.QUIT_REASON)
+        assert states["poison"] == ("paused", jobs.QUIT_REASON)
+        jobs.continue_after_quit(db, [next(i for i, in db.execute_fetchall("SELECT id FROM jobs WHERE subject = 'once'"))])
         jobs.set_paused(False)
         assert _wait_for(lambda: ran == ["once"])
 
@@ -141,6 +143,12 @@ class TestPause:
         body = client.get("/api/activity/jobs").json()
         assert body["paused"] is True
         rows = [j for j in body["jobs"] if j["task_type"] == "t-relaunch"]
+        # the open pauses what the quit left (owner 2026-11-13); after Continue All the global pause still holds them
+        assert rows and all((j["state"], j["reason"]) == ("paused", jobs.QUIT_REASON) for j in rows)
+        jobs.continue_after_quit(db_manager.get_database(test_package), None)
+        time.sleep(0.3)
+        assert ran == []
+        rows = [j for j in client.get("/api/activity/jobs").json()["jobs"] if j["task_type"] == "t-relaunch"]
         assert rows and all((j["state"], j["reason"]) == ("waiting", "Paused by you") for j in rows)
 
         assert client.put("/api/activity/jobs/paused", json={"paused": False}).json() == {"paused": False}

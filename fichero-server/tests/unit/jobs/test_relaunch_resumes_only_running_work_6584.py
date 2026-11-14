@@ -51,7 +51,8 @@ def test_a_pause_asked_before_quit_is_still_a_pause_after_the_relaunch(held):
     assert _state(held, between) == ("paused", "Paused between steps")
 
 
-def test_only_work_running_at_quit_carries_on__failed_stays_failed_with_its_reason(held):
+def test_nothing_carries_on_by_itself__failed_stays_failed_with_its_reason(held):
+    # (owner 2026-11-13, 22:50: even the work running at quit waits for the person, `activity.launch.nothing-starts-one-alert`)
     running = _row(held, "r:1", "running", None)
     failed = _row(held, "r:2", "failed", "Anthropic has no credit left", finished_at=jobs.utc_now())
     stopped = _row(held, "r:3", "cancelled", "Stopped by you", finished_at=jobs.utc_now())
@@ -59,10 +60,10 @@ def test_only_work_running_at_quit_carries_on__failed_stays_failed_with_its_reas
 
     jobs.resume(held)
 
-    assert _state(held, running) == ("waiting", "Interrupted; carries on")
+    assert _state(held, running) == ("paused", jobs.QUIT_REASON)
     assert _state(held, failed) == ("failed", "Anthropic has no credit left"), "a failed run is never re-run by itself"
     assert _state(held, stopped) == ("cancelled", "Stopped by you")
-    assert _state(held, queued)[0] == "waiting"
+    assert _state(held, queued) == ("paused", jobs.QUIT_REASON)
 
 
 def test_a_deleted_row_never_comes_back(held):

@@ -51,21 +51,23 @@ def test_no_job_is_left_running_after_the_engine_died(client, db, test_package, 
     db = _open_as_the_engine_does(test_package)
 
     assert db.execute_fetchone("SELECT count(*) FROM jobs WHERE state = 'running'")[0] == 0, "nothing reads running"
-    for job_id in (page, download, recipe):
+    for job_id in (page, download, recipe, poisoned):  # owner 2026-11-13: paused for the person, never taken up or set aside
         row = jobs.read_job(db, job_id)
-        assert (row["state"], row["reason"]) == ("waiting", "Interrupted; carries on"), (job_id, row)
+        assert (row["state"], row["reason"]) == ("paused", jobs.QUIT_REASON), (job_id, row)
     listed = {j["id"]: j for j in client.get("/api/activity/jobs").json()["jobs"]}
-    set_aside = listed[poisoned]
-    assert set_aside["state"] == "failed" and set_aside["reason"] == "Stopped 3 times by the engine stopping; set aside. Resume to carry on."
-    assert set_aside["offer"] == "Resume" and set_aside["failed_at"], set_aside
+    assert {i["id"] for i in client.get("/api/activity/stopped-at-quit").json()["items"]} >= {page, download, recipe, poisoned}
     run = listed[thread]
     assert run["state"] == "failed" and run["reason"].startswith("Interrupted: the engine stopped at"), run
 
-    retried = client.post(f"/api/activity/jobs/{poisoned}/retry")
-    assert retried.status_code == 200 and retried.json()["state"] == "waiting", retried.text
+    # Continue on the launch alert lets the chosen row go (the retry route is for failed and stopped rows)
+    retried = client.post("/api/activity/stopped-at-quit/continue", json={"ids": [poisoned]})
+    assert retried.status_code == 200 and retried.json()["continued_ids"] == [poisoned], retried.text
+    assert jobs.read_job(db, poisoned)["state"] == "waiting"
     listed = client.get("/api/activity/jobs").json()["jobs"]
     after = [j for j in listed if j["task_type"] == "download-model"]
-    assert len(after) == 1 and after[0]["failed_at"] is None, [(j["id"], j["task_type"], j["state"]) for j in listed]
+    # the continued download waits; the other stays paused for the person; neither reads as a failure
+    assert sorted(j["state"] for j in after) == ["paused", "waiting"], [(j["id"], j["task_type"], j["state"]) for j in listed]
+    assert all(j["failed_at"] is None for j in after)
 
 
 def test_every_kind_a_restart_may_find_is_registered_when_the_queue_first_looks():

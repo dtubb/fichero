@@ -1186,6 +1186,72 @@
         }
       }
     },
+    "/api/activity/stopped-at-quit": {
+      "get": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "List Stopped At Quit",
+        "description": "What the quit left unfinished and the open paused (`activity.launch.nothing-starts-one-alert`, #6584): the job\nrows that read \"Stopped when Fichero quit\" and the workflow runs the quit paused. Nothing of it runs until\n`POST /api/activity/stopped-at-quit/continue`.",
+        "operationId": "list_stopped_at_quit_api_activity_stopped_at_quit_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoppedAtQuitResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/activity/stopped-at-quit/continue": {
+      "post": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Continue After Quit",
+        "description": "The launch alert's Continue (`activity.launch.nothing-starts-one-alert`): the chosen rows the quit stopped are let\ngo; a workflow run the quit paused is resumed from its checkpoint. Nothing else is touched.",
+        "operationId": "continue_after_quit_api_activity_stopped_at_quit_continue_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContinueAfterQuitParams"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContinueAfterQuitResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/activity/stats": {
       "get": {
         "tags": [
@@ -63284,6 +63350,47 @@
         ],
         "title": "ContentReviewState"
       },
+      "ContinueAfterQuitParams": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Ids",
+            "description": "the rows to continue; None with `all` for every one"
+          },
+          "all": {
+            "type": "boolean",
+            "title": "All",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "ContinueAfterQuitParams"
+      },
+      "ContinueAfterQuitResponse": {
+        "properties": {
+          "continued_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Continued Ids"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "continued_ids",
+          "count"
+        ],
+        "title": "ContinueAfterQuitResponse"
+      },
       "ContractIdentity": {
         "properties": {
           "version": {
@@ -101327,6 +101434,62 @@
         },
         "type": "object",
         "title": "StepUpdateRequest"
+      },
+      "StoppedAtQuitItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "the engine's kind of work, or `workflow` for a workflow run"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "subject": {
+            "type": "string",
+            "nullable": true,
+            "title": "Subject"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Started At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "name"
+        ],
+        "title": "StoppedAtQuitItem"
+      },
+      "StoppedAtQuitResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StoppedAtQuitItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "StoppedAtQuitResponse"
       },
       "StoredPrediction": {
         "properties": {
