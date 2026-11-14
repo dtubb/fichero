@@ -73,6 +73,8 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     let isLive: Bool
     /// `nil` = a leaf (no disclosure triangle).
     var children: [ActivityMonitorRow]?
+    /// An archived row shown by Show Archived (`activity.pane.archive-old-runs`): greyed, Put Back instead of Archive.
+    var isArchived = false
     /// A run's account (#5555): what its row says beyond the counts. `nil`
     /// on steps, pages, other jobs and runs the engine has no account for.
     var account: ActivityRunAccount?

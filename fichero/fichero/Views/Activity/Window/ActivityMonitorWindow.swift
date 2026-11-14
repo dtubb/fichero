@@ -27,6 +27,8 @@ struct ActivityMonitorWindow: View {
     @State private var notice: String?
     /// The "Clear Finished…" confirmation (#5016).
     @State private var confirmingClearFinished = false
+    /// Show Archived (`activity.pane.archive-old-runs`): the archived rows read once per toggle, listed greyed under History.
+    @State private var showArchived = false
 
     /// EVERY open library, global included (Daniel #19: "show ALL libraries").
     private var libraries: [LibraryManager.LibraryReference] {
@@ -77,7 +79,10 @@ struct ActivityMonitorWindow: View {
                         upNextLines: upNextLines,
                         clearFailed: { Task { await clearFailed() } },
                         clearFinished: { confirmingClearFinished = true },
-                        delete: { rows in Task { await deleteRuns(withIDs: Set(rows.map(\.id))) } }
+                        delete: { rows in Task { await deleteRuns(withIDs: Set(rows.map(\.id))) } },
+                        archive: { rows in Task { await archiveRows(rows) } },
+                        putBack: { rows in Task { await putBack(rows) } },
+                        showArchived: $showArchived
                     )
                 }
             }
@@ -95,6 +100,7 @@ struct ActivityMonitorWindow: View {
                 }
             }
         }
+        .task(id: showArchived) { await readArchivedIfShown() }
         .confirmationDialog("Archive every finished run?", isPresented: $confirmingClearFinished) {
             Button("Archive Finished") { Task { await clearFinished() } }
         } message: {
@@ -151,7 +157,18 @@ struct ActivityMonitorWindow: View {
     }
 
     /// Every top-level row, live and ended, as the one list's three groups (`activity.window.three-groups`).
-    private var allRows: [ActivityMonitorRow] { groups.flatMap(\.rows) + historyRows }
+    /// Every top-level row, live and ended, as the one list's three groups (`activity.window.three-groups`).
+    private var allRows: [ActivityMonitorRow] { groups.flatMap(\.rows) + historyRows + archivedRows }
+
+    /// Put Back: archived job rows are listed again, unchanged.
+    private func putBack(_ rows: [ActivityMonitorRow]) async {
+        let jobIdsByLibrary = Self.jobIdsByLibrary(rows)
+        for library in libraries {
+            if let jobIds = jobIdsByLibrary[library.id], !jobIds.isEmpty {
+                await library.activityStore.unarchiveJobs(ids: jobIds)
+            }
+        }
+    }
 
     private var windowGroups: ActivityWindowGroups { ActivityWindowGroups(rows: allRows) }
 
@@ -311,5 +328,44 @@ struct ActivityMonitorWindow: View {
             )
             await library.activityStore.loadRunsForToday(library: library)
         }
+    }
+}
+
+// MARK: - Archive (`activity.pane.archive-old-runs`, #6583)
+
+extension ActivityMonitorWindow {
+    /// The archived rows, greyed, when Show Archived is on (`activity.pane.archive-old-runs`).
+    private var archivedRows: [ActivityMonitorRow] {
+        guard showArchived else { return [] }
+        return libraries.flatMap { library in
+            library.activityStore.archivedJobs.map { job in
+                var row = ActivityMonitorRow.job(job, libraryId: library.id, projectName: library.displayName)
+                row.isArchived = true
+                return row
+            }
+        }
+    }
+
+    /// Archive (`activity.pane.archive-old-runs`): ended job rows through `job.archive`; ended run rows through the runs' soft
+    /// delete, which stands in for their archive. What still goes is skipped and counted.
+    private func archiveRows(_ rows: [ActivityMonitorRow]) async {
+        var skipped = 0
+        let jobIdsByLibrary = Self.jobIdsByLibrary(rows)
+        for library in libraries {
+            let threadIds = library.activityStore.runs.filter { run in rows.contains { $0.id == run.id } }.map(\.runId)
+            if !threadIds.isEmpty {
+                skipped += await library.activityStore.deleteRuns(threadIds: threadIds).skippedIds.count
+            }
+            if let jobIds = jobIdsByLibrary[library.id], !jobIds.isEmpty {
+                skipped += await library.activityStore.archiveJobs(ids: jobIds).skippedIds.count
+            }
+        }
+        notice = skipped > 0 ? "\(skipped) item\(skipped == 1 ? "" : "s") still running — not archived." : nil
+    }
+
+    /// Show Archived turned on: each project's archived rows are read once.
+    private func readArchivedIfShown() async {
+        guard showArchived else { return }
+        for library in libraries { await library.activityStore.refreshArchivedJobs() }
     }
 }

@@ -337,8 +337,10 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   is in neither list, after a relaunch too. App (linted, not compiled): the window's **Archive Finished…** (confirmation
   "Archive every finished run?") archives every ended job through `job.archive` and every ended run through its soft delete,
   and **Archive Failed** keeps `job.clear_failed` (the archive mark) under its new name; `ActivityService.archiveJobs`,
-  `ActivityStore.archiveJobs`. Not built: Archive on a row, Put Back, Show Archived and Undo in the app; a workflow run's
-  own archive; Archive Finished Older Than… in the menu; auto-archive (open question 9). *Tests:*
+  `ActivityStore.archiveJobs`; **Archive** and **Put Back** in the row's context menu (`ActivityGroupsView.isArchivable`:
+  ended rows only; an archived row offers Put Back) and **Show Archived** in the window's menu (the archived rows read once
+  per toggle, `ActivityStore.refreshArchivedJobs`, listed greyed under History with `isArchived`). Not built: Undo in the
+  app; a workflow run's own archive; Archive Finished Older Than… in the menu; auto-archive (open question 9); swipe actions. *Tests:*
   `fichero-server/tests/unit/jobs/test_archive_old_runs_6583.py`, `fichero-server/tests/unit/jobs/test_delete_any_row_6583.py`;
   not yet written: ActivityArchiveTests.swift.
 - `activity.pane.automatic-runs-easy-to-delete` — **[PARTIAL]** (#6583, decision 11) an automatic run (started by the import, the

@@ -37,6 +37,19 @@ struct ActivityDeleteAnyRowTests {
         #expect(!ActivityGroupsView.isDeletable(row("live-run", .running, kind: .run, jobId: nil)))
     }
 
+    @Test("Archive takes only ended rows; an archived row offers Put Back, not Archive; a waiting or paused row neither")
+    func archivable() {
+        #expect(ActivityGroupsView.isArchivable(row("done", .done, kind: .job, jobId: "j1")))
+        #expect(ActivityGroupsView.isArchivable(row("failed", .failed, kind: .run, jobId: nil)))
+        #expect(ActivityGroupsView.isArchivable(row("stopped", .cancelled, kind: .job, jobId: "j2")))
+        #expect(!ActivityGroupsView.isArchivable(row("paused", .paused, kind: .job, jobId: "j3")))
+        #expect(!ActivityGroupsView.isArchivable(row("queued", .waiting, kind: .job, jobId: "j4")))
+        #expect(!ActivityGroupsView.isArchivable(row("running", .running, kind: .job, jobId: "j5")))
+        var archived = row("archived", .done, kind: .job, jobId: "j6")
+        archived.isArchived = true
+        #expect(!ActivityGroupsView.isArchivable(archived), "already archived: Put Back is its verb")
+    }
+
     @Test("Delete sends each project's job rows to that project's jobs delete, a kind's row by its own id")
     func jobIdsGoToTheirProject() {
         let one = UUID(), two = UUID()

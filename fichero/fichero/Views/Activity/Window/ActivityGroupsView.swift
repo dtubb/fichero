@@ -24,6 +24,11 @@ struct ActivityGroupsView: View {
     let clearFinished: () -> Void
     /// Delete is a context-menu item (`activity.window.one-button`); only a run deletes.
     let delete: ([ActivityMonitorRow]) -> Void
+    /// Archive the ended rows (`activity.pane.archive-old-runs`), and Put Back archived ones.
+    var archive: ([ActivityMonitorRow]) -> Void = { _ in }
+    var putBack: ([ActivityMonitorRow]) -> Void = { _ in }
+    /// Show Archived (View › Activity ▸): the archived rows listed greyed under History.
+    var showArchived: Binding<Bool> = .constant(false)
     @AppStorage("activity.doneTodayExpanded") private var doneExpanded = false
     /// Finder-like: rows multi-select, and Delete (⌫ or the context menu) acts on all of them.
     @State private var selection: Set<ActivityMonitorRow.ID> = []
@@ -38,6 +43,16 @@ struct ActivityGroupsView: View {
         case .run: return !row.phase.isLive
         case .job: return row.phase != .running
         case .step, .page: return false
+        }
+    }
+
+    /// Archive takes only ENDED rows (the states table: stopped, failed, done, partial); a waiting or paused row cannot be
+    /// archived, only deleted or continued. An archived row offers Put Back instead.
+    static func isArchivable(_ row: ActivityMonitorRow) -> Bool {
+        guard !row.isArchived, row.kind == .run || row.kind == .job else { return false }
+        switch row.phase {
+        case .done, .failed, .cancelled, .partial, .interrupted: return true
+        default: return false
         }
     }
 
@@ -84,6 +99,7 @@ struct ActivityGroupsView: View {
                         Menu("Clear") {
                             Button("Archive Failed", action: clearFailed)
                             Button("Archive Finished…", action: clearFinished)
+                            Toggle("Show Archived", isOn: showArchived)
                         }
                         .menuStyle(.borderlessButton)
                         .fixedSize()
@@ -101,6 +117,14 @@ struct ActivityGroupsView: View {
             if rows.count == 1, let row = rows.first {
                 if row.controls.contains(.stop) { ActivityStopMenuItem(target: stopTarget(row)) }
                 Button("Show Details") { open(row) }
+            }
+            let archivable = rows.filter(Self.isArchivable)
+            if !archivable.isEmpty {
+                Button(archivable.count > 1 ? "Archive \(archivable.count) Items" : "Archive") { archive(archivable) }
+            }
+            let archived = rows.filter(\.isArchived)
+            if !archived.isEmpty {
+                Button("Put Back") { putBack(archived) }
             }
             let targets = deletable(rows)
             if !targets.isEmpty {

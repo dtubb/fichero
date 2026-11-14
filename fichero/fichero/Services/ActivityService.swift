@@ -231,8 +231,9 @@ class ActivityService {
     /// toolbar Activity popover and the full Activity viewer read so they can't
     /// disagree about what is running. No filters, so the only outcomes are a
     /// value or a transport/HTTP failure the caller decides how to surface.
-    func getBackgroundJobs() async throws -> BackgroundJobsSnapshot {
-        let response = try await client.api.listBackgroundJobsApiActivityJobsGet()
+    func getBackgroundJobs(archived: Bool = false) async throws -> BackgroundJobsSnapshot {
+        // `archived`: the ARCHIVED rows instead (Show Archived, `activity.pane.archive-old-runs`, #6583).
+        let response = try await client.api.listBackgroundJobsApiActivityJobsGet(query: .init(archived: archived))
 
         switch response {
         case .ok(let okResponse):

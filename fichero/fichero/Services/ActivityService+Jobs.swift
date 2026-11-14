@@ -193,6 +193,20 @@ extension ActivityService {
         }
     }
 
+    /// Put Back (the audited `job.unarchive`, #6583): archived rows are listed again, unchanged. Returns the ids put back.
+    func unarchiveJobs(ids: [String]) async throws -> [String] {
+        let response = try await client.api.unarchiveJobsApiActivityJobsUnarchivePost(body: .json(.init(ids: ids)))
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.ids
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, let payload):
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
+        }
+    }
+
     /// One row the quit left unfinished and the open paused (`activity.launch.nothing-starts-one-alert`, #6584).
     struct StoppedAtQuitItem: Equatable, Identifiable {
         let id: String
