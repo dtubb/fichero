@@ -208,6 +208,17 @@ quarter: one thread on a 4-core Mac), at utility QoS since the 2026-10-20 ruling
   and its fix is the provider's billing page. The manager's defaults, which the owner may change:
   the same failure alerts again after ten minutes; an unknown kind's report is a file; iPhone and
   iPad ask for notification permission at the first run start.
+- **Delete works, and nothing comes back by itself (owner 2026-11-13, night; #6583, #6584).** A person
+  can delete any item in Activity: a finished, failed, paused or queued run or job, and a whole group
+  (a kind's row, a run with its steps); what is deleted stays gone. On relaunch only work that was
+  RUNNING when the app quit, and that the person has not cancelled or deleted, carries on. A run
+  that failed stays failed, shown with its reason and a Retry, and is never run again by itself;
+  a pause asked before the quit (by the person, or by the engine for a cause: credit, a cap) is
+  still a pause after it. Found: a recipe run's pause lived only in memory, so the open put its row
+  back to waiting and the lane carried it on; a document whose derivative had failed was queued
+  again at every open. Consistent with `run-failure-alerts.md` decision 2 (a run paused for a cause
+  stays paused, with its alert): the pause now survives the relaunch too. Behaviours:
+  `activity.window.delete-any-row`, `activity.relaunch.only-running-work-resumes`.
 
 ## Prior art (what we build on, and what we do differently)
 
@@ -939,6 +950,23 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   (`fichero-server/tests/unit/jobs/test_clear_failed_5634.py`); app `ActivityStore.clearFailed`
   (`ActivityTableTests` `testActivityWindowClearFailed_*`). Not yet seen in the app; the Swift is
   not compiled by the worker.
+- `activity.window.delete-any-row` — **[PARTIAL]** (#6583, owner 2026-11-13) Delete (the context menu, the Delete key, ⌘A then Delete)
+  works on EVERY row the window lists, not only on workflow runs: a finished, failed, paused or queued job of its own (a
+  recipe run, a download, a try), a kind's row (`waiting:<kind>`, `paused:<kind>`: every job of the kind not running), and a
+  run with everything under it. A deleted row is kept in the table and the record (a tree, an audit and a Retry still
+  read it) and is never listed again, in any state: the mark is `cleared_at`, the one Clear Failed uses, on the row and
+  every row under it; a waiting or paused job deleted is cancelled first ("Deleted by you"), so no lane picks it; a job
+  RUNNING now is skipped and the footer says so ("1 run still running — not deleted."), as for runs. Deleted work never
+  comes back: not on the next poll, not after a relaunch (`activity.relaunch.only-running-work-resumes`); a Retry on a
+  deleted failed row (from its tree) lists it again, as after Clear Failed. Workflow runs keep their soft delete
+  (`workflow_run.delete`). Acceptance: a failed recipe run, a paused download, a queued group of thumbnails and a done
+  try selected and deleted: all four leave the list and the engine answers their ids as deleted; the paused and queued
+  rows read `cancelled` in the table; a relaunch lists none of them; a running run in the same selection is answered as
+  skipped and stays. Built (2026-11-13): engine `jobs.delete_jobs`, the audited `job.delete`,
+  `POST /api/activity/jobs/delete` (`fichero-server/tests/unit/jobs/test_delete_any_row_6583.py`); the jobs list hides
+  cleared rows of every state. App: the window's Delete sends its job rows there and its run rows to the runs delete
+  (`ActivityStore.deleteJobs`, `ActivityTableTests` `testActivityWindowDelete_*`). Not yet seen in the app; the Swift
+  is not compiled by the worker. Left: the pane's one table (`activity-pane.md`) inherits this through the same store.
 - `activity.window.started-by` — **[PARTIAL]** (#5354) a row says who or what started
   it: a person, the recipe, a schedule, a trigger, an assistant. Built: the engine sends `started_by` on every row and tree node, and the opened run's heading words it (`ActivityDetails.startedByWords`, `ActivityStartedByTests`). Not built: the same words on the window's table row.
 - `activity.window.one-surface` — **[GAP]** (#5354) ingest progress, the conversion
@@ -1885,6 +1913,23 @@ and node, not by job); a retry action for failed pages.
 
 ### E. Durability
 
+- `activity.relaunch.only-running-work-resumes` — **[OK]** (#6584, owner 2026-11-13) what a library open takes up again
+  (`jobs.resume`) is exactly the work that was RUNNING when the engine stopped and that nobody cancelled or deleted:
+  such a row goes back to waiting ("Interrupted; carries on", set aside after `MAX_ATTEMPTS`, as before). Everything
+  else keeps its state: a failed row stays failed with its reason and offers Retry, and is never run again by itself; a
+  cancelled row stays cancelled; a waiting row waits (it was queued and not withdrawn); a row deleted in Activity
+  (`cleared_at`) that was still waiting, paused or running ends cancelled ("Deleted by you") instead of coming back; a
+  pause asked before the quit is still a pause after it: a recipe run that was pausing at its next step, parked on its
+  paused step run ("Paused with its run") or paused between steps reads `paused` after the open, with its own words
+  (a pausing one now "Paused by you"), and only Resume lets it go. Before: the recipe run's pause was a flag in memory
+  (`execution/cancellation.py`), so the open put the row back to waiting and the lane carried the run on, whether a
+  person or the spend cap had paused it. The open's recovery of stranded pages (`queue_derivatives`, `arrived=False`)
+  no longer queues a document whose derivative already failed (`derivative_error`): it said why, and its Retry runs it;
+  before, it failed again at every launch. Acceptance: rows left running, pausing, parked, paused between steps,
+  failed, cancelled, waiting and deleted at quit; after `resume` only the running one is waiting, the three paused ones
+  are paused, the failed one is failed with its reason, the deleted ones are cancelled and unlisted; a pending document
+  with `derivative_error` gets no job at open while one without does. Test:
+  `fichero-server/tests/unit/jobs/test_relaunch_resumes_only_running_work_6584.py`.
 - `activity.durable.reopen-leaves-live-jobs` — **[OK]** (review 278) a job a lane thread is running ends only when the
   engine does. Opening a library again (`resume`) leaves every job a lane thread of this engine is running alone: its
   row stays running, an attached Kraken page is not cancelled and no row is reset to waiting or set aside; only an engine
