@@ -96110,6 +96110,12 @@
             "title": "Move Into Region",
             "description": "Move members in other regions into the kept segment's region rather than refusing.",
             "default": false
+          },
+          "keep_shapes": {
+            "type": "boolean",
+            "title": "Keep Shapes",
+            "description": "Keep every member's outline as a shape of the kept segment, in the order given.",
+            "default": false
           }
         },
         "additionalProperties": false,

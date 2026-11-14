@@ -8045,11 +8045,12 @@ def fichero_segments_merge(
     expected_versions: Annotated[dict[str, Any], Field(description="Each segment's version as last read, {segment_id: version}; a changed segment is refused.")],
     join_geometry: Annotated[Optional[bool], Field(description='Join the outlines and baselines onto the kept segment, in reading order. Default: false.')] = None,
     keep_id: Annotated[str, Field(description='The segment that survives the merge.')],
+    keep_shapes: Annotated[Optional[bool], Field(description="Keep every member's outline as a shape of the kept segment, in the order given. Default: false.")] = None,
     move_into_region: Annotated[Optional[bool], Field(description="Move members in other regions into the kept segment's region rather than refusing. Default: false.")] = None,
     segment_ids: Annotated[list[Any], Field(description='The segments to merge.')],
 ) -> Any:
     'Merge Segments\n\nRoute: POST /api/segments/merge (toolset `segments`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/segments/merge", json=_rt.body({"expected_versions": expected_versions, "join_geometry": join_geometry, "keep_id": keep_id, "move_into_region": move_into_region, "segment_ids": segment_ids}))
+    return _rt.call("POST", "/api/segments/merge", json=_rt.body({"expected_versions": expected_versions, "join_geometry": join_geometry, "keep_id": keep_id, "keep_shapes": keep_shapes, "move_into_region": move_into_region, "segment_ids": segment_ids}))
 
 
 def fichero_segments_create_pass(

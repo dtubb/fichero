@@ -3132,6 +3132,9 @@ class SegmentMergeParams(BaseModel):
     #: segment's region and merged in the same action. Off, a merge across regions is refused, as the
     #: Reader's backspace join needs (`source.textedit.backspace-joins-in-reading-order`).
     move_into_region: bool = Field(False, description="Move members in other regions into the kept segment's region rather than refusing.")
+    #: `segment-editor.edge.word-across-lines`: the kept segment takes every member's outline as one shape each, in
+    #: the order given (a word broken at a line's end is one word with two shapes).
+    keep_shapes: bool = Field(False, description="Keep every member's outline as a shape of the kept segment, in the order given.")
 
 
 def _invert_merge(before, after, ctx: ActionContext):
@@ -3170,6 +3173,13 @@ def _invert_merge(before, after, ctx: ActionContext):
             }} if after.get("kept_version") is not None else {}),
         },
     )
+
+
+def _member_outline(row: Segment) -> list[list[float]] | None:
+    """A merge member's outline (its polygon, else its rect), for `keep_shapes`."""
+    from fichero_server.media import line_join
+
+    return line_join.outline_of(row.anchor) if row.anchor is not None else None
 
 
 @action(
@@ -3365,6 +3375,23 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
     # `segment-editor.merge-lines`: the kept line takes the joined shape, versioned like any reshape, so
     # its undo restores the snapshot written here.
     kept_version = None
+    if params.keep_shapes and joined_shape is None:
+        outlines = [outline for outline in (_member_outline(rows[sid]) for sid in params.segment_ids) if outline]
+        if outlines:
+            from fichero_server.media import line_join
+            from fichero_server.models.anchors import AnchorShape, AnchorShapeKind
+
+            kept_version = keep_row.version
+            snapshot_segment_version(db, keep_row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+            x0, y0, x1, y1 = line_join.bounds([point for outline in outlines for point in outline])
+            keep_row.anchor = keep_row.anchor.model_copy(update={
+                "polygon": None, "rect": [x0, y0, x1 - x0, y1 - y0],
+                "shapes": [AnchorShape(kind=AnchorShapeKind.polygon, points=outline) for outline in outlines],
+            })
+            bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(keep_row.anchor)
+            keep_row.bbox_x, keep_row.bbox_y, keep_row.bbox_w, keep_row.bbox_h, keep_row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
+            db.save(keep_row)
+            after_versions[params.keep_id] = keep_row.version
     if joined_shape is not None:
         kept_version = keep_row.version
         snapshot_segment_version(db, keep_row, deleted=False, actor=ctx.actor, audit_id=audit_id)
@@ -4032,7 +4059,34 @@ def _action_cut_words(db: Database, params: SegmentCutWordsParams, ctx: ActionCo
         pass_ids=[rows[0].pass_id],
         document_ids=[rows[0].document_id],
     )
-    return {"segment_ids": list(made), "replaced": replaced, "left_alone": left_alone}, spec
+    return {"segment_ids": list(made), "replaced": replaced, "left_alone": left_alone,
+            "joinable": _hyphenated_pairs(db, [(row, words) for row, _source_id, _source, words in plans])}, spec
+
+
+#: How a line's reading ends when its last word goes on on the next line (`segment-editor.edge.word-across-lines`).
+LINE_END_HYPHENS = ("-", "¬", "⸗", "=", "\u00ad")
+
+
+def _hyphenated_pairs(db: Database, cut: list[tuple[Segment, list]]) -> list[list[str]]:
+    """The words broken at a line's end among the lines just cut: each line, in page order, whose reading ends with a
+    hyphen and whose next cut line's reading starts with no space, gives [its last word, the next line's first word]
+    (`segment-editor.edge.word-across-lines`). An offer only: nothing is joined here."""
+    from fichero_server.api.routes.document.segment_readings import _segment_order_key
+
+    def words_of(line: Segment) -> list[Segment]:
+        children = [row for row in db.query(Segment, parent_segment_id=line.id) if row.deleted_at is None and row.kind == "word"]
+        return sorted(children, key=lambda row: (row.metadata or {}).get("reading_span", [0])[0])
+
+    lines = sorted((row for row, _words in cut), key=_segment_order_key)
+    pairs = []
+    for line, following in zip(lines, lines[1:]):
+        text = (_counting_readings(db, line.id).get("transcription") or ("", ""))[1]
+        after = (_counting_readings(db, following.id).get("transcription") or ("", ""))[1]
+        if text.rstrip().endswith(LINE_END_HYPHENS) and after and not after[0].isspace():
+            first, second = words_of(line), words_of(following)
+            if first and second:
+                pairs.append([first[-1].id, second[0].id])
+    return pairs
 
 
 class SegmentCutCharactersParams(BaseModel):
