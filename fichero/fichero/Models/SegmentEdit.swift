@@ -37,22 +37,19 @@ enum SegmentEdit {
         /// Add Baseline (`segment.add_baseline`).
         case addBaseline(SegmentCutWordsRequest)
 
-        // One exhaustive case per edit kind, each one line.
-        // swiftlint:disable:next cyclomatic_complexity
         func encode(to encoder: any Encoder) throws {
+            try payload.encode(to: encoder)
+        }
+        /// The request body each kind sends (the tools' half is `toolPayload`, SegmentEdit+Tools.swift).
+        var payload: any Encodable {
             switch self {
-            case .update(let params): try params.encode(to: encoder)
-            case .baseline(let params): try params.encode(to: encoder)
-            case .create(let params): try params.encode(to: encoder)
-            case .delete(let params): try params.encode(to: encoder)
-            case .merge(let params): try params.encode(to: encoder)
-            case .updateMany(let params): try params.encode(to: encoder)
-            case .reparent(let params): try params.encode(to: encoder)
-            case .regenerateOutline(let params): try params.encode(to: encoder)
-            case .knife(let params): try params.encode(to: encoder)
-            case .simplify(let params): try params.encode(to: encoder)
-            case .cutWords(let params): try params.encode(to: encoder)
-            case .addBaseline(let params): try params.encode(to: encoder)
+            case .update(let params): params
+            case .baseline(let params): params
+            case .create(let params): params
+            case .delete(let params): params
+            case .merge(let params): params
+            case .updateMany(let params): params
+            default: toolPayload
             }
         }
     }

@@ -187,3 +187,18 @@ struct SegmentCutWordsRequest: Encodable, Equatable {
 
     enum CodingKeys: String, CodingKey { case segmentIds = "segment_ids", expectedVersions = "expected_versions" }
 }
+
+extension SegmentEdit.Params {
+    /// The tools' request bodies, the second half of `payload`, so neither switch carries every kind.
+    var toolPayload: any Encodable {
+        switch self {
+        case .reparent(let params): params
+        case .regenerateOutline(let params): params
+        case .knife(let params): params
+        case .simplify(let params): params
+        case .cutWords(let params): params
+        case .addBaseline(let params): params
+        case .update, .baseline, .create, .delete, .merge, .updateMany: payload
+        }
+    }
+}
