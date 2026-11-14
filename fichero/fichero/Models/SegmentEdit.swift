@@ -37,6 +37,8 @@ enum SegmentEdit {
         /// Add Baseline (`segment.add_baseline`).
         case addBaseline(SegmentCutWordsRequest)
 
+        // One exhaustive case per edit kind, each one line.
+        // swiftlint:disable:next cyclomatic_complexity
         func encode(to encoder: any Encoder) throws {
             switch self {
             case .update(let params): try params.encode(to: encoder)
