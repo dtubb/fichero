@@ -494,6 +494,14 @@ def write(page: SourcePage, report: LossReport) -> bytes:
             # which `xsd:string` allows, and the reader takes an empty CONTENT as no
             # reading. Omitting the attribute failed 15 of 239 real pages.
             attrs["CONTENT"] = segment.readings[0][1] if segment.readings else ""
+            cut = segment.foreign.get("fichero:cut")
+            if cut:
+                # `segment-editor.export-carries-every-edit`: the cut's confidence is the word's WC; ALTO has no
+                # place for how it was cut, so that is said, not dropped quietly.
+                if cut.get("confidence") is not None:
+                    attrs["WC"] = f"{float(cut['confidence']):.2f}"
+                report.note("how a word was cut", 1, "ALTO has no place for a cut's source (recogniser, ink gaps, "
+                                                     "a person); PAGE XML keeps it in custom")
         if element_name == "ComposedBlock" and segment.foreign.get("alto:TYPE"):
             attrs["TYPE"] = str(segment.foreign["alto:TYPE"])
         refs = [tag["ID"] for tag in segment.foreign.get("alto:tags", [])]

@@ -716,6 +716,11 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                     report.note(f"a '{fact['kind']}' editorial mark", 1,
                                 "PAGE XML records only `unclear` stretches in `custom`")
             custom = " ".join(filter(None, [custom, *marks]))
+        cut = segment.foreign.get("fichero:cut")
+        if cut:
+            # How a word was cut (`segment-editor.export-carries-every-edit`), in PAGE's own `custom` grammar.
+            confidence = "" if cut.get("confidence") is None else f" confidence:{float(cut['confidence']):.2f};"
+            custom = " ".join(filter(None, [custom, f"cut {{source:{cut['source']};{confidence}}}"]))
         if custom:
             # Composed with the derived-coords marker, never over it: overwriting it made
             # a worked-out region shape read back as one the source drew.
