@@ -57,6 +57,11 @@ PROTOCOL_REQUIREMENTS = frozenset({
 
 # Current candidate-dead backlog. Drop entries as files are removed or wired.
 KNOWN_VIOLATIONS: dict[str, str] = {
+    "Views/Shell/PaneHead/PreviewMarkupToolsRow+Shapes.swift": (
+        "#6582 — false positive, NOT dead: its only own type, SimplifySliderButton, is used by "
+        "shapeButtons in this same file (an extension of PreviewMarkupToolsRow); the scanner sees the type "
+        "name in no other file."
+    ),
     "Views/Settings/AI/AISettingsView+Tabs.swift": (
         "#6022 — false positive, NOT dead: this file's only own type, CloudAccessSection, is used "
         "by AISettingsView.defaultsTab in this same file (an extension of AISettingsView); the scanner "
