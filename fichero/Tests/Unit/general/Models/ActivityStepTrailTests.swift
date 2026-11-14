@@ -15,13 +15,13 @@ struct ActivityStepTrailTests {
         ActivityJob.Stage(title: title, state: state, done: done, total: total)
     }
 
-    @Test("the trail reads Import ✓ → Segment ✓ → Read ▶ 34/120 → Names ·")
+    @Test("the trail reads Import done → Segment done → Read 34/120 → Names waiting")
     func trail() {
         let text = ActivityTrail.text([
             stage("Import", "done"), stage("Segment", "done"), stage("Read", "running", done: 34, total: 120), stage("Names", "waiting")
         ])
-        #expect(text == "Import ✓ → Segment ✓ → Read ▶ 34/120 → Names ·")
-        #expect(ActivityTrail.text([stage("Read", "failed"), stage("Names", "not run")]) == "Read ✗ → Names –")
+        #expect(text == "Import done → Segment done → Read 34/120 → Names waiting")
+        #expect(ActivityTrail.text([stage("Read", "failed"), stage("Names", "not run")]) == "Read failed → Names skipped")
         #expect(ActivityTrail.text([]).isEmpty, "a job of its own has no trail")
     }
 
@@ -44,7 +44,7 @@ struct ActivityStepTrailTests {
         var job = ActivityJob(id: "r", taskType: "run-a-recipe", name: "Run the recipe: Letters", state: .running)
         #expect(job.stages.isEmpty && job.ranOn == nil && job.costUsd == nil)
         job.stages = [stage("Read", "running", done: 1, total: 3)]
-        job.ranOn = ActivityJob.RanOn(kind: "pages", count: 3, name: nil)
-        #expect(ActivityTrail.text(job.stages) == "Read ▶ 1/3")
+        job.ranOn = ActivityJob.RanOver(kind: "pages", count: 3, name: nil)
+        #expect(ActivityTrail.text(job.stages) == "Read 1/3")
     }
 }

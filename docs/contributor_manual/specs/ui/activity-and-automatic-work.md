@@ -3193,6 +3193,14 @@ already name. Nothing here blocks Stages 1 to 5; a step burns down with its issu
 - Tests: fichero/Tests/Unit/general/Views/Activity/ActivityPopoverWorkCapTests.swift
 - Size: S
 
+#### Step 6.29 — Delete on every row, the archive mark beside it (#6583; built 2026-11-13 night, PARTIAL: the app's Undo and Show Archived)
+- Behaviours: `activity.window.delete-any-row`
+- Tests: fichero-server/tests/unit/jobs/test_delete_any_row_6583.py, fichero-server/tests/unit/jobs/test_archive_old_runs_6583.py, fichero/Tests/Unit/general/Models/ActivityDeleteAnyRowTests.swift
+- Depends on: 6.13
+- Size: S
+
+The redefinition (Delete removes, Archive hides) and the rest of the verbs live in `activity-pane.md` (`activity.pane.archive-old-runs`, Stage 2).
+
 ### Stage 7 — A run never fails silently (owner 2026-11-13, #6354; section J)
 
 Engine first: the kind and its table are the contract the app displays, so the field lands and

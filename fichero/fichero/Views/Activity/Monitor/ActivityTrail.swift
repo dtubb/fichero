@@ -3,23 +3,24 @@
 //  Fichero
 //
 //  The one progress of a row and the one status bar of the table (`activity.pane.row-says-what-ran-on-what`,
-//  `activity.pane.less-is-more-table`, #6441): "Import ✓ → Segment ✓ → Read ▶ 34/120 → Names ·" and
+//  `activity.pane.less-is-more-table`, #6441): "Import done → Segment done → Read 34/120 → Names waiting" and
 //  "3 running · 12 waiting · $3.20 today". Pure text from the engine's counts; the views draw it.
 //
 
 import Foundation
 
 enum ActivityTrail {
-    /// One stage as one token: its title and a glyph for its state, the running one with its fraction.
+    /// One stage as one token: its title and its state in a word, the running one as its fraction.
     static func token(_ stage: ActivityJob.Stage) -> String {
         switch stage.state {
-        case "done", "completed": "\(stage.title) ✓"
-        case "partial": "\(stage.title) ✓·"
-        case "running": stage.total > 0 ? "\(stage.title) ▶ \(stage.done)/\(stage.total)" : "\(stage.title) ▶"
-        case "failed": "\(stage.title) ✗"
-        case "cancelled", "stopped": "\(stage.title) ■"
-        case "skipped", "not run": "\(stage.title) –"
-        default: "\(stage.title) ·"
+        // Words, not glyph characters (the SF-Symbols rule: the cell draws the state glyph itself, the text says the state).
+        case "done", "completed": "\(stage.title) done"
+        case "partial": "\(stage.title) done, some failed"
+        case "running": stage.total > 0 ? "\(stage.title) \(stage.done)/\(stage.total)" : "\(stage.title) running"
+        case "failed": "\(stage.title) failed"
+        case "cancelled", "stopped": "\(stage.title) stopped"
+        case "skipped", "not run": "\(stage.title) skipped"
+        default: "\(stage.title) waiting"
         }
     }
 

@@ -207,19 +207,33 @@ extension ActivityService {
         }
     }
 
+    /// Undo of Delete (the audited `job.undelete`, #6583): deleted rows come back in the state they had. Returns the ids.
+    func undeleteJobs(ids: [String]) async throws -> [String] {
+        let response = try await client.api.undeleteJobsApiActivityJobsUndeletePost(body: .json(.init(ids: ids)))
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.ids
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, let payload):
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
+        }
+    }
+
     /// One row the quit left unfinished and the open paused (`activity.launch.nothing-starts-one-alert`, #6584).
-    struct StoppedAtQuitItem: Equatable, Identifiable {
+    struct StoppedRow: Equatable, Identifiable {
         let id: String
         let kind: String
         let name: String
     }
 
     /// What the open paused because the quit stopped it: nothing of it runs until `continueAfterQuit`.
-    func stoppedAtQuit() async throws -> [StoppedAtQuitItem] {
+    func stoppedAtQuit() async throws -> [StoppedRow] {
         let response = try await client.api.listStoppedAtQuitApiActivityStoppedAtQuitGet()
         switch response {
         case .ok(let okResponse):
-            return try okResponse.body.json.items.map { StoppedAtQuitItem(id: $0.id, kind: $0.kind, name: $0.name) }
+            return try okResponse.body.json.items.map { StoppedRow(id: $0.id, kind: $0.kind, name: $0.name) }
         case .undocumented(let statusCode, let payload):
             throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }

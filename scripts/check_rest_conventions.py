@@ -49,6 +49,11 @@ KNOWN_VIOLATIONS: set[str] = {
 # `self_test` refuses an empty reason, and `main` fails on an entry whose operation no
 # longer exists, so an excuse cannot outlive the endpoint it excused.
 RULE_IS_WRONG: dict[str, str] = {
+    "delete_jobs_api_activity_jobs_delete_post": (
+        "Bulk, with a body: `ids` (job ids or a kind's `waiting:<kind>` row), `states` (Archive Finished… and the like) and "
+        "`stop_running` (the person's one confirmation for Stop then Delete). The same shape and reason as the workflow "
+        "runs' bulk delete beside it (#6583, `activity.window.delete-any-row`)."
+    ),
     "delete_segments_api_segments_delete_post": (
         "Bulk, and versioned: the body carries `expected_versions`, a compare-and-set "
         "map of segment id to the version the caller believes it is deleting. That is "

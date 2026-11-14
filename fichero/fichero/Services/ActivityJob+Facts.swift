@@ -28,7 +28,7 @@ extension ActivityJob {
         let total: Int
     }
 
-    struct RanOn: Equatable {
+    struct RanOver: Equatable {
         let kind: String
         let count: Int
         let name: String?
