@@ -11,7 +11,7 @@ struct SegmentMenuTarget {
     let selectAll: () -> Void
     /// Select Same Kind (⌘⇧A): every segment of a kind the selection holds (`segment-editor.select-shift-toggles`).
     var selectSameKind: () -> Void = {}
-    /// Next Doubtful Line (⌘⌥N): the next line the engine is least sure of (`segment-editor.low-confidence-lens`).
+    /// Next Doubtful Line: the next line the engine is least sure of (`segment-editor.low-confidence-lens`).
     var nextDoubtful: () -> Void = {}
     let delete: () -> Void
     let join: () -> Void
@@ -54,8 +54,8 @@ struct SegmentMenuContent: View {
         Button("Select Same Kind") { target?.selectSameKind() }
             .keyboardShortcut("a", modifiers: [.command, .shift])
             .disabled(count == 0)
+        // No chord yet: the spec's ⌘⌥N is the markup row's Note (`PreviewMarkupToolsRow`).
         Button("Next Doubtful Line") { target?.nextDoubtful() }
-            .keyboardShortcut("n", modifiers: [.command, .option])
             .disabled(target == nil)
         // No chord of its own: Edit › Delete (⌘⌫) is the one keyed home and takes the segments when the Preview holds them
         // (`SegmentDeleteRoute`). A bare ⌫ here would take the key from every text field.

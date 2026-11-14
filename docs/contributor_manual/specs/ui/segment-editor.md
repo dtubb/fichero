@@ -519,8 +519,8 @@ See section 7.2 below for what exists. The design:
   engine half, `GET /api/segments/document/{doc_id}/doubtful`: the working pass's lines, a validator finding first
   (confidence 0), then the least sure of the shape's confidence and its words' cut confidences, then lines nothing
   measured; each with its reasons in words ("shape 42%", "cut 30%", "no-baseline"); reads only. *Not built:* the
-  reading's confidence (a reading carries none today), the lens's list. Edit › Segments ▸ Next Doubtful Line (⌘⌥N)
-  selects the next measured line in that order, from the top again after the last, and says when nothing is
+  reading's confidence (a reading carries none today), the lens's list, the chord (⌘⌥N is the markup row's Note).
+  Edit › Segments ▸ Next Doubtful Line selects the next measured line in that order, from the top again after the last, and says when nothing is
   doubtful (`SegmentSelectionGestures.nextDoubtful`); the head's button is not built. *Tests:*
   `fichero-server/tests/unit/api/test_segments_doubtful.py`;
   `fichero/Tests/Unit/general/Views/Source/SegmentSelectionGesturesTests.swift::NextDoubtfulTests`.

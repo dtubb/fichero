@@ -300,7 +300,7 @@ extension ZoomableImagePreview {
         regionSelection.selectAll(indices, artifactId: artifactId, documentId: documentId, in: all)
     }
 
-    /// Next Doubtful (⌘⌥N, `segment-editor.low-confidence-lens`): select the next line the engine is least sure of, from
+    /// Next Doubtful (`segment-editor.low-confidence-lens`): select the next line the engine is least sure of, from
     /// the top again after the last. Selecting is not an action. The page says so when nothing is doubtful.
     func selectNextDoubtful() {
         guard let documentId, let segmentService, let artifactId = ocrGeometrySelectionScope else { return }
