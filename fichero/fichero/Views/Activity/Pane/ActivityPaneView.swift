@@ -133,6 +133,14 @@ struct ActivityPaneView: View {
         }
     }
 
+    /// Switch the grouping, keeping a selected file selected (`activity.pane.group-by-run-or-by-file`).
+    private func group(by grouping: ActivityPane.Grouping) {
+        let rows = grouping == .file ? ActivityPane.byFile(allRows) : ActivityPane.outline(allRows)
+        let carried = ActivityPane.carry(selection, into: rows)
+        update { $0.grouping = grouping }
+        selection = carried
+    }
+
     /// Select the row a Show in Activity asked for, once it is listed.
     private func select(_ wanted: ActivitySelection?) {
         guard let wanted else { return }
@@ -151,7 +159,7 @@ struct ActivityPaneView: View {
                     currentKind: .activity, lenses: ActivityPane.Grouping.allCases,
                     lensTitle: { (grouping: ActivityPane.Grouping) in "By \(grouping.title)" },
                     lensIcon: { (grouping: ActivityPane.Grouping) in grouping == .run ? "list.bullet.indent" : "doc.on.doc" },
-                    lens: Binding(get: { prefs.grouping }, set: { value in update { $0.grouping = value } })
+                    lens: Binding(get: { prefs.grouping }, set: group(by:))
                 )
             },
             controls: { EmptyView() },
@@ -163,7 +171,7 @@ struct ActivityPaneView: View {
         HStack(spacing: 8) {
             if !showsHead {
                 // The window has no pane head: Group by sits beside the filter.
-                Picker("Group by", selection: Binding(get: { prefs.grouping }, set: { value in update { $0.grouping = value } })) {
+                Picker("Group by", selection: Binding(get: { prefs.grouping }, set: group(by:))) {
                     ForEach(ActivityPane.Grouping.allCases) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented)

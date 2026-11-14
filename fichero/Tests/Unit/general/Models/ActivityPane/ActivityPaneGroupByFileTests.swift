@@ -29,6 +29,19 @@ struct ActivityPaneGroupByFileTests {
         #expect(twice == once)
     }
 
+    @Test("a file selected by Run is still selected by File, and a page's step selected by File is its file back by Run")
+    func carriedAcrossTheSwitch() {
+        let runs = [ActivityPaneFixture.letters, ActivityPaneFixture.names]
+        let byRun = ActivityPane.outline(runs), byFile = ActivityPane.byFile(runs)
+        let fileUnderRun = byRun.compactMap(\.children).flatMap { $0 }.first { $0.documentId == "p2" }?.id ?? ""
+        #expect(ActivityPane.carry([fileUnderRun], into: byFile) == ["file:p2"])
+        let step = byFile.last?.children?.first?.id ?? ""
+        #expect(step.hasPrefix("file:p2|"))
+        let back = ActivityPane.carry([step], into: byRun)
+        #expect(back.count == 1 && back.first?.hasSuffix("|file:p2") == true)
+        #expect(ActivityPane.carry([ActivityPaneFixture.letters.id], into: byFile).isEmpty, "a run is no file")
+    }
+
     @Test("the grouping is remembered per pane and a new pane opens by Run")
     func remembered() {
         #expect(ActivityPanePrefs().grouping == .run)

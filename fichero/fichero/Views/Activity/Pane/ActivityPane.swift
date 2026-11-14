@@ -68,6 +68,18 @@ enum ActivityPane {
                                                   pages: pages[documentId] ?? [], parent: row) }
     }
 
+    /// The selection carried across a Group by switch (`activity.pane.group-by-run-or-by-file`): a file stays selected as
+    /// that file (by File, its row; by Run, its row under the first run that read it); a run row has no file to be, so it
+    /// stays only where its id is listed. `rows` is the new grouping's outline.
+    static func carry(_ selection: Set<String>, into rows: [ActivityMonitorRow]) -> Set<String> {
+        let listed = rows.flatMap { [$0.id] + ($0.children ?? []).map(\.id) }
+        return Set(selection.compactMap { id -> String? in
+            guard let range = id.range(of: "file:") else { return listed.contains(id) ? id : nil }
+            let file = "file:" + (id[range.upperBound...].split(separator: "|").first.map(String.init) ?? "")
+            return listed.first { $0 == file || $0.hasSuffix("|" + file) }
+        })
+    }
+
     /// The page rows under a row, however deep (a run's steps hold its pages).
     static func leaves(of row: ActivityMonitorRow) -> [ActivityMonitorRow] {
         guard let children = row.children, !children.isEmpty else { return row.kind == .page ? [row] : [] }
