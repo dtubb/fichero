@@ -14,9 +14,11 @@ Storage layout:
 Models are app-wide (shared across all .fichero libraries).
 """
 
+import contextlib
 import json
 import logging
 import shutil
+import threading
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -908,10 +910,10 @@ def model_display_name(runtime: str, model: str) -> str:
     return "the model"
 
 
-def _job_detail(db) -> tuple[str | None, dict]:
+def _job_detail(db, job_id: str | None = None) -> tuple[str | None, dict]:
     from fichero_server.execution import jobs
 
-    job_id = jobs.current_job_id()
+    job_id = job_id or jobs.current_job_id()
     if db is None or job_id is None:
         return job_id, {}
     row = jobs.read_job(db, job_id)
@@ -921,14 +923,20 @@ def _job_detail(db) -> tuple[str | None, dict]:
         return job_id, {}
 
 
-def _say_progress(db, words: str) -> None:
+def _say_progress(db, words: str, *, job_id: str | None = None, bytes_done: int | None = None,
+                  bytes_total: int | None = None) -> None:
     """The running job's reason, in words ("Downloading Qwen2.5-VL 7B: 1.2 GB of 5.6 GB"); nothing outside a job.
-    Kept beside the rest of the row's detail: a stop asked of it is in there."""
+    Kept beside the rest of the row's detail: a stop asked of it is in there, and so are a download's typed bytes
+    (`bytes_done`, `bytes_total`). `job_id` is for a thread that is not the job's own (the folder watcher)."""
     from fichero_server.execution import jobs
 
-    job_id, detail = _job_detail(db)
+    job_id, detail = _job_detail(db, job_id)
     if job_id is not None:
         detail["progress"] = words
+        if bytes_done is not None:
+            detail["bytes_done"] = bytes_done
+        if bytes_total:
+            detail["bytes_total"] = bytes_total
         jobs.save_detail(db, job_id, json.dumps(detail), reason=words)
 
 
@@ -976,12 +984,17 @@ def _run_download(subject: str, db=None) -> None:
 
     said = {"at": 0.0}
     began = time.monotonic()
+    job_id = jobs.current_job_id()
+
+    def report(have: int, total: int | None) -> None:
+        _say_progress(db, progress_words(person, have, total, time.monotonic() - began),
+                      job_id=job_id, bytes_done=have, bytes_total=total)
 
     def on_bytes(have: int, total: int | None) -> None:
         now = time.monotonic()
         if now - said["at"] >= PROGRESS_EVERY_SECONDS or not have:
             said["at"] = now
-            _say_progress(db, progress_words(person, have, total, now - began))
+            report(have, total)
 
     try:
         if runtime == "mlx":
@@ -997,10 +1010,13 @@ def _run_download(subject: str, db=None) -> None:
             from fichero_server.llm.yolo_runtime import download
 
             _say_progress(db, f"Downloading {person}")
-            with_retries(lambda: download(name), name=person, should_stop=should_stop)
+            with _watching_growth(*_download_folder(runtime, name), report):
+                with_retries(lambda: download(name), name=person, should_stop=should_stop)
         elif runtime in _DOWNLOADABLE:
             _say_progress(db, f"Downloading {person}")
-            with_retries(lambda: LocalModelManager().download_model(runtime, name), name=person, should_stop=should_stop)
+            with _watching_growth(*_download_folder(runtime, name), report):
+                with_retries(lambda: LocalModelManager().download_model(runtime, name), name=person,
+                             should_stop=should_stop)
         else:
             raise ValueError(f"no download for {subject!r}")
     except DownloadStopped as stopped:
@@ -1021,6 +1037,55 @@ def _run_download(subject: str, db=None) -> None:
         jobs.come_back_after(db, job_id, COME_BACK_AFTER_SECONDS)
         raise jobs.JobDeferred(str(broken)) from broken
     say_installed(runtime, name)
+
+
+def _download_folder(runtime: str, name: str) -> tuple[Path, int | None]:
+    """The folder a model's fetch grows and the catalogue's expected bytes for it (None when the catalogue has
+    no figure): what the progress watcher measures."""
+    if runtime == "yolo":
+        from fichero_server.llm import yolo_runtime
+
+        spec = yolo_runtime.YOLO_MODELS.get(name)
+        return yolo_runtime._models_path(), (spec[3] if spec else None)
+    if runtime == "whisper":
+        from fichero_server.llm.whisper_runtime import whisper_store_dir
+
+        folder = whisper_store_dir()
+    elif runtime == "spacy":
+        folder = MODELS_BASE / "spacy"
+    else:
+        folder = MODELS_BASE / "embeddings"
+    catalogue = _DOWNLOADABLE.get(runtime, {})
+    key = next((k for k in catalogue if k.lower() == name.lower()), None)
+    return folder, (catalogue[key]["disk_mb"] * 1_000_000 if key else None)
+
+
+@contextlib.contextmanager
+def _watching_growth(folder: Path, expected: int | None, report):
+    """While a fetch runs, a thread measures how much `folder` has grown since the fetch began (each file once) and
+    says it every PROGRESS_EVERY_SECONDS, against the catalogue's expected size; it stops when the fetch ends,
+    however it ends (#6592). The model's own fetch says nothing, so the folder is the only honest meter."""
+    stop = threading.Event()
+    baseline = bytes_once(folder) if folder.exists() else 0
+
+    def watch() -> None:
+        last = 0
+        while not stop.wait(PROGRESS_EVERY_SECONDS):
+            try:
+                have = max(0, bytes_once(folder) - baseline) if folder.exists() else 0
+                if have > last:
+                    last = have
+                    report(have, max(expected, have) if expected else None)
+            except Exception as exc:  # noqa: BLE001 -- a meter that fails must never fail the download
+                logger.warning("download progress not read: %s", exc)
+
+    watcher = threading.Thread(target=watch, name="download-progress", daemon=True)
+    watcher.start()
+    try:
+        yield
+    finally:
+        stop.set()
+        watcher.join(5)
 
 
 def _set_up_mlx_runtime(db) -> None:
