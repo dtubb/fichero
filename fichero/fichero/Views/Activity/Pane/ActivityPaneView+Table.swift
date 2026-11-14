@@ -33,7 +33,7 @@ struct ActivityPaneSelection: Equatable {
 extension ActivityPaneView {
     // MARK: - The table
 
-    var table: some View {
+    func table(_ shown: [ActivityMonitorRow]) -> some View {
         Table(of: ActivityMonitorRow.self, selection: $selection, sortOrder: $sortOrder, columnCustomization: Binding(
             get: { prefs.columns }, set: { value in update { $0.columns = value } }
         )) {
@@ -62,7 +62,7 @@ extension ActivityPaneView {
             TableColumn(ActivityPane.Column.kind.title) { row in kindCell(row) }
                 .width(22).customizationID(ActivityPane.Column.kind.rawValue).defaultVisibility(.hidden)
         } rows: {
-            ForEach(shownRows) { row in
+            ForEach(shown) { row in
                 if let children = row.children, !children.isEmpty {
                     DisclosureTableRow(row, isExpanded: expanded(row.id)) {
                         ForEach(children) { TableRow($0) }
@@ -76,7 +76,7 @@ extension ActivityPaneView {
             contextMenu(rows(ids))
         } primaryAction: { ids in
             // A double-click DISCLOSES the row and selects it (decision 8); its details are already in the Inspector.
-            for id in ids where (find(id)?.children ?? []).isEmpty == false { toggle(id) }
+            for id in ids where (find(id, in: shown)?.children ?? []).isEmpty == false { toggle(id) }
             selection = ids
         }
         #if os(macOS)
@@ -84,8 +84,8 @@ extension ActivityPaneView {
         #endif
         // The menu bar acts on THIS pane only while its table has the focus: two Activity panes in a window, or the
         // Activity window beside a main window, never take each other's verbs (a scene value: the last pane drawn won).
-        .focusedValue(\.activityRun, selectedRunTarget)
-        .focusedValue(\.activityVerbs, verbTarget)
+        .focusedValue(\.activityRun, selectedRunTarget(in: shown))
+        .focusedValue(\.activityVerbs, verbTarget(in: shown))
         .focusedValue(\.activityView, viewTarget)
         .accessibilityIdentifier("activity.table")
     }
@@ -187,11 +187,13 @@ extension ActivityPaneView {
 
     // MARK: - Selection
 
-    func rows(_ ids: Set<ActivityMonitorRow.ID>) -> [ActivityMonitorRow] {
-        ids.compactMap(find)
+    /// The rows of `ids` in `shown` (the list being drawn), or in the list built afresh for an event.
+    func rows(_ ids: Set<ActivityMonitorRow.ID>, in shown: [ActivityMonitorRow]? = nil) -> [ActivityMonitorRow] {
+        let shown = shown ?? shownRows
+        return ids.compactMap { find($0, in: shown) }
     }
 
-    func find(_ id: ActivityMonitorRow.ID) -> ActivityMonitorRow? {
+    func find(_ id: ActivityMonitorRow.ID, in shown: [ActivityMonitorRow]? = nil) -> ActivityMonitorRow? {
         func search(_ rows: [ActivityMonitorRow]) -> ActivityMonitorRow? {
             for row in rows {
                 if row.id == id { return row }
@@ -199,7 +201,7 @@ extension ActivityPaneView {
             }
             return nil
         }
-        return search(shownRows)
+        return search(shown ?? shownRows)
     }
 
     /// The one selected row's details and its steps' versions; nil with none or several selected.

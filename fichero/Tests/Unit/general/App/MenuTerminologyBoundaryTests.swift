@@ -235,8 +235,8 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
         // menu bar from the pane; its row menu is the one verb list plus the shared Read Again; no hand-made Stop is left.
         // Published by the focused table, never by the scene: two Activity panes never take each other's verbs.
         let table = try Self.appSource("Views/Activity/Pane/ActivityPaneView+Table.swift")
-        XCTAssertTrue(table.contains(".focusedValue(\\.activityRun, selectedRunTarget)"))
-        XCTAssertTrue(table.contains(".focusedValue(\\.activityVerbs, verbTarget)"))
+        XCTAssertTrue(table.contains(".focusedValue(\\.activityRun, selectedRunTarget(in: shown))"))
+        XCTAssertTrue(table.contains(".focusedValue(\\.activityVerbs, verbTarget(in: shown))"))
         XCTAssertFalse(try Self.appSource("Views/Activity/Pane/ActivityPaneView.swift").contains(".focusedSceneValue(\\.activity"))
         XCTAssertTrue(table.contains("ForEach(ActivityPaneVerb.allCases)"))
         XCTAssertTrue(table.contains("ActivityReadAgainMenuItem(target: runMenuTarget(for: row))"))

@@ -61,13 +61,13 @@ extension ActivityPaneView {
     // MARK: - The menu bar's targets
 
     /// The one selected row's Stop / Read Again, for Project › Activity (`FocusedActivityRunButtons`).
-    var selectedRunTarget: ActivityRunMenuTarget? {
-        let picked = rows(selection)
+    func selectedRunTarget(in shown: [ActivityMonitorRow]) -> ActivityRunMenuTarget? {
+        let picked = rows(selection, in: shown)
         return picked.count == 1 ? picked.first.map(runMenuTarget(for:)) : nil
     }
 
-    var verbTarget: ActivityVerbTarget {
-        let picked = rows(selection)
+    func verbTarget(in shown: [ActivityMonitorRow]) -> ActivityVerbTarget {
+        let picked = rows(selection, in: shown)
         return ActivityVerbTarget(
             enabled: Set(ActivityPaneVerb.allCases.filter { $0.isEnabled(for: picked) }),
             selectionIds: selection,

@@ -103,23 +103,25 @@ struct ActivityPaneView: View {
     // MARK: - Body
 
     var body: some View {
+        // Built once per draw and handed down: the table, its menu targets and the selection all read this one list.
+        let shown = shownRows
         VStack(spacing: 0) {
             if showsHead { head; Divider() }
             filterField
             if libraries.isEmpty {
                 Color.clear  // empty means blank (`activity.window.no-empty-prose`)
-            } else if shownRows.isEmpty, !ActivityPaneFilter(prefs.filter).isEmpty {
+            } else if shown.isEmpty, !ActivityPaneFilter(prefs.filter).isEmpty {
                 Text("No activity matches").foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .accessibilityIdentifier("activity.noMatch")
             } else {
-                table
+                table(shown)
             }
             statusBar
         }
         .accessibilityIdentifier("activity.pane")
         .onChange(of: selection) { _, _ in onSelect(selectedPick) }
-        .onChange(of: shownRows.map(\.id)) { _, _ in onSelect(selectedPick); if selection.isEmpty { select(reveal) } }
+        .onChange(of: shown.map(\.id)) { _, _ in onSelect(selectedPick); if selection.isEmpty { select(reveal) } }
         .onChange(of: reveal) { _, wanted in select(wanted) }
         .onChange(of: revealFiles) { _, wanted in showFiles(wanted) }
         .onAppear { select(reveal); showFiles(revealFiles) }
