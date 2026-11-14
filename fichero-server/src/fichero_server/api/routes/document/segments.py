@@ -3427,7 +3427,7 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
         # removed read from every stretch they held; the record keeps who joined them.
         spans = [(rows[sid].metadata or {}).get("reading_span") for sid in params.segment_ids]
         sources = {(rows[sid].metadata or {}).get("cut_from_representation_id") for sid in params.segment_ids}
-        if all(isinstance(span, list) and len(span) == 2 for span in spans) and len(sources) == 1:
+        if all(isinstance(span, list) and len(span) == 2 for span in spans) and len(sources) == 1 and None not in sources:
             kept_metadata = dict(keep_row.metadata or {})
             keep_row.metadata = {**kept_metadata, "reading_span": [min(a for a, _ in spans), max(b for _, b in spans)],
                                  "cut_source": "person", "cut_confidence": 1.0}
