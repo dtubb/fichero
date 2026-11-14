@@ -30,6 +30,8 @@ struct ActivityStatusToolbarItem: View {
     let libraryId: UUID
     let libraryName: String
     @Binding var importError: String?
+    /// Show / Open Activity: an Activity pane already in this window takes the focus (true), else the Activity window opens.
+    var revealActivityPane: () -> Bool = { false }
 
     @State private var showPopover = false
     /// The failures the popover may show, fixed as it opens (#5666): the last hour, or since it was last opened.
@@ -167,7 +169,7 @@ struct ActivityStatusToolbarItem: View {
                 engineBusy: appState?.engineBusySentence,
                 openActivity: {
                     showPopover = false
-                    openWindow(id: ActivityWindowSelectionState.monitorWindowID)
+                    if !revealActivityPane() { openWindow(id: ActivityWindowSelectionState.monitorWindowID) }
                 }
             )
 
@@ -175,7 +177,7 @@ struct ActivityStatusToolbarItem: View {
 
             Button("Open Activity") {
                 showPopover = false
-                openWindow(id: ActivityWindowSelectionState.monitorWindowID)
+                if !revealActivityPane() { openWindow(id: ActivityWindowSelectionState.monitorWindowID) }
             }
         }
         .padding(14)

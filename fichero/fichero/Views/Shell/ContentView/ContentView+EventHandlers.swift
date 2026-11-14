@@ -212,6 +212,15 @@ extension ContentView {
         }
     }
 
+    /// The Activity popover's Show (`activity.window.is-the-pane-plus-inspector`): an Activity pane already in this window
+    /// takes the focus and true; false when there is none, and the caller opens the Activity window.
+    func revealActivityPane() -> Bool {
+        guard activePaneList.kinds.contains(.activity) else { return false }
+        focusedPane = .activity
+        paneFocusHint = .activity
+        return true
+    }
+
     private func showPane(_ pane: UIPane) {
         switch pane {
         case .library, .preview, .reader, .chat, .segments:
