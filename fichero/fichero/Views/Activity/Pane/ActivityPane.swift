@@ -262,10 +262,23 @@ enum ActivityPane {
 
     /// The State cell's words: none for a row its glyph says alone; a failed or held row its line of at most eight words
     /// (the failure kind's own row words, never a sentence cut short).
+    /// Pages that failed for the same reason collapse into the one line with their count ("No credit left · 12 pages").
     static func stateLine(_ row: ActivityMonitorRow) -> String {
         guard row.phase == .failed || row.phase == .partial || row.phase == .paused || row.phase == .interrupted else {
             return ""
         }
+        let failedPages = row.kind == .page ? [] : leaves(of: row).filter { $0.phase == .failed }
+        let pageLines = Set(failedPages.map(ownLine))
+        let line = ownLine(row).isEmpty ? (pageLines.count == 1 ? pageLines.first ?? "" : "") : ownLine(row)
+        guard !line.isEmpty else { return "" }
+        if failedPages.count > 1, pageLines == [line], words(line) + 3 <= wordBudget {
+            return "\(line) · \(failedPages.count) pages"
+        }
+        return line
+    }
+
+    /// A row's own line: its failure kind's row words, else a reason short enough to be one.
+    private static func ownLine(_ row: ActivityMonitorRow) -> String {
         if let words = row.failure?.rowWords, !words.isEmpty { return trimmed(words) }
         guard let reason = row.reason, !reason.isEmpty else { return "" }
         return words(reason) <= wordBudget ? trimmed(reason) : ""

@@ -57,7 +57,7 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     let projectName: String?
     var phase: Phase
     /// Why it failed, or what it is waiting for, in the engine's words.
-    let reason: String?
+    var reason: String?
     /// What a running row is working on now.
     let workingOn: String?
     let done: Int
