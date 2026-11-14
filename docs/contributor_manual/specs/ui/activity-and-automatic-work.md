@@ -923,9 +923,10 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   after one confirmation, soft-deletes every ended run (completed, failed, stopped) in every open
   project, the same delete as Delete (`deleteRuns(statuses:)`); runs still going stay. ⌘A then Delete
   already works on the table (`.onDeleteCommand`). Pinned by `ActivityClearFinishedShapeTests`. Not
-  yet seen in the app. Left: the first row drawn under the title bar (needs a screen).
+  yet seen in the app. Left: the first row drawn under the title bar (needs a screen). **Widened (owner 2026-11-13 night,
   #6583):** Clear Finished… covers every ended row, workflow runs AND jobs of their own, through `job.delete` as well
-  (`activity-pane.md` `activity.pane.automatic-runs-easy-to-delete`).
+  (`activity-pane.md` `activity.pane.automatic-runs-easy-to-delete`); **renamed Archive Finished… the same night** (the review's
+  item 1): archiving hides and keeps, Delete removes (`activity.pane.archive-old-runs`).
 - `activity.jobs-added-columns` — **[OK]** (#5814) A library made by an older release reads its jobs without
   error: the columns later releases added to `jobs` (`target`, `detail`, `parent_id`, `run_after`, `watched`,
   `cleared_at`) are applied when the library opens (on the write connection, `Database._apply_added_jobs_columns`) and once per CONNECTION after that, so a connection that came back after an invalidated one, or a
@@ -969,6 +970,10 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   cleared rows of every state. App: the window's Delete sends its job rows there and its run rows to the runs delete
   (`ActivityStore.deleteJobs`, `ActivityTableTests` `testActivityWindowDelete_*`). Not yet seen in the app; the Swift
   is not compiled by the worker. Left: the pane's one table (`activity-pane.md`) inherits this through the same store.
+  **REDEFINED (review 2026-11-13 night, item 1; `activity-pane.md` `activity.pane.archive-old-runs`):** what this bullet built
+  — a mark that hides the row and keeps it — is ARCHIVE; Delete REMOVES the row from every list, Show Archived and Retry lists
+  included (the record kept for the audit, `deleted_at`), with Undo in session. The route and `job.delete` keep their names until
+  the archive routes land; a deleted row never reappears, not after a relaunch, not in a Retry list (owner, 23:30).
 - `activity.window.started-by` — **[PARTIAL]** (#5354) a row says who or what started
   it: a person, the recipe, a schedule, a trigger, an assistant. Built: the engine sends `started_by` on every row and tree node, and the opened run's heading words it (`ActivityDetails.startedByWords`, `ActivityStartedByTests`). Not built: the same words on the window's table row.
 - `activity.window.one-surface` — **[GAP]** (#5354) ingest progress, the conversion
