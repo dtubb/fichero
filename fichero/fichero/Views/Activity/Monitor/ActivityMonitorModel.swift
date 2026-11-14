@@ -197,7 +197,9 @@ struct ActivityMonitorRow: Identifiable, Equatable {
         }
         if phase == .done, let partial = partialWords(reason) { return partial }
         if phase == .unknown { return "unknown state \(unknownState ?? "")".trimmingCharacters(in: .whitespaces) }
-        if let reason, !reason.isEmpty, phase == .partial || phase == .interrupted || phase == .notRun {
+        // A stopped run keeps the engine's words too ("Stopped by you", "Stopped through an agent (MCP)"): the app never
+        // rewrites who stopped a run (ruled 2026-10-21, ## 960; `activity.window.done-today`).
+        if let reason, !reason.isEmpty, phase == .partial || phase == .interrupted || phase == .notRun || phase == .cancelled {
             return reason.lowercased().hasPrefix(phase.word.lowercased()) ? reason : "\(phase.word): \(reason)"
         }
         return phase.word
