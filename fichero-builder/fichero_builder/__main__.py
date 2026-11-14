@@ -148,7 +148,7 @@ def main(argv=None) -> int:
     dn.add_argument("--no-presubmit", action="store_true", help="skip the lane's ready check with guards (the manager's call, e.g. a known-red guard)")
     cl = sub.add_parser("check-lane", help="the console's Run check (owner 2026-11-02): the pinned ladder over a lane's HEAD now, beside the loop; lands nothing")
     cl.add_argument("lane"), cl.add_argument("--root", default="."), cl.add_argument("--state", help="where the queue and the journal live")
-    pc = sub.add_parser("precheck", help="the ladder's guards (every pinned scripts/check_*.py the guards rung runs, the contract and since guards) over a worktree's HEAD in a scratch tree with the pinned copies laid over it, as the ladder does; each red with its exact fix when it is mechanical; lands nothing")
+    pc = sub.add_parser("precheck", help="the ladder's guards (every pinned guard the guards rung runs, the contract and since guards) over a worktree's HEAD in a scratch tree with the pinned copies laid over it, as the ladder does; each red with its exact fix when it is mechanical; lands nothing")
     pc.add_argument("worktree"), pc.add_argument("--head", default="HEAD"), pc.add_argument("--root", default=".", help="the checkout holding harness.toml (its [check].engine_repo and [land])")
     pc.add_argument("--pinned", default="", help="the pinned copy to judge with (default: the one the ladder uses for the current origin/<[land].branch>)")
     pc.add_argument("--state", help="where the journal lives")
