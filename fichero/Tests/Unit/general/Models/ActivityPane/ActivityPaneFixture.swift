@@ -14,11 +14,11 @@ enum ActivityPaneFixture {
 
     static func row(_ id: String, _ phase: Row.Phase, kind: Row.Kind = .job, name: String? = nil, jobId: String? = "job",
                     model: String? = nil, documentId: String? = nil, started: Date? = nil, children: [Row]? = nil,
-                    costUsd: Double? = nil, done: Int = 0, total: Int = 0) -> Row {
+                    costUsd: Double? = nil, tokens: Int = 0, done: Int = 0, total: Int = 0) -> Row {
         var row = Row(id: id, kind: kind, libraryId: nil, runRowID: kind == .run ? id : nil, runThreadId: nil,
                       jobId: jobId.map { $0 == "job" ? id : $0 }, name: name ?? id, projectName: nil, phase: phase,
                       reason: nil, workingOn: nil, done: done, total: total, started: started, seconds: nil,
-                      costUsd: costUsd, tokens: 0, errors: 0, model: model, isLive: phase.isLive, children: children)
+                      costUsd: costUsd, tokens: tokens, errors: 0, model: model, isLive: phase.isLive, children: children)
         row.documentId = documentId
         return row
     }

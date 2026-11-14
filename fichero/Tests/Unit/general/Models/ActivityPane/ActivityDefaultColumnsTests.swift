@@ -31,8 +31,7 @@ struct ActivityDefaultColumnsTests {
         ended.phase = .done
         #expect(ActivityPane.costLine(ended) == "$0.42")
         #expect(ActivityPane.costLine(ActivityPaneFixture.row("local", .done)).isEmpty)
-        var unpriced = ActivityPaneFixture.row("u", .done)
-        unpriced.tokens = 10
+        let unpriced = ActivityPaneFixture.row("u", .done, tokens: 10)
         #expect(ActivityPane.costLine(unpriced) == "Not priced")
         #expect(ActivityPane.costLine(ActivityPaneFixture.row("z", .done, costUsd: 0)).isEmpty, "never $0")
     }

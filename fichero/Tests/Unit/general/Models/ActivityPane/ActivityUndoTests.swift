@@ -4,6 +4,7 @@
 //
 
 @testable import Fichero
+import FicheroAPIClient
 import Foundation
 import Testing
 

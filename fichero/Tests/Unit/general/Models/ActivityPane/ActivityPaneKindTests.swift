@@ -20,10 +20,10 @@ struct ActivityPaneKindTests {
     @Test("a Reader pane switched to Activity keeps its id and scope, and a saved workspace restores the Activity leaf")
     func roundTrip() throws {
         let library = UUID()
-        let reader = PaneNode.leaf(.reading, scope: PaneScope(libraryId: library))
+        let reader = PaneNode.leaf(.reading, scope: PaneScope(libraryId: library.uuidString))
         let switched = reader.changingKind(reader.id, to: .activity)
         guard case let .leaf(id, kind, scope, _) = switched else { Issue.record("not a leaf"); return }
-        #expect(id == reader.id && kind == .activity && scope.libraryId == library)
+        #expect(id == reader.id && kind == .activity && scope.libraryId == library.uuidString)
         let saved = try JSONEncoder().encode(PaneNode.split(.horizontal, [switched, .leaf(.preview)]))
         let restored = try JSONDecoder().decode(PaneNode.self, from: saved)
         #expect(restored.kinds.contains(.activity))
