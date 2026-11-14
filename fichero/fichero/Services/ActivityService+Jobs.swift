@@ -164,7 +164,7 @@ extension ActivityService {
     /// engine and never listed again. Workflow runs are `deleteWorkflowRuns(threadIds:)`.
     /// `stopRunning` is Stop then Delete on a running row, after the person's one confirmation (`activity.pane.row-actions-on-the-table`).
     func deleteJobs(ids: [String], states: [String]? = nil, stopRunning: Bool = false) async throws -> DeleteAnswer {
-        let response = try await client.api.deleteJobsApiActivityJobsDeletePost(
+        let response = try await client.api.bulkDeleteJobsApiActivityJobsDeletePost(
             body: .json(.init(ids: ids, states: states, stopRunning: stopRunning ? true : nil)))
         switch response {
         case .ok(let okResponse):

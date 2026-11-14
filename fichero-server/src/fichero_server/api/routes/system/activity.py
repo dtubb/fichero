@@ -1672,7 +1672,7 @@ class DeleteJobsResponse(BaseModel):
 
 
 @router.post("/jobs/delete", response_model=DeleteJobsResponse)
-async def delete_jobs(
+async def bulk_delete_jobs(
     params: DeleteJobsParams,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
