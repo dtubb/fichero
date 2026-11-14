@@ -924,6 +924,8 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   project, the same delete as Delete (`deleteRuns(statuses:)`); runs still going stay. ⌘A then Delete
   already works on the table (`.onDeleteCommand`). Pinned by `ActivityClearFinishedShapeTests`. Not
   yet seen in the app. Left: the first row drawn under the title bar (needs a screen).
+  #6583):** Clear Finished… covers every ended row, workflow runs AND jobs of their own, through `job.delete` as well
+  (`activity-pane.md` `activity.pane.automatic-runs-easy-to-delete`).
 - `activity.jobs-added-columns` — **[OK]** (#5814) A library made by an older release reads its jobs without
   error: the columns later releases added to `jobs` (`target`, `detail`, `parent_id`, `run_after`, `watched`,
   `cleared_at`) are applied when the library opens (on the write connection, `Database._apply_added_jobs_columns`) and once per CONNECTION after that, so a connection that came back after an invalidated one, or a
@@ -1930,6 +1932,9 @@ and node, not by job); a retry action for failed pages.
   are paused, the failed one is failed with its reason, the deleted ones are cancelled and unlisted; a pending document
   with `derivative_error` gets no job at open while one without does. Test:
   `fichero-server/tests/unit/jobs/test_relaunch_resumes_only_running_work_6584.py`.
+  **SUPERSEDED the same night (owner 2026-11-13, 22:50):** even the work that was running at quit does not carry on by itself;
+  the open pauses it with "Stopped when Fichero quit" and the launch alert asks (`activity-pane.md`
+  `activity.launch.nothing-starts-one-alert`). The failed, cancelled, deleted and derivative halves of this bullet stand.
 - `activity.durable.reopen-leaves-live-jobs` — **[OK]** (review 278) a job a lane thread is running ends only when the
   engine does. Opening a library again (`resume`) leaves every job a lane thread of this engine is running alone: its
   row stays running, an attached Kraken page is not cancelled and no row is reset to waiting or set aside; only an engine
@@ -2262,6 +2267,9 @@ code path.
   *Built (engine):* the quit records the reason (`runner.QUIT_PAUSED_ERROR`) and the library's next open resumes the runs that
   carry it, clearing the reason first so a later pause by a person is left for Resume; a resume that fails leaves the run paused
   with why (`activity.resume_quit_paused_runs`; `fichero-server/tests/unit/workflows/test_quit_paused_runs_resume_5357.py`).
+  **SUPERSEDED in part (owner 2026-11-13 night, #6584):** the quit still pauses the runs, but the next launch does NOT resume them:
+  nothing starts by itself at launch; the person is asked once (`activity-pane.md` `activity.launch.nothing-starts-one-alert`).
+  `resume_quit_paused_runs` is retired and its test inverted (they stay paused).
   The quit then waits up to `runner.BOUNDARY_GRACE_SECONDS` (1 s; the app kills the engine soon after) for each asked run to reach
   its boundary and settle `paused`; one that does not is covered by the `paused` record (`test_quit_paused_runs_resume_5357.py`).
   *Not built:* a step that runs longer than the grace is still cut at exit, so its checkpoint is the last one written.

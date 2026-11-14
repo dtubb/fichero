@@ -112,6 +112,15 @@ from a run with the error, the run and the versions, and nothing private; CLI/MC
    open (`activity.relaunch.only-running-work-resumes` in `ui/activity-and-automatic-work.md`), so the run still reads
    paused with its alert's cause, and only Resume (the alert's or Activity's) carries it on. A run that ended failed
    stays failed with its reason and its Retry.
+9. **A rate limit backs off, then pauses; every failure carries its solution; no codes** (owner 2026-11-13, 22:25–23:15;
+   #6584, #6354). The `rate-limited` kind is a pause kind like `no-credit` and `cap-refused`: after the bounded back-off
+   (Retry-After honoured, jitter, capped) the run PAUSES with "<Provider> is limiting how fast you can send" and the fix
+   "Fichero will try again in N minutes" (one automatic try, then the person's Continue), never a tight loop, never a failed
+   page per 429 (`ui/activity-pane.md` `activity.limits.rate-limit-backs-off-then-pauses`). Every kind in the table has a
+   non-empty sentence AND a fix (a typed action with a label, or an exact instruction); a kind with neither is a spec gap listed
+   under Open questions, never shown bare. The sentence names no HTTP status, error code, exception type or traceback; those are
+   the bug report's and Copy Details' (`activity.pane.failure-with-its-fix-in-the-row`). Test:
+   `test_every_failure_kind_has_a_fix_6354.py` (to write).
 
 ## The table (`run.fail.kinds-table`)
 
