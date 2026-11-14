@@ -401,7 +401,9 @@ targets are at least 44 pt.
   Order): the page shows its order numbers, each click numbers a segment in an accent badge (a second
   click takes it away, ⇧ on the first continues after the selected segment), and leaving the tool
   (O, Return, Esc, another tool) sends one `reading_order.sequence` in the pass's `as-written` order.
-  *Not built:* ordering a named order the Segments pane chose (the Preview knows only `as-written`).
+  *Not built:* ordering a named order the Segments pane chose (the Preview knows only `as-written`); the page's numbers
+  after the order is set (they follow the boxes' own order, `SegmentDisplay`, not `as-written`, so the new order shows in
+  the text, the Order list and the export, not yet in the Preview's numbers).
   *Tests:* `fichero-server/tests/unit/api/test_reading_order_renumber_by_clicks.py`;
   `fichero/Tests/Unit/general/Views/Source/OrderToolTests.swift`.
 - `segment-editor.order-overlay` — **[PARTIAL]** (→ #4941; app) the order is visible as the gradient the umbrella
