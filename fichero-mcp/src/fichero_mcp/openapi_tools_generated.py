@@ -7907,10 +7907,11 @@ def fichero_segments_create(
     outline_from_baseline: Annotated[Optional[bool], Field(description="Draw the line's outline from its baseline and the page's ink. Default: false.")] = None,
     parent_segment_id: Annotated[Optional[str], Field(description="The segment this one sits inside (a line's region).")] = None,
     pass_id: Annotated[str, Field(description='The pass (layer) the segment joins.')],
+    place_in_region: Annotated[Optional[bool], Field(description='With no parent given, put the segment in the region holding most of it (the smaller on a tie). Default: false.')] = None,
     smoothing: Annotated[Optional[float], Field(description='Simplify the outline and baseline as drawn by hand: 0 keeps nearly every bend, 1 the fewest points.')] = None,
 ) -> Any:
     'Create Segment\n\nRoute: POST /api/segments (toolset `segments`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/segments", json=_rt.body({"anchor": anchor, "baseline": baseline, "document_id": document_id, "kind": kind, "kind_raw": kind_raw, "outline_from_baseline": outline_from_baseline, "parent_segment_id": parent_segment_id, "pass_id": pass_id, "smoothing": smoothing}))
+    return _rt.call("POST", "/api/segments", json=_rt.body({"anchor": anchor, "baseline": baseline, "document_id": document_id, "kind": kind, "kind_raw": kind_raw, "outline_from_baseline": outline_from_baseline, "parent_segment_id": parent_segment_id, "pass_id": pass_id, "place_in_region": place_in_region, "smoothing": smoothing}))
 
 
 def fichero_segments_create_bulk(

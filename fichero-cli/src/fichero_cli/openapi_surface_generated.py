@@ -16689,6 +16689,7 @@ def register_generated_openapi_commands(
         outline_from_baseline: Optional[bool] = typer.Option(None, '--outline-from-baseline/--no-outline-from-baseline', help="Draw the line's outline from its baseline and the page's ink. Default: false."),
         parent_segment_id: Optional[str] = typer.Option(None, '--parent-segment-id', help="The segment this one sits inside (a line's region)."),
         pass_id: str = typer.Option(..., '--pass-id', help='The pass (layer) the segment joins.'),
+        place_in_region: Optional[bool] = typer.Option(None, '--place-in-region/--no-place-in-region', help='With no parent given, put the segment in the region holding most of it (the smaller on a tie). Default: false.'),
         smoothing: Optional[float] = typer.Option(None, '--smoothing', help='Simplify the outline and baseline as drawn by hand: 0 keeps nearly every bend, 1 the fewest points.'),
     ) -> None:
         """Create Segment (POST /api/segments)."""
@@ -16704,6 +16705,7 @@ def register_generated_openapi_commands(
                 "outline_from_baseline": outline_from_baseline,
                 "parent_segment_id": parent_segment_id,
                 "pass_id": pass_id,
+                "place_in_region": place_in_region,
                 "smoothing": smoothing,
             }, {
                 "anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'shapes': {'items': {'$ref': '#/components/schemas/AnchorShape'}, 'type': 'array', 'nullable': True, 'title': 'Shapes'}, 'media_ref': {'type': 'string', 'nullable': True, 'title': 'Media Ref'}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}, 'segment_id': {'type': 'string', 'nullable': True, 'title': 'Segment Id'}, 'representation_id': {'type': 'string', 'nullable': True, 'title': 'Representation Id'}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': True},
@@ -16714,6 +16716,7 @@ def register_generated_openapi_commands(
                 "outline_from_baseline": {'type': 'boolean', 'title': 'Outline From Baseline', 'description': "Draw the line's outline from its baseline and the page's ink.", 'default': False, 'x-cli-required': False},
                 "parent_segment_id": {'type': 'string', 'nullable': True, 'title': 'Parent Segment Id', 'description': "The segment this one sits inside (a line's region).", 'x-cli-required': False},
                 "pass_id": {'type': 'string', 'title': 'Pass Id', 'description': 'The pass (layer) the segment joins.', 'x-cli-required': True},
+                "place_in_region": {'type': 'boolean', 'title': 'Place In Region', 'description': 'With no parent given, put the segment in the region holding most of it (the smaller on a tie).', 'default': False, 'x-cli-required': False},
                 "smoothing": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Smoothing', 'description': 'Simplify the outline and baseline as drawn by hand: 0 keeps nearly every bend, 1 the fewest points.', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)

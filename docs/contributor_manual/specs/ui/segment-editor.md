@@ -747,10 +747,15 @@ The umbrella's speed trial (slice 12) is the gate and is not restated. This file
 
 ## Edge cases
 
-- `segment-editor.edge.overlapping-regions` — **[GAP]** (→ #4941; engine) two regions that overlap are allowed (a
+- `segment-editor.edge.overlapping-regions` — **[PARTIAL]** (→ #4941; engine) two regions that overlap are allowed (a
   stamp over text is two regions); a line inside both belongs to the one that holds more of it,
   then the smaller (`SegmentShapes.containingRegion`'s rule, moved to the engine for the create
-  and the reassignment); the validator reports overlaps over a tenth without refusing them.
+  and the reassignment); the validator reports overlaps over a tenth without refusing them. *Built (2026-11-14):*
+  `segment.create` with `place_in_region` puts a segment given no parent in the live region of its pass holding most
+  of it, the smaller on a tie (`_containing_region`), for every caller (MCP, the CLI); the validator's `overlap`.
+  *Not built:* the app still works the region out itself (`SegmentShapes.containingRegion`, the same rule) for the
+  Shape tool and the Marker; the reassignment's target is the region under the pointer. *Tests:*
+  `fichero-server/tests/unit/api/test_segment_overlapping_regions.py`.
 - `segment-editor.edge.self-intersecting` — **[PARTIAL]** (→ #4941; engine) a self-crossing outline is never written: a
   reshape, a marker stroke or a merge that would make one is answered with the nearest simple
   polygon (the outer boundary of the shape's union) and the answer says it was simplified; an
