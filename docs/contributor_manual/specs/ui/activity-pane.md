@@ -223,8 +223,10 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   calls are not held by the first's cap. **Built (2026-11-13 night):** the per-PROVIDER cap, at the one retry layer every
   cloud call passes through (`circuit_breaker.call_with_breaker`: a threading semaphore per provider across every loop and
   thread, `PROVIDER_CALLS_AT_ONCE` 3, `FICHERO_CLOUD_CALLS_AT_ONCE` 1–8 until the setting exists; `calls_in_flight` for the
-  words). Not built: the Settings › AI control, the "waiting for a slot" words on the row, the Kraken and local caps beyond
-  today's lanes, the batch and fan-out semaphores folded onto this one. *Tests:*
+  words). Already there, verified 2026-11-14: the Kraken cap IS memory-bound in one place (`kraken_runtime.pages_at_once`:
+  two pages for a person's run when memory holds two, else one; `test_kraken_page_gate_two_at_once.py`), and the local
+  model's reads follow memory (`local_reads_at_once`, 1–4). Not built: the Settings › AI control, the "waiting for a slot"
+  words on the row, the batch and fan-out semaphores folded onto the provider cap. *Tests:*
   `fichero-server/tests/unit/llm/test_one_cap_per_provider_6584.py`; the existing
   `fichero-server/tests/unit/jobs/test_kraken_page_gate_two_at_once.py`, `fichero-server/tests/unit/jobs/test_throttle.py`.
 - `activity.limits.rate-limit-backs-off-then-pauses` — **[PARTIAL]** (#6584, #6354, decision 16; consistent with `run-failure-alerts.md`
