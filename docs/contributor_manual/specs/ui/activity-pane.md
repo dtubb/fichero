@@ -211,7 +211,7 @@ else moves a row out of paused, failed or stopped: not the open, not automatic w
   engine holds. Acceptance: 20 queued Kraken pages across 3 runs load the Kraken model exactly once (a counting stub loader) and
   release it once after the last; the same for the local reading model. *Tests:* `test_load_a_model_once_6584.py`
   (to write), the existing `test_a_run_does_not_juggle_models_5939.py`.
-- `activity.pane.row-says-what-ran-on-what` — **[GAP]** (#6441, decision 12) every row of the table answers what ran on what: a
+- `activity.pane.row-says-what-ran-on-what` — **[PARTIAL]** (#6441, decision 12) every row of the table answers what ran on what: a
   RUN row names its recipe (or its kind in words for a job of its own), the folder, document or pages it runs over ("Register 3
   · 120 pages", "Folder Letters · 14 files"; never an id), its step NOW ("Read lines ▶ 34/120"), its model or provider, who started
   it (an icon, `activity.pane.icons-say-source-and-kind`), when it started and how long it has run, its result when ended; a STEP
@@ -222,8 +222,13 @@ else moves a row out of paused, failed or stopped: not the open, not automatic w
   `model` (display name), computed from the run record and the tree it already has (`runner.status`, `name_and_pages`), so the
   app adds nothing. Acceptance: a recipe run over 120 pages at its third step lists with `ran_on.count` 120, four `steps` with
   states done, done, running (34/120), waiting, and the row's cell reads exactly the trail above; a thumbnail group lists with
-  `ran_on` the import's folder. *Tests:* `test_row_says_what_ran_on_what_6441.py` (to write),
-  `ActivityStepTrailTests.swift` (to write), the existing `ActivityTableTests.swift`.
+  `ran_on` the import's folder. **Built (2026-11-13 night, engine):** every row of `GET /api/activity/jobs` carries `ran_on`
+  (`pages`/`page` with the count; a group row the pages it stands for), a recipe run its `stages` (Set Up's stages in
+  order, each with title, state, done, failed, total: the same `StageCount` the live block draws) and `model` (the stage
+  running now, from the tree). Not built: `ran_on.name` (the folder or document named), the per-step model, the app's trail
+  cell. *Tests:* `fichero-server/tests/unit/jobs/test_row_says_what_ran_on_what_6441.py`; the existing
+  `fichero/Tests/Unit/general/Models/ActivityTableTests.swift`;
+  not yet written: ActivityStepTrailTests.swift.
 - `activity.pane.icons-say-source-and-kind` — **[GAP]** (#6441, decision 12) ONE small icon column, two glyphs at most per row:
   the SOURCE (started by a person: `person`; automatic: `gearshape.arrow.triangle.2.circlepath`; a recipe's step: `list.bullet.rectangle`;
   a schedule or trigger: `clock`) and the KIND of step (read: `text.viewfinder`; segment or find lines: `rectangle.split.3x1`;

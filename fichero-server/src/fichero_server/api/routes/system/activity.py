@@ -193,6 +193,19 @@ class BackgroundJob(BaseModel):
     # one table, beside `reason`'s words (which are unchanged). Null for a row that has not failed or a failure from an engine
     # before this.
     failure: Optional[RunFailure] = None
+    # What ran on what (`activity.pane.row-says-what-ran-on-what`, #6441): the pages or files the row runs over, the
+    # recipe's stages with each one's state and counts (a recipe run), and the model or provider of the stage running now.
+    ran_on: Optional["RanOn"] = None
+    stages: Optional[list["StageCount"]] = None
+    model: Optional[str] = None
+
+
+class RanOn(BaseModel):
+    """What a row runs over: `pages` or `page` with a count; a name when the engine knows one (a folder's)."""
+
+    kind: str
+    count: int = 0
+    name: Optional[str] = None
 
 
 #: A row in one of these states has ended: stopped, interrupted, failed or done.
@@ -302,6 +315,9 @@ class StageCount(BaseModel):
     done: int = 0
     failed: int = 0
     total: int = 0
+
+
+BackgroundJob.model_rebuild()  # `stages` names StageCount, defined here
 
 
 class LiveBlock(BaseModel):
@@ -954,6 +970,15 @@ async def list_background_jobs(
             total = pages if pages is not None else 0
             if row["id"] in recipe_statuses:
                 total = _recipe_pages_in_all(recipe_statuses[row["id"]], total)
+        # What ran on what (`activity.pane.row-says-what-ran-on-what`): the stages' trail and the model for a recipe run; the
+        # count of pages for any row (a group row stands for many).
+        stages = model = None
+        if row["id"] in recipe_statuses:
+            from fichero_server.recipes import live_stages
+
+            stages = [StageCount(**st) for st in live_stages.stage_counts(recipe_statuses[row["id"]])]
+            _where, model = await _stage_where_and_model(db, row["id"])
+        ran_on = RanOn(kind="pages" if total != 1 else "page", count=total)
         jobs.append(
             BackgroundJob(
                 id=row["id"],
@@ -973,6 +998,7 @@ async def list_background_jobs(
                 finished_at=_utc(row.get("finished_at")),
                 started_by=row.get("started_by"),
                 remote=await asyncio.to_thread(_remote_row, db, row),  # a database read
+                ran_on=ran_on, stages=stages, model=model,
             )
         )
 
