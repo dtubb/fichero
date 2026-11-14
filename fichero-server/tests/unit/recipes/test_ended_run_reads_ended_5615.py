@@ -119,7 +119,7 @@ def test_a_failed_workflow_run_with_nothing_done_is_at_0_percent(client, monkeyp
     class _Store:
         async def list_workflow_runs(self, limit=50):
             return [SimpleNamespace(thread_id="t-review", workflow_id="w1", workflow_name="Paleographer Review",
-                                    status="failed", error="Review 2 failed", progress_timeline=[])]
+                                    status="failed", error="Review 2 failed", failure=None, progress_timeline=[])]
 
     async def account(db, thread_id, run=None):
         from fichero_server.workflows.run_account import RunAccount
