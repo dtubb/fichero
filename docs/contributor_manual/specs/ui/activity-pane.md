@@ -229,14 +229,17 @@ else moves a row out of paused, failed or stopped: not the open, not automatic w
   cell. *Tests:* `fichero-server/tests/unit/jobs/test_row_says_what_ran_on_what_6441.py`; the existing
   `fichero/Tests/Unit/general/Models/ActivityTableTests.swift`;
   not yet written: ActivityStepTrailTests.swift.
-- `activity.pane.icons-say-source-and-kind` — **[GAP]** (#6441, decision 12) ONE small icon column, two glyphs at most per row:
+- `activity.pane.icons-say-source-and-kind` — **[PARTIAL]** (#6441, decision 12) ONE small icon column, two glyphs at most per row:
   the SOURCE (started by a person: `person`; automatic: `gearshape.arrow.triangle.2.circlepath`; a recipe's step: `list.bullet.rectangle`;
   a schedule or trigger: `clock`) and the KIND of step (read: `text.viewfinder`; segment or find lines: `rectangle.split.3x1`;
   entities and names: `person.text.rectangle`; Kraken: `scribble`; a cloud model: `cloud`; a local model: `cpu`; thumbnails: `photo`;
   search embed: `magnifyingglass`), the word in the tooltip and the accessibility label, and "Started by" and "Kind" as filter
   tokens; the icons replace the Started by and Kind text columns, which go. Acceptance: the fixture rows map to these symbols
-  from the engine's `started_by` and `task_type` in one function; no row text names the source. *Tests:*
-  `ActivityRowIconsTests.swift` (to write), the existing `ActivityRowStartedByTests.swift`.
+  from the engine's `started_by` and `task_type` in one function; no row text names the source. **Built (2026-11-13 night):**
+  the one mapping on the row model (`ActivityMonitorRow.source(startedBy:)`, `kindSymbol(engineKind:)`, each with its word);
+  not compiled here. Not built: the icon column and the filter tokens; cloud vs local needs the row's model. *Tests:*
+  `fichero/Tests/Unit/general/Models/ActivityRowIconsTests.swift`; the existing
+  `fichero/Tests/Unit/general/Models/ActivityRowStartedByTests.swift`.
 - `activity.pane.cost-per-row-and-totals` — **[GAP]** (#6441, decision 20; `activity.window.cost-column` built the per-node
   `cost_usd`; `ai/cloud-permission-and-spend.md` keeps the records) the Cost column (default hidden, `activity.pane.default-columns`;
   shown in the Inspector always) shows per row the dollars SPENT so far and, while running, the ESTIMATE to finish ("$0.42 · ~$1.10
