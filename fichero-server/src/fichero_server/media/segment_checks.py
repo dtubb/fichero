@@ -81,7 +81,10 @@ def check_pass(
         if row.kind in LINE_KINDS:
             if not row.baseline or len(row.baseline) < 2:
                 problems.append(_problem("no-baseline", [row.id], "a line with no baseline"))
-            if regions and not row.parent_segment_id:
+            # A parent that is no longer live (its region deleted) holds nothing: the line is in no region
+            # (review 2026-11-14). A live parent of another kind (a table cell) still holds it.
+            orphaned = bool(row.parent_segment_id) and row.parent_segment_id not in live
+            if orphaned or (regions and not row.parent_segment_id):
                 problems.append(_problem("line-outside-regions", [row.id], "a line in no region"))
     for region in regions:
         if not any(child.parent_segment_id == region.id for child in live.values()):
