@@ -32,10 +32,11 @@ struct ActivityPaneVersionsTests {
     func onePageRetry() throws {
         let fixture = ActivityPaneFixture.self
         let run = fixture.row("run", .done, kind: .run, name: "Letters", children: [
-            fixture.row("read1", .partial, kind: .step, name: "Read", model: "Kraken", done: 1, total: 2,
-                        children: [fixture.page("a-p1", .done, doc: "p1"), fixture.page("a-p2", .failed, doc: "p2")]),
-            fixture.row("read2", .done, kind: .step, name: "Read", model: "Kraken", done: 1, total: 1,
-                        children: [fixture.page("b-p2", .done, doc: "p2")])
+            fixture.row("read1", .partial, kind: .step, name: "Read", model: "Kraken",
+                        children: [fixture.page("a-p1", .done, doc: "p1"), fixture.page("a-p2", .failed, doc: "p2")],
+                        done: 1, total: 2),
+            fixture.row("read2", .done, kind: .step, name: "Read", model: "Kraken",
+                        children: [fixture.page("b-p2", .done, doc: "p2")], done: 1, total: 1)
         ])
         let read = try #require(ActivityPane.versions(of: run).first)
         #expect(read.versions.map(\.id) == ["read2", "read1"], "newest first")

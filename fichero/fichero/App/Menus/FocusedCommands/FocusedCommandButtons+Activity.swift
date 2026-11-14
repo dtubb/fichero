@@ -30,7 +30,7 @@ struct ActivityRunMenuTarget: Equatable {
             stop: {
                 guard let store, let jobId else { return }
                 Task {
-                    report(await stop(jobId: jobId, runThreadId: runThreadId, store: store)
+                    report(await stopJob(jobId: jobId, runThreadId: runThreadId, store: store)
                         .map { "Couldn't stop \(rowName): \($0)" })
                 }
             },
@@ -45,7 +45,7 @@ struct ActivityRunMenuTarget: Equatable {
     }
 
     /// The one Stop (`ActivityStore.cancelJob`), for the Activity pane's verbs on several rows too; nil when the engine took it.
-    static func stop(jobId: String, runThreadId: String?, store: ActivityStore) async -> String? {
+    static func stopJob(jobId: String, runThreadId: String?, store: ActivityStore) async -> String? {
         await store.cancelJob(jobId: jobId, runThreadId: runThreadId)
     }
 

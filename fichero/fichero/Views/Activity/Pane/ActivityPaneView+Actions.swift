@@ -109,7 +109,7 @@ extension ActivityPaneView {
     private func act(_ verb: ActivityPaneVerb, on row: ActivityMonitorRow) async -> Bool {
         if verb == .stop {
             guard let jobId = row.jobId, let store = library(for: row.libraryId)?.activityStore else { return false }
-            return await ActivityRunMenuTarget.stop(jobId: jobId, runThreadId: row.runThreadId, store: store) == nil
+            return await ActivityRunMenuTarget.stopJob(jobId: jobId, runThreadId: row.runThreadId, store: store) == nil
         }
         guard let jobId = verb == .retry ? row.retryJobId : row.jobId,
               let store = library(for: row.libraryId)?.activityStore else { return false }
