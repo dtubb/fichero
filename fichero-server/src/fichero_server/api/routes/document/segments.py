@@ -1262,6 +1262,12 @@ class SegmentCreateParams(BaseModel):
     outline_from_baseline: bool = Field(
         default=False, description="Draw the line's outline from its baseline and the page's ink.",
     )
+    #: `segment-editor.paintbrush`: the Paintbrush's stroke, `[x, y, width]` per point (x and y in page fractions, the
+    #: width in image pixels): the painted area becomes the outline, the path the baseline.
+    brush_stroke: Optional[list[list[float]]] = Field(
+        default=None,
+        description="A Paintbrush stroke, [x, y, width] per point (width in image pixels): its painted area is the outline, its path the baseline.",
+    )
     #: `segment-editor.edge.overlapping-regions`: with no parent given, the engine puts the segment in the region that
     #: holds most of it.
     place_in_region: bool = Field(
@@ -1464,7 +1470,7 @@ def _marker_shapes(db: Database, params: SegmentCreateParams) -> tuple[SegmentCr
     `smoothing` in the page image's pixels, and a line drawn as a baseline given its outline from the ink. Answers the
     params to create with and, when an outline was asked for, "drawn" or "none" (no ink along the baseline: the line
     keeps its baseline alone, and the answer says so). Params with neither are returned untouched."""
-    if params.smoothing is None and not params.outline_from_baseline:
+    if params.smoothing is None and not params.outline_from_baseline and not params.brush_stroke:
         return params, None
     from fichero_server.media import line_join, outline_from_baseline
 
@@ -1473,6 +1479,23 @@ def _marker_shapes(db: Database, params: SegmentCreateParams) -> tuple[SegmentCr
         raise HTTPException(status_code=404, detail=f"Document not found: {params.document_id}")
     image, forward, back = _page_image_for_lines(db, document)
     anchor, baseline = params.anchor, params.baseline
+    if params.brush_stroke:
+        from fichero_server.media import paint_stroke
+
+        low, high = MARKER_TOLERANCE_PX
+        pixels = forward([p[:2] for p in params.brush_stroke])
+        made = paint_stroke.painted(
+            [[x, y, p[2]] for (x, y), p in zip(pixels, params.brush_stroke) if len(p) >= 3],
+            low + (high - low) * (params.smoothing if params.smoothing is not None else 0.5),
+        )
+        if made is None:
+            raise HTTPException(status_code=422, detail="the brush stroke painted nothing: every point needs a width")
+        outline, centre = made
+        polygon = [[round(x, 6), round(y, 6)] for x, y in back(outline)]
+        x0, y0, x1, y1 = line_join.bounds(polygon)
+        anchor = anchor.model_copy(update={"polygon": polygon, "rect": [x0, y0, x1 - x0, y1 - y0], "shapes": None})
+        baseline = [[round(x, 6), round(y, 6)] for x, y in back(centre)]
+        return params.model_copy(update={"anchor": anchor, "baseline": baseline, "brush_stroke": None}), None
     if params.smoothing is not None:
         low, high = MARKER_TOLERANCE_PX
         tolerance = low + (high - low) * params.smoothing

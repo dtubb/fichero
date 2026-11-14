@@ -7901,6 +7901,7 @@ def fichero_segments_create(
     *,
     anchor: Annotated[dict[str, Any], Field(description='Where a record points on a page — the one anchor type. Used by annotations, OCR geometry, entity mentions, claim evidence and content representations. One type means one overlay renderer, one hit tester, one "scroll to this", and one place to get the coordinate maths right. ``rendition_id`` is the field whose absence caused the original defect: a box carried four numbers and never said which pixel frame they were fractions OF, so geometry computed on an enhanced or split rendition was drawn over the original spread. It is optional only so existing rows stay readable — new writes must set it whenever the frame is not the node\'s own.')],
     baseline: Annotated[Optional[list[Any]], Field(description="The line's baseline as [[x, y], ...] points in page coordinates.")] = None,
+    brush_stroke: Annotated[Optional[list[Any]], Field(description='A Paintbrush stroke, [x, y, width] per point (width in image pixels): its painted area is the outline, its path the baseline.')] = None,
     document_id: Annotated[str, Field(description='The document (page) the segment is on.')],
     kind: Annotated[str, Field(description="The segment's kind: region, line, word, ...")],
     kind_raw: Annotated[Optional[str], Field(description='The kind as the source format named it (e.g. a PAGE XML region type).')] = None,
@@ -7911,7 +7912,7 @@ def fichero_segments_create(
     smoothing: Annotated[Optional[float], Field(description='Simplify the outline and baseline as drawn by hand: 0 keeps nearly every bend, 1 the fewest points.')] = None,
 ) -> Any:
     'Create Segment\n\nRoute: POST /api/segments (toolset `segments`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/segments", json=_rt.body({"anchor": anchor, "baseline": baseline, "document_id": document_id, "kind": kind, "kind_raw": kind_raw, "outline_from_baseline": outline_from_baseline, "parent_segment_id": parent_segment_id, "pass_id": pass_id, "place_in_region": place_in_region, "smoothing": smoothing}))
+    return _rt.call("POST", "/api/segments", json=_rt.body({"anchor": anchor, "baseline": baseline, "brush_stroke": brush_stroke, "document_id": document_id, "kind": kind, "kind_raw": kind_raw, "outline_from_baseline": outline_from_baseline, "parent_segment_id": parent_segment_id, "pass_id": pass_id, "place_in_region": place_in_region, "smoothing": smoothing}))
 
 
 def fichero_segments_create_bulk(
