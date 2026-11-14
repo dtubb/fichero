@@ -85,10 +85,11 @@ def _listed(client, job_id):
     return rows[0]
 
 
-def test_a_set_aside_recipe_run_reads_ended_named_and_offers_resume(client, db, pages, monkeypatch):
-    """WHY (#5615 items 1-4): after the engine died three times the run was failed "Interrupted 3 times; set
-    aside", but its stages still said running and waiting, the list called it `run-a-recipe` at 100 % with nothing
-    done, and nothing said what stopped it, when, or what to do next."""
+def test_an_interrupted_recipe_run_reads_paused_named_and_continues(client, db, pages, monkeypatch):
+    """WHY (#5615 items 1-4): after the engine died three times the run read failed, its stages still said running and
+    waiting, the list called it `run-a-recipe` at 100 % with nothing done, and nothing said what to do next. Since #6584
+    an interruption never counts and nothing is set aside (`activity-pane.md`, States: the set-aside state is RETIRED):
+    the open pauses the run with the quit's words, named and at 0 done, and Continue lets it go."""
     _set_up(client)
     job_id = _interrupted_run(db)
     # A project opened with nothing waiting: no lane has loaded the kinds.
@@ -97,28 +98,20 @@ def test_a_set_aside_recipe_run_reads_ended_named_and_offers_resume(client, db, 
 
     jobs.resume(db)  # the engine starts again
 
-    row = _listed(client, job_id)
-    assert row["state"] == "failed"
-    assert row["name"] == "Run the recipe: Transcribe + names", row["name"]
-    assert (row["current"], row["total"], row["percent"]) == (0, 2, 0.0), row
-    reason = row["reason"]
-    # Said once, short, no clock (#5844; it was a long sentence with UTC times).
-    assert reason == "Stopped 3 times by the engine stopping; set aside. Resume to carry on.", reason
-    assert row["offer"] == "Resume"
+    body = client.get("/api/activity/jobs").json()
+    assert job_id not in {j["id"] for j in body["jobs"]}, "a recipe run is listed once, as a live run (#5960)"
+    live = [r for r in body["activity"]["live"] if r["id"] == job_id]
+    assert len(live) == 1, body["activity"]["live"]
+    row = live[0]
+    assert row["state"] == "paused" and row["reason"] == "Stopped when Fichero quit", row
+    assert row["recipe"] == "Run the recipe: Transcribe + names", row["recipe"]
+    assert row["done"] == 0, row
+    assert "set aside" not in (row["reason"] or ""), "interruptions never count"
 
-    status = client.get(f"/api/recipes/project/runs/{job_id}").json()
-    stages = {s["steps"][0]: s for s in status["steps"]}
-    assert stages["correct"]["state"] == "not run", stages
-    assert stages["correct"]["why"].startswith("stopped when the run ended, before this step finished: Stopped 3")
-    assert stages["names"]["state"] == "not run"
-    assert stages["names"]["why"].startswith("the run ended before this step: Stopped 3 times")
-    tree = client.get(f"/api/activity/jobs/{job_id}").json()
-    assert [s["state"] for s in tree["stages"]] == ["not run", "not run"]
-    assert tree["reason"] == reason  # the list and the tree say the same
-
-    r = client.post(f"/api/activity/jobs/{job_id}/retry")  # Resume: the run's own Retry, refused before
+    r = client.post("/api/activity/stopped-at-quit/continue", json={"ids": [job_id]})
     assert r.status_code == 200, r.text
-    assert r.json()["state"] == "waiting"
+    assert r.json()["continued_ids"] == [job_id]
+    assert jobs.read_job(db, job_id)["state"] != "paused"
 
 
 def test_a_failed_workflow_run_with_nothing_done_is_at_0_percent(client, monkeypatch):
