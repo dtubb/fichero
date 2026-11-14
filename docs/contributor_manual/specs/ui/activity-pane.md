@@ -115,7 +115,7 @@ else moves a row out of paused, failed or stopped: not the open, not automatic w
 
 ### Ruled 2026-11-13 night: the table that says what ran on what, nothing starts by itself, one cap, one window
 
-- `activity.launch.nothing-starts-one-alert` — **[GAP]** (#6584, decision 14; supersedes the auto-resume of `activity.run.quit-pauses`
+- `activity.launch.nothing-starts-one-alert` — **[PARTIAL]** (#6584, decision 14; supersedes the auto-resume of `activity.run.quit-pauses`
   and the "Interrupted; carries on" requeue of `jobs.resume`, `activity.relaunch.only-running-work-resumes`) after a quit, crash or
   engine restart the open STARTS NOTHING. Engine: on library open every unfinished row no live lane thread owns (running, waiting,
   pausing, a workflow run the quit paused) becomes `paused` with the line "Stopped when Fichero quit" (a row already paused by a
@@ -132,9 +132,16 @@ else moves a row out of paused, failed or stopped: not the open, not automatic w
   call), the running, waiting, pausing and quit-paused ones read `paused` "Stopped when Fichero quit", the failed one is failed
   with its reason, the done one done; the list route names exactly the four; continue with two ids starts those two and leaves
   two paused. Acceptance (app): the alert's default action sends nothing and the rows stay paused; Continue All posts
-  `all: true`. *Tests:* `test_launch_starts_nothing_6584.py` (to write; replaces the carry-on half
-  of `test_relaunch_resumes_only_running_work_6584.py`), `fichero-server/tests/unit/workflows/test_quit_paused_runs_resume_5357.py`
-  (inverted: they stay paused), `ActivityLaunchAlertTests.swift` (to write).
+  `all: true`. **Built (2026-11-13 night):** engine `jobs.resume` pauses every unfinished row with `QUIT_REASON` (the
+  set-aside after three interruptions is gone with the requeue), `jobs.stopped_at_quit`, `jobs.continue_after_quit`,
+  `resume_quit_paused_runs` resumes only the thread ids the person chose (the launch passes none), the two routes; the
+  contract regenerated. App: `StoppedAtQuitAlert` (title, message, Leave Paused default, Continue All) mounted over the main
+  window by `StoppedAtQuitAlertModifier`, asked once per project as it opens; Choose… opens the Activity window. Not
+  compiled here. Not built: the alert's rows selected in Activity on Choose…; the automatic kinds' exemption (open question 3).
+  *Tests:* `fichero-server/tests/unit/jobs/test_launch_starts_nothing_6584.py`,
+  `fichero-server/tests/unit/jobs/test_relaunch_resumes_only_running_work_6584.py`,
+  `fichero-server/tests/unit/workflows/test_quit_paused_runs_resume_5357.py` (inverted: they stay paused),
+  `fichero/Tests/Unit/general/Models/ActivityLaunchAlertTests.swift`.
 - `activity.run.failed-is-never-requeued-by-itself` — **[GAP]** (#6584, decision 15) a row that ended `failed` or `stopped` is run
   again ONLY by a person's Retry (the row's, the alert's, Read Again): not by the open (above), not by automatic work (the open's
   derivative recovery skips a document whose derivative failed, built in `jobs`/`derivatives` 2026-11-13; a recipe's automatic
@@ -225,8 +232,8 @@ else moves a row out of paused, failed or stopped: not the open, not automatic w
   undoable: the mark is lifted and the cancelled rows go back to paused) and a Pause; Delete of a running row is skipped and said in
   the footer. Acceptance: with a failed, a paused and a running row selected the menu offers Delete (two) and Stop (three), not
   Continue; ⌘⌫ deletes two and the footer says one still runs; Undo lists the two again. *Tests:*
-  `fichero/Tests/Unit/general/Models/ActivityDeleteAnyRowTests.swift`, `ActivityRowActionsTests.swift`
-  (to write), `fichero-server/tests/unit/jobs/test_delete_any_row_6583.py`, `test_delete_is_undoable_6583.py` (to write).
+  `fichero/Tests/Unit/general/Models/ActivityDeleteAnyRowTests.swift`, `fichero-server/tests/unit/jobs/test_delete_any_row_6583.py`;
+  not yet written: ActivityRowActionsTests.swift, test_delete_is_undoable_6583.py.
 - `activity.pane.automatic-runs-easy-to-delete` — **[GAP]** (#6583, decision 11) an automatic run (started by the import, the
   schedule, a trigger, the derivative kinds) deletes like any other row, one at a time with the row's Delete or many at once:
   the filter token "Started by: automatic" plus ⌘A plus Delete, and **Clear Finished…** (which now covers every ended row, runs AND
