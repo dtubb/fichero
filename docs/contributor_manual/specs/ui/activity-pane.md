@@ -5,8 +5,9 @@
 >
 > Design-led (Testing Constitution). **Status: DRAFT** (2026-11-08, Fable). A COMPANION of `activity-and-automatic-work.md` (APPROVED 2026-10-27, 2997 lines: the one job model, the window, lanes, durability, automatic work) and of `panes-workspaces.md` (the pane and workspace system). This file holds only the DELTA the owner asked for on 2026-11-08: Activity becomes a PANE KIND; the generic Activity window is that pane plus the existing Inspector; one hierarchical table with disclosure triangles, grouped by run or by file over the same data; several versions of one step as siblings; history kept and filterable; Run Automatically a setting. Everything the big spec already pins (the job model, the one-bar row, the groups, the details view's content, lanes, retries) stays as written there and is cited, not restated. Menu items and chords go through the one command table of `menus-and-commands.md` (#6435).
 > Tags: **[OK]** built · **[PARTIAL]** exists in part · **[GAP]** designed, not built · **[BROKEN]** built and wrong.
-> **Tag note (2026-11-14):** no app test of this spec had RUN as of 2026-11-14 (they compiled; the host hung over SSH). An
-> **[OK]** below means built with a compiling test; it is verified when the ActivityPane run passes in Xcode.
+> **Tag note (2026-11-14):** the app tests of this spec first RAN on 2026-11-14 in Xcode (Dev Local, after batch-19): the 13
+> ActivityPane suites plus ActivityLaunchAlert, ActivityStepTrail, ActivityRowIcons, ActivityErrorRow and RunAutomaticallySetting,
+> 63 tests, all passed. An **[OK]** means built with a test that has run green.
 >
 > **Revised 2026-11-13 night (owner, through the manager; Fable).** This file is now THE Activity spec to build from: the companion
 > `activity-and-automatic-work.md` keeps the job model, the lanes, the throttle and the history of what was built; where the two
