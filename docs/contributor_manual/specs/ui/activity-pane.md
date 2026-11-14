@@ -172,8 +172,10 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   set-aside after three interruptions is gone with the requeue), `jobs.stopped_at_quit`, `jobs.continue_after_quit`,
   `resume_quit_paused_runs` resumes only the thread ids the person chose (the launch passes none), the two routes; the
   contract regenerated. App: `StoppedAtQuitAlert` (title, message, Leave Paused default, Continue All) mounted over the main
-  window by `StoppedAtQuitAlertModifier`, asked once per project as it opens; Choose… opens the Activity window. Not
-  compiled here. Not built: the alert's rows selected in Activity on Choose…; the automatic kinds' exemption (open question 3).
+  window by `StoppedAtQuitAlertModifier`, asked once per project as it opens; Choose… opens the Activity window; the automatic
+  kinds roll into one line ("and background work: 412 thumbnails, 80 embeds") and a held folder read into "New files in a
+  synced folder" (the review's answers, 2026-11-14). Not compiled here. Not built: the alert's rows selected in Activity on
+  Choose…; the folder's name on the new-material line.
   *Tests:* `fichero-server/tests/unit/jobs/test_launch_starts_nothing_6584.py`,
   `fichero-server/tests/unit/jobs/test_relaunch_resumes_only_running_work_6584.py`,
   `fichero-server/tests/unit/workflows/test_quit_paused_runs_resume_5357.py` (inverted: they stay paused),
