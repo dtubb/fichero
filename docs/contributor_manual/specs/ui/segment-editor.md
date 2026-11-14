@@ -799,10 +799,15 @@ The umbrella's speed trial (slice 12) is the gate and is not restated. This file
   box's bottom along its direction (down the middle of a vertical line), marked
   `baseline: estimated`, one undo. *Not built:* the offer on the tools' own refusal (the menu says
   it). *Tests:* `fichero-server/tests/unit/api/test_segment_add_baseline.py`; `fichero/Tests/Unit/general/Views/Source/RedrawOutlineTests.swift`.
-- `segment-editor.edge.word-across-lines` — **[GAP]** (→ #5212; engine) a word broken at a line end is one segment with
+- `segment-editor.edge.word-across-lines` — **[PARTIAL]** (→ #5212; engine) a word broken at a line end is one segment with
   two shapes (`source.segment.shape-kinds`); Cut Words on both lines makes the two pieces and
   offers to join them as one word when the second line's reading starts without a space and the
-  first's ends with a hyphen; the join is `segment.merge` keeping both shapes.
+  first's ends with a hyphen; the join is `segment.merge` keeping both shapes. *Built (2026-11-14):* the engine:
+  `segment.cut_words` answers `joinable`, [the first line's last word, the next line's first word] for each line in
+  page order whose reading ends with a hyphen (`-`, `¬`, `⸗`, `=`, a soft hyphen) and whose next cut line's reading
+  starts with no space; `segment.merge` with `keep_shapes` (and `move_into_region`, the pieces being on two lines)
+  gives the kept word every member's outline as a polygon shape, one undo. *Not built:* the app's offer to join.
+  *Tests:* `fichero-server/tests/unit/api/test_segment_word_across_lines.py`.
 - `segment-editor.edge.knife-through-words` — **[PARTIAL]** (→ #4941; engine) a knife split of a line that already has
   words assigns each word to the part its centre falls in and splits a word the stroke crosses.
   *Built (2026-11-13):* words go with the part holding their centre, and undo puts them back

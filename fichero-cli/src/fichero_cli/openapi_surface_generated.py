@@ -16961,6 +16961,7 @@ def register_generated_openapi_commands(
         expected_versions: str = typer.Option(..., '--expected-versions', help="Each segment's version as last read, {segment_id: version}; a changed segment is refused. JSON."),
         join_geometry: Optional[bool] = typer.Option(None, '--join-geometry/--no-join-geometry', help='Join the outlines and baselines onto the kept segment, in reading order. Default: false.'),
         keep_id: str = typer.Option(..., '--keep-id', help='The segment that survives the merge.'),
+        keep_shapes: Optional[bool] = typer.Option(None, '--keep-shapes/--no-keep-shapes', help="Keep every member's outline as a shape of the kept segment, in the order given. Default: false."),
         move_into_region: Optional[bool] = typer.Option(None, '--move-into-region/--no-move-into-region', help="Move members in other regions into the kept segment's region rather than refusing. Default: false."),
         segment_ids: list[str] = typer.Option(..., '--segment-ids', help='The segments to merge. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
@@ -16972,12 +16973,14 @@ def register_generated_openapi_commands(
                 "expected_versions": expected_versions,
                 "join_geometry": join_geometry,
                 "keep_id": keep_id,
+                "keep_shapes": keep_shapes,
                 "move_into_region": move_into_region,
                 "segment_ids": segment_ids,
             }, {
                 "expected_versions": {'additionalProperties': {'type': 'integer'}, 'type': 'object', 'title': 'Expected Versions', 'description': "Each segment's version as last read, {segment_id: version}; a changed segment is refused.", 'x-cli-required': True},
                 "join_geometry": {'type': 'boolean', 'title': 'Join Geometry', 'description': 'Join the outlines and baselines onto the kept segment, in reading order.', 'default': False, 'x-cli-required': False},
                 "keep_id": {'type': 'string', 'title': 'Keep Id', 'description': 'The segment that survives the merge.', 'x-cli-required': True},
+                "keep_shapes": {'type': 'boolean', 'title': 'Keep Shapes', 'description': "Keep every member's outline as a shape of the kept segment, in the order given.", 'default': False, 'x-cli-required': False},
                 "move_into_region": {'type': 'boolean', 'title': 'Move Into Region', 'description': "Move members in other regions into the kept segment's region rather than refusing.", 'default': False, 'x-cli-required': False},
                 "segment_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Segment Ids', 'description': 'The segments to merge.', 'x-cli-required': True},
             }, required=True)
