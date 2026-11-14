@@ -95,6 +95,28 @@ def test_done_and_stopped__retry_runs_a_stopped_one_again_a_done_one_is_left_del
     assert _delete(client, done) == "deleted" and _delete(client, stopped) == "deleted"
 
 
+def _archive(client, job_id):
+    body = client.post("/api/activity/jobs/archive", json={"ids": [job_id]}).json()
+    return "archived" if job_id in body["archived_ids"] else "skipped"
+
+
+def test_archive_takes_only_ended_rows__put_back_and_undo_restore_what_they_had(held, client):
+    """The states table's Archive column: stopped, failed and done may be archived; queued and paused may not; Undo of Delete
+    restores a row in its former state (`activity.pane.archive-old-runs`)."""
+    for subject, state, reason in (("v:q", "waiting", None), ("v:p", "paused", jobs.PAUSED_REASON)):
+        assert _archive(client, _row(held, subject, state, reason)) == "skipped"
+    ended = {_row(held, f"v:{s}", s, "why" if s == "failed" else None): s for s in ("done", "failed", "cancelled")}
+    for job_id in ended:
+        assert _archive(client, job_id) == "archived"
+    assert set(ended) <= {j["id"] for j in client.get("/api/activity/jobs", params={"archived": True}).json()["jobs"]}
+    back = client.post("/api/activity/jobs/unarchive", json={"ids": list(ended)}).json()["ids"]
+    assert sorted(back) == sorted(ended)
+    paused = _row(held, "v:p2", "paused", jobs.PAUSED_REASON)
+    assert _delete(client, paused) == "deleted" and _state(held, paused) == "cancelled"
+    assert client.post("/api/activity/jobs/undelete", json={"ids": [paused]}).json()["ids"] == [paused]
+    assert _state(held, paused) == "paused", "Undo put it back as it was"
+
+
 def test_running__pause_and_stop_are_asked_of_it_delete_is_skipped_and_said(held, client):
     a = _row(held, "r:1", "running")
     jobs._scheduler.running_ids = lambda: [a]  # a lane thread runs it now

@@ -62,9 +62,11 @@ DEFAULT_BREAKER_COOLDOWN = 30.0
 
 #: How many calls to ONE provider the whole engine has in flight at once, across every run, recipe, batch and automatic
 #: job (`activity.limits.one-cap-per-kind-across-everything`, owner 2026-11-13: never hammer a provider). Every cloud call
-#: passes through `call_with_breaker`, so the slot is held here. `FICHERO_CLOUD_CALLS_AT_ONCE` overrides until the setting
-#: exists (1-8).
-PROVIDER_CALLS_AT_ONCE = min(8, max(1, int(os.environ.get("FICHERO_CLOUD_CALLS_AT_ONCE", "3") or 3)))
+#: passes through `call_with_breaker`, so the slot is held here. The default is the network lane's width (4): the lane's own
+#: per-provider fairness (`activity.run.lane-cap-per-mac`) is the finer rule for work the lane runs, and a cap under the lane's
+#: width would hold a lane slot while a call waits for a provider slot. `FICHERO_CLOUD_CALLS_AT_ONCE` overrides until the
+#: setting exists (1-8).
+PROVIDER_CALLS_AT_ONCE = min(8, max(1, int(os.environ.get("FICHERO_CLOUD_CALLS_AT_ONCE", "4") or 4)))
 _PROVIDER_SLOTS: dict[str, threading.BoundedSemaphore] = {}
 _IN_FLIGHT: dict[str, int] = {}
 _SLOTS_LOCK = threading.Lock()
@@ -86,15 +88,34 @@ def calls_in_flight(provider: str | None) -> int:
         return _IN_FLIGHT.get(provider or "unknown", 0)
 
 
-async def _take_slot(provider: str | None) -> threading.BoundedSemaphore:
+def _inside_a_lane() -> bool:
+    """A call made by a job a lane thread runs: the lane's own width and per-provider fairness (`activity.run.lane-cap-per-mac`)
+    already cap it, and a wait here would hold a lane thread; the provider slot is for calls OUTSIDE the lanes (a batch, a
+    workflow's fan-out, a chat)."""
+    try:
+        from fichero_server.execution import jobs
+
+        return getattr(jobs._current, "job_id", None) is not None
+    except Exception:  # noqa: BLE001 -- never let the guard itself stop a call
+        return False
+
+
+async def _take_slot(provider: str | None) -> threading.BoundedSemaphore | None:
+    if _inside_a_lane():
+        return None
     sem = provider_slots(provider)
-    await asyncio.to_thread(sem.acquire)  # off the loop: the loop keeps serving while this call waits its turn
+    # Waiting its turn costs no thread (a call stuck at a provider must not hold an executor thread for every waiter):
+    # a non-blocking try, then a short sleep on this call's own loop.
+    while not sem.acquire(blocking=False):
+        await asyncio.sleep(0.05)
     with _SLOTS_LOCK:
         _IN_FLIGHT[provider or "unknown"] = _IN_FLIGHT.get(provider or "unknown", 0) + 1
     return sem
 
 
-def _give_slot(provider: str | None, sem: threading.BoundedSemaphore) -> None:
+def _give_slot(provider: str | None, sem: threading.BoundedSemaphore | None) -> None:
+    if sem is None:
+        return
     with _SLOTS_LOCK:
         _IN_FLIGHT[provider or "unknown"] = max(0, _IN_FLIGHT.get(provider or "unknown", 0) - 1)
     sem.release()

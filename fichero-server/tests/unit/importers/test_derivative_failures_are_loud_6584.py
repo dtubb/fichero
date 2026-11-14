@@ -48,6 +48,7 @@ def test_an_embed_that_fails_ends_its_job_failed_not_done(db, tmp_path, monkeypa
     monkeypatch.setattr(derivatives, "_embed_document_tree", lambda doc, db, library: "the embedder choked")
 
     with pytest.raises(derivatives.DerivativeFailed, match="Search could not index page.png"):
-        derivatives._embed_stage(doc.id, str(Path(db.path).parent))
+        derivatives._embed_job(db, doc.id)  # as the embed JOB runs it
+    derivatives._embed_stage(doc.id, str(Path(db.path).parent))  # an import's inline pass records and goes on
 
     assert db.get(Document, doc.id).metadata["embedding_error"] == "the embedder choked"
