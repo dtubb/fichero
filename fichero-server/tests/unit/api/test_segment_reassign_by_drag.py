@@ -89,3 +89,20 @@ def test_a_region_moved_into_another_keeps_its_lines_nested_under_it(db):
 
     assert _children(db, order_id, region_one.id) == [line.id, other.id, region_two.id, stray.id]
     assert _children(db, order_id, region_two.id) == [early.id, late.id]
+
+
+def test_a_reassignment_and_its_undo_refresh_the_pages_cached_text(db, client):
+    """The moved entries change where the lines read in `as-written`, and so the page's text (`page_text_cache`)."""
+    from types import SimpleNamespace
+
+    from fichero_server.actions.page_text_cache import _document_ids
+
+    spec = SimpleNamespace(domains=["segment"], emit_type="segment.updated", document_ids=["d"], after={})
+    assert _document_ids(spec, "segment.reparent", None) == ["d"]
+
+    order_id, region_one, region_two, line, other, late, early, stray = _ordered_page(db)
+    _reparent(db, [stray], region_two.id)
+    audit = [a for a in db.all(ActionAudit) if a.action_name == "segment.reparent"][-1]
+    _undo(client, audit.id)
+    undo = [a for a in db.all(ActionAudit) if a.action_name == "segment.restore_versions"][-1]
+    assert undo.after.get("text_relevant") is True, "putting entries back is text-relevant"

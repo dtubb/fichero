@@ -366,13 +366,20 @@ targets are at least 44 pt.
 
 ### Semantics: reading order and kinds
 
-- `segment-editor.order-by-clicking` — **[GAP]** (→ #4941; app + engine; refines `source.editor.reorder`) in Order,
+- `segment-editor.order-by-clicking` — **[PARTIAL]** (→ #4941; app + engine; refines `source.editor.reorder`) in Order,
   the page shows every segment of the level with its number; clicking segments in turn gives
   them positions 1, 2, 3 … in the chosen named order; the first click starts at 1, ⇧-click
   continues from the selection's number, and clicking a numbered segment again removes its
-  number. The engine takes the clicks as one `reading_order.renumber` on release of the mode
+  number. The engine takes the clicks as one `reading_order.sequence` on release of the mode
   (Return, Escape or picking another tool), one undo for the whole sequence (confirmed, owner
   2026-11-13: never per click). Segments not clicked keep their relative order after the clicked ones.
+  (`reading_order.renumber`, named here first, must stay order-preserving and not undoable: the
+  undo of a move depends on it, so the clicks are a new action.) *Built (2026-11-14):* the engine
+  half: `reading_order.sequence` (the clicked segments, all at one level of the order, in click
+  order, first or right after `after_segment_id`; the level numbered 1, 2, 3 again; refused with
+  segments from two levels or not in the order), its undo `reading_order.restore_positions` and the
+  redo; both refresh the page's cached text. *Not built:* the Order tool in the app. *Tests:*
+  `fichero-server/tests/unit/api/test_reading_order_renumber_by_clicks.py`.
 - `segment-editor.order-overlay` — **[PARTIAL]** (→ #4941; app) the order is visible as the gradient the umbrella
   fixed (`source.editor.colour.reading-order-gradient`) and, with the overlay on, as numbers at
   each segment's start and a thin arrowed line from each to the next; the overlay is a layer

@@ -23,7 +23,7 @@ from __future__ import annotations
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.auth import action_context
@@ -743,6 +743,117 @@ def _action_order_renumber(
         document_ids=[order.document_id],
     )
     return {"order_id": order.id, "renumbered": touched}, spec
+
+
+class ReadingOrderSequenceParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    order_id: str
+    #: The segments in the order they were clicked; all at one level of the order (one region's lines, or the page's
+    #: regions).
+    segment_ids: list[str] = Field(min_length=1)
+    #: ⇧-click: the clicked segments read right after this one (at the same level); none, they read first.
+    after_segment_id: Optional[str] = None
+
+
+class ReadingOrderRestorePositionsParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    order_id: str
+    #: {entry_id: position} as they were.
+    positions: dict[str, float]
+
+
+def _invert_restore_positions(before, after, ctx: ActionContext):
+    """Both actions record, in `after`, the positions they overwrote; writing them back is the inverse."""
+    if not after or not after.get("positions_before"):
+        return None
+    return ("reading_order.restore_positions", {"order_id": after["order_id"], "positions": after["positions_before"]})
+
+
+@action(
+    "reading_order.sequence",
+    ReadingOrderSequenceParams,
+    domains=["reading_order"],
+    undoable=True,
+    invert=_invert_restore_positions,
+)
+def _action_order_sequence(db: Database, params: ReadingOrderSequenceParams, ctx: ActionContext):
+    """Order by clicking (`segment-editor.order-by-clicking`): the clicked segments read in click order, first at their
+    level or right after `after_segment_id`; the rest keep their relative order around them. The level is numbered
+    1, 2, 3 ... again. ONE action for the whole sequence, one undo (never one per click)."""
+    order = _live_order(db, params.order_id)
+    by_segment = {row.segment_id: row for row in db.query(ReadingOrderEntry, order_id=order.id)}
+    wanted = list(dict.fromkeys(params.segment_ids + ([params.after_segment_id] if params.after_segment_id else [])))
+    missing = [segment_id for segment_id in wanted if segment_id not in by_segment]
+    if missing:
+        raise HTTPException(status_code=404, detail=f"segments the order does not hold: {missing}")
+    levels = {by_segment[segment_id].parent_entry_id for segment_id in wanted}
+    if len(levels) > 1:
+        raise HTTPException(
+            status_code=422, detail="the segments are at different levels of the order (a region and a line); order one level at a time",
+        )
+    level = entries_in_sequence(db, order.id, parent_entry_id=levels.pop())
+    clicked = [by_segment[segment_id] for segment_id in dict.fromkeys(params.segment_ids)]
+    clicked_ids = {row.id for row in clicked}
+    others = [row for row in level if row.id not in clicked_ids]
+    cut = 0
+    if params.after_segment_id and params.after_segment_id not in params.segment_ids:
+        cut = next(i for i, row in enumerate(others) if row.segment_id == params.after_segment_id) + 1
+    sequence = others[:cut] + clicked + others[cut:]
+
+    before: dict[str, float] = {}
+    for row, position in zip(sequence, renumbered(len(sequence))):
+        if row.position != position:
+            before[row.id] = row.position
+            row.position = position
+            row.version += 1
+            db.save(row)
+    spec = ChangeSpec(
+        domains=["reading_order"],
+        target_ids=[order.id],
+        before={"order_id": order.id, "positions": before},
+        after={"order_id": order.id, "moved": len(before), "positions_before": before},
+        emit_type="reading_order.changed",
+        segment_ids=[row.segment_id for row in clicked],
+        pass_ids=[order.pass_id],
+        document_ids=[order.document_id],
+    )
+    return {"order_id": order.id, "moved": len(before)}, spec
+
+
+@action(
+    "reading_order.restore_positions",
+    ReadingOrderRestorePositionsParams,
+    domains=["reading_order"],
+    undoable=True,
+    invert=_invert_restore_positions,
+    # Its own inverse is the redo: the positions it overwrote, exactly (`reading_order.sequence`'s).
+    redo_via_own_invert=True,
+)
+def _action_order_restore_positions(db: Database, params: ReadingOrderRestorePositionsParams, ctx: ActionContext):
+    """The inverse of `reading_order.sequence`: entries put back at the positions recorded. An entry since removed is
+    skipped (its own undo brings it back where it was)."""
+    order = _live_order(db, params.order_id)
+    before: dict[str, float] = {}
+    for entry_id, position in params.positions.items():
+        row = db.get(ReadingOrderEntry, entry_id)
+        if row is None or row.order_id != order.id:
+            continue
+        before[row.id] = row.position
+        row.position = position
+        row.version += 1
+        db.save(row)
+    spec = ChangeSpec(
+        domains=["reading_order"],
+        target_ids=[order.id],
+        before={"order_id": order.id, "positions": before},
+        after={"order_id": order.id, "restored": len(before), "positions_before": before},
+        emit_type="reading_order.changed",
+        pass_ids=[order.pass_id],
+        document_ids=[order.document_id],
+    )
+    return {"order_id": order.id, "restored": len(before)}, spec
 
 
 class ReadingOrderDeleteParams(BaseModel):
