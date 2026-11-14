@@ -1464,6 +1464,11 @@ def test_a_weakened_tests_approve_never_rides_a_head_whose_base_changed_the_file
     got = queue.content_approvals({**s, "head": g(wt, "rev-parse", "HEAD"), "approved_head": head_a}, str(wt))
     assert got["approve_weakened"] is False, "the base changed the file: base's new test would be lost, so the manager is asked again"
     assert "tests/test_w.py" not in s["approved_test_blobs"], "the stale binding is dropped"
+    stale_ref = g(wt, "rev-parse", "origin/integration~1")  # the lane repo's ref, before the base moved
+    new_base = g(wt, "rev-parse", "origin/integration")
+    s2 = {**s, "approved_test_blobs": {"tests/test_w.py": fp, "tests/old.py": "a0ff4ca4"}, "head": g(wt, "rev-parse", "HEAD"), "approved_head": head_a}
+    assert queue.content_approvals(s2, str(wt), stale_ref)["approve_weakened"] == ("tests/test_w.py",), "a stale base matches the old blob"
+    assert queue.content_approvals(s2, str(wt), new_base)["approve_weakened"] is False, "the ladder's own base commit does not; an old-format entry never raises"
 
 
 def test_a_retry_keeps_the_steps_head_and_reruns_the_check_from_the_failed_rung_instead_of_a_fresh_session(state):
