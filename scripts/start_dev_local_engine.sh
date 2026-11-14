@@ -26,5 +26,8 @@ cd "$ROOT" && env OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES FICHERO_APP_BUNDLE_ID=
   FICHERO_BASE_PATH="$BASE" FICHERO_UDS_PATH="$SOCK" \
   FICHERO_LIBRARY_ALLOWED_ROOTS="$HOME/Fichero Dev Test:$HOME/Fichero Test Corpus:$HOME/Fichero Projects" \
   FICHERO_MODEL_STORE_ROOT="$HOME/Library/Application Support/Fichero" PYTHONPATH="$ROOT/fichero-server/src" \
-  nohup "$PY" -m uvicorn fichero_server.api.uds_transport:app --uds "$SOCK" --ws websockets-sansio > "$LOG" 2>&1 &
-sleep 20; curl -s --unix-socket "$SOCK" http://localhost/api/health | cut -c1-160; echo
+  "$PY" -c 'import subprocess,sys; subprocess.Popen(sys.argv[2:], stdout=open(sys.argv[1], "w"), stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)' \
+  "$LOG" "$PY" -m uvicorn fichero_server.api.uds_transport:app --uds "$SOCK" --ws websockets-sansio
+# Its own session: it outlives whatever started it (a terminal, or Xcode's Run pre-action via dev_engine.sh).
+for i in {1..60}; do curl -s -o /dev/null --max-time 2 --unix-socket "$SOCK" http://localhost/api/health && break; sleep 1; done
+curl -s --max-time 5 --unix-socket "$SOCK" http://localhost/api/health | cut -c1-160; echo
