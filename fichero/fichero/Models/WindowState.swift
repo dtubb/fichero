@@ -152,24 +152,6 @@ class WindowState {
     /// A Knife stroke was let go while K was held, so letting go of K puts the Knife back rather than choosing it.
     var knifeStrokedWhileHeld = false
 
-    /// K pressed in Edit Segments: the Knife held, for a stroke or for a tap.
-    func pressKnifeKey() {
-        knifeHeld = true
-        knifeStrokedWhileHeld = false
-    }
-
-    /// K let go (`segment-editor.split-knife`): after a stroke the Knife goes back; a tap (no stroke while held) chooses it,
-    /// as the tool row's Knife does, until another tool is chosen or Esc.
-    func letGoOfKnifeKey() {
-        if knifeHeld, !knifeStrokedWhileHeld {
-            activeMarkupTool = .select
-            markerArmed = false
-            knifeArmed = true
-        }
-        knifeHeld = false
-        knifeStrokedWhileHeld = false
-    }
-
     /// The Marker (`segment-editor.marker`), by the Knife's rules: M held is the Marker for one stroke, a tap of M
     /// chooses it until another tool or Esc. The stroke so far is in the page's fractions.
     var markerHeld = false
@@ -178,23 +160,6 @@ class WindowState {
     var markerStroke: [[Double]] = []
     /// The kind the last drawn segment was: a closed Marker stroke makes one of that kind (owner 2026-11-13).
     var lastDrawnKind = "region"
-
-    /// M pressed in Edit Segments.
-    func pressMarkerKey() {
-        markerHeld = true
-        markerStrokedWhileHeld = false
-    }
-
-    /// M let go: after a stroke the Marker goes back; a tap chooses it.
-    func letGoOfMarkerKey() {
-        if markerHeld, !markerStrokedWhileHeld {
-            activeMarkupTool = .select
-            knifeArmed = false
-            markerArmed = true
-        }
-        markerHeld = false
-        markerStrokedWhileHeld = false
-    }
 
     /// The pane in Focus (`panes.focus.any-pane-fills-the-screen`): it alone fills the window, in its real full screen,
     /// the sidebar and the Inspector hidden; nil when no pane is in Focus. Window state only: never saved to a workspace.
@@ -211,39 +176,11 @@ class WindowState {
     var brushStroke: [[Double]] = []
     var brushSize = 24.0
 
-    /// B pressed in Edit Segments.
-    func pressBrushKey() {
-        brushHeld = true
-        brushStrokedWhileHeld = false
-    }
-
-    /// B let go: after a stroke the Brush goes back; a tap chooses it.
-    func letGoOfBrushKey() {
-        if brushHeld, !brushStrokedWhileHeld {
-            activeMarkupTool = .select
-            knifeArmed = false
-            markerArmed = false
-            brushArmed = true
-        }
-        brushHeld = false
-        brushStrokedWhileHeld = false
-    }
-
-    /// `[` and `]`: the Brush smaller or larger, between 6 and 120 points.
-    func resizeBrush(larger: Bool) {
-        brushSize = min(max(brushSize * (larger ? 1.25 : 0.8), 6), 120)
-    }
-
     /// The Paintbrush (`segment-editor.paintbrush`), a mode (P, or the tool row): a drag paints along a line of ink and
     /// makes it a line. `paintWidth` is the brush's width on screen, in points, `[` and `]` change it.
     var paintArmed = false
     var paintStroke: [[Double]] = []
     var paintWidth = 20.0
-
-    /// `[` and `]` on the Paintbrush: narrower or wider, between 4 and 120 points.
-    func resizePaint(larger: Bool) {
-        paintWidth = min(max(paintWidth * (larger ? 1.25 : 0.8), 4), 120)
-    }
 
     /// Words the last Cut Words found broken at a line's end, [first piece, second piece] each
     /// (`segment-editor.edge.word-across-lines`): what Join Broken Words joins; emptied once joined.
@@ -256,23 +193,6 @@ class WindowState {
     /// ⇧ on the first click: the clicked segments read right after this one (the selection's).
     var orderAfter: String?
 
-    /// A click on a segment in Order: numbered next, or, clicked again, its number taken away.
-    func clickInOrder(_ segmentId: String, after selected: String?) {
-        if let index = orderClicks.firstIndex(of: segmentId) {
-            orderClicks.remove(at: index)
-            return
-        }
-        if orderClicks.isEmpty { orderAfter = selected == segmentId ? nil : selected }
-        orderClicks.append(segmentId)
-    }
-
-    /// Once Order is left (`orderArmed` false): the clicks to send, taken so they are sent once; nil when there are none.
-    func takeOrderClicks() -> (segmentIds: [String], after: String?)? {
-        guard !orderArmed, !orderClicks.isEmpty else { return nil }
-        defer { orderClicks = []; orderAfter = nil }
-        return (orderClicks, orderAfter)
-    }
-
     /// The Shape popover's Simplify slider (`segment-editor.vertices`): the tolerance in image pixels while the slider is
     /// held (nil otherwise). The page asks the engine what Simplify would make at it and draws that (`simplifyPreview`,
     /// paths in the page's fractions); nothing is written until the slider is let go (`simplifyRelease`).
@@ -281,28 +201,10 @@ class WindowState {
     /// The slider let go: the page sends ONE `segment.simplify` at this tolerance. A new value each release.
     var simplifyRelease: SimplifyRelease?
 
-    /// The slider let go at `tolerance`: the live preview goes and one Simplify is asked for.
-    func letGoOfSimplifySlider(at tolerance: Double) {
-        simplifyTolerance = nil
-        simplifyPreview = []
-        simplifyRelease = SimplifyRelease(tolerance: tolerance)
-    }
-
     /// The page's reading-order numbers shown for a moment after regions are merged (`segment-editor.merge-regions`), so
     /// the person sees where the moved lines now read. Off again by itself.
     var orderOverlayFlash = false
-    private var orderOverlayStamp = UUID()
-
-    /// Show the order numbers for `seconds`; a second flash meanwhile restarts the clock.
-    func flashOrderOverlay(for seconds: Double = 2) {
-        let stamp = UUID()
-        orderOverlayStamp = stamp
-        orderOverlayFlash = true
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(seconds))
-            if self?.orderOverlayStamp == stamp { self?.orderOverlayFlash = false }
-        }
-    }
+    var orderOverlayStamp = UUID()
 
     /// A short word from the segment editor about the edit just made (the Knife's lines left alone), shown over the page
     /// for a few seconds; nil when there is nothing to say.
@@ -469,38 +371,5 @@ class WindowState {
     /// Get the document for this window's library
     var document: FicheroDocument? {
         library?.document
-    }
-}
-
-/// One release of the Simplify slider (`WindowState.simplifyRelease`); each is new, so the same tolerance twice is two.
-struct SimplifyRelease: Equatable {
-    let tolerance: Double
-    let id = UUID()
-
-    /// The engine's answer as paths to draw: each outline closed on its first point, each baseline as it is.
-    static func paths(polygons: [[[Double]]?], baselines: [[[Double]]?]) -> [[[Double]]] {
-        let outlines = polygons.compactMap { polygon -> [[Double]]? in
-            guard let polygon, let first = polygon.first else { return nil }
-            return polygon + [first]
-        }
-        return outlines + baselines.compactMap { $0 }
-    }
-}
-
-/// `reading_order.sequence`: the segments clicked in the Order tool, in click order, in one order.
-struct ReadingOrderSequenceRequest: Encodable, Equatable {
-    let orderId: String
-    let segmentIds: [String]
-    let afterSegmentId: String?
-
-    enum CodingKeys: String, CodingKey {
-        case orderId = "order_id", segmentIds = "segment_ids", afterSegmentId = "after_segment_id"
-    }
-
-    func encode(to encoder: any Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(orderId, forKey: .orderId)
-        try container.encode(segmentIds, forKey: .segmentIds)
-        try container.encodeIfPresent(afterSegmentId, forKey: .afterSegmentId)
     }
 }

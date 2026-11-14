@@ -21,7 +21,7 @@ struct PaintbrushToolTests {
     func oneCall() throws {
         let stroke: [[Double]] = [[0.1, 0.3], [0.5, 0.3], [0.9, 0.31]]
         let call = try PaintbrushStroke.create(
-            stroke, widthPixels: 30, documentId: "page-1", passId: "p", onPass: nil, parentSegmentId: "r"
+            stroke, widthPixels: 30, on: StrokeTarget(documentId: "page-1", passId: "p", parentSegmentId: "r")
         ).get()
         let data = try JSONEncoder().encode(call.params)
         let params = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
@@ -29,8 +29,8 @@ struct PaintbrushToolTests {
         #expect(params["kind"] as? String == "line")
         #expect(params["brush_stroke"] as? [[Double]] == [[0.1, 0.3, 30], [0.5, 0.3, 30], [0.9, 0.31, 30]])
         #expect(params["parent_segment_id"] as? String == "r")
-        #expect(PaintbrushStroke.create([[0.1, 0.3]], widthPixels: 30, documentId: "d", passId: "p", onPass: nil,
-                                        parentSegmentId: nil) == .failure(.tooFew))
+        #expect(PaintbrushStroke.create([[0.1, 0.3]], widthPixels: 30,
+                                        on: StrokeTarget(documentId: "d", passId: "p")) == .failure(.tooFew))
     }
 
     @Test("[ and ] change the width within its bounds; another tool puts the Paintbrush down")

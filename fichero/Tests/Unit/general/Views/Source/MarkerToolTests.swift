@@ -34,7 +34,7 @@ struct MarkerToolTests {
     func closedStroke() throws {
         let loop: [[Double]] = [[0.1, 0.1], [0.5, 0.1], [0.5, 0.5], [0.1, 0.5]]
         let params = try json(MarkerStroke.create(
-            loop, closed: true, closedKind: "region", documentId: "page-1", passId: "p", onPass: nil, parentSegmentId: "r"
+            loop, closed: true, closedKind: "region", on: StrokeTarget(documentId: "page-1", passId: "p", parentSegmentId: "r")
         ).get())
         #expect(params["kind"] as? String == "region")
         #expect(params["smoothing"] as? Double == MarkerStroke.smoothing)
@@ -48,14 +48,14 @@ struct MarkerToolTests {
     func openStroke() throws {
         let stroke: [[Double]] = [[0.1, 0.3], [0.5, 0.31], [0.9, 0.3]]
         let params = try json(MarkerStroke.create(
-            stroke, closed: false, closedKind: "region", documentId: "page-1", passId: "p", onPass: nil, parentSegmentId: "r"
+            stroke, closed: false, closedKind: "region", on: StrokeTarget(documentId: "page-1", passId: "p", parentSegmentId: "r")
         ).get())
         #expect(params["kind"] as? String == "line")
         #expect(params["baseline"] as? [[Double]] == stroke)
         #expect(params["outline_from_baseline"] as? Bool == true)
         #expect(params["parent_segment_id"] as? String == "r")
-        #expect(MarkerStroke.create([[0.1, 0.1]], closed: false, closedKind: "region", documentId: "d", passId: "p",
-                                    onPass: nil, parentSegmentId: nil) == .failure(.tooFew))
+        #expect(MarkerStroke.create([[0.1, 0.1]], closed: false, closedKind: "region",
+                                    on: StrokeTarget(documentId: "d", passId: "p")) == .failure(.tooFew))
     }
 
     @Test("a tap of M chooses the Marker and puts the Knife down; M held for a stroke puts it back")

@@ -551,6 +551,31 @@ extension ZoomableImagePreview {
     /// ⇧⌘M and the rest keep their jobs.
     func holdSpringTool(_ press: KeyPress) -> KeyPress.Result {
         guard let windowState else { return .ignored }
+        if let result = chooseModeTool(press, windowState) { return result }
+        if press.key == KeyEquivalent("b") {
+            guard let held = KnifeStroke.held(
+                pressed: press.phase == .down, modifiers: press.modifiers, isEditing: isEditingSegments, wasHeld: windowState.brushHeld
+            ) else { return .ignored }
+            if held { windowState.pressBrushKey() } else { windowState.letGoOfBrushKey() }
+            return .handled
+        }
+        let marker = press.key == KeyEquivalent("m")
+        guard let held = KnifeStroke.held(
+            pressed: press.phase == .down, modifiers: press.modifiers, isEditing: isEditingSegments,
+            wasHeld: marker ? windowState.markerHeld : windowState.knifeHeld
+        ) else { return .ignored }
+        switch (marker, held) {
+        case (true, true): windowState.pressMarkerKey()
+        case (true, false): windowState.letGoOfMarkerKey()
+        case (false, true): windowState.pressKnifeKey()
+        case (false, false): windowState.letGoOfKnifeKey()
+        }
+        return .handled
+    }
+
+    /// O (Order) and P (Paintbrush), the tools that are modes rather than spring-loaded, and [ / ] for the Brush's
+    /// size or the Paintbrush's width; nil for any other key.
+    private func chooseModeTool(_ press: KeyPress, _ windowState: WindowState) -> KeyPress.Result? {
         if press.key == KeyEquivalent("o") {
             // The Order tool is a mode, not spring-loaded: O chooses it and O again leaves it (sending the clicks).
             guard press.phase == .down, isEditingSegments, press.modifiers.subtracting(.capsLock).isEmpty else { return .ignored }
@@ -579,25 +604,7 @@ extension ZoomableImagePreview {
             windowState.paintArmed = !armed
             return .handled
         }
-        if press.key == KeyEquivalent("b") {
-            guard let held = KnifeStroke.held(
-                pressed: press.phase == .down, modifiers: press.modifiers, isEditing: isEditingSegments, wasHeld: windowState.brushHeld
-            ) else { return .ignored }
-            if held { windowState.pressBrushKey() } else { windowState.letGoOfBrushKey() }
-            return .handled
-        }
-        let marker = press.key == KeyEquivalent("m")
-        guard let held = KnifeStroke.held(
-            pressed: press.phase == .down, modifiers: press.modifiers, isEditing: isEditingSegments,
-            wasHeld: marker ? windowState.markerHeld : windowState.knifeHeld
-        ) else { return .ignored }
-        switch (marker, held) {
-        case (true, true): windowState.pressMarkerKey()
-        case (true, false): windowState.letGoOfMarkerKey()
-        case (false, true): windowState.pressKnifeKey()
-        case (false, false): windowState.letGoOfKnifeKey()
-        }
-        return .handled
+        return nil
     }
 
     /// Return while a polygon or baseline is being drawn: finish it, as a click on its first point or a double-click does.

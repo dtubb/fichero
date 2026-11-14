@@ -164,9 +164,11 @@ enum MarkerStroke {
     /// The one `segment.create` for a finished stroke: closed, a segment of `closedKind` outlined by it; open, a line on
     /// it as a baseline, in `parentSegmentId`'s region. Refused with too few points.
     static func create(
-        _ stroke: [[Double]], closed: Bool, closedKind: String, documentId: String, passId: String, onPass: Segment?,
-        parentSegmentId: String?
+        _ stroke: [[Double]], closed: Bool, closedKind: String, on target: StrokeTarget
     ) -> Result<SegmentEdit.Call, SegmentEdit.Refusal> {
+        let (documentId, passId, onPass, parentSegmentId) = (
+            target.documentId, target.passId, target.onPass, target.parentSegmentId
+        )
         guard stroke.count >= (closed ? 3 : 2), stroke.allSatisfy({ $0.count >= 2 }) else { return .failure(.tooFew) }
         let anchor = SegmentCreateAnchor(
             documentId: documentId, pageId: onPass?.anchor.pageId, renditionId: onPass?.anchor.renditionId,
@@ -181,6 +183,15 @@ enum MarkerStroke {
         request.outlineFromBaseline = closed ? nil : true
         return .success(SegmentEdit.Call(action: "segment.create", params: .create(request)))
     }
+}
+
+/// Where a drawn stroke lands: the page, the pass, a segment already on that pass (whose anchor it shares) and
+/// the region a line goes in.
+struct StrokeTarget {
+    let documentId: String
+    let passId: String
+    var onPass: Segment?
+    var parentSegmentId: String?
 }
 
 /// A drawn segment's anchor: only what the drawing states, the rest absent (never null-as-a-claim).
@@ -227,9 +238,11 @@ enum PaintbrushStroke {
     /// The one `segment.create`: a line on the stroke, every point carrying the brush's width, in `parentSegmentId`'s
     /// region. Refused with fewer than two points.
     static func create(
-        _ stroke: [[Double]], widthPixels: Double, documentId: String, passId: String, onPass: Segment?,
-        parentSegmentId: String?
+        _ stroke: [[Double]], widthPixels: Double, on target: StrokeTarget
     ) -> Result<SegmentEdit.Call, SegmentEdit.Refusal> {
+        let (documentId, passId, onPass, parentSegmentId) = (
+            target.documentId, target.passId, target.onPass, target.parentSegmentId
+        )
         guard stroke.count >= 2, widthPixels > 0, stroke.allSatisfy({ $0.count >= 2 }) else { return .failure(.tooFew) }
         let anchor = SegmentCreateAnchor(
             documentId: documentId, pageId: onPass?.anchor.pageId, renditionId: onPass?.anchor.renditionId,
