@@ -216,7 +216,7 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   batches (`batch.py` `max_concurrent` 5 is per batch) and the workflow fan-out (`builder.py` semaphores are per process,
   not per provider), so three runs on one provider send three times the cap) ONE rule in the engine: a cap per kind of work that
   every path obeys because every model call and every page passes through the lane (`run_on_lane`) and the lane counts in flight
-  per key — cloud calls per provider (default 3, a setting `cloud_calls_at_once` 1–8 in Settings › AI with one sentence), local
+  per key — cloud calls per provider (default 4, the network lane's width, a setting `cloud_calls_at_once` 1–8 in Settings › AI with one sentence; the lane's own per-provider fairness is the finer rule for the work it runs), local
   model pages per loaded model by the machine (`reads_at_once_for_model`, memory-bound, 1–4), Kraken pages `kraken_pages_at_once`
   = 1 under 16 GB of RAM, 2 at or above (memory injected in tests), thumbnails 2, embeds 1; a batch or a fan-out of 500 pages queues 500 rows and the lane starts at most the cap; the rest read
   "waiting for a slot: 3 of 3 OpenRouter calls in flight"; the pane's background line counts "N running · M waiting". Acceptance:
@@ -224,8 +224,8 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   provider → at most the provider cap in flight at any instant (a stub provider that records concurrency); a second provider's
   calls are not held by the first's cap. **Built (2026-11-13 night):** the per-PROVIDER cap, at the one retry layer every
   cloud call passes through (`circuit_breaker.call_with_breaker`: a threading semaphore per provider across every loop and
-  thread, `PROVIDER_CALLS_AT_ONCE` 3, `FICHERO_CLOUD_CALLS_AT_ONCE` 1–8 until the setting exists; `calls_in_flight` for the
-  words). Already there, verified 2026-11-14: the Kraken cap IS memory-bound in one place (`kraken_runtime.pages_at_once`:
+  thread, `PROVIDER_CALLS_AT_ONCE` 4 = the network lane's width, `FICHERO_CLOUD_CALLS_AT_ONCE` 1–8 until the setting exists;
+  a call a lane thread runs is capped by the lane and takes no slot here; `calls_in_flight` for the words). Already there, verified 2026-11-14: the Kraken cap IS memory-bound in one place (`kraken_runtime.pages_at_once`:
   two pages for a person's run when memory holds two, else one; `test_kraken_page_gate_two_at_once.py`), and the local
   model's reads follow memory (`local_reads_at_once`, 1–4). Not built: the Settings › AI control, the "waiting for a slot"
   words on the row, the batch and fan-out semaphores folded onto the provider cap. *Tests:*
@@ -560,7 +560,8 @@ Fixture: two recorded job trees from the engine's route (a recipe run with two s
 4. Compare two runs: dropped; the Inspector's versions section shows the figures side by side.
 5. No automatic Continue after a rate limit: the back-off is the automatic retrying; the row's fix is "Wait 2 minutes, then
    Continue", its button enabling when the wait is up.
-6. Provider cap: 3, a setting.
+6. Provider cap: a setting; the default is the network lane's width (4), since a smaller cap held a lane slot while a call
+   waited for a provider slot (`test_provider_share.py`).
 7. Undo of Delete: yes; `workflow_run.delete` becomes undoable too.
 8. `unexpected`: "Something went wrong in Fichero, not in your files." + Try Again + Report Bug; the exception type only in Copy
    Details.

@@ -57,6 +57,7 @@ def test_the_job_waits_for_the_library_to_open_again(test_package, monkeypatch):
     db_manager.close_database(test_package)
 
     db = db_manager.get_database(test_package)
+    jobs.continue_after_quit(db, None)  # the open holds what the quit left (owner 2026-11-13); Continue lets it run
 
     assert db.execute_fetchone("SELECT state FROM jobs WHERE subject = 'page-1'")[0] == "waiting"
     assert any(t.is_alive() for t in jobs._scheduler.lanes["database"].threads)

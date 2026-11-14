@@ -39,6 +39,7 @@ def test_an_open_that_finds_interrupted_work_reads_one_page_at_a_time_for_a_minu
     job_id = _interrupted(db)
 
     jobs.resume(db)
+    jobs.continue_after_quit(db, None)  # the person's Continue All on the launch alert (owner 2026-11-13)
 
     assert db.execute_fetchone("SELECT state FROM jobs WHERE id = ?", [job_id])[0] == "waiting"  # resumes, no one asked
     assert kraken_runtime.pages_at_once_and_why(True) == (1, jobs.RESUMING_WORDS)
@@ -54,6 +55,7 @@ def test_an_open_with_nothing_interrupted_is_not_gentle(db, clock, two_pages_all
     jobs._ensure(db)
 
     jobs.resume(db)
+    jobs.continue_after_quit(db, None)  # the person's Continue All on the launch alert (owner 2026-11-13)
 
     assert kraken_runtime.pages_at_once_and_why(True) == (2, None)
 
@@ -61,6 +63,7 @@ def test_an_open_with_nothing_interrupted_is_not_gentle(db, clock, two_pages_all
 def test_a_page_held_by_the_gentle_minute_says_so(db, clock, two_pages_allowed, monkeypatch):
     _interrupted(db)
     jobs.resume(db)
+    jobs.continue_after_quit(db, None)  # the person's Continue All on the launch alert (owner 2026-11-13)
     images = jobs._scheduler.lanes["images"]
     monkeypatch.setattr(images, "running", {"another-page": None})
     monkeypatch.setitem(jobs.KINDS, "thumbnail", jobs.Kind(run=lambda db, subject: None, model=None, lane="images",
