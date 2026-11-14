@@ -68,3 +68,26 @@ def test_reading_it_writes_nothing(db, client):
     version = db.get(Segment, line).version
     _lens(client, doc)
     assert db.get(Segment, line).version == version
+
+
+def test_a_reading_the_recogniser_was_unsure_of_lowers_its_line(db, client):
+    from fichero_server.actions.registry import registry
+    from fichero_server.models import ContentRepresentation
+    from tests.unit.api.test_document_derived_text import _person
+
+    doc, pass_id = _page(db, client)
+    read, _ = _line(client, doc, pass_id, 0.1)
+    other, _ = _line(client, doc, pass_id, 0.2)
+    row = db.get(Segment, other)
+    row.confidence = 0.7
+    db.save(row)
+    made = registry.invoke(db, "representation.create", {
+        "document_id": doc.id, "segment_id": read, "kind": "transcription", "content": "abc"}, _person()).result["id"]
+    reading = db.get(ContentRepresentation, made)
+    reading.char_confidences = [0.5, 0.4, 0.6]
+    db.save(reading)
+
+    lens = _lens(client, doc)
+    assert [line["segment_id"] for line in lens["lines"]][:2] == [read, other]
+    assert lens["lines"][0]["confidence"] == pytest.approx(0.5)
+    assert "reading 50%" in lens["lines"][0]["reasons"]
