@@ -409,10 +409,11 @@ for _attached in (
 ):
     register_kind(_attached, None, model=None, qos=set_utility_qos)
 
+#: True inside `not_what_was_deleted`: the open's re-queue skips a subject a person deleted.
+_skip_deleted: ContextVar[bool] = ContextVar("_skip_deleted", default=False)
 #: True while this task holds a lane slot: a model call made inside work that already holds one
 #: (a vision page's own `llm.vision` call) does not ask for a second, which a one-wide lane could
 #: never grant.
-_skip_deleted: ContextVar[bool] = ContextVar("_skip_deleted", default=False)
 _holding: ContextVar[bool] = ContextVar("_holding_a_lane", default=False)
 #: The row of this task's latest model call's slot. Kept after the slot closes, because a call's
 #: usage is read from its answer after the call (`llm.chat_structured`); cleared when this task's
@@ -1379,6 +1380,12 @@ def enqueue(
     )
     if row:
         job_id = row[0]
+        if watched:  # a person waits on it: a row paused at quit (or by them) that it reuses runs again, never swallows the ask
+            db.execute(
+                f"UPDATE jobs SET state = 'waiting', reason = NULL, run_after = NULL{_clear_waiting_on(db)} "
+                "WHERE id = ? AND state = 'paused'",
+                [job_id],
+            )
     else:
         job_id = _insert(
             db, kind, subject, KINDS[kind].model if kind in KINDS else None, started_by

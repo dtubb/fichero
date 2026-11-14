@@ -87,3 +87,28 @@ def test_a_synced_folders_open_read_adds_no_twin_to_a_paused_one_and_skips_a_del
     sync_folder._queue_read(held, "folder-1", hold=True)
     assert held.execute_fetchone("SELECT count(*) FROM jobs WHERE kind = ? AND subject = 'folder-1' AND deleted_at IS NULL",
                                  [sync_folder.READ_KIND])[0] == 0, "the open does not queue a read the person deleted"
+
+
+def test_a_persons_request_on_a_paused_row_lets_it_run(held):
+    """The dedupe reuses a paused row, but a person waiting on the work (`watched`) is a new instruction: the row it
+    reuses goes back to waiting, so the click is never swallowed by a row paused at quit (spec: `activity.engine.open-queues-
+    nothing-twice`; `activity.run.failed-is-never-requeued-by-itself` leaves a person's own request free to run)."""
+    doc = _pending(held, 1)[0]
+    _open(held)
+    held.execute("UPDATE jobs SET state = 'paused', reason = ? WHERE kind = 'thumbnail'", [jobs.QUIT_REASON])
+
+    job_id = jobs.enqueue(held, "thumbnail", doc.id, started_by="person", watched=True)
+
+    row = jobs.read_job(held, job_id)
+    assert row["state"] == "waiting" and row["reason"] is None
+    assert held.execute_fetchone("SELECT count(*) FROM jobs WHERE kind = 'thumbnail'")[0] == 1
+
+
+def test_the_opens_own_requeue_leaves_a_paused_row_paused(held):
+    doc = _pending(held, 1)[0]
+    _open(held)
+    held.execute("UPDATE jobs SET state = 'paused', reason = ? WHERE kind = 'thumbnail'", [jobs.QUIT_REASON])
+
+    job_id = jobs.enqueue(held, "thumbnail", doc.id)
+
+    assert jobs.read_job(held, job_id)["state"] == "paused"
