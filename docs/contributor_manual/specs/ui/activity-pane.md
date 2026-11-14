@@ -334,8 +334,11 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   as it was), the `deleted_at` column applied like `cleared_at`; `delete_jobs` sets both marks; the audited, undoable
   `job.archive` / `job.unarchive` / `job.delete` / `job.undelete` behind `POST /api/activity/jobs/archive`, `…/unarchive`,
   `…/undelete`; `GET /api/activity/jobs?archived=true` lists the archived top-level rows; a deleted row refuses Retry and
-  is in neither list, after a relaunch too. Not built: the app's Archive, Put Back, Show Archived and Undo; a workflow run's
-  archive (its soft delete stands in); Archive Finished Older Than… in the menu; auto-archive (open question 9). *Tests:*
+  is in neither list, after a relaunch too. App (linted, not compiled): the window's **Archive Finished…** (confirmation
+  "Archive every finished run?") archives every ended job through `job.archive` and every ended run through its soft delete,
+  and **Archive Failed** keeps `job.clear_failed` (the archive mark) under its new name; `ActivityService.archiveJobs`,
+  `ActivityStore.archiveJobs`. Not built: Archive on a row, Put Back, Show Archived and Undo in the app; a workflow run's
+  own archive; Archive Finished Older Than… in the menu; auto-archive (open question 9). *Tests:*
   `fichero-server/tests/unit/jobs/test_archive_old_runs_6583.py`, `fichero-server/tests/unit/jobs/test_delete_any_row_6583.py`;
   not yet written: ActivityArchiveTests.swift.
 - `activity.pane.automatic-runs-easy-to-delete` — **[PARTIAL]** (#6583, decision 11) an automatic run (started by the import, the

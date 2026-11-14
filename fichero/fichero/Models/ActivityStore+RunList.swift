@@ -134,6 +134,21 @@ extension ActivityStore {
         }
     }
 
+    /// Archive job rows of their own (`activity.pane.archive-old-runs`, #6583): the engine's `job.archive`; each archived
+    /// row leaves `backgroundJobs` in place and is kept for Show Archived and Put Back. Skipped ids (still going) are returned.
+    @discardableResult
+    func archiveJobs(ids: [String], states: [String]? = nil) async -> RunDeleteOutcome {
+        do {
+            let answer = try await activityService.archiveJobs(ids: ids, states: states)
+            let gone = Set(answer.deletedIds)
+            backgroundJobs.removeAll { gone.contains($0.id) }
+            return RunDeleteOutcome(deletedIds: answer.deletedIds, skippedIds: answer.skippedIds)
+        } catch {
+            log.error("ActivityStore: archiveJobs failed \(error.localizedDescription, privacy: .public)")
+            return RunDeleteOutcome(deletedIds: [], skippedIds: ids, failure: error.localizedDescription)
+        }
+    }
+
     /// Clear Failed in this project (`activity.window.clear-failed`, #5634):
     /// its failed runs deleted (`deleteRuns(statuses:)`) and its failed jobs of
     /// their own cleared (`job.clear_failed`), each cleared row removed in place

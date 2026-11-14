@@ -8,9 +8,9 @@ final class ActivityClearFinishedShapeTests: XCTestCase {
         let window = try AppSource.code("Views/Activity/Window/ActivityMonitorWindow.swift")
         // The button sits under the DONE TODAY heading (ActivityGroupsView) and asks the window to confirm.
         let groups = try AppSource.code("Views/Activity/Window/ActivityGroupsView.swift")
-        XCTAssertTrue(groups.contains("Button(\"Clear Finished…\", role: .destructive, action: clearFinished)"))
+        XCTAssertTrue(groups.contains("Button(\"Archive Finished…\", action: clearFinished)"))
         XCTAssertTrue(window.contains("clearFinished: { confirmingClearFinished = true }"))
-        XCTAssertTrue(window.contains(".confirmationDialog(\"Remove every finished run?\""))
+        XCTAssertTrue(window.contains(".confirmationDialog(\"Archive every finished run?\""))
     }
 
     func testItDeletesEndedStatusesOnlyNeverRunningOnes() throws {
