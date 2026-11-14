@@ -205,6 +205,10 @@ _ADDED_COLUMNS = (
     # What a running job is waiting for right now (a page for the lane, Kraken, memory): set when the wait starts,
     # cleared when it ends. Activity lists the row as waiting by this, never by the words of its reason (#5839).
     "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS waiting_on TEXT",
+    # What blocks a waiting row (`activity.pane.blocked-under-its-blocker`, #6593): another job's id (the download of a model)
+    # or a typed need ("model:embeddings:<id>") when no job supplies it. The lane never picks a row with it set; the
+    # blocker's end (done) clears it.
+    "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS blocked_by TEXT",
 )
 
 
@@ -222,6 +226,16 @@ class JobDeferred(Exception):
     """Raised by a long job's run when it stops to come back later (memory got tight, background
     work was paused, a person is waiting for other work): the row goes back to `waiting` with the
     reason, and the attempt is not counted against it. The job resumes from its own checkpoint."""
+
+
+class JobBlocked(JobDeferred):
+    """Raised by a job that cannot run until something else exists (a model not downloaded or not loadable): the row goes
+    back to `waiting` BLOCKED on `blocked_by` (a job id or a typed need), which the lane never picks and never re-defers.
+    `str(exc)` is the blocker's short words, said once (`activity.pane.blocked-under-its-blocker`, #6593)."""
+
+    def __init__(self, words: str, blocked_by: str) -> None:
+        super().__init__(words)
+        self.blocked_by = blocked_by
 
 
 class JobOutOfReach(Exception):
@@ -3333,10 +3347,16 @@ def snapshot(db: "Database", *, failed_limit: int = 20, archived: bool = False) 
     own = ", ".join(f"'{k}'" for k in sorted(_OWN_ROW_KINDS))
     queued = f"(parent_id IS NULL AND kind NOT IN ({own}))"
     really_going = "waiting_on IS NULL" if _has_column(db, "waiting_on") else "TRUE"
+    # A blocked row (`blocked_by`, #6593) is a group of its own per blocker: listed with `blocked_by`, never folded into its
+    # kind's queue row (which the lane is working through).
+    has_blocked = _has_column(db, "blocked_by")
+    blocked_col = "blocked_by" if has_blocked else "NULL AS blocked_by"
+    in_queue = "(state = 'running' OR (state = 'waiting' AND blocked_by IS NULL))" if has_blocked else "state IN ('running', 'waiting')"
+    blocked_case = "WHEN state = 'waiting' AND blocked_by IS NOT NULL THEN 'blocked:' || blocked_by " if has_blocked else ""
     counts = {
         (g, kind): n
         for g, kind, n in db.execute_fetchall(
-            f"SELECT CASE WHEN state IN ('waiting', 'running') AND {queued} THEN 'queue' ELSE state END AS g, kind, COUNT(*) "
+            f"SELECT CASE {blocked_case}WHEN state IN ('waiting', 'running') AND {queued} THEN 'queue' ELSE state END AS g, kind, COUNT(*) "
             f"FROM jobs WHERE state IN ('waiting', 'paused', 'running') AND {runs}{cleared_filter} GROUP BY g, kind",
             committed=True,
         )
@@ -3349,7 +3369,7 @@ def snapshot(db: "Database", *, failed_limit: int = 20, archived: bool = False) 
             # The first row of the kind (running before waiting, then the lane's pick), and one job really going,
             # which makes the row Running.
             parts.append(
-                f"(SELECT * FROM jobs WHERE kind = ? AND {queued} AND state IN ('running', 'waiting'){cleared_filter} "
+                f"(SELECT * FROM jobs WHERE kind = ? AND {queued} AND {in_queue}{cleared_filter} "
                 f"ORDER BY CASE state WHEN 'running' THEN 0 ELSE 1 END, "
                 f"CASE WHEN state = 'waiting' THEN -{_PERSON_RANK_SQL} ELSE 0 END, epoch_ms(created_at), rowid LIMIT 1)"
             )
@@ -3357,6 +3377,12 @@ def snapshot(db: "Database", *, failed_limit: int = 20, archived: bool = False) 
                 f"(SELECT * FROM jobs WHERE kind = ? AND {queued} AND state = 'running' AND {really_going}{cleared_filter} LIMIT 1)"
             )
             params += [kind, kind]
+        elif g.startswith("blocked:"):
+            parts.append(
+                f"(SELECT * FROM jobs WHERE state = 'waiting' AND kind = ? AND blocked_by = ?{cleared_filter} "
+                f"ORDER BY epoch_ms(created_at), rowid LIMIT 1)"
+            )
+            params += [kind, g[len("blocked:"):]]
         elif g in ("waiting", "paused"):
             first = f"{_PERSON_RANK_SQL} DESC, " if g == "waiting" else ""
             # A paused job is never in a "queue" group (that holds waiting and running ones), so every paused job of
@@ -3377,7 +3403,7 @@ def snapshot(db: "Database", *, failed_limit: int = 20, archived: bool = False) 
         params = [failed_limit * 10]
     rows = db.execute_fetchall(
         "SELECT id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at, "
-        f"started_by, {waiting_on_col} FROM (" + " UNION ALL ".join(parts) + ") "
+        f"started_by, {waiting_on_col}, {blocked_col} FROM (" + " UNION ALL ".join(parts) + ") "
         "ORDER BY CASE state WHEN 'running' THEN 0 WHEN 'waiting' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END, "
         # waiting rows in the order the lane will pick them (#5839): a person's first, then oldest
         f"CASE WHEN state = 'waiting' THEN -{_PERSON_RANK_SQL} ELSE 0 END, "
@@ -3404,12 +3430,14 @@ def snapshot(db: "Database", *, failed_limit: int = 20, archived: bool = False) 
         finished_at,
         started_by,
         waiting_on,
+        blocked_by,
     ) in rows:
         # A running row that is waiting for something (a try whose page waits for the lane, a page held for Kraken or
         # memory) is listed as waiting until the wait ends: by the row's `waiting_on`, not by its reason's words (#5839).
         shown = "waiting" if state == "running" and waiting_on else state
         one_row = (
             state in ("waiting", "running")
+            and not blocked_by
             and parent_id is None
             and kind not in _OWN_ROW_KINDS
         )
@@ -3417,6 +3445,8 @@ def snapshot(db: "Database", *, failed_limit: int = 20, archived: bool = False) 
         group = (
             ("queue", kind)
             if one_row
+            else (f"blocked:{blocked_by}", kind)
+            if state == "waiting" and blocked_by
             else (state, kind)
             if state in ("waiting", "paused")
             else None
@@ -3428,7 +3458,7 @@ def snapshot(db: "Database", *, failed_limit: int = 20, archived: bool = False) 
             ):  # a job that is really going makes the row running
                 rep.update(state="running", reason=reason, subject=subject)
             continue
-        if state == "waiting":
+        if state == "waiting" and not blocked_by:  # a blocked row says its blocker's words, as stored
             reason = waiting_reason(
                 db,
                 job_id,
@@ -3449,6 +3479,7 @@ def snapshot(db: "Database", *, failed_limit: int = 20, archived: bool = False) 
             "count": count,
             "parent_id": parent_id,
             "started_by": started_by,
+            "blocked_by": blocked_by,
             # When it failed: its end, for a failed row only; a retry sets it waiting and clears its end.
             "failed_at": finished_at if state == "failed" else None,
             # When any ended job ended: the window's DONE TODAY goes by it (#5960).
@@ -3709,14 +3740,36 @@ def unarchive_jobs(db: "Database", ids: list[str]) -> list[str]:
     return out
 
 
-def _write_unfinished_end(db: "Database", job_id: str, state: str, reason: str | None) -> None:
+def _write_unfinished_end(
+    db: "Database", job_id: str, state: str, reason: str | None, blocked_by: str | None = None
+) -> None:
     """The lane's end write for a deferred or out-of-reach job. A row Delete marked stays deleted
     (`activity.engine.deleted-stays-deleted`): the write that arrives after the delete does not revive it."""
     alive = " AND deleted_at IS NULL" if _has_deleted_at(db) else ""
+    mark = ", blocked_by = ?" if blocked_by and _has_column(db, "blocked_by") else ""
     db.execute(
-        f"UPDATE jobs SET state = ?, reason = ?{_clear_waiting_on(db)}, attempts = attempts - 1 WHERE id = ?{alive}",
-        [state, reason, job_id],
+        f"UPDATE jobs SET state = ?, reason = ?{_clear_waiting_on(db)}{mark}, attempts = attempts - 1 WHERE id = ?{alive}",
+        [state, reason, *([blocked_by] if mark else []), job_id],
     )
+    if mark and db.execute_fetchone("SELECT 1 FROM jobs WHERE id = ? AND state = 'done'", [blocked_by]):
+        # The blocker finished between the look and this write: nothing would clear it, so it is cleared now.
+        db.execute("UPDATE jobs SET blocked_by = NULL, reason = NULL WHERE id = ?", [job_id])
+
+
+def unblock_on_download(db: "Database", download_id: str, subject: str) -> int:
+    """A download of `subject` (`<runtime>:<name>`) ended done: every row blocked on it, on an earlier download of the same
+    model, or on the typed need `model:<subject>` is unblocked and the lane looks again. A failed download unblocks nothing:
+    the rows stay blocked and the blocker carries the fix (`activity.pane.blocked-under-its-blocker`). Returns how many."""
+    if not _has_column(db, "blocked_by"):
+        return 0
+    same = "SELECT id FROM jobs WHERE kind = 'download-model' AND subject = ?"
+    where = f"blocked_by = ? OR blocked_by = ? OR blocked_by IN ({same})"
+    args = [download_id, f"model:{subject}", subject]
+    count = db.execute_fetchone(f"SELECT count(*) FROM jobs WHERE {where}", args)[0]
+    if count:
+        db.execute(f"UPDATE jobs SET blocked_by = NULL, reason = NULL WHERE {where}", args)
+        _scheduler.wake(_key(db))
+    return count
 
 
 def undelete_jobs(db: "Database", ids: list[str]) -> list[str]:
@@ -5214,11 +5267,13 @@ class _Scheduler:
                 idle.append(key)
                 continue
             now = utc_now()
+            # A row blocked on something (`blocked_by`, #6593) is never picked, never re-deferred, never held or re-worded here.
+            unblocked = " AND blocked_by IS NULL" if _has_column(db, "blocked_by") else ""
 
             def first(clause: str, extra: list[Any]) -> tuple | None:
                 return db.execute_fetchone(
                     f"SELECT id, kind, subject, model, created_at, {_PERSON_WAITS_SQL}, {_PERSON_RANK_SQL} FROM jobs "
-                    f"WHERE state = 'waiting' AND (run_after IS NULL OR run_after <= ?) AND {where}{clause} "
+                    f"WHERE state = 'waiting' AND (run_after IS NULL OR run_after <= ?) AND {where}{clause}{unblocked} "
                     f"ORDER BY {attached_first}{_PERSON_RANK_SQL} DESC, (model IS NOT DISTINCT FROM ?) DESC, "
                     f"{_model_rank_sql()}, created_at, rowid LIMIT 1",
                     [now, *params, *extra, *attached, lane.loaded_model],
@@ -5235,7 +5290,7 @@ class _Scheduler:
             held_by_first = (
                 bool(first_clause)
                 and db.execute_fetchone(
-                    f"SELECT 1 FROM jobs WHERE state = 'waiting' AND {waiting_on_first[0]} LIMIT 1",
+                    f"SELECT 1 FROM jobs WHERE state = 'waiting' AND {waiting_on_first[0]}{unblocked} LIMIT 1",
                     waiting_on_first[1],
                 )
                 is not None
@@ -5244,23 +5299,23 @@ class _Scheduler:
                 held_by_first
             ):  # each held row says why, and the lane looks again soon (not idle)
                 since = db.execute_fetchone(
-                    f"SELECT MIN(created_at) FROM jobs WHERE state = 'waiting' AND {waiting_on_first[0]}",
+                    f"SELECT MIN(created_at) FROM jobs WHERE state = 'waiting' AND {waiting_on_first[0]}{unblocked}",
                     waiting_on_first[1],
                 )[0]
                 said_first = first_reason(db, first_kinds, since)
                 db.execute(
-                    f"UPDATE jobs SET reason = ? WHERE state = 'waiting' AND {waiting_on_first[0]} "
+                    f"UPDATE jobs SET reason = ? WHERE state = 'waiting' AND {waiting_on_first[0]}{unblocked} "
                     f"AND reason IS DISTINCT FROM ?",
                     [said_first, *waiting_on_first[1], said_first],
                 )
                 due = time.monotonic() + FIRST_LOOK_AGAIN_SECONDS
                 lane.look_again_at = min(lane.look_again_at or due, due)
             if text_held_sql and db.execute_fetchone(
-                f"SELECT 1 FROM jobs WHERE state = 'waiting' AND {text_held_sql} LIMIT 1",
+                f"SELECT 1 FROM jobs WHERE state = 'waiting' AND {text_held_sql}{unblocked} LIMIT 1",
                 text_params,
             ):
                 db.execute(
-                    f"UPDATE jobs SET reason = ? WHERE state = 'waiting' AND {text_held_sql} "
+                    f"UPDATE jobs SET reason = ? WHERE state = 'waiting' AND {text_held_sql}{unblocked} "
                     f"AND reason IS DISTINCT FROM ?",
                     [READING_FIRST_REASON, *text_params, READING_FIRST_REASON],
                 )
@@ -5275,7 +5330,7 @@ class _Scheduler:
                 row = first("", [])
                 spare = bool(share_clause) and row is not None
             later = db.execute_fetchone(
-                f"SELECT min(run_after) FROM jobs WHERE state = 'waiting' AND run_after > ? AND {where}",
+                f"SELECT min(run_after) FROM jobs WHERE state = 'waiting' AND run_after > ? AND {where}{unblocked}",
                 [now, *params],
             )[0]
             if (
@@ -5434,6 +5489,7 @@ class _Scheduler:
             # A job a person waits on runs at utility QoS whatever its kind's class (`watched-first`).
             set_utility_qos() if watched else kind.qos()
         state, reason, result, error = "done", None, None, None
+        blocked_by: str | None = None
         _current.job_id = job_id
         _current.lane = lane.name
         _current.done_note = None
@@ -5472,6 +5528,7 @@ class _Scheduler:
             state, reason, error = "cancelled", "Paused with its run", exc
         except JobDeferred as exc:
             state, reason, error = "waiting", str(exc), exc
+            blocked_by = getattr(exc, "blocked_by", None)  # blocked on something: never picked until it ends
         except JobOutOfReach as exc:
             state, reason, error = "running", str(exc), exc
         except Exception as exc:  # noqa: BLE001 -- recorded on the row, and handed to whoever waits
@@ -5510,8 +5567,8 @@ class _Scheduler:
                 key
             )  # the project's connection NOW: a reopen made a new one (Fable #8, #14)
             if current is not None:
-                _write_unfinished_end(current, job_id, state, reason)
-            if state == "waiting":
+                _write_unfinished_end(current, job_id, state, reason, blocked_by)
+            if state == "waiting" and not blocked_by:
                 lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
                 # Its project has waiting work again: a scan while this job ran saw its row `running`, found
                 # nothing waiting there and forgot the project as idle, and the lane would then have nothing
@@ -5532,6 +5589,8 @@ class _Scheduler:
                 f"UPDATE jobs SET state = ?, reason = ?, finished_at = ?{_clear_waiting_on(current)} WHERE id = ?",
                 [state, reason, utc_now(), job_id],
             )
+            if state == "done" and kind_name == "download-model":
+                unblock_on_download(current, job_id, subject)
         # (closed while it ran: the row stays `running` and resumes when the library opens)
         with self._lock:
             waiting = self._watchers.pop(job_id, [])

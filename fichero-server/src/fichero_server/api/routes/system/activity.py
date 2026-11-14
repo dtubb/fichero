@@ -202,6 +202,10 @@ class BackgroundJob(BaseModel):
     # call; and, while it runs, the estimate to finish at the run's own pace (spent per page done times the pages left).
     cost_usd: Optional[float] = None
     cost_estimate_usd: Optional[float] = None
+    # What blocks this row (`activity.pane.blocked-under-its-blocker`, #6593): the id of the job it waits on (a model's
+    # download) or a typed need ("model:embeddings:<id>") when no job supplies it. A blocked row is never picked by the lane;
+    # the app draws it under its blocker. Null for any row that is not blocked.
+    blocked_by: Optional[str] = None
 
 
 class RanOn(BaseModel):
@@ -1007,6 +1011,7 @@ async def list_background_jobs(
                 failed_at=_utc(row.get("failed_at")) if state == "failed" else None,
                 finished_at=_utc(row.get("finished_at")),
                 started_by=row.get("started_by"),
+                blocked_by=row.get("blocked_by"),
                 remote=await asyncio.to_thread(_remote_row, db, row),  # a database read
                 ran_on=ran_on, stages=stages, model=model, cost_usd=cost, cost_estimate_usd=estimate,
             )

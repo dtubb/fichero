@@ -55816,6 +55816,11 @@
             "type": "number",
             "nullable": true,
             "title": "Cost Estimate Usd"
+          },
+          "blocked_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Blocked By"
           }
         },
         "type": "object",
