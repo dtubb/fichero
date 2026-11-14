@@ -5224,6 +5224,7 @@
               "items": {
                 "type": "string"
               },
+              "minItems": 1,
               "description": "The segments the slider simplifies.",
               "title": "Segment Ids"
             },
@@ -65271,6 +65272,12 @@
             "nullable": true,
             "title": "States",
             "description": "also every top-level job of its own in these states (Clear Finished\u2026: done, failed, cancelled)"
+          },
+          "stop_running": {
+            "type": "boolean",
+            "title": "Stop Running",
+            "description": "Stop then Delete (the person confirmed): a running row is asked to stop and deleted at once instead of skipped",
+            "default": false
           }
         },
         "type": "object",
