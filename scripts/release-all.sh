@@ -239,8 +239,58 @@ source "$ROOT_DIR/scripts/tier_build_map.sh"
 
 mkdir -p "$RELEASE_DIR"
 
+# ── Unattended guards + summary (release.lane.* in release-and-versioning.md) ──
+# scripts/release_guard.py holds the logic so it is tested; this script only
+# calls it. Every part is recorded in the summary file and printed as one
+# table at the end, however the run ends.
+GUARD_PY="$("$ROOT_DIR/scripts/find_project_python.sh" "$ROOT_DIR")"
+guard() { "$GUARD_PY" "$ROOT_DIR/scripts/release_guard.py" "$@"; }
+export FICHERO_RELEASE_SUMMARY="$RELEASE_DIR/summary.tsv"
+: > "$FICHERO_RELEASE_SUMMARY"
+PART_REASON="$RELEASE_DIR/.part-reason"
+REL_LABEL="Fichero"
+CURRENT_PART="Preflight"
+# mark PART STATUS [REASON]: record it; text the owner on a failure and when a
+# part goes live (FICHERO_NOTIFY_IMESSAGE; unset = no text).
+mark() {
+  guard part "$1" "$2" "${3:-}" || true
+  case "$2:$1" in
+    FAILED:*) guard notify "$REL_LABEL: $1 FAILED — ${3:-see the release log}" || true ;;
+    OK:DMG|OK:Preflight) ;;
+    OK:*) guard notify "$REL_LABEL: $1 is live${3:+ — $3}" || true ;;
+  esac
+}
+# need_disk STAGE: thin Time Machine local snapshots if short, else refuse.
+need_disk() { guard disk "$1"; }
+on_exit() {
+  local rc=$?
+  if [ "$rc" -ne 0 ] && [ -n "$CURRENT_PART" ]; then
+    mark "$CURRENT_PART" FAILED "stopped (exit $rc); see the log above"
+  fi
+  echo
+  echo "=== Release summary ($REL_LABEL) ==="
+  guard summary || true
+}
+trap on_exit EXIT
+mark Preflight PENDING
+if [ "$SKIP_DMG" = true ]; then mark DMG SKIPPED "--skip-dmg"; else mark DMG PENDING; fi
+if [ "$RUN_MAC_TESTFLIGHT" = true ]; then mark "Mac TestFlight" PENDING; else mark "Mac TestFlight" SKIPPED "not requested"; fi
+if [ "$RUN_IOS_TESTFLIGHT" = true ]; then mark "iOS TestFlight" PENDING; else mark "iOS TestFlight" SKIPPED "not requested"; fi
+if [ "$RUN_GITHUB" = true ]; then mark Publish PENDING; else mark Publish SKIPPED "no --github"; fi
+
 echo "=== Fichero release ==="
 echo "Sparkle feed: $SPARKLE_FEED_URL"
+
+# ── Build number (release.update.build-number-bumped-and-above-published) ────
+# 2026.11.14: a pinned FICHERO_RELEASE_VERSION skipped the stamp, so the build
+# reused 23, already in the live appcast. Whenever this run builds a DMG, the
+# build number is one above BOTH the local stamp and every published build
+# (live appcast + release tags), pinned version or not. A TestFlight-only or
+# publish-only run keeps the build of the DMG it goes with.
+if [ "$SKIP_DMG" = false ]; then
+  NEXT_BUILD="$(guard next-build)" || { echo "error: cannot choose a build number (see above)." >&2; exit 1; }
+  export FICHERO_BUILD_NUMBER="${FICHERO_BUILD_NUMBER:-$NEXT_BUILD}"
+fi
 
 # ── Auto-stamp the dated release version (once, up front) ────────────────────
 # Stamp TODAY's date across frontend + backend before any build path runs, so
@@ -252,7 +302,12 @@ echo "Sparkle feed: $SPARKLE_FEED_URL"
 # sees the version already set and does not re-stamp.
 if [ -n "${FICHERO_RELEASE_VERSION:-}" ]; then
   echo
-  echo "── Version: FICHERO_RELEASE_VERSION=$FICHERO_RELEASE_VERSION set — not auto-stamping ──"
+  echo "── Version: FICHERO_RELEASE_VERSION=$FICHERO_RELEASE_VERSION set — not auto-stamping the date ──"
+  if [ -n "${FICHERO_BUILD_NUMBER:-}" ]; then
+    sed -i '' -E "s/^CURRENT_PROJECT_VERSION = .*/CURRENT_PROJECT_VERSION = $FICHERO_BUILD_NUMBER/" \
+      "$ROOT_DIR/fichero/Configs/Version.xcconfig"
+    echo "  build number: $(project_setting CURRENT_PROJECT_VERSION)"
+  fi
 else
   echo
   echo "── Version: auto-stamp dated release ──"
@@ -261,6 +316,10 @@ else
   "$ROOT_DIR/scripts/set-release-version.sh" "${STAMP_ARGS[@]+"${STAMP_ARGS[@]}"}"
   # Pin the just-stamped MARKETING_VERSION so downstream scripts don't re-stamp.
   export FICHERO_RELEASE_VERSION="$(project_setting MARKETING_VERSION)"
+fi
+REL_LABEL="Fichero $FICHERO_RELEASE_VERSION ($(project_setting CURRENT_PROJECT_VERSION))"
+if [ "$SKIP_DMG" = false ]; then
+  guard check-build "$(project_setting CURRENT_PROJECT_VERSION)" || exit 1
 fi
 
 echo
@@ -383,14 +442,25 @@ if [ "$RUN_GITHUB" = true ]; then
 fi
 
 if [ "$RUN_MAC_TESTFLIGHT" = true ] || [ "$RUN_IOS_TESTFLIGHT" = true ]; then
-  if [ -f "$APP_STORE_CONNECT_KEY_PATH" ]; then
+  # The key lives in iCloud Drive; a full disk evicts it to a dataless
+  # placeholder and the export fails "couldn't be opened" hours in. The guard
+  # reads it once to download it, then re-checks.
+  if guard asc-key "$APP_STORE_CONNECT_KEY_PATH"; then
     echo "  App Store Connect key OK: $APP_STORE_CONNECT_KEY_ID"
   else
-    echo "error: App Store Connect key not found for TestFlight upload:" >&2
-    echo "         $APP_STORE_CONNECT_KEY_PATH" >&2
     echo "       Set APP_STORE_CONNECT_KEY_PATH, or use --skip-testflight." >&2
     preflight_failed=1
   fi
+fi
+
+# A compile error only iOS sees (`.buttonStyle(.link)` is macOS-only) used to
+# surface at the iOS archive, hours in. An unsigned generic-iOS build here
+# fails in minutes instead.
+if [ "$RUN_IOS_TESTFLIGHT" = true ] && [ "$preflight_failed" = 0 ]; then
+  echo
+  echo "── Preflight: iOS compile ($IOS_SCHEME, $IOS_CONFIG, unsigned) ──"
+  guard ios-preflight "$ROOT_DIR/fichero/fichero.xcodeproj" "$IOS_SCHEME" "$IOS_CONFIG" \
+    "$IOS_ARCHIVE_FEATURE_TIER" || preflight_failed=1
 fi
 
 [ "$preflight_failed" = 0 ] || {
@@ -399,12 +469,16 @@ fi
   echo "failing mid-release costs the whole build." >&2
   exit 1
 }
+mark Preflight OK
+CURRENT_PART=""
 
 # Publishing only (no DMG, no TestFlight: publish-release.sh) needs no engine; rebuilding it cost
 # ~20 minutes and nothing used it (2026-10-10).
 if [ "$SKIP_DMG" = false ] || [ "$RUN_MAC_TESTFLIGHT" = true ] || [ "$RUN_IOS_TESTFLIGHT" = true ]; then
 echo
 echo "── Engine: rebuild current Briefcase stage ──"
+CURRENT_PART="Engine"
+need_disk "the engine build"
 "$ROOT_DIR/scripts/preflight-embedded-engine.sh" --rebuild
 # pdfium must sit BESIDE kreuzberg's binding, which resolves it by
 # @loader_path. `pypdfium2` (briefcase requires) puts a real, signable
@@ -449,9 +523,11 @@ else
   exit 1
 fi
 
+CURRENT_PART=""
 fi  # engine rebuild
 
 if [ "$SKIP_DMG" = false ]; then
+  CURRENT_PART="DMG"
   # One loop, both DMGs (dev first, beta last — see DMG_TIERS above). Each
   # iteration re-sources tier_build_map.sh so scheme/config follow the tier,
   # and FICHERO_DMG_PATH names the artifact (Fichero.dmg vs Fichero-dev.dmg).
@@ -482,6 +558,7 @@ if [ "$SKIP_DMG" = false ]; then
     if [ "$SKIP_NOTARIZE" = false ]; then
       DMG_ARGS+=(--notarize-app)
     fi
+    need_disk "the $DMG_TIER DMG"
     FICHERO_DMG_PATH="$TIER_DMG_PATH" "$ROOT_DIR/scripts/build-release-dmg.sh" "${DMG_ARGS[@]}"
     if [ "$SKIP_NOTARIZE" = false ]; then
       echo
@@ -533,6 +610,41 @@ if [ "$SKIP_DMG" = false ] && [ "$SKIP_NOTARIZE" = false ] && [ "$BUILT_BETA_DMG
     exit "$SIZE_RATCHET_RC"
   fi
 fi
+if [ "$SKIP_DMG" = false ]; then
+  mark DMG OK "${DMG_TIERS[*]} built$([ "$SKIP_NOTARIZE" = true ] && echo ', NOT notarized')"
+fi
+CURRENT_PART=""
+
+# fail_part REASON: end this TestFlight part (it runs in a subshell) with a
+# reason for the summary; the run goes on to the next part (#4 of 2026.11.14:
+# a stalled Mac upload must not cost iOS and the publish).
+fail_part() { printf '%s' "$1" > "$PART_REASON"; exit 1; }
+# run_part NAME FUNC: FUNC in a subshell under set -e; record OK or FAILED.
+run_part() {
+  local name="$1" fn="$2" rc
+  rm -f "$PART_REASON"
+  CURRENT_PART="$name"
+  set +e
+  ( set -e; "$fn" )
+  rc=$?
+  set -e
+  CURRENT_PART=""
+  if [ "$rc" -eq 0 ]; then
+    mark "$name" OK "uploaded; Apple emails when processing ends"
+  else
+    mark "$name" FAILED "$(cat "$PART_REASON" 2>/dev/null || echo "exit $rc; see the log above")"
+  fi
+}
+# upload_with_watchdog LOG CMD...: kill an export/upload whose output stops
+# (Apple's productutil sat at "Preparing to upload 0%" > 45 min, 2026-11-13/14).
+upload_with_watchdog() {
+  local log="$1" rc=0; shift
+  guard watchdog --log "$log" -- "$@" || rc=$?
+  if [ "$rc" -eq 124 ]; then
+    fail_part "export/upload stalled: no output for ${FICHERO_UPLOAD_IDLE_MINUTES:-30} min, killed (log: $log)"
+  fi
+  return "$rc"
+}
 
 if [ "$RUN_MAC_TESTFLIGHT" = true ] || [ "$RUN_IOS_TESTFLIGHT" = true ]; then
   echo
@@ -603,13 +715,14 @@ if [ "$RUN_MAC_TESTFLIGHT" = true ] || [ "$RUN_IOS_TESTFLIGHT" = true ]; then
   fi
 fi
 
-if [ "$RUN_MAC_TESTFLIGHT" = true ]; then
+mac_testflight() {
   echo
   echo "── Mac TestFlight: archive + upload ──"
 
   echo "  TestFlight version: $TESTFLIGHT_MARKETING_VERSION ($TESTFLIGHT_BUILD_VERSION)"
   install_mac_app_store_profile
 
+  need_disk "the Mac archive" || fail_part "not enough disk for the Mac archive"
   rm -rf "$MAC_ARCHIVE_PATH"
   if ! xcodebuild -project "$ROOT_DIR/fichero/fichero.xcodeproj" \
     -scheme "$MAC_APP_STORE_SCHEME" \
@@ -630,7 +743,7 @@ if [ "$RUN_MAC_TESTFLIGHT" = true ]; then
     FICHERO_FEATURE_TIER="$MAC_ARCHIVE_FEATURE_TIER" \
     archive; then
     echo "error: macOS archive failed; check Xcode signing, sandbox, and embedded engine build phase" >&2
-    exit 1
+    fail_part "macOS archive failed"
   fi
 
   # Re-sign the embedded engine in the archive with the DISTRIBUTION identity
@@ -647,7 +760,7 @@ if [ "$RUN_MAC_TESTFLIGHT" = true ]; then
     "$MAC_APP_STORE_SIGNING_CERT" \
     "$ROOT_DIR/fichero/fichero/FicheroEngineAppStore.entitlements"; then
     echo "error: pre-export engine re-sign failed — the TestFlight build would abort the engine child (#3952)" >&2
-    exit 1
+    fail_part "engine re-sign in the archive failed (#3952)"
   fi
 
   cat > "$MAC_EXPORT_OPTIONS" <<PLIST
@@ -688,7 +801,8 @@ if [ "$RUN_MAC_TESTFLIGHT" = true ]; then
 PLIST
 
   rm -rf "$MAC_EXPORT_DIR"
-  if ! xcodebuild -exportArchive \
+  need_disk "the Mac export" || fail_part "not enough disk for the Mac export"
+  if ! upload_with_watchdog "$RELEASE_DIR/mac-export.log" xcodebuild -exportArchive \
     -archivePath "$MAC_ARCHIVE_PATH" \
     -exportPath "$MAC_EXPORT_DIR" \
     -exportOptionsPlist "$MAC_EXPORT_OPTIONS" \
@@ -696,7 +810,7 @@ PLIST
     "${AUTH_ARGS[@]}"; then
     echo "error: Mac TestFlight export/upload failed" >&2
     echo "       Check App Store Connect permissions and Mac App Distribution/Mac Installer Distribution signing assets." >&2
-    exit 1
+    fail_part "export/upload failed (log: $RELEASE_DIR/mac-export.log)"
   fi
 
   # exportArchive returns on upload completion, NOT when Apple finishes
@@ -724,14 +838,16 @@ PLIST
   else
     echo "  Mac TestFlight: uploaded — Apple will email when processing completes (or fails)."
   fi
-fi
+}
+if [ "$RUN_MAC_TESTFLIGHT" = true ]; then run_part "Mac TestFlight" mac_testflight; fi
 
-if [ "$RUN_IOS_TESTFLIGHT" = true ]; then
+ios_testflight() {
   echo
   echo "── iPhone/iPad TestFlight: archive + upload ──"
   echo "  TestFlight version: $TESTFLIGHT_MARKETING_VERSION ($TESTFLIGHT_BUILD_VERSION)"
   install_ios_app_store_profile
 
+  need_disk "the iOS archive" || fail_part "not enough disk for the iOS archive"
   rm -rf "$IOS_ARCHIVE_PATH"
   if ! xcodebuild -project "$ROOT_DIR/fichero/fichero.xcodeproj" \
     -scheme "$IOS_SCHEME" \
@@ -746,7 +862,7 @@ if [ "$RUN_IOS_TESTFLIGHT" = true ]; then
     FICHERO_FEATURE_TIER="$IOS_ARCHIVE_FEATURE_TIER" \
     archive; then
     echo "error: iOS archive failed; check Xcode signing and remote-client release settings" >&2
-    exit 1
+    fail_part "iOS archive failed"
   fi
 
   cat > "$IOS_EXPORT_OPTIONS" <<PLIST
@@ -778,14 +894,15 @@ if [ "$RUN_IOS_TESTFLIGHT" = true ]; then
 PLIST
 
   rm -rf "$IOS_EXPORT_DIR"
-  if ! xcodebuild -exportArchive \
+  need_disk "the iOS export" || fail_part "not enough disk for the iOS export"
+  if ! upload_with_watchdog "$RELEASE_DIR/ios-export.log" xcodebuild -exportArchive \
     -archivePath "$IOS_ARCHIVE_PATH" \
     -exportPath "$IOS_EXPORT_DIR" \
     -exportOptionsPlist "$IOS_EXPORT_OPTIONS" \
     "${AUTH_ARGS[@]}"; then
     echo "error: iOS TestFlight export/upload failed" >&2
     echo "       Check the installed iOS App Store profile, Apple Distribution identity, and keychain access for codesign." >&2
-    exit 1
+    fail_part "export/upload failed (log: $RELEASE_DIR/ios-export.log)"
   fi
 
   # By default: stop here, Apple emails on processing completion. Opt into
@@ -810,11 +927,20 @@ PLIST
   else
     echo "  iPhone/iPad TestFlight: uploaded — Apple will email when processing completes (or fails)."
   fi
-fi
+}
+if [ "$RUN_IOS_TESTFLIGHT" = true ]; then run_part "iOS TestFlight" ios_testflight; fi
 
 if [ "$RUN_GITHUB" = true ]; then
   echo
   echo "── GitHub/Sparkle release ──"
+  CURRENT_PART="Publish"
+  # Smoke what is about to ship (release.lane.smoke-before-publish): stapled,
+  # mounts read-only, codesign --deep --strict, Gatekeeper, and the stamp.
+  for SMOKE_DMG in "$DMG_PATH" "$DEV_DMG_PATH"; do
+    if [ "$SMOKE_DMG" = "$DMG_PATH" ] || [ -f "$SMOKE_DMG" ]; then
+      guard smoke "$SMOKE_DMG" "$(project_setting MARKETING_VERSION)" "$(project_setting CURRENT_PROJECT_VERSION)"
+    fi
+  done
   "$ROOT_DIR/scripts/create-github-release.sh" "${GITHUB_ARGS[@]+"${GITHUB_ARGS[@]}"}"
 
   # Site AFTER the GitHub step: create-github-release.sh writes appcast.xml
@@ -826,6 +952,8 @@ if [ "$RUN_GITHUB" = true ]; then
     echo "── Website (docs site → tubb.ca) ──"
     "$ROOT_DIR/scripts/deploy-site.sh"
   fi
+  CURRENT_PART=""
+  mark Publish OK "GitHub release, appcast$([ "${FICHERO_SKIP_SITE:-0}" = 1 ] || echo ' and site')"
 fi
 
 echo
@@ -851,4 +979,9 @@ if [ -e "$INTEGRATION_WT/.git" ]; then
     git -C "$INTEGRATION_WT" merge --abort >/dev/null 2>&1 || true
     echo "warning: back-merge into integration did not apply cleanly — do it by hand" >&2
   fi
+fi
+
+# Any FAILED part fails the run; the EXIT trap prints the summary table.
+if grep -q "	FAILED	" "$FICHERO_RELEASE_SUMMARY"; then
+  exit 1
 fi
