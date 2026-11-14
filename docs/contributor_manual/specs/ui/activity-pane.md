@@ -258,7 +258,8 @@ else moves a row out of paused, failed or stopped: not the open, not automatic w
   exception name, and with the fix above. **Built (2026-11-13 night):** the engine half of the test: every kind in the table
   has words, a fix and an action, and names no status code or exception text (`unexpected` names the exception's type on
   purpose, as the bug report's handle; open question 8). Not built: the row. *Tests:*
-  `fichero-server/tests/unit/llm/test_every_failure_kind_has_a_fix_6354.py`; not yet written: ActivityErrorRowTests.swift.
+  `fichero-server/tests/unit/llm/test_every_failure_kind_has_a_fix_6354.py`;
+  not yet written: ActivityErrorRowTests.swift.
 - `activity.one-window` — **[GAP]** (#6441, decision 10; `activity.window.is-the-pane-plus-inspector`) ONE Activity window: the
   pane as its content, the selected row's details in the Inspector beside it, and nothing else of Activity's that opens a second
   window or a popover of its own. Inventory and what replaces each:
