@@ -349,6 +349,10 @@ class RepresentationCreateParams(BaseModel):
     #: recorded on the row itself so a line's versions are labelled from the row alone. Kept on a machine's reading only.
     producer_model: str | None = None
     producer_tool: str | None = None
+    #: `segment-editor.char-positions-kept`: where each character starts along the line, 0 to 1, and how sure the
+    #: reader was of each, where the reader gave them. Kept on a machine's reading only; absent, never faked.
+    char_positions: list[float] | None = None
+    char_confidences: list[float] | None = None
 
     def audit_params(self) -> dict:
         """The audit row gets every argument EXCEPT the words, and a digest in
@@ -457,6 +461,10 @@ def _write_reading(
         reading.machine_confidence = params.machine_confidence
         reading.producer_model = params.producer_model
         reading.producer_tool = params.producer_tool
+        if params.char_positions is not None and len(params.char_positions) == len(reading.content):
+            reading.char_positions = params.char_positions
+        if params.char_confidences is not None and len(params.char_confidences) == len(reading.content):
+            reading.char_confidences = params.char_confidences
     db.save(reading)
 
     after = {

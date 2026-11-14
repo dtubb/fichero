@@ -5009,7 +5009,10 @@ async def process_vision(
                             "text": _text, "char_start": _cursor, "char_end": _cursor + len(_text),
                             "source": "kraken-htr",
                             # How sure Kraken was of the line, kept on its reading (#5707, #5694's bar).
-                            "confidence": getattr(_text, "confidence", None)}))
+                            "confidence": getattr(_text, "confidence", None),
+                            # Where each character sits on the line, kept on its reading
+                            # (`segment-editor.char-positions-kept`).
+                            "metadata": {**_box.metadata, **_wl.character_facts(_text)}}))
                         _joined.append(_text)
                         _cursor += len(_text) + 1
                     # Most or every line came back empty: a failed read, not 'no writing' (review 64). The lines stay
@@ -5878,6 +5881,7 @@ async def process_vision(
                 def _write_onto_lines(saved_artifact_id: str) -> None:
                     from fichero_server.db import db_manager as _dbm
                     from fichero_server.llm.working_lines import (
+                        CHARACTER_FACT_KEYS,
                         NO_WRITING_KEY,
                         mark_no_writing,
                         mark_unread_reasons,
@@ -5902,7 +5906,9 @@ async def process_vision(
                     # would otherwise count over a better one.
                     write_readings(
                         _dbm.get_database(library_path), document_id=doc_id_for_file,
-                        readings=[(b.metadata["segment_id"], b.text, b.confidence) for b in page_geometry.boxes
+                        readings=[(b.metadata["segment_id"], b.text, b.confidence,
+                                   {key: b.metadata[key] for key in CHARACTER_FACT_KEYS if b.metadata.get(key)})
+                                  for b in page_geometry.boxes
                                   if b.metadata.get("segment_id") and READ_FLAG_KEY not in b.metadata],
                         artifact_id=saved_artifact_id, run_id=task_id or f"read-a-line:{saved_artifact_id}",
                         library_path=library_path,

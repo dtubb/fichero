@@ -3582,7 +3582,7 @@ def estimated_cut(rect: list[float], fraction: float, direction: str | None) -> 
     return [[x, y, w * fraction, h], [x + w * fraction, y, w * (1 - fraction), h]]
 
 
-def _parts_cut_at(db: Database, original: Segment, offset: int) -> list["SegmentSplitPart"]:
+def _parts_cut_at(db: Database, original: Segment, offset: int) -> tuple[list["SegmentSplitPart"], bool]:
     """`at_offset` made into the two parts `segment.split` takes (#5154): reading spans at the
     character, boxes cut in proportion along the line's resolved direction. An estimate, because
     nothing records where a character sits on the image; `cut: estimated` says so on both rows."""
@@ -3604,7 +3604,12 @@ def _parts_cut_at(db: Database, original: Segment, offset: int) -> list["Segment
     direction, _level = _direction_of(
         original, document, text, _lines_are_vertical(shapes, document), direction_rungs(db, document)
     )
-    rects = estimated_cut(list(anchor.rect), offset / len(text), direction)
+    # `segment-editor.char-positions-kept`: where the recogniser placed the character, when it said; a right-to-left
+    # line keeps the proportional cut, because its positions run along the baseline as drawn, not as read.
+    positions = _reading_positions(db, _rid) if direction != "rtl" else None
+    measured = positions is not None and len(positions) == len(text)
+    fraction = positions[offset] if measured else offset / len(text)
+    rects = estimated_cut(list(anchor.rect), fraction, direction)
     return [
         SegmentSplitPart(
             anchor=SourceAnchor(
@@ -3615,7 +3620,7 @@ def _parts_cut_at(db: Database, original: Segment, offset: int) -> list["Segment
             reading_span=span,
         )
         for rect, span in zip(rects, ([0, offset], [offset, len(text)]))
-    ]
+    ], measured
 
 
 class SegmentSplitParams(BaseModel):
@@ -3722,10 +3727,13 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
     if not original:
         raise HTTPException(status_code=404, detail=f"Segment not found: {params.segment_id}")
     estimated = params.at_offset is not None
+    measured = False
     if estimated:
         if params.parts:
             raise HTTPException(status_code=422, detail="give parts or at_offset, not both")
-        params = params.model_copy(update={"parts": _parts_cut_at(db, original, params.at_offset)})
+        parts, measured = _parts_cut_at(db, original, params.at_offset)
+        params = params.model_copy(update={"parts": parts})
+        estimated = not measured
     if len(params.parts) < 2:
         raise HTTPException(status_code=422, detail="split needs two or more parts")
     reason = segment_liveness_reason(db, params.segment_id)
@@ -3764,7 +3772,7 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
     audit_id = uuid.uuid4().hex
     split = _split_one(
         db, original, params.parts, estimated=estimated, readings_before_split=readings_before_split,
-        ctx=ctx, audit_id=audit_id,
+        ctx=ctx, audit_id=audit_id, measured=measured,
     )
     new_ids = split["new_segment_ids"]
     split_representation_ids = split["representation_ids"]
@@ -3806,7 +3814,7 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
 def _split_one(
     db: Database, original: Segment, parts: list[SegmentSplitPart], *, estimated: bool,
     readings_before_split: dict[str, tuple[str, str]], ctx: ActionContext, audit_id: str,
-    children_by_part: list[list[Segment]] | None = None,
+    children_by_part: list[list[Segment]] | None = None, measured: bool = False,
 ) -> dict:
     """One line split into `parts`, the first kept on the line's own id, under `audit_id`; the record its
     undo needs. Shared by a split at given parts and a knife stroke over many lines. `children_by_part`, one list
@@ -3820,8 +3828,10 @@ def _split_one(
     snapshot_segment_version(db, original, deleted=False, actor=ctx.actor, audit_id=audit_id)
 
     first_part, *rest_parts = parts
-    if estimated:
-        original.metadata = {**(original.metadata or {}), "cut": "estimated"}
+    # How the cut was placed: in proportion (`estimated`), or at the recogniser's own character position (`measured`).
+    cut_mark = "estimated" if estimated else ("measured" if measured else None)
+    if cut_mark:
+        original.metadata = {**(original.metadata or {}), "cut": cut_mark}
     original.anchor = first_part.anchor
     original.baseline = first_part.baseline
     bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(original.anchor)
@@ -3851,8 +3861,8 @@ def _split_one(
         )
         if isinstance(original_box_index, int):
             row.metadata = {**row.metadata, "box_index": original_box_index}
-        if estimated:
-            row.metadata = {**row.metadata, "cut": "estimated"}
+        if cut_mark:
+            row.metadata = {**row.metadata, "cut": cut_mark}
         new_rows.append(row)
         new_ids.append(row.id)
     if new_rows:
