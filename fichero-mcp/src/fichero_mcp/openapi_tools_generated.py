@@ -256,6 +256,14 @@ def fichero_activity_cleanup_old_activities(
     return _rt.call("DELETE", "/api/activity/cleanup", params={"days": days})
 
 
+def fichero_activity_get_history(
+    *,
+    minutes: Annotated[Optional[int], Field(description='the window, in minutes ending now')] = None,
+) -> Any:
+    "Get Activity History\n\nPages done and failed, dollars and tokens per minute, pages by runtime, and today's spend by provider\n(`activity.window.bottom-panel`). Read-only; the reads are of what was committed and run off the loop.\n\nRoute: GET /api/activity/history (toolset `activity`; reads)."
+    return _rt.call("GET", "/api/activity/history", params={"minutes": minutes})
+
+
 def fichero_activity_list_background_jobs(
     *,
     archived: Annotated[Optional[bool], Field(description='the ARCHIVED rows instead (Show Archived, `activity.pane.archive-old-runs`)')] = None,
@@ -9648,6 +9656,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_activity_list_activities", "activity", "GET", "/api/activity", fichero_activity_list_activities),
     GeneratedTool("fichero_activity_get_batch", "activity", "GET", "/api/activity/batch/{batch_id}", fichero_activity_get_batch),
     GeneratedTool("fichero_activity_cleanup_old_activities", "activity", "DELETE", "/api/activity/cleanup", fichero_activity_cleanup_old_activities),
+    GeneratedTool("fichero_activity_get_history", "activity", "GET", "/api/activity/history", fichero_activity_get_history),
     GeneratedTool("fichero_activity_list_background_jobs", "activity", "GET", "/api/activity/jobs", fichero_activity_list_background_jobs),
     GeneratedTool("fichero_activity_archive_jobs", "activity", "POST", "/api/activity/jobs/archive", fichero_activity_archive_jobs),
     GeneratedTool("fichero_activity_clear_failed_jobs", "activity", "POST", "/api/activity/jobs/clear-failed", fichero_activity_clear_failed_jobs),

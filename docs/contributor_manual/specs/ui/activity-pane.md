@@ -642,7 +642,9 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   (the jobs' `finished_at`, the spend ledger `llm/spend.py`, the calls' usage), no new recording; the panel reads it once a
   minute and on the change stream. Acceptance: a fixture of 30 pages done over 10 minutes answers 10 buckets summing to 30; the
   Cost panel's today total equals the ledger's; nothing is drawn when there is no history ("No work in the last hour").
-  *Test:* not yet written: `fichero-server/tests/unit/api/test_activity_history_6588.py`, `ActivityBottomPanelTests.swift`.
+  *Test:* the engine half: `fichero-server/tests/unit/api/test_activity_history_6588.py`; the app half (`ActivityBottomPanelTests.swift`) is still to do.
+  (Engine note: today's total and its by-provider split are summed from the priced calls of pages finished today (UTC), the one
+  source that names providers; the ledger keeps only a day's total.)
 - `activity.log.raw-always-rendered` — **[GAP]** (#6588; decision 27; `activity.window.log-levels`) the Inspector's Log is the
   RAW log of the row (every line the engine wrote, its time, level and text, monospaced, wrapped, selectable), rendered whole
   for every row that ran, a page row's log its own lines in its run's log; "Nothing written for this row yet" only for a row

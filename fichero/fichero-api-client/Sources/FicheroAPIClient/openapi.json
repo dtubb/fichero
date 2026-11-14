@@ -1889,6 +1889,55 @@
         }
       }
     },
+    "/api/activity/history": {
+      "get": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Get Activity History",
+        "description": "Pages done and failed, dollars and tokens per minute, pages by runtime, and today's spend by provider\n(`activity.window.bottom-panel`). Read-only; the reads are of what was committed and run off the loop.",
+        "operationId": "get_activity_history_api_activity_history_get",
+        "parameters": [
+          {
+            "name": "minutes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1440,
+              "minimum": 5,
+              "description": "the window, in minutes ending now",
+              "default": 60,
+              "title": "Minutes"
+            },
+            "description": "the window, in minutes ending now"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityHistory"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/agent-memory": {
       "post": {
         "tags": [
@@ -52101,6 +52150,48 @@
         ],
         "title": "ActivityDeleteResponse"
       },
+      "ActivityHistory": {
+        "properties": {
+          "buckets": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryBucket"
+            },
+            "type": "array",
+            "title": "Buckets",
+            "description": "one per minute, oldest first, the last the current minute"
+          },
+          "by_runtime": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/Runtime"
+            },
+            "type": "object",
+            "title": "By Runtime",
+            "description": "pages done in the window by where they ran; a runtime with none is absent"
+          },
+          "today_spend_usd": {
+            "type": "number",
+            "title": "Today Spend Usd",
+            "description": "dollars of priced cloud calls of pages finished today (UTC)",
+            "default": 0.0
+          },
+          "today_spend_by_provider": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Today Spend By Provider",
+            "description": "provider name -> today's dollars"
+          }
+        },
+        "type": "object",
+        "required": [
+          "buckets"
+        ],
+        "title": "ActivityHistory"
+      },
       "ActivityListResponse": {
         "properties": {
           "items": {
@@ -73567,6 +73658,43 @@
         "title": "HfSpend",
         "description": "This month's Hugging Face spend against the project's cap (`source.onboard.spend-cap`, #5769)."
       },
+      "HistoryBucket": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start",
+            "description": "the minute's start, aware UTC"
+          },
+          "pages_done": {
+            "type": "integer",
+            "title": "Pages Done",
+            "default": 0
+          },
+          "pages_failed": {
+            "type": "integer",
+            "title": "Pages Failed",
+            "default": 0
+          },
+          "spend_usd": {
+            "type": "number",
+            "title": "Spend Usd",
+            "description": "dollars of the priced cloud calls of pages finished in this minute; 0.0 when none",
+            "default": 0.0
+          },
+          "tokens": {
+            "type": "integer",
+            "title": "Tokens",
+            "description": "tokens of those pages' calls",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "start"
+        ],
+        "title": "HistoryBucket"
+      },
       "HowOption": {
         "properties": {
           "id": {
@@ -94246,6 +94374,17 @@
         "type": "object",
         "title": "RunUsageResponse",
         "description": "What one run actually spent (2026-09-03).\n\nThree states, kept apart on purpose. `priced` with a `cost_usd` is the\ncost. `priced` with `cost_usd == 0` means the run was genuinely free \u2014\nevery call ran on-device. `priced == false` means nobody could price the\nmodels in `unpriced_models`, and `cost_usd` is null: a UI that renders\nthat as \"$0.00\" is asserting something the server never said."
+      },
+      "Runtime": {
+        "type": "string",
+        "enum": [
+          "this-mac",
+          "other-mac",
+          "cloud",
+          "cluster"
+        ],
+        "title": "Runtime",
+        "description": "Where a page was read: the closed set the graph keys its series by."
       },
       "SamplePage": {
         "properties": {

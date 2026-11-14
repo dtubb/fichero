@@ -2736,6 +2736,7 @@ from fichero_server.api.routes.system import (  # noqa: E402
     actions,
     actions_registry,
     activity,
+    activity_history,
     agent_memory,
     bookmarks,
     changes,
@@ -2770,6 +2771,7 @@ RouteSpec = tuple[object, str, list[str]]
 
 _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (activity.router, "/api", ["activity"]),
+    (activity_history.router, "/api", ["activity"]),
     (agent_memory.router, "/api", ["agent-memory"]),
     (authz.router, "/api", ["authz"]),
     (auth_accounts.auth_router, "/api", ["auth"]),

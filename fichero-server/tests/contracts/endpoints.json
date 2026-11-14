@@ -393,6 +393,22 @@
       },
       {
         "method": "GET",
+        "path": "/activity/history",
+        "operation_id": "get_activity_history_api_activity_history_get",
+        "summary": "Get Activity History",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "minutes",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ActivityHistory"
+      },
+      {
+        "method": "GET",
         "path": "/activity/jobs",
         "operation_id": "list_background_jobs_api_activity_jobs_get",
         "summary": "List Background Jobs",

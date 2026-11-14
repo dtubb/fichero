@@ -627,6 +627,20 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("get-history")
+    def activity_get_history_get(
+        ctx: typer.Context,
+        minutes: Optional[int] = typer.Option(None, '--minutes', help='the window, in minutes ending now.'),
+    ) -> None:
+        """Get Activity History (GET /api/activity/history)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/history"
+            params = {
+                "minutes": minutes,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("list-background-jobs")
     def activity_list_background_jobs_get(
         ctx: typer.Context,
