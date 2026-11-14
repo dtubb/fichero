@@ -14,10 +14,13 @@ Here: the working pass's lines (`working_lines`), their outline and baseline in 
 """
 from __future__ import annotations
 
+import logging
 import re
 
 from dataclasses import dataclass, replace
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 #: Kept on a reading's page artifact (`Artifact.data`): the pass whose lines the reading was written onto.
 #: Its text is the lines' text joined, so it is never itself a page reading to tie to the lines (#5444).
@@ -267,6 +270,29 @@ one) and `producer_tool` from `tool`, else from the workflow step now running (i
             "machine_confidence": certainty[0] if certainty else None, "producer_model": model, "producer_tool": tool,
             "derived_from_representation_id": (derived_from or {}).get(segment_id), **facts}, ctx).result["id"])
     return made
+
+
+def cut_words_after_read(db: Any, document_id: str, segment_ids: list[str], *, run_id: str | None = None,
+                         library_path: str | None = None) -> list[str]:
+    """`segment-editor.cut-words-from-positions`, owner 2026-11-13: after a Kraken read, the lines it read with
+    character positions are cut into words by themselves (a machine's words, `cut_source: ctc`). Never fails the
+    read: a page whose lines cannot be cut is logged and left as it was. Returns the words made."""
+    import fichero_server.api.routes.document.segments  # noqa: F401  (segment.cut_words)
+    from fichero_server.actions.registry import ActionContext, registry
+    from fichero_server.models.segments import Segment
+
+    rows = [row for row in (db.get(Segment, segment_id) for segment_id in segment_ids) if row and row.deleted_at is None]
+    if not rows:
+        return []
+    ctx = ActionContext(actor="system", run_id=run_id, library_path=library_path, is_bootstrap=True)
+    try:
+        result = registry.invoke(db, "segment.cut_words", {
+            "segment_ids": [row.id for row in rows], "expected_versions": {row.id: row.version for row in rows},
+        }, ctx)
+    except Exception as why:  # a cut is a convenience after the read, never a reason the read failed
+        logger.info("cut words after the read of %s: not cut (%s)", document_id, why)
+        return []
+    return list(result.result.get("segment_ids") or [])
 
 
 def mark_no_writing(db: Any, segment_ids: list[str], *, model: str | None, run_id: str | None = None,

@@ -101,13 +101,21 @@ def baseline_pieces(baseline: list[Point], cuts: list[float]) -> list[list[Point
 def cut_outline(outline: list[Point], pieces: list[list[Point]], stroke: list[Point]) -> list[list[Point]] | None:
     """The outline cut along the stroke into one polygon per baseline piece, in the pieces' order; None
     when some piece is left with nothing of the outline (the stroke ran along a baseline, not across it)."""
+    return cut_outline_along(outline, pieces, [stroke])
+
+
+def cut_outline_along(
+    outline: list[Point], pieces: list[list[Point]], strokes: list[list[Point]],
+) -> list[list[Point]] | None:
+    """`cut_outline` with any number of strokes: the outline cut along every one of them."""
     cells = _cells(outline)
     origin = cells.min(axis=0) - 2
     size = cells.max(axis=0) - origin + 3
     mask = np.zeros((int(size[1]), int(size[0])), dtype=np.uint8)
     cv2.fillPoly(mask, [cells - origin], 255)
     cut = mask.copy()
-    cv2.polylines(cut, [_cells(stroke) - origin], False, 0, thickness=_KERF)
+    for stroke in strokes:
+        cv2.polylines(cut, [_cells(stroke) - origin], False, 0, thickness=_KERF)
     count, labels = cv2.connectedComponents(cut, connectivity=4)
 
     # Each piece's distance field, and which pieces each piece of the cut outline holds.
@@ -183,3 +191,110 @@ def part_holding(point: Point, polygons: list[list[Point]]) -> int:
         cv2.pointPolygonTest(np.array(_cells(polygon), dtype=np.float32), probe, True) for polygon in polygons
     ]
     return int(np.argmax(distances))
+
+
+
+def point_along(baseline: list[Point], at: float) -> tuple[Point, Point]:
+    """The point `at` (0 to 1) of the way along the baseline, and the unit normal of the stretch it lies on."""
+    lengths = _lengths(baseline)
+    total = sum(lengths) or 1.0
+    walked = 0.0
+    for (a, b), length in zip(zip(baseline, baseline[1:]), lengths):
+        if length > 0 and walked + length >= at * total:
+            t = (at * total - walked) / length
+            return ([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t],
+                    [-(b[1] - a[1]) / length, (b[0] - a[0]) / length])
+        walked += length
+    a, b = baseline[-2], baseline[-1]
+    length = math.dist(a, b) or 1.0
+    return [b[0], b[1]], [-(b[1] - a[1]) / length, (b[0] - a[0]) / length]
+
+
+def across(baseline: list[Point], at: float, reach: float) -> list[Point]:
+    """A short cut across the baseline at `at` of the way along it, at right angles, `reach` to each side."""
+    (x, y), (nx, ny) = point_along(baseline, at)
+    return [[x - nx * reach, y - ny * reach], [x + nx * reach, y + ny * reach]]
+
+
+def word_spans(text: str) -> list[tuple[int, int]]:
+    """Each word's [start, end) in the text: the runs of characters between spaces."""
+    spans, start = [], None
+    for index, char in enumerate(text):
+        if char.isspace():
+            if start is not None:
+                spans.append((start, index))
+                start = None
+        elif start is None:
+            start = index
+    if start is not None:
+        spans.append((start, len(text)))
+    return spans
+
+
+def cuts_from_positions(
+    spans: list[tuple[int, int]], positions: list[float], confidences: list[float] | None,
+) -> list[tuple[float, float | None]]:
+    """`segment-editor.cut-words-from-positions`: between each two words, the point midway between where the word
+    before ends (where the space after it starts) and where the next starts; with the recogniser's certainty there,
+    the lowest over the last character before, the spaces and the first character after."""
+    cuts = []
+    for (_start, end), (following, _stop) in zip(spans, spans[1:]):
+        at = (positions[end] + positions[following]) / 2
+        sure = min(confidences[end - 1:following + 1]) if confidences else None
+        cuts.append((at, sure))
+    return cuts
+
+
+def word_sureness(cut_sureness: list[float | None], words: int) -> list[float | None]:
+    """Each word's cut confidence: the lower of the cuts on either side of it, where they have one."""
+    sureness = []
+    for index in range(words):
+        sides = [cut_sureness[i] for i in (index - 1, index) if 0 <= i < len(cut_sureness)]
+        known = [value for value in sides if value is not None]
+        sureness.append(min(known) if known else None)
+    return sureness
+
+
+#: The widest an ink-gap cut's confidence may be: the fallback is a guess and says so.
+INK_GAP_CEILING = 0.4
+
+
+def cuts_from_ink_gaps(
+    gray: np.ndarray, outline_px: list[Point], baseline_px: list[Point], wanted: int,
+) -> list[tuple[float, float]] | None:
+    """`segment-editor.cut-fallback-ink-gaps`: the `wanted` widest gaps in the ink along the line, as (fraction of the
+    way along the baseline, confidence); None when the ink has fewer gaps than that. The dark pixels inside the
+    outline are counted across the baseline (projected onto the line from its first point to its last); a gap is a
+    run with no ink at least a seventh of the line's height wide."""
+    if wanted <= 0:
+        return []
+    mask = np.zeros(gray.shape, dtype=np.uint8)
+    cv2.fillPoly(mask, [np.array([[round(x), round(y)] for x, y in outline_px], dtype=np.int32)], 1)
+    ys, xs = np.nonzero((mask > 0) & (gray < 128))
+    start, end = np.array(baseline_px[0], dtype=float), np.array(baseline_px[-1], dtype=float)
+    length = float(np.linalg.norm(end - start))
+    if length <= 0 or len(xs) == 0:
+        return None
+    along = (end - start) / length
+    normal = np.array([-along[1], along[0]])
+    offsets = np.stack([xs, ys], axis=1) - start
+    t = offsets @ along
+    height = float(np.ptp(offsets @ normal)) or 1.0
+    profile = np.bincount(np.clip(t, 0, length).astype(int), minlength=int(length) + 1)
+    inked = np.nonzero(profile)[0]
+    first, last = int(inked.min()), int(inked.max())
+    gaps, run = [], None
+    for position in range(first, last + 1):
+        if profile[position] == 0:
+            run = position if run is None else run
+        elif run is not None:
+            gaps.append((run, position))
+            run = None
+    gaps = [(a, b) for a, b in gaps if b - a >= height / 7]
+    if len(gaps) < wanted:
+        return None
+    chosen = sorted(sorted(gaps, key=lambda gap: gap[1] - gap[0], reverse=True)[:wanted])
+    widths = [b - a for a, b in chosen]
+    median = float(np.median(widths)) or 1.0
+    return [((a + b) / 2 / length, round(min(INK_GAP_CEILING, INK_GAP_CEILING * (b - a) / (2 * median)), 3))
+            for a, b in chosen]

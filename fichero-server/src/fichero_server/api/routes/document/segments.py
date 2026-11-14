@@ -3459,6 +3459,234 @@ def _action_simplify(db: Database, params: SegmentSimplifyParams, ctx: ActionCon
     return {"segment_ids": simplified_ids, "versions": after_versions}, spec
 
 
+class SegmentCutWordsParams(BaseModel):
+    """`segment-editor.cut-words-from-positions`: Cut Words on lines."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    segment_ids: list[str] = Field(description="The lines to cut into words.")
+    expected_versions: dict[str, int] = Field(description="Each line's version as last read, {segment_id: version}; a changed line is refused.")
+
+
+#: The cut sources a machine's cut can have; a word with another (a person's, an import's) is never replaced.
+MACHINE_CUT_SOURCES = ("ctc", "ink-gap")
+
+
+def _invert_cut_words(before, after, ctx: ActionContext):
+    """Reads ONLY `after`: the words this cut made go, the machine's words it replaced come back."""
+    if not after or not (after.get("made") or after.get("replaced")):
+        return None
+    return ("segment.uncut_words", {
+        "made": after.get("made", {}), "replaced": after.get("replaced", []),
+        "order_entries": after.get("order_entries", []),
+    })
+
+
+@action(
+    "segment.cut_words",
+    SegmentCutWordsParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_cut_words,
+    # A redo mints new word ids, so its undo is derived from its own `after`, not the first undo's params.
+    redo_via_own_invert=True,
+)
+def _action_cut_words(db: Database, params: SegmentCutWordsParams, ctx: ActionContext):
+    """Each line's counting reading split at its spaces into `word` children (`segment-editor.cut-words-from-positions`):
+    the cut between two words midway between where one ends and the next starts, from the recogniser's character
+    positions (`cut_source: ctc`) or, without them, from the gaps in the ink (`cut_source: ink-gap`, low confidence,
+    `segment-editor.cut-fallback-ink-gaps`); the line's outline cut across the baseline there. Each word records its
+    source, confidence, the reading it was cut from and its stretch of it (`segment-editor.cut-records-source-and-
+    confidence`). A machine's earlier words on the line are replaced; a person's are kept and not cut again. A line
+    that cannot be cut is left alone and named. One action, one undo."""
+    import numpy as np
+
+    from fichero_server.api.routes.document.segment_readings import (
+        _direction_of,
+        _lines_are_vertical,
+        direction_rungs,
+    )
+    from fichero_server.media import line_cut, line_join
+
+    if not params.segment_ids:
+        raise HTTPException(status_code=422, detail="segment_ids is empty: nothing to cut into words")
+    _refuse_repeated_ids(params.segment_ids)
+    rows: list[Segment] = []
+    for segment_id in params.segment_ids:
+        _assert_not_provisional_http(segment_id, what="segment_id")
+        rows.append(_live_current_row(db, segment_id, _require_expected_version(params.expected_versions, segment_id)))
+    if len({(row.document_id, row.pass_id) for row in rows}) > 1:
+        raise _as_http_error(SegmentPassMismatchError("the lines being cut are not all in the same pass and document"))
+    document = db.get(Document, rows[0].document_id)
+    shapes = [row for row in db.query(Segment, pass_id=rows[0].pass_id) if row.deleted_at is None]
+    vertical, rungs = _lines_are_vertical(shapes, document), direction_rungs(db, document)
+    page = None  # the page image, opened only for a line that needs the ink
+
+    plans, left_alone = [], []
+    for row in rows:
+        counted = _counting_readings(db, row.id)
+        source_id, text = counted.get("transcription") or next(iter(counted.values()), (None, ""))
+        if not text.strip():
+            left_alone.append({"segment_id": row.id, "reason": "no-reading"})
+            continue
+        if not row.baseline or len(row.baseline) < 2:
+            left_alone.append({"segment_id": row.id, "reason": "no-baseline"})
+            continue
+        outline = line_join.outline_of(row.anchor)
+        if outline is None or (row.anchor is not None and row.anchor.rendition_id):
+            left_alone.append({"segment_id": row.id, "reason": "no-outline" if outline is None else "another-image"})
+            continue
+        direction, _level = _direction_of(row, document, text, vertical, rungs)
+        baseline = line_cut.reading_baseline(row.baseline, direction)
+        spans = line_cut.word_spans(text)
+        reading = db.get(ContentRepresentation, source_id) if source_id else None
+        positions = reading.char_positions if reading is not None else None
+        if positions is not None and len(positions) == len(text) and direction != "rtl":
+            confidences = reading.char_confidences if reading.char_confidences and len(reading.char_confidences) == len(text) else None
+            cuts, source = line_cut.cuts_from_positions(spans, positions, confidences), "ctc"
+        else:
+            if page is None:
+                try:
+                    image, forward, _back = _page_image_for_lines(db, document)
+                    page = (np.asarray(image.convert("L")), forward)
+                except HTTPException:
+                    page = (None, None)
+            gray, forward = page
+            found = (line_cut.cuts_from_ink_gaps(gray, forward(outline), forward(baseline), len(spans) - 1)
+                     if gray is not None else None)
+            if found is None:
+                left_alone.append({"segment_id": row.id, "reason": "no-positions-and-no-ink-gaps"})
+                continue
+            cuts, source = found, "ink-gap"
+        fractions = [at for at, _sure in cuts]
+        if any(b <= a for a, b in zip(fractions, fractions[1:])) or any(not 0 < at < 1 for at in fractions):
+            left_alone.append({"segment_id": row.id, "reason": "cuts-out-of-order"})
+            continue
+        pieces = line_cut.baseline_pieces(baseline, fractions)
+        x0, y0, x1, y1 = line_join.bounds(outline)
+        reach = max(x1 - x0, y1 - y0)
+        polygons = line_cut.cut_outline_along(outline, pieces, [line_cut.across(baseline, at, reach) for at in fractions])
+        if polygons is None:
+            left_alone.append({"segment_id": row.id, "reason": "outline-not-cut"})
+            continue
+        sureness = line_cut.word_sureness([sure for _at, sure in cuts], len(spans))
+        plans.append((row, source_id, source, list(zip(spans, polygons, pieces, sureness))))
+    if not plans:
+        raise HTTPException(status_code=422, detail={"message": "no line could be cut into words", "left_alone": left_alone})
+
+    audit_id = uuid.uuid4().hex
+    now = utc_now()
+    made: dict[str, int] = {}
+    replaced: list[str] = []
+    from fichero_server.api.routes.document.reading_orders import remove_segment_entries
+
+    replaced_entries: list[dict] = []
+    for row, source_id, source, words in plans:
+        children = [child for child in shapes if child.parent_segment_id == row.id and child.kind == "word"]
+        machine = [child for child in children if (child.metadata or {}).get("cut_source") in MACHINE_CUT_SOURCES]
+        kept = [child for child in children if child not in machine]
+        for child in machine:
+            snapshot_segment_version(db, child, deleted=True, actor=ctx.actor, audit_id=audit_id, reason="cut words again")
+            child.deleted_at, child.deleted_by = now, ctx.actor
+            db.save(child)
+            replaced.append(child.id)
+        replaced_entries.extend(remove_segment_entries(db, [child.id for child in machine]))
+        kept_bounds = [line_join.bounds(o) for o in (line_join.outline_of(child.anchor) for child in kept) if o]
+        for (start, end), polygon, piece, sure in words:
+            wx0, wy0, wx1, wy1 = line_join.bounds(polygon)
+            centre = ((wx0 + wx1) / 2, (wy0 + wy1) / 2)
+            if any(bx0 <= centre[0] <= bx1 and by0 <= centre[1] <= by1 for bx0, by0, bx1, by1 in kept_bounds):
+                continue  # a person's word is here already: matched by overlap, never duplicated
+            word = _create_segment_impl(db, SegmentCreateParams(
+                document_id=row.document_id, pass_id=row.pass_id, kind="word", parent_segment_id=row.id,
+                anchor=row.anchor.model_copy(update={
+                    "polygon": polygon, "rect": [wx0, wy0, wx1 - wx0, wy1 - wy0], "shapes": None, "granularity": "word",
+                }),
+                baseline=piece,
+            ), ctx)
+            word.metadata = {**(word.metadata or {}), "cut_source": source, "cut_confidence": sure,
+                             "cut_from_representation_id": source_id, "reading_span": [start, end]}
+            db.save(word)
+            made[word.id] = word.version
+
+    touched = [*made, *replaced]
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=touched,
+        before=None,
+        after={"made": made, "replaced": replaced, "order_entries": replaced_entries},
+        emit_type="segment.created",
+        segment_ids=touched,
+        pass_ids=[rows[0].pass_id],
+        document_ids=[rows[0].document_id],
+    )
+    return {"segment_ids": list(made), "replaced": replaced, "left_alone": left_alone}, spec
+
+
+class SegmentUncutWordsParams(BaseModel):
+    """Internal: `segment.cut_words`' inverse only."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    #: The words the cut made, {id: version as it left them}.
+    made: dict[str, int] = {}
+    #: The machine's words it replaced, brought back with their order entries.
+    replaced: list[str] = []
+    order_entries: list[SegmentOrderEntryParams] = Field(default_factory=list)
+
+
+@action("segment.uncut_words", SegmentUncutWordsParams, domains=["segment"], undoable=False)
+def _action_uncut_words(db: Database, params: SegmentUncutWordsParams, ctx: ActionContext):
+    """The words a Cut Words made go (soft-deleted, each with its note), and the ones it replaced come back where they
+    were. Every made word is checked first: one somebody has since changed refuses the undo."""
+    from fichero_server.api.routes.document.reading_orders import remove_segment_entries, restore_segment_entries
+
+    made_rows = []
+    for word_id, expected in params.made.items():
+        word = db.get(Segment, word_id)
+        if word is None or word.deleted_at is not None:
+            raise _as_http_error(SegmentPartGone(word_id))
+        if word.version != expected:
+            raise _as_http_error(SegmentStale(word_id, expected, word.version, _stale_changed_fields(db, word_id, expected, word)))
+        made_rows.append(word)
+    audit_id = uuid.uuid4().hex
+    now = utc_now()
+    for word in made_rows:
+        snapshot_segment_version(db, word, deleted=True, actor=ctx.actor, audit_id=audit_id, reason="uncut words")
+        word.deleted_at, word.deleted_by = now, ctx.actor
+        db.save(word)
+        db.save(SegmentForwarding(
+            document_id=word.document_id, old_segment_id=word.id, kind="deleted", new_segment_ids=[],
+            actor=ctx.actor, audit_id=audit_id, sequence=db.next_forwarding_sequence(),
+        ))
+    remove_segment_entries(db, [word.id for word in made_rows])
+    restored = []
+    for word_id in params.replaced:
+        word = db.get(Segment, word_id)
+        if word is None or word.deleted_at is None:
+            continue
+        snapshot_segment_version(db, word, deleted=True, actor=ctx.actor, audit_id=audit_id)
+        word.deleted_at, word.deleted_by = None, None
+        db.save(word)
+        restored.append(word)
+    restore_segment_entries(db, [entry.model_dump() for entry in params.order_entries])
+    rows = made_rows + restored
+    touched = [word.id for word in rows]
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=touched,
+        before=None,
+        after={"segment_ids": touched},
+        emit_type="segment.deleted",
+        segment_ids=touched,
+        pass_ids=sorted({word.pass_id for word in rows}),
+        document_ids=sorted({word.document_id for word in rows}),
+    )
+    return {"segment_ids": touched}, spec
+
+
 # --- readings across a split and a merge (slice 8, #4934) ----------------
 #
 # OWED BY SLICE 8 SO IT IS NOT RETROFITTED. Once a segment has readings,

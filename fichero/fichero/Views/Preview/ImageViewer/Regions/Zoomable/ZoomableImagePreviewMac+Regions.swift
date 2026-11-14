@@ -505,6 +505,7 @@ extension ZoomableImagePreview {
             selectionHasBaselines: selectionHasBaselines, redraw: { redrawSelectedOutlines() },
             splitAtPoint: { splitSelectedLineAtLastPoint() },
             simplify: { simplifySelectedSegments() },
+            cutWords: { cutWordsOnSelectedLines() },
             apply: { setSelectedSegments($0) }
         )
     }

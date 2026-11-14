@@ -18,6 +18,8 @@ struct SegmentMenuTarget {
     var splitAtPoint: () -> Void = {}
     /// Simplify Outline: fewer points on the selection's outlines and baselines.
     var simplify: () -> Void = {}
+    /// Cut Words (⇧⌘W): the selected lines' readings cut into word segments.
+    var cutWords: () -> Void = {}
     let apply: (SegmentEdit.Attribute) -> Void
 }
 
@@ -60,6 +62,9 @@ struct SegmentMenuContent: View {
         // No chord yet: the spec's ⌥⌘S is the markup row's (`PreviewMarkupToolsRow`).
         Button("Simplify Outline") { target?.simplify() }
             .disabled(count == 0)
+        Button("Cut Words") { target?.cutWords() }
+            .keyboardShortcut("w", modifiers: [.command, .shift])
+            .disabled(count == 0 || target?.selectionHasBaselines != true)
         Divider()
         SegmentAttributeMenu.Items(apply: { target?.apply($0) })
             .disabled(count == 0)
