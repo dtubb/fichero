@@ -163,7 +163,7 @@ extension ActivityService {
     /// paused job is cancelled first; one running now is skipped and named. The rows are kept by the
     /// engine and never listed again. Workflow runs are `deleteWorkflowRuns(threadIds:)`.
     func deleteJobs(ids: [String], states: [String]? = nil) async throws -> DeleteAnswer {
-        let response = try await client.api.deleteJobsApiActivityJobsDeletePost(body: .json(.init(ids: ids, states: states)))
+        let response = try await client.api.bulkDeleteJobsApiActivityJobsDeletePost(body: .json(.init(ids: ids, states: states)))
         switch response {
         case .ok(let okResponse):
             let body = try okResponse.body.json

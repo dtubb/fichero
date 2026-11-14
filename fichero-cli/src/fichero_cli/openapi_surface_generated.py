@@ -675,14 +675,14 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("delete-jobs")
-    def activity_delete_jobs_post(
+    @target_app.command("bulk-delete-jobs")
+    def activity_bulk_delete_jobs_post(
         ctx: typer.Context,
         ids: Optional[list[str]] = typer.Option(None, '--ids', help="job ids, or a kind's row (`waiting:<kind>`, `paused:<kind>`) A list: repeat the flag, or give the values comma-separated, or as JSON."),
         states: Optional[list[str]] = typer.Option(None, '--states', help='also every top-level job of its own in these states (Clear Finished…: done, failed, cancelled) A list: repeat the flag, or give the values comma-separated, or as JSON.'),
         stop_running: Optional[bool] = typer.Option(None, '--stop-running/--no-stop-running', help='Stop then Delete (the person confirmed): a running row is asked to stop and deleted at once instead of skipped. Default: false.'),
     ) -> None:
-        """Delete Jobs (POST /api/activity/jobs/delete)."""
+        """Bulk Delete Jobs (POST /api/activity/jobs/delete)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/activity/jobs/delete"
             params = None

@@ -430,8 +430,8 @@
       {
         "method": "POST",
         "path": "/activity/jobs/delete",
-        "operation_id": "delete_jobs_api_activity_jobs_delete_post",
-        "summary": "Delete Jobs",
+        "operation_id": "bulk_delete_jobs_api_activity_jobs_delete_post",
+        "summary": "Bulk Delete Jobs",
         "path_params": [],
         "query_params": [],
         "request_model": "DeleteJobsParams",
