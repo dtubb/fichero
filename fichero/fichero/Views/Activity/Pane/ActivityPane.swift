@@ -9,6 +9,7 @@
 //
 
 import Foundation
+import SwiftUI
 
 enum ActivityPane {
     // MARK: - Grouping
@@ -219,11 +220,17 @@ enum ActivityPane {
     // MARK: - One glyph per state
 
     /// The state's ONE glyph (nil symbol = the system spinner), its word for the tooltip and VoiceOver, and whether it is
-    /// drawn red (a failure).
+    /// drawn red (a failure) or green (done, `activity.pane.done-is-green`); everything else is secondary.
     struct Glyph: Equatable {
         let symbol: String?
         let word: String
         let isFailure: Bool
+        var isSuccess = false
+
+        /// Red for a failure, green for done, secondary for the rest: the table and the Inspector draw it alike.
+        var tint: AnyShapeStyle {
+            isFailure ? AnyShapeStyle(.red) : isSuccess ? AnyShapeStyle(.green) : AnyShapeStyle(.secondary)
+        }
     }
 
     static func glyph(_ row: ActivityMonitorRow) -> Glyph {
@@ -233,8 +240,8 @@ enum ActivityPane {
         case .waiting: return Glyph(symbol: "circle", word: "Waiting", isFailure: false)
         case .paused, .interrupted: return Glyph(symbol: "pause.circle", word: "Paused", isFailure: false)
         case .cancelled: return Glyph(symbol: "stop.circle", word: "Stopped", isFailure: false)
-        case .done: return Glyph(symbol: "checkmark.circle.fill", word: "Done", isFailure: false)
-        case .partial: return Glyph(symbol: "checkmark.circle", word: "Done, some failed", isFailure: false)
+        case .done: return Glyph(symbol: "checkmark.circle.fill", word: "Done", isFailure: false, isSuccess: true)
+        case .partial: return Glyph(symbol: "checkmark.circle", word: "Done, some failed", isFailure: false, isSuccess: true)
         case .failed: return Glyph(symbol: "xmark.circle.fill", word: "Failed", isFailure: true)
         case .notRun: return Glyph(symbol: "minus", word: "Skipped", isFailure: false)
         case .unknown: return Glyph(symbol: "questionmark.circle", word: row.stateText, isFailure: false)

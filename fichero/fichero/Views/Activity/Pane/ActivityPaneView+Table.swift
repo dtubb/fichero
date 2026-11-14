@@ -142,7 +142,7 @@ extension ActivityPaneView {
         return HStack(spacing: 6) {
             Group {
                 if let symbol = glyph.symbol {
-                    Image(systemName: symbol).foregroundStyle(glyph.isFailure ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
+                    Image(systemName: symbol).foregroundStyle(glyph.tint)
                 } else {
                     ProgressView().controlSize(.small)
                 }

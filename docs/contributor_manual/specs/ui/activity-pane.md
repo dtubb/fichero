@@ -649,8 +649,9 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   that has not started; Problems / All / Everything filter it and change nothing else; Copy Log copies exactly what is shown.
   Acceptance: a page that ran six steps shows its lines for each; a waiting row says nothing written. *Test:* the existing
   `ActivityLogFilter` tests extended.
-- `activity.pane.done-is-green` — **[GAP]** (#6588; decision 26; `activity.pane.one-glyph-per-state`) the done glyph is
-  `checkmark.circle.fill` in green; partial the check in green with its dot; failed the red X; everything else secondary.
+- `activity.pane.done-is-green` — **[OK]** (#6588; decision 26; `activity.pane.one-glyph-per-state`) the done glyph is
+  `checkmark.circle.fill` in green; partial the check in green with its dot; failed the red X; everything else secondary. The
+  table's state cell and the Inspector's versions draw the one `Glyph.tint`.
   *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityStateGlyphTests.swift` extended.
 - `activity.pane.row-and-inspector-agree` — **[GAP]** (#6588; decision 29) a row's Time, count and Cost and its Inspector's
   Elapsed, counts and cost are the same numbers from the same fields (a file row's time is its pages' summed work time and its
