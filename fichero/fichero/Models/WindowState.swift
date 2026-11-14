@@ -165,6 +165,21 @@ class WindowState {
         knifeStrokedWhileHeld = false
     }
 
+    /// The Shape popover's Simplify slider (`segment-editor.vertices`): the tolerance in image pixels while the slider is
+    /// held (nil otherwise). The page asks the engine what Simplify would make at it and draws that (`simplifyPreview`,
+    /// paths in the page's fractions); nothing is written until the slider is let go (`simplifyRelease`).
+    var simplifyTolerance: Double?
+    var simplifyPreview: [[[Double]]] = []
+    /// The slider let go: the page sends ONE `segment.simplify` at this tolerance. A new value each release.
+    var simplifyRelease: SimplifyRelease?
+
+    /// The slider let go at `tolerance`: the live preview goes and one Simplify is asked for.
+    func letGoOfSimplifySlider(at tolerance: Double) {
+        simplifyTolerance = nil
+        simplifyPreview = []
+        simplifyRelease = SimplifyRelease(tolerance: tolerance)
+    }
+
     /// A short word from the segment editor about the edit just made (the Knife's lines left alone), shown over the page
     /// for a few seconds; nil when there is nothing to say.
     var segmentNotice: String?
@@ -330,5 +345,20 @@ class WindowState {
     /// Get the document for this window's library
     var document: FicheroDocument? {
         library?.document
+    }
+}
+
+/// One release of the Simplify slider (`WindowState.simplifyRelease`); each is new, so the same tolerance twice is two.
+struct SimplifyRelease: Equatable {
+    let tolerance: Double
+    let id = UUID()
+
+    /// The engine's answer as paths to draw: each outline closed on its first point, each baseline as it is.
+    static func paths(polygons: [[[Double]]?], baselines: [[[Double]]?]) -> [[[Double]]] {
+        let outlines = polygons.compactMap { polygon -> [[Double]]? in
+            guard let polygon, let first = polygon.first else { return nil }
+            return polygon + [first]
+        }
+        return outlines + baselines.compactMap { $0 }
     }
 }

@@ -115,3 +115,33 @@ def test_the_tolerance_is_in_pixels_not_fractions(db, client):
         _simplify(db, [line], 0.1)
     assert refused.value.status_code == 422
     assert len(db.get(Segment, line).anchor.polygon) == points
+
+
+def test_the_preview_answers_the_shapes_simplify_would_write_and_writes_nothing(db, client):
+    """`segment-editor.vertices`: the Shape popover's slider shows the simpler outline live, before anything is written."""
+    doc, pass_id = _page(db, client)
+    line = _dense_line(client, doc, pass_id)
+    before = db.get(Segment, line)
+
+    response = client.get(
+        f"/api/segments/document/{doc.id}/simplify-preview", params={"segment_ids": [line], "tolerance": 2.0},
+    )
+    assert response.status_code == 200, response.text
+    [shape] = response.json()["shapes"]
+    assert db.get(Segment, line).version == before.version, "a preview writes nothing"
+
+    _simplify(db, [line], 2.0)
+    after = db.get(Segment, line)
+    assert shape["segment_id"] == line
+    assert shape["polygon"] == after.anchor.polygon
+    assert shape["baseline"] == after.baseline
+
+
+def test_the_preview_leaves_out_a_shape_the_tolerance_does_not_change(db, client):
+    doc, pass_id = _page(db, client)
+    line = _dense_line(client, doc, pass_id)
+    response = client.get(
+        f"/api/segments/document/{doc.id}/simplify-preview", params={"segment_ids": [line], "tolerance": 0.1},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["shapes"] == []

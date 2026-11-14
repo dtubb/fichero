@@ -188,6 +188,11 @@ extension ZoomableImagePreview {
                 selection: regionSelection
             )
             .contextMenu { regionContextMenu }
+            // Simplify's slider (`segment-editor.vertices`): live while held, one action on release.
+            .onChange(of: windowState?.simplifyTolerance) { _, tolerance in previewSimplify(tolerance) }
+            .onChange(of: windowState?.simplifyRelease) { _, release in
+                if let release, isEditingSegments { simplifySelectedSegments(tolerance: release.tolerance) }
+            }
         }
     }
 

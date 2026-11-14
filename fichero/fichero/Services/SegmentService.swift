@@ -213,6 +213,21 @@ extension SegmentService {
         }
     }
 
+    /// What Simplify would make of `segmentIds` at `tolerance` image pixels, written nowhere (`segment-editor.vertices`):
+    /// the paths the Shape popover's slider draws live. A shape the tolerance would not change is left out.
+    func simplifyPreview(documentId: String, segmentIds: [String], tolerance: Double) async throws -> [[[Double]]] {
+        let response = try await client.api.previewSimplifySegmentsApiSegmentsDocumentDocIdSimplifyPreviewGet(
+            path: .init(docId: documentId), query: .init(segmentIds: segmentIds, tolerance: tolerance)
+        )
+        switch response {
+        case .ok(let okResponse):
+            let shapes = try okResponse.body.json.shapes
+            return SimplifyRelease.paths(polygons: shapes.map(\.polygon), baselines: shapes.map(\.baseline))
+        case .unprocessableContent: throw SegmentServiceError.serverError("the shapes could not be simplified")
+        case .undocumented(let statusCode, _): throw SegmentServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
     /// The language, script, direction and encoding the engine resolves for ONE segment, each with
     /// where it came from (#5158; `GET /api/source-settings/resolve`). Empty for an id it cannot find.
     func resolvedSettings(segmentId: String) async throws -> [InspectorLanguage.Setting] {

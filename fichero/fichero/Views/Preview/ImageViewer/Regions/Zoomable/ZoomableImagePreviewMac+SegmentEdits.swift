@@ -212,9 +212,28 @@ extension ZoomableImagePreview {
     }
 
     /// SIMPLIFY the selected segments' outlines and baselines (`segment-editor.vertices`, ⌥⌘S): one ⌘Z.
-    func simplifySelectedSegments() {
+    func simplifySelectedSegments(tolerance: Double = SegmentEdit.simplifyTolerance) {
         guard let documentId else { return }
-        runSegmentEdit(SegmentEdit.simplify(selectedSegments(documentId)), documentId: documentId, name: "Simplify Outline")
+        runSegmentEdit(
+            SegmentEdit.simplify(selectedSegments(documentId), tolerance: tolerance), documentId: documentId, name: "Simplify Outline"
+        )
+    }
+
+    /// The Simplify slider moved: what the engine would make of the selection at `tolerance`, drawn over the page and
+    /// written nowhere. A slower answer for an older tolerance is dropped.
+    func previewSimplify(_ tolerance: Double?) {
+        guard let windowState else { return }
+        guard let tolerance, let documentId, let segmentService else { windowState.simplifyPreview = []; return }
+        let ids = selectedSegments(documentId).map(\.id)
+        guard !ids.isEmpty else { windowState.simplifyPreview = []; return }
+        Task {
+            do {
+                let paths = try await segmentService.simplifyPreview(documentId: documentId, segmentIds: ids, tolerance: tolerance)
+                if windowState.simplifyTolerance == tolerance { windowState.simplifyPreview = paths }
+            } catch {
+                Self.logger.error("Simplify preview failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
     }
 
     /// CUT WORDS on the selected lines (`segment-editor.cut-words-from-positions`, ⇧⌘W): one ⌘Z; the page says how many

@@ -130,6 +130,7 @@ struct RegionInteractionLayer: View {
                     liveReshape(in: geo.size)
                     liveDrawing(in: geo.size)
                     liveKnife(in: geo.size)
+                    liveSimplify(in: geo.size)
                     segmentNotice()
                     if let rect = liveBandRect {
                         // The one rubber band (#4601), not a dashed accent box.
