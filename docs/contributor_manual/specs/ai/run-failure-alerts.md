@@ -115,18 +115,28 @@ from a run with the error, the run and the versions, and nothing private; CLI/MC
 9. **A rate limit backs off, then pauses; every failure carries its solution; no codes** (owner 2026-11-13, 22:25–23:15;
    #6584, #6354). The `rate-limited` kind is a pause kind like `no-credit` and `cap-refused`: after the bounded back-off
    (Retry-After honoured, jitter, capped) the run PAUSES with "<Provider> is limiting how fast you can send" and the fix
-   "Fichero will try again in N minutes" (one automatic try, then the person's Continue), never a tight loop, never a failed
-   page per 429 (`ui/activity-pane.md` `activity.limits.rate-limit-backs-off-then-pauses`). Every kind in the table has a
+   "Wait N minutes, then Continue" (no automatic Continue: the back-off is the automatic retrying; the review 2026-11-13 night),
+   never a tight loop, never a failed page per 429 (`ui/activity-pane.md` `activity.limits.rate-limit-backs-off-then-pauses`). Every kind in the table has a
    non-empty sentence AND a fix (a typed action with a label, or an exact instruction); a kind with neither is a spec gap listed
-   under Open questions, never shown bare. The sentence names no HTTP status, error code, exception type or traceback; those are
-   the bug report's and Copy Details' (`activity.pane.failure-with-its-fix-in-the-row`). Test:
-   `test_every_failure_kind_has_a_fix_6354.py` (to write).
+   under Open questions, never shown bare. The sentence names no HTTP status, error code, exception type, traceback or the
+   provider's raw reason text; those are the bug report's and Copy Details' (`activity.pane.failure-with-its-fix-in-the-row`);
+   `unexpected` says "Something went wrong in Fichero, not in your files." Every kind also has ROW WORDS of at most eight
+   whitespace tokens for the table (the "row words" column below), never a sentence cut at a word boundary. Test:
+   `fichero-server/tests/unit/llm/test_every_failure_kind_has_a_fix_6354.py` (built; the row-words column and the no-raw-text
+   rule to add).
 
 ## The table (`run.fail.kinds-table`)
 
 The engine's one mapping. "Judged by" is the exception's type first, its status code or words only when it has no type
 of its own (today's `_typed_failure` rule). `<Provider>` and `<Model>` are display names (`circuit_breaker.provider_display`),
 never ids or internals; `N`/`M` are the run's pages done and total.
+
+Row words (≤ 8 tokens, for the table; the review's column): `no-credit` "Out of credit at <Provider>" · `key-refused` "<Provider>
+refused the key" · `rate-limited` "<Provider> is limiting how fast you send" (the run PAUSES) · `cap-refused` "Paused at the
+spend cap" · `images-refused` "Pages stay on this Mac" · `model-error` "<Model> could not do this step" · `model-missing`
+"<Model> is not downloaded" · `runtime-unavailable` "No runtime for this step" · `memory` "Not enough memory for <Model>" ·
+`network` "Could not reach <Provider>" · `files-unavailable` "Some pages' files could not be opened" · `unexpected`
+"Something went wrong in Fichero".
 
 | kind | judged by | words (what happened) | fix (what to do) | actions |
 |---|---|---|---|---|
