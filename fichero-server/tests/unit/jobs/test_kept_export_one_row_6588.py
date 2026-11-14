@@ -85,3 +85,18 @@ def test_write_now_joins_the_waiting_row_and_writes_at_once(client, db, page, tm
     assert r.status_code == 200, r.text
     assert _wait_for(lambda: (folder / "book-p1.txt").exists(), seconds=10)
     assert _rows(db, export_id) == []
+
+
+def test_removing_the_export_ends_its_paused_row(client, db, page, tmp_path):
+    """WHY: an export removed while its row waited for an unplugged folder left that row in Activity for ever."""
+    folder = tmp_path / "Removed"
+    folder.mkdir()
+    export_id = _keep(client, folder, "plain-text", "page")
+    assert _written(client, export_id, ["book-p1.txt"])
+    shutil.rmtree(folder)
+    kept_export.queue_rewrites(db, [page.id])
+    assert _wait_for(lambda: [r[2] for r in _rows(db, export_id)] == ["paused"])
+    assert client.delete(f"/api/export/kept/{export_id}").status_code == 200
+    assert _rows(db, export_id) == []
+    assert db.execute_fetchone("SELECT reason FROM jobs WHERE kind = ? AND subject = ? AND state = 'cancelled'",
+                               [kept_export.KIND, export_id])[0] == kept_export.REMOVED_REASON

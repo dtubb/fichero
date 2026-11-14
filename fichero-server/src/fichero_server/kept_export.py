@@ -72,6 +72,10 @@ WORKBOOK_NAME = "Catálogo"
 _TOP = "top"
 
 
+#: A kept export's waiting or paused row when the export is removed.
+REMOVED_REASON = "The export was removed"
+
+
 class KeptExportRefused(ValueError):
     """An export that cannot be kept, or written, said in one sentence."""
 
@@ -145,10 +149,14 @@ def keep(db: Any, folder: str, fmt: str, per: str) -> str:
 
 
 def remove(db: Any, export_id: str) -> None:
-    """Stop keeping the export; the files it wrote stay in the folder."""
+    """Stop keeping the export; the files it wrote stay in the folder, and its row waiting or paused ends ("The export
+    was removed"), so Activity lists nothing for an export no longer kept."""
     if _export(db, export_id) is None:
         raise KeyError(export_id)
     db.execute("UPDATE kept_exports SET removed_at = ? WHERE id = ? AND removed_at IS NULL", [utc_now(), export_id])
+    for (job_id,) in db.execute_fetchall("SELECT id FROM jobs WHERE kind = ? AND subject LIKE ? AND state IN ('waiting', "
+                                         "'paused')", [KIND, export_id + "%"]):
+        jobs.end_cancelled(db, job_id, REMOVED_REASON)
 
 
 def write_now(db: Any, export_id: str) -> str:

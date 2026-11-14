@@ -675,9 +675,10 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   removed, ten more edits add no row and the one row is paused with the fix; switching Keep up to date off queues nothing on
   an edit. *Built 2026-11-14:* one row per export (subject the export's id, `pages` and `keys` in its detail, the
   kind's `names` hook naming the row), a gone folder PAUSES it (`jobs._PAUSED_NOT_FAILED`; the path kept for Copy Details),
-  Continue writes what waited, Write Now joins the row and drops its quiet period. *Not yet:* the Choose Folder… fix (a
+  Continue writes what waited, Write Now joins the row and drops its quiet period; removing the export ends its waiting or
+  paused row ("The export was removed"). *Not yet:* the Choose Folder… fix (a
   route to change an export's folder, a `choose-folder` action kind) and the Keep up to date switch. *Test:*
-  `fichero-server/tests/unit/jobs/test_kept_export_one_row_6588.py` (3, green).
+  `fichero-server/tests/unit/jobs/test_kept_export_one_row_6588.py` (4, green).
 
 ## Build order
 
