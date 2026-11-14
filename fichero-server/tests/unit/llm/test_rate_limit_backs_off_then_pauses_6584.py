@@ -37,6 +37,7 @@ def _fresh(monkeypatch):
     monkeypatch.setattr(retry, "_DEAD", {})
     monkeypatch.setattr(retry, "_SPENT", {})
     monkeypatch.setattr(retry, "_PAUSED_FOR_RATE_LIMIT", {})
+    monkeypatch.setattr(retry, "_SLOWED", {})
     monkeypatch.setattr(cb, "compute_backoff_delay", lambda *a, **k: 0.0)  # the provider's Retry-After alone paces the sends
     monkeypatch.setattr(retry, "_runs_on_this_mac", lambda config: False, raising=False)
     import fichero_server.llm as llm
@@ -54,16 +55,22 @@ def test_a_rate_limited_provider_is_waited_for_then_the_run_pauses_with_the_caus
 
     async def go():
         set_current_node("read", run_id="run-429")
-        with pytest.raises(_TooMany):
-            await retry.resilient(call, _Config())
+        for n in range(retry.RATE_LIMIT_PAUSE_AFTER):
+            with pytest.raises(_TooMany):
+                await retry.resilient(call, _Config())
+            if n < retry.RATE_LIMIT_PAUSE_AFTER - 1:
+                assert not pause_requested("run-429"), f"call {n + 1}: the back-off is the automatic retrying; no pause yet"
 
     asyncio.run(go())
 
-    assert len(sends) == 1 + cb.DEFAULT_MAX_RETRIES, "one send and the bounded retries, then no more"
-    gaps = [b - a for a, b in zip(sends, sends[1:])]
+    per_call = 1 + cb.DEFAULT_MAX_RETRIES
+    assert len(sends) == per_call * retry.RATE_LIMIT_PAUSE_AFTER, "one send and the bounded retries per call, then no more"
+    first = sends[:per_call]
+    gaps = [b - a for a, b in zip(first, first[1:])]
     assert all(g >= 0.29 for g in gaps), f"a send came sooner than the provider's Retry-After: {gaps}"
-    assert pause_requested("run-429"), "the run was asked to pause, not left to fail page after page"
-    assert retry.paused_for_rate_limit(["run-429"]) == {"provider": "openrouter", "retry_after_seconds": 0.3}
+    assert pause_requested("run-429"), "after RATE_LIMIT_PAUSE_AFTER spent calls the run is asked to pause"
+    assert retry.paused_for_rate_limit(["run-429"]) == {"provider": "openrouter", "retry_after_seconds": 0.3,
+                                                        "wait_seconds": retry.RATE_LIMIT_WAIT_SECONDS}
     assert "openrouter" not in retry.dead_marks(), "one spent call does not mark the provider dead; K in a row do (#950)"
 
 

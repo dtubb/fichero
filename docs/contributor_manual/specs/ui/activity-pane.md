@@ -244,9 +244,11 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   (`paused_for_rate_limit`); the run's paused record carries the `rate-limited` failure with the provider (`_finish_as_paused`),
   whose words are now "<Provider> is limiting how fast Fichero can send" with the fix "Wait a few minutes, then continue
   the run…" and a `resume` action; Continue on the recipe row clears the cause with the cap's (`forget_rate_limit_pause`); the
-  provider's fail-fast mark keeps its K-in-a-row rule (#950). Not built: the one automatic Continue after Retry-After (open
-  question 5); the row's inline fix button (`activity.pane.failure-with-its-fix-in-the-row`); the whole provider cap held
-  during a back-off (the slot is let go, as before). *Tests:*
+  provider's fail-fast mark keeps its K-in-a-row rule (#950). **Numbers built (after the review):** `RATE_LIMIT_PAUSE_AFTER`
+  (3) consecutive spent calls before the pause, `RATE_LIMIT_WAIT_SECONDS` (60) as the floor of the wait the row asks
+  (`wait_seconds` on the recorded pause), no automatic Continue. Not built: the row's inline fix button with its wait
+  (`activity.pane.failure-with-its-fix-in-the-row`); the whole provider cap held during a back-off (the slot is let go, as
+  before). *Tests:*
   `fichero-server/tests/unit/llm/test_rate_limit_backs_off_then_pauses_6584.py`; the existing
   `fichero-server/tests/unit/workflows/test_paused_at_cap_event_6349.py`.
 - `activity.limits.load-a-model-once` — **[GAP]** (#6584, decision 17; built in part: `local_inference` keeps the engine's model
