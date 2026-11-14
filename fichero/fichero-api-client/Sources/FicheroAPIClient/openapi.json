@@ -55433,6 +55433,23 @@
           "failure": {
             "$ref": "#/components/schemas/RunFailure",
             "nullable": true
+          },
+          "ran_on": {
+            "$ref": "#/components/schemas/RanOn",
+            "nullable": true
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/StageCount"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Stages"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
           }
         },
         "type": "object",
@@ -88353,6 +88370,30 @@
         ],
         "title": "RAGModesResponse",
         "description": "Response listing available RAG modes."
+      },
+      "RanOn": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "default": 0
+          },
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "RanOn",
+        "description": "What a row runs over: `pages` or `page` with a count; a name when the engine knows one (a folder's)."
       },
       "ReadAgainResponse": {
         "properties": {
