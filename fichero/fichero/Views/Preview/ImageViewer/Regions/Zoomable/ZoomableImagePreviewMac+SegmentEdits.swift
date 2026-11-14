@@ -199,6 +199,17 @@ extension ZoomableImagePreview {
         runSegmentEdit(SegmentEdit.simplify(selectedSegments(documentId)), documentId: documentId, name: "Simplify Outline")
     }
 
+    /// CUT WORDS on the selected lines (`segment-editor.cut-words-from-positions`, ⇧⌘W): one ⌘Z; the page says how many
+    /// lines could not be cut.
+    func cutWordsOnSelectedLines() {
+        guard let documentId else { return }
+        runSegmentEdit(SegmentEdit.cutWords(selectedSegments(documentId)), documentId: documentId, name: "Cut Words") { result in
+            windowState?.segmentNotice = SegmentEdit.cutWordsNotice(
+                made: result.resultListCounts["segment_ids"] ?? 0, leftAlone: result.resultListCounts["left_alone"] ?? 0
+            )
+        }
+    }
+
     /// SPLIT the one selected line where it was last clicked (`segment-editor.split-at-a-point`, ⌘⇧K).
     func splitSelectedLineAtLastPoint() {
         guard let documentId, let line = selectedSegments(documentId).first, let pressed = pointerFeed.latest?.point else { return }

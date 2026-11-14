@@ -5883,6 +5883,7 @@ async def process_vision(
                     from fichero_server.llm.working_lines import (
                         CHARACTER_FACT_KEYS,
                         NO_WRITING_KEY,
+                        cut_words_after_read,
                         mark_no_writing,
                         mark_unread_reasons,
                         write_readings,
@@ -5912,6 +5913,14 @@ async def process_vision(
                                   if b.metadata.get("segment_id") and READ_FLAG_KEY not in b.metadata],
                         artifact_id=saved_artifact_id, run_id=task_id or f"read-a-line:{saved_artifact_id}",
                         library_path=library_path,
+                    )
+                    # Lines Kraken read with character positions are cut into words by themselves (owner 2026-11-13).
+                    cut_words_after_read(
+                        _dbm.get_database(library_path), doc_id_for_file,
+                        [b.metadata["segment_id"] for b in page_geometry.boxes
+                         if b.metadata.get("segment_id") and b.metadata.get("char_positions")
+                         and READ_FLAG_KEY not in b.metadata],
+                        run_id=task_id, library_path=library_path,
                     )
 
                 # #2249/#2395: when per_page_texts is populated (whole-PDF path) and

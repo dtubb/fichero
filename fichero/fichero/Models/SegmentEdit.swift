@@ -32,6 +32,8 @@ enum SegmentEdit {
         case knife(SegmentKnifeRequest)
         /// Simplify (`segment.simplify`).
         case simplify(SegmentSimplifyRequest)
+        /// Cut Words (`segment.cut_words`).
+        case cutWords(SegmentCutWordsRequest)
 
         func encode(to encoder: any Encoder) throws {
             switch self {
@@ -45,6 +47,7 @@ enum SegmentEdit {
             case .regenerateOutline(let params): try params.encode(to: encoder)
             case .knife(let params): try params.encode(to: encoder)
             case .simplify(let params): try params.encode(to: encoder)
+            case .cutWords(let params): try params.encode(to: encoder)
             }
         }
     }

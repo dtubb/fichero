@@ -105,6 +105,26 @@ extension SegmentEdit {
         ))
     }
 
+    /// CUT WORDS on the selected lines (`segment-editor.cut-words-from-positions`): one `segment.cut_words`, one undo.
+    /// The engine cuts each line's reading at its spaces, from the recogniser's positions or the ink, and says which
+    /// lines it could not cut.
+    static func cutWords(_ lines: [Segment]) -> Result<Call, Refusal> {
+        guard !lines.isEmpty else { return .failure(.tooFew) }
+        guard lines.allSatisfy(hasBaseline) else { return .failure(.noBaseline) }
+        guard let versions = versions(of: lines) else { return .failure(.versionUnknown) }
+        return .success(Call(
+            action: "segment.cut_words",
+            params: .cutWords(SegmentCutWordsRequest(segmentIds: lines.map(\.id), expectedVersions: versions))
+        ))
+    }
+
+    /// What Cut Words says when it could not cut every line: how many it left, and that they need a reading or ink.
+    static func cutWordsNotice(made: Int, leftAlone: Int) -> String? {
+        guard leftAlone > 0 else { return nil }
+        let lines = leftAlone == 1 ? "1 line" : "\(leftAlone) lines"
+        return "Made \(made) words; \(lines) could not be cut (no reading, or no gaps to find)"
+    }
+
     /// `[minX, minY, maxX, maxY]` of some points; nil for none.
     private static func bounds(of points: [[Double]]) -> [Double]? {
         let lefts = points.compactMap { $0.first }, tops = points.compactMap { $0.count > 1 ? $0[1] : nil }
@@ -146,4 +166,12 @@ struct SegmentSimplifyRequest: Encodable, Equatable {
     enum CodingKeys: String, CodingKey {
         case segmentIds = "segment_ids", expectedVersions = "expected_versions", tolerance
     }
+}
+
+/// `segment.cut_words`: the lines to cut into words, with the versions read.
+struct SegmentCutWordsRequest: Encodable, Equatable {
+    let segmentIds: [String]
+    let expectedVersions: [String: Int]
+
+    enum CodingKeys: String, CodingKey { case segmentIds = "segment_ids", expectedVersions = "expected_versions" }
 }
