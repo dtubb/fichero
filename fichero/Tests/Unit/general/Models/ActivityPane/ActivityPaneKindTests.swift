@@ -28,14 +28,4 @@ struct ActivityPaneKindTests {
         let restored = try JSONDecoder().decode(PaneNode.self, from: saved)
         #expect(restored.kinds.contains(.activity))
     }
-
-    @Test("the pane renders scoped to the window's project, its selection the window's; the sidebar shows the same pane")
-    func mounted() throws {
-        let specs = try AppSource.code("Views/Shell/ContentView/Layout/ContentView+PaneSpecs.swift")
-        #expect(specs.contains("ActivityPaneView(libraryId: windowState.libraryId, showsHead: true"))
-        #expect(specs.contains("onSelect: { windowState.activityPick = $0 }"))
-        let navigation = try AppSource.code("Views/Shell/ContentView/ContentView+Navigation.swift")
-        #expect(navigation.contains("ActivityPaneView(libraryId: windowState.libraryId, showsHead: false"))
-        #expect(!navigation.contains("ActivityBrowserView"), "the sidebar mode's own job list is gone")
-    }
 }

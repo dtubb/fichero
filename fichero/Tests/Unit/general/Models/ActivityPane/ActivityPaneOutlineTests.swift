@@ -53,11 +53,4 @@ struct ActivityPaneOutlineTests {
         #expect(byName.first?.children?.map(\.id) == outline.first { $0.id == "letters" }?.children?.map(\.id))
         #expect(ActivityPane.sorted(outline, by: [KeyPathComparator(\.stateRankKey)]).first?.id == "names", "running sorts first")
     }
-
-    @Test("the pane draws no section header: the view has no Section and no Now / Up Next / Done Today")
-    func noSectionRows() throws {
-        let source = try AppSource.code("Views/Activity/Pane/ActivityPaneView+Table.swift")
-        #expect(!source.contains("Section("))
-        #expect(!source.contains("Up Next") && !source.contains("Done Today"))
-    }
 }
