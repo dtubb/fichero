@@ -207,3 +207,46 @@ def test_summary_one_line_per_part_last_status_wins(tmp_path):
         ("DMG", "OK", "both tiers"), ("Mac TestFlight", "FAILED", "upload stalled 30 min"),
         ("iOS TestFlight", "SKIPPED", "--skip-ios-testflight"), ("Publish", "SKIPPED", "not reached")]
     assert len(rg.summary_table(f).splitlines()) == 4
+
+
+# 9. token-free morning release: the decisions morning-release.sh takes
+def test_nothing_new_since_the_last_release_tag_skips():
+    def run(cmd, **_kw):
+        out = "v2026.11.14\nv2026.11.13\n" if cmd[3] == "tag" else "0\n"
+        return subprocess.CompletedProcess(cmd, 0, stdout=out, stderr="")
+    assert rg.new_commits("origin/integration", run=run) == (0, "v2026.11.14")
+
+
+def test_new_commits_are_counted_from_the_newest_tag():
+    seen = []
+
+    def run(cmd, **_kw):
+        seen.append(cmd)
+        out = "v2026.11.14\nv2026.11.13\n" if cmd[3] == "tag" else "7\n"
+        return subprocess.CompletedProcess(cmd, 0, stdout=out, stderr="")
+    assert rg.new_commits("origin/integration", run=run) == (7, "v2026.11.14")
+    assert seen[1][-1] == "v2026.11.14..origin/integration"
+
+
+def test_lock_held_by_a_live_run_exits_and_a_dead_ones_lock_is_taken(tmp_path):
+    lock = tmp_path / "morning.lock"
+    assert rg.acquire_lock(lock, 111, alive=lambda _p: True)
+    assert not rg.acquire_lock(lock, 222, alive=lambda pid: pid == 111)  # 111 still running
+    assert rg.acquire_lock(lock, 333, alive=lambda _p: False)  # 111 died; take over
+    assert lock.read_text() == "333"
+
+
+def test_failed_smoke_means_no_publish(tmp_path):
+    dmg = tmp_path / "Fichero.dmg"
+    dmg.write_bytes(b"x")
+    rows = [("DMG", "OK", ""), ("Mac TestFlight", "FAILED", "stalled")]
+    ok, why = rg.may_publish(rows, [dmg], "2026.11.15", "25", smoke_fn=lambda *a: ["not stapled"])
+    assert not ok and "not stapled" in why
+    ok, _ = rg.may_publish(rows, [dmg], "2026.11.15", "25", smoke_fn=lambda *a: [])
+    assert ok  # a failed TestFlight part does not hold the publish back
+
+
+def test_failed_dmg_part_means_no_publish(tmp_path):
+    ok, why = rg.may_publish([("DMG", "FAILED", "stopped (exit 1)")], [tmp_path / "Fichero.dmg"],
+                             "v", "1", smoke_fn=lambda *a: [])
+    assert not ok and "FAILED" in why
