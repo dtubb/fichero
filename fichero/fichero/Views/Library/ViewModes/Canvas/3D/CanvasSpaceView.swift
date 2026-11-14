@@ -58,6 +58,11 @@ struct CanvasSpaceView: View {
 
     /// The host's document menu for the selected card(s), as on the 2D canvas (#5632).
     var documentMenu: (() -> AnyView)?
+    /// Bumped by the bar's Sort while this board shows (`panes.chrome.one-filter-pattern`): each bump arranges the
+    /// cards in the new order, once, through `saveSortArrangement`.
+    var sortArrangeToken = 0
+    /// Saves an arranged board as ONE audited, undoable action (the host has the actions door).
+    var saveSortArrangement: ((_ scope: String, _ rows: [CanvasItemLayout]) -> Void)?
 
     @Environment(\.undoManager) var undoManager
 
@@ -125,7 +130,9 @@ struct CanvasSpaceView: View {
     /// Held by `CanvasPlacementMemory` (#5629): a pane resize, a card arriving or a page shape
     /// landing changes the default grid and must not move a card nobody moved.
     /// `savedRows` given: the board as an arrangement lays it out (every card placed afresh), not held.
-    private func resolvedState(in viewportSize: CGSize, savedRows: [CanvasItemLayout]? = nil) -> CanvasSceneState {
+    private func resolvedState(
+        in viewportSize: CGSize, savedRows: [CanvasItemLayout]? = nil, arrangement: CanvasArrangement? = nil
+    ) -> CanvasSceneState {
         let rows = savedRows ?? layoutStore?.layout(for: scopeKey) ?? []
         let columns = CanvasGridPlacement.sharedColumnCount(
             itemCount: placeableCount, viewportSize: viewportSize, cell: gridCell
@@ -147,7 +154,7 @@ struct CanvasSpaceView: View {
             // 1.0 × 0.75 (§18.1 defect 4): CanvasCardGeometry normalises on
             // area, so a double-spread is 1.22 wide and needs the room.
             gridCell: gridCell,
-            arrangement: CanvasArrangement.stored(arrangementRaw)
+            arrangement: arrangement ?? CanvasArrangement.stored(arrangementRaw)
         )
         if savedRows == nil {
             state = placementMemory.pin(
@@ -272,6 +279,7 @@ struct CanvasSpaceView: View {
                     documentMenu: documentMenu
                 )
             }
+            .onChange(of: sortArrangeToken) { arrangeBySort(in: geo.size) }
             .overlay(alignment: .topTrailing) { canvasToolbar }
             .modifier(CanvasModifierTracker(optionHeld: $optionHeld))
             .onDisappear { controller?.onMoveInto = nil }
@@ -383,6 +391,15 @@ struct CanvasSpaceView: View {
 
     /// Lay every card out in `arrangement` and save those places, as the 2D canvas does: the
     /// same rows, so both canvases show the arranged board.
+    /// Sort, on the Space: the same rows as the 2D canvas's (`CanvasArrangement.rowsBySort`).
+    private func arrangeBySort(in size: CGSize) {
+        guard let layoutStore, let saveSortArrangement else { return }
+        let rows = CanvasArrangement.rowsBySort(
+            resolvedState(in: size, savedRows: [], arrangement: .asFiled), keeping: layoutStore.layout(for: scopeKey)
+        )
+        saveSortArrangement(scopeKey, rows)
+    }
+
     private func arrangeBoard(_ arrangement: CanvasArrangement, in size: CGSize) {
         guard arrangement != .free, let layoutStore else { return }
         arrangementRaw = arrangement.rawValue
