@@ -245,7 +245,7 @@ mkdir -p "$RELEASE_DIR"
 # table at the end, however the run ends.
 GUARD_PY="$("$ROOT_DIR/scripts/find_project_python.sh" "$ROOT_DIR")"
 guard() { "$GUARD_PY" "$ROOT_DIR/scripts/release_guard.py" "$@"; }
-export FICHERO_RELEASE_SUMMARY="$RELEASE_DIR/summary.tsv"
+export FICHERO_RELEASE_SUMMARY="${FICHERO_RELEASE_SUMMARY:-$RELEASE_DIR/summary.tsv}"
 : > "$FICHERO_RELEASE_SUMMARY"
 PART_REASON="$RELEASE_DIR/.part-reason"
 REL_LABEL="Fichero"

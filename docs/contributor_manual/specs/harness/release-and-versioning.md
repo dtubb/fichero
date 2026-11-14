@@ -134,6 +134,20 @@ The logic lives in `scripts/release_guard.py` (one subcommand per point) so it i
 - `release.lane.summary-table` — **[OK]** however the run ends, it prints one line per part
   (Preflight, DMG, Mac TestFlight, iOS TestFlight, Publish; Engine when it fails) with
   OK, FAILED or SKIPPED and the reason; a part the run never reached shows SKIPPED, not reached.
+- `release.lane.morning-release-token-free` — **[PARTIAL]** (owner 2026-11-14: "a token-free
+  release each morning") a launchd LaunchAgent runs `scripts/morning-release.sh` at a set time
+  (default 06:00 local; the plist template is `scripts/launchd/app.fichero.morning-release.plist`,
+  installed by `scripts/install-morning-release.sh`, which nothing runs for the owner). No model
+  or AI call is in it. It takes a lock (a second run while one is live exits at once), logs to
+  `~/Library/Logs/Fichero/morning-release-<date>.log`, fetches origin, and when
+  `origin/integration` has no commits since the newest `v*` release tag it texts "nothing new"
+  and stops. Otherwise it cuts `release/<date>` from `origin/integration` in its own worktree,
+  runs `release-all.sh` (date stamp, build bump and every guard above), and publishes only when
+  the DMG part is OK and every DMG passes the smoke check; a failed DMG or smoke texts which
+  part failed and stops before publishing. It publishes with `publish-release.sh` (pushes
+  `release/<date>`, never `main`), opens the `release/<date>` → `main` PR with `gh`, and texts
+  the summary table. PARTIAL: the stamp still needs a hand-written `RELEASE_NOTES.md` section
+  for the day, so a morning with no notes stops at the preflight and says so.
 
 ## Release notes — two artifacts, different owners
 

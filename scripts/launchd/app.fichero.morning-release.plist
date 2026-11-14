@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Template: scripts/install-morning-release.sh fills the __PLACEHOLDERS__
+     and installs it in ~/Library/LaunchAgents (spec: release.lane.morning-release-token-free). -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>app.fichero.morning-release</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__SCRIPT__</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>__HOUR__</integer>
+    <key>Minute</key>
+    <integer>__MINUTE__</integer>
+  </dict>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>FICHERO_NOTIFY_IMESSAGE</key>
+    <string>__NOTIFY__</string>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>__LOGDIR__/morning-release-launchd.log</string>
+  <key>StandardErrorPath</key>
+  <string>__LOGDIR__/morning-release-launchd.log</string>
+</dict>
+</plist>
