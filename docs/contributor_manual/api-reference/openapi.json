@@ -4761,6 +4761,49 @@
         }
       }
     },
+    "/api/segments/document/{doc_id}/validate": {
+      "get": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Validate Document Segments",
+        "description": "What is wrong with the page's segments, per pass, before an export (`segment-editor.validate-before-export`):\nreads, writes nothing. An empty list is a page with nothing to fix.",
+        "operationId": "validate_document_segments_api_segments_document__doc_id__validate_get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentValidation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/segments/document/{doc_id}": {
       "get": {
         "tags": [
@@ -91342,6 +91385,22 @@
             "type": "string",
             "nullable": true,
             "title": "Producer Tool"
+          },
+          "char_positions": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Char Positions"
+          },
+          "char_confidences": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Char Confidences"
           }
         },
         "additionalProperties": false,
@@ -96083,6 +96142,49 @@
         ],
         "title": "SegmentPassCreateParams"
       },
+      "SegmentProblem": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "no-shape, self-crossing, no-baseline, line-outside-regions, empty-region, overlap, order-repeat, order-gap, order-missing or words-do-not-tile."
+          },
+          "segment_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Segment Ids"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "pass_id": {
+            "type": "string",
+            "title": "Pass Id"
+          },
+          "order_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Order Id"
+          },
+          "share": {
+            "type": "number",
+            "nullable": true,
+            "title": "Share"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "segment_ids",
+          "detail",
+          "pass_id"
+        ],
+        "title": "SegmentProblem",
+        "description": "One thing wrong with a page's segments (`segment-editor.validate-before-export`)."
+      },
       "SegmentRead": {
         "properties": {
           "id": {
@@ -96700,6 +96802,27 @@
         ],
         "title": "SegmentUpdateParams",
         "description": "`document_id`/`pass_id` are deliberately absent (`extra=\"forbid\"`\nrefuses them outright) -- a segment never moves pass or document\n(`source.pass.never-overwrites`); that is a merge, not an update."
+      },
+      "SegmentValidation": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "problems": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentProblem"
+            },
+            "type": "array",
+            "title": "Problems"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "problems"
+        ],
+        "title": "SegmentValidation"
       },
       "SegmentVersion": {
         "properties": {

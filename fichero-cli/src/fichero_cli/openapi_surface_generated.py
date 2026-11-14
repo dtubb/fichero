@@ -4495,6 +4495,8 @@ def register_generated_openapi_commands(
     @target_app.command("create-route")
     def content_representations_create_route_post(
         ctx: typer.Context,
+        char_confidences: Optional[list[str]] = typer.Option(None, '--char-confidences', help='Char Confidences. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        char_positions: Optional[list[str]] = typer.Option(None, '--char-positions', help='Char Positions. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
         content: str = typer.Option(..., '--content', help='Content.'),
         corrects_representation_id: Optional[str] = typer.Option(None, '--corrects-representation-id', help='Corrects Representation Id.'),
         derived_from_artifact_id: Optional[str] = typer.Option(None, '--derived-from-artifact-id', help='Derived From Artifact Id.'),
@@ -4520,6 +4522,8 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/content-representations"
             params = None
             payload = _build_json_payload({
+                "char_confidences": char_confidences,
+                "char_positions": char_positions,
                 "content": content,
                 "corrects_representation_id": corrects_representation_id,
                 "derived_from_artifact_id": derived_from_artifact_id,
@@ -4540,6 +4544,8 @@ def register_generated_openapi_commands(
                 "segment_id": segment_id,
                 "source_anchor": source_anchor,
             }, {
+                "char_confidences": {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Char Confidences', 'x-cli-required': False},
+                "char_positions": {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Char Positions', 'x-cli-required': False},
                 "content": {'type': 'string', 'title': 'Content', 'x-cli-required': True},
                 "corrects_representation_id": {'type': 'string', 'nullable': True, 'title': 'Corrects Representation Id', 'x-cli-required': False},
                 "derived_from_artifact_id": {'type': 'string', 'nullable': True, 'title': 'Derived From Artifact Id', 'x-cli-required': False},
@@ -16821,6 +16827,18 @@ def register_generated_openapi_commands(
         """Segments On A Rendition (GET /api/segments/document/{doc_id}/on-rendition/{rendition_id})."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/segments/document/{doc_id}/on-rendition/{rendition_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("validate-document")
+    def segments_validate_document_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+    ) -> None:
+        """Validate Document Segments (GET /api/segments/document/{doc_id}/validate)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/document/{doc_id}/validate"
             params = None
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
