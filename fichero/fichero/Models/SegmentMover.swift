@@ -37,7 +37,9 @@ enum SegmentMover {
     /// point, the smaller on a tie: `SegmentShapes.containingRegion`) or on no region are reassigned; dropped inside the
     /// region they share, or with ⌘ held, or when any is not a line, the shapes move.
     static func drop(of dragged: [Segment], at point: [Double], among segments: [Segment], commandHeld: Bool) -> Drop {
-        guard !commandHeld, !dragged.isEmpty, dragged.allSatisfy({ $0.kind.lowercased() == "line" }) else { return .move }
+        guard !commandHeld, !dragged.isEmpty, dragged.allSatisfy({ SegmentHierarchy.Level(kind: $0.kind) == .line }) else {
+            return .move
+        }
         let draggedIds = Set(dragged.map(\.id))
         let target = SegmentShapes.containingRegion(for: [point], among: segments.filter { !draggedIds.contains($0.id) })?.id
         return dragged.allSatisfy({ $0.parentSegmentId == target }) ? .move : .reassign(into: target)
