@@ -239,14 +239,18 @@ targets are at least 44 pt.
   *Built (2026-11-13):* Edit › Segments ▸ Split Line at Point (⌘⇧K), at the point last pressed on the
   page (the Preview tracks presses, not hover), `SegmentEdit.splitAtPoint`. *Tests:*
   `fichero/Tests/Unit/general/Views/Source/KnifeStrokeTests.swift::splitAtAPoint`.
-- `segment-editor.reassign-by-drag` — **[GAP]** (→ #4941; app + engine) dragging a line (or a selection of lines)
-  onto another region, in Select, makes them that region's lines: `segment.update_many` with
-  `parent_segment_id`, and a `reading_order.place` for each into the region's lines by page
-  position. The target region's outline lights while the drag is over it; dropping on no region
+- `segment-editor.reassign-by-drag` — **[PARTIAL]** (→ #4941; app + engine) dragging a line (or a selection of lines)
+  onto another region, in Select, makes them that region's lines: one `segment.reparent`, which
+  also moves each line's entry, in every order that holds it, among the region's lines by page
+  position (the entry keeps its id, so whatever is nested under it stays). The target region's outline lights while the drag is over it; dropping on no region
   makes the lines regionless (`source.editor.colour.regionless-lines-are-one-region`); dropping
   back where it started is nothing, not an action. ⌘-drag moves the shape instead (a move is
   the default when the drag stays inside the line's own region, a reassignment when it leaves
-  it; the head says which while dragging). One drop, one undo.
+  it; the head says which while dragging). One drop, one undo: the undo puts back the parents AND
+  the order entries where they were (`segment.restore_versions` with `order_entries`), and a redo
+  moves them again. *Built (2026-11-14):* the engine half (`segment.reparent` places by page position
+  in every order, `_reposition_entries`; the undo restores the entries). *Not built:* the drag.
+  *Tests:* `fichero-server/tests/unit/api/test_segment_reassign_by_drag.py`.
 
 ### Selecting and moving
 

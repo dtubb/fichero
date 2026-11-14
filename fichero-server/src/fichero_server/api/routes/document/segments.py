@@ -2248,6 +2248,9 @@ class SegmentRestoreVersionsParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     restores: list[SegmentVersionRestore] = Field(min_length=1)
+    #: `segment-editor.reassign-by-drag`: the order entries `segment.reparent` moved, written back as they were
+    #: (by id) in this same action. None leaves every entry alone, as `segment.update_many`'s undo needs.
+    order_entries: Optional[list[SegmentOrderEntryParams]] = None
 
 
 def _live_current_row(
@@ -2318,7 +2321,44 @@ def _invert_many_via_previous_version(before, after, ctx: ActionContext):
     ]
     if not restores:
         return None
+    if after.get("order_entries") is not None:
+        return ("segment.restore_versions", {"restores": restores, "order_entries": after["order_entries"]})
     return ("segment.restore_versions", {"restores": restores})
+
+
+def _reposition_entries(db: Database, rows: list[Segment]) -> list[dict[str, Any]]:
+    """Every order entry of `rows` moved to where page order puts it under the row's current parent
+    (`segment-editor.reassign-by-drag`); answers the entries as they were, for the undo."""
+    from fichero_server.api.routes.document.reading_orders import ENTRY_FIELDS, reposition_in_page_order
+    from fichero_server.models.reading_orders import ReadingOrder, ReadingOrderEntry
+
+    was: list[dict[str, Any]] = []
+    for row in rows:
+        for entry in db.query(ReadingOrderEntry, segment_id=row.id):
+            order = db.get(ReadingOrder, entry.order_id)
+            if order is None or order.deleted_at is not None:
+                continue
+            was.append({field: getattr(entry, field) for field in ENTRY_FIELDS})
+            reposition_in_page_order(db, order, entry, row)
+    return was
+
+
+def _put_entries_back(db: Database, entries: list[SegmentOrderEntryParams]) -> list[dict[str, Any]]:
+    """The entries written back as recorded (by id); answers them as they were just before, for a redo.
+    An entry deleted since is written back whole."""
+    from fichero_server.api.routes.document.reading_orders import ENTRY_FIELDS, restore_segment_entries
+    from fichero_server.models.reading_orders import ReadingOrderEntry
+
+    was: list[dict[str, Any]] = []
+    for item in entries:
+        entry = db.get(ReadingOrderEntry, item.id)
+        if entry is None:
+            restore_segment_entries(db, [item.model_dump()])
+            continue
+        was.append({field: getattr(entry, field) for field in ENTRY_FIELDS})
+        entry.parent_entry_id, entry.position = item.parent_entry_id, item.position
+        db.save(entry)
+    return was
 
 
 @action(
@@ -2387,8 +2427,8 @@ def _action_segment_reparent(db: Database, params: SegmentReparentParams, ctx: A
 
     ALL OR NOTHING, like `segment.update_many`. The new parent must be live and in the same pass
     and document as every moved segment, must not be one of them, and must not sit inside one of
-    them (a cycle). Reading-order entries are not touched: where a line reads is `reading_order.place`'s
-    business, and moving a line's parent does not reorder the page.
+    them (a cycle). Each moved segment's entry, in every order that holds it, moves among the new
+    parent's children by page position (`segment-editor.reassign-by-drag`); the undo puts them back.
     """
     _refuse_repeated_ids([item.segment_id for item in params.segments])
     rows = [_live_current_row(db, item.segment_id, item.expected_version) for item in params.segments]
@@ -2428,13 +2468,14 @@ def _action_segment_reparent(db: Database, params: SegmentReparentParams, ctx: A
         row.parent_segment_id = params.parent_segment_id
         db.save(row)
         after_versions.append({"segment_id": row.id, "version": row.version})
+    order_entries = _reposition_entries(db, rows)
 
     spec = ChangeSpec(
         audit_id=audit_id,
         domains=["segment"],
         target_ids=[row.id for row in rows],
         before={"versions": before_versions},
-        after={"versions": after_versions},
+        after={"versions": after_versions, "order_entries": order_entries},
         emit_type="segment.updated",
         segment_ids=[row.id for row in rows],
         pass_ids=sorted({row.pass_id for row in rows}),
@@ -2488,13 +2529,15 @@ def _action_segment_restore_versions(
         _copy_version_onto_row(row, target)
         db.save(row)
         after_versions.append({"segment_id": row.id, "version": row.version})
+    entries_were = None if params.order_entries is None else _put_entries_back(db, params.order_entries)
 
     spec = ChangeSpec(
         audit_id=audit_id,
         domains=["segment"],
         target_ids=[row.id for row, _target in pairs],
         before={"versions": before_versions},
-        after={"versions": after_versions, "text_relevant": text_relevant},
+        after={"versions": after_versions, "text_relevant": text_relevant,
+               **({"order_entries": entries_were} if entries_were is not None else {})},
         emit_type="segment.updated",
         segment_ids=[row.id for row, _target in pairs],
         pass_ids=sorted({row.pass_id for row, _target in pairs}),
