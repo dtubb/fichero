@@ -166,7 +166,11 @@ extension ZoomableImagePreview {
             versionedCount: segments.filter { $0.version != nil }.count
         ) == .segments
         guard onSegments else { return false }
-        runSegmentEdit(SegmentEdit.join(segments, asLines: true), documentId: documentId, name: "Join Segments")
+        // Merged regions: their lines now read among the kept region's; the order shows for two seconds.
+        let flash = SegmentEdit.joinsRegions(segments)
+        runSegmentEdit(SegmentEdit.join(segments, asLines: true), documentId: documentId, name: "Join Segments") { _ in
+            if flash { windowState?.flashOrderOverlay() }
+        }
         regionSelection.clear()
         return true
     }

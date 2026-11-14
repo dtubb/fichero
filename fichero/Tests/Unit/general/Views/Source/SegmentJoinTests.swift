@@ -53,4 +53,21 @@ struct SegmentJoinTests {
         #expect(params["join_geometry"] == nil)
         #expect(params["move_into_region"] == nil)
     }
+    /// `segment-editor.merge-regions`: after regions are merged the page's order numbers show for two seconds.
+    @Test("a Join of regions flashes the order numbers, which go again by themselves; a Join of lines does not")
+    func mergedRegionsFlashTheOrder() async throws {
+        var region = line("r1", version: 1)
+        region.kind = "region"
+        var other = line("r2", version: 1)
+        other.kind = "region"
+        #expect(SegmentEdit.joinsRegions([region, other]))
+        #expect(!SegmentEdit.joinsRegions([region, line("a", version: 1)]))
+        #expect(!SegmentEdit.joinsRegions([region]))
+
+        let window = WindowState(libraryId: UUID())
+        window.flashOrderOverlay(for: 0.05)
+        #expect(window.orderOverlayFlash)
+        try await Task.sleep(for: .milliseconds(400))
+        #expect(!window.orderOverlayFlash, "the numbers go again by themselves")
+    }
 }

@@ -211,8 +211,12 @@ targets are at least 44 pt.
   *Built (2026-11-13):* `segment.merge` with `join_geometry` moves what the absorbed members held
   (a region's lines, a line's words) to the kept one, placed in every order that held them by
   page position (`place_in_page_order`), and `unmerge` puts parents and entries back; the
-  Preview's Join on selected regions sends it. *Not built:* the two-second order overlay.
-  *Tests:* `test_segment_merge_lines.py::TestMergeRegions`.
+  Preview's Join on selected regions sends it. *Built (2026-11-14):* after a Join of regions lands, the
+  page shows its order numbers for two seconds (`WindowState.flashOrderOverlay`), then hides them unless
+  Show Order Numbers is on. *Not built:* showing the order before the merge lands (the merge lands at
+  once, `segment-editor.every-edit-lands-at-once`), and lighting only the kept region's lines.
+  *Tests:* `test_segment_merge_lines.py::TestMergeRegions`;
+  `fichero/Tests/Unit/general/Views/Source/SegmentJoinTests.swift::mergedRegionsFlashTheOrder`.
 - `segment-editor.split-knife` — **[PARTIAL]** (→ #4941; app + engine; refines `source.editor.cut`) a Knife stroke, a
   polyline drawn across one or many lines, splits every line it crosses at the crossing: the
   engine (`segment.split` gains `cut_path`, points in the frame of the image drawn on) cuts each

@@ -96,7 +96,7 @@ extension ZoomableImagePreview {
             documentId: documentId
         )
         overlay.transcriptionFamily = transcriptionFont?.family
-        overlay.showsOrderNumbers = showOrderNumbers
+        overlay.showsOrderNumbers = showOrderNumbers || windowState?.orderOverlayFlash == true
         overlay.showsBoundingBoxes = showBoundingBoxes
         return overlay
     }
