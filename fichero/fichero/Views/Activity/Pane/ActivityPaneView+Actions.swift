@@ -10,8 +10,19 @@ struct ActivityVerbTarget: Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.enabled == rhs.enabled && lhs.selectionIds == rhs.selectionIds }
 }
 
+/// What View › Activity ▸ reads from the focused Activity pane: its grouping and whether archived rows show.
+struct ActivityViewTarget: Equatable {
+    let grouping: ActivityPane.Grouping
+    let showsArchived: Bool
+    let setGrouping: @MainActor (ActivityPane.Grouping) -> Void
+    let setShowsArchived: @MainActor (Bool) -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.grouping == rhs.grouping && lhs.showsArchived == rhs.showsArchived }
+}
+
 extension FocusedValues {
     @Entry var activityVerbs: ActivityVerbTarget?
+    @Entry var activityView: ActivityViewTarget?
 }
 
 extension ActivityPaneView {

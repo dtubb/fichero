@@ -167,3 +167,25 @@ struct FocusedAutomaticWorkButtons: View {
         Task { _ = await store.setBackgroundMode(mode) }
     }
 }
+
+/// View › Activity ▸ Group by Run / Group by File and Show Archived (`activity.pane.commands-through-the-table`), on the
+/// focused Activity pane: the same choices as its head's lens menu and its More menu. No chords.
+struct FocusedActivityViewButtons: View {
+    @FocusedValue(\.activityView) private var target
+
+    var body: some View {
+        ForEach(ActivityPane.Grouping.allCases) { grouping in
+            Toggle("Group by \(grouping.title)", isOn: Binding(
+                get: { target?.grouping == grouping },
+                set: { isOn in if isOn { target?.setGrouping(grouping) } }
+            ))
+        }
+        .disabled(target == nil)
+        Divider()
+        Toggle("Show Archived", isOn: Binding(
+            get: { target?.showsArchived ?? false },
+            set: { target?.setShowsArchived($0) }
+        ))
+        .disabled(target == nil)
+    }
+}

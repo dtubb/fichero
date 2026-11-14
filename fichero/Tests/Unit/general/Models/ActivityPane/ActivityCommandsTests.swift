@@ -33,4 +33,15 @@ struct ActivityCommandsTests {
         #expect(!titles.contains(RunAutomaticallySetting.pauseCommand) && !titles.contains(RunAutomaticallySetting.resumeCommand))
         #expect(titles.contains("Continue") && !titles.contains("Resume"), "a row continues; only the lane resumes")
     }
+
+    @Test("View › Activity ▸ reads the focused pane's grouping and archived switch; two panes alike are one target")
+    func viewTarget() {
+        var picked: ActivityPane.Grouping?
+        let target = ActivityViewTarget(grouping: .run, showsArchived: false, setGrouping: { picked = $0 }, setShowsArchived: { _ in })
+        target.setGrouping(.file)
+        #expect(picked == .file)
+        #expect(target == ActivityViewTarget(grouping: .run, showsArchived: false, setGrouping: { _ in }, setShowsArchived: { _ in }))
+        #expect(target != ActivityViewTarget(grouping: .run, showsArchived: true, setGrouping: { _ in }, setShowsArchived: { _ in }))
+        #expect(ActivityPane.Grouping.allCases.map(\.title) == ["Run", "File"])
+    }
 }

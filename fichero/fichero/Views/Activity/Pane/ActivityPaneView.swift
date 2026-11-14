@@ -34,7 +34,7 @@ struct ActivityPaneView: View {
     @State private var confirmingArchiveFinished = false
     /// Delete on running rows asks once: Stop then Delete.
     @State var confirmingDelete: [ActivityMonitorRow]?
-    @State private var showArchived = false
+    @State var showArchived = false
     @AppStorage("activity.pane.prefs") private var prefsData = Data()
 
     var prefs: ActivityPanePrefs { ActivityPanePrefs.load(prefsData, key: paneKey) }
@@ -111,6 +111,9 @@ struct ActivityPaneView: View {
         .accessibilityIdentifier("activity.pane")
         .focusedSceneValue(\.activityRun, selectedRunTarget)
         .focusedSceneValue(\.activityVerbs, verbTarget)
+        .focusedSceneValue(\.activityView, ActivityViewTarget(
+            grouping: prefs.grouping, showsArchived: showArchived,
+            setGrouping: group(by:), setShowsArchived: { showArchived = $0 }))
         .onChange(of: selection) { _, _ in onSelect(selectedPick) }
         .onChange(of: shownRows.map(\.id)) { _, _ in onSelect(selectedPick); if selection.isEmpty { select(reveal) } }
         .onChange(of: reveal) { _, wanted in select(wanted) }

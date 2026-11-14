@@ -95,6 +95,11 @@ struct ViewMenuCommands: View {
             RepresentationSection()
         }
 
+        // The focused Activity pane's grouping and archived rows (#6441); no chords.
+        Menu("Activity") {
+            FocusedActivityViewButtons()
+        }
+
         Divider()
 
         InspectorButton()
