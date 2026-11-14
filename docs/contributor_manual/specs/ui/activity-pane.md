@@ -380,9 +380,12 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   label; a 429, a 402 and a `KeyError` from a provider stub each list with a sentence that contains no digit code and no
   exception name, and with the fix above. **Built (2026-11-13 night):** the engine half of the test: every kind in the table
   has words, a fix and an action, and names no status code or exception text (`unexpected` names the exception's type on
-  purpose, as the bug report's handle; open question 8). Not built: the row. *Tests:*
-  `fichero-server/tests/unit/llm/test_every_failure_kind_has_a_fix_6354.py`;
-  not yet written: ActivityErrorRowTests.swift.
+  purpose, as the bug report's handle; open question 8). App (2026-11-14, not compiled): `ActivityJob.failure` decoded from
+  the engine's `failure`, the fix sentence under the failed row (`activity.row.fix`), and the PRIMARY FIX as the row's one button
+  (`open-settings`/`choose-model` → Settings…, `resume` → Continue, else Retry). Not built: the ≤ 8-word row words in place of
+  the reason, Copy Details, the other actions as buttons. *Tests:*
+  `fichero-server/tests/unit/llm/test_every_failure_kind_has_a_fix_6354.py`,
+  `fichero/Tests/Unit/general/Models/ActivityErrorRowTests.swift`.
 - `activity.pane.less-is-more-table` — **[PARTIAL]** (#6441, decision 13; the review's less-is-more list, accepted by the manager
   2026-11-13 night) the table's acceptance, in cuts: NO section rows (NOW / UP NEXT / DONE TODAY / History / background): a flat
   table sorted by state then start, at most View › Group by State; the five status sentences become ONE bottom status bar, Finder

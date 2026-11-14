@@ -78,6 +78,9 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     /// The one progress line of a recipe run (`activity.pane.row-says-what-ran-on-what`): "Read ✓ → Names ▶ 3/12"; empty
     /// for a row with no stages.
     var trail = ""
+    /// What went wrong and what to do (`activity.pane.failure-with-its-fix-in-the-row`): shown in the row, its first action
+    /// the row's one button.
+    var failure: ActivityJob.Failure?
     /// A run's account (#5555): what its row says beyond the counts. `nil`
     /// on steps, pages, other jobs and runs the engine has no account for.
     var account: ActivityRunAccount?

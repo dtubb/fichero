@@ -236,6 +236,7 @@ struct ActivityMonitorWindow: View {
         case .resume: Task { await act(.resume, on: row) }
         case .retry: Task { await act(.retry, on: row) }
         case .show: openedID = row.id
+        case .fix: Self.openSettings()
         }
     }
 
@@ -316,6 +317,18 @@ struct ActivityMonitorWindow: View {
             )
             await library.activityStore.loadRunsForToday(library: library)
         }
+    }
+}
+
+// MARK: - The fix in the row (`activity.pane.failure-with-its-fix-in-the-row`, #6354)
+
+extension ActivityMonitorWindow {
+    /// The failed row's primary fix when it is a setting (a key, a provider, a model): the Settings window, as the
+    /// standard menu item opens it; the Settings › AI pane is where the providers and models live.
+    static func openSettings() {
+        #if os(macOS)
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        #endif
     }
 }
 

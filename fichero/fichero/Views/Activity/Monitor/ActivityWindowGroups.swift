@@ -33,14 +33,21 @@ struct ActivityWindowGroups: Equatable {
 
 extension ActivityMonitorRow {
     /// The ONE button a row shows (`activity.window.one-button`). Stop, Show the Pages and Delete are context-menu items.
-    enum OneButton: Equatable { case pause, resume, retry, show }
+    enum OneButton: Equatable { case pause, resume, retry, show, fix }
 
+    /// The row's ONE button (`activity.pane.less-is-more-table`): on a failed row the PRIMARY FIX the engine's failure
+    /// offers (`open-settings` → Settings…, `resume` → Continue), else the state's verb.
     var oneButton: OneButton? {
         switch phase {
         case .running: return jobId == nil ? nil : .pause
         case .paused: return jobId == nil ? nil : .resume
         case .waiting: return nil  // what does not apply is absent, never disabled
-        case .failed, .partial, .interrupted, .cancelled: return retryJobId == nil ? .show : .retry
+        case .failed, .partial, .interrupted, .cancelled:
+            switch failure?.primaryAction {
+            case "open-settings", "choose-model": return .fix
+            case "resume": return jobId == nil ? .show : .resume
+            default: return retryJobId == nil ? .show : .retry
+            }
         case .done, .notRun, .unknown: return .show
         }
     }

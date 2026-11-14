@@ -82,6 +82,7 @@ extension ActivityMonitorRow {
             ended: job.failedAt
         )
         row.trail = ActivityTrail.text(job.stages)  // the one progress of a recipe run
+        row.failure = job.failure
         return row
     }
 
