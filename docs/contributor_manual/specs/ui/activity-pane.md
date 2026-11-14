@@ -383,7 +383,7 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   purpose, as the bug report's handle; open question 8). Not built: the row. *Tests:*
   `fichero-server/tests/unit/llm/test_every_failure_kind_has_a_fix_6354.py`;
   not yet written: ActivityErrorRowTests.swift.
-- `activity.pane.less-is-more-table` — **[GAP]** (#6441, decision 13; the review's less-is-more list, accepted by the manager
+- `activity.pane.less-is-more-table` — **[PARTIAL]** (#6441, decision 13; the review's less-is-more list, accepted by the manager
   2026-11-13 night) the table's acceptance, in cuts: NO section rows (NOW / UP NEXT / DONE TODAY / History / background): a flat
   table sorted by state then start, at most View › Group by State; the five status sentences become ONE bottom status bar, Finder
   style ("3 running · 12 waiting · $3.20 today"; the automatic state lives in Settings and the toolbar, not the table); progress is
@@ -393,7 +393,11 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   anything); Undo for Delete and Archive only; a double-click discloses. Create is Set Up / Run Recipe: Activity never starts work,
   so it has no "+" button. iPad and iPhone show the same pane with swipe actions for Delete and Archive and the same launch alert.
   Acceptance: the fixture rows render with no section header, one status bar line, one trail cell per row and at most one button;
-  a failed row's button is its fix; the table's view tree has no footer text. *Tests:* `ActivityLessIsMoreTests.swift` (to write).
+  a failed row's button is its fix; the table's view tree has no footer text. **Built (2026-11-14, app, not compiled):** the
+  one status bar at the window's foot (`ActivityTrail.statusBar`, `activity.statusbar`) and the trail as a recipe run's one
+  progress line in its row (no bar beside it). Not built: the section rows cut, two disclosure levels, one button per row, the
+  footer notice folded into the status bar, swipe actions. *Tests:* `fichero/Tests/Unit/general/Models/ActivityStepTrailTests.swift`;
+  not yet written: ActivityLessIsMoreTests.swift.
 - `activity.one-window` — **[GAP]** (#6441, decision 10; `activity.window.is-the-pane-plus-inspector`) ONE Activity window: the
   pane as its content, the selected row's details in the Inspector beside it, and nothing else of Activity's that opens a second
   window or a popover of its own. Inventory and what replaces each:

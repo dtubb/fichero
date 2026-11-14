@@ -52,7 +52,7 @@ extension ActivityMonitorRow {
     /// one job's, or a row that stands for many (the import's `derivatives`,
     /// `waiting:<kind>`), which the engine applies to each job not started.
     static func job(_ job: ActivityJob, libraryId: UUID?, projectName: String?) -> ActivityMonitorRow {
-        ActivityMonitorRow(
+        var row = ActivityMonitorRow(
             id: "\(libraryId?.uuidString ?? "")|job:\(job.id)",
             kind: .job,
             libraryId: libraryId,
@@ -68,10 +68,10 @@ extension ActivityMonitorRow {
             total: job.total,
             started: nil,
             seconds: nil,
-            costUsd: nil,
+            costUsd: job.costUsd,
             tokens: 0,
             errors: job.state.isFailed ? 1 : 0,
-            model: nil,
+            model: job.model,
             isLive: false,
             children: nil,
             engineKind: job.taskType,
@@ -81,6 +81,8 @@ extension ActivityMonitorRow {
             transientState: Phase.transientWord(job.state.otherName),
             ended: job.failedAt
         )
+        row.trail = ActivityTrail.text(job.stages)  // the one progress of a recipe run
+        return row
     }
 
     private static func node(_ node: ActivityJobNode, run: ActivityRun, library: String) -> ActivityMonitorRow {

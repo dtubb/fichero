@@ -143,7 +143,11 @@ struct ActivityGroupsView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title(row)).lineLimit(1)
                 let segments = stageSegments(row)
-                if !segments.isEmpty {
+                if !row.trail.isEmpty {
+                    // The one progress (`activity.pane.row-says-what-ran-on-what`): the stages' trail, no bar beside it.
+                    Text(row.trail).font(.caption).monospacedDigit().lineLimit(1)
+                        .accessibilityLabel(row.trail.replacingOccurrences(of: " → ", with: ", "))
+                } else if !segments.isEmpty {
                     ActivityStageBar(segments: segments)
                 } else if row.total > 0, row.phase == .running || row.phase == .paused {
                     ProgressView(value: Double(row.done), total: Double(row.total))

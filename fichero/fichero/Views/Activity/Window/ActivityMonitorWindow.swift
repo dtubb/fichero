@@ -106,6 +106,7 @@ struct ActivityMonitorWindow: View {
         } message: {
             Text("Completed, failed and stopped runs leave the list. Runs still going are kept.")
         }
+        .safeAreaInset(edge: .bottom) { statusBar }
         .safeAreaInset(edge: .bottom) { footer }
         // The window owns the run-list load (Daniel, 2026-08-28).
         .task(id: refreshKey) { await refreshAll() }
@@ -328,6 +329,29 @@ struct ActivityMonitorWindow: View {
             )
             await library.activityStore.loadRunsForToday(library: library)
         }
+    }
+}
+
+// MARK: - The one status bar (`activity.pane.less-is-more-table`, #6441)
+
+extension ActivityMonitorWindow {
+    /// "3 running · 12 waiting · $3.20 today", Finder style: the counts over every listed row, the spend over the rows that
+    /// carry a cost (the day's total comes with the per-provider line later).
+    private var statusBarText: String {
+        let rows = allRows
+        let spent = rows.compactMap(\.costUsd).reduce(0, +)
+        return ActivityTrail.statusBar(running: rows.filter { $0.phase == .running }.count,
+                                       waiting: rows.filter { $0.phase == .waiting }.count,
+                                       spentTodayUsd: spent > 0 ? spent : nil)
+    }
+
+    private var statusBar: some View {
+        Text(statusBarText)
+            .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12).padding(.vertical, 4)
+            .background(.bar)
+            .accessibilityIdentifier("activity.statusbar")
     }
 }
 

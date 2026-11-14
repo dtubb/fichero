@@ -75,6 +75,9 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     var children: [ActivityMonitorRow]?
     /// An archived row shown by Show Archived (`activity.pane.archive-old-runs`): greyed, Put Back instead of Archive.
     var isArchived = false
+    /// The one progress line of a recipe run (`activity.pane.row-says-what-ran-on-what`): "Read ✓ → Names ▶ 3/12"; empty
+    /// for a row with no stages.
+    var trail = ""
     /// A run's account (#5555): what its row says beyond the counts. `nil`
     /// on steps, pages, other jobs and runs the engine has no account for.
     var account: ActivityRunAccount?
