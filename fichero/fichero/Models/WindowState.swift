@@ -91,7 +91,9 @@ class WindowState {
     var activeMarkupTool: PreviewMarkupTool? = .select {
         // Another tool chosen puts the Knife down (`segment-editor.split-knife`).
         didSet {
-            if activeMarkupTool != oldValue { knifeArmed = false; markerArmed = false; orderArmed = false; brushArmed = false }
+            if activeMarkupTool != oldValue {
+                knifeArmed = false; markerArmed = false; orderArmed = false; brushArmed = false; paintArmed = false
+            }
         }
     }
 
@@ -230,6 +232,17 @@ class WindowState {
     /// `[` and `]`: the Brush smaller or larger, between 6 and 120 points.
     func resizeBrush(larger: Bool) {
         brushSize = min(max(brushSize * (larger ? 1.25 : 0.8), 6), 120)
+    }
+
+    /// The Paintbrush (`segment-editor.paintbrush`), a mode (P, or the tool row): a drag paints along a line of ink and
+    /// makes it a line. `paintWidth` is the brush's width on screen, in points, `[` and `]` change it.
+    var paintArmed = false
+    var paintStroke: [[Double]] = []
+    var paintWidth = 20.0
+
+    /// `[` and `]` on the Paintbrush: narrower or wider, between 4 and 120 points.
+    func resizePaint(larger: Bool) {
+        paintWidth = min(max(paintWidth * (larger ? 1.25 : 0.8), 4), 120)
     }
 
     /// The Order tool (`segment-editor.order-by-clicking`): while it is chosen, segments clicked in turn are numbered

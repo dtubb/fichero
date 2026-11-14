@@ -119,10 +119,13 @@ struct SegmentCreateRequest: Encodable, Equatable {
     var smoothing: Double?
     /// A Marker baseline: the engine draws the line's outline from the ink.
     var outlineFromBaseline: Bool?
+    /// A Paintbrush stroke, `[x, y, width in image pixels]` per point (`segment-editor.paintbrush`).
+    var brushStroke: [[Double]]?
 
     enum CodingKeys: String, CodingKey {
         case documentId = "document_id", passId = "pass_id", kind, anchor, baseline
         case parentSegmentId = "parent_segment_id", smoothing, outlineFromBaseline = "outline_from_baseline"
+        case brushStroke = "brush_stroke"
     }
 
     func encode(to encoder: any Encoder) throws {
@@ -135,6 +138,7 @@ struct SegmentCreateRequest: Encodable, Equatable {
         try container.encodeIfPresent(parentSegmentId, forKey: .parentSegmentId)
         try container.encodeIfPresent(smoothing, forKey: .smoothing)
         try container.encodeIfPresent(outlineFromBaseline, forKey: .outlineFromBaseline)
+        try container.encodeIfPresent(brushStroke, forKey: .brushStroke)
     }
 }
 
@@ -208,4 +212,33 @@ struct SegmentCreateAnchor: Encodable, Equatable {
 struct SegmentCreateShape: Encodable, Equatable {
     let kind: String
     let points: [[Double]]
+}
+
+/// The Paintbrush (`segment-editor.paintbrush`): a stroke painted along a line of ink becomes one line, the engine making
+/// the painted area its outline and the path its baseline.
+enum PaintbrushStroke {
+    /// The brush's width on screen (points) as image pixels, for a page drawn `viewWidth` points wide showing `visible`
+    /// of an image `imageWidth` pixels wide.
+    static func pixels(_ points: Double, viewWidth: Double, visibleWidth: Double, imageWidth: Double) -> Double {
+        guard viewWidth > 0 else { return points }
+        return points / viewWidth * visibleWidth * imageWidth
+    }
+
+    /// The one `segment.create`: a line on the stroke, every point carrying the brush's width, in `parentSegmentId`'s
+    /// region. Refused with fewer than two points.
+    static func create(
+        _ stroke: [[Double]], widthPixels: Double, documentId: String, passId: String, onPass: Segment?,
+        parentSegmentId: String?
+    ) -> Result<SegmentEdit.Call, SegmentEdit.Refusal> {
+        guard stroke.count >= 2, widthPixels > 0, stroke.allSatisfy({ $0.count >= 2 }) else { return .failure(.tooFew) }
+        let anchor = SegmentCreateAnchor(
+            documentId: documentId, pageId: onPass?.anchor.pageId, renditionId: onPass?.anchor.renditionId,
+            space: onPass?.anchor.space, shapes: [SegmentCreateShape(kind: "path", points: stroke)]
+        )
+        var request = SegmentCreateRequest(
+            documentId: documentId, passId: passId, kind: "line", anchor: anchor, baseline: nil, parentSegmentId: parentSegmentId
+        )
+        request.brushStroke = stroke.map { [$0[0], $0[1], widthPixels] }
+        return .success(SegmentEdit.Call(action: "segment.create", params: .create(request)))
+    }
 }

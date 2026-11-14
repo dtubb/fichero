@@ -193,6 +193,24 @@ extension ZoomableImagePreview {
         }
     }
 
+    /// PAINT a line (`segment-editor.paintbrush`): one `segment.create` with the brush's stroke, in the region holding most
+    /// of it; the engine makes the outline and the baseline. ⌘Z.
+    func drawPaintStroke(_ stroke: [[Double]], widthPixels: Double) {
+        guard let passId = shownArtifactlessPassId, let documentId, let store = segmentEditStore else {
+            Self.logger.notice("Paintbrush stroke not sent: the shown boxes are not a segment pass")
+            return
+        }
+        let onThePass = store.segments(documentId: documentId).filter { $0.passId == passId }
+        runSegmentEdit(
+            PaintbrushStroke.create(
+                stroke, widthPixels: widthPixels, documentId: documentId, passId: passId, onPass: onThePass.first,
+                parentSegmentId: SegmentShapes.containingRegion(for: stroke, among: onThePass)?.id
+            ),
+            documentId: documentId, name: "Paint Line"
+        )
+        windowState?.lastDrawnKind = "line"
+    }
+
     /// DELETE the selected boxes on an artifact-less pass. True when handled here.
     func deleteSelectedSegments() -> Bool {
         guard shownArtifactlessPassId != nil, let documentId else { return false }

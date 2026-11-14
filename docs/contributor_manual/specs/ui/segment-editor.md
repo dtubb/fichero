@@ -352,9 +352,12 @@ targets are at least 44 pt.
   stroke over an existing line that was not painted this session is a new line, never a silent
   merge. Width is remembered per window. *Built (2026-11-14):* the engine half: `segment.create` with `brush_stroke`
   (`[x, y, width]` per point, the width in image pixels) makes the line's outline from the painted area (discs joined
-  by bands, simplified) and its baseline from the path (`media/paint_stroke.py`), one undo. *Not built:* the tool in
-  the app, merging strokes painted in one session, pressure. *Tests:*
-  `fichero-server/tests/unit/api/test_segment_create_from_brush.py`.
+  by bands, simplified) and its baseline from the path (`media/paint_stroke.py`), one undo. In Edit Segments P (or
+  the tool row's Paintbrush) chooses it, a drag paints, letting go sends the stroke with the width in image pixels
+  (`PaintbrushStroke`), in the region holding most of it; `[` `]` change the width. *Not built:* the width slider and
+  its per-window memory (the width is per window but kept only while the window lives), merging strokes painted in
+  one session, pressure. *Tests:* `fichero-server/tests/unit/api/test_segment_create_from_brush.py`;
+  `fichero/Tests/Unit/general/Views/Source/PaintbrushToolTests.swift`.
 
 ### Lines and baselines
 
