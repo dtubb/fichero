@@ -395,6 +395,7 @@ _READ_ONLY_ROUTES = {
     # The segment editor's per-page reads (#6582), the same shape: `doc_id` in the path.
     ("GET", "/segments/document/{doc_id}/validate"),
     ("GET", "/segments/document/{doc_id}/simplify-preview"),
+    ("GET", "/segments/document/{doc_id}/doubtful"),
     ("GET", "/segments/document/{doc_id}/on-rendition/{rendition_id}"),
     # The scoped listing takes MANY documents, so it does not refuse -- it withholds the ones
     # the caller may not read and counts them (#5135). Its checks are

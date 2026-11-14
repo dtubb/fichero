@@ -7957,6 +7957,14 @@ def fichero_segments_list_document(
     return _rt.call("GET", f"/api/segments/document/{doc_id}", params={"area": area, "artifact_id": artifact_id, "kind": kind, "pass_id": pass_id})
 
 
+def fichero_segments_doubtful_lines(
+    *,
+    doc_id: Annotated[str, Field(description='Doc Id')],
+) -> Any:
+    "Doubtful Lines\n\nThe page's lines on its working pass by confidence, lowest first (`segment-editor.low-confidence-lens`): a line\nwith a validator finding first, then the least sure shape or word cut, then lines nothing measured. Reads, writes\nnothing; the Check lens lists it and Next Doubtful steps through it.\n\nRoute: GET /api/segments/document/{doc_id}/doubtful (toolset `segments`; reads)."
+    return _rt.call("GET", f"/api/segments/document/{doc_id}/doubtful")
+
+
 def fichero_segments_list_document_matches(
     *,
     doc_id: Annotated[str, Field(description='Doc Id')],
@@ -10367,6 +10375,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_segments_carry_across_match", "segments", "POST", "/api/segments/carry", fichero_segments_carry_across_match),
     GeneratedTool("fichero_segments_delete", "segments", "POST", "/api/segments/delete", fichero_segments_delete),
     GeneratedTool("fichero_segments_list_document", "segments", "GET", "/api/segments/document/{doc_id}", fichero_segments_list_document),
+    GeneratedTool("fichero_segments_doubtful_lines", "segments", "GET", "/api/segments/document/{doc_id}/doubtful", fichero_segments_doubtful_lines),
     GeneratedTool("fichero_segments_list_document_matches", "segments", "GET", "/api/segments/document/{doc_id}/matches", fichero_segments_list_document_matches),
     GeneratedTool("fichero_segments_on_a_rendition", "segments", "GET", "/api/segments/document/{doc_id}/on-rendition/{rendition_id}", fichero_segments_on_a_rendition),
     GeneratedTool("fichero_segments_preview_simplify", "segments", "GET", "/api/segments/document/{doc_id}/simplify-preview", fichero_segments_preview_simplify),

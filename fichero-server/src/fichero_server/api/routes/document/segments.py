@@ -600,6 +600,66 @@ def validate_document_segments(doc_id: str, db: Database = Depends(get_library_d
     return SegmentValidation(document_id=doc_id, problems=problems)
 
 
+class DoubtfulLine(BaseModel):
+    segment_id: str
+    #: The lowest confidence the line has (its shape's, its words' cuts'); 0 with a validator finding; None when
+    #: nothing measured it.
+    confidence: Optional[float] = None
+    #: Why it is doubtful, in words: "shape 42%", "cut 30%", and each finding's kind ("no-baseline", …).
+    reasons: list[str] = []
+
+
+class DoubtfulLines(BaseModel):
+    document_id: str
+    pass_id: Optional[str] = None
+    lines: list[DoubtfulLine]
+
+
+@router.get("/document/{doc_id}/doubtful", response_model=DoubtfulLines)
+@off_loop
+def doubtful_lines(doc_id: str, db: Database = Depends(get_library_database)) -> DoubtfulLines:
+    """The page's lines on its working pass by confidence, lowest first (`segment-editor.low-confidence-lens`): a line
+    with a validator finding first, then the least sure shape or word cut, then lines nothing measured. Reads, writes
+    nothing; the Check lens lists it and Next Doubtful steps through it."""
+    from fichero_server.api.routes.document.segment_readings import working_pass
+    from fichero_server.media import segment_checks
+    from fichero_server.models.reading_orders import ReadingOrder, ReadingOrderEntry
+
+    if not db.get(Document, doc_id):
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    pass_id = working_pass(db, doc_id).pass_id
+    rows = [row for row in db.query(Segment, document_id=doc_id) if row.deleted_at is None and row.pass_id == pass_id]
+    orders = [
+        (order, list(db.query(ReadingOrderEntry, order_id=order.id)))
+        for order in db.query(ReadingOrder, pass_id=pass_id) if order.deleted_at is None
+    ] if pass_id else []
+    findings: dict[str, list[str]] = {}
+    for problem in segment_checks.check_pass(rows, orders, {}):
+        for segment_id in problem["segment_ids"]:
+            findings.setdefault(segment_id, []).append(problem["kind"])
+    cuts: dict[str, float] = {}
+    for row in rows:
+        sure = (row.metadata or {}).get("cut_confidence")
+        if row.kind == "word" and row.parent_segment_id and isinstance(sure, (int, float)):
+            cuts[row.parent_segment_id] = min(cuts.get(row.parent_segment_id, 1.0), float(sure))
+
+    lines = []
+    for row in rows:
+        if row.kind != "line":
+            continue
+        reasons, measured = list(dict.fromkeys(findings.get(row.id, []))), []
+        if row.confidence is not None:
+            measured.append(row.confidence)
+            reasons.append(f"shape {round(row.confidence * 100)}%")
+        if row.id in cuts:
+            measured.append(cuts[row.id])
+            reasons.append(f"cut {round(cuts[row.id] * 100)}%")
+        confidence = 0.0 if findings.get(row.id) else (min(measured) if measured else None)
+        lines.append(DoubtfulLine(segment_id=row.id, confidence=confidence, reasons=reasons))
+    lines.sort(key=lambda line: (line.confidence is None, line.confidence or 0.0))
+    return DoubtfulLines(document_id=doc_id, pass_id=pass_id, lines=lines)
+
+
 class SimplifiedShape(BaseModel):
     segment_id: str
     #: None: the outline (or baseline) is already as simple as the tolerance allows.

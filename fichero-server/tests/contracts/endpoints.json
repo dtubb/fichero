@@ -11459,6 +11459,18 @@
       },
       {
         "method": "GET",
+        "path": "/segments/document/{doc_id}/doubtful",
+        "operation_id": "doubtful_lines_api_segments_document__doc_id__doubtful_get",
+        "summary": "Doubtful Lines",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "DoubtfulLines"
+      },
+      {
+        "method": "GET",
         "path": "/segments/document/{doc_id}/matches",
         "operation_id": "list_document_matches_api_segments_document__doc_id__matches_get",
         "summary": "List Document Matches",

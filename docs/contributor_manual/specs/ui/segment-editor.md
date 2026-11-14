@@ -504,10 +504,15 @@ See section 7.2 below for what exists. The design:
   Discard, each an action: accept creates the lines in the working pass, replace is a delete of
   the area's old lines and the creates in one batch (`undo.batches.whole`). Nothing is replaced
   without the person pressing it.
-- `segment-editor.low-confidence-lens` — **[GAP]** (→ #6185; app + engine) a Check lens over the page (`../source/checking.md`)
+- `segment-editor.low-confidence-lens` — **[PARTIAL]** (→ #6185; app + engine) a Check lens over the page (`../source/checking.md`)
   lists the page's lines by confidence, lowest first: the segmenter's line confidence where it
   gave one, the reading's confidence, a cut's confidence, and the validator's findings; a row
-  selects the line on the page; the head's **Next Doubtful** (⌘⌥N) steps through them.
+  selects the line on the page; the head's **Next Doubtful** (⌘⌥N) steps through them. *Built (2026-11-14):* the
+  engine half, `GET /api/segments/document/{doc_id}/doubtful`: the working pass's lines, a validator finding first
+  (confidence 0), then the least sure of the shape's confidence and its words' cut confidences, then lines nothing
+  measured; each with its reasons in words ("shape 42%", "cut 30%", "no-baseline"); reads only. *Not built:* the
+  reading's confidence (a reading carries none today), the lens, Next Doubtful. *Tests:*
+  `fichero-server/tests/unit/api/test_segments_doubtful.py`.
 - `segment-editor.layers` — **[PARTIAL]** (→ #5114; app; applies Q2 of the umbrella's rulings and `layers.toggle.one-menu-per-surface`)
   the What-to-show menu's segment entries are layers: regions, lines, baselines, words,
   characters, reading order, each on or off with an opacity, remembered per pane
