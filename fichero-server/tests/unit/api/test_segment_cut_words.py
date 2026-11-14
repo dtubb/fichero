@@ -142,6 +142,24 @@ class TestFromPositions:
         assert len(words) == 3, "the person's word stands for the first; the machine's two are cut once, not twice"
         assert set(second.result["replaced"]) == set(first.result["segment_ids"])
 
+    def test_a_persons_word_stands_only_where_its_outline_is_not_its_bounding_box(self, db, client):
+        # An L-shaped word: the first word's place, and a thin strip under the rest of the line. Its bounding box
+        # covers the whole line; its outline covers only the first word's centre.
+        doc, pass_id = _page(db, client)
+        line = _line(client, doc, pass_id)
+        _read(db, line, TEXT, POSITIONS)
+        person = client.post("/api/segments", json={
+            "document_id": doc.id, "pass_id": pass_id, "kind": "word", "parent_segment_id": line,
+            "anchor": {"document_id": doc.id, "polygon": [
+                [0.1, 0.24], [0.25, 0.24], [0.25, 0.33], [0.9, 0.33], [0.9, 0.34], [0.1, 0.34]]},
+        }).json()["id"]
+
+        _cut(db, [line])
+
+        words = _words(db, line)
+        assert person in [w.id for w in words]
+        assert len(words) == 3, "the person's word stands for the first; the other two are cut"
+
 
 class TestThePageReadsTheSame:
     def test_cutting_words_leaves_the_pages_text_as_it_was(self, db, client):

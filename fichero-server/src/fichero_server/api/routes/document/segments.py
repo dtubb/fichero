@@ -4067,6 +4067,7 @@ def _action_cut_words(db: Database, params: SegmentCutWordsParams, ctx: ActionCo
     made: dict[str, int] = {}
     replaced: list[str] = []
     from fichero_server.api.routes.document.reading_orders import remove_segment_entries
+    from fichero_server.models.geo import inside_polygon
 
     replaced_entries: list[dict] = []
     for row, source_id, source, words in plans:
@@ -4080,11 +4081,13 @@ def _action_cut_words(db: Database, params: SegmentCutWordsParams, ctx: ActionCo
             _note_forwarding(db, child, "deleted", ctx, audit_id, reason="cut words again")
             replaced.append(child.id)
         replaced_entries.extend(remove_segment_entries(db, [child.id for child in machine]))
-        kept_bounds = [line_join.bounds(o) for o in (line_join.outline_of(child.anchor) for child in kept) if o]
+        kept_outlines = [o for o in (line_join.outline_of(child.anchor) for child in kept) if o]
         for (start, end), polygon, piece, sure in words:
             wx0, wy0, wx1, wy1 = line_join.bounds(polygon)
             centre = ((wx0 + wx1) / 2, (wy0 + wy1) / 2)
-            if any(bx0 <= centre[0] <= bx1 and by0 <= centre[1] <= by1 for bx0, by0, bx1, by1 in kept_bounds):
+            # Inside the person's OUTLINE, not its bounding box: a slanted or L-shaped word's box covers words it
+            # does not.
+            if any(inside_polygon(centre, outline) for outline in kept_outlines):
                 continue  # a person's word is here already: matched by overlap, never duplicated
             word = _create_segment_impl(db, SegmentCreateParams(
                 document_id=row.document_id, pass_id=row.pass_id, kind="word", parent_segment_id=row.id,
