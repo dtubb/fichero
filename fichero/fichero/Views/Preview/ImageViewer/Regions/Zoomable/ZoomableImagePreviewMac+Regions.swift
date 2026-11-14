@@ -192,10 +192,15 @@ extension ZoomableImagePreview {
             )
             .contextMenu { regionContextMenu }
             // Simplify's slider (`segment-editor.vertices`): live while held, one action on release.
-            .onChange(of: windowState?.simplifyTolerance) { _, tolerance in previewSimplify(tolerance) }
+            // The Simplify slider acts on the pane whose selection the tools row acts on (the focused one).
+            .onChange(of: windowState?.simplifyTolerance) { _, tolerance in
+                if windowState?.focusedRegionSelection === regionSelection { previewSimplify(tolerance) }
+            }
             .onChange(of: windowState?.orderArmed) { _, armed in if armed == false { sendOrderClicks() } }
             .onChange(of: windowState?.simplifyRelease) { _, release in
-                if let release, isEditingSegments { simplifySelectedSegments(tolerance: release.tolerance) }
+                if let release, isEditingSegments, windowState?.focusedRegionSelection === regionSelection {
+                    simplifySelectedSegments(tolerance: release.tolerance)
+                }
             }
         }
     }
