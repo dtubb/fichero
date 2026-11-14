@@ -18,6 +18,8 @@ struct PreviewPointerEvent: Sendable {
     let clickCount: Int
     /// ⌥ held: removes a shape's point under the pointer in Edit Segments (Reshape).
     var option = false
+    /// ⌘ held: a drag of lines moves their shapes rather than reassigning them (`segment-editor.reassign-by-drag`).
+    var command = false
 }
 
 /// The seam through which AppKit hands the region layer its clicks and

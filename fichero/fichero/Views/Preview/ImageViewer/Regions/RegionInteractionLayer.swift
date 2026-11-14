@@ -84,6 +84,11 @@ struct RegionInteractionLayer: View {
     var onDrawShapeCommit: ((SegmentShapes.DrawKind, [[Double]]) -> Void)?
     /// Commit a Knife stroke (K held): its points, in the page's fractions. Nil: no Knife here.
     var onKnifeCommit: (([[Double]]) -> Void)?
+    /// What letting the selection go at a point (the page's fractions; ⌘ held?) would do (`segment-editor.reassign-by-drag`).
+    /// Nil: a drag always moves.
+    var lineDrop: (([Double], Bool) -> SegmentMover.Drop)?
+    /// Make the selected lines the lines of this region (nil: the page's).
+    var onReassignCommit: ((String?) -> Void)?
 
     /// Sticky-tool + check-cycle seams (Daniel, 2026-08-30). Optional so
     /// headless hosts stay safe.
@@ -98,6 +103,8 @@ struct RegionInteractionLayer: View {
     /// Live move drag: which box, and how far (view points); where it began.
     @State private var moveDrag: (index: Int, translation: CGSize)?
     @State private var moveStart: CGPoint?
+    /// What letting the move drag go here would do: a reassignment lights its region.
+    @State private var moveDrop: SegmentMover.Drop?
     /// Live rubber-band corners (view points).
     @State private var bandStart: CGPoint?
     @State private var bandCurrent: CGPoint?
@@ -119,6 +126,7 @@ struct RegionInteractionLayer: View {
                 ZStack(alignment: .topLeading) {
                     if drawsSelection { marqueeRects(in: geo.size) }  // else the document overlay does
                     selectedRegionRects(in: geo.size)
+                    dropTargetRect(in: geo.size)
                     liveReshape(in: geo.size)
                     liveDrawing(in: geo.size)
                     liveKnife(in: geo.size)
@@ -180,6 +188,19 @@ struct RegionInteractionLayer: View {
                         .offset(x: rect.minX + offset.width, y: rect.minY + offset.height)
                 }
             }
+        }
+    }
+
+    /// The region a drag of lines would reassign them to, lit while the drag is over it.
+    @ViewBuilder
+    private func dropTargetRect(in size: CGSize) -> some View {
+        if case .reassign(let target?) = moveDrop,
+           let box = allBoxes.first(where: { $0.segmentId == target }),
+           let rect = BoundingBoxGeometry.viewRect(normalized: box.bbox, in: size, visible: visible) {
+            RoundedRectangle(cornerRadius: 2)
+                .stroke(Color.accentColor, lineWidth: 3)
+                .frame(width: rect.width, height: rect.height)
+                .offset(x: rect.minX, y: rect.minY)
         }
     }
 
@@ -311,12 +332,13 @@ extension RegionInteractionLayer {
                 bandCurrent = point
             } else if let drag = moveDrag, let start = moveStart {
                 moveDrag = (drag.index, CGSize(width: point.x - start.x, height: point.y - start.y))
+                moveDrop = lineDrop?([event.point.x, event.point.y], event.command)
             }
         case .released:
             if let start = bandStart {
                 finishBand(from: start, to: point, in: size)
             } else if let drag = moveDrag {
-                finishMove(drag, in: size)
+                finishMove(drag, droppedAt: [event.point.x, event.point.y], command: event.command, in: size)
             }
         }
     }
@@ -528,12 +550,20 @@ extension RegionInteractionLayer {
     }
 
     /// A SELECTED region was dragged; the bbox commits on mouse-up. A drag
-    /// too small to mean anything leaves the region where it was.
-    private func finishMove(_ drag: (index: Int, translation: CGSize), in size: CGSize) {
-        defer { moveDrag = nil; moveStart = nil }
+    /// too small to mean anything leaves the region where it was. Lines let go
+    /// on another region (or none) are reassigned instead, their shapes left
+    /// where they are (`segment-editor.reassign-by-drag`).
+    private func finishMove(
+        _ drag: (index: Int, translation: CGSize), droppedAt point: [Double], command: Bool, in size: CGSize
+    ) {
+        defer { moveDrag = nil; moveStart = nil; moveDrop = nil }
         guard allBoxes.indices.contains(drag.index),
-              abs(drag.translation.width) >= 2 || abs(drag.translation.height) >= 2,
-              let moved = RegionHitTesting.moved(
+              abs(drag.translation.width) >= 2 || abs(drag.translation.height) >= 2 else { return }
+        if case .reassign(let target) = lineDrop?(point, command) {
+            onReassignCommit?(target)
+            return
+        }
+        guard let moved = RegionHitTesting.moved(
                   bbox: allBoxes[drag.index].bbox, byViewDelta: drag.translation,
                   in: size, visible: visible
               ) else { return }

@@ -193,6 +193,24 @@ extension ZoomableImagePreview {
         }
     }
 
+    /// What letting the selection go at `point` does (`segment-editor.reassign-by-drag`): judged against the segments of
+    /// the selection's own pass.
+    func dropOfSelection(at point: [Double], command: Bool) -> SegmentMover.Drop {
+        guard let documentId, let store = segmentEditStore else { return .move }
+        let dragged = selectedSegments(documentId)
+        let onPass = store.segments(documentId: documentId).filter { $0.passId == dragged.first?.passId }
+        return SegmentMover.drop(of: dragged, at: point, among: onPass, commandHeld: command)
+    }
+
+    /// REASSIGN the selected lines to a region (nil: the page) by a drag: one `segment.reparent`, which also places them
+    /// in every order by page position, one ⌘Z.
+    func reassignSelectedLines(into parent: String?) {
+        guard let documentId else { return }
+        runSegmentEdit(
+            SegmentEdit.reparent(selectedSegments(documentId), into: parent), documentId: documentId, name: SegmentMover.actionName
+        )
+    }
+
     /// SIMPLIFY the selected segments' outlines and baselines (`segment-editor.vertices`, ⌥⌘S): one ⌘Z.
     func simplifySelectedSegments() {
         guard let documentId else { return }
