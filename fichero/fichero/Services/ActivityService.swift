@@ -247,6 +247,9 @@ class ActivityService {
                 machine: body.machine,
                 activity: body.activity
             )
+        case .unprocessableContent(let error):  // the `archived` query gave the route a 422 (regenerated client)
+            let detail = try? error.body.json
+            throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, let payload):
             // A refusal keeps the engine's typed body (#5469): the footer names
             // WHY (the project's location vs the app's credentials).
