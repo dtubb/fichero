@@ -177,6 +177,9 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   synced folder" (the review's answers, 2026-11-14). Not compiled here. Not built: the alert's rows selected in Activity on
   Choose…; the folder's name on the new-material line.
   *Tests:* `fichero-server/tests/unit/jobs/test_launch_starts_nothing_6584.py`,
+  `fichero-server/tests/unit/jobs/test_launch_to_continue_end_to_end_6584.py` (quit with running, paused, waiting, automatic
+  and new-material work → open → nothing picked → all listed → Continue two → only those two run),
+  `fichero-server/tests/unit/jobs/test_rescan_at_open_holds_for_the_alert_6584.py`,
   `fichero-server/tests/unit/jobs/test_relaunch_resumes_only_running_work_6584.py`,
   `fichero-server/tests/unit/workflows/test_quit_paused_runs_resume_5357.py` (inverted: they stay paused),
   `fichero/Tests/Unit/general/Models/ActivityLaunchAlertTests.swift`.
