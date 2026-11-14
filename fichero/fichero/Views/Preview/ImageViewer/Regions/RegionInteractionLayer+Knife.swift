@@ -27,6 +27,29 @@ extension RegionInteractionLayer {
         return true
     }
 
+    /// The Marker in Edit Segments (`segment-editor.marker`): with M held, or the Marker chosen, a drag draws a freehand
+    /// stroke and letting go hands it to the host, closed when it ends within 12 points of its start.
+    func handleMarker(_ event: PreviewPointerEvent, in size: CGSize) -> Bool {
+        guard let windowState, onMarkerCommit != nil, drawsSegments else { return false }
+        guard windowState.markerHeld || windowState.markerArmed || !windowState.markerStroke.isEmpty else { return false }
+        let point = [Double(event.point.x), Double(event.point.y)]
+        switch event.phase {
+        case .pressed:
+            windowState.markerStroke = [point]
+        case .dragged:
+            guard !windowState.markerStroke.isEmpty else { return true }
+            windowState.markerStroke.append(point)
+        case .released:
+            let stroke = KnifeStroke.thinned(windowState.markerStroke + [point])
+            windowState.markerStroke = []
+            if windowState.markerHeld { windowState.markerStrokedWhileHeld = true }
+            if stroke.count >= 2 {
+                onMarkerCommit?(stroke, MarkerStroke.isClosed(stroke, size: size, visible: visible))
+            }
+        }
+        return true
+    }
+
     /// The segment editor's word about the edit just made, over the top of the page; it clears itself.
     @ViewBuilder
     func segmentNotice() -> some View {
@@ -62,10 +85,11 @@ extension RegionInteractionLayer {
         }
     }
 
-    /// The stroke so far, drawn over the page.
+    /// The Knife's stroke (red) or the Marker's (accent) so far, drawn over the page.
     @ViewBuilder
     func liveKnife(in size: CGSize) -> some View {
-        let stroke = windowState?.knifeStroke ?? []
+        let marking = windowState?.markerStroke.isEmpty == false
+        let stroke = marking ? windowState?.markerStroke ?? [] : windowState?.knifeStroke ?? []
         if stroke.count >= 2, visible.width > 0, visible.height > 0 {
             Path { path in
                 let points = stroke.map {
@@ -74,7 +98,7 @@ extension RegionInteractionLayer {
                 }
                 path.addLines(points)
             }
-            .stroke(Color.red, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+            .stroke(marking ? Color.accentColor : Color.red, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
         }
     }
 }

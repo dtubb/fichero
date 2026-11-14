@@ -1253,6 +1253,15 @@ class SegmentCreateParams(BaseModel):
     baseline: Optional[list[list[float]]] = Field(default=None, description="The line's baseline as [[x, y], ...] points in page coordinates.")
     parent_segment_id: Optional[str] = Field(default=None, description="The segment this one sits inside (a line's region).")
     kind_raw: Optional[str] = Field(default=None, description='The kind as the source format named it (e.g. a PAGE XML region type).')
+    #: `segment-editor.marker`: a freehand stroke, simplified on the way in so the record never holds a point per pixel.
+    smoothing: Optional[float] = Field(
+        default=None, ge=0, le=1,
+        description="Simplify the outline and baseline as drawn by hand: 0 keeps nearly every bend, 1 the fewest points.",
+    )
+    #: `segment-editor.marker`: a line drawn as a baseline gets its outline from the ink, as Redraw Outline does.
+    outline_from_baseline: bool = Field(
+        default=False, description="Draw the line's outline from its baseline and the page's ink.",
+    )
 
 
 def _invert_segment_create(before, after, ctx: ActionContext):
@@ -1381,6 +1390,7 @@ def _place_in_as_written(db: Database, segment: Segment, ctx: ActionContext) -> 
     # flag would be dead weight here, checked but never taken.
 )
 def _action_segment_create(db: Database, params: SegmentCreateParams, ctx: ActionContext):
+    params, outline = _marker_shapes(db, params)
     segment = _create_segment_impl(db, params, ctx)
     change_spec = ChangeSpec(
         domains=["segment"],
@@ -1393,10 +1403,68 @@ def _action_segment_create(db: Database, params: SegmentCreateParams, ctx: Actio
         document_ids=[segment.document_id],
     )
     answer: dict = {"segment_ids": [segment.id]}
+    if outline is not None:
+        answer["outline"] = outline
     if (segment.metadata or {}).get("outline_simplified"):
         # `segment-editor.edge.self-intersecting`: the answer says the outline was simplified.
         answer["simplified"] = True
     return answer, change_spec
+
+
+#: `segment-editor.marker`: the Douglas-Peucker tolerance, in image pixels, at smoothing 0 and 1.
+MARKER_TOLERANCE_PX = (0.5, 5.0)
+
+
+def _marker_shapes(db: Database, params: SegmentCreateParams) -> tuple[SegmentCreateParams, str | None]:
+    """A Marker stroke made ready to store (`segment-editor.marker`): the outline and baseline as drawn simplified at
+    `smoothing` in the page image's pixels, and a line drawn as a baseline given its outline from the ink. Answers the
+    params to create with and, when an outline was asked for, "drawn" or "none" (no ink along the baseline: the line
+    keeps its baseline alone, and the answer says so). Params with neither are returned untouched."""
+    if params.smoothing is None and not params.outline_from_baseline:
+        return params, None
+    from fichero_server.media import line_join, outline_from_baseline
+
+    document = db.get(Document, params.document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail=f"Document not found: {params.document_id}")
+    image, forward, back = _page_image_for_lines(db, document)
+    anchor, baseline = params.anchor, params.baseline
+    if params.smoothing is not None:
+        low, high = MARKER_TOLERANCE_PX
+        tolerance = low + (high - low) * params.smoothing
+        if anchor.polygon and len(anchor.polygon) > 3:
+            fewer = _fewer_points(anchor.polygon, True, 3, tolerance, forward, back)
+            if fewer is not None:
+                x0, y0, x1, y1 = line_join.bounds(fewer)
+                anchor = anchor.model_copy(update={"polygon": fewer, "rect": [x0, y0, x1 - x0, y1 - y0]})
+        if baseline and len(baseline) > 2:
+            baseline = _fewer_points(baseline, False, 2, tolerance, forward, back) or baseline
+    outline = None
+    if params.outline_from_baseline and baseline and len(baseline) >= 2:
+        neighbours = [
+            row.baseline for row in db.query(Segment, pass_id=params.pass_id)
+            if row.deleted_at is None and row.baseline and len(row.baseline) >= 2
+        ]
+        [drawn] = outline_from_baseline.outlines(image, [forward(baseline)], [forward(line) for line in neighbours], None)
+        outline = "none" if drawn is None else "drawn"
+        if drawn is not None:
+            polygon = [[round(x, 6), round(y, 6)] for x, y in back(drawn)]
+            x0, y0, x1, y1 = line_join.bounds(polygon)
+            anchor = anchor.model_copy(update={"polygon": polygon, "rect": [x0, y0, x1 - x0, y1 - y0], "shapes": None})
+    return params.model_copy(update={"anchor": anchor, "baseline": baseline}), outline
+
+
+def _fewer_points(points, closed: bool, least: int, tolerance: float, forward, back) -> list[list[float]] | None:
+    """Douglas-Peucker on `points` (page fractions) in the image's pixels; None when it would not drop a point or would
+    leave fewer than `least`."""
+    import cv2
+    import numpy as np
+
+    pixels = np.array(forward(points), dtype=np.float32).reshape(-1, 1, 2)
+    kept = cv2.approxPolyDP(pixels, tolerance, closed).reshape(-1, 2).tolist()
+    if len(kept) < least or len(kept) >= len(points):
+        return None
+    return [[round(x, 6), round(y, 6)] for x, y in back(kept)]
 
 
 class SegmentCreateManyParams(BaseModel):
@@ -3565,9 +3633,6 @@ def _simplified_shapes(
     """What Simplify makes of each row: (row, outline or None, baseline or None), None where the tolerance changes
     nothing; rows it changes not at all are left out. The ONE computation `segment.simplify` writes and its preview
     shows (`segment-editor.vertices`). Writes nothing."""
-    import cv2
-    import numpy as np
-
     from fichero_server.media import line_join
 
     if len({(row.document_id, row.pass_id) for row in rows}) > 1:
@@ -3580,11 +3645,7 @@ def _simplified_shapes(
     _image, forward, back = _page_image_for_lines(db, document)
 
     def fewer(points: list[list[float]], closed: bool, least: int) -> list[list[float]] | None:
-        pixels = np.array(forward(points), dtype=np.float32).reshape(-1, 1, 2)
-        kept = cv2.approxPolyDP(pixels, tolerance, closed).reshape(-1, 2).tolist()
-        if len(kept) < least or len(kept) >= len(points):
-            return None
-        return [[round(x, 6), round(y, 6)] for x, y in back(kept)]
+        return _fewer_points(points, closed, least, tolerance, forward, back)
 
     shapes = []
     for row in rows:

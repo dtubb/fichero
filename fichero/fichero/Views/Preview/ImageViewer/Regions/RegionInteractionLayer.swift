@@ -84,6 +84,8 @@ struct RegionInteractionLayer: View {
     var onDrawShapeCommit: ((SegmentShapes.DrawKind, [[Double]]) -> Void)?
     /// Commit a Knife stroke (K held): its points, in the page's fractions. Nil: no Knife here.
     var onKnifeCommit: (([[Double]]) -> Void)?
+    /// Commit a Marker stroke (M held or the Marker chosen): its points in the page's fractions, and whether it closed.
+    var onMarkerCommit: (([[Double]], Bool) -> Void)?
     /// What letting the selection go at a point (the page's fractions; ⌘ held?) would do (`segment-editor.reassign-by-drag`).
     /// Nil: a drag always moves.
     var lineDrop: (([Double], Bool) -> SegmentMover.Drop)?
@@ -332,7 +334,8 @@ extension RegionInteractionLayer {
         // Edit Segments on ONE selected shape: Reshape takes the press, the drag and the release.
         // An armed Polygon or Baseline tool owns the click first (#6476): a point placed inside a selected region
         // was taken by Reshape and the region, not the drawing, got it.
-        if handleKnife(event) || handleDrawShape(event, in: size) || handleReshape(event, in: size) { return }
+        if handleKnife(event) || handleMarker(event, in: size) || handleDrawShape(event, in: size)
+            || handleReshape(event, in: size) { return }
         if handleLasso(event, at: point, in: size) { return }
         switch event.phase {
         case .pressed:

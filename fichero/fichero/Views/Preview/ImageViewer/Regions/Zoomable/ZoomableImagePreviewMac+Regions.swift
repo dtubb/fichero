@@ -183,6 +183,7 @@ extension ZoomableImagePreview {
                 drawKind: windowState?.shapeKind ?? .box,
                 onDrawShapeCommit: { kind, points in drawSegmentShape(kind, points: points) },
                 onKnifeCommit: { stroke in knifeCut(stroke) },
+                onMarkerCommit: { stroke, closed in drawMarkerStroke(stroke, closed: closed) },
                 lineDrop: { point, command in dropOfSelection(at: point, command: command) },
                 onReassignCommit: { target in reassignSelectedLines(into: target) },
                 selection: regionSelection
@@ -529,13 +530,22 @@ extension ZoomableImagePreview {
         }
     }
 
-    /// K down and up in Edit Segments: the Knife held for one stroke, or chosen by a tap (`segment-editor.split-knife`).
-    /// Ignored outside Edit Segments and with a modifier held, so ⌘K and the rest keep their jobs.
-    func holdKnife(_ press: KeyPress) -> KeyPress.Result {
-        guard let windowState, let held = KnifeStroke.held(
-            pressed: press.phase == .down, modifiers: press.modifiers, isEditing: isEditingSegments, wasHeld: windowState.knifeHeld
+    /// K (the Knife, `segment-editor.split-knife`) or M (the Marker, `segment-editor.marker`) down and up in Edit
+    /// Segments: held for one stroke, or chosen by a tap. Ignored outside Edit Segments and with a modifier held, so ⌘K,
+    /// ⇧⌘M and the rest keep their jobs.
+    func holdSpringTool(_ press: KeyPress) -> KeyPress.Result {
+        guard let windowState else { return .ignored }
+        let marker = press.key == KeyEquivalent("m")
+        guard let held = KnifeStroke.held(
+            pressed: press.phase == .down, modifiers: press.modifiers, isEditing: isEditingSegments,
+            wasHeld: marker ? windowState.markerHeld : windowState.knifeHeld
         ) else { return .ignored }
-        if held { windowState.pressKnifeKey() } else { windowState.letGoOfKnifeKey() }
+        switch (marker, held) {
+        case (true, true): windowState.pressMarkerKey()
+        case (true, false): windowState.letGoOfMarkerKey()
+        case (false, true): windowState.pressKnifeKey()
+        case (false, false): windowState.letGoOfKnifeKey()
+        }
         return .handled
     }
 
@@ -554,7 +564,11 @@ extension ZoomableImagePreview {
         // Escape during a polygon or baseline drawing abandons just the drawing, nothing else.
         if windowState?.abandonDrawing() == true { return }
         // Then the Knife chosen by K or the tool row goes down, back to Select; the selection stays (one thing per press).
-        if windowState?.knifeArmed == true { windowState?.knifeArmed = false; return }
+        if windowState?.knifeArmed == true || windowState?.markerArmed == true {
+            windowState?.knifeArmed = false
+            windowState?.markerArmed = false
+            return
+        }
         isAddingRegion = false
         windowState?.previewMarquees.clear()
         regionSelection.clear()

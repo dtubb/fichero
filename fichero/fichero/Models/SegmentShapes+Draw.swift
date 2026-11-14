@@ -115,10 +115,14 @@ struct SegmentCreateRequest: Encodable, Equatable {
     let baseline: [[Double]]?
     /// The region a drawn line is drawn inside (`SegmentShapes.containingRegion`); nil at page level.
     var parentSegmentId: String?
+    /// A Marker stroke (`segment-editor.marker`): simplified by the engine on the way in, 0 to 1.
+    var smoothing: Double?
+    /// A Marker baseline: the engine draws the line's outline from the ink.
+    var outlineFromBaseline: Bool?
 
     enum CodingKeys: String, CodingKey {
         case documentId = "document_id", passId = "pass_id", kind, anchor, baseline
-        case parentSegmentId = "parent_segment_id"
+        case parentSegmentId = "parent_segment_id", smoothing, outlineFromBaseline = "outline_from_baseline"
     }
 
     func encode(to encoder: any Encoder) throws {
@@ -129,6 +133,49 @@ struct SegmentCreateRequest: Encodable, Equatable {
         try container.encode(anchor, forKey: .anchor)
         try container.encodeIfPresent(baseline, forKey: .baseline)
         try container.encodeIfPresent(parentSegmentId, forKey: .parentSegmentId)
+        try container.encodeIfPresent(smoothing, forKey: .smoothing)
+        try container.encodeIfPresent(outlineFromBaseline, forKey: .outlineFromBaseline)
+    }
+}
+
+/// The Marker (`segment-editor.marker`): a freehand stroke that ends near where it began is a closed outline, of the
+/// kind last drawn; any other is a baseline, a line whose outline the engine draws from the ink. The engine simplifies
+/// either on the way in, so the record never holds a point per pixel.
+enum MarkerStroke {
+    /// How near the end must come to the start, in screen points, for the stroke to close.
+    static let closeWithin = 12.0
+    /// The smoothing sent until the tool's popover sets one (not built yet).
+    static let smoothing = 0.5
+
+    /// Whether `stroke` (page fractions) ends within `closeWithin` points of its start, on a page drawn `size` big
+    /// showing `visible` of the image.
+    static func isClosed(_ stroke: [[Double]], size: CGSize, visible: CGRect) -> Bool {
+        guard stroke.count >= 3, let first = stroke.first, let last = stroke.last,
+              visible.width > 0, visible.height > 0 else { return false }
+        let across = (last[0] - first[0]) / visible.width * size.width
+        let down = (last[1] - first[1]) / visible.height * size.height
+        return (across * across + down * down).squareRoot() <= closeWithin
+    }
+
+    /// The one `segment.create` for a finished stroke: closed, a segment of `closedKind` outlined by it; open, a line on
+    /// it as a baseline, in `parentSegmentId`'s region. Refused with too few points.
+    static func create(
+        _ stroke: [[Double]], closed: Bool, closedKind: String, documentId: String, passId: String, onPass: Segment?,
+        parentSegmentId: String?
+    ) -> Result<SegmentEdit.Call, SegmentEdit.Refusal> {
+        guard stroke.count >= (closed ? 3 : 2), stroke.allSatisfy({ $0.count >= 2 }) else { return .failure(.tooFew) }
+        let anchor = SegmentCreateAnchor(
+            documentId: documentId, pageId: onPass?.anchor.pageId, renditionId: onPass?.anchor.renditionId,
+            space: onPass?.anchor.space, rect: closed ? SegmentShapes.bounds(stroke) : nil, polygon: closed ? stroke : nil,
+            shapes: closed ? nil : [SegmentCreateShape(kind: "path", points: stroke)]
+        )
+        var request = SegmentCreateRequest(
+            documentId: documentId, passId: passId, kind: closed ? closedKind : "line", anchor: anchor,
+            baseline: closed ? nil : stroke, parentSegmentId: closed ? nil : parentSegmentId
+        )
+        request.smoothing = smoothing
+        request.outlineFromBaseline = closed ? nil : true
+        return .success(SegmentEdit.Call(action: "segment.create", params: .create(request)))
     }
 }
 

@@ -90,7 +90,7 @@ class WindowState {
     /// first opening the markup bar.
     var activeMarkupTool: PreviewMarkupTool? = .select {
         // Another tool chosen puts the Knife down (`segment-editor.split-knife`).
-        didSet { if activeMarkupTool != oldValue { knifeArmed = false } }
+        didSet { if activeMarkupTool != oldValue { knifeArmed = false; markerArmed = false } }
     }
 
     /// Segment editing is a MODE of the Source view (`source.editor.segment-focus`, #5114,
@@ -159,10 +159,37 @@ class WindowState {
     func letGoOfKnifeKey() {
         if knifeHeld, !knifeStrokedWhileHeld {
             activeMarkupTool = .select
+            markerArmed = false
             knifeArmed = true
         }
         knifeHeld = false
         knifeStrokedWhileHeld = false
+    }
+
+    /// The Marker (`segment-editor.marker`), by the Knife's rules: M held is the Marker for one stroke, a tap of M
+    /// chooses it until another tool or Esc. The stroke so far is in the page's fractions.
+    var markerHeld = false
+    var markerArmed = false
+    var markerStrokedWhileHeld = false
+    var markerStroke: [[Double]] = []
+    /// The kind the last drawn segment was: a closed Marker stroke makes one of that kind (owner 2026-11-13).
+    var lastDrawnKind = "region"
+
+    /// M pressed in Edit Segments.
+    func pressMarkerKey() {
+        markerHeld = true
+        markerStrokedWhileHeld = false
+    }
+
+    /// M let go: after a stroke the Marker goes back; a tap chooses it.
+    func letGoOfMarkerKey() {
+        if markerHeld, !markerStrokedWhileHeld {
+            activeMarkupTool = .select
+            knifeArmed = false
+            markerArmed = true
+        }
+        markerHeld = false
+        markerStrokedWhileHeld = false
     }
 
     /// The Shape popover's Simplify slider (`segment-editor.vertices`): the tolerance in image pixels while the slider is
