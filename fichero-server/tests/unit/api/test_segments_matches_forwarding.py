@@ -1800,6 +1800,13 @@ _ROUTE_ID_CHECKS: dict[tuple[str, str], list[tuple[str, Any]]] = {
             {"segment_ids": ["legacy:x"], "expected_versions": {"legacy:x": 1}},
         )),
     ],
+    ("GET", "/segments/document/{doc_id}/on-rendition/{rendition_id}"): [],  # read-only: a page's segments in a rendition's frame
+    ("POST", "/segments/reparent"): [
+        ("segments[].segment_id", lambda doc_id, pass_id: (
+            "POST", "/api/segments/reparent",
+            {"segments": [{"segment_id": "legacy:x", "expected_version": 1}], "parent_segment_id": None},
+        )),
+    ],
     ("POST", "/segments/carry"): [],  # match_id is never provisional-shaped
     ("GET", "/segments/{segment_id}/reference"): [
         ("segment_id (path)", lambda doc_id, pass_id: ("GET", "/api/segments/legacy:x/reference", None)),
