@@ -5579,6 +5579,10 @@ class _Scheduler:
                 exc_info=True,
             )
             state, reason, error = "failed", failed_reason(kind_name, exc), exc
+            from fichero_server.llm import failure as _failure
+
+            if _failure.kind_of(exc)[0] == "library-closed":  # its project closed under it: paused, never failed (#6596)
+                state, reason = "paused", PAUSED_PROJECT_CLOSED
         finally:
             _current.job_id = None
             _current.lane = None
@@ -5625,7 +5629,7 @@ class _Scheduler:
         ):  # the same project, reopened while it ran: the row is written on the connection it has now
             current.execute(
                 f"UPDATE jobs SET state = ?, reason = ?, finished_at = ?{_clear_waiting_on(current)} WHERE id = ?",
-                [state, reason, utc_now(), job_id],
+                [state, reason, None if state == "paused" else utc_now(), job_id],
             )
             if state == "failed" and error is not None:
                 try:
@@ -5652,18 +5656,53 @@ class _Scheduler:
 #: library is forgotten by all of them.
 _SCHEDULERS: "weakref.WeakSet[_Scheduler]" = weakref.WeakSet()
 
-#: How long closing a library waits for its job threads to end.
+#: How long the engine shutting down waits for its job threads to end.
 STOP_TIMEOUT_SECONDS = 2.0
+
+#: How long closing ONE project waits for its running work to let go of the connection (#6596,
+#: `activity.engine.close-pauses-running-work`): a page in the middle of its write finishes it first.
+CLOSE_WAIT_SECONDS = 15.0
+
+#: A row paused because its project closed under it (never a failure, never the library's path).
+PAUSED_PROJECT_CLOSED = "Paused: the project closed"
+
+
+def _pause_for_close(db: "Database", live: list[str] | None) -> None:
+    """Closing a project PAUSES its waiting rows (`live` None), or its running ones (`live` the ids still running here):
+    "Paused: the project closed", for Continue on reopen. A run's own row is settled by its record (`closing_runs`)."""
+    rows = f"state = 'waiting' AND kind NOT IN ({', '.join('?' for _ in RUN_KINDS)})"
+    params: list[Any] = [*RUN_KINDS]
+    if live is not None:
+        if not live:
+            return
+        rows = f"state = 'running' AND id IN ({', '.join('?' for _ in live)}) AND kind NOT IN ({', '.join('?' for _ in RUN_KINDS)})"
+        params = [*live, *RUN_KINDS]
+    try:
+        db.execute(
+            f"UPDATE jobs SET state = 'paused', reason = ?, run_after = NULL{_clear_waiting_on(db)} WHERE {rows}",
+            [PAUSED_PROJECT_CLOSED, *params],
+        )
+    except Exception:  # noqa: BLE001 -- a close is never held up by saying so on a row
+        logger.warning("could not pause the work of a closing project", exc_info=True)
 
 
 def stop(
-    key: str | None, timeout: float = STOP_TIMEOUT_SECONDS
+    key: str | None, timeout: float | None = None
 ) -> list[threading.Thread]:
     """A library's database is closing (`key`, from `DatabaseManager._cache_key`), or every one is
     (None: the engine is shutting down). Its job threads stop looking at it, and a lane left with
-    no library ends its threads, waited for up to `timeout`. Called only by the database manager,
-    which owns when a library is open (#5503). Returns the threads still running a job at the
-    timeout; each ends when that job does."""
+    no library ends its threads, waited for up to `timeout` (a project closing: CLOSE_WAIT_SECONDS,
+    the engine shutting down: STOP_TIMEOUT_SECONDS). A closing project's waiting rows are paused first,
+    and its work still running at the timeout is paused before the connection closes (#6596). Called only by the
+    database manager, which owns when a library is open (#5503). Returns the threads still running a job at
+    the timeout; each ends when that job does."""
+    from fichero_server.db.manager import db_manager
+
+    if timeout is None:
+        timeout = CLOSE_WAIT_SECONDS if key is not None else STOP_TIMEOUT_SECONDS
+    closing = db_manager.open_database(key) if key is not None else None
+    if closing is not None:
+        _pause_for_close(closing, None)
     deadline = time.monotonic() + timeout
     left: list[threading.Thread] = []
     for scheduler in list(_SCHEDULERS):
@@ -5675,6 +5714,8 @@ def stop(
             timeout,
             ", ".join(t.name for t in left),
         )
+        if closing is not None:
+            _pause_for_close(closing, [i for s in list(_SCHEDULERS) for i in s.running_ids()])
     return left
 
 
