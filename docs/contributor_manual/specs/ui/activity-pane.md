@@ -78,6 +78,29 @@
 21. **Automatic and Run Now live in ONE place** (decision 6 made exact): the setting. The toolbar mode button, the detail view's
     copy of it and the window's copy go; see the inventory under `activity.automatic.one-place`.
 
+### Ruled 2026-11-14 afternoon (owner, looking at the Dev Local build; paraphrased; the tab set the manager's call at his request)
+
+22. **The window is Apple's Activity Monitor with an Inspector.** The toolbar carries the verbs and the views; the table is the
+    middle; the bottom is for figures and graphs; the Inspector stays on the right.
+23. **Four tabs, one table:** **Runs | Files | Cost | Where**. Each answers one question a person asks (what is working and
+    what needs me; what happened to my pages; what is it spending in money, tokens and time; where is it running: this Mac,
+    another Mac, the cloud, a cluster). The tab picks the grouping and the columns; the rows are the same. Recipes is a filter
+    token, not a tab (a run row already names its recipe). The tabs replace decision 4's Group by switch: Runs is By Run, Files
+    is By File.
+24. **Pause, Continue and Stop are toolbar buttons** in the Activity window AND in a main window while its Activity pane has the
+    focus, acting on the selection by the Mail rule; beside them the Inspector toggle.
+25. **The bottom panel shows figures and graphs, together**, per tab: Runs, pages per minute and the counts; Cost, spend over
+    time and today's by provider and tokens; Where, each place's load. The engine supplies the history (pages and spend per
+    minute) from what it already records.
+26. **Done is green**, failed red: success reads at a glance.
+27. **A log is the raw log**, every line as the engine wrote it, rendered whole and always (never "nothing written" for a row
+    that ran); its level filter is the only control. **Errors need answers**: a failure in the row or the Inspector says what
+    happened and the fix, never a path or an exception; the raw text is the log's and Copy Details'.
+28. **A kept export is ONE row per export**, updated in place ("Update kept export · Export folder · 12 pages"), never one
+    per page; its folder gone pauses it with Choose Folder… and nothing more is queued; a per-export switch turns the
+    automatic part off.
+29. **The row and the Inspector say the same numbers**: one time, one count, one cost, from one source.
+
 ## States and what a person may do in each
 
 One vocabulary for the engine's rows (`jobs.state` plus the reason words it decides), the table's glyph, and the verbs. The
@@ -141,13 +164,13 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
 - `activity.pane.is-a-pane-kind` — **[OK]** (built #6441: `PaneKind.activity`, the head's kind switcher, the sidebar's Activity mode shows the pane; #6441, decision 1; `panes.head.kind-switcher-everywhere`, `modes-to-panes.md`) `PaneKind` gains `.activity`: any pane can become Activity from its head's kind switcher, an Activity pane can be split, moved, saved in a workspace and restored like the others (`PaneList`, `PaneConfig`), and its `PaneScope.libraryId` says whose work it shows (nil: every open library merged, the project label as a prefix, `activity.window.project-prefix`; a library: that one). The sidebar `.activity` mode is RE-HOMED onto it: choosing Activity in the sidebar shows an Activity pane where the mode's job list stood, `ActivityJobsView` and the "activity-browser" opening selection are deleted, and the mode's selection is the pane's. Acceptance: a Reader pane switched to Activity shows the table scoped to the window's library; the workspace saved and restored has an Activity leaf; the sidebar's Activity shows the same pane. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityPaneKindTests.swift`, the existing `PaneHeadKindSwitcherParityTests.swift`.
 - `activity.pane.one-outline-table` — **[PARTIAL]** (built #6441: the flat two-level table, the remembered disclosure, double-click discloses, sortable columns (Name, State, Time, Cost, Model, Started); not built: pages under a multi-page file, which needs the engine's page nodes to name their document; #6441, decision 2; REVISED by the review 2026-11-13 night: flat and two levels) the pane's content is ONE outline table over the one job model, FLAT (no NOW / UP NEXT / DONE TODAY / History / background section rows: sorted by state then start, at most View › Group by State), TWO levels: a run row (or a job of its own) and, under a disclosure, its FILES (a document with its page count, pages under a further disclosure only for a multi-page document; a file row is one distinct `document_id` among the page nodes of the run's tree, in the tree's order, its state the worst of its pages' (failed over running over waiting over done) and its count the pages under it; a run whose tree names no document has no disclosure); steps and versions live in the Inspector (`activity.pane.versions-are-siblings` moves there); the columns and verbs are the one table and list above (no stage bar, no subtitle: the trail is the one progress; `errors` folded into state), sortable, the disclosure state remembered per row and per pane; a single click selects (multi-select as in Finder), a double-click DISCLOSES the row and selects it (one wording; decision 8); the context menu is the one verb list. The table is `ActivityMonitorWindow`'s `Table` moved into the pane kind, reading the same store (`ActivityStore+RunTrees`), not a new view. Acceptance: a recipe run over three documents opens to three file rows, a 120-page register to one file row that opens to its pages; the failed page's reason reads on its row; the disclosure state survives a window close and reopen; no section header row exists. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityPaneOutlineTests.swift`, the existing `ActivityTableTests.swift`.
 - `activity.pane.versions-are-siblings` — **[OK]** (built #6441: the versions in the Inspector for a run or file row, the one that counts marked, a one-page retry its own version; #6441, decision 3; `activity.retry.page-within-run`, `activity.retry.one-row`, `activity.run.record-keeps-all-history`) (shown in the Inspector's Activity section for the selected run, not as table rows: `activity.pane.one-outline-table`) when a step ran more than once — a Retry, Read Again, Use Next Candidate (`useNextCandidate`), a re-run with another model or settings — each run of it is a VERSION row, a SIBLING under the step (newest first), with its model (the card id), its version (the card id's `@version`, else the attempt number), its result (pages done, failed, the measured figure when the step has one), its time and its cost; the version whose results COUNT is marked ("counts"); the versions come from the job tree's attempts and the run record (`page_retry` marks a retried page, `run_account` prices each attempt), never from a second tree or a second read. Acceptance: a step read twice with two models shows two sibling rows naming each model, the second marked counts; retrying one failed page adds a version row holding that one page. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityPaneVersionsTests.swift`, the existing `ActivityTableTests.swift`.
-- `activity.pane.group-by-run-or-by-file` — **[OK]** (built #6441: the two groupings over the same rows, a selected file kept selected across the switch; #6441, decision 4) ONE switch in the pane header, **Group by: Run | File**, over the SAME data, a new pane opening BY RUN (decision 4, decided) with By File one click away: by Run is the outline above (a row and what it works on, `activity.pane.children-are-what-it-works-on`); by File lists each FILE (page or document) the scope's runs touched, a file row showing what runs on it NOW and expanding to its PATH THROUGH THE STEPS in run order (step › version, each with model, version, result, time, cost, the counting version marked), so a person reads a page's whole history in one place; the switch is per pane, remembered, and the selection survives it (the selected page stays selected in the other grouping); the data is the run trees and per-page states the store already holds (`loadRunTree`, `GET /api/activity/jobs/{id}/pages`) joined by document id in the app; for history older than the loaded trees the pane reads the runs that touched a file through `GET /api/activity/jobs` with a `document_id` filter — the ONE provisional contract point of this spec, one query parameter on an existing route, added only if the app-side join is too slow on a 100k-page library. Acceptance: Group by File on a project with two runs shows a page with two steps and, under the read step, the two versions with their models; switching back to Run keeps that page selected. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityPaneGroupByFileTests.swift`, the existing `ActivityTableTests.swift`.
+- `activity.pane.group-by-run-or-by-file` — **[OK]** (built #6441: the two groupings over the same rows, a selected file kept selected across the switch; #6441, decision 4) (superseded in its control by decision 23: the **Runs** and **Files** tabs of the window's toolbar, a main window's pane its head's lens menu, `activity.window.toolbar-tabs`; the grouping below is unchanged) ONE switch, **Group by: Run | File**, over the SAME data, a new pane opening BY RUN (decision 4, decided) with By File one click away: by Run is the outline above (a row and what it works on, `activity.pane.children-are-what-it-works-on`); by File lists each FILE (page or document) the scope's runs touched, a file row showing what runs on it NOW and expanding to its PATH THROUGH THE STEPS in run order (step › version, each with model, version, result, time, cost, the counting version marked), so a person reads a page's whole history in one place; the switch is per pane, remembered, and the selection survives it (the selected page stays selected in the other grouping); the data is the run trees and per-page states the store already holds (`loadRunTree`, `GET /api/activity/jobs/{id}/pages`) joined by document id in the app; for history older than the loaded trees the pane reads the runs that touched a file through `GET /api/activity/jobs` with a `document_id` filter — the ONE provisional contract point of this spec, one query parameter on an existing route, added only if the app-side join is too slow on a 100k-page library. Acceptance: Group by File on a project with two runs shows a page with two steps and, under the read step, the two versions with their models; switching back to Run keeps that page selected. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityPaneGroupByFileTests.swift`, the existing `ActivityTableTests.swift`.
 - `activity.pane.inspector-shows-the-selected-row` — **[PARTIAL]** (built #6441: `ActivityInspectorSection` in both Inspectors; not built: ActivityInspectorSectionTests.swift; #6441, decision 2; `activity.details.one-view`, #5561) the EXISTING Inspector column shows the selected row in an **Activity** section that IS the one details view (`ActivityDetailsView`: heading, state and why, stage bar and page grid for a run, pages done and failed with Read Again, what it made, details and log disclosures, resources, actions), mounted there and nowhere else: the Activity Detail window (`FicheroApp.swift:694`) and the details' mounts inside the window and the sidebar mode go; selecting a run, a step, a version or a file shows its details; with nothing selected the section shows nothing (`activity.window.no-empty-prose`); in a main window the Inspector shows the Activity section while the Activity pane holds the focus (the last pane clicked) and a row is selected, and the document's sections again once another pane takes the focus; the Inspector's other sections stay for a selected page (so a file row's Inspector shows the page's own sections too). Acceptance: selecting a version row shows its heading, model and pages in the Inspector; selecting nothing shows an empty section; no Activity Detail window exists. *Test:* `ActivityInspectorSectionTests.swift` (not yet written; the section per row kind, the empty state), the existing `ActivityDetailsTests.swift`.
 - `activity.window.is-the-pane-plus-inspector` — **[OK]** (built #6441: one window, the pane plus `.inspector`; the popover's Show and Open Activity focus an Activity pane already in the window, else open the window; #6441, decision 1) the generic Activity window (Window › Activity, ⌥⌘0 kept in the command table) is ONE Activity pane plus the Inspector column, built from the pane kind with a `PaneList` of one leaf, not a view tree of its own: `ActivityMonitorWindow`'s body becomes the pane; its selection is the window's ONE selection: the Activity window is a single `Window` scene, so its selection is the one `ActivityWindowSelectionState` (Show in Activity writes it, then opens the window), while an Activity pane in a main window writes that window's `WindowState.activityPick`, which the main window's Inspector reads; the toolbar status item's popover stays the summary (`activity.popover.summary`) and its Show opens this window or reveals an Activity pane already in the front window. Acceptance: the window's view tree is a pane list with one Activity leaf and the Inspector; Show in the popover brings the pane forward. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityWindowIsAPaneTests.swift`.
 - `activity.pane.history-kept-and-filterable` — **[OK]** (built #6441: one filter field, the tokens kept per pane; #6441, decision 5; `activity.window.history-group`, `activity.run.record-keeps-all-history`) history is KEPT (every ended run, of any kind, in the same flat table after the live rows, as the engine's `group: "earlier"` already marks it; no History section row; Archive Finished… and Archive Failed hide it, `activity.pane.archive-old-runs`) and FILTERABLE through one filter field in the pane header that takes tokens as Finder's search does — recipe, step, model, state, date (a day or a range), file, started by — combined with AND (typed as `key: value`, the value matched case-insensitively as a substring of the row's name, step trail, model, state words, file names or starter; `date:` takes `today`, `YYYY-MM-DD` or `YYYY-MM-DD..YYYY-MM-DD` against the row's start; text with no key matches the name; an unknown key is plain text), applied to both groupings, per pane and remembered; the engine's existing filters serve what they can (`GET /api/activity`'s `types`, `since`, `until`, `search`; the job list's kinds) and the rest is filtered in the app over the loaded trees; a filter that hides everything says "No activity matches" in one line. Acceptance: the token "model: Kraken" with "state: failed" shows the one failed Kraken version and its page; clearing the tokens shows everything; the tokens survive a relaunch. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityPaneFiltersTests.swift`, the existing `ActivityHistoryGroupTests.swift` and `test_activity_order_live_run_first.py`.
 - `activity.pane.run-automatically-is-a-setting` — **[PARTIAL]** (built #6441: Settings › General's switch, "Automatic work paused" in the status bar, Project › Activity's Pause / Resume Automatic Work, the toolbar's `ActivityModeButton` gone; not built: the project's own setting; #6441, owner ruling; `activity.window.background-group`, `activity.recipe.declares-automatic`) **Run Automatically** is a SETTING, not a toolbar mode: in Settings › General a plain label **Run automatically** with one sentence under it ("Fichero processes new and changed pages in the background: thumbnails, text, names and search."), and the same in each project's settings with "Use the app's setting" as its default (the project's answer wins when set); the toolbar's `ActivityModeButton` goes. The pane has no section rows (`activity.pane.less-is-more-table`), so it SHOWS the state only as the last item of its one status bar while automatic work is paused ("Automatic work paused"; nothing while it runs) and offers the two verbs in the command table, worded so that neither can be read as the other: **Pause Automatic Work** / **Resume Automatic Work** for the background lane; a row's verbs are the one verb list's (**Pause**, **Continue**, **Stop**, **Retry**), whose help and accessibility label name the row ("Pause Letters"). Acceptance: turning the setting off in Settings shows "Automatic work is paused" in every Activity pane and no background row starts; a running row's button reads Pause and a paused one's Continue (never Resume); the command reads "Pause Automatic Work". *Test:* `fichero/Tests/Unit/general/Models/RunAutomaticallySettingTests.swift`.
 - `activity.pane.commands-through-the-table` — **[PARTIAL]** (built #6441: the verbs in Project › Activity through the focused pane, Pause / Resume Automatic Work, Show in Activity in a page's context menu and File menu, View › Activity ▸; not built: Copy Link, which waits on `profile.links.one-link-two-forms` (#6439); #6441; `menus.one-command-table`, `menus.chords-are-standard-mac`, #6435) every Activity verb lives in the one command table and acts on the pane's selection wherever the pane is: Window › Activity (⌥⌘0, kept); Project › Activity › Stop, Read Again (as built, `menus.project.activity-stop-read-again`, now on the pane's focused selection); Pause / Continue, Retry, Archive, Put Back, Delete, Pause Automatic Work / Resume Automatic Work, **Show in Activity** (from a page or folder's context menu: reveals the file's row in Group by File), **Group by Run** / **Group by File** and **Show Archived** (View › Activity ▸, no chord), Archive Finished…, Archive Failed, Copy Link (the row's deep link, `profile.links.one-link-two-forms`); each appears in the menu bar, the pane's context menu and the Inspector's actions from the one definition; no new chord (the uniqueness test is the judge). Acceptance: the command table lists each verb once with its surfaces; Show in Activity on a page reveals its file row; the uniqueness test passes unchanged. *Test:* the existing `MenuShortcutUniquenessTests.swift`; `fichero/Tests/Unit/general/Models/ActivityPane/ActivityCommandsTests.swift`.
-- `activity.pane.one-glyph-per-state` — **[OK]** (built #6441: `ActivityPane.glyph`; #6441, decision 8) every row's STATE is ONE glyph, the system's where one exists, never a word beside it: waiting a hollow circle, running the indeterminate spinner (`ProgressView` circular, the Mac's), done a check in a filled circle, failed a RED X in a filled circle, paused the pause glyph, stopped the stop glyph, skipped a dash; the glyph carries the state's name as its accessibility label and tooltip, so the word exists for VoiceOver and hover only; no timestamp is written as text where a glyph or a bar says it (a running row shows its spinner and its trail, or "12 of 40" when it has no stages, not "started 14:02"; a done row shows its check and ONE time, the duration or the finish time by the column's choice, never both; "about 12 min left" stays, as the one time of a running row). Acceptance: a row in each of the seven states shows the glyph and no state word; a running row has no timestamp text; VoiceOver reads "running" on the spinner. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityStateGlyphTests.swift`, the existing `ActivityTableTests.swift`.
+- `activity.pane.one-glyph-per-state` — **[OK]** (built #6441: `ActivityPane.glyph`; #6441, decision 8) every row's STATE is ONE glyph, the system's where one exists, never a word beside it: waiting a hollow circle, running the indeterminate spinner (`ProgressView` circular, the Mac's), done a GREEN check in a filled circle (decision 26), failed a RED X in a filled circle, paused the pause glyph, stopped the stop glyph, skipped a dash; the glyph carries the state's name as its accessibility label and tooltip, so the word exists for VoiceOver and hover only; no timestamp is written as text where a glyph or a bar says it (a running row shows its spinner and its trail, or "12 of 40" when it has no stages, not "started 14:02"; a done row shows its check and ONE time, the duration or the finish time by the column's choice, never both; "about 12 min left" stays, as the one time of a running row). Acceptance: a row in each of the seven states shows the glyph and no state word; a running row has no timestamp text; VoiceOver reads "running" on the spinner. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityStateGlyphTests.swift`, the existing `ActivityTableTests.swift`.
 - `activity.pane.default-columns` — **[OK]** (built #6441: six on, four in the header menu, kept per pane; #6441, decision 8; REVISED by the review: Cost ON, the owner asked twice) the table's columns and their defaults are the one column table above (source glyph, name, state, trail, time, cost on; model, started by, started, kind glyph off), each a plain toggle in the header's menu (right-click, as every Mac table), remembered per pane; the Inspector shows every fact for the selected row, so nothing is lost by hiding a column. Acceptance: a fresh pane has the six default columns; turning Model on in the header menu adds it and survives a relaunch; the Inspector shows the model whether the column is on or off. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityDefaultColumnsTests.swift`, the existing `ActivityTableTests.swift`.
 - `activity.pane.error-row-shape` — **[PARTIAL]** (built #6441: the red X, the one line, the one fix button, pages failing for one reason said once with their count; not built: Download (the fix button opens Settings); #6441, decision 8; `runtime.errors-are-typed`, `designer.budget.refusal-offers-the-fix`, `source.recipe.check-names-every-fault`) a failed row is a RED X, ONE SHORT LINE (the typed refusal's sentence, cut to the text budget: "Qwen 2 VL is not downloaded", "No key for OpenRouter", "Page image unreadable"), and the FIX the refusal itself offers as the row's ONE button (its primary action; the other offers — Download, Add Key…, Read Again, Use Next Candidate, Skip Page, the offers the engine's typed errors and the recipe check already carry, never invented in the view — in the context menu and the Inspector), with the full reason, the log and the stack a disclosure in the Inspector on demand; several failed pages under one step collapse to one line with the count and one set of fix buttons when their refusal is the same. Acceptance: a step whose model is missing shows the red X, the one line and Download; a run with twelve pages failing for the same reason shows one error line with "12 pages" and Read Again; the Inspector has the full text. *Test:* `fichero/Tests/Unit/general/Models/ActivityErrorRowTests.swift`, the existing `ActivityDetailsTests.swift`.
 - `activity.pane.text-budget` — **[OK]** (built #6441: every cell held to eight words, no sentence; #6441, decision 8; the app-wide rule `menus.less-text-more-indicator`) a row is a LINE, never a paragraph: a word is a whitespace token; the NAME cell is exempt (a file's or recipe's name is cut with a middle ellipsis, as Finder does); a state line at most EIGHT words ("7 of 20 pages · about 12 min left"), an error line at most EIGHT words, no cell holds a sentence (no full stop inside a row), counts as figures with units ("3 pages", "2.1 MB", "$0.04"), no "Currently", "Successfully", "Please"; anything longer belongs in the Inspector. The budget is a test over the row model's strings, not a guideline. Acceptance: every row the fixture trees produce passes the word counts and holds no full stop; a failure's row words are the kind's own ≤ 8-word column (`run.fail.kinds-table`), never a sentence cut at a word boundary; the full sentence is in the Inspector. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityTextBudgetTests.swift`, the existing `ActivityRowSubtitleTests.swift`.
@@ -509,26 +532,28 @@ working, on which files, and what blocks it; the engine smarter about work that 
 
 ### Made exact 2026-11-14 (the spec review; the owner's open calls taken at the manager's recommendation, his to overturn)
 
-The wireframe these bullets describe (the Activity window: one Activity pane plus the Inspector; the same pane in a main
-window drops Time, Cost and the trail first as it narrows):
+The wireframe (revised 2026-11-14 afternoon, decisions 22-29: Activity Monitor's toolbar and bottom panel, the Inspector on
+the right; the same pane in a main window keeps the table and drops Time, Cost and the trail first as it narrows):
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ ● ● ●  Activity                       Group [ Run │ File ]    ⌕ Filter          state: failed ⊗         [◫]       │
-├──────────────────────────────────────────────────────────────────────────────┬──────────────────────────────────┤
-│    Name                            State                       Steps     Time │ ✗ Download bge-m3                │
-│ ▾⚙ Download bge-m3                 ✗ Can't load [Download Again]       3 min │   Search model · automatic       │
-│     🔒 Embed for search · 2,618     🔒                                         │ bge-m3 downloaded but could not  │
-│     🔒 Find text · Letters · 2,618  🔒                                         │ be loaded. Download it again.    │
-│ ▸👤 Export · article_jesuits        ✗ Folder is gone [Choose Folder…]    now  │ [Download Again] [Use e5 large]  │
-│ ▸⚙ Thumbnails · Diary 1912 · 14    ⏸ Stopped at quit [Continue]              │ Holds  2 rows · 2,618 pages      │
-│ ▾⚙ Prepare pages · Letters · 2,618 ◌        Thumbs ✓ → Text ▶ 11/2,618  ~2 h │ ▸ Details  ▸ Log                 │
-│     ◌ IMG_0412.jpg                  ◌                                          │ [Copy Details]                   │
-│ ▸👤 Read diaries · Register 3 · 120 ◌        Import ✓ → Read ▶ 34/120   12 m │                                  │
-│ ▸👤 Find names · Diary 1912 · 40    ✓        Done                      14 m │                                  │
-├──────────────────────────────────────────────────────────────────────────────┴──────────────────────────────────┤
-│ 2 running · 2 blocked · 2 need you · $0.50 today                                       Automatic work paused    │
-└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ ●●●  Activity      ⏸ ▶ ⏹   ⋯▾     [ Runs │ Files │ Cost │ Where ]                    ⌕ Filter            [◫]  │
+├────────────────────────────────────────────────────────────────────────────────┬───────────────────────────────┤
+│    Name                            State                      Steps        Time │ ✗ Download bge-m3             │
+│ ▾⚙ Download bge-m3                 ✗ Can't load [Download Again]          3 min │   Search model · automatic    │
+│     🔒 Embed for search · 2,618     🔒                                          │ bge-m3 downloaded but could   │
+│     🔒 Find text · Letters · 2,618  🔒                                          │ not be loaded.                │
+│ ▸⚙ Update kept export · Export     ⏸ Folder is gone [Choose Folder…]           │ [Download Again] [Use e5]     │
+│ ▸⚙ Thumbnails · Diary 1912 · 14    ⏸ Stopped at quit [Continue]                │ Holds 2 rows · 2,618 pages    │
+│ ▾⚙ Prepare pages · Letters · 2,618 ◌     Thumbs ✓ → Text ▶ 11/2,618        ~2 h │ ▸ Details                     │
+│     ◌ IMG_0412.jpg                  ◌                                           │ ▾ Log  (raw, every line)      │
+│ ▸👤 Read diaries · Register 3 · 120 ◌     Import ✓ → Read ▶ 34/120          12 m │ 14:00:14 info  Started bge-m3 │
+│ ▸👤 Find names · Diary 1912 · 40    ✓(green)  Done                         14 m │ 14:00:15 info  Fetching …     │
+├────────────────────────────────────────────────────────────────────────────────┴───────────────────────────────┤
+│ RUNS  ▁▂▅▇▆▃ pages/min (last hour)   │ 2 running · 3 waiting · 2 blocked · 2 need you │ $0.50 today            │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+  Cost tab's panel:  ▁▃▅ spend/hour │ today $0.50 · OpenRouter $0.42 · Gemini $0.08 │ 12,400 tokens
+  Where tab's panel: This Mac ▇▇▇░ 3 of 4 lanes │ Other Mac — │ Cloud 2 calls in flight │ Cluster —
 ```
 
 - `activity.pane.children-are-what-it-works-on` — **[PARTIAL]** (#6599, #6588; supersedes the "recipe › step › version ›
@@ -578,6 +603,61 @@ window drops Time, Cost and the trail first as it narrows):
 - `activity.engine.close-pauses-running-work` — **[BROKEN]** (#6596, #6588) closing a project PAUSES the work running in it
   ("Paused: the project closed") and waits for it to let go of the connection before closing it; never a failure with the
   library's path in its words. *Test:* not yet written: `test_close_pauses_running_work_6588.py`.
+
+### Ruled 2026-11-14 afternoon: the window, the bottom panel, the log, kept exports (decisions 22-29)
+
+- `activity.window.toolbar-tabs` — **[GAP]** (#6588; decision 23; supersedes the Group by control of
+  `activity.pane.group-by-run-or-by-file`) the Activity window's toolbar has ONE segmented control **Runs | Files | Cost |
+  Where** and a search field (the filter tokens, `activity.pane.history-kept-and-filterable`); each tab is a grouping plus a
+  column set over the same rows: **Runs** by run (Name, State, Steps, Time, Cost); **Files** by file (File, State, Steps it
+  went through as its trail, Last run); **Cost** by run (Name, Model, Tokens, Time, Spent, To finish); **Where** by run (Name,
+  Runs on: This Mac / Other Mac / Cloud / Cluster, Lane, State). The tab is per pane and remembered; a main window's Activity
+  pane offers the same four in its head's lens menu. Acceptance: each tab shows its columns; switching keeps a selected row
+  selected when it is listed in both. *Test:* not yet written: `ActivityToolbarTabsTests.swift`.
+- `activity.window.toolbar-verbs` — **[GAP]** (#6588; decision 24) **Pause**, **Continue** and **Stop** are toolbar buttons of
+  the Activity window and of a main window while its Activity pane holds the focus, enabled by the Mail rule over the
+  selection (the one verb list's definitions, `ActivityPaneVerb`), with the Inspector toggle; the More menu (⋯) keeps Show
+  Archived, Archive Finished… and Archive Failed. Acceptance: with a running and a paused row selected all three enable; with a
+  done row alone none does; the main window shows them only while the Activity pane has the focus. *Test:* not yet written:
+  `ActivityToolbarVerbsTests.swift`.
+- `activity.window.bottom-panel` — **[GAP]** (#6588; decision 25; supersedes the one-line status bar of
+  `activity.pane.less-is-more-table` for the window: a main window's pane keeps the one line) the window's foot is a panel per
+  tab, figures AND a graph together: **Runs** pages done per minute over the last hour (a sparkline) and "N running · N
+  waiting · N blocked · N need you"; **Files** pages done, failed and untouched today; **Cost** spend per hour over the day,
+  today's total by provider, tokens; **Where** each place's load (this Mac's lanes busy of their width, calls in flight to
+  the cloud, the other Mac and the cluster when connected, "—" when not). Engine: `GET /api/activity/history?minutes=60`
+  answers per minute `pages_done`, `pages_failed`, `spend_usd`, `tokens` (and per runtime), derived from what is already kept
+  (the jobs' `finished_at`, the spend ledger `llm/spend.py`, the calls' usage), no new recording; the panel reads it once a
+  minute and on the change stream. Acceptance: a fixture of 30 pages done over 10 minutes answers 10 buckets summing to 30; the
+  Cost panel's today total equals the ledger's; nothing is drawn when there is no history ("No work in the last hour").
+  *Test:* not yet written: `fichero-server/tests/unit/api/test_activity_history_6588.py`, `ActivityBottomPanelTests.swift`.
+- `activity.log.raw-always-rendered` — **[GAP]** (#6588; decision 27; `activity.window.log-levels`) the Inspector's Log is the
+  RAW log of the row (every line the engine wrote, its time, level and text, monospaced, wrapped, selectable), rendered whole
+  for every row that ran, a page row's log its own lines in its run's log; "Nothing written for this row yet" only for a row
+  that has not started; Problems / All / Everything filter it and change nothing else; Copy Log copies exactly what is shown.
+  Acceptance: a page that ran six steps shows its lines for each; a waiting row says nothing written. *Test:* the existing
+  `ActivityLogFilter` tests extended.
+- `activity.pane.done-is-green` — **[GAP]** (#6588; decision 26; `activity.pane.one-glyph-per-state`) the done glyph is
+  `checkmark.circle.fill` in green; partial the check in green with its dot; failed the red X; everything else secondary.
+  *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityStateGlyphTests.swift` extended.
+- `activity.pane.row-and-inspector-agree` — **[GAP]** (#6588; decision 29) a row's Time, count and Cost and its Inspector's
+  Elapsed, counts and cost are the same numbers from the same fields (a file row's time is its pages' summed work time and its
+  Inspector says so, "work time 48 s"; never a step's 9 s beside the row's 48 s); a time is written "48 s", "3 min", "2 h"
+  (no "secs.", no full stop, `activity.pane.text-budget`); local work's cost is blank and a priced call at $0 reads "Free",
+  never "$0.00" (`activity.pane.cost-per-row-and-totals`). Acceptance: the fixture's file row and its Inspector read the same
+  time; a local Kraken row has no cost; a $0 cloud call reads Free. *Test:* `ActivityDefaultColumnsTests.swift` extended.
+- `activity.pane.started-by-is-honest` — **[GAP]** (#6588; `activity.pane.icons-say-source-and-kind`) the source glyph is a
+  person only for a person's own act; the engine's own starters (`kept export`, `synced folder`, `automatic`, a schedule, a
+  trigger) are automatic. Acceptance: `started_by: "kept export"` maps to automatic. *Test:*
+  `fichero/Tests/Unit/general/Models/ActivityRowIconsTests.swift` extended.
+- `activity.kept-export.one-row-per-export` — **[GAP]** (#6588; decision 28; `kept_export.py`) the work changing queues ONE job
+  per kept export (subject the export's id, the pages to rewrite gathered in its detail), never one per page; while it waits,
+  more changes join it and push its quiet period; its row reads "Update kept export · <folder name> · N pages". When the
+  folder is gone the job ends PAUSED "The export folder is gone" with Choose Folder… and nothing more is queued for that export
+  until the folder is chosen again or Write Now is pressed; a per-export switch **Keep up to date** (on by default) turns the
+  automatic rewrite off, Write Now still writing. Acceptance: ten page edits queue one row naming ten pages; with the folder
+  removed, ten more edits add no row and the one row is paused with the fix; switching Keep up to date off queues nothing on
+  an edit. *Test:* not yet written: `fichero-server/tests/unit/jobs/test_kept_export_one_row_6588.py`.
 
 ## Build order
 
@@ -708,6 +788,32 @@ First, because every new install hits it: one real folder per model, load-checke
 - Behaviours: `activity.pane.names-what-it-works-on`
 - Tests: ActivityNamesWhatItWorksOnTests.swift (not yet written), fichero-server/tests/unit/jobs/test_row_says_what_ran_on_what_6441.py
 - Depends on: 2.5
+- Size: M
+
+### Stage 4 — the Activity Monitor window (owner 2026-11-14 afternoon)
+
+#### Step 4.1 — honest rows: green done, short times, Free and blank cost, honest source, row and Inspector agree (#6588)
+- Behaviours: `activity.pane.done-is-green`, `activity.pane.row-and-inspector-agree`, `activity.pane.started-by-is-honest`
+- Tests: fichero/Tests/Unit/general/Models/ActivityPane/ActivityStateGlyphTests.swift, fichero/Tests/Unit/general/Models/ActivityPane/ActivityDefaultColumnsTests.swift, fichero/Tests/Unit/general/Models/ActivityRowIconsTests.swift
+- Depends on: none
+- Size: S
+
+#### Step 4.2 — the toolbar: verbs and the four tabs (#6588)
+- Behaviours: `activity.window.toolbar-verbs`, `activity.window.toolbar-tabs`
+- Tests: ActivityToolbarVerbsTests.swift (not yet written), ActivityToolbarTabsTests.swift (not yet written)
+- Depends on: 4.1
+- Size: M
+
+#### Step 4.3 — the history and the bottom panel (#6588)
+- Behaviours: `activity.window.bottom-panel`
+- Tests: test_activity_history_6588.py (not yet written), ActivityBottomPanelTests.swift (not yet written)
+- Depends on: 4.2
+- Size: M
+
+#### Step 4.4 — the raw log; kept exports one row each (#6588)
+- Behaviours: `activity.log.raw-always-rendered`, `activity.kept-export.one-row-per-export`
+- Tests: test_kept_export_one_row_6588.py (not yet written)
+- Depends on: none
 - Size: M
 
 ## Test matrix
