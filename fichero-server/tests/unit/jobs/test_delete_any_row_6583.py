@@ -95,6 +95,21 @@ def test_delete_takes_a_run_with_everything_under_it(held, client):
     assert run not in _listed(client) and page not in _listed(client)
 
 
+def test_clear_finished_takes_every_ended_job_of_its_own_and_leaves_the_rest(held, client):
+    done = [_row(held, GROUP_KIND, f"cf:{i}", "done") for i in range(3)]
+    failed = _row(held, KIND, "cf:failed", "failed", "no model")
+    stopped = _row(held, KIND, "cf:stopped", "cancelled", "Stopped by you")
+    waiting = _row(held, KIND, "cf:waiting", "waiting")
+
+    r = client.post("/api/activity/jobs/delete", json={"states": ["done", "failed", "cancelled"]})
+
+    assert r.status_code == 200, r.text
+    assert sorted(r.json()["deleted_ids"]) == sorted([*done, failed, stopped])
+    assert _state(held, waiting)[0] == "waiting" and not _state(held, waiting)[2], "work still to do is left"
+    assert all(_state(held, d)[2] for d in done)
+    assert client.post("/api/activity/jobs/delete", json={"states": ["done"]}).json()["count"] == 0, "nothing left"
+
+
 def test_an_unknown_id_is_skipped_not_an_error(held, client):
     r = client.post("/api/activity/jobs/delete", json={"ids": ["no-such-job"]})
     assert r.status_code == 200, r.text

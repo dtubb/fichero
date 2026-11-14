@@ -3534,9 +3534,11 @@ def _under(db: "Database", job_id: str) -> list[str]:
     return found
 
 
-def delete_jobs(db: "Database", ids: list[str]) -> tuple[list[str], list[str]]:
+def delete_jobs(db: "Database", ids: list[str], states: list[str] | None = None) -> tuple[list[str], list[str]]:
     """Delete in Activity (`activity.window.delete-any-row`, #6583): each id a job row, or a kind's row
-    (`waiting:<kind>`, `paused:<kind>`: every job of that kind not started). A row still running on a lane is skipped.
+    (`waiting:<kind>`, `paused:<kind>`: every job of that kind not started); with `states`, every top-level job of its
+    own in one of those states as well (Clear Finished…: done, failed, cancelled; `activity.pane.automatic-runs-easy-to-delete`;
+    workflow runs and batches keep their own delete). A row still running on a lane is skipped.
     A waiting or paused row is cancelled first ("Deleted by you"), so no lane picks it; then the row and every row under
     it are marked `cleared_at` (kept for the tree, the record and a Retry, never listed again; `resume` ends a marked
     row instead of taking it up). Returns (the ids deleted, the ids skipped)."""
@@ -3547,6 +3549,17 @@ def delete_jobs(db: "Database", ids: list[str]) -> tuple[list[str], list[str]]:
     deleted: list[str] = []
     skipped: list[str] = []
     now = utc_now()
+    ids = list(ids)
+    if states:
+        marks = ", ".join("?" for _ in states)
+        run_marks = ", ".join("?" for _ in RUN_KINDS)
+        ids += [
+            r[0] for r in db.execute_fetchall(
+                f"SELECT id FROM jobs WHERE state IN ({marks}) AND parent_id IS NULL AND cleared_at IS NULL "
+                f"AND kind NOT IN ({run_marks}) ORDER BY created_at, id",
+                [*states, *RUN_KINDS],
+            ) if r[0] not in ids
+        ]
     for asked in ids:
         if asked.startswith(("waiting:", "paused:")):
             kind = asked.split(":", 1)[1]

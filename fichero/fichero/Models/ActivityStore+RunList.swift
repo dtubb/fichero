@@ -122,9 +122,9 @@ extension ActivityStore {
     /// `waiting:<kind>` goes with the jobs it stood for). Skipped ids (running now, unknown)
     /// keep their row, returned so the caller can say so. The same shape as `deleteRuns`.
     @discardableResult
-    func deleteJobs(ids: [String]) async -> RunDeleteOutcome {
+    func deleteJobs(ids: [String], states: [String]? = nil) async -> RunDeleteOutcome {
         do {
-            let answer = try await activityService.deleteJobs(ids: ids)
+            let answer = try await activityService.deleteJobs(ids: ids, states: states)
             let gone = Set(answer.deletedIds).union(ids.filter { $0.hasPrefix("waiting:") || $0.hasPrefix("paused:") })
             backgroundJobs.removeAll { gone.contains($0.id) }
             return RunDeleteOutcome(deletedIds: answer.deletedIds, skippedIds: answer.skippedIds)

@@ -270,12 +270,14 @@ struct ActivityMonitorWindow: View {
         notice = outcome.notice
     }
 
-    /// "Clear Finished" (#5016): the same soft delete as Delete, for every ended run in every project.
+    /// "Clear Finished" (#5016, widened #6583 `activity.pane.automatic-runs-easy-to-delete`): the same delete as Delete,
+    /// for every ended run AND every ended job of its own (done, failed, stopped: the automatic ones too) in every project.
     private func clearFinished() async {
         var skipped = 0
         for library in libraries {
             let outcome = await library.activityStore.deleteRuns(statuses: ActivityRunStatus.finishedEngineNames)
             skipped += outcome.skippedIds.count
+            skipped += await library.activityStore.deleteJobs(ids: [], states: ["done", "failed", "cancelled"]).skippedIds.count
         }
         openedID = nil
         notice = skipped > 0 ? "\(skipped) run\(skipped == 1 ? "" : "s") could not be cleared." : nil

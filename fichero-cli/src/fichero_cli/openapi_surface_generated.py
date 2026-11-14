@@ -652,7 +652,8 @@ def register_generated_openapi_commands(
     @target_app.command("delete-jobs")
     def activity_delete_jobs_post(
         ctx: typer.Context,
-        ids: list[str] = typer.Option(..., '--ids', help="job ids, or a kind's row (`waiting:<kind>`, `paused:<kind>`) A list: repeat the flag, or give the values comma-separated, or as JSON."),
+        ids: Optional[list[str]] = typer.Option(None, '--ids', help="job ids, or a kind's row (`waiting:<kind>`, `paused:<kind>`) A list: repeat the flag, or give the values comma-separated, or as JSON."),
+        states: Optional[list[str]] = typer.Option(None, '--states', help='also every top-level job of its own in these states (Clear Finished…: done, failed, cancelled) A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Delete Jobs (POST /api/activity/jobs/delete)."""
         def op_call(client: FicheroClient) -> Any:
@@ -660,8 +661,10 @@ def register_generated_openapi_commands(
             params = None
             payload = _build_json_payload({
                 "ids": ids,
+                "states": states,
             }, {
-                "ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Ids', 'description': "job ids, or a kind's row (`waiting:<kind>`, `paused:<kind>`)", 'x-cli-required': True},
+                "ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Ids', 'description': "job ids, or a kind's row (`waiting:<kind>`, `paused:<kind>`)", 'x-cli-required': False},
+                "states": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'States', 'description': 'also every top-level job of its own in these states (Clear Finished…: done, failed, cancelled)', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
