@@ -107,9 +107,8 @@ final class ActivityStore: ChangeEventConsumer {
     // Kraken Detect Regions, …) + rough process CPU%. `GET /api/activity/jobs`
     // is polled here — global, cheap, no SSE frame for it — and the two
     // surfaces observe these properties, so they cannot disagree about what is
-    // running or whether it FAILED. Updated in place, only when the value
-    // actually changes (no-wholesale-rerender): a steady 100%-idle poll never
-    // invalidates the observing views.
+    // running or whether it FAILED. Updated in place, only when the value actually
+    // changes (no-wholesale-rerender): a steady idle poll never invalidates the views.
     var backgroundJobs: [ActivityJob] = []
     var archivedRuns: [ActivityRun] = []  // Show Archived's runs (`workflow_run.archive`), read with `archivedJobs`
     var archivedJobs: [ActivityJob] = []  // Show Archived's rows (`activity.pane.archive-old-runs`): read on request, never polled
