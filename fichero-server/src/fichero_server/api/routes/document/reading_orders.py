@@ -231,6 +231,25 @@ def place_in_page_order(db: Database, order: ReadingOrder, segment: Segment) -> 
     """
     if any(row.segment_id == segment.id for row in db.query(ReadingOrderEntry, order_id=order.id)):
         return None
+    parent_entry_id, position = _page_order_slot(db, order, segment)
+    entry = ReadingOrderEntry(
+        order_id=order.id, segment_id=segment.id, position=position, parent_entry_id=parent_entry_id,
+    )
+    db.save(entry)
+    return entry
+
+
+def reposition_in_page_order(db: Database, order: ReadingOrder, entry: ReadingOrderEntry, segment: Segment) -> None:
+    """Move `segment`'s existing `entry` to where page order puts it under the segment's CURRENT parent
+    (`segment-editor.reassign-by-drag`). The entry keeps its id, so entries nested under it stay nested."""
+    entry.parent_entry_id, entry.position = _page_order_slot(db, order, segment, skip_entry_id=entry.id)
+    db.save(entry)
+
+
+def _page_order_slot(
+    db: Database, order: ReadingOrder, segment: Segment, *, skip_entry_id: str | None = None,
+) -> tuple[str | None, float]:
+    """The (parent entry, position) page order gives `segment` in `order`, ignoring `skip_entry_id`."""
     # A segment with a parent (a line drawn inside a region) is placed among that parent's children, where
     # page order puts it -- never at the top level beside the regions, which is where it landed before
     # (2026-09-28). A parent the order does not hold leaves it at the top level, as before.
@@ -240,7 +259,9 @@ def place_in_page_order(db: Database, order: ReadingOrder, segment: Segment) -> 
         None,
     )
     parent_entry_id = parent_entry.id if parent_entry is not None else None
-    entries = entries_in_sequence(db, order.id, parent_entry_id=parent_entry_id)
+    entries = [
+        row for row in entries_in_sequence(db, order.id, parent_entry_id=parent_entry_id) if row.id != skip_entry_id
+    ]
 
     key = _segment_order_key(segment)
     previous_position: float | None = None
@@ -254,15 +275,7 @@ def place_in_page_order(db: Database, order: ReadingOrder, segment: Segment) -> 
         else:
             following_position = row.position
             break
-
-    entry = ReadingOrderEntry(
-        order_id=order.id,
-        segment_id=segment.id,
-        position=midpoint(order.id, previous_position, following_position),
-        parent_entry_id=parent_entry_id,
-    )
-    db.save(entry)
-    return entry
+    return parent_entry_id, midpoint(order.id, previous_position, following_position)
 
 
 def order_for_text(db: Database, order_id: str) -> ReadingOrder:
