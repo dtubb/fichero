@@ -25,6 +25,24 @@ enum SegmentMover {
         return ids.contains { byId[$0]?.parentSegmentId != nil }
     }
 
+    /// What a drag of selected segments in Select does when it is let go (`segment-editor.reassign-by-drag`).
+    enum Drop: Equatable {
+        /// Move the shapes by the drag (the drag stayed in the lines' own region, ⌘ was held, or not every one is a line).
+        case move
+        /// Make them the lines of this region (nil: out to the page); their shapes stay where they are.
+        case reassign(into: String?)
+    }
+
+    /// The verb for `dragged` let go at `point` (the page's fractions): lines dropped on another region (the one holding the
+    /// point, the smaller on a tie: `SegmentShapes.containingRegion`) or on no region are reassigned; dropped inside the
+    /// region they share, or with ⌘ held, or when any is not a line, the shapes move.
+    static func drop(of dragged: [Segment], at point: [Double], among segments: [Segment], commandHeld: Bool) -> Drop {
+        guard !commandHeld, !dragged.isEmpty, dragged.allSatisfy({ $0.kind.lowercased() == "line" }) else { return .move }
+        let draggedIds = Set(dragged.map(\.id))
+        let target = SegmentShapes.containingRegion(for: [point], among: segments.filter { !draggedIds.contains($0.id) })?.id
+        return dragged.allSatisfy({ $0.parentSegmentId == target }) ? .move : .reassign(into: target)
+    }
+
     /// Why nothing was sent, in words.
     static func problem(_ refusal: SegmentEdit.Refusal) -> String {
         switch refusal {

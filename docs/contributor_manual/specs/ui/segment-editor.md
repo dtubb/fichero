@@ -249,8 +249,13 @@ targets are at least 44 pt.
   it; the head says which while dragging). One drop, one undo: the undo puts back the parents AND
   the order entries where they were (`segment.restore_versions` with `order_entries`), and a redo
   moves them again. *Built (2026-11-14):* the engine half (`segment.reparent` places by page position
-  in every order, `_reposition_entries`; the undo restores the entries). *Not built:* the drag.
-  *Tests:* `fichero-server/tests/unit/api/test_segment_reassign_by_drag.py`.
+  in every order, `_reposition_entries`; the undo restores the entries) and the drag in Edit Segments:
+  a drag of selected lines let go on another region, or on none, is one `segment.reparent`
+  (`SegmentMover.drop`, the region holding the point, the smaller on a tie), the target region's
+  outline lit while the drag is over it; inside their own region, or with ⌘, the box moves as before.
+  *Not built:* the head's word while dragging, a polygon moving with its box (`segment-editor.group-drag`).
+  *Tests:* `fichero-server/tests/unit/api/test_segment_reassign_by_drag.py`;
+  `fichero/Tests/Unit/general/Views/Source/ReassignDragTests.swift`.
 
 ### Selecting and moving
 

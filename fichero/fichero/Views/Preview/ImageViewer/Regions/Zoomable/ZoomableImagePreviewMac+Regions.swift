@@ -183,6 +183,8 @@ extension ZoomableImagePreview {
                 drawKind: windowState?.shapeKind ?? .box,
                 onDrawShapeCommit: { kind, points in drawSegmentShape(kind, points: points) },
                 onKnifeCommit: { stroke in knifeCut(stroke) },
+                lineDrop: { point, command in dropOfSelection(at: point, command: command) },
+                onReassignCommit: { target in reassignSelectedLines(into: target) },
                 selection: regionSelection
             )
             .contextMenu { regionContextMenu }
