@@ -202,6 +202,21 @@ def clear_spacy_pipelines() -> None:
     _SPACY_PIPELINES.clear()
 
 
+def bytes_once(folder: Path) -> int:
+    """The size of a folder on disk, each file counted once: a link and the blob it leads to are one file (#6591)."""
+    seen: set[tuple[int, int]] = set()
+    total = 0
+    for f in folder.rglob("*"):
+        try:
+            st = f.stat()
+            if f.is_file() and (st.st_dev, st.st_ino) not in seen:
+                seen.add((st.st_dev, st.st_ino))
+                total += st.st_size
+        except OSError:  # a link whose blob has not arrived, or a file gone mid-walk
+            continue
+    return total
+
+
 def _dir_bytes(folder: Path) -> int:
     return sum(f.stat().st_size for f in folder.rglob("*") if f.is_file())  # one model folder
 
@@ -266,8 +281,8 @@ def embedding_model_installed(model_id: str) -> bool | None:
     key = next((k for k in EMBEDDINGS_MODELS if k.lower() == model_id.lower()), None)
     if key is None:
         return None
-    folder = LocalModelManager()._embeddings_model_dir(key)
-    return folder.is_dir() and next(folder.rglob("*"), None) is not None
+    manager = LocalModelManager()
+    return manager._embedding_state(key, manager._embeddings_model_dir(key))[0]
 
 
 def spacy_pipeline_available(name: str) -> bool:
@@ -461,6 +476,26 @@ def _fastembed_source_repo(model_id: str) -> str | None:
     return None
 
 
+def _fastembed_hub_repo(fastembed_name: str) -> str | None:
+    """The Hub repo fastembed fetches a model from (its registered source), or None when it lists none."""
+    try:
+        from fastembed import TextEmbedding
+
+        for entry in TextEmbedding._list_supported_models():
+            if entry.model.lower() == fastembed_name.lower():
+                return entry.sources.hf
+    except (ImportError, AttributeError):
+        pass
+    return None
+
+
+def _fetch_into_folder(repo: str, files: list[str], folder: Path) -> None:
+    """The Hub repo's named files as real files in `folder` (no cache, no links)."""
+    from huggingface_hub import snapshot_download
+
+    snapshot_download(repo_id=repo, local_dir=str(folder), allow_patterns=files)
+
+
 class LocalModelManager:
     """Manages locally-downloaded AI models.
 
@@ -552,12 +587,8 @@ class LocalModelManager:
             # FastEmbed stores models in subdirectories
             # The directory name replaces / with -- in the model ID
             model_dir = self._embeddings_model_dir(model_id)
-            is_downloaded = model_dir.exists() and any(model_dir.rglob("*"))
-            size = (
-                sum(f.stat().st_size for f in model_dir.rglob("*") if f.is_file())
-                if is_downloaded
-                else 0
-            )
+            is_downloaded, state, error = self._embedding_state(model_id, model_dir)
+            size = bytes_once(model_dir) if is_downloaded else 0
 
             results.append(
                 LocalModelInfo(
@@ -571,10 +602,26 @@ class LocalModelManager:
                     expected_size_mb=info["disk_mb"],
                     path=str(model_dir) if is_downloaded else None,
                     metadata=info,
-                    download_state="installed" if is_downloaded else "idle",
+                    download_state=state,
+                    download_error=error,
                 )
             )
         return results
+
+    def _embedding_state(self, model_id: str, model_dir: Path) -> tuple[bool, str, str | None]:
+        """(is_downloaded, download_state, error). A model in its one folder (#6591) is installed only when every
+        file is there and its last load did not fail ("broken": the files exist but it does not load); an older
+        cache layout is installed when it has files, as before."""
+        from fichero_server.db import embed_process
+
+        folder = Path(embed_process.one_folder_path(self.embeddings_path, model_id))
+        if folder.is_dir() and model_dir == folder:
+            marker = folder / embed_process.BROKEN_MARKER
+            if marker.exists():
+                return False, "broken", marker.read_text().strip() or "The model's files are here but it does not load."
+            return embed_process.one_folder_ready(self.embeddings_path, model_id), "installed", None
+        present = model_dir.exists() and any(model_dir.rglob("*"))
+        return present, "installed" if present else "idle", None
 
     def download_embeddings_model(self, model_id: str) -> None:
         """Download an embeddings model via FastEmbed.
@@ -604,9 +651,30 @@ class LocalModelManager:
         space = search_embeddings.SUPPORTED_EMBEDDING_SPACES.get(model_id.lower())
         if space is not None:
             search_embeddings._register_fastembed_model_for_space(space)
-        TextEmbedding(model_name=space.fastembed_model_name if space else model_id, cache_dir=cache_dir)
+        fastembed_name = space.fastembed_model_name if space else model_id
+        repo = _fastembed_hub_repo(fastembed_name)
+        if repo is None:  # fastembed does not list it with a Hub source: its own fetch, as before
+            TextEmbedding(model_name=fastembed_name, cache_dir=cache_dir)
+        else:
+            self._fetch_embeddings_into_one_folder(model_id, fastembed_name, repo)
         search_embeddings.forget_load_failures()  # the model is here: search tries it afresh, not after its back-off
         logger.info(f"Embeddings model '{model_id}' downloaded successfully")
+
+    def _fetch_embeddings_into_one_folder(self, model_id: str, fastembed_name: str, repo: str) -> None:
+        """The model's files as plain files in ONE real folder, then loaded once: "installed" means it loads (#6591).
+        The Hub cache's sharded blob store keeps `model.onnx` and `model.onnx_data` in different real folders, which
+        onnxruntime refuses ("External data path escapes model directory")."""
+        from fichero_server.db import embed_process
+
+        folder = Path(embed_process.one_folder_path(self.embeddings_path, model_id))
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / embed_process.BROKEN_MARKER).unlink(missing_ok=True)
+        _fetch_into_folder(repo, embed_process.one_folder_files(model_id), folder)
+        try:
+            embed_process.load_text_embedding(fastembed_name, str(self.embeddings_path), 1)
+        except Exception as exc:  # noqa: BLE001 -- whatever the load raised is why this model is broken
+            (folder / embed_process.BROKEN_MARKER).write_text(f"{type(exc).__name__}: {exc}"[:500])
+            raise RuntimeError(f"The search model {model_id} downloaded but does not load: {exc}") from exc
 
     def delete_embeddings_model(self, model_id: str) -> int:
         """Delete a downloaded embeddings model.
@@ -619,7 +687,7 @@ class LocalModelManager:
         """
         model_dir = self._embeddings_model_dir(model_id)
         if model_dir.exists():
-            size = sum(f.stat().st_size for f in model_dir.rglob("*") if f.is_file())
+            size = bytes_once(model_dir)
             shutil.rmtree(model_dir)
             logger.info(f"Deleted embeddings model '{model_id}' ({size} bytes)")
             return size

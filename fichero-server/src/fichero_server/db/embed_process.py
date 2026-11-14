@@ -81,6 +81,53 @@ def _model_files(fastembed_name: str) -> list[str]:
     return ["config.json", "tokenizer.json", "model.onnx"]
 
 
+#: A file in a model's one folder that says its last load raised: the model's files are there but it does not load.
+BROKEN_MARKER = ".fichero-load-failed"
+#: What fastembed reads beside the model when it loads one (its own `allow_patterns`).
+_SIDE_FILES = ["tokenizer_config.json", "special_tokens_map.json", "preprocessor_config.json"]
+
+
+def _source_name(model_name: str) -> str:
+    """The Hub-side name a model's one folder is named after (the pinned e5's fastembed alias is its source)."""
+    from fichero_server.db.embeddings import SUPPORTED_EMBEDDING_SPACES
+
+    space = SUPPORTED_EMBEDDING_SPACES.get(model_name.lower())
+    return space.source_model_name if space else model_name
+
+
+def one_folder_path(cache_dir: str | os.PathLike, model_name: str) -> str:
+    """Where a model's files live as plain files in ONE real folder (#6591): the Hub's sharded blob store puts
+    `model.onnx` and `model.onnx_data` in different real folders, and onnxruntime refuses that."""
+    return os.path.join(os.fspath(cache_dir), _source_name(model_name).replace("/", "--"))
+
+
+def one_folder_files(model_name: str) -> list[str]:
+    """What to fetch into the one folder: the model's files and the tokenizer's."""
+    return [*_model_files(_fastembed_name(model_name)), *_SIDE_FILES]
+
+
+def one_folder_ready(cache_dir: str | os.PathLike, model_name: str) -> bool:
+    """Whether the model's one folder has every file as a real, non-empty file (not a link), and no load failed."""
+    folder = one_folder_path(cache_dir, model_name)
+    if not os.path.isdir(folder) or os.path.lexists(os.path.join(folder, BROKEN_MARKER)):
+        return False
+    try:
+        required = _model_files(_fastembed_name(model_name))
+    except ImportError:
+        return False
+    return all(os.path.isfile(p) and not os.path.islink(p) and os.path.getsize(p)
+               for p in (os.path.join(folder, f) for f in required))
+
+
+def _fastembed_name(model_name: str) -> str:
+    from fichero_server.db.embeddings import SUPPORTED_EMBEDDING_SPACES, _register_fastembed_model_for_space
+
+    space = SUPPORTED_EMBEDDING_SPACES.get(model_name.lower())
+    if space is not None:
+        _register_fastembed_model_for_space(space)
+    return space.fastembed_model_name if space else model_name
+
+
 def _cached(model_name: str, cache_dir: str) -> bool:
     """Whether every file of the model is in the cache, so loading needs no Hub call. A folder is not enough: a download
     that died leaves a partial one, and the child then fails to load it offline (#6218, the M4 rerun)."""
@@ -94,6 +141,8 @@ def _cached(model_name: str, cache_dir: str) -> bool:
     source = space.source_model_name if space else model_name
     folder = "models--" + (_fastembed_source_repo(source) or source).replace("/", "--")
     try:
+        if one_folder_ready(cache_dir, model_name):
+            return True
         if space is not None:
             _register_fastembed_model_for_space(space)
         files = _model_files(space.fastembed_model_name if space else model_name)
@@ -175,6 +224,9 @@ def load_text_embedding(model_name: str, cache_dir: str, threads: int) -> Any:
     from fastembed import TextEmbedding
 
     register_custom_model(model_name)
+    if one_folder_ready(cache_dir, model_name):  # the model fetched as plain files in one folder (#6591)
+        return TextEmbedding(model_name=model_name, cache_dir=cache_dir, threads=threads,
+                             specific_model_path=one_folder_path(cache_dir, model_name))
     try:  # only a load that fails this way touches the cache: a model that loads is never rewritten
         return TextEmbedding(model_name=model_name, cache_dir=cache_dir, threads=threads)
     except Exception as exc:  # noqa: BLE001 -- the cache's files are links into blobs/
