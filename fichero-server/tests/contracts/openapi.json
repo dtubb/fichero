@@ -4804,6 +4804,49 @@
         }
       }
     },
+    "/api/segments/document/{doc_id}/doubtful": {
+      "get": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Doubtful Lines",
+        "description": "The page's lines on its working pass by confidence, lowest first (`segment-editor.low-confidence-lens`): a line\nwith a validator finding first, then the least sure shape or word cut, then lines nothing measured. Reads, writes\nnothing; the Check lens lists it and Next Doubtful steps through it.",
+        "operationId": "doubtful_lines_api_segments_document__doc_id__doubtful_get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DoubtfulLines"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/segments/document/{doc_id}/simplify-preview": {
       "get": {
         "tags": [
@@ -66880,6 +66923,58 @@
           "count"
         ],
         "title": "DocumentsProposalList"
+      },
+      "DoubtfulLine": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "confidence": {
+            "type": "number",
+            "nullable": true,
+            "title": "Confidence"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment_id"
+        ],
+        "title": "DoubtfulLine"
+      },
+      "DoubtfulLines": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "pass_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Pass Id"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/DoubtfulLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "lines"
+        ],
+        "title": "DoubtfulLines"
       },
       "DownloadFailed": {
         "properties": {
