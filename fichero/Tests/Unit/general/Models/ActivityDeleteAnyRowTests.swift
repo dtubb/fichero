@@ -42,7 +42,8 @@ struct ActivityDeleteAnyRowTests {
     @Test("Archive takes only ended rows; an archived row offers Put Back, not Archive; a waiting or paused row neither")
     func archivable() {
         #expect(ActivityPaneVerb.archive.allows(row("done", .done, kind: .job, jobId: "j1")))
-        #expect(ActivityPaneVerb.archive.allows(row("failed", .failed, kind: .run, jobId: nil)))
+        #expect(!ActivityPaneVerb.archive.allows(row("failed", .failed, kind: .run, jobId: nil)),
+                "a run takes the engine's run archive, never the runs delete")
         #expect(ActivityPaneVerb.archive.allows(row("stopped", .cancelled, kind: .job, jobId: "j2")))
         #expect(!ActivityPaneVerb.archive.allows(row("paused", .paused, kind: .job, jobId: "j3")))
         #expect(!ActivityPaneVerb.archive.allows(row("queued", .waiting, kind: .job, jobId: "j4")))

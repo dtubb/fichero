@@ -54,7 +54,8 @@ enum ActivityPaneVerb: String, CaseIterable, Identifiable {
                                         || (row.phase == .failed && row.failure?.actions.contains("resume") == true))
         case .stop: return hasJob && row.phase.isLive
         case .retry: return row.retryJobId != nil && [.failed, .cancelled, .partial].contains(row.phase)
-        case .archive: return [.done, .failed, .cancelled, .partial].contains(row.phase)
+        // A run is archived by the engine's run archive; until then only a job of its own takes Archive (never a delete).
+        case .archive: return row.kind == .job && [.done, .failed, .cancelled, .partial].contains(row.phase)
         case .putBack: return false
         case .delete: return row.phase != .notRun && row.phase != .unknown
         }
