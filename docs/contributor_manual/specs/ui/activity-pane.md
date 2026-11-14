@@ -152,14 +152,17 @@ else moves a row out of paused, failed or stopped: not the open, not automatic w
   was deleted is opened and left for a minute with Run Automatically on: no new row, no model call, the failed rows unchanged, the
   parked recipe paused with the line above. *Tests:* `test_failed_is_never_requeued_6584.py` (to
   write), the existing `test_relaunch_resumes_only_running_work_6584.py` (the failed and derivative halves).
-- `activity.run.never-repeats-done-work` — **[GAP]** (#6584, decision 18; the owner's standing rule that every model call reuses an
+- `activity.run.never-repeats-done-work` — **[PARTIAL]** (#6584, decision 18; the owner's standing rule that every model call reuses an
   existing result for the same input and model first, `reviewer-no-model-reruns`) when a run continues (Continue after a pause or a
   quit, Retry on a failed run, a recipe re-run over the same pages) every page or item that already has a result for the same
   step, the same input (its text or image hash) and the same model is reused and marked skipped ("already done"), and only the
   missing or failed items go to the model; the run's counts say "6 reused · 4 read". Acceptance: a run over 10 pages whose model
   fails after 6, retried, makes exactly 4 model calls and ends done with 10 results; a second recipe run over the same 10 pages with
-  the same model makes 0 calls. *Tests:* `test_continue_makes_only_the_missing_calls_6584.py` (to
-  write; a counting stub provider), the existing `test_embed_once_after_reading_6186.py`.
+  the same model makes 0 calls. **Built (2026-11-13 night):** the Retry half, pinned: a run of 10 pages whose model
+  fails after 6, retried from its row, makes exactly 4 calls (`read_again` over the pages not done) and the new run
+  ends done with 4. Not pinned: a recipe re-run over pages already read with the same model making 0 calls. *Tests:*
+  `fichero-server/tests/unit/jobs/test_continue_makes_only_the_missing_calls_6584.py`; the existing
+  `fichero-server/tests/unit/recipes/test_embed_once_after_reading_6186.py`.
 - `activity.limits.one-cap-per-kind-across-everything` — **[PARTIAL]** (#6584, decision 16; built in part: the lanes `LANES` in
   `jobs.py` cap jobs per lane (`remote` 2, `network` 4, `local-ml` 1 with `LOCAL_READS_CEILING` 4 for the loaded local
   model), `MemoryShortError` and the throttle hold local work by memory and battery; NOT built: a cap per PROVIDER across runs,
