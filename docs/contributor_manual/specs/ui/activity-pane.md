@@ -253,14 +253,18 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   before). *Tests:*
   `fichero-server/tests/unit/llm/test_rate_limit_backs_off_then_pauses_6584.py`; the existing
   `fichero-server/tests/unit/workflows/test_paused_at_cap_event_6349.py`.
-- `activity.limits.load-a-model-once` — **[GAP]** (#6584, decision 17; built in part: `local_inference` keeps the engine's model
+- `activity.limits.load-a-model-once` — **[PARTIAL]** (#6584, decision 17; built in part: `local_inference` keeps the engine's model
   server's one loaded model and the lane's `loaded_model`/`loaded_used_at` (`activity.lane.group-by-model`); to verify for Kraken:
   `kraken_runtime.py` loads per call) one loaded instance per model per engine, shared by every job that needs it: pages are fed
   to it from the lane's queue (grouped by model, as the lane already orders), it stays loaded while work for it waits and for
   `MODEL_IDLE_GRACE_SECONDS` (120) after, and is released when idle or when `MemoryShortError` asks; no path loads a second copy of a model the
   engine holds. Acceptance: 20 queued Kraken pages across 3 runs load the Kraken model exactly once (a counting stub loader) and
-  release it once after the last; the same for the local reading model. *Tests:* `test_load_a_model_once_6584.py`
-  (to write), the existing `test_a_run_does_not_juggle_models_5939.py`.
+  release it once after the last; the same for the local reading model. **Already there, verified 2026-11-14 and pinned:**
+  Kraken's resident cache (`kraken_runtime._resident` under `_LOAD_LOCK`: one segmenter, one reader template with a bounded
+  copy pool, a replacement unloading the one held, `release_resident_models` when idle or before another heavy model) and the
+  engine's one local model server. Not verified: the idle grace as a named constant (`MODEL_IDLE_GRACE_SECONDS` 120) and the
+  reader pool's size against the cap. *Tests:* `fichero-server/tests/unit/llm/test_load_a_model_once_6584.py`; the existing
+  `fichero-server/tests/unit/jobs/test_a_run_does_not_juggle_models_5939.py`.
 - `activity.pane.row-says-what-ran-on-what` — **[PARTIAL]** (#6441, decision 12) every row of the table answers what ran on what: a
   RUN row names its recipe (or its kind in words for a job of its own), the folder, document or pages it runs over ("Register 3
   · 120 pages", "Folder Letters · 14 files"; never an id), its step NOW ("Read lines ▶ 34/120"), its model or provider, who started
