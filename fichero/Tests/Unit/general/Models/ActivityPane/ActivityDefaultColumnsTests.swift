@@ -35,4 +35,15 @@ struct ActivityDefaultColumnsTests {
         #expect(ActivityPane.costLine(unpriced) == "Not priced")
         #expect(ActivityPane.costLine(ActivityPaneFixture.row("z", .done, costUsd: 0)) == "Free", "a $0 priced call, never $0.00")
     }
+
+    @Test("a time is one short unit: 48 s, 3 min, 2 h; never secs. or a full stop")
+    func shortTimes() {
+        #expect(ActivityMonitorRow.duration(48) == "48 s")
+        #expect(ActivityMonitorRow.duration(170) == "3 min")
+        #expect(ActivityMonitorRow.duration(3_570) == "1 h")
+        #expect(ActivityMonitorRow.duration(7_300) == "2 h")
+        var ended = ActivityPaneFixture.row("t", .done, started: ActivityPaneFixture.day)
+        ended.ended = ActivityPaneFixture.day.addingTimeInterval(48)
+        #expect(ActivityPane.timeLine(ended) == "48 s")
+    }
 }

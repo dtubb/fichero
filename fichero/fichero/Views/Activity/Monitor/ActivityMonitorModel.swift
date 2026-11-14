@@ -347,9 +347,12 @@ struct ActivityMonitorRow: Identifiable, Equatable {
         }
     }
 
+    /// A time as the table writes it (`activity.pane.row-and-inspector-agree`): ONE rounded unit, "48 s", "3 min", "2 h";
+    /// never "48 secs." (the system's abbreviated style, with its full stop) and never two units in a cell.
     static func duration(_ seconds: Double) -> String {
-        Duration.seconds(seconds.rounded()).formatted(
-            .units(allowed: [.hours, .minutes, .seconds], width: .abbreviated, maximumUnitCount: 2)
-        )
+        let seconds = max(0, seconds.rounded())
+        if seconds < 60 { return "\(Int(seconds)) s" }
+        if (seconds / 60).rounded() < 60 { return "\(Int((seconds / 60).rounded())) min" }
+        return "\(Int((seconds / 3600).rounded())) h"
     }
 }
