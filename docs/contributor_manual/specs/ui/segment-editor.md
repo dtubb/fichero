@@ -378,8 +378,13 @@ targets are at least 44 pt.
   half: `reading_order.sequence` (the clicked segments, all at one level of the order, in click
   order, first or right after `after_segment_id`; the level numbered 1, 2, 3 again; refused with
   segments from two levels or not in the order), its undo `reading_order.restore_positions` and the
-  redo; both refresh the page's cached text. *Not built:* the Order tool in the app. *Tests:*
-  `fichero-server/tests/unit/api/test_reading_order_renumber_by_clicks.py`.
+  redo; both refresh the page's cached text. The Order tool in Edit Segments (O, or the tool row's
+  Order): the page shows its order numbers, each click numbers a segment in an accent badge (a second
+  click takes it away, ⇧ on the first continues after the selected segment), and leaving the tool
+  (O, Return, Esc, another tool) sends one `reading_order.sequence` in the pass's `as-written` order.
+  *Not built:* ordering a named order the Segments pane chose (the Preview knows only `as-written`).
+  *Tests:* `fichero-server/tests/unit/api/test_reading_order_renumber_by_clicks.py`;
+  `fichero/Tests/Unit/general/Views/Source/OrderToolTests.swift`.
 - `segment-editor.order-overlay` — **[PARTIAL]** (→ #4941; app) the order is visible as the gradient the umbrella
   fixed (`source.editor.colour.reading-order-gradient`) and, with the overlay on, as numbers at
   each segment's start and a thin arrowed line from each to the next; the overlay is a layer

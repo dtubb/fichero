@@ -96,7 +96,7 @@ extension ZoomableImagePreview {
             documentId: documentId
         )
         overlay.transcriptionFamily = transcriptionFont?.family
-        overlay.showsOrderNumbers = showOrderNumbers || windowState?.orderOverlayFlash == true
+        overlay.showsOrderNumbers = showOrderNumbers || windowState?.orderOverlayFlash == true || windowState?.orderArmed == true
         overlay.showsBoundingBoxes = showBoundingBoxes
         return overlay
     }
@@ -191,6 +191,7 @@ extension ZoomableImagePreview {
             .contextMenu { regionContextMenu }
             // Simplify's slider (`segment-editor.vertices`): live while held, one action on release.
             .onChange(of: windowState?.simplifyTolerance) { _, tolerance in previewSimplify(tolerance) }
+            .onChange(of: windowState?.orderArmed) { _, armed in if armed == false { sendOrderClicks() } }
             .onChange(of: windowState?.simplifyRelease) { _, release in
                 if let release, isEditingSegments { simplifySelectedSegments(tolerance: release.tolerance) }
             }
@@ -535,6 +536,17 @@ extension ZoomableImagePreview {
     /// ⇧⌘M and the rest keep their jobs.
     func holdSpringTool(_ press: KeyPress) -> KeyPress.Result {
         guard let windowState else { return .ignored }
+        if press.key == KeyEquivalent("o") {
+            // The Order tool is a mode, not spring-loaded: O chooses it and O again leaves it (sending the clicks).
+            guard press.phase == .down, isEditingSegments, press.modifiers.subtracting(.capsLock).isEmpty else { return .ignored }
+            if !windowState.orderArmed {
+                windowState.activeMarkupTool = .select
+                windowState.knifeArmed = false
+                windowState.markerArmed = false
+            }
+            windowState.orderArmed.toggle()
+            return .handled
+        }
         let marker = press.key == KeyEquivalent("m")
         guard let held = KnifeStroke.held(
             pressed: press.phase == .down, modifiers: press.modifiers, isEditing: isEditingSegments,
@@ -552,6 +564,8 @@ extension ZoomableImagePreview {
     /// Return while a polygon or baseline is being drawn: finish it, as a click on its first point or a double-click does.
     /// Ignored (the key keeps its other jobs) with no drawing or too few points.
     func finishShapeDrawingFromKey() -> KeyPress.Result {
+        // Return leaves the Order tool, which sends its clicks (`segment-editor.order-by-clicking`).
+        if windowState?.orderArmed == true { windowState?.orderArmed = false; return .handled }
         guard let windowState, windowState.drawingPoints.count >= windowState.shapeKind.minimumPoints else { return .ignored }
         let points = windowState.drawingPoints
         windowState.drawingPoints = []
@@ -564,9 +578,10 @@ extension ZoomableImagePreview {
         // Escape during a polygon or baseline drawing abandons just the drawing, nothing else.
         if windowState?.abandonDrawing() == true { return }
         // Then the Knife chosen by K or the tool row goes down, back to Select; the selection stays (one thing per press).
-        if windowState?.knifeArmed == true || windowState?.markerArmed == true {
+        if windowState?.knifeArmed == true || windowState?.markerArmed == true || windowState?.orderArmed == true {
             windowState?.knifeArmed = false
             windowState?.markerArmed = false
+            windowState?.orderArmed = false
             return
         }
         isAddingRegion = false
