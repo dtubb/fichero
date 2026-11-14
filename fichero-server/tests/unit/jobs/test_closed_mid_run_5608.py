@@ -64,7 +64,9 @@ def _account(client, thread_id):
 
 
 def _listed(client, job_id):
-    return {j["id"]: j for j in client.get("/api/activity/jobs").json()["jobs"]}[job_id]
+    body = client.get("/api/activity/jobs").json()
+    # a live recipe run is listed once, as a live block, not also as a row (`activity.summary.one-row-per-run-in-list`, #5960)
+    return {j["id"]: j for j in [*body["jobs"], *body["activity"]["live"]]}[job_id]
 
 
 def _close_and_open(test_package, every=False):
