@@ -18,6 +18,22 @@ extension ZoomableImagePreview {
         segmentService.map { SegmentStore.shared(for: $0) }
     }
 
+    /// MOVE the selection by dragging one of its boxes (`segment-editor.group-drag`): when every selected box is a saved
+    /// segment and the dragged one is among them, ONE `segment.translate` by the drag's offset, outlines and baselines
+    /// with their boxes. True when handled here.
+    func moveSelectedSegments(draggedIndex: Int, to bbox: [Double]) -> Bool {
+        guard let documentId, let boxes = ocrGeometry?.boxes, boxes.indices.contains(draggedIndex),
+              let draggedId = boxes[draggedIndex].segmentId, bbox.count >= 2, boxes[draggedIndex].bbox.count >= 2 else { return false }
+        let segments = selectedSegments(documentId)
+        guard segments.contains(where: { $0.id == draggedId }), segments.allSatisfy({ $0.version != nil }) else { return false }
+        let old = boxes[draggedIndex].bbox
+        runSegmentEdit(
+            SegmentEdit.translate(segments, by: [bbox[0] - old[0], bbox[1] - old[1]]), documentId: documentId,
+            name: segments.count == 1 ? "Move Segment" : "Move Segments"
+        )
+        return true
+    }
+
     /// MOVE one box (by its index in the shown boxes) on an artifact-less pass. True when handled here.
     func moveSegment(index: Int, bbox: [Double]) -> Bool {
         guard let passId = shownArtifactlessPassId, let documentId, let store = segmentEditStore else { return false }

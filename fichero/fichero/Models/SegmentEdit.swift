@@ -38,6 +38,8 @@ enum SegmentEdit {
         case addBaseline(SegmentCutWordsRequest)
         /// Order by clicking (`reading_order.sequence`).
         case sequence(ReadingOrderSequenceRequest)
+        /// The selection moved by one offset (`segment.translate`).
+        case translate(SegmentTranslateRequest)
 
         func encode(to encoder: any Encoder) throws {
             switch self {
@@ -54,6 +56,7 @@ enum SegmentEdit {
             case .cutWords(let params): try params.encode(to: encoder)
             case .addBaseline(let params): try params.encode(to: encoder)
             case .sequence(let params): try params.encode(to: encoder)
+            case .translate(let params): try params.encode(to: encoder)
             }
         }
     }
