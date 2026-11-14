@@ -10,7 +10,7 @@ import tempfile
 from datetime import datetime, timezone
 from enum import Enum
 
-from fichero_server.core.timeutil import ensure_utc, utc_now
+from fichero_server.core.timeutil import ensure_utc, same_version, utc_now
 from fichero_server.core.naturalsort import in_folder_order
 from pathlib import Path
 from typing import Any, Literal, Optional
@@ -2980,7 +2980,7 @@ def update_document_impl(
     # non-null value. (#774 + audit on 2026-05-03.)
     update_data = update.model_dump(exclude_unset=True, exclude_none=True)
     expected = update_data.pop("expected_updated_at", None)
-    if expected is not None and ensure_utc(expected) != ensure_utc(doc.updated_at):
+    if expected is not None and not same_version(expected, doc.updated_at):
         raise HTTPException(status_code=409, detail={
             "reason": "stale",
             "message": ("this was changed since you opened it; nothing was written. "
