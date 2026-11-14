@@ -400,7 +400,7 @@ See section 7.2 below for what exists. The design:
   its source and its low confidence on every cut it makes. A line with no reading cannot be cut
   into words at all and says why. *Built (2026-11-13):* `line_cut.cuts_from_ink_gaps` (the profile
   along the chord of the baseline, gaps a seventh of the line's height, confidence at most 0.4);
-  a line with too few gaps is left alone and named. *Tests:* `test_segment_cut_words.py::TestFallback`.
+  a line with too few gaps is left alone and named. *Tests:* `fichero-server/tests/unit/api/test_segment_cut_words.py::TestFallback`.
 - `segment-editor.cut-records-source-and-confidence` — **[PARTIAL]** (→ #5212; engine) every word and character made by a cut
   carries `cut_source` (`ctc`, `ink-gap`, `person`), `cut_confidence` (0 to 1; the recogniser's
   character confidence at the cut for `ctc`, the gap measure for `ink-gap`, 1 for `person`) and
@@ -701,7 +701,7 @@ The umbrella's speed trial (slice 12) is the gate and is not restated. This file
   (`segment.add_baseline`, Edit › Segments ▸ Add Baseline) proposes one a quarter up from the
   box's bottom along its direction (down the middle of a vertical line), marked
   `baseline: estimated`, one undo. *Not built:* the offer on the tools' own refusal (the menu says
-  it). *Tests:* `test_segment_add_baseline.py`; `RedrawOutlineTests.addBaseline`.
+  it). *Tests:* `fichero-server/tests/unit/api/test_segment_add_baseline.py`; `fichero/Tests/Unit/general/Views/Source/RedrawOutlineTests.swift`.
 - `segment-editor.edge.word-across-lines` — **[GAP]** (→ #5212; engine) a word broken at a line end is one segment with
   two shapes (`source.segment.shape-kinds`); Cut Words on both lines makes the two pieces and
   offers to join them as one word when the second line's reading starts without a space and the
