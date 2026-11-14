@@ -511,5 +511,6 @@
   "PUT /api/ai/cloud-caps": "not undoable by design (app.set_cloud_cap, audited in the account chain like recipes.set_places; spec A decision 10): an app setting does not go on the undo stack; setting the cap back to the audit row's `from` figure undoes it",
   "POST /api/activity/jobs/{job_id}/bug-report": "by design, nothing to undo: builds a failed run's bug report for review and writes nothing (#6354)",
   "POST /api/images/{document_id}/jobs": "the job runs an undoable image.<op> action, so Undo is that action's (the audit entry names it); the job row itself has none (#6384)",
-  "POST /api/segments/reparent": "undoable in the engine (segment.reparent, audited, one undo step), undone from the audit row the result names; the Order list drag that calls it does not register the app-side undo yet (#6476)"
+  "POST /api/segments/reparent": "undoable in the engine (segment.reparent, audited, one undo step), undone from the audit row the result names; the Order list drag that calls it does not register the app-side undo yet (#6476)",
+  "POST /api/segments/regenerate-outline": "undoable in the engine (segment.regenerate_outline, audited, one undo step) and in the app through the actions door (SegmentEdit+Tools); this guard counts the route by its operation name (#6582)"
 }
