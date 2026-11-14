@@ -42,11 +42,10 @@ struct RunAutomaticallyToggle: View {
 }
 
 #Preview("Run automatically") {
-    let client = FicheroClient(baseURL: URL(string: "https://127.0.0.1:8765")!, libraryPath: "/tmp/Preview.fichero",
-                               session: URLSession(configuration: .ephemeral))
     Form {
         Section("Background Work") {
-            RunAutomaticallyToggle(store: ActivityStore(service: ActivityService(ficheroClient: client), library: nil))
+            RunAutomaticallyToggle(
+                store: ActivityStore(service: ActivityService(ficheroClient: FicheroClient(libraryPath: nil)), library: nil))
         }
     }
     .formStyle(.grouped).frame(width: 420)
