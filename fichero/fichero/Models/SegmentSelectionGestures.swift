@@ -63,6 +63,23 @@ enum SegmentSelectionGestures {
         return inside
     }
 
+    /// The Brush (`segment-editor.select-brush`): the boxes at `level` (nil: any) the painted stroke touches, a stroke
+    /// being its points (page fractions) each with the brush's radius, given per axis in page fractions since a screen
+    /// circle is an ellipse on a page that is not square.
+    static func touched(by stroke: [[Double]], radius: [Double], boxes: [Box], level: String?) -> [Int] {
+        guard !stroke.isEmpty, radius.count >= 2, radius[0] > 0, radius[1] > 0 else { return [] }
+        return boxes.filter { box in
+            guard level == nil || box.level == level, box.bbox.count >= 4 else { return false }
+            return stroke.contains { point in
+                // The nearest point of the box to the brush's centre, then the distance in brush radii.
+                let nearX = min(max(point[0], box.bbox[0]), box.bbox[0] + box.bbox[2])
+                let nearY = min(max(point[1], box.bbox[1]), box.bbox[1] + box.bbox[3])
+                let across = (point[0] - nearX) / radius[0], down = (point[1] - nearY) / radius[1]
+                return across * across + down * down <= 1
+            }
+        }.map(\.index)
+    }
+
     /// ⌘⇧A: every box whose segment is of a kind the selection holds (`kinds[i]` is box i's segment kind, nil for a
     /// box that is not a segment). Nothing selected selects nothing.
     static func sameKind(as selected: [Int], kinds: [String?]) -> [Int] {

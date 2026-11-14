@@ -500,7 +500,7 @@ extension ZoomableImagePreview {
             .onKeyPress(.return, phases: .down) { _ in finishShapeDrawingFromKey() }
             // Hold K for the Knife, M for the Marker, one stroke; a tap chooses the tool (`segment-editor.split-knife`,
             // `segment-editor.marker`).
-            .onKeyPress(keys: [.init("k"), .init("m"), .init("o")], phases: [.down, .up]) { press in holdSpringTool(press) }
+            .onKeyPress(keys: [.init("k"), .init("m"), .init("o"), .init("b"), .init("["), .init("]")], phases: [.down, .up]) { press in holdSpringTool(press) }
             // Daniel's ruling (2026-08-10, audit 3c): left/right mean
             // PREVIOUS/NEXT item, up/down pan the current image. ←/→ pan
             // only when the zoomed image can actually travel horizontally;

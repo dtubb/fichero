@@ -551,6 +551,19 @@ extension ZoomableImagePreview {
             windowState.orderArmed.toggle()
             return .handled
         }
+        if press.key == KeyEquivalent("[") || press.key == KeyEquivalent("]") {
+            // The Brush's size (`segment-editor.select-brush`), while it is chosen or held.
+            guard press.phase == .down, windowState.brushArmed || windowState.brushHeld else { return .ignored }
+            windowState.resizeBrush(larger: press.key == KeyEquivalent("]"))
+            return .handled
+        }
+        if press.key == KeyEquivalent("b") {
+            guard let held = KnifeStroke.held(
+                pressed: press.phase == .down, modifiers: press.modifiers, isEditing: isEditingSegments, wasHeld: windowState.brushHeld
+            ) else { return .ignored }
+            if held { windowState.pressBrushKey() } else { windowState.letGoOfBrushKey() }
+            return .handled
+        }
         let marker = press.key == KeyEquivalent("m")
         guard let held = KnifeStroke.held(
             pressed: press.phase == .down, modifiers: press.modifiers, isEditing: isEditingSegments,
@@ -582,10 +595,12 @@ extension ZoomableImagePreview {
         // Escape during a polygon or baseline drawing abandons just the drawing, nothing else.
         if windowState?.abandonDrawing() == true { return }
         // Then the Knife chosen by K or the tool row goes down, back to Select; the selection stays (one thing per press).
-        if windowState?.knifeArmed == true || windowState?.markerArmed == true || windowState?.orderArmed == true {
+        if windowState?.knifeArmed == true || windowState?.markerArmed == true || windowState?.orderArmed == true
+            || windowState?.brushArmed == true {
             windowState?.knifeArmed = false
             windowState?.markerArmed = false
             windowState?.orderArmed = false
+            windowState?.brushArmed = false
             return
         }
         isAddingRegion = false

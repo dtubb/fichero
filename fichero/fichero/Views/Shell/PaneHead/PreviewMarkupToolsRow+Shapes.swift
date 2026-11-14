@@ -16,6 +16,7 @@ extension PreviewMarkupToolsRow {
             knifeButton
             markerButton
             orderButton
+            brushButton
             labeled("Simplify") { SimplifySliderButton(windowState: windowState) }
         }
     }
@@ -78,6 +79,30 @@ extension PreviewMarkupToolsRow {
             .help("Order — click segments in the order they are read (O); choose it again to set the order")
             .accessibilityLabel("Order")
             .accessibilityIdentifier("segmentEditor.tool.order")
+        }
+    }
+
+    /// The Brush (`segment-editor.select-brush`): paint over segments to select them (⌥ takes away, `[` `]` size). Chosen,
+    /// it stays until another tool is chosen; holding B gives it for one stroke.
+    private var brushButton: some View {
+        let armed = windowState?.brushArmed == true
+        return labeled("Brush") {
+            Button {
+                if !armed {
+                    windowState?.activeMarkupTool = .select
+                    windowState?.knifeArmed = false
+                    windowState?.markerArmed = false
+                    windowState?.orderArmed = false
+                }
+                windowState?.brushArmed = !armed
+            } label: {
+                Image(systemName: "paintbrush.pointed")
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(armed ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
+            .help("Brush — paint over segments to select them; ⌥ takes away, [ and ] change the size (hold B for one stroke)")
+            .accessibilityLabel("Brush")
+            .accessibilityIdentifier("segmentEditor.tool.brush")
         }
     }
 

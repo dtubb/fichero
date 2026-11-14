@@ -259,7 +259,7 @@ targets are at least 44 pt.
   a drag of selected lines let go on another region, or on none, is one `segment.reparent`
   (`SegmentMover.drop`, the region holding the point, the smaller on a tie), the target region's
   outline lit while the drag is over it; inside their own region, or with ⌘, the box moves as before.
-  *Not built:* the head's word while dragging, a polygon moving with its box (`segment-editor.group-drag`).
+  *Not built:* the head's word while dragging.
   *Tests:* `fichero-server/tests/unit/api/test_segment_reassign_by_drag.py`;
   `fichero/Tests/Unit/general/Views/Source/ReassignDragTests.swift`.
 
@@ -281,10 +281,15 @@ targets are at least 44 pt.
   a move, `SegmentEditingMode.pressStartsMove`); Edit › Segments ▸ Select Same Kind (⌘⇧A,
   `SegmentSelectionGestures.sameKind`). *Tests:*
   `fichero/Tests/Unit/general/Views/Source/SegmentSelectionGesturesTests.swift`.
-- `segment-editor.select-brush` — **[GAP]** (→ #4941; app) the Brush paints a mask on the page; every segment the
+- `segment-editor.select-brush` — **[PARTIAL]** (→ #4941; app) the Brush paints a mask on the page; every segment the
   mask touches is selected when the stroke ends; ⌥ while painting subtracts; `[` and `]` change
   the size, shown as a circle under the pointer; on the iPad the size follows the slider and,
   optionally, pressure. The mask is drawn locally and sent nowhere: selection is not an action.
+  *Built (2026-11-14), Mac:* in Edit Segments B held paints one stroke, a tap of B (or the tool row's Brush) chooses
+  it; letting go selects what the paint touches at the level being edited (lines; regions with ⌘), ⇧ adds, ⌥ at the
+  start takes away; `[` `]` resize between 6 and 120 points (`SegmentSelectionGestures.touched`). *Not built:* the
+  size circle under the pointer before painting, the iPad slider and pressure. *Tests:*
+  `fichero/Tests/Unit/general/Views/Source/BrushSelectTests.swift`.
 - `segment-editor.group-drag` — **[PARTIAL]** (→ #4941; app + engine) dragging one of several selected segments
   moves all of them by the same offset, as one `segment.update_many`, one undo. *Built:* a single
   box moves (`finishMove`, `SegmentEdit.move`). *Built (2026-11-14):* `segment.translate` (one offset for every
