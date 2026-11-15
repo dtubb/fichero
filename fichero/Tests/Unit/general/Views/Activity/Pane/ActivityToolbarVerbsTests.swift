@@ -14,19 +14,19 @@ struct ActivityToolbarVerbsTests {
     func mailRule() {
         let running = ActivityPaneFixture.row("r", .running)
         let paused = ActivityPaneFixture.row("p", .paused)
-        #expect(ActivityToolbarVerbButtons.enabled(target([running, paused])) == [.pause, .resume, .stop])
-        #expect(ActivityToolbarVerbButtons.enabled(target([ActivityPaneFixture.row("d", .done)])).isEmpty)
+        #expect(ActivityToolbarVerbsBar.enabled(target([running, paused])) == [.pause, .resume, .stop])
+        #expect(ActivityToolbarVerbsBar.enabled(target([ActivityPaneFixture.row("d", .done)])).isEmpty)
     }
 
     @Test("with no Activity pane in focus nothing is enabled, and the main window draws nothing")
     func noPaneNoVerbs() {
-        #expect(ActivityToolbarVerbButtons.enabled(nil).isEmpty)
-        #expect(ActivityToolbarVerbButtons(hidesWithoutAPane: true).hidesWithoutAPane)
+        #expect(ActivityToolbarVerbsBar.enabled(nil).isEmpty)
+        #expect(ActivityToolbarVerbsBar(hidesWithoutAPane: true).hidesWithoutAPane)
     }
 
     @Test("the toolbar's verbs are the one list's Pause, Continue and Stop, in that order, with their words")
     func oneList() {
-        #expect(ActivityToolbarVerbButtons.verbs.map(\.title) == ["Pause", "Continue", "Stop"])
+        #expect(ActivityToolbarVerbsBar.verbs.map(\.title) == ["Pause", "Continue", "Stop"])
     }
 
     /// `activity.pane.verbs-one-word-each` (#6599): Retry is the one verb for running a failed row again; a failed run's

@@ -4,11 +4,11 @@ import Foundation
 extension ActivityService {
     /// The Activity Monitor's graphs (`GET /api/activity/history`, `activity.window.bottom-panel`, #6588): per minute over the
     /// last `minutes`, pages done and failed, dollars and tokens; pages by where they ran; today's spend by provider.
-    func history(minutes: Int = 60) async throws -> ActivityHistory {
+    func history(minutes: Int = 60) async throws -> ActivityHistoryFigures {
         let response = try await client.api.getActivityHistoryApiActivityHistoryGet(query: .init(minutes: minutes))
         switch response {
         case .ok(let okResponse):
-            return ActivityHistory(try okResponse.body.json)
+            return ActivityHistoryFigures(try okResponse.body.json)
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
@@ -19,7 +19,7 @@ extension ActivityService {
 }
 
 /// One project's history, as the panel reads it: the engine's answer without its generated types.
-struct ActivityHistory: Equatable {
+struct ActivityHistoryFigures: Equatable {
     struct Minute: Equatable, Identifiable {
         let start: Date
         var pagesDone = 0
