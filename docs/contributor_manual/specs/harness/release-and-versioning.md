@@ -134,7 +134,7 @@ The logic lives in `scripts/release_guard.py` (one subcommand per point) so it i
 - `release.lane.summary-table` — **[OK]** however the run ends, it prints one line per part
   (Preflight, DMG, Mac TestFlight, iOS TestFlight, Publish; Engine when it fails) with
   OK, FAILED or SKIPPED and the reason; a part the run never reached shows SKIPPED, not reached. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
-- `release.lane.morning-release-token-free` — **[PARTIAL]** (owner 2026-11-14: "a token-free
+- `release.lane.morning-release-token-free` — **[PARTIAL]** (#6585; owner 2026-11-14: "a token-free
   release each morning") a launchd LaunchAgent runs `scripts/morning-release.sh` at a set time
   (default 06:00 local; the plist template is `scripts/launchd/app.fichero.morning-release.plist`,
   installed by `scripts/install-morning-release.sh`, which nothing runs for the owner). No model
