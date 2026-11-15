@@ -58,9 +58,9 @@ from fichero_server.api.routes.entity.entities import (
     TopEntityRow,
 )
 from fichero_server.api.routes.entity.inspector import EntityInspectorResponse
-from fichero_server.api.routes.kg_graph import NeighborhoodResponse
-from fichero_server.api.routes.kg_rebuild import RebuildResponse
-from fichero_server.api.routes.kg_search import KGSearchResponse
+from fichero_server.api.routes.kg.graph import NeighborhoodResponse
+from fichero_server.api.routes.kg.rebuild import RebuildResponse
+from fichero_server.api.routes.kg.search import KGSearchResponse
 from fichero_server.api.routes.ai.model_comparison import ComparisonResultResponse
 from fichero_server.api.routes.ai.provider_models import ProviderResponse
 from fichero_server.models.hermeneutics import Interpretation

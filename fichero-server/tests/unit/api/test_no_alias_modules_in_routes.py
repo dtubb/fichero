@@ -11,16 +11,7 @@ import fichero_server.api.routes as routes_pkg
 
 ROUTES = Path(routes_pkg.__file__).parent
 ALIAS_MARK = "sys.modules[" + "__name__]"  # split, so this test does not trip the placement rule
-REMAINING = {  # later slices delete these
-    "kg_claim_search.py",
-    "kg_entity_curation.py",
-    "kg_graph.py",
-    "kg_pykeen.py",
-    "kg_predictions.py",
-    "kg_rebuild.py",
-    "kg_render.py",
-    "kg_search.py",
-}
+REMAINING = {"kg_entity_curation.py"}
 
 
 def test_no_new_route_module_aliases_itself_in_sys_modules():

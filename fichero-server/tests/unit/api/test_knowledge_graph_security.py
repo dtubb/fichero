@@ -79,7 +79,7 @@ class TestPyKEENSecurity:
         # Check if safe loading is implemented
         try:
             import pykeen
-            from fichero_server.api.routes.kg_predictions import _ensure_pykeen_compat
+            from fichero_server.api.routes.kg.predictions import _ensure_pykeen_compat
             # The shim is now installed lazily (on first route use) rather than
             # at module import time. Call the helper explicitly to verify it works.
             _ensure_pykeen_compat()
@@ -109,7 +109,7 @@ class TestPyKEENSecurity:
         monkeypatch.setitem(sys.modules, "pykeen.models", fake_models)
         monkeypatch.setitem(sys.modules, "torch", types.SimpleNamespace(load=fake_load))
 
-        from fichero_server.api.routes.kg_predictions import _ensure_pykeen_compat
+        from fichero_server.api.routes.kg.predictions import _ensure_pykeen_compat
 
         model_dir = tmp_path / "model"
         model_dir.mkdir()
@@ -304,7 +304,7 @@ class TestTripleBuildingSecurity:
         Expected: FAIL (no sensitivity flag)
         Fixed: Check claim.sensitivity before adding to triples.
         """
-        from fichero_server.api.routes.kg_predictions import _build_minimal_pykeen_triples
+        from fichero_server.api.routes.kg.predictions import _build_minimal_pykeen_triples
         from fichero_server.models.knowledge import KnowledgeClaim
 
         # Create a confidential claim

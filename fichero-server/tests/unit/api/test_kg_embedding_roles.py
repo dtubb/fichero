@@ -55,7 +55,7 @@ def test_entity_dedup_find_similar_uses_passage_role() -> None:
 @pytest.mark.anyio
 async def test_find_similar_claims_uses_the_stored_vector_and_embeds_nothing() -> None:
     """A GET never runs a model (`activity.read.get-runs-no-model`): the claim's stored passage vector is the probe."""
-    from fichero_server.api.routes.kg_claim_search import find_similar_claims
+    from fichero_server.api.routes.kg.claim_search import find_similar_claims
     from fichero_server.models.knowledge import ClaimCurationState, ClaimType, KnowledgeClaim
 
     claim = KnowledgeClaim(
@@ -83,7 +83,7 @@ async def test_find_similar_claims_uses_the_stored_vector_and_embeds_nothing() -
 
 @pytest.mark.anyio
 async def test_find_similar_claims_says_it_is_not_embedded_without_embedding() -> None:
-    from fichero_server.api.routes.kg_claim_search import find_similar_claims
+    from fichero_server.api.routes.kg.claim_search import find_similar_claims
     from fichero_server.models.knowledge import ClaimCurationState, ClaimType, KnowledgeClaim
 
     claim = KnowledgeClaim(
@@ -107,7 +107,7 @@ async def test_find_similar_claims_says_it_is_not_embedded_without_embedding() -
 @pytest.mark.anyio
 async def test_heuristic_predictions_uses_passage_role() -> None:
     """generate_heuristic_predictions must call _embed_text with role='passage'."""
-    from fichero_server.api.routes.kg_predictions import (
+    from fichero_server.api.routes.kg.predictions import (
         generate_heuristic_predictions,
         HeuristicRequest,
     )
@@ -154,7 +154,7 @@ async def test_heuristic_predictions_uses_passage_role() -> None:
 @pytest.mark.anyio
 async def test_heuristic_predictions_raises_when_a_claim_cannot_be_embedded() -> None:
     """A failed embedding must not silently omit a claim from predictions."""
-    from fichero_server.api.routes.kg_predictions import (
+    from fichero_server.api.routes.kg.predictions import (
         HeuristicRequest,
         generate_heuristic_predictions,
     )

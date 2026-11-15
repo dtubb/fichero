@@ -9,7 +9,7 @@ import networkx as nx
 import pytest
 from fastapi import HTTPException
 
-from fichero_server.api.routes import kg_graph as routes
+from fichero_server.api.routes.kg import graph as routes
 from fichero_server.knowledge.graph import CentralityScore
 
 

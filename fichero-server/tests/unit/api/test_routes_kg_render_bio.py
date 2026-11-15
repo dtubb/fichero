@@ -68,7 +68,7 @@ class TestGenerateEntityBio:
         _make_claim(db, entity, doc, "Marie Curie won two Nobel Prizes.")
 
         with patch(
-            "fichero_server.api.routes.kg_render.chat", new_callable=AsyncMock
+            "fichero_server.api.routes.kg.render.chat", new_callable=AsyncMock
         ) as mock_chat:
             mock_chat.return_value = _MOCK_BIO
             r = client.post(f"/api/kg/entities/{entity.id}/bio", json={})
@@ -92,7 +92,7 @@ class TestGenerateEntityBio:
 
         new_bio = "Updated biography after regeneration."
         with patch(
-            "fichero_server.api.routes.kg_render.chat", new_callable=AsyncMock
+            "fichero_server.api.routes.kg.render.chat", new_callable=AsyncMock
         ) as mock_chat:
             mock_chat.return_value = new_bio
             r = client.post(f"/api/kg/entities/{entity.id}/bio", json={})
@@ -109,7 +109,7 @@ class TestGenerateEntityBio:
         entity = _make_entity(db, "Unknown Person")
 
         with patch(
-            "fichero_server.api.routes.kg_render.chat", new_callable=AsyncMock
+            "fichero_server.api.routes.kg.render.chat", new_callable=AsyncMock
         ) as mock_chat:
             mock_chat.return_value = "Minimal bio."
             r = client.post(f"/api/kg/entities/{entity.id}/bio", json={})
@@ -125,7 +125,7 @@ class TestGenerateEntityBio:
         entity = _make_entity(db)
 
         with patch(
-            "fichero_server.api.routes.kg_render.chat", new_callable=AsyncMock
+            "fichero_server.api.routes.kg.render.chat", new_callable=AsyncMock
         ) as mock_chat:
             mock_chat.side_effect = RuntimeError("LLM unavailable")
             r = client.post(f"/api/kg/entities/{entity.id}/bio", json={})
@@ -143,7 +143,7 @@ class TestGenerateEntityBio:
             captured_prompt.append(prompt)
             return "Bio text."
 
-        with patch("fichero_server.api.routes.kg_render.chat", side_effect=capture):
+        with patch("fichero_server.api.routes.kg.render.chat", side_effect=capture):
             r = client.post(f"/api/kg/entities/{entity.id}/bio", json={})
 
         assert r.status_code == 200
