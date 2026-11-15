@@ -8,10 +8,11 @@ import SwiftUI
 import Testing
 
 struct ActivityDefaultColumnsTests {
-    @Test("a fresh pane has the six default columns; Model, Started By, Started and Kind are off")
+    @Test("a fresh pane has the six default columns; Model, Started By, Started, Kind and the other tabs' columns are off")
     func defaults() {
         #expect(ActivityPane.Column.allCases.filter(\.isOnByDefault) == [.source, .name, .state, .trail, .time, .cost])
-        #expect(ActivityPane.Column.allCases.filter { !$0.isOnByDefault } == [.model, .startedBy, .started, .kind])
+        #expect(ActivityPane.Column.allCases.filter { !$0.isOnByDefault }
+            == [.model, .startedBy, .started, .kind, .tokens, .toFinish, .runsOn, .lane])
     }
 
     @Test("the columns a person turns on survive a relaunch, per pane")

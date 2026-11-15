@@ -265,6 +265,9 @@ struct ActivityJob: Identifiable, Equatable {
     var model: String?
     var costUsd: Double?
     var costEstimateUsd: Double?
+    /// Where it runs and on which lane, as the engine says (the Where tab, #6588): "this-mac", "other-mac", "cloud", "cluster".
+    var runsOn: String?
+    var lane: String?
     /// Who or what started it, in the engine's words ("automatic", "schedule:…"), and when it ended (the Activity pane's
     /// source glyph and time, `activity.pane.icons-say-source-and-kind`).
     var startedBy: String?
@@ -305,6 +308,8 @@ struct ActivityJob: Identifiable, Equatable {
         self.model = job.model
         self.costUsd = job.costUsd
         self.costEstimateUsd = job.costEstimateUsd
+        self.runsOn = job.runsOn?.rawValue
+        self.lane = job.lane
         self.startedBy = job.startedBy
         self.finishedAt = job.finishedAt
         self.failure = job.failure.map {

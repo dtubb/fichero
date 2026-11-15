@@ -79,6 +79,9 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     var documentId: String?
     /// The engine's estimate of what is left to spend, while it runs (`activity.pane.cost-per-row-and-totals`).
     var costEstimateUsd: Double?
+    /// Where it runs and its lane, the engine's words for the Where tab (#6588).
+    var runsOn: String?
+    var lane: String?
     /// What it ran over, in words ("14 pages"), from the engine's `ran_on` (`activity.pane.row-says-what-ran-on-what`).
     var ranOnText: String?
     /// A version whose results count, in Group by File and the Inspector's versions (`activity.pane.versions-are-siblings`).

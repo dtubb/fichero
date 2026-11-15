@@ -7,7 +7,40 @@ struct ActivityPanePrefs: Codable, Equatable {
     var grouping: ActivityPane.Grouping = .run
     var filter = ""
     var expanded: Set<String> = []
+    /// The Runs tab's columns (the columns a pane had before the tabs, kept).
     var columns = TableColumnCustomization<ActivityMonitorRow>()
+    /// The tab, and the other tabs' columns as a person set them (`activity.window.toolbar-tabs`, #6588).
+    var tab: ActivityPane.Tab = .runs
+    var tabColumns: [String: TableColumnCustomization<ActivityMonitorRow>] = [:]
+
+    init() {}
+
+    /// Every key optional: prefs a pane stored before a key existed still load, never reset.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        grouping = try container.decodeIfPresent(ActivityPane.Grouping.self, forKey: .grouping) ?? .run
+        filter = try container.decodeIfPresent(String.self, forKey: .filter) ?? ""
+        expanded = try container.decodeIfPresent(Set<String>.self, forKey: .expanded) ?? []
+        columns = try container.decodeIfPresent(TableColumnCustomization<ActivityMonitorRow>.self, forKey: .columns) ?? .init()
+        tab = try container.decodeIfPresent(ActivityPane.Tab.self, forKey: .tab) ?? ActivityPane.Tab.of(grouping)
+        tabColumns = try container.decodeIfPresent([String: TableColumnCustomization<ActivityMonitorRow>].self,
+                                                   forKey: .tabColumns) ?? [:]
+    }
+
+    /// The tab's columns: the Runs tab's own, another tab's as set, else that tab's defaults.
+    func columns(for tab: ActivityPane.Tab) -> TableColumnCustomization<ActivityMonitorRow> {
+        if tab == .runs { return columns }
+        if let set = tabColumns[tab.rawValue] { return set }
+        var defaults = TableColumnCustomization<ActivityMonitorRow>()
+        for column in ActivityPane.Column.allCases where column != .name {
+            defaults[visibility: column.rawValue] = tab.columns.contains(column) ? .visible : .hidden
+        }
+        return defaults
+    }
+
+    mutating func setColumns(_ value: TableColumnCustomization<ActivityMonitorRow>, for tab: ActivityPane.Tab) {
+        if tab == .runs { columns = value } else { tabColumns[tab.rawValue] = value }
+    }
 
     static func load(_ data: Data, key: String) -> ActivityPanePrefs {
         (try? JSONDecoder().decode([String: ActivityPanePrefs].self, from: data))?[key] ?? ActivityPanePrefs()
@@ -35,32 +68,11 @@ extension ActivityPaneView {
 
     func table(_ shown: [ActivityMonitorRow]) -> some View {
         Table(of: ActivityMonitorRow.self, selection: $selection, sortOrder: $sortOrder, columnCustomization: Binding(
-            get: { prefs.columns }, set: { value in update { $0.columns = value } }
+            get: { prefs.columns(for: prefs.tab) }, set: { value in update { $0.setColumns(value, for: $0.tab) } }
         )) {
-            TableColumn("") { row in sourceCell(row) }
-                .width(22).customizationID(ActivityPane.Column.source.rawValue)
-            TableColumn(ActivityPane.Column.name.title, value: \.name) { row in nameCell(row) }
-                .width(min: 160, ideal: 260).customizationID(ActivityPane.Column.name.rawValue)
-                // Never hidden: a run row reads its tree when its Name cell is first drawn.
-                .disabledCustomizationBehavior(.visibility)
-            TableColumn(ActivityPane.Column.state.title, value: \.stateRankKey) { row in stateCell(row) }
-                .width(min: 60, ideal: 160).customizationID(ActivityPane.Column.state.rawValue)
-            TableColumn(ActivityPane.Column.trail.title) { row in textCell(ActivityPane.progressLine(row)) }
-                .width(min: 80, ideal: 240).customizationID(ActivityPane.Column.trail.rawValue)
-            TableColumn(ActivityPane.Column.time.title, value: \.secondsKey) { row in textCell(ActivityPane.timeLine(row)) }
-                .width(min: 50, ideal: 80).customizationID(ActivityPane.Column.time.rawValue)
-            TableColumn(ActivityPane.Column.cost.title, value: \.costKey) { row in textCell(ActivityPane.costLine(row)) }
-                .width(min: 50, ideal: 110).customizationID(ActivityPane.Column.cost.rawValue)
-            TableColumn(ActivityPane.Column.model.title, value: \.modelKey) { row in textCell(row.model ?? "") }
-                .customizationID(ActivityPane.Column.model.rawValue).defaultVisibility(.hidden)
-            TableColumn(ActivityPane.Column.startedBy.title) { row in textCell(row.startedBy ?? "") }
-                .customizationID(ActivityPane.Column.startedBy.rawValue).defaultVisibility(.hidden)
-            TableColumn(ActivityPane.Column.started.title, value: \.startedKey) { row in
-                textCell(row.started.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "")
-            }
-            .customizationID(ActivityPane.Column.started.rawValue).defaultVisibility(.hidden)
-            TableColumn(ActivityPane.Column.kind.title) { row in kindCell(row) }
-                .width(22).customizationID(ActivityPane.Column.kind.rawValue).defaultVisibility(.hidden)
+            // Two builders: one of fourteen columns was past the type checker's time.
+            leadingColumns
+            otherColumns
         } rows: {
             ForEach(shown) { row in
                 if let children = row.children, !children.isEmpty {
@@ -88,6 +100,51 @@ extension ActivityPaneView {
         .focusedValue(\.activityVerbs, verbTarget(in: shown))
         .focusedValue(\.activityView, viewTarget)
         .accessibilityIdentifier("activity.table")
+    }
+
+    typealias PaneColumns = TableColumnBuilder<ActivityMonitorRow, KeyPathComparator<ActivityMonitorRow>>
+
+    /// The Runs tab's columns, on by default.
+    @PaneColumns
+    var leadingColumns: some TableColumnContent<ActivityMonitorRow, KeyPathComparator<ActivityMonitorRow>> {
+            TableColumn("") { row in sourceCell(row) }
+                .width(22).customizationID(ActivityPane.Column.source.rawValue)
+            TableColumn(ActivityPane.Column.name.title, value: \.name) { row in nameCell(row) }
+                .width(min: 160, ideal: 260).customizationID(ActivityPane.Column.name.rawValue)
+                // Never hidden: a run row reads its tree when its Name cell is first drawn.
+                .disabledCustomizationBehavior(.visibility)
+            TableColumn(ActivityPane.Column.state.title, value: \.stateRankKey) { row in stateCell(row) }
+                .width(min: 60, ideal: 160).customizationID(ActivityPane.Column.state.rawValue)
+            TableColumn(ActivityPane.Column.trail.title) { row in textCell(ActivityPane.progressLine(row)) }
+                .width(min: 80, ideal: 240).customizationID(ActivityPane.Column.trail.rawValue)
+            TableColumn(ActivityPane.Column.time.title, value: \.secondsKey) { row in textCell(ActivityPane.timeLine(row)) }
+                .width(min: 50, ideal: 80).customizationID(ActivityPane.Column.time.rawValue)
+            TableColumn(ActivityPane.Column.cost.title, value: \.costKey) { row in textCell(ActivityPane.costLine(row)) }
+                .width(min: 50, ideal: 110).customizationID(ActivityPane.Column.cost.rawValue)
+    }
+
+    /// The columns off on the Runs tab: the header menu's, and the Cost and Where tabs' (decision 23).
+    @PaneColumns
+    var otherColumns: some TableColumnContent<ActivityMonitorRow, KeyPathComparator<ActivityMonitorRow>> {
+            TableColumn(ActivityPane.Column.model.title, value: \.modelKey) { row in textCell(row.model ?? "") }
+                .customizationID(ActivityPane.Column.model.rawValue).defaultVisibility(.hidden)
+            TableColumn(ActivityPane.Column.startedBy.title) { row in textCell(row.startedBy ?? "") }
+                .customizationID(ActivityPane.Column.startedBy.rawValue).defaultVisibility(.hidden)
+            TableColumn(ActivityPane.Column.started.title, value: \.startedKey) { row in
+                textCell(row.started.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "")
+            }
+            .customizationID(ActivityPane.Column.started.rawValue).defaultVisibility(.hidden)
+            TableColumn(ActivityPane.Column.kind.title) { row in kindCell(row) }
+                .width(22).customizationID(ActivityPane.Column.kind.rawValue).defaultVisibility(.hidden)
+            // The Cost and Where tabs' columns (decision 23); off on the Runs tab.
+            TableColumn(ActivityPane.Column.tokens.title) { row in textCell(row.tokens > 0 ? row.tokens.formatted() : "") }
+                .customizationID(ActivityPane.Column.tokens.rawValue).defaultVisibility(.hidden)
+            TableColumn(ActivityPane.Column.toFinish.title) { row in textCell(ActivityPane.toFinishLine(row)) }
+                .customizationID(ActivityPane.Column.toFinish.rawValue).defaultVisibility(.hidden)
+            TableColumn(ActivityPane.Column.runsOn.title) { row in textCell(ActivityPane.whereLine(row)) }
+                .customizationID(ActivityPane.Column.runsOn.rawValue).defaultVisibility(.hidden)
+            TableColumn(ActivityPane.Column.lane.title) { row in textCell(row.lane.map { $0.capitalized } ?? "") }
+                .customizationID(ActivityPane.Column.lane.rawValue).defaultVisibility(.hidden)
     }
 
     /// The disclosure of one row, remembered per row and per pane.

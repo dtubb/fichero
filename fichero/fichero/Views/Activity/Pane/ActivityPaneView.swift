@@ -122,6 +122,11 @@ struct ActivityPaneView: View {
             statusBar
         }
         .accessibilityIdentifier("activity.pane")
+        // The window has no pane head: its four tabs are the toolbar's (decision 23); a main window's pane has them in its
+        // head's lens menu.
+        .toolbar {
+            if !showsHead { ToolbarItem(placement: .principal) { tabPicker } }
+        }
         .onChange(of: selection) { _, _ in onSelect(selectedPick) }
         .onChange(of: shown.map(\.id)) { _, _ in onSelect(selectedPick); if selection.isEmpty { select(reveal) } }
         .onChange(of: reveal) { _, wanted in select(wanted) }
@@ -168,10 +173,26 @@ struct ActivityPaneView: View {
 
     /// Switch the grouping, keeping a selected file selected (`activity.pane.group-by-run-or-by-file`).
     private func group(by grouping: ActivityPane.Grouping) {
-        let rows = grouping == .file ? ActivityPane.byFile(allRows) : ActivityPane.outline(allRows)
+        show(ActivityPane.Tab.of(grouping))
+    }
+
+    /// A tab: its grouping and its columns; the selected rows listed in both stay selected.
+    func show(_ tab: ActivityPane.Tab) {
+        let rows = tab.grouping == .file ? ActivityPane.byFile(allRows) : ActivityPane.outline(allRows)
         let carried = ActivityPane.carry(selection, into: rows)
-        update { $0.grouping = grouping }
+        update { $0.tab = tab; $0.grouping = tab.grouping }
         selection = carried
+    }
+
+    /// The four tabs as one segmented control: the Activity window's toolbar holds it.
+    private var tabPicker: some View {
+        Picker("View", selection: Binding(get: { prefs.tab }, set: show)) {
+            ForEach(ActivityPane.Tab.allCases) { Text($0.title).tag($0) }
+        }
+        .pickerStyle(.segmented)
+        .fixedSize()
+        .help("Runs, Files, Cost or Where: what the table lists and its columns")
+        .accessibilityIdentifier("activity.tabs")
     }
 
     /// Select the row a Show in Activity asked for, once it is listed.
@@ -191,10 +212,10 @@ struct ActivityPaneView: View {
             selector: {
                 PaneKindSelector(
                     kindTitle: PaneSpec.Kind.activity.title, kindIcon: PaneSpec.Kind.activity.icon,
-                    currentKind: .activity, lenses: ActivityPane.Grouping.allCases,
-                    lensTitle: { (grouping: ActivityPane.Grouping) in "By \(grouping.title)" },
-                    lensIcon: { (grouping: ActivityPane.Grouping) in grouping == .run ? "list.bullet.indent" : "doc.on.doc" },
-                    lens: Binding(get: { prefs.grouping }, set: group(by:))
+                    currentKind: .activity, lenses: ActivityPane.Tab.allCases,
+                    lensTitle: { (tab: ActivityPane.Tab) in tab.title },
+                    lensIcon: { (tab: ActivityPane.Tab) in tab.icon },
+                    lens: Binding(get: { prefs.tab }, set: show)
                 )
             },
             controls: { EmptyView() },
@@ -204,15 +225,6 @@ struct ActivityPaneView: View {
 
     private var filterField: some View {
         HStack(spacing: 8) {
-            if !showsHead {
-                // The window has no pane head: Group by sits beside the filter.
-                Picker("Group by", selection: Binding(get: { prefs.grouping }, set: group(by:))) {
-                    ForEach(ActivityPane.Grouping.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .fixedSize()
-                .accessibilityIdentifier("activity.groupBy")
-            }
             TextField("Filter: model: Kraken state: failed", text: Binding(
                 get: { prefs.filter }, set: { value in update { $0.filter = value } }))
                 .textFieldStyle(.roundedBorder)
