@@ -814,7 +814,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   "none"`, `stoppable: n`). Acceptance: two projects, a person's run and 20 waiting thumbnails: Pause All leaves none
   running; a row paused by hand before stays paused after Play; Undo of Pause All is Play's effect; Stop All ends them
   cancelled with their done pages kept. *Built 2026-11-15:* the engine's `jobs.pause_all` / `continue_all` / `stop_all` (the `held_by` mark), the three routes and actions, the summary's `controls` and `stoppable`; the app's `ActivityRunControlsBar` at the far left of the Activity window and of every main window, over every open project, Stop asking once. *Not yet:* one undo step across projects (each project's Pause All is its own step); a real-run check. *Test:* `fichero-server/tests/unit/jobs/test_pause_all_continue_all_6588.py`,
-  `fichero/Tests/Unit/general/Models/ActivityPane/ActivityRunControlsTests.swift`.
+  `fichero/Tests/Unit/general/Views/Activity/Pane/ActivityRunControlsTests.swift`.
 - `activity.pane.row-controls` — **[GAP]** (#6588; decision 31) the selected or hovered row's trailing cell shows its own
   Play/Pause (by its state, `ActivityPaneVerb.pause` / `.resume`) and Stop, small, borderless, through the one verb list;
   nothing for a row neither allows. The toolbar holds no selection verbs; the context menu and Project › Activity keep them.
@@ -845,7 +845,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   `activity.pane.bottom-bar-like-every-pane`) the columns are chosen from a column header's context menu, and their
   visibility, widths and order are kept per sidebar item (`TableColumnCustomization`, stored with the pane's prefs); the
   bottom bar holds the filter only. Acceptance: a column widened stays widened after a relaunch; the bar has no Metadata
-  button. *Built 2026-11-15:* the Metadata button is gone; the table's `TableColumnCustomization` (kept per item in the pane's prefs) gives the header's column menu and keeps widths and order. *Test:* `ActivityToolbarTabsTests.rememberedPerTab`.
+  button. *Built 2026-11-15:* the Metadata button is gone; the table's `TableColumnCustomization` (kept per item in the pane's prefs) gives the header's column menu and keeps widths and order. *Test:* `fichero/Tests/Unit/general/Views/Activity/Pane/ActivityToolbarTabsTests.swift` (`rememberedPerTab`).
 - `activity.log.like-xcode` — **[GAP]** (#6588; decision 36; extends `activity.log.raw-always-rendered`) the Inspector's log is
   a list, one engine line per row (time, level glyph, text, monospaced, long lines wrapped); a click selects a line, shift
   and command select many; ⌘C and Copy copy the selected lines (all when none); the log's find field highlights each match
@@ -877,11 +877,11 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
 - `activity.graphs.own-pane` — **[PARTIAL]** (#6588; decision 41; supersedes the fixed panel of `activity.window.bottom-panel` and
   the fixed height of `activity.window.graph-on-every-view`) the graphs are a pane: under the centre by default, its divider
   dragged, and maximised full size like any pane (and back); it follows the sidebar's selection. Acceptance: maximising it
-  fills the window's centre; restoring it gives the height it had. *Built 2026-11-15:* the graphs' Full Size button fills the centre with them (kept per window, `@SceneStorage`) and Show the Table brings the rows back. *Not yet:* a pane kind a main window can open (`activity.window.views-are-panes`). *Test:* `ActivityBottomPanelTests.swift` extended.
+  fills the window's centre; restoring it gives the height it had. *Built 2026-11-15:* the graphs' Full Size button fills the centre with them (kept per window, `@SceneStorage`) and Show the Table brings the rows back. A main window opening it as a pane is `activity.window.views-are-panes`, below. *Test:* `ActivityBottomPanelTests.swift` extended.
 - `activity.resources.everything-measured` — **[GAP]** (#6588; decision 42; `activity.window.models-tree`) the engine answers,
   per model, `memory_bytes` (a process of its own: its resident size, `execution/models_held.py`; Kraken's readers: the size
   the throttle gives them, marked `estimated`), `loaded_at`, and today's `pages`, `calls`, `seconds`; per cluster job (the
-  remote jobs, `execution/remote_jobs.py`), `queued_seconds`, `run_seconds` (from its phase history), node hours and cost when
+  remote jobs, `workflows/remote_jobs.py`), `queued_seconds`, `run_seconds` (from its phase history), node hours and cost when
   the cluster reports them; per Mac, memory used of its total, processor, lanes busy of their width. The Inspector of a model,
   a cluster job or a place shows them; the Models tree's rows show memory; the Graph view draws them over time. What nothing
   measures is "—", never 0. Acceptance: an embedder loaded shows its resident megabytes; Kraken shows "~2.5 GB (estimated)";

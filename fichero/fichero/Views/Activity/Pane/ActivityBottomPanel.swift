@@ -26,6 +26,7 @@ struct ActivityBottomPanel: View {
                 }
                 .labelStyle(.iconOnly).buttonStyle(.borderless)
                 .help(isFull ? "Show the table again" : "Make the graphs fill the window")
+                .accessibilityLabel(isFull ? "Show the Table" : "Graphs Full Size")
                 .accessibilityIdentifier("activity.bottomPanel.full")
             }
             if Self.isEmpty(history) {
