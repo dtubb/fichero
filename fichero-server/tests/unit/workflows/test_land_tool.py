@@ -178,6 +178,25 @@ def test_a_range_over_the_cap_splits_into_consecutive_groups_that_each_fit_and_l
         L.review_groups(tmp_path, base, shas[-1], cap=20000)
 
 
+def test_a_docs_asset_image_leaves_the_review_text_and_is_named_and_any_other_binary_still_refuses(tmp_path):
+    """2026-11-15: batch-21 carries ten Activity screenshots under docs/assets/; `--text` put their bytes in the diff and
+    the NUL refusal blocked every batch with a screenshot. An image there is named, not shown; a NUL elsewhere refuses."""
+    g, base = _repo(tmp_path)
+    (tmp_path / "docs" / "assets" / "pane").mkdir(parents=True)
+    (tmp_path / "docs" / "assets" / "pane" / "shot.png").write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+    (tmp_path / "code.py").write_text("x = 1\n")
+    g("add", "."), g("commit", "-qm", "shot")
+    d = L.review_diff(tmp_path, base, "HEAD")
+    assert "code.py" in d and "IHDR" not in d and "docs/assets/pane/shot.png" in d.rsplit("Images in this range", 1)[-1]
+    (tmp_path / "docs" / "notes.bin").write_bytes(b"\x00hidden\x00")
+    g("add", "."), g("commit", "-qm", "bin")
+    try:
+        L.review_diff(tmp_path, base, "HEAD")
+        raise AssertionError("a binary outside docs/assets was accepted")
+    except ValueError as e:
+        assert "binary" in str(e)
+
+
 def test_the_review_diff_is_never_truncated_and_binary_is_refused(tmp_path):  # review 4 B4
     g, base = _repo(tmp_path)
     (tmp_path / "evil.py").write_text("import os\n")

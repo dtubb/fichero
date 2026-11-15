@@ -217,10 +217,20 @@ def review_cap(context: int) -> int:
     return int(context * 0.4 * 3.5)
 
 
+# an image under the docs' asset folder is the one binary a batch may carry (screenshots for the spec and the site); the reviewer
+# cannot read it, so it leaves the text and is named instead. A NUL byte anywhere else still refuses.
+REVIEW_IMAGE = re.compile(r"^docs/assets/.+\.(?:png|jpe?g|gif|webp|pdf|ico|icns|heic|tiff?)$", re.IGNORECASE)
+
+
 def _review_bytes(root, base: str, head: str) -> bytes:
-    d = _gitb(root, "log", "-p", "--reverse", "--full-index", "--no-ext-diff", "--no-textconv", "--text", f"{base}..{head}")
+    names = _gitb(root, "diff", "--name-only", "-z", f"{base}..{head}").decode("utf-8", "replace").split("\0")
+    images = sorted(n for n in names if n and REVIEW_IMAGE.match(n))
+    skip = [f":(exclude,literal){n}" for n in images]
+    d = _gitb(root, "log", "-p", "--reverse", "--full-index", "--no-ext-diff", "--no-textconv", "--text", f"{base}..{head}", "--", ".", *skip)
     if b"\x00" in d:
         raise ValueError("binary content in the diff (a NUL byte): the reviewer cannot read it, refused")
+    if images:
+        d += ("\n\nImages in this range (binary, not shown above; the manager looks at them): " + ", ".join(images) + "\n").encode()
     return d
 
 
