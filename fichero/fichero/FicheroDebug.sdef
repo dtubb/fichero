@@ -247,5 +247,10 @@
             <direct-parameter description="The segment id (a merged or split one is followed to its live segment)." type="text"/>
             <result type="boolean" description="Whether the segment resolved and the request was accepted."/>
         </command>
+
+        <command name="undo step" code="FTSTundo" description="Edit &gt; Undo on the front window's own stack, for a script that cannot make a window key.">
+            <cocoa class="FicheroUndoStepCommand"/>
+            <result type="text" description="The name of the step taken back."/>
+        </command>
     </suite>
 </dictionary>
