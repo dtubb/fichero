@@ -8,8 +8,6 @@
 from __future__ import annotations
 
 import ast
-import threading
-import time
 from pathlib import Path
 
 import fichero_server
@@ -47,66 +45,42 @@ def test_no_fetch_off_the_cursor_a_locked_helper_returned():
     )
 
 
-class _RefusingConnection:
-    """The connection as newer DuckDB behaves: a call made while another thread is inside one is REFUSED
-    (`ResourceInUseException: connection is busy with another call`), not queued. The installed DuckDB
-    serialises instead, so the refusal is modelled here and each call is held open long enough to overlap."""
+class _LockCheckingConnection:
+    """The shared connection as newer DuckDB treats it: a call made while another thread is inside one is REFUSED
+    (`ResourceInUseException: connection is busy with another call`), not queued. A thread that holds `Database._lock`
+    cannot be overlapped, so the rule is checked directly and deterministically: every statement and every fetch on the
+    connection must happen with the calling thread holding the lock. A fetch made after `_execute` released it fails."""
 
-    def __init__(self, conn):
+    def __init__(self, conn, lock):
         self._conn = conn
-        self._guard = threading.Lock()
-
-    def _call(self, name, *args, **kwargs):
-        if not self._guard.acquire(blocking=False):
-            raise RuntimeError("Resource In Use Error: connection is busy with another call")
-        try:
-            time.sleep(0.001)
-            result = getattr(self._conn, name)(*args, **kwargs)
-            return self if result is self._conn else result
-        finally:
-            self._guard.release()
+        self._lock = lock
+        self.unlocked: list[str] = []
 
     def __getattr__(self, name):
         target = getattr(self._conn, name)
-        if name in {"execute", "executemany", "fetchall", "fetchone", "fetchmany", "cursor"}:
-            return lambda *a, **k: self._call(name, *a, **k)
-        return target
+        if name not in {"execute", "executemany", "fetchall", "fetchone", "fetchmany"}:
+            return target
+
+        def call(*args, **kwargs):
+            if not self._lock._is_owned():
+                self.unlocked.append(name)
+            result = target(*args, **kwargs)
+            return self if result is self._conn else result
+
+        return call
 
 
-def test_two_threads_one_connection_never_collide(db):
+def test_every_statement_and_fetch_on_the_shared_connection_holds_the_lock(db, app_db):
     db._ensure_table(KnowledgeClaim)
     real = db.conn
-    db.conn = _RefusingConnection(real)
-    errors: list[BaseException] = []
-    stop = threading.Event()
-
-    def reader():
-        try:
-            while not stop.is_set():
-                db.execute_fetchall("SELECT 1")
-        except BaseException as exc:  # noqa: BLE001
-            errors.append(exc)
-            stop.set()
-
-    def culprit():
-        try:
-            for _ in range(100):
-                if stop.is_set():
-                    return
-                db.keyword_artifact_rows()
-                db.knowledge_claim_entity_id_values()
-                db.entity_document_link_rows("e", 5)
-        except BaseException as exc:  # noqa: BLE001
-            errors.append(exc)
-        finally:
-            stop.set()
-
-    threads = [threading.Thread(target=reader), threading.Thread(target=culprit)]
+    spy = _LockCheckingConnection(real, db._lock)
+    db.conn = spy
     try:
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join(60)
+        db.execute_fetchall("SELECT 1")
+        db.keyword_artifact_rows()
+        db.knowledge_claim_entity_id_values()
+        db.knowledge_claim_entity_id_values(source_document_id="d", entity_id="e")
+        db.entity_document_link_rows("e", 5)
     finally:
         db.conn = real
-    assert not errors, errors[0]
+    assert not spy.unlocked, f"used the shared connection outside Database._lock (#6601): {spy.unlocked}"
