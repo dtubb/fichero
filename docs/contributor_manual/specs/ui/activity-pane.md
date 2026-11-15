@@ -831,10 +831,10 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   visibility, widths and order are kept per sidebar item (`TableColumnCustomization`, stored with the pane's prefs); the
   bottom bar holds the filter only. Acceptance: a column widened stays widened after a relaunch; the bar has no Metadata
   button. *Built 2026-11-15:* the Metadata button is gone; the table's `TableColumnCustomization` (kept per item in the pane's prefs) gives the header's column menu and keeps widths and order. *Test:* `ActivityToolbarTabsTests.rememberedPerTab`.
-- `activity.log.like-xcode` — **[GAP]** (#6588; decision 36; extends `activity.log.raw-always-rendered`) the Inspector's log is
+- `activity.log.like-xcode` — **[OK]** (#6588; decision 36; extends `activity.log.raw-always-rendered`) the Inspector's log is
   a list, one engine line per row (time, level glyph, text, monospaced, long lines wrapped); a click selects a line, shift
   and command select many; ⌘C and Copy copy the selected lines (all when none); the log's find field highlights each match
-  and steps through them; the level filter stays. Not editable. *Test:* `ActivityLogListTests.swift`.
+  and steps through them; the level filter stays. Not editable. *Built 2026-11-15:* `ActivityLogLinesView` (number, level glyph, time, text; click, shift, command; ⌘C; the find bar with "2 of 5" and up/down) over `ActivityLogList`'s rules; Copy Log becomes Copy Lines while lines are selected (`docs/assets/activity-pane/inspector-log.png`). *Test:* `ActivityLogListTests.swift`.
 - `activity.window.recipes` — **[PARTIAL]** (#6588; decision 37; an exception to `activity.pane.children-are-what-it-works-on`'s
   two levels) the Recipes item lists each recipe (name and version) with its runs under it and each run's steps under
   that. A recipe row: runs, pages done and failed, failed %, seconds a page (median), cost a page, last run. A run row: its
