@@ -677,9 +677,11 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   never "$0.00" (`activity.pane.cost-per-row-and-totals`). *Built 2026-11-14:* Free and blank cost (`ActivityPane.costLine`: the engine's 0.0 reads Free,
   its null blank); one short time unit, "48 s", "3 min", "2 h" (`ActivityMonitorRow.duration`). Acceptance: the fixture's file row and its Inspector read the same
   time; a local Kraken row has no cost; a $0 cloud call reads Free. *Test:* `ActivityDefaultColumnsTests.swift` extended.
-- `activity.pane.started-by-is-honest` — **[GAP]** (#6588; `activity.pane.icons-say-source-and-kind`) the source glyph is a
+- `activity.pane.started-by-is-honest` — **[OK]** (#6588; `activity.pane.icons-say-source-and-kind`) the source glyph is a
   person only for a person's own act; the engine's own starters (`kept export`, `synced folder`, `automatic`, a schedule, a
-  trigger) are automatic. Acceptance: `started_by: "kept export"` maps to automatic. *Test:*
+  trigger) are automatic. Acceptance: `started_by: "kept export"` maps to automatic. *Built 2026-11-14 night:*
+  `ActivityMonitorRow.automaticStarters` holds the engine's `jobs.BACKGROUND_STARTERS` (less schedule and trigger, their
+  own glyph). *Test:*
   `fichero/Tests/Unit/general/Models/ActivityRowIconsTests.swift` extended.
 - `activity.kept-export.one-row-per-export` — **[PARTIAL]** (#6588; decision 28; `kept_export.py`) the work changing queues ONE job
   per kept export (subject the export's id, the pages to rewrite gathered in its detail), never one per page; while it waits,
