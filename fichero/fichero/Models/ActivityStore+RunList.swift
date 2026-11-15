@@ -41,8 +41,10 @@ extension ActivityStore {
             setLoadFailure(nil, library: library.id, source: .runs)
         } catch {
             let message = Self.runLoadFailureMessage(libraryName: library.displayName, error: error)
-            log.error("ActivityStore: run list load failed: \(message, privacy: .public)")
-            setLoadFailure(message, library: library.id, source: .runs)
+            // A standing refusal (a project the engine may not open) is logged once, when it starts, not every reload.
+            if setLoadFailure(message, library: library.id, source: .runs) {
+                log.error("ActivityStore: run list load failed: \(message, privacy: .public)")
+            }
         }
     }
 
