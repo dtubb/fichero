@@ -109,41 +109,41 @@ extension ActivityPaneView {
     var leadingColumns: some TableColumnContent<ActivityMonitorRow, KeyPathComparator<ActivityMonitorRow>> {
             TableColumn("") { row in sourceCell(row) }
                 .width(22).customizationID(ActivityPane.Column.source.rawValue)
-            TableColumn(ActivityPane.Column.name.title, value: \.name) { row in nameCell(row) }
+            TableColumn(ActivityPane.Column.name.title(in: prefs.tab), value: \.name) { row in nameCell(row) }
                 .width(min: 160, ideal: 260).customizationID(ActivityPane.Column.name.rawValue)
                 // Never hidden: a run row reads its tree when its Name cell is first drawn.
                 .disabledCustomizationBehavior(.visibility)
-            TableColumn(ActivityPane.Column.state.title, value: \.stateRankKey) { row in stateCell(row) }
+            TableColumn(ActivityPane.Column.state.title(in: prefs.tab), value: \.stateRankKey) { row in stateCell(row) }
                 .width(min: 60, ideal: 160).customizationID(ActivityPane.Column.state.rawValue)
-            TableColumn(ActivityPane.Column.trail.title) { row in textCell(ActivityPane.progressLine(row)) }
+            TableColumn(ActivityPane.Column.trail.title(in: prefs.tab)) { row in textCell(ActivityPane.progressLine(row)) }
                 .width(min: 80, ideal: 240).customizationID(ActivityPane.Column.trail.rawValue)
-            TableColumn(ActivityPane.Column.time.title, value: \.secondsKey) { row in textCell(ActivityPane.timeLine(row)) }
+            TableColumn(ActivityPane.Column.time.title(in: prefs.tab), value: \.secondsKey) { row in textCell(ActivityPane.timeLine(row)) }
                 .width(min: 50, ideal: 80).customizationID(ActivityPane.Column.time.rawValue)
-            TableColumn(ActivityPane.Column.cost.title, value: \.costKey) { row in textCell(ActivityPane.costLine(row)) }
+            TableColumn(ActivityPane.Column.cost.title(in: prefs.tab), value: \.costKey) { row in textCell(ActivityPane.costLine(row)) }
                 .width(min: 50, ideal: 110).customizationID(ActivityPane.Column.cost.rawValue)
     }
 
     /// The columns off on the Runs tab: the header menu's, and the Cost and Where tabs' (decision 23).
     @PaneColumns
     var otherColumns: some TableColumnContent<ActivityMonitorRow, KeyPathComparator<ActivityMonitorRow>> {
-            TableColumn(ActivityPane.Column.model.title, value: \.modelKey) { row in textCell(row.model ?? "") }
+            TableColumn(ActivityPane.Column.model.title(in: prefs.tab), value: \.modelKey) { row in textCell(row.model ?? "") }
                 .customizationID(ActivityPane.Column.model.rawValue).defaultVisibility(.hidden)
-            TableColumn(ActivityPane.Column.startedBy.title) { row in textCell(row.startedBy ?? "") }
+            TableColumn(ActivityPane.Column.startedBy.title(in: prefs.tab)) { row in textCell(row.startedBy ?? "") }
                 .customizationID(ActivityPane.Column.startedBy.rawValue).defaultVisibility(.hidden)
-            TableColumn(ActivityPane.Column.started.title, value: \.startedKey) { row in
+            TableColumn(ActivityPane.Column.started.title(in: prefs.tab), value: \.startedKey) { row in
                 textCell(row.started.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "")
             }
             .customizationID(ActivityPane.Column.started.rawValue).defaultVisibility(.hidden)
-            TableColumn(ActivityPane.Column.kind.title) { row in kindCell(row) }
+            TableColumn(ActivityPane.Column.kind.title(in: prefs.tab)) { row in kindCell(row) }
                 .width(22).customizationID(ActivityPane.Column.kind.rawValue).defaultVisibility(.hidden)
             // The Cost and Where tabs' columns (decision 23); off on the Runs tab.
-            TableColumn(ActivityPane.Column.tokens.title) { row in textCell(row.tokens > 0 ? row.tokens.formatted() : "") }
+            TableColumn(ActivityPane.Column.tokens.title(in: prefs.tab)) { row in textCell(row.tokens > 0 ? row.tokens.formatted() : "") }
                 .customizationID(ActivityPane.Column.tokens.rawValue).defaultVisibility(.hidden)
-            TableColumn(ActivityPane.Column.toFinish.title) { row in textCell(ActivityPane.toFinishLine(row)) }
+            TableColumn(ActivityPane.Column.toFinish.title(in: prefs.tab)) { row in textCell(ActivityPane.toFinishLine(row)) }
                 .customizationID(ActivityPane.Column.toFinish.rawValue).defaultVisibility(.hidden)
-            TableColumn(ActivityPane.Column.runsOn.title) { row in textCell(ActivityPane.whereLine(row)) }
+            TableColumn(ActivityPane.Column.runsOn.title(in: prefs.tab)) { row in textCell(ActivityPane.whereLine(row)) }
                 .customizationID(ActivityPane.Column.runsOn.rawValue).defaultVisibility(.hidden)
-            TableColumn(ActivityPane.Column.lane.title) { row in textCell(row.lane.map { $0.capitalized } ?? "") }
+            TableColumn(ActivityPane.Column.lane.title(in: prefs.tab)) { row in textCell(row.lane.map { $0.capitalized } ?? "") }
                 .customizationID(ActivityPane.Column.lane.rawValue).defaultVisibility(.hidden)
     }
 

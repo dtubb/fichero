@@ -639,8 +639,8 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   person's column toggles kept per tab, `ActivityPanePrefs.columns(for:)`; prefs stored before the tabs load, their grouping
   becoming the tab), the segmented control in the window's toolbar, the four in a main window pane's lens menu; Group by
   (View › Activity ▸) lands on Runs or Files. The engine says where each row runs (`runs_on`, `lane`,
-  `test_activity_where_6588.py`). Picture: `docs/assets/activity-pane/window-toolbar-tabs.png`. *Not yet:* the column
-  titles per tab ("File", "Spent", "Last run" read "Name", "Cost", "Started"). *Test:*
+  `test_activity_where_6588.py`; a workflow run by its page jobs). Picture: `docs/assets/activity-pane/window-toolbar-tabs.png`.
+  The titles follow the tab ("File" and "Last Run" on Files, "Spent" on Cost, `Column.title(in:)`). *Test:*
   `fichero/Tests/Unit/general/Models/ActivityPane/ActivityToolbarTabsTests.swift`.
 - `activity.pane.bottom-bar-like-every-pane` — **[OK]** (#6588; the owner 2026-11-14: "filter bar and metadata button at the
   bottom like in the rest of the app"; `panes.chrome.one-filter-pattern`, `PaneFilterBar`, `PaneFilterField`; supersedes the

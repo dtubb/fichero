@@ -54,4 +54,13 @@ struct ActivityToolbarTabsTests {
         row.phase = .done
         #expect(ActivityPane.toFinishLine(row).isEmpty)
     }
+
+    @Test("a tab names its columns: File and Last Run on Files, Spent on Cost; the others keep their own titles")
+    func titles() {
+        #expect(ActivityPane.Column.name.title(in: .files) == "File")
+        #expect(ActivityPane.Column.started.title(in: .files) == "Last Run")
+        #expect(ActivityPane.Column.cost.title(in: .cost) == "Spent")
+        #expect(ActivityPane.Column.name.title(in: .runs) == "Name")
+        #expect(ActivityPane.Column.cost.title(in: .runs) == "Cost")
+    }
 }

@@ -339,6 +339,17 @@ enum ActivityPane {
 
         var isOnByDefault: Bool { Tab.runs.columns.contains(self) }
 
+        /// The column's title on a tab (decision 23): the Files tab names its rows File and its date Last Run, the Cost tab
+        /// its dollars Spent; every other title is the column's own.
+        func title(in tab: Tab) -> String {
+            switch (self, tab) {
+            case (.name, .files): "File"
+            case (.started, .files): "Last Run"
+            case (.cost, .cost): "Spent"
+            default: title
+            }
+        }
+
         var title: String {
             switch self {
             case .source: ""
