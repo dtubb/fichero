@@ -12,8 +12,8 @@ struct ActivityToolbarTabsTests {
     @Test("each tab is a grouping and its columns: Files by file, the others by run; Cost and Where their own columns")
     func tabsAreGroupingsAndColumns() {
         // The sidebar's five items since decision 32 (Archived its own item, `activity.window.sidebar`).
-        #expect(Tab.allCases.map(\.title) == ["Runs", "Files", "Cost", "Where", "Archived"])
-        #expect(Tab.allCases.map(\.grouping) == [.run, .file, .run, .run, .run])
+        #expect(Tab.allCases.map(\.title) == ["Runs", "Files", "Recipes", "Cost", "Where", "Archived"])
+        #expect(Tab.allCases.map(\.grouping) == [.run, .file, .run, .run, .run, .run])
         let prefs = ActivityPanePrefs()
         #expect(prefs.columns(for: .cost)[visibility: "tokens"] == .visible)
         #expect(prefs.columns(for: .cost)[visibility: "trail"] == .hidden)

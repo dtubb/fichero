@@ -163,6 +163,12 @@ struct ActivityPaneView: View {
             if showsHead { head; Divider() }
             if showsHead {
                 rowsView(shown)
+            } else if prefs.tab == .recipes && !graphsFull {
+                // Recipes (decision 37): recipe › run › step with the rates that compare them, over the graphs.
+                VSplitView {
+                    ActivityRecipesView(libraries: libraries).frame(minHeight: 140)
+                    graphs
+                }
             } else if graphsFull {
                 // The graphs made full size (`activity.graphs.own-pane`, decision 41): they fill the centre.
                 graphs
