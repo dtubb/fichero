@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 
 import fichero_server
+from _scan_files import scan_rglob
 from fichero_server.models.knowledge import KnowledgeClaim
 
 _SRC = Path(fichero_server.__file__).parent
@@ -32,7 +33,7 @@ def _is_raw_db_call(node: ast.AST) -> bool:
 
 def test_no_fetch_off_the_cursor_a_locked_helper_returned():
     offenders = []
-    for path in sorted(_SRC.rglob("*.py")):
+    for path in sorted(scan_rglob(_SRC, "*.py")):
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             if not isinstance(node, ast.Call):
                 continue
