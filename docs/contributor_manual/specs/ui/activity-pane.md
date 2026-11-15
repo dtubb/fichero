@@ -800,10 +800,10 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   running; a row paused by hand before stays paused after Play; Undo of Pause All is Play's effect; Stop All ends them
   cancelled with their done pages kept. *Built 2026-11-15:* the engine's `jobs.pause_all` / `continue_all` / `stop_all` (the `held_by` mark), the three routes and actions, the summary's `controls` and `stoppable`; the app's `ActivityRunControlsButtons` at the far left of the Activity window and of every main window, over every open project, Stop asking once. *Not yet:* one undo step across projects (each project's Pause All is its own step); a real-run check. *Test:* `fichero-server/tests/unit/jobs/test_pause_all_continue_all_6588.py`,
   `fichero/Tests/Unit/general/Models/ActivityPane/ActivityRunControlsTests.swift`.
-- `activity.pane.row-controls` — **[GAP]** (#6588; decision 31) the selected or hovered row's trailing cell shows its own
+- `activity.pane.row-controls` — **[OK]** (#6588; decision 31) the selected or hovered row's trailing cell shows its own
   Play/Pause (by its state, `ActivityPaneVerb.pause` / `.resume`) and Stop, small, borderless, through the one verb list;
   nothing for a row neither allows. The toolbar holds no selection verbs; the context menu and Project › Activity keep them.
-  *Test:* `ActivityRowControlsTests.swift`.
+  *Built 2026-11-15:* `ActivityMonitorRow.rowControls` (Pause or Continue by state, Stop; never what the worded button offers) drawn as small borderless icons in the State cell of the selected or hovered row. *Test:* `ActivityRowControlsTests.swift`.
 - `activity.window.sidebar` — **[PARTIAL]** (#6588; decision 32; supersedes `activity.window.toolbar-tabs`) the Activity window
   is a `NavigationSplitView`: a source list (Runs, Files, Recipes, Cost; Models, a section of its own,
   `activity.window.models-tree`; Archived), the table, the Inspector. Each item is a grouping plus a column set over the
