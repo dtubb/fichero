@@ -9,8 +9,10 @@ struct ActivityBottomPanelTests {
     private let start = Date(timeIntervalSince1970: 1_800_000_000)
 
     private func minutes(_ pages: [Int], spend: Double = 0) -> [ActivityHistoryFigures.Minute] {
-        pages.enumerated().map { ActivityHistoryFigures.Minute(start: start.addingTimeInterval(Double($0.offset) * 60), pagesDone: $0.element,
-                                                        spendUsd: spend, tokens: 10) }
+        pages.enumerated().map {
+            ActivityHistoryFigures.Minute(start: start.addingTimeInterval(Double($0.offset) * 60), pagesDone: $0.element,
+                                          spendUsd: spend, tokens: 10)
+        }
     }
 
     @Test("two projects' histories are one: minute by minute summed, places and providers added")
