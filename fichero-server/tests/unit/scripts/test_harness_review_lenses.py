@@ -5,6 +5,7 @@ fixture diff the check must catch, the surface list at the top, and still ends b
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -13,7 +14,7 @@ SCRIPT = Path(__file__).resolve().parents[4] / "scripts" / "harness_review.py"
 MODELS = '[models]\nproviders = ["claude-code"]\nreviewer = { provider = "claude-code", model = "opus", context = 200000 }\n'
 
 
-def _prompt(tmp_path, files: dict[str, str]) -> str:
+def _prompt(tmp_path, files: dict[str, str], ladder: Path | None = None) -> str:
     repo = tmp_path / "r"
     repo.mkdir()
 
@@ -30,7 +31,8 @@ def _prompt(tmp_path, files: dict[str, str]) -> str:
     pinned = tmp_path / "pinned"
     pinned.mkdir()
     (pinned / "harness.toml").write_text('[land]\nbranch = "landbr"\n' + MODELS)
-    r = subprocess.run([sys.executable, str(SCRIPT), str(repo), "HEAD", "--pinned", str(pinned), "--verdicts", str(tmp_path / "v.json"), "--print"],
+    r = subprocess.run([sys.executable, str(SCRIPT), str(repo), "HEAD", "--pinned", str(pinned), "--verdicts", str(tmp_path / "v.json"), "--print",
+                        *(["--ladder", str(ladder)] if ladder else [])],
                        capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
     return r.stdout
@@ -63,3 +65,18 @@ def test_a_diff_with_no_surface_lists_none_at_the_top(tmp_path):
     p = _prompt(tmp_path, {"docs/a.md": "hello\n"})
     assert "SECURITY SURFACE CHANGED: none" in p.split("CHECKLIST:")[0]
     assert "LENS: Security." in p and "LENS: Performance" in p
+
+
+def test_the_security_rung_s_table_is_in_the_prompt_under_security_scan_exactly_as_the_rung_made_it(tmp_path):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "fichero-builder"))
+    from fichero_builder import security_rung as sr
+    rows = sr.read_bandit({"results": [{"filename": "scripts/conv.py", "line_number": 3, "test_id": "B602", "issue_severity": "HIGH",
+                                        "issue_confidence": "HIGH", "issue_text": "shell=True", "code": "x"}]})
+    table = sr.table(rows)
+    ladder = tmp_path / "ladder.json"
+    ladder.write_text(json.dumps({"ok": True, "rungs": [{"name": "guards", "ok": True}, {"name": "security", "ok": True, "table": table}]}))
+    p = _prompt(tmp_path, {"scripts/conv.py": "x = 1\n"}, ladder)
+    assert f"SECURITY SCAN (new findings only):\n{table}\n" in p and "bandit | B602" in p
+    ladder.write_text(json.dumps({"ok": True, "rungs": [{"name": "security", "ok": True, "skipped": True, "stdout_tail": "not required: x"}]}))
+    (tmp_path / "b").mkdir()
+    assert "(skipped: not required: x)" in _prompt(tmp_path / "b", {"scripts/conv.py": "x = 1\n"}, ladder)
