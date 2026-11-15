@@ -835,7 +835,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   a list, one engine line per row (time, level glyph, text, monospaced, long lines wrapped); a click selects a line, shift
   and command select many; ⌘C and Copy copy the selected lines (all when none); the log's find field highlights each match
   and steps through them; the level filter stays. Not editable. *Test:* `ActivityLogListTests.swift`.
-- `activity.window.recipes` — **[GAP]** (#6588; decision 37; an exception to `activity.pane.children-are-what-it-works-on`'s
+- `activity.window.recipes` — **[PARTIAL]** (#6588; decision 37; an exception to `activity.pane.children-are-what-it-works-on`'s
   two levels) the Recipes item lists each recipe (name and version) with its runs under it and each run's steps under
   that. A recipe row: runs, pages done and failed, failed %, seconds a page (median), cost a page, last run. A run row: its
   scope (folder), started, outcome, the same rates. A step row: its node's name, model and place, pages done and failed,
@@ -844,7 +844,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   side. Engine: `GET /api/activity/recipes?days=30` answers it from what is kept (the runs' timelines and usage,
   `run_view.step_timing`), no new recording. Acceptance: two runs of one recipe, one with Kraken (3 of 20 failed) and one
   with Qwen (0 failed), read 15% and 0% failed with each step's model; the run's Inspector draws its nodes with counts.
-  *Test:* `fichero-server/tests/unit/api/test_activity_recipes_6588.py`, `ActivityRecipesViewTests.swift`.
+  *Built 2026-11-15:* the engine's `GET /api/activity/recipes` (`workflows/activity_recipes.py`, from the run records and each run's job tree) and the sidebar's Recipes item: an outline table recipe › run › step (Runs, Model, Pages, Failed, Failed %, A Page, Cost a Page, When) over the graphs (`ActivityRecipesView`). *Not yet:* the recipe's version; the run's node graph in the Inspector; a recipe-run's stages (run-a-recipe) as their own level. *Test:* `fichero-server/tests/unit/api/test_activity_recipes_6588.py`, `ActivityRecipesViewTests.swift`.
 
 - `activity.window.centre-views` — **[GAP]** (#6588; decisions 38-39) the centre's head carries a view picker, **Table |
   Graph | Visual**, per sidebar item and remembered: Table is the rows (every item); Graph the item's rows over time (the
