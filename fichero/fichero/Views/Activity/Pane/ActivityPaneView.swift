@@ -133,7 +133,7 @@ struct ActivityPaneView: View {
                 sidebar
             } detail: {
                 content
-                    .toolbar { ToolbarItem(placement: .navigation) { ActivityRunControlsButtons() } }
+                    .toolbar { ToolbarItem(placement: .navigation) { ActivityRunControlsBar() } }
                     .inspector(isPresented: $showsInspector) {
                         windowInspector?()
                             .inspectorColumnWidth(min: 280, ideal: 380, max: 640)
