@@ -76,6 +76,19 @@ extension ActivityStore {
         }
     }
 
+    /// One of the window's global run controls on this project (`activity.window.run-controls`); the summary is read again
+    /// at once so the button turns. Returns the engine's refusal, in its words, or nil.
+    func runControl(_ control: ActivityRunControl) async -> String? {
+        do {
+            _ = try await activityService.runControl(control)
+            await refreshBackgroundJobs()
+            await resync()
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
     /// Stop one row's job and what is under it (the audited `job.cancel`).
     func cancelJob(jobId: String, runThreadId: String?) async -> String? {
         do {

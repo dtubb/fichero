@@ -123,6 +123,37 @@ extension ActivityService {
         }
     }
 
+    /// The window's global run controls (`activity.window.run-controls`, #6588): Pause All, Continue All (Play) and Stop All on
+    /// this project, each the engine's audited action. Returns the ids it acted on.
+    func runControl(_ control: ActivityRunControl) async throws -> [String] {
+        switch control {
+        case .pauseAll:
+            switch try await client.api.pauseAllApiActivityPauseAllPost() {
+            case .ok(let ok): return try ok.body.json.ids
+            case .unprocessableContent(let error):
+                throw ActivityServiceError.validationError((try? error.body.json)?.detail?.description ?? "Validation error")
+            case .undocumented(let statusCode, let payload):
+                throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
+            }
+        case .continueAll:
+            switch try await client.api.continueAllApiActivityContinueAllPost() {
+            case .ok(let ok): return try ok.body.json.ids
+            case .unprocessableContent(let error):
+                throw ActivityServiceError.validationError((try? error.body.json)?.detail?.description ?? "Validation error")
+            case .undocumented(let statusCode, let payload):
+                throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
+            }
+        case .stopAll:
+            switch try await client.api.stopAllApiActivityStopAllPost() {
+            case .ok(let ok): return try ok.body.json.ids
+            case .unprocessableContent(let error):
+                throw ActivityServiceError.validationError((try? error.body.json)?.detail?.description ?? "Validation error")
+            case .undocumented(let statusCode, let payload):
+                throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
+            }
+        }
+    }
+
     func cancelJob(id: String) async throws -> String {
         let response = try await client.api.cancelJobApiActivityJobsJobIdCancelPost(path: .init(jobId: id))
         switch response {
