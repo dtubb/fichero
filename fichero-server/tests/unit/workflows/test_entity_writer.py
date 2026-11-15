@@ -397,9 +397,16 @@ class TestEmbeddingMatch:
     the fuzzy-match fallback. Catches semantic divergence in noun
     phrases that pure SequenceMatcher misses.
 
-    These tests need the fastembed model downloaded (~220MB) on the
-    first run. Subsequent runs are cache hits.
+    These tests need the fastembed model in the cache: tests never fetch
+    one (#5188, HF_HUB_OFFLINE), so a machine without it skips the class.
     """
+
+    @pytest.fixture(autouse=True)
+    def _model_cached(self, db):
+        try:
+            db._embed_text("probe", role="passage")
+        except Exception as exc:  # noqa: BLE001 -- any load failure means the model is not here
+            pytest.skip(f"the embedding model is not cached here (#5188: tests never fetch): {exc}")
 
     def test_new_entity_gets_indexed_in_lancedb(self, db):
         from fichero_server.knowledge import entity_vectors
