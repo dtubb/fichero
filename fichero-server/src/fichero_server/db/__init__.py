@@ -2621,7 +2621,7 @@ class Database(DatabaseEmbeddingMixin):
         sql_table = self._sql_table_name(SavedSearch)
         self._ensure_table(SavedSearch)
         with self._lock:
-            rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+            rows = self._execute(f"SELECT * FROM {sql_table}", fetch="all")
             columns = [desc[0] for desc in self.conn.description]
         return [
             hydrated
@@ -2636,7 +2636,7 @@ class Database(DatabaseEmbeddingMixin):
         sql_table = self._sql_table_name(ResearchProject)
         self._ensure_table(ResearchProject)
         with self._lock:
-            rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+            rows = self._execute(f"SELECT * FROM {sql_table}", fetch="all")
             columns = [desc[0] for desc in self.conn.description]
         return [
             hydrated
@@ -2649,7 +2649,7 @@ class Database(DatabaseEmbeddingMixin):
         sql_table = self._sql_table_name(model_cls)
         self._ensure_table(model_cls)
         with self._lock:
-            rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+            rows = self._execute(f"SELECT * FROM {sql_table}", fetch="all")
             columns = [desc[0] for desc in self.conn.description]
         return [
             hydrated
@@ -2664,7 +2664,7 @@ class Database(DatabaseEmbeddingMixin):
         sql_table = self._sql_table_name(SpatialRoom)
         self._ensure_table(SpatialRoom)
         with self._lock:
-            rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+            rows = self._execute(f"SELECT * FROM {sql_table}", fetch="all")
             columns = [desc[0] for desc in self.conn.description]
         return [
             hydrated
@@ -2680,7 +2680,7 @@ class Database(DatabaseEmbeddingMixin):
         self._ensure_table(KnowledgeEntity)
         with self._lock:
             clause = f" WHERE {where}" if where else ""
-            rows = self._execute(f"SELECT * FROM {sql_table}{clause}").fetchall()
+            rows = self._execute(f"SELECT * FROM {sql_table}{clause}", fetch="all")
             columns = [desc[0] for desc in self.conn.description]
         return [
             hydrated
@@ -2695,7 +2695,7 @@ class Database(DatabaseEmbeddingMixin):
         sql_table = self._sql_table_name(Note)
         self._ensure_table(Note)
         with self._lock:
-            rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+            rows = self._execute(f"SELECT * FROM {sql_table}", fetch="all")
             columns = [desc[0] for desc in self.conn.description]
         return [
             hydrated
@@ -2710,7 +2710,7 @@ class Database(DatabaseEmbeddingMixin):
         sql_table = self._sql_table_name(Milestone)
         self._ensure_table(Milestone)
         with self._lock:
-            rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+            rows = self._execute(f"SELECT * FROM {sql_table}", fetch="all")
             columns = [desc[0] for desc in self.conn.description]
         return [
             hydrated
@@ -2726,7 +2726,7 @@ class Database(DatabaseEmbeddingMixin):
         self._ensure_table(Workflow)
         with self._lock:
             clause = f" WHERE {where}" if where else ""
-            rows = self._execute(f"SELECT w.* FROM {sql_table} AS w{clause}").fetchall()
+            rows = self._execute(f"SELECT w.* FROM {sql_table} AS w{clause}", fetch="all")
             columns = [desc[0] for desc in self.conn.description]
         return [
             hydrated
@@ -4098,19 +4098,22 @@ class Database(DatabaseEmbeddingMixin):
                     "source_document_id": source_document_id,
                     "needle": f'%"{entity_id}"%',
                 },
-            ).fetchall()
+                fetch="all",
+            )
         elif source_document_id is not None:
             rows = self._execute(
                 "SELECT entity_ids FROM knowledgeclaims WHERE source_document_id = $id",
                 {"id": source_document_id},
-            ).fetchall()
+                fetch="all",
+            )
         elif entity_id is not None:
             rows = self._execute(
                 "SELECT entity_ids FROM knowledgeclaims WHERE entity_ids LIKE $needle",
                 {"needle": f'%"{entity_id}"%'},
-            ).fetchall()
+                fetch="all",
+            )
         else:
-            rows = self._execute("SELECT entity_ids FROM knowledgeclaims").fetchall()
+            rows = self._execute("SELECT entity_ids FROM knowledgeclaims", fetch="all")
         return [row[0] for row in rows]
 
     def knowledge_claim_source_document_ids_for_entity(
@@ -4120,7 +4123,8 @@ class Database(DatabaseEmbeddingMixin):
         rows = self._execute(
             "SELECT source_document_id FROM knowledgeclaims WHERE entity_ids LIKE $needle",
             {"needle": f'%"{entity_id}"%'},
-        ).fetchall()
+            fetch="all",
+        )
         return [row[0] for row in rows]
 
     def knowledge_claims_for_seed_documents(
@@ -4201,10 +4205,10 @@ class Database(DatabaseEmbeddingMixin):
 
     def knowledge_entity_canonical_name(self, entity_id: str) -> str | None:
         """Return a single entity's canonical name, if present."""
-        row = fetch_one(self._execute(
+        row = self._execute(
             "SELECT canonical_name FROM knowledgeentitys WHERE id = $id",
-            {"id": entity_id},
-        ))
+            {"id": entity_id}, fetch="one"
+        )
         return row[0] if row and row[0] else None
 
     def knowledge_entity_ids_scoped_to_documents(self, doc_ids: set[str]) -> set[str]:
@@ -4223,7 +4227,8 @@ class Database(DatabaseEmbeddingMixin):
             rows = self._execute(
                 f"SELECT id FROM knowledgeentitys WHERE {clauses}",
                 params,
-            ).fetchall()
+                fetch="all",
+            )
             for (entity_id,) in rows:
                 if entity_id:
                     found.add(entity_id)
@@ -4247,7 +4252,8 @@ class Database(DatabaseEmbeddingMixin):
             LIMIT $limit
             """,
             {"needle": f'%"{entity_id}"%', "limit": limit},
-        ).fetchall()
+            fetch="all",
+        )
 
     def knowledge_claim_excerpts_for_entity(
         self, entity_id: str, limit: int
@@ -4263,7 +4269,8 @@ class Database(DatabaseEmbeddingMixin):
             LIMIT $limit
             """,
             {"needle": f'%"{entity_id}"%', "limit": limit},
-        ).fetchall()
+            fetch="all",
+        )
         return [excerpt for (excerpt,) in rows if excerpt]
 
     def entity_document_claim_counts(
@@ -4280,7 +4287,8 @@ class Database(DatabaseEmbeddingMixin):
             LIMIT $limit
             """,
             {"needle": f'%"{entity_id}"%', "limit": limit},
-        ).fetchall()
+            fetch="all",
+        )
         return [(doc_id, int(claim_count or 0)) for doc_id, claim_count in rows]
 
     def artifact_data_for_types(self, artifact_types: Sequence[str]) -> list[Any]:
@@ -4292,15 +4300,16 @@ class Database(DatabaseEmbeddingMixin):
         rows = self._execute(
             f"SELECT data FROM artifacts WHERE artifact_type IN ({placeholders})",
             params,
-        ).fetchall()
+            fetch="all",
+        )
         return [row[0] for row in rows]
 
     def document_page_content(self, document_id: str) -> str | None:
         """Return a document's full page content by id."""
-        row = fetch_one(self._execute(
+        row = self._execute(
             "SELECT page_content FROM documents WHERE id = $id",
-            {"id": document_id},
-        ))
+            {"id": document_id}, fetch="one"
+        )
         return row[0] if row else None
 
     def live_document_identity_rows(self, document_ids: Sequence[str]) -> list[tuple]:
@@ -4313,7 +4322,8 @@ class Database(DatabaseEmbeddingMixin):
             f"SELECT id, name, doc_type, file_type FROM documents "
             f"WHERE id IN ({placeholders}) AND deleted_at IS NULL",
             {f"d{i}": doc_id for i, doc_id in enumerate(ids)},
-        ).fetchall()
+            fetch="all",
+        )
 
     def artifact_entity_document_matches(
         self,
@@ -4343,7 +4353,8 @@ class Database(DatabaseEmbeddingMixin):
             LIMIT $limit
             """,
             params,
-        ).fetchall()
+            fetch="all",
+        )
 
     def artifact_content_matches(self, *, query: str, limit: int) -> list[tuple]:
         """Artifacts whose text content or structured data contains the query.
@@ -4371,7 +4382,8 @@ class Database(DatabaseEmbeddingMixin):
             LIMIT $limit
             """,
             {"needle": f"%{query.strip().lower()}%", "limit": limit},
-        ).fetchall()
+            fetch="all",
+        )
 
     def recent_content_document_rows(self, limit: int) -> list[tuple]:
         """Most recently updated documents with non-empty page content."""
@@ -4386,13 +4398,15 @@ class Database(DatabaseEmbeddingMixin):
             LIMIT $limit
             """,
             {"limit": limit},
-        ).fetchall()
+            fetch="all",
+        )
 
     def keyword_artifact_rows(self) -> list[tuple[Any, str]]:
         """Keyword artifact data plus document id for keyword cloud counts."""
         return self._execute(
-            "SELECT data, document_id FROM artifacts WHERE artifact_type = 'keywords'"
-        ).fetchall()
+            "SELECT data, document_id FROM artifacts WHERE artifact_type = 'keywords'",
+            fetch="all",
+        )
 
     def knowledge_table_signature(self, table_name: str) -> tuple[int, str]:
         """Return ``(count, max_updated_at)`` for cacheable KG tables."""
@@ -4400,9 +4414,9 @@ class Database(DatabaseEmbeddingMixin):
             raise ValueError(f"Invalid table name: {table_name}")
         if table_name not in {"knowledgeclaims", "knowledgeentitys"}:
             raise ValueError(f"Unsupported knowledge table: {table_name}")
-        row = fetch_one(self._execute(
-            f"SELECT COUNT(*), MAX(updated_at) FROM {table_name}"
-        ))
+        row = self._execute(
+            f"SELECT COUNT(*), MAX(updated_at) FROM {table_name}", fetch="one"
+        )
         if not row:
             return (0, "")
         return (int(row[0] or 0), str(row[1]) if row[1] is not None else "")
@@ -5823,7 +5837,7 @@ class Database(DatabaseEmbeddingMixin):
         self._ensure_table(model)
 
         if not filters:
-            result = fetch_one(self._execute(f"SELECT COUNT(*) FROM {sql_table}"))
+            result = self._execute(f"SELECT COUNT(*) FROM {sql_table}", fetch="one")
         else:
             # Validate column names to prevent SQL injection
             for k in filters.keys():
@@ -5841,9 +5855,9 @@ class Database(DatabaseEmbeddingMixin):
                 for k in filters.keys()
             )
             params = {k: v for k, v in filters.items() if v is not None}
-            result = fetch_one(self._execute(
-                f"SELECT COUNT(*) FROM {sql_table} WHERE {where}", params or None
-            ))
+            result = self._execute(
+                f"SELECT COUNT(*) FROM {sql_table} WHERE {where}", params or None, fetch="one"
+            )
 
         return result[0] if result else 0
 
@@ -7302,8 +7316,9 @@ class Database(DatabaseEmbeddingMixin):
                         WHERE d.deleted_at IS NULL
                           AND d.page_content IS NOT NULL
                           AND length(d.page_content) > 0
-                        """
-                    ).fetchall()
+                        """,
+                        fetch="all",
+                    )
                     uncovered_ids = [
                         row[0] for row in candidate_id_rows
                         if row[0] not in embedded_doc_ids
@@ -7328,7 +7343,8 @@ class Database(DatabaseEmbeddingMixin):
                                     WHERE d.id IN ({chunk_placeholders})
                                     """,
                                     chunk_params,
-                                ).fetchall()
+                                    fetch="all",
+                                )
                             )
                         matched = []
                         for row in rows:

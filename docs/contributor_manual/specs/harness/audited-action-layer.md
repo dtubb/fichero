@@ -408,6 +408,15 @@ parallel pattern to keep.
   `test_single_connection_guardrail.py::test_db_manager_pool_not_keyed_by_thread_ident`,
   `::test_get_database_is_one_shared_instance_across_threads`,
   `::test_no_raw_conn_attr_execute_outside_seam`.
+- `audit.no-fetch-after-the-lock` — **[BUILT]** (#6601) a read off the shared connection fetches INSIDE
+  `Database._lock`. `Database._execute(sql)` without `fetch=` returns the raw cursor, which is the shared
+  connection itself, so `db._execute(sql).fetchall()` (or `fetch_one(db._execute(sql))`) fetched after the
+  lock was released; against another thread's statement newer DuckDB refuses with `ResourceInUseException:
+  connection is busy with another call`, which surfaced as HTTP 500 on the segment, artifact, trash,
+  reading-order and conversation reads. Pass `fetch="all"`/`"one"`, or use `execute_fetchall`/`execute_fetchone`.
+  Pinned: `fichero-server/tests/test_shared_connection_lock.py::test_no_fetch_off_the_cursor_a_locked_helper_returned`
+  (AST scan of the source) and `::test_two_threads_one_connection_never_collide` (a connection that refuses
+  overlapping calls, as newer DuckDB does).
 
 ## Test matrix
 
