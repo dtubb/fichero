@@ -126,9 +126,11 @@ struct ActivityLaunchAlertTests {
         let library = project()
         let alert = StoppedAtQuitAlert()
         await alert.check(libraries: [library])
-        var opened = false
-        await alert.answer(.choose, libraries: [library], steps: nil) { opened = true }
-        #expect(opened && !alert.isPresented)
+        var opened: [ActivitySelection] = []
+        await alert.answer(.choose, libraries: [library], steps: nil) { opened = $0 }
+        #expect(opened.map(\.jobId) == ["r1", "t1"] && opened.allSatisfy { $0.libraryId == library.id },
+                "Activity opens with the stopped rows selected")
+        #expect(!alert.isPresented)
         #expect(!StoppedAtQuitMockURLProtocol.seen.contains { $0.method == "POST" })
     }
 
@@ -143,7 +145,7 @@ struct ActivityLaunchAlertTests {
         WindowState.front = window
         defer { WindowState.front = saved }
 
-        await alert.answer(.deleteAll, libraries: [library], steps: nil) {}
+        await alert.answer(.deleteAll, libraries: [library], steps: nil) { _ in }
 
         #expect(StoppedAtQuitMockURLProtocol.seen.contains { $0.method == "POST" && $0.path == "/api/actions/invoke" })
         #expect(window.steps.canUndo && window.steps.undoName == "Delete 2 Rows", "Edit › Undo puts them back")

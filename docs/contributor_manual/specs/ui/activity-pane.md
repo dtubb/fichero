@@ -201,8 +201,8 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   contract regenerated. App: `StoppedAtQuitAlert` (title, message, Leave Paused default, Continue All) mounted over the main
   window by `StoppedAtQuitAlertModifier`, asked once per project as it opens; Choose… opens the Activity window; the automatic
   kinds roll into one line ("and background work: 412 thumbnails, 80 embeds") and a held folder read into "New files in a
-  synced folder" (the review's answers, 2026-11-14). Not built: the alert's rows selected in Activity on
-  Choose…; the folder's name on the new-material line.
+  synced folder" (the review's answers, 2026-11-14). Choose… opens Activity with the stopped rows selected
+  (`ActivityWindowSelectionState.revealAll`, 2026-11-14 night). Not built: the folder's name on the new-material line.
   **Ruled 2026-11-14 evening (owner, looking at the alert):** a FOURTH button, **Delete All** (destructive, last): every
   listed row deleted through the one `job.delete`, one step on the window's stack, so Edit › Undo puts them back paused. With
   no run among the rows the title says what was stopped ("Background work was stopped when Fichero quit"), never "0 runs",

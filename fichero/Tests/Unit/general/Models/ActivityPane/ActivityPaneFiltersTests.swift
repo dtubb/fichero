@@ -55,4 +55,16 @@ struct ActivityPaneFiltersTests {
         #expect(ActivityPane.emptyLine(rowsShown: 0, filterIsEmpty: false) == "No activity matches")
         #expect(ActivityPane.emptyLine(rowsShown: 3, filterIsEmpty: true) == nil)
     }
+
+    /// The launch alert's Choose… (#6584): the stopped rows, by job and project, are the rows selected.
+    @Test("Choose…'s selections are the listed rows of those jobs in those projects, and no others")
+    func revealAllPicksTheRows() {
+        let project = UUID()
+        var kept = ActivityPaneFixture.row("k", .paused)
+        kept.libraryId = project
+        var other = ActivityPaneFixture.row("o", .paused)
+        other.libraryId = UUID()
+        let ids = ActivityPane.rowIds(for: [ActivitySelection(jobId: "k", libraryId: project)], in: [kept, other])
+        #expect(ids == ["k"])
+    }
 }

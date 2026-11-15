@@ -41,7 +41,8 @@ struct StoppedAtQuitAlertModifier: ViewModifier {
 
     private func answer(_ choice: StoppedAtQuitAlert.Choice) {
         Task {
-            await alert.answer(choice, libraries: libraries, steps: windowSteps) {
+            await alert.answer(choice, libraries: libraries, steps: windowSteps) { picked in
+                ActivityWindowSelectionState.shared.revealAll = picked
                 openWindow(id: ActivityWindowSelectionState.monitorWindowID)
             }
         }

@@ -11,8 +11,11 @@ struct ActivityMonitorWindow: View {
 
     var body: some View {
         ActivityPaneView(libraryId: nil, paneKey: "activity.window", reveal: selectionState.reveal,
-                         revealFiles: selectionState.revealFiles, onSelect: { selectionState.pick = $0 },
-                         onRevealed: { selectionState.reveal = nil; selectionState.revealFiles = nil })
+                         revealFiles: selectionState.revealFiles, revealAll: selectionState.revealAll,
+                         onSelect: { selectionState.pick = $0 },
+                         onRevealed: {
+                             selectionState.reveal = nil; selectionState.revealFiles = nil; selectionState.revealAll = nil
+                         })
             .inspector(isPresented: $showsInspector) {
                 ActivityInspectorSection(pick: selectionState.pick)
                     .inspectorColumnWidth(min: 280, ideal: 380, max: 640)

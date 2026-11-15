@@ -23,6 +23,8 @@ struct ActivityPaneView: View {
     var reveal: ActivitySelection?
     /// The documents whose file row to select, by File (Show in Activity on a page): the first one listed.
     var revealFiles: [String]?
+    /// Rows to select together once listed (the launch alert's Choose…).
+    var revealAll: [ActivitySelection]?
     /// The selected row, for the Inspector beside the pane; nil with none or several selected.
     var onSelect: (ActivityPaneSelection?) -> Void = { _ in }
     /// A Show in Activity was answered (its row selected): the asker clears it, so a later refresh does not select it again.
@@ -141,7 +143,8 @@ struct ActivityPaneView: View {
         .onChange(of: shown.map(\.id)) { _, _ in onSelect(selectedPick); if selection.isEmpty { select(reveal) } }
         .onChange(of: reveal) { _, wanted in select(wanted) }
         .onChange(of: revealFiles) { _, wanted in showFiles(wanted) }
-        .onAppear { select(reveal); showFiles(revealFiles) }
+        .onChange(of: revealAll) { _, wanted in selectAll(wanted) }
+        .onAppear { select(reveal); showFiles(revealFiles); selectAll(revealAll) }
         .task(id: showArchived) { await readArchivedIfShown() }
         .task(id: refreshKey) { await refreshAll() }
         .task(id: libraries.map(\.id)) { await readHistoryEachMinute() }
@@ -207,6 +210,15 @@ struct ActivityPaneView: View {
     }
 
     /// Select the row a Show in Activity asked for, once it is listed.
+    /// Select every row asked for that is listed (the launch alert's Choose…: the rows the quit stopped).
+    private func selectAll(_ wanted: [ActivitySelection]?) {
+        guard let wanted, !wanted.isEmpty else { return }
+        let ids = ActivityPane.rowIds(for: wanted, in: allRows)
+        guard !ids.isEmpty else { return }
+        selection = ids
+        onRevealed()
+    }
+
     private func select(_ wanted: ActivitySelection?) {
         guard let wanted else { return }
         let ids = Set(allRows.filter { $0.selection == wanted }.map(\.id))

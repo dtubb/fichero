@@ -115,14 +115,18 @@ final class StoppedAtQuitAlert {
         if !items.isEmpty { isPresented = true }  // automatic-only work still asks: the owner decides what starts
     }
 
-    /// One answer carried out. Choose… leaves the rows paused and opens Activity through `openActivity`.
+    /// The stopped rows as Activity's selections: Choose… opens Activity with them selected.
+    var selections: [ActivitySelection] { items.map { ActivitySelection(jobId: $0.jobId, libraryId: $0.libraryId) } }
+
+    /// One answer carried out. Choose… leaves the rows paused and opens Activity with them selected (`openActivity`).
     func answer(_ choice: Choice, libraries: [LibraryManager.LibraryReference], steps: WindowSteps?,
-                openActivity: () -> Void) async {
+                openActivity: ([ActivitySelection]) -> Void) async {
         switch choice {
         case .leavePaused: leavePaused()
         case .choose:
+            let picked = selections
             leavePaused()
-            openActivity()
+            openActivity(picked)
         case .continueAll: await continueAll(libraries: libraries)
         // The alert is mounted above the window's own environment, where no WindowSteps is injected: without the front
         // window's steps Delete All went to no undo stack and Edit › Undo could not put the rows back.

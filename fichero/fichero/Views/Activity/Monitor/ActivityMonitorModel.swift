@@ -43,7 +43,7 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     /// Unique across levels and projects.
     var id: String
     let kind: Kind
-    let libraryId: UUID?
+    var libraryId: UUID?
     /// The owning run's row id (`ActivityRun.id`): what Delete and the detail
     /// window act on from any row of its tree.
     var runRowID: String?

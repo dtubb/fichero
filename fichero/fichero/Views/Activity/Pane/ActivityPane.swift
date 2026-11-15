@@ -63,6 +63,12 @@ enum ActivityPane {
         static func of(_ grouping: Grouping) -> Tab { grouping == .file ? .files : .runs }
     }
 
+    /// The listed rows that are the selections asked for (the launch alert's Choose…), by job and project.
+    static func rowIds(for wanted: [ActivitySelection], in rows: [ActivityMonitorRow]) -> Set<String> {
+        let asked = Set(wanted)
+        return Set(rows.filter { row in row.selection.map(asked.contains) ?? false }.map(\.id))
+    }
+
     /// What an empty pane says in its one line (`activity.pane.empty-says-one-line`, #6599): "Nothing running" with nothing to
     /// list, "No activity matches" when the filter hides every row; nil while there are rows.
     static func emptyLine(rowsShown: Int, filterIsEmpty: Bool) -> String? {
