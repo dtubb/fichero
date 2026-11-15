@@ -1661,7 +1661,20 @@ async def set_job_paused(
 ) -> JobStateResponse:
     """Pause one waiting job, or resume a paused one (`activity.pause.per-job`). A paused job stays
     paused across relaunch. A running job finishes the item it is on; a page a workflow run is
-    waiting for is paused with its run (409)."""
+    waiting for is paused with its run (409). A paused workflow run is resumed from its checkpoint, as
+    its own Resume does: the row's Continue is the one verb (#6588; it answered 409 before)."""
+    from fichero_server.execution import jobs as job_queue
+
+    if not request.paused:
+        try:
+            kind, state = job_queue._job_row(db, job_id)
+        except KeyError:
+            kind, state = None, None
+        if kind == "workflow" and state == "paused":
+            from fichero_server.api.routes.workflow_execution import core
+
+            await core.resume_workflow(job_id, None, db=db)
+            return JobStateResponse(id=job_id, state="running")
     return _control_job(db, ctx, "job.pause", {"job_id": job_id, "paused": request.paused})
 
 
