@@ -141,6 +141,9 @@ class Procs:
     stop: Callable[[dict], None]                    # end the lane's session
     sleep: Callable[[float], None] = time.sleep
     still_open: Callable[[dict, dict], list] = lambda lane, step: []  # (lane, step) -> issues of a landed step not closed, as "#N"
+    # (lane, step, head) -> [{issue, cls, closed, note}]: the issues the landed step cites, reconciled against the spec (dev-workflows.run.issues-close-when-done)
+    reconcile: Callable[[dict, dict, str], list] | None = None
+    reconcile_nightly: Callable[[], tuple] | None = None  # () -> (rc, output) of the nightly reconcile over every open issue; None = off
     # taken lane ids -> (lane id, worktree, [{step, brief, issues, waits}]) of the next build-order milestone, or None
     next_milestone: Callable[[set], tuple | None] = lambda taken: None
     build: Callable[[dict], tuple] = lambda lane: (0, "")  # lane -> (rc, output) of the dev build after its milestone landed
@@ -478,7 +481,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             err = procs.tell(lane, f"LANDED {r['head'][:9]}: rebase onto origin/integration at your next step boundary.")
             journal.append("queue", lane=lane["id"], step=s["step"], state="told" if not err else "tell-refused", detail=err or "LANDED")
             procs.after_land(lane, s, r["head"])
-        left = procs.still_open(lane, s)  # a row, not a close: only `builder landed` closes, on a Fixes line (owner ruling)
+        results = procs.reconcile(lane, s, r["head"]) if procs.reconcile else []  # owner 2026-11-14: an issue closes when it is done
+        left = [f"#{x['issue']}" + (" (could not read)" if x["cls"] == "UNREAD" else "") for x in results if not x["closed"]] if procs.reconcile else procs.still_open(lane, s)
         close_alerts(lane["id"], s["step"], f"the step landed at {r['head'][:9]}")
         fresh_stop()
         lane["cursor"] += 1  # ONE write ends the landing: the step is landed and the cursor is past it in the same store, so no `builder done` can run between the two
@@ -486,7 +490,10 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         if push and lane.get("kind") != "external" and lane["cursor"] >= len(lane["steps"]) and any(x.get("product") for x in lane["steps"]):
             # dev-workflows.run.verify-all (owner 2026-11-03): a MILESTONE's last step landed (a worker lane has no step left) and some step touched the product: ONE verify-all once every lane is idle
             (journal.STATE / VERIFY_PENDING).write_text(r["head"])
-        if left:
+        if results:
+            journal.append("queue", lane=lane["id"], step=s["step"], state="issue-reconcile",
+                           detail="; ".join(f"#{x['issue']} {x['cls']}{' closed' if x['closed'] else ''}" + (f": {x['note']}" if x["note"] and not x["closed"] else "") for x in results))
+        elif left:
             journal.append("queue", lane=lane["id"], step=s["step"], state="issue-open", detail=", ".join(left))
         return True
     if r.get("kind") == "already-landed":  # #6466 (run.loop-already-landed): every commit is on origin already; the step IS landed
@@ -1084,6 +1091,34 @@ def verify_when_idle(procs: Procs, chains: dict | None) -> None:
         t.start()
 
 
+RECONCILE = "issue-reconcile.last"  # when the nightly issue reconcile last started (epoch seconds)
+
+
+def reconcile_when_due(procs: Procs, chains: dict | None) -> None:
+    """dev-workflows.run.issues-close-when-done (b): once a day over every open issue, the dry-run TSV and ONE `issue-reconcile`
+    row (the summary), closing only CLOSE-A/B. A thread like the daily builds; a failure is a row, never a crash."""
+    if procs.reconcile_nightly is None or any(t.name == "issue-reconcile" and t.is_alive() for t in BUILDS):
+        return
+    marker = journal.STATE / RECONCILE
+    try:
+        if time.time() - float(marker.read_text()) < DAILY_S:
+            return
+    except (OSError, ValueError):
+        pass
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(f"{time.time()}\n")
+
+    def run_it():
+        rc, output = procs.reconcile_nightly()
+        journal.append("issue-reconcile", state="ok" if rc == 0 else "failed", detail=output.strip()[-1500:])
+    if chains is None:
+        run_it()
+    else:
+        t = threading.Thread(target=run_it, name="issue-reconcile", daemon=True)
+        BUILDS.append(t)
+        t.start()
+
+
 DAILY = "daily-builds.last"  # when the daily builds last started (epoch seconds)
 DAILY_S = 24 * 3600
 
@@ -1167,6 +1202,7 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
             journal.append("loop", state="lane-error", lane=lane["id"], detail=traceback.format_exc()[-1500:])
             out(f"{lane['id']}: lane error (journal row lane-error); the loop goes on")
     daily_when_due(procs, chains)
+    reconcile_when_due(procs, chains)
     if not busy:
         verify_when_idle(procs, chains)
         if getattr(procs, "root", ""):  # housekeeping at a quiet tick: the ladders' old scratch dirs (run.scratch-sweep)
@@ -1619,6 +1655,28 @@ def real_procs(root) -> Procs:
                            cwd=str(pkg), capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(pkg)})
         return r.returncode, (r.stdout + r.stderr)[-2000:]
 
+    script = root / "scripts" / "issue_spec_reconcile.py"
+
+    def reconcile(lane, step, head):  # never raises: the step has landed
+        if not step.get("issues") or not script.is_file():
+            return []
+        try:
+            r = subprocess.run([sys.executable, str(script), "--issues", ",".join(str(n) for n in step["issues"]), "--ref", head, "--landed", head],
+                               capture_output=True, text=True, timeout=900, cwd=str(root))
+            return json.loads(r.stdout) if r.returncode == 0 else [{"issue": n, "cls": "UNREAD", "closed": False, "note": (r.stderr or r.stdout)[-200:]} for n in step["issues"]]
+        except (subprocess.TimeoutExpired, OSError, ValueError) as e:
+            return [{"issue": n, "cls": "UNREAD", "closed": False, "note": str(e)[:200]} for n in step["issues"]]
+
+    def reconcile_nightly():
+        if not script.is_file():
+            return 2, "scripts/issue_spec_reconcile.py is missing"
+        try:
+            r = subprocess.run([sys.executable, str(script), "--nightly", "--ref", f"origin/{branch}", "--tsv", str(journal.STATE / "issue-reconcile.tsv")],
+                               capture_output=True, text=True, timeout=3600, cwd=str(root))
+        except (subprocess.TimeoutExpired, OSError) as e:
+            return 2, str(e)
+        return r.returncode, (r.stdout + r.stderr)[-1500:]
+
     def stop(lane):
         if lane.get("feed"):
             (Path(lane["feed"]) / "stop").write_text("")
@@ -1659,7 +1717,7 @@ def real_procs(root) -> Procs:
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0,
                  landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
-                 next_milestone=lambda taken: next_in_order(root, taken), build=build, verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake,
+                 next_milestone=lambda taken: next_in_order(root, taken), build=build, verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake,
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "",
                  workroot=str(rules.get("jail", {}).get("workroot", "")), blob=blob, root=str(root), jail_gh=bool(rules.get("jail", {}).get("gh")),
                  inline_paths=tuple(rules.get("jail", {}).get("inline_paths", brief_tool.INLINE_DEFAULT)))

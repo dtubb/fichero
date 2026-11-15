@@ -794,7 +794,7 @@ def issues_today(rows: list[dict], url: str = "", today: str = "") -> list[dict]
             what = str(r.get("detail", ""))
         elif r.get("event") == "alert-answer" and r.get("action") == "ask-owner" and r.get("ok"):
             what = f"asked the owner (needs-your-decision) for {r.get('id')}"
-        elif r.get("event") == "queue" and r.get("state") in ("ask-failed", "issue-open"):
+        elif r.get("event") == "queue" and r.get("state") in ("ask-failed", "issue-open", "issue-reconcile"):
             what = f"{r.get('state')}: {r.get('detail', '')}"
         if what:
             out.append({"ts": r["ts"], "what": what, "links": [{"n": int(n), "url": f"{url}/issues/{n}" if url else ""} for n in re.findall(r"#(\d+)", what)]})

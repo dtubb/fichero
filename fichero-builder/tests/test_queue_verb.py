@@ -132,6 +132,39 @@ def test_an_issue_of_a_landed_step_that_stayed_open_is_a_row_and_on_the_step_nev
     assert queue.load()[0]["cursor"] == 2
 
 
+def test_a_landed_steps_issues_are_reconciled_the_row_names_each_result_and_an_open_one_stays_on_the_step(state):
+    """dev-workflows.run.issues-close-when-done (a): the reconcile result replaces the plain issue-open row."""
+    lane(state)
+    fake = Fake()
+    seen = []
+    fake.procs.reconcile = lambda the_lane, step, head: (seen.append((step["step"], head)), [
+        {"issue": 7, "cls": "CLOSE-A", "closed": True, "note": ""},
+        {"issue": 8, "cls": "KEEP", "closed": False, "note": "a.gap [GAP] (s.md)"}] if step["step"] == "1.2" else [])[1]
+    assert run(fake) == 0
+    assert [s for s, _ in seen] == ["1.1", "1.2"] and seen[1][1] == "h1.2"
+    assert "still open: #8" in steps()["1.2"]["why"] and "#7" not in steps()["1.2"]["why"] and "open" not in steps()["1.1"]["why"]
+    rows = [(r["step"], r["state"], r["detail"]) for r in journal.read() if r["event"] == "queue" and r["state"] in ("issue-open", "issue-reconcile")]
+    assert rows == [("1.2", "issue-reconcile", "#7 CLOSE-A closed; #8 KEEP: a.gap [GAP] (s.md)")]
+    assert queue.load()[0]["cursor"] == 2
+
+
+def test_the_nightly_reconcile_runs_once_a_day_as_one_summary_row_and_a_failure_is_a_row(state):
+    fake = Fake()
+    queue.add("busy", "/w/y", "1.1", str(state / "b1.1"), [])
+    queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None)
+    assert not (journal.STATE / queue.RECONCILE).exists(), "no reconcile declared: nothing runs"
+    ran = []
+    fake.procs.reconcile_nightly = lambda: (ran.append(1), (0, '{"open": 9, "CLOSE-A": 1, "closed": 1}'))[1]
+    queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None)
+    queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None)
+    assert ran == [1]
+    assert [(r["state"], r["detail"]) for r in journal.read() if r["event"] == "issue-reconcile"] == [("ok", '{"open": 9, "CLOSE-A": 1, "closed": 1}')]
+    (journal.STATE / queue.RECONCILE).write_text(f"{queue.time.time() - queue.DAILY_S - 1}\n")
+    fake.procs.reconcile_nightly = lambda: (2, "gh is required")
+    queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None)
+    assert [r["state"] for r in journal.read() if r["event"] == "issue-reconcile"] == ["ok", "failed"]
+
+
 def test_the_open_check_reads_each_issue_from_gh_and_says_when_it_cannot(tmp_path):
     gh = tmp_path / "gh"
     gh.write_text('#!/bin/sh\ncase "$3" in 1) echo OPEN ;; 2) echo CLOSED ;; *) echo boom >&2; exit 1 ;; esac\n')

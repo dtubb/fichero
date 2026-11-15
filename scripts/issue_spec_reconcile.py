@@ -39,6 +39,9 @@ from dataclasses import dataclass, field
 REPO = "dtubb/fichero"
 SPEC_ROOT = "docs/contributor_manual/specs"
 DEFAULT_REF = "origin/integration"
+GH = "gh"  # the self-test and the unit tests point this at a fake
+DONE_TAGS = frozenset({"OK", "BUILT"})  # the specs use both words for a finished behaviour
+COMMENT_MARK = "<!-- issue-spec-reconcile -->"
 
 BEHAVIOR_START_RE = re.compile(r"^(\s*)-\s+`([a-z][a-z0-9+_-]*(?:\.[a-z0-9+_-]+)+)`")
 TAG_RE = re.compile(r"\*\*\[([A-Z][A-Z/]*)[^\]]*\]\*\*")
@@ -69,6 +72,8 @@ class Row:
     missing_tests: list[str] = field(default_factory=list)
     commits: list[str] = field(default_factory=list)
     note: str = ""
+    tests: list[str] = field(default_factory=list)  # the tests the owning bullets name
+    left: list[str] = field(default_factory=list)  # owning bullets that are not done
 
 
 def parse_bullets(spec: str, text: str) -> list[Bullet]:
@@ -116,26 +121,37 @@ def fix_commits(log: str) -> dict[int, list[str]]:
     return fixes
 
 
-def classify(number: int, bullets: list[Bullet], missing_on_ref: set[str], commits: list[str]) -> Row:
-    """The decision for one open issue. Pure: the ref and the commit log are read by the caller."""
+def classify(number: int, bullets: list[Bullet], missing_on_ref: set[str], commits: list[str],
+             bug: bool = False) -> Row:
+    """The decision for one open issue. Pure: the ref and the commit log are read by the caller.
+    A `type:bug` is never closed without a test: a fix commit alone (CLOSE-B) is not enough for it."""
+    row = _classify(number, bullets, missing_on_ref, commits)
+    if bug and row.cls == "CLOSE-B":
+        row.cls, row.note = "KEEP", "type:bug with no test named by an owning bullet: never closed without one"
+    return row
+
+
+def _classify(number: int, bullets: list[Bullet], missing_on_ref: set[str], commits: list[str]) -> Row:
     owning = [b for b in bullets if number in b.owned]
     spec_ids = [f"{b.behavior_id} [{b.tag}] ({b.spec})" for b in owning]
     if not owning:
         if commits:
             return Row(number, "CLOSE-B", commits=commits, note="fix commit; no owning spec line")
         return Row(number, "NO-SPEC", note="no owning spec line and no fix commit")
-    non_ok = [b for b in owning if b.tag != "OK"]
+    non_ok = [b for b in owning if b.tag not in DONE_TAGS]
     if non_ok:
         ms = next((b.milestone for b in non_ok if b.milestone), "")
         return Row(number, "KEEP", spec_ids, ms, commits=commits,
-                   note=f"{len(non_ok)} owning line(s) not OK")
+                   note=f"{len(non_ok)} owning line(s) not OK",
+                   left=[f"{b.behavior_id} [{b.tag}] ({b.spec})" for b in non_ok])
     named = set().union(*(b.tests for b in owning))
+    tests = sorted(named)
     missing = sorted(t for t in named if t in missing_on_ref)
     if missing:
-        return Row(number, "MISSING-TEST", spec_ids, missing_tests=missing, commits=commits,
+        return Row(number, "MISSING-TEST", spec_ids, missing_tests=missing, commits=commits, tests=tests,
                    note="an OK line names a test not on the ref")
     if named:
-        return Row(number, "CLOSE-A", spec_ids, commits=commits, note=f"{len(named)} test name(s) found")
+        return Row(number, "CLOSE-A", spec_ids, commits=commits, tests=tests, note=f"{len(named)} test name(s) found")
     if commits:
         return Row(number, "CLOSE-B", spec_ids, commits=commits, note="OK line names no test; fix commit")
     ms = next((b.milestone for b in owning if b.milestone), "")
@@ -175,18 +191,39 @@ def test_missing_on_ref(ref: str, names: set[str]) -> set[str]:
     return missing
 
 
-def open_issues() -> list[int]:
-    out = subprocess.run(["gh", "issue", "list", "-R", REPO, "--state", "open", "--limit", "5000",
-                          "--json", "number", "-q", ".[].number"], capture_output=True, text=True, check=True)
-    return [int(x) for x in out.stdout.split()]
+def _run_gh(*args: str, **kw) -> subprocess.CompletedProcess:
+    try:
+        return subprocess.run([GH, *args], capture_output=True, text=True, timeout=120, **kw)
+    except (subprocess.TimeoutExpired, OSError) as e:
+        return subprocess.CompletedProcess([GH, *args], 1, "", str(e))
+
+
+def open_issues() -> dict[int, bool]:
+    """Every open issue -> whether it carries the `type:bug` label."""
+    out = subprocess.run([GH, "issue", "list", "-R", REPO, "--state", "open", "--limit", "5000",
+                          "--json", "number,labels"], capture_output=True, text=True, check=True)
+    return {i["number"]: any(lb["name"] == "type:bug" for lb in i["labels"]) for i in json.loads(out.stdout)}
+
+
+def read_issue(number: int) -> tuple[bool, bool] | None:
+    """(open, is type:bug) for one issue, or None when gh cannot say."""
+    r = _run_gh("issue", "view", str(number), "-R", REPO, "--json", "state,labels")
+    if r.returncode:
+        return None
+    try:
+        d = json.loads(r.stdout)
+    except ValueError:
+        return None
+    return d["state"].upper() == "OPEN", any(lb["name"] == "type:bug" for lb in d.get("labels", []))
 
 
 def write_tsv(path: str, rows: list[Row]) -> None:
     with open(path, "w") as f:
-        f.write("number\tclass\tmilestone\tspec_ids\tmissing_tests\tcommits\tnote\n")
+        f.write("number\tclass\tmilestone\tspec_ids\tmissing_tests\tcommits\tnote\ttests\tleft\n")
         for r in rows:
             f.write("\t".join([str(r.number), r.cls, r.milestone, "; ".join(r.spec_ids),
-                               ", ".join(r.missing_tests), ", ".join(r.commits), r.note]) + "\n")
+                               ", ".join(r.missing_tests), ", ".join(r.commits), r.note,
+                               ", ".join(r.tests), "; ".join(r.left)]) + "\n")
 
 
 def read_tsv(path: str) -> list[Row]:
@@ -194,37 +231,112 @@ def read_tsv(path: str) -> list[Row]:
     with open(path) as f:
         next(f)
         for line in f:
-            n, cls, ms, specs, miss, commits, note = line.rstrip("\n").split("\t")
+            cols = line.rstrip("\n").split("\t") + [""] * 9
+            n, cls, ms, specs, miss, commits, note, tests, left = cols[:9]
             rows.append(Row(int(n), cls, [s for s in specs.split("; ") if s], ms,
-                            [t for t in miss.split(", ") if t], [c for c in commits.split(", ") if c], note))
+                            [t for t in miss.split(", ") if t], [c for c in commits.split(", ") if c], note,
+                            [t for t in tests.split(", ") if t], [x for x in left.split("; ") if x]))
     return rows
 
 
-def apply_rows(rows: list[Row]) -> dict[str, int]:
-    counts = {"closed": 0, "kept-milestone": 0, "errors": 0}
-    milestones = set(subprocess.run(
-        ["gh", "api", f"repos/{REPO}/milestones", "--paginate", "-q", ".[].title"],
-        capture_output=True, text=True, check=True).stdout.splitlines())
+def close_comment(r: Row, landed: str = "") -> str:
+    lines = [f"- {s}" for s in r.spec_ids] or ["- (no owning spec line)"]
+    head = f"{COMMENT_MARK}\nDone: closed by the spec/commit reconcile ({r.cls}).\n"
+    if landed:
+        head += f"Landed at {landed[:9]}.\n"
+    if r.commits:
+        head += f"Fix commit(s): {', '.join(r.commits)}.\n"
+    body = head + "Owning spec bullets (all done):\n" + "\n".join(lines)
+    if r.tests:
+        body += "\nTests named: " + ", ".join(f"`{t}`" for t in r.tests) + " (all exist on the ref)."
+    return body
+
+
+def keep_comment(r: Row, landed: str = "") -> str:
+    left = "\n".join(f"- {x}" for x in r.left) or f"- {r.note}"
+    at = f" (landed {landed[:9]})" if landed else ""
+    return f"{COMMENT_MARK}\nStill open after this landing{at}: what is left is\n{left}\nKept open; the issue stays and is updated, not closed."
+
+
+def _already_said(number: int, left_lines: str) -> bool:
+    """One KEEP comment per distinct 'what is left': the same list twice is spam."""
+    r = _run_gh("issue", "view", str(number), "-R", REPO, "--json", "comments", "-q", ".comments[].body")
+    return r.returncode == 0 and COMMENT_MARK in r.stdout and left_lines in r.stdout
+
+
+def apply_rows(rows: list[Row], landed: str = "", milestones: bool = True, keep_comments: bool = False) -> dict[str, int]:
+    """Closes CLOSE-A/B with a comment; with `milestones` the KEEP milestone edits; with `keep_comments` the one KEEP comment."""
+    counts = {"closed": 0, "kept-milestone": 0, "kept-commented": 0, "errors": 0}
+    known: set[str] = set()
+    if milestones:
+        known = set(subprocess.run(
+            [GH, "api", f"repos/{REPO}/milestones", "--paginate", "-q", ".[].title"],
+            capture_output=True, text=True, check=True).stdout.splitlines())
     for r in rows:
         if r.cls in ("CLOSE-A", "CLOSE-B"):
-            lines = [f"- {s}" for s in r.spec_ids] or ["- (no owning spec line)"]
-            head = "Closed by the deterministic spec/commit reconcile (2026-10-26).\n"
-            commit_note = f"Fix commit(s) on origin/integration: {', '.join(r.commits)}.\n" if r.commits else ""
-            tail = "\nTests named by those lines exist on origin/integration." if r.cls == "CLOSE-A" else ""
-            body = head + commit_note + "Owning spec lines (all [OK]):\n" + "\n".join(lines) + tail
-            c = subprocess.run(["gh", "issue", "comment", str(r.number), "-R", REPO, "-F", "-"],
-                               input=body, capture_output=True, text=True)
-            k = subprocess.run(["gh", "issue", "close", str(r.number), "-R", REPO],
-                               capture_output=True, text=True)
+            c = _run_gh("issue", "comment", str(r.number), "-R", REPO, "-F", "-", input=close_comment(r, landed))
+            k = _run_gh("issue", "close", str(r.number), "-R", REPO)
             counts["closed" if c.returncode == 0 and k.returncode == 0 else "errors"] += 1
-        elif r.cls == "KEEP" and r.milestone:
-            if r.milestone not in milestones:
-                counts["errors"] += 1
-                continue
-            e = subprocess.run(["gh", "issue", "edit", str(r.number), "-R", REPO, "--milestone", r.milestone],
-                               capture_output=True, text=True)
-            counts["kept-milestone" if e.returncode == 0 else "errors"] += 1
+        elif r.cls == "KEEP":
+            if keep_comments:
+                body = keep_comment(r, landed)
+                if not _already_said(r.number, "\n".join(f"- {x}" for x in r.left) or f"- {r.note}"):
+                    c = _run_gh("issue", "comment", str(r.number), "-R", REPO, "-F", "-", input=body)
+                    counts["kept-commented" if c.returncode == 0 else "errors"] += 1
+            if milestones and r.milestone:
+                if r.milestone not in known:
+                    counts["errors"] += 1
+                    continue
+                e = _run_gh("issue", "edit", str(r.number), "-R", REPO, "--milestone", r.milestone)
+                counts["kept-milestone" if e.returncode == 0 else "errors"] += 1
     return counts
+
+
+def reconcile(numbers: dict[int, bool], ref: str) -> list[Row]:
+    """The decision for each of `numbers` ({issue: is type:bug}) against the specs and the log at `ref`."""
+    bullets = [b for path, text in load_specs(ref) for b in parse_bullets(path, text)]
+    fixes = load_fixes(ref)
+    names: set[str] = set()
+    for b in bullets:
+        names |= b.tests
+    missing = test_missing_on_ref(ref, names)
+    return [classify(n, bullets, missing, [str(s) for s in fixes.get(n, [])], bug=bug)
+            for n, bug in sorted(numbers.items())]
+
+
+def after_landing(numbers: list[int], ref: str, landed: str) -> list[dict]:
+    """dev-workflows.run.issues-close-when-done (a): every issue a landed step cites. CLOSE-A/B closes it with a comment
+    naming the sha, bullets and tests; KEEP gets one comment saying what is left. Never raises: the step has landed."""
+    todo: dict[int, bool] = {}
+    out: list[dict] = []
+    for n in numbers:
+        st = read_issue(n)
+        if st is None:
+            out.append({"issue": n, "cls": "UNREAD", "closed": False, "note": "could not read"})
+        elif st[0]:
+            todo[n] = st[1]
+    if todo:
+        try:
+            rows = reconcile(todo, ref)
+        except (subprocess.CalledProcessError, OSError) as e:
+            return out + [{"issue": n, "cls": "UNREAD", "closed": False, "note": f"reconcile failed: {e}"[:200]} for n in todo]
+        for r in rows:
+            counts = apply_rows([r], landed=landed, milestones=False, keep_comments=True)
+            closed = r.cls in ("CLOSE-A", "CLOSE-B") and counts["closed"] == 1
+            out.append({"issue": r.number, "cls": r.cls, "closed": closed, "note": "; ".join(r.left) or r.note})
+    return out
+
+
+def nightly(ref: str, tsv: str) -> dict:
+    """(b) every open issue: the dry-run TSV, a summary, and only CLOSE-A/B closed."""
+    issues = open_issues()
+    rows = reconcile(issues, ref)
+    write_tsv(tsv, rows)
+    counts: dict[str, int] = {}
+    for r in rows:
+        counts[r.cls] = counts.get(r.cls, 0) + 1
+    applied = apply_rows([r for r in rows if r.cls in ("CLOSE-A", "CLOSE-B")], milestones=False)
+    return {"ref": ref, "open": len(issues), **counts, **applied}
 
 
 # ---- link audit (report only; the safe milestone moves are applied by --link-apply) -----------
@@ -255,13 +367,13 @@ def manual_state(text: str, tree: set[str]) -> str:
 
 
 def issue_data() -> dict[int, dict]:
-    out = subprocess.run(["gh", "issue", "list", "-R", REPO, "--state", "open", "--limit", "5000",
+    out = subprocess.run([GH, "issue", "list", "-R", REPO, "--state", "open", "--limit", "5000",
                           "--json", "number,title,body,milestone"], capture_output=True, text=True, check=True)
     return {i["number"]: i for i in json.loads(out.stdout)}
 
 
 def milestone_data() -> dict[str, dict]:
-    out = subprocess.run(["gh", "api", f"repos/{REPO}/milestones?state=all", "--paginate", "-q", ".[]"],
+    out = subprocess.run([GH, "api", f"repos/{REPO}/milestones?state=all", "--paginate", "-q", ".[]"],
                          capture_output=True, text=True, check=True)
     ms = [json.loads(line) for line in out.stdout.splitlines() if line.strip()]
     ms.sort(key=lambda m: m["state"] == "open")  # open last, so an open milestone wins a case-insensitive clash
@@ -351,7 +463,7 @@ def link_apply(ref: str) -> dict[str, int]:
         if not r["safe"]:
             continue
         num = mss[r["want"][0].lower()]["number"]
-        e = subprocess.run(["gh", "api", "-X", "PATCH", f"repos/{REPO}/issues/{r['number']}", "-F", f"milestone={num}"],
+        e = subprocess.run([GH, "api", "-X", "PATCH", f"repos/{REPO}/issues/{r['number']}", "-F", f"milestone={num}"],
                            capture_output=True, text=True)
         counts["moved" if e.returncode == 0 else "errors"] += 1
     return counts
@@ -374,7 +486,7 @@ def link_apply_ruled(ref: str, log_path: str, dry: bool) -> dict[str, int]:
         if dry:
             return True
         time.sleep(0.4)
-        return subprocess.run(["gh", *a], capture_output=True, text=True, **kw).returncode == 0
+        return subprocess.run([GH, *a], capture_output=True, text=True, **kw).returncode == 0
 
     # (4) milestones for specs that have none; named by the spec stem
     for r in audit["4-spec-milestone"]:
@@ -432,7 +544,7 @@ def link_apply_ruled(ref: str, log_path: str, dry: bool) -> dict[str, int]:
                 + "\n".join(lines) + "\nIf this issue owns it, cite it as (#%d) right after the tag in the spec line." % n)
         ok = gh("issue", "comment", str(n), "-R", REPO, "-F", "-", input=body) if not dry else True
         counts["comment" if ok else "errors"] += 1
-        log.append({"change": "comment", "issue": n, "old": None, "new": "; ".join(l[2:] for l in lines)})
+        log.append({"change": "comment", "issue": n, "old": None, "new": "; ".join(x[2:] for x in lines)})
     with open(log_path, "w") as f:
         json.dump({"dry": dry, "counts": counts, "changes": log}, f, indent=1)
     return counts
@@ -499,6 +611,17 @@ not a bullet (#18)
     assert manual_state("> Manual: docs/a.md\n", {"docs/a.md"}) == "OK"
     assert manual_state("> Manual: docs/a.md\n", set()) == "MISSING-PAGE"
     assert manual_state("> Manual: TBD — x\n", set()) == "TBD" and manual_state("x", set()) == "NONE"
+    # [BUILT] counts as done; a type:bug never closes on a fix commit alone
+    bb = parse_bullets("s.md", "- `a.built` — **[BUILT]** (#20) pinned by `test_alpha_works`\n- `a.bare` — **[OK]** (#21) works\n")
+    assert classify(20, bb, set(), []).cls == "CLOSE-A"
+    assert classify(21, bb, set(), ["abc123def"]).cls == "CLOSE-B"
+    assert classify(21, bb, set(), ["abc123def"], bug=True).cls == "KEEP"
+    assert classify(22, bb, set(), ["abc123def"], bug=True).cls == "KEEP"   # no owning bullet: still no test
+    assert classify(20, bb, set(), [], bug=True).cls == "CLOSE-A"
+    k = classify(12, b, missing, [])
+    assert k.left == ["a.gap [GAP] (s.md)"] and "a.gap" in keep_comment(k, "deadbeef1234")
+    c = close_comment(classify(10, b, missing, []), "deadbeef1234")
+    assert "deadbeef1" in c and "a.ok-one" in c and "`test_alpha_works`" in c
     print("self-test OK")
     return 0
 
@@ -512,6 +635,10 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--link-audit", metavar="JSON", help="write the link audit (read-only) to this JSON file")
     ap.add_argument("--link-ruled", metavar="LOG", help="apply the owner's link-audit ruling, logging to LOG")
     ap.add_argument("--dry", action="store_true")
+    ap.add_argument("--nightly", action="store_true",
+                    help="every open issue: write the dry-run --tsv, print one summary row, close only CLOSE-A/B")
+    ap.add_argument("--issues", help="comma-separated issues a landed step cites: close CLOSE-A/B, comment KEEP; prints JSON")
+    ap.add_argument("--landed", default="", help="the landed sha named in the comments (with --issues)")
     ap.add_argument("--link-apply", action="store_true", help="apply the safe milestone moves of the link audit")
     args = ap.parse_args(argv)
     if args.self_test:
@@ -526,6 +653,18 @@ def main(argv: list[str]) -> int:
     if args.link_apply:
         print(json.dumps(link_apply(args.ref)))
         return 0
+    if shutil.which(GH) is None:
+        print("gh is required", file=sys.stderr)
+        return 2
+    if args.issues:
+        nums = [int(x) for x in args.issues.split(",") if x.strip()]
+        print(json.dumps(after_landing(nums, args.ref, args.landed)))
+        return 0
+    if args.nightly:
+        if not args.tsv:
+            ap.error("--nightly needs --tsv")
+        print(json.dumps(nightly(args.ref, args.tsv)))
+        return 0
     if not args.tsv:
         ap.error("--tsv is required")
     if shutil.which("gh") is None:
@@ -535,15 +674,8 @@ def main(argv: list[str]) -> int:
         counts = apply_rows(read_tsv(args.tsv))
         print(json.dumps(counts))
         return 0 if counts["errors"] == 0 else 1
-    specs = load_specs(args.ref)
-    bullets = [b for path, text in specs for b in parse_bullets(path, text)]
-    fixes = load_fixes(args.ref)
     issues = open_issues()
-    names: set[str] = set()
-    for b in bullets:
-        names |= b.tests
-    missing = test_missing_on_ref(args.ref, names)
-    rows = [classify(n, bullets, missing, [str(s) for s in fixes.get(n, [])]) for n in issues]
+    rows = reconcile(issues, args.ref)
     write_tsv(args.tsv, rows)
     counts: dict[str, int] = {}
     for r in rows:
