@@ -49,7 +49,7 @@ class Config:
     min_guards: int = 0                 # fewer guards found than this = blind = not green
     contract_paths: tuple = ()          # a diff touching these runs the contract guards
     contract_guards: tuple = ()         # guard script paths (relative)
-    since_guards: dict = field(default_factory=dict)  # {guard path: path prefix}: a diff under the prefix runs the guard with `--since <base>`
+    since_guards: dict = field(default_factory=dict)  # {guard path: path prefix, or a list of prefixes}: a diff under the prefix runs the guard with `--since <base>`
     spec_dir: str = ""                  # folder of the specs whose item acceptance a worker may not rewrite ("" = none)
     check_paths: tuple = ()             # files/folders that judge a diff: run from the pinned copy, never the worker's
     red_paths: tuple = ()               # a diff touching these (prefixes) needs a failing-on-base test; () = any file
@@ -862,7 +862,8 @@ def contract_current(root, changed: list[str], cfg: Config, timeout_s: float = 3
 def since_guards(root, since: str, changed: list[str], cfg: Config, timeout_s: float = 300) -> dict:
     """Each `[check].since_guards` guard whose prefix the diff touches, run in the scratch tree with `--since <base>`: its
     question about this range only (#6318: the SwiftLint ratchet's `--since`, which the gate ran and the ladder did not)."""
-    todo = [g for g, prefix in cfg.since_guards.items() if any(f.startswith(prefix) for f in changed)]
+    todo = [g for g, prefix in cfg.since_guards.items()
+            if any(f.startswith(tuple([prefix] if isinstance(prefix, str) else prefix)) for f in changed)]
     if not todo:
         return {"ok": True, "skipped": True, "results": []}
     root = Path(root)

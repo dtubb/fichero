@@ -202,7 +202,7 @@ runs on the builder, not by a sweep: the files a batch adds or moves are judged 
 
 ### E. Ratchets and when they run
 
-- `code-org.enforce.per-batch-placement` [GAP] — Every batch is checked for where it put its files, not only the nightly
+- `code-org.enforce.per-batch-placement` [OK] — Every batch is checked for where it put its files, not only the nightly
   tree: a guard beside `check_folder_organization.py`, `check_file_placement --since <base>`, reads `git diff --name-status
   <base>..HEAD` and judges each ADDED or RENAMED path (the new name) against the rules of this spec: a Swift file under
   `fichero/fichero/<Layer>/<Feature>/` whose layer and feature exist and whose name follows `code-org.naming.swift-*`, with
@@ -216,6 +216,10 @@ runs on the builder, not by a sweep: the files a batch adds or moves are judged 
   the nightly guard's). Not built (#1944; issue to file). Test (to write): `check_file_placement` with a `--self-test`
   that stages a synthetic range holding one right and one wrong file per rule; a pytest under
   `fichero-server/tests/unit/scripts/` that runs it over a temp repo.
+  Built (#6607): the Python and repo-root rules; the Swift rules are a later lane. Known limit: a new test in a
+  `tests/unit/` folder that is not a `fichero_server` package or `scripts`/`cli`/`mcp`/`harness`/`seams` (for example
+  `activity`, `jobs`, `kg`) is red.
+  Test: `fichero-server/tests/unit/scripts/test_check_file_placement.py`.
 - `code-org.ratchet.per-batch` [OK] — Every `scripts/check_*.py` not in `harness.toml` `guard_skip` runs on each batch in
   the builder's guards rung, under 60 s each, from the pinned copy; the ready check runs `lint.py` per touched file;
   `since_guards` runs `check_swiftlint_warning_ratchet.py --since <base>` when the diff touches `fichero/`. Test:
