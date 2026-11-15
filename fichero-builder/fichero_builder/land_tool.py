@@ -225,8 +225,14 @@ REVIEW_IMAGE = re.compile(r"^docs/assets/.+\.(?:png|jpe?g|gif|webp|pdf|ico|icns|
 def _review_bytes(root, base: str, head: str) -> bytes:
     names = _gitb(root, "diff", "--name-only", "-z", f"{base}..{head}").decode("utf-8", "replace").split("\0")
     images = sorted(n for n in names if n and REVIEW_IMAGE.match(n))
-    skip = [f":(exclude,literal){n}" for n in images]
-    d = _gitb(root, "log", "-p", "--reverse", "--full-index", "--no-ext-diff", "--no-textconv", "--text", f"{base}..{head}", "--", ".", *skip)
+    if images:  # per commit, so a commit that touches only images keeps its message (a path-limited `git log` drops it)
+        skip = [f":(exclude,literal){n}" for n in images]
+        shas = _gitb(root, "rev-list", "--reverse", f"{base}..{head}").decode().split()
+        d = b"\n".join(_gitb(root, "show", "-s", s) + b"\n"  # the header always: a pathspec that matches nothing hides it
+                        + _gitb(root, "show", "--format=", "--full-index", "--no-ext-diff", "--no-textconv", "--text", s, "--", ".", *skip)
+                        for s in shas)
+    else:
+        d = _gitb(root, "log", "-p", "--reverse", "--full-index", "--no-ext-diff", "--no-textconv", "--text", f"{base}..{head}")
     if b"\x00" in d:
         raise ValueError("binary content in the diff (a NUL byte): the reviewer cannot read it, refused")
     if images:
