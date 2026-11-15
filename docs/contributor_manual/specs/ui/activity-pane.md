@@ -836,16 +836,16 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   hollow. Acceptance: with Kraken reading and an embedder loaded idle, Kraken is filled with the dot, the embedder filled
   without, a cloud model used this morning hollow. *Built 2026-11-15:* the engine's `GET /api/activity/models` (`workflows/activity_models.py`: the job rows' model and each call's provider, model and place; `models_held`; Kraken's memory the size its load is given, marked estimated) and the sidebar's Models section, place › provider › model, read every ten seconds, the icon filled while loaded, a green dot while working, the memory beside it; a model or provider picked filters the centre by `model:`. *Not yet:* a model's Inspector; listing by `runs_on` as well as the model's name. *Test:* `fichero-server/tests/unit/api/test_activity_models_6588.py`,
   `ActivityModelsTreeTests.swift`.
-- `activity.window.graph-on-every-view` — **[GAP]** (#6588; decision 34; extends `activity.window.bottom-panel`) the bottom
+- `activity.window.graph-on-every-view` — **[PARTIAL]** (#6588; decision 34; extends `activity.window.bottom-panel`) the bottom
   panel is on every sidebar item, 180 pt tall by default, its divider dragged and its height kept per window: Runs and
   Files as built; Recipes pages per minute by recipe; Cost as built; a model or place its pages and calls per minute
   (`/api/activity/history` grouped by model). Acceptance: every item draws a graph; the height survives a relaunch.
-  *Test:* `ActivityBottomPanelTests.swift` extended.
-- `activity.pane.columns-from-the-header` — **[GAP]** (#6588; decision 35; supersedes the Metadata button of
+  *Built 2026-11-15:* every sidebar item draws its graph, with time and count axes, under the rows in a `VSplitView` whose divider the person drags (`docs/assets/activity-pane/window-graphs.png`). *Not yet:* the height kept across relaunch; Recipes' and a model's own graphs. *Test:* `ActivityBottomPanelTests.swift` extended.
+- `activity.pane.columns-from-the-header` — **[OK]** (#6588; decision 35; supersedes the Metadata button of
   `activity.pane.bottom-bar-like-every-pane`) the columns are chosen from a column header's context menu, and their
   visibility, widths and order are kept per sidebar item (`TableColumnCustomization`, stored with the pane's prefs); the
   bottom bar holds the filter only. Acceptance: a column widened stays widened after a relaunch; the bar has no Metadata
-  button. *Test:* `ActivityPanePrefsTests.swift` extended.
+  button. *Built 2026-11-15:* the Metadata button is gone; the table's `TableColumnCustomization` (kept per item in the pane's prefs) gives the header's column menu and keeps widths and order. *Test:* `ActivityToolbarTabsTests.rememberedPerTab`.
 - `activity.log.like-xcode` — **[GAP]** (#6588; decision 36; extends `activity.log.raw-always-rendered`) the Inspector's log is
   a list, one engine line per row (time, level glyph, text, monospaced, long lines wrapped); a click selects a line, shift
   and command select many; ⌘C and Copy copy the selected lines (all when none); the log's find field highlights each match
@@ -874,10 +874,10 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   (`PaneFilterBar`), so a main window can show any of them as a pane, and the Activity window is those panes in its own
   layout; no Activity-only chrome. Acceptance: a main window offers "Activity Graphs" and "Activity" panes; the Activity
   window's centre is the same view type. *Test:* `ActivityPaneKindsTests.swift`.
-- `activity.graphs.own-pane` — **[GAP]** (#6588; decision 41; supersedes the fixed panel of `activity.window.bottom-panel` and
+- `activity.graphs.own-pane` — **[PARTIAL]** (#6588; decision 41; supersedes the fixed panel of `activity.window.bottom-panel` and
   the fixed height of `activity.window.graph-on-every-view`) the graphs are a pane: under the centre by default, its divider
   dragged, and maximised full size like any pane (and back); it follows the sidebar's selection. Acceptance: maximising it
-  fills the window's centre; restoring it gives the height it had. *Test:* `ActivityBottomPanelTests.swift` extended.
+  fills the window's centre; restoring it gives the height it had. *Built 2026-11-15:* the graphs' Full Size button fills the centre with them (kept per window, `@SceneStorage`) and Show the Table brings the rows back. *Not yet:* a pane kind a main window can open (`activity.window.views-are-panes`). *Test:* `ActivityBottomPanelTests.swift` extended.
 - `activity.resources.everything-measured` — **[GAP]** (#6588; decision 42; `activity.window.models-tree`) the engine answers,
   per model, `memory_bytes` (a process of its own: its resident size, `execution/models_held.py`; Kraken's readers: the size
   the throttle gives them, marked `estimated`), `loaded_at`, and today's `pages`, `calls`, `seconds`; per cluster job (the
