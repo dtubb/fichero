@@ -21,9 +21,9 @@ Dry run is the default and writes a TSV. `--apply --tsv PATH` applies the CLOSE 
 closes and the KEEP milestone edits from that reviewed TSV.
 
 Run:
-    scripts/issue_spec_reconcile.py --tsv agent-work/status/briefs/issue-reconcile.tsv
-    scripts/issue_spec_reconcile.py --apply --tsv agent-work/status/briefs/issue-reconcile.tsv
-    scripts/issue_spec_reconcile.py --self-test
+    python3 fichero-builder/fichero_builder/issue_reconcile.py --tsv agent-work/status/briefs/issue-reconcile.tsv
+    python3 fichero-builder/fichero_builder/issue_reconcile.py --apply --tsv agent-work/status/briefs/issue-reconcile.tsv
+    python3 fichero-builder/fichero_builder/issue_reconcile.py --self-test
 """
 
 from __future__ import annotations

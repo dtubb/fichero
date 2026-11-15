@@ -1,19 +1,12 @@
 """The issue/spec reconcile's pure decision logic (parse, classify, TSV round trip) is self-checking."""
 
-import importlib.util
 import json
-import sys
-from pathlib import Path
 
-_SCRIPT = Path(__file__).resolve().parents[4] / "scripts" / "issue_spec_reconcile.py"
+from fichero_builder import issue_reconcile
 
 
 def _load():
-    spec = importlib.util.spec_from_file_location("issue_spec_reconcile", _SCRIPT)
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules["issue_spec_reconcile"] = mod  # a dataclass resolves its module by name
-    spec.loader.exec_module(mod)
-    return mod
+    return issue_reconcile
 
 
 def test_self_test_passes():

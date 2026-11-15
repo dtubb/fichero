@@ -1655,7 +1655,7 @@ def real_procs(root) -> Procs:
                            cwd=str(pkg), capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(pkg)})
         return r.returncode, (r.stdout + r.stderr)[-2000:]
 
-    script = root / "scripts" / "issue_spec_reconcile.py"
+    script = pkg / "fichero_builder" / "issue_reconcile.py"
 
     def reconcile(lane, step, head):  # never raises: the step has landed
         if not step.get("issues") or not script.is_file():
@@ -1669,7 +1669,7 @@ def real_procs(root) -> Procs:
 
     def reconcile_nightly():
         if not script.is_file():
-            return 2, "scripts/issue_spec_reconcile.py is missing"
+            return 2, f"{script} is missing"
         try:
             r = subprocess.run([sys.executable, str(script), "--nightly", "--ref", f"origin/{branch}", "--tsv", str(journal.STATE / "issue-reconcile.tsv")],
                                capture_output=True, text=True, timeout=3600, cwd=str(root))

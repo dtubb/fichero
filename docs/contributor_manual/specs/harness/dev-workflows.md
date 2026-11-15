@@ -473,7 +473,7 @@ the write path would produce.
   1.25x the input price). **Built** 2026-11-02: `console.lane_usage`, the card in `console.html`. Not yet: a per-model split.
   Test `fichero-builder/tests/test_status_page.py::test_lane_usage_today_sums_each_external_lanes_transcripts_once_per_message`.
 - `dev-workflows.run.issues-close-when-done` [OK] (owner 2026-11-14: issues close when they are done) —
-  an issue is closed by the harness once its work is done, decided deterministically by `scripts/issue_spec_reconcile.py` from the spec bullets
+  an issue is closed by the harness once its work is done, decided deterministically by `fichero-builder/fichero_builder/issue_reconcile.py` from the spec bullets
   that own it (the `(#N)` right after a bullet's own status tag) and from `Fixes`/`Closes #N` commits: CLOSE-A = every owning bullet is `[OK]` or
   `[BUILT]` (the specs use both) and the tests it names exist on the ref; CLOSE-B = a fix commit and no owning bullet that is not done (and no named
   test missing); otherwise KEEP (an owning bullet is not done), MISSING-TEST (a named test is not on the ref) or NO-SPEC (nothing owns it).
@@ -484,7 +484,7 @@ the write path would produce.
   goes on. (b) Nightly, over every open issue: the dry-run TSV (issue-reconcile.tsv in the state dir) and ONE summary `issue-reconcile` row (counts per
   class and how many closed), closing only CLOSE-A/B. (c) Never an issue whose owning bullet is not done is closed; never a `type:bug` without a
   test (a fix commit alone, CLOSE-B, leaves a bug open). Tests
-  `fichero-server/tests/unit/scripts/test_issue_spec_reconcile.py::test_self_test_passes`,
+  `fichero-builder/tests/test_issue_reconcile.py::test_self_test_passes`,
   `::test_after_a_landing_done_issues_close_with_the_sha_bullets_and_tests_and_kept_ones_get_one_comment`,
   `::test_an_already_closed_issue_is_left_alone`,
   `::test_nightly_writes_the_tsv_and_one_summary_and_closes_only_the_done`,
