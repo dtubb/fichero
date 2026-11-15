@@ -243,3 +243,7 @@ maintenance/page_text_repair.py::repair_on_open 1
 recipes/runner.py::_resume_step_run.said 1
 # #6126: a failure to queue the embeds left to Search never replaces the run own result or error (it is logged); the closure keeps it out of the run path.
 recipes/runner.py::_run 1
+# #6597: the failure's classified detail is the extra; the row's end (failed, in words) is already written when writing it fails.
+execution/jobs.py::_Scheduler._run 1
+# #6596: a closing project's work is paused best-effort; a close is never held up by a failure to mark its rows.
+execution/jobs.py::_pause_for_close 1
