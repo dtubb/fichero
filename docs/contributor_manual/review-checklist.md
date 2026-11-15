@@ -21,3 +21,7 @@ review missed once.
 11. **Ladder output is untrusted.** Tests run the worker's own code, so a green ladder is never evidence against a hostile
     diff (a test file can always exit 0). Read every new module for exits and for names that shadow the stdlib or an
     installed package, and every conftest.py change. Name each such file on the last line: `READY: allow-shadow <path>`.
+12. **Performance and Security lenses.** The prompt carries two named checks, "Performance (speed, memory, disk)" and
+    "Security", each with this codebase's own surfaces listed, and "SECURITY SURFACE CHANGED" at its top (an entitlement,
+    an ATS exception or a route module in the diff). Apply both to every diff. A finding is by `file:line` with the cheaper
+    or safe form named; a performance finding that predates the batch is a `Performance - <area>` issue, not NOT READY.
