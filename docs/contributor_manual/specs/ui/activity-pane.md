@@ -679,12 +679,16 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   `fichero/Tests/Unit/general/Models/ActivityPane/ActivityBottomPanelTests.swift`.
   (Engine note: today's total and its by-provider split are summed from the priced calls of pages finished today (UTC), the one
   source that names providers; the ledger keeps only a day's total.)
-- `activity.log.raw-always-rendered` — **[GAP]** (#6588; decision 27; `activity.window.log-levels`) the Inspector's Log is the
+- `activity.log.raw-always-rendered` — **[PARTIAL]** (#6588; decision 27; `activity.window.log-levels`) the Inspector's Log is the
   RAW log of the row (every line the engine wrote, its time, level and text, monospaced, wrapped, selectable), rendered whole
   for every row that ran, a page row's log its own lines in its run's log; "Nothing written for this row yet" only for a row
   that has not started; Problems / All / Everything filter it and change nothing else; Copy Log copies exactly what is shown.
-  Acceptance: a page that ran six steps shows its lines for each; a waiting row says nothing written. *Test:* the existing
-  `ActivityLogFilter` tests extended.
+  Acceptance: a page that ran six steps shows its lines for each; a waiting row says nothing written. *Built 2026-11-14
+  night:* a paused row's line ("Paused: <row>: <why>") is the person's, a warning, so Problems shows it (engine,
+  `test_the_paused_rows_log_says_why_it_is_paused`); an empty log says "Nothing written" only for a row not started, "No
+  problems in this row's log." under Problems, and "The engine wrote no lines for this row." for one that ran
+  (`ActivityLogFilter.emptyWords`). *Not yet:* the raw text of the pause's cause in the log. *Test:* the existing
+  `ActivityLogFilter` tests extended (`emptyWords`).
 - `activity.pane.done-is-green` — **[OK]** (#6588; decision 26; `activity.pane.one-glyph-per-state`) the done glyph is
   `checkmark.circle.fill` in green; partial the check in green with its dot; failed the red X; everything else secondary. The
   table's state cell and the Inspector's versions draw the one `Glyph.tint`.

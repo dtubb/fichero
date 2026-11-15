@@ -97,6 +97,8 @@ struct ActivityDetails: Equatable {
     }
 
     var isLive: Bool { row.phase.isLive }
+    /// The row has started: it runs, is held after running, or ended; a waiting row has not.
+    var hasStarted: Bool { row.phase != .waiting && row.phase != .notRun && row.phase != .unknown || row.started != nil }
 }
 
 // MARK: - Built from the store

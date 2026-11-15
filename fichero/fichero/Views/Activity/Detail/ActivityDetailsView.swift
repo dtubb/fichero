@@ -173,7 +173,8 @@ struct ActivityDetailsView: View {
         }
         ActivityDetailsDisclosure("Log", detail: ActivityLogFilter.problemCountWords(store.jobLogProblemCount[details.jobId] ?? 0),
                                   key: "activity.opened.log") {
-            ActivityDetailsLog(jobId: details.jobId, isLive: details.isLive, refreshKey: details.logKey, titled: false)
+            ActivityDetailsLog(jobId: details.jobId, isLive: details.isLive, hasStarted: details.hasStarted,
+                               refreshKey: details.logKey, titled: false)
         }
     }
 
