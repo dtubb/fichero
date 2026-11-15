@@ -17,7 +17,8 @@ import SwiftUI
 /// factor sitting beside it.
 ///
 /// An AppKit bridge because SwiftUI has no scroll-wheel gesture for an
-/// arbitrary view.
+/// arbitrary view. Mirrors `Views/Preview/ImageViewer/ScrollWheelZoom.swift`,
+/// the sanctioned bridge already doing this for zoom — two axes instead of one.
 struct CanvasScrollPanView: NSViewRepresentable {
     /// A right-click or Control-click inside the view, at its point (y-down, SwiftUI's sense), BEFORE
     /// the context menu opens, so the canvas can select the card under it first (#5632). The click

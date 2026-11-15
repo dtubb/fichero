@@ -189,7 +189,8 @@ runs on the builder, not by a sweep: the files a batch adds or moves are judged 
   write): `check_dead_files` counts a reference from `fichero/Tests` separately and reports "test-only" (#1945).
   Built: S5 deleted `CacheModel`, `MCPServersSheet` and `IntegrationsPlaceholderSheet` with their tests; `DragDropModel` and
   `PageImageGrid` wait for a later batch (diff bound); `FicheroShortcuts` stays, as the Shortcuts and Siri phrases are a
-  product feature. Guard: `scripts/check_dead_files.py`; test: `fichero-server/tests/unit/scripts/test_check_dead_files.py`.
+  product feature. `ScrollWheelZoom`, `SimpleWorkflowView`, `WorkflowExecutionView` and `WorkflowChainListView` (with its
+  parts) are outside ruling 3 and stay, with their `KNOWN_VIOLATIONS` waivers, until the owner rules on them. Guard: `scripts/check_dead_files.py`; test: `fichero-server/tests/unit/scripts/test_check_dead_files.py`.
 - `code-org.dead.no-commented-out-code` [OK] — No commented-out code blocks; a `TODO`/`FIXME` cites an issue. Test:
   fichero-server/tests/unit/scripts/test_check_comment_hygiene.py, fichero-server/tests/unit/scripts/test_check_python_comment_hygiene.py.
 - `code-org.dead.waiver` [PARTIAL] — A deliberate keep is a `KNOWN_VIOLATIONS` entry (or a `# noqa: vulture` /
