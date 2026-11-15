@@ -144,7 +144,7 @@ def test_skipped_guards_do_not_count_toward_the_minimum(tmp_path):  # review-2 H
 
 def test_fichero_is_the_first_project_in_its_own_harness_toml():
     cfg = ct.load(REPO)
-    assert {"check_coverage_ratchet", "check_docs_paths", "check_hang_ratchet"} <= cfg.guard_skip and len(cfg.guard_skip) == 15
+    assert {"check_coverage_ratchet", "check_docs_paths", "check_hang_ratchet"} <= cfg.guard_skip and len(cfg.guard_skip) == 16
     assert cfg.min_guards == 20 and cfg.guard_glob == "scripts/check_*.py" and cfg.ready == ("scripts/lane_ready_check.sh", "--no-guards", "HEAD")
     assert ct.load(REPO / "no-such-dir") == ct.Config()  # no harness.toml = no project rules, nothing hardcoded
     assert cfg.max_commits == 100 == ct.Config().max_commits
@@ -311,7 +311,7 @@ def test_the_tool_runs_in_a_throwaway_project_with_its_own_config(tmp_path):
     g("add", "."), g("commit", "-q", "-m", "change")
     r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
     assert r["ok"], r
-    assert [x["name"] for x in r["rungs"]] == ["pinned-checks", "ready", "diff-bound", "red-on-base", "guards", "contract-current", "since-guards", "build"]
+    assert [x["name"] for x in r["rungs"]] == ["pinned-checks", "ready", "diff-bound", "red-on-base", "guards", "security", "contract-current", "since-guards", "build", "perf"]
 
 
 def test_an_approved_guard_data_file_is_head_s_copy_under_the_pinned_guard_and_nothing_else_is(tmp_path):
