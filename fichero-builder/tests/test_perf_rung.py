@@ -62,3 +62,15 @@ def test_a_batch_that_touches_no_engine_path_is_not_required():
     assert perf_rung.required(["fichero/fichero/A.swift", "docs/a.md"]).startswith("not required")
     assert perf_rung.required(["fichero-server/src/x.py"]) == ""
     assert perf_rung.required(["pipeline/plan.py"]) == ""
+
+
+def test_the_rung_skips_unconfigured_unrequired_and_runnerless_batches_and_stays_green_while_report_only(tmp_path, monkeypatch):
+    from fichero_builder import check_tool, journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    eng = ["fichero-server/src/x.py"]
+    assert check_tool.perf(tmp_path, "a", eng, check_tool.Config())["stdout_tail"] == "skipped: not configured"
+    cfg = check_tool.Config(perf={"enforce": False})
+    assert "not required" in check_tool.perf(tmp_path, "a", ["docs/a.md"], cfg)["stdout_tail"]
+    assert "never runs on the manager's Mac" in check_tool.perf(tmp_path, "a", eng, cfg)["stdout_tail"]  # no build_remote: not run here
+    assert check_tool._report_only("perf", {"enforce": False}, False, ["median 130 ms over 100"])["ok"]
+    assert [r for r in journal.read() if r["event"] == "alert" and r.get("rung") == "perf"]

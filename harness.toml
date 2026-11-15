@@ -377,6 +377,22 @@ check_xcode_registration = ["fichero/fichero", "fichero/fichero.xcodeproj", "scr
 FICHERO_FEATURE_TIER = "dev"
 OMP_NUM_THREADS = "2"
 
+[check.perf]
+# #6600 Step 2.30: the engine perf rung (REPORT-ONLY until real batches have measured the budget). Runs on [check].build_remote, never on
+# the manager's Mac; figures judged against scripts/perf_baseline.json. A timeout is one alert row, never a red.
+enforce = false
+timeout_s = 360   # the 6-minute budget
+
+[check.security]
+# #6600 Step 2.30: the security rung (REPORT-ONLY). Reads only what is NEW in the batch. Runs in the scratch tree because semgrep
+# --baseline-commit and gitleaks need git history. osv-scanner stays OFF until lane deps-security clears the Dependabot alerts.
+enforce = false
+timeout_s = 720
+osv = false
+# Pins are the exact versions `scripts/install_security_tools.sh` confirmed and wrote at install; an empty pin REFUSES the tool (a gate
+# that cannot read its tool fails). Nothing is installed or verified yet, so every pin is empty.
+pins = { bandit = "", semgrep = "", gitleaks = "", "osv-scanner" = "" }
+
 [policy]
 # Refused with a reason by the PreToolUse hook (fast feedback; the land step and the OS layer are the boundary).
 # Each rule: a regex over the command text and the reason shown to the worker.

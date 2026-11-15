@@ -1418,7 +1418,7 @@ def _load() -> float | None:
 PERF_LINE = re.compile(r"^PERF-RESULT (\{.*\})\s*$", re.M)
 SECURITY_LINE = re.compile(r"^SECURITY-RESULT (\{.*\})\s*$", re.M)
 SECURITY_DIRS = ("fichero-server/src", "fichero-cli/src", "fichero-mcp/src", "fichero-builder", "scripts", "fichero")
-WAIVER_RE = r"#\s*nosec|nosemgrep"
+WAIVER_RE = r"#[[:space:]]*nosec|nosemgrep"
 APPROVED_LABEL = "security-waiver-approved"
 
 
@@ -1479,7 +1479,7 @@ def _grep_waivers(root, rev: str) -> tuple[dict[str, int], list[str]]:
 def _added_lines(root, since: str, head: str) -> list[tuple[str, int, str]]:
     """(file, line number, text) of every line the range adds under the scanned dirs (`git diff -U0`)."""
     out, f, n = [], "", 0
-    for line in _lines(root, "diff", "-U0", "--no-color", "--no-renames", f"{since}...{head}", "--", *SECURITY_DIRS) or []:
+    for line in _lines(root, "diff", "-U0", "--no-ext-diff", "--no-color", "--no-renames", f"{since}...{head}", "--", *SECURITY_DIRS) or []:
         if line.startswith("+++ "):
             f = line[6:] if line.startswith("+++ b/") else ""
         elif line.startswith("@@"):

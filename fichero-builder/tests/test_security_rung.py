@@ -62,3 +62,80 @@ def test_thresholds_red_what_they_say_and_every_waiver_carries_a_reason_an_issue
     assert sr.osv_config_problems('[[IgnoredVulns]]\nid = "X"\nignoreUntil = 2027-01-01\n', today)  # no reason
     assert sr.gitleaks_config_problems('[allowlist]\nregexes = ["abc"]\n')  # no description
     assert sr.gitleaks_config_problems('[allowlist]\ndescription = "test fixture key (#9)"\nregexes = ["abc"]\n') == []
+
+
+# ---- check_tool.security_lints against a real git repo, and the rung's skip rows and report-only behaviour
+import json
+import subprocess
+
+import pytest
+
+from fichero_builder import check_tool, journal
+
+_ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
+        "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1"}
+
+
+def _g(repo, *a):
+    import os
+    return subprocess.run(["git", *a], cwd=repo, check=True, capture_output=True, text=True, env={**os.environ, **_ENV}).stdout.strip()
+
+
+@pytest.fixture
+def repo(tmp_path):
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts/a.py").write_text("x = 1\n")
+    (tmp_path / "scripts/bandit_baseline.json").write_text(json.dumps({"results": [{"a": 1}, {"a": 2}]}))
+    _g(tmp_path, "init", "-q", "-b", "main")
+    _g(tmp_path, "add", "-A")
+    _g(tmp_path, "commit", "-qm", "base")
+    return tmp_path
+
+
+def _commit(repo, rel, text):
+    (repo / rel).write_text(text)
+    _g(repo, "add", "-A")
+    _g(repo, "commit", "-qm", "c")
+    return _g(repo, "rev-parse", "HEAD")
+
+
+def _lints(repo, base, head, approved=lambda n: False):
+    return check_tool.security_lints(repo, base, head, approved)
+
+
+def test_the_waiver_lints_judge_a_real_diff(repo):
+    base = _g(repo, "rev-parse", "HEAD")
+    bare = _commit(repo, "scripts/a.py", "import os\nos.system(x)  # nosec\n")
+    assert any("a.py:2" in p and "reason" in p for p in _lints(repo, base, bare))
+    good = _commit(repo, "scripts/a.py", "import os\nos.system(x)  # nosec B605 -- fixed argv, no user text (#6601)\n")
+    out = _lints(repo, base, good)
+    assert not [p for p in out if "needs a rule" in p]
+    assert any("raises the nosec waivers from 0 to 1" in p for p in out)  # a raised count needs an approved issue
+    assert not _lints(repo, base, good, approved=lambda n: n == 6601)
+
+
+def test_a_third_nosemgrep_is_red_unless_its_issue_is_approved(repo):
+    lines = "".join(f"a{i} = 1  # nosemgrep: rule.x -- reason {i} (#7{i})\n" for i in range(3))
+    base = _g(repo, "rev-parse", "HEAD")
+    head = _commit(repo, "scripts/a.py", lines)
+    assert any("nosemgrep waivers from 0 to 3" in p for p in _lints(repo, base, head))
+    assert not _lints(repo, base, head, approved=lambda n: True)
+
+
+def test_a_raised_baseline_is_red_and_a_shrunk_one_is_not(repo):
+    base = _g(repo, "rev-parse", "HEAD")
+    up = _commit(repo, "scripts/bandit_baseline.json", json.dumps({"results": [{}, {}, {}]}))
+    assert any("may only shrink" in p for p in _lints(repo, base, up))
+    down = _commit(repo, "scripts/bandit_baseline.json", json.dumps({"results": [{}]}))
+    assert not _lints(repo, base, down)
+
+
+def test_the_rung_skips_unconfigured_and_unrequired_batches_and_stays_green_while_report_only(repo, tmp_path, monkeypatch):
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    assert check_tool.security(repo, "a", "b", ["scripts/x.py"], check_tool.Config())["skipped"]  # no [check.security]
+    cfg = check_tool.Config(security={"enforce": False})
+    assert "not required" in check_tool.security(repo, "a", "b", ["docs/a.md"], cfg)["stdout_tail"]
+    assert check_tool._report_only("security", {"enforce": False}, False, ["bandit B602 a.py:3"])["ok"]  # would-be red stays green
+    assert [r for r in journal.read() if r["event"] == "alert" and r.get("rung") == "security"]
+    assert not check_tool._report_only("security", {"enforce": True}, False, ["x"])["ok"]
+    assert check_tool._timed_out_row("security", {"timed_out": True, "seconds": 9})["ok"]
