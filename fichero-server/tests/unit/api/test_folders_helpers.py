@@ -9,7 +9,7 @@ cycle-safe BFS.
 
 from __future__ import annotations
 
-from fichero_server.api.routes.folders import (
+from fichero_server.api.routes.document.folders import (
     _curated_item_has_geo,
     _curated_item_url,
     _document_has_geo,

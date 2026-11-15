@@ -70,7 +70,7 @@ class TestAcceptRejectInProcess:
     logic gets exercised without the TestClient auth path."""
 
     def test_accept_reassigns_claims_and_folds_aliases(self, db):
-        from fichero_server.api.routes import kg_review
+        from fichero_server.api.routes.kg import review as kg_review
 
         survivor = _ent(db, "Narrator's Account of Economic Exclusion")
         candidate = _ent(db, "Narrator's Monologue on Economic Exclusion")
@@ -112,7 +112,7 @@ class TestAcceptRejectInProcess:
         assert result.claims_reassigned == 1
 
     def test_reject_marks_pair_without_merge(self, db):
-        from fichero_server.api.routes import kg_review
+        from fichero_server.api.routes.kg import review as kg_review
 
         survivor = _ent(db, "Filing of the Petition")
         candidate = _ent(db, "Sale of the Estate")
@@ -141,7 +141,7 @@ class TestAcceptRejectInProcess:
 
     def test_double_decide_409s(self, db):
         from fastapi import HTTPException
-        from fichero_server.api.routes import kg_review
+        from fichero_server.api.routes.kg import review as kg_review
 
         survivor = _ent(db, "X")
         candidate = _ent(db, "Y")
@@ -166,7 +166,7 @@ class TestAcceptRejectInProcess:
             assert exc.status_code == 409
 
     def test_labels_endpoint_returns_decided_pairs(self, db):
-        from fichero_server.api.routes import kg_review
+        from fichero_server.api.routes.kg import review as kg_review
         import asyncio
 
         # Two pairs — one accept, one reject. One still pending —

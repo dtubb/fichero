@@ -53,7 +53,7 @@ def _make_svo_claim(
 
 class TestSparqlSafety:
     def test_rdf_cache_is_bounded(self):
-        from fichero_server.api.routes import kg_sparql
+        from fichero_server.api.routes.kg import sparql as kg_sparql
 
         cache = kg_sparql._RDF_CACHE
         cache.clear()
@@ -63,7 +63,7 @@ class TestSparqlSafety:
         assert len(cache) == kg_sparql._RDF_CACHE_MAX_ENTRIES
 
     def test_query_timeout_returns_408(self, db, monkeypatch):
-        from fichero_server.api.routes import kg_sparql
+        from fichero_server.api.routes.kg import sparql as kg_sparql
 
         async def timeout(*_args, **_kwargs):
             raise TimeoutError
