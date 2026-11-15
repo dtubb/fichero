@@ -597,12 +597,16 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   Continue, Retry; Show Details selects the row so the Inspector shows its fix); the row draws the word in a small bordered
   button (`docs/assets/activity-pane/pane-fix-buttons.png`). *Test:* `fichero/Tests/Unit/general/Models/ActivityErrorRowTests.swift`
   extended (`everyActionHasAWord`).
-- `activity.pane.one-undo-per-action` — **[GAP]** (#6599, #6588, #6583; open question 7) ONE person's action is ONE step on the
+- `activity.pane.one-undo-per-action` — **[PARTIAL]** (#6599, #6588, #6583; open question 7) ONE person's action is ONE step on the
   window's Undo stack, whatever it spans: rows of several projects, runs and jobs together, Archive Finished… and Archive
   Failed included; a run's Delete is undoable like a job's (`workflow_run.delete` gains `workflow_run.undelete`). Until a
   delete is undoable the confirmation says so. Acceptance: deleting a run and a job from two projects at once, then Undo once,
-  lists all of them again in their states; Archive Finished… then Undo restores every row. *Test:* not yet written:
-  `ActivityOneUndoTests.swift`, `test_delete_is_undoable_6583.py`.
+  lists all of them again in their states; Archive Finished… then Undo restores every row. *Built 2026-11-14 night:* a run's
+  Delete is undoable (`workflow_run.delete` keeps `deleted_from`, its inverse `workflow_run.undelete`); a project's runs and
+  jobs deleted together are ONE step (`ActivityStore.deleteAsOneStep`, `UndoableChange.batch`). *Not yet:* one step across
+  several projects (a step is one project's today), Archive Finished… and Archive Failed as one undoable step. *Test:*
+  `fichero-server/tests/unit/api/test_run_delete_is_undoable_6599.py`, `ActivityUndoTests.runAndJobAreOneStep`,
+  `test_delete_is_undoable_6583.py`.
 - `activity.pane.empty-says-one-line` — **[OK]** (#6599, #6588; supersedes `activity.window.no-empty-prose`'s blank) a pane with nothing to list says
   "Nothing running" in one line and keeps its status bar; a filter that hides everything says "No activity matches".
   *Built 2026-11-14 night:* `ActivityPane.emptyLine`. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityPaneFiltersTests.swift` extended (`emptyLine`).

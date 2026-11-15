@@ -38,6 +38,61 @@ extension ActivityStore {
     }
 }
 
+extension ActivityStore {
+    /// One person's Delete of this project's runs and jobs as ONE step on the window's stack (`activity.pane.one-undo-per-action`,
+    /// #6599): the runs' `workflow_run.delete` (tried again while a run just stopped still reads running, `settling`) and the
+    /// jobs' `job.delete`, filed together, so Edit › Undo puts every row back, the runs as they were (`workflow_run.undelete`).
+    func deleteAsOneStep(threadIds: [String], jobIds: [String], stopRunning: Bool, settling: Bool,
+                         actions: ActionsService, steps: WindowSteps?) async -> ActivityJobsOutcome {
+        var outcome = ActivityJobsOutcome()
+        var removedRuns: [String] = []
+        let total = threadIds.count + jobIds.count
+        let parts: [(action: String, ids: [String])] = [("workflow_run.delete", threadIds), ("job.delete", jobIds)]
+            .filter { !$0.ids.isEmpty }
+        do {
+            try await UndoableChange.batch(
+                parts, named: { _ in UndoableChange.named("Delete", count: total, one: "Row", many: "Rows") },
+                service: actions, steps: steps,
+                afterEach: { [weak self] in
+                    guard let self else { return }
+                    runs.removeAll { !$0.isLive }
+                    historicalRunsFetched = 0
+                    await refreshBackgroundJobs()
+                    refreshToken += 1
+                }
+            ) { part in
+                guard part.action == "workflow_run.delete" else {
+                    let result = try await actions.invokeAction(
+                        name: part.action, params: ActivityJobIdsParams(ids: part.ids, stopRunning: stopRunning ? true : nil))
+                    outcome.done += result.resultListCounts["deleted_ids"] ?? 0
+                    outcome.skipped += result.resultListCounts["skipped_ids"] ?? 0
+                    return [result.auditId]
+                }
+                var written: [String] = [], pending = part.ids, tries = 0
+                repeat {
+                    if tries > 0 { try? await Task.sleep(for: .seconds(1)) }
+                    let result = try await actions.invokeAction(name: part.action, params: ActivityJobIdsParams(threadIds: pending))
+                    written.append(result.auditId)
+                    let deleted = Set(result.resultListStrings["deleted_ids"] ?? [])
+                    removedRuns += pending.filter(deleted.contains)
+                    pending = pending.filter { !deleted.contains($0) }
+                    tries += 1
+                } while settling && !pending.isEmpty && tries < 10
+                outcome.done += part.ids.count - pending.count
+                outcome.skipped += pending.count
+                return written.filter { !$0.isEmpty }
+            }
+        } catch {
+            log.error("ActivityStore: delete failed \(error.localizedDescription, privacy: .public)")
+            outcome.failure = error.localizedDescription
+        }
+        runs.removeAll { removedRuns.contains($0.runId) }
+        await refreshBackgroundJobs()
+        refreshToken += 1
+        return outcome
+    }
+}
+
 /// What a job verb a person started did: how many rows it reached, how many it skipped, and the failure in words.
 struct ActivityJobsOutcome: Equatable {
     var done = 0

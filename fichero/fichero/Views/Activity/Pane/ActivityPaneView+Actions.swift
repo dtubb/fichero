@@ -162,46 +162,25 @@ extension ActivityPaneView {
         let jobIdsByLibrary = Self.jobIdsByLibrary(targets)
         for library in libraries {
             let ids = Set(targets.map(\.id))
-            let runRows = targets.filter { $0.kind == .run && $0.libraryId == library.id }
+            let running = stopRunning ? targets.filter { $0.kind == .run && $0.libraryId == library.id && $0.phase.isLive } : []
             let threadIds = library.activityStore.runs.filter { ids.contains($0.id) }.map(\.runId)
-            if !threadIds.isEmpty {
-                let outcome = await deleteRuns(threadIds, stopping: stopRunning ? runRows.filter { $0.phase.isLive } : [],
-                                               store: library.activityStore)
-                deleted += outcome.deletedIds.count
-                skipped += outcome.skippedIds.count
+            let jobIds = jobIdsByLibrary[library.id] ?? []
+            guard !threadIds.isEmpty || !jobIds.isEmpty else { continue }
+            // Stop then Delete: the running runs are stopped first (their job's Stop), then deleted with the rest.
+            for row in running {
+                if let jobId = row.jobId {
+                    _ = await ActivityRunMenuTarget.stopJob(jobId: jobId, runThreadId: row.runThreadId, store: library.activityStore)
+                }
             }
-            if let jobIds = jobIdsByLibrary[library.id], !jobIds.isEmpty {
-                let outcome = await library.activityStore.performUndoable(
-                    "job.delete", ids: jobIds, stopRunning: stopRunning,
-                    named: UndoableChange.named("Delete", count: jobIds.count, one: "Row", many: "Rows"),
-                    actions: library.actionsService, steps: windowSteps)
-                deleted += outcome.done
-                skipped += outcome.skipped
-            }
+            // One step per project for all its rows, runs and jobs together (#6599).
+            let outcome = await library.activityStore.deleteAsOneStep(
+                threadIds: threadIds, jobIds: jobIds, stopRunning: stopRunning, settling: !running.isEmpty,
+                actions: library.actionsService, steps: windowSteps)
+            deleted += outcome.done
+            skipped += outcome.skipped
         }
         selection = []
         notice = ActivityPaneVerb.outcome(.delete, done: deleted, skipped: skipped)
-    }
-
-    /// The runs delete; Stop then Delete stops the running ones first (their job's Stop), then deletes again what the
-    /// engine still held as running. ponytail: up to ten one-second retries while the stop settles; a `stop_running` on
-    /// the runs delete would make it one call.
-    private func deleteRuns(_ threadIds: [String], stopping running: [ActivityMonitorRow],
-                            store: ActivityStore) async -> RunDeleteOutcome {
-        for row in running {
-            if let jobId = row.jobId { _ = await ActivityRunMenuTarget.stopJob(jobId: jobId, runThreadId: row.runThreadId, store: store) }
-        }
-        let first = await store.deleteRuns(threadIds: threadIds)
-        var deleted = first.deletedIds, pending = first.skippedIds
-        var tries = 0
-        while !running.isEmpty, !pending.isEmpty, tries < 10 {
-            try? await Task.sleep(for: .seconds(1))
-            tries += 1
-            let again = await store.deleteRuns(threadIds: pending)
-            deleted += again.deletedIds
-            pending = again.skippedIds
-        }
-        return RunDeleteOutcome(deletedIds: deleted, skippedIds: pending)
     }
 
     /// Archive and Put Back, one step on the window's stack each, so Edit › Undo reverses it: ended job rows through the
