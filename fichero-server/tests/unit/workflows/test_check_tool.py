@@ -1634,3 +1634,19 @@ def test_a_tree_reached_through_a_symlink_keeps_each_folders_conftest_to_its_fol
     link.symlink_to(real)
     r = ct.pytest_rung(link, ["a/test_a.py", "b/test_b.py"], ct.Config(pytest_config="pyproject.toml"), timeout_s=120)
     assert r["ok"], r["stdout_tail"]
+
+
+def test_a_whole_tests_dir_reached_through_a_symlink_still_loads_its_own_conftest(tmp_path):
+    """#6589 review: the whole-tests run names its tests dir by an absolute path through the link; with the `-c` real and
+    the dir not, pytest's rootdir and confcutdir no longer held the dir, and its conftest stopped loading."""
+    real = tmp_path / "real"
+    (real / "pkg" / "tests").mkdir(parents=True)
+    (real / "pkg" / "pyproject.toml").write_text("[tool.pytest.ini_options]\n")
+    (real / "pkg" / "tests" / "conftest.py").write_text(
+        "import pytest\n@pytest.fixture(autouse=True)\ndef mine(monkeypatch):\n    monkeypatch.setenv('MINE', '1')\n")
+    (real / "pkg" / "tests" / "test_m.py").write_text("import os\ndef test_m():\n    assert os.environ.get('MINE') == '1'\n")
+    link = tmp_path / "link"
+    link.symlink_to(real)
+    r = ct.whole_tests_rung(link, "pkg/tests", ct.Config(), timeout_s=120)
+    assert r["ok"], r["stdout_tail"] + r["stderr_tail"]
+    assert "1 passed" in r["stdout_tail"]
