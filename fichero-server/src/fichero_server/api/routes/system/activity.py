@@ -279,9 +279,9 @@ def _run_failure(run: Any) -> Any:
 def _run_runs_on(db: Database, thread_id: str) -> Optional[str]:
     """Where a workflow run runs (the Where tab, #6588): where its page jobs ran. The cloud when any page's job is on the
     remote lane or made a call to a provider (its recorded `usage` place), else this Mac; None before any page job."""
-    rows = db.execute_fetchall(
-        "SELECT kind, detail FROM jobs WHERE parent_id = ? OR parent_id LIKE ? LIMIT 200",
-        [thread_id, thread_id + ":%"], committed=True)
+    from fichero_server.execution import jobs as job_queue
+
+    rows = job_queue.page_jobs_of_run(db, thread_id)
     if not rows:
         return None
     for kind, detail in rows:
@@ -1141,15 +1141,13 @@ async def list_queued_items(
 
 def _document_names(db: Database, ids: list[str]) -> dict[str, str]:
     """The names of the documents among `ids`, by id, in one read; an id that is no document is absent."""
-    if not ids:
-        return {}
+    from fichero_server.execution import jobs as job_queue
+
     try:
-        rows = db.execute_fetchall(f"SELECT id, name FROM documents WHERE id IN ({', '.join('?' for _ in ids)})",
-                                   list(dict.fromkeys(ids)), committed=True)
+        return job_queue.document_names(db, ids)
     except Exception as exc:  # noqa: BLE001 -- the items still list, unnamed
         logger.warning("queued items: no document names: %s", exc)
         return {}
-    return {row[0]: row[1] for row in rows if row[1]}
 
 
 @router.get("/jobs/{job_id}", response_model=JobTree)
