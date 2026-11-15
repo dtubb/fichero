@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
-from fichero_server.api.routes import kg_triangulation as routes
+from fichero_server.api.routes.kg import triangulation as routes
 from fichero_server.knowledge.triangulation import TripleKey, TripleSupport
 
 

@@ -6,7 +6,7 @@ import asyncio
 from datetime import datetime, timedelta
 
 from fichero_server.actions.registry import ActionContext, registry
-from fichero_server.api.routes import kg_inclusion as routes
+from fichero_server.api.routes.kg import inclusion as routes
 from fichero_server.models import ActionAudit
 from fichero_server.models.knowledge import InclusionScopeType, KnowledgeGraphInclusion
 

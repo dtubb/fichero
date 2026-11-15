@@ -7,7 +7,7 @@ import asyncio
 import pytest
 from fastapi import HTTPException
 
-from fichero_server.api.routes import kg_claim_analysis as routes
+from fichero_server.api.routes.kg import claim_analysis as routes
 from fichero_server.models.knowledge import ClaimRelationType, KnowledgeClaim, KnowledgeClaimLink
 from fichero_server.models import Document
 

@@ -21,7 +21,7 @@ from fichero_server.models.knowledge import (
 
 class TestMutationLogList:
     def test_list_returns_recent_mutations_newest_first(self, db):
-        from fichero_server.api.routes import kg_mutations
+        from fichero_server.api.routes.kg import mutations as kg_mutations
 
         old = MutationLog(
             entity_type="KnowledgeEntity",
@@ -51,7 +51,7 @@ class TestMutationLogList:
 
 class TestUndo:
     def test_undo_restores_deleted_entity(self, db):
-        from fichero_server.api.routes import kg_mutations
+        from fichero_server.api.routes.kg import mutations as kg_mutations
         from fichero_server.workflows.tools._entity_writer import upsert_entity
 
         # Direct save to bypass upsert fuzzy match.
@@ -115,7 +115,7 @@ class TestUndo:
 
     def test_double_undo_is_blocked(self, db):
         from fastapi import HTTPException
-        from fichero_server.api.routes import kg_mutations
+        from fichero_server.api.routes.kg import mutations as kg_mutations
 
         entity = KnowledgeEntity(canonical_name="X", entity_type=EntityType.person)
         db.save(entity)
@@ -136,7 +136,7 @@ class TestUndo:
             assert exc.status_code == 409
 
     def test_undo_restores_claim(self, db):
-        from fichero_server.api.routes import kg_mutations
+        from fichero_server.api.routes.kg import mutations as kg_mutations
 
         claim = KnowledgeClaim(
             text="Original text.",
@@ -172,7 +172,7 @@ class TestOneOperationHasOneUndo:
         entity row. The old route must refuse rather than do that half."""
         from fastapi import HTTPException
         from fichero_server.actions.registry import ActionContext, registry
-        from fichero_server.api.routes import kg_mutations
+        from fichero_server.api.routes.kg import mutations as kg_mutations
 
         entity = KnowledgeEntity(canonical_name="Owned", entity_type=EntityType.person)
         db.save(entity)
@@ -278,7 +278,7 @@ class TestOneOperationHasOneUndo:
         of deleting its DOCUMENT, never through `claim.delete`) keeps
         today's behavior -- the old route is its only undo, and must still
         work."""
-        from fichero_server.api.routes import kg_mutations
+        from fichero_server.api.routes.kg import mutations as kg_mutations
 
         claim = KnowledgeClaim(text="Orphaned by a document delete.", source_document_id="doc-1")
         db.save(claim)
