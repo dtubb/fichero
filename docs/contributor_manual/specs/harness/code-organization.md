@@ -182,11 +182,13 @@ runs on the builder, not by a sweep: the files a batch adds or moves are judged 
   per batch (seconds); jcodemunch `find_dead_code` stays the advisory cross-check. Today one module has no reference
   anywhere (`media/image_prep_samples.py`) (#1945; issue to file). Test (to write): guard `check_vulture_ratchet` with
   `--self-test` planting an unused function.
-- `code-org.dead.test-only-code` [GAP] — Production code reached only by its own test is dead with a pension: delete the
+- `code-org.dead.test-only-code` [PARTIAL] — Production code reached only by its own test is dead with a pension: delete the
   code and the test together. The 6 Swift types reached only from `fichero/Tests` (`CacheModel`, `DragDropModel`,
   `MCPServersSheet`, `IntegrationsPlaceholderSheet`, `PageImageGrid`, `FicheroShortcuts`) go with their tests (ruled by the
-  owner 2026-11-14; review batch S5). Test (to
-  write): `check_dead_files` counts a reference from `fichero/Tests` separately and reports "test-only" (#1945).
+  owner 2026-11-14; review batch S5). Five are deleted (S5);
+  `FicheroShortcuts` stays, as the Shortcuts and Siri phrases are a product feature (owner call pending). Guard:
+  `scripts/check_dead_files.py`; test: `fichero-server/tests/unit/scripts/test_check_dead_files.py`. Still to write: the
+  guard reports a reference from `fichero/Tests` separately as "test-only" (#1945).
 - `code-org.dead.no-commented-out-code` [OK] — No commented-out code blocks; a `TODO`/`FIXME` cites an issue. Test:
   fichero-server/tests/unit/scripts/test_check_comment_hygiene.py, fichero-server/tests/unit/scripts/test_check_python_comment_hygiene.py.
 - `code-org.dead.waiver` [PARTIAL] — A deliberate keep is a `KNOWN_VIOLATIONS` entry (or a `# noqa: vulture` /
