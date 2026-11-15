@@ -12,7 +12,9 @@ final class ActivityClearFinishedShapeTests: XCTestCase {
 
     func testItArchivesEndedStatusesOnlyNeverRunningOnes() throws {
         let actions = try AppSource.code("Views/Activity/Pane/ActivityPaneView+Actions.swift")
-        XCTAssertTrue(actions.contains("deleteRuns(statuses: ActivityRunStatus.finishedEngineNames)"))
+        // f0dc95aa3: ended runs go through the engine's run archive (one undoable step), no longer a soft delete.
+        XCTAssertTrue(actions.contains("store.runs.filter { ActivityRunStatus.finished.contains($0.status) }"))
+        XCTAssertTrue(actions.contains("\"workflow_run.archive\", ids: ended"))
         XCTAssertTrue(actions.contains("archiveJobs(ids: [], states: [\"done\", \"failed\", \"cancelled\"])"))
         XCTAssertFalse(actions.contains("statuses: [\"running\""))
     }
