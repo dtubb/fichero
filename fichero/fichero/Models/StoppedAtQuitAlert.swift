@@ -73,7 +73,9 @@ final class StoppedAtQuitAlert {
         if runs.count > 5 { lines.append("and \(runs.count - 5) more") }
         let background = items.filter { automaticKinds.contains($0.kind) }
         if !background.isEmpty {
-            let counts = Dictionary(grouping: background, by: \.kind).map { kind, rows in "\(rows.count) \(Self.word(for: kind))" }
+            let counts = Dictionary(grouping: background, by: \.kind).map { kind, rows in
+                "\(rows.count) \(Self.word(for: kind, count: rows.count))"
+            }
             lines.append((runs.isEmpty ? "Background work: " : "and background work: ") + counts.sorted().joined(separator: ", "))
         }
         let folders = items.filter { $0.kind == newMaterialKind }.count
@@ -82,11 +84,13 @@ final class StoppedAtQuitAlert {
         return lines.joined(separator: "\n")
     }
 
-    private static func word(for kind: String) -> String {
+    /// The kind's word by its count: "1 embed", "80 embeds", never "1 embeds".
+    private static func word(for kind: String, count: Int) -> String {
+        let one = count == 1
         switch kind {
-        case "thumbnail": "thumbnails"
-        case "embedding", "embed": "embeds"
-        default: "names drafts"
+        case "thumbnail": return one ? "thumbnail" : "thumbnails"
+        case "embedding", "embed": return one ? "embed" : "embeds"
+        default: return one ? "names draft" : "names drafts"
         }
     }
 

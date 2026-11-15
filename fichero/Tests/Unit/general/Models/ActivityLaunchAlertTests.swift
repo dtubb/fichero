@@ -73,11 +73,11 @@ struct ActivityLaunchAlertTests {
             ("Read a synced folder", "read-from-folder")
         ])
         #expect(message.hasPrefix("Run the recipe: Letters\n"))
-        #expect(message.contains("and background work: 1 embeds, 2 thumbnails"))
+        #expect(message.contains("and background work: 1 embed, 2 thumbnails"), "plural by count, never 1 embeds")
         #expect(message.contains("New files in a synced folder"))
         #expect(!message.contains("Make thumbnails"), "no row per thumbnail")
         let alone = StoppedAtQuitAlert.message(items: [("Embed for search", "embed"), ("Make thumbnails", "thumbnail")])
-        #expect(alone.hasPrefix("Background work: 1 embeds, 1 thumbnails\n"), "no \"and\" with no run before it")
+        #expect(alone.hasPrefix("Background work: 1 embed, 1 thumbnail\n"), "no \"and\" with no run before it")
     }
 
     @Test("with nothing stopped the alert never shows")
