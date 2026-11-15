@@ -88,17 +88,20 @@ runs on the builder, not by a sweep: the files a batch adds or moves are judged 
   cross-feature types. Today 355 and 220 files sit flat; both are known offenders of the 18-file rule since #1944 and the
   guard's allowlist lets them grow. Test: `scripts/check_folder_organization.py` once the two entries leave its
   `KNOWN_VIOLATIONS`.
-- `code-org.folders.swift-view-local-state` [GAP] — A view's own `@Observable` state (a `*State`, `*Model` or `Focused*`
+- `code-org.folders.swift-view-local-state` [OK] — A view's own `@Observable` state (a `*State`, `*Model` or `Focused*`
   type used by one feature) sits BESIDE its views in `Views/<Feature>/`; `Models/<Feature>/` holds shared state, read by
   two or more features (ruled by the owner 2026-11-14). Today 38 observable types sit under `Views/`; the guard names the
-  ones a second feature reads (#1944). Test (to
-  write): a `--list` mode in `check_folder_organization` naming observable types under `Views/` referenced from a second
-  feature folder.
-- `code-org.folders.swift-test-mirror` [PARTIAL] — `fichero/Tests/Unit/<platform>/<Layer>/<Feature>/` mirrors
+  ones a second feature reads (#1944). Built: `check_folder_organization` reports an `@Observable`/`ObservableObject` type
+  under `Views/<Feature>/` that another `Views/<Other>/` or `App/` reads, with "→ Models/<Feature>/ (read by two features)";
+  today's 18 are baselined (`KNOWN_SHARED_STATE`), new ones fail, `--list` names them.
+  Test: fichero-server/tests/unit/scripts/test_check_folder_organization.py; `check_folder_organization --self-test`.
+- `code-org.folders.swift-test-mirror` [OK] — `fichero/Tests/Unit/<platform>/<Layer>/<Feature>/` mirrors
   `fichero/fichero/<Layer>/<Feature>/`, `Tests/UI/<platform>/<Feature>/` the surfaces; a test of `Views/Segments/` goes
   under `Tests/Unit/general/Views/Segments/`. Shared helpers (`TestFixtures.swift`, `AppSource.swift`, `EngineHarness.swift`)
   sit at `Tests/Unit/general/` root. Built: the tree has the shape; 437 model tests sit flat because `Models/` is flat.
-  Not built: no guard (#1944). Test (to write): the mirror check in `check_folder_organization`.
+  Built: `check_folder_organization` reports a test folder
+  `Tests/Unit/<platform>/<Layer>/<Feature>/` with no app folder to mirror (today 2, baselined in `KNOWN_TEST_ORPHANS`).
+  Test: fichero-server/tests/unit/scripts/test_check_folder_organization.py; `check_folder_organization --self-test`.
 - `code-org.folders.python-packages` [OK] — Engine code lives in one domain package under
   `fichero-server/src/fichero_server/`: `api/` (routes by resource under `api/routes/<resource>/`, transport, startup),
   `models/`, `db/`, `core/` (small utilities with no domain), `llm/`, `media/`, `formats/`, `importers/`, `knowledge/`,
@@ -128,12 +131,14 @@ runs on the builder, not by a sweep: the files a batch adds or moves are judged 
 
 ### B. Naming
 
-- `code-org.naming.swift-file-is-type` [PARTIAL] — A Swift file is named for the one primary type it declares;
+- `code-org.naming.swift-file-is-type` [OK] — A Swift file is named for the one primary type it declares;
   `Type+Topic.swift` holds an extension of `Type` and declares no second public type; `#Preview` and `private` helper
   types may share the file. A file holding a family of wire types for one service is named `<Service>Types.swift` and is
   the one allowed bundle (ruled by the owner 2026-11-14: kept). Today 135 files match none of their types and 303 declare more than two top-level types. Built:
-  SwiftLint `file_length`/`type_body_length` bound the size, not the count. Not built: a type-count guard (#1944). Test
-  (to write): guard `check_swift_one_type_per_file`, baselined, shrink-only.
+  SwiftLint `file_length`/`type_body_length` bound the size, not the count. Built (#1944): `check_swift_one_type_per_file`, baselined per
+  file in `KNOWN_VIOLATIONS`, the count may only fall; it also judges the View shape word and place and the `IOS`/`MacOS`
+  spelling (`code-org.naming.swift-views-end-view`, `code-org.naming.swift-platform-suffix`).
+  Test: fichero-server/tests/unit/scripts/test_check_swift_one_type_per_file.py; `check_swift_one_type_per_file --self-test`.
 - `code-org.naming.swift-views-end-view` [GAP] — A `View`-conforming type ends in `View`, or in one of the shape words
   the shell uses (`Pane`, `Sheet`, `Row`, `Bar`, `Button`, `Menu`, `Picker`, `Popover`, `Cell`, `Badge`, `Label`,
   `Overlay`, `Section`, `Item`, `Field`, `Panel`, `Strip`, `Card`, `Line`, `Notice`, `Pill`); a type under `Views/` that
@@ -207,7 +212,7 @@ runs on the builder, not by a sweep: the files a batch adds or moves are judged 
 
 ### E. Ratchets and when they run
 
-- `code-org.enforce.per-batch-placement` [PARTIAL] — Every batch is checked for where it put its files, not only the nightly
+- `code-org.enforce.per-batch-placement` [OK] — Every batch is checked for where it put its files, not only the nightly
   tree: a guard beside `check_folder_organization.py`, `check_file_placement --since <base>`, reads `git diff --name-status
   <base>..HEAD` and judges each ADDED or RENAMED path (the new name) against the rules of this spec: a Swift file under
   `fichero/fichero/<Layer>/<Feature>/` whose layer and feature exist and whose name follows `code-org.naming.swift-*`, with
@@ -222,8 +227,10 @@ runs on the builder, not by a sweep: the files a batch adds or moves are judged 
   that stages a synthetic range holding one right and one wrong file per rule; a pytest under
   `fichero-server/tests/unit/scripts/` that runs it over a temp repo.
   Built (#6607): the Python and repo-root rules, wired on every diff (`since_guards` prefix ""); a new test also passes in a
-  `tests/unit/` folder the merge-base already had. Not yet built: the Swift rules (a later lane).
-  Test: `fichero-server/tests/unit/scripts/test_check_file_placement.py`.
+  `tests/unit/` folder the merge-base already had. The Swift rules are built too: a new `.swift` under `fichero/fichero/` sits
+  in a layer folder, a new View type under `Views/<Feature>/` or `App/Menus/`, the name passes the file-is-type, shape-word and
+  `IOS`/`MacOS` rules, and a new test under `fichero/Tests/Unit/` is `*Tests.swift` in the mirror of an existing app folder.
+  Test: fichero-server/tests/unit/scripts/test_check_file_placement.py; `check_file_placement --self-test`.
 - `code-org.ratchet.per-batch` [OK] — Every `scripts/check_*.py` not in `harness.toml` `guard_skip` runs on each batch in
   the builder's guards rung, under 60 s each, from the pinned copy; the ready check runs `lint.py` per touched file;
   `since_guards` runs `check_swiftlint_warning_ratchet.py --since <base>` when the diff touches `fichero/`. Test:

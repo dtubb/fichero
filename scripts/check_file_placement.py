@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Callable
 
 from _check_floor import require_scan_floor
+from check_swift_one_type_per_file import analyze, file_findings
 
 ROOT = Path(__file__).resolve().parent.parent
 BLIND_EXIT_CODE = 2
@@ -35,6 +36,10 @@ ARROW = " → "
 SERVER_PKG = "fichero-server/src/fichero_server/"
 ROUTES = SERVER_PKG + "api/routes/"
 SERVER_TESTS = "fichero-server/tests/unit/"
+APP = "fichero/fichero/"
+SWIFT_TESTS = "fichero/Tests/Unit/"
+APP_LAYERS = ("App", "Models", "Services", "Intents", "Views", "Resources")
+MIRROR_LAYERS = ("Views", "Models", "Services", "App", "Intents")
 # Where a Python module name is judged: the four source trees.
 MODULE_TREES = ("fichero-server/src/", "fichero-cli/src/", "fichero-mcp/src/", "fichero-builder/fichero_builder/")
 
@@ -63,11 +68,17 @@ class Tree:
     packages: frozenset[str]
     old_test_folders: frozenset[str] = frozenset()  # tests/unit/ folders the merge-base already had: judged by whoever made them
     on_disk: bool = False  # whole-tree mode reads the working tree; --since reads HEAD
+    merge_base: str = "HEAD"
 
     def text(self, path: str) -> str:
         if self.on_disk:
             return (self.repo / path).read_text(encoding="utf-8", errors="replace")
         return _git(self.repo, "show", f"HEAD:{path}")
+
+    def has_dir(self, path: str, rev: str = "HEAD") -> bool:
+        if self.on_disk:
+            return (self.repo / path).is_dir()
+        return bool(_git(self.repo, "ls-tree", "-d", "--name-only", rev, path.rstrip("/")).strip())
 
 
 Judge = Callable[[str, Tree], "str | None"]  # path, tree -> "<destination>: <rule>" when misplaced
@@ -123,6 +134,53 @@ def _judge_test(path: str, tree: Tree) -> str | None:
     return "tests/unit/<package>/" + name + ": a new test sits in the folder mirroring its fichero_server package (or a tests/unit folder that already exists)"
 
 
+def _judge_swift_layer(path: str, _tree: Tree) -> str | None:
+    if path[len(APP):].split("/")[0] in APP_LAYERS and "/" in path[len(APP):]:
+        return None
+    return "fichero/fichero/<Layer>/<Feature>/: a Swift file sits under App, Models, Services, Intents, Views or Resources, never at the app root"
+
+
+def _judge_swift_view_place(path: str, tree: Tree) -> str | None:
+    rest = path[len(APP):]
+    if not any(t.is_view for t in analyze(tree.text(path)).types):
+        return None
+    parts = rest.split("/")
+    if (parts[0] == "Views" and len(parts) > 2) or rest.startswith("App/Menus/"):
+        return None
+    return "Views/<Feature>/ (menu commands: App/Menus/): a View type lives under a feature folder of Views/"
+
+
+def _judge_swift_name(path: str, tree: Tree) -> str | None:
+    for finding in file_findings(path[len(APP):], analyze(tree.text(path))):
+        kind, _, what = finding.partition(": ")
+        if kind == "file-name":
+            return "a file named for its type: " + what
+        if kind == "view-shape":
+            return "a View type ending in a shape word: " + what
+        if kind == "platform":
+            return "IOS / MacOS spelling: " + what
+    return None
+
+
+def _judge_swift_test(path: str, tree: Tree) -> str | None:
+    parts = path[len(SWIFT_TESTS):].split("/")
+    name = parts[-1]
+    if len(parts) == 2 and parts[0] == "general" and not name.endswith("Tests.swift"):
+        return None  # shared helpers (TestFixtures, AppSource, EngineHarness) sit at Tests/Unit/general/
+    if not name.endswith("Tests.swift"):
+        return "<Name>Tests.swift: a new test file ends Tests.swift"
+    if len(parts) < 3:
+        return None  # a platform's own canary tests
+    folder = "/".join(parts[:-1])
+    if parts[1] in MIRROR_LAYERS:
+        if tree.has_dir(APP + "/".join(parts[1:-1])) or tree.has_dir(SWIFT_TESTS + folder, tree.merge_base):
+            return None
+        return f"{APP}{'/'.join(parts[1:-1])}/ has no app folder: the test folder mirrors an existing fichero/fichero/<Layer>/<Feature>/"
+    if tree.has_dir(SWIFT_TESTS + folder, tree.merge_base):
+        return None
+    return "fichero/Tests/Unit/<platform>/<Layer>/<Feature>/: a new test sits in the folder mirroring its app folder (or a test folder that already exists)"
+
+
 @dataclass(frozen=True)
 class Rule:
     name: str
@@ -137,6 +195,10 @@ RULES: tuple[Rule, ...] = (
     Rule("api/routes root", lambda p: p.startswith(ROUTES), _judge_routes_root),
     Rule("module names", lambda p: p.startswith(MODULE_TREES), _judge_module_name),
     Rule("tests", lambda p: p.startswith(SERVER_TESTS), _judge_test),
+    Rule("swift layer", lambda p: p.startswith(APP) and p.endswith(".swift"), _judge_swift_layer),
+    Rule("swift view place", lambda p: p.startswith(APP) and p.endswith(".swift"), _judge_swift_view_place),
+    Rule("swift names", lambda p: p.startswith(APP) and p.endswith(".swift"), _judge_swift_name),
+    Rule("swift tests", lambda p: p.startswith(SWIFT_TESTS) and p.endswith(".swift"), _judge_swift_test),
 )
 
 
@@ -199,7 +261,7 @@ def run_since(base: str, repo: Path = ROOT, packages_floor: int = 10) -> int:
     paths = parse_added(raw)
     packages = _folders(repo, "HEAD", SERVER_PKG)
     require_scan_floor(len(packages), packages_floor, "fichero_server packages")
-    bad = judge(paths, Tree(repo, packages, _folders(repo, merge_base, SERVER_TESTS)))
+    bad = judge(paths, Tree(repo, packages, _folders(repo, merge_base, SERVER_TESTS), merge_base=merge_base))
     for path, why in bad:
         print(f"{path}{ARROW}{why}")
     if bad:
@@ -264,7 +326,9 @@ def whole_tree_counts(repo: Path, floor: int = TRACKED_FLOOR) -> tuple[dict[str,
     counts: dict[str, int] = {}
     examples: dict[str, list[str]] = {}
     tree = Tree(repo, packages, on_disk=True)
-    for path, rule, _why in judge_rule_named([p for p in paths if _is_file(repo / p)], tree):
+    # the Swift rules judge a batch's new files only: the whole tree's Swift debt is baselined by check_swift_one_type_per_file
+    # and check_folder_organization, so counting it here too would hold it in two baselines
+    for path, rule, _why in judge_rule_named([p for p in paths if _is_file(repo / p) and not p.endswith(".swift")], tree):
         key = f"{path.rsplit('/', 1)[0] if '/' in path else '.'}  [{rule}]"
         counts[key] = counts.get(key, 0) + 1
         examples.setdefault(key, []).append(path)
@@ -323,7 +387,29 @@ _WRONG_ADDS = {
     SERVER_TESTS + "core/test_6001_thing.py": "x = 1\n",
     SERVER_TESTS + "core/thing_test.py": "x = 1\n",
 }
+_A = "fichero/fichero/"
+_T = "fichero/Tests/Unit/"
+_RIGHT_ADDS.update({
+    _A + "Views/Library/NewThingView.swift": "import SwiftUI\nstruct NewThingView: View {}\n",
+    _A + "App/Menus/NewCommands.swift": "struct NewCommands: View {}\n",
+    _A + "Models/Library/NewThing.swift": "struct NewThing {}\n",
+    _T + "general/Views/Library/NewThingViewTests.swift": "x\n",
+    _T + "general/Engine/NewEngineTests.swift": "x\n",  # a test folder the base already had
+    _T + "general/TestMoreFixtures.swift": "x\n",
+})
+_WRONG_ADDS.update({
+    _A + "Loose.swift": "struct Loose {}\n",
+    _A + "Models/Library/WrongName.swift": "struct SomethingElse {}\n",
+    _A + "Models/Library/Stray.swift": "struct StrayView: View {}\n",
+    _A + "Views/Library/Odd.swift": "struct Odd: View {}\n",
+    _A + "Views/Library/PaneiOS.swift": "struct PaneiOS {}\n",
+    _T + "general/Views/Nowhere/ThingTests.swift": "x\n",
+    _T + "general/Views/Library/ThingCheck.swift": "x\n",
+})
 _BASE_FILES = {
+    _A + "Views/Library/Old.swift": "struct Old {}\n",
+    _A + "Models/Library/Old.swift": "struct Old {}\n",
+    _T + "general/Engine/OldTests.swift": "x\n",
     **{_PKG + f"pkg{i}/__init__.py": "" for i in range(12)},
     _PKG + "core/__init__.py": "",
     _PKG + "__init__.py": "",
@@ -372,7 +458,7 @@ def _self_test() -> int:
         if not paths:
             print("self-test FAILED: the guard saw no added or renamed file in a range that has many", file=sys.stderr)
             return 1
-        tree = Tree(repo, _folders(repo, "HEAD", _PKG), _folders(repo, "main", SERVER_TESTS))
+        tree = Tree(repo, _folders(repo, "HEAD", _PKG), _folders(repo, "main", SERVER_TESTS), merge_base="main")
         got = dict(judge(paths, tree))
         expected = set(_WRONG_ADDS) | set(_RENAMES_WRONG.values())
         if set(got) != expected:
@@ -387,6 +473,13 @@ def _self_test() -> int:
             SERVER_TESTS + "core/test_6001_thing.py": "suffix",
             _PKG + "moved_to_root.py": "fichero_server/<package>/moved_to_root.py",
             _PKG + "core/moved_alias.py": "sys.modules",
+            _A + "Loose.swift": "never at the app root",
+            _A + "Models/Library/WrongName.swift": "named for its type",
+            _A + "Models/Library/Stray.swift": "Views/<Feature>/",
+            _A + "Views/Library/Odd.swift": "shape word",
+            _A + "Views/Library/PaneiOS.swift": "IOS / MacOS",
+            _T + "general/Views/Nowhere/ThingTests.swift": "no app folder",
+            _T + "general/Views/Library/ThingCheck.swift": "Tests.swift",
         }
         for path, fragment in wants.items():
             if fragment not in got[path]:
