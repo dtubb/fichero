@@ -18,7 +18,7 @@ Kind = Literal["no-credit", "key-refused", "rate-limited", "cap-refused", "image
                "runtime-unavailable", "memory", "network", "files-unavailable", "model-broken", "library-closed",
                "export-folder-gone", "unexpected"]
 ActionKind = Literal["retry", "resume", "open-settings", "choose-model", "report-bug", "reconnect", "raise-to", "allow-everywhere",
-                     "allow-project", "allow-once", "over-cap-once"]
+                     "allow-project", "allow-once", "over-cap-once", "choose-folder"]
 
 PROVIDERS_CONTROL = "settings.ai.providers"
 LOCAL_MODELS_CONTROL = "settings.ai.localModels"
@@ -313,7 +313,8 @@ _WORDS: dict[str, Any] = {
         "Open the project again; the work continues from where it stopped.", _a("resume")),
     "export-folder-gone": lambda **_: _row(
         "The folder this export writes to is gone.",
-        "Reconnect the drive, or choose the export's folder again.", _a("reconnect"), _a("retry")),
+        # Choose Folder… moves the export (`PATCH /api/export/kept/{id}`); Continue once the drive is back (#6588).
+        "Reconnect the drive, or choose the export's folder again.", _a("choose-folder"), _a("resume")),
     "unexpected": lambda *, step, kind_exc, stopped, **_: _row(
         f"Something went wrong inside Fichero while it ran {step} ({kind_exc}){stopped}.",
         "This is a bug in Fichero, not something you did. Send a bug report so it can be fixed; you can also try the run again.",

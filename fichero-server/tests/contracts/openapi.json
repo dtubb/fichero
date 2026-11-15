@@ -27095,6 +27095,78 @@
             }
           }
         }
+      },
+      "patch": {
+        "tags": [
+          "export",
+          "export"
+        ],
+        "summary": "Choose a kept export's folder again, or switch Keep up to date",
+        "description": "Choose Folder\u2026 (`activity.kept-export.one-row-per-export`, #6588): the export writes to the new folder from now\non, and a row its gone folder paused writes there. Keep up to date off: an edit queues no rewrite, Write Now still\nwrites. A folder that cannot be kept is refused (422) in one sentence, nothing changed.",
+        "operationId": "update_kept_export_api_export_kept__export_id__patch",
+        "parameters": [
+          {
+            "name": "export_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Export Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeptExportUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeptExport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/export/kept/{export_id}/write": {
@@ -71437,7 +71509,8 @@
               "allow-everywhere",
               "allow-project",
               "allow-once",
-              "over-cap-once"
+              "over-cap-once",
+              "choose-folder"
             ],
             "title": "Kind"
           },
@@ -77068,6 +77141,12 @@
             "format": "date-time",
             "nullable": true,
             "title": "Last Written"
+          },
+          "keep_up_to_date": {
+            "type": "boolean",
+            "title": "Keep Up To Date",
+            "description": "rewritten as the work changes (on by default); off, only Write Now writes",
+            "default": true
           }
         },
         "type": "object",
@@ -77152,6 +77231,24 @@
           "per"
         ],
         "title": "KeptExportRequest"
+      },
+      "KeptExportUpdate": {
+        "properties": {
+          "folder": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder",
+            "description": "Choose Folder\u2026: a full path to the folder the export writes to from now on, outside the project"
+          },
+          "keep_up_to_date": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Keep Up To Date",
+            "description": "Keep up to date: off, an edit queues no rewrite"
+          }
+        },
+        "type": "object",
+        "title": "KeptExportUpdate"
       },
       "KeptExportWriting": {
         "properties": {

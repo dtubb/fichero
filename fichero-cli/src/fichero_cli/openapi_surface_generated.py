@@ -6851,6 +6851,28 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("choose-a-kept-s-folder-again-or-switch-keep-up-to-date", hidden=True)
+    @target_app.command("update-kept")
+    def export_update_kept_patch(
+        ctx: typer.Context,
+        export_id: str = typer.Argument(..., help='Export Id'),
+        folder: Optional[str] = typer.Option(None, '--folder', help='Choose Folder…: a full path to the folder the export writes to from now on, outside the project.'),
+        keep_up_to_date: Optional[bool] = typer.Option(None, '--keep-up-to-date/--no-keep-up-to-date', help='Keep up to date: off, an edit queues no rewrite.'),
+    ) -> None:
+        """Choose a kept export's folder again, or switch Keep up to date (PATCH /api/export/kept/{export_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/export/kept/{export_id}"
+            params = None
+            payload = _build_json_payload({
+                "folder": folder,
+                "keep_up_to_date": keep_up_to_date,
+            }, {
+                "folder": {'type': 'string', 'nullable': True, 'title': 'Folder', 'description': 'Choose Folder…: a full path to the folder the export writes to from now on, outside the project', 'x-cli-required': False},
+                "keep_up_to_date": {'type': 'boolean', 'nullable': True, 'title': 'Keep Up To Date', 'description': 'Keep up to date: off, an edit queues no rewrite', 'x-cli-required': False},
+            }, required=True)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("write-a-kept-now-as-a-background-job", hidden=True)
     @target_app.command("write-kept")
     def export_write_kept_post(

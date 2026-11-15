@@ -104,9 +104,10 @@ def _package(db: Any) -> Path:
 
 
 def _exports(db: Any) -> list[dict[str, Any]]:
-    rows = db.execute_fetchall("SELECT id, folder, format, per, created_at FROM kept_exports "
+    rows = db.execute_fetchall("SELECT id, folder, format, per, created_at, COALESCE(keep_up_to_date, TRUE) FROM kept_exports "
                                "WHERE removed_at IS NULL ORDER BY created_at")
-    return [{"id": r[0], "folder": r[1], "format": r[2], "per": r[3], "created_at": r[4]} for r in rows]
+    return [{"id": r[0], "folder": r[1], "format": r[2], "per": r[3], "created_at": r[4], "keep_up_to_date": bool(r[5])}
+            for r in rows]
 
 
 def _export(db: Any, export_id: str) -> dict[str, Any] | None:
@@ -159,6 +160,22 @@ def remove(db: Any, export_id: str) -> None:
         jobs.end_cancelled(db, job_id, REMOVED_REASON)
 
 
+def update(db: Any, export_id: str, *, folder: str | None = None, keep_up_to_date: bool | None = None) -> None:
+    """Choose the export's folder again, or switch its automatic rewrite (`activity.kept-export.one-row-per-export`,
+    #6588). A new folder is checked as at keep and lets a row the gone folder paused write there; a folder that cannot
+    be kept is refused in one sentence, nothing changed. Off, an edit queues no rewrite; Write Now still writes."""
+    if _export(db, export_id) is None:
+        raise KeyError(export_id)
+    if folder is not None:
+        resolved = _refuse_folder(db, folder)
+        db.execute("UPDATE kept_exports SET folder = ? WHERE id = ?", [resolved, export_id])
+        for (job_id,) in db.execute_fetchall("SELECT id FROM jobs WHERE kind = ? AND subject LIKE ? AND state = 'paused' "
+                                             "AND reason = ?", [KIND, export_id + "%", jobs.PAUSED_EXPORT_FOLDER_GONE]):
+            jobs.pause_job(db, job_id, False)
+    if keep_up_to_date is not None:
+        db.execute("UPDATE kept_exports SET keep_up_to_date = ? WHERE id = ?", [keep_up_to_date, export_id])
+
+
 def write_now(db: Any, export_id: str) -> str:
     """Queue one write of the whole export, which a person waits on. Returns the job id."""
     if _export(db, export_id) is None:
@@ -200,7 +217,7 @@ def queue_rewrites(db: Any, document_ids: list[str], *, watched: bool = False) -
     period, in the change's own transaction. Cheap when nothing is kept."""
     if not document_ids:
         return
-    exports = _exports(db)
+    exports = [e for e in _exports(db) if e["keep_up_to_date"]]  # one switched off queues nothing (#6588)
     if not exports:
         return
     register_job_kinds()
@@ -438,6 +455,7 @@ def status(db: Any) -> list[dict[str, Any]]:
         written = [r[2] for r in rows if r[2] is not None]
         out.append({
             "id": export["id"], "folder": export["folder"], "format": export["format"], "per": export["per"],
+            "keep_up_to_date": export["keep_up_to_date"],
             "files": [r[0] for r in rows if r[1] == "written"],
             "in_the_way": [r[0] for r in rows if r[1] == "in-the-way"],
             "pending": jobs.count_jobs(db, KIND, subject_prefix=export["id"]),

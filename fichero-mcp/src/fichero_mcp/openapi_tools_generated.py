@@ -3228,6 +3228,16 @@ def fichero_export_remove_kept(
     return _rt.call("DELETE", f"/api/export/kept/{export_id}")
 
 
+def fichero_export_update_kept(
+    *,
+    export_id: Annotated[str, Field(description='Export Id')],
+    folder: Annotated[Optional[str], Field(description='Choose Folder…: a full path to the folder the export writes to from now on, outside the project.')] = None,
+    keep_up_to_date: Annotated[Optional[bool], Field(description='Keep up to date: off, an edit queues no rewrite.')] = None,
+) -> Any:
+    "Choose a kept export's folder again, or switch Keep up to date\n\nChoose Folder… (`activity.kept-export.one-row-per-export`, #6588): the export writes to the new folder from now\non, and a row its gone folder paused writes there. Keep up to date off: an edit queues no rewrite, Write Now still\nwrites. A folder that cannot be kept is refused (422) in one sentence, nothing changed.\n\nRoute: PATCH /api/export/kept/{export_id} (toolset `export`; changes data, as the agent account when one exists)."
+    return _rt.call("PATCH", f"/api/export/kept/{export_id}", json=_rt.body({"folder": folder, "keep_up_to_date": keep_up_to_date}))
+
+
 def fichero_export_write_kept(
     *,
     export_id: Annotated[str, Field(description='Export Id')],
@@ -9953,6 +9963,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_export_list_kept_exports", "export", "GET", "/api/export/kept", fichero_export_list_kept_exports),
     GeneratedTool("fichero_export_keep", "export", "POST", "/api/export/kept", fichero_export_keep),
     GeneratedTool("fichero_export_remove_kept", "export", "DELETE", "/api/export/kept/{export_id}", fichero_export_remove_kept),
+    GeneratedTool("fichero_export_update_kept", "export", "PATCH", "/api/export/kept/{export_id}", fichero_export_update_kept),
     GeneratedTool("fichero_export_write_kept", "export", "POST", "/api/export/kept/{export_id}/write", fichero_export_write_kept),
     GeneratedTool("fichero_export_markdown_folder_route", "export", "POST", "/api/export/markdown-folder", fichero_export_markdown_folder_route),
     GeneratedTool("fichero_export_parquet_route", "export", "POST", "/api/export/parquet", fichero_export_parquet_route),

@@ -695,9 +695,13 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   an edit. *Built 2026-11-14:* one row per export (subject the export's id, `pages` and `keys` in its detail, the
   kind's `names` hook naming the row), a gone folder PAUSES it (`jobs._PAUSED_NOT_FAILED`; the path kept for Copy Details),
   Continue writes what waited, Write Now joins the row and drops its quiet period; removing the export ends its waiting or
-  paused row ("The export was removed"). *Not yet:* the Choose Folder… fix (a
-  route to change an export's folder, a `choose-folder` action kind) and the Keep up to date switch. *Test:*
-  `fichero-server/tests/unit/jobs/test_kept_export_one_row_6588.py` (4, green).
+  paused row ("The export was removed"). *Built 2026-11-14 night (engine):* `PATCH /api/export/kept/{id}`
+  (`export.update`, audited) chooses the folder again (checked as at keep, 422 in words, nothing changed) and lets the row
+  its gone folder paused write there, or switches `keep_up_to_date` (a column, on by default; off, `queue_rewrites`
+  queues nothing, Write Now still writes); the gone folder's failure offers `choose-folder` then `resume`; the contract
+  regenerated. *Not yet:* the app's Choose Folder… button and the Inspector's Keep up to date switch. *Test:*
+  `fichero-server/tests/unit/jobs/test_kept_export_one_row_6588.py` (4, green),
+  `fichero-server/tests/unit/jobs/test_kept_export_choose_folder_6588.py` (4, green).
 
 ## Build order
 
