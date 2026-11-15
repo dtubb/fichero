@@ -56,6 +56,8 @@ else
   git -C "$SRC_ROOT" worktree add -q -B "$BRANCH" "$WT" origin/integration
 fi || { text "Fichero morning release: could not cut $BRANCH"; exit 1; }
 
+# The daily DMG is dev tier: it goes on the dev Sparkle channel, never to the public alpha feed.
+export FICHERO_RELEASE_CHANNEL="${FICHERO_MORNING_CHANNEL-dev}"
 SUMMARY="$WT/build/releases/summary.tsv"
 mkdir -p "$WT/build/releases"
 # shellcheck disable=SC2086  # FICHERO_MORNING_ARGS is a flag list

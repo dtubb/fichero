@@ -348,6 +348,15 @@ else
   echo "[DRY RUN] would run: gh release create $TAG --repo $RELEASE_REPO --target $RELEASE_TARGET --title \"Fichero $VERSION\" $DRAFT_FLAG $PRERELEASE_FLAG"
 fi
 
+# FICHERO_RELEASE_CHANNEL=dev: the one DMG is dev-tier (the daily --dev release), so its item goes on the
+# dev channel and no channel-less public item is written; a stray Fichero-dev.dmg is not shipped beside it.
+MAIN_ITEM_ARGS=()
+MAIN_TITLE_SUFFIX=""
+if [ "${FICHERO_RELEASE_CHANNEL:-}" = "dev" ]; then
+  MAIN_ITEM_ARGS=(--channel dev)
+  MAIN_TITLE_SUFFIX=" (dev)"
+  HAVE_DEV_DMG=false
+fi
 RELEASE_URL="https://github.com/$RELEASE_REPO/releases/download/${TAG}/Fichero.dmg"
 DEV_RELEASE_URL="https://github.com/$RELEASE_REPO/releases/download/${TAG}/Fichero-dev.dmg"
 PUB_DATE=$(date -R)
@@ -389,13 +398,14 @@ APPCAST
   # NOTES_HTML is read from the environment inside appcast_upsert.py (already
   # exported above): multi-line HTML has no clean CLI-arg form.
   "$ROOT_DIR/scripts/appcast_upsert.py" "$APPCAST_PATH" \
-    --title "Fichero $VERSION" \
+    --title "Fichero $VERSION$MAIN_TITLE_SUFFIX" \
     --pub-date "$PUB_DATE" \
     --version "$BUILD" \
     --short-version "$VERSION" \
     --enclosure-url "$RELEASE_URL" \
     --enclosure-length "$DMG_SIZE" \
-    --ed-signature "$ED_SIGNATURE"
+    --ed-signature "$ED_SIGNATURE" \
+    ${MAIN_ITEM_ARGS[@]+"${MAIN_ITEM_ARGS[@]}"}
   if [ "$HAVE_DEV_DMG" = true ]; then
     "$ROOT_DIR/scripts/appcast_upsert.py" "$APPCAST_PATH" \
       --title "Fichero $VERSION (dev)" \

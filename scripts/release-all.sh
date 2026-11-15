@@ -858,6 +858,8 @@ publish_part() {
         || fail_part "smoke failed for $(basename "$SMOKE_DMG")"
     fi
   done
+  # A one-DMG dev run publishes on the dev channel only (never the channel-less public item).
+  if [ "${#DMG_TIERS[@]}" -eq 1 ] && [ "${DMG_TIERS[0]}" = dev ]; then export FICHERO_RELEASE_CHANNEL=dev; fi
   "$ROOT_DIR/scripts/create-github-release.sh" "${GITHUB_ARGS[@]+"${GITHUB_ARGS[@]}"}" \
     || fail_part "create-github-release.sh failed"
   # Site AFTER the GitHub step: create-github-release.sh writes appcast.xml

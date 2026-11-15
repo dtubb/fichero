@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import importlib.util
 import plistlib
+import re
 import subprocess
 import sys
 import time
@@ -395,3 +396,19 @@ def test_release_all_names_a_single_tier_dmg_fichero_dmg_and_publishes_before_te
 def test_deploy_site_triggers_a_netlify_build():
     d = _script("deploy-site.sh")
     assert 'curl' in d and 'FICHERO_NETLIFY_BUILD_HOOK' in d
+
+
+def test_the_daily_dev_dmg_is_published_on_the_dev_channel_only():
+    c = _script("create-github-release.sh")
+    assert 'FICHERO_RELEASE_CHANNEL:-}" = "dev"' in c
+    assert "MAIN_ITEM_ARGS=(--channel dev)" in c and "HAVE_DEV_DMG=false" in c
+    assert '--ed-signature "$ED_SIGNATURE" \\\n    ${MAIN_ITEM_ARGS[@]+"${MAIN_ITEM_ARGS[@]}"}' in c
+    assert 'export FICHERO_RELEASE_CHANNEL="${FICHERO_MORNING_CHANNEL-dev}"' in _script("morning-release.sh")
+    assert "export FICHERO_RELEASE_CHANNEL=dev" in _script("release-all.sh")
+
+
+def test_spec_ids_in_release_and_versioning_are_unique():
+    import collections
+    text = (_ROOT / "docs/contributor_manual/specs/harness/release-and-versioning.md").read_text()
+    ids = [m for m in re.findall(r"^- `(release\.[\w.\-]+)` —", text, re.M)]
+    assert [i for i, n in collections.Counter(ids).items() if n > 1] == []
