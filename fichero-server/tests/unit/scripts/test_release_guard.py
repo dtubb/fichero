@@ -412,3 +412,12 @@ def test_spec_ids_in_release_and_versioning_are_unique():
     text = (_ROOT / "docs/contributor_manual/specs/harness/release-and-versioning.md").read_text()
     ids = [m for m in re.findall(r"^- `(release\.[\w.\-]+)` —", text, re.M)]
     assert [i for i, n in collections.Counter(ids).items() if n > 1] == []
+
+
+def test_docs_download_links_name_fichero_dmg_and_the_one_dmg_text_calls_it_the_dev_build():
+    for md in list((_ROOT / "docs").glob("*.md")) + [_ROOT / "README.md"]:
+        assert "releases/latest/download/Fichero-dev.dmg" not in md.read_text(), md.name
+    c = _script("create-github-release.sh")
+    assert 'DOWNLOAD_LINE="Download \\`Fichero.dmg\\` below (the dev build, with every feature on' in c
+    assert c.index("DOWNLOAD_LINE=") < c.index('RELEASE_BODY="## Installation')
+    assert "still runs it last" not in (_ROOT / "docs/contributor_manual/specs/harness/release-and-versioning.md").read_text()

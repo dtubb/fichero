@@ -285,9 +285,16 @@ if [ "$DRY_RUN" = false ] \
   exit 1
 fi
 
+# The text follows the tier that was built: the daily one-DMG dev run (FICHERO_RELEASE_CHANNEL=dev)
+# ships the dev build as Fichero.dmg; the two-DMG hand run keeps the alpha/dev wording.
+if [ "${FICHERO_RELEASE_CHANNEL:-}" = "dev" ]; then
+  DOWNLOAD_LINE="Download \`Fichero.dmg\` below (the dev build, with every feature on — expect rough edges)"
+else
+  DOWNLOAD_LINE="Download \`Fichero.dmg\` below (\`Fichero-dev.dmg\` is the internal build with ALL features on — expect rough edges)"
+fi
 RELEASE_BODY="## Installation
 
-1. Download \`Fichero.dmg\` below (\`Fichero-dev.dmg\` is the internal build with ALL features on — expect rough edges)
+1. $DOWNLOAD_LINE
 2. Open the DMG and drag Fichero to Applications
 3. Launch Fichero
 
