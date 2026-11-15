@@ -40,6 +40,8 @@ struct ActivityPaneView: View {
     /// Delete on running rows asks once: Stop then Delete.
     @State var confirmingDelete: [ActivityMonitorRow]?
     @State var showArchived = false
+    /// The kept export a row's Choose Folder… is choosing a folder for: the system panel is up while it is set.
+    @State var choosingFolder: ActivityFolderChoice?
     @AppStorage("activity.pane.prefs") private var prefsData = Data()
 
     var prefs: ActivityPanePrefs { ActivityPanePrefs.load(prefsData, key: paneKey) }
@@ -127,6 +129,11 @@ struct ActivityPaneView: View {
         .onAppear { select(reveal); showFiles(revealFiles) }
         .task(id: showArchived) { await readArchivedIfShown() }
         .task(id: refreshKey) { await refreshAll() }
+        .fileImporter(isPresented: Binding(get: { choosingFolder != nil }, set: { if !$0 { choosingFolder = nil } }),
+                      allowedContentTypes: [.folder]) { result in
+            if case .success(let url) = result, let choice = choosingFolder { chose(url, for: choice) }
+            choosingFolder = nil
+        }
         .confirmationDialog("Archive every finished run?", isPresented: $confirmingArchiveFinished) {
             Button("Archive Finished") { Task { await archiveFinished() } }
         } message: {
@@ -250,4 +257,10 @@ struct ActivityPaneView: View {
     ActivityPaneView(libraryId: nil)
         .environment(LibraryManager.shared)
         .frame(width: 720, height: 360)
+}
+
+/// A row's Choose Folder…: the project and the kept export the panel chooses a folder for.
+struct ActivityFolderChoice: Equatable {
+    let libraryId: UUID?
+    let exportId: String
 }

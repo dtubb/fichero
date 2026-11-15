@@ -88,6 +88,16 @@ extension ActivityPaneView {
         switch button {
         case .verb(let verb): perform(verb, on: [row])
         case .settings: Self.openSettings()
+        case .chooseFolder(let export): choosingFolder = ActivityFolderChoice(libraryId: row.libraryId, exportId: export)
+        }
+    }
+
+    /// The folder the panel chose for a kept export: the export moves there and its paused row writes there.
+    func chose(_ folder: URL, for choice: ActivityFolderChoice) {
+        guard let store = library(for: choice.libraryId)?.keptExportStore else { return }
+        Task {
+            let moved = await store.chooseFolder(choice.exportId, folder: folder)
+            notice = moved ? "Writing to \(folder.lastPathComponent)" : store.errorMessage
         }
     }
 

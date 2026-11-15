@@ -699,7 +699,12 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   (`export.update`, audited) chooses the folder again (checked as at keep, 422 in words, nothing changed) and lets the row
   its gone folder paused write there, or switches `keep_up_to_date` (a column, on by default; off, `queue_rewrites`
   queues nothing, Write Now still writes); the gone folder's failure offers `choose-folder` then `resume`; the contract
-  regenerated. *Not yet:* the app's Choose Folder… button and the Inspector's Keep up to date switch. *Test:*
+  regenerated; the listed paused row carries its failure, the `choose-folder` action naming the export
+  (`jobs.paused_failure`). *Built the same night (app):* the row's one button is Choose Folder… (a folder icon; the system
+  folder panel, then `KeptExportStore.chooseFolder`), the alert's button "Choose Folder…", and the project Inspector's
+  Kept Exported row has a **Keep up to date** switch and Choose Folder… beside Write Now
+  (`docs/assets/activity-pane/pane-export-folder-gone.png`). *Test (app):* `KeptExportStoreTests.chooseFolderAndKeepUpToDatePatch`,
+  `ActivityErrorRowTests.primaryFix`. *Test:*
   `fichero-server/tests/unit/jobs/test_kept_export_one_row_6588.py` (4, green),
   `fichero-server/tests/unit/jobs/test_kept_export_choose_folder_6588.py` (4, green).
 

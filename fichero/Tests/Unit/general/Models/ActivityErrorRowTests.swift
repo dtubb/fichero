@@ -29,6 +29,13 @@ struct ActivityErrorRowTests {
                                       actions: ["resume"])
         #expect(failed(cap).paneButton == .verb(.resume))
         #expect(failed(nil).paneButton == .verb(.retry))
+        // Decision 28 (#6588): a kept export paused for its gone folder offers Choose Folder… for that export.
+        var gone = ActivityJob.Failure(kind: "export-folder-gone", words: "The folder this export writes to is gone.",
+                                       fix: "Reconnect the drive, or choose the export's folder again.",
+                                       actions: ["choose-folder", "resume"])
+        gone.folderFor = "e1"
+        #expect(failed(gone).paneButton == .chooseFolder(export: "e1"))
+        #expect(ActivityPaneButton.chooseFolder(export: "e1").title == "Choose Folder…")
     }
 
     @Test("the row carries the fix sentence and never a status code")

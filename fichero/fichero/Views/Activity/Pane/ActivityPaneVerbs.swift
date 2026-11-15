@@ -98,6 +98,7 @@ extension ActivityMonitorRow {
            let action = failure?.primaryAction {
             switch action {
             case "open-settings", "choose-model": return .settings
+            case "choose-folder" where failure?.folderFor != nil: return .chooseFolder(export: failure?.folderFor ?? "")
             case "resume" where ActivityPaneVerb.resume.allows(self): return .verb(.resume)
             default: break
             }
@@ -107,15 +108,18 @@ extension ActivityMonitorRow {
     }
 }
 
-/// What a row's one button does: a verb, or the failure's fix in Settings.
+/// What a row's one button does: a verb, the failure's fix in Settings, or a kept export's folder chosen again.
 enum ActivityPaneButton: Equatable {
     case verb(ActivityPaneVerb)
     case settings
+    /// Choose Folder… for the kept export whose folder is gone (`activity.kept-export.one-row-per-export`, #6588).
+    case chooseFolder(export: String)
 
     var title: String {
         switch self {
         case .verb(let verb): verb.title
         case .settings: "Settings…"
+        case .chooseFolder: "Choose Folder…"
         }
     }
 
@@ -123,6 +127,7 @@ enum ActivityPaneButton: Equatable {
         switch self {
         case .verb(let verb): verb.symbol
         case .settings: "gearshape"
+        case .chooseFolder: "folder"
         }
     }
 }

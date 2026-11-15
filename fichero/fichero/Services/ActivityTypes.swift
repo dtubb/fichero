@@ -309,7 +309,8 @@ struct ActivityJob: Identifiable, Equatable {
         self.finishedAt = job.finishedAt
         self.failure = job.failure.map {
             Failure(kind: $0.kind.rawValue, words: $0.words, fix: $0.fix, actions: ($0.actions ?? []).map { $0.kind.rawValue },
-                    rowWords: $0.rowWords ?? "")
+                    rowWords: $0.rowWords ?? "",
+                    folderFor: ($0.actions ?? []).first { $0.kind == .chooseFolder }?.control)
         }
     }
 

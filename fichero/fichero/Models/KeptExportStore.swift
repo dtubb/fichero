@@ -196,6 +196,45 @@ final class KeptExportStore {
         return false
     }
 
+    /// Choose Folder… (`PATCH /api/export/kept/{id}`, `activity.kept-export.one-row-per-export`): the export writes there
+    /// from now on, and a row its gone folder paused writes there. The folder is granted to the engine first, as at keep.
+    @discardableResult
+    func chooseFolder(_ exportId: String, folder: URL) async -> Bool {
+        let didStartAccess = folder.startAccessingSecurityScopedResource()
+        try? await FolderAccessManager.shared.grantAccessForImport(folder)
+        if didStartAccess { folder.stopAccessingSecurityScopedResource() }
+        return await update(exportId, .init(folder: folder.path), failing: "keep this export in \(folder.lastPathComponent)")
+    }
+
+    /// Keep up to date (on by default): off, an edit queues no rewrite; Write Now still writes.
+    @discardableResult
+    func setKeepUpToDate(_ exportId: String, _ isOn: Bool) async -> Bool {
+        await update(exportId, .init(keepUpToDate: isOn),
+                     failing: isOn ? "keep this export up to date" : "stop keeping this export up to date")
+    }
+
+    private func update(_ exportId: String, _ body: Components.Schemas.KeptExportUpdate, failing what: String) async -> Bool {
+        errorMessage = nil
+        do {
+            switch try await client.api.updateKeptExportApiExportKeptExportIdPatch(
+                path: .init(exportId: exportId), body: .json(body)
+            ) {
+            case .ok(let success):
+                let kept = try success.body.json
+                if let index = exports.firstIndex(where: { $0.id == kept.id }) { exports[index] = kept }
+                return true
+            case .unprocessableContent:
+                errorMessage = "The engine would not \(what)."
+            case .undocumented(let code, let body):
+                errorMessage = await EngineErrorDetail.message(from: body) ?? "Could not \(what) (HTTP \(code))"
+            }
+        } catch {
+            if error.isCancellationError { return false }
+            errorMessage = await Self.engineWords(error) ?? "Could not \(what): \(error.localizedDescription)"
+        }
+        return false
+    }
+
     /// Write an export now (`POST /api/export/kept/{id}/write`), as a background job in Activity.
     @discardableResult
     func writeNow(_ exportId: String) async -> Bool {

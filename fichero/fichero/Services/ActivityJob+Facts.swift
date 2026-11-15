@@ -17,6 +17,8 @@ extension ActivityJob {
         let actions: [String]
         /// The table row's words, at most eight (`run.fail.kinds-table`'s column); empty from an engine before them.
         var rowWords: String = ""
+        /// The kept export a Choose Folder… is for (the `choose-folder` action's control, #6588).
+        var folderFor: String?
         var primaryAction: String? { actions.first }
     }
 
