@@ -117,10 +117,7 @@ struct ActivityPopoverSummary: Equatable {
         blocks = (activity?.live ?? []).map(Self.block)
         background = (activity?.background ?? []).map(Self.backgroundLine)
         let runNames = Dictionary(jobs.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
-        // A waiting job its background line already says (same job, same name) is not said again as Up Next (#6599).
-        let waitingLines = Set((activity?.background ?? []).filter { $0.state == "waiting" }.map(\.name))
-        upNext = (activity?.upNext ?? []).filter { $0.runId != nil || !waitingLines.contains($0.name) }
-            .prefix(Self.upNextShown).map { Self.upNextLine($0, runName: { runNames[$0] }) }
+        upNext = Self.upNextLines(activity, runName: { runNames[$0] })
         // A recipe run in hand, and everything under it: said once, by the run (#5666).
         let inHand = Self.runsInHand(jobs, runTrees: runTrees)
         runs = inHand.runs

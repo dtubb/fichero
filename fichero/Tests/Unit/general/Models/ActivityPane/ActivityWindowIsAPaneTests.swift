@@ -56,7 +56,10 @@ struct ActivityWindowIsAPaneTests {
 
     @Test("less is more: one status bar, no footer notice, no section rows, no stage bar in the pane")
     func lessIsMore() throws {
+        // The pane's body and its bars (split out for SwiftLint's size limits); the sidebar's sections are the window's
+        // source list (`activity.window.sidebar`), not section rows in the table.
         let pane = try AppSource.code("Views/Activity/Pane/ActivityPaneView.swift")
+            + AppSource.code("Views/Activity/Pane/ActivityPaneView+Bars.swift")
         let table = try AppSource.code("Views/Activity/Pane/ActivityPaneView+Table.swift")
         #expect(pane.contains("accessibilityIdentifier(\"activity.statusbar\")"))
         #expect(!pane.contains("ActivityFooterLine") && !table.contains("ActivityStageBar"))
