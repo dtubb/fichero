@@ -51,4 +51,17 @@ struct ReadingOrderPassSectionsTests {
         #expect(ReadingOrderChoice.passLabel(pass("c", model: "kraken", file: "a.xml", at: 0), format: format)
                 == "from a.xml, Jan 1, 1970")
     }
+
+    /// The owner looked for Delete in the Order menu (2026-11-14): a Layout Order offers "Delete This Order…", which
+    /// deletes the pass it comes from (`segment.pass_delete`); a named order, a flow or a legacy pass does not.
+    @Test("Delete This Order… is offered for a pass's Layout Order only, and names that pass")
+    func deleteThisOrder() {
+        let layout = ReadingOrderSummary(id: "o1", name: "Layout", kind: "as-written", passId: "pass-2")
+        let named = ReadingOrderSummary(id: "o2", name: "Mine", kind: "named", passId: "pass-2")
+        let legacy = ReadingOrderSummary(id: "o3", name: "Layout", kind: "as-written", passId: "legacy:abc")
+        #expect(ReadingOrderChoice.deletablePass(layout) == "pass-2")
+        #expect(ReadingOrderChoice.deletablePass(named) == nil)
+        #expect(ReadingOrderChoice.deletablePass(legacy) == nil)
+        #expect(ReadingOrderChoice.deletablePass(nil) == nil)
+    }
 }
