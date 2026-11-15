@@ -120,7 +120,9 @@ final class StoppedAtQuitAlert {
             leavePaused()
             openActivity()
         case .continueAll: await continueAll(libraries: libraries)
-        case .deleteAll: await deleteAll(libraries: libraries, steps: steps)
+        // The alert is mounted above the window's own environment, where no WindowSteps is injected: without the front
+        // window's steps Delete All went to no undo stack and Edit › Undo could not put the rows back.
+        case .deleteAll: await deleteAll(libraries: libraries, steps: steps ?? WindowState.front?.steps)
         }
     }
 

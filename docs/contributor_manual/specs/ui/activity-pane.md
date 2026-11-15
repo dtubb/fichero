@@ -207,12 +207,17 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   listed row deleted through the one `job.delete`, one step on the window's stack, so Edit › Undo puts them back paused. With
   no run among the rows the title says what was stopped ("Background work was stopped when Fichero quit"), never "0 runs",
   and the line drops its "and". **Built the same evening** (`StoppedAtQuitAlert.deleteAll`, the title by kind); *test:*
-  `ActivityLaunchAlertTests` (the title and the line); Delete All's round trip not yet under a test. Seen in the Dev Local
+  `ActivityLaunchAlertTests` (the title and the line; Delete All's step since 2026-11-14 night). Seen in the Dev Local
   build at a relaunch: the alert showed, nothing was picked (2 embeds, 2 thumbnails held). **Fixed 2026-11-14 night:** the
   SwiftUI alert showed only three buttons on the Mac and dropped Delete All (its sheet held Leave Paused, Choose…, Continue
   All); on the Mac the alert is now an `NSAlert` sheet with the four answers of `StoppedAtQuitAlert.Choice` in order, Delete
   All destructive (`ActivityLaunchAlertTests.fourAnswers`, `chooseOpensActivity`). Picture at a real relaunch after a Kraken
-  run was stopped by the quit: `docs/assets/activity-pane/launch-alert.png`.
+  run was stopped by the quit: `docs/assets/activity-pane/launch-alert.png`. Delete All went to NO undo stack: the alert
+  is mounted above the window's environment, where no `WindowSteps` is injected; it now takes the front window's steps
+  (`ActivityLaunchAlertTests.deleteAllIsUndoable`). Real round trip the same night: Kraken run on 60 pages → quit → engine
+  restart → the run `paused`, nothing picked → Delete All → the run gone → Undo ("Delete Row", the Debug verb `undo step`
+  because the screen was locked) → the run back `paused`, "Paused: the app quit" with Continue
+  (`docs/assets/activity-pane/pane-paused-at-quit.png`).
   *Tests:* `fichero-server/tests/unit/jobs/test_launch_starts_nothing_6584.py`,
   `fichero-server/tests/unit/jobs/test_launch_to_continue_end_to_end_6584.py` (quit with running, paused, waiting, automatic
   and new-material work → open → nothing picked → all listed → Continue two → only those two run),

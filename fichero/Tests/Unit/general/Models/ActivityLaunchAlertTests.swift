@@ -25,6 +25,9 @@ private final class StoppedAtQuitMockURLProtocol: URLProtocol {
                 + #""started_at":null}],"count":2}"#)
         case "/api/activity/stopped-at-quit/continue":
             (200, #"{"continued_ids":["r1","t1"],"count":2}"#)
+        case "/api/actions/invoke":
+            (200, #"{"ok":true,"audit_id":"audit-1","changed_domains":["activity"],"#
+                + #""result":{"deleted_ids":["r1","t1"],"skipped_ids":[],"count":2}}"#)
         default:
             (404, #"{"detail":"not stubbed"}"#)
         }
@@ -127,5 +130,23 @@ struct ActivityLaunchAlertTests {
         await alert.answer(.choose, libraries: [library], steps: nil) { opened = true }
         #expect(opened && !alert.isPresented)
         #expect(!StoppedAtQuitMockURLProtocol.seen.contains { $0.method == "POST" })
+    }
+
+    @Test("Delete All is one step on the front window's stack, though the alert sits above the window's environment")
+    func deleteAllIsUndoable() async {
+        let library = project()
+        let alert = StoppedAtQuitAlert()
+        await alert.check(libraries: [library])
+        let saved = WindowState.front
+        let window = WindowState(libraryId: library.id)
+        window.steps.engineForProject = { _ in nil }  // the step's own service
+        WindowState.front = window
+        defer { WindowState.front = saved }
+
+        await alert.answer(.deleteAll, libraries: [library], steps: nil) {}
+
+        #expect(StoppedAtQuitMockURLProtocol.seen.contains { $0.method == "POST" && $0.path == "/api/actions/invoke" })
+        #expect(window.steps.canUndo && window.steps.undoName == "Delete 2 Rows", "Edit › Undo puts them back")
+        #expect(!alert.isPresented)
     }
 }
