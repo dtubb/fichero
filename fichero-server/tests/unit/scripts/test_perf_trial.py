@@ -169,3 +169,49 @@ class TestTheEnginesShare:
         release = {**self.ENGINE, "build_configuration": "Release"}
         assert trial.judge(_result(runs, measurement="engine-edit-undo", machine=release)).status == "REFUSED"
         assert trial.judge(_result(runs, measurement="edit-undo", machine=self.ENGINE)).status == "REFUSED"
+
+
+class TestTheRungsMeasuresFollowTheMethod:
+    """`dev-workflows.quality.perf-method` (#6600): the `perf` rung's figures are judged by this method, not by a copy of it."""
+
+    BASELINE = {
+        "tolerances": {"wall_ms": 0.05, "peak_rss_mb": 0.03, "disk_kib": 0},
+        "figures": {"wall_ms|test_entity_list|Mac16,10": {"median": 100.0}, "disk_kib|library|Mac16,10": {"median": 0}},
+    }
+
+    @staticmethod
+    def _m(warm, measure="wall_ms", scenario="test_entity_list", model="Mac16,10", cold=250.0, **over):
+        r = {"measure": measure, "scenario": scenario, "machine": {"model": model}, "thermal_state": "nominal", "idle": True,
+             "runs": [{"value": cold, "cold": True}, *({"value": v} for v in warm)]}
+        r.update(over)
+        return r
+
+    def test_the_rung_s_measures_follow_the_trial_method_cold_discarded_median_thermal_void_keyed_by_machine_and_tolerance_from_the_file(self):
+        # one cold and three warm runs, idle and nominal, inside tolerance: PASS, and the cold 250 is not in the median
+        ok = trial.judge_measure(self._m([101.0, 102.0, 103.0]), self.BASELINE)
+        assert (ok.status, ok.median) == ("PASS", 102.0)
+        # 8% over the baseline median is a FAIL naming the figure and the machine; 4% over passes (5% from the file)
+        bad = trial.judge_measure(self._m([108.0, 108.0, 108.0]), self.BASELINE)
+        assert bad.status == "FAIL" and "Mac16,10" in bad.reasons[0] and "108" in bad.reasons[0] and "100" in bad.reasons[0]
+        assert trial.judge_measure(self._m([104.0, 104.0, 104.0]), self.BASELINE).status == "PASS"
+        # the cold run counted in the median is refused by shape
+        warm_as_cold = self._m([101.0, 102.0, 103.0])
+        warm_as_cold["runs"][0].pop("cold")
+        assert trial.judge_measure(warm_as_cold, self.BASELINE).status == "REFUSED"
+        # `fair` is VOID, and so is a busy machine
+        assert trial.judge_measure(self._m([100.0] * 3, thermal_state="fair"), self.BASELINE).status == "VOID"
+        assert trial.judge_measure(self._m([100.0] * 3, idle=False), self.BASELINE).status == "VOID"
+        # 100, 100 and 130 ms disagree by 30% of the median: INCONCLUSIVE, never best-of
+        assert trial.judge_measure(self._m([100.0, 100.0, 130.0]), self.BASELINE).status == "INCONCLUSIVE"
+        # a figure for another machine is never compared with the baseline's: it is recorded, not compared
+        other = trial.judge_measure(self._m([500.0] * 3, model="Mac14,2"), self.BASELINE)
+        assert other.status == "PASS" and "not compared" in other.reasons[0]
+        # a tolerance missing from the file is REFUSED naming the measure
+        missing = trial.judge_measure(self._m([1.0] * 3, measure="cpu_ms"), self.BASELINE)
+        assert missing.status == "REFUSED" and "cpu_ms" in missing.reasons[0]
+        # no thermal state, no machine, too few runs: REFUSED, never a quiet pass
+        assert trial.judge_measure(self._m([100.0] * 3, thermal_state=None), self.BASELINE).status == "REFUSED"
+        assert trial.judge_measure(self._m([100.0] * 3, machine={}), self.BASELINE).status == "REFUSED"
+        assert trial.judge_measure(self._m([100.0] * 2), self.BASELINE).status == "REFUSED"
+        # a zero-tolerance measure (disk left behind) fails on any growth
+        assert trial.judge_measure(self._m([40.0] * 3, measure="disk_kib", scenario="library"), self.BASELINE).status == "FAIL"

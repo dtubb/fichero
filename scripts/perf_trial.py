@@ -42,6 +42,15 @@ Verdicts, never collapsed:
                   few runs. A gate that cannot read its input fails rather than passing quietly.
 
 Exit status: 0 PASS; 1 FAIL, INCONCLUSIVE or REFUSED; 2 VOID.
+
+The `perf` rung's measures (#6600, `dev-workflows.quality.perf-method`) use the SAME method through `judge_measure`:
+
+    {"measure": "wall_ms" | "cpu_ms" | "peak_rss_mb" | "body_count" | "hang_count" | "leak_count" | "disk_kib",
+     "scenario": "<test or action name>", "machine": {"model": "Mac16,10"}, "thermal_state": "nominal", "idle": true,
+     "runs": [{"value": 41.0, "cold": true}, {"value": 12.0}, {"value": 12.1}, {"value": 11.9}]}      # the first is cold
+
+checked against a baseline file `{"tolerances": {<measure>: <fraction>}, "figures": {"<measure>|<scenario>|<model>": {"median": N}}}`.
+The tolerance of every measure is written in that file, never in code; a measure with none there is REFUSED naming it.
 """
 
 from __future__ import annotations
@@ -82,6 +91,12 @@ READABLE_THERMAL = {"nominal", "fair", *THROTTLED}
 #: maintainer 2026-09-27, as is the edit gate deciding on the WORST run.
 PROPORTIONAL_FRACTION = 0.5
 DEFAULT_BASELINE = Path(__file__).with_name("perf_trial_baseline.json")
+#: The rung's measures (`perf-method`): which ones exist. What each may drift by is NOT here: it is `tolerances` in the baseline file.
+MEASURES = ("wall_ms", "cpu_ms", "peak_rss_mb", "body_count", "hang_count", "leak_count", "disk_kib")
+#: Warm runs a batch takes after the cold one (five a night).
+BATCH_WARM_RUNS = 3
+#: A run under `fair` or worse is VOID for these (the trial above voids only `serious`: its gate is a frame budget, not a ratchet).
+MEASURE_VOID_THERMAL = {"fair", *THROTTLED}
 
 
 @dataclass
@@ -90,6 +105,7 @@ class Verdict:
     reasons: list[str] = field(default_factory=list)
     median_ms: float | None = None
     worst_ms: float | None = None
+    median: float | None = None  # a `judge_measure` figure, in the measure's own unit
 
     @property
     def exit_code(self) -> int:
@@ -156,6 +172,67 @@ def judge(result: dict[str, Any], baseline: dict[str, Any] | None = None) -> Ver
     return verdict
 
 
+def measure_key(result: dict[str, Any]) -> str:
+    """A figure is keyed by measure, scenario AND machine model: the M4's, the Air's and the iMac's never compare."""
+    return f"{result.get('measure')}|{result.get('scenario')}|{(result.get('machine') or {}).get('model')}"
+
+
+def compare(median: float, entry: dict[str, Any] | None, tolerance: float, key: str = "") -> tuple[str, str]:
+    """(status, reason) of one median against its baseline entry at a stated tolerance. A baseline may only fall: a better
+    median is printed as the figure to lower the file to. PASS with no entry means recorded, not compared."""
+    if entry is None:
+        return "PASS", f"no baseline for {key}: recorded, not compared"
+    base = float(entry["median"])
+    if median > base * (1 + tolerance):
+        over = (median / base - 1) if base else float("inf")
+        return "FAIL", f"{key}: median {median:g} is over the baseline {base:g} by {over:.1%} (tolerance {tolerance:.0%})"
+    if median < base:
+        return "PASS", f"{key}: median {median:g} is under the baseline {base:g}: lower the file to it in this batch"
+    return "PASS", ""
+
+
+def judge_measure(result: dict[str, Any], baseline: dict[str, Any] | None) -> Verdict:
+    """The verdict on one rung measure by the trial's method: the cold run discarded, the median of the warm runs, a throttled or
+    busy machine VOID, runs that disagree by a tenth of their median INCONCLUSIVE (never best-of), an unreadable input REFUSED,
+    every figure keyed by machine model, the tolerance read from the baseline file."""
+    problems = []
+    if result.get("measure") not in MEASURES:
+        problems.append(f"measure must be one of {list(MEASURES)}")
+    if not result.get("scenario"):
+        problems.append("no scenario named")
+    if not (result.get("machine") or {}).get("model"):
+        problems.append("a number with no machine model beside it cannot be compared")
+    if result.get("thermal_state") not in READABLE_THERMAL:
+        problems.append("the thermal state could not be read, and a gate that cannot read its input fails")
+    runs = result.get("runs") or []
+    if len(runs) < BATCH_WARM_RUNS + 1:
+        problems.append(f"{len(runs)} run(s): one cold run and {BATCH_WARM_RUNS} warm runs are required")
+    elif not runs[0].get("cold") or any(r.get("cold") for r in runs[1:]):
+        problems.append("the first run must be the cold one, flagged cold, and the only one: a median that includes it is refused by shape")
+    tolerances = (baseline or {}).get("tolerances") or {}
+    if result.get("measure") in MEASURES and result["measure"] not in tolerances:
+        problems.append(f"no tolerance for {result['measure']} in the baseline file: a tolerance is stated per measure there, never in code")
+    if problems:
+        return Verdict("REFUSED", problems)
+    if result["thermal_state"] in MEASURE_VOID_THERMAL or result.get("idle") is not True:
+        why = f"thermal state {result['thermal_state']!r}" if result["thermal_state"] in MEASURE_VOID_THERMAL else "the machine was not idle"
+        return Verdict("VOID", [f"{why}: neither a pass nor a fail -- rerun on a quiet, cool machine"])
+    warm = [float(r["value"]) for r in runs[1:]]
+    median = statistics.median(warm)
+    verdict = Verdict("PASS", median=median)
+    spread = (max(warm) - min(warm)) / median if median else (float("inf") if max(warm) != min(warm) else 0.0)
+    if spread > NOISE:
+        verdict.status = "INCONCLUSIVE"
+        verdict.reasons.append(f"the warm runs disagree by {spread:.0%} of their median (limit {NOISE:.0%}): re-run once, never the best of them")
+        return verdict
+    key = measure_key(result)
+    status, reason = compare(median, ((baseline or {}).get("figures") or {}).get(key), float(tolerances[result["measure"]]), key)
+    verdict.status = status
+    if reason:
+        verdict.reasons.append(reason)
+    return verdict
+
+
 def _unreadable(result: dict[str, Any]) -> list[str]:
     problems = []
     if result.get("measurement") not in GATES_MS:
@@ -217,6 +294,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     result = json.loads(args.results.read_text(encoding="utf-8"))
+    if "measure" in result:  # the rung's shape (judge_measure); --baseline names a file of the rung's form
+        verdict = judge_measure(result, json.loads(args.baseline.read_text(encoding="utf-8")) if args.baseline.exists() else None)
+        print(f"{verdict.status}  {measure_key(result)}  median {verdict.median}")
+        for reason in verdict.reasons:
+            print(f"  {reason}")
+        return verdict.exit_code
     baseline = json.loads(args.baseline.read_text(encoding="utf-8")) if args.baseline.exists() else {}
     verdict = judge(result, baseline)
 
