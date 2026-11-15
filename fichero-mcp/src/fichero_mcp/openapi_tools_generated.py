@@ -256,6 +256,14 @@ def fichero_activity_cleanup_old_activities(
     return _rt.call("DELETE", "/api/activity/cleanup", params={"days": days})
 
 
+def fichero_activity_get_history(
+    *,
+    minutes: Annotated[Optional[int], Field(description='the window, in minutes ending now')] = None,
+) -> Any:
+    "Get Activity History\n\nPages done and failed, dollars and tokens per minute, pages by runtime, and today's spend by provider\n(`activity.window.bottom-panel`). Read-only; the reads are of what was committed and run off the loop.\n\nRoute: GET /api/activity/history (toolset `activity`; reads)."
+    return _rt.call("GET", "/api/activity/history", params={"minutes": minutes})
+
+
 def fichero_activity_list_background_jobs(
     *,
     archived: Annotated[Optional[bool], Field(description='the ARCHIVED rows instead (Show Archived, `activity.pane.archive-old-runs`)')] = None,
@@ -3218,6 +3226,16 @@ def fichero_export_remove_kept(
 ) -> Any:
     'Stop keeping an export (the files it wrote stay in the folder)\n\nRoute: DELETE /api/export/kept/{export_id} (toolset `export`; changes data, as the agent account when one exists).'
     return _rt.call("DELETE", f"/api/export/kept/{export_id}")
+
+
+def fichero_export_update_kept(
+    *,
+    export_id: Annotated[str, Field(description='Export Id')],
+    folder: Annotated[Optional[str], Field(description='Choose Folder…: a full path to the folder the export writes to from now on, outside the project.')] = None,
+    keep_up_to_date: Annotated[Optional[bool], Field(description='Keep up to date: off, an edit queues no rewrite.')] = None,
+) -> Any:
+    "Choose a kept export's folder again, or switch Keep up to date\n\nChoose Folder… (`activity.kept-export.one-row-per-export`, #6588): the export writes to the new folder from now\non, and a row its gone folder paused writes there. Keep up to date off: an edit queues no rewrite, Write Now still\nwrites. A folder that cannot be kept is refused (422) in one sentence, nothing changed.\n\nRoute: PATCH /api/export/kept/{export_id} (toolset `export`; changes data, as the agent account when one exists)."
+    return _rt.call("PATCH", f"/api/export/kept/{export_id}", json=_rt.body({"folder": folder, "keep_up_to_date": keep_up_to_date}))
 
 
 def fichero_export_write_kept(
@@ -9648,6 +9666,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_activity_list_activities", "activity", "GET", "/api/activity", fichero_activity_list_activities),
     GeneratedTool("fichero_activity_get_batch", "activity", "GET", "/api/activity/batch/{batch_id}", fichero_activity_get_batch),
     GeneratedTool("fichero_activity_cleanup_old_activities", "activity", "DELETE", "/api/activity/cleanup", fichero_activity_cleanup_old_activities),
+    GeneratedTool("fichero_activity_get_history", "activity", "GET", "/api/activity/history", fichero_activity_get_history),
     GeneratedTool("fichero_activity_list_background_jobs", "activity", "GET", "/api/activity/jobs", fichero_activity_list_background_jobs),
     GeneratedTool("fichero_activity_archive_jobs", "activity", "POST", "/api/activity/jobs/archive", fichero_activity_archive_jobs),
     GeneratedTool("fichero_activity_clear_failed_jobs", "activity", "POST", "/api/activity/jobs/clear-failed", fichero_activity_clear_failed_jobs),
@@ -9944,6 +9963,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_export_list_kept_exports", "export", "GET", "/api/export/kept", fichero_export_list_kept_exports),
     GeneratedTool("fichero_export_keep", "export", "POST", "/api/export/kept", fichero_export_keep),
     GeneratedTool("fichero_export_remove_kept", "export", "DELETE", "/api/export/kept/{export_id}", fichero_export_remove_kept),
+    GeneratedTool("fichero_export_update_kept", "export", "PATCH", "/api/export/kept/{export_id}", fichero_export_update_kept),
     GeneratedTool("fichero_export_write_kept", "export", "POST", "/api/export/kept/{export_id}/write", fichero_export_write_kept),
     GeneratedTool("fichero_export_markdown_folder_route", "export", "POST", "/api/export/markdown-folder", fichero_export_markdown_folder_route),
     GeneratedTool("fichero_export_parquet_route", "export", "POST", "/api/export/parquet", fichero_export_parquet_route),

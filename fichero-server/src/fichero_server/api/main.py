@@ -51,7 +51,7 @@ from fichero_server.api.feature_tiers_generated import CUMULATIVE_ROUTE_PREFIXES
 from fichero_server.api.routes.ai.local_inference import shutdown_managed_local_inference_services
 from fichero_server.db import Database, db_manager
 from fichero_server.db.app import device_token_migration_error
-from fichero_server.db.manager import LibraryNotFoundError
+from fichero_server.db.manager import LibraryNotFoundError, RealLibraryRefused
 from fichero_server.db.volume_dropped import LibraryVolumeNotReachable
 from fichero_server.actions.undo import UndoRefused
 from fichero_server.api.routes.document.segment_conversion import ConversionRefusal
@@ -1362,6 +1362,12 @@ async def _handle_library_not_found(
     return JSONResponse({"detail": str(exc)}, status_code=404)
 
 
+@app.exception_handler(RealLibraryRefused)
+async def _handle_real_library_refused(_request: Request, exc: RealLibraryRefused):
+    """A dev engine never opens the owner's real projects (#6588): 403, in words, nothing opened."""
+    return JSONResponse({"detail": str(exc)}, status_code=403)
+
+
 @app.exception_handler(ConversionRefusal)
 async def _handle_conversion_refusal(_request: Request, exc: ConversionRefusal):
     """#4924: every typed refusal from the source-model conversion, mapped
@@ -1642,6 +1648,11 @@ def _is_allowed_library_path(library_path: str) -> bool:
     # .fichero package still reads as a .fichero package.
     if expanded.suffix != ".fichero":
         return False
+    # #6588: a dev engine never serves the owner's real projects, not even one the app it serves has open.
+    from fichero_server.security.real_data_guard import library_refusal
+
+    if library_refusal(library_path):
+        return False
 
     if _is_allowed_local_path(library_path):
         return True
@@ -1735,6 +1746,8 @@ def _get_library_database_for_access(
     except LibraryNotFoundError as e:
         # #5136: a missing library is refused, never created.
         raise HTTPException(status_code=404, detail=str(e)) from e
+    except RealLibraryRefused as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Failed to get database for {x_fichero_library_path}: {e}")
         raise HTTPException(
@@ -2736,6 +2749,7 @@ from fichero_server.api.routes.system import (  # noqa: E402
     actions,
     actions_registry,
     activity,
+    activity_history,
     agent_memory,
     bookmarks,
     changes,
@@ -2770,6 +2784,7 @@ RouteSpec = tuple[object, str, list[str]]
 
 _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (activity.router, "/api", ["activity"]),
+    (activity_history.router, "/api", ["activity"]),
     (agent_memory.router, "/api", ["agent-memory"]),
     (authz.router, "/api", ["authz"]),
     (auth_accounts.auth_router, "/api", ["auth"]),

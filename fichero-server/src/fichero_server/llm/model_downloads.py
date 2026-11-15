@@ -53,6 +53,8 @@ TRANSIENT_MARKERS: tuple[str, ...] = tuple(sorted(_TRANSIENT_NAMES)) + ("Connect
 class DownloadInterrupted(RuntimeError):
     """The connection broke on every try: the message is the one sentence a person reads."""
 
+    in_words = True  # its message is the row's words (`jobs.failed_reason`)
+
     def __init__(self, name: str, cause: BaseException | None = None, *, offline: bool = False) -> None:
         super().__init__(interrupted_sentence(name, offline=offline))
         self.name = name

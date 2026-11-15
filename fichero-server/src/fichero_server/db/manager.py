@@ -40,6 +40,11 @@ class LibraryNotFoundError(FileNotFoundError):
         )
 
 
+class RealLibraryRefused(PermissionError):
+    """A dev engine was asked to open a project in the owner's real library folders
+    (`runtime.dev-engine-refuses-real-data`, #6588). Nothing is opened; the API maps it to a 403 in words."""
+
+
 class DatabaseBusy(RuntimeError):
     """A consistent copy of a library's database could not be taken in time: another connection
     held a write transaction open past the wait (#5185). Named, so a caller refuses with the reason
@@ -156,6 +161,9 @@ class DatabaseManager:
         #: other launch-time open -- waited behind it. Two requests for the same library still get one
         #: open; `_lock` now guards only the dictionaries.
         self._open_locks: dict[str, threading.Lock] = {}
+        #: Each open package's database file as it was opened (device, inode): a package deleted and made again on disk
+        #: is a different file, and only then is its open connection stale (#1668, #6588).
+        self._file_ids: dict[str, tuple[int, int]] = {}
         self._lock = threading.Lock()
         self._open_gate = OpenGate(_open_cap())
         logger.info("DatabaseManager initialized")
@@ -218,6 +226,12 @@ class DatabaseManager:
             open_lock = self._open_locks.setdefault(cache_key, threading.Lock())
         with open_lock:
             if cache_key not in self._databases:
+                from fichero_server.security.real_data_guard import library_refusal
+
+                refused = library_refusal(package_path)
+                if refused:
+                    logger.warning(refused)
+                    raise RealLibraryRefused(refused)
                 if (
                     not create
                     and not package_path.expanduser().is_dir()
@@ -344,6 +358,11 @@ class DatabaseManager:
 
                 with self._lock:
                     self._databases[cache_key] = db
+                    try:
+                        stat = os.stat(db_path)
+                        self._file_ids[cache_key] = (stat.st_dev, stat.st_ino)
+                    except OSError:
+                        self._file_ids.pop(cache_key, None)
                 # A move a crash left between its checked copy and its source step (#5657): finished
                 # now if the other project is open too (it needs both, so after this one is registered).
                 from fichero_server.transfer.move import resume_pending_moves
@@ -450,6 +469,21 @@ class DatabaseManager:
         """
         return canonical_library_key(Path(nfc_path(package_path)).expanduser())
 
+    def file_replaced(self, package_path: str | Path) -> bool:
+        """Whether the package's open connection points at a database file that is gone or was replaced on disk (#1668):
+        only then must it close before the package is used again. A package not open, or the same file, is False: an
+        open project with work in flight is never closed for being initialised again (#6588)."""
+        key = self._cache_key(package_path)
+        with self._lock:
+            if key not in self._databases:
+                return False
+            opened = self._file_ids.get(key)
+        try:
+            stat = os.stat(Path(nfc_path(package_path)).expanduser() / "fichero.duckdb")
+        except OSError:
+            return True
+        return opened is None or opened != (stat.st_dev, stat.st_ino)
+
     def close_database(self, package_path: str | Path):
         """Close the shared connection for a package."""
         package_str = self._cache_key(package_path)
@@ -458,6 +492,7 @@ class DatabaseManager:
 
         with self._lock:
             closing = [self._databases.pop(k) for k in [k for k in self._databases if k == package_str]]
+            self._file_ids.pop(package_str, None)
         # Outside the manager's lock: a close waits for the statement in flight (#6247), and other libraries open meanwhile.
         for db in closing:
             db.close()

@@ -119,8 +119,11 @@ def create_library(
     # the process, so without closing cached connections here the API can
     # appear to import documents successfully while a fresh process sees an
     # empty newly-created fichero.duckdb on disk (#1668).
+    # Only a connection whose file is gone or was replaced (#6588): closing the open project's own connection stopped the
+    # run going in it, every time the app opened the project again.
     try:
-        db_manager.close_database(package)
+        if db_manager.file_replaced(package):
+            db_manager.close_database(package)
     except Exception as exc:
         logger.warning("Failed to close cached DB before library init: %s", exc)
 

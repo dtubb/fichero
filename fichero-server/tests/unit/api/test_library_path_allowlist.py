@@ -89,8 +89,10 @@ def test_desktop_path_allowed():
     assert _is_allowed_library_path(str(p)) is True
 
 
-def test_home_fichero_path_allowed():
-    """~/Fichero/X.fichero is allowed for Daniel's local libraries."""
+def test_home_fichero_path_allowed(monkeypatch):
+    """~/Fichero/X.fichero is allowed for the owner's local libraries by the app's own engine, which sets no base
+    path; a dev engine (a scratch FICHERO_BASE_PATH, as this suite runs) refuses it (test_real_data_guard, #6588)."""
+    monkeypatch.delenv("FICHERO_BASE_PATH", raising=False)
     p = Path.home() / "Fichero" / "Jesuit Mapping.fichero"
     assert _is_allowed_library_path(str(p)) is True
 

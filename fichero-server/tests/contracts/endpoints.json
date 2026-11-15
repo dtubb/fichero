@@ -393,6 +393,22 @@
       },
       {
         "method": "GET",
+        "path": "/activity/history",
+        "operation_id": "get_activity_history_api_activity_history_get",
+        "summary": "Get Activity History",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "minutes",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ActivityHistory"
+      },
+      {
+        "method": "GET",
         "path": "/activity/jobs",
         "operation_id": "list_background_jobs_api_activity_jobs_get",
         "summary": "List Background Jobs",
@@ -4738,6 +4754,18 @@
         "query_params": [],
         "request_model": null,
         "response_model": "KeptExportRemoved"
+      },
+      {
+        "method": "PATCH",
+        "path": "/export/kept/{export_id}",
+        "operation_id": "update_kept_export_api_export_kept__export_id__patch",
+        "summary": "Choose a kept export's folder again, or switch Keep up to date",
+        "path_params": [
+          "export_id"
+        ],
+        "query_params": [],
+        "request_model": "KeptExportUpdate",
+        "response_model": "KeptExport"
       },
       {
         "method": "POST",

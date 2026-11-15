@@ -1212,7 +1212,8 @@ def migrate_kept_exports_table(
     ``kept_exports``: one row per export kept (folder, format, one file per page or per
     document); a removed one keeps its row with ``removed_at``. ``kept_export_files``: one row per
     file the export wrote (``written``) or found in its way (``in-the-way``), so a later write
-    overwrites only its own files. Idempotent: create-if-missing only.
+    overwrites only its own files. ``keep_up_to_date`` (on by default, #6588): off, an edit queues no rewrite; Write
+    Now still writes. Idempotent: create-if-missing only.
     """
 
     def _step() -> None:
@@ -1226,6 +1227,7 @@ def migrate_kept_exports_table(
             "rel_path VARCHAR NOT NULL, sha256 VARCHAR, written_at TIMESTAMP, state VARCHAR NOT NULL, "
             "PRIMARY KEY (export_id, rel_path))"
         )
+        conn.execute("ALTER TABLE kept_exports ADD COLUMN IF NOT EXISTS keep_up_to_date BOOLEAN DEFAULT TRUE")
 
     _run_atomic_migration(conn, "migrate_kept_exports_table", _step, failures)
 

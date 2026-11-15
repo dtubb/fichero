@@ -126,7 +126,7 @@ def test_runtime_spacy_pipelines_download_as_data__code_in_the_data_folder_is_re
         store["archive"]["path"] = _wheel(store["tmp"] / "bad.whl", extra=extra)
     row = _download(client, db)
     assert row["state"] == "failed", row
-    assert "refused" in (row["reason"] or ""), row
+    assert "refused" in json.loads(row["detail"] or "{}").get("error", ""), row  # the row's reason is words (#6597); the text is in its detail
     leftovers = list((store["models"] / "spacy").glob("*")) if (store["models"] / "spacy").exists() else []
     assert leftovers == [], leftovers
     assert not (store["tmp"] / "escape.cfg").exists()
