@@ -122,3 +122,15 @@ def test_dismiss_all_parks_every_blocked_step_behind_its_alerts(state):
     queue.alert("a", "s1", "red", "/e", ["retry"]), queue.alert("b", "s1", "a note", "/e", [])
     assert cli.main(["alert", "all", "dismiss", "--state", str(journal.STATE)]) == 0
     assert [x["steps"][0]["state"] for x in queue.load()] == ["parked", "queued"]
+
+
+def test_a_rung_alert_has_an_id_says_itself_once_and_dismisses(state):
+    """#6589: the perf and security rungs journalled id-less alerts; 69 sat on the console and no answer could reach them."""
+    from fichero_builder import check_tool
+    journal.append("alert", rung="security", detail="an old id-less row")  # pre-#6589 shape: never open, never answerable
+    check_tool._rung_alert("security", "security (report-only) would be red: REFUSED: bandit has no pinned version")
+    check_tool._rung_alert("security", "security (report-only) would be red: REFUSED: bandit has no pinned version")
+    open_ = console.status(journal.read(), [])["open_alerts"]
+    assert [a["step"] for a in open_] == ["rung-security"], "one open alert, the id-less row not listed"
+    assert queue.answer(open_[0]["id"], "dismiss")[0] == 0
+    assert console.status(journal.read(), [])["open_alerts"] == []

@@ -1441,11 +1441,24 @@ WAIVER_RE = r"#[[:space:]]*nosec|nosemgrep"
 APPROVED_LABEL = "security-waiver-approved"
 
 
+def _rung_alert(name: str, detail: str) -> None:
+    """A rung's alert, in the queue's shape (id, lane `harness`, step `rung-<name>`, what) so the console can answer it (#6589: 69
+    id-less rows could never be dismissed). One open alert per rung and text: a check that says the same again adds nothing."""
+    rows = journal.read()
+    answered = {r.get("id") for r in rows if r.get("event") == "alert-answer" and r.get("ok")}
+    step, what = f"rung-{name}", detail[:300]
+    if any(r.get("event") == "alert" and r.get("step") == step and r.get("what") == what and r.get("id") not in answered for r in rows):
+        return
+    n = sum(1 for r in rows if r.get("event") == "alert") + 1
+    journal.append("alert", id=f"harness-{step}-{n}", lane="harness", step=step, what=what, evidence="", actions=["dismiss"],
+                   rung=name, detail=what)
+
+
 def _report_only(name: str, cfg_table: dict, ok: bool, lines: list[str], extra: dict | None = None) -> dict:
     """A rung row. Enforcing, a red is red; report-only, it stays green and says what it would have said, and an alert row is journalled."""
     enforce = bool(cfg_table.get("enforce", False))
     if not ok and not enforce:
-        journal.append("alert", rung=name, detail=f"{name} (report-only) would be red: " + "; ".join(lines)[:300])
+        _rung_alert(name, f"{name} (report-only) would be red: " + "; ".join(lines))
     refused = any(x.startswith(("REFUSED", "not run")) for x in lines)  # a refused rung measured nothing: "not run", never green
     return {"ok": ok or not enforce, "skipped": False, "enforced": enforce, "stdout_tail": "\n".join(lines)[-3500:], "stderr_tail": "",
             "results": [], **({"not_run": True} if refused else {}), **(extra or {})}
@@ -1454,7 +1467,7 @@ def _report_only(name: str, cfg_table: dict, ok: bool, lines: list[str], extra: 
 def _timed_out_row(name: str, r: dict) -> dict | None:
     """A timeout is ONE `alert` row naming the rung, never a red (perf-method budget)."""
     if r.get("timed_out"):
-        journal.append("alert", rung=name, detail=f"{name} timed out after {r.get('seconds')} s: over twice its budget, not a red")
+        _rung_alert(name, f"{name} timed out after {r.get('seconds')} s: over twice its budget, not a red")
         return {"ok": True, "skipped": False, "stdout_tail": f"alert: the {name} rung timed out ({r.get('seconds')} s)", "stderr_tail": "", "results": [r]}
     return None
 
@@ -1474,7 +1487,7 @@ def perf(root, since: str, changed: list[str], cfg: Config) -> dict:
     argv = (py, "scripts/perf_engine_run.py", "--baseline", perf_rung.BASELINE, *cfg.perf.get("args", ()))
     r = _remote_build(root, cfg, argv, "perf", reuse=False)
     if r is None:
-        journal.append("alert", rung="perf", detail="the build runner is unreachable: the engine perf rung did not run (never run here)")
+        _rung_alert("perf", "the build runner is unreachable: the engine perf rung did not run (never run here)")
         return {"ok": True, "skipped": True, "not_run": True, "stdout_tail": "not run: the build runner is unreachable", "stderr_tail": "", "results": []}
     row = r["results"][0]
     if r.get("crashed"):
