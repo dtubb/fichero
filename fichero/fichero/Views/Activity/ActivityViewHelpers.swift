@@ -14,6 +14,9 @@ final class ActivityWindowSelectionState {
     /// The pane's selected row, for the Inspector.
     var pick: ActivityPaneSelection?
 
+    /// The rows to select together when the window shows them (the launch alert's Choose…, #6584).
+    var revealAll: [ActivitySelection]?
+
     /// The documents whose file row Show in Activity asks for, in Group by File (a page, then its parent document).
     var revealFiles: [String]?
 

@@ -323,11 +323,22 @@ struct ActivityQueuedItem: Equatable, Identifiable {
     let subject: String
     let state: String
     let reason: String?
+    /// The file it works on, by name (the engine's); nil for a subject that is no document.
+    var name: String?
 
     init(_ item: Components.Schemas.QueuedItem) {
         id = item.id
         subject = item.subject
         state = item.state
         reason = item.reason
+        name = item.name
+    }
+
+    init(id: String, subject: String, state: String, reason: String? = nil, name: String? = nil) {
+        self.id = id
+        self.subject = subject
+        self.state = state
+        self.reason = reason
+        self.name = name
     }
 }

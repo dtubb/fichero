@@ -15,6 +15,7 @@ enum RunFailurePrompt {
         case .chooseModel: "Choose a Model…"
         case .reportBug: "Send a Bug Report…"
         case .reconnect: "Reconnect…"
+        case .chooseFolder: "Choose Folder…"
         case .raiseTo, .allowEverywhere, .allowProject, .allowOnce, .overCapOnce: nil
         }
     }

@@ -200,6 +200,39 @@ struct KeptExportStoreTests {
 
     /// WHY: × on a kept export must DELETE that export's own route (the engine stops writing; the
     /// files stay), and only that row leaves the list.
+    /// WHY: decision 28 (#6588). An export whose folder is gone has one way back, Choose Folder…, and a person who wants the
+    /// folder left alone switches Keep up to date off; both must reach the engine's PATCH and splice the export it answers.
+    @Test("Choose Folder… and Keep up to date are one PATCH each, and the answer replaces that export")
+    func chooseFolderAndKeepUpToDatePatch() async throws {
+        let client = makeClient { request in
+            switch (request.httpMethod ?? "GET", request.url?.path ?? "") {
+            case ("GET", "/api/export/kept"):
+                return (200, #"{"exports":[\#(Self.exportJSON(id: "k1", folder: "/Gone/Letters", format: "word", per: "document"))]}"#)
+            case ("PATCH", "/api/export/kept/k1"):
+                let body = KeptExportURLProtocol.seen.last?.body ?? [:]
+                let folder = body["folder"] as? String ?? "/Gone/Letters"
+                let isOn = body["keep_up_to_date"] as? Bool ?? true
+                return (200, #"{"id":"k1","folder":"\#(folder)","format":"word","per":"document","files":[],"#
+                        + #""in_the_way":[],"pending":0,"last_written":null,"keep_up_to_date":\#(isOn)}"#)
+            default:
+                return (404, "{}")
+            }
+        }
+        let store = KeptExportStore(client: client)
+        await store.load()
+
+        #expect(await store.chooseFolder("k1", folder: URL(fileURLWithPath: "/tmp/Chosen")))
+        let moved = try #require(KeptExportURLProtocol.seen.last { $0.method == "PATCH" })
+        #expect(moved.body["folder"] as? String == "/tmp/Chosen")
+        #expect(moved.body["keep_up_to_date"] == nil, "only what changed is sent")
+        #expect(store.exports.first?.folder == "/tmp/Chosen")
+
+        #expect(await store.setKeepUpToDate("k1", false))
+        let switched = try #require(KeptExportURLProtocol.seen.last { $0.method == "PATCH" })
+        #expect(switched.body["keep_up_to_date"] as? Bool == false && switched.body["folder"] == nil)
+        #expect(store.exports.first?.keepUpToDate == false)
+    }
+
     @Test("removing a kept export calls DELETE and removes only that row")
     func removingCallsDelete() async {
         let client = makeClient { request in

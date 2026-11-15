@@ -92,6 +92,27 @@ struct UIVerbsTests {
         #expect(manager.openLibraries.filter { $0.id == library.id }.count == 1, "opening it again is the same project")
     }
 
+    /// WHY: a script names a project by its path or by the name the sidebar shows. A bare name was once taken as a
+    /// path under / ("/Activity Night"), opened as a project that does not exist, and its Activity polled the engine's
+    /// refusal for good. A name resolves through the projects Fichero knows; anything else is refused, nothing opened.
+    @Test func openProjectTakesAPathOrAKnownName() throws {
+        let known = ["/Volumes/Archive/Fichero Dev Test/Activity Night.fichero", "/Volumes/Archive/Letters.fichero",
+                     "/Volumes/Archive/one/Twice.fichero", "/Volumes/Archive/two/Twice.fichero"]
+        #expect(try UIVerbs.projectURL(for: "Activity Night", knownPaths: known).path == known[0])
+        #expect(try UIVerbs.projectURL(for: "Letters.fichero", knownPaths: known).path == known[1])
+        #expect(try UIVerbs.projectURL(for: "/tmp/New.fichero", knownPaths: known).path == "/tmp/New.fichero")
+        #expect(try UIVerbs.projectURL(for: "~/New.fichero", knownPaths: []).path
+            == (("~/New.fichero" as NSString).expandingTildeInPath))
+        #expect(throws: UIVerbs.Failure.notAProject("Nowhere")) { try UIVerbs.projectURL(for: "Nowhere", knownPaths: known) }
+        #expect(throws: UIVerbs.Failure.notAProject("/tmp/Folder")) {
+            try UIVerbs.projectURL(for: "/tmp/Folder", knownPaths: known)
+        }
+        #expect(throws: UIVerbs.Failure.twoProjectsNamed("Twice")) { try UIVerbs.projectURL(for: "Twice", knownPaths: known) }
+        let same = ["/Volumes/Archive/Letters.fichero", "/Volumes/Archive/Letters.fichero/"]
+        #expect(try UIVerbs.projectURL(for: "Letters", knownPaths: same).path == "/Volumes/Archive/Letters.fichero",
+                "one project reached by two spellings is one project")
+    }
+
     /// WHY: "open a node" must go through the sidebar's reveal, the seam a click on a crumb or a Segments
     /// row posts, so the sidebar, Preview and Inspector follow it as they follow a click.
     @Test func openNodeIsTheSidebarReveal() async throws {

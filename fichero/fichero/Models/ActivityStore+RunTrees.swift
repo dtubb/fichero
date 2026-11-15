@@ -256,7 +256,7 @@ extension ActivityStore {
     }
 
     /// The kind a waiting or paused kind row stands for (`waiting:<kind>`, `paused:<kind>`); nil for any other row.
-    static func queuedKind(ofRowId id: String) -> String? {
+    nonisolated static func queuedKind(ofRowId id: String) -> String? {
         for prefix in ["waiting:", "paused:"] where id.hasPrefix(prefix) && id.count > prefix.count {
             return String(id.dropFirst(prefix.count))
         }

@@ -96,26 +96,40 @@ extension ActivityMonitorRow {
     var paneButton: ActivityPaneButton? {
         if phase == .failed || phase == .partial || phase == .paused || phase == .interrupted,
            let action = failure?.primaryAction {
-            switch action {
-            case "open-settings", "choose-model": return .settings
-            case "resume" where ActivityPaneVerb.resume.allows(self): return .verb(.resume)
-            default: break
-            }
+            if let button = ActivityPaneButton.forAction(action, row: self) { return button }
         }
         for verb in [ActivityPaneVerb.pause, .resume, .retry] where verb.allows(self) { return .verb(verb) }
         return nil
     }
 }
 
-/// What a row's one button does: a verb, or the failure's fix in Settings.
+/// What a row's one button does: a verb, the failure's fix in Settings, or a kept export's folder chosen again.
 enum ActivityPaneButton: Equatable {
     case verb(ActivityPaneVerb)
     case settings
+    /// Choose Folder… for the kept export whose folder is gone (`activity.kept-export.one-row-per-export`, #6588).
+    case chooseFolder(export: String)
+    /// An action the row cannot do itself: the row is selected and the Inspector shows its fix (`activity.pane.fix-button-has-words`).
+    case showDetails
+
+    /// The button for a failure's primary action as the engine names it (`llm/failure.ActionKind`), with its word; an action
+    /// the row cannot carry out, or does not know, is Show Details, never a gear; nil when a verb the row allows fits better.
+    static func forAction(_ action: String, row: ActivityMonitorRow) -> ActivityPaneButton? {
+        switch action {
+        case "open-settings", "choose-model": return .settings
+        case "choose-folder": return row.failure?.folderFor.map { .chooseFolder(export: $0) } ?? .showDetails
+        case "resume": return ActivityPaneVerb.resume.allows(row) ? .verb(.resume) : .showDetails
+        case "retry": return ActivityPaneVerb.retry.allows(row) ? .verb(.retry) : .showDetails
+        default: return .showDetails
+        }
+    }
 
     var title: String {
         switch self {
         case .verb(let verb): verb.title
         case .settings: "Settings…"
+        case .chooseFolder: "Choose Folder…"
+        case .showDetails: "Show Details"
         }
     }
 
@@ -123,6 +137,8 @@ enum ActivityPaneButton: Equatable {
         switch self {
         case .verb(let verb): verb.symbol
         case .settings: "gearshape"
+        case .chooseFolder: "folder"
+        case .showDetails: "info.circle"
         }
     }
 }

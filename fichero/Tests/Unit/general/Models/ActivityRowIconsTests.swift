@@ -20,6 +20,12 @@ struct ActivityRowIconsTests {
         #expect(Row.source(startedBy: "read-again:thread-1") == .recipe)
         #expect(Row.source(startedBy: "owner") == .person)
         #expect(Row.source(startedBy: nil) == .person)
+        // activity.pane.started-by-is-honest: the engine's own starters (`jobs.BACKGROUND_STARTERS`) are never a person.
+        for starter in ["kept export", "sync", "synced folder", "Kept Export"] {
+            #expect(Row.source(startedBy: starter) == .automatic, "\(starter) is the engine's, not a person's")
+        }
+        #expect(Row.source(startedBy: "trigger:watched-folder") == .schedule)
+        #expect(Row.source(startedBy: "correction") == .person, "a person's own edit")
         #expect(Row.Source.automatic.symbol == "gearshape.arrow.triangle.2.circlepath")
         #expect(Row.Source.person.word == "Started by you")
     }

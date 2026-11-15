@@ -35,6 +35,13 @@ enum ActivityLogFilter: String, CaseIterable, Identifiable {
 
     /// What shows when the person has not chosen: Problems while the log has any, else All.
     static func automatic(hasProblems: Bool) -> ActivityLogFilter { hasProblems ? .problems : .all }
+
+    /// What an empty log says (`activity.log.raw-always-rendered`, decision 27, #6588): "Nothing written" only for a row that
+    /// has not started; Problems with none says so; a row that ran and wrote nothing says that, never "nothing written yet".
+    static func emptyWords(started: Bool, filter: ActivityLogFilter) -> String {
+        guard started else { return "Nothing written for this row yet." }
+        return filter == .problems ? "No problems in this row's log." : "The engine wrote no lines for this row."
+    }
 }
 
 /// Whether the live log follows its newest line (`activity.window.open-a-run`): while the run is live, the Log is

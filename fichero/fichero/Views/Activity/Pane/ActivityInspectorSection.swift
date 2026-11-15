@@ -41,7 +41,7 @@ struct ActivityVersionsList: View {
                         GridRow {
                             let glyph = ActivityPane.glyph(version)
                             Image(systemName: glyph.symbol ?? "circle.dotted")
-                                .foregroundStyle(glyph.isFailure ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
+                                .foregroundStyle(glyph.tint)
                                 .accessibilityLabel(glyph.word)
                             Text(version.model ?? "—").lineLimit(1)
                             Text("\(version.done) of \(version.total)").monospacedDigit()

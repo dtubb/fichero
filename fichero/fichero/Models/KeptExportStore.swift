@@ -48,8 +48,20 @@ final class KeptExportStore {
 
     private let client: FicheroClient
 
+    /// A preview's store reads no engine: its exports are given (`preview(_:)`).
+    private var readsEngine = true
+
     init(client: FicheroClient) {
         self.client = client
+    }
+
+    /// A store holding fixed exports, for a #Preview: it never reads the engine, so the preview shows its rows, not a refusal.
+    static func preview(_ exports: [Components.Schemas.KeptExport], client: FicheroClient) -> KeptExportStore {
+        let store = KeptExportStore(client: client)
+        store.exports = exports
+        store.hasLoaded = true
+        store.readsEngine = false
+        return store
     }
 
     // MARK: Formats
@@ -101,6 +113,7 @@ final class KeptExportStore {
 
     /// Read the project's kept exports; the one place the list is replaced whole.
     func load() async {
+        guard readsEngine else { return }
         do {
             exports = try await client.api.listKeptExportsApiExportKeptGet().ok.body.json.exports
             hasLoaded = true
@@ -192,6 +205,45 @@ final class KeptExportStore {
         } catch {
             if error.isCancellationError { return false }
             errorMessage = "Could not remove this export: \(error.localizedDescription)"
+        }
+        return false
+    }
+
+    /// Choose Folder… (`PATCH /api/export/kept/{id}`, `activity.kept-export.one-row-per-export`): the export writes there
+    /// from now on, and a row its gone folder paused writes there. The folder is granted to the engine first, as at keep.
+    @discardableResult
+    func chooseFolder(_ exportId: String, folder: URL) async -> Bool {
+        let didStartAccess = folder.startAccessingSecurityScopedResource()
+        try? await FolderAccessManager.shared.grantAccessForImport(folder)
+        if didStartAccess { folder.stopAccessingSecurityScopedResource() }
+        return await update(exportId, .init(folder: folder.path), failing: "keep this export in \(folder.lastPathComponent)")
+    }
+
+    /// Keep up to date (on by default): off, an edit queues no rewrite; Write Now still writes.
+    @discardableResult
+    func setKeepUpToDate(_ exportId: String, _ isOn: Bool) async -> Bool {
+        await update(exportId, .init(keepUpToDate: isOn),
+                     failing: isOn ? "keep this export up to date" : "stop keeping this export up to date")
+    }
+
+    private func update(_ exportId: String, _ body: Components.Schemas.KeptExportUpdate, failing what: String) async -> Bool {
+        errorMessage = nil
+        do {
+            switch try await client.api.updateKeptExportApiExportKeptExportIdPatch(
+                path: .init(exportId: exportId), body: .json(body)
+            ) {
+            case .ok(let success):
+                let kept = try success.body.json
+                if let index = exports.firstIndex(where: { $0.id == kept.id }) { exports[index] = kept }
+                return true
+            case .unprocessableContent:
+                errorMessage = "The engine would not \(what)."
+            case .undocumented(let code, let body):
+                errorMessage = await EngineErrorDetail.message(from: body) ?? "Could not \(what) (HTTP \(code))"
+            }
+        } catch {
+            if error.isCancellationError { return false }
+            errorMessage = await Self.engineWords(error) ?? "Could not \(what): \(error.localizedDescription)"
         }
         return false
     }

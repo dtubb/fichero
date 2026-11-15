@@ -81,10 +81,13 @@ final class ActivityStore: ChangeEventConsumer {
         return ordered.filter { seen.insert($0).inserted }
     }
 
-    /// Set ONE footer line, or clear it with nil; untouched when unchanged.
-    func setLoadFailure(_ message: String?, library: UUID, source: LoadSource) {
+    /// Set ONE footer line, or clear it with nil; untouched when unchanged. True when the line changed.
+    @discardableResult
+    func setLoadFailure(_ message: String?, library: UUID, source: LoadSource) -> Bool {
         let key = FailureKey(library: library, source: source)
-        if loadFailures[key] != message { loadFailures[key] = message }
+        guard loadFailures[key] != message else { return false }
+        loadFailures[key] = message
+        return true
     }
 
     /// The library this store belongs to, named in a jobs-poll footer line (#5469).
@@ -278,6 +281,8 @@ final class ActivityStore: ChangeEventConsumer {
             }
             jobsReadOnce = true
             if backgroundJobs != snapshot.jobs {
+                // The queues whose files are shown follow the list (#6599): each kind already read is read again.
+                for kind in queuedItems.keys { Task { await self.loadQueuedItems(rowId: "waiting:\(kind)") } }
                 // A job of its own whose details are open (its tree is loaded,
                 // #5561) is re-read when its row changes: the same one-key
                 // update a run's tree gets from the change stream.
@@ -308,9 +313,11 @@ final class ActivityStore: ChangeEventConsumer {
                 log.debug("ActivityStore: jobs poll failed \(error.localizedDescription, privacy: .public)")
                 return
             }
+            // Said once in the log, when it starts or changes, not on every tick it stands.
             let message = Self.runLoadFailureMessage(libraryName: library.displayName, error: error)
-            log.error("ActivityStore: jobs poll refused: \(message, privacy: .public)")
-            setLoadFailure(message, library: library.id, source: .jobs)
+            if setLoadFailure(message, library: library.id, source: .jobs) {
+                log.error("ActivityStore: jobs poll refused: \(message, privacy: .public)")
+            }
         }
     }
 

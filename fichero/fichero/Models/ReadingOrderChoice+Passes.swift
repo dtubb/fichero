@@ -40,6 +40,14 @@ extension ReadingOrderChoice {
         return PickerSections(thisPass: thisPass, otherPasses: otherItems)
     }
 
+    /// The pass a Layout Order's "Delete This Order…" deletes (owner 2026-11-14: he looked for it in the Order menu): the
+    /// shown order's own pass when the order is a pass's layout order and the pass can be deleted; nil for a named order or
+    /// a flow (their own verbs), or a pass still read from an older result. The delete is `segment.pass_delete`, undoable.
+    static func deletablePass(_ order: ReadingOrderSummary?) -> String? {
+        guard let order, order.kind == "as-written", let passId = order.passId, PassDeletion.canDelete(passId) else { return nil }
+        return passId
+    }
+
     /// Who made a pass and when: "from 0065.xml, Nov 8", "kraken, Nov 8", or its name with no date known.
     static func passLabel(_ pass: SegmentPassValue, format: Date.FormatStyle = .dateTime.month(.abbreviated).day()) -> String {
         let maker = pass.importFile.map { "from \($0)" } ?? pass.model ?? pass.provider ?? pass.name

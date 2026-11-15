@@ -20,6 +20,8 @@ struct ReadingOrderPicker: View {
     @State var note: String?
     /// Flows from earlier pages (or the project) this page could continue (#5160 residue).
     @State var flowsOnto = ReadingOrderChoice.FlowsOnto()
+    /// The pass a "Delete This Order…" asks to delete, while its confirmation shows.
+    @State private var confirmingPassDelete: String?
 
     private var shown: ReadingOrderSummary? { store.orders.first { $0.id == store.orderId } }
 
@@ -48,6 +50,10 @@ struct ReadingOrderPicker: View {
                     Button("New Order…") { name = ""; naming = .named }
                     Button("New Flow…") { name = ""; naming = .flow }
                     continueFlowMenu
+                    if let passId = ReadingOrderChoice.deletablePass(shown) {
+                        Divider()
+                        Button("Delete This Order…", role: .destructive) { confirmingPassDelete = passId }
+                    }
                 } label: {
                     Text(sections.title(of: store.orderId) ?? shown.map(ReadingOrderChoice.title) ?? "Order").font(.headline)
                 }
@@ -70,6 +76,15 @@ struct ReadingOrderPicker: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .task(id: documentId) { await loadFlowsOnto() }
+        .confirmationDialog("Delete this order and the pass it comes from?",
+                            isPresented: Binding(get: { confirmingPassDelete != nil }, set: { if !$0 { confirmingPassDelete = nil } })) {
+            Button("Delete", role: .destructive) {
+                if let passId = confirmingPassDelete { Task { await deletePass(passId) } }
+                confirmingPassDelete = nil
+            }
+        } message: {
+            Text("The page's boxes and lines in this pass go with it. Edit ▸ Undo brings them back.")
+        }
         .alert(naming?.title ?? "", isPresented: Binding(get: { naming != nil }, set: { if !$0 { naming = nil } })) {
             TextField("Name", text: $name)
             Button("Create") {
@@ -91,6 +106,19 @@ struct ReadingOrderPicker: View {
             } else {
                 Text(item.title)
             }
+        }
+    }
+
+    /// Delete This Order… (a Layout Order): the pass it comes from, through Info › Making's own `segment.pass_delete` (⌘Z).
+    private func deletePass(_ passId: String) async {
+        guard let segmentService, let actionsService = actionStore?.actionsService else { return }
+        do {
+            try await PassDeletion.run(documentId: documentId, passId: passId, actionsService: actionsService,
+                                       store: SegmentStore.shared(for: segmentService), steps: windowSteps)
+            try? await store.reloadOrders()
+            note = nil
+        } catch {
+            note = "The order could not be deleted: \(error.localizedDescription)"
         }
     }
 

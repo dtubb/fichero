@@ -96,15 +96,25 @@ enum FicheroUICapture {
     }
 
     #if os(macOS)
-    /// The window's content, or the `crop` of it (window points, top-left origin), drawn offscreen.
+    /// The window's content, or the `crop` of it (window points, top-left origin), drawn offscreen, with a sheet
+    /// attached to the window (an alert, the launch alert) drawn over it where it hangs, so a script sees what a person sees.
     static func render(_ window: NSWindow, crop: CGRect?) throws -> Data {
-        guard let view = window.contentView,
-              let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds)
+        guard let view = window.contentView, var image = try bitmap(of: view)
         else { throw CaptureError.renderFailed("no content to draw") }
-        view.cacheDisplay(in: view.bounds, to: rep)
-        guard var image = rep.cgImage else { throw CaptureError.renderFailed("no bitmap") }
+        let scale = CGFloat(image.width) / max(view.bounds.width, 1)
+        if let sheet = window.attachedSheet, let sheetView = sheet.contentView, let drawn = try bitmap(of: sheetView),
+           let context = CGContext(data: nil, width: image.width, height: image.height, bitsPerComponent: 8, bytesPerRow: 0,
+                                   space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(),
+                                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) {
+            context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+            // The sheet hangs from the top of the content, centred: its frame in the window's (bottom-left) coordinates.
+            let inWindow = window.convertFromScreen(sheet.frame)
+            let rect = CGRect(x: inWindow.minX * scale, y: inWindow.minY * scale,
+                              width: CGFloat(drawn.width), height: CGFloat(drawn.height))
+            context.draw(drawn, in: rect)
+            if let composed = context.makeImage() { image = composed }
+        }
         if let crop {
-            let scale = CGFloat(rep.pixelsWide) / max(view.bounds.width, 1)
             let pixels = CGRect(x: crop.minX * scale, y: crop.minY * scale, width: crop.width * scale, height: crop.height * scale)
             guard let cropped = image.cropping(to: pixels.integral) else { throw CaptureError.renderFailed("pane outside the window") }
             image = cropped
@@ -113,6 +123,13 @@ enum FicheroUICapture {
             throw CaptureError.renderFailed("PNG encoding failed")
         }
         return png
+    }
+
+    /// One view drawn offscreen at its backing scale.
+    private static func bitmap(of view: NSView) throws -> CGImage? {
+        guard let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return nil }
+        view.cacheDisplay(in: view.bounds, to: rep)
+        return rep.cgImage
     }
     #else
     /// The window, or the `crop` of it (window points), drawn offscreen.

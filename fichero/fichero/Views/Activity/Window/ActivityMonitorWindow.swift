@@ -11,15 +11,22 @@ struct ActivityMonitorWindow: View {
 
     var body: some View {
         ActivityPaneView(libraryId: nil, paneKey: "activity.window", reveal: selectionState.reveal,
-                         revealFiles: selectionState.revealFiles, onSelect: { selectionState.pick = $0 },
-                         onRevealed: { selectionState.reveal = nil; selectionState.revealFiles = nil })
+                         revealFiles: selectionState.revealFiles, revealAll: selectionState.revealAll,
+                         onSelect: { selectionState.pick = $0 },
+                         onRevealed: {
+                             selectionState.reveal = nil; selectionState.revealFiles = nil; selectionState.revealAll = nil
+                         })
             .inspector(isPresented: $showsInspector) {
                 ActivityInspectorSection(pick: selectionState.pick)
                     .inspectorColumnWidth(min: 280, ideal: 380, max: 640)
             }
             .toolbar {
-                Button { showsInspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.trailing") }
-                    .help(showsInspector ? "Hide the Inspector" : "Show the Inspector")
+                // Activity Monitor's toolbar (decision 22): the verbs at the leading edge, the Inspector toggle at the end.
+                ToolbarItem(placement: .navigation) { ActivityToolbarVerbButtons() }
+                ToolbarItem(placement: .primaryAction) {
+                    Button { showsInspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.trailing") }
+                        .help(showsInspector ? "Hide the Inspector" : "Show the Inspector")
+                }
             }
             .environment(steps)
             .focusedSceneValue(\.windowSteps, steps)

@@ -25,6 +25,9 @@ private final class StoppedAtQuitMockURLProtocol: URLProtocol {
                 + #""started_at":null}],"count":2}"#)
         case "/api/activity/stopped-at-quit/continue":
             (200, #"{"continued_ids":["r1","t1"],"count":2}"#)
+        case "/api/actions/invoke":
+            (200, #"{"ok":true,"audit_id":"audit-1","changed_domains":["activity"],"#
+                + #""result":{"deleted_ids":["r1","t1"],"skipped_ids":[],"count":2}}"#)
         default:
             (404, #"{"detail":"not stubbed"}"#)
         }
@@ -53,6 +56,7 @@ struct ActivityLaunchAlertTests {
     func titleAndMessage() {
         #expect(StoppedAtQuitAlert.title(count: 1) == "1 run was stopped when Fichero quit")
         #expect(StoppedAtQuitAlert.title(count: 3) == "3 runs were stopped when Fichero quit")
+        #expect(StoppedAtQuitAlert.title(count: 0) == "Background work was stopped when Fichero quit", "never \"0 runs\"")
         let message = StoppedAtQuitAlert.message(names: ["Run the recipe: Letters", "Make thumbnails"])
         #expect(message.hasPrefix("Run the recipe: Letters\nMake thumbnails\n"))
         #expect(message.contains("Nothing runs until you choose"))
@@ -69,9 +73,11 @@ struct ActivityLaunchAlertTests {
             ("Read a synced folder", "read-from-folder")
         ])
         #expect(message.hasPrefix("Run the recipe: Letters\n"))
-        #expect(message.contains("and background work: 1 embeds, 2 thumbnails"))
+        #expect(message.contains("and background work: 1 embed, 2 thumbnails"), "plural by count, never 1 embeds")
         #expect(message.contains("New files in a synced folder"))
         #expect(!message.contains("Make thumbnails"), "no row per thumbnail")
+        let alone = StoppedAtQuitAlert.message(items: [("Embed for search", "embed"), ("Make thumbnails", "thumbnail")])
+        #expect(alone.hasPrefix("Background work: 1 embed, 1 thumbnail\n"), "no \"and\" with no run before it")
     }
 
     @Test("with nothing stopped the alert never shows")
@@ -106,6 +112,43 @@ struct ActivityLaunchAlertTests {
         #expect(StoppedAtQuitMockURLProtocol.seen.contains {
             $0.method == "POST" && $0.path == "/api/activity/stopped-at-quit/continue"
         })
+        #expect(!alert.isPresented)
+    }
+
+    @Test("four answers in order, Leave Paused first and Delete All destructive; SwiftUI's Mac alert dropped the fourth")
+    func fourAnswers() {
+        #expect(StoppedAtQuitAlert.Choice.allCases.map(\.title) == ["Leave Paused", "Choose…", "Continue All", "Delete All"])
+        #expect(StoppedAtQuitAlert.Choice.allCases.filter(\.isDestructive) == [.deleteAll])
+    }
+
+    @Test("Choose… opens Activity and sends nothing: the rows stay paused there for the person to pick from")
+    func chooseOpensActivity() async {
+        let library = project()
+        let alert = StoppedAtQuitAlert()
+        await alert.check(libraries: [library])
+        var opened: [ActivitySelection] = []
+        await alert.answer(.choose, libraries: [library], steps: nil) { opened = $0 }
+        #expect(opened.map(\.jobId) == ["r1", "t1"] && opened.allSatisfy { $0.libraryId == library.id },
+                "Activity opens with the stopped rows selected")
+        #expect(!alert.isPresented)
+        #expect(!StoppedAtQuitMockURLProtocol.seen.contains { $0.method == "POST" })
+    }
+
+    @Test("Delete All is one step on the front window's stack, though the alert sits above the window's environment")
+    func deleteAllIsUndoable() async {
+        let library = project()
+        let alert = StoppedAtQuitAlert()
+        await alert.check(libraries: [library])
+        let saved = WindowState.front
+        let window = WindowState(libraryId: library.id)
+        window.steps.engineForProject = { _ in nil }  // the step's own service
+        WindowState.front = window
+        defer { WindowState.front = saved }
+
+        await alert.answer(.deleteAll, libraries: [library], steps: nil) { _ in }
+
+        #expect(StoppedAtQuitMockURLProtocol.seen.contains { $0.method == "POST" && $0.path == "/api/actions/invoke" })
+        #expect(window.steps.canUndo && window.steps.undoName == "Delete 2 Rows", "Edit › Undo puts them back")
         #expect(!alert.isPresented)
     }
 }

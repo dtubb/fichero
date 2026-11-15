@@ -23,6 +23,8 @@ struct ActivityPaneView: View {
     var reveal: ActivitySelection?
     /// The documents whose file row to select, by File (Show in Activity on a page): the first one listed.
     var revealFiles: [String]?
+    /// Rows to select together once listed (the launch alert's Choose…).
+    var revealAll: [ActivitySelection]?
     /// The selected row, for the Inspector beside the pane; nil with none or several selected.
     var onSelect: (ActivityPaneSelection?) -> Void = { _ in }
     /// A Show in Activity was answered (its row selected): the asker clears it, so a later refresh does not select it again.
@@ -40,6 +42,10 @@ struct ActivityPaneView: View {
     /// Delete on running rows asks once: Stop then Delete.
     @State var confirmingDelete: [ActivityMonitorRow]?
     @State var showArchived = false
+    /// The kept export a row's Choose Folder… is choosing a folder for: the system panel is up while it is set.
+    @State var choosingFolder: ActivityFolderChoice?
+    /// The open projects' history summed, for the window's bottom panel (`activity.window.bottom-panel`).
+    @State private var history = ActivityHistory()
     @AppStorage("activity.pane.prefs") private var prefsData = Data()
 
     var prefs: ActivityPanePrefs { ActivityPanePrefs.load(prefsData, key: paneKey) }
@@ -64,12 +70,13 @@ struct ActivityPaneView: View {
     var allRows: [ActivityMonitorRow] {
         let rows = libraries.flatMap { library in
             let store = library.activityStore
-            return ActivityMonitorRow.group(
+            let jobs = store.liveJobs + store.historyJobs
+            return ActivityPane.withRunFailures(ActivityPane.withQueuedFiles(ActivityMonitorRow.group(
                 libraryId: library.id, libraryName: library.displayName,
                 isMac: library.id == libraryManager.globalLibrary?.id,
                 runRows: store.runs.map { .run($0, tree: store.runTrees[$0.threadId ?? $0.runId]) },
-                jobs: store.liveJobs + store.historyJobs
-            ).rows
+                jobs: jobs
+            ).rows, queued: store.queuedItems), jobs: jobs)
         }
         // A run seen as a job of its own as well is listed once, as the run.
         let runJobs = Set(rows.filter { $0.kind == .run }.compactMap(\.jobId))
@@ -107,26 +114,46 @@ struct ActivityPaneView: View {
         let shown = shownRows
         VStack(spacing: 0) {
             if showsHead { head; Divider() }
-            filterField
             if libraries.isEmpty {
                 Color.clear  // empty means blank (`activity.window.no-empty-prose`)
-            } else if shown.isEmpty, !ActivityPaneFilter(prefs.filter).isEmpty {
-                Text("No activity matches").foregroundStyle(.secondary)
+            } else if let line = ActivityPane.emptyLine(rowsShown: shown.count,
+                                                        filterIsEmpty: ActivityPaneFilter(prefs.filter).isEmpty) {
+                Text(line).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .accessibilityIdentifier("activity.noMatch")
             } else {
                 table(shown)
             }
-            statusBar
+            if !showsHead {
+                // The window's foot: a graph and its figures per tab (decision 25); a main window's pane keeps one line.
+                Divider()
+                ActivityBottomPanel(tab: prefs.tab, history: history, rows: allRows)
+            }
+            bottomBar
         }
         .accessibilityIdentifier("activity.pane")
+        // The window has no pane head: its four tabs are the toolbar's (decision 23); a main window's pane has them in its
+        // head's lens menu.
+        .toolbar {
+            if !showsHead {
+                ToolbarItem(placement: .principal) { tabPicker }
+                ToolbarItem(placement: .primaryAction) { moreMenu }
+            }
+        }
         .onChange(of: selection) { _, _ in onSelect(selectedPick) }
         .onChange(of: shown.map(\.id)) { _, _ in onSelect(selectedPick); if selection.isEmpty { select(reveal) } }
         .onChange(of: reveal) { _, wanted in select(wanted) }
         .onChange(of: revealFiles) { _, wanted in showFiles(wanted) }
-        .onAppear { select(reveal); showFiles(revealFiles) }
+        .onChange(of: revealAll) { _, wanted in selectAll(wanted) }
+        .onAppear { select(reveal); showFiles(revealFiles); selectAll(revealAll) }
         .task(id: showArchived) { await readArchivedIfShown() }
         .task(id: refreshKey) { await refreshAll() }
+        .task(id: libraries.map(\.id)) { await readHistoryEachMinute() }
+        .fileImporter(isPresented: Binding(get: { choosingFolder != nil }, set: { if !$0 { choosingFolder = nil } }),
+                      allowedContentTypes: [.folder]) { result in
+            if case .success(let url) = result, let choice = choosingFolder { chose(url, for: choice) }
+            choosingFolder = nil
+        }
         .confirmationDialog("Archive every finished run?", isPresented: $confirmingArchiveFinished) {
             Button("Archive Finished") { Task { await archiveFinished() } }
         } message: {
@@ -161,13 +188,38 @@ struct ActivityPaneView: View {
 
     /// Switch the grouping, keeping a selected file selected (`activity.pane.group-by-run-or-by-file`).
     private func group(by grouping: ActivityPane.Grouping) {
-        let rows = grouping == .file ? ActivityPane.byFile(allRows) : ActivityPane.outline(allRows)
+        show(ActivityPane.Tab.of(grouping))
+    }
+
+    /// A tab: its grouping and its columns; the selected rows listed in both stay selected.
+    func show(_ tab: ActivityPane.Tab) {
+        let rows = tab.grouping == .file ? ActivityPane.byFile(allRows) : ActivityPane.outline(allRows)
         let carried = ActivityPane.carry(selection, into: rows)
-        update { $0.grouping = grouping }
+        update { $0.tab = tab; $0.grouping = tab.grouping }
         selection = carried
     }
 
+    /// The four tabs as one segmented control: the Activity window's toolbar holds it.
+    private var tabPicker: some View {
+        Picker("View", selection: Binding(get: { prefs.tab }, set: show)) {
+            ForEach(ActivityPane.Tab.allCases) { Text($0.title).tag($0) }
+        }
+        .pickerStyle(.segmented)
+        .fixedSize()
+        .help("Runs, Files, Cost or Where: what the table lists and its columns")
+        .accessibilityIdentifier("activity.tabs")
+    }
+
     /// Select the row a Show in Activity asked for, once it is listed.
+    /// Select every row asked for that is listed (the launch alert's Choose…: the rows the quit stopped).
+    private func selectAll(_ wanted: [ActivitySelection]?) {
+        guard let wanted, !wanted.isEmpty else { return }
+        let ids = ActivityPane.rowIds(for: wanted, in: allRows)
+        guard !ids.isEmpty else { return }
+        selection = ids
+        onRevealed()
+    }
+
     private func select(_ wanted: ActivitySelection?) {
         guard let wanted else { return }
         let ids = Set(allRows.filter { $0.selection == wanted }.map(\.id))
@@ -184,10 +236,10 @@ struct ActivityPaneView: View {
             selector: {
                 PaneKindSelector(
                     kindTitle: PaneSpec.Kind.activity.title, kindIcon: PaneSpec.Kind.activity.icon,
-                    currentKind: .activity, lenses: ActivityPane.Grouping.allCases,
-                    lensTitle: { (grouping: ActivityPane.Grouping) in "By \(grouping.title)" },
-                    lensIcon: { (grouping: ActivityPane.Grouping) in grouping == .run ? "list.bullet.indent" : "doc.on.doc" },
-                    lens: Binding(get: { prefs.grouping }, set: group(by:))
+                    currentKind: .activity, lenses: ActivityPane.Tab.allCases,
+                    lensTitle: { (tab: ActivityPane.Tab) in tab.title },
+                    lensIcon: { (tab: ActivityPane.Tab) in tab.icon },
+                    lens: Binding(get: { prefs.tab }, set: show)
                 )
             },
             controls: { EmptyView() },
@@ -195,42 +247,72 @@ struct ActivityPaneView: View {
         )
     }
 
-    private var filterField: some View {
-        HStack(spacing: 8) {
-            if !showsHead {
-                // The window has no pane head: Group by sits beside the filter.
-                Picker("Group by", selection: Binding(get: { prefs.grouping }, set: group(by:))) {
-                    ForEach(ActivityPane.Grouping.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .fixedSize()
-                .accessibilityIdentifier("activity.groupBy")
+    /// The window's history, read now and once a minute while the window shows (`GET /api/activity/history`).
+    private func readHistoryEachMinute() async {
+        guard !showsHead else { return }
+        while !Task.isCancelled {
+            var read: [ActivityHistory] = []
+            for library in libraries {
+                if let one = try? await library.activityService.history() { read.append(one) }
             }
-            TextField("Filter: model: Kraken state: failed", text: Binding(
-                get: { prefs.filter }, set: { value in update { $0.filter = value } }))
-                .textFieldStyle(.roundedBorder)
-                .accessibilityIdentifier("activity.filter")
-            Menu {
-                Toggle("Show Archived", isOn: $showArchived)
-                Button("Archive Finished…") { confirmingArchiveFinished = true }
-                Button("Archive Failed") { Task { await archiveFailed() } }
-            } label: {
-                Label("More", systemImage: "ellipsis.circle").labelStyle(.iconOnly)
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .accessibilityIdentifier("activity.more")
+            history = ActivityBottomPanel.merged(read)
+            try? await Task.sleep(for: .seconds(60))
         }
-        .padding(.horizontal, 10).padding(.vertical, 6)
     }
 
-    private var statusBar: some View {
-        Text([statusBarText, notice].compactMap { $0 }.joined(separator: " · "))
-            .font(.caption).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12).padding(.vertical, 4)
-            .background(.bar)
-            .accessibilityIdentifier("activity.statusbar")
+    /// The pane's one bottom bar, the app's (`activity.pane.bottom-bar-like-every-pane`, #6588): Metadata (the column toggles,
+    /// the same as the header's menu), the Filter field with what the list shows in its menu, and the status figures.
+    private var bottomBar: some View {
+        PaneFilterBar(placement: .bottom) {
+            PaneMetadataButton { columnToggles }
+                .help("Which columns the table shows")
+                .accessibilityIdentifier("activity.metadata")
+            PaneFilterField(text: Binding(get: { prefs.filter }, set: { value in update { $0.filter = value } }),
+                            prompt: "Filter: model: Kraken state: failed", accessibilityID: "activity.filter") {
+                Toggle("Show Archived", isOn: $showArchived)
+                Divider()
+                Button("Failed") { update { $0.filter = "state: failed" } }
+                Button("Today") { update { $0.filter = "date: today" } }
+                Button("Started Automatically") { update { $0.filter = "started by: automatic" } }
+            }
+            .frame(maxWidth: 360)
+            Spacer(minLength: 8)
+            // The window's figures are its bottom panel's; the bar keeps the notice there, the whole line in a main window's pane.
+            Text((showsHead ? [statusBarText, notice] : [notice]).compactMap { $0 }.joined(separator: " · "))
+                .font(.caption).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
+                .accessibilityIdentifier("activity.statusbar")
+            if showsHead { moreMenu }
+        }
+    }
+
+    /// Each column of the tab, on or off: the header's menu, in the bar (`activity.pane.default-columns`).
+    @ViewBuilder
+    private var columnToggles: some View {
+        ForEach(ActivityPane.Column.allCases.filter { $0 != .name && $0 != .source }, id: \.self) { column in
+            Toggle(column.title, isOn: Binding(
+                get: { prefs.columns(for: prefs.tab)[visibility: column.rawValue] != .hidden },
+                set: { isOn in
+                    update { prefs in
+                        var columns = prefs.columns(for: prefs.tab)
+                        columns[visibility: column.rawValue] = isOn ? .visible : .hidden
+                        prefs.setColumns(columns, for: prefs.tab)
+                    }
+                }))
+        }
+    }
+
+    /// The More menu: Show Archived, Archive Finished… and Archive Failed (`activity.window.toolbar-verbs`), the window's
+    /// toolbar's, and the bottom bar's in a main window's pane.
+    private var moreMenu: some View {
+        Menu {
+            Toggle("Show Archived", isOn: $showArchived)
+            Button("Archive Finished…") { confirmingArchiveFinished = true }
+            Button("Archive Failed") { Task { await archiveFailed() } }
+        } label: {
+            Label("More", systemImage: "ellipsis.circle")
+        }
+        .help("Show Archived, Archive Finished…, Archive Failed")
+        .accessibilityIdentifier("activity.more")
     }
 
     /// "3 running · 12 waiting · $3.20 today", Finder style, and "Automatic work paused" while it is.
@@ -250,4 +332,10 @@ struct ActivityPaneView: View {
     ActivityPaneView(libraryId: nil)
         .environment(LibraryManager.shared)
         .frame(width: 720, height: 360)
+}
+
+/// A row's Choose Folder…: the project and the kept export the panel chooses a folder for.
+struct ActivityFolderChoice: Equatable {
+    let libraryId: UUID?
+    let exportId: String
 }

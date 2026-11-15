@@ -85,7 +85,7 @@
 
         <command name="open project" code="FICHoprj" description="Open a .fichero project in the front window, as File > Open does.">
             <cocoa class="FicheroOpenProjectCommand"/>
-            <direct-parameter description="The .fichero project path." type="text"/>
+            <direct-parameter description="The .fichero project path, or the name of a project Fichero knows." type="text"/>
             <result type="text" description="The project's id."/>
         </command>
 

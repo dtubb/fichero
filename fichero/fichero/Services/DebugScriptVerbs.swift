@@ -28,6 +28,26 @@ enum DebugScriptVerbs {
 }
 
 #if DEBUG && os(macOS)  // AppleScript commands (NSScriptCommand) exist only on the Mac
+/// `undo step` (Debug test suite): Edit › Undo's action on the front window's own stack (`WindowSteps.undo`), for a
+/// script that cannot make a window key (the screen locked overnight). Answers the step's name; an error when there is
+/// nothing to undo.
+@objc(FicheroUndoStepCommand)
+class FicheroUndoStepCommand: NSScriptCommand {
+    override func performDefaultImplementation() -> Any? {
+        let name: String? = MainActor.assumeIsolated {
+            guard let steps = WindowState.front?.steps, steps.canUndo, let name = steps.undoName else { return nil }
+            steps.undo()
+            return name
+        }
+        guard let name else {
+            scriptErrorNumber = NSInternalScriptError
+            scriptErrorString = "Nothing to undo in the front window"
+            return nil
+        }
+        return name
+    }
+}
+
 /// `select segment <segment id>` (Debug test suite): its page opened and the segment selected -- the one
 /// selection the Source view, the Reader and the Inspector share. False when it does not resolve.
 @objc(FicheroSelectSegmentCommand)
