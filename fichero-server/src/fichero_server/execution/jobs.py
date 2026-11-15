@@ -1200,6 +1200,15 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
     return root
 
 
+def listed_name(db: "Database", job_id: str) -> str | None:
+    """A stored job's name as its kind names it ("Update kept export · Letters · 12 pages"), for the jobs list as for its
+    tree; None when its kind has no `names` or the row is gone."""
+    row = db.execute_fetchone("SELECT id, kind, subject, detail FROM jobs WHERE id = ?", [job_id], committed=True)
+    if row is None:
+        return None
+    return _named_by_its_kind(db, {"id": row[0], "kind": row[1], "subject": row[2], "detail": row[3]})
+
+
 def _named_by_its_kind(db: "Database", node: dict[str, Any]) -> str | None:
     """A row named by its kind's own `names` (a subject that is no document), or None."""
     kind = KINDS.get(node["kind"])

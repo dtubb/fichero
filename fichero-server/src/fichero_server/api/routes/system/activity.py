@@ -992,6 +992,8 @@ async def list_background_jobs(
             estimate = _cost_estimate(cost, stages, state)
         elif row["count"] == 1:
             cost = await asyncio.to_thread(_job_cost, db, row["id"])  # a job of its own: its cloud calls' dollars, else null
+            # Named as its tree names it, by its kind's own words when it has them (a kept export's folder and pages, #6588).
+            name = await asyncio.to_thread(job_queue.listed_name, db, row["id"]) or name
         ran_on = RanOn(kind="pages" if total != 1 else "page", count=total)
         jobs.append(
             BackgroundJob(

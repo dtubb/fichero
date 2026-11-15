@@ -105,6 +105,7 @@ def test_the_listed_paused_row_carries_its_fix_naming_the_export(client, db, pag
 
     listed = client.get("/api/activity/jobs").json()["jobs"]
     row = next(j for j in listed if j["id"] == job_id)
+    assert row["name"].startswith("Update kept export · Unplugged · "), "named by its kind, as its tree is"
     assert row["failure"]["kind"] == "export-folder-gone"
     assert [(a["kind"], a.get("control")) for a in row["failure"]["actions"]] == [("choose-folder", export_id), ("resume", None)]
     assert str(gone) not in row["failure"]["words"], "no path in the row's words"
