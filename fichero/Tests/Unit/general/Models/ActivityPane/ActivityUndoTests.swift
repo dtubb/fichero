@@ -24,6 +24,10 @@ private final class ActivityUndoURLProtocol: URLProtocol {
         let json: String = switch path {
         case "/api/actions/invoke" where body["name"] as? String == "workflow_run.delete":
             #"{"ok":true,"audit_id":"audit-run","changed_domains":["workflow_execution"],"result":{"deleted_ids":["t1"],"skipped_ids":[],"count":1}}"#
+        case "/api/actions/invoke" where body["name"] as? String == "job.archive":
+            #"{"ok":true,"audit_id":"audit-archive-jobs","changed_domains":["activity"],"result":{"archived_ids":["j1"],"skipped_ids":[],"count":1}}"#
+        case "/api/actions/invoke" where body["name"] as? String == "workflow_run.archive":
+            #"{"ok":true,"audit_id":"audit-archive-runs","changed_domains":["activity"],"result":{"archived_ids":["t1"],"skipped_ids":[],"count":1}}"#
         case "/api/actions/invoke":
             #"{"ok":true,"audit_id":"audit-1","changed_domains":["activity"],"result":{"deleted_ids":["j1","j2"],"skipped_ids":["j3"],"count":2}}"#
         case "/api/actions/audit/undo":
@@ -123,5 +127,28 @@ struct ActivityUndoTests {
         }
         let undo = try #require(ActivityUndoURLProtocol.seen.first { $0.path == "/api/actions/audit/undo" })
         #expect(Set(undo.body["audit_ids"] as? [String] ?? []) == ["audit-run", "audit-1"], "both rows back in one call")
+    }
+
+    /// #6599: Archive Finished… is ONE step: the ended jobs by state and the ended runs, together, and Undo puts both back.
+    @Test("Archive Finished is one step: the jobs by state and the runs, and one Undo puts both back")
+    func archiveFinishedIsOneStep() async throws {
+        let client = client()
+        let store = ActivityStore(service: ActivityService(ficheroClient: client), library: nil)
+        let steps = WindowSteps()
+        steps.engineForProject = { _ in nil }
+
+        _ = await store.archiveAsOneStep(states: ["done", "failed", "cancelled"], threadIds: ["t1"],
+                                         actions: ActionsService(client: client), steps: steps)
+
+        let invokes = ActivityUndoURLProtocol.seen.filter { $0.path == "/api/actions/invoke" }
+        #expect(invokes.compactMap { $0.body["name"] as? String } == ["job.archive", "workflow_run.archive"])
+        let params = invokes.first?.body["params"] as? [String: Any]
+        #expect(params?["states"] as? [String] == ["done", "failed", "cancelled"])
+        #expect(steps.canUndo, "one step on the window's stack")
+        steps.undo()
+        for _ in 0..<500 where !ActivityUndoURLProtocol.seen.contains(where: { $0.path == "/api/actions/audit/undo" }) {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(ActivityUndoURLProtocol.seen.filter { $0.path == "/api/actions/audit/undo" }.count == 1, "one Undo call")
     }
 }

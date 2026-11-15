@@ -93,6 +93,44 @@ extension ActivityStore {
     }
 }
 
+extension ActivityStore {
+    /// Archive Finished… and Archive Failed as ONE step (`activity.pane.one-undo-per-action`, #6599): the jobs of their own
+    /// in `states` (`job.archive`) and the ended runs (`workflow_run.archive`) filed together, so Edit › Undo puts every row
+    /// back (`job.unarchive`).
+    func archiveAsOneStep(states: [String], threadIds: [String], actions: ActionsService, steps: WindowSteps?) async
+        -> ActivityJobsOutcome {
+        var outcome = ActivityJobsOutcome()
+        var parts: [(action: String, params: ActivityJobIdsParams)] = [("job.archive", ActivityJobIdsParams(ids: [], states: states))]
+        if !threadIds.isEmpty { parts.append(("workflow_run.archive", ActivityJobIdsParams(threadIds: threadIds))) }
+        do {
+            try await UndoableChange.batch(
+                parts, named: { _ in outcome.done == 1 ? "Archive Row" : "Archive \(outcome.done) Rows" },
+                service: actions, steps: steps,
+                afterEach: { [weak self] in
+                    guard let self else { return }
+                    runs.removeAll { !$0.isLive }
+                    historicalRunsFetched = 0
+                    await refreshBackgroundJobs()
+                    if !archivedJobs.isEmpty { await refreshArchivedJobs() }
+                    refreshToken += 1
+                }
+            ) { part in
+                let result = try await actions.invokeAction(name: part.action, params: part.params)
+                outcome.done += result.resultListCounts["archived_ids"] ?? 0
+                outcome.skipped += result.resultListCounts["skipped_ids"] ?? 0
+                return (result.resultListCounts["archived_ids"] ?? 0) > 0 ? [result.auditId] : []
+            }
+        } catch {
+            log.error("ActivityStore: archive failed \(error.localizedDescription, privacy: .public)")
+            outcome.failure = error.localizedDescription
+        }
+        runs.removeAll { threadIds.contains($0.runId) }
+        await refreshBackgroundJobs()
+        refreshToken += 1
+        return outcome
+    }
+}
+
 /// What a job verb a person started did: how many rows it reached, how many it skipped, and the failure in words.
 struct ActivityJobsOutcome: Equatable {
     var done = 0
@@ -106,8 +144,10 @@ struct ActivityJobIdsParams: Encodable, Equatable {
     var ids: [String]?
     var threadIds: [String]?
     var stopRunning: Bool?
+    /// `job.archive`: also every ended job of its own in these states (Archive Finished…, Archive Failed).
+    var states: [String]?
 
-    enum CodingKeys: String, CodingKey { case ids, threadIds = "thread_ids", stopRunning = "stop_running" }
+    enum CodingKeys: String, CodingKey { case ids, threadIds = "thread_ids", stopRunning = "stop_running", states }
 }
 
 extension ActivityStore {

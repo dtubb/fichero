@@ -208,27 +208,27 @@ extension ActivityPaneView {
 
     /// "Archive Finished…": every ended job and every ended run listed in the pane's projects, after one confirmation.
     func archiveFinished() async {
-        var skipped = 0
-        for library in libraries {
-            let store = library.activityStore
-            skipped += await store.archiveJobs(ids: [], states: ["done", "failed", "cancelled"]).skippedIds.count
-            let ended = store.runs.filter { ActivityRunStatus.finished.contains($0.status) }.map(\.runId)
-            if !ended.isEmpty {
-                skipped += await store.performUndoable(
-                    "workflow_run.archive", ids: ended,
-                    named: UndoableChange.named("Archive", count: ended.count, one: "Run", many: "Runs"),
-                    actions: library.actionsService, steps: windowSteps).skipped
-            }
-        }
-        selection = []
-        notice = skipped > 0 ? "\(skipped) skipped" : nil
+        await archive(states: ["done", "failed", "cancelled"], runStatuses: ActivityRunStatus.finished)
     }
 
-    /// "Archive Failed": every project's failed runs and jobs (`job.clear_failed`, the archive mark).
+    /// "Archive Failed": every project's failed runs and jobs, one undoable step per project.
     func archiveFailed() async {
-        var outcome = ClearFailedOutcome()
-        for library in libraries { outcome += await library.activityStore.clearFailed() }
-        notice = outcome.notice
+        await archive(states: ["failed"], runStatuses: [.failed])
+    }
+
+    /// Each project's ended jobs in `states` and its runs in `runStatuses` archived as ONE step (#6599); Undo puts them back.
+    private func archive(states: [String], runStatuses: [ActivityRunStatus]) async {
+        var archived = 0, skipped = 0
+        for library in libraries {
+            let store = library.activityStore
+            let ended = store.runs.filter { runStatuses.contains($0.status) }.map(\.runId)
+            let outcome = await store.archiveAsOneStep(states: states, threadIds: ended, actions: library.actionsService,
+                                                       steps: windowSteps)
+            archived += outcome.done
+            skipped += outcome.skipped
+        }
+        selection = []
+        notice = ActivityPaneVerb.outcome(.archive, done: archived, skipped: skipped)
     }
 
     /// The job ids Delete sends to each project's jobs delete: the selected job rows' own ids (a kind's row keeps its
