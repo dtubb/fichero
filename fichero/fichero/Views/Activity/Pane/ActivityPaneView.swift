@@ -29,6 +29,10 @@ struct ActivityPaneView: View {
     var onSelect: (ActivityPaneSelection?) -> Void = { _ in }
     /// A Show in Activity was answered (its row selected): the asker clears it, so a later refresh does not select it again.
     var onRevealed: () -> Void = {}
+    /// The Activity window's Inspector, the third column (decision 38): the pane lays out sidebar › centre › Inspector itself,
+    /// so the Inspector sits beside the centre, not around the split view. Nil in a main window's pane.
+    var windowInspector: (() -> AnyView)?
+    @State private var showsInspector = true
 
     @Environment(LibraryManager.self) private var libraryManager
     /// The window's step stack: Delete, Archive and Put Back are steps on it, so Edit › Undo takes them back.
@@ -80,11 +84,16 @@ struct ActivityPaneView: View {
         }
         // A run seen as a job of its own as well is listed once, as the run.
         let runJobs = Set(rows.filter { $0.kind == .run }.compactMap(\.jobId))
+        // The Archived item lists the archived rows and only those (`activity.window.sidebar`).
+        if prefs.tab == .archived { return archivedRows }
         return rows.filter { $0.kind == .run || !runJobs.contains($0.jobId ?? "") } + archivedRows
     }
 
+    /// Archived rows are read while Show Archived is on or the Archived item is chosen.
+    var listsArchived: Bool { showArchived || prefs.tab == .archived }
+
     private var archivedRows: [ActivityMonitorRow] {
-        guard showArchived else { return [] }
+        guard listsArchived else { return [] }
         return libraries.flatMap { library in
             library.activityStore.archivedRuns.map { run in
                 var row = ActivityMonitorRow.run(run, tree: nil)
@@ -110,9 +119,42 @@ struct ActivityPaneView: View {
     // MARK: - Body
 
     var body: some View {
+        if showsHead {
+            content
+        } else {
+            // The Activity window: sidebar › centre › Inspector (decisions 32, 38). Xcode's run controls lead the centre's
+            // toolbar, right of the sidebar as in a main window (decision 30); the Inspector toggle at the far end.
+            NavigationSplitView {
+                sidebar
+            } detail: {
+                content
+                    .toolbar { ToolbarItem(placement: .navigation) { ActivityRunControlsButtons() } }
+                    .inspector(isPresented: $showsInspector) {
+                        windowInspector?()
+                            .inspectorColumnWidth(min: 280, ideal: 380, max: 640)
+                            // The Inspector column's own toolbar, at the window's trailing edge: More, then the toggle.
+                            .toolbar {
+                                ToolbarItem(placement: .primaryAction) { moreMenu }
+                                ToolbarItem(placement: .primaryAction) { inspectorToggle }
+                            }
+                    }
+                    .toolbar {
+                        // With the Inspector closed its toggle and More stay reachable at the centre's trailing edge.
+                        if !showsInspector {
+                            ToolbarItem(placement: .primaryAction) { moreMenu }
+                            ToolbarItem(placement: .primaryAction) { inspectorToggle }
+                        }
+                    }
+            }
+            // No title in the toolbar (the window keeps its name for the Window menu): its leading edge is the run controls'.
+            .toolbar(removing: .title)
+        }
+    }
+
+    private var content: some View {
         // Built once per draw and handed down: the table, its menu targets and the selection all read this one list.
         let shown = shownRows
-        VStack(spacing: 0) {
+        return VStack(spacing: 0) {
             if showsHead { head; Divider() }
             if libraries.isEmpty {
                 Color.clear  // empty means blank (`activity.window.no-empty-prose`)
@@ -132,21 +174,13 @@ struct ActivityPaneView: View {
             bottomBar
         }
         .accessibilityIdentifier("activity.pane")
-        // The window has no pane head: its four tabs are the toolbar's (decision 23); a main window's pane has them in its
-        // head's lens menu.
-        .toolbar {
-            if !showsHead {
-                ToolbarItem(placement: .principal) { tabPicker }
-                ToolbarItem(placement: .primaryAction) { moreMenu }
-            }
-        }
         .onChange(of: selection) { _, _ in onSelect(selectedPick) }
         .onChange(of: shown.map(\.id)) { _, _ in onSelect(selectedPick); if selection.isEmpty { select(reveal) } }
         .onChange(of: reveal) { _, wanted in select(wanted) }
         .onChange(of: revealFiles) { _, wanted in showFiles(wanted) }
         .onChange(of: revealAll) { _, wanted in selectAll(wanted) }
         .onAppear { select(reveal); showFiles(revealFiles); selectAll(revealAll) }
-        .task(id: showArchived) { await readArchivedIfShown() }
+        .task(id: listsArchived) { await readArchivedIfShown() }
         .task(id: refreshKey) { await refreshAll() }
         .task(id: libraries.map(\.id)) { await readHistoryEachMinute() }
         .fileImporter(isPresented: Binding(get: { choosingFolder != nil }, set: { if !$0 { choosingFolder = nil } }),
@@ -199,15 +233,36 @@ struct ActivityPaneView: View {
         selection = carried
     }
 
-    /// The four tabs as one segmented control: the Activity window's toolbar holds it.
-    private var tabPicker: some View {
-        Picker("View", selection: Binding(get: { prefs.tab }, set: show)) {
-            ForEach(ActivityPane.Tab.allCases) { Text($0.title).tag($0) }
+    private var inspectorToggle: some View {
+        Button { showsInspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.trailing") }
+            .help(showsInspector ? "Hide the Inspector" : "Show the Inspector")
+    }
+
+    /// The Activity window's sidebar (`activity.window.sidebar`, decision 32): the items as a source list; choosing one is
+    /// choosing what the centre lists and its columns. Each says how many of its rows need the person.
+    var sidebar: some View {
+        List(selection: Binding(get: { Optional(prefs.tab) }, set: { if let tab = $0 { show(tab) } })) {
+            Section("Activity") {
+                ForEach(ActivityPane.Tab.sidebarWork) { tab in sidebarRow(tab) }
+            }
+            Section("Resources") {
+                ForEach(ActivityPane.Tab.sidebarResources) { tab in sidebarRow(tab) }
+            }
+            Section {
+                sidebarRow(.archived)
+            }
         }
-        .pickerStyle(.segmented)
-        .fixedSize()
-        .help("Runs, Files, Cost or Where: what the table lists and its columns")
-        .accessibilityIdentifier("activity.tabs")
+        .listStyle(.sidebar)
+        .navigationSplitViewColumnWidth(min: 160, ideal: 190, max: 260)
+        .accessibilityIdentifier("activity.sidebar")
+    }
+
+    private func sidebarRow(_ tab: ActivityPane.Tab) -> some View {
+        let needsYou = tab == .runs ? ActivityPane.needsYouCount(allRows) : 0
+        return Label(tab.title, systemImage: tab.icon)
+            .badge(needsYou)
+            .tag(tab)
+            .accessibilityIdentifier("activity.sidebar.\(tab.rawValue)")
     }
 
     /// Select the row a Show in Activity asked for, once it is listed.

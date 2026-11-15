@@ -5,7 +5,6 @@ import SwiftUI
 /// of its own and no detail window: Show in Activity writes `ActivityWindowSelectionState.reveal`, then opens this window.
 struct ActivityMonitorWindow: View {
     @State private var selectionState = ActivityWindowSelectionState.shared
-    @State private var showsInspector = true
     /// The window's own step stack: Delete, Archive and Put Back here are undone by Edit › Undo in this window.
     @State private var steps = WindowSteps()
 
@@ -15,24 +14,13 @@ struct ActivityMonitorWindow: View {
                          onSelect: { selectionState.pick = $0 },
                          onRevealed: {
                              selectionState.reveal = nil; selectionState.revealFiles = nil; selectionState.revealAll = nil
-                         })
-            .inspector(isPresented: $showsInspector) {
-                ActivityInspectorSection(pick: selectionState.pick)
-                    .inspectorColumnWidth(min: 280, ideal: 380, max: 640)
-            }
-            .toolbar {
-                // Xcode's run controls at the far left (decision 30): Play/Pause and Stop for all work; the Inspector toggle at the end.
-                ToolbarItem(placement: .navigation) { ActivityRunControlsButtons() }
-                ToolbarItem(placement: .primaryAction) {
-                    Button { showsInspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.trailing") }
-                        .help(showsInspector ? "Hide the Inspector" : "Show the Inspector")
-                }
-            }
+                         },
+                         windowInspector: { AnyView(ActivityInspectorSection(pick: selectionState.pick)) })
             .environment(steps)
             .focusedSceneValue(\.windowSteps, steps)
             .overlay(alignment: .bottom) { UndoRefusalNotice(steps: steps) }
             .navigationTitle("Activity")
-            .frame(minWidth: 720, minHeight: 520)
+            .frame(minWidth: 980, minHeight: 560)
             .accessibilityIdentifier("activity.window")
     }
 }
@@ -40,5 +28,5 @@ struct ActivityMonitorWindow: View {
 #Preview("The Activity window") {
     ActivityMonitorWindow()
         .environment(LibraryManager.shared)
-        .frame(width: 900, height: 520)
+        .frame(width: 1200, height: 640)
 }
