@@ -592,10 +592,16 @@ def pytest_argv(root, files: list[str], cfg: Config, package: str = "") -> list[
     # a throwaway pycache prefix per rung (`-I` ignores PYTHON* env vars): pytest's assertion-rewrite cache keys on mtime
     # seconds + size, so a same-size edit in the same second would otherwise run the PREVIOUS rung's bytecode of a test
     # (the already-built red-on-base test flaked 1 in 3 on 2026-11-01)
-    code = ("import sys, shutil, tempfile; i = next((n for n, p in enumerate(sys.path) if p.endswith('site-packages')), len(sys.path) - 1) + 1; "
-            f"sys.path[i:i] = {paths!r}\n"
+    # #6589: resolved where it runs: a gate dir that is a link (the M4's, the iMac's ~/fichero-gate) gives pytest a real
+    # cwd, and a `-c` or a folder named through the link roots the test ids outside their folders, so one folder's
+    # autouse conftest fixture ran under every test of the run.
+    conf_at = args.index("-c") + 1 if "-c" in args else -1
+    code = ("import os, sys, shutil, tempfile; R = os.path.realpath; i = next((n for n, p in enumerate(sys.path) if p.endswith('site-packages')), len(sys.path) - 1) + 1; "
+            f"sys.path[i:i] = [R(p) for p in {paths!r}]\n"
             "sys.pycache_prefix = tempfile.mkdtemp(prefix='check-pyc-')\n"
-            f"import pytest; rc = pytest.main({args!r}); shutil.rmtree(sys.pycache_prefix, ignore_errors=True); sys.exit(rc)")
+            f"a = {args!r}; c = {conf_at!r}\n"
+            "if c > 0: a[c] = R(a[c])\n"
+            "import pytest; rc = pytest.main(a); shutil.rmtree(sys.pycache_prefix, ignore_errors=True); sys.exit(rc)")
     return [_py(cfg), "-I", "-c", code]
 
 

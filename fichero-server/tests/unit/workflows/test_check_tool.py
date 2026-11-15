@@ -1614,3 +1614,22 @@ def test_a_base_tree_that_cannot_be_made_is_an_infra_error_never_a_red_to_approv
         ct.red_on_base(tmp_path, "base0", "HEAD", ["tests/test_x.py"], ct.Config())
     assert "could not make the base tree" in str(e.value) and "timed out" in str(e.value)
     assert ("worktree", ct.SCRATCH_CHECKOUT_S) in seen
+
+
+def test_a_tree_reached_through_a_symlink_keeps_each_folders_conftest_to_its_folder(tmp_path):
+    """#6589, 2026-11-15: the M4's and the iMac's ~/fichero-gate are links to a Dev Disk. pytest's cwd is the real path
+    while `-c` and the tree's folders were the link's, so test ids rooted outside their folders and an autouse fixture of
+    tests/unit/recipes/conftest.py ran under every test in the run (a Kraken page ran on MainThread, egress read the
+    wrong places). Every path the run hands pytest is the real one."""
+    real = tmp_path / "real"
+    (real / "a").mkdir(parents=True)
+    (real / "b").mkdir()
+    (real / "pyproject.toml").write_text("[tool.pytest.ini_options]\n")
+    (real / "a" / "conftest.py").write_text(
+        "import os, pytest\n@pytest.fixture(autouse=True)\ndef only_a(monkeypatch):\n    monkeypatch.setenv('ONLY_A', '1')\n")
+    (real / "a" / "test_a.py").write_text("import os\ndef test_a():\n    assert os.environ.get('ONLY_A') == '1'\n")
+    (real / "b" / "test_b.py").write_text("import os\ndef test_b():\n    assert 'ONLY_A' not in os.environ\n")
+    link = tmp_path / "link"
+    link.symlink_to(real)
+    r = ct.pytest_rung(link, ["a/test_a.py", "b/test_b.py"], ct.Config(pytest_config="pyproject.toml"), timeout_s=120)
+    assert r["ok"], r["stdout_tail"]
