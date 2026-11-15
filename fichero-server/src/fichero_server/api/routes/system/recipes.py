@@ -2918,7 +2918,10 @@ async def get_start_plan(
 
     library = str(db.path.parent)
     wanted = tuple(x for x in (steps or "").split(",") if x)
-    key = ("plan", folder_id, tuple(_cluster_names(http)), first_pages, setup_stamp(_library(db)), wanted)
+    from fichero_server.llm.local_models import store_stamp
+
+    # The models on this Mac are in the key too: a download ends outside the library's changes (#6446).
+    key = ("plan", folder_id, tuple(_cluster_names(http)), first_pages, setup_stamp(_library(db)), wanted, store_stamp())
     tag = change_cache.etag(library, key)
     if http.headers.get("if-none-match") == tag:  # nothing changed since the caller's copy (#6446)
         return Response(status_code=304, headers={"ETag": tag})  # type: ignore[return-value]
