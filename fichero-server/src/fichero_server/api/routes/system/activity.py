@@ -1709,6 +1709,65 @@ async def activity_models(db: Database = Depends(get_library_database)) -> Activ
     return ActivityModelsResponse(models=[ActivityModel(**m) for m in found])
 
 
+class RecipeStepRow(BaseModel):
+    id: str
+    name: str
+    model: Optional[str] = None
+    place: Optional[str] = Field(default=None, description="where most of its calls went (this_mac, own_machine, provider)")
+    state: Optional[str] = None
+    pages_done: int = 0
+    pages_failed: int = 0
+    seconds: Optional[float] = None
+    seconds_per_page: Optional[float] = Field(default=None, description="the median of its pages' own times")
+    tokens: int = 0
+    cost_usd: Optional[float] = None
+    cost_per_page: Optional[float] = None
+
+
+class RecipeRunRow(BaseModel):
+    id: str
+    status: str
+    started_at: Optional[str] = None
+    ended_at: Optional[str] = None
+    scope: Optional[str] = None
+    pages_done: int = 0
+    pages_failed: int = 0
+    failed_pct: Optional[float] = None
+    seconds: Optional[float] = None
+    seconds_per_page: Optional[float] = None
+    cost_usd: Optional[float] = None
+    cost_per_page: Optional[float] = None
+    steps: list[RecipeStepRow] = Field(default_factory=list)
+
+
+class RecipeRow(BaseModel):
+    id: str
+    name: str
+    run_count: int = 0
+    pages_done: int = 0
+    pages_failed: int = 0
+    failed_pct: Optional[float] = None
+    seconds_per_page: Optional[float] = None
+    cost_usd: Optional[float] = None
+    cost_per_page: Optional[float] = None
+    last_run: Optional[str] = None
+    runs: list[RecipeRunRow] = Field(default_factory=list)
+
+
+class ActivityRecipesResponse(BaseModel):
+    recipes: list[RecipeRow] = Field(default_factory=list)
+
+
+@router.get("/recipes", response_model=ActivityRecipesResponse)
+async def activity_recipes(days: int = 30, db: Database = Depends(get_library_database)) -> ActivityRecipesResponse:
+    """The Recipes view (`activity.window.recipes`, decision 37, #6588): each recipe of the last `days` with its runs and
+    their steps, and the rates that compare them (failed %, seconds a page, cost a page, each step's model and place)."""
+    from fichero_server.workflows.activity_recipes import recipes
+
+    found = await asyncio.to_thread(recipes, db, days=max(1, min(days, 365)))
+    return ActivityRecipesResponse(recipes=[RecipeRow(**r) for r in found])
+
+
 class JobPauseRequest(BaseModel):
     paused: bool = Field(description="true pauses this job; false resumes it")
 
