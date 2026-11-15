@@ -374,7 +374,7 @@ name = "fichero-server"
 version = "2026.10.30"
 description = "Headless server for Fichero — embedded FastAPI service that powers document processing, AI workflows, and data storage."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     # Core — these ship in the Briefcase bundle
     # Floors mirror [tool.briefcase.app.fichero_server].requires; see the
