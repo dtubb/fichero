@@ -309,7 +309,7 @@ async def merge_dedup_only(
             _record_source_page(db, target_entity, source_document_id)
 
         # Imported here rather than at module scope: cycle via api.main (#3950).
-        from fichero_server.api.routes.kg_entity_curation import EntityMergeRequest, merge_entities
+        from fichero_server.api.routes.kg.entity_curation import EntityMergeRequest, merge_entities
 
         await merge_entities(
             EntityMergeRequest(
@@ -341,7 +341,7 @@ async def merge_dedup_only(
     dedupe_groups = plan_entity_dedupe(remaining)  # include_reviewed=False
     if dedupe_groups:
         # api.route imported at call time, not module scope (#3950 layering).
-        from fichero_server.api.routes.kg_entity_curation import (
+        from fichero_server.api.routes.kg.entity_curation import (
             EntityMergeRequest,
             merge_entities,
         )

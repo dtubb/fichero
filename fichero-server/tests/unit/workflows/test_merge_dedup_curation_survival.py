@@ -114,7 +114,7 @@ def test_hand_merged_entity_survives_a_rerun(tmp_path: Path):
     # entity), not by saving the field. The merge-audit row below is still written by hand:
     # nothing in the app produces "kept apart on purpose", so there is no verb to run for it.
     from fichero_server.actions.registry import ActionContext, registry
-    import fichero_server.api.routes.kg_entity_curation  # noqa: F401  (registers entity.batch_curation)
+    import fichero_server.api.routes.kg.entity_curation  # noqa: F401  (registers entity.batch_curation)
 
     registry.invoke(
         db,

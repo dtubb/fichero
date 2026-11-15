@@ -150,7 +150,7 @@ from fichero_server.models.readings import (
 if TYPE_CHECKING:
     from fichero_server.api.routes.system.activity import ActivityResponse
     from fichero_server.api.routes.workflow.batch import BatchResponse
-    from fichero_server.api.routes.kg_entity_curation import EntityAuditResponse
+    from fichero_server.api.routes.kg.entity_curation import EntityAuditResponse
 
 
 logger = logging.getLogger(__name__)

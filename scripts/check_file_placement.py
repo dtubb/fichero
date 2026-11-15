@@ -288,7 +288,6 @@ KNOWN_VIOLATIONS: dict[str, int] = {
     ".  [repo root]": 1,
     "fichero-server/src/fichero_server  [engine package root]": 18,
     "fichero-server/src/fichero_server/api/routes  [api/routes root]": 7,
-    "fichero-server/src/fichero_server/api/routes  [no alias module]": 18,
     "fichero-server/src/fichero_server/workflows  [no alias module]": 6,
     "fichero-server/tests/unit  [tests]": 22,
     "fichero-server/tests/unit/activity  [tests]": 2,
