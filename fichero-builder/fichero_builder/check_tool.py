@@ -85,6 +85,8 @@ class Config:
                                         # that names git, subprocess, swiftlint or xcodebuild stays here, the rest go to the runners
     remote_min_free_gb: float = 5       # less free on the remote = unreachable (an alert, the run here)
     parallel: int = 2                   # ladders at once (speed 3), never two whose batches share a file; 1 = one at a time
+    perf: dict = field(default_factory=dict)      # [check.perf] (#6600): the engine perf rung: enforce, tests, timeout_s, dirs, declared
+    security: dict = field(default_factory=dict)  # [check.security] (#6600): the security rung: enforce, where, pins, timeout_s, dirs
     engine_repo: str = ""               # the engine-owned repository check and land judge from: outside every home dir, readable by the jailed user ("" = the caller names one)
 
 
@@ -122,7 +124,7 @@ def load(root) -> Config:
         pytest_config=c.get("pytest_config", d.pytest_config), pytest_plugins=tuple(c.get("pytest_plugins", d.pytest_plugins)), max_files=c.get("max_files", d.max_files),
         max_lines=c.get("max_lines", d.max_lines), max_commits=c.get("max_commits", d.max_commits), build_paths=tuple(c.get("build_paths", d.build_paths)), product_paths=tuple(c.get("product_paths", d.product_paths)),
         build=tuple(c.get("build", d.build)), build_timeout_s=c.get("build_timeout_s", d.build_timeout_s),
-        build_lock=c.get("build_lock", d.build_lock), build_tree=c.get("build_tree", d.build_tree), build_remote=c.get("build_remote", d.build_remote), daily_builds={k: tuple(v) for k, v in c.get("daily_builds", {}).items()}, daily_tests=tuple(c.get("daily_tests", ())), routes_file=c.get("routes_file", d.routes_file), generated=tuple(c.get("generated", d.generated)), rebake=tuple(c.get("rebake", d.rebake)), rebake_issue=c.get("rebake_issue", d.rebake_issue), regen=tuple(c.get("regen", d.regen)), engine_repo=c.get("engine_repo", d.engine_repo),
+        build_lock=c.get("build_lock", d.build_lock), build_tree=c.get("build_tree", d.build_tree), build_remote=c.get("build_remote", d.build_remote), daily_builds={k: tuple(v) for k, v in c.get("daily_builds", {}).items()}, daily_tests=tuple(c.get("daily_tests", ())), routes_file=c.get("routes_file", d.routes_file), generated=tuple(c.get("generated", d.generated)), rebake=tuple(c.get("rebake", d.rebake)), rebake_issue=c.get("rebake_issue", d.rebake_issue), regen=tuple(c.get("regen", d.regen)), engine_repo=c.get("engine_repo", d.engine_repo), perf=dict(c.get("perf", {})), security=dict(c.get("security", {})),
         remote=(c["remote"][0] if c["remote"] else "") if isinstance(c.get("remote"), list) else c.get("remote", d.remote),
         remotes=tuple(c["remote"]) if isinstance(c.get("remote"), list) else d.remotes, remote_python=c.get("remote_python", d.remote_python),
         remote_guards=c.get("remote_guards", d.remote_guards), guard_inputs=dict(c.get("guard_inputs", {})), remote_min_free_gb=c.get("remote_min_free_gb", d.remote_min_free_gb),
@@ -893,7 +895,7 @@ def build(root, changed: list[str], cfg: Config) -> dict:
     return _build_locked(root, changed, cfg)  # ponytail: the remote down under the owner's hold waits here, holding its slot
 
 
-def _remote_build(root, cfg: Config, cmd: tuple = (), name: str = "build") -> dict | None:
+def _remote_build(root, cfg: Config, cmd: tuple = (), name: str = "build", reuse: bool = True) -> dict | None:
     """The build rung on `[check].build_remote` (manager 2026-11-06 t88: the M1 Air, so the Pro stays the owner's; the first step of
     the machine pool, #6356): the stable build tree rsynced (mtimes kept, removed files removed, no .git) to <dir>/build-tree there,
     xcodebuild there with <dir>/derived as its derived data, under that Mac's own one-heavy-job lock. Everything lives under the
@@ -913,15 +915,15 @@ def _remote_build(root, cfg: Config, cmd: tuple = (), name: str = "build") -> di
         lock = open(lp, "a")
         fcntl.flock(lock, fcntl.LOCK_EX)
     try:
-        return _remote_build_locked(root, cfg, host, rbase, cmd, name)
+        return _remote_build_locked(root, cfg, host, rbase, cmd, name, reuse)
     finally:
         if lock is not None:
             lock.close()
 
 
-def _remote_build_locked(root, cfg: Config, host: str, rbase: str, cmd: tuple = (), name: str = "build") -> dict | None:
+def _remote_build_locked(root, cfg: Config, host: str, rbase: str, cmd: tuple = (), name: str = "build", reuse: bool = True) -> dict | None:
     src = _stable_build_tree(root, cfg) if cfg.build_tree else str(root)
-    key = _build_key(src, cfg, cmd)
+    key = _build_key(src, cfg, cmd) if reuse else ""  # a measurement is never reused: the same tree on another night is another figure
     if key and (hit := _build_results().get(key)):
         journal.append("check", state="build-reused", rung=name, detail=f"green at {hit.get('head', '?')[:9]} {hit.get('ts', '')}: {key[:12]}")
         return {"ok": True, "skipped": False, "results": [{"name": "build", "ok": True, "exit_code": 0, "timed_out": False, "seconds": 0,
@@ -1410,6 +1412,155 @@ def _load() -> float | None:
     except OSError:
         return None
 
+# ---- the perf and security rungs (#6600, Step 2.30): readers and judges are perf_rung.py and security_rung.py, the figures and
+# findings are the tools', the decision rule is scripts/perf_trial.py's. REPORT-ONLY until real batches have measured the budget
+# (`[check.perf].enforce` / `[check.security].enforce` = false): a red is shown, journalled as an alert, and the rung stays green.
+PERF_LINE = re.compile(r"^PERF-RESULT (\{.*\})\s*$", re.M)
+SECURITY_LINE = re.compile(r"^SECURITY-RESULT (\{.*\})\s*$", re.M)
+SECURITY_DIRS = ("fichero-server/src", "fichero-cli/src", "fichero-mcp/src", "fichero-builder", "scripts", "fichero")
+WAIVER_RE = r"#\s*nosec|nosemgrep"
+APPROVED_LABEL = "security-waiver-approved"
+
+
+def _report_only(name: str, cfg_table: dict, ok: bool, lines: list[str], extra: dict | None = None) -> dict:
+    """A rung row. Enforcing, a red is red; report-only, it stays green and says what it would have said, and an alert row is journalled."""
+    enforce = bool(cfg_table.get("enforce", False))
+    if not ok and not enforce:
+        journal.append("alert", rung=name, detail=f"{name} (report-only) would be red: " + "; ".join(lines)[:300])
+    return {"ok": ok or not enforce, "skipped": False, "enforced": enforce, "stdout_tail": "\n".join(lines)[-3500:], "stderr_tail": "",
+            "results": [], **(extra or {})}
+
+
+def _timed_out_row(name: str, r: dict) -> dict | None:
+    """A timeout is ONE `alert` row naming the rung, never a red (perf-method budget)."""
+    if r.get("timed_out"):
+        journal.append("alert", rung=name, detail=f"{name} timed out after {r.get('seconds')} s: over twice its budget, not a red")
+        return {"ok": True, "skipped": False, "stdout_tail": f"alert: the {name} rung timed out ({r.get('seconds')} s)", "stderr_tail": "", "results": [r]}
+    return None
+
+
+def perf(root, since: str, changed: list[str], cfg: Config) -> dict:
+    """The engine half of the perf rung: `scripts/perf_engine_run.py` (pytest-benchmark under pyinstrument and /usr/bin/time -l, du before
+    and after) on `[check].build_remote`, NEVER on this Mac, then its figures judged against scripts/perf_baseline.json by perf_trial.
+    Skipped as "not required" for a batch with no engine path; skipped as not configured with no `[check.perf]` or no build_remote."""
+    from . import perf_rung
+    if not cfg.perf:
+        return {"ok": True, "skipped": True, "stdout_tail": "skipped: not configured", "results": []}
+    if why := perf_rung.required(changed):
+        return {"ok": True, "skipped": True, "stdout_tail": why, "stderr_tail": "", "results": []}
+    if not cfg.build_remote:
+        return {"ok": True, "skipped": True, "stdout_tail": "not run: no [check].build_remote (a measurement never runs on the manager's Mac)", "stderr_tail": "", "results": []}
+    py = cfg.remote_python or "python3"
+    argv = (py, "scripts/perf_engine_run.py", "--baseline", perf_rung.BASELINE, *cfg.perf.get("args", ()))
+    r = _remote_build(root, cfg, argv, "perf", reuse=False)
+    if r is None:
+        journal.append("alert", rung="perf", detail="the build runner is unreachable: the engine perf rung did not run (never run here)")
+        return {"ok": True, "skipped": True, "stdout_tail": "not run: the build runner is unreachable", "stderr_tail": "", "results": []}
+    row = r["results"][0]
+    if (t := _timed_out_row("perf", row)) is not None:
+        return t
+    m = PERF_LINE.search(row.get("stdout_tail") or "")
+    if not m:
+        return _report_only("perf", cfg.perf, False, ["REFUSED: the perf run printed no PERF-RESULT line (a gate that cannot read its input fails)",
+                                                       (row.get("stderr_tail") or "")[-300:]], {"results": [row]})
+    res = json.loads(m.group(1))
+    lines = [*res.get("reds", []), *[f"finding: new own frame in the top ten: {f}" for f in res.get("findings", [])],
+             *[f"falls: {f}" for f in res.get("falls", [])], *([res["void"]] if res.get("void") else [])]
+    return _report_only("perf", cfg.perf, bool(res.get("ok")), lines or ["engine perf: every figure within its tolerance"], {"results": [row]})
+
+
+def _grep_waivers(root, rev: str) -> tuple[dict[str, int], list[str]]:
+    """In-code waiver counts per tool at `rev` over the scanned dirs, and the lines (for the issue numbers)."""
+    from . import security_rung
+    out = _lines(root, "grep", "-hE", WAIVER_RE, rev, "--", *SECURITY_DIRS) or []
+    return security_rung.waiver_counts({"all": "\n".join(out)}), out
+
+
+def _added_lines(root, since: str, head: str) -> list[tuple[str, int, str]]:
+    """(file, line number, text) of every line the range adds under the scanned dirs (`git diff -U0`)."""
+    out, f, n = [], "", 0
+    for line in _lines(root, "diff", "-U0", "--no-color", "--no-renames", f"{since}...{head}", "--", *SECURITY_DIRS) or []:
+        if line.startswith("+++ "):
+            f = line[6:] if line.startswith("+++ b/") else ""
+        elif line.startswith("@@"):
+            m = re.search(r"\+(\d+)", line)
+            n = int(m.group(1)) - 1 if m else 0
+        elif line.startswith("+") and not line.startswith("+++"):
+            n += 1
+            out.append((f, n, line[1:]))
+    return out
+
+
+def _issue_is_approved(n: int) -> bool:
+    """The issue carries the `security-waiver-approved` label (only the owner or the manager applies it). `gh` unavailable, unauthenticated
+    or any error = not approved: a lookup that cannot answer never approves."""
+    try:
+        r = subprocess.run(["gh", "issue", "view", str(n), "--json", "labels", "--jq", ".labels[].name"], capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return r.returncode == 0 and APPROVED_LABEL in r.stdout.split()
+
+
+def _entries(doc) -> int:
+    """How many findings a baseline file holds: bandit's {"results": [...]} or gitleaks's bare list."""
+    return len(doc.get("results", [])) if isinstance(doc, dict) else len(doc)
+
+
+def security_lints(root, since: str, head: str, approved=None) -> list[str]:
+    """What the batch's diff may not do (`scan-thresholds-and-waivers`): add a waiver without a rule, a reason and an issue; raise a
+    tool's waiver count without an issue carrying the approved label; raise a baseline; write an osv ignore too far out or without a
+    reason; write a gitleaks allowlist without a description."""
+    from . import security_rung as sr
+    out = sr.waiver_lint(_added_lines(root, since, head))
+    base_c, base_lines = _grep_waivers(root, since)
+    head_c, head_lines = _grep_waivers(root, head)
+    issues = sorted({int(i) for line in head_lines if line not in set(base_lines) for i in re.findall(r"\(#(\d+)\)", line)})
+    out += sr.waiver_ratchet(base_c, head_c, issues, approved or _issue_is_approved)
+    for f in ("scripts/bandit_baseline.json", "scripts/gitleaks_baseline.json"):
+        old, new = _lines(root, "show", f"{since}:{f}"), _lines(root, "show", f"{head}:{f}")
+        if old is not None and new is not None:
+            try:
+                out += sr.baseline_raised(f, _entries(json.loads("\n".join(old))), _entries(json.loads("\n".join(new))))
+            except ValueError:
+                out.append(f"{f} does not read as JSON at one of the heads")
+    for f, check in (("osv-scanner.toml", sr.osv_config_problems), (".gitleaks.toml", sr.gitleaks_config_problems)):
+        if (text := _lines(root, "show", f"{head}:{f}")) is not None:
+            try:
+                out += check("\n".join(text))
+            except (ValueError, tomllib.TOMLDecodeError) as e:
+                out.append(f"{f} does not read: {e}")
+    return out
+
+
+def security(root, since: str, head: str, changed: list[str], cfg: Config) -> dict:
+    """The security rung: the waiver lints, then `scripts/security_scan_run.py` over the batch (bandit with its baseline, semgrep with
+    --baseline-commit, gitleaks over the batch's commits; osv-scanner only when `[check.security].osv` is on), reading only what is NEW.
+    A scanner missing or at a version that is not pinned is REFUSED by name. Its table is in the row (`table`) and goes into the review
+    prompt under SECURITY SCAN. Runs here in the scratch tree: semgrep's --baseline-commit and gitleaks need the git history, which the
+    tree shipped to a runner does not carry (open: the spec's remote form)."""
+    if not cfg.security:
+        return {"ok": True, "skipped": True, "stdout_tail": "skipped: not configured", "results": []}
+    if not [f for f in changed if f.startswith(SECURITY_DIRS) or f in ("osv-scanner.toml", ".gitleaks.toml")]:
+        return {"ok": True, "skipped": True, "stdout_tail": "not required: no changed path is under a scanned directory", "stderr_tail": "", "results": []}
+    problems = security_lints(root, since, head)
+    pins = dict(cfg.security.get("pins") or {})
+    osv_on = bool(cfg.security.get("osv", False))
+    argv = [cfg.python or sys.executable, "scripts/security_scan_run.py", "--since", since, "--head", head, "--pins", json.dumps({**pins, "osv-scanner-enabled": osv_on})]
+    r = _run("security", argv, root, float(cfg.security.get("timeout_s", 720)), cfg)
+    if (t := _timed_out_row("security", r)) is not None:
+        return t
+    m = SECURITY_LINE.search(r.get("stdout_tail") or "")
+    refused, rows, rows_table = [], [], "none"
+    if not m:
+        refused = ["REFUSED: the scan printed no SECURITY-RESULT line (a gate that cannot read its input fails)", (r.get("stderr_tail") or "")[-300:]]
+    else:
+        res = json.loads(m.group(1))
+        refused, rows, rows_table = res.get("refused", []), res.get("rows", []), res.get("table", "none")
+    reds = [x for x in rows if x.get("red")]
+    lines = [*problems, *refused, *[f"{x['scanner']} {x['rule']} {x['where']}" for x in reds]]
+    return _report_only("security", cfg.security, not (problems or refused or reds), lines or ["no new finding"], {"results": [r], "table": rows_table})
+
+
 def ladder(rungs: list) -> dict:
     """Run (name, callable) rungs in order and stop at the first red, so the worker gets one failure at a time."""
     out = []
@@ -1666,7 +1817,7 @@ def _no_red_row(tree, whole: tuple, cfg: Config) -> dict:
     return {**_skipped("red-on-base"), "stdout_tail": "not required: no changed path is under [check].red_paths"}
 
 
-RUNGS = ("ready", "diff-bound", "red-on-base", "guards", "contract-current", "since-guards", "build")  # the ladder below, in order
+RUNGS = ("ready", "diff-bound", "red-on-base", "guards", "security", "contract-current", "since-guards", "build", "perf")  # the ladder below, in order
 
 
 def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintainer: bool = False, approve_weakened: bool | tuple = False,
@@ -1716,9 +1867,11 @@ def _run_ladder(root, since: str, head: str, pinned, protected_ids=(), maintaine
             ("red-on-base", lambda: red_on_base(root, since, head, tests, cfg, head_tree=own, also_green=whole, approve_red=approve_red) if _needs_red(names, tests, cfg)
              else _no_red_row(own, whole, cfg)),
             ("guards", lambda: guards(tree, cfg)),
+            ("security", lambda: security(tree, since, head, names, cfg)),
             ("contract-current", lambda: contract_current(tree, names, cfg)),
             ("since-guards", lambda: since_guards(tree, since, names, cfg)),
             ("build", lambda: build(tree, build_names(root, since, head), cfg)),
+            ("perf", lambda: perf(tree, since, [f for _s, _m, f in _changes(root, since, head)], cfg)),
         ])
     finally:
         drop_tree(root, tree)
