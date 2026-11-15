@@ -40,7 +40,28 @@ def test_the_listed_row_carries_where_it_runs(client, db, tmp_path):
     folder = tmp_path / "Where"
     folder.mkdir()
     export_id = client.post("/api/export/kept", json={"folder": str(folder), "format": "plain-text", "per": "page"}).json()["id"]
-    job_id = kept_export.write_now(db, export_id)
+    from datetime import timedelta
+
+    from fichero_server.core.timeutil import utc_now
+
+    # Queued an hour out and paused before the lane can take it: a woken lane could finish it first.
+    job_id = kept_export._ask(db, export_id, everything=True, run_after=utc_now() + timedelta(hours=1))
     jobs.pause_job(db, job_id, True)
-    row = next(j for j in client.get("/api/activity/jobs").json()["jobs"] if j["id"] == job_id)
+    listed = client.get("/api/activity/jobs").json()["jobs"]
+    row = next(j for j in listed if j["id"] == job_id)
     assert (row["runs_on"], row["lane"]) == ("this-mac", "database")
+
+
+def test_a_workflow_run_runs_where_its_page_jobs_ran(db):
+    """A workflow run's row is placed by its page jobs: this Mac for a local reader, the cloud once a page called a
+    provider; nothing before any page job (the Where tab had a blank for every run)."""
+    import json
+
+    jobs._ensure(db)
+    assert activity._run_runs_on(db, "thread-where") is None
+    page = jobs.enqueue(db, "find-regions", "doc-1", started_by="workflow")
+    db.execute("UPDATE jobs SET parent_id = ? WHERE id = ?", ["thread-where:Files", page])
+    assert activity._run_runs_on(db, "thread-where") == "this-mac"
+    db.execute("UPDATE jobs SET detail = ? WHERE id = ?",
+               [json.dumps({"usage": [{"place": "provider", "provider": "openrouter"}]}), page])
+    assert activity._run_runs_on(db, "thread-where") == "cloud"

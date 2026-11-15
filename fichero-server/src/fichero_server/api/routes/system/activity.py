@@ -262,6 +262,26 @@ def _runs_on(kind: str, remote: Any, cost_usd: Optional[float]) -> str:
     return "this-mac"
 
 
+def _run_runs_on(db: Database, thread_id: str) -> Optional[str]:
+    """Where a workflow run runs (the Where tab, #6588): where its page jobs ran. The cloud when any page's job is on the
+    remote lane or made a call to a provider (its recorded `usage` place), else this Mac; None before any page job."""
+    rows = db.execute_fetchall(
+        "SELECT kind, detail FROM jobs WHERE parent_id = ? OR parent_id LIKE ? LIMIT 200",
+        [thread_id, thread_id + ":%"], committed=True)
+    if not rows:
+        return None
+    for kind, detail in rows:
+        if _lane_of(kind) == "remote":
+            return "cloud"
+        try:
+            usage = (json.loads(detail) if detail else {}).get("usage") or []
+        except (TypeError, ValueError):
+            usage = []
+        if any(isinstance(call, dict) and call.get("place") == "provider" for call in usage):
+            return "cloud"
+    return "this-mac"
+
+
 def _remote_row(db, row: dict) -> "RemoteRunRow | None":
     """The summary a remote run's row shows; nothing for any other kind of job."""
     from fichero_server.remote_read import job as read_job
@@ -968,6 +988,7 @@ async def list_background_jobs(
                     failed_at=_utc(getattr(run, "completed_at", None)) if status == "failed" else None,
                     finished_at=_run_finished_at(status, getattr(run, "completed_at", None)),
                     failure=run.failure if status == "failed" else None,
+                    runs_on=await asyncio.to_thread(_run_runs_on, db, run.thread_id),
                 )
             )
     except Exception as exc:  # never let the jobs list fail over the workflow half
