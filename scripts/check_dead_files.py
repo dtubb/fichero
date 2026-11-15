@@ -57,6 +57,7 @@ PROTOCOL_REQUIREMENTS = frozenset({
 
 # Current candidate-dead backlog. Drop entries as files are removed or wired.
 KNOWN_VIOLATIONS: dict[str, str] = {
+    "Views/Preview/PDFViewer/PageImageGrid.swift": "#1945 — candidate dead file: page image grid helper types",
     "Models/DragDropModel.swift": "#1945 — candidate dead file: DragDropModel",
     "Intents/FicheroShortcuts.swift": "#2017 — App Intents/Shortcuts entry point helper",
     "Views/Shell/PaneHead/PreviewMarkupToolsRow+Shapes.swift": (
