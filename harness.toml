@@ -389,6 +389,7 @@ timeout_s = 360   # the 6-minute budget
 enforce = false
 timeout_s = 720
 osv = false
+dirs = ["fichero-server/src", "fichero-cli/src", "fichero-mcp/src", "fichero-builder", "scripts", "fichero"]  # what the scanners and the waiver lints cover
 # Pins are the exact versions `scripts/install_security_tools.sh` confirmed and wrote at install; an empty pin REFUSES the tool (a gate
 # that cannot read its tool fails). Nothing is installed or verified yet, so every pin is empty.
 pins = { bandit = "", semgrep = "", gitleaks = "", "osv-scanner" = "" }

@@ -1417,7 +1417,7 @@ def _load() -> float | None:
 # (`[check.perf].enforce` / `[check.security].enforce` = false): a red is shown, journalled as an alert, and the rung stays green.
 PERF_LINE = re.compile(r"^PERF-RESULT (\{.*\})\s*$", re.M)
 SECURITY_LINE = re.compile(r"^SECURITY-RESULT (\{.*\})\s*$", re.M)
-SECURITY_DIRS = ("fichero-server/src", "fichero-cli/src", "fichero-mcp/src", "fichero-builder", "scripts", "fichero")
+# the scanned directories are the project's: `[check.security].dirs` in harness.toml
 WAIVER_RE = r"#[[:space:]]*nosec|nosemgrep"
 APPROVED_LABEL = "security-waiver-approved"
 
@@ -1469,17 +1469,17 @@ def perf(root, since: str, changed: list[str], cfg: Config) -> dict:
     return _report_only("perf", cfg.perf, bool(res.get("ok")), lines or ["engine perf: every figure within its tolerance"], {"results": [row]})
 
 
-def _grep_waivers(root, rev: str) -> tuple[dict[str, int], list[str]]:
+def _grep_waivers(root, rev: str, dirs: tuple[str, ...]) -> tuple[dict[str, int], list[str]]:
     """In-code waiver counts per tool at `rev` over the scanned dirs, and the lines (for the issue numbers)."""
     from . import security_rung
-    out = _lines(root, "grep", "-hE", WAIVER_RE, rev, "--", *SECURITY_DIRS) or []
+    out = _lines(root, "grep", "-hE", WAIVER_RE, rev, "--", *dirs) or []
     return security_rung.waiver_counts({"all": "\n".join(out)}), out
 
 
-def _added_lines(root, since: str, head: str) -> list[tuple[str, int, str]]:
+def _added_lines(root, since: str, head: str, dirs: tuple[str, ...]) -> list[tuple[str, int, str]]:
     """(file, line number, text) of every line the range adds under the scanned dirs (`git diff -U0`)."""
     out, f, n = [], "", 0
-    for line in _lines(root, "diff", "-U0", "--no-ext-diff", "--no-color", "--no-renames", f"{since}...{head}", "--", *SECURITY_DIRS) or []:
+    for line in _lines(root, "diff", "-U0", "--no-ext-diff", "--no-color", "--no-renames", f"{since}...{head}", "--", *dirs) or []:
         if line.startswith("+++ "):
             f = line[6:] if line.startswith("+++ b/") else ""
         elif line.startswith("@@"):
@@ -1506,14 +1506,14 @@ def _entries(doc) -> int:
     return len(doc.get("results", [])) if isinstance(doc, dict) else len(doc)
 
 
-def security_lints(root, since: str, head: str, approved=None) -> list[str]:
+def security_lints(root, since: str, head: str, approved=None, dirs: tuple[str, ...] = ()) -> list[str]:
     """What the batch's diff may not do (`scan-thresholds-and-waivers`): add a waiver without a rule, a reason and an issue; raise a
     tool's waiver count without an issue carrying the approved label; raise a baseline; write an osv ignore too far out or without a
     reason; write a gitleaks allowlist without a description."""
     from . import security_rung as sr
-    out = sr.waiver_lint(_added_lines(root, since, head))
-    base_c, base_lines = _grep_waivers(root, since)
-    head_c, head_lines = _grep_waivers(root, head)
+    out = sr.waiver_lint(_added_lines(root, since, head, dirs))
+    base_c, base_lines = _grep_waivers(root, since, dirs)
+    head_c, head_lines = _grep_waivers(root, head, dirs)
     issues = sorted({int(i) for line in head_lines if line not in set(base_lines) for i in re.findall(r"\(#(\d+)\)", line)})
     out += sr.waiver_ratchet(base_c, head_c, issues, approved or _issue_is_approved)
     for f in ("scripts/bandit_baseline.json", "scripts/gitleaks_baseline.json"):
@@ -1540,9 +1540,10 @@ def security(root, since: str, head: str, changed: list[str], cfg: Config) -> di
     tree shipped to a runner does not carry (open: the spec's remote form)."""
     if not cfg.security:
         return {"ok": True, "skipped": True, "stdout_tail": "skipped: not configured", "results": []}
-    if not [f for f in changed if f.startswith(SECURITY_DIRS) or f in ("osv-scanner.toml", ".gitleaks.toml")]:
+    dirs = tuple(cfg.security.get("dirs") or ())
+    if not [f for f in changed if (dirs and f.startswith(dirs)) or f in ("osv-scanner.toml", ".gitleaks.toml")]:
         return {"ok": True, "skipped": True, "stdout_tail": "not required: no changed path is under a scanned directory", "stderr_tail": "", "results": []}
-    problems = security_lints(root, since, head)
+    problems = security_lints(root, since, head, dirs=dirs)
     pins = dict(cfg.security.get("pins") or {})
     osv_on = bool(cfg.security.get("osv", False))
     argv = [cfg.python or sys.executable, "scripts/security_scan_run.py", "--since", since, "--head", head, "--pins", json.dumps({**pins, "osv-scanner-enabled": osv_on})]

@@ -99,7 +99,7 @@ def _commit(repo, rel, text):
 
 
 def _lints(repo, base, head, approved=lambda n: False):
-    return check_tool.security_lints(repo, base, head, approved)
+    return check_tool.security_lints(repo, base, head, approved, dirs=("scripts",))
 
 
 def test_the_waiver_lints_judge_a_real_diff(repo):
@@ -132,7 +132,7 @@ def test_a_raised_baseline_is_red_and_a_shrunk_one_is_not(repo):
 def test_the_rung_skips_unconfigured_and_unrequired_batches_and_stays_green_while_report_only(repo, tmp_path, monkeypatch):
     monkeypatch.setattr(journal, "STATE", tmp_path / "state")
     assert check_tool.security(repo, "a", "b", ["scripts/x.py"], check_tool.Config())["skipped"]  # no [check.security]
-    cfg = check_tool.Config(security={"enforce": False})
+    cfg = check_tool.Config(security={"enforce": False, "dirs": ["scripts"]})
     assert "not required" in check_tool.security(repo, "a", "b", ["docs/a.md"], cfg)["stdout_tail"]
     assert check_tool._report_only("security", {"enforce": False}, False, ["bandit B602 a.py:3"])["ok"]  # would-be red stays green
     assert [r for r in journal.read() if r["event"] == "alert" and r.get("rung") == "security"]
