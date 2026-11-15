@@ -18,6 +18,9 @@ Every subcommand is one thing the 2026.11.14 release needed a person for
     notify MESSAGE            text the owner via Messages in the background
     part NAME STATUS [REASON] record a lane part's outcome in the summary file
     summary                   print the one-line-per-part table
+    auto-notes VERSION        write RELEASE_NOTES.md / CHANGELOG.md sections from commit
+                              subjects when none are hand-written
+    verify-appcast BUILD      wait for BUILD in the live appcast (publish is not done before)
 
   morning release (scripts/morning-release.sh):
     lock PATH PID             take the run lock; exit 1 while a live run holds it
@@ -366,13 +369,75 @@ def publish(cmd: list[str], cwd: Path, summary: Path, label: str, *, run=Run) ->
     return ok
 
 
+# ── release defaults (#6590) ─────────────────────────────────────────────────
+def _has_section(text: str, heading: str) -> bool:
+    return re.search(rf"^##[ \t]+{re.escape(heading)}[ \t]*$", text, re.MULTILINE) is not None
+
+
+def _bullet(subject: str) -> str | None:
+    m = re.match(r"^(\w+)(?:\(([^)]*)\))?!?:\s*(.+)$", subject)
+    if m and m.group(1) in ("spec", "test", "chore", "ci", "docs", "style"):
+        return None  # not user-facing
+    if m:
+        scope, text = m.group(2), m.group(3)
+        subject = f"{scope.replace('-', ' ').capitalize()}: {text}" if scope else text
+    return "- " + subject.strip()[:240]
+
+
+def auto_notes(version: str, notes: str, changelog: str, subjects: list[str], prev: str
+               ) -> tuple[str, str]:
+    """Add the version's section to the notes and the day's to the changelog when absent.
+    A section that exists (hand-written) is returned untouched."""
+    bullets = [b for s in subjects if (b := _bullet(s))] or ["- Maintenance release: no user-facing changes."]
+    body = "\n".join(bullets) + "\n"
+    day = "-".join(version.split("-")[0].split(".")[:3])
+
+    def put(text: str, heading: str, intro: str) -> str:
+        if _has_section(text, heading):
+            return text
+        block = f"## {heading}\n{intro}{body}\n"
+        m = re.search(r"^## ", text, re.MULTILINE)
+        return text[: m.start()] + block + text[m.start():] if m else text.rstrip("\n") + "\n\n" + block
+
+    since = f"What changed since {prev}.\n\n" if prev else ""
+    return put(notes, version, since), put(changelog, day, "\n")
+
+
+def commit_subjects(run=Run) -> tuple[list[str], str]:
+    """(commit subjects on HEAD since the newest v* tag, newest first; that tag without its v)."""
+    tags = run(["git", "-C", str(ROOT), "tag", "-l", "v*", "--sort=-creatordate"],
+               check=False, capture_output=True, text=True).stdout.split()
+    rng = f"{tags[0]}..HEAD" if tags else "HEAD"
+    out = run(["git", "-C", str(ROOT), "log", "--no-merges", "--format=%s", rng],
+              check=False, capture_output=True, text=True)
+    return out.stdout.splitlines(), (tags[0][1:] if tags else "")
+
+
+def appcast_has_build(build: int, *, feed=fetch_feed) -> bool:
+    try:
+        return build in published_builds(feed(), [])
+    except Exception:  # noqa: BLE001 (an unreadable feed is not proof)
+        return False
+
+
+def wait_for_appcast(build: int, minutes: float, *, has=appcast_has_build, sleep=time.sleep,
+                     interval: float = 30.0) -> tuple[bool, str]:
+    tries = max(1, int(minutes * 60 / interval))
+    for attempt in range(tries):
+        if has(build):
+            return True, f"  live appcast carries build {build}"
+        if attempt + 1 < tries:
+            sleep(interval)
+    return False, f"error: build {build} is not in the live appcast at {FEED_URL} after {minutes:g} minutes"
+
+
 # ── CLI ──────────────────────────────────────────────────────────────────────
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
     d = sub.add_parser("disk")
     d.add_argument("stage")
-    d.add_argument("--need-gb", type=float, default=float(os.environ.get("FICHERO_RELEASE_MIN_FREE_GB", "20")))
+    d.add_argument("--need-gb", type=float, default=float(os.environ.get("FICHERO_RELEASE_MIN_FREE_GB", "15")))
     sub.add_parser("next-build").add_argument("--xcconfig", type=Path, default=XCCONFIG)
     sub.add_parser("check-build").add_argument("build", type=int)
     sub.add_parser("asc-key").add_argument("path", type=Path)
@@ -406,6 +471,10 @@ def main(argv: list[str] | None = None) -> int:
     mp.add_argument("version")
     mp.add_argument("build")
     mp.add_argument("dmgs", type=Path, nargs="+")
+    sub.add_parser("auto-notes").add_argument("version")
+    va = sub.add_parser("verify-appcast")
+    va.add_argument("build", type=int)
+    va.add_argument("--minutes", type=float, default=float(os.environ.get("FICHERO_APPCAST_WAIT_MINUTES", "10")))
     a = p.parse_args(argv)
     summary_file = Path(os.environ.get("FICHERO_RELEASE_SUMMARY", ROOT / "build" / "releases" / "summary.tsv"))
 
@@ -450,6 +519,18 @@ def main(argv: list[str] | None = None) -> int:
     elif a.cmd == "publish":
         summary_file.parent.mkdir(parents=True, exist_ok=True)
         return 0 if publish(a.command, a.cwd, summary_file, a.label) else 1
+
+
+    elif a.cmd == "auto-notes":
+        rn, cl = ROOT / "RELEASE_NOTES.md", ROOT / "CHANGELOG.md"
+        subjects, prev = commit_subjects()
+        for path, new in zip((rn, cl), auto_notes(a.version, rn.read_text(), cl.read_text(), subjects, prev)):
+            if new != path.read_text():
+                path.write_text(new)
+                print(f"  wrote an auto-generated section into {path.name}")
+        return 0
+    elif a.cmd == "verify-appcast":
+        ok, msg = wait_for_appcast(a.build, a.minutes)
     elif a.cmd == "may-publish":
         ok, msg = may_publish(summary_rows(summary_file), a.dmgs, a.version, a.build)
     else:

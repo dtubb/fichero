@@ -155,13 +155,35 @@ except Exception: print("")')"
   # DMG is about 925 MB, Apple took longer than that, the poll gave up on a
   # submission Apple then ACCEPTED, and the release stopped before its second
   # DMG. An abandoned submission costs a whole release cycle; the poll is cheap.
+  #
+  # A failed `info` call (error, no output, no status) is NOT "In Progress": that read made a dead
+  # keychain profile poll for an hour. On the first failure fall back to the API key; after 5
+  # failed calls in a row stop and say so (release.lane.notarize-poll-failed-call-not-in-progress).
   NOTARY_STATUS="In Progress"
+  INFO_FAILS=0
   for _ in $(seq 1 "${FICHERO_NOTARY_MAX_POLLS:-180}"); do
-    sleep 20
-    INFO_JSON="$(xcrun notarytool info "$SUBMISSION_ID" "${NOTARY_AUTH_ARGS[@]}" --output-format json 2>/dev/null || true)"
-    NOTARY_STATUS="$(printf '%s' "$INFO_JSON" | /usr/bin/python3 -c 'import json,sys
-try: print(json.load(sys.stdin).get("status","In Progress"))
-except Exception: print("In Progress")')"
+    sleep "${FICHERO_NOTARY_POLL_SECONDS:-20}"
+    NOTARY_STATUS=""
+    if INFO_JSON="$(xcrun notarytool info "$SUBMISSION_ID" "${NOTARY_AUTH_ARGS[@]}" --output-format json)"; then
+      NOTARY_STATUS="$(printf '%s' "$INFO_JSON" | /usr/bin/python3 -c 'import json,sys
+try: print(json.load(sys.stdin).get("status",""))
+except Exception: print("")')"
+    fi
+    if [ -z "$NOTARY_STATUS" ]; then
+      INFO_FAILS=$((INFO_FAILS + 1))
+      echo "  status: the info call failed ($INFO_FAILS in a row)" >&2
+      if [ "${NOTARY_AUTH_ARGS[0]}" = "--keychain-profile" ] && [ -f "$API_KEY_PATH" ]; then
+        NOTARY_AUTH_ARGS=(--key "$API_KEY_PATH" --key-id "$API_KEY_ID" --issuer "$API_ISSUER")
+        echo "  falling back to the App Store Connect API key: $API_KEY_ID"
+      fi
+      if [ "$INFO_FAILS" -ge 5 ]; then
+        NOTARY_STATUS="status unreadable"
+        break
+      fi
+      NOTARY_STATUS="In Progress"
+      continue
+    fi
+    INFO_FAILS=0
     echo "  status: $NOTARY_STATUS"
     [ "$NOTARY_STATUS" = "In Progress" ] || break
   done

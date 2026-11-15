@@ -16,7 +16,7 @@ set -euo pipefail
 # features) — and TestFlight archives the dev surface (internal-only, #3365).
 # --dev / --tier narrow the run to that single tier: `--dev` bakes ALL dev
 # features (Dev Embedded mac config + dev FICHERO_FEATURE_TIER on iOS);
-# other tiers likewise build one DMG named Fichero.dmg.
+# a single-tier run always names its one DMG Fichero.dmg (the daily release: --dev).
 #
 # See docs/contributor_manual/release/release-lane.md for required certificates/profiles and the
 # repeatable DMG, Sparkle/GitHub, and Mac TestFlight release cycle.
@@ -323,6 +323,10 @@ if [ "$SKIP_DMG" = false ]; then
 fi
 
 echo
+echo "── Preflight: release notes (auto-generated when none are hand-written) ──"
+guard auto-notes "$FICHERO_RELEASE_VERSION"
+
+echo
 echo "── Preflight: release docs readiness ──"
 # Release lane step 3 (release-and-versioning.md): a release cannot ship with
 # stale or missing docs. Fails fast, before any signing/build work starts.
@@ -542,12 +546,16 @@ if [ "$SKIP_DMG" = false ]; then
   # Threaded through --notarize-app rather than read from the environment so a
   # direct `build-release-dmg.sh` still just builds a DMG and never blocks on
   # Apple, and so --skip-notarize means the same thing at both stages.
+  # A one-DMG run must not ship an older run's Fichero-dev.dmg beside it.
+  [ "${#DMG_TIERS[@]}" -eq 1 ] && rm -f "$DEV_DMG_PATH"
   for DMG_TIER in "${DMG_TIERS[@]}"; do
     export FICHERO_RELEASE_TIER="$DMG_TIER"
     source "$ROOT_DIR/scripts/tier_build_map.sh"
-    case "$DMG_TIER" in
-      dev) TIER_DMG_PATH="$DEV_DMG_PATH" ;;
-      *)   TIER_DMG_PATH="$DMG_PATH" ;;
+    # A single-tier run (--dev/--tier) names its one DMG Fichero.dmg whatever the tier
+    # (release.lane.daily-builds-dev-dmg-only); only the two-DMG default keeps Fichero-dev.dmg.
+    case "$DMG_TIER:${#DMG_TIERS[@]}" in
+      dev:2) TIER_DMG_PATH="$DEV_DMG_PATH" ;;
+      *)     TIER_DMG_PATH="$DMG_PATH" ;;
     esac
     echo
     echo "── DMG [$DMG_TIER → $(basename "$TIER_DMG_PATH")]: build + Developer ID sign ──"
@@ -621,7 +629,7 @@ CURRENT_PART=""
 fail_part() { printf '%s' "$1" > "$PART_REASON"; exit 1; }
 # run_part NAME FUNC: FUNC in a subshell under set -e; record OK or FAILED.
 run_part() {
-  local name="$1" fn="$2" rc
+  local name="$1" fn="$2" ok_note="${3:-uploaded; Apple emails when processing ends}" rc
   rm -f "$PART_REASON"
   CURRENT_PART="$name"
   set +e
@@ -630,7 +638,7 @@ run_part() {
   set -e
   CURRENT_PART=""
   if [ "$rc" -eq 0 ]; then
-    mark "$name" OK "uploaded; Apple emails when processing ends"
+    mark "$name" OK "$ok_note"
   else
     mark "$name" FAILED "$(cat "$PART_REASON" 2>/dev/null || echo "exit $rc; see the log above")"
   fi
@@ -839,6 +847,37 @@ PLIST
     echo "  Mac TestFlight: uploaded — Apple will email when processing completes (or fails)."
   fi
 }
+# Publish right after the DMG is built (release.lane.github-before-testflight): GitHub release,
+# appcast and site first, then the TestFlight parts. A failed publish is FAILED, and they still run.
+publish_part() {
+  # Smoke what is about to ship (release.lane.smoke-before-publish): stapled,
+  # mounts read-only, codesign --deep --strict, Gatekeeper, and the stamp.
+  for SMOKE_DMG in "$DMG_PATH" "$DEV_DMG_PATH"; do
+    if [ "$SMOKE_DMG" = "$DMG_PATH" ] || [ -f "$SMOKE_DMG" ]; then
+      guard smoke "$SMOKE_DMG" "$(project_setting MARKETING_VERSION)" "$(project_setting CURRENT_PROJECT_VERSION)" \
+        || fail_part "smoke failed for $(basename "$SMOKE_DMG")"
+    fi
+  done
+  "$ROOT_DIR/scripts/create-github-release.sh" "${GITHUB_ARGS[@]+"${GITHUB_ARGS[@]}"}" \
+    || fail_part "create-github-release.sh failed"
+  # Site AFTER the GitHub step: create-github-release.sh writes appcast.xml
+  # into the same tubb.ca/apps/fichero/ directory; deploy-site.sh rsyncs with
+  # --delete but excludes appcast.xml, so this order refreshes the site
+  # without touching the just-written feed. FICHERO_SKIP_SITE=1 to opt out.
+  if [ "${FICHERO_SKIP_SITE:-0}" != "1" ]; then
+    echo
+    echo "── Website (docs site → tubb.ca) ──"
+    "$ROOT_DIR/scripts/deploy-site.sh" || fail_part "deploy-site.sh failed"
+  fi
+  # Success is texted only once the live appcast carries this build (release.lane.live-appcast-verified).
+  guard verify-appcast "$(project_setting CURRENT_PROJECT_VERSION)" || fail_part "the live appcast does not carry this build"
+}
+if [ "$RUN_GITHUB" = true ]; then
+  echo
+  echo "── GitHub/Sparkle release ──"
+  run_part Publish publish_part "GitHub release, appcast$([ "${FICHERO_SKIP_SITE:-0}" = 1 ] || echo ' and site'), live appcast verified"
+fi
+
 if [ "$RUN_MAC_TESTFLIGHT" = true ]; then run_part "Mac TestFlight" mac_testflight; fi
 
 ios_testflight() {
@@ -929,32 +968,6 @@ PLIST
   fi
 }
 if [ "$RUN_IOS_TESTFLIGHT" = true ]; then run_part "iOS TestFlight" ios_testflight; fi
-
-if [ "$RUN_GITHUB" = true ]; then
-  echo
-  echo "── GitHub/Sparkle release ──"
-  CURRENT_PART="Publish"
-  # Smoke what is about to ship (release.lane.smoke-before-publish): stapled,
-  # mounts read-only, codesign --deep --strict, Gatekeeper, and the stamp.
-  for SMOKE_DMG in "$DMG_PATH" "$DEV_DMG_PATH"; do
-    if [ "$SMOKE_DMG" = "$DMG_PATH" ] || [ -f "$SMOKE_DMG" ]; then
-      guard smoke "$SMOKE_DMG" "$(project_setting MARKETING_VERSION)" "$(project_setting CURRENT_PROJECT_VERSION)"
-    fi
-  done
-  "$ROOT_DIR/scripts/create-github-release.sh" "${GITHUB_ARGS[@]+"${GITHUB_ARGS[@]}"}"
-
-  # Site AFTER the GitHub step: create-github-release.sh writes appcast.xml
-  # into the same tubb.ca/apps/fichero/ directory; deploy-site.sh rsyncs with
-  # --delete but excludes appcast.xml, so this order refreshes the site
-  # without touching the just-written feed. FICHERO_SKIP_SITE=1 to opt out.
-  if [ "${FICHERO_SKIP_SITE:-0}" != "1" ]; then
-    echo
-    echo "── Website (docs site → tubb.ca) ──"
-    "$ROOT_DIR/scripts/deploy-site.sh"
-  fi
-  CURRENT_PART=""
-  mark Publish OK "GitHub release, appcast$([ "${FICHERO_SKIP_SITE:-0}" = 1 ] || echo ' and site')"
-fi
 
 echo
 echo "Done."

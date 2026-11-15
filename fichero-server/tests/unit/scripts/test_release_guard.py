@@ -310,3 +310,88 @@ def test_morning_release_stops_and_texts_when_the_commits_cannot_be_counted(tmp_
     assert rc == 1
     assert "notify Fichero morning release: cannot count commits" in log
     assert "worktree" not in log and "publish" not in log
+
+
+# 8. release defaults (#6590)
+_ROOT = _SCRIPT.parents[1]
+
+
+def test_disk_floor_default_is_15_gb(monkeypatch):
+    monkeypatch.delenv("FICHERO_RELEASE_MIN_FREE_GB", raising=False)
+    seen = []
+    monkeypatch.setattr(rg, "ensure_disk", lambda stage, need, **_k: seen.append(need) or (True, "ok"))
+    assert rg.main(["disk", "the engine build"]) == 0
+    assert seen == [15.0]
+
+
+NOTES = "# Release Notes\n\nintro\n\n## 2026.11.12\nOld.\n"
+LOG = "# Changelog\n\n## 2026-11-12\n\n- old\n"
+
+
+def test_missing_sections_are_written_from_commit_subjects():
+    subjects = ["feat(segment-editor): two short switches", "spec(release): a spec line",
+                "fix: a crash on launch", "Plain subject"]
+    notes, log = rg.auto_notes("2026.11.15", NOTES, LOG, subjects, "2026.11.12")
+    assert notes.index("## 2026.11.15") < notes.index("## 2026.11.12")
+    assert "What changed since 2026.11.12." in notes
+    assert "- Segment editor: two short switches" in notes
+    assert "- a crash on launch" in notes and "- Plain subject" in notes
+    assert "spec line" not in notes
+    assert log.index("## 2026-11-15") < log.index("## 2026-11-12")
+    # the generated docs satisfy the release-docs gate
+    spec = importlib.util.spec_from_file_location("crd", _ROOT / "scripts" / "check_release_docs_ready.py")
+    crd = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(crd)
+    assert crd.docs_ready("2026.11.15", notes, log) == []
+
+
+def test_hand_written_sections_are_never_touched():
+    notes = "# Release Notes\n\n## 2026.11.15\nMine.\n\n" + NOTES.split("\n\n", 2)[2]
+    log = "# Changelog\n\n## 2026-11-15\n\n- mine\n"
+    assert rg.auto_notes("2026.11.15", notes, log, ["feat: x"], "2026.11.12") == (notes, log)
+
+
+def test_no_user_facing_commits_still_gives_a_nonempty_section():
+    notes, _ = rg.auto_notes("2026.11.15", NOTES, LOG, ["spec: only a spec"], "2026.11.12")
+    assert "Maintenance release" in notes
+
+
+def test_publish_is_verified_against_the_live_appcast():
+    naps = []
+    answers = iter([False, False, True])
+    ok, _ = rg.wait_for_appcast(25, 10, has=lambda _b: next(answers), sleep=naps.append)
+    assert ok and len(naps) == 2
+    ok, msg = rg.wait_for_appcast(25, 1, has=lambda _b: False, sleep=lambda _s: None)
+    assert not ok and "not in the live appcast" in msg
+    assert rg.appcast_has_build(25, feed=lambda: FEED.replace("23", "25"))
+    assert not rg.appcast_has_build(25, feed=lambda: (_ for _ in ()).throw(OSError("down")))
+
+
+def test_queue_runs_two_workers():
+    import tomllib
+    cfg = tomllib.loads((_ROOT / "harness.toml").read_text())
+    assert cfg["queue"]["workers"] == 2
+
+
+def _script(name):
+    return (_ROOT / "scripts" / name).read_text()
+
+
+def test_morning_release_builds_the_dev_dmg_only_and_publishes_before_testflight():
+    m = _script("morning-release.sh")
+    assert "--skip-testflight ${FICHERO_MORNING_ARGS---dev}" in m
+    assert "Fichero-dev.dmg" not in m
+    assert m.index("publish-release.sh") < m.index("--skip-dmg --skip-notarize")
+
+
+def test_release_all_names_a_single_tier_dmg_fichero_dmg_and_publishes_before_testflight():
+    r = _script("release-all.sh")
+    assert 'case "$DMG_TIER:${#DMG_TIERS[@]}" in\n      dev:2) TIER_DMG_PATH="$DEV_DMG_PATH"' in r
+    assert r.index('run_part Publish publish_part') < r.index('run_part "Mac TestFlight" mac_testflight')
+    assert r.index('guard auto-notes') < r.index('check_release_docs_ready.py')
+    assert "verify-appcast" in r
+
+
+def test_deploy_site_triggers_a_netlify_build():
+    d = _script("deploy-site.sh")
+    assert 'curl' in d and 'FICHERO_NETLIFY_BUILD_HOOK' in d

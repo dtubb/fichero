@@ -6,14 +6,18 @@
 #   1. one run at a time (lock), log to ~/Library/Logs/Fichero/morning-release-<date>.log
 #   2. fetch origin; nothing on origin/integration since the newest v* tag → text "nothing new", stop
 #   3. cut release/<date> from origin/integration in its own worktree
-#   4. release-all.sh: date stamp + build bump + every guard (disk, feed, iOS preflight,
-#      TestFlight watchdog, ASC key)
-#   5. publish only if the DMG part is OK and every DMG smokes clean (publish-release.sh;
-#      pushes release/<date>, never main), then open the release/<date> → main PR
+#   4. release-all.sh --dev --skip-testflight: date stamp + build bump + every guard (disk, feed,
+#      iOS preflight, ASC key); ONE DMG, the dev tier, named Fichero.dmg (owner 2026-11-14)
+#   5. publish only if the DMG part is OK and the DMG smokes clean (publish-release.sh; pushes
+#      release/<date>, never main; GitHub + appcast + site, live appcast verified), then open the
+#      release/<date> → main PR
+#   5b. THEN TestFlight (release-all.sh --skip-dmg, same version, its own summary file): publish
+#      goes before TestFlight (release.lane.github-before-testflight)
 #   6. text the owner the summary table (FICHERO_NOTIFY_IMESSAGE; unset = no text)
 #
 # Env: FICHERO_MORNING_WORKTREE (default ~/code/fichero-worktrees/morning-release),
-#      FICHERO_MORNING_ARGS (extra release-all.sh flags, e.g. "--skip-ios-testflight").
+#      FICHERO_MORNING_ARGS (release-all.sh flags for the DMG run; default "--dev"),
+#      FICHERO_MORNING_TF_ARGS (flags for the TestFlight run, e.g. "--skip-ios-testflight").
 set -uo pipefail
 
 SRC_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -55,14 +59,14 @@ fi || { text "Fichero morning release: could not cut $BRANCH"; exit 1; }
 SUMMARY="$WT/build/releases/summary.tsv"
 mkdir -p "$WT/build/releases"
 # shellcheck disable=SC2086  # FICHERO_MORNING_ARGS is a flag list
-FICHERO_RELEASE_SUMMARY="$SUMMARY" "$WT/scripts/release-all.sh" ${FICHERO_MORNING_ARGS:-}
+FICHERO_RELEASE_SUMMARY="$SUMMARY" "$WT/scripts/release-all.sh" --skip-testflight ${FICHERO_MORNING_ARGS---dev}
 echo "release-all exit $?"
 VERSION="$(sed -n 's/^MARKETING_VERSION = //p' "$WT/fichero/Configs/Version.xcconfig")"
 BUILD="$(sed -n 's/^CURRENT_PROJECT_VERSION = //p' "$WT/fichero/Configs/Version.xcconfig")"
 LABEL="Fichero $VERSION ($BUILD)"
 
 if WHY="$(FICHERO_RELEASE_SUMMARY="$SUMMARY" guard may-publish "$VERSION" "$BUILD" \
-      "$WT/build/releases/Fichero.dmg" "$WT/build/releases/Fichero-dev.dmg" 2>&1)"; then
+      "$WT/build/releases/Fichero.dmg" 2>&1)"; then
   # guard publish records the Publish part from publish-release.sh's exit status
   if FICHERO_RELEASE_SUMMARY="$SUMMARY" guard publish "$WT" "$LABEL on $BRANCH" scripts/publish-release.sh; then
     PR_URL="$(cd "$WT" && gh pr create --base main --head "$BRANCH" --title "release: $LABEL" \
@@ -71,6 +75,17 @@ if WHY="$(FICHERO_RELEASE_SUMMARY="$SUMMARY" guard may-publish "$VERSION" "$BUIL
   fi
 else
   FICHERO_RELEASE_SUMMARY="$SUMMARY" guard part Publish SKIPPED "held: $WHY"
+fi
+
+# TestFlight after the publish; its own summary so its --skip-dmg rows cannot overwrite the DMG's.
+if grep -q "^Preflight	OK" "$SUMMARY" 2>/dev/null; then
+  TF_SUMMARY="$WT/build/releases/testflight-summary.tsv"
+  rm -f "$TF_SUMMARY"
+  # shellcheck disable=SC2086
+  FICHERO_RELEASE_VERSION="$VERSION" FICHERO_RELEASE_SUMMARY="$TF_SUMMARY" \
+    "$WT/scripts/release-all.sh" --skip-dmg --skip-notarize ${FICHERO_MORNING_TF_ARGS:-}
+  echo "release-all (TestFlight) exit $?"
+  grep "TestFlight	" "$TF_SUMMARY" >>"$SUMMARY" 2>/dev/null || true
 fi
 
 TABLE="$(FICHERO_RELEASE_SUMMARY="$SUMMARY" guard summary)"

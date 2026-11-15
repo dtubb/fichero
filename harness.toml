@@ -457,7 +457,8 @@ m4air = { ssh = "m4", dir = "~/fichero-gate", min_free_gb = 5 }    # the M4 Air:
 
 [queue]
 # `builder queue run` (dev-workflows.tool.queue): how many `builder work` processes run at once; the ladder is one at a time regardless.
-workers = 1
+# owner 2026-11-14 (#6590): two at once
+workers = 2
 
 [brief]
 # Project rules put at the top of every cluster brief (scripts/harness_brief.py); project names belong here, not in code.
