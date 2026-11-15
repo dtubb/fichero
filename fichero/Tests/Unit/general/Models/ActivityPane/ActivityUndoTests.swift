@@ -32,6 +32,10 @@ private final class ActivityUndoURLProtocol: URLProtocol {
             #"{"ok":true,"audit_id":"audit-1","changed_domains":["activity"],"result":{"deleted_ids":["j1","j2"],"skipped_ids":["j3"],"count":2}}"#
         case "/api/actions/audit/undo":
             #"{"ok":true,"audit_ids":["inverse-1"],"results":[],"changed_domains":["activity"]}"#
+        // The archived rows read after an archive: an answer of the engine's shape (it always sends `count`), not `{}`,
+        // which the client cannot decode ("keyNotFound 'count'" in the test log was this stub, not the engine).
+        case "/api/activity/jobs":
+            #"{"jobs":[],"count":0,"cpu_count":8,"machine":{}}"#
         default: "{}"
         }
         let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
