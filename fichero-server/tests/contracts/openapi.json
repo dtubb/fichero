@@ -94073,6 +94073,7 @@
               "model-broken",
               "library-closed",
               "export-folder-gone",
+              "interrupted",
               "unexpected"
             ],
             "title": "Kind"

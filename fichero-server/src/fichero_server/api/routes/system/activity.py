@@ -262,6 +262,20 @@ def _runs_on(kind: str, remote: Any, cost_usd: Optional[float]) -> str:
     return "this-mac"
 
 
+def _run_failure(run: Any) -> Any:
+    """A failed run's failure: the one its record kept, else for a run interrupted (the engine stopped, its project closed)
+    the `interrupted` kind, so its row says why and offers Retry rather than a bare red X (#6588)."""
+    from fichero_server.workflows.run_account import CLOSED_PREFIX, INTERRUPTED_PREFIX
+
+    if getattr(run, "failure", None):
+        return run.failure
+    if (getattr(run, "error", None) or "").startswith((INTERRUPTED_PREFIX, CLOSED_PREFIX)):
+        from fichero_server.llm import failure as failure_mod
+
+        return failure_mod.of_kind("interrupted")
+    return None
+
+
 def _run_runs_on(db: Database, thread_id: str) -> Optional[str]:
     """Where a workflow run runs (the Where tab, #6588): where its page jobs ran. The cloud when any page's job is on the
     remote lane or made a call to a provider (its recorded `usage` place), else this Mac; None before any page job."""
@@ -990,7 +1004,7 @@ async def list_background_jobs(
                     # A run without its end time still lists, with its reason: never vanish over a timestamp.
                     failed_at=_utc(getattr(run, "completed_at", None)) if status == "failed" else None,
                     finished_at=_run_finished_at(status, getattr(run, "completed_at", None)),
-                    failure=run.failure if status == "failed" else None,
+                    failure=_run_failure(run) if status == "failed" else None,
                     runs_on=await asyncio.to_thread(_run_runs_on, db, run.thread_id),
                 )
             )

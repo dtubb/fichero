@@ -16,7 +16,7 @@ from fichero_server.llm.refusal import CloudRefusal
 
 Kind = Literal["no-credit", "key-refused", "rate-limited", "cap-refused", "images-refused", "model-error", "model-missing",
                "runtime-unavailable", "memory", "network", "files-unavailable", "model-broken", "library-closed",
-               "export-folder-gone", "unexpected"]
+               "export-folder-gone", "interrupted", "unexpected"]
 ActionKind = Literal["retry", "resume", "open-settings", "choose-model", "report-bug", "reconnect", "raise-to", "allow-everywhere",
                      "allow-project", "allow-once", "over-cap-once", "choose-folder"]
 
@@ -238,6 +238,7 @@ _ROW_WORDS: dict[str, str] = {
     "model-broken": "{model} could not be loaded",
     "library-closed": "Paused: the project closed",
     "export-folder-gone": "The export folder is gone",
+    "interrupted": "Stopped before it finished",
     "unexpected": "Something went wrong in Fichero",
 }
 
@@ -325,6 +326,10 @@ _WORDS: dict[str, Any] = {
         "The folder this export writes to is gone.",
         # Choose Folder… moves the export (`PATCH /api/export/kept/{id}`); Continue once the drive is back (#6588).
         "Reconnect the drive, or choose the export's folder again.", _a("choose-folder"), _a("resume")),
+    # A run the engine stopping or the project closing left unfinished (#6588): its pages done are kept.
+    "interrupted": lambda **_: _row(
+        "The run stopped before it finished: the engine stopped, or its project was closed.",
+        "Run it again; the pages already done are kept.", _a("retry")),
     "unexpected": lambda *, step, kind_exc, stopped, **_: _row(
         f"Something went wrong inside Fichero while it ran {step} ({kind_exc}){stopped}.",
         "This is a bug in Fichero, not something you did. Send a bug report so it can be fixed; you can also try the run again.",
