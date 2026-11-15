@@ -31,7 +31,7 @@ carry the same set and must agree).
 | `langchain>=1.3.9` | PYSEC-2026-2192 |
 | `langchain-anthropic>=1.4.6` | PYSEC-2026-2556 |
 | `mcp>=1.28.1,<2` | floor: PYSEC-2026-3483. **Ceiling**: `mcp` 2.0 removed `mcp.server.fastmcp`, which every `fichero-mcp` tool module imports; lifting the cap is a port to `mcp.server.mcpserver`, not a bump |
-| `Pillow>=12.3.0` | 22 image-decoder advisories, all reachable from an imported photo |
+| `Pillow>=13.0.0` | 2026-11 image-decoder and encoder advisories (#6600); 12.3.0 had closed 22 earlier ones. Pillow 13 needs Python 3.11, so `requires-python` is `>=3.11` |
 
 No core dependency is exact-pinned (`==`); floors only, so the set still floats
 upward. `pip-audit` over the resolved set on 2026-07-30 reported no known
