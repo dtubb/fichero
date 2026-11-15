@@ -20,6 +20,8 @@ struct ActivityDetailsLog: View {
     @State private var chosen: ActivityLogFilter?
     /// The person's Everything choice is remembered, as the old Developer toggle was (`activity.log.developer-level`).
     @AppStorage("activity.log.developer") private var developer = false
+    /// The lines the person selected (`activity.log.like-xcode`): what Copy copies; all of them when none is.
+    @State private var selection = ActivityLogList.Selection()
     private var filter: ActivityLogFilter {
         ActivityLogFilter.effective(chosen: chosen, developer: developer, hasProblems: store.jobLogHasProblems[jobId] ?? false)
     }
@@ -41,10 +43,11 @@ struct ActivityDetailsLog: View {
                 .help("Problems: warnings and errors. All: the log. Everything: also the debug lines, as a developer reads them")
                 .accessibilityIdentifier("activity.details.log.filter")
                 Button {
-                    copyToPasteboard(lines.map(\.plainText).joined(separator: "\n"))
+                    copyToPasteboard(ActivityLogList.copyText(lines, selected: selection.lines))
                 } label: {
-                    Label("Copy Log", systemImage: "doc.on.doc")
+                    Label(selection.lines.isEmpty ? "Copy Log" : "Copy Lines", systemImage: "doc.on.doc")
                 }
+                .help(selection.lines.isEmpty ? "Copy the whole log" : "Copy the selected lines")
                 .controlSize(.small)
                 .disabled(lines.isEmpty)
                 .accessibilityIdentifier("activity.details.log.copy")
@@ -54,20 +57,13 @@ struct ActivityDetailsLog: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else {
-                // The page is ONE scroll view: the log is not a list inside another scroll (`activity.window.open-a-run`).
-                LazyVStack(alignment: .leading, spacing: 2) {
-                    ForEach(lines) { line in
-                        Text(line.plainText)
-                            .font(.callout.monospaced())
-                            .foregroundStyle(line.level == "error" ? AnyShapeStyle(.red) : AnyShapeStyle(.primary))
-                            .textSelection(.enabled)
-                    }
-                }
+                // Xcode's log (decision 36): numbered lines with their level glyph, selectable, found and copied.
+                ActivityLogLinesView(lines: lines, selection: $selection)
             }
         }
         .accessibilityIdentifier("activity.details.log")
         // A choice is about one row's log: another row starts from the default again (Everything stays, remembered).
-        .onChange(of: jobId) { _, _ in chosen = nil }
+        .onChange(of: jobId) { _, _ in chosen = nil; selection.clear() }
         .task(id: "\(refreshKey)|\(filter.rawValue)") {
             await store.loadJobLog(jobId: jobId, developer: filter.developer, problemsOnly: filter.problemsOnly)
         }
