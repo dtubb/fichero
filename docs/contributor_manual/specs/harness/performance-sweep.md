@@ -240,8 +240,8 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   up. Issues with no file to attach (field rows) carry the Organizer or MetricKit JSON inline instead. Acceptance
   (fixture rows, a fake `gh`): a frame at 7% in two runs files one issue with the key, the title and the inline frames; the
   same row in a third run files nothing; the same key on a closed issue reopens it with a comment; a 7% row seen once
-  files nothing; a hang of 300 ms seen once files; a fourth candidate in a pass goes to the rolling issue. Test (to
-  write): `test_perf_sweep.py::test_the_filing_rule_floors_two_runs_dedupe_by_key_reopen_and_caps`.
+  files nothing; a hang of 300 ms seen once files; a fourth and a tenth new key in one pass each file their own issue (no cap, owner 2026-11-15). Test (to
+  write): `test_perf_sweep.py::test_the_filing_rule_floors_two_runs_dedupe_by_key_reopen_and_no_cap`.
 
 ## Ratchet — second goal: nothing gets slower
 
