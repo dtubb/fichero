@@ -211,6 +211,15 @@ extension ActivityPaneView {
                     .lineLimit(1)
             }
             Spacer(minLength: 0)
+            // The row's own Play/Pause and Stop on the selected or hovered row (decision 31), small, as Xcode's.
+            if selection.contains(row.id) || hoveredRow == row.id {
+                ForEach(row.rowControls) { verb in
+                    Button { perform(verb, on: [row]) } label: { Label(verb.title, systemImage: verb.symbol) }
+                        .labelStyle(.iconOnly).buttonStyle(.borderless).controlSize(.small)
+                        .help("\(verb.title) \(row.name)")
+                        .accessibilityIdentifier("activity.row.\(row.jobId ?? row.id).control.\(verb.rawValue)")
+                }
+            }
             if let button = row.paneButton {
                 // Its WORD, never an icon alone (`activity.pane.fix-button-has-words`, #6599).
                 Button(button.title) { press(button, on: row) }
@@ -221,6 +230,9 @@ extension ActivityPaneView {
                     .accessibilityLabel("\(button.title) \(row.name)")
                     .accessibilityIdentifier("activity.row.\(row.jobId ?? row.id).\(button.title.lowercased())")
             }
+        }
+        .onHover { inside in
+            if inside { hoveredRow = row.id } else if hoveredRow == row.id { hoveredRow = nil }
         }
     }
 

@@ -142,3 +142,13 @@ enum ActivityPaneButton: Equatable {
         }
     }
 }
+
+extension ActivityMonitorRow {
+    /// The row's own Play/Pause and Stop (`activity.pane.row-controls`, decision 31, #6588): Pause or Continue by its state,
+    /// and Stop, through the one verb list; none the row does not allow, and none its worded button already offers.
+    var rowControls: [ActivityPaneVerb] {
+        let playPause = [ActivityPaneVerb.pause, .resume].first { $0.allows(self) }
+        return [playPause, ActivityPaneVerb.stop.allows(self) ? .stop : nil].compactMap { $0 }
+            .filter { paneButton != .verb($0) }
+    }
+}

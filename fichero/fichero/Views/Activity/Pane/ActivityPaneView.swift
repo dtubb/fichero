@@ -43,6 +43,8 @@ struct ActivityPaneView: View {
     /// The window's step stack: Delete, Archive and Put Back are steps on it, so Edit › Undo takes them back.
     @Environment(WindowSteps.self) var windowSteps: WindowSteps?
     @State var selection: Set<ActivityMonitorRow.ID> = []
+    /// The row under the pointer: it shows its own Play/Pause and Stop, as the selected row does (`activity.pane.row-controls`).
+    @State var hoveredRow: ActivityMonitorRow.ID?
     /// A column header's sort; empty keeps the state-then-start order.
     @State var sortOrder: [KeyPathComparator<ActivityMonitorRow>] = []
     /// The outcome of the last verb, said in the status bar ("Deleted 4 · 1 skipped").
