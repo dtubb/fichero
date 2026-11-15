@@ -341,12 +341,18 @@ replaces the Kraken figure before #6212 is coded.
   local model stopped answering is read once more before it fails, with the model's output in the log;
   the run carries on past it.
 
-- `recipes-run.engine.failure-in-words` — **[PARTIAL]** (#6212) a failing page or job says why in words, never the
+- `recipes-run.engine.failure-in-words` — **[SUPERSEDED]** by `recipes-run.engine.failure-in-words-no-raw-text` — **[PARTIAL]** (#6212) a failing page or job says why in words, never the
   exception's text: a step whose body raises KeyError('x') reads "<kind> could not finish: ...". Built: a failed
   job's reason (`execution/jobs.failed_reason`) names a slip in Fichero's own code (KeyError, TypeError,
   AttributeError and the like) as "<kind in words> could not finish: an error in Fichero (KeyError: 'x')", keeps a
   failure's own words, and is never blank (`core/failure_text`); the names step's time limit and stalled-page lines
   above. Left: a workflow node's failure on its page row still carries the tool's own text.
+  Test: fichero-server/tests/unit/execution/test_failure_in_words_6212.py.
+- `recipes-run.engine.failure-in-words-no-raw-text` — **[PARTIAL]** (#6212, #6597) a failing page or job says why in
+  words, and its row shows none of the exception's text: a slip in Fichero's own code (KeyError, TypeError and the like)
+  reads as the same plain words whatever its message, at most eight words with no full stop, and its type and message are
+  the row's detail for Copy Details (`activity.failure.no-raw-text-ever`); a failure's own words are kept, and the reason
+  is never blank. Left: a workflow node's failure on its page row still carries the tool's own text.
   Test: fichero-server/tests/unit/execution/test_failure_in_words_6212.py.
 
 ### 7. Memory is bounded

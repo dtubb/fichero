@@ -1,5 +1,6 @@
-"""`recipes-run.engine.failure-in-words` (#6212): a job whose body fails on a slip in Fichero's own code says so in words on
-its row, never the bare exception text ("'x'" for a KeyError); a failure that already says why keeps its words."""
+"""`recipes-run.engine.failure-in-words-no-raw-text` (#6212, #6597): a job whose body fails on a slip in Fichero's own code
+says so in words on its row and never shows the exception's text there (its type, its message, "'x'" for a KeyError: those
+are the row's detail, for Copy Details); a failure that already says why keeps its words."""
 from __future__ import annotations
 
 import re
@@ -16,8 +17,8 @@ from fichero_server.execution import jobs
 
 def test_a_key_error_reads_as_words():
     said = jobs.failed_reason("embed-page", KeyError("x"))
-    assert said.startswith(f"{jobs.kind_name('embed-page')} could not finish: ")
-    assert "KeyError" in said and "'x'" in said
+    assert said.strip() and "KeyError" not in said and "'x'" not in said, said
+    assert len(said.split()) <= 8 and not said.endswith("."), said
 
 
 def test_a_worded_failure_keeps_its_words():
@@ -25,7 +26,8 @@ def test_a_worded_failure_keeps_its_words():
 
 
 def test_an_empty_failure_is_never_blank():
-    assert jobs.failed_reason("embed-page", TimeoutError()) == "TimeoutError (no message)"
+    said = jobs.failed_reason("embed-page", TimeoutError())
+    assert said.strip() and "TimeoutError" not in said, said
 
 
 def test_a_worded_refusal_keeps_its_words_and_no_slip_label():
@@ -39,7 +41,8 @@ def test_a_worded_refusal_keeps_its_words_and_no_slip_label():
 def test_a_missing_key_is_a_slip_whatever_its_words(key):
     # reviewer b24/b25 (#6240): a plain KeyError is a missing key, a slip in Fichero, even when it reads like a sentence
     said = jobs.failed_reason("embed-page", KeyError(key))
-    assert "could not finish" in said and "KeyError" in said
+    assert said == jobs.failed_reason("embed-page", KeyError("x")), said  # a slip's words, never the key's
+    assert "KeyError" not in said and key not in said, said
 
 
 @pytest.mark.parametrize("words", ["no job 'j1' in this project", "Unknown managed MLX model: m"])
