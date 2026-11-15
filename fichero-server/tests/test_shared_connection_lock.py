@@ -75,22 +75,18 @@ def test_every_statement_and_fetch_on_the_shared_connection_holds_the_lock(tmp_p
     """A private Database on a file of its own: no db_manager entry, no app-DB singleton, no env, so nothing outlives it."""
     db = Database(path=tmp_path / "lock.duckdb")
     try:
-        _check_lock(db)
+        db._ensure_table(KnowledgeClaim)
+        real = db.conn
+        spy = _LockCheckingConnection(real, db._lock)
+        db.conn = spy
+        try:
+            db.execute_fetchall("SELECT 1")
+            db.keyword_artifact_rows()
+            db.knowledge_claim_entity_id_values()
+            db.knowledge_claim_entity_id_values(source_document_id="d", entity_id="e")
+            db.entity_document_link_rows("e", 5)
+        finally:
+            db.conn = real
+        assert not spy.unlocked, f"used the shared connection outside Database._lock (#6601): {spy.unlocked}"
     finally:
         db.close()
-
-
-def _check_lock(db):
-    db._ensure_table(KnowledgeClaim)
-    real = db.conn
-    spy = _LockCheckingConnection(real, db._lock)
-    db.conn = spy
-    try:
-        db.execute_fetchall("SELECT 1")
-        db.keyword_artifact_rows()
-        db.knowledge_claim_entity_id_values()
-        db.knowledge_claim_entity_id_values(source_document_id="d", entity_id="e")
-        db.entity_document_link_rows("e", 5)
-    finally:
-        db.conn = real
-    assert not spy.unlocked, f"used the shared connection outside Database._lock (#6601): {spy.unlocked}"
