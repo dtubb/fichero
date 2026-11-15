@@ -63,6 +63,13 @@ enum ActivityPane {
         static func of(_ grouping: Grouping) -> Tab { grouping == .file ? .files : .runs }
     }
 
+    /// What an empty pane says in its one line (`activity.pane.empty-says-one-line`, #6599): "Nothing running" with nothing to
+    /// list, "No activity matches" when the filter hides every row; nil while there are rows.
+    static func emptyLine(rowsShown: Int, filterIsEmpty: Bool) -> String? {
+        guard rowsShown == 0 else { return nil }
+        return filterIsEmpty ? "Nothing running" : "No activity matches"
+    }
+
     /// The Where cell's words for the engine's place.
     static func whereLine(_ row: ActivityMonitorRow) -> String {
         switch row.runsOn {

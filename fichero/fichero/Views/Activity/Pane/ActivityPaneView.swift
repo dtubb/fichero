@@ -113,8 +113,9 @@ struct ActivityPaneView: View {
             if showsHead { head; Divider() }
             if libraries.isEmpty {
                 Color.clear  // empty means blank (`activity.window.no-empty-prose`)
-            } else if shown.isEmpty, !ActivityPaneFilter(prefs.filter).isEmpty {
-                Text("No activity matches").foregroundStyle(.secondary)
+            } else if let line = ActivityPane.emptyLine(rowsShown: shown.count,
+                                                        filterIsEmpty: ActivityPaneFilter(prefs.filter).isEmpty) {
+                Text(line).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .accessibilityIdentifier("activity.noMatch")
             } else {

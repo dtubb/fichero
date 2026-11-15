@@ -603,9 +603,9 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   delete is undoable the confirmation says so. Acceptance: deleting a run and a job from two projects at once, then Undo once,
   lists all of them again in their states; Archive Finished… then Undo restores every row. *Test:* not yet written:
   `ActivityOneUndoTests.swift`, `test_delete_is_undoable_6583.py`.
-- `activity.pane.empty-says-one-line` — **[GAP]** (#6599, #6588; `activity.window.no-empty-prose`) a pane with nothing to list says
+- `activity.pane.empty-says-one-line` — **[OK]** (#6599, #6588; supersedes `activity.window.no-empty-prose`'s blank) a pane with nothing to list says
   "Nothing running" in one line and keeps its status bar; a filter that hides everything says "No activity matches".
-  *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityPaneFiltersTests.swift` extended.
+  *Built 2026-11-14 night:* `ActivityPane.emptyLine`. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityPaneFiltersTests.swift` extended (`emptyLine`).
 - `activity.pane.verbs-one-word-each` — **[GAP]** (#6599, #6588; `activity.pane.commands-through-the-table`) Retry is the one verb
   for running a failed row again; Read Again is the Inspector's verb on a failed PAGE only, not a Project › Activity item
   beside Retry. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityCommandsTests.swift` extended.

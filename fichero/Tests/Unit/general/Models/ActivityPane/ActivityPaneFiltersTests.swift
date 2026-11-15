@@ -47,4 +47,12 @@ struct ActivityPaneFiltersTests {
         let data = ActivityPanePrefs.store(Data(), key: "pane") { $0.filter = "state: failed" }
         #expect(ActivityPanePrefs.load(data, key: "pane").filter == "state: failed")
     }
+
+    /// `activity.pane.empty-says-one-line` (#6599).
+    @Test("an empty pane says Nothing running in one line; a filter that hides every row says No activity matches")
+    func emptyLine() {
+        #expect(ActivityPane.emptyLine(rowsShown: 0, filterIsEmpty: true) == "Nothing running")
+        #expect(ActivityPane.emptyLine(rowsShown: 0, filterIsEmpty: false) == "No activity matches")
+        #expect(ActivityPane.emptyLine(rowsShown: 3, filterIsEmpty: true) == nil)
+    }
 }
