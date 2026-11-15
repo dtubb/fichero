@@ -93,6 +93,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Models/WorkflowResponseTypes.swift::WorkflowResponse": "§6b baseline — struct shadows Components.Schemas.WorkflowResponse",
     "Models/WorkflowSupportTypes.swift::InputMapping": "§6b baseline — struct shadows Components.Schemas.InputMapping",
     "Models/WorkflowSupportTypes.swift::OutputSchema": "§6b baseline — struct shadows Components.Schemas.OutputSchema",
+    "Services/ActivityService+History.swift::ActivityHistory": "batch-21 (#6588): the Monitor bottom panel's merged history across open projects (summed per minute), a display model over Components.Schemas.ActivityHistory; consume the generated type when the panel reads one project",
     "Services/ActionsService.swift::CreateActionRequest": "§6b baseline — struct shadows Components.Schemas.CreateActionRequest",
     "Services/AnnotationService.swift::AnnotationKind": "§6b baseline — enum shadows Components.Schemas.AnnotationKind",
     "Services/AnnotationService.swift::AnnotationListResponse": "§6b baseline — struct shadows Components.Schemas.AnnotationListResponse",
