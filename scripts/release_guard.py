@@ -357,6 +357,15 @@ def may_publish(rows: list[tuple[str, str, str]], dmgs: list[Path], version: str
     return True, "DMG built and smoke clean"
 
 
+def publish(cmd: list[str], cwd: Path, summary: Path, label: str, *, run=Run) -> bool:
+    """Run publish-release.sh and record the Publish part from its exit status
+    (it writes no summary row of its own; set -e makes the status the verdict)."""
+    ok = run(cmd, cwd=str(cwd), check=False).returncode == 0
+    record(summary, "Publish", "OK" if ok else "FAILED",
+           f"published {label}" if ok else "publish-release.sh stopped; see the log")
+    return ok
+
+
 # ── CLI ──────────────────────────────────────────────────────────────────────
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -389,6 +398,10 @@ def main(argv: list[str] | None = None) -> int:
     lk.add_argument("path", type=Path)
     lk.add_argument("pid", type=int)
     sub.add_parser("new-commits").add_argument("ref")
+    pb = sub.add_parser("publish")
+    pb.add_argument("cwd", type=Path)
+    pb.add_argument("label")
+    pb.add_argument("command", nargs=argparse.REMAINDER)
     mp = sub.add_parser("may-publish")
     mp.add_argument("version")
     mp.add_argument("build")
@@ -434,6 +447,9 @@ def main(argv: list[str] | None = None) -> int:
         count, tag = new_commits(a.ref)
         print(f"{count} {tag}")
         return 0 if count >= 0 else 1
+    elif a.cmd == "publish":
+        summary_file.parent.mkdir(parents=True, exist_ok=True)
+        return 0 if publish(a.command, a.cwd, summary_file, a.label) else 1
     elif a.cmd == "may-publish":
         ok, msg = may_publish(summary_rows(summary_file), a.dmgs, a.version, a.build)
     else:

@@ -147,7 +147,7 @@ The logic lives in `scripts/release_guard.py` (one subcommand per point) so it i
   part failed and stops before publishing. It publishes with `publish-release.sh` (pushes
   `release/<date>`, never `main`), opens the `release/<date>` → `main` PR with `gh`, and texts
   the summary table. The release-docs preflight still applies: a morning with no
-  `RELEASE_NOTES.md` section for the day stops there and texts the failure. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py` covers the lock, the commit count and the publish gate. Not yet tested: `morning-release.sh` itself end to end (the publish hand-off, the PR step, the preflight stop, the lock taken before its trap).
+  `RELEASE_NOTES.md` section for the day stops there and texts the failure. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py` covers the lock, the commit count, the publish gate, the publish hand-off (`guard publish` records Publish from `publish-release.sh`'s exit status) and, running the script itself against a stub guard, a count that fails stopping the run with a text. Not yet tested: the PR step, the preflight stop, the lock taken before its trap.
 
 ## Release notes — two artifacts, different owners
 

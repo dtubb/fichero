@@ -33,8 +33,10 @@ guard lock "$LOCK" "$$" || exit 0
 trap 'rm -f "$LOCK"' EXIT
 
 git -C "$SRC_ROOT" fetch -q --tags origin || { text "Fichero morning release: git fetch failed"; exit 1; }
-read -r NEW LAST_TAG < <(guard new-commits origin/integration) \
+# a command substitution, not `read < <(...)`: only this way does the guard's failure (-1) stop the run
+COUNT="$(guard new-commits origin/integration)" \
   || { text "Fichero morning release: cannot count commits since the last release tag"; exit 1; }
+read -r NEW LAST_TAG <<<"$COUNT"
 if [ "$NEW" -eq 0 ]; then
   echo "nothing new since $LAST_TAG"
   text "Fichero morning release: nothing new since $LAST_TAG"
@@ -61,14 +63,11 @@ LABEL="Fichero $VERSION ($BUILD)"
 
 if WHY="$(FICHERO_RELEASE_SUMMARY="$SUMMARY" guard may-publish "$VERSION" "$BUILD" \
       "$WT/build/releases/Fichero.dmg" "$WT/build/releases/Fichero-dev.dmg" 2>&1)"; then
-  # publish-release.sh writes no summary row; its exit status (set -e) is the verdict
-  if (cd "$WT" && scripts/publish-release.sh); then
-    FICHERO_RELEASE_SUMMARY="$SUMMARY" guard part Publish OK "published $LABEL on $BRANCH"
+  # guard publish records the Publish part from publish-release.sh's exit status
+  if FICHERO_RELEASE_SUMMARY="$SUMMARY" guard publish "$WT" "$LABEL on $BRANCH" scripts/publish-release.sh; then
     PR_URL="$(cd "$WT" && gh pr create --base main --head "$BRANCH" --title "release: $LABEL" \
       --body "Morning release $LABEL, cut from origin/integration ($NEW commits since $LAST_TAG).")" \
       || PR_URL="(PR not opened; see the log)"
-  else
-    FICHERO_RELEASE_SUMMARY="$SUMMARY" guard part Publish FAILED "publish-release.sh stopped; see the log"
   fi
 else
   FICHERO_RELEASE_SUMMARY="$SUMMARY" guard part Publish SKIPPED "held: $WHY"
