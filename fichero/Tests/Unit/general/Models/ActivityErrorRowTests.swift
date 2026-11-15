@@ -69,4 +69,18 @@ struct ActivityErrorRowTests {
                                           actions: ["open-settings"], rowWords: "Out of credit at OpenRouter")
         #expect(ActivityMonitorRow.job(job, libraryId: nil, projectName: nil).reason == "Out of credit at OpenRouter")
     }
+
+    /// #6588: a failed run is listed from the runs list without the engine's failure; its twin in the jobs list has it.
+    @Test("a failed run row takes its failure from its job twin: its row words and its Retry")
+    func runRowTakesItsJobsFailure() {
+        var run = ActivityPaneFixture.row("thread-1", .failed, kind: .run)
+        run.reason = "Interrupted: the project was closed at 22:58, before this run finished"
+        var job = ActivityJob(id: "thread-1", taskType: "workflow", name: "Detect", state: .failed, reason: run.reason)
+        job.failure = ActivityJob.Failure(kind: "interrupted", words: "The run stopped before it finished.",
+                                          fix: "Run it again.", actions: ["retry"], rowWords: "Stopped before it finished")
+        let row = ActivityPane.withRunFailures([run], jobs: [job]).first
+        #expect(row?.failure?.kind == "interrupted")
+        #expect(row?.reason == "Stopped before it finished")
+        #expect(row.map(ActivityPane.stateLine) == "Stopped before it finished", "the row says why in its eight words")
+    }
 }

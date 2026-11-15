@@ -70,12 +70,13 @@ struct ActivityPaneView: View {
     var allRows: [ActivityMonitorRow] {
         let rows = libraries.flatMap { library in
             let store = library.activityStore
-            return ActivityPane.withQueuedFiles(ActivityMonitorRow.group(
+            let jobs = store.liveJobs + store.historyJobs
+            return ActivityPane.withRunFailures(ActivityPane.withQueuedFiles(ActivityMonitorRow.group(
                 libraryId: library.id, libraryName: library.displayName,
                 isMac: library.id == libraryManager.globalLibrary?.id,
                 runRows: store.runs.map { .run($0, tree: store.runTrees[$0.threadId ?? $0.runId]) },
-                jobs: store.liveJobs + store.historyJobs
-            ).rows, queued: store.queuedItems)
+                jobs: jobs
+            ).rows, queued: store.queuedItems), jobs: jobs)
         }
         // A run seen as a job of its own as well is listed once, as the run.
         let runJobs = Set(rows.filter { $0.kind == .run }.compactMap(\.jobId))

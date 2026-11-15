@@ -69,6 +69,22 @@ enum ActivityPane {
         return Set(rows.filter { row in row.selection.map(asked.contains) ?? false }.map(\.id))
     }
 
+    /// A run row is listed from the runs list, and its twin in the jobs list carries the engine's failure (its row words, its
+    /// fix, its buttons): the run row takes it, so a failed run says why in its row, not a bare red X (#6588).
+    static func withRunFailures(_ rows: [ActivityMonitorRow], jobs: [ActivityJob]) -> [ActivityMonitorRow] {
+        let failures = Dictionary(jobs.compactMap { job in job.failure.map { (job.id, $0) } }, uniquingKeysWith: { first, _ in first })
+        guard !failures.isEmpty else { return rows }
+        return rows.map { row in
+            guard row.kind == .run, row.failure == nil, let id = row.runThreadId ?? row.jobId, let failure = failures[id] else {
+                return row
+            }
+            var row = row
+            row.failure = failure
+            if !failure.rowWords.isEmpty { row.reason = failure.rowWords }
+            return row
+        }
+    }
+
     /// A job of its own opens to the files it works on NOW (`activity.pane.children-are-what-it-works-on`, #6599): a queue
     /// row's (`waiting:<kind>`) children are its items in flight, by name; none in flight, no disclosure.
     static func withQueuedFiles(_ rows: [ActivityMonitorRow], queued: [String: [ActivityQueuedItem]]) -> [ActivityMonitorRow] {
