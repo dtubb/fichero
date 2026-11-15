@@ -102,9 +102,9 @@ The logic lives in `scripts/release_guard.py` (one subcommand per point) so it i
 
 - `release.lane.disk-checked-before-heavy-stages` — **[OK]** before the engine build, each DMG,
   each TestFlight archive and each export, free space is checked against
-  `FICHERO_RELEASE_MIN_FREE_GB` (default 15; owner 2026-11-14). Short, it thins Time Machine local snapshots once
+  `FICHERO_RELEASE_MIN_FREE_GB` (default 15). Short, it thins Time Machine local snapshots once
   (`tmutil thinlocalsnapshots / 40000000000 4`) and re-checks; still short, it refuses with the
-  stage and the numbers. It never deletes DerivedData, DMGs or any other file. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
+  stage and the numbers. It never deletes DerivedData, DMGs or any other file. Was: default 20 GB; the owner set 15 GB on 2026-11-14 (#6590). *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
 - `release.update.build-number-bumped-and-above-published` — **[OK]** a run that builds a DMG
   always stamps a new build number, pinned `FICHERO_RELEASE_VERSION` or not: one above both the
   local `CURRENT_PROJECT_VERSION` and every published build (the live appcast's
