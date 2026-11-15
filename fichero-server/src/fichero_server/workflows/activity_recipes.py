@@ -83,9 +83,7 @@ def recipes(db: "Database", *, days: int = 30) -> list[dict[str, Any]]:
     job_queue._ensure(db)
     since = (utc_now() - timedelta(days=days)).replace(tzinfo=None)
     try:
-        rows = db.execute_fetchall(
-            f"SELECT id, workflow_id, workflow_name, status, started_at, completed_at FROM {records.RUNS} "
-            "WHERE started_at >= ? ORDER BY started_at DESC LIMIT ?", [since, RUNS_READ])
+        rows = records.runs_started_since(db, since, RUNS_READ)
     except Exception:  # noqa: BLE001 -- a project with no run records yet lists none
         return []
     by_recipe: dict[str, dict[str, Any]] = {}

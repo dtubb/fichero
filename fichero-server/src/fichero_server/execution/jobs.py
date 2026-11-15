@@ -1405,6 +1405,18 @@ def _has_deleted_at(db: "Database") -> bool:
     return _has_column(db, "deleted_at")
 
 
+def usage_rows_since(db: "Database", since) -> list[tuple]:
+    """(kind, model, state, target, detail, started_at, finished_at) of every job running, or started or finished since
+    `since`, deleted ones left out: the Activity window's Models figures read these."""
+    _ensure(db)
+    hidden = " AND deleted_at IS NULL" if _has_deleted_at(db) else ""
+    return db.execute_fetchall(
+        "SELECT kind, model, state, target, detail, started_at, finished_at FROM jobs "
+        f"WHERE (state = 'running' OR finished_at >= ? OR started_at >= ?){hidden}",
+        [since, since],
+    )
+
+
 def _hidden_filter(db: "Database", *, archived: bool = False) -> str:
     """The SQL that hides what no list shows: deleted rows always; archived rows unless the archive is asked for."""
     out = " AND deleted_at IS NULL" if _has_deleted_at(db) else ""
