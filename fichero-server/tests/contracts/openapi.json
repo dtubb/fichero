@@ -55980,6 +55980,22 @@
             "nullable": true,
             "title": "Cost Estimate Usd"
           },
+          "runs_on": {
+            "type": "string",
+            "enum": [
+              "this-mac",
+              "other-mac",
+              "cloud",
+              "cluster"
+            ],
+            "nullable": true,
+            "title": "Runs On"
+          },
+          "lane": {
+            "type": "string",
+            "nullable": true,
+            "title": "Lane"
+          },
           "blocked_by": {
             "type": "string",
             "nullable": true,

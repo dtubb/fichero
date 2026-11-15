@@ -202,6 +202,10 @@ class BackgroundJob(BaseModel):
     # call; and, while it runs, the estimate to finish at the run's own pace (spent per page done times the pages left).
     cost_usd: Optional[float] = None
     cost_estimate_usd: Optional[float] = None
+    # Where it runs and on which lane (`activity.window.toolbar-tabs`, the Where tab, #6588): this Mac, another Mac, the
+    # cloud or a cluster; null for a row the engine cannot place.
+    runs_on: Optional[Literal["this-mac", "other-mac", "cloud", "cluster"]] = None
+    lane: Optional[str] = None
     # What blocks this row (`activity.pane.blocked-under-its-blocker`, #6593): the id of the job it waits on (a model's
     # download) or a typed need ("model:embeddings:<id>") when no job supplies it. A blocked row is never picked by the lane;
     # the app draws it under its blocker. Null for any row that is not blocked.
@@ -235,6 +239,27 @@ def order_for_activity(jobs: "list[BackgroundJob]") -> "list[BackgroundJob]":
     for job in jobs:
         job.group = "earlier" if rank(job) == 2 else "live"
     return sorted(jobs, key=rank)  # stable
+
+
+def _lane_of(kind: str) -> Optional[str]:
+    """The lane a stored job's kind runs on (`execution.jobs.KINDS`), or None for a kind not registered."""
+    from fichero_server.execution import jobs as job_queue
+
+    registered = job_queue.KINDS.get(kind)
+    return registered.lane if registered is not None else None
+
+
+def _runs_on(kind: str, remote: Any, cost_usd: Optional[float]) -> str:
+    """Where a listed row runs (the Where tab, #6588): a remote read on its target (Hugging Face is the cloud, anything
+    else a cluster); the remote lane and any priced call (even at $0) the cloud; everything else this Mac."""
+    from fichero_server.remote_read import job as read_job
+
+    if kind == read_job.KIND:
+        target = getattr(remote, "target", None)
+        return "cloud" if target in (None, read_job.TARGET) else "cluster"
+    if _lane_of(kind) == "remote" or cost_usd is not None:
+        return "cloud"
+    return "this-mac"
 
 
 def _remote_row(db, row: dict) -> "RemoteRunRow | None":
@@ -1014,8 +1039,9 @@ async def list_background_jobs(
                 finished_at=_utc(row.get("finished_at")),
                 started_by=row.get("started_by"),
                 blocked_by=row.get("blocked_by"),
-                remote=await asyncio.to_thread(_remote_row, db, row),  # a database read
+                remote=(remote := await asyncio.to_thread(_remote_row, db, row)),  # a database read
                 ran_on=ran_on, stages=stages, model=model, cost_usd=cost, cost_estimate_usd=estimate,
+                runs_on=_runs_on(row["kind"], remote, cost), lane=_lane_of(row["kind"]),
                 # A row paused for a cause a person removes carries its fix, as a failed run does (#6588).
                 failure=(await asyncio.to_thread(job_queue.paused_failure, db, row["id"], reason)
                          if state == "paused" and row["count"] == 1 else None),
