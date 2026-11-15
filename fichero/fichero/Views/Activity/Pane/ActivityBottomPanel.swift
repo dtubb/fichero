@@ -10,22 +10,35 @@ struct ActivityBottomPanel: View {
     let history: ActivityHistory
     /// The rows listed now, for the counts the history does not hold (running, waiting, need you).
     let rows: [ActivityMonitorRow]
+    /// Whether the graphs fill the centre (`activity.graphs.own-pane`, decision 41), and the press that turns it.
+    var isFull = false
+    var toggleFull: () -> Void = {}
 
     var body: some View {
-        HStack(alignment: .center, spacing: 16) {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(Self.figures(tab: tab, history: history, rows: rows))
+                    .font(.callout).monospacedDigit().foregroundStyle(.secondary).lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button(action: toggleFull) {
+                    Label(isFull ? "Show the Table" : "Graphs Full Size",
+                          systemImage: isFull ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                }
+                .labelStyle(.iconOnly).buttonStyle(.borderless)
+                .help(isFull ? "Show the table again" : "Make the graphs fill the window")
+                .accessibilityIdentifier("activity.bottomPanel.full")
+            }
             if Self.isEmpty(history) {
                 Text("No work in the last hour").foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                graph.frame(width: 260, height: 44)
+                graph.frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            Text(Self.figures(tab: tab, history: history, rows: rows))
-                .font(.callout).monospacedDigit().foregroundStyle(.secondary).lineLimit(2)
-                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
+        .frame(minHeight: 120, idealHeight: 180, maxHeight: isFull ? .infinity : nil)
         .background(.bar)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("activity.bottomPanel")
     }
 
@@ -41,19 +54,16 @@ struct ActivityBottomPanel: View {
                         .foregroundStyle(.red)
                 }
             }
-            .chartXAxis(.hidden).chartYAxis(.hidden)
             .accessibilityLabel("Pages done per minute, the last hour")
         case .cost:
             Chart(history.minutes) { minute in
                 AreaMark(x: .value("Minute", minute.start, unit: .minute), y: .value("Dollars", minute.spendUsd))
             }
-            .chartXAxis(.hidden).chartYAxis(.hidden)
             .accessibilityLabel("Dollars spent per minute, the last hour")
         case .place:
             Chart(Self.places(history), id: \.word) { place in
                 BarMark(x: .value("Pages", place.pages), y: .value("Where", place.word))
             }
-            .chartXAxis(.hidden)
             .accessibilityLabel("Pages done by where they ran, the last hour")
         }
     }

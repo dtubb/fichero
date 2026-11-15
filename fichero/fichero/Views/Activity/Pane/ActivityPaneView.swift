@@ -36,6 +36,8 @@ struct ActivityPaneView: View {
     /// The models of the sidebar's Models section (`activity.window.models-tree`), and what the sidebar has picked.
     @State private var models: [ActivityModelEntry] = []
     @State private var sidebarPick: String?
+    /// The graphs fill the centre (decision 41); kept per window.
+    @SceneStorage("activity.graphs.full") private var graphsFull = false
 
     @Environment(LibraryManager.self) private var libraryManager
     /// The window's step stack: Delete, Archive and Put Back are steps on it, so Edit › Undo takes them back.
@@ -159,20 +161,18 @@ struct ActivityPaneView: View {
         let shown = shownRows
         return VStack(spacing: 0) {
             if showsHead { head; Divider() }
-            if libraries.isEmpty {
-                Color.clear  // empty means blank (`activity.window.no-empty-prose`)
-            } else if let line = ActivityPane.emptyLine(rowsShown: shown.count,
-                                                        filterIsEmpty: ActivityPaneFilter(prefs.filter).isEmpty) {
-                Text(line).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .accessibilityIdentifier("activity.noMatch")
+            if showsHead {
+                rowsView(shown)
+            } else if graphsFull {
+                // The graphs made full size (`activity.graphs.own-pane`, decision 41): they fill the centre.
+                graphs
             } else {
-                table(shown)
-            }
-            if !showsHead {
-                // The window's foot: a graph and its figures per tab (decision 25); a main window's pane keeps one line.
-                Divider()
-                ActivityBottomPanel(tab: prefs.tab, history: history, rows: allRows)
+                // The window's centre: the rows over the graphs, the divider the person's to drag (decisions 34, 41); a main
+                // window's pane keeps one status line instead.
+                VSplitView {
+                    rowsView(shown).frame(minHeight: 140)
+                    graphs
+                }
             }
             bottomBar
         }
@@ -207,6 +207,27 @@ struct ActivityPaneView: View {
         } message: {
             Text("What they have done so far is discarded. Undo puts them back.")
         }
+    }
+
+    /// The rows, or the one line that says there are none.
+    @ViewBuilder
+    private func rowsView(_ shown: [ActivityMonitorRow]) -> some View {
+        if libraries.isEmpty {
+            Color.clear  // empty means blank (`activity.window.no-empty-prose`)
+        } else if let line = ActivityPane.emptyLine(rowsShown: shown.count,
+                                                    filterIsEmpty: ActivityPaneFilter(prefs.filter).isEmpty) {
+            Text(line).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .accessibilityIdentifier("activity.noMatch")
+        } else {
+            table(shown)
+        }
+    }
+
+    /// The graphs pane: the sidebar item's graph and figures, full size or under the rows.
+    private var graphs: some View {
+        ActivityBottomPanel(tab: prefs.tab, history: history, rows: allRows, isFull: graphsFull,
+                            toggleFull: { graphsFull.toggle() })
     }
 
     /// Show in Activity on a page: by File, its file row selected (`activity.pane.commands-through-the-table`).
@@ -385,13 +406,11 @@ struct ActivityPaneView: View {
         }
     }
 
-    /// The pane's one bottom bar, the app's (`activity.pane.bottom-bar-like-every-pane`, #6588): Metadata (the column toggles,
-    /// the same as the header's menu), the Filter field with what the list shows in its menu, and the status figures.
+    /// The pane's one bottom bar, the app's (`activity.pane.bottom-bar-like-every-pane`, #6588): the Filter field with what the
+    /// list shows in its menu, and the status figures. The columns are chosen from a column header's menu, their widths kept
+    /// (`activity.pane.columns-from-the-header`, decision 35).
     private var bottomBar: some View {
         PaneFilterBar(placement: .bottom) {
-            PaneMetadataButton { columnToggles }
-                .help("Which columns the table shows")
-                .accessibilityIdentifier("activity.metadata")
             PaneFilterField(text: Binding(get: { prefs.filter }, set: { value in update { $0.filter = value } }),
                             prompt: "Filter: model: Kraken state: failed", accessibilityID: "activity.filter") {
                 Toggle("Show Archived", isOn: $showArchived)
@@ -407,22 +426,6 @@ struct ActivityPaneView: View {
                 .font(.caption).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
                 .accessibilityIdentifier("activity.statusbar")
             if showsHead { moreMenu }
-        }
-    }
-
-    /// Each column of the tab, on or off: the header's menu, in the bar (`activity.pane.default-columns`).
-    @ViewBuilder
-    private var columnToggles: some View {
-        ForEach(ActivityPane.Column.allCases.filter { $0 != .name && $0 != .source }, id: \.self) { column in
-            Toggle(column.title, isOn: Binding(
-                get: { prefs.columns(for: prefs.tab)[visibility: column.rawValue] != .hidden },
-                set: { isOn in
-                    update { prefs in
-                        var columns = prefs.columns(for: prefs.tab)
-                        columns[visibility: column.rawValue] = isOn ? .visible : .hidden
-                        prefs.setColumns(columns, for: prefs.tab)
-                    }
-                }))
         }
     }
 
