@@ -6,6 +6,8 @@ itself to another with an alias into sys.modules.
 
 from pathlib import Path
 
+from _scan_files import scan_rglob
+
 import fichero_server.api.routes as routes_pkg
 
 ROUTES = Path(routes_pkg.__file__).parent
@@ -14,6 +16,6 @@ ALIAS_MARK = "sys.modules[" + "__name__]"  # split, so this test does not trip t
 
 def test_no_new_route_module_aliases_itself_in_sys_modules():
     offenders = {
-        str(p.relative_to(ROUTES)) for p in ROUTES.rglob("*.py") if ALIAS_MARK in p.read_text(encoding="utf-8")
+        str(p.relative_to(ROUTES)) for p in scan_rglob(ROUTES, "*.py") if ALIAS_MARK in p.read_text(encoding="utf-8")
     }
     assert not offenders, sorted(offenders)
