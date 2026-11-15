@@ -997,7 +997,9 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   `testActivityWindowHonestState_aFailedLoadNamesItsCauseAndClearsOnTheNextSuccess`;
   `fichero/Tests/Unit/general/Models/ActivityWindowTimesAndStateTests.swift`
   `ActivityWindowHonestStateTests`) and by the engine test that the respawned engine's 401 names its
-  branch (`fichero-server/tests/unit/security/test_auth_refusals_say_why.py`). Still to check: the
+  branch (`fichero-server/tests/unit/security/test_auth_refusals_say_why.py`). A refusal that stands is
+  logged once, when its footer line starts or changes, not on every tick of the jobs poll
+  (`testAStandingJobsPollRefusalIsSaidOnce`, #6588). Still to check: the
   spinner half (#4346, #4384).
 - `activity.no-project-label-for-the-always-there-project` — **[PARTIAL]** (#5655) *Built 2026-10-10
   (app), not yet seen:* the always-there project has no name, so a run or job in it carries no

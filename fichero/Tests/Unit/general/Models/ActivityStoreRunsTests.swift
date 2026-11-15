@@ -489,6 +489,23 @@ final class ActivityStoreRunsTests: XCTestCase {
         await store.rebuildRuns(activeExecutions: [], library: library)
         XCTAssertEqual(store.runLoadFailures, [], "the next good loads clear the footer")
     }
+
+    /// WHY: a refusal that stands (a project opened at a path that is no project) was logged as an error on every
+    /// tick of the jobs poll, filling the console with one line. The poll keeps asking, but the log says it once:
+    /// it logs only when the footer line changes, and a second tick of the same refusal changes nothing.
+    func testAStandingJobsPollRefusalIsSaidOnce() async {
+        let library = Self.testLibrary()
+        let store = Self.storeWithMockTransport(library: library)
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/activity/jobs", method: "GET", status: 403, body: Self.rootsRefusalBody)
+        ])
+        await store.refreshBackgroundJobs()
+        await store.refreshBackgroundJobs()
+        XCTAssertEqual(store.runLoadFailures, [Self.locationLine])
+        XCTAssertFalse(store.setLoadFailure(Self.locationLine, library: library.id, source: .jobs),
+                       "the same refusal again is no change, so nothing more is logged")
+        XCTAssertTrue(store.setLoadFailure(nil, library: library.id, source: .jobs), "clearing it is a change")
+    }
 }
 
 /// `URLRequest.httpBody` is nil once the request has gone through
