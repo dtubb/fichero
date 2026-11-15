@@ -27,7 +27,7 @@ contract_guards = [
 ]
 # A diff under the prefix runs the guard with `--since <base>` (its question about this range only, #6318). The whole-tree
 # ratchet stays in guard_skip; swiftlint must be in [check].path for the worker (a copy in <workroot>/bin, like ruff).
-since_guards = { "scripts/check_swiftlint_warning_ratchet.py" = "fichero/", "scripts/check_file_placement.py" = "fichero-server/" }
+since_guards = { "scripts/check_swiftlint_warning_ratchet.py" = "fichero/", "scripts/check_file_placement.py" = "" }  # "" = every diff: a stray repo-root file sits under no product prefix; the Swift rules come with their lane
 check_paths = [
   "scripts/", "harness.toml", ".github/", ".gitattributes", ".gitmodules", "pyproject.toml", "pytest.ini",
   "fichero-server/pyproject.toml", "fichero-server/pytest.ini", "fichero-cli/pyproject.toml", "fichero-mcp/pyproject.toml",

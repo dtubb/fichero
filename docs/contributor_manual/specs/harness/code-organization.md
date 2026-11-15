@@ -202,7 +202,7 @@ runs on the builder, not by a sweep: the files a batch adds or moves are judged 
 
 ### E. Ratchets and when they run
 
-- `code-org.enforce.per-batch-placement` [OK] — Every batch is checked for where it put its files, not only the nightly
+- `code-org.enforce.per-batch-placement` [PARTIAL] — Every batch is checked for where it put its files, not only the nightly
   tree: a guard beside `check_folder_organization.py`, `check_file_placement --since <base>`, reads `git diff --name-status
   <base>..HEAD` and judges each ADDED or RENAMED path (the new name) against the rules of this spec: a Swift file under
   `fichero/fichero/<Layer>/<Feature>/` whose layer and feature exist and whose name follows `code-org.naming.swift-*`, with
@@ -216,9 +216,8 @@ runs on the builder, not by a sweep: the files a batch adds or moves are judged 
   the nightly guard's). Not built (#1944; issue to file). Test (to write): `check_file_placement` with a `--self-test`
   that stages a synthetic range holding one right and one wrong file per rule; a pytest under
   `fichero-server/tests/unit/scripts/` that runs it over a temp repo.
-  Built (#6607): the Python and repo-root rules; the Swift rules are a later lane. Known limit: a new test in a
-  `tests/unit/` folder that is not a `fichero_server` package or `scripts`/`cli`/`mcp`/`harness`/`seams` (for example
-  `activity`, `jobs`, `kg`) is red.
+  Built (#6607): the Python and repo-root rules, wired on every diff (`since_guards` prefix ""); a new test also passes in a
+  `tests/unit/` folder the merge-base already had. Not yet built: the Swift rules (a later lane).
   Test: `fichero-server/tests/unit/scripts/test_check_file_placement.py`.
 - `code-org.ratchet.per-batch` [OK] — Every `scripts/check_*.py` not in `harness.toml` `guard_skip` runs on each batch in
   the builder's guards rung, under 60 s each, from the pinned copy; the ready check runs `lint.py` per touched file;
@@ -266,7 +265,7 @@ runs on the builder, not by a sweep: the files a batch adds or moves are judged 
 
 | Rule | Guard today | Status |
 |---|---|---|
-| placement of every added or renamed file, per batch | — | [GAP] `check_file_placement --since` via `since_guards` |
+| placement of every added or renamed file, per batch | `check_file_placement --since` (Python and root) | [PARTIAL] the Swift rules are not built |
 | root allowlist | — | [GAP] `check_repo_root` |
 | Swift feature folders, 18-file cap | `check_folder_organization.py` | [OK] with 8 known offenders |
 | Models/Services by feature | `check_folder_organization.py` allowlist | [GAP] until the two entries leave |
@@ -289,7 +288,7 @@ runs on the builder, not by a sweep: the files a batch adds or moves are judged 
 
 #### Step 1.0 — placement checked on every batch
 - Behaviours: `code-org.enforce.per-batch-placement`
-- Tests: (to write) `check_file_placement --self-test`; a pytest under fichero-server/tests/unit/scripts/ over a temp repo; harness.toml `since_guards` gains the guard, proved by fichero-builder/tests/test_guard_inputs.py
+- Tests: `check_file_placement --self-test`; fichero-server/tests/unit/scripts/test_check_file_placement.py; harness.toml `since_guards` gains the guard, proved by fichero-builder/tests/test_guard_inputs.py
 - Size: M
 
 #### Step 1.1 — the engine layout and root guards

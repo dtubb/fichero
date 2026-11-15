@@ -26,7 +26,12 @@ def test_an_unknown_base_is_blind_not_clean():
     assert done.returncode == 2, done.stdout + done.stderr
 
 
-@pytest.mark.skipif(not (REPO / ".git").exists(), reason="a gate copy of the tree has no repo to diff; the guard goes blind there, by design")
+def _has_base() -> bool:
+    return (REPO / ".git").exists() and subprocess.run(
+        ["git", "rev-parse", "--verify", "-q", "origin/integration"], cwd=REPO, capture_output=True).returncode == 0
+
+
+@pytest.mark.skipif(not _has_base(), reason="no repo or no origin/integration to diff against (a gate copy, a bare clone): the guard goes blind there, by design")
 def test_this_branch_places_every_file_it_adds():
     done = _run("--since", "origin/integration")
     assert done.returncode == 0, done.stdout + done.stderr

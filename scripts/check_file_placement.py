@@ -61,6 +61,7 @@ class Tree:
 
     repo: Path
     packages: frozenset[str]
+    old_test_folders: frozenset[str] = frozenset()  # tests/unit/ folders the merge-base already had: judged by whoever made them
 
     def text(self, path: str) -> str:
         return _git(self.repo, "show", f"HEAD:{path}")
@@ -114,9 +115,9 @@ def _judge_test(path: str, tree: Tree) -> str | None:
     if not TEST_NAME.match(name):
         return "test_<what_it_proves>[_<issue>].py: the issue number is a suffix, never right after test_"
     folder = parts[0] if len(parts) > 1 else ""
-    if folder in tree.packages or folder in TEST_SIDE_FOLDERS:
+    if folder in tree.packages or folder in TEST_SIDE_FOLDERS or folder in tree.old_test_folders:
         return None
-    return "tests/unit/<package>/" + name + ": a test sits in the folder mirroring its fichero_server package"
+    return "tests/unit/<package>/" + name + ": a new test sits in the folder mirroring its fichero_server package (or a tests/unit folder that already exists)"
 
 
 @dataclass(frozen=True)
@@ -185,14 +186,17 @@ def judge(paths: list[str], tree: Tree) -> list[tuple[str, str]]:
     return out
 
 
+def _folders(repo: Path, rev: str, path: str) -> frozenset[str]:
+    return frozenset(p.rsplit("/", 1)[-1] for p in _git(repo, "ls-tree", "-d", "--name-only", rev, path).split("\n") if p)
+
+
 def run_since(base: str, repo: Path = ROOT, packages_floor: int = 10) -> int:
     merge_base = _git(repo, "merge-base", "HEAD", base).strip()
     raw = _git(repo, "diff", "--name-status", "-M", "-z", merge_base, "HEAD")
     paths = parse_added(raw)
-    listing = _git(repo, "ls-tree", "-d", "--name-only", "HEAD", SERVER_PKG).split("\n")
-    packages = frozenset(p.rsplit("/", 1)[-1] for p in listing if p)
+    packages = _folders(repo, "HEAD", SERVER_PKG)
     require_scan_floor(len(packages), packages_floor, "fichero_server packages")
-    bad = judge(paths, Tree(repo, packages))
+    bad = judge(paths, Tree(repo, packages, _folders(repo, merge_base, SERVER_TESTS)))
     for path, why in bad:
         print(f"{path}{ARROW}{why}")
     if bad:
@@ -217,6 +221,7 @@ _RIGHT_ADDS = {
     SERVER_TESTS + "core/test_new_thing_6001.py": "x = 1\n",
     SERVER_TESTS + "scripts/test_a_guard.py": "x = 1\n",
     SERVER_TESTS + "core/conftest.py": "x = 1\n",
+    SERVER_TESTS + "legacy/test_in_old_folder.py": "x = 1\n",
     "docs/anything.py": "x = 1\n",
 }
 _WRONG_ADDS = {
@@ -239,6 +244,7 @@ _BASE_FILES = {
     _PKG + "core/__init__.py": "",
     _PKG + "__init__.py": "",
     "README.md.base": "x\n",
+    SERVER_TESTS + "legacy/test_old.py": "x = 1\n",  # a test folder that is no package, already in the base
     "old_loose.py": "x = 1\n",  # base debt: never judged
     "fichero-builder/old_place.py": "x = 1\n",
     "fichero-builder/old_alias.py": f"{ALIAS_MARK} = 1\n",
@@ -282,8 +288,7 @@ def _self_test() -> int:
         if not paths:
             print("self-test FAILED: the guard saw no added or renamed file in a range that has many", file=sys.stderr)
             return 1
-        listing = _git(repo, "ls-tree", "-d", "--name-only", "HEAD", _PKG).split("\n")
-        tree = Tree(repo, frozenset(p.rsplit("/", 1)[-1] for p in listing if p))
+        tree = Tree(repo, _folders(repo, "HEAD", _PKG), _folders(repo, "main", SERVER_TESTS))
         got = dict(judge(paths, tree))
         expected = set(_WRONG_ADDS) | set(_RENAMES_WRONG.values())
         if set(got) != expected:
