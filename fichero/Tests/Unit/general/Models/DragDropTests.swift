@@ -3,6 +3,7 @@
 //  FicheroTests
 //
 //  Unit tests for drag-and-drop infrastructure:
+//    - DragDropModel state transitions
 //    - URL validation (file-URL filter used by drop handlers)
 //    - ID prefix stripping (extractActualId equivalent)
 //    - Circular-drop detection (containsDescendant equivalent)
@@ -13,6 +14,109 @@
 @testable import Fichero
 import Foundation
 import Testing
+
+// MARK: - DragDropModel Tests
+
+@MainActor
+struct DragDropModelTests {
+
+    @Test("Initial state is idle")
+    func initialState() {
+        let model = DragDropModel()
+        #expect(!model.isProcessingDrop)
+        #expect(model.dropProgress == 0.0)
+        #expect(model.dropError == nil)
+        #expect(model.dropSuccessCount == 0)
+        #expect(model.dropFailureCount == 0)
+    }
+
+    @Test("startProcessing sets isProcessingDrop and resets counters")
+    func startProcessing() {
+        let model = DragDropModel()
+        model.dropSuccessCount = 3
+        model.dropFailureCount = 1
+        model.startProcessing()
+
+        #expect(model.isProcessingDrop)
+        #expect(model.dropProgress == 0.0)
+        #expect(model.dropSuccessCount == 0)
+        #expect(model.dropFailureCount == 0)
+    }
+
+    @Test("endProcessing clears isProcessingDrop")
+    func endProcessing() {
+        let model = DragDropModel()
+        model.startProcessing()
+        model.endProcessing()
+        #expect(!model.isProcessingDrop)
+    }
+
+    @Test("updateProgress stores value")
+    func updateProgress() {
+        let model = DragDropModel()
+        model.updateProgress(0.75)
+        #expect(model.dropProgress == 0.75)
+    }
+
+    @Test("incrementSuccessCount and incrementFailureCount accumulate")
+    func counters() {
+        let model = DragDropModel()
+        model.incrementSuccessCount()
+        model.incrementSuccessCount()
+        model.incrementFailureCount()
+        #expect(model.dropSuccessCount == 2)
+        #expect(model.dropFailureCount == 1)
+    }
+
+    @Test("setError stores error; clearError removes it")
+    func errorLifecycle() {
+        let model = DragDropModel()
+        let error = ErrorModel(type: .fileSystem, severity: .medium, title: "Import Failed", message: "Cannot access file")
+        model.setError(error)
+        #expect(model.dropError != nil)
+        model.clearError()
+        #expect(model.dropError == nil)
+    }
+
+    @Test("reset returns model to initial state")
+    func resetState() {
+        let model = DragDropModel()
+        model.startProcessing()
+        model.updateProgress(0.5)
+        model.incrementSuccessCount()
+        model.reset()
+
+        #expect(!model.isProcessingDrop)
+        #expect(model.dropProgress == 0.0)
+        #expect(model.dropSuccessCount == 0)
+        #expect(model.dropFailureCount == 0)
+    }
+
+    @Test("operation tracking: start and end operations")
+    func operationTracking() {
+        let model = DragDropModel()
+        #expect(model.getActiveOperationCount() == 0)
+
+        let id1 = model.startOperation()
+        let id2 = model.startOperation()
+        #expect(model.getActiveOperationCount() == 2)
+
+        model.endOperation(id1)
+        #expect(model.getActiveOperationCount() == 1)
+
+        model.endOperation(id2)
+        #expect(model.getActiveOperationCount() == 0)
+    }
+
+    @Test("reset clears active operations")
+    func resetClearsOperations() {
+        let model = DragDropModel()
+        _ = model.startOperation()
+        _ = model.startOperation()
+        model.reset()
+        #expect(model.getActiveOperationCount() == 0)
+    }
+}
 
 // MARK: - Drop URL Validation Tests
 

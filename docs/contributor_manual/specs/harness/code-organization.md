@@ -185,7 +185,8 @@ runs on the builder, not by a sweep: the files a batch adds or moves are judged 
 - `code-org.dead.test-only-code` [PARTIAL] — Production code reached only by its own test is dead with a pension: delete the
   code and the test together. The 6 Swift types reached only from `fichero/Tests` (`CacheModel`, `DragDropModel`,
   `MCPServersSheet`, `IntegrationsPlaceholderSheet`, `PageImageGrid`, `FicheroShortcuts`) go with their tests (ruled by the
-  owner 2026-11-14; review batch S5). Five are deleted (S5);
+  owner 2026-11-14; review batch S5). Four are deleted (S5);
+  `DragDropModel` and its tests wait for a later batch (S5's diff bound);
   `FicheroShortcuts` stays, as the Shortcuts and Siri phrases are a product feature (owner call pending). Guard:
   `scripts/check_dead_files.py`; test: `fichero-server/tests/unit/scripts/test_check_dead_files.py`. Still to write: the
   guard reports a reference from `fichero/Tests` separately as "test-only" (#1945).
