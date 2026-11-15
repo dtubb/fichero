@@ -8,18 +8,18 @@ Spec tag for built is `[OK]` (not `[BUILT]`).
 - perf-method: scripts/perf_trial.py `judge_measure`/`compare`, scripts/perf_baseline.json (tolerances, empty figures), test in test_perf_trial.py. Bullet still [GAP] in spec: flip to [OK].
 - fichero_builder/perf_rung.py + tests/test_perf_rung.py; security_rung.py + tests/test_security_rung.py (readers, thresholds, waiver lints).
 
-## Written, uncommitted at handoff time (commit first)
-- check_tool.py: Config fields `perf`/`security` ([check.perf], [check.security]), `perf()`, `security()`, `security_lints()`, RUNGS now (..guards, security, contract-current, since-guards, build, perf), `reuse` flag on _remote_build.
-- scripts/perf_engine_run.py, scripts/security_scan_run.py (drivers, print PERF-RESULT / SECURITY-RESULT lines).
-- test_work_verb.py adjusted for the new RUNGS (pending == build, perf).
+## Generation 2: done and committed
+- Builder tests (513) and test_perf_trial.py (21) green with the new RUNGS.
+- harness.toml `[check.perf]`, `[check.security]` (enforce=false, pins all empty: nothing installed).
+- security_lints tested on a real git repo; two real bugs fixed: `git grep -E` `\s` does not match on macOS (waiver counts were always 0), and `diff -U0` died on `diff.external=` (now `--no-ext-diff`). Skip and report-only tests for both rungs.
+- harness_review.py: "SECURITY SCAN (new findings only)" from the ladder JSON's security rung `table`; tested.
+- scripts/install_security_tools.sh (`--check`, `--write-pins`; tested only with stub binaries, never run for real).
+- Spec: perf-method and scan-thresholds-and-waivers [OK]; perf-rung-engine and security-scan-rung [PARTIAL] with what is open; Step 2.30 Tests line; fixed a bare-filename Test citation on security-lens (check_spec_citations).
 
-## To do
-1. Run all fichero-builder/tests and fichero-server/tests/unit/scripts/test_perf_trial.py; fix anything the new RUNGS broke (test_status_page etc.). Pre-existing ruff errors in test_check_raw_geometry_readers.py / test_check_store_wholesale_reload.py are not ours.
-2. harness.toml: add `[check.perf]` and `[check.security]` (enforce=false, timeout_s, pins {bandit, semgrep, gitleaks, osv-scanner}, osv=false); harness.toml is under check_paths.
-3. Tests for check_tool.security_lints against a real tmp git repo (bare nosec red, reason+issue passes, third nosemgrep red unless approved lambda, baseline raise) and for the rung's not-required/skip rows and report-only behaviour; add to test_perf_rung.py/test_security_rung.py.
-4. harness_review.py: put the security rung's `table` (from the ladder JSON rung named "security") into the prompt under "SECURITY SCAN"; test that it matches the rung's table.
-5. scripts/install_security_tools.sh reading pins from harness.toml (brew install semgrep gitleaks osv-scanner; uv tool install bandit; pytest-benchmark, pyinstrument in the runner venv). Pins must be confirmed real versions at install; none were installed or verified here. Write the two baselines (bandit, gitleaks) in their own batch; file Security - * issues. osv stays OFF until lane deps-security clears the Dependabot alerts.
-6. Flip spec bullets to [OK] with real `Test:` lines (perf-method, perf-rung-engine, security-scan-rung, scan-thresholds-and-waivers) and Step 2.30 Tests line in docs/contributor_manual/specs/harness/dev-workflows.md, only for what is truly tested.
+## Still open (needs the manager or a runner)
+1. Run `scripts/install_security_tools.sh --write-pins` on the runner (installs software: not done here), then write the bandit and gitleaks baselines in their own batch and file `Security - *` issues.
+2. Convert the perf tests to pytest-benchmark (see findings), write scripts/perf_baseline.json figures from three nights on the M4.
+3. The app half of the perf rung (`perf-rung-app`) is untouched.
 
 ## Findings to tell the manager
 - tests/perf: entity-list tests ran ~25 min each (verify_perf.sh header), whole suite ~50 min: cannot fit the 6-min budget. The seven perf tests are NOT converted to pytest-benchmark; needs a decision (a fast subset / smaller fixtures) and a run on the M4.
