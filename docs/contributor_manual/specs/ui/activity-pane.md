@@ -605,7 +605,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   status bar counts "N need you". Acceptance: the fixture with a failed, a running, a waiting and a done row lists them in
   that order; a blocker with Download Again sorts with the failed. *Built 2026-11-14 night:* `ActivityPane.needsYouRank`
   (a row the person paused waits with the waiting; a blocker sorts by its state until `blocked` is its own); the status
-  counts "N need you" in the window's bottom panel. *Test:* `ActivityPaneOutlineTests.flatOrder` (the order superseded).
+  counts "N need you" in the window's bottom panel. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityPaneOutlineTests.swift` (`flatOrder`; the order superseded).
 - `activity.pane.fix-button-has-words` — **[OK]** (#6599, #6588; `activity.pane.error-row-shape`) the row's one button carries its
   WORD ("Download Again", "Choose Folder…", "Add Key…", "Continue", "Retry"), never an icon alone; the fix comes from the
   failure's primary action as the engine names it, the app maps an action id to its word and its act, and an action id it does
@@ -731,7 +731,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   its null blank); one short time unit, "48 s", "3 min", "2 h" (`ActivityMonitorRow.duration`). *Built 2026-11-14 night:* one
   `ActivityMonitorRow.elapsedSeconds` (the engine's seconds, else start to end) read by the Time cell, its sort and the
   Inspector, which names a file row's "Work time". *Built 2026-11-15:* a run the engine finds interrupted at the next open ends when it stopped (its close, else the last work heard from it), not when the open noticed, so a 3-minute Kraken run no longer reads "1 h" (`run_account.mark_interrupted_runs` passes `ended_at` to `mark_run_failed`; `test_interrupted_run_ends_when_it_stopped_6588.py`); a paused row's clock stops at the last work heard under it, not now (`jobs.tree`; `test_a_paused_row_stops_its_clock_6588.py`). Acceptance: the fixture's file row and its Inspector read the same
-  time; a local Kraken row has no cost; a $0 cloud call reads Free. *Test:* `ActivityDefaultColumnsTests.swift` extended.
+  time; a local Kraken row has no cost; a $0 cloud call reads Free. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityDefaultColumnsTests.swift` extended.
 - `activity.pane.started-by-is-honest` — **[OK]** (#6588; `activity.pane.icons-say-source-and-kind`) the source glyph is a
   person only for a person's own act; the engine's own starters (`kept export`, `synced folder`, `automatic`, a schedule, a
   trigger) are automatic. Acceptance: `started_by: "kept export"` maps to automatic. *Built 2026-11-14 night:*

@@ -4,6 +4,7 @@ import Testing
 
 /// `activity.window.bottom-panel` (#6588, decision 25; spec docs/contributor_manual/specs/ui/activity-pane.md): the window's
 /// foot shows a graph and its figures per tab, from the engine's history, the projects' answers summed.
+@MainActor
 struct ActivityBottomPanelTests {
     private let start = Date(timeIntervalSince1970: 1_800_000_000)
 

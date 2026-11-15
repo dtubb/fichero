@@ -316,5 +316,12 @@
     "method": "pick",
     "class": "by-design",
     "reason": "by-design 2026-10-31: making one line's reading count changes the page's whole compare answer (the agreement, the differing words and the counting reader of that line), so the answer is resynced from the engine; the store holds one page's answer, not a list of items to splice"
+  },
+  {
+    "file": "fichero/fichero/Models/KeptExportStore.swift",
+    "method": "preview",
+    "class": "violation",
+    "reason": "batch-21 (#6588): a preview store built once from a fixed list for a #Preview; it never reloads, so there is nothing to splice",
+    "issue": 6588
   }
 ]
