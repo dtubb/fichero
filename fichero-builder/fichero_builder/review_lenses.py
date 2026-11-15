@@ -26,7 +26,7 @@ A finding is NOT READY by file:line with the safe form named (for a shell call, 
 LENSES = f"{PERFORMANCE}\n\n{SECURITY}"
 
 # the files whose change touches the security surface: an entitlement, an ATS exception (Info.plist), a route's module
-_SURFACE = re.compile(r"(\.entitlements$|(^|/)Info[^/]*\.plist$|(^|/)api/routes/[^/]+\.py$)")
+_SURFACE = re.compile(r"(\.entitlements$|(^|/)Info[^/]*\.plist$|(^|/)api/routes/.+\.py$)")
 
 
 def surface_files(name_status: str) -> list[str]:

@@ -80,3 +80,10 @@ def test_the_security_rung_s_table_is_in_the_prompt_under_security_scan_exactly_
     ladder.write_text(json.dumps({"ok": True, "rungs": [{"name": "security", "ok": True, "skipped": True, "stdout_tail": "not required: x"}]}))
     (tmp_path / "b").mkdir()
     assert "(skipped: not required: x)" in _prompt(tmp_path / "b", {"scripts/conv.py": "x = 1\n"}, ladder)
+
+
+def test_a_nested_route_module_is_on_the_security_surface_at_the_top(tmp_path):
+    nested = "fichero-server/src/fichero_server/api/routes/auth/authz.py"
+    p = _prompt(tmp_path, {nested: "def check(user):\n    return True\n", "fichero-server/src/fichero_server/api/routes/ai/provider_keys.py": "x = 1\n"})
+    top = p.split("CHECKLIST:")[0]
+    assert top.count("SECURITY SURFACE CHANGED:") == 1 and nested in top and "ai/provider_keys.py" in top and "none" not in top.split("SECURITY SURFACE CHANGED:")[1]
