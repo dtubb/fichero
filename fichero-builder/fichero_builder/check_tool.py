@@ -960,11 +960,11 @@ def _remote_build_locked(root, cfg: Config, host: str, rbase: str, cmd: tuple = 
     if r["exit_code"] == 255:
         journal.append("check", state="build-remote-down", rung=name, runner=host, detail=r["stderr_tail"][-200:])
         return None
-    if not r["ok"] and name == "perf":
+    if not r["ok"] and not r.get("timed_out") and name == "perf":
         # a perf run that exits non-zero crashed over there: its stderr is the row, never "unreachable"
         journal.append("check", state="build-remote-crash", rung=name, runner=host, detail=(r.get("stderr_tail") or "")[-200:])
         return {"ok": False, "skipped": False, "crashed": True, "remote": host, "results": [r]}
-    if not r["ok"] and not SOURCE_ERROR.search((r.get("errors") or "") + (r.get("stdout_tail") or "")):
+    if not r["ok"] and name != "perf" and not SOURCE_ERROR.search((r.get("errors") or "") + (r.get("stdout_tail") or "")):
         # a red that names no Swift source error is that Mac's (a missing component, a package fetch, a timeout), never the code's
         journal.append("check", state="build-remote-env-red", rung=name, runner=host, detail=(r.get("stderr_tail") or "")[-200:])
         return None

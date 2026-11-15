@@ -117,3 +117,18 @@ def test_a_refused_or_skipped_rung_is_not_run_never_green():
     r = check_tool._report_only("security", {"enforce": False}, False, ["REFUSED: bandit has no pinned version in harness.toml [check.security]"])
     assert r["ok"] and r["not_run"] and check_tool.rung_not_run(r)
     assert not check_tool.rung_not_run(check_tool._report_only("perf", {"enforce": False}, True, ["all within tolerance"]))
+
+
+def test_a_perf_timeout_is_an_alert_row_never_a_crash_or_a_red(tmp_path, monkeypatch):
+    from fichero_builder import check_tool, journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    r = {"ok": False, "exit_code": -9, "timed_out": True, "seconds": 900, "stdout_tail": "", "stderr_tail": ""}
+    monkeypatch.setattr(check_tool, "run_command", lambda n, *a, **k: {"ok": True} if n == "build-sync" else r)
+    monkeypatch.setattr(check_tool, "_ssh", lambda *a, **k: type("P", (), {"returncode": 0, "stdout": b"/gate\n", "stderr": b""})())
+    monkeypatch.setattr(check_tool, "_stable_build_tree", lambda root, cfg: str(root))
+    out = check_tool._remote_build_locked(tmp_path, _perf_cfg(), "m4", "/gate", ("py", "x"), "perf", False)
+    assert out is not None and not out.get("crashed") and out["results"][0]["timed_out"]
+    monkeypatch.setattr(check_tool, "_remote_build", lambda *a, **k: out)
+    res = check_tool.perf(tmp_path, "a", ["fichero-server/src/x.py"], _perf_cfg())
+    assert res["ok"] and "timed out" in res["stdout_tail"] and not res.get("not_run")
+    assert [x for x in journal.read() if x["event"] == "alert" and x.get("rung") == "perf"]
