@@ -1677,6 +1677,38 @@ async def stop_all(
     return RunControlsResponse.model_validate(result.result)
 
 
+class ActivityModel(BaseModel):
+    """One model of the Models tree (`activity.window.models-tree`, #6588)."""
+
+    id: str
+    name: str
+    place: Literal["this-mac", "remote", "cloud"]
+    provider: str
+    loaded: bool = Field(description="held in memory now")
+    active: bool = Field(description="a page or call on it is in flight now")
+    memory_bytes: Optional[int] = Field(default=None, description="what it holds in memory; null when nothing measures it")
+    memory_estimated: bool = Field(default=False, description="memory_bytes is the size its load is given, not measured")
+    running: int = 0
+    pages_today: int = 0
+    calls_today: int = 0
+    seconds_today: float = 0.0
+
+
+class ActivityModelsResponse(BaseModel):
+    models: list[ActivityModel] = Field(default_factory=list)
+
+
+@router.get("/models", response_model=ActivityModelsResponse)
+async def activity_models(db: Database = Depends(get_library_database)) -> ActivityModelsResponse:
+    """The Models tree (`activity.window.models-tree`, `activity.resources.everything-measured`, #6588): every model this
+    project used today or the engine holds now, by place (this Mac, remote, cloud) and provider, loaded or not, active or
+    not, its memory where measured, today's pages, calls and seconds."""
+    from fichero_server.workflows.activity_models import models
+
+    found = await asyncio.to_thread(models, db)
+    return ActivityModelsResponse(models=[ActivityModel(**m) for m in found])
+
+
 class JobPauseRequest(BaseModel):
     paused: bool = Field(description="true pauses this job; false resumes it")
 
