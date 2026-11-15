@@ -53,6 +53,7 @@ struct ActivityLaunchAlertTests {
     func titleAndMessage() {
         #expect(StoppedAtQuitAlert.title(count: 1) == "1 run was stopped when Fichero quit")
         #expect(StoppedAtQuitAlert.title(count: 3) == "3 runs were stopped when Fichero quit")
+        #expect(StoppedAtQuitAlert.title(count: 0) == "Background work was stopped when Fichero quit", "never \"0 runs\"")
         let message = StoppedAtQuitAlert.message(names: ["Run the recipe: Letters", "Make thumbnails"])
         #expect(message.hasPrefix("Run the recipe: Letters\nMake thumbnails\n"))
         #expect(message.contains("Nothing runs until you choose"))
@@ -72,6 +73,8 @@ struct ActivityLaunchAlertTests {
         #expect(message.contains("and background work: 1 embeds, 2 thumbnails"))
         #expect(message.contains("New files in a synced folder"))
         #expect(!message.contains("Make thumbnails"), "no row per thumbnail")
+        let alone = StoppedAtQuitAlert.message(items: [("Embed for search", "embed"), ("Make thumbnails", "thumbnail")])
+        #expect(alone.hasPrefix("Background work: 1 embeds, 1 thumbnails\n"), "no \"and\" with no run before it")
     }
 
     @Test("with nothing stopped the alert never shows")

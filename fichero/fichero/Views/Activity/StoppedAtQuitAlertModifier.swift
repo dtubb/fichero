@@ -10,6 +10,7 @@ import SwiftUI
 
 struct StoppedAtQuitAlertModifier: ViewModifier {
     @Environment(\.openWindow) private var openWindow
+    @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
     let libraryManager: LibraryManager
     @State private var alert = StoppedAtQuitAlert()
 
@@ -25,6 +26,9 @@ struct StoppedAtQuitAlertModifier: ViewModifier {
                     openWindow(id: ActivityWindowSelectionState.monitorWindowID)
                 }
                 Button("Continue All") { Task { await alert.continueAll(libraries: libraries) } }
+                Button("Delete All", role: .destructive) {
+                    Task { await alert.deleteAll(libraries: libraries, steps: windowSteps) }
+                }
             } message: {
                 Text(alert.message)
             }

@@ -4,7 +4,8 @@
 //
 //  The ONE alert at launch for the work the quit left unfinished (`activity.launch.nothing-starts-one-alert`, #6584;
 //  owner 2026-11-13): the engine paused it all on open and starts nothing; the person chooses Leave Paused (the
-//  default), Choose… (Activity) or Continue All. Shown once per launch.
+//  default), Choose… (Activity), Continue All or Delete All (owner 2026-11-14 evening; undoable, as every Delete).
+//  Shown once per launch.
 //
 
 import Foundation
@@ -36,9 +37,13 @@ final class StoppedAtQuitAlert {
     @ObservationIgnored private var asked: Set<UUID> = []
     private let log = Logger(subsystem: "app.fichero.fichero", category: "StoppedAtQuitAlert")
 
-    /// The alert's title, by the count: "3 runs were stopped when Fichero quit".
-    static func title(count: Int) -> String {
-        count == 1 ? "1 run was stopped when Fichero quit" : "\(count) runs were stopped when Fichero quit"
+    /// The alert's title, by the count: "3 runs were stopped when Fichero quit"; with no runs, what was: never "0 runs".
+    static func title(count: Int, background: Bool = true) -> String {
+        switch count {
+        case 0: background ? "Background work was stopped when Fichero quit" : "New files are waiting in a synced folder"
+        case 1: "1 run was stopped when Fichero quit"
+        default: "\(count) runs were stopped when Fichero quit"
+        }
     }
 
     /// The alert's message: the runs' names, at most five, then "and N more"; the automatic work rolled into one line
@@ -53,7 +58,7 @@ final class StoppedAtQuitAlert {
         let background = items.filter { automaticKinds.contains($0.kind) }
         if !background.isEmpty {
             let counts = Dictionary(grouping: background, by: \.kind).map { kind, rows in "\(rows.count) \(Self.word(for: kind))" }
-            lines.append("and background work: " + counts.sorted().joined(separator: ", "))
+            lines.append((runs.isEmpty ? "Background work: " : "and background work: ") + counts.sorted().joined(separator: ", "))
         }
         let folders = items.filter { $0.kind == newMaterialKind }.count
         if folders > 0 { lines.append(folders == 1 ? "New files in a synced folder" : "New files in \(folders) synced folders") }
@@ -70,7 +75,10 @@ final class StoppedAtQuitAlert {
     }
 
     /// The runs the title counts: the automatic rows roll into their one line, so they are not "runs".
-    var title: String { Self.title(count: items.filter { !Self.automaticKinds.contains($0.kind) }.count) }
+    var title: String {
+        Self.title(count: items.filter { !Self.automaticKinds.contains($0.kind) && $0.kind != Self.newMaterialKind }.count,
+                   background: items.contains { Self.automaticKinds.contains($0.kind) })
+    }
     var message: String { Self.message(items: items.map { ($0.name, $0.kind) }) }
 
     /// Ask each newly opened project what the quit stopped; present when anything was.
@@ -102,6 +110,19 @@ final class StoppedAtQuitAlert {
             } catch {
                 log.error("continue after quit failed: \(error.localizedDescription, privacy: .public)")
             }
+        }
+        leavePaused()
+    }
+
+    /// Delete All: every stopped row is deleted through the one audited `job.delete`, per project, one step on the
+    /// window's stack so Edit › Undo puts them back paused (`job.undelete`, `activity.pane.row-actions-on-the-table`).
+    func deleteAll(libraries: [LibraryManager.LibraryReference], steps: WindowSteps?) async {
+        for library in libraries {
+            let ids = items.filter { $0.libraryId == library.id }.map(\.jobId)
+            guard !ids.isEmpty else { continue }
+            _ = await library.activityStore.performUndoable(
+                "job.delete", ids: ids, named: UndoableChange.named("Delete", count: ids.count, one: "Row", many: "Rows"),
+                actions: library.actionsService, steps: steps)
         }
         leavePaused()
     }

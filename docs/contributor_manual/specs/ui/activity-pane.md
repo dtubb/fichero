@@ -201,8 +201,14 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   contract regenerated. App: `StoppedAtQuitAlert` (title, message, Leave Paused default, Continue All) mounted over the main
   window by `StoppedAtQuitAlertModifier`, asked once per project as it opens; Choose… opens the Activity window; the automatic
   kinds roll into one line ("and background work: 412 thumbnails, 80 embeds") and a held folder read into "New files in a
-  synced folder" (the review's answers, 2026-11-14). Not compiled here. Not built: the alert's rows selected in Activity on
+  synced folder" (the review's answers, 2026-11-14). Not built: the alert's rows selected in Activity on
   Choose…; the folder's name on the new-material line.
+  **Ruled 2026-11-14 evening (owner, looking at the alert):** a FOURTH button, **Delete All** (destructive, last): every
+  listed row deleted through the one `job.delete`, one step on the window's stack, so Edit › Undo puts them back paused. With
+  no run among the rows the title says what was stopped ("Background work was stopped when Fichero quit"), never "0 runs",
+  and the line drops its "and". **Built the same evening** (`StoppedAtQuitAlert.deleteAll`, the title by kind); *test:*
+  `ActivityLaunchAlertTests` (the title and the line); Delete All's round trip not yet under a test. Seen in the Dev Local
+  build at a relaunch: the alert showed, nothing was picked (2 embeds, 2 thumbnails held).
   *Tests:* `fichero-server/tests/unit/jobs/test_launch_starts_nothing_6584.py`,
   `fichero-server/tests/unit/jobs/test_launch_to_continue_end_to_end_6584.py` (quit with running, paused, waiting, automatic
   and new-material work → open → nothing picked → all listed → Continue two → only those two run),
