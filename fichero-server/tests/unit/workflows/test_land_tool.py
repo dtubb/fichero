@@ -188,6 +188,10 @@ def test_a_docs_asset_image_leaves_the_review_text_and_is_named_and_any_other_bi
     g("add", "."), g("commit", "-qm", "shot")
     d = L.review_diff(tmp_path, base, "HEAD")
     assert "code.py" in d and "IHDR" not in d and "docs/assets/pane/shot.png" in d.rsplit("Images in this range", 1)[-1]
+    (tmp_path / "docs" / "assets" / "pane" / "two.png").write_bytes(b"\x89PNG\x00only")
+    g("add", "."), g("commit", "-qm", "an image-only commit says why")
+    d = L.review_diff(tmp_path, base, "HEAD")
+    assert "an image-only commit says why" in d and "only" not in d.split("Images in this range")[0].replace("image-only", "")
     (tmp_path / "docs" / "notes.bin").write_bytes(b"\x00hidden\x00")
     g("add", "."), g("commit", "-qm", "bin")
     try:
