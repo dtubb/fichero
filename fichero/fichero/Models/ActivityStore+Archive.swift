@@ -42,8 +42,9 @@ extension ActivityStore {
     /// One person's Delete of this project's runs and jobs as ONE step on the window's stack (`activity.pane.one-undo-per-action`,
     /// #6599): the runs' `workflow_run.delete` (tried again while a run just stopped still reads running, `settling`) and the
     /// jobs' `job.delete`, filed together, so Edit › Undo puts every row back, the runs as they were (`workflow_run.undelete`).
-    func deleteAsOneStep(threadIds: [String], jobIds: [String], stopRunning: Bool, settling: Bool,
+    func deleteAsOneStep(ids: (threads: [String], jobs: [String]), stopRunning: Bool, settling: Bool,
                          actions: ActionsService, steps: WindowSteps?) async -> ActivityJobsOutcome {
+        let (threadIds, jobIds) = ids
         var outcome = ActivityJobsOutcome()
         var removedRuns: [String] = []
         let total = threadIds.count + jobIds.count
@@ -59,29 +60,29 @@ extension ActivityStore {
                     historicalRunsFetched = 0
                     await refreshBackgroundJobs()
                     refreshToken += 1
-                }
-            ) { part in
-                guard part.action == "workflow_run.delete" else {
-                    let result = try await actions.invokeAction(
-                        name: part.action, params: ActivityJobIdsParams(ids: part.ids, stopRunning: stopRunning ? true : nil))
-                    outcome.done += result.resultListCounts["deleted_ids"] ?? 0
-                    outcome.skipped += result.resultListCounts["skipped_ids"] ?? 0
-                    return [result.auditId]
-                }
-                var written: [String] = [], pending = part.ids, tries = 0
-                repeat {
-                    if tries > 0 { try? await Task.sleep(for: .seconds(1)) }
-                    let result = try await actions.invokeAction(name: part.action, params: ActivityJobIdsParams(threadIds: pending))
-                    written.append(result.auditId)
-                    let deleted = Set(result.resultListStrings["deleted_ids"] ?? [])
-                    removedRuns += pending.filter(deleted.contains)
-                    pending = pending.filter { !deleted.contains($0) }
-                    tries += 1
-                } while settling && !pending.isEmpty && tries < 10
-                outcome.done += part.ids.count - pending.count
-                outcome.skipped += pending.count
-                return written.filter { !$0.isEmpty }
-            }
+                },
+                change: { part in
+                    guard part.action == "workflow_run.delete" else {
+                        let result = try await actions.invokeAction(
+                            name: part.action, params: ActivityJobIdsParams(ids: part.ids, stopRunning: stopRunning ? true : nil))
+                        outcome.done += result.resultListCounts["deleted_ids"] ?? 0
+                        outcome.skipped += result.resultListCounts["skipped_ids"] ?? 0
+                        return [result.auditId]
+                    }
+                    var written: [String] = [], pending = part.ids, tries = 0
+                    repeat {
+                        if tries > 0 { try? await Task.sleep(for: .seconds(1)) }
+                        let result = try await actions.invokeAction(name: part.action, params: ActivityJobIdsParams(threadIds: pending))
+                        written.append(result.auditId)
+                        let deleted = Set(result.resultListStrings["deleted_ids"] ?? [])
+                        removedRuns += pending.filter(deleted.contains)
+                        pending = pending.filter { !deleted.contains($0) }
+                        tries += 1
+                    } while settling && !pending.isEmpty && tries < 10
+                    outcome.done += part.ids.count - pending.count
+                    outcome.skipped += pending.count
+                    return written.filter { !$0.isEmpty }
+            })
         } catch {
             log.error("ActivityStore: delete failed \(error.localizedDescription, privacy: .public)")
             outcome.failure = error.localizedDescription
@@ -113,13 +114,13 @@ extension ActivityStore {
                     await refreshBackgroundJobs()
                     if !archivedJobs.isEmpty { await refreshArchivedJobs() }
                     refreshToken += 1
-                }
-            ) { part in
-                let result = try await actions.invokeAction(name: part.action, params: part.params)
-                outcome.done += result.resultListCounts["archived_ids"] ?? 0
-                outcome.skipped += result.resultListCounts["skipped_ids"] ?? 0
-                return (result.resultListCounts["archived_ids"] ?? 0) > 0 ? [result.auditId] : []
-            }
+                },
+                change: { part in
+                    let result = try await actions.invokeAction(name: part.action, params: part.params)
+                    outcome.done += result.resultListCounts["archived_ids"] ?? 0
+                    outcome.skipped += result.resultListCounts["skipped_ids"] ?? 0
+                    return (result.resultListCounts["archived_ids"] ?? 0) > 0 ? [result.auditId] : []
+            })
         } catch {
             log.error("ActivityStore: archive failed \(error.localizedDescription, privacy: .public)")
             outcome.failure = error.localizedDescription
