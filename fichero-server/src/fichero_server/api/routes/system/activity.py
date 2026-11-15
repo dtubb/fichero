@@ -455,6 +455,10 @@ class ActivitySummary(BaseModel):
     history: int = 0
     up_next: list[UpNextItem] = Field(default_factory=list, description=(
         "work not yet started, in lane order, each with what it waits for (`activity.summary.up-next`, #5960)"))
+    controls: Literal["pause", "play", "none"] = Field(default="none", description=(
+        "what the window's Play/Pause button shows (`activity.window.run-controls`, #6588): play while Pause All holds work "
+        "(Play continues it), pause while anything runs or waits, none when neither"))
+    stoppable: int = Field(default=0, description="how many pieces of work Stop All would stop: running, waiting and paused")
 
 
 _LIVE_STATES = ("running", "waiting", "paused")
@@ -638,8 +642,13 @@ async def activity_summary(db: Database, jobs: "list[BackgroundJob]",
 
     kinds = sorted({j.task_type for j in jobs if j.task_type not in _RUN_TASK_TYPES and j.state in _LIVE_STATES})
     paces = await asyncio.to_thread(lambda: {k: p for k in kinds if (p := job_queue.seconds_per_item(db, k)) is not None})
+    held = await asyncio.to_thread(job_queue.held_count, db)
+    top = [j for j in jobs if not j.parent_id and j.group == "live"]
+    going = any(j.state in ("running", "waiting") for j in top)
     return ActivitySummary(live=await live_blocks(db, jobs, statuses), background=background_lines(jobs, paces),
-                           history=sum(1 for j in jobs if j.group == "earlier"), up_next=up_next(jobs, statuses))
+                           history=sum(1 for j in jobs if j.group == "earlier"), up_next=up_next(jobs, statuses),
+                           controls="play" if held else "pause" if going else "none",
+                           stoppable=sum(1 for j in top if j.state in _LIVE_STATES))
 
 
 class BackgroundJobsResponse(BaseModel):
@@ -1622,6 +1631,50 @@ async def set_background_mode(
     return BackgroundModeResponse.model_validate(result.result)
 
 
+class RunControlsResponse(BaseModel):
+    ids: list[str] = Field(description="the rows the control acted on")
+    count: int
+    runs_resumed: list[str] = Field(default_factory=list, description="Continue All: the paused workflow runs resumed")
+
+
+class RunControlsParams(BaseModel):
+    pass
+
+
+@router.post("/pause-all", response_model=RunControlsResponse)
+async def pause_all(
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> RunControlsResponse:
+    """Pause All (`activity.window.run-controls`, #6588): every running and waiting piece of work of this project, a
+    person's runs too, pauses as its own Pause does, and background work is paused so nothing new starts. One undo step;
+    Continue All lets go exactly what it held."""
+    result = registry.invoke(db, "activity.pause_all", {}, ctx)
+    return RunControlsResponse.model_validate(result.result)
+
+
+@router.post("/continue-all", response_model=RunControlsResponse)
+async def continue_all(
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> RunControlsResponse:
+    """Continue All, the Play of the window's Play/Pause: the work Pause All held goes on (a workflow run from its
+    checkpoint), background work is let go; a row a person paused by hand stays paused."""
+    result = registry.invoke(db, "activity.continue_all", {}, ctx)
+    return RunControlsResponse.model_validate(result.result)
+
+
+@router.post("/stop-all", response_model=RunControlsResponse)
+async def stop_all(
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> RunControlsResponse:
+    """Stop All (`activity.window.run-controls`): every running, waiting and paused piece of work of this project stops as
+    its own Stop does; what it did is kept, and Retry runs it again. Not undoable."""
+    result = registry.invoke(db, "activity.stop_all", {}, ctx)
+    return RunControlsResponse.model_validate(result.result)
+
+
 class JobPauseRequest(BaseModel):
     paused: bool = Field(description="true pauses this job; false resumes it")
 
@@ -2008,6 +2061,60 @@ def _action_background_pause(
         domains=["activity"], before={"paused": before}, after={"paused": params.paused},
         emit_type="background.paused" if params.paused else "background.resumed",
     )
+
+
+def _resume_runs_later(db: Database, runs: list[str]) -> None:
+    """Resume these paused workflow runs from their checkpoints once the action commits, on the engine's background loop
+    (an action is synchronous; a resume is not)."""
+    if not runs:
+        return
+    from fichero_server.api.routes.workflow_execution import core
+    from fichero_server.execution.runner import on_background_loop
+
+    async def resume() -> None:
+        for run in runs:
+            try:
+                await core.resume_workflow(run, None, db=db)
+            except Exception as exc:  # noqa: BLE001 -- one run that cannot resume stays paused; the rest go on
+                logger.warning("Continue All could not resume run %s: %s", run, exc)
+
+    db.add_after_commit_hook(lambda: on_background_loop(resume()))
+
+
+@action("activity.pause_all", RunControlsParams, domains=["activity"], undoable=True,
+        invert=lambda before, after, ctx: ("activity.continue_all", {}))
+def _action_pause_all(db: Database, params: RunControlsParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.execution import jobs as job_queue
+
+    held = job_queue.pause_all(db)
+    db.add_after_commit_hook(lambda: job_queue.set_paused(True))  # nothing new starts while it holds
+    return {"ids": held, "count": len(held)}, ChangeSpec(
+        domains=["activity"], target_ids=held, before={}, after={"ids": held}, emit_type="background.paused")
+
+
+@action("activity.continue_all", RunControlsParams, domains=["activity"], undoable=True,
+        invert=lambda before, after, ctx: ("activity.pause_all", {}))
+def _action_continue_all(db: Database, params: RunControlsParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.execution import jobs as job_queue
+
+    let_go, runs = job_queue.continue_all(db)
+    db.add_after_commit_hook(lambda: job_queue.set_paused(False))
+    _resume_runs_later(db, runs)
+    ids = let_go + runs
+    return {"ids": ids, "count": len(ids), "runs_resumed": runs}, ChangeSpec(
+        domains=["activity"], target_ids=ids, before={}, after={"ids": ids}, emit_type="background.resumed")
+
+
+@action("activity.stop_all", RunControlsParams, domains=["activity"])
+def _action_stop_all(db: Database, params: RunControlsParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.execution import jobs as job_queue
+
+    held = job_queue.held_count(db)
+    asked = job_queue.stop_all(db, ctx.actor, ctx.client)
+    if held:
+        db.add_after_commit_hook(lambda: job_queue.set_paused(False))  # Pause All's hold of the background ends with it
+    return {"ids": asked, "count": len(asked)}, ChangeSpec(
+        domains=["activity"], target_ids=asked, before={}, after={"ids": asked}, emit_type="job.updated")
 
 
 def _invert_mode(before: dict | None, after: dict | None, ctx: ActionContext):
