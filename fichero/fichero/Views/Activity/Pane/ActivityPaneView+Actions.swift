@@ -8,6 +8,11 @@ struct ActivityVerbTarget: Equatable {
     let perform: @MainActor (ActivityPaneVerb) -> Void
 
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.enabled == rhs.enabled && lhs.selectionIds == rhs.selectionIds }
+
+    /// The verbs a selection enables, by the Mail rule: one is enabled when any selected row allows it.
+    static func enabledVerbs(for rows: [ActivityMonitorRow]) -> Set<ActivityPaneVerb> {
+        Set(ActivityPaneVerb.allCases.filter { $0.isEnabled(for: rows) })
+    }
 }
 
 /// What View › Activity ▸ reads from the focused Activity pane: its grouping and whether archived rows show.
@@ -69,7 +74,7 @@ extension ActivityPaneView {
     func verbTarget(in shown: [ActivityMonitorRow]) -> ActivityVerbTarget {
         let picked = rows(selection, in: shown)
         return ActivityVerbTarget(
-            enabled: Set(ActivityPaneVerb.allCases.filter { $0.isEnabled(for: picked) }),
+            enabled: ActivityVerbTarget.enabledVerbs(for: picked),
             selectionIds: selection,
             perform: { verb in perform(verb, on: picked) }
         )

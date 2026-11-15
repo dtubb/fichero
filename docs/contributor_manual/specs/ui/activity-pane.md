@@ -641,12 +641,15 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   toolbar's verbs and tabs. Acceptance: the pane's view tree has one `PaneFilterBar` at the bottom holding a
   `PaneFilterField` and the Metadata menu, and no filter field above the table. *Test:* not yet written:
   `ActivityBottomBarTests.swift`.
-- `activity.window.toolbar-verbs` — **[GAP]** (#6588; decision 24) **Pause**, **Continue** and **Stop** are toolbar buttons of
+- `activity.window.toolbar-verbs` — **[PARTIAL]** (#6588; decision 24) **Pause**, **Continue** and **Stop** are toolbar buttons of
   the Activity window and of a main window while its Activity pane holds the focus, enabled by the Mail rule over the
   selection (the one verb list's definitions, `ActivityPaneVerb`), with the Inspector toggle; the More menu (⋯) keeps Show
   Archived, Archive Finished… and Archive Failed. Acceptance: with a running and a paused row selected all three enable; with a
-  done row alone none does; the main window shows them only while the Activity pane has the focus. *Test:* not yet written:
-  `ActivityToolbarVerbsTests.swift`.
+  done row alone none does; the main window shows them only while the Activity pane has the focus. *Built 2026-11-14 night:*
+  `ActivityToolbarVerbButtons` (one control group over the pane's `activityVerbs`, the target Project › Activity reads) in
+  the Activity window beside the Inspector toggle and in the main window's leading zone, right of the sidebar, drawn only
+  while an Activity pane holds the focus (`docs/assets/activity-pane/window-toolbar-verbs.png`). *Not yet:* the More menu
+  (⋯) in the toolbar. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityToolbarVerbsTests.swift`.
 - `activity.window.bottom-panel` — **[GAP]** (#6588; decision 25; supersedes the one-line status bar of
   `activity.pane.less-is-more-table` for the window: a main window's pane keeps the one line) the window's foot is a panel per
   tab, figures AND a graph together: **Runs** pages done per minute over the last hour (a sparkline) and "N running · N
@@ -849,7 +852,7 @@ First, because every new install hits it: one real folder per model, load-checke
 
 #### Step 4.2 — the toolbar: verbs and the four tabs (#6588)
 - Behaviours: `activity.window.toolbar-verbs`, `activity.window.toolbar-tabs`
-- Tests: ActivityToolbarVerbsTests.swift (not yet written), ActivityToolbarTabsTests.swift (not yet written)
+- Tests: fichero/Tests/Unit/general/Models/ActivityPane/ActivityToolbarVerbsTests.swift, ActivityToolbarTabsTests.swift (not yet written)
 - Depends on: 4.1
 - Size: M
 

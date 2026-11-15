@@ -18,8 +18,12 @@ struct ActivityMonitorWindow: View {
                     .inspectorColumnWidth(min: 280, ideal: 380, max: 640)
             }
             .toolbar {
-                Button { showsInspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.trailing") }
-                    .help(showsInspector ? "Hide the Inspector" : "Show the Inspector")
+                // Activity Monitor's toolbar (decision 22): the verbs at the leading edge, the Inspector toggle at the end.
+                ToolbarItem(placement: .navigation) { ActivityToolbarVerbButtons() }
+                ToolbarItem(placement: .primaryAction) {
+                    Button { showsInspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.trailing") }
+                        .help(showsInspector ? "Hide the Inspector" : "Show the Inspector")
+                }
             }
             .environment(steps)
             .focusedSceneValue(\.windowSteps, steps)
