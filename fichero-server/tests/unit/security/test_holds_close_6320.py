@@ -582,14 +582,16 @@ def test_h1_h8_n6_a_run_over_a_folder_source_is_shown_and_acted_on_only_to_a_cal
             break
         time.sleep(0.2)
     base = f"/api/workflow-execution/threads/{thread}"
-    assert "SECRETTEXT" in owner.get(base + "/run").text  # the owner reads it: the run does hold the text
+    # A folder source passes files on and the run keeps no page text (its log says "no text output"); what the run does hold is the
+    # folder it read, in its snapshot: the owner reads that, and the refused callers below must not (#6586).
+    assert project.ids["B"] in owner.get(base + "/run").text
     erin = _person(project.harness, "erin")
     project.harness.app_db.set_library_role(user_id=erin.id, library_path=authz.normalize_library_path(project.library), role=authz.ROLE_EDITOR)
     assert _as(project.harness, "erin").get(base + "/run").status_code == 200  # a plain editor keeps it
     for name, client, decoy in four:
         for path in ("/status", "/history", "/run", "/episodes"):
             got = client.get(base + path + decoy)
-            assert got.status_code == 403 and "SECRET" not in got.text, (name, path, got.status_code)
+            assert got.status_code == 403 and "SECRET" not in got.text and project.ids["B"] not in got.text, (name, path, got.status_code)
         if name != "bob" and name != "dana":  # a viewer is refused a write for being a viewer
             for method, path in (("POST", "/read-again"), ("POST", "/cancel"), ("POST", "/pause"), ("DELETE", ""), ("POST", "/resume")):
                 assert client.request(method, base + path + decoy, json={}).status_code == 403, (name, method, path)

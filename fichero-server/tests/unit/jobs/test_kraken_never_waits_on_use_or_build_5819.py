@@ -19,6 +19,8 @@ from fichero_server.recipes import regions
 def mac(monkeypatch):
     state = {"build": False, "idle": 600.0, "battery": False, "pressure": 1, "sleeps": []}
     monkeypatch.setenv("FICHERO_JOB_THROTTLE", "1")
+    # These pages have no image, so only the waiting is exercised: the layout model's weights are not needed (#6587).
+    monkeypatch.setattr("fichero_server.llm.yolo_runtime.is_installed", lambda _model: True)
     monkeypatch.setattr(throttle, "memory_pressure_level", lambda: state["pressure"])
     monkeypatch.setattr(throttle, "memory_available_bytes", lambda: 64 * 1024**3)
     monkeypatch.setattr(throttle, "thermal_state_level", lambda: 0)
