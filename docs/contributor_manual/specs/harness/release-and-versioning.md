@@ -102,7 +102,7 @@ The logic lives in `scripts/release_guard.py` (one subcommand per point) so it i
 
 - `release.lane.disk-checked-before-heavy-stages` — **[OK]** before the engine build, each DMG,
   each TestFlight archive and each export, free space is checked against
-  `FICHERO_RELEASE_MIN_FREE_GB` (default 20). Short, it thins Time Machine local snapshots once
+  `FICHERO_RELEASE_MIN_FREE_GB` (default 15; owner 2026-11-14). Short, it thins Time Machine local snapshots once
   (`tmutil thinlocalsnapshots / 40000000000 4`) and re-checks; still short, it refuses with the
   stage and the numbers. It never deletes DerivedData, DMGs or any other file. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
 - `release.update.build-number-bumped-and-above-published` — **[OK]** a run that builds a DMG
@@ -353,10 +353,21 @@ while any box is open.
   `Fichero (App Store)` scheme builds again and its guardrails (`check_mac_app_store_target`)
   stay; the Mac App Store is a distribution output again (`release.mas.sandboxed-build`).
 
+### Release defaults (owner, 2026-11-14, #6590)
+
+- `release.lane.disk-floor-15gb` — **[OK]** the default free-space floor is 15 GB (still `FICHERO_RELEASE_MIN_FREE_GB`). *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
+- `release.lane.notes-auto-generated` — **[OK]** when `RELEASE_NOTES.md` has no `## <version>` section, or `CHANGELOG.md` no entry for the day, `release_guard.py auto-notes` writes them from the commit subjects since the newest `v*` tag (one bullet per subject, merges left out, newest first) before the release-docs preflight runs; a hand-written section is never touched. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
+- `release.lane.daily-builds-dev-dmg-only` — **[OK]** the morning release runs `release-all.sh --dev` and builds one DMG, the dev tier, named `Fichero.dmg` (a single-tier run always names its DMG `Fichero.dmg`); the two-DMG default stays for a hand run. `FICHERO_MORNING_ARGS` can change the flags. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
+- `release.queue.two-workers` — **[OK]** `harness.toml` `[queue] workers = 2`. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
+- `release.lane.github-before-testflight` — **[OK]** (#4272, replaces the GAP below) the GitHub release, appcast and site publish right after the DMG is built and smoked, before the Mac and iOS TestFlight parts; a failed publish marks Publish FAILED and the TestFlight parts still run. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
+- `release.lane.site-deploy-triggers-netlify` — **[OK]** `deploy-site.sh` posts to the Netlify build hook in `FICHERO_NETLIFY_BUILD_HOOK` after the push (unset: it says so and relies on the push). *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
+- `release.lane.live-appcast-verified` — **[OK]** the run texts success for the publish only after `release_guard.py verify-appcast` finds the new build in the live appcast (retried for `FICHERO_APPCAST_WAIT_MINUTES`, default 10); if it never appears, Publish is FAILED. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
+- `release.lane.notarize-poll-failed-call-not-in-progress` — **[OK]** in `notarize.sh` a `notarytool info` call that fails or returns no status is never read as "In Progress": the poll switches to the App Store Connect API key, and gives up after 5 failed calls in a row. Test: `fichero-server/tests/unit/scripts/test_notarize_poll.py`.
+
 ## Triaged from the backlog (2026-10-04)
 - `release.license-hygiene` — **[GAP]** (#4610) zeroconf LGPL, pillow-heif codec wheels, PythonKit branch pin, undeclared whisper and the NOTICE inventory are resolved so the SBOM is accurate.
 - `release.dmg-container-signed` — **[GAP]** (#4704) release-all codesigns the DMG with the Developer ID Application identity before notarization so spctl accepts the disk image.
-- `release.lane.github-before-testflight` — **[GAP]** (#4272) the GitHub release (tag, notes, DMG, appcast) publishes as soon as the DMG staples, before the App Store/TestFlight leg (release-all.sh:802 still runs it last).
+- `release.lane.github-before-testflight` — see Release defaults above; was **[GAP]** (#4272) the GitHub release (tag, notes, DMG, appcast) publishes as soon as the DMG staples, before the App Store/TestFlight leg (release-all.sh:802 still runs it last).
 - `release.gate.ready-for-first-real-user` — **[GAP]** (#4421) the Ann gate checklist (no data loss, no 'what on earth' moments, ...) is a named release gate with its evidence.
 - `release.update.announces-in-app-not-a-window` — **[GAP]** (#4433) an available update shows as a quiet in-app indicator, never a modal over the user's work (SparkleUpdater.swift uses the standard driver, no gentle reminders).
 - `release.verify-embedded-launch-local-signing` — **[GAP]** (#4333) scripts/verify_embedded_launch.sh packages the engine with ad-hoc signing (or a resolvable identity) instead of failing on a UUID-form identity's Team ID.
