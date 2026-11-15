@@ -109,7 +109,6 @@ struct ActivityPaneView: View {
         let shown = shownRows
         VStack(spacing: 0) {
             if showsHead { head; Divider() }
-            filterField
             if libraries.isEmpty {
                 Color.clear  // empty means blank (`activity.window.no-empty-prose`)
             } else if shown.isEmpty, !ActivityPaneFilter(prefs.filter).isEmpty {
@@ -119,13 +118,16 @@ struct ActivityPaneView: View {
             } else {
                 table(shown)
             }
-            statusBar
+            bottomBar
         }
         .accessibilityIdentifier("activity.pane")
         // The window has no pane head: its four tabs are the toolbar's (decision 23); a main window's pane has them in its
         // head's lens menu.
         .toolbar {
-            if !showsHead { ToolbarItem(placement: .principal) { tabPicker } }
+            if !showsHead {
+                ToolbarItem(placement: .principal) { tabPicker }
+                ToolbarItem(placement: .primaryAction) { moreMenu }
+            }
         }
         .onChange(of: selection) { _, _ in onSelect(selectedPick) }
         .onChange(of: shown.map(\.id)) { _, _ in onSelect(selectedPick); if selection.isEmpty { select(reveal) } }
@@ -223,33 +225,58 @@ struct ActivityPaneView: View {
         )
     }
 
-    private var filterField: some View {
-        HStack(spacing: 8) {
-            TextField("Filter: model: Kraken state: failed", text: Binding(
-                get: { prefs.filter }, set: { value in update { $0.filter = value } }))
-                .textFieldStyle(.roundedBorder)
-                .accessibilityIdentifier("activity.filter")
-            Menu {
+    /// The pane's one bottom bar, the app's (`activity.pane.bottom-bar-like-every-pane`, #6588): Metadata (the column toggles,
+    /// the same as the header's menu), the Filter field with what the list shows in its menu, and the status figures.
+    private var bottomBar: some View {
+        PaneFilterBar(placement: .bottom) {
+            PaneMetadataButton { columnToggles }
+                .help("Which columns the table shows")
+                .accessibilityIdentifier("activity.metadata")
+            PaneFilterField(text: Binding(get: { prefs.filter }, set: { value in update { $0.filter = value } }),
+                            prompt: "Filter: model: Kraken state: failed", accessibilityID: "activity.filter") {
                 Toggle("Show Archived", isOn: $showArchived)
-                Button("Archive Finished…") { confirmingArchiveFinished = true }
-                Button("Archive Failed") { Task { await archiveFailed() } }
-            } label: {
-                Label("More", systemImage: "ellipsis.circle").labelStyle(.iconOnly)
+                Divider()
+                Button("Failed") { update { $0.filter = "state: failed" } }
+                Button("Today") { update { $0.filter = "date: today" } }
+                Button("Started Automatically") { update { $0.filter = "started by: automatic" } }
             }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .accessibilityIdentifier("activity.more")
+            .frame(maxWidth: 360)
+            Spacer(minLength: 8)
+            Text([statusBarText, notice].compactMap { $0 }.joined(separator: " · "))
+                .font(.caption).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
+                .accessibilityIdentifier("activity.statusbar")
+            if showsHead { moreMenu }
         }
-        .padding(.horizontal, 10).padding(.vertical, 6)
     }
 
-    private var statusBar: some View {
-        Text([statusBarText, notice].compactMap { $0 }.joined(separator: " · "))
-            .font(.caption).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12).padding(.vertical, 4)
-            .background(.bar)
-            .accessibilityIdentifier("activity.statusbar")
+    /// Each column of the tab, on or off: the header's menu, in the bar (`activity.pane.default-columns`).
+    @ViewBuilder
+    private var columnToggles: some View {
+        ForEach(ActivityPane.Column.allCases.filter { $0 != .name && $0 != .source }, id: \.self) { column in
+            Toggle(column.title, isOn: Binding(
+                get: { prefs.columns(for: prefs.tab)[visibility: column.rawValue] != .hidden },
+                set: { isOn in
+                    update { prefs in
+                        var columns = prefs.columns(for: prefs.tab)
+                        columns[visibility: column.rawValue] = isOn ? .visible : .hidden
+                        prefs.setColumns(columns, for: prefs.tab)
+                    }
+                }))
+        }
+    }
+
+    /// The More menu: Show Archived, Archive Finished… and Archive Failed (`activity.window.toolbar-verbs`), the window's
+    /// toolbar's, and the bottom bar's in a main window's pane.
+    private var moreMenu: some View {
+        Menu {
+            Toggle("Show Archived", isOn: $showArchived)
+            Button("Archive Finished…") { confirmingArchiveFinished = true }
+            Button("Archive Failed") { Task { await archiveFailed() } }
+        } label: {
+            Label("More", systemImage: "ellipsis.circle")
+        }
+        .help("Show Archived, Archive Finished…, Archive Failed")
+        .accessibilityIdentifier("activity.more")
     }
 
     /// "3 running · 12 waiting · $3.20 today", Finder style, and "Automatic work paused" while it is.

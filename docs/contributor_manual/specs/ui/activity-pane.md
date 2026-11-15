@@ -637,7 +637,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   `test_activity_where_6588.py`). Picture: `docs/assets/activity-pane/window-toolbar-tabs.png`. *Not yet:* the column
   titles per tab ("File", "Spent", "Last run" read "Name", "Cost", "Started"). *Test:*
   `fichero/Tests/Unit/general/Models/ActivityPane/ActivityToolbarTabsTests.swift`.
-- `activity.pane.bottom-bar-like-every-pane` — **[GAP]** (#6588; the owner 2026-11-14: "filter bar and metadata button at the
+- `activity.pane.bottom-bar-like-every-pane` — **[OK]** (#6588; the owner 2026-11-14: "filter bar and metadata button at the
   bottom like in the rest of the app"; `panes.chrome.one-filter-pattern`, `PaneFilterBar`, `PaneFilterField`; supersedes the
   filter field at the top of `activity.pane.history-kept-and-filterable` and the window's Group by row) the pane's one bottom
   bar is the app's: **Metadata** (the column toggles of the one column table, `activity.pane.default-columns`, the same as the
@@ -645,8 +645,11 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   Archived, Failed, Needs You, Started by automatic, Today); the status line's figures move to the bottom panel in the window
   and stay as the bar's trailing text in a main window's pane. Nothing of Activity's is a custom control at the top but the
   toolbar's verbs and tabs. Acceptance: the pane's view tree has one `PaneFilterBar` at the bottom holding a
-  `PaneFilterField` and the Metadata menu, and no filter field above the table. *Test:* not yet written:
-  `ActivityBottomBarTests.swift`.
+  `PaneFilterField` and the Metadata menu, and no filter field above the table. *Built 2026-11-14 night:* the bar holds
+  `PaneMetadataButton` (each column of the tab, on or off), `PaneFilterField` (its menu: Show Archived, Failed, Today,
+  Started Automatically) and the status figures; the More menu (⋯) is the window's toolbar's, the bar's in a main window's
+  pane (`docs/assets/activity-pane/window-bottom-bar.png`). Needs You waits for `activity.pane.needs-you-first`. *Test:*
+  `fichero/Tests/Unit/general/Models/ActivityPane/ActivityBottomBarTests.swift`.
 - `activity.window.toolbar-verbs` — **[PARTIAL]** (#6588; decision 24) **Pause**, **Continue** and **Stop** are toolbar buttons of
   the Activity window and of a main window while its Activity pane holds the focus, enabled by the Mail rule over the
   selection (the one verb list's definitions, `ActivityPaneVerb`), with the Inspector toggle; the More menu (⋯) keeps Show
@@ -654,8 +657,8 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   done row alone none does; the main window shows them only while the Activity pane has the focus. *Built 2026-11-14 night:*
   `ActivityToolbarVerbButtons` (one control group over the pane's `activityVerbs`, the target Project › Activity reads) in
   the Activity window beside the Inspector toggle and in the main window's leading zone, right of the sidebar, drawn only
-  while an Activity pane holds the focus (`docs/assets/activity-pane/window-toolbar-verbs.png`). *Not yet:* the More menu
-  (⋯) in the toolbar. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityToolbarVerbsTests.swift`.
+  while an Activity pane holds the focus (`docs/assets/activity-pane/window-toolbar-verbs.png`); the More menu (⋯) is in
+  the toolbar too. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityToolbarVerbsTests.swift`.
 - `activity.window.bottom-panel` — **[GAP]** (#6588; decision 25; supersedes the one-line status bar of
   `activity.pane.less-is-more-table` for the window: a main window's pane keeps the one line) the window's foot is a panel per
   tab, figures AND a graph together: **Runs** pages done per minute over the last hour (a sparkline) and "N running · N
