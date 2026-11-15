@@ -175,6 +175,16 @@ def SPACY_RELEASE_URL(name: str, version: str) -> str:  # noqa: N802 -- a consta
 _CODE_SUFFIXES = (".py", ".pyc", ".pyo", ".pyd", ".so", ".dylib", ".dll", ".pth", ".sh", ".exe")
 
 
+def store_stamp() -> tuple[tuple[str, int], ...]:
+    """When each runtime's folder in the model store last gained or lost a model: a cache of anything that says what is
+    on this Mac (the Start plan, #6446) keys on it, so a finished download is seen at once."""
+    # ponytail: folder mtimes, one level down; a model replaced in place inside its own folder is not seen.
+    try:
+        return tuple(sorted((p.name, p.stat().st_mtime_ns) for p in MODELS_BASE.iterdir() if p.is_dir()))
+    except OSError:
+        return ()
+
+
 def spacy_pipeline_path(name: str) -> Path | None:
     """The pipeline's data folder in the model store, when it has been downloaded."""
     folder = MODELS_BASE / "spacy" / f"{name}-{SPACY_PIPELINE_VERSION}"
