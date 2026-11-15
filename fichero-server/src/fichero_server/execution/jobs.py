@@ -1576,6 +1576,42 @@ def parent_of(db: "Database", job_id: str) -> str | None:
     return row[0] if row and row[0] else None
 
 
+def page_jobs_of_run(db: "Database", thread_id: str, limit: int = 200) -> list[tuple[str, str | None]]:
+    """The kind and detail of a run's page jobs (its rows and its steps' rows), committed: where the run ran (#6588)."""
+    return db.execute_fetchall(
+        "SELECT kind, detail FROM jobs WHERE parent_id = ? OR parent_id LIKE ? LIMIT ?",
+        [thread_id, thread_id + ":%", limit], committed=True)
+
+
+def document_names(db: "Database", ids: list[str]) -> dict[str, str]:
+    """The names of the documents among `ids`, by id, in one committed read; an id that is no document is absent."""
+    if not ids:
+        return {}
+    wanted = list(dict.fromkeys(ids))
+    rows = db.execute_fetchall(f"SELECT id, name FROM documents WHERE id IN ({', '.join('?' for _ in wanted)})",
+                               wanted, committed=True)
+    return {row[0]: row[1] for row in rows if row[1]}
+
+
+def finished_page_jobs_since(db: "Database", since: Any, run_kinds: Any) -> list[tuple]:
+    """Each finished page job (a job under a run's step, not a run or step row) since `since`: its end, state, detail and
+    target, committed (the Activity history, #6588)."""
+    kinds = list(run_kinds)
+    return db.execute_fetchall(
+        "SELECT finished_at, state, detail, target FROM jobs WHERE parent_id IS NOT NULL "
+        f"AND kind NOT IN ({', '.join('?' * len(kinds))}) AND state IN ('done', 'failed') AND finished_at >= ?",
+        [*kinds, since], committed=True)
+
+
+def latest_job_id(db: "Database", kind: str, subject: str) -> str | None:
+    """The job of this kind and subject a waiter should hang on: a live one first, else the newest."""
+    row = db.execute_fetchone(
+        "SELECT id FROM jobs WHERE kind = ? AND subject = ? ORDER BY "
+        "CASE WHEN state IN ('waiting', 'running', 'paused') THEN 0 ELSE 1 END, created_at DESC LIMIT 1",
+        [kind, subject])
+    return row[0] if row else None
+
+
 def read_job(db: "Database", job_id: str) -> dict[str, Any] | None:
     """One job's row (its `detail` as stored, JSON text), or None."""
     _ensure(db)
