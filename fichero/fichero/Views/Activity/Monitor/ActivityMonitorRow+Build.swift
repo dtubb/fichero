@@ -87,6 +87,8 @@ extension ActivityMonitorRow {
         row.startedBy = job.startedBy
         row.ended = job.finishedAt ?? job.failedAt
         row.costEstimateUsd = job.costEstimateUsd
+        row.runsOn = job.runsOn
+        row.lane = job.lane
         row.ranOnText = job.ranOn.map(\.words)
         return row
     }

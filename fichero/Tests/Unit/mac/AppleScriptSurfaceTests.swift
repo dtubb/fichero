@@ -76,7 +76,8 @@ final class AppleScriptSurfaceTests: XCTestCase {
                        "FicheroDebug.sdef's user suites are Fichero.sdef's, word for word")
         XCTAssertEqual(debugSuites.count, userSuites.count + 1, "plus the test suite, and nothing else")
         XCTAssertTrue(try debug.nodes(forXPath: "//*[local-name()='include']").isEmpty, "no XInclude (#5258)")
-        let testVerbs = ["describe window": "FicheroDescribeWindowCommand", "select segment": "FicheroSelectSegmentCommand"]
+        let testVerbs = ["describe window": "FicheroDescribeWindowCommand", "select segment": "FicheroSelectSegmentCommand",
+                         "undo step": "FicheroUndoStepCommand"]
         for (verb, cls) in testVerbs {
             let bound = try debug.nodes(forXPath: "//suite[@name='Fichero Test Suite']/command[@name='\(verb)']/cocoa/@class")
             XCTAssertEqual(bound.first?.stringValue, cls, verb)

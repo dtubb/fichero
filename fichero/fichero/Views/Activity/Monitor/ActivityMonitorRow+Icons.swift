@@ -32,13 +32,17 @@ extension ActivityMonitorRow {
         }
     }
 
-    /// The source of a row, read from the engine's `started_by` in one place: "automatic", "import" and the derivative
-    /// kinds are automatic; "schedule:…" and "trigger:…" a schedule; "workflow" and "read-again:…" a recipe's or run's own
-    /// step; anything else named is a person.
+    /// The engine's own starters, its `jobs.BACKGROUND_STARTERS` less the schedule and trigger (their own glyph), plus the
+    /// derivative kinds: work nobody at the Mac started (`activity.pane.started-by-is-honest`, #6588).
+    static let automaticStarters: Set<String> = ["automatic", "import", "derivatives", "kept export", "sync", "synced folder"]
+
+    /// The source of a row, read from the engine's `started_by` in one place: the engine's own starters are automatic;
+    /// "schedule:…" and "trigger:…" a schedule; "workflow" and "read-again:…" a recipe's or run's own step; anything else
+    /// named is a person.
     static func source(startedBy: String?) -> Source {
         guard let startedBy, !startedBy.isEmpty else { return .person }
         let lower = startedBy.lowercased()
-        if lower == "automatic" || lower == "import" || lower == "derivatives" { return .automatic }
+        if automaticStarters.contains(lower) { return .automatic }
         if lower.hasPrefix("schedule") || lower.hasPrefix("trigger") { return .schedule }
         if lower == "workflow" || lower == "recipe" || lower.hasPrefix("read-again") { return .recipe }
         return .person

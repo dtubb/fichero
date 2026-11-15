@@ -7,6 +7,7 @@ enum ContentToolbarID {
     static let sidebarButtons = "fichero.sidebarButtons"
     static let navigationBack = "fichero.nav.back"
     static let navigationForward = "fichero.nav.forward"
+    static let activityVerbs = "fichero.activity.verbs"
     static let inspectorToggle = "fichero.inspectorToggle"
     static let compactInspectorToggle = "fichero.inspectorToggle.compact"
     static let activityStatus = "fichero.activityStatus"
@@ -88,6 +89,11 @@ extension ContentView {
             .sharedBackgroundVisibility(.hidden)
             #endif
             ToolbarSpacer(.fixed, placement: Self.leadingPlacement)
+        }
+        // Pause, Continue and Stop on the Activity pane's selection, right of the sidebar, while that pane holds the focus
+        // (`activity.window.toolbar-verbs`, decision 24, #6588); nothing is drawn otherwise.
+        ToolbarItem(id: ContentToolbarID.activityVerbs, placement: Self.leadingPlacement) {
+            ActivityToolbarVerbButtons(hidesWithoutAPane: true)
         }
         if toolbarVisibility.showNavigation {
             ToolbarItem(id: ContentToolbarID.navigationBack, placement: Self.leadingPlacement) {

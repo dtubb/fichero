@@ -97,6 +97,8 @@ struct ActivityDetails: Equatable {
     }
 
     var isLive: Bool { row.phase.isLive }
+    /// The row has started: it runs, is held after running, or ended; a waiting row has not.
+    var hasStarted: Bool { row.phase != .waiting && row.phase != .notRun && row.phase != .unknown || row.started != nil }
 }
 
 // MARK: - Built from the store
@@ -219,7 +221,10 @@ extension ActivityDetails {
         if let finished = node?.finishedAt {
             resources.append(Resource(label: "Finished", value: ActivityTimeText.absolute(finished)))
         }
-        if !row.secondsText.isEmpty { resources.append(Resource(label: "Elapsed", value: row.secondsText)) }
+        // The row's own time, the same number its Time cell shows; a file's is its pages' summed work time, named so.
+        if !row.secondsText.isEmpty {
+            resources.append(Resource(label: row.id.hasPrefix("file:") ? "Work time" : "Elapsed", value: row.secondsText))
+        }
         if row.tokens > 0 { resources.append(Resource(label: "Tokens", value: row.tokens.formatted())) }
         if !row.costText.isEmpty { resources.append(Resource(label: "Cost", value: row.costText)) }
         if let account = owningRun?.account ?? row.account {

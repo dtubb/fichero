@@ -12,8 +12,9 @@ final class ActivityClearFinishedShapeTests: XCTestCase {
 
     func testItArchivesEndedStatusesOnlyNeverRunningOnes() throws {
         let actions = try AppSource.code("Views/Activity/Pane/ActivityPaneView+Actions.swift")
-        XCTAssertTrue(actions.contains("deleteRuns(statuses: ActivityRunStatus.finishedEngineNames)"))
-        XCTAssertTrue(actions.contains("archiveJobs(ids: [], states: [\"done\", \"failed\", \"cancelled\"])"))
+        // #6599: the ended jobs and runs are archived as ONE undoable step (job.archive by states, workflow_run.archive).
+        XCTAssertTrue(actions.contains("archive(states: [\"done\", \"failed\", \"cancelled\"], runStatuses: ActivityRunStatus.finished)"))
+        XCTAssertTrue(actions.contains("store.archiveAsOneStep(states: states, threadIds: ended"))
         XCTAssertFalse(actions.contains("statuses: [\"running\""))
     }
 

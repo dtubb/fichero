@@ -56,4 +56,11 @@ struct ActivityLogFilterTests {
         #expect(ActivityLogFilter.problemCountWords(1) == "1 problem")
         #expect(ActivityLogFilter.problemCountWords(3) == "3 problems")
     }
+
+    @Test("an empty log says nothing written only for a row not started; Problems with none, and a row that ran, say so")
+    func emptyWords() {
+        #expect(ActivityLogFilter.emptyWords(started: false, filter: .all) == "Nothing written for this row yet.")
+        #expect(ActivityLogFilter.emptyWords(started: true, filter: .problems) == "No problems in this row's log.")
+        #expect(ActivityLogFilter.emptyWords(started: true, filter: .all) == "The engine wrote no lines for this row.")
+    }
 }
