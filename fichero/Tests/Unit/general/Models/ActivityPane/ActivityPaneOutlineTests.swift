@@ -10,14 +10,17 @@ import Testing
 struct ActivityPaneOutlineTests {
     typealias F = ActivityPaneFixture
 
-    @Test("rows sort by state then start: running, paused, waiting, failed, done; newest first within a state")
+    /// `activity.pane.needs-you-first` (#6599, supersedes the plain state-then-start order): what needs the person first.
+    @Test("rows sort by what needs you first: failed and paused for a cause, then running, then waiting, then done, newest first")
     func flatOrder() {
+        var mine = F.row("paused-by-you", .paused, started: F.day.addingTimeInterval(30))
+        mine.reason = "Paused by you"
         let rows = ActivityPane.outline([
             F.row("done-old", .done, started: F.day), F.row("failed", .failed, started: F.day),
             F.row("running", .running), F.row("done-new", .done, started: F.day.addingTimeInterval(60)),
-            F.row("paused", .paused), F.row("waiting", .waiting)
+            F.row("paused", .paused, started: F.day.addingTimeInterval(10)), F.row("waiting", .waiting), mine
         ])
-        #expect(rows.map(\.id) == ["running", "paused", "waiting", "failed", "done-new", "done-old"])
+        #expect(rows.map(\.id) == ["paused", "failed", "running", "paused-by-you", "waiting", "done-new", "done-old"])
     }
 
     @Test("a run opens to its files, one per document, never to its steps; a file holds its pages' worst state")

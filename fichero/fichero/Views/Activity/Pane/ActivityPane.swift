@@ -98,13 +98,29 @@ enum ActivityPane {
         }
     }
 
-    /// The pane's rows by Run: no section rows, sorted by state then start (waiting rows in the lane's order), each run
-    /// row's children its FILES (`files(of:)`), never its steps.
+    /// Where a row sorts by default (`activity.pane.needs-you-first`, #6599): what NEEDS THE PERSON first (failed, partial,
+    /// a row paused for a cause or stopped at quit), then what runs, then what waits (a row the person paused waits with
+    /// it), then what ended.
+    static func needsYouRank(_ row: ActivityMonitorRow) -> Int {
+        switch row.phase {
+        case .failed, .partial: 0
+        case .paused: (row.reason ?? "").hasPrefix("Paused by you") ? 2 : 0
+        case .running: 1
+        case .waiting: 2
+        case .done, .cancelled, .interrupted, .notRun, .unknown: 3
+        }
+    }
+
+    /// The pane's rows by Run: no section rows, what needs the person first (newest first), then what runs, then what waits
+    /// (in the lane's order), then what ended (newest first); each run row's children its FILES (`files(of:)`), never its
+    /// steps.
     static func outline(_ rows: [ActivityMonitorRow]) -> [ActivityMonitorRow] {
         rows.sorted { lhs, rhs in
-            let left = (stateRank(lhs.phase), lhs.queueKey), right = (stateRank(rhs.phase), rhs.queueKey)
+            let left = needsYouRank(lhs), right = needsYouRank(rhs)
             if left != right { return left < right }
-            return lhs.startedKey > rhs.startedKey
+            if left == 2, lhs.queueKey != rhs.queueKey { return lhs.queueKey < rhs.queueKey }
+            if lhs.startedKey != rhs.startedKey { return lhs.startedKey > rhs.startedKey }
+            return lhs.id < rhs.id
         }
         .map { row in
             var row = row

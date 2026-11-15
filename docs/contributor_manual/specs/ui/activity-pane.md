@@ -581,12 +581,14 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   trail cell, versions the Inspector; there is no third level. By File, a file's children are the runs that touched it.
   Acceptance: a thumbnails job over 14 pages with two in flight opens to those two file rows; a run opens to its documents;
   no row has a step child. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityPaneOutlineTests.swift` extended.
-- `activity.pane.needs-you-first` — **[GAP]** (#6599, #6588; supersedes the plain "sorted by state then start" of
+- `activity.pane.needs-you-first` — **[OK]** (#6599, #6588; supersedes the plain "sorted by state then start" of
   `activity.pane.one-outline-table`) the default order puts first what NEEDS THE PERSON: failed and partial rows, a row paused
   for a cause or stopped at quit, a blocker whose fix is a person's (newest first); then what runs; then what waits or is
   blocked (in the lane's order); then what ended done (newest first). A column header's sort replaces it until cleared. The
   status bar counts "N need you". Acceptance: the fixture with a failed, a running, a waiting and a done row lists them in
-  that order; a blocker with Download Again sorts with the failed. *Test:* not yet written: `ActivityNeedsYouFirstTests.swift`.
+  that order; a blocker with Download Again sorts with the failed. *Built 2026-11-14 night:* `ActivityPane.needsYouRank`
+  (a row the person paused waits with the waiting; a blocker sorts by its state until `blocked` is its own); the status
+  counts "N need you" in the window's bottom panel. *Test:* `ActivityPaneOutlineTests.flatOrder` (the order superseded).
 - `activity.pane.fix-button-has-words` — **[GAP]** (#6599, #6588; `activity.pane.error-row-shape`) the row's one button carries its
   WORD ("Download Again", "Choose Folder…", "Add Key…", "Continue", "Retry"), never an icon alone; the fix comes from the
   failure's primary action as the engine names it, the app maps an action id to its word and its act, and an action id it does
