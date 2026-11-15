@@ -12,6 +12,7 @@ from pathlib import Path
 
 import fichero_server
 from _scan_files import scan_rglob
+from fichero_server.db import Database
 from fichero_server.models.knowledge import KnowledgeClaim
 
 _SRC = Path(fichero_server.__file__).parent
@@ -70,7 +71,16 @@ class _LockCheckingConnection:
         return call
 
 
-def test_every_statement_and_fetch_on_the_shared_connection_holds_the_lock(db, app_db):
+def test_every_statement_and_fetch_on_the_shared_connection_holds_the_lock(tmp_path):
+    """A private Database on a file of its own: no db_manager entry, no app-DB singleton, no env, so nothing outlives it."""
+    db = Database(path=tmp_path / "lock.duckdb")
+    try:
+        _check_lock(db)
+    finally:
+        db.close()
+
+
+def _check_lock(db):
     db._ensure_table(KnowledgeClaim)
     real = db.conn
     spy = _LockCheckingConnection(real, db._lock)
