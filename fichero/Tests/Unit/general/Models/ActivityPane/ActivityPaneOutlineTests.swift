@@ -34,6 +34,20 @@ struct ActivityPaneOutlineTests {
         #expect(!files.contains { $0.kind == .step })
     }
 
+    /// `activity.pane.children-are-what-it-works-on` (#6599): a job of its own opens to the files in flight, by name.
+    @Test("a thumbnails queue with two pages in flight opens to those two files by name; none in flight, no disclosure")
+    func queueOpensToItsFilesInFlight() throws {
+        let queue = F.row("waiting:thumbnail", .waiting, kind: .job, total: 14)
+        let items = [ActivityQueuedItem(id: "q1", subject: "d1", state: "running", name: "IMG_0412.jpg"),
+                     ActivityQueuedItem(id: "q2", subject: "d2", state: "running", name: "IMG_0413.jpg"),
+                     ActivityQueuedItem(id: "q3", subject: "d3", state: "waiting", name: "IMG_0414.jpg")]
+        let row = try #require(ActivityPane.outline(ActivityPane.withQueuedFiles([queue], queued: ["thumbnail": items])).first)
+        #expect(row.children?.map(\.name) == ["IMG_0412.jpg", "IMG_0413.jpg"])
+        #expect(row.children?.allSatisfy { $0.kind == .page && $0.children == nil } == true)
+        let idle = ActivityPane.withQueuedFiles([queue], queued: ["thumbnail": [items[2]]])
+        #expect(ActivityPane.outline(idle).first?.children == nil)
+    }
+
     @Test("a job with no tree has no disclosure")
     func noTreeNoDisclosure() {
         #expect(ActivityPane.outline([F.row("thumbs", .waiting)]).first?.children == nil)

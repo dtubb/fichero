@@ -35,6 +35,11 @@ extension ActivityPaneView {
 
     /// A run row drawn for the first time reads its tree; the last run row of a project pages in its next runs.
     func rowAppeared(_ row: ActivityMonitorRow) async {
+        // A queue row reads the files it works on, so its disclosure can show them (#6599).
+        if row.kind == .job, ActivityStore.queuedKind(ofRowId: row.id) != nil, let library = library(for: row.libraryId) {
+            await library.activityStore.loadQueuedItems(rowId: row.id)
+            return
+        }
         guard row.kind == .run, let library = library(for: row.libraryId) else { return }
         if let threadId = row.runThreadId { await library.activityStore.loadRunTree(threadId: threadId) }
         if row.runRowID == library.activityStore.runs.last?.id { await library.activityStore.loadMoreRuns(library: library) }

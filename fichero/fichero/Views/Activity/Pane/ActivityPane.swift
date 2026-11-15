@@ -69,6 +69,28 @@ enum ActivityPane {
         return Set(rows.filter { row in row.selection.map(asked.contains) ?? false }.map(\.id))
     }
 
+    /// A job of its own opens to the files it works on NOW (`activity.pane.children-are-what-it-works-on`, #6599): a queue
+    /// row's (`waiting:<kind>`) children are its items in flight, by name; none in flight, no disclosure.
+    static func withQueuedFiles(_ rows: [ActivityMonitorRow], queued: [String: [ActivityQueuedItem]]) -> [ActivityMonitorRow] {
+        rows.map { row in
+            guard row.kind == .job, let kind = ActivityStore.queuedKind(ofRowId: row.id) else { return row }
+            let inFlight = (queued[kind] ?? []).filter { $0.state == "running" }
+            guard !inFlight.isEmpty else { return row }
+            var row = row
+            row.children = inFlight.map { item in
+                var file = ActivityMonitorRow(
+                    id: "\(row.id)|item:\(item.id)", kind: .page, libraryId: row.libraryId, runRowID: nil, runThreadId: nil,
+                    jobId: item.id, name: item.name ?? "A page", projectName: nil, phase: .running, reason: item.reason,
+                    workingOn: nil, done: 0, total: 0, started: nil, seconds: nil, costUsd: nil, tokens: 0, errors: 0,
+                    model: nil, isLive: true, children: nil)
+                file.documentId = item.subject
+                file.engineKind = row.engineKind
+                return file
+            }
+            return row
+        }
+    }
+
     /// What an empty pane says in its one line (`activity.pane.empty-says-one-line`, #6599): "Nothing running" with nothing to
     /// list, "No activity matches" when the filter hides every row; nil while there are rows.
     static func emptyLine(rowsShown: Int, filterIsEmpty: Bool) -> String? {
@@ -137,7 +159,8 @@ enum ActivityPane {
         }
         .map { row in
             var row = row
-            row.children = files(of: row)
+            // A run's files; a job of its own keeps the files in flight it was given (`withQueuedFiles`).
+            row.children = files(of: row) ?? (row.kind == .job ? row.children : nil)
             return row
         }
     }

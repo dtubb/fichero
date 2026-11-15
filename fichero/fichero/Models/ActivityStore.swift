@@ -281,6 +281,8 @@ final class ActivityStore: ChangeEventConsumer {
             }
             jobsReadOnce = true
             if backgroundJobs != snapshot.jobs {
+                // The queues whose files are shown follow the list (#6599): each kind already read is read again.
+                for kind in queuedItems.keys { Task { await self.loadQueuedItems(rowId: "waiting:\(kind)") } }
                 // A job of its own whose details are open (its tree is loaded,
                 // #5561) is re-read when its row changes: the same one-key
                 // update a run's tree gets from the change stream.

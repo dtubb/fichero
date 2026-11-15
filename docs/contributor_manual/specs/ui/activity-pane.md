@@ -575,7 +575,9 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
 
 - `activity.pane.children-are-what-it-works-on` — **[PARTIAL]** (#6599, #6588; supersedes the "recipe › step › version ›
   items" readings of decision 2 and `activity.pane.group-by-run-or-by-file`; built: a run's FILES, `ActivityPane.files(of:)`;
-  not built: a job of its own's files, a blocker's rows) a row's disclosure holds WHAT IT WORKS ON and nothing else: a run's or
+  a job of its own's files in flight, by name, 2026-11-14 night: `ActivityPane.withQueuedFiles` over the queued items the engine
+  names (`QueuedItem.name`, `test_queued_items_named_6599.py`; `ActivityPaneOutlineTests.queueOpensToItsFilesInFlight`);
+  not built: a finished job's failed files, a blocker's rows) a row's disclosure holds WHAT IT WORKS ON and nothing else: a run's or
   a job's FILES (a job of its own — thumbnails, text, embed — lists the files in flight now, at most the lane's width, by name;
   a finished one its failed files), or the rows a BLOCKER holds (`activity.pane.blocked-under-its-blocker`). Steps are the
   trail cell, versions the Inspector; there is no third level. By File, a file's children are the runs that touched it.
