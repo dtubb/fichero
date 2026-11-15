@@ -151,3 +151,17 @@ struct ActivityModelEntry: Equatable, Identifiable, Sendable {
         }
     }
 }
+
+extension ActivityService {
+    /// The Recipes view (`GET /api/activity/recipes`, `activity.window.recipes`, #6588): each recipe with its runs and steps.
+    func recipes(days: Int = 30) async throws -> [Components.Schemas.RecipeRow] {
+        switch try await client.api.activityRecipesApiActivityRecipesGet(query: .init(days: days)) {
+        case .ok(let okResponse):
+            return try okResponse.body.json.recipes ?? []
+        case .unprocessableContent(let error):
+            throw ActivityServiceError.validationError((try? error.body.json)?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, let payload):
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
+        }
+    }
+}

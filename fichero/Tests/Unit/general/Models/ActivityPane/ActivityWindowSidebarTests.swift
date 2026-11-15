@@ -7,7 +7,7 @@ struct ActivityWindowSidebarTests {
     @Test("the sidebar lists the work, then the resources, then Archived; every tab is in it once")
     func items() {
         let listed = ActivityPane.Tab.sidebarWork + ActivityPane.Tab.sidebarResources + [.archived]
-        #expect(listed.map(\.title) == ["Runs", "Files", "Cost", "Where", "Archived"])
+        #expect(listed.map(\.title) == ["Runs", "Files", "Recipes", "Cost", "Where", "Archived"])
         #expect(Set(listed) == Set(ActivityPane.Tab.allCases))
     }
 
