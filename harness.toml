@@ -396,8 +396,8 @@ timeout_s = 720
 osv = false
 dirs = ["fichero-server/src", "fichero-cli/src", "fichero-mcp/src", "fichero-builder", "scripts", "fichero"]  # what the scanners and the waiver lints cover
 # Pins are the exact versions `scripts/install_security_tools.sh` confirmed and wrote at install; an empty pin REFUSES the tool (a gate
-# that cannot read its tool fails). Nothing is installed or verified yet, so every pin is empty.
-pins = { bandit = "", semgrep = "", gitleaks = "", "osv-scanner" = "" }
+# that cannot read its tool fails). Written 2026-11-15 by --write-pins on the M4 (perf-sweep Step 1 b); the iMac is not installed yet.
+pins = { bandit = "1.9.4", semgrep = "1.185.0", gitleaks = "8.30.1", "osv-scanner" = "2.7.1" }
 
 [policy]
 # Refused with a reason by the PreToolUse hook (fast feedback; the land step and the OS layer are the boundary).
