@@ -481,8 +481,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             err = procs.tell(lane, f"LANDED {r['head'][:9]}: rebase onto origin/integration at your next step boundary.")
             journal.append("queue", lane=lane["id"], step=s["step"], state="told" if not err else "tell-refused", detail=err or "LANDED")
             procs.after_land(lane, s, r["head"])
-        results = procs.reconcile(lane, s, r["head"]) if procs.reconcile else []  # owner 2026-11-14: an issue closes when it is done
-        left = [f"#{x['issue']}" + (" (could not read)" if x["cls"] == "UNREAD" else "") for x in results if not x["closed"]] if procs.reconcile else procs.still_open(lane, s)
+        left = [] if procs.reconcile else procs.still_open(lane, s)  # the reconcile (below) is off the loop; without one the plain open check
         close_alerts(lane["id"], s["step"], f"the step landed at {r['head'][:9]}")
         fresh_stop()
         lane["cursor"] += 1  # ONE write ends the landing: the step is landed and the cursor is past it in the same store, so no `builder done` can run between the two
@@ -490,9 +489,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         if push and lane.get("kind") != "external" and lane["cursor"] >= len(lane["steps"]) and any(x.get("product") for x in lane["steps"]):
             # dev-workflows.run.verify-all (owner 2026-11-03): a MILESTONE's last step landed (a worker lane has no step left) and some step touched the product: ONE verify-all once every lane is idle
             (journal.STATE / VERIFY_PENDING).write_text(r["head"])
-        if results:
-            journal.append("queue", lane=lane["id"], step=s["step"], state="issue-reconcile",
-                           detail="; ".join(f"#{x['issue']} {x['cls']}{' closed' if x['closed'] else ''}" + (f": {x['note']}" if x["note"] and not x["closed"] else "") for x in results))
+        if procs.reconcile:
+            reconcile_landed(procs, lane, s, r["head"], chains)  # owner 2026-11-14: an issue closes when it is done
         elif left:
             journal.append("queue", lane=lane["id"], step=s["step"], state="issue-open", detail=", ".join(left))
         return True
@@ -1091,6 +1089,31 @@ def verify_when_idle(procs: Procs, chains: dict | None) -> None:
         t.start()
 
 
+def reconcile_landed(procs: Procs, lane: dict, step: dict, head: str, chains: dict | None) -> None:
+    """dev-workflows.run.issues-close-when-done (a): the landed step's issues reconciled OFF the queue's loop (a thread, like the
+    daily jobs; inline only when `chains` is None, as in tests): one `issue-reconcile` row names each issue, its class and whether it closed."""
+    lane_id, step_id = lane["id"], step["step"]
+    issues = list(step.get("issues") or [])
+
+    def run_it():
+        try:
+            results = procs.reconcile({"id": lane_id}, {"step": step_id, "issues": issues}, head)
+        except Exception as e:  # noqa: BLE001 - the step has landed; a broken reconcile is a row, never a crash
+            journal.append("queue", lane=lane_id, step=step_id, state="issue-reconcile", detail=f"failed: {e}"[:300])
+            return
+        if results:
+            journal.append("queue", lane=lane_id, step=step_id, state="issue-reconcile",
+                           detail="; ".join(f"#{x['issue']} {x['cls']}{' closed' if x['closed'] else ''}" + (f": {x['note']}" if x["note"] and not x["closed"] else "") for x in results))
+    if not issues:
+        return
+    if chains is None:
+        run_it()
+    else:
+        t = threading.Thread(target=run_it, name="issue-reconcile-landed", daemon=True)
+        BUILDS.append(t)
+        t.start()
+
+
 RECONCILE = "issue-reconcile.last"  # when the nightly issue reconcile last started (epoch seconds)
 
 
@@ -1655,24 +1678,23 @@ def real_procs(root) -> Procs:
                            cwd=str(pkg), capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(pkg)})
         return r.returncode, (r.stdout + r.stderr)[-2000:]
 
-    script = pkg / "fichero_builder" / "issue_reconcile.py"
+    env = {**os.environ, "PYTHONPATH": str(pkg)}
+    mod = [sys.executable, "-m", "fichero_builder.issue_reconcile"]  # as a module: never the package folder first on sys.path (its queue.py shadows the stdlib one)
 
     def reconcile(lane, step, head):  # never raises: the step has landed
-        if not step.get("issues") or not script.is_file():
+        if not step.get("issues"):
             return []
         try:
-            r = subprocess.run([sys.executable, str(script), "--issues", ",".join(str(n) for n in step["issues"]), "--ref", head, "--landed", head],
-                               capture_output=True, text=True, timeout=900, cwd=str(root))
+            r = subprocess.run(mod + ["--issues", ",".join(str(n) for n in step["issues"]), "--ref", head, "--landed", head],
+                               capture_output=True, text=True, timeout=900, cwd=str(root), env=env)
             return json.loads(r.stdout) if r.returncode == 0 else [{"issue": n, "cls": "UNREAD", "closed": False, "note": (r.stderr or r.stdout)[-200:]} for n in step["issues"]]
         except (subprocess.TimeoutExpired, OSError, ValueError) as e:
             return [{"issue": n, "cls": "UNREAD", "closed": False, "note": str(e)[:200]} for n in step["issues"]]
 
     def reconcile_nightly():
-        if not script.is_file():
-            return 2, f"{script} is missing"
         try:
-            r = subprocess.run([sys.executable, str(script), "--nightly", "--ref", f"origin/{branch}", "--tsv", str(journal.STATE / "issue-reconcile.tsv")],
-                               capture_output=True, text=True, timeout=3600, cwd=str(root))
+            r = subprocess.run(mod + ["--nightly", "--ref", f"origin/{branch}", "--tsv", str(journal.STATE / "issue-reconcile.tsv")],
+                               capture_output=True, text=True, timeout=3600, cwd=str(root), env=env)
         except (subprocess.TimeoutExpired, OSError) as e:
             return 2, str(e)
         return r.returncode, (r.stdout + r.stderr)[-1500:]

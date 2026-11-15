@@ -97,3 +97,16 @@ def test_nightly_writes_the_tsv_and_one_summary_and_closes_only_the_done(tmp_pat
     s = state()
     assert [s[n]["state"] for n in ("1", "2", "4", "7")] == ["CLOSED", "OPEN", "OPEN", "OPEN"]
     assert "comments" not in s["2"], "the nightly comments only on a close"
+
+
+def test_only_the_cited_issues_tests_are_looked_up_and_in_one_git_grep(tmp_path, monkeypatch):
+    mod, _ = _fake(tmp_path, monkeypatch, _issues((1, [])))
+    seen = []
+    monkeypatch.setattr(mod, "test_missing_on_ref", lambda ref, names: (seen.append(set(names)), set())[1])
+    mod.reconcile({1: False}, "HEAD")
+    assert seen == [{"test_one"}], "the other bullets' tests are not read"
+    calls = []
+    monkeypatch.undo()
+    monkeypatch.setattr(mod.subprocess, "run", lambda argv, **k: (calls.append(argv), mod.subprocess.CompletedProcess(argv, 1, "def test_n3\n", ""))[1])
+    missing = mod.test_missing_on_ref("HEAD", {f"test_n{i}" for i in range(450)})
+    assert len(calls) == 1 and "test_n3" not in missing and len(missing) == 449, "450 names: one grep, not 450"

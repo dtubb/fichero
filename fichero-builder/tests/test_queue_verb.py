@@ -142,10 +142,31 @@ def test_a_landed_steps_issues_are_reconciled_the_row_names_each_result_and_an_o
         {"issue": 8, "cls": "KEEP", "closed": False, "note": "a.gap [GAP] (s.md)"}] if step["step"] == "1.2" else [])[1]
     assert run(fake) == 0
     assert [s for s, _ in seen] == ["1.1", "1.2"] and seen[1][1] == "h1.2"
-    assert "still open: #8" in steps()["1.2"]["why"] and "#7" not in steps()["1.2"]["why"] and "open" not in steps()["1.1"]["why"]
+    assert "open" not in steps()["1.2"]["why"] and "open" not in steps()["1.1"]["why"], "the row carries it, the step line does not wait on it"
     rows = [(r["step"], r["state"], r["detail"]) for r in journal.read() if r["event"] == "queue" and r["state"] in ("issue-open", "issue-reconcile")]
     assert rows == [("1.2", "issue-reconcile", "#7 CLOSE-A closed; #8 KEEP: a.gap [GAP] (s.md)")]
     assert queue.load()[0]["cursor"] == 2
+
+
+def test_the_landing_reconcile_runs_on_a_thread_when_the_loop_has_chains_and_a_crash_is_a_row(state):
+    """The reconcile never holds the queue's loop: with chains it is a thread (joined like the other BUILDS), a crash a row."""
+    import threading
+    fake = Fake()
+    gate, started = threading.Event(), threading.Event()
+
+    def slow(the_lane, step, head):
+        started.set()
+        gate.wait(5)
+        return [{"issue": 7, "cls": "CLOSE-A", "closed": True, "note": ""}]
+    fake.procs.reconcile = slow
+    queue.reconcile_landed(fake.procs, {"id": "m1"}, {"step": "1.1", "issues": [7]}, "h", {"pool": None})
+    assert started.wait(5) and not [r for r in journal.read() if r["state"] == "issue-reconcile"], "returned while it still works"
+    gate.set()
+    queue.BUILDS[-1].join(5)
+    assert [r["detail"] for r in journal.read() if r.get("state") == "issue-reconcile"] == ["#7 CLOSE-A closed"]
+    fake.procs.reconcile = lambda *a: 1 / 0
+    queue.reconcile_landed(fake.procs, {"id": "m1"}, {"step": "1.2", "issues": [8]}, "h", None)
+    assert [r["detail"] for r in journal.read() if r.get("state") == "issue-reconcile"][-1].startswith("failed: ")
 
 
 def test_the_nightly_reconcile_runs_once_a_day_as_one_summary_row_and_a_failure_is_a_row(state):

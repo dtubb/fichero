@@ -165,10 +165,23 @@ def _git(*args: str) -> str:
 
 
 def load_specs(ref: str) -> list[tuple[str, str]]:
-    out = []
-    for p in _git("ls-tree", "-r", "--name-only", ref, "--", SPEC_ROOT).split():
-        if p.endswith(".md") and not p.endswith(("_TEMPLATE.md", "_MILESTONE_TEMPLATE.md")):
-            out.append((p, _git("show", f"{ref}:{p}")))
+    """Every spec file at `ref`, read with ONE `git cat-file --batch` call."""
+    paths = [p for p in _git("ls-tree", "-r", "--name-only", ref, "--", SPEC_ROOT).split()
+             if p.endswith(".md") and not p.endswith(("_TEMPLATE.md", "_MILESTONE_TEMPLATE.md"))]
+    if not paths:
+        return []
+    raw = subprocess.run(["git", "cat-file", "--batch"], input="".join(f"{ref}:{p}\n" for p in paths).encode(),
+                         capture_output=True, check=True).stdout
+    out, pos = [], 0
+    for p in paths:
+        nl = raw.index(b"\n", pos)
+        header = raw[pos:nl].split()
+        if len(header) != 3 or header[1] != b"blob":
+            pos = nl + 1  # missing: no body follows
+            continue
+        size = int(header[2])
+        out.append((p, raw[nl + 1:nl + 1 + size].decode("utf-8", "replace")))
+        pos = nl + 1 + size + 1
     return out
 
 
@@ -177,17 +190,19 @@ def load_fixes(ref: str) -> dict[int, list[str]]:
 
 
 def test_missing_on_ref(ref: str, names: set[str]) -> set[str]:
-    tree = _git("ls-tree", "-r", "--name-only", ref).split("\n")
-    missing = set()
-    for name in sorted(names):
-        if name.endswith(".py"):
-            ok = name in tree or any(p.endswith("/" + name) for p in tree)
-        else:
-            pat = rf"(def|func) {re.escape(name)}\b"
-            ok = subprocess.run(["git", "grep", "-q", "-E", pat, ref, "--", ":!docs"],
-                                capture_output=True, text=True).returncode == 0
-        if not ok:
-            missing.add(name)
+    """The test names not defined on the ref: the files from one tree listing, the functions from ONE `git grep`
+    of every defined test (never one call per name)."""
+    files = sorted(n for n in names if n.endswith(".py"))
+    funcs = sorted(n for n in names if not n.endswith(".py"))
+    missing: set[str] = set()
+    if files:
+        tree = _git("ls-tree", "-r", "--name-only", ref).split("\n")
+        have = set(tree)
+        missing |= {n for n in files if n not in have and not any(p.endswith("/" + n) for p in tree)}
+    if funcs:  # ONE grep for every defined test function, then a set difference: never one grep per name
+        r = subprocess.run(["git", "grep", "-h", "-o", "-E", r"(def|func) test_[[:alnum:]_]+", ref, "--", ":!docs"], capture_output=True, text=True)
+        found = set(re.findall(r"(?:def|func) (\w+)", r.stdout))
+        missing |= {n for n in funcs if n not in found}
     return missing
 
 
@@ -298,7 +313,8 @@ def reconcile(numbers: dict[int, bool], ref: str) -> list[Row]:
     fixes = load_fixes(ref)
     names: set[str] = set()
     for b in bullets:
-        names |= b.tests
+        if b.owned & set(numbers):  # only the tests the cited issues' own bullets name
+            names |= b.tests
     missing = test_missing_on_ref(ref, names)
     return [classify(n, bullets, missing, [str(s) for s in fixes.get(n, [])], bug=bug)
             for n, bug in sorted(numbers.items())]
