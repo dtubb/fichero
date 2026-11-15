@@ -277,8 +277,8 @@ def soft_delete_runs(db: Any, thread_ids: list[str], *, skip_running: bool) -> l
         return []
     running = " AND status != 'running'" if skip_running else ""
     rows = db.execute_fetchall(
-        f"UPDATE {RUNS} SET status = 'deleted', completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP) "
-        f"WHERE id IN ({', '.join('?' for _ in thread_ids)}){running} RETURNING id", list(thread_ids))
+        f"UPDATE {RUNS} SET deleted_from = status, status = 'deleted', completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP) "
+        f"WHERE id IN ({', '.join('?' for _ in thread_ids)}) AND status != 'deleted'{running} RETURNING id", list(thread_ids))
     deleted = [row[0] for row in rows if row and row[0]]
     if deleted:  # the log says so, a line of its own after its last (#5711)
         with db.transaction():
@@ -287,6 +287,17 @@ def soft_delete_runs(db: Any, thread_ids: list[str], *, skip_running: bool) -> l
                        f"COALESCE((SELECT max(seq) FROM {LINES} WHERE run_id = r), 0) + 1, 'Run history deleted' "
                        "FROM (SELECT unnest(?::VARCHAR[]) AS r)", [deleted])
     return deleted
+
+
+def undelete_runs(db: Any, thread_ids: list[str]) -> list[str]:
+    """Put deleted runs back as they were (the inverse of `soft_delete_runs`, #6599): the status before the Delete, its
+    events shown again (they were only hidden). A run not deleted, or unknown, is left alone. Their ids."""
+    if not thread_ids:
+        return []
+    rows = db.execute_fetchall(
+        f"UPDATE {RUNS} SET status = COALESCE(deleted_from, 'completed'), deleted_from = NULL "
+        f"WHERE id IN ({', '.join('?' for _ in thread_ids)}) AND status = 'deleted' RETURNING id", list(thread_ids))
+    return [row[0] for row in rows if row and row[0]]
 
 
 def run_ids_by_status(db: Any, statuses: list[str]) -> list[str]:
