@@ -407,6 +407,14 @@ def test_the_daily_dev_dmg_is_published_on_the_dev_channel_only():
     assert "export FICHERO_RELEASE_CHANNEL=dev" in _script("release-all.sh")
 
 
+def test_the_dev_channel_follows_the_built_artifact_not_the_publish_flags():
+    ra, c = _script("release-all.sh"), _script("create-github-release.sh")
+    assert '> "$TIER_DMG_PATH.tier"' in ra and 'rm -f "$DMG_PATH.tier"' in ra
+    assert '"$DMG_PATH.tier"' in c and "export FICHERO_RELEASE_CHANNEL=dev" in c
+    # the stray dev DMG is dropped before the first upload_asset call, not after
+    assert c.index('HAVE_DEV_DMG=false; fi') < c.index('upload_asset "$DMG_PATH"')
+
+
 def test_spec_ids_in_release_and_versioning_are_unique():
     import collections
     text = (_ROOT / "docs/contributor_manual/specs/harness/release-and-versioning.md").read_text()

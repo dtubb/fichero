@@ -548,6 +548,9 @@ if [ "$SKIP_DMG" = false ]; then
   # Apple, and so --skip-notarize means the same thing at both stages.
   # A one-DMG run must not ship an older run's Fichero-dev.dmg beside it.
   [ "${#DMG_TIERS[@]}" -eq 1 ] && rm -f "$DEV_DMG_PATH"
+  # The tier each DMG was built as sits beside it (<dmg>.tier); create-github-release.sh reads it, so the
+  # dev channel follows the artifact however the publish is started (release.lane.daily-builds-dev-dmg-only).
+  rm -f "$DMG_PATH.tier" "$DEV_DMG_PATH.tier"
   for DMG_TIER in "${DMG_TIERS[@]}"; do
     export FICHERO_RELEASE_TIER="$DMG_TIER"
     source "$ROOT_DIR/scripts/tier_build_map.sh"
@@ -568,6 +571,7 @@ if [ "$SKIP_DMG" = false ]; then
     fi
     need_disk "the $DMG_TIER DMG"
     FICHERO_DMG_PATH="$TIER_DMG_PATH" "$ROOT_DIR/scripts/build-release-dmg.sh" "${DMG_ARGS[@]}"
+    printf '%s\n' "$DMG_TIER" > "$TIER_DMG_PATH.tier"
     if [ "$SKIP_NOTARIZE" = false ]; then
       echo
       echo "── DMG [$DMG_TIER]: notarize + staple ──"

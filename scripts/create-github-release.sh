@@ -154,6 +154,15 @@ else
 fi
 TAG="v${VERSION}"
 
+# The channel comes from the BUILT artifact, not from how this publish was started: release-all.sh writes
+# <dmg>.tier beside each DMG it builds. A dev-tier Fichero.dmg is never a channel-less public item, even on
+# the two-step hand route (release-all.sh --dev, then publish-release.sh). No tier file: the env var decides.
+if [ -f "$DMG_PATH.tier" ] && [ "$(tr -d '[:space:]' < "$DMG_PATH.tier")" = "dev" ]; then
+  export FICHERO_RELEASE_CHANNEL=dev
+fi
+# A dev-channel release ships its one DMG only: drop a stray Fichero-dev.dmg BEFORE any upload.
+if [ "${FICHERO_RELEASE_CHANNEL:-}" = "dev" ]; then HAVE_DEV_DMG=false; fi
+
 # ── Sparkle update pre-publish readiness (#4901) ─────────────────────────────
 # Fails the release (set -e) before signing/publishing anything if the new
 # build can't actually reach a user: not strictly greater than the live
@@ -356,7 +365,8 @@ else
 fi
 
 # FICHERO_RELEASE_CHANNEL=dev: the one DMG is dev-tier (the daily --dev release), so its item goes on the
-# dev channel and no channel-less public item is written; a stray Fichero-dev.dmg is not shipped beside it.
+# dev channel and no channel-less public item is written; a stray Fichero-dev.dmg is not shipped beside it
+# (HAVE_DEV_DMG is cleared above, before the upload).
 MAIN_ITEM_ARGS=()
 MAIN_TITLE_SUFFIX=""
 if [ "${FICHERO_RELEASE_CHANNEL:-}" = "dev" ]; then
