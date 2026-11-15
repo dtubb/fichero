@@ -111,4 +111,21 @@ struct ActivityLaunchAlertTests {
         })
         #expect(!alert.isPresented)
     }
+
+    @Test("four answers in order, Leave Paused first and Delete All destructive; SwiftUI's Mac alert dropped the fourth")
+    func fourAnswers() {
+        #expect(StoppedAtQuitAlert.Choice.allCases.map(\.title) == ["Leave Paused", "Choose…", "Continue All", "Delete All"])
+        #expect(StoppedAtQuitAlert.Choice.allCases.filter(\.isDestructive) == [.deleteAll])
+    }
+
+    @Test("Choose… opens Activity and sends nothing: the rows stay paused there for the person to pick from")
+    func chooseOpensActivity() async {
+        let library = project()
+        let alert = StoppedAtQuitAlert()
+        await alert.check(libraries: [library])
+        var opened = false
+        await alert.answer(.choose, libraries: [library], steps: nil) { opened = true }
+        #expect(opened && !alert.isPresented)
+        #expect(!StoppedAtQuitMockURLProtocol.seen.contains { $0.method == "POST" })
+    }
 }

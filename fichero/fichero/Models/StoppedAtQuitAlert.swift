@@ -5,7 +5,8 @@
 //  The ONE alert at launch for the work the quit left unfinished (`activity.launch.nothing-starts-one-alert`, #6584;
 //  owner 2026-11-13): the engine paused it all on open and starts nothing; the person chooses Leave Paused (the
 //  default), Choose… (Activity), Continue All or Delete All (owner 2026-11-14 evening; undoable, as every Delete).
-//  Shown once per launch.
+//  Shown once per launch. On the Mac it is an AppKit alert sheet: SwiftUI's alert there shows three buttons and
+//  silently drops a fourth, so Delete All never appeared (seen 2026-11-14 night, #6584).
 //
 
 import Foundation
@@ -30,6 +31,21 @@ final class StoppedAtQuitAlert {
     static let automaticKinds: Set<String> = ["thumbnail", "embedding", "embed", "nlp-draft", "nlp"]
     /// A synced folder's read the open held (`jobs.NEW_MATERIAL_REASON`): "New files in a synced folder".
     static let newMaterialKind = "read-from-folder"
+
+    /// The alert's four answers, in the order shown; Leave Paused is the default (Return).
+    enum Choice: CaseIterable {
+        case leavePaused, choose, continueAll, deleteAll
+
+        var title: String {
+            switch self {
+            case .leavePaused: "Leave Paused"
+            case .choose: "Choose…"
+            case .continueAll: "Continue All"
+            case .deleteAll: "Delete All"
+            }
+        }
+        var isDestructive: Bool { self == .deleteAll }
+    }
 
     private(set) var items: [Item] = []
     var isPresented = false
@@ -93,6 +109,19 @@ final class StoppedAtQuitAlert {
             }
         }
         if !items.isEmpty { isPresented = true }  // automatic-only work still asks: the owner decides what starts
+    }
+
+    /// One answer carried out. Choose… leaves the rows paused and opens Activity through `openActivity`.
+    func answer(_ choice: Choice, libraries: [LibraryManager.LibraryReference], steps: WindowSteps?,
+                openActivity: () -> Void) async {
+        switch choice {
+        case .leavePaused: leavePaused()
+        case .choose:
+            leavePaused()
+            openActivity()
+        case .continueAll: await continueAll(libraries: libraries)
+        case .deleteAll: await deleteAll(libraries: libraries, steps: steps)
+        }
     }
 
     /// Leave Paused (the default): the rows stay paused in Activity; nothing is sent.

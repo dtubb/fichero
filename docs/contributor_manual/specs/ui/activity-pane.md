@@ -208,7 +208,11 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   no run among the rows the title says what was stopped ("Background work was stopped when Fichero quit"), never "0 runs",
   and the line drops its "and". **Built the same evening** (`StoppedAtQuitAlert.deleteAll`, the title by kind); *test:*
   `ActivityLaunchAlertTests` (the title and the line); Delete All's round trip not yet under a test. Seen in the Dev Local
-  build at a relaunch: the alert showed, nothing was picked (2 embeds, 2 thumbnails held).
+  build at a relaunch: the alert showed, nothing was picked (2 embeds, 2 thumbnails held). **Fixed 2026-11-14 night:** the
+  SwiftUI alert showed only three buttons on the Mac and dropped Delete All (its sheet held Leave Paused, Choose…, Continue
+  All); on the Mac the alert is now an `NSAlert` sheet with the four answers of `StoppedAtQuitAlert.Choice` in order, Delete
+  All destructive (`ActivityLaunchAlertTests.fourAnswers`, `chooseOpensActivity`). Picture at a real relaunch after a Kraken
+  run was stopped by the quit: `docs/assets/activity-pane/launch-alert.png`.
   *Tests:* `fichero-server/tests/unit/jobs/test_launch_starts_nothing_6584.py`,
   `fichero-server/tests/unit/jobs/test_launch_to_continue_end_to_end_6584.py` (quit with running, paused, waiting, automatic
   and new-material work → open → nothing picked → all listed → Continue two → only those two run),
