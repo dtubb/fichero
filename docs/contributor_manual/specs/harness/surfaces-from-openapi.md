@@ -220,7 +220,9 @@ a person would see. This is the only way to drive iPhone and iPad from outside.
   segments`, `show pane`, `show inspector tab`). Open project is File ▸ Open's `openLibrary(at:)`,
   open node the sidebar's reveal, reveal a line `WindowState.revealSegments`; select, pane and tab
   are a request on the front window's `WindowState` that `ContentView.applyUIVerb` does through the
-  click's own method (`setPaneVisible`, the Inspector button, the tab's scene storage). Pinned
+  click's own method (`setPaneVisible`, the Inspector button, the tab's scene storage). Open project
+  takes a .fichero path or the name of a project the app knows (`UIVerbs.projectURL`); any other text
+  is refused and nothing opens (a bare name was taken as a path under /, #6588). Pinned
   through the real `LibraryManager`, `WindowState` and `SegmentStore` by
   `fichero/Tests/Unit/general/Intents/UIVerbsTests.swift`, and the commands by
   `fichero/Tests/Unit/mac/AppleScriptSurfaceTests.swift`. Still partial: no UI test yet checks that
