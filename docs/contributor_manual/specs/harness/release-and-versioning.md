@@ -134,7 +134,7 @@ The logic lives in `scripts/release_guard.py` (one subcommand per point) so it i
 - `release.lane.summary-table` — **[OK]** however the run ends, it prints one line per part
   (Preflight, DMG, Mac TestFlight, iOS TestFlight, Publish; Engine when it fails) with
   OK, FAILED or SKIPPED and the reason; a part the run never reached shows SKIPPED, not reached. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
-- `release.lane.morning-release-token-free` — **[OK]** (owner 2026-11-14: "a token-free
+- `release.lane.morning-release-token-free` — **[PARTIAL]** (owner 2026-11-14: "a token-free
   release each morning") a launchd LaunchAgent runs `scripts/morning-release.sh` at a set time
   (default 06:00 local; the plist template is `scripts/launchd/app.fichero.morning-release.plist`,
   installed by `scripts/install-morning-release.sh`, which nothing runs for the owner). No model
@@ -147,7 +147,7 @@ The logic lives in `scripts/release_guard.py` (one subcommand per point) so it i
   part failed and stops before publishing. It publishes with `publish-release.sh` (pushes
   `release/<date>`, never `main`), opens the `release/<date>` → `main` PR with `gh`, and texts
   the summary table. The release-docs preflight still applies: a morning with no
-  `RELEASE_NOTES.md` section for the day stops there and texts the failure. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
+  `RELEASE_NOTES.md` section for the day stops there and texts the failure. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py` covers the lock, the commit count and the publish gate. Not yet tested: `morning-release.sh` itself end to end (the publish hand-off, the PR step, the preflight stop, the lock taken before its trap).
 
 ## Release notes — two artifacts, different owners
 
