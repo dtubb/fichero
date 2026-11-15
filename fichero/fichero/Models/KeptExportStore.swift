@@ -48,8 +48,20 @@ final class KeptExportStore {
 
     private let client: FicheroClient
 
+    /// A preview's store reads no engine: its exports are given (`preview(_:)`).
+    private var readsEngine = true
+
     init(client: FicheroClient) {
         self.client = client
+    }
+
+    /// A store holding fixed exports, for a #Preview: it never reads the engine, so the preview shows its rows, not a refusal.
+    static func preview(_ exports: [Components.Schemas.KeptExport], client: FicheroClient) -> KeptExportStore {
+        let store = KeptExportStore(client: client)
+        store.exports = exports
+        store.hasLoaded = true
+        store.readsEngine = false
+        return store
     }
 
     // MARK: Formats
@@ -101,6 +113,7 @@ final class KeptExportStore {
 
     /// Read the project's kept exports; the one place the list is replaced whole.
     func load() async {
+        guard readsEngine else { return }
         do {
             exports = try await client.api.listKeptExportsApiExportKeptGet().ok.body.json.exports
             hasLoaded = true

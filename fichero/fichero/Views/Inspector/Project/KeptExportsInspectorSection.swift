@@ -66,9 +66,15 @@ struct KeptExportsInspectorSection: View {
 }
 
 #Preview("Kept exports") {
+    let gone = Components.Schemas.KeptExport(
+        id: "k1", folder: "/Volumes/Archive/Letters", format: .plainText, per: .page, files: [], inTheWay: [], pending: 1,
+        lastWritten: nil, keepUpToDate: true)
+    let quiet = Components.Schemas.KeptExport(
+        id: "k2", folder: "/Users/me/Desktop/Catálogo", format: .catalogueWorkbook, per: .document, files: ["Catálogo.xlsx"],
+        inTheWay: [], pending: 0, lastWritten: Date(timeIntervalSinceNow: -3_600), keepUpToDate: false)
     Form {
-        KeptExportsInspectorSection(store: LibraryPreviewFixtures.library.keptExportStore)
+        KeptExportsInspectorSection(store: .preview([gone, quiet], client: LibraryPreviewFixtures.library.ficheroClient))
     }
     .formStyle(.grouped)
-    .frame(width: 320, height: 240)
+    .frame(width: 320, height: 340)
 }
