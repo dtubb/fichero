@@ -314,9 +314,11 @@ def unfinished_runs(db: Any) -> list[tuple[str, Any]]:
         f"SELECT id, started_at FROM {RUNS} WHERE status IN ({_SWEEPABLE_SQL})")]
 
 
-def mark_run_failed(db: Any, thread_id: str, reason: str) -> None:
-    db.execute(f"UPDATE {RUNS} SET status = 'failed', error = ?, completed_at = COALESCE(completed_at, "
-               "CURRENT_TIMESTAMP) WHERE id = ?", [reason, thread_id])
+def mark_run_failed(db: Any, thread_id: str, reason: str, ended_at: Any = None) -> None:
+    """A run's record ends failed with `reason`; `ended_at` when it stopped (an interrupted run's close or last work,
+    #6588), else now."""
+    db.execute(f"UPDATE {RUNS} SET status = 'failed', error = ?, completed_at = COALESCE(completed_at, ?, "
+               "CURRENT_TIMESTAMP) WHERE id = ?", [reason, ended_at, thread_id])
 
 
 def recover_stale(db: Any, *, error: str, started_before: Optional[datetime],

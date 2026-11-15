@@ -712,7 +712,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   never "$0.00" (`activity.pane.cost-per-row-and-totals`). *Built 2026-11-14:* Free and blank cost (`ActivityPane.costLine`: the engine's 0.0 reads Free,
   its null blank); one short time unit, "48 s", "3 min", "2 h" (`ActivityMonitorRow.duration`). *Built 2026-11-14 night:* one
   `ActivityMonitorRow.elapsedSeconds` (the engine's seconds, else start to end) read by the Time cell, its sort and the
-  Inspector, which names a file row's "Work time". Acceptance: the fixture's file row and its Inspector read the same
+  Inspector, which names a file row's "Work time". *Built 2026-11-15:* a run the engine finds interrupted at the next open ends when it stopped (its close, else the last work heard from it), not when the open noticed, so a 3-minute Kraken run no longer reads "1 h" (`run_account.mark_interrupted_runs` passes `ended_at` to `mark_run_failed`; `test_interrupted_run_ends_when_it_stopped_6588.py`). Acceptance: the fixture's file row and its Inspector read the same
   time; a local Kraken row has no cost; a $0 cloud call reads Free. *Test:* `ActivityDefaultColumnsTests.swift` extended.
 - `activity.pane.started-by-is-honest` — **[OK]** (#6588; `activity.pane.icons-say-source-and-kind`) the source glyph is a
   person only for a person's own act; the engine's own starters (`kept export`, `synced folder`, `automatic`, a schedule, a
