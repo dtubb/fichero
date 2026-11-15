@@ -659,7 +659,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   the Activity window beside the Inspector toggle and in the main window's leading zone, right of the sidebar, drawn only
   while an Activity pane holds the focus (`docs/assets/activity-pane/window-toolbar-verbs.png`); the More menu (⋯) is in
   the toolbar too. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityToolbarVerbsTests.swift`.
-- `activity.window.bottom-panel` — **[GAP]** (#6588; decision 25; supersedes the one-line status bar of
+- `activity.window.bottom-panel` — **[PARTIAL]** (#6588; decision 25; supersedes the one-line status bar of
   `activity.pane.less-is-more-table` for the window: a main window's pane keeps the one line) the window's foot is a panel per
   tab, figures AND a graph together: **Runs** pages done per minute over the last hour (a sparkline) and "N running · N
   waiting · N blocked · N need you"; **Files** pages done, failed and untouched today; **Cost** spend per hour over the day,
@@ -669,7 +669,14 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   (the jobs' `finished_at`, the spend ledger `llm/spend.py`, the calls' usage), no new recording; the panel reads it once a
   minute and on the change stream. Acceptance: a fixture of 30 pages done over 10 minutes answers 10 buckets summing to 30; the
   Cost panel's today total equals the ledger's; nothing is drawn when there is no history ("No work in the last hour").
-  *Test:* the engine half: `fichero-server/tests/unit/api/test_activity_history_6588.py`; the app half (`ActivityBottomPanelTests.swift`) is still to do.
+  *Built 2026-11-14 night (app):* `ActivityBottomPanel` above the bottom bar in the window: a Swift Charts graph and the
+  tab's figures (Runs: pages per minute, green done and red failed, and "N running · N waiting · N need you"; Files: done
+  and failed; Cost: dollars per minute, today's by provider, tokens; Where: pages by place, "—" for none), the open projects'
+  histories summed (`ActivityService.history`, read once a minute); "No work in the last hour" with no graph when empty; the
+  bar's figures leave the window (they are the panel's). Picture: `docs/assets/activity-pane/window-bottom-panel.png`. *Not
+  yet:* blocked counts, this Mac's lanes busy of their width. *Test:* the engine half:
+  `fichero-server/tests/unit/api/test_activity_history_6588.py`; the app half:
+  `fichero/Tests/Unit/general/Models/ActivityPane/ActivityBottomPanelTests.swift`.
   (Engine note: today's total and its by-provider split are summed from the priced calls of pages finished today (UTC), the one
   source that names providers; the ledger keeps only a day's total.)
 - `activity.log.raw-always-rendered` — **[GAP]** (#6588; decision 27; `activity.window.log-levels`) the Inspector's Log is the
@@ -867,7 +874,7 @@ First, because every new install hits it: one real folder per model, load-checke
 
 #### Step 4.3 — the history and the bottom panel (#6588)
 - Behaviours: `activity.window.bottom-panel`
-- Tests: test_activity_history_6588.py (not yet written), ActivityBottomPanelTests.swift (not yet written)
+- Tests: fichero-server/tests/unit/api/test_activity_history_6588.py, fichero/Tests/Unit/general/Models/ActivityPane/ActivityBottomPanelTests.swift
 - Depends on: 4.2
 - Size: M
 

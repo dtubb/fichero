@@ -42,6 +42,8 @@ struct ActivityPaneView: View {
     @State var showArchived = false
     /// The kept export a row's Choose Folder… is choosing a folder for: the system panel is up while it is set.
     @State var choosingFolder: ActivityFolderChoice?
+    /// The open projects' history summed, for the window's bottom panel (`activity.window.bottom-panel`).
+    @State private var history = ActivityHistory()
     @AppStorage("activity.pane.prefs") private var prefsData = Data()
 
     var prefs: ActivityPanePrefs { ActivityPanePrefs.load(prefsData, key: paneKey) }
@@ -118,6 +120,11 @@ struct ActivityPaneView: View {
             } else {
                 table(shown)
             }
+            if !showsHead {
+                // The window's foot: a graph and its figures per tab (decision 25); a main window's pane keeps one line.
+                Divider()
+                ActivityBottomPanel(tab: prefs.tab, history: history, rows: allRows)
+            }
             bottomBar
         }
         .accessibilityIdentifier("activity.pane")
@@ -136,6 +143,7 @@ struct ActivityPaneView: View {
         .onAppear { select(reveal); showFiles(revealFiles) }
         .task(id: showArchived) { await readArchivedIfShown() }
         .task(id: refreshKey) { await refreshAll() }
+        .task(id: libraries.map(\.id)) { await readHistoryEachMinute() }
         .fileImporter(isPresented: Binding(get: { choosingFolder != nil }, set: { if !$0 { choosingFolder = nil } }),
                       allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result, let choice = choosingFolder { chose(url, for: choice) }
@@ -225,6 +233,19 @@ struct ActivityPaneView: View {
         )
     }
 
+    /// The window's history, read now and once a minute while the window shows (`GET /api/activity/history`).
+    private func readHistoryEachMinute() async {
+        guard !showsHead else { return }
+        while !Task.isCancelled {
+            var read: [ActivityHistory] = []
+            for library in libraries {
+                if let one = try? await library.activityService.history() { read.append(one) }
+            }
+            history = ActivityBottomPanel.merged(read)
+            try? await Task.sleep(for: .seconds(60))
+        }
+    }
+
     /// The pane's one bottom bar, the app's (`activity.pane.bottom-bar-like-every-pane`, #6588): Metadata (the column toggles,
     /// the same as the header's menu), the Filter field with what the list shows in its menu, and the status figures.
     private var bottomBar: some View {
@@ -242,7 +263,8 @@ struct ActivityPaneView: View {
             }
             .frame(maxWidth: 360)
             Spacer(minLength: 8)
-            Text([statusBarText, notice].compactMap { $0 }.joined(separator: " · "))
+            // The window's figures are its bottom panel's; the bar keeps the notice there, the whole line in a main window's pane.
+            Text((showsHead ? [statusBarText, notice] : [notice]).compactMap { $0 }.joined(separator: " · "))
                 .font(.caption).foregroundStyle(.secondary).monospacedDigit().lineLimit(1)
                 .accessibilityIdentifier("activity.statusbar")
             if showsHead { moreMenu }
