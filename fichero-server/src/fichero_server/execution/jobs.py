@@ -209,6 +209,9 @@ _ADDED_COLUMNS = (
     # or a typed need ("model:embeddings:<id>") when no job supplies it. The lane never picks a row with it set; the
     # blocker's end (done) clears it.
     "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS blocked_by TEXT",
+    # Held by the window's Pause All (`activity.window.run-controls`, #6588): Play (Continue All) resumes exactly these rows,
+    # never one a person paused by hand.
+    "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS held_by TEXT",
 )
 
 
@@ -2949,6 +2952,104 @@ def stop_everything(db: "Database") -> int:
         except KeyError:
             pass  # ended between the list and the stop
     return len(ids)
+
+
+#: The mark Pause All leaves on each row it holds (`activity.window.run-controls`).
+HELD_BY_PAUSE_ALL = "pause-all"
+
+
+def _top_level_live(db: "Database", states: tuple[str, ...]) -> list[tuple[str, str, str]]:
+    """The rows a person sees as work (no page or step under a run), not deleted, in these states: (id, kind, state)."""
+    marks = ", ".join("?" for _ in states)
+    hidden = " AND deleted_at IS NULL" if _has_deleted_at(db) else ""
+    return [
+        (r[0], r[1], r[2])
+        for r in db.execute_fetchall(
+            f"SELECT id, kind, state FROM jobs WHERE parent_id IS NULL AND state IN ({marks}){hidden} ORDER BY created_at",
+            list(states),
+        )
+    ]
+
+
+def pause_all(db: "Database") -> list[str]:
+    """Pause All (`activity.window.run-controls`, #6588): every running and waiting piece of work of this project, a
+    person's runs too, is paused as its own Pause does (a run settles after the pages it is reading; a waiting job is held;
+    a job running here finishes its item), and each row it holds is marked, so Continue All resumes exactly those. The
+    caller sets the background pause, so nothing new starts. Returns the ids it held."""
+    _ensure(db)
+    held = []
+    for job_id, kind, state in _top_level_live(db, ("running", "waiting")):
+        if _is_attached(kind):
+            continue  # a page a run handed in is paused with its run
+        registered = KINDS.get(kind)
+        try:
+            after = pause_job(db, job_id, True)
+        except (KeyError, ValueError):
+            continue
+        # Held when it is paused now, or a run asked to pause that settles after its pages.
+        if after == "paused" or (state == "running" and registered is not None and registered.pause is not None):
+            held.append(job_id)
+    if held:
+        db.execute(
+            f"UPDATE jobs SET held_by = ? WHERE id IN ({', '.join('?' for _ in held)})",
+            [HELD_BY_PAUSE_ALL, *held],
+        )
+    return held
+
+
+def continue_all(db: "Database") -> tuple[list[str], list[str]]:
+    """Continue All (Play, `activity.window.run-controls`): the rows Pause All held are let go, and only those; a row paused
+    by hand before or after stays paused. Returns (the jobs let go, the paused workflow runs the caller resumes from their
+    checkpoints). A held run still settling keeps its mark, so the next Play takes it."""
+    _ensure(db)
+    let_go, runs, done = [], [], []
+    for job_id, kind, state in [
+        (r[0], r[1], r[2])
+        for r in db.execute_fetchall(
+            "SELECT id, kind, state FROM jobs WHERE held_by = ? ORDER BY created_at", [HELD_BY_PAUSE_ALL]
+        )
+    ]:
+        if state == "running":
+            continue
+        done.append(job_id)
+        if state != "paused":
+            continue  # ended since (stopped, deleted): nothing to let go
+        if kind == "workflow":
+            runs.append(job_id)
+            continue
+        try:
+            pause_job(db, job_id, False)
+            let_go.append(job_id)
+        except (KeyError, ValueError):
+            pass
+    if done:
+        db.execute(f"UPDATE jobs SET held_by = NULL WHERE id IN ({', '.join('?' for _ in done)})", done)
+    return let_go, runs
+
+
+def held_count(db: "Database") -> int:
+    """How many rows Pause All holds now."""
+    _ensure(db)
+    return int(db.execute_fetchone("SELECT count(*) FROM jobs WHERE held_by = ?", [HELD_BY_PAUSE_ALL])[0])
+
+
+def stop_all(db: "Database", actor: str | None = None, client: str | None = None) -> list[str]:
+    """Stop All (`activity.window.run-controls`): every running, waiting and paused piece of work of this project is stopped
+    as its own Stop does (a run at its next step, a job running here after its item); what it did is kept and Retry runs
+    it again. Pause All's marks go with them. Returns the ids asked to stop."""
+    _ensure(db)
+    asked = []
+    for job_id, kind, _state in _top_level_live(db, ("running", "waiting", "paused")):
+        if _is_attached(kind):
+            continue  # stopped with its run
+        note_stopper(job_id, actor, client)
+        try:
+            cancel_job(db, job_id)
+            asked.append(job_id)
+        except (KeyError, ValueError):
+            pass
+    db.execute("UPDATE jobs SET held_by = NULL WHERE held_by = ?", [HELD_BY_PAUSE_ALL])
+    return asked
 
 
 def row_state(db: "Database", job_id: str) -> str:
