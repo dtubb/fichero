@@ -242,7 +242,6 @@ def scan(root: Path | None = None) -> tuple[dict[str, list[str]], int]:
 # Baseline of today's tree (`--generate`): file -> findings. The count may only fall.
 KNOWN_VIOLATIONS: dict[str, int] = {
     "App/AppState/AppState.swift": 1,
-    "App/IntegrationsPlaceholderSheet.swift": 3,
     "App/LibraryWindow+Actions.swift": 1,
     "App/Menus/CanvasMenuCommands.swift": 1,
     "App/Menus/FileMenuCommands.swift": 1,

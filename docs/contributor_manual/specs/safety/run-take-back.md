@@ -40,7 +40,7 @@ This supersedes `audit.run-scoped-undo` (#2074, #1831) in the action-layer spec.
 | The record stores a run id on each step made through the action layer | built | VERIFIED per the action-layer spec (`ActionContext.run_id`) |
 | A run id on the things a run makes | on artifacts and renditions **only** | VERIFIED by survey (`models/__init__.py:710`); the schema file has no run-id column for statements, entities, links, tags or vectors |
 | A run writes through the record | **partly**: the runner is handed the open database and writes directly as it goes | VERIFIED per the remote-compute set (`execution/runner.py:842-850`, `workflows/completion.py:230-243`) |
-| Deleting a run | marks the run row, hard-deletes its checkpoints, leaves all its output, asks nothing | VERIFIED by survey (by the dead `WorkflowExecutionView`, since removed in S5) |
+| Deleting a run | marks the run row, hard-deletes its checkpoints, leaves all its output, asks nothing | VERIFIED by survey (`fichero/fichero/Views/Workflow/Execution/WorkflowExecutionView.swift:67-70`) |
 | Running again | three different behaviours, depending on the node | VERIFIED by survey |
 | A run that fails part way | keeps what it already wrote, and the code says so | VERIFIED by survey (`llm_base.py:813-828`) |
 | Machine-made things recorded as made by a person | a known defect (#4869, #4868) | per the maintainer's standing notes |
