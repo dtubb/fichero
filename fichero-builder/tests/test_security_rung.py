@@ -1,7 +1,12 @@
 """The `security` rung: each scanner's new findings red it, a baselined one does not, a missing scanner refuses; the thresholds and
 the waivers (#6600, Step 2.30). The scanners' JSON outputs are the fixtures: no scanner binary runs here."""
 import datetime as dt
+import json
+import subprocess
 
+import pytest
+
+from fichero_builder import check_tool, journal
 from fichero_builder import security_rung as sr
 
 B602 = {"filename": "scripts/conv.py", "line_number": 3, "test_id": "B602", "issue_severity": "HIGH", "issue_confidence": "HIGH",
@@ -65,12 +70,6 @@ def test_thresholds_red_what_they_say_and_every_waiver_carries_a_reason_an_issue
 
 
 # ---- check_tool.security_lints against a real git repo, and the rung's skip rows and report-only behaviour
-import json
-import subprocess
-
-import pytest
-
-from fichero_builder import check_tool, journal
 
 _ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
         "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1"}
