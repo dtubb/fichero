@@ -419,8 +419,8 @@ the write path would produce.
   red check (each red guard named, test `fichero-builder/tests/test_work_verb.py::test_a_red_guard_is_named_in_what_goes_back_to_the_worker`), a NOT READY review or a refused land goes back into the same session as a fix brief with the findings, `[loop].rounds`
   rounds (a gone session gets a new one on the fix brief), then blocked with `<state>/question-<lane>-<step>.txt`; a DONE with no commit, a refused landing or a chain error
   blocks at once. A new session only at the worker's own handoff (`[spend].handoff_tokens`, an absolute token count) or when it is gone (three times on a step blocks); a
-  parked worker blocks. After a landing the queue reads each of the step's issues from GitHub; one still open is an `issue-open` row and
-  stays on the step's line, and the lane goes on: only `builder landed` closes; `gh` failing or timing out here counts as unread, never a traceback (test `fichero-builder/tests/test_queue_verb.py::test_a_gh_that_times_out_or_is_missing_counts_as_unread_and_the_lane_goes_on`). Without `--push` a step stops there: `builder landed` refuses a sha origin lacks, so the step blocks until a person pushes. Pause = idle with nothing sent; resume = send the next brief, and clears a block. At most
+  parked worker blocks. After a landing the queue reconciles each of the step's issues (an `issue-reconcile` row; one still open)
+  stays on the step's line, and the lane goes on: the reconcile closes it when it is done (`dev-workflows.run.issues-close-when-done`), else comments what is left; `gh` failing or timing out here counts as unread, never a traceback (test `fichero-builder/tests/test_queue_verb.py::test_a_gh_that_times_out_or_is_missing_counts_as_unread_and_the_lane_goes_on`). Without `--push` a step stops there: `builder landed` refuses a sha origin lacks, so the step blocks until a person pushes. Pause = idle with nothing sent; resume = send the next brief, and clears a block. At most
   `[queue].workers` lanes at a time; every transition is a journal row (event `queue`); the console (`builder status`) shows the steps.
   **Built** 2026-11-01 against fake processes: `fichero_builder/queue.py`. Not yet: a run on the real jail user. Tests:
   `fichero-builder/tests/test_queue_verb.py::test_a_two_step_lane_lands_the_first_then_sends_the_second_into_the_same_session_and_stops_at_the_end`,
@@ -472,6 +472,24 @@ the write path would produce.
   cached per file mtime), and the API-equivalent dollars in grey, "on Max, not billed" (`[spend].prices`; cache reads at 0.1x and cache writes at
   1.25x the input price). **Built** 2026-11-02: `console.lane_usage`, the card in `console.html`. Not yet: a per-model split.
   Test `fichero-builder/tests/test_status_page.py::test_lane_usage_today_sums_each_external_lanes_transcripts_once_per_message`.
+- `dev-workflows.run.issues-close-when-done` [OK] (owner 2026-11-14: issues close when they are done) —
+  an issue is closed by the harness once its work is done, decided deterministically by `scripts/issue_spec_reconcile.py` from the spec bullets
+  that own it (the `(#N)` right after a bullet's own status tag) and from `Fixes`/`Closes #N` commits: CLOSE-A = every owning bullet is `[OK]` or
+  `[BUILT]` (the specs use both) and the tests it names exist on the ref; CLOSE-B = a fix commit and no owning bullet that is not done (and no named
+  test missing); otherwise KEEP (an owning bullet is not done), MISSING-TEST (a named test is not on the ref) or NO-SPEC (nothing owns it).
+  (a) After every landing the queue reconciles each issue the step cites: CLOSE-A/B closes it with a comment naming the landed sha, the owning
+  bullets and the tests; KEEP gets one comment saying what is left (the bullets that are not done; the same list is not commented twice) and the
+  issue stays open and is updated, never closed, for residue. The reconcile result is one `issue-reconcile` queue row (each issue, its class,
+  whether it closed) replacing the plain `issue-open` row; an issue still open stays on the step's line; `gh` failing counts as unread and the lane
+  goes on. (b) Nightly, over every open issue: the dry-run TSV (issue-reconcile.tsv in the state dir) and ONE summary `issue-reconcile` row (counts per
+  class and how many closed), closing only CLOSE-A/B. (c) Never an issue whose owning bullet is not done is closed; never a `type:bug` without a
+  test (a fix commit alone, CLOSE-B, leaves a bug open). Tests
+  `fichero-server/tests/unit/scripts/test_issue_spec_reconcile.py::test_self_test_passes`,
+  `::test_after_a_landing_done_issues_close_with_the_sha_bullets_and_tests_and_kept_ones_get_one_comment`,
+  `::test_an_already_closed_issue_is_left_alone`,
+  `::test_nightly_writes_the_tsv_and_one_summary_and_closes_only_the_done`,
+  `fichero-builder/tests/test_queue_verb.py::test_a_landed_steps_issues_are_reconciled_the_row_names_each_result_and_an_open_one_stays_on_the_step`,
+  `::test_the_nightly_reconcile_runs_once_a_day_as_one_summary_row_and_a_failure_is_a_row`.
 - `dev-workflows.run.verify-all` [PARTIAL] (#6344; manager 2026-11-02, owner order: the dev build is of everything on origin/integration, fully verified first) —
   `builder verify-all --root R [--build]` verifies R's HEAD in three parts over scratch trees of it: every guard (`[check].guard_glob`
   minus `guard_skip`, from R's own check files), the full engine suite (every `<package>/tests` dir, plus each `[check.whole_tests]` dir as its
