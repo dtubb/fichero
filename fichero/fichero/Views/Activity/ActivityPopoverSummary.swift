@@ -256,7 +256,10 @@ struct ActivityPopoverSummary: Equatable {
     private static func ids(under node: ActivityJobNode) -> [String] {
         node.children.flatMap { [$0.id] + ids(under: $0) }
     }
+}
 
+// The engine's words and the Mac's readings, worded for the popover.
+extension ActivityPopoverSummary {
     /// A cause's first sentence: up to its first full stop followed by a space, or its first line (the engine's own
     /// words; nothing is rewritten).
     nonisolated static func firstSentence(_ text: String) -> String {

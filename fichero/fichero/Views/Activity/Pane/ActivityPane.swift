@@ -326,7 +326,10 @@ enum ActivityPane {
         }
         return entries
     }
+}
 
+// Versions of a step, for the Inspector.
+extension ActivityPane {
     // MARK: - Versions of a step (the Inspector's section)
 
     /// One step that ran more than once under a run: its runs, newest first, the newest done one counting.
