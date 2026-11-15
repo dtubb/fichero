@@ -98,9 +98,6 @@ NOT_A_STARTER = {
     "scripts/test_dev_engine.sh": "a fake engine (a sleeping python whose argv mimics uvicorn) on a temp socket; no data",
     "scripts/smoke-release-embedded-backend.sh": "launches the installed app (its embedded engine is the app's); "
                                                  "it only pgreps/stops a dev engine on the container socket",
-    "scripts/dev_engine.sh": "names the engine's command line to pgrep it; starts one only through "
-                             "start_dev_local_engine.sh, which is guarded",
-    "scripts/test_dev_engine.sh": "a fake health server on a temp socket whose argv only looks like the engine's",
 }
 STARTS_AN_ENGINE = re.compile(r"uvicorn|[\"' ]-m[\"',]* *[\"']?fichero_server|start_backend|fichero_server\.api\.\w+:app")
 

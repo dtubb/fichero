@@ -118,8 +118,8 @@ struct ActivityBottomPanel: View {
 #Preview("Bottom panel, Runs") {
     let now = Date()
     let minutes = (0..<60).map { index in
-        ActivityHistory.Minute(start: now.addingTimeInterval(Double(index - 59) * 60), pagesDone: index % 7, pagesFailed: index % 13 == 0 ? 1 : 0,
-                               spendUsd: Double(index % 5) * 0.01, tokens: index * 40)
+        ActivityHistory.Minute(start: now.addingTimeInterval(Double(index - 59) * 60), pagesDone: index % 7,
+                               pagesFailed: index % 13 == 0 ? 1 : 0, spendUsd: Double(index % 5) * 0.01, tokens: index * 40)
     }
     let history = ActivityHistory(minutes: minutes, byRuntime: ["this-mac": 120, "cloud": 30], todaySpendUsd: 0.5,
                                   todaySpendByProvider: ["OpenRouter": 0.42, "Gemini": 0.08])

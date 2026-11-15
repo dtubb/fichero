@@ -114,7 +114,7 @@ struct ActivityUndoTests {
         let steps = WindowSteps()
         steps.engineForProject = { _ in nil }
 
-        let outcome = await store.deleteAsOneStep(threadIds: ["t1"], jobIds: ["j1", "j2", "j3"], stopRunning: false,
+        let outcome = await store.deleteAsOneStep(ids: (["t1"], ["j1", "j2", "j3"]), stopRunning: false,
                                                   settling: false, actions: ActionsService(client: client), steps: steps)
 
         #expect(outcome.done == 3 && outcome.skipped == 1, "the run, two jobs; one job skipped")

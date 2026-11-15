@@ -179,7 +179,7 @@ extension ActivityPaneView {
             }
             // One step per project for all its rows, runs and jobs together (#6599).
             let outcome = await library.activityStore.deleteAsOneStep(
-                threadIds: threadIds, jobIds: jobIds, stopRunning: stopRunning, settling: !running.isEmpty,
+                ids: (threadIds, jobIds), stopRunning: stopRunning, settling: !running.isEmpty,
                 actions: library.actionsService, steps: windowSteps)
             deleted += outcome.done
             skipped += outcome.skipped
