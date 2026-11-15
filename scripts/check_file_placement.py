@@ -22,7 +22,7 @@ import re
 import subprocess
 import sys
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
@@ -69,11 +69,18 @@ class Tree:
     old_test_folders: frozenset[str] = frozenset()  # tests/unit/ folders the merge-base already had: judged by whoever made them
     on_disk: bool = False  # whole-tree mode reads the working tree; --since reads HEAD
     merge_base: str = "HEAD"
+    _facts: dict = field(default_factory=dict, repr=False)
 
     def text(self, path: str) -> str:
         if self.on_disk:
             return (self.repo / path).read_text(encoding="utf-8", errors="replace")
         return _git(self.repo, "show", f"HEAD:{path}")
+
+    def facts(self, path: str):
+        """The parsed Swift file, read once per path (two rules ask)."""
+        if path not in self._facts:
+            self._facts[path] = analyze(self.text(path))
+        return self._facts[path]
 
     def has_dir(self, path: str, rev: str = "HEAD") -> bool:
         if self.on_disk:
@@ -142,16 +149,18 @@ def _judge_swift_layer(path: str, _tree: Tree) -> str | None:
 
 def _judge_swift_view_place(path: str, tree: Tree) -> str | None:
     rest = path[len(APP):]
-    if not any(t.is_view for t in analyze(tree.text(path)).types):
+    views = [t for t in tree.facts(path).types if t.is_view]
+    if not views:
         return None
     parts = rest.split("/")
-    if (parts[0] == "Views" and len(parts) > 2) or rest.startswith("App/Menus/"):
+    app_root = parts[0] == "App" and all(t.name.endswith(("Scene", "Window")) for t in views)  # the app's own window roots
+    if (parts[0] == "Views" and len(parts) > 2) or rest.startswith("App/Menus/") or app_root:
         return None
     return "Views/<Feature>/ (menu commands: App/Menus/): a View type lives under a feature folder of Views/"
 
 
 def _judge_swift_name(path: str, tree: Tree) -> str | None:
-    for finding in file_findings(path[len(APP):], analyze(tree.text(path))):
+    for finding in file_findings(path[len(APP):], tree.facts(path)):
         kind, _, what = finding.partition(": ")
         if kind == "file-name":
             return "a file named for its type: " + what

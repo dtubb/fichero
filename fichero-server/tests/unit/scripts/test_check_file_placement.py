@@ -96,3 +96,9 @@ def test_a_new_swift_test_sits_in_the_mirror_of_an_existing_app_folder_and_ends_
     assert "Tests.swift" in _judge(_TESTS + "general/Views/Library/ThingCheck.swift", dirs=app)
     assert _judge(_TESTS + "general/Views/Nowhere/ThingTests.swift", dirs=app, old={_TESTS + "general/Views/Nowhere"}) is None
     assert _judge(_TESTS + "general/TestFixtures.swift") is None
+
+
+def test_an_app_scene_or_window_may_sit_in_app_and_other_app_views_may_not():
+    assert _judge(_APP + "App/MainScene.swift", "struct MainScene: View {}\n") is None
+    assert _judge(_APP + "App/Menus/FileCommands.swift", "struct FileCommands: View {}\n") is None
+    assert "Views/<Feature>/" in _judge(_APP + "App/SettingsRow.swift", "struct SettingsRow: View {}\n")
