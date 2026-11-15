@@ -40,6 +40,11 @@ class LibraryNotFoundError(FileNotFoundError):
         )
 
 
+class RealLibraryRefused(PermissionError):
+    """A dev engine was asked to open a project in the owner's real library folders
+    (`runtime.dev-engine-refuses-real-data`, #6588). Nothing is opened; the API maps it to a 403 in words."""
+
+
 class DatabaseBusy(RuntimeError):
     """A consistent copy of a library's database could not be taken in time: another connection
     held a write transaction open past the wait (#5185). Named, so a caller refuses with the reason
@@ -218,6 +223,12 @@ class DatabaseManager:
             open_lock = self._open_locks.setdefault(cache_key, threading.Lock())
         with open_lock:
             if cache_key not in self._databases:
+                from fichero_server.security.real_data_guard import library_refusal
+
+                refused = library_refusal(package_path)
+                if refused:
+                    logger.warning(refused)
+                    raise RealLibraryRefused(refused)
                 if (
                     not create
                     and not package_path.expanduser().is_dir()
