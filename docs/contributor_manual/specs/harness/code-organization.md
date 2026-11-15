@@ -85,9 +85,11 @@ runs on the builder, not by a sweep: the files a batch adds or moves are judged 
   `scripts/check_folder_organization.py`.
 - `code-org.folders.swift-models-services-by-feature` [GAP] — `Models/` and `Services/` carry one subfolder per feature
   (`Models/Segments/`, `Services/Pairing/`), named as the matching `Views/<Feature>/`; the flat root of each holds only
-  cross-feature types. Today 355 and 220 files sit flat; both are known offenders of the 18-file rule since #1944; their baseline now carries the file count (355 and 220), so
-  the guard fails when either grows. Test: `scripts/check_folder_organization.py` once the two entries leave its
+  cross-feature types. Today 355 and 220 files sit flat; both are known offenders of the 18-file rule since #1944 and the
+  guard's allowlist lets them grow. Test: `scripts/check_folder_organization.py` once the two entries leave its
   `KNOWN_VIOLATIONS`.
+  Was: the allowlist let them grow; now each `KNOWN_VIOLATIONS` entry carries its file count at baseline (355 and 220) and the
+  guard fails when a count rises.
 - `code-org.folders.swift-view-local-state` [OK] — A view's own `@Observable` state (a `*State`, `*Model` or `Focused*`
   type used by one feature) sits BESIDE its views in `Views/<Feature>/`; `Models/<Feature>/` holds shared state, read by
   two or more features (ruled by the owner 2026-11-14). Today 38 observable types sit under `Views/`; the guard names the
@@ -141,14 +143,14 @@ runs on the builder, not by a sweep: the files a batch adds or moves are judged 
   Test: fichero-server/tests/unit/scripts/test_check_swift_one_type_per_file.py; `check_swift_one_type_per_file --self-test`.
 - `code-org.naming.swift-views-end-view` [OK] — A `View`-conforming type ends in `View`, or in one of the shape words
   the shell uses (`Pane`, `Sheet`, `Row`, `Bar`, `Button`, `Menu`, `Picker`, `Popover`, `Cell`, `Badge`, `Label`,
-  `Overlay`, `Section`, `Item`, `Field`, `Panel`, `Strip`, `Card`, `Line`, `Notice`, `Pill`, and the shapes the tree already
-  uses: `Host`, `Content`, `Modifier`, `Stage`, `Screen`, `Page`, `Tab`, `Tabs`, `Toolbar`, `Header`, `Footer`, `Chip`,
-  `Indicator`, `Banner`, `Grid`, `List`, `Stack`, `Canvas`, `Editor`, `Viewer`, `Inspector`, `Reader`, `Sidebar`, `Window`,
-  `Scene`, `Renderer`, `Commands`; `SHAPE_WORDS` in the guard is the list); a type under `Views/` that
+  `Overlay`, `Section`, `Item`, `Field`, `Panel`, `Strip`, `Card`, `Line`, `Notice`, `Pill`); a type under `Views/` that
   is not a view is named for what it is (`*Policy`, `*State`, `*Model`). A View type outside `Views/` lives in
-  `App/Menus/` (menu commands), is a `*Scene` or `*Window` under `App/` (the app's own window roots), or is misplaced. Today
-  33 View types sit outside `Views/`, 30 of them menus (#1944). Built: `check_swift_one_type_per_file` rule 3, baselined;
-  `check_file_placement` judges a new one by the same rule.
+  `App/Menus/` (menu commands) or is misplaced. Today 33 View types sit outside `Views/`, 30 of them menus (#1944).
+  Built: `check_swift_one_type_per_file` rule 3, baselined; `check_file_placement` judges a new one by the same rule. The
+  guard's `SHAPE_WORDS` also accepts the shapes the tree already uses (`Host`, `Content`, `Modifier`, `Stage`, `Screen`, `Page`,
+  `Tab`, `Tabs`, `Toolbar`, `Header`, `Footer`, `Chip`, `Indicator`, `Banner`, `Grid`, `List`, `Stack`, `Canvas`, `Editor`,
+  `Viewer`, `Inspector`, `Reader`, `Sidebar`, `Window`, `Scene`, `Renderer`, `Commands`), and a `*Scene` or `*Window` under
+  `App/` (the app's own window roots) may stay outside `Views/`.
   Test: fichero-server/tests/unit/scripts/test_check_swift_one_type_per_file.py; `check_swift_one_type_per_file --self-test`.
 - `code-org.naming.swift-platform-suffix` [OK] — A platform-specific file or type ends in `IOS` or `MacOS` (ruled by the owner
   2026-11-14); today 13 files use `IOS`, 2 use `iOS`, 1 uses `MacOS`, so the two `iOS` files are renamed. Built: `check_swift_one_type_per_file` rule 4 flags a file or type ending `iOS`,
