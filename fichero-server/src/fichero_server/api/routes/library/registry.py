@@ -1216,6 +1216,12 @@ def add_known_library(
             status_code=400,
             detail="Path must be a .fichero package (directory ending in .fichero)",
         )
+    # #6588: a dev engine neither registers nor opens the owner's real projects, whoever asks.
+    from fichero_server.security.real_data_guard import library_refusal
+
+    refused = library_refusal(pkg_path)
+    if refused:
+        raise HTTPException(status_code=403, detail=refused)
 
     try:
         # Check if already registered

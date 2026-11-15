@@ -555,6 +555,18 @@ class KeptExport(BaseModel):
                                               "left alone")
     pending: int = Field(description="writes waiting (their jobs are in Activity)")
     last_written: datetime | None = None
+    keep_up_to_date: bool = Field(default=True, description="rewritten as the work changes (on by default); off, only "
+                                                            "Write Now writes")
+
+
+class KeptExportUpdate(BaseModel):
+    folder: str | None = Field(default=None, description="Choose Folder…: a full path to the folder the export writes "
+                                                         "to from now on, outside the project")
+    keep_up_to_date: bool | None = Field(default=None, description="Keep up to date: off, an edit queues no rewrite")
+
+
+class KeptExportUpdateParams(KeptExportUpdate):
+    export_id: str
 
 
 class KeptExportList(BaseModel):
@@ -587,6 +599,15 @@ def _action_unkeep(db: Database, params: KeptExportIdParams, ctx: ActionContext)
     kept_export.remove(db, params.export_id)
     return {"id": params.export_id}, ChangeSpec(domains=["library"], before={"id": params.export_id},
                                                 emit_type="export.unkept")
+
+
+@action("export.update", KeptExportUpdateParams, domains=["library"], undoable=False)
+def _action_update(db: Database, params: KeptExportUpdateParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server import kept_export
+
+    kept_export.update(db, params.export_id, folder=params.folder, keep_up_to_date=params.keep_up_to_date)
+    changed = params.model_dump(exclude_none=True)
+    return {"id": params.export_id}, ChangeSpec(domains=["library"], after=changed, emit_type="export.updated")
 
 
 def _kept(db: Database, export_id: str) -> KeptExport:
@@ -636,6 +657,27 @@ async def remove_kept_export(
     _kept(db, export_id)
     registry.invoke(db, "export.unkeep", {"export_id": export_id}, ctx)
     return KeptExportRemoved(id=export_id)
+
+
+@router.patch("/kept/{export_id}", response_model=KeptExport,
+              summary="Choose a kept export's folder again, or switch Keep up to date")
+async def update_kept_export(
+    export_id: str,
+    request: KeptExportUpdate,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> KeptExport:
+    """Choose Folder… (`activity.kept-export.one-row-per-export`, #6588): the export writes to the new folder from now
+    on, and a row its gone folder paused writes there. Keep up to date off: an edit queues no rewrite, Write Now still
+    writes. A folder that cannot be kept is refused (422) in one sentence, nothing changed."""
+    from fichero_server.kept_export import KeptExportRefused
+
+    _kept(db, export_id)
+    try:
+        registry.invoke(db, "export.update", {"export_id": export_id, **request.model_dump(exclude_none=True)}, ctx)
+    except KeptExportRefused as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _kept(db, export_id)
 
 
 @router.post("/kept/{export_id}/write", response_model=KeptExportWriting,

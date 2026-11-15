@@ -265,7 +265,7 @@ class TestAPageSomeoneIsWaitingFor:
         Its workflow run resumes or fails on its own terms."""
         db = db_manager.get_database(test_package)
         gate, first = _blocked_lane(db)
-        db_manager.close_database(test_package)  # quit while the page runs
+        db_manager.close_all()  # quit: the engine closes every project (a project close alone pauses its work, #6596) while the page runs
         gate.set()
         first.result(10)
         monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())

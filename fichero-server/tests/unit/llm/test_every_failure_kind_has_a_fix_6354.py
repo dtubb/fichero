@@ -43,3 +43,31 @@ def test_the_words_name_no_code_status_or_exception_type():
             assert "Traceback" not in text and "Error:" not in text, f"{kind}: exception text in the words: {text}"
         if kind != "unexpected":  # `unexpected` names the exception's type on purpose, as the bug report's handle
             assert "Error" not in words and "Exception" not in words, f"{kind}: {words}"
+
+
+# --- the kinds the release showed bare (#6597, `activity.failure.no-raw-text-ever`) -------------------------------------------
+
+
+def _stub_failures():
+    import duckdb
+
+    from fichero_server.kept_export import ExportFolderGone
+
+    return {
+        "model-broken": failure.ModelBrokenError("bge-m3"),
+        "library-closed": duckdb.ConnectionException("Connection Error: Connection already closed: the library "
+                                                     "/Volumes/Archive/Proj.fichero/fichero.duckdb was closed"),
+        "export-folder-gone": ExportFolderGone("/Volumes/Archive/Letters is not there any more; choose the export's folder again."),
+    }
+
+
+def test_the_three_bare_kinds_list_with_their_words_and_their_fix():
+    said = {"model-broken": "bge-m3 could not be loaded", "library-closed": "Paused: the project closed",
+            "export-folder-gone": "The export folder is gone"}
+    for kind, exc in _stub_failures().items():
+        built = failure.classify(exc)
+        assert built.kind == kind, (kind, built.kind)
+        assert built.row_words == said[kind]
+        assert built.fix.strip() and built.actions, kind
+        for text in (built.row_words, built.words, built.fix):
+            assert "Error" not in text and "/Users/" not in text and "[" not in text and "/Volumes/" not in text, (kind, text)

@@ -1,5 +1,5 @@
 """P2 / 436: a search model that cannot be loaded is loaded ONCE per back-off window, and the embed JOB waits with the
-sentence as its reason; it does not end done with a count in the document's metadata."""
+blocker's words as its reason; it does not end done with a count in the document's metadata."""
 from __future__ import annotations
 
 import pytest
@@ -34,13 +34,18 @@ def test_a_failed_load_is_tried_once_for_two_pages(monkeypatch):
     assert loads == [1], "the second page was answered from the remembered failure, with no new child or fetch"
 
 
-def test_the_embed_job_waits_with_the_sentence_as_its_reason(db, monkeypatch):
+def test_the_embed_job_is_blocked_under_the_model_with_its_short_words(db, monkeypatch):
     doc = Document(name="p", page_content="some words")
     db.save(doc)
     jobs.load_kinds()
+    monkeypatch.setattr(derivatives, "_fetch_the_search_model", lambda _db: "model:embeddings:some/model")  # no real download
     monkeypatch.setattr(db, "embed", lambda target: (_ for _ in ()).throw(embed_process.EmbedderUnavailable(WORDS)))
     job_id = jobs.enqueue(db, derivatives.EMBED_KIND, doc.id)
     from tests.unit.jobs.test_runs_are_jobs import _wait_for
 
-    assert _wait_for(lambda: jobs.read_job(db, job_id)["reason"] == WORDS, 60), jobs.read_job(db, job_id)
-    assert jobs.read_job(db, job_id)["state"] == "waiting"
+    # #6593: the row is blocked under the model's download with the blocker's words, not re-deferred with the long sentence
+    def blocked():
+        row = db.execute_fetchone("SELECT state, reason, blocked_by FROM jobs WHERE id = ?", [job_id])
+        return row == ("waiting", derivatives.SEARCH_MODEL_BLOCKED, "model:embeddings:some/model")
+
+    assert _wait_for(blocked, 60), jobs.read_job(db, job_id)
