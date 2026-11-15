@@ -826,7 +826,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   each item's count of rows needing you is its badge. A main window's Activity pane offers the same items in its head's
   lens menu. Acceptance: choosing Files lists by file; Archived lists only archived rows and Show Archived leaves the More
   menu. *Built 2026-11-15:* the window is a `NavigationSplitView` laid out by the pane (sidebar, centre, the window's Inspector beside the centre); the source list Activity (Runs, Files), Resources (Cost, Where), Archived (`ActivityPane.Tab.archived`: the archived rows only); Runs badged with the rows needing you (`ActivityPane.needsYouCount`); the tabs left the toolbar, which leads with the run controls (`docs/assets/activity-pane/window-sidebar.png`). *Not yet:* Recipes and Models (Steps 5.3, 5.5), Show Archived leaving the More menu. *Test:* `ActivityWindowSidebarTests.swift`.
-- `activity.window.models-tree` — **[GAP]** (#6588; decision 33) the sidebar's Models section is place › provider › model:
+- `activity.window.models-tree` — **[PARTIAL]** (#6588; decision 33) the sidebar's Models section is place › provider › model:
   **This Mac** (Kraken, each embedding model, MLX and Ollama models), **Remote** (another Mac by name, a cluster: ACENET),
   **Cloud** (Anthropic, OpenAI, Hugging Face, …), from the engine's one list `GET /api/activity/models`: each model's id,
   name, place, provider, `loaded` (held in memory, this Mac's from the model registry; a remote one's as its host says),
@@ -834,7 +834,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   hollow when not; a green dot (animated while working) when active. Choosing a model lists the rows it ran or runs (by
   `model` and `runs_on`); choosing a provider or place lists all of theirs. A model used today and not loaded stays listed,
   hollow. Acceptance: with Kraken reading and an embedder loaded idle, Kraken is filled with the dot, the embedder filled
-  without, a cloud model used this morning hollow. *Test:* `fichero-server/tests/unit/api/test_activity_models_6588.py`,
+  without, a cloud model used this morning hollow. *Built 2026-11-15:* the engine's `GET /api/activity/models` (`workflows/activity_models.py`: the job rows' model and each call's provider, model and place; `models_held`; Kraken's memory the size its load is given, marked estimated) and the sidebar's Models section, place › provider › model, read every ten seconds, the icon filled while loaded, a green dot while working, the memory beside it; a model or provider picked filters the centre by `model:`. *Not yet:* a model's Inspector; listing by `runs_on` as well as the model's name. *Test:* `fichero-server/tests/unit/api/test_activity_models_6588.py`,
   `ActivityModelsTreeTests.swift`.
 - `activity.window.graph-on-every-view` — **[GAP]** (#6588; decision 34; extends `activity.window.bottom-panel`) the bottom
   panel is on every sidebar item, 180 pt tall by default, its divider dragged and its height kept per window: Runs and
