@@ -94,7 +94,7 @@ engine_repo = "/Users/Shared/fichero-engine"
 
 # every _scan_files test, the functional ones too, once a day on the loop's checkout (`builder daily-builds`), red = an alert
 daily_tests = [
-  "fichero-server/tests/test_shared_connection_lock.py",
+  "fichero-server/tests/unit/db/test_shared_connection_lock.py",
   "fichero-server/tests/unit/api/test_mutation_log_names_its_actor.py",
   "fichero-server/tests/unit/api/test_no_model_work_in_gets.py",
   "fichero-server/tests/unit/api/test_routes_hpc.py",
@@ -192,7 +192,7 @@ daily_tests = [
   "fichero-server/tests/unit/llm/test_kraken_runtime.py",
 ]
 "fichero-server/src/fichero_server/" = [
-  "fichero-server/tests/test_shared_connection_lock.py",
+  "fichero-server/tests/unit/db/test_shared_connection_lock.py",
   "fichero-server/tests/unit/api/test_mutation_log_names_its_actor.py",
   "fichero-server/tests/unit/api/test_routes_hpc.py",
   "fichero-server/tests/unit/api/test_textedit_engine_primitives.py",

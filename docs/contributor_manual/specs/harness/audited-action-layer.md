@@ -414,7 +414,7 @@ parallel pattern to keep.
   lock was released; against another thread's statement newer DuckDB refuses with `ResourceInUseException:
   connection is busy with another call`, which surfaced as HTTP 500 on the segment, artifact, trash,
   reading-order and conversation reads. Pass `fetch="all"`/`"one"`, or use `execute_fetchall`/`execute_fetchone`.
-  Pinned: `fichero-server/tests/test_shared_connection_lock.py::test_no_fetch_off_the_cursor_a_locked_helper_returned`
+  Pinned: `fichero-server/tests/unit/db/test_shared_connection_lock.py::test_no_fetch_off_the_cursor_a_locked_helper_returned`
   (AST scan of the source) and `::test_every_statement_and_fetch_on_the_shared_connection_holds_the_lock` (a
   spy connection that records any statement or fetch made while the calling thread does not hold `Database._lock`, which is
   what a fetch after the lock is released looks like).
