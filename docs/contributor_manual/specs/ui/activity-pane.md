@@ -126,6 +126,19 @@
     version), its runs under it, each run's steps under that, with per page rates that compare (pages done and failed,
     failed %, seconds a page, cost a page, the model and place of each step); the Inspector of a run shows its graph as the
     node editor draws it, each node with its counts.
+38. **Sidebar › centre › Inspector, the main app's shape** (the owner, 2026-11-15 late morning): the sidebar SELECTS (an item,
+    a recipe, a model, a provider, a place, a cluster), the centre SHOWS the selection in one of several views, the Inspector
+    INSPECTS the selected row. This is right; nothing goes back to tabs.
+39. **The centre has views of the selection**, chosen in its head like the main app's panes (Canvas / List / Table):
+    **Table** (the rows), **Graph** (charts of the same rows over time) and **Visual** (the selection drawn: a run as its
+    node graph with each node's counts, work as a timeline of bars per lane or per model, a cluster as its jobs on a
+    timeline). Every sidebar item offers the views that mean something for it.
+40. **Activity's views are panes**: the sidebar, the centre and the graphs are built from the app's pane code (the pane head,
+    the footer `PaneFilterBar`), so each can open in a main window as a pane as well as in the Activity window.
+41. **The graphs are their own pane**: at the bottom of the centre by default, and like any pane it can be made full size.
+42. **Show everything the engine knows**, by resource: a model's memory held (its process's resident size; Kraken's readers
+    as the engine sizes them), when it loaded, its pages, calls and seconds today; a cluster job's time queued and time run,
+    its node hours and cost; this Mac's memory, processor and lanes busy. Nothing guessed: what nothing measures reads "—".
 
 ## States and what a person may do in each
 
@@ -848,6 +861,33 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   with Qwen (0 failed), read 15% and 0% failed with each step's model; the run's Inspector draws its nodes with counts.
   *Test:* `fichero-server/tests/unit/api/test_activity_recipes_6588.py`, `ActivityRecipesViewTests.swift`.
 
+- `activity.window.centre-views` — **[GAP]** (#6588; decisions 38-39) the centre's head carries a view picker, **Table |
+  Graph | Visual**, per sidebar item and remembered: Table is the rows (every item); Graph the item's rows over time (the
+  history, `GET /api/activity/history`, by the item's grouping: Runs and Recipes pages per minute, Cost spend, a model or place
+  its pages, calls and memory); Visual draws the selection: a run as its node graph (`activity.window.recipes`'s Inspector
+  drawing, full size), work as a timeline of bars per lane or per model (each row a bar from start to end, coloured by state),
+  a cluster its jobs on a timeline (queued, then running). An item with no Visual meaning offers Table and Graph. Acceptance:
+  Runs offers all three; choosing Visual on a run draws its nodes; the choice survives a relaunch. *Test:*
+  `ActivityCentreViewsTests.swift`.
+- `activity.window.views-are-panes` — **[GAP]** (#6588; decision 40; `panes.chrome.one-filter-pattern`) the Activity
+  sidebar, the centre (with its views) and the graphs are pane kinds of the app's pane system, with its head and its footer
+  (`PaneFilterBar`), so a main window can show any of them as a pane, and the Activity window is those panes in its own
+  layout; no Activity-only chrome. Acceptance: a main window offers "Activity Graphs" and "Activity" panes; the Activity
+  window's centre is the same view type. *Test:* `ActivityPaneKindsTests.swift`.
+- `activity.graphs.own-pane` — **[GAP]** (#6588; decision 41; supersedes the fixed panel of `activity.window.bottom-panel` and
+  the fixed height of `activity.window.graph-on-every-view`) the graphs are a pane: under the centre by default, its divider
+  dragged, and maximised full size like any pane (and back); it follows the sidebar's selection. Acceptance: maximising it
+  fills the window's centre; restoring it gives the height it had. *Test:* `ActivityBottomPanelTests.swift` extended.
+- `activity.resources.everything-measured` — **[GAP]** (#6588; decision 42; `activity.window.models-tree`) the engine answers,
+  per model, `memory_bytes` (a process of its own: its resident size, `execution/models_held.py`; Kraken's readers: the size
+  the throttle gives them, marked `estimated`), `loaded_at`, and today's `pages`, `calls`, `seconds`; per cluster job (the
+  remote jobs, `execution/remote_jobs.py`), `queued_seconds`, `run_seconds` (from its phase history), node hours and cost when
+  the cluster reports them; per Mac, memory used of its total, processor, lanes busy of their width. The Inspector of a model,
+  a cluster job or a place shows them; the Models tree's rows show memory; the Graph view draws them over time. What nothing
+  measures is "—", never 0. Acceptance: an embedder loaded shows its resident megabytes; Kraken shows "~2.5 GB (estimated)";
+  a cluster job of 40 min queued and 12 min run reads both. *Test:* `fichero-server/tests/unit/api/test_activity_models_6588.py`
+  extended, `test_cluster_job_times_6588.py`.
+
 ## Build order
 
 ### Stage 1 — Activity as a pane
@@ -1041,6 +1081,24 @@ First, because every new install hits it: one real folder per model, load-checke
 - Behaviours: `activity.log.like-xcode`
 - Tests: ActivityLogListTests.swift
 - Depends on: none
+- Size: M
+
+#### Step 5.7 — the centre's views: Table, Graph, Visual (#6588)
+- Behaviours: `activity.window.centre-views`
+- Tests: ActivityCentreViewsTests.swift
+- Depends on: 5.2
+- Size: M
+
+#### Step 5.8 — Activity's views are panes; the graphs a pane of their own (#6588)
+- Behaviours: `activity.window.views-are-panes`, `activity.graphs.own-pane`
+- Tests: ActivityPaneKindsTests.swift, ActivityBottomPanelTests.swift
+- Depends on: 5.2, 5.4
+- Size: M
+
+#### Step 5.9 — every resource measured: model memory, cluster times, this Mac (#6588)
+- Behaviours: `activity.resources.everything-measured`
+- Tests: test_activity_models_6588.py, test_cluster_job_times_6588.py
+- Depends on: 5.3
 - Size: M
 
 ## Test matrix
