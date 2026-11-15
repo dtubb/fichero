@@ -64,7 +64,7 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     let total: Int
     var started: Date?
     /// How long it took, start to finish (or until the last read, while it runs).
-    let seconds: Double?
+    var seconds: Double?
     let costUsd: Double?
     let tokens: Int
     let errors: Int
@@ -289,7 +289,16 @@ struct ActivityMonitorRow: Identifiable, Equatable {
         return tokens > 0 ? "Not priced" : ""
     }
 
-    var secondsText: String { looksWaiting ? "" : (seconds.map(Self.duration) ?? "") }
+    /// The row's one time, read by its Time cell, its sort and its Inspector alike (`activity.pane.row-and-inspector-agree`):
+    /// the engine's seconds (a file's, its pages' summed work time), else from its start to its end; none while it waits.
+    var elapsedSeconds: Double? {
+        if looksWaiting { return nil }
+        if let seconds { return seconds }
+        guard let started, let ended, ended > started else { return nil }
+        return ended.timeIntervalSince(started)
+    }
+
+    var secondsText: String { elapsedSeconds.map(Self.duration) ?? "" }
 
     var errorsText: String { errors > 0 ? "\(errors)" : "" }
 
@@ -322,7 +331,7 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     var queueKey: Int { queuePosition ?? Int.max }
     var waitingStartedKey: Date { looksWaiting ? (started ?? .distantFuture) : .distantPast }
     var startedKey: Date { started ?? .distantPast }
-    var secondsKey: Double { seconds ?? -1 }
+    var secondsKey: Double { elapsedSeconds ?? -1 }
     var costKey: Double { costUsd ?? -1 }
     var progressKey: Double { total > 0 ? Double(done) / Double(total) : -1 }
     var modelKey: String { model ?? "" }

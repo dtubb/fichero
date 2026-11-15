@@ -43,6 +43,31 @@ struct ActivityDefaultColumnsTests {
         #expect(ActivityPane.progressLine(ActivityPaneFixture.row("many", .running, done: 2, total: 60)) == "2 of 60")
     }
 
+    @Test("the row's Time and its Inspector's time are the one number; a file's is its work time and says so")
+    func rowAndInspectorAgree() {
+        func inspectorTime(_ row: ActivityMonitorRow) -> (label: String, value: String)? {
+            let details = ActivityDetails(row: row, node: nil, runRow: nil, projectName: nil, startedBy: nil, machine: nil)
+            return details.resources.first { $0.label == "Elapsed" || $0.label == "Work time" }.map { ($0.label, $0.value) }
+        }
+        // Ended, with a start and an end but no `seconds` from the engine: the row said 48 s, the Inspector nothing.
+        var ended = ActivityPaneFixture.row("e", .done, started: ActivityPaneFixture.day)
+        ended.ended = ActivityPaneFixture.day.addingTimeInterval(48)
+        #expect(ActivityPane.timeLine(ended) == "48 s")
+        #expect(inspectorTime(ended)?.value == "48 s")
+        // A file row: its pages' summed work time, named so in the Inspector.
+        var first = ActivityPaneFixture.page("p1", .done, doc: "d1")
+        first.seconds = 30
+        var second = ActivityPaneFixture.page("p2", .done, doc: "d1")
+        second.seconds = 18
+        let run = ActivityPaneFixture.row("run", .done, kind: .run, children: [
+            ActivityPaneFixture.row("read", .done, kind: .step, children: [first, second])
+        ])
+        let file = ActivityPane.byFile([run]).first { $0.id.hasPrefix("file:") }
+        #expect(file.map(ActivityPane.timeLine) == "48 s", "the pages' summed work time")
+        #expect(file.flatMap(inspectorTime)?.label == "Work time")
+        #expect(file.flatMap(inspectorTime)?.value == "48 s")
+    }
+
     @Test("a time is one short unit: 48 s, 3 min, 2 h; never secs. or a full stop")
     func shortTimes() {
         #expect(ActivityMonitorRow.duration(48) == "48 s")

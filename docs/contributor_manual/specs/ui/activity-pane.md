@@ -670,12 +670,14 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   `checkmark.circle.fill` in green; partial the check in green with its dot; failed the red X; everything else secondary. The
   table's state cell and the Inspector's versions draw the one `Glyph.tint`.
   *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityStateGlyphTests.swift` extended.
-- `activity.pane.row-and-inspector-agree` — **[GAP]** (#6588; decision 29) a row's Time, count and Cost and its Inspector's
+- `activity.pane.row-and-inspector-agree` — **[OK]** (#6588; decision 29) a row's Time, count and Cost and its Inspector's
   Elapsed, counts and cost are the same numbers from the same fields (a file row's time is its pages' summed work time and its
   Inspector says so, "work time 48 s"; never a step's 9 s beside the row's 48 s); a time is written "48 s", "3 min", "2 h"
   (no "secs.", no full stop, `activity.pane.text-budget`); local work's cost is blank and a priced call at $0 reads "Free",
   never "$0.00" (`activity.pane.cost-per-row-and-totals`). *Built 2026-11-14:* Free and blank cost (`ActivityPane.costLine`: the engine's 0.0 reads Free,
-  its null blank); one short time unit, "48 s", "3 min", "2 h" (`ActivityMonitorRow.duration`). Acceptance: the fixture's file row and its Inspector read the same
+  its null blank); one short time unit, "48 s", "3 min", "2 h" (`ActivityMonitorRow.duration`). *Built 2026-11-14 night:* one
+  `ActivityMonitorRow.elapsedSeconds` (the engine's seconds, else start to end) read by the Time cell, its sort and the
+  Inspector, which names a file row's "Work time". Acceptance: the fixture's file row and its Inspector read the same
   time; a local Kraken row has no cost; a $0 cloud call reads Free. *Test:* `ActivityDefaultColumnsTests.swift` extended.
 - `activity.pane.started-by-is-honest` — **[OK]** (#6588; `activity.pane.icons-say-source-and-kind`) the source glyph is a
   person only for a person's own act; the engine's own starters (`kept export`, `synced folder`, `automatic`, a schedule, a

@@ -315,10 +315,7 @@ enum ActivityPane {
     /// The Time cell: the time left while it runs, its duration once ended; never a clock time and never both.
     static func timeLine(_ row: ActivityMonitorRow) -> String {
         if row.phase == .running, let left = row.remainingSeconds { return "\(ActivityMonitorRow.duration(left)) left" }
-        if row.looksWaiting { return "" }
-        if let seconds = row.seconds { return ActivityMonitorRow.duration(seconds) }
-        if let start = row.started, let end = row.ended, end > start { return ActivityMonitorRow.duration(end.timeIntervalSince(start)) }
-        return ""
+        return row.secondsText
     }
 
     /// The Cost cell: "$0.42 · ~$1.10 more" while it runs, "$0.42" once ended; blank for local work (the engine's null);
