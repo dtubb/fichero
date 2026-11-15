@@ -1053,6 +1053,29 @@
         }
       }
     },
+    "/api/activity/models": {
+      "get": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Activity Models",
+        "description": "The Models tree (`activity.window.models-tree`, `activity.resources.everything-measured`, #6588): every model this\nproject used today or the engine holds now, by place (this Mac, remote, cloud) and provider, loaded or not, active or\nnot, its memory where measured, today's pages, calls and seconds.",
+        "operationId": "activity_models_api_activity_models_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityModelsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/activity/jobs/{job_id}/paused": {
       "put": {
         "tags": [
@@ -52517,6 +52540,97 @@
         ],
         "title": "ActivityMetricsSummary",
         "description": "Enhanced activity metrics summary."
+      },
+      "ActivityModel": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "place": {
+            "type": "string",
+            "enum": [
+              "this-mac",
+              "remote",
+              "cloud"
+            ],
+            "title": "Place"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "loaded": {
+            "type": "boolean",
+            "title": "Loaded",
+            "description": "held in memory now"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active",
+            "description": "a page or call on it is in flight now"
+          },
+          "memory_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Memory Bytes",
+            "description": "what it holds in memory; null when nothing measures it"
+          },
+          "memory_estimated": {
+            "type": "boolean",
+            "title": "Memory Estimated",
+            "description": "memory_bytes is the size its load is given, not measured",
+            "default": false
+          },
+          "running": {
+            "type": "integer",
+            "title": "Running",
+            "default": 0
+          },
+          "pages_today": {
+            "type": "integer",
+            "title": "Pages Today",
+            "default": 0
+          },
+          "calls_today": {
+            "type": "integer",
+            "title": "Calls Today",
+            "default": 0
+          },
+          "seconds_today": {
+            "type": "number",
+            "title": "Seconds Today",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "place",
+          "provider",
+          "loaded",
+          "active"
+        ],
+        "title": "ActivityModel",
+        "description": "One model of the Models tree (`activity.window.models-tree`, #6588)."
+      },
+      "ActivityModelsResponse": {
+        "properties": {
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityModel"
+            },
+            "type": "array",
+            "title": "Models"
+          }
+        },
+        "type": "object",
+        "title": "ActivityModelsResponse"
       },
       "ActivityResponse": {
         "properties": {

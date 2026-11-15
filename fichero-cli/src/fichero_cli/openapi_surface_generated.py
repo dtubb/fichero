@@ -946,6 +946,17 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("models")
+    def activity_models_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Activity Models (GET /api/activity/models)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/models"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("pause-all")
     def activity_pause_all_post(
         ctx: typer.Context,
