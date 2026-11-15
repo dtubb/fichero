@@ -1151,12 +1151,22 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
             if running is not None and node["state"] in ("running", "paused")
             else None
         )
-        # How long it took: its own start to its finish (or until now, while it runs).
+        # The last work heard under it: its own start or finish, or its children's (a paused row's clock stops there).
+        heard = [t for t in (node["started_at"], node["finished_at"]) if t] + [
+            c["_heard"] for c in node["children"] if c.get("_heard")
+        ]
+        node["_heard"] = max(heard, key=ensure_utc) if heard else None
+        # How long it took: its own start to its finish (until now while it runs; until its last work while it is
+        # paused, so a run paused after 3 minutes does not read "1 h" the next morning, #6588).
         start = node["started_at"] or (
             node["created_at"] if node["kind"] in RUN_KINDS else None
         )
         end = node["finished_at"] or (
-            now if node["state"] in ("running", "paused") else None
+            now
+            if node["state"] == "running"
+            else node["_heard"]
+            if node["state"] == "paused"
+            else None
         )
         node["seconds"] = (
             max(0.0, (ensure_utc(end) - ensure_utc(start)).total_seconds())
@@ -1185,6 +1195,7 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
     ):  # absolute times, as the engine recorded them (#5561, never "now")
         node.pop("_units", None)  # the roll-up's working, not part of the answer
         node.pop("_extra", None)
+        node.pop("_heard", None)
         if (
             node["started_at"] is None
             and node["kind"] in RUN_KINDS
