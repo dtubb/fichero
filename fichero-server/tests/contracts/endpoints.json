@@ -688,6 +688,16 @@
         "response_model": "ActivityMetricsSummary"
       },
       {
+        "method": "GET",
+        "path": "/activity/models",
+        "operation_id": "activity_models_api_activity_models_get",
+        "summary": "Activity Models",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ActivityModelsResponse"
+      },
+      {
         "method": "POST",
         "path": "/activity/pause-all",
         "operation_id": "pause_all_api_activity_pause_all_post",
