@@ -81,7 +81,8 @@ def status(rows: list[dict], lanes: list[dict], today: str | None = None) -> dic
                                        for n in r.get("issues", []) if n not in r.get("left_open", [])}),
         "spend_today_usd": round(sum(float(r.get("usd") or 0) for r in on if r.get("event") == "cost"), 2),
         "open_alerts": [{k: r.get(k) for k in ("id", "ts", "lane", "step", "what", "actions")}
-                        for r in rows if r.get("event") == "alert" and r.get("id") not in answered],
+                        # #6589: a row with no id (the rung alerts before 2026-11-15) can take no answer, so it is never open
+                        for r in rows if r.get("event") == "alert" and r.get("id") and r.get("id") not in answered],
         "resolved_alerts": _resolved(rows, today),
     }
 
