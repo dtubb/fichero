@@ -1361,8 +1361,11 @@ def _job_rows_log(node: dict[str, Any], stage: Optional[str] = None, seen: Optio
         lines.append(JobLogLine(timestamp=node.get("finished_at"), level=ended[0], message=ended[1],
                                 job_id=node["id"]))
     elif reason and page is None:
-        lines.append(JobLogLine(timestamp=None, level="info", message=f"{state.capitalize()}: {name}: {reason}",
-                                job_id=node["id"], detail="developer"))
+        # A held row says why, to the person (decision 27: a row that ran is never "nothing written"); paused is a warning,
+        # something the person can fix, so Problems shows it too (#6588).
+        lines.append(JobLogLine(timestamp=None, level="warning" if state == "paused" else "info",
+                                message=f"{state.capitalize()}: {name}: {reason}", job_id=node["id"],
+                                detail="person" if state == "paused" else "developer"))
     below = node["id"] if node.get("kind") in ("workflow", "run-a-recipe") else stage
     for child in node.get("children", []):
         lines.extend(_job_rows_log(child, below, seen))

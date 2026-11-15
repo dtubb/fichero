@@ -109,3 +109,23 @@ def test_the_listed_paused_row_carries_its_fix_naming_the_export(client, db, pag
     assert row["failure"]["kind"] == "export-folder-gone"
     assert [(a["kind"], a.get("control")) for a in row["failure"]["actions"]] == [("choose-folder", export_id), ("resume", None)]
     assert str(gone) not in row["failure"]["words"], "no path in the row's words"
+
+
+def test_the_paused_rows_log_says_why_it_is_paused(client, db, page, tmp_path):
+    """Decision 27: a row that ran is never "nothing written". The paused kept export's log said nothing at the person's
+    level, so its Inspector showed an empty log for a row that had run and stopped."""
+    gone = tmp_path / "Unplugged"
+    gone.mkdir()
+    export_id = _keep(client, gone, "plain-text", "page")
+    assert _written(client, export_id, ["book-p1.txt"])
+    shutil.rmtree(gone)
+    kept_export.queue_rewrites(db, [page.id])
+    assert _wait_for(lambda: [r[2:] for r in _rows(db, export_id)] == [("paused", "The export folder is gone")])
+    (job_id,) = [r[0] for r in _rows(db, export_id)]
+
+    lines = client.get(f"/api/activity/jobs/{job_id}/log").json()["lines"]
+    said = [(line["level"], line["message"]) for line in lines]
+    assert any(level == "warning" and message.startswith("Paused: Update kept export · Unplugged")
+               and message.endswith("The export folder is gone") for level, message in said), said
+    problems = client.get(f"/api/activity/jobs/{job_id}/log", params={"level": "problems"}).json()["lines"]
+    assert problems, "a paused row is a problem the person can fix: Problems shows it"
