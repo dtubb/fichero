@@ -774,7 +774,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
 
 ### Ruled 2026-11-15 morning: run controls, the sidebar, models, graphs, columns, the log, recipes (decisions 30-37)
 
-- `activity.window.run-controls` — **[GAP]** (#6588; decision 30) the toolbar's leading item, in the Activity window and every
+- `activity.window.run-controls` — **[PARTIAL]** (#6588; decision 30) the toolbar's leading item, in the Activity window and every
   main window, is Play/Pause (one button: Pause while anything runs or waits, Play while a Pause All is outstanding,
   disabled when neither) and Stop. **Pause All** pauses every running and waiting job and run of every open project (a
   person's too: a running page finishes, then the run holds), marks each with the one pause's id, and sets the global
@@ -785,7 +785,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   actions over every open project's queue, and the summary says which the button shows (`controls: "pause" | "play" |
   "none"`, `stoppable: n`). Acceptance: two projects, a person's run and 20 waiting thumbnails: Pause All leaves none
   running; a row paused by hand before stays paused after Play; Undo of Pause All is Play's effect; Stop All ends them
-  cancelled with their done pages kept. *Test:* `fichero-server/tests/unit/jobs/test_pause_all_continue_all_6588.py`,
+  cancelled with their done pages kept. *Built 2026-11-15:* the engine's `jobs.pause_all` / `continue_all` / `stop_all` (the `held_by` mark), the three routes and actions, the summary's `controls` and `stoppable`; the app's `ActivityRunControlsButtons` at the far left of the Activity window and of every main window, over every open project, Stop asking once. *Not yet:* one undo step across projects (each project's Pause All is its own step); a real-run check. *Test:* `fichero-server/tests/unit/jobs/test_pause_all_continue_all_6588.py`,
   `fichero/Tests/Unit/general/Models/ActivityPane/ActivityRunControlsTests.swift`.
 - `activity.pane.row-controls` — **[GAP]** (#6588; decision 31) the selected or hovered row's trailing cell shows its own
   Play/Pause (by its state, `ActivityPaneVerb.pause` / `.resume`) and Stop, small, borderless, through the one verb list;

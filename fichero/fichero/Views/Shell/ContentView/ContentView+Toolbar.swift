@@ -90,10 +90,10 @@ extension ContentView {
             #endif
             ToolbarSpacer(.fixed, placement: Self.leadingPlacement)
         }
-        // Pause, Continue and Stop on the Activity pane's selection, right of the sidebar, while that pane holds the focus
-        // (`activity.window.toolbar-verbs`, decision 24, #6588); nothing is drawn otherwise.
+        // Xcode's run controls, right of the sidebar, always (`activity.window.run-controls`, decision 30, #6588): Play/Pause
+        // and Stop for all work in every open project, the same as the Activity window's.
         ToolbarItem(id: ContentToolbarID.activityVerbs, placement: Self.leadingPlacement) {
-            ActivityToolbarVerbButtons(hidesWithoutAPane: true)
+            ActivityRunControlsButtons()
         }
         if toolbarVisibility.showNavigation {
             ToolbarItem(id: ContentToolbarID.navigationBack, placement: Self.leadingPlacement) {
