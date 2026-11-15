@@ -247,3 +247,5 @@ recipes/runner.py::_run 1
 execution/jobs.py::_Scheduler._run 1
 # #6596: a closing project's work is paused best-effort; a close is never held up by a failure to mark its rows.
 execution/jobs.py::_pause_for_close 1
+# #6588: Continue All resumes each paused run best-effort; one that cannot resume stays paused (Activity shows it, Continue retries it) and the rest go on.
+api/routes/system/activity.py::_resume_runs_later.resume 1
