@@ -188,9 +188,9 @@ requires = [
     "opencv-python-headless",
     # Document Processing
     "PyMuPDF>=1.28,<2",  # 2.0 pulls pymupdf4llm/pymupdf_layout 2.0 (no licence metadata); stay on the tested line
-    # 12.3.0 fixes 22 image-decoder advisories (PYSEC-2026-2253..2257,
+    # 13.0.0 closes the 2026-11 Pillow advisories (#6600); 12.3.0 had fixed 22 image-decoder advisories (PYSEC-2026-2253..2257,
     # 3451..3454, 3493..3496) — all reachable from imported user files.
-    "Pillow>=12.3.0",
+    "Pillow>=13.0.0",
     # HEIC/HEIF decoding (#4214). Not optional: HEIC is the iPhone camera
     # default, and without it an imported photo becomes a record with no
     # thumbnail and no error — the wrong-but-silent shape.
@@ -452,7 +452,7 @@ dependencies = [
     "convertdate",  # Julian / French Republican / Hebrew / Islamic calendars
     "jdcal",        # Julian Day Number <-> Gregorian, the sort key
     "PyMuPDF>=1.28,<2",
-    "Pillow>=12.3.0",  # 22 image-decoder advisories fixed in 12.3.0
+    "Pillow>=13.0.0",  # 2026-11 advisories fixed in 13.0.0 (#6600)
     # HEIC/HEIF decoding (#4214). Not optional: HEIC is the iPhone camera
     # default, and without it an imported photo becomes a record with no
     # thumbnail and no error — the wrong-but-silent shape.
