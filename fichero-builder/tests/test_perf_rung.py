@@ -112,7 +112,7 @@ def test_a_run_with_no_baseline_figures_records_them_and_does_not_fail():
 
 
 def test_a_refused_or_skipped_rung_is_not_run_never_green():
-    from fichero_builder import check_tool, journal
+    from fichero_builder import check_tool
     assert check_tool.rung_not_run({"ok": True, "skipped": True})
     r = check_tool._report_only("security", {"enforce": False}, False, ["REFUSED: bandit has no pinned version in harness.toml [check.security]"])
     assert r["ok"] and r["not_run"] and check_tool.rung_not_run(r)
