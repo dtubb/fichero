@@ -1,7 +1,7 @@
 """#5072 reject: the rejected entity row is the durable record; a re-import must not
 attach new claims to it (nor resurrect it)."""
 
-import fichero_server.api.routes.kg_entity_curation  # noqa: F401
+import fichero_server.api.routes.kg.entity_curation  # noqa: F401
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.models.knowledge import (
     EntityCurationState, EntityType, KnowledgeClaim, KnowledgeEntity,

@@ -19,7 +19,7 @@ from pydantic import BaseModel
 
 # Importing the route module registers the entity.merge / entity.unmerge actions
 # via the @action decorator at import time.
-import fichero_server.api.routes.kg_entity_curation  # noqa: F401
+import fichero_server.api.routes.kg.entity_curation  # noqa: F401
 from fichero_server.actions.registry import ActionContext, ChangeSpec, registry
 from fichero_server.models import ActionAudit
 from fichero_server.models.knowledge import KnowledgeEntity

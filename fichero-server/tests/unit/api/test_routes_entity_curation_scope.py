@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from fichero_server.api.routes import kg_entity_curation
+from fichero_server.api.routes.kg import entity_curation as kg_entity_curation
 from fichero_server.db import Database
 from fichero_server.models.knowledge import (
     EntityResolutionRule,

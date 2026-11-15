@@ -3,7 +3,7 @@
 import pytest
 from fastapi import HTTPException
 
-from fichero_server.api.routes import kg_entity_curation as curation
+from fichero_server.api.routes.kg import entity_curation as curation
 from fichero_server.db import Database
 from fichero_server.models.knowledge import (
     AuthoritySnapshot,

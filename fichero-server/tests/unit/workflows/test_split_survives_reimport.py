@@ -2,7 +2,7 @@
 dedupe must not recombine what a person split. Round trip: real entity.merge, real entity.split,
 real _write_kg_rows / plan_entity_dedupe."""
 
-import fichero_server.api.routes.kg_entity_curation  # noqa: F401  (registers entity.merge/split)
+import fichero_server.api.routes.kg.entity_curation  # noqa: F401  (registers entity.merge/split)
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.knowledge.dedupe import plan_entity_dedupe
 from fichero_server.models.knowledge import EntityType, KnowledgeClaim, KnowledgeEntity

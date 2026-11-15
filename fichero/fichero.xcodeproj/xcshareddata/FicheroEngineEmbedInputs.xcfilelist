@@ -132,7 +132,6 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/kg/review.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/kg/search.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/kg/sparql.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/kg/triangulation.py
-$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/kg_entity_curation.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/library/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/library/core.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/library/entity_types.py

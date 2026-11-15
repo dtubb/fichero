@@ -5,8 +5,8 @@ from types import SimpleNamespace
 import networkx as nx
 import pytest
 
-from fichero_server.api.routes import kg_entity_curation
-from fichero_server.api.routes.kg_entity_curation import EntityMergeRequest, merge_entities_impl
+from fichero_server.api.routes.kg import entity_curation as kg_entity_curation
+from fichero_server.api.routes.kg.entity_curation import EntityMergeRequest, merge_entities_impl
 from fichero_server.db import Database
 from fichero_server.models.knowledge import (
     EntityCurationState,
