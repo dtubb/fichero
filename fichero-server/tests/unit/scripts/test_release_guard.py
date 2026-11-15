@@ -250,3 +250,63 @@ def test_failed_dmg_part_means_no_publish(tmp_path):
     ok, why = rg.may_publish([("DMG", "FAILED", "stopped (exit 1)")], [tmp_path / "Fichero.dmg"],
                              "v", "1", smoke_fn=lambda *a: [])
     assert not ok and "FAILED" in why
+
+
+def test_a_publish_that_exits_zero_is_publish_ok_and_a_failed_one_is_failed(tmp_path):
+    # review: publish-release.sh writes no summary row; the old hand-off waited for one and
+    # recorded every publish as FAILED, so no PR was ever opened
+    f = tmp_path / "summary.tsv"
+    seen = []
+
+    def run(cmd, cwd=None, **_kw):
+        seen.append((cmd, cwd))
+        return subprocess.CompletedProcess(cmd, 0 if seen[1:] == [] else 1)
+    assert rg.publish(["scripts/publish-release.sh"], tmp_path, f, "Fichero 2026.11.15 (25)", run=run)
+    assert rg.summary_rows(f) == [("Publish", "OK", "published Fichero 2026.11.15 (25)")]
+    assert seen[0] == (["scripts/publish-release.sh"], str(tmp_path))
+    assert not rg.publish(["scripts/publish-release.sh"], tmp_path, f, "x", run=run)
+    assert rg.summary_rows(f)[0][:2] == ("Publish", "FAILED")
+
+
+def test_the_publish_command_line_records_the_part_in_the_summary_it_is_given(tmp_path):
+    f = tmp_path / "out" / "summary.tsv"
+    script = tmp_path / "publish.sh"
+    script.write_text("#!/bin/sh\nexit 3\n")
+    script.chmod(0o755)
+    env_before = rg.os.environ.get("FICHERO_RELEASE_SUMMARY")
+    rg.os.environ["FICHERO_RELEASE_SUMMARY"] = str(f)
+    try:
+        assert rg.main(["publish", str(tmp_path), "label", str(script)]) == 1
+    finally:
+        if env_before is None:
+            del rg.os.environ["FICHERO_RELEASE_SUMMARY"]
+        else:
+            rg.os.environ["FICHERO_RELEASE_SUMMARY"] = env_before
+    assert rg.summary_rows(f)[0][:2] == ("Publish", "FAILED")
+
+
+def test_morning_release_stops_and_texts_when_the_commits_cannot_be_counted(tmp_path):
+    # review: `read < <(guard new-commits)` dropped the guard's failure, so a -1 count went on
+    # to cut and publish. The real script runs here against a stub guard and a stub git.
+    import os
+    import shutil
+    root = tmp_path / "repo"
+    (root / "scripts").mkdir(parents=True)
+    for name in ("morning-release.sh", "find_project_python.sh"):
+        shutil.copy(_SCRIPT.parent / name, root / "scripts" / name)
+    venv = root / ".venv" / "bin"
+    venv.mkdir(parents=True)
+    (venv / "python").symlink_to(sys.executable)
+    calls = tmp_path / "calls.txt"
+    (venv / "git").write_text(f"#!/bin/sh\necho git \"$@\" >> '{calls}'\nexit 0\n")
+    (venv / "git").chmod(0o755)
+    (root / "scripts" / "release_guard.py").write_text(
+        "import sys\n"
+        f"open({str(calls)!r}, 'a').write(' '.join(sys.argv[1:]) + '\\n')\n"
+        "if sys.argv[1] == 'new-commits':\n    print('-1 '); sys.exit(1)\n")
+    rc = subprocess.run(["bash", str(root / "scripts" / "morning-release.sh")],
+                        env={"HOME": str(tmp_path), "PATH": os.environ["PATH"]}, timeout=60).returncode
+    log = calls.read_text()
+    assert rc == 1
+    assert "notify Fichero morning release: cannot count commits" in log
+    assert "worktree" not in log and "publish" not in log
