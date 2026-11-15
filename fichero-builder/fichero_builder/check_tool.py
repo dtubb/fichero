@@ -442,6 +442,14 @@ def _remote_heavy(py: str, lock: str, script: str) -> str:
     return shlex.join([py, "-c", _LOCK_CODE, lock, script])
 
 
+GATE = "<gate>"  # stands for the runner's absolute gate dir in an argv built before the ssh that learns it
+
+
+def _gate_python(cfg: Config, gate: str) -> str:
+    """The one default for the interpreter on a runner: [check].remote_python, else the gate venv (<gate dir>/venv/bin/python)."""
+    return cfg.remote_python or f"{gate}/venv/bin/python"
+
+
 def _remote_run(name, argv, root, timeout_s, cfg: Config, extra: dict | None, cwd, remote: str = "") -> dict | None:
     """The same pytest command on [check].remote over the shipped tree: local paths become the copy's, the interpreter the
     remote's, the env the rung's own keys (a fresh base dir there). None when the remote cannot be reached: one alert row,
@@ -453,7 +461,7 @@ def _remote_run(name, argv, root, timeout_s, cfg: Config, extra: dict | None, cw
         rdir = _ship(root, cfg, remote)
     except OSError as e:
         return _remote_down(cfg, str(e), remote)
-    py = cfg.remote_python or f"{rdir.rsplit('/', 1)[0]}/venv/bin/python"
+    py = _gate_python(cfg, rdir.rsplit('/', 1)[0])
     sub = lambda x: str(x).replace(str(root), rdir)  # noqa: E731
     cmd = [py if a == _py(cfg) else sub(a) for a in argv]
     env = {k: sub(v) for k, v in _env(root, cfg, extra).items() if k not in ("HOME", "PATH", "TERM", cfg.base_path_env)}
@@ -782,7 +790,7 @@ def _remote_guard_batch(scripts: list, root, cfg: Config) -> dict | None:
         except OSError as e:
             _remote_down(cfg, str(e), rem)
             continue
-        py = cfg.remote_python or f"{rdir.rsplit('/', 1)[0]}/venv/bin/python"
+        py = _gate_python(cfg, rdir.rsplit('/', 1)[0])
         sub = lambda x: str(x).replace(str(root), rdir)  # noqa: E731
         jobs = [[s.stem, [py if a == _py(cfg) else sub(a) for a in _isolated(s, root, cfg)]] for s in scripts]
         env = {k: sub(v) for k, v in _env(root, cfg).items() if k not in ("HOME", "PATH", "TERM", cfg.base_path_env)}
@@ -941,7 +949,7 @@ def _remote_build_locked(root, cfg: Config, host: str, rbase: str, cmd: tuple = 
     if not sync["ok"]:
         journal.append("check", state="build-remote-down", rung=name, runner=host, detail=f"rsync: {sync['stderr_tail'][-200:]}")
         return None
-    b = list(cmd or cfg.build)
+    b = [a.replace(GATE, rbase) for a in (cmd or cfg.build)]
     if "-derivedDataPath" in b[:-1]:
         b[b.index("-derivedDataPath") + 1] = derived
     b = [a for a in b if a != "-disableAutomaticPackageResolution"]  # its first build there resolves the packages into its own derived data
@@ -952,6 +960,10 @@ def _remote_build_locked(root, cfg: Config, host: str, rbase: str, cmd: tuple = 
     if r["exit_code"] == 255:
         journal.append("check", state="build-remote-down", rung=name, runner=host, detail=r["stderr_tail"][-200:])
         return None
+    if not r["ok"] and name == "perf":
+        # a perf run that exits non-zero crashed over there: its stderr is the row, never "unreachable"
+        journal.append("check", state="build-remote-crash", rung=name, runner=host, detail=(r.get("stderr_tail") or "")[-200:])
+        return {"ok": False, "skipped": False, "crashed": True, "remote": host, "results": [r]}
     if not r["ok"] and not SOURCE_ERROR.search((r.get("errors") or "") + (r.get("stdout_tail") or "")):
         # a red that names no Swift source error is that Mac's (a missing component, a package fetch, a timeout), never the code's
         journal.append("check", state="build-remote-env-red", rung=name, runner=host, detail=(r.get("stderr_tail") or "")[-200:])
@@ -1434,8 +1446,9 @@ def _report_only(name: str, cfg_table: dict, ok: bool, lines: list[str], extra: 
     enforce = bool(cfg_table.get("enforce", False))
     if not ok and not enforce:
         journal.append("alert", rung=name, detail=f"{name} (report-only) would be red: " + "; ".join(lines)[:300])
+    refused = any(x.startswith(("REFUSED", "not run")) for x in lines)  # a refused rung measured nothing: "not run", never green
     return {"ok": ok or not enforce, "skipped": False, "enforced": enforce, "stdout_tail": "\n".join(lines)[-3500:], "stderr_tail": "",
-            "results": [], **(extra or {})}
+            "results": [], **({"not_run": True} if refused else {}), **(extra or {})}
 
 
 def _timed_out_row(name: str, r: dict) -> dict | None:
@@ -1457,13 +1470,17 @@ def perf(root, since: str, changed: list[str], cfg: Config) -> dict:
         return {"ok": True, "skipped": True, "stdout_tail": why, "stderr_tail": "", "results": []}
     if not cfg.build_remote:
         return {"ok": True, "skipped": True, "stdout_tail": "not run: no [check].build_remote (a measurement never runs on the manager's Mac)", "stderr_tail": "", "results": []}
-    py = cfg.remote_python or "python3"
+    py = _gate_python(cfg, GATE)  # the gate venv beside the build tree (resolved on the runner)
     argv = (py, "scripts/perf_engine_run.py", "--baseline", perf_rung.BASELINE, *cfg.perf.get("args", ()))
     r = _remote_build(root, cfg, argv, "perf", reuse=False)
     if r is None:
         journal.append("alert", rung="perf", detail="the build runner is unreachable: the engine perf rung did not run (never run here)")
-        return {"ok": True, "skipped": True, "stdout_tail": "not run: the build runner is unreachable", "stderr_tail": "", "results": []}
+        return {"ok": True, "skipped": True, "not_run": True, "stdout_tail": "not run: the build runner is unreachable", "stderr_tail": "", "results": []}
     row = r["results"][0]
+    if r.get("crashed"):
+        tail = (row.get("stderr_tail") or row.get("stdout_tail") or "")[-300:]
+        return {**_report_only("perf", cfg.perf, False, [f"not run: the perf run crashed on {r.get('remote')} (exit {row.get('exit_code')}): {tail}"], {"results": [row]}),
+                "not_run": True}
     if (t := _timed_out_row("perf", row)) is not None:
         return t
     m = PERF_LINE.search(row.get("stdout_tail") or "")
@@ -1472,7 +1489,8 @@ def perf(root, since: str, changed: list[str], cfg: Config) -> dict:
                                                        (row.get("stderr_tail") or "")[-300:]], {"results": [row]})
     res = json.loads(m.group(1))
     lines = [*res.get("reds", []), *[f"finding: new own frame in the top ten: {f}" for f in res.get("findings", [])],
-             *[f"falls: {f}" for f in res.get("falls", [])], *([res["void"]] if res.get("void") else [])]
+             *[f"falls: {f}" for f in res.get("falls", [])],
+             *[f"recorded (report-only, commit to scripts/perf_baseline.json): {k} = {v['median']:g}" for k, v in (res.get("recorded") or {}).items()], *([res["void"]] if res.get("void") else [])]
     return _report_only("perf", cfg.perf, bool(res.get("ok")), lines or ["engine perf: every figure within its tolerance"], {"results": [row]})
 
 
@@ -1569,6 +1587,11 @@ def security(root, since: str, head: str, changed: list[str], cfg: Config) -> di
     return _report_only("security", cfg.security, not (problems or refused or reds), lines or ["no new finding"], {"results": [r], "table": rows_table})
 
 
+def rung_not_run(r: dict) -> bool:
+    """A rung that was skipped, refused or could not run is "not run" on the ladder and the console, never ok/green."""
+    return bool(r.get("not_run") or r.get("skipped"))
+
+
 def ladder(rungs: list) -> dict:
     """Run (name, callable) rungs in order and stop at the first red, so the worker gets one failure at a time."""
     out = []
@@ -1581,7 +1604,7 @@ def ladder(rungs: list) -> dict:
         r = {"name": name, **fn()}
         # every rung row: its own wall time and the machine's load at its start and end (manager 2026-11-04: the ladder-time report
         # had no load and no wall time for the multi-result rungs)
-        ACTIVITY(kind="check", key=_KEY[0], state="rung", rung=name, ok=bool(r.get("ok")), seconds=r.get("seconds"),
+        ACTIVITY(kind="check", key=_KEY[0], state="rung", rung=name, ok=bool(r.get("ok")), not_run=rung_not_run(r), seconds=r.get("seconds"),
                  wall_s=round(time.time() - t0, 1), load=_load())
         out.append(r)
         if ON_RUNG[0]:

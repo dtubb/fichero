@@ -730,7 +730,7 @@ def activity(rows: list[dict]) -> dict:
         if r.get("state") == "rung-start":
             a["now"] = r.get("rung", "")
         elif r.get("state") == "rung":
-            a["rungs"].append({"rung": r.get("rung"), "ok": r.get("ok"), "seconds": r.get("seconds")})
+            a["rungs"].append({"rung": r.get("rung"), "ok": r.get("ok"), "not_run": bool(r.get("not_run")), "seconds": r.get("seconds")})
             a["now"] = ""
         elif r.get("state") == "end":
             a.update(ended=r["ts"], ok=r.get("ok"), failed=r.get("failed", ""), groups=r.get("groups"))

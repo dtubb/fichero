@@ -74,3 +74,46 @@ def test_the_rung_skips_unconfigured_unrequired_and_runnerless_batches_and_stays
     assert "never runs on the manager's Mac" in check_tool.perf(tmp_path, "a", eng, cfg)["stdout_tail"]  # no build_remote: not run here
     assert check_tool._report_only("perf", {"enforce": False}, False, ["median 130 ms over 100"])["ok"]
     assert [r for r in journal.read() if r["event"] == "alert" and r.get("rung") == "perf"]
+
+
+def _perf_cfg(**kw):
+    from fichero_builder import check_tool
+    return check_tool.Config(perf={"enforce": False}, build_remote="m4:~/fichero-gate", **kw)
+
+
+def test_perf_argv_uses_the_gate_venv_python_when_remote_python_is_empty(tmp_path, monkeypatch):
+    from fichero_builder import check_tool, journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    seen = []
+    monkeypatch.setattr(check_tool, "_remote_build", lambda root, cfg, cmd=(), *a, **k: seen.append(cmd))
+    check_tool.perf(tmp_path, "a", ["fichero-server/src/x.py"], _perf_cfg())
+    assert seen[0][0].endswith("/venv/bin/python") and seen[0][0] != "python3"
+    check_tool.perf(tmp_path, "a", ["fichero-server/src/x.py"], _perf_cfg(remote_python="/opt/py"))
+    assert seen[1][0] == "/opt/py"
+
+
+def test_a_remote_crash_is_a_not_run_row_with_its_stderr_never_unreachable(tmp_path, monkeypatch):
+    from fichero_builder import check_tool, journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    row = {"name": "perf", "ok": False, "exit_code": 1, "stdout_tail": "", "stderr_tail": "TypeError: unsupported operand Path | str", "timed_out": False}
+    monkeypatch.setattr(check_tool, "_remote_build", lambda *a, **k: {"ok": False, "skipped": False, "crashed": True, "remote": "m4", "results": [row]})
+    r = check_tool.perf(tmp_path, "a", ["fichero-server/src/x.py"], _perf_cfg())
+    assert "unreachable" not in r["stdout_tail"] and "TypeError" in r["stdout_tail"]
+    assert r["not_run"] and check_tool.rung_not_run(r)
+    monkeypatch.setattr(check_tool, "_remote_build", lambda *a, **k: None)
+    assert "unreachable" in check_tool.perf(tmp_path, "a", ["fichero-server/src/x.py"], _perf_cfg())["stdout_tail"]
+
+
+def test_a_run_with_no_baseline_figures_records_them_and_does_not_fail():
+    base = {"tolerances": {"wall_ms": 0.05, "peak_rss_mb": 0.03, "disk_kib": 0}, "figures": {}}
+    out = perf_rung.judge({"benchmarks": {"t::a": 12.0}, "peak_rss_mb": 500.0, "disk_kib": {}, "top": []}, base, "Mac16,10", "nominal")
+    assert out["ok"] and out["reds"] == []
+    assert out["recorded"] == {"wall_ms|t::a|Mac16,10": {"median": 12.0}, "peak_rss_mb|engine perf run|Mac16,10": {"median": 500.0}}
+
+
+def test_a_refused_or_skipped_rung_is_not_run_never_green():
+    from fichero_builder import check_tool, journal
+    assert check_tool.rung_not_run({"ok": True, "skipped": True})
+    r = check_tool._report_only("security", {"enforce": False}, False, ["REFUSED: bandit has no pinned version in harness.toml [check.security]"])
+    assert r["ok"] and r["not_run"] and check_tool.rung_not_run(r)
+    assert not check_tool.rung_not_run(check_tool._report_only("perf", {"enforce": False}, True, ["all within tolerance"]))

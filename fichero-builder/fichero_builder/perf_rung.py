@@ -98,7 +98,7 @@ def judge(figures: dict, baseline: dict, model: str, thermal: str | None, idle: 
     REFUSED (a red the caller must show), never a pass."""
     t = trial(root)
     tol = baseline.get("tolerances") or {}
-    out = {"ok": True, "reds": [], "findings": [], "falls": [], "void": ""}
+    out = {"ok": True, "reds": [], "findings": [], "falls": [], "void": "", "recorded": {}}
     if not model or thermal not in t.READABLE_THERMAL:
         out["ok"] = False
         out["reds"].append("REFUSED: " + ("no machine model" if not model else "the thermal state could not be read") + ": a gate that cannot read its input fails")
@@ -117,6 +117,8 @@ def judge(figures: dict, baseline: dict, model: str, thermal: str | None, idle: 
             continue
         key = f"{measure}|{scenario}|{model}"
         entry = (baseline.get("figures") or {}).get(key)
+        if entry is None and measure != "disk_kib":
+            out["recorded"][key] = {"median": float(value)}  # no figure yet: written by the run (report-only), never a red
         if measure == "disk_kib" and entry is None:
             entry = {"median": 0}  # nothing may be left behind unless the baseline says so
         status, reason = t.compare(float(value), entry, float(tol[measure]), key)

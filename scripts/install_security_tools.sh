@@ -18,7 +18,7 @@ if [ "$CHECK" = 0 ]; then
   brew install semgrep gitleaks osv-scanner
   uv tool install bandit
   VENV="${FICHERO_RUNNER_VENV:-$HOME/fichero-gate/venv}"
-  "$VENV/bin/python" -m pip install pytest-benchmark pyinstrument
+  "$VENV/bin/python" -m pip install pytest-benchmark==5.3.1 pyinstrument==5.1.3
 fi
 
 PY="${FICHERO_PYTHON:-python3}"
