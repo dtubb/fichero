@@ -565,7 +565,7 @@ def _park(lane: dict, s: dict, why: str) -> None:
     journal.append("queue", lane=lane["id"], step=s["step"], state="parked", detail=why[-300:])
 
 
-def reorder(lane_id: str, step: str, action: str, to: int | None = None) -> str:
+def reorder(lane_id: str, step: str, action: str, to: int | None = None, why: str = "") -> str:
     """`builder queue move|park|unpark` (#6467): among the steps from the cursor on, `move` puts a queued or parked step at
     index `to` of the lane's steps (clamped: below the cursor = the cursor's place, past the end = last); `park` sends a queued or blocked one to the end as parked;
     `unpark` makes a parked one queued where it is. A landed step, the cursor's step in flight, or a missing one is refused.
@@ -577,7 +577,8 @@ def reorder(lane_id: str, step: str, action: str, to: int | None = None) -> str:
         if lane is None or s is None:
             return f"no lane {lane_id!r}" if lane is None else f"no step {step!r} in {lane_id}"
         i, cur = lane["steps"].index(s), lane["cursor"]
-        if i < cur or s["state"] not in {"move": ("queued", "parked"), "park": ("queued", "blocked"), "unpark": ("parked",)}[action]:
+        if i < cur or s["state"] not in {"move": ("queued", "parked"), "park": ("queued", "blocked"), "unpark": ("parked",),
+                                         "drop": ("parked",)}[action]:
             return f"{lane_id} {step} is {s['state']}: a step that landed or is in flight is left as it is"
         if action == "move":
             lane["steps"].remove(s)
@@ -586,6 +587,11 @@ def reorder(lane_id: str, step: str, action: str, to: int | None = None) -> str:
             journal.append("queue", lane=lane_id, step=step, state="moved", detail=f"to index {at} (the cursor is at {cur})")
         elif action == "park":
             _park(lane, s, "parked from the console")
+        elif action == "drop":  # #6589: a parked step that is superseded leaves the lane; its record is this journal row
+            if not why.strip():
+                return "drop needs --text: why the step is no longer wanted"
+            lane["steps"].remove(s)
+            journal.append("queue", lane=lane_id, step=step, state="dropped", detail=f"{why.strip()[:300]} (head {str(s.get('head', ''))[:10]})")
         else:
             s["state"], s["why"] = "queued", ""
             journal.append("queue", lane=lane_id, step=step, state="unparked", detail="")
@@ -2051,8 +2057,8 @@ def main(a) -> int:
         journal.append("queue", lane=a.lane, step="-", state="stop", detail=f"grace {a.grace:g} s" + ("; the worker was told" if told else "; no live session"))
         print(f"stopping {a.lane}: the session closes within {a.grace:g} s; `builder queue resume --lane {a.lane}` starts a fresh one")
         return 0
-    if a.action in ("move", "park", "unpark"):  # #6467 (run.loop-plan): the console's Plan clicks, under the queue lock
-        why = reorder(a.lane, a.step, a.action, a.to)
+    if a.action in ("move", "park", "unpark", "drop"):  # #6467 (run.loop-plan): the console's Plan clicks, under the queue lock
+        why = reorder(a.lane, a.step, a.action, a.to, a.text or "")
         print(f"REFUSED: {why}" if why else f"{a.lane} {a.step}: {a.action}")
         return 1 if why else 0
     if a.action in ("pause", "resume"):

@@ -674,6 +674,19 @@ def test_queue_move_park_and_unpark_reorder_the_steps_behind_the_cursor_under_th
     assert [r["state"] for r in journal.read() if r.get("event") == "queue" and r.get("lane") == "m1" and r.get("state") in ("moved", "parked", "unparked")] == ["moved", "parked", "unparked", "moved", "moved"]
 
 
+def test_queue_drop_takes_a_parked_step_out_of_its_lane_with_a_reason_and_refuses_anything_else(state, capsys):
+    """#6589: a superseded parked step stayed on the console for a week; `drop --text why` removes a PARKED step, one `dropped` row."""
+    for n in ("1.1", "1.2"):
+        queue.add("m1", "/w/m1", n, str(state / "b1.1"), [])
+    st = ["--state", str(journal.STATE)]
+    assert cli.main(["queue", "drop", "--lane", "m1", "--step", "1.2", "--text", "x", *st]) == 1, "a queued step is not dropped"
+    assert cli.main(["queue", "park", "--lane", "m1", "--step", "1.2", *st]) == 0
+    assert cli.main(["queue", "drop", "--lane", "m1", "--step", "1.2", *st]) == 1 and "--text" in capsys.readouterr().out, "a reason is owed"
+    assert cli.main(["queue", "drop", "--lane", "m1", "--step", "1.2", "--text", "superseded by 1aebb9d0e", *st]) == 0
+    assert [s["step"] for s in queue.load()[0]["steps"]] == ["1.1"]
+    assert [r["detail"][:24] for r in journal.read() if r.get("state") == "dropped"] == ["superseded by 1aebb9d0e "]
+
+
 def test_stop_kills_the_lanes_windows_by_id_once_its_run_is_gone_and_start_refuses_while_a_same_named_window_lives(state, monkeypatch):
     """#6496: a lost `builder run` left its Claude session alive in a window the loop could not reach, and a second start made a
     second window of the same name. stop ends every window named the lane (by id, as the jail user) when no run watches the feed;
