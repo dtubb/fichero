@@ -20,6 +20,17 @@ import pytest
 from fichero_server.db.manager import db_manager
 from fichero_server.execution import jobs
 
+#: The real lane, held at import: this file's subject is that a Kraken page goes through it.
+_REAL_RUN_ON_LANE_BLOCKING = jobs.run_on_lane_blocking
+
+
+@pytest.fixture(autouse=True)
+def _the_real_model_lane(monkeypatch):
+    """A gate copy whose path runs through a symlink roots test ids outside their folders, and pytest then
+    applies tests/unit/recipes/conftest.py's inline-lane fixture here too (#6589): the page ran on MainThread.
+    This file's tests keep the real lane whatever a conftest elsewhere patches."""
+    monkeypatch.setattr(jobs, "run_on_lane_blocking", _REAL_RUN_ON_LANE_BLOCKING)
+
 
 def _png(path: Path) -> Path:
     from PIL import Image
