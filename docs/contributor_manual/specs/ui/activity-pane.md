@@ -666,7 +666,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   (View › Activity ▸) lands on Runs or Files. The engine says where each row runs (`runs_on`, `lane`,
   `test_activity_where_6588.py`; a workflow run by its page jobs). Picture: `docs/assets/activity-pane/window-toolbar-tabs.png`.
   The titles follow the tab ("File" and "Last Run" on Files, "Spent" on Cost, `Column.title(in:)`). *Test:*
-  `fichero/Tests/Unit/general/Models/ActivityPane/ActivityToolbarTabsTests.swift`.
+  `fichero/Tests/Unit/general/Views/Activity/Pane/ActivityToolbarTabsTests.swift`.
 - `activity.pane.bottom-bar-like-every-pane` — **[OK]** (#6588; the owner 2026-11-14: "filter bar and metadata button at the
   bottom like in the rest of the app"; `panes.chrome.one-filter-pattern`, `PaneFilterBar`, `PaneFilterField`; supersedes the
   filter field at the top of `activity.pane.history-kept-and-filterable` and the window's Group by row) the pane's one bottom
@@ -679,16 +679,16 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   `PaneMetadataButton` (each column of the tab, on or off), `PaneFilterField` (its menu: Show Archived, Failed, Today,
   Started Automatically) and the status figures; the More menu (⋯) is the window's toolbar's, the bar's in a main window's
   pane (`docs/assets/activity-pane/window-bottom-bar.png`). Needs You waits for `activity.pane.needs-you-first`. *Test:*
-  `fichero/Tests/Unit/general/Models/ActivityPane/ActivityBottomBarTests.swift`.
+  `fichero/Tests/Unit/general/Views/Activity/Pane/ActivityBottomBarTests.swift`.
 - `activity.window.toolbar-verbs` — **[PARTIAL]** (#6588; decision 24) **Pause**, **Continue** and **Stop** are toolbar buttons of
   the Activity window and of a main window while its Activity pane holds the focus, enabled by the Mail rule over the
   selection (the one verb list's definitions, `ActivityPaneVerb`), with the Inspector toggle; the More menu (⋯) keeps Show
   Archived, Archive Finished… and Archive Failed. Acceptance: with a running and a paused row selected all three enable; with a
   done row alone none does; the main window shows them only while the Activity pane has the focus. *Built 2026-11-14 night:*
-  `ActivityToolbarVerbButtons` (one control group over the pane's `activityVerbs`, the target Project › Activity reads) in
+  `ActivityToolbarVerbsBar` (one control group over the pane's `activityVerbs`, the target Project › Activity reads) in
   the Activity window beside the Inspector toggle and in the main window's leading zone, right of the sidebar, drawn only
   while an Activity pane holds the focus (`docs/assets/activity-pane/window-toolbar-verbs.png`); the More menu (⋯) is in
-  the toolbar too. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityToolbarVerbsTests.swift`.
+  the toolbar too. *Test:* `fichero/Tests/Unit/general/Views/Activity/Pane/ActivityToolbarVerbsTests.swift`.
 - `activity.window.bottom-panel` — **[PARTIAL]** (#6588; decision 25; supersedes the one-line status bar of
   `activity.pane.less-is-more-table` for the window: a main window's pane keeps the one line) the window's foot is a panel per
   tab, figures AND a graph together: **Runs** pages done per minute over the last hour (a sparkline) and "N running · N
@@ -706,7 +706,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   bar's figures leave the window (they are the panel's). Picture: `docs/assets/activity-pane/window-bottom-panel.png`. *Not
   yet:* blocked counts, this Mac's lanes busy of their width. *Test:* the engine half:
   `fichero-server/tests/unit/api/test_activity_history_6588.py`; the app half:
-  `fichero/Tests/Unit/general/Models/ActivityPane/ActivityBottomPanelTests.swift`.
+  `fichero/Tests/Unit/general/Views/Activity/Pane/ActivityBottomPanelTests.swift`.
   (Engine note: today's total and its by-provider split are summed from the priced calls of pages finished today (UTC), the one
   source that names providers; the ledger keeps only a day's total.)
 - `activity.log.raw-always-rendered` — **[PARTIAL]** (#6588; decision 27; `activity.window.log-levels`) the Inspector's Log is the
@@ -902,13 +902,13 @@ First, because every new install hits it: one real folder per model, load-checke
 
 #### Step 4.2 — the toolbar: verbs and the four tabs (#6588)
 - Behaviours: `activity.window.toolbar-verbs`, `activity.window.toolbar-tabs`
-- Tests: fichero/Tests/Unit/general/Models/ActivityPane/ActivityToolbarVerbsTests.swift, fichero/Tests/Unit/general/Models/ActivityPane/ActivityToolbarTabsTests.swift
+- Tests: fichero/Tests/Unit/general/Views/Activity/Pane/ActivityToolbarVerbsTests.swift, fichero/Tests/Unit/general/Views/Activity/Pane/ActivityToolbarTabsTests.swift
 - Depends on: 4.1
 - Size: M
 
 #### Step 4.3 — the history and the bottom panel (#6588)
 - Behaviours: `activity.window.bottom-panel`
-- Tests: fichero-server/tests/unit/api/test_activity_history_6588.py, fichero/Tests/Unit/general/Models/ActivityPane/ActivityBottomPanelTests.swift
+- Tests: fichero-server/tests/unit/api/test_activity_history_6588.py, fichero/Tests/Unit/general/Views/Activity/Pane/ActivityBottomPanelTests.swift
 - Depends on: 4.2
 - Size: M
 
