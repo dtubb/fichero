@@ -176,7 +176,7 @@ final class RecipeRunVisibleTests: XCTestCase {
         XCTAssertEqual(fixes["nameless"], .some("choose-model"), "a step with no model: choose one")
         XCTAssertEqual(fixes["authorities"], .some(nil), "no card runs it yet: no fix button")
         XCTAssertTrue(store.skippedSteps.allSatisfy { !$0.why.isEmpty }, "each says why")
-        XCTAssertEqual(RecipeStepRow.fixTitle("allow-cloud"), "Let pages leave this Mac")
+        XCTAssertEqual(RecipeStepRowView.fixTitle("allow-cloud"), "Let pages leave this Mac")
 
         let download = try XCTUnwrap(store.downloads.first { $0.model == "es_core_news_sm" })
         XCTAssertEqual(download.steps, ["names"])

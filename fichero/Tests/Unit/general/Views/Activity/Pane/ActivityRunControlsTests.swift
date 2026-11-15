@@ -15,15 +15,15 @@ struct ActivityRunControlsTests {
         let held = try summary(#"{"controls": "play", "stoppable": 2}"#)
         let going = try summary(#"{"controls": "pause", "stoppable": 3}"#)
         let idle = try summary(#"{"controls": "none", "stoppable": 0}"#)
-        #expect(ActivityRunControlsButtons.shows([going, held]) == .play)
-        #expect(ActivityRunControlsButtons.shows([idle, going]) == .pause)
-        #expect(ActivityRunControlsButtons.shows([idle, nil]) == .none)
-        #expect(ActivityRunControlsButtons.stoppable([going, held, nil]) == 5)
+        #expect(ActivityRunControlsBar.shows([going, held]) == .play)
+        #expect(ActivityRunControlsBar.shows([idle, going]) == .pause)
+        #expect(ActivityRunControlsBar.shows([idle, nil]) == .none)
+        #expect(ActivityRunControlsBar.stoppable([going, held, nil]) == 5)
     }
 
     @Test("Stop All asks once, with the count")
     func stopAsksOnce() {
-        #expect(ActivityRunControlsButtons.stopQuestion(1) == "Stop 1 piece of work?")
-        #expect(ActivityRunControlsButtons.stopQuestion(41) == "Stop 41 pieces of work?")
+        #expect(ActivityRunControlsBar.stopQuestion(1) == "Stop 1 piece of work?")
+        #expect(ActivityRunControlsBar.stopQuestion(41) == "Stop 41 pieces of work?")
     }
 }

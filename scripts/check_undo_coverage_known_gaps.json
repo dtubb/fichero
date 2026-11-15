@@ -519,5 +519,8 @@
   "POST /api/activity/jobs/unarchive": "Put Back, the inverse of job.archive (audited, undoable, inverse job.archive); an engine-side undo pair (#6583)",
   "POST /api/activity/stopped-at-quit/continue": "Continue on the launch alert lets held rows run; its undo is Pause on the row (the states table: Pause has no Undo, Continue is its undo), so no undo registration (#6584)",
   "POST /api/workflow-execution/runs/archive": "audited workflow_run.archive, undoable=True with inverse job.unarchive (Put Back; a run's id is its row's id in jobs) (#6441); the app invokes the action through /api/actions/invoke and registers the step on the window's stack, not this route",
-  "PATCH /api/export/kept/{export_id}": "batch-21 (#6588): Choose Folder and Keep up to date on a kept export are audited (export.update) but have no inverse yet; the app's Undo for them is not built"
+  "PATCH /api/export/kept/{export_id}": "batch-21 (#6588): Choose Folder and Keep up to date on a kept export are audited (export.update) but have no inverse yet; the app's Undo for them is not built",
+  "POST /api/activity/pause-all": "batch-22 (#6588, activity.window.run-controls): the window's global run controls; Pause All and Continue All undo each other by the other button, Stop All has no inverse (a stopped run is Retried, not undone)",
+  "POST /api/activity/continue-all": "batch-22 (#6588, activity.window.run-controls): the window's global run controls; Pause All and Continue All undo each other by the other button, Stop All has no inverse (a stopped run is Retried, not undone)",
+  "POST /api/activity/stop-all": "batch-22 (#6588, activity.window.run-controls): the window's global run controls; Pause All and Continue All undo each other by the other button, Stop All has no inverse (a stopped run is Retried, not undone)"
 }

@@ -93,7 +93,7 @@ extension ContentView {
         // Xcode's run controls, right of the sidebar, always (`activity.window.run-controls`, decision 30, #6588): Play/Pause
         // and Stop for all work in every open project, the same as the Activity window's.
         ToolbarItem(id: ContentToolbarID.activityVerbs, placement: Self.leadingPlacement) {
-            ActivityRunControlsButtons()
+            ActivityRunControlsBar()
         }
         if toolbarVisibility.showNavigation {
             ToolbarItem(id: ContentToolbarID.navigationBack, placement: Self.leadingPlacement) {
