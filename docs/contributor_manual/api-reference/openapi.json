@@ -1076,6 +1076,51 @@
         }
       }
     },
+    "/api/activity/recipes": {
+      "get": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Activity Recipes",
+        "description": "The Recipes view (`activity.window.recipes`, decision 37, #6588): each recipe of the last `days` with its runs and\ntheir steps, and the rates that compare them (failed %, seconds a page, cost a page, each step's model and place).",
+        "operationId": "activity_recipes_api_activity_recipes_get",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 30,
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityRecipesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/activity/jobs/{job_id}/paused": {
       "put": {
         "tags": [
@@ -52632,6 +52677,19 @@
         "type": "object",
         "title": "ActivityModelsResponse"
       },
+      "ActivityRecipesResponse": {
+        "properties": {
+          "recipes": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeRow"
+            },
+            "type": "array",
+            "title": "Recipes"
+          }
+        },
+        "type": "object",
+        "title": "ActivityRecipesResponse"
+      },
       "ActivityResponse": {
         "properties": {
           "id": {
@@ -90548,6 +90606,146 @@
         ],
         "title": "RecipeDefaults"
       },
+      "RecipeRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "run_count": {
+            "type": "integer",
+            "title": "Run Count",
+            "default": 0
+          },
+          "pages_done": {
+            "type": "integer",
+            "title": "Pages Done",
+            "default": 0
+          },
+          "pages_failed": {
+            "type": "integer",
+            "title": "Pages Failed",
+            "default": 0
+          },
+          "failed_pct": {
+            "type": "number",
+            "nullable": true,
+            "title": "Failed Pct"
+          },
+          "seconds_per_page": {
+            "type": "number",
+            "nullable": true,
+            "title": "Seconds Per Page"
+          },
+          "cost_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cost Usd"
+          },
+          "cost_per_page": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cost Per Page"
+          },
+          "last_run": {
+            "type": "string",
+            "nullable": true,
+            "title": "Last Run"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeRunRow"
+            },
+            "type": "array",
+            "title": "Runs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "RecipeRow"
+      },
+      "RecipeRunRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "started_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Started At"
+          },
+          "ended_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Ended At"
+          },
+          "scope": {
+            "type": "string",
+            "nullable": true,
+            "title": "Scope"
+          },
+          "pages_done": {
+            "type": "integer",
+            "title": "Pages Done",
+            "default": 0
+          },
+          "pages_failed": {
+            "type": "integer",
+            "title": "Pages Failed",
+            "default": 0
+          },
+          "failed_pct": {
+            "type": "number",
+            "nullable": true,
+            "title": "Failed Pct"
+          },
+          "seconds": {
+            "type": "number",
+            "nullable": true,
+            "title": "Seconds"
+          },
+          "seconds_per_page": {
+            "type": "number",
+            "nullable": true,
+            "title": "Seconds Per Page"
+          },
+          "cost_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cost Usd"
+          },
+          "cost_per_page": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cost Per Page"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeStepRow"
+            },
+            "type": "array",
+            "title": "Steps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status"
+        ],
+        "title": "RecipeRunRow"
+      },
       "RecipeRunStatus": {
         "properties": {
           "job_id": {
@@ -91244,6 +91442,76 @@
           "job"
         ],
         "title": "RecipeStep"
+      },
+      "RecipeStepRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          },
+          "place": {
+            "type": "string",
+            "nullable": true,
+            "title": "Place",
+            "description": "where most of its calls went (this_mac, own_machine, provider)"
+          },
+          "state": {
+            "type": "string",
+            "nullable": true,
+            "title": "State"
+          },
+          "pages_done": {
+            "type": "integer",
+            "title": "Pages Done",
+            "default": 0
+          },
+          "pages_failed": {
+            "type": "integer",
+            "title": "Pages Failed",
+            "default": 0
+          },
+          "seconds": {
+            "type": "number",
+            "nullable": true,
+            "title": "Seconds"
+          },
+          "seconds_per_page": {
+            "type": "number",
+            "nullable": true,
+            "title": "Seconds Per Page",
+            "description": "the median of its pages' own times"
+          },
+          "tokens": {
+            "type": "integer",
+            "title": "Tokens",
+            "default": 0
+          },
+          "cost_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cost Usd"
+          },
+          "cost_per_page": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cost Per Page"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "RecipeStepRow"
       },
       "RecomputeResponse": {
         "properties": {

@@ -725,6 +725,22 @@
       },
       {
         "method": "GET",
+        "path": "/activity/recipes",
+        "operation_id": "activity_recipes_api_activity_recipes_get",
+        "summary": "Activity Recipes",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "days",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ActivityRecipesResponse"
+      },
+      {
+        "method": "GET",
         "path": "/activity/stats",
         "operation_id": "get_activity_stats_api_activity_stats_get",
         "summary": "Get Activity Stats",

@@ -982,6 +982,20 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("recipes")
+    def activity_recipes_get(
+        ctx: typer.Context,
+        days: Optional[int] = typer.Option(None, '--days', help='Days.'),
+    ) -> None:
+        """Activity Recipes (GET /api/activity/recipes)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/recipes"
+            params = {
+                "days": days,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-stats")
     def activity_get_stats_get(
         ctx: typer.Context,

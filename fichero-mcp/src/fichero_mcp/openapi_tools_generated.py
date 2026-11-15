@@ -448,6 +448,14 @@ def fichero_activity_get_recent_activities(
     return _rt.call("GET", "/api/activity/recent", params={"limit": limit})
 
 
+def fichero_activity_recipes(
+    *,
+    days: Annotated[Optional[int], Field(description='Days')] = None,
+) -> Any:
+    "Activity Recipes\n\nThe Recipes view (`activity.window.recipes`, decision 37, #6588): each recipe of the last `days` with its runs and\ntheir steps, and the rates that compare them (failed %, seconds a page, cost a page, each step's model and place).\n\nRoute: GET /api/activity/recipes (toolset `activity`; reads)."
+    return _rt.call("GET", "/api/activity/recipes", params={"days": days})
+
+
 def fichero_activity_get_stats(
     *,
     hours: Annotated[Optional[int], Field(description='Number of hours to analyze')] = None,
@@ -9713,6 +9721,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_activity_models", "activity", "GET", "/api/activity/models", fichero_activity_models),
     GeneratedTool("fichero_activity_pause_all", "activity", "POST", "/api/activity/pause-all", fichero_activity_pause_all),
     GeneratedTool("fichero_activity_get_recent_activities", "activity", "GET", "/api/activity/recent", fichero_activity_get_recent_activities),
+    GeneratedTool("fichero_activity_recipes", "activity", "GET", "/api/activity/recipes", fichero_activity_recipes),
     GeneratedTool("fichero_activity_get_stats", "activity", "GET", "/api/activity/stats", fichero_activity_get_stats),
     GeneratedTool("fichero_activity_stop_all", "activity", "POST", "/api/activity/stop-all", fichero_activity_stop_all),
     GeneratedTool("fichero_activity_list_stopped_at_quit", "activity", "GET", "/api/activity/stopped-at-quit", fichero_activity_list_stopped_at_quit),
