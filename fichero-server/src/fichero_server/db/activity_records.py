@@ -350,3 +350,10 @@ def progress_timelines(db: Any, run_ids: list[str]) -> dict[str, Any]:
     rows = db.execute_fetchall(f"SELECT id, progress_timeline FROM {RUNS} "
                                f"WHERE id IN ({', '.join('?' * len(run_ids))})", run_ids, committed=True)
     return {r[0]: r[1] for r in rows}
+
+
+def runs_started_since(db: Any, since: datetime, limit: int) -> list[tuple]:
+    """(id, workflow_id, workflow_name, status, started_at, completed_at) of the newest `limit` runs started since `since`."""
+    return db.execute_fetchall(
+        f"SELECT id, workflow_id, workflow_name, status, started_at, completed_at FROM {RUNS} "
+        "WHERE started_at >= ? ORDER BY started_at DESC LIMIT ?", [since, limit])

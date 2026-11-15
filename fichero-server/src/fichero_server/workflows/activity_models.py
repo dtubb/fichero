@@ -84,12 +84,7 @@ def models(db: "Database", *, held: list[dict[str, Any]] | None = None,
         key = f"{place}|{provider}|{name}"
         return rows.setdefault(key, _new(place, provider, name))
 
-    hidden = " AND deleted_at IS NULL" if job_queue._has_deleted_at(db) else ""
-    for kind, model, state, target, detail, started, finished in db.execute_fetchall(
-        "SELECT kind, model, state, target, detail, started_at, finished_at FROM jobs "
-        f"WHERE (state = 'running' OR finished_at >= ? OR started_at >= ?){hidden}",
-        [since, since],
-    ):
+    for kind, model, state, target, detail, started, finished in job_queue.usage_rows_since(db, since):
         seconds = ((ensure_utc(finished) if finished else now) - ensure_utc(started)).total_seconds() if started else 0.0
         calls = _usage(detail)
         if kind == read_job.KIND:
