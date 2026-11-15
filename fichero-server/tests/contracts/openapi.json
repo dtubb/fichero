@@ -88916,6 +88916,11 @@
             "type": "string",
             "nullable": true,
             "title": "Reason"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Name"
           }
         },
         "type": "object",

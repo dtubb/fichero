@@ -352,6 +352,9 @@ class QueuedItem(BaseModel):
     subject: str
     state: str
     reason: Optional[str] = None
+    # The file it works on, by name (`activity.pane.children-are-what-it-works-on`, #6599); null for a subject that is no
+    # document.
+    name: Optional[str] = None
 
 
 class QueuedItemListResponse(BaseModel):
@@ -1118,7 +1121,21 @@ async def list_queued_items(
     from fichero_server.execution import jobs as job_queue
 
     items = await asyncio.to_thread(job_queue.items_of_kind, db, kind, limit=limit, offset=offset)
-    return QueuedItemListResponse(items=[QueuedItem(**i) for i in items], count=len(items))
+    names = await asyncio.to_thread(_document_names, db, [i["subject"] for i in items])
+    return QueuedItemListResponse(items=[QueuedItem(**i, name=names.get(i["subject"])) for i in items], count=len(items))
+
+
+def _document_names(db: Database, ids: list[str]) -> dict[str, str]:
+    """The names of the documents among `ids`, by id, in one read; an id that is no document is absent."""
+    if not ids:
+        return {}
+    try:
+        rows = db.execute_fetchall(f"SELECT id, name FROM documents WHERE id IN ({', '.join('?' for _ in ids)})",
+                                   list(dict.fromkeys(ids)), committed=True)
+    except Exception as exc:  # noqa: BLE001 -- the items still list, unnamed
+        logger.warning("queued items: no document names: %s", exc)
+        return {}
+    return {row[0]: row[1] for row in rows if row[1]}
 
 
 @router.get("/jobs/{job_id}", response_model=JobTree)
