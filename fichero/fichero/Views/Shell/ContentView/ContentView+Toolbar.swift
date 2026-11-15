@@ -93,7 +93,7 @@ extension ContentView {
         // Pause, Continue and Stop on the Activity pane's selection, right of the sidebar, while that pane holds the focus
         // (`activity.window.toolbar-verbs`, decision 24, #6588); nothing is drawn otherwise.
         ToolbarItem(id: ContentToolbarID.activityVerbs, placement: Self.leadingPlacement) {
-            ActivityToolbarVerbButtons(hidesWithoutAPane: true)
+            ActivityToolbarVerbsBar(hidesWithoutAPane: true)
         }
         if toolbarVisibility.showNavigation {
             ToolbarItem(id: ContentToolbarID.navigationBack, placement: Self.leadingPlacement) {

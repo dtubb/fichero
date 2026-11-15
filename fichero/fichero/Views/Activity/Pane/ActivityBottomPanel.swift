@@ -7,7 +7,7 @@ import SwiftUI
 /// the one status line instead.
 struct ActivityBottomPanel: View {
     let tab: ActivityPane.Tab
-    let history: ActivityHistory
+    let history: ActivityHistoryFigures
     /// The rows listed now, for the counts the history does not hold (running, waiting, need you).
     let rows: [ActivityMonitorRow]
 
@@ -61,12 +61,12 @@ struct ActivityBottomPanel: View {
     // MARK: - The words and series, pure (`ActivityBottomPanelTests`)
 
     /// Many projects' histories as one: minute by minute summed, the places and providers added.
-    static func merged(_ histories: [ActivityHistory]) -> ActivityHistory {
-        guard var total = histories.first else { return ActivityHistory() }
+    static func merged(_ histories: [ActivityHistoryFigures]) -> ActivityHistoryFigures {
+        guard var total = histories.first else { return ActivityHistoryFigures() }
         for other in histories.dropFirst() {
             var byStart = Dictionary(total.minutes.map { ($0.start, $0) }, uniquingKeysWith: { first, _ in first })
             for minute in other.minutes {
-                var sum = byStart[minute.start] ?? ActivityHistory.Minute(start: minute.start)
+                var sum = byStart[minute.start] ?? ActivityHistoryFigures.Minute(start: minute.start)
                 sum.pagesDone += minute.pagesDone
                 sum.pagesFailed += minute.pagesFailed
                 sum.spendUsd += minute.spendUsd
@@ -81,18 +81,18 @@ struct ActivityBottomPanel: View {
         return total
     }
 
-    static func isEmpty(_ history: ActivityHistory) -> Bool {
+    static func isEmpty(_ history: ActivityHistoryFigures) -> Bool {
         history.minutes.allSatisfy { $0.pagesDone == 0 && $0.pagesFailed == 0 && $0.spendUsd == 0 }
     }
 
     /// The places in the Where graph, in a fixed order, each with its pages.
-    static func places(_ history: ActivityHistory) -> [(word: String, pages: Int)] {
+    static func places(_ history: ActivityHistoryFigures) -> [(word: String, pages: Int)] {
         [("this-mac", "This Mac"), ("other-mac", "Other Mac"), ("cloud", "Cloud"), ("cluster", "Cluster")]
             .map { (word: $0.1, pages: history.byRuntime[$0.0] ?? 0) }
     }
 
     /// The tab's figures, at most two short lines, counts as figures (`activity.pane.text-budget`).
-    static func figures(tab: ActivityPane.Tab, history: ActivityHistory, rows: [ActivityMonitorRow]) -> String {
+    static func figures(tab: ActivityPane.Tab, history: ActivityHistoryFigures, rows: [ActivityMonitorRow]) -> String {
         let done = history.minutes.map(\.pagesDone).reduce(0, +)
         let failed = history.minutes.map(\.pagesFailed).reduce(0, +)
         switch tab {
@@ -118,10 +118,10 @@ struct ActivityBottomPanel: View {
 #Preview("Bottom panel, Runs") {
     let now = Date()
     let minutes = (0..<60).map { index in
-        ActivityHistory.Minute(start: now.addingTimeInterval(Double(index - 59) * 60), pagesDone: index % 7,
+        ActivityHistoryFigures.Minute(start: now.addingTimeInterval(Double(index - 59) * 60), pagesDone: index % 7,
                                pagesFailed: index % 13 == 0 ? 1 : 0, spendUsd: Double(index % 5) * 0.01, tokens: index * 40)
     }
-    let history = ActivityHistory(minutes: minutes, byRuntime: ["this-mac": 120, "cloud": 30], todaySpendUsd: 0.5,
+    let history = ActivityHistoryFigures(minutes: minutes, byRuntime: ["this-mac": 120, "cloud": 30], todaySpendUsd: 0.5,
                                   todaySpendByProvider: ["OpenRouter": 0.42, "Gemini": 0.08])
     VStack(spacing: 0) {
         ForEach(ActivityPane.Tab.allCases) { tab in
