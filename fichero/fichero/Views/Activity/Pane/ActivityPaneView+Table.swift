@@ -238,10 +238,7 @@ extension ActivityPaneView {
             }
             .disabled(!verb.isEnabled(for: rows))
         }
-        if rows.count == 1, let row = rows.first {
-            Divider()
-            ActivityReadAgainMenuItem(target: runMenuTarget(for: row))
-        }
+        // No Read Again beside Retry: Retry runs a failed run again over its unread pages (`activity.pane.verbs-one-word-each`).
     }
 
     // MARK: - Selection

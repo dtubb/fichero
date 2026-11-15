@@ -70,7 +70,7 @@ extension ActivityPaneView {
 
     // MARK: - The menu bar's targets
 
-    /// The one selected row's Stop / Read Again, for Project › Activity (`FocusedActivityRunButtons`).
+    /// The one selected row's Stop, for Project › Activity (`FocusedActivityRunButtons`).
     func selectedRunTarget(in shown: [ActivityMonitorRow]) -> ActivityRunMenuTarget? {
         let picked = rows(selection, in: shown)
         return picked.count == 1 ? picked.first.map(runMenuTarget(for:)) : nil

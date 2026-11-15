@@ -221,25 +221,25 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
         XCTAssertFalse(appSource.contains("FocusedRenameButton()\n                    .keyboardShortcut(.return, modifiers: [])"))
     }
 
-    /// Activity's Stop and Read Again are in the menu bar (#5652 slice 3): the Project menu's Activity
-    /// section renders the focused buttons, and the Activity window's row buttons, its context menu and
-    /// the menu bar render the same `ActivityStopMenuItem` / `ActivityReadAgainMenuItem` on the target
-    /// `runMenuTarget(for:)` makes. No hand-made Stop or Read Again button is left in the window.
-    func testActivityStopAndReadAgainAreInTheMenuBar() throws {
+    /// Activity's Stop is in the menu bar (#5652 slice 3): the Project menu's Activity section renders the focused buttons,
+    /// and the Activity window's row buttons, its context menu and the menu bar render the same `ActivityStopMenuItem` on the
+    /// target `runMenuTarget(for:)` makes. Read Again is in neither the menu bar nor the row menu: Retry is the one verb for
+    /// running a failed row again (`activity.pane.verbs-one-word-each`, #6599). No hand-made Stop is left in the window.
+    func testActivityStopIsInTheMenuBarAndRetryIsTheOneRerun() throws {
         let menus = try Self.appSource("App/Menus/PageAndProjectMenuCommands.swift")
         XCTAssertTrue(menus.contains("Section(\"Activity\") {\n                FocusedActivityRunButtons()"))
         let buttons = try Self.appSource("App/Menus/FocusedCommands/FocusedCommandButtons+Activity.swift")
         XCTAssertTrue(buttons.contains("ActivityStopMenuItem(target: target)"))
-        XCTAssertTrue(buttons.contains("ActivityReadAgainMenuItem(target: target)"))
+        XCTAssertFalse(buttons.contains("ActivityReadAgainMenuItem(target: target)"))
         // The Activity pane (`activity.pane.commands-through-the-table`): the selected run's target and the verb list reach the
-        // menu bar from the pane; its row menu is the one verb list plus the shared Read Again; no hand-made Stop is left.
+        // menu bar from the pane; its row menu is the one verb list, Retry among it; no hand-made Stop is left.
         // Published by the focused table, never by the scene: two Activity panes never take each other's verbs.
         let table = try Self.appSource("Views/Activity/Pane/ActivityPaneView+Table.swift")
         XCTAssertTrue(table.contains(".focusedValue(\\.activityRun, selectedRunTarget(in: shown))"))
         XCTAssertTrue(table.contains(".focusedValue(\\.activityVerbs, verbTarget(in: shown))"))
         XCTAssertFalse(try Self.appSource("Views/Activity/Pane/ActivityPaneView.swift").contains(".focusedSceneValue(\\.activity"))
         XCTAssertTrue(table.contains("ForEach(ActivityPaneVerb.allCases)"))
-        XCTAssertTrue(table.contains("ActivityReadAgainMenuItem(target: runMenuTarget(for: row))"))
+        XCTAssertFalse(table.contains("ActivityReadAgainMenuItem"))
         XCTAssertFalse(table.contains("Button(\"Stop\")"))
         XCTAssertTrue(menus.contains("FocusedActivityVerbButtons()"))
     }

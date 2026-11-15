@@ -613,9 +613,12 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
 - `activity.pane.empty-says-one-line` — **[OK]** (#6599, #6588; supersedes `activity.window.no-empty-prose`'s blank) a pane with nothing to list says
   "Nothing running" in one line and keeps its status bar; a filter that hides everything says "No activity matches".
   *Built 2026-11-14 night:* `ActivityPane.emptyLine`. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityPaneFiltersTests.swift` extended (`emptyLine`).
-- `activity.pane.verbs-one-word-each` — **[GAP]** (#6599, #6588; `activity.pane.commands-through-the-table`) Retry is the one verb
+- `activity.pane.verbs-one-word-each` — **[OK]** (#6599, #6588; `activity.pane.commands-through-the-table`) Retry is the one verb
   for running a failed row again; Read Again is the Inspector's verb on a failed PAGE only, not a Project › Activity item
-  beside Retry. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityCommandsTests.swift` extended.
+  beside Retry. *Built 2026-11-15:* Project › Activity carries Stop and the verb list (Retry among it), the row's context menu
+  the verb list alone; a failed run's Retry already reads the pages it did not do as a new run (`POST /jobs/{id}/retry`
+  answers `replaces`). `ActivityToolbarVerbsTests.retryIsTheOneVerb`, `MenuTerminologyBoundaryTests.
+  testActivityStopIsInTheMenuBarAndRetryIsTheOneRerun`. *Test:* `fichero/Tests/Unit/general/Models/ActivityPane/ActivityCommandsTests.swift` extended.
 
 **Known broken (the engine review, 2026-11-14, verified in code; each its own issue: #6594, #6595, #6596):**
 
