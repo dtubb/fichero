@@ -78,8 +78,8 @@ struct ActivityStopMenuItem: View {
     }
 }
 
-/// Read Again, as ONE item: the run's own offer ("Read the 3 pages that failed") on the row's button, its
-/// context menu and Project › Activity; "Read Again" when the run offers nothing.
+/// Read Again, as ONE item: the run's own offer ("Read the 3 pages that failed") in the Inspector and the run strip;
+/// "Read Again" when the run offers nothing. Not in the row's context menu or Project › Activity, where Retry does it.
 struct ActivityReadAgainMenuItem: View {
     let target: ActivityRunMenuTarget?
 
@@ -93,20 +93,16 @@ struct ActivityReadAgainMenuItem: View {
     }
 }
 
-/// Project › Activity › Stop and Read Again, on the Activity window's selected row. Each is disabled
-/// with its reason under it when it cannot act (the Segment menu's pattern). No chords: ⌘. is the
-/// system's cancel, and neither is a muscle-memory verb.
+/// Project › Activity › Stop, on the Activity window's selected row, disabled with its reason under it when it cannot act
+/// (the Segment menu's pattern). No Read Again here: Retry is the one verb for running a failed row again, and a failed
+/// run's Retry reads the pages it did not do (`activity.pane.verbs-one-word-each`); Read Again stays the Inspector's, on a
+/// failed page. No chords: ⌘. is the system's cancel.
 struct FocusedActivityRunButtons: View {
     @FocusedValue(\.activityRun) private var target
 
     var body: some View {
         ActivityStopMenuItem(target: target)
         if let reason = Self.stopDisabledReason(target) {
-            Text(reason)
-        }
-        ActivityReadAgainMenuItem(target: target)
-        // With no run selected, the one reason under Stop says so for both.
-        if target != nil, let reason = Self.readAgainDisabledReason(target) {
             Text(reason)
         }
     }

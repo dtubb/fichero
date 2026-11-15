@@ -8,6 +8,8 @@ import SwiftUI
 struct ActivityDetailsLog: View {
     let jobId: String
     let isLive: Bool
+    /// The row has started (it is running or ended): its empty log is never "nothing written yet".
+    var hasStarted = true
     /// Changes when the row changes (`ActivityDetails.logKey`): the log is read again then, and only then.
     let refreshKey: String
     /// With its own "Log" heading; false inside a disclosure that already says it.
@@ -48,7 +50,7 @@ struct ActivityDetailsLog: View {
                 .accessibilityIdentifier("activity.details.log.copy")
             }
             if lines.isEmpty {
-                Text("Nothing written for this row yet.")
+                Text(ActivityLogFilter.emptyWords(started: hasStarted, filter: filter))
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else {

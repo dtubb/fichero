@@ -43,7 +43,7 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     /// Unique across levels and projects.
     var id: String
     let kind: Kind
-    let libraryId: UUID?
+    var libraryId: UUID?
     /// The owning run's row id (`ActivityRun.id`): what Delete and the detail
     /// window act on from any row of its tree.
     var runRowID: String?
@@ -64,7 +64,7 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     let total: Int
     var started: Date?
     /// How long it took, start to finish (or until the last read, while it runs).
-    let seconds: Double?
+    var seconds: Double?
     let costUsd: Double?
     let tokens: Int
     let errors: Int
@@ -79,6 +79,9 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     var documentId: String?
     /// The engine's estimate of what is left to spend, while it runs (`activity.pane.cost-per-row-and-totals`).
     var costEstimateUsd: Double?
+    /// Where it runs and its lane, the engine's words for the Where tab (#6588).
+    var runsOn: String?
+    var lane: String?
     /// What it ran over, in words ("14 pages"), from the engine's `ran_on` (`activity.pane.row-says-what-ran-on-what`).
     var ranOnText: String?
     /// A version whose results count, in Group by File and the Inspector's versions (`activity.pane.versions-are-siblings`).
@@ -289,7 +292,16 @@ struct ActivityMonitorRow: Identifiable, Equatable {
         return tokens > 0 ? "Not priced" : ""
     }
 
-    var secondsText: String { looksWaiting ? "" : (seconds.map(Self.duration) ?? "") }
+    /// The row's one time, read by its Time cell, its sort and its Inspector alike (`activity.pane.row-and-inspector-agree`):
+    /// the engine's seconds (a file's, its pages' summed work time), else from its start to its end; none while it waits.
+    var elapsedSeconds: Double? {
+        if looksWaiting { return nil }
+        if let seconds { return seconds }
+        guard let started, let ended, ended > started else { return nil }
+        return ended.timeIntervalSince(started)
+    }
+
+    var secondsText: String { elapsedSeconds.map(Self.duration) ?? "" }
 
     var errorsText: String { errors > 0 ? "\(errors)" : "" }
 
@@ -322,7 +334,7 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     var queueKey: Int { queuePosition ?? Int.max }
     var waitingStartedKey: Date { looksWaiting ? (started ?? .distantFuture) : .distantPast }
     var startedKey: Date { started ?? .distantPast }
-    var secondsKey: Double { seconds ?? -1 }
+    var secondsKey: Double { elapsedSeconds ?? -1 }
     var costKey: Double { costUsd ?? -1 }
     var progressKey: Double { total > 0 ? Double(done) / Double(total) : -1 }
     var modelKey: String { model ?? "" }
@@ -347,9 +359,12 @@ struct ActivityMonitorRow: Identifiable, Equatable {
         }
     }
 
+    /// A time as the table writes it (`activity.pane.row-and-inspector-agree`): ONE rounded unit, "48 s", "3 min", "2 h";
+    /// never "48 secs." (the system's abbreviated style, with its full stop) and never two units in a cell.
     static func duration(_ seconds: Double) -> String {
-        Duration.seconds(seconds.rounded()).formatted(
-            .units(allowed: [.hours, .minutes, .seconds], width: .abbreviated, maximumUnitCount: 2)
-        )
+        let seconds = max(0, seconds.rounded())
+        if seconds < 60 { return "\(Int(seconds)) s" }
+        if (seconds / 60).rounded() < 60 { return "\(Int((seconds / 60).rounded())) min" }
+        return "\(Int((seconds / 3600).rounded())) h"
     }
 }

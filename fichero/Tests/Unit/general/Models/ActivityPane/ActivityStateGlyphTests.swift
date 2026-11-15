@@ -13,7 +13,10 @@ struct ActivityStateGlyphTests {
     func glyphs() {
         #expect(ActivityPane.glyph(Fix.row("r", .running)) == .init(symbol: nil, word: "Running", isFailure: false))
         #expect(ActivityPane.glyph(Fix.row("w", .waiting)).symbol == "circle")
-        #expect(ActivityPane.glyph(Fix.row("d", .done)).symbol == "checkmark.circle.fill")
+        #expect(ActivityPane.glyph(Fix.row("d", .done)) == .init(symbol: "checkmark.circle.fill", word: "Done", isFailure: false,
+                                                              isSuccess: true), "done is green (`activity.pane.done-is-green`)")
+        #expect(ActivityPane.glyph(Fix.row("h", .partial)).isSuccess, "partial: the check in green")
+        #expect(!ActivityPane.glyph(Fix.row("w2", .waiting)).isSuccess && !ActivityPane.glyph(Fix.row("f2", .failed)).isSuccess)
         #expect(ActivityPane.glyph(Fix.row("f", .failed)) == .init(symbol: "xmark.circle.fill", word: "Failed", isFailure: true))
         #expect(ActivityPane.glyph(Fix.row("p", .paused)).symbol == "pause.circle")
         #expect(ActivityPane.glyph(Fix.row("s", .cancelled)).symbol == "stop.circle")

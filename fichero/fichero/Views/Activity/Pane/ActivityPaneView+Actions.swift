@@ -8,6 +8,11 @@ struct ActivityVerbTarget: Equatable {
     let perform: @MainActor (ActivityPaneVerb) -> Void
 
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.enabled == rhs.enabled && lhs.selectionIds == rhs.selectionIds }
+
+    /// The verbs a selection enables, by the Mail rule: one is enabled when any selected row allows it.
+    static func enabledVerbs(for rows: [ActivityMonitorRow]) -> Set<ActivityPaneVerb> {
+        Set(ActivityPaneVerb.allCases.filter { $0.isEnabled(for: rows) })
+    }
 }
 
 /// What View › Activity ▸ reads from the focused Activity pane: its grouping and whether archived rows show.
@@ -30,6 +35,11 @@ extension ActivityPaneView {
 
     /// A run row drawn for the first time reads its tree; the last run row of a project pages in its next runs.
     func rowAppeared(_ row: ActivityMonitorRow) async {
+        // A queue row reads the files it works on, so its disclosure can show them (#6599).
+        if row.kind == .job, ActivityStore.queuedKind(ofRowId: row.id) != nil, let library = library(for: row.libraryId) {
+            await library.activityStore.loadQueuedItems(rowId: row.id)
+            return
+        }
         guard row.kind == .run, let library = library(for: row.libraryId) else { return }
         if let threadId = row.runThreadId { await library.activityStore.loadRunTree(threadId: threadId) }
         if row.runRowID == library.activityStore.runs.last?.id { await library.activityStore.loadMoreRuns(library: library) }
@@ -60,7 +70,7 @@ extension ActivityPaneView {
 
     // MARK: - The menu bar's targets
 
-    /// The one selected row's Stop / Read Again, for Project › Activity (`FocusedActivityRunButtons`).
+    /// The one selected row's Stop, for Project › Activity (`FocusedActivityRunButtons`).
     func selectedRunTarget(in shown: [ActivityMonitorRow]) -> ActivityRunMenuTarget? {
         let picked = rows(selection, in: shown)
         return picked.count == 1 ? picked.first.map(runMenuTarget(for:)) : nil
@@ -69,7 +79,7 @@ extension ActivityPaneView {
     func verbTarget(in shown: [ActivityMonitorRow]) -> ActivityVerbTarget {
         let picked = rows(selection, in: shown)
         return ActivityVerbTarget(
-            enabled: Set(ActivityPaneVerb.allCases.filter { $0.isEnabled(for: picked) }),
+            enabled: ActivityVerbTarget.enabledVerbs(for: picked),
             selectionIds: selection,
             perform: { verb in perform(verb, on: picked) }
         )
@@ -88,6 +98,17 @@ extension ActivityPaneView {
         switch button {
         case .verb(let verb): perform(verb, on: [row])
         case .settings: Self.openSettings()
+        case .chooseFolder(let export): choosingFolder = ActivityFolderChoice(libraryId: row.libraryId, exportId: export)
+        case .showDetails: selection = [row.id]  // the Inspector shows the selected row's fix
+        }
+    }
+
+    /// The folder the panel chose for a kept export: the export moves there and its paused row writes there.
+    func chose(_ folder: URL, for choice: ActivityFolderChoice) {
+        guard let store = library(for: choice.libraryId)?.keptExportStore else { return }
+        Task {
+            let moved = await store.chooseFolder(choice.exportId, folder: folder)
+            notice = moved ? "Writing to \(folder.lastPathComponent)" : store.errorMessage
         }
     }
 
@@ -146,46 +167,25 @@ extension ActivityPaneView {
         let jobIdsByLibrary = Self.jobIdsByLibrary(targets)
         for library in libraries {
             let ids = Set(targets.map(\.id))
-            let runRows = targets.filter { $0.kind == .run && $0.libraryId == library.id }
+            let running = stopRunning ? targets.filter { $0.kind == .run && $0.libraryId == library.id && $0.phase.isLive } : []
             let threadIds = library.activityStore.runs.filter { ids.contains($0.id) }.map(\.runId)
-            if !threadIds.isEmpty {
-                let outcome = await deleteRuns(threadIds, stopping: stopRunning ? runRows.filter { $0.phase.isLive } : [],
-                                               store: library.activityStore)
-                deleted += outcome.deletedIds.count
-                skipped += outcome.skippedIds.count
+            let jobIds = jobIdsByLibrary[library.id] ?? []
+            guard !threadIds.isEmpty || !jobIds.isEmpty else { continue }
+            // Stop then Delete: the running runs are stopped first (their job's Stop), then deleted with the rest.
+            for row in running {
+                if let jobId = row.jobId {
+                    _ = await ActivityRunMenuTarget.stopJob(jobId: jobId, runThreadId: row.runThreadId, store: library.activityStore)
+                }
             }
-            if let jobIds = jobIdsByLibrary[library.id], !jobIds.isEmpty {
-                let outcome = await library.activityStore.performUndoable(
-                    "job.delete", ids: jobIds, stopRunning: stopRunning,
-                    named: UndoableChange.named("Delete", count: jobIds.count, one: "Row", many: "Rows"),
-                    actions: library.actionsService, steps: windowSteps)
-                deleted += outcome.done
-                skipped += outcome.skipped
-            }
+            // One step per project for all its rows, runs and jobs together (#6599).
+            let outcome = await library.activityStore.deleteAsOneStep(
+                threadIds: threadIds, jobIds: jobIds, stopRunning: stopRunning, settling: !running.isEmpty,
+                actions: library.actionsService, steps: windowSteps)
+            deleted += outcome.done
+            skipped += outcome.skipped
         }
         selection = []
         notice = ActivityPaneVerb.outcome(.delete, done: deleted, skipped: skipped)
-    }
-
-    /// The runs delete; Stop then Delete stops the running ones first (their job's Stop), then deletes again what the
-    /// engine still held as running. ponytail: up to ten one-second retries while the stop settles; a `stop_running` on
-    /// the runs delete would make it one call.
-    private func deleteRuns(_ threadIds: [String], stopping running: [ActivityMonitorRow],
-                            store: ActivityStore) async -> RunDeleteOutcome {
-        for row in running {
-            if let jobId = row.jobId { _ = await ActivityRunMenuTarget.stopJob(jobId: jobId, runThreadId: row.runThreadId, store: store) }
-        }
-        let first = await store.deleteRuns(threadIds: threadIds)
-        var deleted = first.deletedIds, pending = first.skippedIds
-        var tries = 0
-        while !running.isEmpty, !pending.isEmpty, tries < 10 {
-            try? await Task.sleep(for: .seconds(1))
-            tries += 1
-            let again = await store.deleteRuns(threadIds: pending)
-            deleted += again.deletedIds
-            pending = again.skippedIds
-        }
-        return RunDeleteOutcome(deletedIds: deleted, skippedIds: pending)
     }
 
     /// Archive and Put Back, one step on the window's stack each, so Edit › Undo reverses it: ended job rows through the
@@ -213,27 +213,27 @@ extension ActivityPaneView {
 
     /// "Archive Finished…": every ended job and every ended run listed in the pane's projects, after one confirmation.
     func archiveFinished() async {
-        var skipped = 0
-        for library in libraries {
-            let store = library.activityStore
-            skipped += await store.archiveJobs(ids: [], states: ["done", "failed", "cancelled"]).skippedIds.count
-            let ended = store.runs.filter { ActivityRunStatus.finished.contains($0.status) }.map(\.runId)
-            if !ended.isEmpty {
-                skipped += await store.performUndoable(
-                    "workflow_run.archive", ids: ended,
-                    named: UndoableChange.named("Archive", count: ended.count, one: "Run", many: "Runs"),
-                    actions: library.actionsService, steps: windowSteps).skipped
-            }
-        }
-        selection = []
-        notice = skipped > 0 ? "\(skipped) skipped" : nil
+        await archive(states: ["done", "failed", "cancelled"], runStatuses: ActivityRunStatus.finished)
     }
 
-    /// "Archive Failed": every project's failed runs and jobs (`job.clear_failed`, the archive mark).
+    /// "Archive Failed": every project's failed runs and jobs, one undoable step per project.
     func archiveFailed() async {
-        var outcome = ClearFailedOutcome()
-        for library in libraries { outcome += await library.activityStore.clearFailed() }
-        notice = outcome.notice
+        await archive(states: ["failed"], runStatuses: [.failed])
+    }
+
+    /// Each project's ended jobs in `states` and its runs in `runStatuses` archived as ONE step (#6599); Undo puts them back.
+    private func archive(states: [String], runStatuses: [ActivityRunStatus]) async {
+        var archived = 0, skipped = 0
+        for library in libraries {
+            let store = library.activityStore
+            let ended = store.runs.filter { runStatuses.contains($0.status) }.map(\.runId)
+            let outcome = await store.archiveAsOneStep(states: states, threadIds: ended, actions: library.actionsService,
+                                                       steps: windowSteps)
+            archived += outcome.done
+            skipped += outcome.skipped
+        }
+        selection = []
+        notice = ActivityPaneVerb.outcome(.archive, done: archived, skipped: skipped)
     }
 
     /// The job ids Delete sends to each project's jobs delete: the selected job rows' own ids (a kind's row keeps its

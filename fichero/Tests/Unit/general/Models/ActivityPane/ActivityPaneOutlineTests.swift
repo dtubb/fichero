@@ -10,14 +10,17 @@ import Testing
 struct ActivityPaneOutlineTests {
     typealias Fix = ActivityPaneFixture
 
-    @Test("rows sort by state then start: running, paused, waiting, failed, done; newest first within a state")
+    /// `activity.pane.needs-you-first` (#6599, supersedes the plain state-then-start order): what needs the person first.
+    @Test("rows sort by what needs you first: failed and paused for a cause, then running, then waiting, then done, newest first")
     func flatOrder() {
+        var mine = Fix.row("paused-by-you", .paused, started: Fix.day.addingTimeInterval(30))
+        mine.reason = "Paused by you"
         let rows = ActivityPane.outline([
             Fix.row("done-old", .done, started: Fix.day), Fix.row("failed", .failed, started: Fix.day),
             Fix.row("running", .running), Fix.row("done-new", .done, started: Fix.day.addingTimeInterval(60)),
-            Fix.row("paused", .paused), Fix.row("waiting", .waiting)
+            Fix.row("paused", .paused, started: Fix.day.addingTimeInterval(10)), Fix.row("waiting", .waiting), mine
         ])
-        #expect(rows.map(\.id) == ["running", "paused", "waiting", "failed", "done-new", "done-old"])
+        #expect(rows.map(\.id) == ["paused", "failed", "running", "paused-by-you", "waiting", "done-new", "done-old"])
     }
 
     @Test("a run opens to its files, one per document, never to its steps; a file holds its pages' worst state")
@@ -29,6 +32,20 @@ struct ActivityPaneOutlineTests {
         #expect(files[1].phase == .failed, "p2 failed once: the failure shows over the done reads")
         #expect(files[1].total == 3, "p2's three page runs: Segment, Read, Read again")
         #expect(!files.contains { $0.kind == .step })
+    }
+
+    /// `activity.pane.children-are-what-it-works-on` (#6599): a job of its own opens to the files in flight, by name.
+    @Test("a thumbnails queue with two pages in flight opens to those two files by name; none in flight, no disclosure")
+    func queueOpensToItsFilesInFlight() throws {
+        let queue = Fix.row("waiting:thumbnail", .waiting, kind: .job, total: 14)
+        let items = [ActivityQueuedItem(id: "q1", subject: "d1", state: "running", name: "IMG_0412.jpg"),
+                     ActivityQueuedItem(id: "q2", subject: "d2", state: "running", name: "IMG_0413.jpg"),
+                     ActivityQueuedItem(id: "q3", subject: "d3", state: "waiting", name: "IMG_0414.jpg")]
+        let row = try #require(ActivityPane.outline(ActivityPane.withQueuedFiles([queue], queued: ["thumbnail": items])).first)
+        #expect(row.children?.map(\.name) == ["IMG_0412.jpg", "IMG_0413.jpg"])
+        #expect(row.children?.allSatisfy { $0.kind == .page && $0.children == nil } == true)
+        let idle = ActivityPane.withQueuedFiles([queue], queued: ["thumbnail": [items[2]]])
+        #expect(ActivityPane.outline(idle).first?.children == nil)
     }
 
     @Test("a job with no tree has no disclosure")

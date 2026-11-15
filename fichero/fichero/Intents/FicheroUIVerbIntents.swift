@@ -14,7 +14,7 @@ struct OpenProjectIntent: AppIntent {
     var path: String
 
     @MainActor func perform() async throws -> some IntentResult & ReturnsValue<String> {
-        let id = UIVerbs.openProject(at: URL(fileURLWithPath: (path as NSString).expandingTildeInPath))
+        let id = UIVerbs.openProject(at: try UIVerbs.projectURL(for: path, knownPaths: UIVerbs.knownProjectPaths()))
         return .result(value: id.uuidString)
     }
 }

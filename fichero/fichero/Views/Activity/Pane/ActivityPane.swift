@@ -9,6 +9,7 @@
 //
 
 import Foundation
+import SwiftUI
 
 enum ActivityPane {
     // MARK: - Grouping
@@ -18,6 +19,116 @@ enum ActivityPane {
         case run, file
         var id: String { rawValue }
         var title: String { self == .run ? "Run" : "File" }
+    }
+
+    /// The window's four tabs, one table (`activity.window.toolbar-tabs`, decision 23): each a grouping and a column set over
+    /// the same rows. Runs: what is working and what needs me; Files: what happened to my pages; Cost: what it spends;
+    /// Where: where it runs.
+    enum Tab: String, CaseIterable, Identifiable, Codable {
+        case runs, files, cost, place = "where"
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .runs: "Runs"
+            case .files: "Files"
+            case .cost: "Cost"
+            case .place: "Where"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .runs: "list.bullet.indent"
+            case .files: "doc.on.doc"
+            case .cost: "dollarsign.circle"
+            case .place: "desktopcomputer"
+            }
+        }
+
+        var grouping: Grouping { self == .files ? .file : .run }
+
+        /// The columns the tab shows until a person changes them.
+        var columns: [Column] {
+            switch self {
+            case .runs: [.source, .name, .state, .trail, .time, .cost]
+            case .files: [.name, .state, .trail, .started]
+            case .cost: [.source, .name, .model, .tokens, .time, .cost, .toFinish]
+            case .place: [.source, .name, .runsOn, .lane, .state]
+            }
+        }
+
+        /// The tab a grouping chosen elsewhere (View › Activity ▸, a main window's lens) lands on.
+        static func of(_ grouping: Grouping) -> Tab { grouping == .file ? .files : .runs }
+    }
+
+    /// The listed rows that are the selections asked for (the launch alert's Choose…), by job and project.
+    static func rowIds(for wanted: [ActivitySelection], in rows: [ActivityMonitorRow]) -> Set<String> {
+        let asked = Set(wanted)
+        return Set(rows.filter { row in row.selection.map(asked.contains) ?? false }.map(\.id))
+    }
+
+    /// A run row is listed from the runs list, and its twin in the jobs list carries the engine's failure (its row words, its
+    /// fix, its buttons): the run row takes it, so a failed run says why in its row, not a bare red X (#6588).
+    static func withRunFailures(_ rows: [ActivityMonitorRow], jobs: [ActivityJob]) -> [ActivityMonitorRow] {
+        let failures = Dictionary(jobs.compactMap { job in job.failure.map { (job.id, $0) } }, uniquingKeysWith: { first, _ in first })
+        guard !failures.isEmpty else { return rows }
+        return rows.map { row in
+            guard row.kind == .run, row.failure == nil, let id = row.runThreadId ?? row.jobId, let failure = failures[id] else {
+                return row
+            }
+            var row = row
+            row.failure = failure
+            if !failure.rowWords.isEmpty { row.reason = failure.rowWords }
+            return row
+        }
+    }
+
+    /// A job of its own opens to the files it works on NOW (`activity.pane.children-are-what-it-works-on`, #6599): a queue
+    /// row's (`waiting:<kind>`) children are its items in flight, by name; none in flight, no disclosure.
+    static func withQueuedFiles(_ rows: [ActivityMonitorRow], queued: [String: [ActivityQueuedItem]]) -> [ActivityMonitorRow] {
+        rows.map { row in
+            guard row.kind == .job, let kind = ActivityStore.queuedKind(ofRowId: row.id) else { return row }
+            let inFlight = (queued[kind] ?? []).filter { $0.state == "running" }
+            guard !inFlight.isEmpty else { return row }
+            var row = row
+            row.children = inFlight.map { item in
+                var file = ActivityMonitorRow(
+                    id: "\(row.id)|item:\(item.id)", kind: .page, libraryId: row.libraryId, runRowID: nil, runThreadId: nil,
+                    jobId: item.id, name: item.name ?? "A page", projectName: nil, phase: .running, reason: item.reason,
+                    workingOn: nil, done: 0, total: 0, started: nil, seconds: nil, costUsd: nil, tokens: 0, errors: 0,
+                    model: nil, isLive: true, children: nil)
+                file.documentId = item.subject
+                file.engineKind = row.engineKind
+                return file
+            }
+            return row
+        }
+    }
+
+    /// What an empty pane says in its one line (`activity.pane.empty-says-one-line`, #6599): "Nothing running" with nothing to
+    /// list, "No activity matches" when the filter hides every row; nil while there are rows.
+    static func emptyLine(rowsShown: Int, filterIsEmpty: Bool) -> String? {
+        guard rowsShown == 0 else { return nil }
+        return filterIsEmpty ? "Nothing running" : "No activity matches"
+    }
+
+    /// The Where cell's words for the engine's place.
+    static func whereLine(_ row: ActivityMonitorRow) -> String {
+        switch row.runsOn {
+        case "this-mac": "This Mac"
+        case "other-mac": "Other Mac"
+        case "cloud": "Cloud"
+        case "cluster": "Cluster"
+        default: ""
+        }
+    }
+
+    /// The To Finish cell: the estimate of what is left to spend while it runs; nothing once it ended or for local work.
+    static func toFinishLine(_ row: ActivityMonitorRow) -> String {
+        guard row.phase.isLive, let left = row.costEstimateUsd, left > 0 else { return "" }
+        return String(format: "~$%.2f", left)  // the Cost cell's own form ("$0.42"), never the locale's "US$"
     }
 
     // MARK: - The flat outline: rows sorted by state then start, two levels
@@ -38,17 +149,34 @@ enum ActivityPane {
         }
     }
 
-    /// The pane's rows by Run: no section rows, sorted by state then start (waiting rows in the lane's order), each run
-    /// row's children its FILES (`files(of:)`), never its steps.
+    /// Where a row sorts by default (`activity.pane.needs-you-first`, #6599): what NEEDS THE PERSON first (failed, partial,
+    /// a row paused for a cause or stopped at quit), then what runs, then what waits (a row the person paused waits with
+    /// it), then what ended.
+    static func needsYouRank(_ row: ActivityMonitorRow) -> Int {
+        switch row.phase {
+        case .failed, .partial: 0
+        case .paused: (row.reason ?? "").hasPrefix("Paused by you") ? 2 : 0
+        case .running: 1
+        case .waiting: 2
+        case .done, .cancelled, .interrupted, .notRun, .unknown: 3
+        }
+    }
+
+    /// The pane's rows by Run: no section rows, what needs the person first (newest first), then what runs, then what waits
+    /// (in the lane's order), then what ended (newest first); each run row's children its FILES (`files(of:)`), never its
+    /// steps.
     static func outline(_ rows: [ActivityMonitorRow]) -> [ActivityMonitorRow] {
         rows.sorted { lhs, rhs in
-            let left = (stateRank(lhs.phase), lhs.queueKey), right = (stateRank(rhs.phase), rhs.queueKey)
+            let left = needsYouRank(lhs), right = needsYouRank(rhs)
             if left != right { return left < right }
-            return lhs.startedKey > rhs.startedKey
+            if left == 2, lhs.queueKey != rhs.queueKey { return lhs.queueKey < rhs.queueKey }
+            if lhs.startedKey != rhs.startedKey { return lhs.startedKey > rhs.startedKey }
+            return lhs.id < rhs.id
         }
         .map { row in
             var row = row
-            row.children = files(of: row)
+            // A run's files; a job of its own keeps the files in flight it was given (`withQueuedFiles`).
+            row.children = files(of: row) ?? (row.kind == .job ? row.children : nil)
             return row
         }
     }
@@ -219,11 +347,17 @@ enum ActivityPane {
     // MARK: - One glyph per state
 
     /// The state's ONE glyph (nil symbol = the system spinner), its word for the tooltip and VoiceOver, and whether it is
-    /// drawn red (a failure).
+    /// drawn red (a failure) or green (done, `activity.pane.done-is-green`); everything else is secondary.
     struct Glyph: Equatable {
         let symbol: String?
         let word: String
         let isFailure: Bool
+        var isSuccess = false
+
+        /// Red for a failure, green for done, secondary for the rest: the table and the Inspector draw it alike.
+        var tint: AnyShapeStyle {
+            isFailure ? AnyShapeStyle(.red) : isSuccess ? AnyShapeStyle(.green) : AnyShapeStyle(.secondary)
+        }
     }
 
     static func glyph(_ row: ActivityMonitorRow) -> Glyph {
@@ -233,8 +367,8 @@ enum ActivityPane {
         case .waiting: return Glyph(symbol: "circle", word: "Waiting", isFailure: false)
         case .paused, .interrupted: return Glyph(symbol: "pause.circle", word: "Paused", isFailure: false)
         case .cancelled: return Glyph(symbol: "stop.circle", word: "Stopped", isFailure: false)
-        case .done: return Glyph(symbol: "checkmark.circle.fill", word: "Done", isFailure: false)
-        case .partial: return Glyph(symbol: "checkmark.circle", word: "Done, some failed", isFailure: false)
+        case .done: return Glyph(symbol: "checkmark.circle.fill", word: "Done", isFailure: false, isSuccess: true)
+        case .partial: return Glyph(symbol: "checkmark.circle", word: "Done, some failed", isFailure: false, isSuccess: true)
         case .failed: return Glyph(symbol: "xmark.circle.fill", word: "Failed", isFailure: true)
         case .notRun: return Glyph(symbol: "minus", word: "Skipped", isFailure: false)
         case .unknown: return Glyph(symbol: "questionmark.circle", word: row.stateText, isFailure: false)
@@ -246,12 +380,18 @@ enum ActivityPane {
     /// The table's columns, and no others (`activity.pane.default-columns`): the six on by default, the four a person
     /// turns on from the header's menu. The raw value is the column's customization id, remembered per pane.
     enum Column: String, CaseIterable {
-        case source, name, state, trail, time, cost, model, startedBy, started, kind
+        case source, name, state, trail, time, cost, model, startedBy, started, kind, tokens, toFinish, runsOn, lane
 
-        var isOnByDefault: Bool {
-            switch self {
-            case .source, .name, .state, .trail, .time, .cost: true
-            case .model, .startedBy, .started, .kind: false
+        var isOnByDefault: Bool { Tab.runs.columns.contains(self) }
+
+        /// The column's title on a tab (decision 23): the Files tab names its rows File and its date Last Run, the Cost tab
+        /// its dollars Spent; every other title is the column's own.
+        func title(in tab: Tab) -> String {
+            switch (self, tab) {
+            case (.name, .files): "File"
+            case (.started, .files): "Last Run"
+            case (.cost, .cost): "Spent"
+            default: title
             }
         }
 
@@ -267,6 +407,10 @@ enum ActivityPane {
             case .startedBy: "Started By"
             case .started: "Started"
             case .kind: "Kind"
+            case .tokens: "Tokens"
+            case .toFinish: "To Finish"
+            case .runsOn: "Runs On"
+            case .lane: "Lane"
             }
         }
     }
@@ -300,24 +444,24 @@ enum ActivityPane {
     /// The Steps cell: the trail of a recipe run, else "12 of 40" while it has counts.
     static func progressLine(_ row: ActivityMonitorRow) -> String {
         if !row.trail.isEmpty { return row.trail }
-        guard row.total > 0, !row.looksWaiting else { return row.ranOnText ?? "" }
+        // One item counts nothing: "0 of 1" and "1 of 1" only repeat the state glyph (#6588).
+        guard row.total > 1, !row.looksWaiting else { return row.ranOnText ?? "" }
         return "\(row.done) of \(row.total)"
     }
 
     /// The Time cell: the time left while it runs, its duration once ended; never a clock time and never both.
     static func timeLine(_ row: ActivityMonitorRow) -> String {
         if row.phase == .running, let left = row.remainingSeconds { return "\(ActivityMonitorRow.duration(left)) left" }
-        if row.looksWaiting { return "" }
-        if let seconds = row.seconds { return ActivityMonitorRow.duration(seconds) }
-        if let start = row.started, let end = row.ended, end > start { return ActivityMonitorRow.duration(end.timeIntervalSince(start)) }
-        return ""
+        return row.secondsText
     }
 
-    /// The Cost cell: "$0.42 · ~$1.10 more" while it runs, "$0.42" once ended; blank for local work; "Not priced" when a
-    /// call under it had no price; never "$0".
+    /// The Cost cell: "$0.42 · ~$1.10 more" while it runs, "$0.42" once ended; blank for local work (the engine's null);
+    /// "Free" for cloud calls priced at $0 (the engine's 0.0, #6598); "Not priced" when a call under it had no price;
+    /// never "$0.00" (`activity.pane.row-and-inspector-agree`).
     static func costLine(_ row: ActivityMonitorRow) -> String {
         let text = ActivityTrail.cost(spentUsd: row.costUsd, estimateUsd: row.phase.isLive ? row.costEstimateUsd : nil)
         if !text.isEmpty { return text }
+        if row.costUsd == 0 { return "Free" }
         return row.costUsd == nil && row.tokens > 0 ? "Not priced" : ""
     }
 

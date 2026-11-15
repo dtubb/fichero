@@ -60,6 +60,7 @@ extension ActionLibraryService {
                 changedDomains: json.changedDomains,
                 resultId: (json.result.value as? [String: (any Sendable)?])?["id"] as? String,
                 resultListCounts: ActionInvokeResult.listCounts(json.result.value),
+                resultListStrings: ActionInvokeResult.listStrings(json.result.value),
                 resultIdPairs: ActionInvokeResult.idPairs(json.result.value)
             )
             invokeLogger.info("invokeAction(\(name)) ok — audit \(result.auditId)")
@@ -234,6 +235,8 @@ struct ActionInvokeResult: Decodable {
     /// How many entries each list in the answer holds (`splits`, `left_alone` for the Knife), so a surface can say what
     /// the action did without decoding its whole answer.
     var resultListCounts: [String: Int] = [:]
+    /// Each top-level list of strings in the answer, by key (`deleted_ids`, `skipped_ids`): which rows an action reached.
+    var resultListStrings: [String: [String]] = [:]
 
     /// Each top-level list of id pairs in the answer (`joinable` from Cut Words, `segment-editor.edge.word-across-lines`),
     /// by key: only lists whose every entry is two strings.
@@ -253,6 +256,18 @@ struct ActionInvokeResult: Decodable {
             if found.count == list.count { pairs[key] = found }
         }
         return pairs
+    }
+
+    /// The answer's top-level lists whose every entry is a string; empty for anything that is not an object.
+    static func listStrings(_ value: Any?) -> [String: [String]] {
+        guard let object = value as? [String: (any Sendable)?] else { return [:] }
+        var lists: [String: [String]] = [:]
+        for (key, entry) in object {
+            guard let list = entry as? [Any] else { continue }
+            let strings = list.compactMap { $0 as? String }
+            if strings.count == list.count { lists[key] = strings }
+        }
+        return lists
     }
 
     /// The list lengths of an answer's top level; empty for anything that is not an object.
