@@ -101,6 +101,32 @@
     automatic part off.
 29. **The row and the Inspector say the same numbers**: one time, one count, one cost, from one source.
 
+### Ruled 2026-11-15 morning (owner, looking at the overnight build; paraphrased; supersedes decisions 23 and 24)
+
+30. **Xcode's run controls, global.** At the FAR LEFT of the Activity window's toolbar, and of every main window's (right of
+    its sidebar), ONE **Play/Pause** button that turns into the other, and **Stop** on its own. They act on ALL work on this
+    engine, every open project, the same in both windows: Pause pauses everything (a person's runs too); Play continues only
+    what that Pause paused; Stop stops everything. A row's own Play/Pause and Stop are in the row (decision 31).
+31. **A row's own controls are in the row**: the selected (or hovered) row shows Play/Pause and Stop in its trailing cell; the
+    selection's verbs stay in the context menu and Project › Activity. The toolbar holds no selection verbs (supersedes 24).
+32. **A sidebar, not tabs** (supersedes 23): the window is a source list on the left, the table in the middle, the Inspector
+    on the right, the graph panel at the bottom. The sidebar's items: **Runs**, **Files**, **Recipes**, **Cost**, **Models**
+    (supersedes Where) and **Archived**.
+33. **Models, by where they run**: the sidebar's Models section is a tree **place › provider › model**: This Mac (Kraken, the
+    embedding models, MLX, Ollama…), Remote (another Mac, a cluster: ACENET), Cloud (Anthropic, OpenAI, Hugging Face…). Each
+    model's icon says whether it is **loaded** and whether it is **active** (working now). Choosing one lists the work it
+    ran or runs.
+34. **Graphs on every view, taller**: the bottom panel is on every sidebar item, taller than tonight's, its height the
+    person's to drag and kept.
+35. **Columns from the header**: a column header's menu picks the columns; their widths and order are remembered. The Metadata
+    button goes (it offered fields the rows do not show).
+36. **The log is Xcode's**: one line per row of a list (time, level, text, monospaced), lines selectable one or many,
+    find-in-log highlighting its matches, Copy copying the selected lines. It is a record: not editable.
+37. **Granular, like the node editor, "so we can see what recipes worked"**: the Recipes view lists each recipe (its
+    version), its runs under it, each run's steps under that, with per page rates that compare (pages done and failed,
+    failed %, seconds a page, cost a page, the model and place of each step); the Inspector of a run shows its graph as the
+    node editor draws it, each node with its counts.
+
 ## States and what a person may do in each
 
 One vocabulary for the engine's rows (`jobs.state` plus the reason words it decides), the table's glyph, and the verbs. The
@@ -638,7 +664,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
 
 ### Ruled 2026-11-14 afternoon: the window, the bottom panel, the log, kept exports (decisions 22-29)
 
-- `activity.window.toolbar-tabs` — **[PARTIAL]** (#6588; decision 23; supersedes the Group by control of
+- `activity.window.toolbar-tabs` — **[SUPERSEDED 2026-11-15]** (decision 32, the sidebar: `activity.window.sidebar`) **[PARTIAL]** (#6588; decision 23; supersedes the Group by control of
   `activity.pane.group-by-run-or-by-file`) the Activity window's toolbar has ONE segmented control **Runs | Files | Cost |
   Where** and no search field (the filter is the bottom bar's, `activity.pane.bottom-bar-like-every-pane`); each tab is a grouping plus a
   column set over the same rows: **Runs** by run (Name, State, Steps, Time, Cost); **Files** by file (File, State, Steps it
@@ -652,7 +678,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   `test_activity_where_6588.py`; a workflow run by its page jobs). Picture: `docs/assets/activity-pane/window-toolbar-tabs.png`.
   The titles follow the tab ("File" and "Last Run" on Files, "Spent" on Cost, `Column.title(in:)`). *Test:*
   `fichero/Tests/Unit/general/Models/ActivityPane/ActivityToolbarTabsTests.swift`.
-- `activity.pane.bottom-bar-like-every-pane` — **[OK]** (#6588; the owner 2026-11-14: "filter bar and metadata button at the
+- `activity.pane.bottom-bar-like-every-pane` — **[OK; its Metadata button SUPERSEDED 2026-11-15 by decision 35, `activity.pane.columns-from-the-header`]** (#6588; the owner 2026-11-14: "filter bar and metadata button at the
   bottom like in the rest of the app"; `panes.chrome.one-filter-pattern`, `PaneFilterBar`, `PaneFilterField`; supersedes the
   filter field at the top of `activity.pane.history-kept-and-filterable` and the window's Group by row) the pane's one bottom
   bar is the app's: **Metadata** (the column toggles of the one column table, `activity.pane.default-columns`, the same as the
@@ -665,7 +691,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   Started Automatically) and the status figures; the More menu (⋯) is the window's toolbar's, the bar's in a main window's
   pane (`docs/assets/activity-pane/window-bottom-bar.png`). Needs You waits for `activity.pane.needs-you-first`. *Test:*
   `fichero/Tests/Unit/general/Models/ActivityPane/ActivityBottomBarTests.swift`.
-- `activity.window.toolbar-verbs` — **[PARTIAL]** (#6588; decision 24) **Pause**, **Continue** and **Stop** are toolbar buttons of
+- `activity.window.toolbar-verbs` — **[SUPERSEDED 2026-11-15]** (decisions 30-31: `activity.window.run-controls`, `activity.pane.row-controls`) **[PARTIAL]** (#6588; decision 24) **Pause**, **Continue** and **Stop** are toolbar buttons of
   the Activity window and of a main window while its Activity pane holds the focus, enabled by the Mail rule over the
   selection (the one verb list's definitions, `ActivityPaneVerb`), with the Inspector toggle; the More menu (⋯) keeps Show
   Archived, Archive Finished… and Archive Failed. Acceptance: with a running and a paused row selected all three enable; with a
@@ -745,6 +771,67 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   `ActivityErrorRowTests.primaryFix`. *Test:*
   `fichero-server/tests/unit/jobs/test_kept_export_one_row_6588.py` (4, green),
   `fichero-server/tests/unit/jobs/test_kept_export_choose_folder_6588.py` (4, green).
+
+### Ruled 2026-11-15 morning: run controls, the sidebar, models, graphs, columns, the log, recipes (decisions 30-37)
+
+- `activity.window.run-controls` — **[GAP]** (#6588; decision 30) the toolbar's leading item, in the Activity window and every
+  main window, is Play/Pause (one button: Pause while anything runs or waits, Play while a Pause All is outstanding,
+  disabled when neither) and Stop. **Pause All** pauses every running and waiting job and run of every open project (a
+  person's too: a running page finishes, then the run holds), marks each with the one pause's id, and sets the global
+  background pause so nothing new starts; ONE undo step. **Play** (Continue All) resumes exactly the jobs that mark names and
+  clears the background pause; a row paused by hand before stays paused. **Stop All** asks once ("Stop 3 runs and 41 waiting
+  jobs? Their work so far is kept; Retry runs them again.") and stops every running and waiting job; not undoable (Retry is
+  its way back). The engine owns all three: `activity.pause_all`, `activity.continue_all`, `activity.stop_all`, audited
+  actions over every open project's queue, and the summary says which the button shows (`controls: "pause" | "play" |
+  "none"`, `stoppable: n`). Acceptance: two projects, a person's run and 20 waiting thumbnails: Pause All leaves none
+  running; a row paused by hand before stays paused after Play; Undo of Pause All is Play's effect; Stop All ends them
+  cancelled with their done pages kept. *Test:* `fichero-server/tests/unit/jobs/test_pause_all_continue_all_6588.py`,
+  `fichero/Tests/Unit/general/Models/ActivityPane/ActivityRunControlsTests.swift`.
+- `activity.pane.row-controls` — **[GAP]** (#6588; decision 31) the selected or hovered row's trailing cell shows its own
+  Play/Pause (by its state, `ActivityPaneVerb.pause` / `.resume`) and Stop, small, borderless, through the one verb list;
+  nothing for a row neither allows. The toolbar holds no selection verbs; the context menu and Project › Activity keep them.
+  *Test:* `ActivityRowControlsTests.swift`.
+- `activity.window.sidebar` — **[GAP]** (#6588; decision 32; supersedes `activity.window.toolbar-tabs`) the Activity window
+  is a `NavigationSplitView`: a source list (Runs, Files, Recipes, Cost; Models, a section of its own,
+  `activity.window.models-tree`; Archived), the table, the Inspector. Each item is a grouping plus a column set over the
+  same rows (Runs, Files, Cost as the tabs had them; Archived the archived rows by run); the item is remembered per window;
+  each item's count of rows needing you is its badge. A main window's Activity pane offers the same items in its head's
+  lens menu. Acceptance: choosing Files lists by file; Archived lists only archived rows and Show Archived leaves the More
+  menu. *Test:* `ActivityWindowSidebarTests.swift`.
+- `activity.window.models-tree` — **[GAP]** (#6588; decision 33) the sidebar's Models section is place › provider › model:
+  **This Mac** (Kraken, each embedding model, MLX and Ollama models), **Remote** (another Mac by name, a cluster: ACENET),
+  **Cloud** (Anthropic, OpenAI, Hugging Face, …), from the engine's one list `GET /api/activity/models`: each model's id,
+  name, place, provider, `loaded` (held in memory, this Mac's from the model registry; a remote one's as its host says),
+  `active` (a call or page in flight now), the rows it runs now, and today's pages and calls. Its icon: filled when loaded,
+  hollow when not; a green dot (animated while working) when active. Choosing a model lists the rows it ran or runs (by
+  `model` and `runs_on`); choosing a provider or place lists all of theirs. A model used today and not loaded stays listed,
+  hollow. Acceptance: with Kraken reading and an embedder loaded idle, Kraken is filled with the dot, the embedder filled
+  without, a cloud model used this morning hollow. *Test:* `fichero-server/tests/unit/api/test_activity_models_6588.py`,
+  `ActivityModelsTreeTests.swift`.
+- `activity.window.graph-on-every-view` — **[GAP]** (#6588; decision 34; extends `activity.window.bottom-panel`) the bottom
+  panel is on every sidebar item, 180 pt tall by default, its divider dragged and its height kept per window: Runs and
+  Files as built; Recipes pages per minute by recipe; Cost as built; a model or place its pages and calls per minute
+  (`/api/activity/history` grouped by model). Acceptance: every item draws a graph; the height survives a relaunch.
+  *Test:* `ActivityBottomPanelTests.swift` extended.
+- `activity.pane.columns-from-the-header` — **[GAP]** (#6588; decision 35; supersedes the Metadata button of
+  `activity.pane.bottom-bar-like-every-pane`) the columns are chosen from a column header's context menu, and their
+  visibility, widths and order are kept per sidebar item (`TableColumnCustomization`, stored with the pane's prefs); the
+  bottom bar holds the filter only. Acceptance: a column widened stays widened after a relaunch; the bar has no Metadata
+  button. *Test:* `ActivityPanePrefsTests.swift` extended.
+- `activity.log.like-xcode` — **[GAP]** (#6588; decision 36; extends `activity.log.raw-always-rendered`) the Inspector's log is
+  a list, one engine line per row (time, level glyph, text, monospaced, long lines wrapped); a click selects a line, shift
+  and command select many; ⌘C and Copy copy the selected lines (all when none); the log's find field highlights each match
+  and steps through them; the level filter stays. Not editable. *Test:* `ActivityLogListTests.swift`.
+- `activity.window.recipes` — **[GAP]** (#6588; decision 37; an exception to `activity.pane.children-are-what-it-works-on`'s
+  two levels) the Recipes item lists each recipe (name and version) with its runs under it and each run's steps under
+  that. A recipe row: runs, pages done and failed, failed %, seconds a page (median), cost a page, last run. A run row: its
+  scope (folder), started, outcome, the same rates. A step row: its node's name, model and place, pages done and failed,
+  seconds a page, tokens, cost. The Inspector of a run draws its graph as the node editor does (the run's stored
+  `workflow_snapshot` / `diagram_mermaid`), each node with its done, failed and seconds; of a recipe, its runs' rates side by
+  side. Engine: `GET /api/activity/recipes?days=30` answers it from what is kept (the runs' timelines and usage,
+  `run_view.step_timing`), no new recording. Acceptance: two runs of one recipe, one with Kraken (3 of 20 failed) and one
+  with Qwen (0 failed), read 15% and 0% failed with each step's model; the run's Inspector draws its nodes with counts.
+  *Test:* `fichero-server/tests/unit/api/test_activity_recipes_6588.py`, `ActivityRecipesViewTests.swift`.
 
 ## Build order
 
@@ -900,6 +987,44 @@ First, because every new install hits it: one real folder per model, load-checke
 #### Step 4.4 — the raw log; kept exports one row each (#6588)
 - Behaviours: `activity.log.raw-always-rendered`, `activity.kept-export.one-row-per-export`
 - Tests: test_kept_export_one_row_6588.py (not yet written)
+- Depends on: none
+- Size: M
+
+### Stage 5 — the owner's window (2026-11-15 morning)
+
+#### Step 5.1 — global run controls and the row's own (#6588)
+- Behaviours: `activity.window.run-controls`, `activity.pane.row-controls`
+- Tests: fichero-server/tests/unit/jobs/test_pause_all_continue_all_6588.py, ActivityRunControlsTests.swift, ActivityRowControlsTests.swift
+- Depends on: none
+- Size: M
+
+#### Step 5.2 — the sidebar (#6588)
+- Behaviours: `activity.window.sidebar`
+- Tests: ActivityWindowSidebarTests.swift
+- Depends on: none
+- Size: M
+
+#### Step 5.3 — the Models tree (#6588)
+- Behaviours: `activity.window.models-tree`
+- Tests: fichero-server/tests/unit/api/test_activity_models_6588.py, ActivityModelsTreeTests.swift
+- Depends on: 5.2
+- Size: M
+
+#### Step 5.4 — graphs on every view; columns from the header (#6588)
+- Behaviours: `activity.window.graph-on-every-view`, `activity.pane.columns-from-the-header`
+- Tests: ActivityBottomPanelTests.swift, ActivityPanePrefsTests.swift
+- Depends on: 5.2
+- Size: M
+
+#### Step 5.5 — the Recipes view (#6588): the engine's route, then the view and the run's graph
+- Behaviours: `activity.window.recipes`
+- Tests: fichero-server/tests/unit/api/test_activity_recipes_6588.py, ActivityRecipesViewTests.swift
+- Depends on: 5.2
+- Size: M
+
+#### Step 5.6 — the log like Xcode's (#6588)
+- Behaviours: `activity.log.like-xcode`
+- Tests: ActivityLogListTests.swift
 - Depends on: none
 - Size: M
 
