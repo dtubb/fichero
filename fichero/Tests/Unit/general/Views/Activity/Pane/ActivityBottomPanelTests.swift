@@ -8,16 +8,16 @@ import Testing
 struct ActivityBottomPanelTests {
     private let start = Date(timeIntervalSince1970: 1_800_000_000)
 
-    private func minutes(_ pages: [Int], spend: Double = 0) -> [ActivityHistory.Minute] {
-        pages.enumerated().map { ActivityHistory.Minute(start: start.addingTimeInterval(Double($0.offset) * 60), pagesDone: $0.element,
+    private func minutes(_ pages: [Int], spend: Double = 0) -> [ActivityHistoryFigures.Minute] {
+        pages.enumerated().map { ActivityHistoryFigures.Minute(start: start.addingTimeInterval(Double($0.offset) * 60), pagesDone: $0.element,
                                                         spendUsd: spend, tokens: 10) }
     }
 
     @Test("two projects' histories are one: minute by minute summed, places and providers added")
     func merged() {
-        let one = ActivityHistory(minutes: minutes([3, 0, 2]), byRuntime: ["this-mac": 5], todaySpendUsd: 0.1,
+        let one = ActivityHistoryFigures(minutes: minutes([3, 0, 2]), byRuntime: ["this-mac": 5], todaySpendUsd: 0.1,
                                   todaySpendByProvider: ["OpenRouter": 0.1])
-        let two = ActivityHistory(minutes: minutes([1, 4, 0]), byRuntime: ["this-mac": 2, "cloud": 3], todaySpendUsd: 0.2,
+        let two = ActivityHistoryFigures(minutes: minutes([1, 4, 0]), byRuntime: ["this-mac": 2, "cloud": 3], todaySpendUsd: 0.2,
                                   todaySpendByProvider: ["OpenRouter": 0.15, "Gemini": 0.05])
         let total = ActivityBottomPanel.merged([one, two])
         #expect(total.minutes.map(\.pagesDone) == [4, 4, 2])
@@ -28,7 +28,7 @@ struct ActivityBottomPanelTests {
 
     @Test("each tab's figures: counts, pages, today's spend by provider, each place or a dash")
     func figures() {
-        let history = ActivityHistory(minutes: minutes([10, 20]), byRuntime: ["this-mac": 30],
+        let history = ActivityHistoryFigures(minutes: minutes([10, 20]), byRuntime: ["this-mac": 30],
                                       todaySpendUsd: 0.5, todaySpendByProvider: ["OpenRouter": 0.42, "Gemini": 0.08])
         let rows = [ActivityPaneFixture.row("r", .running), ActivityPaneFixture.row("f", .failed)]
         #expect(ActivityBottomPanel.figures(tab: .runs, history: history, rows: rows)
@@ -42,7 +42,7 @@ struct ActivityBottomPanelTests {
 
     @Test("an hour with no work draws no graph: it says so in one line")
     func empty() {
-        #expect(ActivityBottomPanel.isEmpty(ActivityHistory(minutes: minutes([0, 0, 0]))))
-        #expect(!ActivityBottomPanel.isEmpty(ActivityHistory(minutes: minutes([0, 1]))))
+        #expect(ActivityBottomPanel.isEmpty(ActivityHistoryFigures(minutes: minutes([0, 0, 0]))))
+        #expect(!ActivityBottomPanel.isEmpty(ActivityHistoryFigures(minutes: minutes([0, 1]))))
     }
 }

@@ -4,7 +4,7 @@ import SwiftUI
 /// and in a main window's toolbar beside the sidebar while its Activity pane holds the focus. They act on the focused pane's
 /// selection by the Mail rule, through the one verb list (`ActivityPaneVerb`) the pane publishes as `activityVerbs`, the same
 /// target Project › Activity reads: never a second path.
-struct ActivityToolbarVerbButtons: View {
+struct ActivityToolbarVerbsBar: View {
     @FocusedValue(\.activityVerbs) private var target
     /// A main window's toolbar draws nothing while no Activity pane holds the focus; the Activity window always draws them.
     var hidesWithoutAPane = false
@@ -32,6 +32,6 @@ struct ActivityToolbarVerbButtons: View {
 }
 
 #Preview("Toolbar verbs") {
-    ActivityToolbarVerbButtons()
+    ActivityToolbarVerbsBar()
         .padding()
 }

@@ -45,7 +45,7 @@ struct ActivityPaneView: View {
     /// The kept export a row's Choose Folder… is choosing a folder for: the system panel is up while it is set.
     @State var choosingFolder: ActivityFolderChoice?
     /// The open projects' history summed, for the window's bottom panel (`activity.window.bottom-panel`).
-    @State private var history = ActivityHistory()
+    @State private var history = ActivityHistoryFigures()
     @AppStorage("activity.pane.prefs") private var prefsData = Data()
 
     var prefs: ActivityPanePrefs { ActivityPanePrefs.load(prefsData, key: paneKey) }
@@ -251,7 +251,7 @@ struct ActivityPaneView: View {
     private func readHistoryEachMinute() async {
         guard !showsHead else { return }
         while !Task.isCancelled {
-            var read: [ActivityHistory] = []
+            var read: [ActivityHistoryFigures] = []
             for library in libraries {
                 if let one = try? await library.activityService.history() { read.append(one) }
             }
@@ -332,10 +332,4 @@ struct ActivityPaneView: View {
     ActivityPaneView(libraryId: nil)
         .environment(LibraryManager.shared)
         .frame(width: 720, height: 360)
-}
-
-/// A row's Choose Folder…: the project and the kept export the panel chooses a folder for.
-struct ActivityFolderChoice: Equatable {
-    let libraryId: UUID?
-    let exportId: String
 }
