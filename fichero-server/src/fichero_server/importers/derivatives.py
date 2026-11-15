@@ -949,6 +949,7 @@ def _fetch_the_search_model(db) -> str:
 
     from fichero_server.db import embed_process
     from fichero_server.llm.local_models import DOWNLOAD_KIND, MODELS_BASE, enqueue_download
+    from fichero_server.execution import jobs
 
     need = "model:embeddings:?"
     try:
@@ -957,13 +958,9 @@ def _fetch_the_search_model(db) -> str:
         need = f"model:{subject}"
         if embed_process._cached(model, str(MODELS_BASE / "embeddings")):
             return need
-        row = db.execute_fetchone(
-            "SELECT id FROM jobs WHERE kind = ? AND subject = ? ORDER BY "
-            "CASE WHEN state IN ('waiting', 'running', 'paused') THEN 0 ELSE 1 END, created_at DESC LIMIT 1",
-            [DOWNLOAD_KIND, subject],
-        )
-        if row:
-            return row[0]
+        found = jobs.latest_job_id(db, DOWNLOAD_KIND, subject)
+        if found:
+            return found
         return enqueue_download(db, "embeddings", model, started_by="automatic") or need
     except (ValueError, ImportError, OSError, duckdb.Error) as exc:  # no such model here, no cache folder, an unreadable job table: blocked on the need
         logger.warning("could not queue the search model's download: %s", exc)

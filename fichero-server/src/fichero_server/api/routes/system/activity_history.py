@@ -70,10 +70,9 @@ def history(db: Database, minutes: int, now: datetime | None = None) -> Activity
     result = ActivityHistory(buckets=buckets)
     _ensure(db)
     # A page job: a job of a page kind under a run's step; the run and step rows themselves are not pages.
-    rows = db.execute_fetchall(
-        "SELECT finished_at, state, detail, target FROM jobs WHERE parent_id IS NOT NULL "
-        f"AND kind NOT IN ({', '.join('?' * len(RUN_KINDS))}) AND state IN ('done', 'failed') AND finished_at >= ?",
-        [*RUN_KINDS, min(first, midnight).replace(tzinfo=None)], committed=True)
+    from fichero_server.execution import jobs as job_queue
+
+    rows = job_queue.finished_page_jobs_since(db, min(first, midnight).replace(tzinfo=None), RUN_KINDS)
     today: dict[str, float] = {}
     runtimes: dict[Runtime, int] = {}
     for finished, state, detail, target in rows:
