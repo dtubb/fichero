@@ -21,8 +21,13 @@ struct ActivityMonitorWindow: View {
                     .inspectorColumnWidth(min: 280, ideal: 380, max: 640)
             }
             .toolbar {
+<<<<<<< HEAD
                 // Activity Monitor's toolbar (decision 22): the verbs at the leading edge, the Inspector toggle at the end.
                 ToolbarItem(placement: .navigation) { ActivityToolbarVerbsBar() }
+=======
+                // Xcode's run controls at the far left (decision 30): Play/Pause and Stop for all work; the Inspector toggle at the end.
+                ToolbarItem(placement: .navigation) { ActivityRunControlsButtons() }
+>>>>>>> 8599ab5c0a (feat(activity): Xcode's run controls at the far left of the Activity window and every main window: one Play/Pause that turns, and Stop, for all work in every open project (#6588))
                 ToolbarItem(placement: .primaryAction) {
                     Button { showsInspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.trailing") }
                         .help(showsInspector ? "Hide the Inspector" : "Show the Inspector")
