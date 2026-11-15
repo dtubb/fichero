@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 
-from fichero_server.api.routes import kg_rebuild as routes
+from fichero_server.api.routes.kg import rebuild as routes
 
 
 def test_rebuild_uses_default_options(monkeypatch):

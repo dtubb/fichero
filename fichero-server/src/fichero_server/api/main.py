@@ -2623,19 +2623,19 @@ from fichero_server.api.routes import reading_at_scale as reading_at_scale_route
 from fichero_server.api.routes import sync_folders as sync_folder_routes  # noqa: E402
 from fichero_server.api.routes import (  # noqa: E402
     ingest,
-    kg_graph,
-    kg_pykeen,
-    kg_claim_search,
-    kg_entity_curation,
-    kg_render,
-    kg_predictions,
-    kg_rebuild,
-    kg_search,
     library,
     search,
     workflow_execution,
 )
 from fichero_server.api.routes.kg import (  # noqa: E402
+    claim_search as kg_claim_search,
+    entity_curation as kg_entity_curation,
+    graph as kg_graph,
+    predictions as kg_predictions,
+    pykeen as kg_pykeen,
+    rebuild as kg_rebuild,
+    render as kg_render,
+    search as kg_search,
     claim_analysis as kg_claim_analysis,
     curation_rules as kg_curation_rules,
     inclusion as kg_inclusion,

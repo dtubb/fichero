@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-from fichero_server.api.routes import kg_claim_search as routes
+from fichero_server.api.routes.kg import claim_search as routes
 from fichero_server.models.knowledge import ClaimType, KnowledgeClaim
 
 
