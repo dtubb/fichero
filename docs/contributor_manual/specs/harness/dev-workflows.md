@@ -472,7 +472,7 @@ the write path would produce.
   cached per file mtime), and the API-equivalent dollars in grey, "on Max, not billed" (`[spend].prices`; cache reads at 0.1x and cache writes at
   1.25x the input price). **Built** 2026-11-02: `console.lane_usage`, the card in `console.html`. Not yet: a per-model split.
   Test `fichero-builder/tests/test_status_page.py::test_lane_usage_today_sums_each_external_lanes_transcripts_once_per_message`.
-- `dev-workflows.run.issues-close-when-done` [PARTIAL] (owner 2026-11-14: issues close when they are done) —
+- `dev-workflows.run.issues-close-when-done` [PARTIAL] (#6589; owner 2026-11-14: issues close when they are done) —
   an issue is closed by the harness once its work is done, decided deterministically by `fichero-builder/fichero_builder/issue_reconcile.py` from the spec bullets
   that own it (the `(#N)` right after a bullet's own status tag) and from `Fixes`/`Closes #N` commits: CLOSE-A = every owning bullet is `[OK]` or
   `[BUILT]` (the specs use both) and the tests it names exist on the ref; CLOSE-B = a fix commit and no owning bullet that is not done (and no named
@@ -1598,6 +1598,14 @@ Issues #6467, #6504, #6506, #6507, #6524; built on the same branch.
 
 Lead 2026-11-11, after the harness-console-fix batch landed; built on the same branch.
 
+#### Step 4.11 — issues close when they are done: the reconcile after every landing and nightly
+- Behaviours: `dev-workflows.run.issues-close-when-done`
+- Tests: fichero-builder/tests/test_issue_reconcile.py, fichero-builder/tests/test_queue_verb.py
+- Depends on: 4.10
+- Size: S
+
+Owner 2026-11-14 (#6589); built on the issue-close lane. Not yet: a run on the real jail user.
+
 ## Behaviour tests
 
 Every behaviour names its test above, written in its step; each `security.*` and gate test includes its failing case.
@@ -1724,6 +1732,7 @@ Every behaviour names its test above, written in its step; each `security.*` and
 | `dev-workflows.run.loop-retry-keeps-head` | 4.10 |
 | `dev-workflows.run.presubmit-scratch-owned` | 4.10 |
 | `dev-workflows.run.brief-for-worker` | 4.10 |
+| `dev-workflows.run.issues-close-when-done` | 4.11 |
 | `dev-workflows.console.abandoned-after-six-hours` | 4.9 |
 
 ## Test matrix
