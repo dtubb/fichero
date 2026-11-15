@@ -32,7 +32,7 @@ struct ActivityBottomPanel: View {
     @ViewBuilder
     private var graph: some View {
         switch tab {
-        case .runs, .files:
+        case .runs, .files, .archived:
             Chart(history.minutes) { minute in
                 BarMark(x: .value("Minute", minute.start, unit: .minute), y: .value("Pages", minute.pagesDone))
                     .foregroundStyle(.green)
@@ -103,6 +103,8 @@ struct ActivityBottomPanel: View {
             return "\(running) running · \(waiting) waiting · \(needYou) need you\n\(done) pages done in the last hour"
         case .files:
             return "\(done) pages done · \(failed) failed in the last hour"
+        case .archived:
+            return "\(rows.count) archived · \(done) pages done in the last hour"
         case .cost:
             let providers = history.todaySpendByProvider.sorted { $0.value > $1.value }
                 .map { "\($0.key) \(String(format: "$%.2f", $0.value))" }

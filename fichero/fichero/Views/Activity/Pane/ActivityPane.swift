@@ -21,11 +21,11 @@ enum ActivityPane {
         var title: String { self == .run ? "Run" : "File" }
     }
 
-    /// The window's four tabs, one table (`activity.window.toolbar-tabs`, decision 23): each a grouping and a column set over
-    /// the same rows. Runs: what is working and what needs me; Files: what happened to my pages; Cost: what it spends;
-    /// Where: where it runs.
+    /// The window's sidebar items, one table (`activity.window.sidebar`, decision 32; were the toolbar's tabs, decision 23):
+    /// each a grouping and a column set over the same rows. Runs: what is working and what needs me; Files: what happened to
+    /// my pages; Cost: what it spends; Where: where it runs; Archived: the rows put away, and only those.
     enum Tab: String, CaseIterable, Identifiable, Codable {
-        case runs, files, cost, place = "where"
+        case runs, files, cost, place = "where", archived
 
         var id: String { rawValue }
 
@@ -35,6 +35,7 @@ enum ActivityPane {
             case .files: "Files"
             case .cost: "Cost"
             case .place: "Where"
+            case .archived: "Archived"
             }
         }
 
@@ -44,6 +45,7 @@ enum ActivityPane {
             case .files: "doc.on.doc"
             case .cost: "dollarsign.circle"
             case .place: "desktopcomputer"
+            case .archived: "archivebox"
             }
         }
 
@@ -56,8 +58,13 @@ enum ActivityPane {
             case .files: [.name, .state, .trail, .started]
             case .cost: [.source, .name, .model, .tokens, .time, .cost, .toFinish]
             case .place: [.source, .name, .runsOn, .lane, .state]
+            case .archived: [.source, .name, .state, .started, .time, .cost]
             }
         }
+
+        /// The sidebar's sections (`activity.window.sidebar`): the work, then the resources it uses; Archived below them.
+        static let sidebarWork: [Tab] = [.runs, .files]
+        static let sidebarResources: [Tab] = [.cost, .place]
 
         /// The tab a grouping chosen elsewhere (View › Activity ▸, a main window's lens) lands on.
         static func of(_ grouping: Grouping) -> Tab { grouping == .file ? .files : .runs }
@@ -160,6 +167,11 @@ enum ActivityPane {
         case .waiting: 2
         case .done, .cancelled, .interrupted, .notRun, .unknown: 3
         }
+    }
+
+    /// How many rows need the person (`needsYouRank` 0): the Runs item's badge in the sidebar.
+    static func needsYouCount(_ rows: [ActivityMonitorRow]) -> Int {
+        rows.filter { !$0.isArchived && needsYouRank($0) == 0 }.count
     }
 
     /// The pane's rows by Run: no section rows, what needs the person first (newest first), then what runs, then what waits
