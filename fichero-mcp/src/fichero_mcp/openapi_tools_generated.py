@@ -256,6 +256,12 @@ def fichero_activity_cleanup_old_activities(
     return _rt.call("DELETE", "/api/activity/cleanup", params={"days": days})
 
 
+def fichero_activity_continue_all(
+) -> Any:
+    "Continue All\n\nContinue All, the Play of the window's Play/Pause: the work Pause All held goes on (a workflow run from its\ncheckpoint), background work is let go; a row a person paused by hand stays paused.\n\nRoute: POST /api/activity/continue-all (toolset `activity`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/activity/continue-all")
+
+
 def fichero_activity_get_history(
     *,
     minutes: Annotated[Optional[int], Field(description='the window, in minutes ending now')] = None,
@@ -402,7 +408,7 @@ def fichero_activity_set_job_paused(
     job_id: Annotated[str, Field(description='Job Id')],
     paused: Annotated[bool, Field(description='true pauses this job; false resumes it.')],
 ) -> Any:
-    'Set Job Paused\n\nPause one waiting job, or resume a paused one (`activity.pause.per-job`). A paused job stays\npaused across relaunch. A running job finishes the item it is on; a page a workflow run is\nwaiting for is paused with its run (409).\n\nRoute: PUT /api/activity/jobs/{job_id}/paused (toolset `activity`; changes data, as the agent account when one exists).'
+    "Set Job Paused\n\nPause one waiting job, or resume a paused one (`activity.pause.per-job`). A paused job stays\npaused across relaunch. A running job finishes the item it is on; a page a workflow run is\nwaiting for is paused with its run (409). A paused workflow run is resumed from its checkpoint, as\nits own Resume does: the row's Continue is the one verb (#6588; it answered 409 before).\n\nRoute: PUT /api/activity/jobs/{job_id}/paused (toolset `activity`; changes data, as the agent account when one exists)."
     return _rt.call("PUT", f"/api/activity/jobs/{job_id}/paused", json=_rt.body({"paused": paused}))
 
 
@@ -422,6 +428,12 @@ def fichero_activity_get_metrics_summary(
     return _rt.call("GET", "/api/activity/metrics/summary", params={"hours": hours})
 
 
+def fichero_activity_pause_all(
+) -> Any:
+    "Pause All\n\nPause All (`activity.window.run-controls`, #6588): every running and waiting piece of work of this project, a\nperson's runs too, pauses as its own Pause does, and background work is paused so nothing new starts. One undo step;\nContinue All lets go exactly what it held.\n\nRoute: POST /api/activity/pause-all (toolset `activity`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/activity/pause-all")
+
+
 def fichero_activity_get_recent_activities(
     *,
     limit: Annotated[Optional[int], Field(description='Limit')] = None,
@@ -436,6 +448,12 @@ def fichero_activity_get_stats(
 ) -> Any:
     'Get Activity Stats\n\nGet aggregated activity statistics.\n\nReturns counts by type and level, error/warning counts,\naverage workflow duration, and success rate.\n\nRoute: GET /api/activity/stats (toolset `activity`; reads).'
     return _rt.call("GET", "/api/activity/stats", params={"hours": hours})
+
+
+def fichero_activity_stop_all(
+) -> Any:
+    'Stop All\n\nStop All (`activity.window.run-controls`): every running, waiting and paused piece of work of this project stops as\nits own Stop does; what it did is kept, and Retry runs it again. Not undoable.\n\nRoute: POST /api/activity/stop-all (toolset `activity`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/activity/stop-all")
 
 
 def fichero_activity_list_stopped_at_quit(
@@ -9666,6 +9684,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_activity_list_activities", "activity", "GET", "/api/activity", fichero_activity_list_activities),
     GeneratedTool("fichero_activity_get_batch", "activity", "GET", "/api/activity/batch/{batch_id}", fichero_activity_get_batch),
     GeneratedTool("fichero_activity_cleanup_old_activities", "activity", "DELETE", "/api/activity/cleanup", fichero_activity_cleanup_old_activities),
+    GeneratedTool("fichero_activity_continue_all", "activity", "POST", "/api/activity/continue-all", fichero_activity_continue_all),
     GeneratedTool("fichero_activity_get_history", "activity", "GET", "/api/activity/history", fichero_activity_get_history),
     GeneratedTool("fichero_activity_list_background_jobs", "activity", "GET", "/api/activity/jobs", fichero_activity_list_background_jobs),
     GeneratedTool("fichero_activity_archive_jobs", "activity", "POST", "/api/activity/jobs/archive", fichero_activity_archive_jobs),
@@ -9685,8 +9704,10 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_activity_set_job_paused", "activity", "PUT", "/api/activity/jobs/{job_id}/paused", fichero_activity_set_job_paused),
     GeneratedTool("fichero_activity_retry_job", "activity", "POST", "/api/activity/jobs/{job_id}/retry", fichero_activity_retry_job),
     GeneratedTool("fichero_activity_get_metrics_summary", "activity", "GET", "/api/activity/metrics/summary", fichero_activity_get_metrics_summary),
+    GeneratedTool("fichero_activity_pause_all", "activity", "POST", "/api/activity/pause-all", fichero_activity_pause_all),
     GeneratedTool("fichero_activity_get_recent_activities", "activity", "GET", "/api/activity/recent", fichero_activity_get_recent_activities),
     GeneratedTool("fichero_activity_get_stats", "activity", "GET", "/api/activity/stats", fichero_activity_get_stats),
+    GeneratedTool("fichero_activity_stop_all", "activity", "POST", "/api/activity/stop-all", fichero_activity_stop_all),
     GeneratedTool("fichero_activity_list_stopped_at_quit", "activity", "GET", "/api/activity/stopped-at-quit", fichero_activity_list_stopped_at_quit),
     GeneratedTool("fichero_activity_continue_after_quit", "activity", "POST", "/api/activity/stopped-at-quit/continue", fichero_activity_continue_after_quit),
     GeneratedTool("fichero_activity_get_workflow", "activity", "GET", "/api/activity/workflow/{workflow_id}", fichero_activity_get_workflow),

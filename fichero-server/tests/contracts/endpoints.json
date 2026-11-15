@@ -392,6 +392,16 @@
         "response_model": "CleanupResponse"
       },
       {
+        "method": "POST",
+        "path": "/activity/continue-all",
+        "operation_id": "continue_all_api_activity_continue_all_post",
+        "summary": "Continue All",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "RunControlsResponse"
+      },
+      {
         "method": "GET",
         "path": "/activity/history",
         "operation_id": "get_activity_history_api_activity_history_get",
@@ -678,6 +688,16 @@
         "response_model": "ActivityMetricsSummary"
       },
       {
+        "method": "POST",
+        "path": "/activity/pause-all",
+        "operation_id": "pause_all_api_activity_pause_all_post",
+        "summary": "Pause All",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "RunControlsResponse"
+      },
+      {
         "method": "GET",
         "path": "/activity/recent",
         "operation_id": "get_recent_activities_api_activity_recent_get",
@@ -708,6 +728,16 @@
         ],
         "request_model": null,
         "response_model": "ActivityStatsResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/activity/stop-all",
+        "operation_id": "stop_all_api_activity_stop_all_post",
+        "summary": "Stop All",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "RunControlsResponse"
       },
       {
         "method": "GET",

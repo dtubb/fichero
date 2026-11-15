@@ -888,6 +888,171 @@
         }
       }
     },
+    "/api/activity/pause-all": {
+      "post": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Pause All",
+        "description": "Pause All (`activity.window.run-controls`, #6588): every running and waiting piece of work of this project, a\nperson's runs too, pauses as its own Pause does, and background work is paused so nothing new starts. One undo step;\nContinue All lets go exactly what it held.",
+        "operationId": "pause_all_api_activity_pause_all_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunControlsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/activity/continue-all": {
+      "post": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Continue All",
+        "description": "Continue All, the Play of the window's Play/Pause: the work Pause All held goes on (a workflow run from its\ncheckpoint), background work is let go; a row a person paused by hand stays paused.",
+        "operationId": "continue_all_api_activity_continue_all_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunControlsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/activity/stop-all": {
+      "post": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Stop All",
+        "description": "Stop All (`activity.window.run-controls`): every running, waiting and paused piece of work of this project stops as\nits own Stop does; what it did is kept, and Retry runs it again. Not undoable.",
+        "operationId": "stop_all_api_activity_stop_all_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunControlsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/activity/jobs/{job_id}/paused": {
       "put": {
         "tags": [
@@ -895,7 +1060,7 @@
           "activity"
         ],
         "summary": "Set Job Paused",
-        "description": "Pause one waiting job, or resume a paused one (`activity.pause.per-job`). A paused job stays\npaused across relaunch. A running job finishes the item it is on; a page a workflow run is\nwaiting for is paused with its run (409).",
+        "description": "Pause one waiting job, or resume a paused one (`activity.pause.per-job`). A paused job stays\npaused across relaunch. A running job finishes the item it is on; a page a workflow run is\nwaiting for is paused with its run (409). A paused workflow run is resumed from its checkpoint, as\nits own Resume does: the row's Continue is the one verb (#6588; it answered 409 before).",
         "operationId": "set_job_paused_api_activity_jobs__job_id__paused_put",
         "parameters": [
           {
@@ -52510,6 +52675,23 @@
             "type": "array",
             "title": "Up Next",
             "description": "work not yet started, in lane order, each with what it waits for (`activity.summary.up-next`, #5960)"
+          },
+          "controls": {
+            "type": "string",
+            "enum": [
+              "pause",
+              "play",
+              "none"
+            ],
+            "title": "Controls",
+            "description": "what the window's Play/Pause button shows (`activity.window.run-controls`, #6588): play while Pause All holds work (Play continues it), pause while anything runs or waits, none when neither",
+            "default": "none"
+          },
+          "stoppable": {
+            "type": "integer",
+            "title": "Stoppable",
+            "description": "how many pieces of work Stop All would stop: running, waiting and paused",
+            "default": 0
           }
         },
         "type": "object",
@@ -94053,6 +94235,36 @@
           "comparable"
         ],
         "title": "RunComparisonResponse"
+      },
+      "RunControlsResponse": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Ids",
+            "description": "the rows the control acted on"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "runs_resumed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Runs Resumed",
+            "description": "Continue All: the paused workflow runs resumed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ids",
+          "count"
+        ],
+        "title": "RunControlsResponse"
       },
       "RunFailure": {
         "properties": {

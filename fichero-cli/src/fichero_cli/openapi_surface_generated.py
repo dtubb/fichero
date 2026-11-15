@@ -627,6 +627,17 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("continue-all")
+    def activity_continue_all_post(
+        ctx: typer.Context,
+    ) -> None:
+        """Continue All (POST /api/activity/continue-all)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/continue-all"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-history")
     def activity_get_history_get(
         ctx: typer.Context,
@@ -935,6 +946,17 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("pause-all")
+    def activity_pause_all_post(
+        ctx: typer.Context,
+    ) -> None:
+        """Pause All (POST /api/activity/pause-all)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/pause-all"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-recent-activities")
     def activity_get_recent_activities_get(
         ctx: typer.Context,
@@ -961,6 +983,17 @@ def register_generated_openapi_commands(
                 "hours": hours,
             }
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("stop-all")
+    def activity_stop_all_post(
+        ctx: typer.Context,
+    ) -> None:
+        """Stop All (POST /api/activity/stop-all)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/stop-all"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-stopped-at-quit")
