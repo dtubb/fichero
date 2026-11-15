@@ -111,8 +111,9 @@ def test_a_run_with_no_baseline_figures_records_them_and_does_not_fail():
     assert out["recorded"] == {"wall_ms|t::a|Mac16,10": {"median": 12.0}, "peak_rss_mb|engine perf run|Mac16,10": {"median": 500.0}}
 
 
-def test_a_refused_or_skipped_rung_is_not_run_never_green():
-    from fichero_builder import check_tool
+def test_a_refused_or_skipped_rung_is_not_run_never_green(tmp_path, monkeypatch):
+    from fichero_builder import check_tool, journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")  # #6589: without it, every run wrote a security alert to the owner's journal
     assert check_tool.rung_not_run({"ok": True, "skipped": True})
     r = check_tool._report_only("security", {"enforce": False}, False, ["REFUSED: bandit has no pinned version in harness.toml [check.security]"])
     assert r["ok"] and r["not_run"] and check_tool.rung_not_run(r)
