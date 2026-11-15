@@ -36,6 +36,13 @@ struct ActivityDefaultColumnsTests {
         #expect(ActivityPane.costLine(ActivityPaneFixture.row("z", .done, costUsd: 0)) == "Free", "a $0 priced call, never $0.00")
     }
 
+    @Test("the Steps cell counts only work of more than one item: never 0 of 1 or 1 of 1, the state glyph says it")
+    func oneItemHasNoCount() {
+        #expect(ActivityPane.progressLine(ActivityPaneFixture.row("one", .running, done: 0, total: 1)).isEmpty)
+        #expect(ActivityPane.progressLine(ActivityPaneFixture.row("one", .done, done: 1, total: 1)).isEmpty)
+        #expect(ActivityPane.progressLine(ActivityPaneFixture.row("many", .running, done: 2, total: 60)) == "2 of 60")
+    }
+
     @Test("a time is one short unit: 48 s, 3 min, 2 h; never secs. or a full stop")
     func shortTimes() {
         #expect(ActivityMonitorRow.duration(48) == "48 s")

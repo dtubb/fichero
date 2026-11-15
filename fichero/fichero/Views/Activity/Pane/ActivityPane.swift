@@ -307,7 +307,8 @@ enum ActivityPane {
     /// The Steps cell: the trail of a recipe run, else "12 of 40" while it has counts.
     static func progressLine(_ row: ActivityMonitorRow) -> String {
         if !row.trail.isEmpty { return row.trail }
-        guard row.total > 0, !row.looksWaiting else { return row.ranOnText ?? "" }
+        // One item counts nothing: "0 of 1" and "1 of 1" only repeat the state glyph (#6588).
+        guard row.total > 1, !row.looksWaiting else { return row.ranOnText ?? "" }
         return "\(row.done) of \(row.total)"
     }
 
