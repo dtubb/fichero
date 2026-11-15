@@ -146,7 +146,7 @@ struct RecipeSkippedRows: View {
                         Text(store.title(ofStepId: skipped.step)).font(.callout.weight(.medium))
                         Text(skipped.why).font(.callout).foregroundStyle(.secondary)
                         if let fix = skipped.fix {
-                            Button(RecipeStepRow.fixTitle(fix)) { press(fix, step: skipped.step) }
+                            Button(RecipeStepRowView.fixTitle(fix)) { press(fix, step: skipped.step) }
                                 .controlSize(.small)
                         }
                     }

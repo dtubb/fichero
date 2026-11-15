@@ -1,15 +1,10 @@
 import FicheroAPIClient
 import SwiftUI
 
-/// The three global controls (`activity.window.run-controls`, decision 30, #6588).
-enum ActivityRunControl: Sendable {
-    case pauseAll, continueAll, stopAll
-}
-
 /// Xcode's run controls for all work, at the far left of the Activity window's toolbar and of every main window's: ONE
 /// Play/Pause button that turns into the other, and Stop. They act on every open project, through each project's engine
 /// action (`activity.pause_all` / `continue_all` / `stop_all`); the engine's summary says which the button shows.
-struct ActivityRunControlsButtons: View {
+struct ActivityRunControlsBar: View {
     @Environment(LibraryManager.self) private var libraryManager
     @State private var confirmingStop = false
     @State private var notice: String?
@@ -85,7 +80,7 @@ struct ActivityRunControlsButtons: View {
 }
 
 #Preview("Run controls") {
-    ActivityRunControlsButtons()
+    ActivityRunControlsBar()
         .environment(LibraryManager.shared)
         .padding()
 }

@@ -65,7 +65,7 @@ struct SetUpButtonsActTests {
         }
         #expect(RecipeStepsView.fixRoute("accept-licence", hasProject: true) == .licence)
         #expect(RecipeStepsView.fixRoute("allow-cloud", hasProject: true) == .setup)
-        #expect(RecipeStepRow.fixTitle("accept-licence") == "Review the licence…")
+        #expect(RecipeStepRowView.fixTitle("accept-licence") == "Review the licence…")
     }
 
     @Test("Review the licence… lists the models refused for their licence, with the licence to read")
