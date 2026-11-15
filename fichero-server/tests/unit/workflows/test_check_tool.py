@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 import sys
 from pathlib import Path
 
@@ -862,7 +863,7 @@ def test_the_ready_rung_lets_the_projects_scripts_import_their_siblings(tmp_path
     (tmp_path / "scripts").mkdir()
     (tmp_path / "scripts" / "_helper.py").write_text("OK = True\n")
     (tmp_path / "scripts" / "guard.py").write_text("from _helper import OK\nassert OK\n")
-    (tmp_path / "scripts" / "ready.sh").write_text(f"#!/bin/sh\nexec {sys.executable} scripts/guard.py\n")
+    (tmp_path / "scripts" / "ready.sh").write_text(f"#!/bin/sh\nexec {shlex.quote(sys.executable)} scripts/guard.py\n")
     (tmp_path / "scripts" / "ready.sh").chmod(0o755)
     r = ct.ready(tmp_path, ct.Config(ready=("scripts/ready.sh",)))
     assert r["ok"], r["stderr_tail"]
