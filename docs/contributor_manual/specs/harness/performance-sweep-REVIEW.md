@@ -43,6 +43,7 @@ Step 1 and Step 2 alone would already have given the owner something, and cut th
   expect launch to be `noisy` for weeks. Acceptable if it still files hotspots; say so.
 
 ## Cut for v1
+OVERRULED 2026-11-15: all eight build-order steps are v1 and none is deferred (see `performance-sweep.md`, Build order).
 - Keep: Step 1, Step 2 (log readers + table + console), Step 5 (filing from log rows alone), Step 6 (warnings).
 - Defer: py-spy (pyinstrument is enough to name the first ten hotspots), memray (peak RSS from `time -l` first), the
   diagnostics test plan, MetricKit subscriber and Organizer read, iOS/iPad simulator profiles, `Energy Log`, `builder
@@ -51,9 +52,9 @@ Step 1 and Step 2 alone would already have given the owner something, and cut th
 - One corpus: the generated fixture. No external HTR set until the owner picks one (question 5).
 
 ## Open questions for the owner
-1. New `performance-sweep` milestone, or stay under `dev-workflows`?
-2. A `sudoers` line for `py-spy` on the M4, or pyinstrument only?
+1. ANSWERED 2026-11-15: new `performance-sweep` milestone (see `performance-sweep.md`, Open questions 1).
+2. ANSWERED 2026-11-15: a `sudoers` line for `py-spy` on the M4 only, allowing nothing else (see `performance-sweep.md`, Open questions 2).
 3. Profiles stay on the M4's disk with the run id in the issue, or are pushed somewhere attachable?
-4. Filing floors (5% / 50 MB / 10 MB / 250 ms) and the daily issue cap for the sweep (3 proposed).
+4. PARTLY ANSWERED 2026-11-15: no daily cap; every spot over its floor is filed, deduped by key (see `performance-sweep.md`, Filing rule). Filing floors (5% / 50 MB / 10 MB / 250 ms) still open.
 5. Which open corpus beyond the generated one, if any; and is an iOS device on the M4 wanted for energy?
 6. The nightly window on the M4 (proposed 01:00–05:00) and whether app recordings may be skipped on a locked session.

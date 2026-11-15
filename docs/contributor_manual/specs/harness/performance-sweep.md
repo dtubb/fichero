@@ -21,6 +21,7 @@ those asks on its own. The dimensions are time, CPU, RAM, disk, energy and effic
 Swift app on Mac, iPhone and iPad and for the Python engine. The second goal is that nothing gets slower unnoticed. The
 third is that compiler, SwiftLint and Xcode build-system warnings are found, listed and worked down the same way; the
 example given is the build-system line about a script phase that runs on every build because it names no outputs.
+The sweep's output is a RANKED list of slow and heavy spots (time, CPU, RAM, disk, energy, warnings), each of which becomes a "speed up X" lane, and it reads the logs the app already makes (the `LaunchProfile` and `InteractionProfile` signposts, the engine's `PERF … duration_ms` lines, and Xcode Organizer and MetricKit field data).
 
 Three rules shape everything below. **Platform tools measure, we only read:** `xctrace`, `xcresulttool`, XCTest metrics,
 MetricKit, `log show`, pyinstrument/py-spy, memray, `du`; no timer of ours (`adopt-tools-dont-write-our-own`). **Heavy
@@ -71,7 +72,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   `sudoers` allows `py-spy` without a password for the gate user (py-spy attaches with `task_for_pid` and needs root on
   macOS); it is the only profiler that sees the worker processes the engine forks (`--subprocesses`) and native frames in
   DuckDB, numpy and MLX, which pyinstrument attributes to the calling Python line. Whether `py-spy` is permitted is a
-  declared machine fact (`[machines].m4air.sudo = ["py-spy"]`), never probed by trying. **RAM:** `memray run --native
+  declared machine fact (`[machines].m4air.sudo = ["py-spy"]`), never probed by trying. Owner 2026-11-15: py-spy may run with sudo on the M4 only, through one narrow sudoers line that allows nothing but py-spy; no other machine gets it, and pyinstrument is the fallback everywhere else. **RAM:** `memray run --native
   --follow-fork -o <run>/<w>.bin <driver>` then `memray stats --json -o <run>/<w>.memray.json <run>/<w>.bin` (peak,
   top allocators by size and by count) and `memray flamegraph -o <run>/<w>.memray.html <run>/<w>.bin` for the reviewer;
   `/usr/bin/time -l` wraps every driver for the zero-overhead peak RSS (`maximum resident set size`) that the rung holds.
@@ -229,9 +230,9 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   line numbers for frames, the view name for bodies, the span name for spans), written as a `<!-- perf-key: … -->` line
   in the body and found with `gh issue list --search "perf-key: <key>" --state open`; a closed issue with the same key
   reopens with a comment (a regression, not a duplicate; the comment carries both runs' figures). **Through the filer:**
-  the watcher's filer (`builder watch`, #6369) with its caps (3 issues a pass, 10 a day, the rest into one rolling
-  `Performance - sweep overflow` issue) and its placement (`builder triage --move` into `performance-sweep` or the area's
-  spec milestone, `builder steps` under the area's step), so related hotspots group into one speed-up batch. **The
+  the watcher's filer (`builder watch`, #6369) and its placement (`builder triage --move` into `performance-sweep`,
+  `builder steps` under the area's step), so related hotspots group into one speed-up batch. Owner 2026-11-15: every
+  spot over its floor is filed, with no daily cap and no rolling overflow issue; dedupe by key is the only brake. **The
   issue:** title `Performance - <area>: <where> <value><unit> (<share>% of <workload>, <trend>)`; body: the row, the
   workload and corpus, the machine model, the top 20 frames or allocators inline as text, the profile's run id and
   path (`builder perf show <run-id>` reopens it), the test or benchmark that would hold the fix (the workload's perf
@@ -338,7 +339,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
 
 ## Build order
 
-Smallest first; each step is one lane batch unless marked. Steps 1–2 produce value with no new tool on any machine.
+Smallest first; each step is one lane batch unless marked. Steps 1–2 produce value with no new tool on any machine. Owner 2026-11-15: all eight steps are v1 and none is deferred, so the review's v1 cut does not apply.
 
 #### Step 1 — the #6589 blockers: the rungs run, or say they did not (#6589)
 - Behaviours: `perf-sweep.rung.not-run-is-visible`
@@ -377,7 +378,7 @@ Smallest first; each step is one lane batch unless marked. Steps 1–2 produce v
 - Depends on: 3
 - Size: M
 - Order: readers over fixture outputs first; the nightly driver on the M4 behind the heavy lock, one workload at a time,
-  W2 last and with its own budget; rows into the table. py-spy only when the owner adds the sudoers line (open question).
+  W2 last and with its own budget; rows into the table. py-spy runs with sudo on the M4 only, through the one sudoers line the owner approved on 2026-11-15 (Open questions, 2).
 
 #### Step 5 — the filing rule through the watcher's filer (#6600)
 - Behaviours: `perf-sweep.output.filing-rule`
@@ -385,7 +386,7 @@ Smallest first; each step is one lane batch unless marked. Steps 1–2 produce v
 - Depends on: 2 (useful from the log rows alone), 4
 - Size: S
 - Order: floors, the two-run rule, the key, reopen-on-regression, the caps and placement, the issue body with the inline
-  frames and the owner's ask. The first pass is capped at 3 issues and the manager reads them before the cap is raised.
+  frames and the owner's ask. Owner 2026-11-15: no daily cap; every spot over its floor is filed, deduped by key.
 
 #### Step 6 — the warnings ratchet and list (#6610)
 - Behaviours: `perf-sweep.warnings.from-the-result-bundle`, `perf-sweep.warnings.ratchet`,
@@ -420,7 +421,7 @@ Smallest first; each step is one lane batch unless marked. Steps 1–2 produce v
 
 ## Changes to dev-workflows
 
-- `quality.perf-rung-engine`: py-spy is allowed when `[machines].<m>.sudo` names it; pyinstrument stays the default.
+- `quality.perf-rung-engine`: py-spy is allowed when `[machines].<m>.sudo` names it, and the owner ruled 2026-11-15 that this is the M4 only; pyinstrument stays the default.
   The "not run" alert becomes the `not-run` state above.
 - `quality.perf-rung-app`: the nightly xctrace form gains `File Activity` and `App Launch`; the SwiftUI template's body
   table is the cross-check it already names.
@@ -430,15 +431,19 @@ Smallest first; each step is one lane batch unless marked. Steps 1–2 produce v
 
 ## Open questions for the owner
 
-1. Milestone: a new `performance-sweep` milestone (this spec's name) with #6600, #6610 and the perf part of #6589 moved
-   into it, or everything stays under `dev-workflows`?
-2. `py-spy` needs root on macOS: may the gate user on the M4 get a `sudoers` line for exactly `py-spy` (nothing else)?
-   Without it the engine time profile is pyinstrument's, which does not see forked workers or native frames.
+Questions 1 and 2 are answered (owner, 2026-11-15). Question 4 is partly answered: the daily cap is gone. Questions 3, 4's
+floors, 5 and 6 are still open; the owner has not ruled on them.
+
+1. Answered 2026-11-15: the work lives in a new GitHub milestone named `performance-sweep`, and #6600, #6610 and the perf
+   part of #6589 move into it.
+2. Answered 2026-11-15: yes, on the M4 only, through one narrow sudoers line that allows exactly `py-spy` and nothing
+   else. Other machines never get it. Without it the engine time profile is pyinstrument's, which does not see forked
+   workers or native frames.
 3. The profiles cannot be attached to a GitHub issue from the CLI: the issue carries the top frames inline and the run id,
    and the trace lives on the M4's Dev Disk for 30 days. Is that enough, or should the nightly also push a `gh gist` /
    release asset per filed issue?
-4. Floors for filing (5% of a workload's time, 50 MB, 10 MB written, 250 ms hang): accept as the first values, to be
-   tuned after the first three passes?
+4. Partly answered 2026-11-15: no daily cap (see the filing rule). Still open: floors for filing (5% of a workload's
+   time, 50 MB, 10 MB written, 250 ms hang), to be accepted as the first values and tuned after the first three passes?
 5. Which open HTR test set, if any, is the one corpus beyond the generated fixture; or v1 uses the generated 200-page
    library only?
 6. The energy dimension on the Mac is CPU time (no per-process energy counter without root; `Energy Log` is iOS-device
