@@ -1,5 +1,7 @@
 """spec: code-organization — `code-org.enforce.per-batch-placement`: `check_file_placement --since <base>` judges each file
-a batch adds or renames, and proves it can see a misplaced one."""
+a batch adds or renames, and proves it can see a misplaced one. `code-org.folders.root`, `code-org.folders.python-packages`,
+`code-org.folders.python-no-shim-modules`, `code-org.folders.python-test-mirror`, `code-org.naming.python-tests`: the whole-tree
+mode (no flag) holds today's debt to a baseline that only shrinks."""
 from __future__ import annotations
 
 import pathlib
@@ -34,4 +36,10 @@ def _has_base() -> bool:
 @pytest.mark.skipif(not _has_base(), reason="no repo or no origin/integration to diff against (a gate copy, a bare clone): the guard goes blind there, by design")
 def test_this_branch_places_every_file_it_adds():
     done = _run("--since", "origin/integration")
+    assert done.returncode == 0, done.stdout + done.stderr
+
+
+@pytest.mark.skipif(not (REPO / ".git").exists(), reason="the whole-tree mode lists tracked files with git: a gate copy has none")
+def test_the_whole_tree_has_no_misplaced_file_beyond_the_baseline():
+    done = _run()
     assert done.returncode == 0, done.stdout + done.stderr

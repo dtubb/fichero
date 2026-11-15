@@ -3,7 +3,7 @@
 
 `--since <base>` judges every file a batch ADDED, and the new path of every file it RENAMED, against the placement
 rules below, from `git diff --name-status -M <merge-base> HEAD`. Deleted and modified-in-place files are not judged:
-the tree's old debt belongs to the whole-tree guard (a later lane adds that mode to this file).
+the tree's old debt belongs to the whole-tree mode (no flag), which judges every tracked file against KNOWN_VIOLATIONS.
 
 The rules are rows of RULES: each names the paths it looks at and returns where a misplaced file belongs. A later lane
 adds rows (the Swift rules), not code.
@@ -12,7 +12,7 @@ Exit codes:
     0  every added or renamed file is in place (the count judged is printed)
     1  at least one file is misplaced, one line each: path, an arrow, the folder it belongs in, the rule
     2  BLIND: git failed, the base is unknown, the diff could not be parsed, or the tree is not this repo
-       (with no flag the guard says the whole-tree mode is not built yet, and exits 0 on the real tree)
+       (no flag: the whole-tree mode; 0 when nothing exceeds KNOWN_VIOLATIONS, 1 when a count rises or an entry is stale)
 """
 
 from __future__ import annotations
@@ -62,8 +62,11 @@ class Tree:
     repo: Path
     packages: frozenset[str]
     old_test_folders: frozenset[str] = frozenset()  # tests/unit/ folders the merge-base already had: judged by whoever made them
+    on_disk: bool = False  # whole-tree mode reads the working tree; --since reads HEAD
 
     def text(self, path: str) -> str:
+        if self.on_disk:
+            return (self.repo / path).read_text(encoding="utf-8", errors="replace")
         return _git(self.repo, "show", f"HEAD:{path}")
 
 
@@ -206,6 +209,87 @@ def run_since(base: str, repo: Path = ROOT, packages_floor: int = 10) -> int:
     return 0
 
 
+# --- whole-tree mode: the same rules over every tracked file, against a baseline of today's debt ------------------------
+
+# Misplaced files today, counted per (folder, rule): "<folder>  [<rule>]" -> how many. A count that rises fails; an entry whose
+# folder is gone or that no longer finds a file fails (delete it); a count that fell is a note (lower it). The list only shrinks.
+KNOWN_VIOLATIONS: dict[str, int] = {
+    ".  [repo root]": 1,
+    "fichero-server/src/fichero_server  [engine package root]": 18,
+    "fichero-server/src/fichero_server/api/routes  [api/routes root]": 7,
+    "fichero-server/src/fichero_server/api/routes  [no alias module]": 18,
+    "fichero-server/src/fichero_server/workflows  [no alias module]": 6,
+    "fichero-server/tests/unit  [tests]": 22,
+    "fichero-server/tests/unit/activity  [tests]": 2,
+    "fichero-server/tests/unit/api  [tests]": 2,
+    "fichero-server/tests/unit/check  [tests]": 11,
+    "fichero-server/tests/unit/export  [tests]": 11,
+    "fichero-server/tests/unit/finddocs  [tests]": 1,
+    "fichero-server/tests/unit/jobs  [tests]": 123,
+    "fichero-server/tests/unit/kg  [tests]": 25,
+    "fichero-server/tests/unit/packaging  [tests]": 1,
+    "fichero-server/tests/unit/transport  [tests]": 28,
+    "scripts  [no alias module]": 1,
+}
+TRACKED_FLOOR = 4000  # tracked files on 2026-11-15: 8064
+
+
+def tracked_files(repo: Path) -> list[str]:
+    return [p for p in _git(repo, "ls-files", "-z").split("\0") if p]
+
+
+def judge_rule_named(paths: list[str], tree: Tree) -> list[tuple[str, str, str]]:
+    """[(path, rule name, why)] for each misplaced path, first failing rule per path."""
+    out = []
+    for path in paths:
+        for rule in RULES:
+            if rule.applies(path) and (why := rule.judge(path, tree)):
+                out.append((path, rule.name, why))
+                break
+    return out
+
+
+def _is_file(path: Path) -> bool:
+    try:
+        return path.is_file() and not path.is_symlink()
+    except OSError:  # a path this user may not stat: tracked, but not ours to judge
+        return False
+
+
+def whole_tree_counts(repo: Path, floor: int = TRACKED_FLOOR) -> tuple[dict[str, int], dict[str, list[str]], int]:
+    paths = tracked_files(repo)
+    require_scan_floor(len(paths), floor, "tracked files")
+    packages = _folders(repo, "HEAD", SERVER_PKG)
+    require_scan_floor(len(packages), 10, "fichero_server packages")
+    counts: dict[str, int] = {}
+    examples: dict[str, list[str]] = {}
+    tree = Tree(repo, packages, on_disk=True)
+    for path, rule, _why in judge_rule_named([p for p in paths if _is_file(repo / p)], tree):
+        key = f"{path.rsplit('/', 1)[0] if '/' in path else '.'}  [{rule}]"
+        counts[key] = counts.get(key, 0) + 1
+        examples.setdefault(key, []).append(path)
+    return counts, examples, len(paths)
+
+
+def run_whole_tree(repo: Path = ROOT, known: dict[str, int] | None = None, floor: int = TRACKED_FLOOR) -> int:
+    known = KNOWN_VIOLATIONS if known is None else known
+    counts, examples, scanned = whole_tree_counts(repo, floor)
+    rose = {k: (known.get(k, 0), n) for k, n in counts.items() if n > known.get(k, 0)}
+    gone = sorted(k for k in known if k not in counts)
+    fell = {k: (known[k], counts[k]) for k in known if k in counts and counts[k] < known[k]}
+    for key, (was, now) in sorted(rose.items()):
+        print(f"{key}: {now} misplaced (baseline {was}): " + ", ".join(sorted(examples[key])[:5]))
+    for key in gone:
+        print(f"{key}: baseline entry is clean or its folder is gone: delete it from KNOWN_VIOLATIONS")
+    for key, (was, now) in sorted(fell.items()):
+        print(f"note: {key}: {now} now (baseline {was}): lower the baseline")
+    if rose or gone:
+        print(f"check_file_placement: {len(rose)} folder(s) over baseline, {len(gone)} stale baseline entr(ies)")
+        return 1
+    print(f"check_file_placement: {scanned} tracked files judged, {sum(counts.values())} known misplaced in {len(counts)} folder(s), none new")
+    return 0
+
+
 # --- self-test: a scratch repo with one right and one wrong file per rule ---------------------------------------------
 
 _PKG = "fichero-server/src/fichero_server/"
@@ -318,7 +402,34 @@ def _self_test() -> int:
         else:
             print("self-test FAILED: an unknown base did not go blind", file=sys.stderr)
             return 1
+        if _self_test_whole_tree(repo) != 0:
+            return 1
     print("self-test ok")
+    return 0
+
+
+def _self_test_whole_tree(repo: Path) -> int:
+    """The whole-tree mode on the scratch repo: a planted loose module fails, none passes, a stale baseline fails."""
+    _git(repo, "checkout", "-q", "main")
+    clean = {_PKG + "stray_module.py"}  # absent on main
+    if run_whole_tree(repo, {}, floor=1) != 1:
+        print("self-test FAILED: a zero baseline over a tree with known debt did not fail", file=sys.stderr)
+        return 1
+    counts, _, _ = whole_tree_counts(repo, floor=1)
+    if counts != {".  [repo root]": 2, "fichero-builder  [no alias module]": 1, SERVER_TESTS + "legacy  [tests]": 1}:
+        print(f"self-test FAILED: main's debt read as {counts}", file=sys.stderr)
+        return 1
+    if run_whole_tree(repo, dict(counts), floor=1) != 0:
+        print("self-test FAILED: the tree equal to its baseline did not pass", file=sys.stderr)
+        return 1
+    if run_whole_tree(repo, {**counts, "gone/folder  [repo root]": 1}, floor=1) != 1:
+        print("self-test FAILED: a baseline entry with no file did not fail", file=sys.stderr)
+        return 1
+    _write(repo, {p: "x = 1\n" for p in clean})
+    _git(repo, "add", "-A")
+    if run_whole_tree(repo, dict(counts), floor=1) != 1:
+        print("self-test FAILED: a planted loose engine module did not fail", file=sys.stderr)
+        return 1
     return 0
 
 
@@ -337,8 +448,11 @@ def main(argv: list[str] | None = None) -> int:
         if not (ROOT / SERVER_PKG).is_dir():
             print(f"check_file_placement: BLIND: {SERVER_PKG} is missing (the tree moved)", file=sys.stderr)
             return BLIND_EXIT_CODE
-        print("check_file_placement: the whole-tree mode is not built yet (a later lane); the per-batch run is --since <base>")
-        return 0
+        try:
+            return run_whole_tree()
+        except Blind as exc:
+            print(f"check_file_placement: BLIND: {exc}", file=sys.stderr)
+            return BLIND_EXIT_CODE
     try:
         return run_since(args.since)
     except Blind as exc:

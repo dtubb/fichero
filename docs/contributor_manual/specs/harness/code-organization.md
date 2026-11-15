@@ -65,7 +65,7 @@ runs on the builder, not by a sweep: the files a batch adds or moves are judged 
 
 ### A. Folders
 
-- `code-org.folders.root` [PARTIAL] — The repo root holds governance docs (`AGENTS.md`, `CLAUDE.md`, `CONSTITUTION.md`,
+- `code-org.folders.root` [OK] — The repo root holds governance docs (`AGENTS.md`, `CLAUDE.md`, `CONSTITUTION.md`,
   `CONTRIBUTING.md`, `README.md`, `USER.md`, `CHANGELOG.md`, `RELEASE_NOTES.md`, `LICENSE`, `LICENSING.md`, `NOTICE`,
   `CLA.md`, `CODE_OF_CONDUCT.md`), repo-wide config (`mkdocs.yml`, `features.yaml`, `harness.toml`, `ruff.toml`,
   `.swiftlint.yml`, `coverage-baseline.json`, `requirements-docs.txt`, `.python-version`) and the product and tooling
@@ -73,6 +73,7 @@ runs on the builder, not by a sweep: the files a batch adds or moves are judged 
   `agents/`, `agent-work/`, `test-fixtures/`, `icons/`, `web/`, `pipeline/` until its removal). Nothing else: a new file
   at the root is misplaced. Not built: `AGENTS.md` lists the rule, no guard reads the root (#1944; issue to file under
   this milestone). Test (to write): guard `check_repo_root` with the allowlist above and a `--self-test`.
+  Test: fichero-server/tests/unit/scripts/test_check_file_placement.py (`check_file_placement` whole-tree mode, baselined in KNOWN_VIOLATIONS; `--since` judges each new file).
 - `code-org.folders.swift-layers` [OK] — The app has five top-level folders under `fichero/fichero`: `App/` (lifecycle,
   windows, menus, `AppState`), `Models/` (stores and domain types), `Services/` (engine clients and manual services),
   `Intents/` (App Intents and AppleScript entry points), `Views/` (the UI), plus `Resources/`. A sixth is a ruling.
@@ -98,7 +99,7 @@ runs on the builder, not by a sweep: the files a batch adds or moves are judged 
   under `Tests/Unit/general/Views/Segments/`. Shared helpers (`TestFixtures.swift`, `AppSource.swift`, `EngineHarness.swift`)
   sit at `Tests/Unit/general/` root. Built: the tree has the shape; 437 model tests sit flat because `Models/` is flat.
   Not built: no guard (#1944). Test (to write): the mirror check in `check_folder_organization`.
-- `code-org.folders.python-packages` [PARTIAL] — Engine code lives in one domain package under
+- `code-org.folders.python-packages` [OK] — Engine code lives in one domain package under
   `fichero-server/src/fichero_server/`: `api/` (routes by resource under `api/routes/<resource>/`, transport, startup),
   `models/`, `db/`, `core/` (small utilities with no domain), `llm/`, `media/`, `formats/`, `importers/`, `knowledge/`,
   `workflows/` (+ `tools/`), `recipes/`, `execution/`, `training/`, `security/`, `transfer/`, `remote_read/`, `finddocs/`,
@@ -106,17 +107,20 @@ runs on the builder, not by a sweep: the files a batch adds or moves are judged 
   packages exist (#2566, #2569). Not built: 18 modules still sit loose at the root (`export_service.py`, `histdate.py`,
   `sync_folder.py`…) and nothing refuses a new one. Test (to write): guard `check_engine_package_layout`, root allowlist
   of two files.
-- `code-org.folders.python-no-shim-modules` [GAP] — A moved module leaves nothing behind: no `from new import *` plus a
+  Test: fichero-server/tests/unit/scripts/test_check_file_placement.py (`check_file_placement` whole-tree mode, baselined in KNOWN_VIOLATIONS; `--since` judges each new file).
+- `code-org.folders.python-no-shim-modules` [OK] — A moved module leaves nothing behind: no `from new import *` plus a
   `sys.modules[__name__]` alias (`AGENTS.md` rule 0). Today 18 such modules sit under `api/routes/` (`kg_*.py`,
   `folders.py`, `search_explain.py`, all "Moved to … (#2569)"), `api/main.py` imports 17 of them and 31 other files the
   rest. Test (to write): `check_engine_package_layout` refuses a module whose body assigns `sys.modules[__name__]`.
-- `code-org.folders.python-test-mirror` [PARTIAL] — `fichero-server/tests/unit/<package>/` mirrors a package of
+  Test: fichero-server/tests/unit/scripts/test_check_file_placement.py (`check_file_placement` whole-tree mode, baselined in KNOWN_VIOLATIONS; `--since` judges each new file).
+- `code-org.folders.python-test-mirror` [OK] — `fichero-server/tests/unit/<package>/` mirrors a package of
   `fichero_server`; `tests/unit/scripts/` tests `scripts/`; `tests/unit/cli/` and `tests/unit/mcp/` test the sibling
   products until their own `tests/` dirs join the gate; `tests/integration/`, `tests/contracts/`, `tests/perf/` are the
   other legs. Built: 44 of 55 unit dirs match a package. Not built: `jobs/` (119 files, tests `execution/`), `kg/` (27,
   tests `knowledge/` and `api/routes/kg/`), `transport/` (29, tests `security/` and `api/`), `export/` (12, tests a
   module with no package), `check/`, `harness/`, `seams/`, `activity/`, `packaging/` match nothing (#2566). Test (to
   write): `check_engine_package_layout` compares the two dir sets.
+  Test: fichero-server/tests/unit/scripts/test_check_file_placement.py (`check_file_placement` whole-tree mode, baselined in KNOWN_VIOLATIONS; `--since` judges each new file).
 - `code-org.folders.scripts-vs-package` [OK] — `scripts/` holds repo-wide gates and tooling (`check_*.py`, `verify_*.sh`,
   release and site scripts); code the engine runs lives in the package, code the builder runs in
   `fichero-builder/fichero_builder/`; a guard imports only the stdlib and its two helpers (`_scan_files.py`,
@@ -144,11 +148,12 @@ runs on the builder, not by a sweep: the files a batch adds or moves are judged 
   name at the package root (`core/logging.py` is inside a package and allowed). Every module in the four products passes.
   Test: fichero-server/tests/unit/scripts/test_check_python_comment_hygiene.py (the scan floor walks every module); the
   name rule rides with `check_engine_package_layout` when it lands.
-- `code-org.naming.python-tests` [PARTIAL] — A test file is `test_<what_it_proves>.py`, in the folder mirroring the code
+- `code-org.naming.python-tests` [OK] — A test file is `test_<what_it_proves>.py`, in the folder mirroring the code
   it tests; when it pins an issue the number is a suffix, `test_<what>_<issue>.py` (553 of 2,434 files, the convention in
   use). A prefix form (`test_6085_one_listing.py`, one file) is wrong. A behaviour id from a spec goes in the docstring,
   not the name. Built: `test_globs` in `harness.toml`. Not built: the suffix rule (#1915). Test (to write): one rule in
   `check_engine_package_layout`.
+  Test: fichero-server/tests/unit/scripts/test_check_file_placement.py (`check_file_placement` whole-tree mode, baselined in KNOWN_VIOLATIONS; `--since` judges each new file).
 - `code-org.naming.swift-tests` [OK] — A Swift test file ends in `Tests.swift` and names the type or surface it covers
   (`PageImageGridTests.swift`); the 11 non-test helpers (`TestFixtures`, `AppSource`, `EngineHarness`…) carry no suffix.
   Test: `scripts/check_swift_test_self_references.py`.
