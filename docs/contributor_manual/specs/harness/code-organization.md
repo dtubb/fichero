@@ -311,7 +311,7 @@ runs on the builder, not by a sweep: the files a batch adds or moves are judged 
 
 #### Step 1.4 — the generator range cap
 - Behaviours: `code-org.ratchet.generated-warnings-fixed-at-source`
-- Tests: (to write) a range test under fichero/fichero-api-client/Tests/; the generated bucket of `check_swift_compiler_warning_ratchet` at zero on a clean build
+- Tests: fichero/fichero-api-client/Tests/FicheroAPIClientTests/GeneratorRangeCapTests.swift; (to write) the generated bucket of `check_swift_compiler_warning_ratchet` at zero on a clean build
 - Depends on: 1.3
 - Size: S
 
