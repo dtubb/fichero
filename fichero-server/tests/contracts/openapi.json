@@ -71518,7 +71518,7 @@
             "type": "string",
             "nullable": true,
             "title": "Control",
-            "description": "`open-settings`: the control's id"
+            "description": "`open-settings`: the control's id; `choose-folder`: the kept export's id"
           },
           "usd": {
             "type": "number",

@@ -34,7 +34,8 @@ class ModelBrokenError(Exception):
 
 class FailureAction(BaseModel):
     kind: ActionKind
-    control: Optional[str] = Field(default=None, description="`open-settings`: the control's id")
+    control: Optional[str] = Field(default=None, description="`open-settings`: the control's id; `choose-folder`: the kept "
+                                                             "export's id")
     usd: Optional[float] = Field(default=None, description="a refusal's `raise-to`: the cap that lets the run through")
     retry_after_seconds: Optional[float] = Field(default=None, description="`retry`: how long the provider asked to wait")
 
@@ -202,6 +203,15 @@ def classify(exc: BaseException | None, text: str = "", *, step: str | None = No
     """The table: a failure and where the run was, as the words, the fix and the buttons a client shows."""
     kind, refusal = kind_of(exc, text)
     return _build(kind, refusal, exc, text, step=step, provider=provider, model=model, done=done, total=total)
+
+
+def of_kind(kind: str, *, folder_for: str | None = None) -> RunFailure:
+    """A kind's failure with no exception at hand: a job row the engine PAUSED for a cause a person removes (`jobs`
+    `_PAUSED_NOT_FAILED`), listed with its fix. `folder_for`: the kept export a `choose-folder` action is for (#6588)."""
+    built = _build(kind, None, None, "")
+    if folder_for:
+        built.actions = [a.model_copy(update={"control": folder_for}) if a.kind == "choose-folder" else a for a in built.actions]
+    return built
 
 
 def from_refusal(refusal: CloudRefusal | dict, **where: Any) -> RunFailure:

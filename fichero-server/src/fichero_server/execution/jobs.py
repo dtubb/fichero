@@ -5694,6 +5694,19 @@ PAUSED_EXPORT_FOLDER_GONE = "The export folder is gone"
 _PAUSED_NOT_FAILED = {"library-closed": PAUSED_PROJECT_CLOSED, "export-folder-gone": PAUSED_EXPORT_FOLDER_GONE}
 
 
+def paused_failure(db: "Database", job_id: str, reason: str | None) -> Any:
+    """The failure a row paused for a cause a person removes is listed with (`RunFailure`, its fix the row's button), or
+    None for any other row. A gone export folder's Choose Folder… names the export, the job's subject (#6588)."""
+    kind = next((k for k, said in _PAUSED_NOT_FAILED.items() if said == reason), None)
+    if kind is None:
+        return None
+    from fichero_server.llm import failure as _failure
+
+    row = db.execute_fetchone("SELECT subject FROM jobs WHERE id = ?", [job_id], committed=True)
+    subject = (row[0] or "") if row else ""
+    return _failure.of_kind(kind, folder_for=subject.partition(":")[0] if kind == "export-folder-gone" else None)
+
+
 def _pause_for_close(db: "Database", live: list[str] | None) -> None:
     """Closing a project PAUSES its waiting rows (`live` None), or its running ones (`live` the ids still running here):
     "Paused: the project closed", for Continue on reopen. A run's own row is settled by its record (`closing_runs`)."""

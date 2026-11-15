@@ -89,3 +89,22 @@ def test_keep_up_to_date_off_queues_nothing_on_an_edit_and_write_now_still_write
     client.patch(f"/api/export/kept/{export_id}", json={"keep_up_to_date": True})
     kept_export.queue_rewrites(db, [page.id])
     assert jobs.count_jobs(db, kept_export.KIND, subject_prefix=export_id) >= 1, "on again, an edit queues its rewrite"
+
+
+def test_the_listed_paused_row_carries_its_fix_naming_the_export(client, db, page, tmp_path):
+    """The app's row offers Choose Folder… from the engine's own failure: the listed paused row carries it, the
+    choose-folder action naming the export it is for (the row has no subject of its own)."""
+    gone = tmp_path / "Unplugged"
+    gone.mkdir()
+    export_id = _keep(client, gone, "plain-text", "page")
+    assert _written(client, export_id, ["book-p1.txt"])
+    shutil.rmtree(gone)
+    kept_export.queue_rewrites(db, [page.id])
+    assert _wait_for(lambda: [r[2:] for r in _rows(db, export_id)] == [("paused", "The export folder is gone")])
+    (job_id,) = [r[0] for r in _rows(db, export_id)]
+
+    listed = client.get("/api/activity/jobs").json()["jobs"]
+    row = next(j for j in listed if j["id"] == job_id)
+    assert row["failure"]["kind"] == "export-folder-gone"
+    assert [(a["kind"], a.get("control")) for a in row["failure"]["actions"]] == [("choose-folder", export_id), ("resume", None)]
+    assert str(gone) not in row["failure"]["words"], "no path in the row's words"

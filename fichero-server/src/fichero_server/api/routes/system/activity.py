@@ -1014,6 +1014,9 @@ async def list_background_jobs(
                 blocked_by=row.get("blocked_by"),
                 remote=await asyncio.to_thread(_remote_row, db, row),  # a database read
                 ran_on=ran_on, stages=stages, model=model, cost_usd=cost, cost_estimate_usd=estimate,
+                # A row paused for a cause a person removes carries its fix, as a failed run does (#6588).
+                failure=(await asyncio.to_thread(job_queue.paused_failure, db, row["id"], reason)
+                         if state == "paused" and row["count"] == 1 else None),
             )
         )
 
