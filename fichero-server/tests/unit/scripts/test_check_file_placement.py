@@ -6,6 +6,8 @@ import pathlib
 import subprocess
 import sys
 
+import pytest
+
 REPO = pathlib.Path(__file__).resolve().parents[4]
 
 
@@ -24,6 +26,7 @@ def test_an_unknown_base_is_blind_not_clean():
     assert done.returncode == 2, done.stdout + done.stderr
 
 
+@pytest.mark.skipif(not (REPO / ".git").exists(), reason="a gate copy of the tree has no repo to diff; the guard goes blind there, by design")
 def test_this_branch_places_every_file_it_adds():
     done = _run("--since", "origin/integration")
     assert done.returncode == 0, done.stdout + done.stderr
