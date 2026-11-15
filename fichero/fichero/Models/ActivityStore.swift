@@ -281,22 +281,7 @@ final class ActivityStore: ChangeEventConsumer {
             }
             jobsReadOnce = true
             if backgroundJobs != snapshot.jobs {
-                // The queues whose files are shown follow the list (#6599): each kind already read is read again.
-                for kind in queuedItems.keys { Task { await self.loadQueuedItems(rowId: "waiting:\(kind)") } }
-                // A job of its own whose details are open (its tree is loaded,
-                // #5561) is re-read when its row changes: the same one-key
-                // update a run's tree gets from the change stream.
-                let before = Dictionary(backgroundJobs.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-                for job in snapshot.jobs where runTrees[job.id] != nil && before[job.id] != job {
-                    scheduleTreeRead(threadId: job.id)
-                }
-                rereadRecipeRuns(holdingStagesChangedFrom: before, to: snapshot.jobs)
-                // One that left the list has ended (done is not listed): its tree is read once more,
-                // so its details say how it ended (a recipe run's summary, #5577).
-                let listed = Set(snapshot.jobs.map(\.id))
-                for id in before.keys where runTrees[id] != nil && !listed.contains(id) {
-                    scheduleTreeRead(threadId: id)
-                }
+                rereadTreesOnJobsChange(from: backgroundJobs, to: snapshot.jobs)
                 if Self.aFindDocumentsRunEnded(from: backgroundJobs, to: snapshot.jobs) { findDocumentsRunsEnded += 1 }
                 backgroundJobs = snapshot.jobs
                 EngineRestartPolicy.runningJobs = snapshot.jobs.filter { $0.state == .running }.count

@@ -59,7 +59,7 @@ def test_a_refused_embed_is_done_once_the_model_arrives(db, monkeypatch):
             raise embed_process.EmbedderUnavailable("Search can't index yet: its model isn't downloaded.")
         from fichero_server.db import EmbedOutcome
 
-        return EmbedOutcome(embedded=True, document_id=target.id)  # a real outcome: an empty one reads as a failed page
+        return EmbedOutcome(embedded=True, document_id=doc.id)  # a real outcome: an empty one reads as a failed page
 
     monkeypatch.setattr(derivatives, "_embed_document_tree", tree)
     monkeypatch.setattr(embed_process, "_cached", lambda *a: False)

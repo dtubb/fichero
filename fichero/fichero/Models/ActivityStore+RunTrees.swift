@@ -352,3 +352,26 @@ extension ActivityStore {
         }
     }
 }
+
+extension ActivityStore {
+    /// What a changed jobs list re-reads (from `refreshBackgroundJobs`): the queues shown, the open trees of rows that
+    /// changed or left the list, and recipe runs whose holding stages moved.
+    func rereadTreesOnJobsChange(from jobs: [ActivityJob], to after: [ActivityJob]) {
+        // The queues whose files are shown follow the list (#6599): each kind already read is read again.
+        for kind in queuedItems.keys { Task { await self.loadQueuedItems(rowId: "waiting:\(kind)") } }
+        // A job of its own whose details are open (its tree is loaded,
+        // #5561) is re-read when its row changes: the same one-key
+        // update a run's tree gets from the change stream.
+        let before = Dictionary(jobs.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for job in after where runTrees[job.id] != nil && before[job.id] != job {
+            scheduleTreeRead(threadId: job.id)
+        }
+        rereadRecipeRuns(holdingStagesChangedFrom: before, to: after)
+        // One that left the list has ended (done is not listed): its tree is read once more,
+        // so its details say how it ended (a recipe run's summary, #5577).
+        let listed = Set(after.map(\.id))
+        for id in before.keys where runTrees[id] != nil && !listed.contains(id) {
+            scheduleTreeRead(threadId: id)
+        }
+    }
+}
