@@ -202,6 +202,14 @@ class BackgroundJob(BaseModel):
     # call; and, while it runs, the estimate to finish at the run's own pace (spent per page done times the pages left).
     cost_usd: Optional[float] = None
     cost_estimate_usd: Optional[float] = None
+    # Where it runs and on which lane (`activity.window.toolbar-tabs`, the Where tab, #6588): this Mac, another Mac, the
+    # cloud or a cluster; null for a row the engine cannot place.
+    runs_on: Optional[Literal["this-mac", "other-mac", "cloud", "cluster"]] = None
+    lane: Optional[str] = None
+    # What blocks this row (`activity.pane.blocked-under-its-blocker`, #6593): the id of the job it waits on (a model's
+    # download) or a typed need ("model:embeddings:<id>") when no job supplies it. A blocked row is never picked by the lane;
+    # the app draws it under its blocker. Null for any row that is not blocked.
+    blocked_by: Optional[str] = None
 
 
 class RanOn(BaseModel):
@@ -231,6 +239,61 @@ def order_for_activity(jobs: "list[BackgroundJob]") -> "list[BackgroundJob]":
     for job in jobs:
         job.group = "earlier" if rank(job) == 2 else "live"
     return sorted(jobs, key=rank)  # stable
+
+
+def _lane_of(kind: str) -> Optional[str]:
+    """The lane a stored job's kind runs on (`execution.jobs.KINDS`), or None for a kind not registered."""
+    from fichero_server.execution import jobs as job_queue
+
+    registered = job_queue.KINDS.get(kind)
+    return registered.lane if registered is not None else None
+
+
+def _runs_on(kind: str, remote: Any, cost_usd: Optional[float]) -> str:
+    """Where a listed row runs (the Where tab, #6588): a remote read on its target (Hugging Face is the cloud, anything
+    else a cluster); the remote lane and any priced call (even at $0) the cloud; everything else this Mac."""
+    from fichero_server.remote_read import job as read_job
+
+    if kind == read_job.KIND:
+        target = getattr(remote, "target", None)
+        return "cloud" if target in (None, read_job.TARGET) else "cluster"
+    if _lane_of(kind) == "remote" or cost_usd is not None:
+        return "cloud"
+    return "this-mac"
+
+
+def _run_failure(run: Any) -> Any:
+    """A failed run's failure: the one its record kept, else for a run interrupted (the engine stopped, its project closed)
+    the `interrupted` kind, so its row says why and offers Retry rather than a bare red X (#6588)."""
+    from fichero_server.workflows.run_account import CLOSED_PREFIX, INTERRUPTED_PREFIX
+
+    if getattr(run, "failure", None):
+        return run.failure
+    if (getattr(run, "error", None) or "").startswith((INTERRUPTED_PREFIX, CLOSED_PREFIX)):
+        from fichero_server.llm import failure as failure_mod
+
+        return failure_mod.of_kind("interrupted")
+    return None
+
+
+def _run_runs_on(db: Database, thread_id: str) -> Optional[str]:
+    """Where a workflow run runs (the Where tab, #6588): where its page jobs ran. The cloud when any page's job is on the
+    remote lane or made a call to a provider (its recorded `usage` place), else this Mac; None before any page job."""
+    rows = db.execute_fetchall(
+        "SELECT kind, detail FROM jobs WHERE parent_id = ? OR parent_id LIKE ? LIMIT 200",
+        [thread_id, thread_id + ":%"], committed=True)
+    if not rows:
+        return None
+    for kind, detail in rows:
+        if _lane_of(kind) == "remote":
+            return "cloud"
+        try:
+            usage = (json.loads(detail) if detail else {}).get("usage") or []
+        except (TypeError, ValueError):
+            usage = []
+        if any(isinstance(call, dict) and call.get("place") == "provider" for call in usage):
+            return "cloud"
+    return "this-mac"
 
 
 def _remote_row(db, row: dict) -> "RemoteRunRow | None":
@@ -303,6 +366,9 @@ class QueuedItem(BaseModel):
     subject: str
     state: str
     reason: Optional[str] = None
+    # The file it works on, by name (`activity.pane.children-are-what-it-works-on`, #6599); null for a subject that is no
+    # document.
+    name: Optional[str] = None
 
 
 class QueuedItemListResponse(BaseModel):
@@ -938,7 +1004,8 @@ async def list_background_jobs(
                     # A run without its end time still lists, with its reason: never vanish over a timestamp.
                     failed_at=_utc(getattr(run, "completed_at", None)) if status == "failed" else None,
                     finished_at=_run_finished_at(status, getattr(run, "completed_at", None)),
-                    failure=run.failure if status == "failed" else None,
+                    failure=_run_failure(run) if status == "failed" else None,
+                    runs_on=await asyncio.to_thread(_run_runs_on, db, run.thread_id),
                 )
             )
     except Exception as exc:  # never let the jobs list fail over the workflow half
@@ -988,6 +1055,8 @@ async def list_background_jobs(
             estimate = _cost_estimate(cost, stages, state)
         elif row["count"] == 1:
             cost = await asyncio.to_thread(_job_cost, db, row["id"])  # a job of its own: its cloud calls' dollars, else null
+            # Named as its tree names it, by its kind's own words when it has them (a kept export's folder and pages, #6588).
+            name = await asyncio.to_thread(job_queue.listed_name, db, row["id"]) or name
         ran_on = RanOn(kind="pages" if total != 1 else "page", count=total)
         jobs.append(
             BackgroundJob(
@@ -1007,8 +1076,13 @@ async def list_background_jobs(
                 failed_at=_utc(row.get("failed_at")) if state == "failed" else None,
                 finished_at=_utc(row.get("finished_at")),
                 started_by=row.get("started_by"),
-                remote=await asyncio.to_thread(_remote_row, db, row),  # a database read
+                blocked_by=row.get("blocked_by"),
+                remote=(remote := await asyncio.to_thread(_remote_row, db, row)),  # a database read
                 ran_on=ran_on, stages=stages, model=model, cost_usd=cost, cost_estimate_usd=estimate,
+                runs_on=_runs_on(row["kind"], remote, cost), lane=_lane_of(row["kind"]),
+                # A row paused for a cause a person removes carries its fix, as a failed run does (#6588).
+                failure=(await asyncio.to_thread(job_queue.paused_failure, db, row["id"], reason)
+                         if state == "paused" and row["count"] == 1 else None),
             )
         )
 
@@ -1061,7 +1135,21 @@ async def list_queued_items(
     from fichero_server.execution import jobs as job_queue
 
     items = await asyncio.to_thread(job_queue.items_of_kind, db, kind, limit=limit, offset=offset)
-    return QueuedItemListResponse(items=[QueuedItem(**i) for i in items], count=len(items))
+    names = await asyncio.to_thread(_document_names, db, [i["subject"] for i in items])
+    return QueuedItemListResponse(items=[QueuedItem(**i, name=names.get(i["subject"])) for i in items], count=len(items))
+
+
+def _document_names(db: Database, ids: list[str]) -> dict[str, str]:
+    """The names of the documents among `ids`, by id, in one read; an id that is no document is absent."""
+    if not ids:
+        return {}
+    try:
+        rows = db.execute_fetchall(f"SELECT id, name FROM documents WHERE id IN ({', '.join('?' for _ in ids)})",
+                                   list(dict.fromkeys(ids)), committed=True)
+    except Exception as exc:  # noqa: BLE001 -- the items still list, unnamed
+        logger.warning("queued items: no document names: %s", exc)
+        return {}
+    return {row[0]: row[1] for row in rows if row[1]}
 
 
 @router.get("/jobs/{job_id}", response_model=JobTree)
@@ -1325,8 +1413,11 @@ def _job_rows_log(node: dict[str, Any], stage: Optional[str] = None, seen: Optio
         lines.append(JobLogLine(timestamp=node.get("finished_at"), level=ended[0], message=ended[1],
                                 job_id=node["id"]))
     elif reason and page is None:
-        lines.append(JobLogLine(timestamp=None, level="info", message=f"{state.capitalize()}: {name}: {reason}",
-                                job_id=node["id"], detail="developer"))
+        # A held row says why, to the person (decision 27: a row that ran is never "nothing written"); paused is a warning,
+        # something the person can fix, so Problems shows it too (#6588).
+        lines.append(JobLogLine(timestamp=None, level="warning" if state == "paused" else "info",
+                                message=f"{state.capitalize()}: {name}: {reason}", job_id=node["id"],
+                                detail="person" if state == "paused" else "developer"))
     below = node["id"] if node.get("kind") in ("workflow", "run-a-recipe") else stage
     for child in node.get("children", []):
         lines.extend(_job_rows_log(child, below, seen))

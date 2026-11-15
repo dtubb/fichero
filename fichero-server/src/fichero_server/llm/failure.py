@@ -15,17 +15,27 @@ from pydantic import BaseModel, Field
 from fichero_server.llm.refusal import CloudRefusal
 
 Kind = Literal["no-credit", "key-refused", "rate-limited", "cap-refused", "images-refused", "model-error", "model-missing",
-               "runtime-unavailable", "memory", "network", "files-unavailable", "unexpected"]
+               "runtime-unavailable", "memory", "network", "files-unavailable", "model-broken", "library-closed",
+               "export-folder-gone", "interrupted", "unexpected"]
 ActionKind = Literal["retry", "resume", "open-settings", "choose-model", "report-bug", "reconnect", "raise-to", "allow-everywhere",
-                     "allow-project", "allow-once", "over-cap-once"]
+                     "allow-project", "allow-once", "over-cap-once", "choose-folder"]
 
 PROVIDERS_CONTROL = "settings.ai.providers"
 LOCAL_MODELS_CONTROL = "settings.ai.localModels"
 
 
+class ModelBrokenError(Exception):
+    """A model that is on this Mac but will not load (`model-broken`): `model` is its display name; the message is for the log."""
+
+    def __init__(self, model: str, message: str = "") -> None:
+        super().__init__(message or f"{model} could not be loaded")
+        self.model = model
+
+
 class FailureAction(BaseModel):
     kind: ActionKind
-    control: Optional[str] = Field(default=None, description="`open-settings`: the control's id")
+    control: Optional[str] = Field(default=None, description="`open-settings`: the control's id; `choose-folder`: the kept "
+                                                             "export's id")
     usd: Optional[float] = Field(default=None, description="a refusal's `raise-to`: the cap that lets the run through")
     retry_after_seconds: Optional[float] = Field(default=None, description="`retry`: how long the provider asked to wait")
 
@@ -109,6 +119,12 @@ def _status(exc: BaseException | None, text: str) -> int | None:
     return int(found.group(1)) if found else None
 
 
+def _library_closed(exc: BaseException | None, text: str) -> bool:
+    """A job's project was closed under it: DuckDB's own words for a connection that is gone."""
+    low = (text or (str(exc) if exc is not None else "")).lower()
+    return "connection already closed" in low or ("the library" in low and "was closed" in low)
+
+
 def _provider_kind(exc: BaseException | None, text: str, status: int | None) -> str | None:
     """The kind for a provider that cannot answer, from its typed errors first, then its status and words."""
     from fichero_server.llm import ProviderQuotaError
@@ -158,6 +174,12 @@ def kind_of(exc: BaseException | None, text: str = "") -> tuple[str, CloudRefusa
         return "memory", None
     if isinstance(exc, LocalModelNotInstalledError):
         return "model-missing", None
+    if isinstance(exc, ModelBrokenError) or _of(exc, "EmbedderUnavailable"):
+        return "model-broken", None
+    if _of(exc, "ExportFolderGone"):
+        return "export-folder-gone", None
+    if _library_closed(exc, text):
+        return "library-closed", None
     if isinstance(exc, (StructuredDecodeError, StructuredCallEmptyError)):
         return "model-error", None  # before the runtime-missing types: a decode error is an AppleUnavailableError subclass
     if isinstance(exc, AppleUnavailableError) or _of(exc, "LocalInferenceRuntimeMissingError", "KrakenRuntimeMissingError"):
@@ -183,6 +205,15 @@ def classify(exc: BaseException | None, text: str = "", *, step: str | None = No
     return _build(kind, refusal, exc, text, step=step, provider=provider, model=model, done=done, total=total)
 
 
+def of_kind(kind: str, *, folder_for: str | None = None) -> RunFailure:
+    """A kind's failure with no exception at hand: a job row the engine PAUSED for a cause a person removes (`jobs`
+    `_PAUSED_NOT_FAILED`), listed with its fix. `folder_for`: the kept export a `choose-folder` action is for (#6588)."""
+    built = _build(kind, None, None, "")
+    if folder_for:
+        built.actions = [a.model_copy(update={"control": folder_for}) if a.kind == "choose-folder" else a for a in built.actions]
+    return built
+
+
 def from_refusal(refusal: CloudRefusal | dict, **where: Any) -> RunFailure:
     """The failure of a run PAUSED at a cap or by the images rule: the kept typed refusal, as `classify` would carry it on the
     exception (`step`, `provider`, `model`, `done`, `total` as for `classify`)."""
@@ -204,6 +235,10 @@ _ROW_WORDS: dict[str, str] = {
     "memory": "Not enough memory for {model}",
     "network": "Could not reach {name}",
     "files-unavailable": "Some pages' files could not be opened",
+    "model-broken": "{model} could not be loaded",
+    "library-closed": "Paused: the project closed",
+    "export-folder-gone": "The export folder is gone",
+    "interrupted": "Stopped before it finished",
     "unexpected": "Something went wrong in Fichero",
 }
 
@@ -280,6 +315,21 @@ _WORDS: dict[str, Any] = {
     "files-unavailable": lambda *, detail, **_: _row(
         "Some pages' files could not be opened" + (f" ({detail})." if detail else "."),
         "Reconnect the folder, or download the pages from iCloud, then run it again.", _a("reconnect"), _a("retry")),
+    "model-broken": lambda *, model, **_: _row(
+        f"{model} is on this Mac but could not be loaded.",
+        "Download it again in Settings › AI › Local models, or choose another model.",
+        _a("open-settings", LOCAL_MODELS_CONTROL), _a("choose-model"), _a("retry")),
+    "library-closed": lambda **_: _row(
+        "The project was closed while this was running, so the work was paused.",
+        "Open the project again; the work continues from where it stopped.", _a("resume")),
+    "export-folder-gone": lambda **_: _row(
+        "The folder this export writes to is gone.",
+        # Choose Folder… moves the export (`PATCH /api/export/kept/{id}`); Continue once the drive is back (#6588).
+        "Reconnect the drive, or choose the export's folder again.", _a("choose-folder"), _a("resume")),
+    # A run the engine stopping or the project closing left unfinished (#6588): its pages done are kept.
+    "interrupted": lambda **_: _row(
+        "The run stopped before it finished: the engine stopped, or its project was closed.",
+        "Run it again; the pages already done are kept.", _a("retry")),
     "unexpected": lambda *, step, kind_exc, stopped, **_: _row(
         f"Something went wrong inside Fichero while it ran {step} ({kind_exc}){stopped}.",
         "This is a bug in Fichero, not something you did. Send a bug report so it can be fixed; you can also try the run again.",

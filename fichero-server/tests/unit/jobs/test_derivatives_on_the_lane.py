@@ -64,7 +64,7 @@ def test_an_imports_stages_survive_a_quit_and_run_on_the_next_open(test_package,
         docs = _docs(db, 2)
         derivatives.queue_derivatives(docs, library_path=test_package, db=db)
 
-    db_manager.close_database(test_package)  # quit
+    db_manager.close_all()  # quit: the engine closes every project (a project close alone pauses its work, #6596)
     monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())
     db = db_manager.get_database(test_package)
     assert sorted(db.execute_fetchall("SELECT kind, state FROM jobs")) == [

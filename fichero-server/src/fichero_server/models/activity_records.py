@@ -53,6 +53,7 @@ class WorkflowRunRecord(BaseModel):
     run_usage: Optional[dict[str, Any]] = None
     estimated_cost: Optional[float] = None
     failure: Optional[dict[str, Any]] = Field(default=None, description="Why a failed run failed: a `RunFailure` (`llm/failure.py`), written once when the run ends failed.")
+    deleted_from: Optional[str] = Field(default=None, description="A deleted run's status before its Delete, which Undo puts back (`workflow_run.undelete`, #6599).")
 
 
 class WorkflowRunLogLine(BaseModel):

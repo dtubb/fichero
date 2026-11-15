@@ -305,9 +305,9 @@ def unfinished_runs(db: Any) -> list[tuple[str, Any]]:
     return records.unfinished_runs(db)
 
 
-def mark_run_failed(db: Any, thread_id: str, reason: str) -> None:
-    """A run's record ends failed with `reason` (an interrupted run, #5555)."""
-    records.mark_run_failed(db, thread_id, reason)
+def mark_run_failed(db: Any, thread_id: str, reason: str, ended_at: Any = None) -> None:
+    """A run's record ends failed with `reason` (an interrupted run, #5555), at `ended_at` when known (#6588)."""
+    records.mark_run_failed(db, thread_id, reason, ended_at)
 
 
 class ActivityStore:

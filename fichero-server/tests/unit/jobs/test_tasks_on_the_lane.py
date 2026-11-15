@@ -51,7 +51,7 @@ def test_a_reindex_waits_in_the_queue_survives_a_restart_and_runs_on_the_model_l
     again = client.post("/api/tasks/reindex").json()
     assert first["task_id"] == again["task_id"] and first["status"] == "pending"
 
-    db_manager.close_database(test_package)  # quit
+    db_manager.close_all()  # quit: the engine closes every project (a project close alone pauses its work, #6596)
     monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())
     db = db_manager.get_database(test_package)
     jobs.continue_after_quit(db, None)  # the open holds what the quit left; Continue All lets it go (owner 2026-11-13)

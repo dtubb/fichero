@@ -397,14 +397,17 @@ def mark_interrupted_runs(db: Any) -> list[str]:
             continue
         closed_at = _CLOSED_MID_RUN.get(thread_id)
         if closed_at is not None:
+            ended = closed_at
             words = stopped_at_words(closed_at, CLOSED_PREFIX)
         else:
             heard = [t for t in (jobs.last_heard(db, thread_id), started_at) if t is not None]
-            words = stopped_at_words(max(ensure_utc(t) for t in heard) if heard else None)
+            ended = max(ensure_utc(t) for t in heard) if heard else None
+            words = stopped_at_words(ended)
         reason = f"{words}, before this run finished"
         if jobs.parent_kind(db, thread_id) == "run-a-recipe":
             reason += f"; {RECIPE_CARRIES_ON}"
-        activity_store.mark_run_failed(db, thread_id, reason)
+        # It ends when it stopped, the time its words name, not when this open noticed (#6588: "1 h" for 3 minutes' work).
+        activity_store.mark_run_failed(db, thread_id, reason, ensure_utc(ended).replace(tzinfo=None) if ended else None)
         jobs.fail_run_rows(db, thread_id, reason)
         forget(thread_id)
         marked.append(thread_id)

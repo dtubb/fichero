@@ -875,7 +875,10 @@ class WorkflowRunDeleteResult(BaseModel):
     "workflow_run.delete",
     WorkflowRunDeleteParams,
     domains=["workflow_execution"],
-    undoable=False,
+    undoable=True,
+    # Undo puts the deleted runs back as they were (#6599): one person's Delete of runs and jobs is one step.
+    invert=lambda before, after, ctx: ("workflow_run.undelete",
+                                       {"thread_ids": list((after or {}).get("deleted_ids") or [])}),
 )
 def _action_delete_workflow_runs(
     db: Database, params: WorkflowRunDeleteParams, ctx: ActionContext
@@ -927,6 +930,27 @@ def _action_delete_workflow_runs(
         emit_type="workflow_run.deleted",
     )
     return result, spec
+
+
+class WorkflowRunUndeleteParams(BaseModel):
+    """``workflow_run.undelete``: deleted runs put back as they were (Undo of a Delete, #6599)."""
+
+    thread_ids: list[str] = Field(description="The runs to put back")
+
+
+@action("workflow_run.undelete", WorkflowRunUndeleteParams, domains=["workflow_execution"], undoable=True,
+        invert=lambda before, after, ctx: ("workflow_run.delete",
+                                           {"thread_ids": list((after or {}).get("undeleted_ids") or [])}))
+def _action_undelete_workflow_runs(db: Database, params: WorkflowRunUndeleteParams, ctx: ActionContext
+                                   ) -> tuple[dict, ChangeSpec]:
+    """The inverse of ``workflow_run.delete``: each deleted run gets its status from before the Delete back; a run not
+    deleted, or unknown, is left alone."""
+    from fichero_server.db import activity_records
+
+    undeleted = activity_records.undelete_runs(db, list(dict.fromkeys(params.thread_ids)))
+    result = {"undeleted_ids": undeleted, "count": len(undeleted)}
+    return result, ChangeSpec(domains=["workflow_execution"], target_ids=undeleted, before=params.model_dump(),
+                              after=result, emit_type="workflow_run.undeleted")
 
 
 @router.post("/runs/delete", response_model=WorkflowRunDeleteResult)

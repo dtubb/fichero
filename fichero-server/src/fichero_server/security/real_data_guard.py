@@ -61,6 +61,40 @@ def refusal(path: str | os.PathLike[str] | None, home: Path | None = None, *, al
     return None
 
 
+#: The roots a dev engine is told it may open projects in (start_dev_local_engine.sh). Elsewhere the list only adds
+#: places (path_security); here a real library folder counts as allowed only when it, or a folder inside it, is listed.
+LIBRARY_ROOTS_ENV = "FICHERO_LIBRARY_ALLOWED_ROOTS"
+
+
+def library_refusal(path: str | os.PathLike[str], home: Path | None = None,
+                    env: dict[str, str] | None = None) -> str | None:
+    """Why a dev engine may not OPEN the project at `path`, in words; None when it may
+    (`runtime.dev-engine-refuses-real-data`, #6588). A dev engine is one started with a scratch base path
+    (`FICHERO_BASE_PATH`, which the launchers require and the app's own engine never sets). It never opens a project
+    inside the real library folders unless its `FICHERO_LIBRARY_ALLOWED_ROOTS` names that folder, or one inside it,
+    on purpose: the Dev Local engine opened ~/Fichero/article_fichero_jesuits.fichero because the app it serves had
+    it open, and rebuilt that database's indexes."""
+    env = os.environ if env is None else env
+    base = (env.get("FICHERO_BASE_PATH") or "").strip()
+    if not base:
+        return None
+    home = home or Path.home()
+    here = _key(path)
+    raw = env.get(LIBRARY_ROOTS_ENV, "")
+    listed = [_key(part.strip()) for part in raw.replace("\n", os.pathsep).replace(",", os.pathsep).split(os.pathsep)
+              if part.strip()]
+    for folder in REAL_LIBRARY_FOLDERS:
+        real = _key(home / folder)
+        if not _inside(here, real):
+            continue
+        if any(_inside(root, real) and _inside(here, root) for root in listed):
+            return None
+        return (f"Refusing to open {path}: it is inside {home / folder}, where the real projects live, and this dev "
+                f"engine (its state in {base}) does not list that folder in {LIBRARY_ROOTS_ENV}. Use a copy under "
+                "~/Fichero Dev Test.")
+    return None
+
+
 def refuse_real_base(path: str | os.PathLike[str] | None, home: Path | None = None) -> None:
     """Exit non-zero, in words, for an unset base path or one inside the real data."""
     said = refusal(path, home, allow_state=os.environ.get(ALLOW_REAL_STATE_ENV) == "1")  # the owner's, by hand

@@ -57,7 +57,7 @@ class TestDurability:
         with db.transaction():
             jobs.enqueue(db, "t-durable", "page-1")
 
-        db_manager.close_database(test_package)  # quit
+        db_manager.close_all()  # quit: the engine closes every project (a project close alone pauses its work, #6596)
         monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())  # a new engine process
         db = db_manager.get_database(test_package)  # relaunch: the open pauses what the quit left (owner 2026-11-13)
         assert _states(db) == {"page-1": ("paused", jobs.QUIT_REASON)}
@@ -80,7 +80,7 @@ class TestDurability:
         db.execute("UPDATE jobs SET state = 'running', attempts = 1 WHERE subject = 'once'")
         db.execute("UPDATE jobs SET state = 'running', attempts = 3 WHERE subject = 'poison'")
 
-        db_manager.close_database(test_package)  # the crash
+        db_manager.close_all()  # the crash: no project close pauses anything (#6596)
         monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())
         db = db_manager.get_database(test_package)
 
@@ -134,7 +134,7 @@ class TestPause:
         jobs.enqueue(db, "t-relaunch", "interrupted-page")
         db.execute("UPDATE jobs SET state = 'running', attempts = 1 WHERE subject = 'interrupted-page'")
 
-        db_manager.close_database(test_package)  # quit
+        db_manager.close_all()  # quit: the engine closes every project (a project close alone pauses its work, #6596)
         monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())  # a new engine process
         db_manager.get_database(test_package)  # relaunch: the open resumes its jobs
 
