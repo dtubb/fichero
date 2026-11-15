@@ -589,11 +589,14 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   that order; a blocker with Download Again sorts with the failed. *Built 2026-11-14 night:* `ActivityPane.needsYouRank`
   (a row the person paused waits with the waiting; a blocker sorts by its state until `blocked` is its own); the status
   counts "N need you" in the window's bottom panel. *Test:* `ActivityPaneOutlineTests.flatOrder` (the order superseded).
-- `activity.pane.fix-button-has-words` — **[GAP]** (#6599, #6588; `activity.pane.error-row-shape`) the row's one button carries its
+- `activity.pane.fix-button-has-words` — **[OK]** (#6599, #6588; `activity.pane.error-row-shape`) the row's one button carries its
   WORD ("Download Again", "Choose Folder…", "Add Key…", "Continue", "Retry"), never an icon alone; the fix comes from the
   failure's primary action as the engine names it, the app maps an action id to its word and its act, and an action id it does
   not know shows "Show Details" (the Inspector), never a gear. Acceptance: each action id in the engine's table maps to a word;
-  an unknown id reads Show Details. *Test:* `fichero/Tests/Unit/general/Models/ActivityErrorRowTests.swift` extended.
+  an unknown id reads Show Details. *Built 2026-11-14 night:* `ActivityPaneButton.forAction` (Settings…, Choose Folder…,
+  Continue, Retry; Show Details selects the row so the Inspector shows its fix); the row draws the word in a small bordered
+  button (`docs/assets/activity-pane/pane-fix-buttons.png`). *Test:* `fichero/Tests/Unit/general/Models/ActivityErrorRowTests.swift`
+  extended (`everyActionHasAWord`).
 - `activity.pane.one-undo-per-action` — **[GAP]** (#6599, #6588, #6583; open question 7) ONE person's action is ONE step on the
   window's Undo stack, whatever it spans: rows of several projects, runs and jobs together, Archive Finished… and Archive
   Failed included; a run's Delete is undoable like a job's (`workflow_run.delete` gains `workflow_run.undelete`). Until a

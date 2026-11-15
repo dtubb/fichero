@@ -212,9 +212,11 @@ extension ActivityPaneView {
             }
             Spacer(minLength: 0)
             if let button = row.paneButton {
-                Button { press(button, on: row) } label: { Label(button.title, systemImage: button.symbol) }
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.borderless)
+                // Its WORD, never an icon alone (`activity.pane.fix-button-has-words`, #6599).
+                Button(button.title) { press(button, on: row) }
+                    .controlSize(.small)
+                    .buttonStyle(.bordered)
+                    .fixedSize()
                     .help("\(button.title) \(row.name)")
                     .accessibilityLabel("\(button.title) \(row.name)")
                     .accessibilityIdentifier("activity.row.\(row.jobId ?? row.id).\(button.title.lowercased())")

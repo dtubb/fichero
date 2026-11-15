@@ -38,6 +38,21 @@ struct ActivityErrorRowTests {
         #expect(ActivityPaneButton.chooseFolder(export: "e1").title == "Choose Folder…")
     }
 
+    @Test("every action id in the engine's table maps to a word; one the row cannot do, or does not know, is Show Details")
+    func everyActionHasAWord() {
+        // `llm/failure.ActionKind`, the engine's table.
+        let engine = ["retry", "resume", "open-settings", "choose-model", "report-bug", "reconnect", "raise-to", "allow-everywhere",
+                      "allow-project", "allow-once", "over-cap-once", "choose-folder"]
+        let row = failed(nil)
+        for action in engine {
+            let title = ActivityPaneButton.forAction(action, row: row)?.title ?? ""
+            #expect(title.isEmpty == false, "\(action) has a word")
+        }
+        #expect(ActivityPaneButton.forAction("report-bug", row: row) == .showDetails)
+        #expect(ActivityPaneButton.forAction("something-new", row: row)?.title == "Show Details", "never a gear")
+        #expect(ActivityPaneButton.forAction("choose-folder", row: row) == .showDetails, "no export named: the Inspector says")
+    }
+
     @Test("the row carries the fix sentence and never a status code")
     func fixInTheRow() {
         let row = failed(ActivityJob.Failure(kind: "rate-limited", words: "OpenRouter is limiting how fast Fichero can send.",

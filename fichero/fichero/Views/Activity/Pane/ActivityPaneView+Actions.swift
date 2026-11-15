@@ -94,6 +94,7 @@ extension ActivityPaneView {
         case .verb(let verb): perform(verb, on: [row])
         case .settings: Self.openSettings()
         case .chooseFolder(let export): choosingFolder = ActivityFolderChoice(libraryId: row.libraryId, exportId: export)
+        case .showDetails: selection = [row.id]  // the Inspector shows the selected row's fix
         }
     }
 
