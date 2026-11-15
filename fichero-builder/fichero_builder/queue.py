@@ -161,6 +161,7 @@ class Procs:
     jail_gh: bool = False  # [jail].gh: the jail user has a gh token, so a brief may ask for gh (#6495)
     inline_paths: tuple = ()  # [jail].inline_paths: the owner folders a hand-written brief may inline a file from (brief_tool.for_worker)
     ahead_of_origin: Callable[[dict], bool] = lambda lane: False  # lane -> its tree has commits past origin/<branch> (#6507: a retried batch's DONE)
+    adopt: Callable[[dict], object | None] = lambda lane: None  # #6589: lane -> a handle on its live session (a tmux window named for it), else None
 
 
 QUIET = ("queued", "blocked", "landed", "parked")  # a step state in which the lane's own worker is not moving its tree
@@ -361,6 +362,10 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             move(s, "queued", f"the worker ended {end!r}: a new session next tick")
             return True
     if h is None and (s["state"] == "sent" or (s["state"] == "queued" and lane["feed"])):  # no handle: this loop restarted; the old session may be up
+        if (adopted := procs.adopt(lane)) is not None:  # #6589: a restart resets nothing: the live window of this lane is watched again
+            handles[lane["id"]] = adopted
+            journal.append("queue", lane=lane["id"], step=s["step"], state="adopted", detail="a restarted loop took over the lane's live tmux window")
+            return True
         procs.stop(lane)  # ponytail: it stops within its own tick and the new one starts one tick later; two workers never share a worktree for long
         lane["feed"] = ""
         move(s, "queued", "stopping the session this loop lost track of")
@@ -953,7 +958,7 @@ def launch_agents(root, out, *, state=None, tick_s: float = 30.0, port: int = 87
     pkg, out = Path(__file__).resolve().parents[1], Path(out)
     logs = Path(state) if state else journal.STATE
     st = ["--state", str(state)] if state else []
-    jobs = {"loop": (["loop", "--root", str(root), "--tick", f"{tick_s:g}", *st], {"KeepAlive": True, "RunAtLoad": True}),
+    jobs = {"loop": (["loop", "--root", str(root), "--tick", f"{tick_s:g}", *st], {"KeepAlive": True, "RunAtLoad": True, "AbandonProcessGroup": True}),
             "heartbeat": (["heartbeat", "--tick", f"{tick_s:g}", *st], {"StartInterval": int(3 * tick_s)}),
             "console": (["status", "--port", str(port), "--root", str(root), *st], {"KeepAlive": True, "RunAtLoad": True})}
     out.mkdir(parents=True, exist_ok=True)
@@ -1241,10 +1246,36 @@ BUILDS: list = []  # the post-landing dev builds' threads: a re-exec waits for t
 
 
 def code_mark(root="") -> tuple:
-    """What the running loop's code is: each fichero_builder source's name, size and mtime, and the rules file it reads (#6466)."""
+    """What the running loop's code is: each fichero_builder source's name, size and mtime. #6589: the rules file is not in it: it is
+    read at every tick (`reload_rules`), so only a landing that changes `fichero-builder/` makes the loop re-exec. `root` is kept for callers."""
     pkg = Path(__file__).resolve().parent
-    files = list(pkg.glob("*.py")) + ([Path(root) / "harness.toml"] if root and (Path(root) / "harness.toml").is_file() else [])
+    files = list(pkg.glob("*.py"))
     return tuple(sorted((f.name, f.stat().st_size, f.stat().st_mtime_ns) for f in files))
+
+
+def reload_rules(root) -> None:
+    """#6589: `[loop]` of harness.toml, read at every tick: a new lane in `only` needs no restart. An unreadable file keeps what was set."""
+    f = Path(root) / "harness.toml"
+    try:
+        cfg = tomllib.loads(f.read_text()).get("loop", {})
+    except (OSError, tomllib.TOMLDecodeError):
+        return
+    apply_loop_cfg(cfg)
+
+
+def apply_loop_cfg(cfg: dict) -> None:
+    global ROUNDS
+    ROUNDS = int(cfg.get("rounds", ROUNDS))
+    ONLY[0] = tuple(cfg.get("only", ()))
+    DISPATCH[0] = tuple(cfg.get("dispatch", ()))
+    BLOCKED_H[0] = float(cfg.get("blocked_hours", BLOCKED_H[0]))
+    APPROVED_PINNED[0] = {str(k): str(v) for k, v in dict(cfg.get("approved_pinned", {})).items()}
+
+
+def restart_due(mark: tuple, root, chains, builds=()) -> bool:
+    """#6589: re-exec between ticks only when the package's code changed (a landing under fichero-builder/); a live worker session no
+    longer holds it off, because the restarted loop adopts it. A running chain or dev build still does (its thread would be lost)."""
+    return code_mark(root) != mark and not any(not f.done() for k, f in (chains or {}).items() if k != "pool") and not any(t.is_alive() for t in builds)
 
 
 def reexec() -> None:  # the tests replace this
@@ -1274,6 +1305,8 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
         if getattr(procs, "root", ""):  # presubmit judges with the live loop's checkout, whoever runs `builder done`
             (journal.STATE / "live-root").write_text(str(Path(procs.root).resolve()) + "\n")
     while True:
+        if root:
+            reload_rules(root)  # #6589
         if heartbeat:  # after a reboot the lanes' sessions come back in new panes (run.loop-launchd)
             for m in repane():
                 out(m)
@@ -1293,7 +1326,7 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
         DRAIN[0] = heartbeat and code_mark(root) != mark  # serial chains never left a gap: stop starting them until it re-execs
         if not DRAIN[0]:
             DRAIN_SINCE[0] = 0.0
-        if heartbeat and code_mark(root) != mark and not handles and not any(not f.done() for k, f in (chains or {}).items() if k != "pool") and not any(t.is_alive() for t in BUILDS):
+        if heartbeat and restart_due(mark, root, chains, BUILDS):
             journal.append("loop", state="restarted", detail="loop restarted for new code", pid=os.getpid(), argv=sys.argv[1:])
             reexec()
             mark = code_mark(root)  # a test's reexec returns
@@ -1571,6 +1604,26 @@ def worker_windows(j, name: str, with_command: bool = False) -> list:
     return hits if with_command else [i for i, _ in hits]
 
 
+def adopt_session(j, lane: dict):
+    """#6589: a handle on the lane's live session, or None: its `builder run` still watches its feed and a window named for the lane
+    runs something other than an idle shell. The seams are `run_alive` and `tmux_as_worker`."""
+    if j is None or not j.user or not lane.get("feed") or not run_alive(j, lane["feed"]):
+        return None
+    if not any(cmd and cmd.lstrip("-") not in SHELLS for _, cmd in worker_windows(j, lane["id"], with_command=True)):
+        return None
+    return Adopted(lambda: run_alive(j, lane["feed"]) and bool(worker_windows(j, lane["id"])))
+
+
+class Adopted:
+    """#6589: a handle on a session this loop did not start (a restart kept it): `poll()` is None while it is up, like a Popen's."""
+
+    def __init__(self, up: Callable[[], bool]):
+        self.up = up
+
+    def poll(self):
+        return None if self.up() else 0
+
+
 def real_procs(root) -> Procs:
     root = Path(root)
     rules = tomllib.loads((root / "harness.toml").read_text())
@@ -1628,8 +1681,9 @@ def real_procs(root) -> Procs:
         codemap.provide(root)
         cmd = work.run_cmd(a, builder, "--feed", feed, "--seq", lane["seq"])
         log = open(Path(j.workroot) / f"run-{lane['id']}.log", "ab")  # #6466: a start that fails is read here, not lost to /dev/null (the workroot is where the owner may write)
+        # #6589: its own session, so launchd's kill of the loop job (kickstart -k) never reaches the worker's tmux server
         return subprocess.Popen([j.sudo, "-n", "-H", "-u", j.user, "sh", "-c", f"cd {q(j.workroot)} && {cmd}"],
-                                stdout=log, stderr=log)
+                                stdout=log, stderr=log, stdin=subprocess.DEVNULL, start_new_session=True)
 
     def send(lane, text):
         p = Path(lane["feed"]) / f"msg-{lane['seq']}.txt"
@@ -1737,7 +1791,7 @@ def real_procs(root) -> Procs:
                           any_subject=lane["id"] in loop_cfg.get("intake_any", ()))
 
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
-                 ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0,
+                 ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0, adopt=lambda lane: adopt_session(jail.load(root), lane),
                  landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
                  next_milestone=lambda taken: next_in_order(root, taken), build=build, verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake,
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "",

@@ -385,7 +385,6 @@ def main(argv=None) -> int:
             return 1
         f = Path(a.root) / "harness.toml"
         cfg = tomllib.loads(f.read_text()).get("loop", {}) if f.is_file() else {}
-        queue.ROUNDS = int(cfg.get("rounds", queue.ROUNDS))
         lanes_n = max(1, a.lanes or int(cfg.get("lanes", 1)))
         try:
             procs = queue.real_procs(a.root)
@@ -395,10 +394,7 @@ def main(argv=None) -> int:
             return 1
         # manager 2026-11-04: a fresh loop (the LaunchAgent) took an old build-order milestone the hand loop had long skipped and started a
         # worker on steps lane-sharing had landed: the lanes are named in [loop].only, and milestones are taken only when feed_milestones is on
-        queue.ONLY[0] = tuple(cfg.get("only", ()))
-        queue.DISPATCH[0] = tuple(cfg.get("dispatch", ()))  # #6466: external lanes the loop runs itself
-        queue.BLOCKED_H[0] = float(cfg.get("blocked_hours", queue.BLOCKED_H[0]))
-        queue.APPROVED_PINNED[0] = {str(k): str(v) for k, v in dict(cfg.get("approved_pinned", {})).items()}
+        queue.apply_loop_cfg(cfg)  # and again at every tick (#6589)
         return queue.run(procs, workers_n=max(queue.workers(a.root), lanes_n), push=True, lanes_n=lanes_n, tick_s=a.tick, forever=True, heartbeat=True,
                          feed_milestones=bool(cfg.get("feed_milestones", False)))
     if a.cmd == "queue":
