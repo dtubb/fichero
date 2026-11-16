@@ -204,9 +204,9 @@ struct ZoomableImagePreview: View {
     @PaneStorage("imagePreview.showBoundingBoxes") var showBoundingBoxes = false
     /// The image layer (ruled 2026-09-27, Q2). On by default: a page with its picture hidden
     /// is a deliberate view, never where a person should land by accident.
-    /// PER-PANE, like the word boxes: seeded from the remembered default, then from the pane's
-    /// workspace (`panePreviewLayers`) when it states one.
-    @State var imageVisible = EngineConfig.defaults.object(forKey: ImageLayer.defaultsKey) as? Bool ?? true
+    /// The SOURCE's own setting (#6657, `SourceViewSettings`), else the pane's workspace
+    /// (`panePreviewLayers`), else on. The old app-wide key is not read: it kept a stale off.
+    @State var imageVisible = true
     @Environment(\.panePreviewLayers) var panePreviewLayers
     @State var ocrGeometry: OCRGeometry?
     /// THIS pane's region selection (#5020): never another pane's. The window's focus points at it
