@@ -1,0 +1,45 @@
+{"subsystem": "app.fichero.fichero", "category": "LaunchProfile", "eventMessage": "\u23f1 process start @ 0.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "LaunchProfile", "eventMessage": "\u23f1 engine ready @ 412.5ms"}
+{"subsystem": "app.fichero.fichero", "category": "LaunchProfile", "eventMessage": "\u23f1 first window @ 900.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 10.0ms: fetch 6.0ms \u00b7 render 4.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 20.0ms: fetch 12.0ms \u00b7 render 8.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 30.0ms: fetch 18.0ms \u00b7 render 12.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 40.0ms: fetch 24.0ms \u00b7 render 16.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 50.0ms: fetch 30.0ms \u00b7 render 20.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 60.0ms: fetch 36.0ms \u00b7 render 24.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 70.0ms: fetch 42.0ms \u00b7 render 28.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 80.0ms: fetch 48.0ms \u00b7 render 32.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 90.0ms: fetch 54.0ms \u00b7 render 36.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 100.0ms: fetch 60.0ms \u00b7 render 40.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 110.0ms: fetch 66.0ms \u00b7 render 44.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 120.0ms: fetch 72.0ms \u00b7 render 48.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 130.0ms: fetch 78.0ms \u00b7 render 52.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 140.0ms: fetch 84.0ms \u00b7 render 56.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 150.0ms: fetch 90.0ms \u00b7 render 60.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 160.0ms: fetch 96.0ms \u00b7 render 64.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 170.0ms: fetch 102.0ms \u00b7 render 68.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 180.0ms: fetch 108.0ms \u00b7 render 72.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 190.0ms: fetch 114.0ms \u00b7 render 76.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 200.0ms: fetch 120.0ms \u00b7 render 80.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 210.0ms: fetch 126.0ms \u00b7 render 84.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 220.0ms: fetch 132.0ms \u00b7 render 88.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 230.0ms: fetch 138.0ms \u00b7 render 92.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 240.0ms: fetch 144.0ms \u00b7 render 96.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 250.0ms: fetch 150.0ms \u00b7 render 100.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 260.0ms: fetch 156.0ms \u00b7 render 104.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 270.0ms: fetch 162.0ms \u00b7 render 108.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 280.0ms: fetch 168.0ms \u00b7 render 112.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 290.0ms: fetch 174.0ms \u00b7 render 116.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 300.0ms: fetch 180.0ms \u00b7 render 120.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 310.0ms: fetch 186.0ms \u00b7 render 124.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 320.0ms: fetch 192.0ms \u00b7 render 128.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 330.0ms: fetch 198.0ms \u00b7 render 132.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 340.0ms: fetch 204.0ms \u00b7 render 136.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 350.0ms: fetch 210.0ms \u00b7 render 140.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 360.0ms: fetch 216.0ms \u00b7 render 144.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 370.0ms: fetch 222.0ms \u00b7 render 148.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 380.0ms: fetch 228.0ms \u00b7 render 152.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 390.0ms: fetch 234.0ms \u00b7 render 156.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 sidebar expand took 400.0ms: fetch 240.0ms \u00b7 render 160.0ms"}
+{"subsystem": "app.fichero.fichero", "category": "InteractionProfile", "eventMessage": "\u23f1 preview swipe \u2192 image never reached its end point (superseded after 5000.0ms)"}
+{"subsystem": "app.fichero.fichero", "category": "BodyCount", "eventMessage": "SidebarView body 31"}

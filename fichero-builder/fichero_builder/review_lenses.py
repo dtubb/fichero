@@ -42,3 +42,25 @@ def surface_files(name_status: str) -> list[str]:
 def surface_block(name_status: str) -> str:
     """The prompt's top line: the surface files this batch changed, or "none" (never empty)."""
     return "SECURITY SURFACE CHANGED: " + (", ".join(surface_files(name_status)) or "none")
+
+
+# The path-to-area map (#6600): a hotspot and a reviewer finding land in the same bucket. First match wins; a directory under
+# `Views/` or the engine package names its own area, and what matches nothing is "other".
+_AREA_PATTERNS = (
+    re.compile(r"(?:^|/)Views/([^/]+)/"),
+    re.compile(r"(?:^|/)fichero_server/([^/.]+)(?:/|\.py$)"),
+    re.compile(r"(?:^|/)(fichero_cli|fichero_mcp|fichero_builder)/"),
+    re.compile(r"(?:^|/)fichero/fichero/([^/]+)/"),
+)
+
+
+def area_of(where: str) -> str:
+    """The area a path (or a span or phase name, whose first word stands for it) belongs to."""
+    for pat in _AREA_PATTERNS:
+        m = pat.search(where)
+        if m:
+            return m.group(1).lower()
+    if "/" not in where:
+        word = re.split(r"[\s.:_-]", where.strip(), maxsplit=1)[0].lower()
+        return word or "other"
+    return "other"

@@ -1,0 +1,4 @@
+⏱ process start @ 0.0ms
+⏱ engine ready (uds) @ 300.0ms
+some other line
+⏱ first window @ 750.0ms

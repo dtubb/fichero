@@ -943,6 +943,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return _json(self, 200, {"ts": None, "milestones": []})
         if path == "/api/activity":
             return _json(self, 200, activity(journal.read()))
+        if path == "/api/hotspots":  # the Hotspots panel reads latest.json (perf-sweep.output.table)
+            try:
+                return _json(self, 200, json.loads((journal.STATE / "perf" / "latest.json").read_text()))
+            except (OSError, ValueError):
+                return _json(self, 200, {"run": None, "top": [], "notes": []})
         if path == "/api/landing":
             if not _LANDING or time.time() - _LANDING["at"] > 60:
                 _LANDING.update(at=time.time(), data=landing(ROOT, queue.load()))

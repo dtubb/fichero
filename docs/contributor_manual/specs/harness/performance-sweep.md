@@ -35,7 +35,7 @@ journal and the console (rule 0 of the ladder; #6589 item 1–2 are exactly this
 Every source produces rows of one shape (see `perf-sweep.output.row`); the readers below are the only code this spec adds
 on the measuring side. Machine: **M4** for everything in this section unless a row says otherwise.
 
-- `perf-sweep.source.app-log-phases` [GAP] (#6600) — the app's existing launch and interaction timelines are read from
+- `perf-sweep.source.app-log-phases` [PARTIAL] (#6600) — the app's existing launch and interaction timelines are read from
   every smoke, UI-test and perf run, not only from fresh profiles. `LaunchProfile.milestone` logs
   `⏱ <name> @ <ms>ms` (category `LaunchProfile`) and `InteractionProfile` logs a measured-milliseconds line per phase and
   lap (category `InteractionProfile`), both under subsystem `app.fichero.fichero`, each beside an `os_signpost` on the
@@ -51,9 +51,9 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   `app-log.jsonl` and a fixture signpost export, no Mac): 40 `sidebar expand` intervals give one row with count 40 and the
   right p50/p95; the launch milestones become ordered gaps whose sum is the last milestone's elapsed; a run with the
   stderr timeline only still yields the launch rows; the signpost export and the log for the same run agree within 5 ms or
-  the row is marked `disagree` (never silently averaged). Test (to write):
+  the row is marked `disagree` (never silently averaged). Test (built; the signpost-export cross-check and `disagree` are open until Step 8):
   the new test_perf_log_readers file in fichero-server/tests/unit/scripts, case test_launch_and_interaction_lines_become_phase_rows_with_p50_p95_count.
-- `perf-sweep.source.engine-perf-lines` [GAP] (#6600) — `core/perf.py::perf_span` logs `PERF <name> <k=v …>
+- `perf-sweep.source.engine-perf-lines` [PARTIAL] (#6600) — `core/perf.py::perf_span` logs `PERF <name> <k=v …>
   duration_ms=<n>` and `model_load` logs `model-lane: loaded <model> in <s> s (load <n> in this engine)` plus the
   WARNING `model loaded again`. The reader takes an engine log (the run's, or the app's embedded-engine log from a smoke
   run) and emits one row per span name with count, p50, p95, max, total (count × p50, the "how often" figure the owner
@@ -198,7 +198,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
 
 ## Output — the ranked hotspot table and the filing rule
 
-- `perf-sweep.output.row` [GAP] (#6600) — one row shape for every source: `{run, machine_model, workload, side
+- `perf-sweep.output.row` [OK] (#6600) — one row shape for every source: `{run, machine_model, workload, side
   (engine|app|field), area, kind (time|cpu|ram|disk|energy|hang|leak|body|efficiency), where (frame, view, span,
   phase or file:line), value, unit, count, share (of the workload's total for the kind, when it exists), source (the
   tool), trend_pct (vs the previous run on the same machine model and workload, null on the first), runs_seen,
@@ -207,7 +207,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   `Views/Sidebar/` → sidebar, and so on) so a hotspot and a reviewer finding land in the same bucket. Acceptance: a row
   missing `where`, `value` or `source` is refused; `area` for `fichero/fichero/Views/Sidebar/SidebarView.swift` is
   `sidebar`. Test (to write): test_perf_sweep (a new test file), case test_rows_have_one_shape_and_an_area_from_the_lens_map.
-- `perf-sweep.output.table` [GAP] (#6600) — a run writes `<state>/perf/<run-id>/hotspots.json` (all rows) and
+- `perf-sweep.output.table` [PARTIAL] (#6600) — a run writes `<state>/perf/<run-id>/hotspots.json` (all rows) and
   `<state>/perf/latest.json` (a pointer plus the ranked top 50), where `<state>` is the builder's state dir
   (`journal.STATE`), and the profiles sit beside them for 30 days (the M4's Dev Disk; the manager's Mac holds the JSON
   only, rsynced back with the ladder's results). **Ranking:** within a kind, by `share` where it exists, else by `value`;
