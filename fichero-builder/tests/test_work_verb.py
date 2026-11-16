@@ -387,16 +387,17 @@ def test_a_github_blip_in_the_rebase_is_retried_once_not_called_a_conflict(scrat
     real, calls = work.as_worker, []
 
     def flaky(a, cmd, *args, **kw):
-        calls.append(cmd)
-        if len(calls) == 1:
-            return subprocess.CompletedProcess(cmd, 128, "", "fatal: unable to access 'https://github.com/x.git/': Failed to connect")
+        if " rebase " in cmd:
+            calls.append(cmd)
+            if len(calls) == 1:
+                return subprocess.CompletedProcess(cmd, 128, "", "fatal: unable to access 'https://github.com/x.git/': Failed to connect")
         return real(a, cmd, *args, **kw)
 
     monkeypatch.setattr(work, "as_worker", flaky)
     _commit(scratch.wt, "mine")
     _commit(scratch.engine, "theirs")
     assert work.do_rebase(scratch.a, "integration") == ""
-    assert len(calls) == 2, "the same command ran once more"
+    assert len(calls) == 2 and calls[0] == calls[1], "the same fetch and rebase ran once more"
 
 
 def test_a_failed_rebase_is_a_question_before_patches(chain, monkeypatch, capsys):
