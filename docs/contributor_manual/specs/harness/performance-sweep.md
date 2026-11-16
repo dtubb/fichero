@@ -162,8 +162,9 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   order on the M4 is fixed so profiles never overlap a build: daily builds, the diagnostics plan, the perf plan, then the
   xctrace recordings and the engine profiles, each under the heavy lock. Acceptance: a rules file whose only `profile`
   machine lacks `gui` runs the engine profiles and marks the app profiles `not-run: no GUI machine`; a sweep configured
-  with no `profile` machine refuses at load naming the tag. Test (to write):
-  test_perf_sweep (a new test file), case test_profiles_place_only_on_declared_machines_and_say_not_run_otherwise. Built: tags and sudo are declared in `harness.toml [perf.machines.<name>]` (not in `[machines]`, whose line stays as it was), read by `fichero_builder/perf_workloads.py`.
+  with no `profile` machine refuses at load naming the tag. 
+  Test: fichero-builder/tests/test_perf_sweep.py::test_profiles_place_only_on_declared_machines_and_say_not_run_otherwise
+  Built: tags and sudo are declared in `harness.toml [perf.machines.<name>]` (not in `[machines]`, whose line stays as it was), read by `fichero_builder/perf_workloads.py`.
 
 ## Workloads — the fixed, reproducible set
 
