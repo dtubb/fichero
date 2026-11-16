@@ -469,8 +469,9 @@ def _remote_run(name, argv, root, timeout_s, cfg: Config, extra: dict | None, cw
     env = {k: sub(v) for k, v in _env(root, cfg, extra).items() if k not in ("HOME", "PATH", "TERM", cfg.base_path_env)}
     kv = " ".join(shlex.quote(f"{k}={v}") for k, v in env.items())
     bp = f'{cfg.base_path_env}="$B" ' if cfg.base_path_env else ""
-    # TMPDIR survives the env -i: a runner whose internal disk is full points it at a roomier disk (the M4, #6589 item 14)
-    script = (f'cd {shlex.quote(sub(cwd or root))} && B=$(mktemp -d) && env -i HOME="$HOME" PATH=/usr/bin:/bin TMPDIR="${{TMPDIR:-/tmp}}" {kv} {bp}'
+    # ponytail: the runner's own TMPDIR is NOT passed through env -i: the M4's Dev Disk name holds spaces, and builder tests
+    # build shell lines from unquoted tmp paths (38 red under a spaced TMPDIR, 2026-11-16; #6589 item 14). Quote them first.
+    script = (f'cd {shlex.quote(sub(cwd or root))} && B=$(mktemp -d) && env -i HOME="$HOME" PATH=/usr/bin:/bin {kv} {bp}'
               f'{shlex.join(cmd)}; rc=$?; rm -rf "$B"; exit $rc')
     script = _remote_heavy(py, f"{rdir.rsplit('/', 1)[0]}/heavy.lock", script)  # the iMac's own lock
     r = run_command(name, ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host, script], root, timeout_s, None, as_jail=False)
