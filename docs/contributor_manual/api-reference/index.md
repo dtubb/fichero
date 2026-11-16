@@ -1044,6 +1044,17 @@ it is on and answers `running`; a training Job is cancelled on Hugging Face. A p
 run is waiting for is paused with its run (`409`); an unknown id is `404`. MCP: `fichero_jobs`,
 `fichero_pause_background_work`, `fichero_job_pause`, `fichero_job_cancel`.
 
+The window's run controls (`activity.window.run-controls`, #6588): `POST /api/activity/pause-all` pauses every running
+and waiting piece of work of this project, and `POST /api/activity/continue-all` lets go exactly what Pause All held (a
+workflow run from its checkpoint; a row a person paused by hand stays paused). `POST /api/activity/stop-all` stops every
+running, waiting and paused piece of work as its own Stop does; what it did is kept, Retry runs it again, and it is not
+undoable. Each answers the summary that says whether the button shows Play or Pause.
+
+`GET /api/activity/models` is the window's Models tree (`activity.window.models-tree`, #6588): every model used today or
+held now, by place (this Mac, remote, cloud) and provider, loaded or not, working or not, its memory where measured.
+`GET /api/activity/recipes` is the Recipes view (`activity.window.recipes`, #6588): each recipe of the last `days` (default
+30) with its runs and their steps, and the rates that compare them (failed %, seconds a page, cost a page).
+
 `POST /api/activity/jobs/clear-failed` is the Activity window's Clear Failed (`job.clear_failed`, audited): failed jobs are hidden from the list (kept in the table, with `cleared_at`), alongside the failed workflow runs the window deletes; it answers how many it cleared. Retrying a cleared job lists it again (#5634).
 
 `POST /api/activity/jobs/{job_id}/retry` runs a failed or stopped job again through `job.retry`
