@@ -217,15 +217,20 @@ ERRLINE = re.compile(r"^(?:Traceback \(most recent|E\s{2,}\S|\w*(?:Error|Excepti
 
 
 def tail(text: str, lines: int = 40, chars: int = 4000, line_chars: int = 300) -> str:
-    """The last lines, bounded. A pytest failure section is kept whatever follows it: its end (the `E` lines) plus the run's
-    end, half the bound each; 40 lines of warnings once pushed the failure out of a red rung. A `SECURITY-RESULT {json}` line is
-    never cut to `line_chars` (#6589 item 15: a 326-byte line lost its closing brace and the rung read it as absent): it is the
-    scan's one machine-read line. The exception has its own bound, SECURITY_RESULT_MAX: any rung can print such a line, so a
-    longer one falls back to the normal cut."""
+    """The last lines, bounded. A `SECURITY-RESULT {json}` line that is the output's final line is never cut to `line_chars`
+    (#6589 item 15: a 326-byte line lost its closing brace and the rung read it as absent): it is the scan's one machine-read
+    line. Only that one final line is kept so, once, and only up to SECURITY_RESULT_MAX; any rung can print such lines, so
+    earlier ones and longer ones get the normal cut."""
     stripped = (text or "").strip().splitlines()
     if stripped and stripped[-1].startswith(SECURITY_RESULT_PREFIX) and len(stripped[-1]) <= SECURITY_RESULT_MAX:
-        head = tail("\n".join(stripped[:-1]), lines - 1, chars, line_chars)
+        head = _tail_lines("\n".join(stripped[:-1]), max(lines - 1, 1), chars, line_chars)
         return (head + "\n" if head else "") + stripped[-1]
+    return _tail_lines(text, lines, chars, line_chars)
+
+
+def _tail_lines(text: str, lines: int, chars: int, line_chars: int) -> str:
+    """The bounded cut of `tail`: a pytest failure section is kept whatever follows it: its end (the `E` lines) plus the run's
+    end, half the bound each; 40 lines of warnings once pushed the failure out of a red rung."""
     all_lines = [ln[:line_chars] for ln in (text or "").strip().splitlines()]
     start = next((i for i, ln in enumerate(all_lines) if FAILURES.match(ln)), None)
     last = all_lines[-lines:]

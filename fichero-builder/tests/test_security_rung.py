@@ -361,3 +361,13 @@ def test_tail_keeps_a_security_result_line_whole_only_up_to_its_own_bound():
     huge = ct.SECURITY_RESULT_PREFIX + "y" * (ct.SECURITY_RESULT_MAX + 1)
     out = ct.tail("noise\n" + huge)
     assert len(out) <= 4000 and not out.endswith(huge)
+
+
+def test_tail_keeps_only_the_final_security_result_line_whole_and_does_not_recurse():
+    from fichero_builder import check_tool as ct
+    line = ct.SECURITY_RESULT_PREFIX + "z" * 5000
+    out = ct.tail("\n".join([line] * 5))
+    assert out.endswith(line) and len(out) <= 4000 + 1 + len(line)
+    many = "\n".join([ct.SECURITY_RESULT_PREFIX + "{}"] * 2000)
+    out = ct.tail(many)
+    assert len(out.splitlines()) <= 40
