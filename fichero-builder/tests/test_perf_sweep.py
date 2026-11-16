@@ -185,3 +185,132 @@ def test_install_corpus_is_a_builder_verb_that_refuses_a_mismatch(tmp_path, caps
     manifest.write_text(json.dumps({"corpora": [good]}))
     rc = cli.main(argv)
     assert rc != 0 and "tiny" in capsys.readouterr().out
+
+
+# --- Step 4 (#6614): engine profiles nightly ----------------------------------------------------------------------------------------
+
+from fichero_builder import perf_profiles  # noqa: E402
+
+PYI = json.dumps({"root_frame": {"function": "<module>", "file_path_short": "driver.py", "line_no": 1, "time": 10.0, "children": [
+    {"function": "import_page", "file_path_short": "fichero_server/import/page.py", "line_no": 40, "time": 7.0, "children": [
+        {"function": "execute", "file_path_short": "duckdb/__init__.py", "line_no": 9, "time": 3.0, "children": []},
+        {"function": "decode", "file_path_short": "fichero_server/core/codec.py", "line_no": 12, "time": 1.0, "children": []}]},
+    {"function": "main", "file_path_short": "fichero_cli/main.py", "line_no": 5, "time": 2.0, "children": []}]}})
+MEMRAY = json.dumps({"top_allocations_by_size": [
+    {"location": ["load", "fichero_server/models/load.py", 7], "size": 900},
+    {"location": ["np_alloc", "numpy/core.py", 3], "size": 5000},
+    {"location": ["parse", "fichero_server/core/parse.py", 21], "size": 300}], "top_allocations_by_count": []})
+TIME_L = "        12.50 real         9.00 user         2.25 sys\n  734003200  maximum resident set size\n"
+
+
+def test_engine_profile_readers_rank_own_frames_allocators_disk_and_cpu_efficiency():
+    frames = perf_profiles.read_pyinstrument(PYI)
+    # ours only (duckdb and the driver are not), ranked by self time; share against the root's 10 s
+    assert [f["where"].split(" ")[0] for f in frames] == ["import_page", "main", "decode"]
+    assert frames[0]["self_ms"] == 3000.0 and frames[0]["total_ms"] == 7000.0 and frames[0]["share"] == pytest.approx(0.3)
+    assert len(perf_profiles.read_pyinstrument(PYI, n=1)) == 1
+
+    allocs = perf_profiles.read_memray_stats(MEMRAY)
+    assert [a["where"].split(" ")[0] for a in allocs] == ["load", "parse"] and allocs[0]["bytes"] == 900  # ours, by peak bytes
+
+    t = perf_profiles.read_time_l(TIME_L)
+    assert t == {"wall_s": 12.5, "cpu_s": 11.25, "cpu_per_wall": pytest.approx(0.9), "peak_rss_mb": pytest.approx(700.0)}
+    with pytest.raises(ValueError):
+        perf_profiles.read_time_l("nothing")
+
+    d = perf_profiles.disk_deltas("100\t/g/library\n50\t/g/log\n", "180\t/g/library\n50\t/g/log\n")
+    assert d == {"/g/library": 80, "/g/log": 0}
+    assert perf_profiles.disk_deltas("100\t/g/library\n", "90\t/g/library\n") == {"/g/library": -10}  # held exactly, not clamped
+
+    rows = perf_profiles.rows_for("w1", PYI, MEMRAY, TIME_L, d, run="r1", machine_model="m", profiler="pyinstrument")
+    kinds = {(r["kind"], r["where"].split(" ")[0]) for r in rows}
+    assert ("time", "import_page") in kinds and ("ram", "load") in kinds and ("disk", "/g/library") in kinds
+    assert ("efficiency", "w1") in kinds and ("cpu", "w1") in kinds and ("ram", "w1") in kinds
+    assert all(r["side"] == "engine" and r["workload"] == "w1" for r in rows)
+
+
+def _fake_rules(sudo=("py-spy",), min_free_gb=5):
+    r = _rules()
+    r["perf"]["machines"]["m4air"]["sudo"] = list(sudo)
+    r["machines"]["m4air"]["min_free_gb"] = min_free_gb
+    return r
+
+
+class _Runner:
+    """Records every command line; writes the fixture outputs a real profiler would, so no profiler or engine ever runs."""
+
+    def __init__(self, fail=None, sudo_ok=True):
+        self.calls, self.fail, self.sudo_ok = [], fail or {}, sudo_ok
+        self.du = 100
+
+    def __call__(self, cmd, *, timeout, env=None, cwd=None):
+        self.calls.append({"cmd": cmd, "timeout": timeout, "env": env})
+        if cmd.startswith("du -sk"):
+            self.du += 10
+            return 0, "".join(f"{self.du}\t{p}\n" for p in re.findall(r"'?(/\S+?)'?(?: |$)", cmd[len("du -sk "):])), ""
+        if cmd.startswith("sudo -n -l"):
+            return (0 if self.sudo_ok else 1), "", ""
+        for w, rc in self.fail.items():
+            if f"/{w}." in cmd or f"-{w}-" in cmd:
+                return rc, "", "boom"
+        for out in re.findall(r"-o ('[^']+'|\S+)", cmd):
+            p = Path(out.strip("'"))
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(PYI if p.suffix == ".json" and "pyinstrument" in p.name else MEMRAY if p.name.endswith("memray.json") else "x")
+        return 0, "", TIME_L if "time -l" in cmd else ""
+
+
+def _nightly(tmp_path, runner, rules=None, free_gb=500, **kw):
+    journal.STATE = tmp_path / "state"
+    journal.STATE.mkdir(exist_ok=True)
+    gate = tmp_path / "Dev Disk" / "gate"
+    return perf_profiles.nightly(rules or _fake_rules(), _manifest(), gate=gate, state=journal.STATE, run="n1", machine="m4air",
+                                 runner=runner, free_gb=lambda p: free_gb, machine_model="Mac16,1", **kw)
+
+
+def test_the_nightly_runs_one_workload_at_a_time_w2_last_with_its_own_budget_and_quotes_every_path(tmp_path):
+    runner = _Runner()
+    out = _nightly(tmp_path, runner)
+    profiled = [c["cmd"] for c in runner.calls if "pyinstrument" in c["cmd"] or "py-spy record" in c["cmd"]]
+    assert len(profiled) == 5 and "test_dense_page_whole_read_perf" in profiled[-1]  # w2 last
+    table = {w["name"]: w for w in perf_workloads.load(_rules(), _manifest())}
+    for c in runner.calls:
+        if "test_dense_page_whole_read_perf" in c["cmd"]:
+            assert c["timeout"] == table["w2"]["budget_s"]
+        if "test_search_workload_perf" in c["cmd"]:
+            assert c["timeout"] == table["w3"]["budget_s"]
+    for c in runner.calls:  # every tmp path under the gate with a space is quoted; none under a home dir
+        assert "/Users/" not in c["cmd"]
+        for m in re.finditer(r"\S*Dev Disk\S*", c["cmd"]):
+            assert "'" in c["cmd"][max(0, m.start() - 1):m.start() + 1] or c["cmd"][m.start() - 1] == "'"
+    assert (tmp_path / "state" / "perf" / "latest.json").is_file()
+    assert {r["workload"] for r in out["rows"]} >= {"w1", "w5"}
+
+
+def test_a_full_disk_refuses_before_running_and_a_failed_workload_is_a_not_run_row_not_a_stop(tmp_path):
+    runner = _Runner()
+    out = _nightly(tmp_path, runner, free_gb=1)
+    assert runner.calls == [] and out["rows"][0]["where"].startswith("not-run") and "free" in out["rows"][0]["detail"]["reason"]
+    runner = _Runner(fail={"w3": 1})
+    out = _nightly(tmp_path, runner)
+    assert any(r["workload"] == "w3" and r["where"].startswith("not-run") for r in out["rows"])
+    assert any(r["workload"] == "w4" and r["kind"] == "efficiency" for r in out["rows"])  # the next workload still ran
+
+
+def test_a_machine_without_sudo_py_spy_never_spawns_it_and_a_missing_sudoers_line_is_said_in_a_row(tmp_path):
+    runner = _Runner()
+    _nightly(tmp_path, runner, rules=_fake_rules(sudo=()))
+    assert not any("py-spy" in c["cmd"] for c in runner.calls)
+    assert perf_profiles.choose_profiler(_fake_rules(sudo=()), "m4air", sudo_ok=lambda: True) == ("pyinstrument", None)
+    assert perf_profiles.choose_profiler(_fake_rules(), "m4air", sudo_ok=lambda: True) == ("py-spy", None)
+    assert perf_profiles.choose_profiler(_fake_rules(), "m4air", sudo_ok=lambda: False) == ("pyinstrument", "py-spy: the sudoers line is not on the machine")
+
+    runner = _Runner(sudo_ok=False)
+    out = _nightly(tmp_path, runner)
+    assert not any("py-spy record" in c["cmd"] for c in runner.calls)
+    assert any("sudoers" in json.dumps(r["detail"]) for r in out["rows"])
+
+    runner = _Runner()
+    _nightly(tmp_path, runner)
+    spy = [c["cmd"] for c in runner.calls if "py-spy record" in c["cmd"]]
+    assert len(spy) == 5 and all(c.startswith("sudo -n ") and "--subprocesses" in c and "--format speedscope" in c for c in spy)
