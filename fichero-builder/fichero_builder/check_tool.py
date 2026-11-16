@@ -917,6 +917,34 @@ SOURCE_ERROR = re.compile(r"\.swift:\d+:\d+: error: ")
 BUILD_RETRY_WAIT_S = 30  # ponytail: one fixed wait; the other build's end is not watched
 
 
+WARNING_PLATFORMS = {"build": "mac", "ios-sim": "ios", "ipad-sim": "ipad"}  # the build rung holds the mac count; the daily builds hold iOS and iPad (the Swift test target holds none)
+
+
+def _warning_ratchet(tree: Path, host: str, bundle: str, name: str, r: dict) -> None:
+    """#6610 `perf-sweep.warnings.ratchet`: the green build's result bundle, read over there with xcresulttool, held against the tree's
+    `scripts/xcode_warning_baseline.json` by `scripts/check_xcode_warning_ratchet.py --hold-only`. Exit 1 turns the row red with the ratchet's
+    lines (it is the code's, never the runner's); exit 2 (BLIND: no baseline yet, an unreadable bundle) is a journal note, never a red and
+    never a silent green. Only a build the rung ran: the rung's own tree is read, nothing is written."""
+    script = Path(tree) / "scripts" / "check_xcode_warning_ratchet.py"
+    if not script.is_file():
+        return
+    got = _ssh(host, f"xcrun xcresulttool get build-results --path {shlex.quote(bundle)}", 300)
+    out = journal.STATE / "build-logs" / f"{name}-{time.strftime('%Y%m%d-%H%M%S')}.warnings.json"
+    if got.returncode or not got.stdout:
+        journal.append("check", state="warnings-blind", rung=name, detail=got.stderr.decode(errors="replace")[-200:] or "no build results")
+        return
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(got.stdout)
+    p = subprocess.run([sys.executable, str(script), "--platform", WARNING_PLATFORMS[name], "--bundle", str(out), "--hold-only",
+                        "--baseline", str(Path(tree) / "scripts" / "xcode_warning_baseline.json")], capture_output=True, text=True, timeout=120)
+    if p.returncode == 1:
+        r["ok"] = False
+        r["warnings_grew"] = True
+        r["stdout_tail"] = ((r.get("stdout_tail") or "") + "\n" + p.stdout)[-6000:]
+    elif p.returncode:
+        journal.append("check", state="warnings-blind", rung=name, detail=(p.stderr or p.stdout)[-200:])
+
+
 def with_result_bundle(argv, path) -> list[str]:
     """#6610 `perf-sweep.warnings.from-the-result-bundle`: the Xcode command with `-resultBundlePath <path>` before its action, so the
     warnings are read from the bundle and never a regex over the log alone. A path already there is replaced; any other command is left alone."""
@@ -1033,6 +1061,8 @@ def _remote_build_synced(root, cfg: Config, host: str, rbase: str, cmd: tuple, n
         journal.append("check", state="build-remote-env-red", rung=name, runner=host, detail=(r.get("stderr_tail") or "")[-200:])
         return {"ok": False, "skipped": False, "remote_env_red": True, "remote": host, "results": [r]}  # the row stays: its stderr says why
     r["remote"] = host
+    if r["ok"] and name in WARNING_PLATFORMS and not keep_git:
+        _warning_ratchet(root if keep_git else Path(src), host, bundle, name, r)
     journal.append("check", state="build-remote", rung=name, runner=host, ok=r["ok"], seconds=r.get("seconds"))
     if r["ok"] and key:
         _build_result_put(key, (_lines(src, "rev-parse", "HEAD") or [""])[0])

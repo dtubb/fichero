@@ -164,9 +164,11 @@ def _at(r: dict) -> str:
     return f"{r['file']}:{r['line']}" if r["file"] else "(build system)"
 
 
-def run(platform: str, rows: list[dict], baseline_path: Path, update: bool) -> int:
+def run(platform: str, rows: list[dict], baseline_path: Path, update: bool, hold_only: bool = False) -> int:
     counts = count_kinds(rows)
     baseline = _load_baseline(baseline_path) if baseline_path.is_file() else {}
+    if hold_only and platform not in baseline:
+        raise Blind(f"no baseline for platform {platform} in {baseline_path}")
     if update or platform not in baseline:
         baseline[platform] = counts
         _write_baseline(baseline_path, baseline)
@@ -184,8 +186,9 @@ def run(platform: str, rows: list[dict], baseline_path: Path, update: bool) -> i
         return 1
     fell = {k: (int(v), counts.get(k, 0)) for k, v in held.items() if counts.get(k, 0) < int(v)}
     if fell:
-        baseline[platform] = counts
-        _write_baseline(baseline_path, baseline)
+        if not hold_only:
+            baseline[platform] = counts
+            _write_baseline(baseline_path, baseline)
         for kind, (was, now) in sorted(fell.items()):
             print(f"  {platform}: {kind}: {now} warnings, fewer than {was}: the baseline is lower now")
         return 0
@@ -239,6 +242,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--log", help="the kept build log, read only when there is no bundle")
     p.add_argument("--baseline", type=Path, default=None, help=f"default {DEFAULT_BASELINE}")
     p.add_argument("--update-baseline", action="store_true")
+    p.add_argument("--hold-only", action="store_true", help="never write the baseline (the build rung: the land step lowers it); no platform entry is BLIND")
     p.add_argument("--since", metavar="BASE", help="the base build's bundle or JSON: report only this item's new lines")
     p.add_argument("--check-baseline", metavar="NEW", type=Path, help="refuse a baseline that raises a count over --was")
     p.add_argument("--was", type=Path, help="the baseline before the edit, for --check-baseline")
@@ -259,7 +263,7 @@ def main(argv: list[str] | None = None) -> int:
         path = a.baseline if a.baseline is not None else DEFAULT_BASELINE
         if a.baseline is None and not a.update_baseline and not path.is_file():
             raise Blind(f"baseline missing at {path} (the tree moved; restore it from git)")
-        return run(a.platform, rows, path, a.update_baseline)
+        return run(a.platform, rows, path, a.update_baseline, a.hold_only)
     except Blind as exc:
         print(f"check_xcode_warning_ratchet: BLIND — {exc}", file=sys.stderr)
         return BLIND_EXIT_CODE

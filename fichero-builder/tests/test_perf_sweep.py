@@ -420,3 +420,59 @@ def test_the_build_rung_and_every_daily_build_pass_a_result_bundle_path():
     daily = rules["check"]["daily_builds"]
     assert {"ios-sim", "tests", "ipad-sim"} <= set(daily)
     assert "generic/platform=iOS Simulator" in daily["ipad-sim"]
+
+
+def _warn_bundle(*messages):
+    return json.dumps({"warnings": [{"issueType": "Swift Compiler Warning", "message": m, "targetName": "fichero",
+                                     "sourceURL": f"file:///w/fichero/fichero/F{i}.swift#StartingLineNumber={i + 1}"} for i, m in enumerate(messages)]})
+
+
+def _ratchet_run(tmp_path, monkeypatch, name, bundle_json, baseline):
+    """`_remote_build_locked` over a fake ssh (the bundle read prints `bundle_json`) and a fake run_command (the build is green)."""
+    import shutil
+    from fichero_builder import check_tool
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    root = tmp_path / "tree"
+    (root / "scripts").mkdir(parents=True, exist_ok=True)
+    shutil.copy(Path(__file__).resolve().parents[2] / "scripts" / "check_xcode_warning_ratchet.py", root / "scripts")
+    (root / "scripts" / "xcode_warning_baseline.json").unlink(missing_ok=True)
+    if baseline is not None:
+        (root / "scripts" / "xcode_warning_baseline.json").write_text(json.dumps(baseline))
+    ok = {"ok": True, "exit_code": 0, "timed_out": False, "seconds": 1, "stdout_tail": "", "stderr_tail": "", "errors": ""}
+    monkeypatch.setattr(check_tool, "run_command", lambda n, *a, **k: {"ok": True} if n == "build-sync" else dict(ok))
+    monkeypatch.setattr(check_tool, "_stable_build_tree", lambda r, cfg: str(r))
+    seen = []
+
+    def ssh(host, script, *a, **k):
+        seen.append(script)
+        return type("P", (), {"returncode": 0, "stdout": bundle_json.encode(), "stderr": b""})()
+    monkeypatch.setattr(check_tool, "_ssh", ssh)
+    cfg = check_tool.Config(build=("xcodebuild", "-scheme", "S", "build"), build_remote="m4:~/fichero-gate")
+    return check_tool._remote_build_locked(root, cfg, "m4", "/gate", (), name, False), seen, root
+
+
+def test_the_build_rung_holds_the_mac_warning_ratchet_and_a_missing_baseline_is_not_a_red(tmp_path, monkeypatch):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("xr", Path(__file__).resolve().parents[2] / "scripts" / "check_xcode_warning_ratchet.py")
+    xr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(xr)
+    sendable = "capture of 'a' with non-sendable type 'X' in a `@Sendable` closure"
+    kind = xr.normalise_kind(sendable)
+    base = {"mac": {kind: 1}}
+    out, seen, _ = _ratchet_run(tmp_path, monkeypatch, "build", _warn_bundle(sendable), base)
+    assert out["ok"] and any("xcresulttool get build-results" in s and "build.xcresult" in s for s in seen)
+    out, _, _ = _ratchet_run(tmp_path, monkeypatch, "build", _warn_bundle(sendable, sendable), base)
+    tail = out["results"][0]["stdout_tail"]
+    assert not out["ok"] and not out.get("remote_env_red") and "Sendable" in tail and "F1.swift:2" in tail
+    # no baseline written yet: the ratchet is BLIND, a journal note and never a red; the rung only holds, it never writes the baseline
+    out, _, root = _ratchet_run(tmp_path, monkeypatch, "build", _warn_bundle(sendable), None)
+    assert out["ok"] and [r for r in journal.read() if r.get("state") == "warnings-blind"]
+    assert not (root / "scripts" / "xcode_warning_baseline.json").exists()
+    # a lower count is green and does not touch the baseline file in the batch's tree
+    out, _, root = _ratchet_run(tmp_path, monkeypatch, "build", _warn_bundle(), base)
+    assert out["ok"] and json.loads((root / "scripts" / "xcode_warning_baseline.json").read_text()) == base
+    # a daily build holds its own platform: ios-sim reads `ios`; the Swift test target holds none
+    out, seen, _ = _ratchet_run(tmp_path, monkeypatch, "ios-sim", _warn_bundle(sendable, sendable), {"ios": base["mac"]})
+    assert not out["ok"]
+    out, seen, _ = _ratchet_run(tmp_path, monkeypatch, "tests", _warn_bundle(sendable, sendable), base)
+    assert out["ok"] and not any("xcresulttool" in s for s in seen)
