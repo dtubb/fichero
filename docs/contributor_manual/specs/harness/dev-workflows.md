@@ -1577,8 +1577,8 @@ Order: the gate-venv default and the pinned tools; the first-figures recording; 
 Built by the harness-fix branch (2026-11-10); what remains is one managed batch landing with no person present, then `[loop].dispatch` widened lane by lane.
 
 #### Step 4.6 — pinned auto-approval and the console plan
-- Behaviours: `dev-workflows.run.loop-auto-approve-pinned`, `dev-workflows.run.loop-plan`, `dev-workflows.run.loop-current`
-- Tests: fichero-builder/tests/test_status_page.py, fichero-builder/tests/test_launchd.py, fichero-builder/tests/test_loop_survives.py
+- Behaviours: `dev-workflows.run.loop-auto-approve-pinned`, `dev-workflows.run.loop-plan`, `dev-workflows.run.loop-current`, `dev-workflows.run.loop-cleanup`
+- Tests: fichero-builder/tests/test_status_page.py, fichero-builder/tests/test_launchd.py, fichero-builder/tests/test_loop_survives.py, fichero-builder/tests/test_loop.py
 - Depends on: 4.5
 - Size: S
 
@@ -1735,6 +1735,7 @@ Every behaviour names its test above, written in its step; each `security.*` and
 | `dev-workflows.run.loop-auto-approve-pinned` | 4.6 |
 | `dev-workflows.run.loop-plan` | 4.6 |
 | `dev-workflows.run.loop-current` | 4.6 |
+| `dev-workflows.run.loop-cleanup` | 4.6 |
 | `dev-workflows.run.loop-brief-preflight` | 4.7 |
 | `dev-workflows.run.loop-session-ends` | 4.7 |
 | `dev-workflows.run.loop-no-session` | 4.7 |
