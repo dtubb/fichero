@@ -165,7 +165,7 @@ struct ActivityPaneView: View {
                 rowsView(shown)
             } else if prefs.tab == .recipes && !graphsFull {
                 // Recipes (decision 37): recipe › run › step with the rates that compare them, over the graphs.
-                VSplitView {
+                PlatformVSplitView {
                     ActivityRecipesView(libraries: libraries).frame(minHeight: 140)
                     graphs
                 }
@@ -175,7 +175,7 @@ struct ActivityPaneView: View {
             } else {
                 // The window's centre: the rows over the graphs, the divider the person's to drag (decisions 34, 41); a main
                 // window's pane keeps one status line instead.
-                VSplitView {
+                PlatformVSplitView {
                     rowsView(shown).frame(minHeight: 140)
                     graphs
                 }
