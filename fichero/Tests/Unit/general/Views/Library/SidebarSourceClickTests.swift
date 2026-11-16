@@ -37,7 +37,7 @@ struct SidebarSourceClickTests {
     @Test("Show Image: toggled on, away to another image and back, is still on")
     func showImageSurvivesNavigation() {
         var docs: [Document] = [image, image2]
-        func stored(_ i: Int) -> Bool? { SourceViewSettings.showImage(in: docs[i].metadata) }
+        func stored(_ index: Int) -> Bool? { SourceViewSettings.showImage(in: docs[index].metadata) }
         #expect(stored(0) == nil)
         let payload = SourceViewSettings.metadata(settingShowImage: true, in: docs[0].metadata)
         #expect(payload[SourceViewSettings.showImageKey] as? Bool == true)
