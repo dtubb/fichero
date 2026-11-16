@@ -13,12 +13,15 @@ struct ActivityLogLinesView: View {
     private var found: [Int] { ActivityLogList.matches(lines, query: query) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        // The whole-log matches are found once per pass, never per row.
+        let matches = found
+        let currentLine = matches.indices.contains(current) ? matches[current] : nil
+        return VStack(alignment: .leading, spacing: 4) {
             findBar
             ScrollViewReader { proxy in
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(lines) { line in
-                        row(line)
+                        row(line, isCurrent: line.id == currentLine)
                             .id(line.id)
                     }
                 }
@@ -60,10 +63,9 @@ struct ActivityLogLinesView: View {
         .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
     }
 
-    private func row(_ line: ActivityJobLogLine) -> some View {
+    private func row(_ line: ActivityJobLogLine, isCurrent: Bool) -> some View {
         let glyph = ActivityLogList.glyph(line.level)
         let selected = selection.lines.contains(line.id)
-        let isCurrent = found.indices.contains(current) && found[current] == line.id
         return HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text("\(line.id + 1)")
                 .foregroundStyle(.tertiary)

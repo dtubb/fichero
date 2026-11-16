@@ -196,7 +196,7 @@ extension ActivityPaneView {
     private func stateCell(_ row: ActivityMonitorRow) -> some View {
         let glyph = ActivityPane.glyph(row)
         let line = ActivityPane.stateLine(row)
-        return HStack(spacing: 6) {
+        return ActivityRowHover { hovered in HStack(spacing: 6) {
             Group {
                 if let symbol = glyph.symbol {
                     Image(systemName: symbol).foregroundStyle(glyph.tint)
@@ -212,7 +212,7 @@ extension ActivityPaneView {
             }
             Spacer(minLength: 0)
             // The row's own Play/Pause and Stop on the selected or hovered row (decision 31), small, as Xcode's.
-            if selection.contains(row.id) || hoveredRow == row.id {
+            if selection.contains(row.id) || hovered {
                 ForEach(row.rowControls) { verb in
                     Button { perform(verb, on: [row]) } label: { Label(verb.title, systemImage: verb.symbol) }
                         .labelStyle(.iconOnly).buttonStyle(.borderless).controlSize(.small)
@@ -231,10 +231,7 @@ extension ActivityPaneView {
                     .accessibilityLabel("\(button.title) \(row.name)")
                     .accessibilityIdentifier("activity.row.\(row.jobId ?? row.id).\(button.title.lowercased())")
             }
-        }
-        .onHover { inside in
-            if inside { hoveredRow = row.id } else if hoveredRow == row.id { hoveredRow = nil }
-        }
+        } }
     }
 
     private func textCell(_ text: String) -> some View {
