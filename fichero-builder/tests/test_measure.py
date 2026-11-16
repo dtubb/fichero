@@ -15,6 +15,9 @@ def _world(tmp_path, monkeypatch, min_free=1):
     b.mkdir()
     (b / "ssh").write_text('#!/bin/sh\nwhile [ "$1" = "-o" ]; do shift 2; done\nshift\nexec sh -c "$1"\n')
     (b / "ssh").chmod(0o755)
+    # the machine's free space is the fake's, never the disk this test runs on (the M4's internal disk was full, #6589 item 14)
+    (b / "df").write_text('#!/bin/sh\necho "Filesystem 1G-blocks Used Available"\necho "fake 100 1 99 1% /"\n')
+    (b / "df").chmod(0o755)
     told = tmp_path / "told"
     (b / "tell").write_text(f'#!/bin/sh\necho "$1 $2" >> {told}\n')
     (b / "tell").chmod(0o755)
