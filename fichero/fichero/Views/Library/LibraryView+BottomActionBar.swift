@@ -48,7 +48,9 @@ extension LibraryView {
             // (SidebarModeBar / SidebarBottomToolbar / PaneFilterBar) for a consistent
             // glass look across the window chrome (#2550).
             GlassEffectContainer {
-                AdaptiveMiniToolbarRow {
+                // AnyView is load-bearing (#4331): the bar's four-slot toolbar row is the deepest generic type under
+                // LibraryView.bottomInsetContent; on the iPad's 1MB main stack its metadata walk overflowed at launch (2026-11-12).
+                AnyView(AdaptiveMiniToolbarRow {
                     essentialBarButtons
                 } secondary: {
                     secondaryBarButtons
@@ -100,7 +102,7 @@ extension LibraryView {
                 // rendered .regular). Environment value — every child
                 // inherits; the per-button repeats are deleted.
                 .controlSize(.small)
-                        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8))
+                        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8)))
             }
         }
         // The ONE picker presenter for every import affordance in this view
