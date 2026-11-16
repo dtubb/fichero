@@ -905,6 +905,10 @@ def document_view(
             document = db.get(Document, document.id) or document
         child_pages = [db.get(Document, p.id) or p if p.id in refreshed else p for p in child_pages]
     pages = transcript_pages(document, child_pages)
+    if pages and selected_page_ids is None and not region_scoped and not any(p["has_content"] for p in pages):
+        # Crops with no text of their own under a document that has some (#6470): the document's text is the
+        # reading, shown as a leaf's is -- not three "No transcription yet" for text that exists.
+        pages = transcript_pages(document, []) or pages
     annotations_payload: list[dict[str, object]] | None = None
     compare_payload: dict[str, object] | None = None
     if artifact_id:
