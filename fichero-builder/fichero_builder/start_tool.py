@@ -14,7 +14,7 @@ import stat
 import sys
 from pathlib import Path
 
-from fichero_builder import check_tool, codemap
+from fichero_builder import adapters, check_tool, codemap, profiles
 from fichero_builder.jail import Jail
 
 _HOOK = Path(__file__).resolve().parents[2] / "scripts" / "harness_policy_hook.py"  # <repo>/scripts; the first live run found parents[4] after the move
@@ -72,8 +72,15 @@ def brief_prompt(brief) -> str:
 AUTHOR = {f"GIT_{r}_{f}": v for r in ("AUTHOR", "COMMITTER") for f, v in (("NAME", "Claude"), ("EMAIL", "noreply@anthropic.com"))}
 
 
-def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_bin: str = "claude") -> list[str]:
-    """Write settings.json, mcp.json under `scratch` and the commit-msg hook in the clone; return claude's argv."""
+# Reads the prompt file in the pane's own shell: the text is never on tmux's line (claude's own argv still holds it). Every value reaches the shell as a
+# positional argument (harness_start shell-quotes each argv word), so a brief or model string is never parsed as shell.
+_READ_PROMPT = 'f=$1; b=$2; shift 2; exec "$@" --append-system-prompt "$(cat "$f")" "$b"'
+
+
+def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_bin: str = "claude", *, role: str | None = None,
+            stack: str | None = None, project: str | None = None) -> list[str]:
+    """Write settings.json, mcp.json under `scratch` and the commit-msg hook in the clone; return claude's argv, whose
+    --append-system-prompt is the assembled common + role + stack + project (profiles.assemble)."""
     root, worktree, scratch = Path(root), Path(worktree), Path(scratch)
     scratch.mkdir(parents=True, exist_ok=True)
     hook = {"type": "command", "command": _hook_cmd(root, worktree, scratch)}
@@ -97,5 +104,8 @@ def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_b
     cm.parent.mkdir(parents=True, exist_ok=True)
     cm.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(_HOOK))} --root {shlex.quote(str(root))} --commit-msg "$1"\n')
     cm.chmod(cm.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-    return [claude_bin, "--dangerously-skip-permissions", "--model", model, "--settings", str(scratch / "settings.json"),
-            "--strict-mcp-config", f"--mcp-config={scratch / 'mcp.json'}", brief]  # =form: --mcp-config is variadic and would swallow the brief
+    (scratch / "prompt.md").write_text(profiles.assemble(root, worktree=worktree, scratch=scratch, harness=adapters.ClaudeCode.harness, model=model,
+                               role=role, stack=stack, project=project))  # a file, never the text on tmux's line
+    claude = [claude_bin, "--dangerously-skip-permissions", "--model", model, "--settings", str(scratch / "settings.json"),
+              "--setting-sources", "", "--strict-mcp-config", f"--mcp-config={scratch / 'mcp.json'}"]  # =form: --mcp-config is variadic and would swallow the brief
+    return ["sh", "-c", _READ_PROMPT, "sh", str(scratch / "prompt.md"), brief, *claude]  # the brief stays the first user message

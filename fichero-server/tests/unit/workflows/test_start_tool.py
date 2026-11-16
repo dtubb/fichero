@@ -96,7 +96,7 @@ def test_prepare_writes_hooked_settings_empty_mcp_and_the_commit_msg_hook(tmp_pa
     assert json.loads((scratch / "mcp.json").read_text()) == {"mcpServers": {}}
     hook = wt / ".git" / "hooks" / "commit-msg"
     assert hook.is_file() and os.access(hook, os.X_OK) and "--commit-msg" in hook.read_text()
-    assert "--strict-mcp-config" in argv and "--settings" in argv and argv[-1] == "do the thing"
+    assert "--strict-mcp-config" in argv and "--settings" in argv and "do the thing" in argv
 
 
 def test_trust_folder_marks_only_that_worktree(tmp_path):
@@ -132,7 +132,7 @@ def test_a_brief_over_100_kb_reaches_the_worker_as_a_short_prompt_naming_its_fil
     wt = tmp_path / "clone"
     subprocess.run(["git", "init", "-q", str(wt)], check=True)
     argv = S.prepare(_root(tmp_path), wt, p, tmp_path / "scratch")
-    assert argv[-1] == p and sum(len(x) for x in argv) < 2000, "the whole argv stays short"
+    assert p in argv and sum(len(x) for x in argv) < 2000, "the whole argv stays short"
     with pytest.raises(FileNotFoundError):
         S.brief_prompt(tmp_path / "missing.txt")
 

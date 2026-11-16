@@ -78,22 +78,26 @@ harnesses over time and a bake-off is just runs that share a brief.
 
 ### B. Profiles: one folder, one common prompt, roles, a thin project layer
 
-- `agent-profiles.folder.one-place` [GAP] (#6623) — every prompt the builder gives a worker lives under
+- `agent-profiles.folder.one-place` [PARTIAL] (#6623) — every prompt the builder gives a worker lives under
   `fichero-builder/agents/`: `common/common.md`, `roles/<role>.md`, `stacks/<stack>.md`, `projects/<project>/project.md`,
   `adapters/<harness>/` (its module, `capabilities.md`, the harness-shaped files it needs; Pi's `models.json`,
   `settings.json` and `policy.ts` move here from `pipeline/pi-agent/` and `fichero-builder/pi/`). `agents/prompts/` and
   `agents/skills/` at the repo root (pre-builder) are deleted in the same step with a line in `AGENTS.md` saying where
   they went. No prompt names a task id, sha, date, worker name, person, home path or archive; a guard greps the folder
   for the `[land].boundary` patterns and the people list and fails on a hit. Acceptance: the folder holds exactly
-  common, roles, stacks, projects, adapters; the root `agents/` is gone; the guard refuses a prompt with a home path. Test (to write): fichero-builder/tests/test_profiles (new), case test_the_folder_and_no_private_text.
-- `agent-profiles.prompt.common` [PARTIAL] (#6623) (the review's draft `common.md` exists untracked) — one common
+  common, roles, stacks, projects, adapters; the root `agents/` is gone; the guard refuses a prompt with a home path. Test: fichero-builder/tests/test_profiles.py, case test_the_folder_and_no_private_text.
+  Built: the folder with `common/common.md`, the empty roles, stacks and projects, the claude-code adapter's `capabilities.md`, and a guard
+  for the `[land].boundary` patterns, task ids, shas and dates. Not built: Pi's files move, the deletion of `agents/prompts/`,
+  `agents/skills/` and the root `agents/` (diff bound of Step 1.2; `agents/ROADMAP.md` is cited by guard scripts), the people-list guard
+  (no people list exists in the repo).
+- `agent-profiles.prompt.common` [OK] (#6623) — one common
   prompt every worker gets, under 120 lines and project-free: who it is (a headless worker as a separate user in one
   worktree, no screen, no GitHub token, no person watching); one step and nothing outside it (§ E); where it may read
   and write and what the hook refuses (`[policy].rules` read into the prompt at start, never typed twice); find code
   with jcodemunch and docs with jdocmunch; test first; its own cheap rungs and the ladder's; the lazy senior developer
   rule; prose rules; the commit shape with the exact trailer; the DONE, WAITING and HANDOFF words. Acceptance: the
   assembled prompt for any role begins with the common text; the `[policy]` reasons appear verbatim; the trailer line
-  equals what the hook requires; no Fichero path or branch name is in it. Test (to write): test_profiles.py,
+  equals what the hook requires; no Fichero path or branch name is in it. Test: fichero-builder/tests/test_profiles.py,
   case test_common_is_first_project_free_and_carries_policy_and_trailer.
 - `agent-profiles.prompt.project-layer` [GAP] (#6627) — `projects/<project>/project.md`, under 60 lines, is the only
   prompt text that names the project: its interpreter and tool paths, its thread cap, the rungs a worker may run itself
@@ -130,19 +134,18 @@ harnesses over time and a bake-off is just runs that share a brief.
   Swift runner and the Xcode tools and no `pytest`; perf × python assembles pyinstrument and no xctrace; a step under
   both stacks is a question; a role whose stack file is missing for the project is a Question. Test (to write):
   test_profiles.py, case test_role_times_stack_composes_commands_tools_and_rules.
-- `agent-profiles.prompt.assembly` [GAP] (#6623) — `start_tool.prepare` and the Pi start take `role`, `harness` and
+- `agent-profiles.prompt.assembly` [PARTIAL] (#6623) — `start_tool.prepare` and the Pi start take `role`, `harness` and
   `project`, assemble common + role + stack + project plus the few run facts (worktree, scratch, the trailer words) and hand
   the text to the adapter; the brief stays the first user message. The worktree's own `CLAUDE.md`, `.claude/`,
   `AGENTS.md`, `.gemini/`, `.codex/`, `opencode.json` and the like are **never** a worker's rules (a worker can edit
   them): each adapter passes the setting that disables project and user instruction files where the harness has one
   and says in `capabilities.md` when it has none. Acceptance: the dry run shows the assembled text in the adapter's argv
-  or file; a planted `CLAUDE.md` saying "push to main" changes nothing the worker is told. Test (to write):
-  test_profiles.py, case test_assembly_order_and_a_planted_file_is_not_obeyed.
+  or file; a planted `CLAUDE.md` saying "push to main" changes nothing the worker is told. Test:
+  fichero-builder/tests/test_profiles.py, case test_assembly_order_and_a_planted_file_is_not_obeyed. Built: the Claude Code start. Not built: the Pi start.
 
 ### C. Adapters
 
-- `agent-profiles.adapter.interface` [PARTIAL] (#6623) (`start_tool.prepare` and `pi_rpc.start` exist with no shared
-  shape) — every adapter answers six questions, each a value or `Unsupported(reason)`, never a silent skip: (1)
+- `agent-profiles.adapter.interface` [OK] (#6623) — every adapter answers six questions, each a value or `Unsupported(reason)`, never a silent skip: (1)
   **system prompt**: append or replace, string or a file the worker user reads; (2) **MCP servers**: how jcodemunch and
   jdocmunch are written (file, flag or config dir) and whether a strict mode loads nothing else; (3) **model and
   provider**: the flag or file naming model, provider, base URL and key for Ollama / OpenAI-compatible endpoints; (4)
@@ -153,13 +156,13 @@ harnesses over time and a bake-off is just runs that share a brief.
   the shape `parse_session` returns. `builder run --harness <name>` picks the adapter; an unknown name refuses; a
   harness with (6) or (2) `Unsupported` cannot take a lane (no cost cap, or no index: § D). Acceptance: a fake
   adapter answering `Unsupported` for (6) or (2) refuses with the reason; one answering `Unsupported` for (5) starts
-  and journals `policy: none (OS jail only)`. Test (to write): fichero-builder/tests/test_adapters (new),
+  and journals `policy: none (OS jail only)`. Test: fichero-builder/tests/test_adapters.py,
   case test_six_answers_and_unsupported_is_said.
-- `agent-profiles.adapter.claude-code` [PARTIAL] (#6623) (`start_tool.prepare`: settings, empty strict MCP, commit-msg
-  hook) — adds `--append-system-prompt <text>`, `--setting-sources` naming only the generated settings, the two MCP
+- `agent-profiles.adapter.claude-code` [OK] (#6623) — adds `--append-system-prompt <text>`, `--setting-sources` naming only the generated settings, the two MCP
   entries under `--strict-mcp-config`, the session file read it has. Acceptance: argv carries the prompt, the strict
-  MCP file names exactly the required servers, the settings path is the generated one. Test (to write):
-  test_adapters.py, case test_claude_code_argv.
+  MCP file names exactly the required servers, the settings path is the generated one. Test:
+  fichero-builder/tests/test_adapters.py, case test_claude_code_argv.
+  Built: `prepare` returns `sh -c` with the scratch `prompt.md` and the brief as arguments, then the claude words; the wrapper reads the prompt file, so argv carries the file, not the text.
 - `agent-profiles.adapter.pi` [PARTIAL] (#6631) (`pi_rpc.py`, `policy.ts`, `pipeline/pi-agent/`; first open-model
   harness, owner 2026-11-16) — the agent dir moves under `adapters/pi/` (`PI_CODING_AGENT_DIR`); the system prompt
   through Pi's own mechanism (proven by the first test on 0.75.5); the MCP entries in its `mcp.json` with the index
