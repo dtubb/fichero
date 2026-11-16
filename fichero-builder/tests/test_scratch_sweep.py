@@ -74,13 +74,33 @@ def test_the_loop_runs_list_then_delete_at_most_every_six_hours(world, monkeypat
     assert not (wr / "check-base-aaaa1111").exists() and (wr / "check-base-eeee5555").exists()
 
 
-def test_old_review_trees_and_cwds_are_swept_and_a_live_one_is_kept(world, monkeypatch):
-    """#6589 item 20: the review wrapper makes review-tree-* and review-* in the workroot; a crash leaves them there."""
+def test_old_review_trees_and_cwds_are_swept_from_the_state_dir_and_a_live_one_is_kept(world, monkeypatch):
+    """#6589 item 20: the review wrapper makes review-tree-* and review-* in the state dir's review-scratch folder, never the workroot."""
     root, wr, repo, make = world
-    gone = [make("review-tree-aaaa1111"), make("review-bbbb2222")]
-    live = make("review-tree-live0000", age=time.time())
+    rd = scratch.review_dir()
+    assert rd.parent == journal.STATE and rd.stat().st_mode & 0o777 == 0o700
+
+    def mk(name, age):
+        (rd / name).mkdir()
+        os.utime(rd / name, (age, age))
+        return rd / name
+    gone = [mk("review-tree-aaaa1111", time.time() - 7 * 3600), mk("review-bbbb2222", time.time() - 7 * 3600)]
+    live = mk("review-tree-live0000", time.time())
     monkeypatch.setattr(scratch, "_held", lambda: "")
     f, n, _kb = scratch.list_step(root)
     assert sorted(f.read_text().split()) == sorted(str(p) for p in gone) and n == 2
     scratch.delete_step(root, f)
     assert not any(p.exists() for p in gone) and live.exists()
+
+
+def test_the_review_dir_is_refused_when_it_is_open_to_others_or_a_symlink(world):
+    root, wr, repo, make = world
+    d = scratch.review_dir()
+    d.chmod(0o755)
+    with pytest.raises(RuntimeError, match="REFUSED"):
+        scratch.review_dir()
+    d.rmdir()
+    (journal.STATE / "elsewhere").mkdir()
+    d.symlink_to(journal.STATE / "elsewhere")
+    with pytest.raises(RuntimeError, match="REFUSED"):
+        scratch.review_dir()
