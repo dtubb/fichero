@@ -1,7 +1,0 @@
-included:
-  - fichero/fichero
-
-excluded:
-  - fichero/fichero/Services/*Generated.swift
-  - fichero/fichero/fichero-api-client
-  - fichero/fichero/Views/Library/ImageViewer
