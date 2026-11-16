@@ -912,7 +912,7 @@ def build(root, changed: list[str], cfg: Config) -> dict:
     return _build_locked(root, changed, cfg)  # ponytail: the remote down under the owner's hold waits here, holding its slot
 
 
-def _remote_build(root, cfg: Config, cmd: tuple = (), name: str = "build", reuse: bool = True) -> dict | None:
+def _remote_build(root, cfg: Config, cmd: tuple = (), name: str = "build", reuse: bool = True, timeout_s: float | None = None) -> dict | None:
     """The build rung on `[check].build_remote` (manager 2026-11-06 t88: the M1 Air, so the Pro stays the owner's; the first step of
     the machine pool, #6356): the stable build tree rsynced (mtimes kept, removed files removed, no .git) to <dir>/build-tree there,
     xcodebuild there with <dir>/derived as its derived data, under that Mac's own one-heavy-job lock. Everything lives under the
@@ -924,6 +924,8 @@ def _remote_build(root, cfg: Config, cmd: tuple = (), name: str = "build", reuse
     if home.returncode or not rbase.startswith("/"):
         journal.append("check", state="build-remote-down", rung="build", runner=host, detail=home.stderr.decode(errors="replace")[-200:])
         return None
+    if name == "security" and not _security_push(root, host, rbase):  # local prep, before the lock
+        return None
     # one build at a time over the stable tree here and the one there: a second ladder's rsync must never rewrite a tree mid-build
     lock = None
     if cfg.build_lock:
@@ -932,47 +934,51 @@ def _remote_build(root, cfg: Config, cmd: tuple = (), name: str = "build", reuse
         lock = open(lp, "a")
         fcntl.flock(lock, fcntl.LOCK_EX)
     try:
-        return _remote_build_locked(root, cfg, host, rbase, cmd, name, reuse)
+        return _remote_build_locked(root, cfg, host, rbase, cmd, name, reuse, timeout_s)
     finally:
         if lock is not None:
             lock.close()
 
 
-def _self_contained_clone(root, dest: str) -> bool:
-    """A repository at `dest` that holds the whole history of `root`'s HEAD by itself: `git clone --no-local` packs every reachable
-    object (the scratch tree's own .git is a worktree link or a --shared clone, pointing back at this machine's repo, so shipping
-    it would carry no history). False when the clone failed."""
+def _security_push(root, host: str, rbase: str) -> bool:
+    """The batch's history to the runner's persistent bare repo `<rbase>/security.git` (ref `scan`): only the objects it lacks travel, so
+    no full clone a run (the scratch tree's own .git is a worktree link or a --shared clone, pointing back at this machine's repo, so
+    rsync would ship no history). Done BEFORE the build lock is taken: it is local prep, not a heavy job. False when the runner refused."""
     head = (_lines(root, "rev-parse", "HEAD") or [""])[0]
-    if not head or not _git(root, "clone", "-q", "--no-local", "--no-checkout", str(root), dest, timeout_s=SCRATCH_CHECKOUT_S)["ok"]:
+    bare = f"{rbase}/security.git"
+    init = _ssh(host, f"git init --bare -q {shlex.quote(bare)}", 60)
+    if not head or init.returncode:
+        journal.append("check", state="build-remote-down", rung="security", runner=host, detail=init.stderr.decode(errors="replace")[-200:] or "no HEAD")
         return False
-    return _git(dest, "-c", "advice.detachedHead=false", "checkout", "-q", "--detach", head, timeout_s=SCRATCH_CHECKOUT_S)["ok"]
+    env = {**_git_env(), "GIT_SSH_COMMAND": "ssh -o BatchMode=yes -o ConnectTimeout=10"}
+    push = run_command("security-push", _git_argv(root, ("push", "-q", "--force", f"{host}:{bare}", f"{head}:refs/heads/scan")), root, SCRATCH_CHECKOUT_S, env, as_jail=False)
+    if not push["ok"]:
+        journal.append("check", state="build-remote-down", rung="security", runner=host, detail=f"push: {push['stderr_tail'][-200:]}")
+    return push["ok"]
 
 
-def _remote_build_locked(root, cfg: Config, host: str, rbase: str, cmd: tuple = (), name: str = "build", reuse: bool = True) -> dict | None:
-    if name != "security":
-        return _remote_build_synced(root, cfg, host, rbase, cmd, name, reuse, _stable_build_tree(root, cfg) if cfg.build_tree else str(root), False)
-    # the scan reads history (semgrep --baseline-commit, gitleaks): a self-contained clone of the batch's tree, .git and all, in its own folder there
-    tmp = tempfile.mkdtemp(prefix="security-tree-")
-    try:
-        if not _self_contained_clone(root, tmp + "/t"):
-            journal.append("check", state="build-remote-down", rung=name, runner=host, detail="could not make a self-contained clone to ship")
-            return None
-        return _remote_build_synced(root, cfg, host, rbase, cmd, name, reuse, tmp + "/t", True)
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+def _remote_build_locked(root, cfg: Config, host: str, rbase: str, cmd: tuple = (), name: str = "build", reuse: bool = True, timeout_s: float | None = None) -> dict | None:
+    if name == "security":  # a worktree of the pushed `scan` ref in its own folder there (the build rung's tree is untouched); history comes with it
+        return _remote_build_synced(root, cfg, host, rbase, cmd, name, reuse, str(root), True, timeout_s)
+    return _remote_build_synced(root, cfg, host, rbase, cmd, name, reuse, _stable_build_tree(root, cfg) if cfg.build_tree else str(root), False, timeout_s)
 
 
-def _remote_build_synced(root, cfg: Config, host: str, rbase: str, cmd: tuple, name: str, reuse: bool, src: str, keep_git: bool) -> dict | None:
+def _remote_build_synced(root, cfg: Config, host: str, rbase: str, cmd: tuple, name: str, reuse: bool, src: str, keep_git: bool, timeout_s: float | None = None) -> dict | None:
     key = _build_key(src, cfg, cmd) if reuse else ""  # a measurement is never reused: the same tree on another night is another figure
     if key and (hit := _build_results().get(key)):
         journal.append("check", state="build-reused", rung=name, detail=f"green at {hit.get('head', '?')[:9]} {hit.get('ts', '')}: {key[:12]}")
         return {"ok": True, "skipped": False, "results": [{"name": "build", "ok": True, "exit_code": 0, "timed_out": False, "seconds": 0,
                                                            "stdout_tail": f"reused: the same build key built green at {hit.get('head', '?')[:9]}", "stderr_tail": "", "reused": key}]}
     tree, derived = f"{rbase}/{'security-tree' if keep_git else 'build-tree'}", f"{rbase}/derived" + ("" if name == "build" else f"-{name}")  # a daily build: its own derived data
-    sync = run_command("build-sync", ["rsync", "-a", "--delete", *([] if keep_git else ["--exclude", ".git"]), "-e", "ssh -o BatchMode=yes -o ConnectTimeout=10",
-                                      f"{src}/", f"{host}:{tree}/"], src, 900, None, as_jail=False)
+    if keep_git:
+        g, t = shlex.quote(f"{rbase}/security.git"), shlex.quote(tree)
+        sync = run_command("security-checkout", ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host,
+                           f"git --git-dir={g} worktree prune; rm -rf {t}; git --git-dir={g} worktree add -q -f --detach {t} refs/heads/scan"], src, 300, None, as_jail=False)
+    else:
+        sync = run_command("build-sync", ["rsync", "-a", "--delete", "--exclude", ".git", "-e", "ssh -o BatchMode=yes -o ConnectTimeout=10",
+                                          f"{src}/", f"{host}:{tree}/"], src, 900, None, as_jail=False)
     if not sync["ok"]:
-        journal.append("check", state="build-remote-down", rung=name, runner=host, detail=f"rsync: {sync['stderr_tail'][-200:]}")
+        journal.append("check", state="build-remote-down", rung=name, runner=host, detail=f"{'checkout' if keep_git else 'rsync'}: {sync['stderr_tail'][-200:]}")
         return None
     b = [a.replace(GATE, rbase) for a in (cmd or cfg.build)]
     if "-derivedDataPath" in b[:-1]:
@@ -980,7 +986,7 @@ def _remote_build_synced(root, cfg: Config, host: str, rbase: str, cmd: tuple, n
     b = [a for a in b if a != "-disableAutomaticPackageResolution"]  # its first build there resolves the packages into its own derived data
     script = _remote_heavy(f"{rbase}/venv/bin/python", f"{rbase}/heavy.lock", f"cd {shlex.quote(tree)} && {shlex.join(b)}")
     log = journal.STATE / "build-logs" / f"{name}-{time.strftime('%Y%m%d-%H%M%S')}-{host}.log"
-    r = run_command(name, ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host, script], src, cfg.build_timeout_s, None,
+    r = run_command(name, ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host, script], src, timeout_s or cfg.build_timeout_s, None,
                     as_jail=False, log=log)
     if r["exit_code"] == 255:
         journal.append("check", state="build-remote-down", rung=name, runner=host, detail=r["stderr_tail"][-200:])
@@ -1633,7 +1639,7 @@ def security(root, since: str, head: str, changed: list[str], cfg: Config) -> di
     scan = shlex.join([_gate_python(cfg, GATE), "scripts/security_scan_run.py", "--since", since, "--head", head, "--pins", json.dumps({**pins, "osv-scanner-enabled": osv_on})])
     # the pin check first (its report goes to stderr; a mismatch is the scan's own REFUSED line), then the scan under the same PATH
     script = f"export PATH={path}; scripts/install_security_tools.sh --check >&2; {scan}"
-    rr = _remote_build(root, cfg, ("sh", "-c", script), "security", reuse=False)
+    rr = _remote_build(root, cfg, ("sh", "-c", script), "security", reuse=False, timeout_s=float(cfg.security.get("timeout_s", 720)))  # the scan keeps its own budget
     if rr is None:
         return _not_run("security", cfg.security, "runner down", "the build runner is unreachable: the security scan did not run (never run here)", {}, problems)
     r = rr["results"][0]

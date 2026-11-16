@@ -179,12 +179,13 @@ def test_the_security_scan_goes_over_ssh_with_the_scanner_path_and_the_pin_check
     monkeypatch.setattr(check_tool, "security_lints", lambda *a, **k: [])
     monkeypatch.setattr(check_tool, "_run", lambda *a, **k: pytest.fail("the security scan ran on this Mac"))
     out = "SECURITY-RESULT " + json.dumps({"rows": [], "refused": [], "table": "none"})
-    monkeypatch.setattr(check_tool, "_remote_build", lambda root, cfg, cmd=(), name="build", reuse=True:
-                        (seen.append((cmd, name, reuse)), {"ok": True, "skipped": False, "results": [{"ok": True, "exit_code": 0, "stdout_tail": out, "stderr_tail": ""}]})[1])
+    monkeypatch.setattr(check_tool, "_remote_build", lambda root, cfg, cmd=(), name="build", reuse=True, timeout_s=None:
+                        (seen.append((cmd, name, reuse, timeout_s)), {"ok": True, "skipped": False, "results": [{"ok": True, "exit_code": 0, "stdout_tail": out, "stderr_tail": ""}]})[1])
     r = check_tool.security(tmp_path, "a", "b", ["scripts/x.py"], _sec_cfg())
     assert r["ok"] and not r.get("not_run")
-    (cmd, name, reuse), = seen
+    (cmd, name, reuse, timeout_s), = seen
     assert name == "security" and reuse is False
+    assert timeout_s == 720.0  # the scan's own budget, never build_timeout_s
     text = " ".join(cmd)
     assert "/opt/homebrew/bin:" in text and "PATH=" in text
     assert 'export PATH=/opt/homebrew/bin:"$HOME/".local/bin:' in text  # ~/ is $HOME/ in double quotes: expanded on the runner, never quoted away
@@ -216,9 +217,37 @@ def test_a_scan_that_exits_nonzero_on_the_runner_still_has_its_result_line_read(
     assert "gitleaks k a.py:4" in r["stdout_tail"]
 
 
-def test_the_shipped_security_tree_holds_the_history_by_itself(tmp_path, monkeypatch):
-    """A worktree's .git is a link back to the local repo: what rsync ships must hold `since` and `head` without it."""
-    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+def _runner(monkeypatch, tmp_path, calls, slow=False):
+    """A fake runner: ssh scripts run in a local shell, a push to `host:path` goes to that local path, so the bare repo and its
+    worktree are real. `calls` collects (name, argv) of every command; with `slow` the scan itself reports a timeout."""
+    runner = tmp_path / "runner"
+    runner.mkdir(exist_ok=True)
+    real_run = check_tool.run_command
+
+    def local(script):
+        return script
+
+    def fake_run(name, argv, cwd, timeout_s=0, env=None, *a, **k):
+        calls.append((name, list(argv), timeout_s))
+        if name == "security-push":
+            argv = [x.removeprefix("m4:") for x in argv]  # `host:path` is the local path here
+            return real_run(name, argv, cwd, timeout_s, env, *a, **k)
+        if name == "security-checkout":
+            return real_run(name, ["sh", "-c", local(argv[-1])], cwd, timeout_s, None, *a, **k)
+        if name == "security":
+            return {"name": name, "ok": not slow, "exit_code": 1 if slow else 0, "timed_out": slow, "seconds": timeout_s, "stdout_tail": "", "stderr_tail": ""}
+        return real_run(name, argv, cwd, timeout_s, env, *a, **k)
+
+    def fake_ssh(host, script, timeout_s, stdin=None):
+        if script.startswith("mkdir -p"):
+            return type("P", (), {"returncode": 0, "stdout": str(runner).encode() + b"\n", "stderr": b""})()
+        return subprocess.run(["sh", "-c", script], capture_output=True, timeout=timeout_s)
+    monkeypatch.setattr(check_tool, "run_command", fake_run)
+    monkeypatch.setattr(check_tool, "_ssh", fake_ssh)
+    return runner
+
+
+def _worktree_repo(tmp_path):
     main = tmp_path / "main"
     main.mkdir()
     (main / "a.py").write_text("x = 1\n")
@@ -228,29 +257,40 @@ def test_the_shipped_security_tree_holds_the_history_by_itself(tmp_path, monkeyp
     since = _g(main, "rev-parse", "HEAD")
     wt = tmp_path / "wt"
     _g(main, "worktree", "add", "-q", "--detach", str(wt))
-    (wt / "a.py").write_text("x = 2\n")
-    _g(wt, "commit", "-qam", "c")
-    head = _g(wt, "rev-parse", "HEAD")
-    assert (wt / ".git").is_file()  # the link the review named
-    rsyncs, ran = [], []
-    real_run = check_tool.run_command
+    assert (wt / ".git").is_file()  # a link back to the local repo: rsync of it would carry no history
+    return wt, since
 
-    def fake_run(name, argv, cwd, *a, **k):
-        if name == "git":
-            return real_run(name, argv, cwd, *a, **k)  # the clone is real
-        if name == "build-sync":
-            dest = tmp_path / "runner"
-            subprocess.run(["rsync", "-a", "--delete", *argv[argv.index("--delete") + 1:-2], f"{cwd}/", f"{dest}/"], check=True)
-            rsyncs.append((argv, dest))
-            return {"ok": True}
-        ran.append(argv)
-        return {"name": name, "ok": True, "exit_code": 0, "timed_out": False, "seconds": 1, "stdout_tail": "", "stderr_tail": ""}
-    monkeypatch.setattr(check_tool, "run_command", fake_run)
-    cfg = check_tool.Config(security={"dirs": ["."]}, build_remote="m4:/gate")
-    assert check_tool._remote_build_locked(wt, cfg, "m4", "/gate", ("true",), "security", False)["ok"]
-    (argv, dest), = rsyncs
-    assert argv[-1] == "m4:/gate/security-tree/" and "--exclude" not in argv  # its own folder, .git shipped
-    assert (dest / ".git").is_dir() and not (dest / ".git/objects/info/alternates").exists()
-    for rev in (since, head):  # the history is there with the link and the original repo out of reach
-        assert _g(dest, "rev-parse", "--verify", f"{rev}^{{commit}}") == rev
-    assert _g(dest, "rev-list", "--count", f"{since}..{head}") == "1"
+
+def test_the_security_tree_on_the_runner_holds_the_history_and_a_second_run_pushes_without_cloning(tmp_path, monkeypatch):
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    wt, since = _worktree_repo(tmp_path)
+    calls = []
+    runner = _runner(monkeypatch, tmp_path, calls)
+    cfg = check_tool.Config(security={"dirs": ["."], "timeout_s": 77}, build_remote="m4:/gate")
+    (wt / "a.py").write_text("x = 2\n")
+    _g(wt, "commit", "-qam", "c1")
+    head1 = _g(wt, "rev-parse", "HEAD")
+    assert check_tool._remote_build(wt, cfg, ("true",), "security", False, 77.0)["ok"]
+    tree = runner / "security-tree"
+    assert _g(tree, "rev-parse", "HEAD") == head1 and _g(tree, "rev-list", "--count", f"{since}..{head1}") == "1"  # history is there
+    (wt / "a.py").write_text("x = 3\n")
+    _g(wt, "commit", "-qam", "c2")
+    head2 = _g(wt, "rev-parse", "HEAD")
+    assert check_tool._remote_build(wt, cfg, ("true",), "security", False, 77.0)["ok"]
+    assert _g(tree, "rev-parse", "HEAD") == head2 and _g(tree, "rev-list", "--count", f"{since}..{head2}") == "2"
+    names = [n for n, _, _ in calls]
+    assert names.count("security-push") == 2 and names.count("security-checkout") == 2
+    assert not [a for _, a, _ in calls if "clone" in a]  # no full clone either run: the bare repo persists
+    assert not (runner / "build-tree").exists()  # the build rung's folder is untouched
+
+
+def test_the_security_scan_times_out_at_its_own_budget_not_the_build_timeout(tmp_path, monkeypatch):
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    wt, _ = _worktree_repo(tmp_path)
+    calls = []
+    _runner(monkeypatch, tmp_path, calls, slow=True)
+    monkeypatch.setattr(check_tool, "security_lints", lambda *a, **k: [])
+    cfg = check_tool.Config(security={"enforce": False, "dirs": ["x"], "pins": {}, "timeout_s": 77}, build_remote="m4:/gate", build_timeout_s=1800)
+    r = check_tool.security(wt, "a", "b", ["x.py"], cfg)
+    assert [t for n, _, t in calls if n == "security"] == [77.0]  # not 1800
+    assert r["ok"] and r["results"][0]["timed_out"]  # an alert row, never a red
