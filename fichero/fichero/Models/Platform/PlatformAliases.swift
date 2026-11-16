@@ -57,6 +57,7 @@ extension Image {
 
 /// A sheet alert with any number of buttons on the front window (app-modal when there is none), because SwiftUI's alert on
 /// the Mac keeps three buttons and drops the rest (#6584). `done` gets the index of the button pressed.
+@MainActor
 func presentPlatformAlert(title: String, message: String, buttons: [(title: String, destructive: Bool)],
                           done: @escaping (Int) -> Void) {
     let sheet = NSAlert()
