@@ -938,15 +938,37 @@ def _remote_build(root, cfg: Config, cmd: tuple = (), name: str = "build", reuse
             lock.close()
 
 
+def _self_contained_clone(root, dest: str) -> bool:
+    """A repository at `dest` that holds the whole history of `root`'s HEAD by itself: `git clone --no-local` packs every reachable
+    object (the scratch tree's own .git is a worktree link or a --shared clone, pointing back at this machine's repo, so shipping
+    it would carry no history). False when the clone failed."""
+    head = (_lines(root, "rev-parse", "HEAD") or [""])[0]
+    if not head or not _git(root, "clone", "-q", "--no-local", "--no-checkout", str(root), dest, timeout_s=SCRATCH_CHECKOUT_S)["ok"]:
+        return False
+    return _git(dest, "-c", "advice.detachedHead=false", "checkout", "-q", "--detach", head, timeout_s=SCRATCH_CHECKOUT_S)["ok"]
+
+
 def _remote_build_locked(root, cfg: Config, host: str, rbase: str, cmd: tuple = (), name: str = "build", reuse: bool = True) -> dict | None:
-    keep_git = name == "security"  # the scan reads history (semgrep --baseline-commit, gitleaks): the batch's own tree, .git kept
-    src = str(root) if keep_git else _stable_build_tree(root, cfg) if cfg.build_tree else str(root)
+    if name != "security":
+        return _remote_build_synced(root, cfg, host, rbase, cmd, name, reuse, _stable_build_tree(root, cfg) if cfg.build_tree else str(root), False)
+    # the scan reads history (semgrep --baseline-commit, gitleaks): a self-contained clone of the batch's tree, .git and all, in its own folder there
+    tmp = tempfile.mkdtemp(prefix="security-tree-")
+    try:
+        if not _self_contained_clone(root, tmp + "/t"):
+            journal.append("check", state="build-remote-down", rung=name, runner=host, detail="could not make a self-contained clone to ship")
+            return None
+        return _remote_build_synced(root, cfg, host, rbase, cmd, name, reuse, tmp + "/t", True)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _remote_build_synced(root, cfg: Config, host: str, rbase: str, cmd: tuple, name: str, reuse: bool, src: str, keep_git: bool) -> dict | None:
     key = _build_key(src, cfg, cmd) if reuse else ""  # a measurement is never reused: the same tree on another night is another figure
     if key and (hit := _build_results().get(key)):
         journal.append("check", state="build-reused", rung=name, detail=f"green at {hit.get('head', '?')[:9]} {hit.get('ts', '')}: {key[:12]}")
         return {"ok": True, "skipped": False, "results": [{"name": "build", "ok": True, "exit_code": 0, "timed_out": False, "seconds": 0,
                                                            "stdout_tail": f"reused: the same build key built green at {hit.get('head', '?')[:9]}", "stderr_tail": "", "reused": key}]}
-    tree, derived = f"{rbase}/build-tree", f"{rbase}/derived" + ("" if name == "build" else f"-{name}")  # a daily build: its own derived data
+    tree, derived = f"{rbase}/{'security-tree' if keep_git else 'build-tree'}", f"{rbase}/derived" + ("" if name == "build" else f"-{name}")  # a daily build: its own derived data
     sync = run_command("build-sync", ["rsync", "-a", "--delete", *([] if keep_git else ["--exclude", ".git"]), "-e", "ssh -o BatchMode=yes -o ConnectTimeout=10",
                                       f"{src}/", f"{host}:{tree}/"], src, 900, None, as_jail=False)
     if not sync["ok"]:

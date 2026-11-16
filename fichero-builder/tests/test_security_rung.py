@@ -214,3 +214,43 @@ def test_a_scan_that_exits_nonzero_on_the_runner_still_has_its_result_line_read(
     monkeypatch.setattr(check_tool, "_remote_build", lambda *a, **k: {"ok": False, "skipped": False, "remote_env_red": True, "remote": "m4", "results": [row]})
     r = check_tool.security(tmp_path, "a", "b", ["scripts/x.py"], _sec_cfg())
     assert "gitleaks k a.py:4" in r["stdout_tail"]
+
+
+def test_the_shipped_security_tree_holds_the_history_by_itself(tmp_path, monkeypatch):
+    """A worktree's .git is a link back to the local repo: what rsync ships must hold `since` and `head` without it."""
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    main = tmp_path / "main"
+    main.mkdir()
+    (main / "a.py").write_text("x = 1\n")
+    _g(main, "init", "-q", "-b", "main")
+    _g(main, "add", "-A")
+    _g(main, "commit", "-qm", "base")
+    since = _g(main, "rev-parse", "HEAD")
+    wt = tmp_path / "wt"
+    _g(main, "worktree", "add", "-q", "--detach", str(wt))
+    (wt / "a.py").write_text("x = 2\n")
+    _g(wt, "commit", "-qam", "c")
+    head = _g(wt, "rev-parse", "HEAD")
+    assert (wt / ".git").is_file()  # the link the review named
+    rsyncs, ran = [], []
+    real_run = check_tool.run_command
+
+    def fake_run(name, argv, cwd, *a, **k):
+        if name == "git":
+            return real_run(name, argv, cwd, *a, **k)  # the clone is real
+        if name == "build-sync":
+            dest = tmp_path / "runner"
+            subprocess.run(["rsync", "-a", "--delete", *argv[argv.index("--delete") + 1:-2], f"{cwd}/", f"{dest}/"], check=True)
+            rsyncs.append((argv, dest))
+            return {"ok": True}
+        ran.append(argv)
+        return {"name": name, "ok": True, "exit_code": 0, "timed_out": False, "seconds": 1, "stdout_tail": "", "stderr_tail": ""}
+    monkeypatch.setattr(check_tool, "run_command", fake_run)
+    cfg = check_tool.Config(security={"dirs": ["."]}, build_remote="m4:/gate")
+    assert check_tool._remote_build_locked(wt, cfg, "m4", "/gate", ("true",), "security", False)["ok"]
+    (argv, dest), = rsyncs
+    assert argv[-1] == "m4:/gate/security-tree/" and "--exclude" not in argv  # its own folder, .git shipped
+    assert (dest / ".git").is_dir() and not (dest / ".git/objects/info/alternates").exists()
+    for rev in (since, head):  # the history is there with the link and the original repo out of reach
+        assert _g(dest, "rev-parse", "--verify", f"{rev}^{{commit}}") == rev
+    assert _g(dest, "rev-list", "--count", f"{since}..{head}") == "1"
