@@ -69,7 +69,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
 - `perf-sweep.source.engine-profiles` [PARTIAL] (#6600, #6614) — fresh engine profiles over the engine workloads (W1–W5 below),
   nightly, on the M4's gate venv, one workload at a time behind the heavy lock. **Time:** `pyinstrument -r json -o
   <run>/<w>.pyinstrument.json -r html -o <run>/<w>.html -- <driver>` is the batch and nightly default (in-process, no
-  root). `py-spy record --format speedscope -o <run>/<w>.speedscope --subprocesses -- <driver>` is used when the runner's
+  root). `sudo -n py-spy record --format speedscope -o <run>/<w>.speedscope --subprocesses --pid <the driver's pid>` (the driver starts as the gate user; root only attaches) is used when the runner's
   `sudoers` allows `py-spy` without a password for the gate user (py-spy attaches with `task_for_pid` and needs root on
   macOS); it is the only profiler that sees the worker processes the engine forks (`--subprocesses`) and native frames in
   DuckDB, numpy and MLX, which pyinstrument attributes to the calling Python line. Whether `py-spy` is permitted is a

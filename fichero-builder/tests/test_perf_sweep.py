@@ -73,11 +73,11 @@ def test_the_table_ranks_per_kind_greys_moves_inside_the_band_and_the_console_re
     assert perf_sweep.trend_text(None, band=6.0) == "new"
 
 
-def test_show_prints_every_column_and_diff_lists_only_band_crossing_rows(tmp_path, capsys):
+def test_show_prints_every_column_and_diff_lists_only_band_crossing_rows(tmp_path, capsys, monkeypatch):
     _logs_run(tmp_path, run="r1")
     _logs_run(tmp_path, run="r2", scale=1.03)
     _logs_run(tmp_path, run="r3", scale=1.5)
-    journal.STATE = tmp_path
+    monkeypatch.setattr(journal, "STATE", tmp_path)
     perf_sweep.show(tmp_path, "r3")
     text = capsys.readouterr().out
     for col in ("kind", "area", "where", "value", "share", "count", "trend", "workload", "profile"):
@@ -231,6 +231,11 @@ def test_engine_profile_readers_rank_own_frames_allocators_disk_and_cpu_efficien
     assert all(r["side"] == "engine" and r["workload"] == "w1" for r in rows)
 
 
+@pytest.fixture(autouse=True)
+def _journal_state(monkeypatch, tmp_path):
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+
+
 def _fake_rules(sudo=("py-spy",), min_free_gb=5):
     r = _rules()
     r["perf"]["machines"]["m4air"]["sudo"] = list(sudo)
@@ -265,7 +270,6 @@ class _Runner:
 
 
 def _nightly(tmp_path, runner, rules=None, free_gb=500, **kw):
-    journal.STATE = tmp_path / "state"
     journal.STATE.mkdir(exist_ok=True)
     gate = tmp_path / "Dev Disk" / "gate"
     return perf_profiles.nightly(rules or _fake_rules(), _manifest(), gate=gate, state=journal.STATE, run="n1", machine="m4air",
@@ -338,7 +342,7 @@ def test_no_shell_no_root_workload_a_minimal_env_the_engine_pointed_at_the_measu
         if c["env"]:
             assert set(c["env"]) <= {"PATH", "HOME", "LANG", "LC_ALL", "VIRTUAL_ENV", "TMPDIR", "FICHERO_BASE_PATH", "FICHERO_LIBRARY_PATH",
                                      "FICHERO_ENGINE_LOG_PATH", "FICHERO_MODEL_STORE_ROOT"}
-            assert c["env"]["FICHERO_LIBRARY_PATH"].startswith(str(gate / "perf-state"))
+            assert c["env"]["FICHERO_LIBRARY_PATH"].startswith(str(gate / "perf" / "n1" / "state"))
     # the folders `du` reads are the ones the engine is pointed at
     du = [c for c in runner.calls if c["argv"][:2] == ["du", "-sk"]][0]["argv"][2:]
     env = next(c["env"] for c in runner.calls if c["env"])
@@ -372,3 +376,13 @@ def test_the_temp_folder_goes_after_every_workload_and_a_missing_child_pid_is_ne
     monkeypatch.setattr(perf_profiles, "_child_pid", lambda pid: None)
     rc, _o, err = perf_profiles.real_runner(["sleep", "5"], timeout=10, attach=["true"])
     assert rc == 125 and "not found" in err
+
+
+def test_after_nightly_perf_state_holds_nothing_but_the_shared_models(tmp_path, monkeypatch):
+    monkeypatch.delenv("FICHERO_MODEL_STORE_ROOT", raising=False)
+    runner = _Runner()
+    _nightly(tmp_path, runner, keep=1)
+    _nightly(tmp_path, runner, keep=1)
+    gate = tmp_path / "Dev Disk" / "gate"
+    assert [p.name for p in (gate / "perf-state").iterdir() if p.name != "models"] == []
+    assert not (gate / "perf-state" / "library").exists()

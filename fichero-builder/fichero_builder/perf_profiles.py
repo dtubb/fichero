@@ -252,13 +252,8 @@ def nightly(rules: dict, manifest: dict, *, gate, state, run: str, machine: str,
         rows.append(_not_run("engine", why, **base))
     run_dir = gate / "perf" / run
     run_dir.mkdir(parents=True, exist_ok=True)
-    state_dir = gate / "perf-state"
-    # The engine is pointed at the folders `du` measures, so the disk rows read what the run really wrote.
-    where = {"library": state_dir / "library", "cache": state_dir / "base", "log": state_dir / "log",
-             "models": Path(os.environ.get("FICHERO_MODEL_STORE_ROOT") or state_dir / "base" / "models")}
+    models = Path(os.environ.get("FICHERO_MODEL_STORE_ROOT") or gate / "perf-state" / "models")  # the one shared folder
     env = {k: os.environ[k] for k in ENV_KEEP if k in os.environ}
-    env.update(TMPDIR=str(run_dir / "tmp"), FICHERO_BASE_PATH=str(where["cache"]), FICHERO_LIBRARY_PATH=str(where["library"]),
-               FICHERO_ENGINE_LOG_PATH=str(where["log"] / "engine.log"), FICHERO_MODEL_STORE_ROOT=str(where["models"]))
     for w in table:
         n = w["name"]
         free = free_gb(gate)
@@ -269,6 +264,12 @@ def nightly(rules: dict, manifest: dict, *, gate, state, run: str, machine: str,
             break
         (run_dir / "tmp").mkdir(parents=True, exist_ok=True)
         try:
+            # library, base and log live in this workload's own folder under the run, so `_prune` bounds them and a `du` delta never
+            # holds an older run's data; only the model store is shared
+            st = run_dir / "state" / n
+            where = {"library": st / "library", "cache": st / "base", "log": st / "log", "models": models}
+            env.update(TMPDIR=str(run_dir / "tmp"), FICHERO_BASE_PATH=str(where["cache"]), FICHERO_LIBRARY_PATH=str(where["library"]),
+                       FICHERO_ENGINE_LOG_PATH=str(where["log"] / "engine.log"), FICHERO_MODEL_STORE_ROOT=str(models))
             for p in where.values():
                 p.mkdir(parents=True, exist_ok=True)
             dirs = [str(where[d]) for d in DIRS if d in w["outputs"]]
