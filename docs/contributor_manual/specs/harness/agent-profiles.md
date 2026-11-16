@@ -40,11 +40,15 @@ harnesses over time and a bake-off is just runs that share a brief.
   **provider** reached through a harness that speaks it (Pi, opencode, Qwen Code, goose).
 - **Adapter** — one module per harness under `fichero-builder/agents/adapters/<harness>/` with the fixed interface of
   § C and a `capabilities.md` saying what the harness supports and what it does not.
-- **Profile** — `common/common.md` + `roles/<role>.md` + `projects/<project>/project.md` (the thin project layer).
-- **Role** — builder-harness, frontend, backend, testing, bug-fixing, code-review, perf-backend, perf-frontend,
-  measure-speed, measure-ram, measure-disk, landing, manager; for non-code projects: writing, editing, sourcing,
-  reviewing. Today's `[models]` roles map onto these (builder → backend or frontend by the step's paths; reviewer →
-  code-review); the rest keep their names until a profile exists.
+- **Profile** — `common/common.md` + `roles/<role>.md` + `stacks/<stack>.md` + `projects/<project>/project.md` (the thin
+  project layer): a worker's prompt and tools compose as common + ROLE + STACK (+ project), owner 2026-11-16.
+- **Role** — what the worker does, stack-neutral: feature, testing, bug-fixing, code-review, perf, measure-speed,
+  measure-ram, measure-disk, landing, builder-harness, manager; for text projects: writing, editing, sourcing,
+  reviewing. Today's `[models]` roles map onto these (builder → feature on the step's stack; reviewer → code-review).
+- **Stack** — the language and toolchain a step is in, declared per project in `[project].stacks` (Fichero: `swift`,
+  `python`; others later), each a `stacks/<stack>.md` carrying the stack's commands, test runner, lint, MCP tools and
+  rules. A worker is a role on a stack: testing × swift is a Swift test worker, perf × python a Python performance
+  worker; `builder-harness`, `manager` and the text roles take no stack.
 - **Project profile** — the `[project]` table of a project's `harness.toml`: name, kind (code or text), languages,
   tools, the checks it owns, the paths each rung applies to, the integration branch.
 - **Workflow** (a recipe) — the ordered steps a worktree moves through, declared in `[workflow]`: brief, work, the
@@ -75,13 +79,13 @@ harnesses over time and a bake-off is just runs that share a brief.
 ### B. Profiles: one folder, one common prompt, roles, a thin project layer
 
 - `agent-profiles.folder.one-place` [GAP] (#6623) — every prompt the builder gives a worker lives under
-  `fichero-builder/agents/`: `common/common.md`, `roles/<role>.md`, `projects/<project>/project.md`,
+  `fichero-builder/agents/`: `common/common.md`, `roles/<role>.md`, `stacks/<stack>.md`, `projects/<project>/project.md`,
   `adapters/<harness>/` (its module, `capabilities.md`, the harness-shaped files it needs; Pi's `models.json`,
   `settings.json` and `policy.ts` move here from `pipeline/pi-agent/` and `fichero-builder/pi/`). `agents/prompts/` and
   `agents/skills/` at the repo root (pre-builder) are deleted in the same step with a line in `AGENTS.md` saying where
   they went. No prompt names a task id, sha, date, worker name, person, home path or archive; a guard greps the folder
   for the `[land].boundary` patterns and the people list and fails on a hit. Acceptance: the folder holds exactly
-  common, roles, projects, adapters; the root `agents/` is gone; the guard refuses a prompt with a home path. Test (to write): fichero-builder/tests/test_profiles (new), case test_the_folder_and_no_private_text.
+  common, roles, stacks, projects, adapters; the root `agents/` is gone; the guard refuses a prompt with a home path. Test (to write): fichero-builder/tests/test_profiles (new), case test_the_folder_and_no_private_text.
 - `agent-profiles.prompt.common` [PARTIAL] (#6623) (the review's draft `common.md` exists untracked) — one common
   prompt every worker gets, under 120 lines and project-free: who it is (a headless worker as a separate user in one
   worktree, no screen, no GitHub token, no person watching); one step and nothing outside it (§ E); where it may read
@@ -94,25 +98,40 @@ harnesses over time and a bake-off is just runs that share a brief.
 - `agent-profiles.prompt.project-layer` [GAP] (#6627) — `projects/<project>/project.md`, under 60 lines, is the only
   prompt text that names the project: its interpreter and tool paths, its thread cap, the rungs a worker may run itself
   and the ones the ladder owns, its contract regeneration tools, its manual's headings to cite. It is generated in part
-  from `[project]` and `[check]` so a path is written once. Acceptance: the assembled prompt is common + role + project
+  from `[project]` and `[check]` so a path is written once. Acceptance: the assembled prompt is common + role + stack + project
   in that order; a second project's folder with its own `harness.toml` assembles a prompt naming none of Fichero's
   paths. Test (to write): test_profiles.py, case test_project_layer_is_the_only_project_text.
-- `agent-profiles.prompt.roles` [GAP] (#6637) — one `roles/<role>.md` per role, under 80 lines, holding only what differs:
-  **builder-harness** (`fichero-builder/`, stdlib only, never a project string in code); **frontend** (the Swift
-  front end; lint and typecheck are its own rungs, the build and Swift tests are the ladder's; file caps; logic in the
-  engine; may ask for the UI smoke of § F); **backend** (the engine, CLI, MCP; named test files one at a time;
-  regenerate contracts with the named tool); **testing** (tests only, never product code; a test that cannot run
-  fails); **bug-fixing** (reproduce red first, smallest fix, the readers' tests); **code-review** (the reviewer
-  preamble now in `scripts/harness_review.py`, `review-checklist.md` as its data, the throwaway checkout, the READY
-  line); **perf-backend**, **perf-frontend** (the hotspot table of `performance-sweep.md`, one spot, proved by the
-  rung's figure, no timer of their own); **measure-speed**, **measure-ram**, **measure-disk** (the named platform
-  tool over the fixed workload, rows out, no product code); **landing** (`builder check`, `review`, `land` in order,
-  pushes nothing); **writing**, **editing**, **sourcing**, **reviewing** for text projects (§ D). Acceptance: every
-  role a brief names resolves to a file or is a Question; frontend and backend name their own rungs and the
-  ladder's; testing and measuring roles say they change no product code. Test (to write): test_profiles.py,
-  case test_every_role_resolves_and_says_its_rungs.
+- `agent-profiles.prompt.roles` [GAP] (#6637) (owner 2026-11-16: roles × stacks, not frontend/backend) — one
+  `roles/<role>.md` per role, under 80 lines, **stack-neutral**, holding only what the role does: **feature** (the
+  step's behaviour with its test first, the smallest diff); **testing** (tests only, never product code; a test that
+  cannot run fails); **bug-fixing** (reproduce red first, smallest fix, the readers' tests); **code-review** (the
+  reviewer preamble now in `scripts/harness_review.py`, `review-checklist.md` as its data, the throwaway checkout,
+  the READY line); **perf** (the hotspot table of `performance-sweep.md`, one spot, proved by the rung's figure, no
+  timer of its own); **measure-speed**, **measure-ram**, **measure-disk** (the stack's named platform tool over the
+  fixed workload, rows out, no product code); **landing** (`builder check`, `review`, `land` in order, pushes
+  nothing); **builder-harness** (`fichero-builder/`, stdlib only, never a project string in code); **writing**,
+  **editing**, **sourcing**, **reviewing** for text projects (§ D). Each carries its `diff_bound:` and `tools:` lines
+  (§ D, § E). A role file names no command, runner, lint or file cap: those are the stack's. Acceptance: every role a
+  brief names resolves to a file or is a Question; no role file contains a command or a stack's tool name (a guard
+  greps for `pytest`, `xcodebuild`, `swiftlint`, `ruff`); testing and measuring roles say they change no product
+  code. Test (to write): test_profiles.py, case test_every_role_resolves_and_is_stack_neutral.
+- `agent-profiles.prompt.stacks` [GAP] (#6637) (owner 2026-11-16) — one `stacks/<stack>.md` per stack a project
+  declares, under 80 lines, holding what the stack is: its own cheap rungs and their commands (swift: `swiftlint` and
+  `swiftc -typecheck` on the touched files, the build and `xcodebuild test` are the ladder's, § F; python: `ruff` and
+  one named `pytest` file at a time, red-on-base is the ladder's), its limits (swift: the file caps, no
+  `swiftlint:disable`, no force unwrap, logic in the engine; python: the contract regenerators, a new engine file in
+  the embed list), its MCP tools (swift: the xcode MCP when it runs inside Xcode, Apple documentation search; python:
+  the Fichero dev MCP, jcodemunch's Python symbols), and the measuring tools its perf and measure roles use (swift:
+  xctrace, xcresult, XCTest metrics; python: pyinstrument or py-spy, memray, `/usr/bin/time -l`). A stack's `tools:`
+  list **overrides** the role's where they name the same kind (the role says "the profiler", the stack says which);
+  the project layer may add a tool, never remove the two required servers. The step's stack comes from the step's
+  paths against `[project].stacks` (each stack with its path globs); a step touching two stacks is split by `builder
+  steps` or refused as a question. Acceptance: Fichero declares `swift` and `python`; testing × swift assembles the
+  Swift runner and the Xcode tools and no `pytest`; perf × python assembles pyinstrument and no xctrace; a step under
+  both stacks is a question; a role whose stack file is missing for the project is a Question. Test (to write):
+  test_profiles.py, case test_role_times_stack_composes_commands_tools_and_rules.
 - `agent-profiles.prompt.assembly` [GAP] (#6623) — `start_tool.prepare` and the Pi start take `role`, `harness` and
-  `project`, assemble common + role + project plus the few run facts (worktree, scratch, the trailer words) and hand
+  `project`, assemble common + role + stack + project plus the few run facts (worktree, scratch, the trailer words) and hand
   the text to the adapter; the brief stays the first user message. The worktree's own `CLAUDE.md`, `.claude/`,
   `AGENTS.md`, `.gemini/`, `.codex/`, `opencode.json` and the like are **never** a worker's rules (a worker can edit
   them): each adapter passes the setting that disables project and user instruction files where the harness has one
@@ -164,17 +183,18 @@ harnesses over time and a bake-off is just runs that share a brief.
   refreshed over the worktree as the worker user before the first prompt (under the workroot, never the owner's
   home), and a harness that cannot load them, or a start whose index build fails, **cannot take a lane**: it refuses
   with the reason and a journal row, never starts "without the index". Beyond those two, **tool sets are per role and
-  per project** (owner 2026-11-16): `roles/<role>.md` carries a `tools:` list and a `diff_bound:` line (§ E) and `projects/<project>/project.md` a
-  `tools:` list of the servers that project provides, and a worker gets the two required servers plus the
-  intersection of what its role asks and its project provides, nothing else: frontend gets the Xcode tools (the xcode
-  MCP when it runs inside Xcode, Apple documentation search) and never the engine's; backend gets the engine and
-  Python tools (the Fichero dev MCP, the contract regenerators) and never Xcode's; testing and the perf and measuring
-  roles get their measuring tools (xcresult, xctrace, pyinstrument, memray readers); the manager role gets the
-  builder's own verbs; a server a role names that the project does not provide is a journal row, not a silent
-  drop. Each adapter delivers the set in its own config shape; a role's prompt lists only the tools it has.
-  Acceptance: every adapter's generated config names the two required servers with commands the worker user can
-  run; a fake adapter whose MCP answer is `Unsupported` refuses; a failed index build refuses; a frontend worker's
-  config has the Xcode set and no engine server, a backend worker's the reverse; a server the project lacks yields a
+  per project** (owner 2026-11-16): `roles/<role>.md` carries a `tools:` list and a `diff_bound:` line (§ E) `stacks/<stack>.md` a `tools:`
+  list that overrides the role's by kind, and `projects/<project>/project.md` a `tools:` list of the servers that
+  project provides; a worker gets the two required servers plus the intersection of what its role × stack asks and
+  its project provides, nothing else: a swift-stack worker gets the Xcode tools (the xcode MCP when it runs inside
+  Xcode, Apple documentation search) and never the engine's; a python-stack worker gets the engine and Python tools
+  (the Fichero dev MCP, the contract regenerators) and never Xcode's; testing, perf and measuring roles get their
+  stack's measuring tools (xcresult, xctrace; pyinstrument, memray readers); the manager role gets the builder's own
+  verbs; a server a role or stack names that the project does not provide is a journal row, not a silent drop. Each
+  adapter delivers the set in its own config shape; a worker's prompt lists only the tools it has. Acceptance: every
+  adapter's generated config names the two required servers with commands the worker user can run; a fake adapter
+  whose MCP answer is `Unsupported` refuses; a failed index build refuses; a testing × swift worker's config has the
+  Xcode set and no engine server, a testing × python worker's the reverse; a server the project lacks yields a
   row; the assembled prompt names exactly the delivered servers. Test (to write): fichero-builder/tests/test_mcp_servers (new).
 - `agent-profiles.project.profile` [GAP] (#6627) — a project is its `harness.toml`: a `[project]` table (name, kind
   `code`, `data` or `text` (`data` is research on a Fichero library's records, the sibling's § E), languages, tools by name and path, the checks it owns, the paths each rung applies to, the
@@ -206,7 +226,7 @@ harnesses over time and a bake-off is just runs that share a brief.
 - `agent-profiles.worker.small` [GAP] (#6625) (owner 2026-11-16) — a worker gets **one step**, a brief under 120 lines
   that names its files and its tests by path, and a diff bound **per role** (owner 2026-11-16: no single global
   number): a `diff_bound:` line in `roles/<role>.md`, lines changed with generated files excluded, smaller for
-  bug-fixing and code-review, larger for a feature step; a role file with no bound refuses to start; the brief tool refuses a cluster with more than one step or a brief over the line cap, the policy hook
+  bug-fixing and code-review, larger for the feature role; the bound is the role's whatever the stack; a role file with no bound refuses to start; the brief tool refuses a cluster with more than one step or a brief over the line cap, the policy hook
   counts the bound and the worker is told once then parked with a question; a step whose named files exceed the
   bound is split by `builder steps` before any brief. Acceptance: a two-step brief refuses; a 121-line brief refuses;
   a diff past the role's bound yields one tell and then a park row; a role file with no `diff_bound:` refuses; a brief
@@ -227,7 +247,7 @@ harnesses over time and a bake-off is just runs that share a brief.
   question; a missing GUI user or session yields a `not-run` row naming which. Test (to write): fichero-builder/tests/test_swift_rungs (new).
 - `agent-profiles.ladder.ui-smoke` [GAP] (#6626) (`Fichero.sdef` and `FicheroDebug.sdef` carry `open project`,
   `screenshot`, `select nodes`, `show pane`, `undo step`, `describe window`; `scripts/ux_smoke.py` drives some) — a
-  frontend worker asks in its DONE message for the UI smoke by name: the ladder launches the Dev Local build in the
+  swift-stack worker asks in its DONE message for the UI smoke by name: the ladder launches the Dev Local build in the
   dedicated GUI user's session, runs a fixed script of the app's own verbs (open the scratch project, show the pane the
   step names, screenshot, undo step, screenshot, quit) and attaches the screenshots to the review; nothing drives the
   screen by coordinates. A worker cannot run it itself (`osascript` against the app is refused in the jail). Acceptance:
@@ -252,7 +272,7 @@ harnesses over time and a bake-off is just runs that share a brief.
   (layout, what sits beside Status, the website's other pages) is owned by the sibling spec
   `harness/builder-console.md`, being drafted from a separate review of the builder's website (it also carries the product's name, Fichero Harness, its one API for HTML and Swift front ends and its host-agnostic work store); this bullet owns only
   the three views' columns and their one data source, and is reconciled with that spec when it lands. Acceptance
-  (fixture rows): Runs filters; Compare for `backend` ranks pairs by landing rate then cost; a Bake-offs view shows
+  (fixture rows): Runs filters; Compare for feature × python ranks pairs by landing rate then cost; a Bake-offs view shows
   both runs of one brief id; each renders with zero rows. Test (to write): fichero-builder/tests/test_console_runs (new).
 - `agent-profiles.cleanup.after-land` [PARTIAL] (#6630) —
   `cleanup` is the last step of every workflow: once a step's head is on the integration branch its land snapshot is
@@ -282,7 +302,7 @@ harnesses over time and a bake-off is just runs that share a brief.
   pair in every run. The result is the Compare and Bake-offs pages and one printed table per role; nothing in
   `[models]` changes from it: a role moves to a cheaper pair only when a person edits `[models]` after reading the
   table, the ruling cited in the file's comment. An earlier open-model trial (2026-10-18) did not match the Claude
-  baseline; this replaces that judgement with rows. First run: the backend role, Claude on Claude Code against
+  baseline; this replaces that judgement with rows. First run: feature × python, Claude on Claude Code against
   Qwen3-Coder-Next on Pi, then on opencode. Acceptance (dry run): two fake pairs over two briefs yield four rows with
   one brief id each pair; the table ranks by landing rate then cost; `[models]` is unchanged. Test (to write): fichero-builder/tests/test_bakeoff (new).
 
@@ -337,6 +357,8 @@ harnesses over time and a bake-off is just runs that share a brief.
   are per role and per project: a role lists only its tools.
 - Workers are small: one step, a short brief, named files and tests, a diff bound.
 - The builder is generic: project profile and declared workflow per project; text projects too.
+- A worker's prompt and tools compose as common + role + stack (+ project): roles are stack-neutral, stacks are
+  declared per project and carry the commands, runners, lint, MCP tools and rules; a stack overrides a tool set.
 - The diff bound is per role, in the role profile; the text proof runs on a scratch repository; costs and tokens are
   local only, never in an issue or the repository.
 - The harness state is Pydantic models over DuckDB (the database Fichero already uses; shared by builder, researcher,
@@ -456,14 +478,14 @@ Smallest first; each step is one lane batch unless marked; `Depends on` defaults
 
 ### Stage 4 — roles, the manager, the bake-off, the text project
 
-#### Step 4.1 — the role profiles
-- Behaviours: `agent-profiles.prompt.roles`
+#### Step 4.1 — the role profiles and the stack profiles: a worker is role × stack
+- Behaviours: `agent-profiles.prompt.roles`, `agent-profiles.prompt.stacks`
 - Tests: fichero-builder/tests/test_profiles (new)
 - Depends on: 2.1
 - Size: M
-- Order: frontend and backend first (one real step each), then code-review (the reviewer script reads its file),
-  testing and bug-fixing, the perf and measuring roles against `performance-sweep.md`'s rungs, landing, then the
-  text roles.
+- Order: the `swift` and `python` stacks with the feature role first (one real step each), then code-review (the
+  reviewer script reads its file), testing and bug-fixing on both stacks, perf and the measuring roles against
+  `performance-sweep.md`'s rungs on both stacks, landing, then the text roles.
 
 #### Step 4.2 — the built-in manager role
 - Behaviours: `agent-profiles.role.manager`
@@ -514,7 +536,7 @@ Smallest first; each step is one lane batch unless marked; `Depends on` defaults
 | `agent-profiles.console.runs` | 2.3 |
 | `agent-profiles.cleanup.after-land` | 2.4 |
 | `agent-profiles.adapter.pi` · `opencode` · `qwen-code` · `codex-cli` · `gemini-cli` · `goose` | 3.1–3.6 |
-| `agent-profiles.prompt.roles` | 4.1 |
+| `agent-profiles.prompt.roles` · `prompt.stacks` | 4.1 |
 | `agent-profiles.role.manager` | 4.2 |
 | `agent-profiles.bakeoff.measured` | 4.3 |
 | `agent-profiles.workflow.text-project` | 4.4 |
@@ -546,7 +568,7 @@ Each bullet names a `dev-workflows.*` behaviour by its last two parts.
 
 | Doc | Says |
 |---|---|
-| `docs/contributor_manual/how-fichero-is-built.md` | a worker is model × harness × profile on a declared workflow; where prompts live; tool sets per role; the diff bound per role; the bake-off rule; costs stay local |
+| `docs/contributor_manual/how-fichero-is-built.md` | a worker is model × harness × profile on a declared workflow; where prompts live; role × stack; tool sets per role and stack; the diff bound per role; the bake-off rule; costs stay local |
 | `harness/builder-console.md` (sibling, being drafted) | the website's pages; the Runs, Compare and Bake-offs views take their columns from here |
 | `AGENTS.md` | the one trailer line; the root `agents/` folder is gone; prompts live in the builder |
 | `docs/contributor_manual/review-checklist.md` | item 10 is the one trailer line |
