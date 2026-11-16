@@ -23,6 +23,8 @@ final class SegmentStore {
     private(set) var passesByDocument: [String: [SegmentPassValue]] = [:]
     /// Each page's resolved line directions (segment id -> direction), for the on-image labels (#5199).
     private(set) var directionsByDocument: [String: [String: String]] = [:]
+    /// Each page's lines' counting readings (segment id -> representation id), for the line editor (#5209).
+    private(set) var countingReadingsByDocument: [String: [String: String]] = [:]
     private(set) var loadingDocumentIds: Set<String> = []
     private(set) var loadErrorsByDocumentId: [String: String] = [:]
     /// Per-document generation, bumped when rows CHANGE UNDER a surface: a patch from a
@@ -77,7 +79,9 @@ final class SegmentStore {
             passesByDocument[documentId] = result.passes
             segmentsByDocument[documentId] = result.segments
             // Best effort: a page whose text cannot be read still draws, its labels isolated but unoriented.
-            directionsByDocument[documentId] = (try? await service.lineDirections(documentId: documentId)) ?? [:]
+            let facts = (try? await service.pageTextFacts(documentId: documentId)) ?? ([:], [:])
+            directionsByDocument[documentId] = facts.directions
+            countingReadingsByDocument[documentId] = facts.readings
             if force { revisions[documentId, default: 0] += 1 }
         } catch {
             if error.isCancellationError { return }
@@ -87,6 +91,11 @@ final class SegmentStore {
 
     func segments(documentId: String) -> [Segment] {
         segmentsByDocument[documentId] ?? []
+    }
+
+    /// The reading that counts for a line, as the page shows it: what a typed correction corrects.
+    func countingReadingId(of segmentId: String, documentId: String) -> String? {
+        countingReadingsByDocument[documentId]?[segmentId]
     }
 
     /// A segment's resolved direction: its own line's, else the nearest ancestor's with one (a word is

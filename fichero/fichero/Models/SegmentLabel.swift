@@ -18,6 +18,17 @@ nonisolated enum SegmentLabel {
         return out
     }
 
+    /// Each line's COUNTING reading on the page, from the page text's spans: what a typed correction of the
+    /// line corrects (`basedOn`), as the Reader's line map gives it. A line read through its words has no
+    /// span of its own, so none: its typed text is a new reading, as in the Reader.
+    static func countingReadings(from text: Components.Schemas.DerivedText) -> [String: String] {
+        var out: [String: String] = [:]
+        for span in text.spans {
+            if let representationId = span.representationId { out[span.segmentId] = representationId }
+        }
+        return out
+    }
+
     struct Layout: Equatable {
         /// The text to draw: isolated, and for a vertical line one grapheme per row.
         let text: String
