@@ -938,14 +938,15 @@ def _remote_build(root, cfg: Config, cmd: tuple = (), name: str = "build", reuse
 
 
 def _remote_build_locked(root, cfg: Config, host: str, rbase: str, cmd: tuple = (), name: str = "build", reuse: bool = True) -> dict | None:
-    src = _stable_build_tree(root, cfg) if cfg.build_tree else str(root)
+    keep_git = name == "security"  # the scan reads history (semgrep --baseline-commit, gitleaks): the batch's own tree, .git kept
+    src = str(root) if keep_git else _stable_build_tree(root, cfg) if cfg.build_tree else str(root)
     key = _build_key(src, cfg, cmd) if reuse else ""  # a measurement is never reused: the same tree on another night is another figure
     if key and (hit := _build_results().get(key)):
         journal.append("check", state="build-reused", rung=name, detail=f"green at {hit.get('head', '?')[:9]} {hit.get('ts', '')}: {key[:12]}")
         return {"ok": True, "skipped": False, "results": [{"name": "build", "ok": True, "exit_code": 0, "timed_out": False, "seconds": 0,
                                                            "stdout_tail": f"reused: the same build key built green at {hit.get('head', '?')[:9]}", "stderr_tail": "", "reused": key}]}
     tree, derived = f"{rbase}/build-tree", f"{rbase}/derived" + ("" if name == "build" else f"-{name}")  # a daily build: its own derived data
-    sync = run_command("build-sync", ["rsync", "-a", "--delete", "--exclude", ".git", "-e", "ssh -o BatchMode=yes -o ConnectTimeout=10",
+    sync = run_command("build-sync", ["rsync", "-a", "--delete", *([] if keep_git else ["--exclude", ".git"]), "-e", "ssh -o BatchMode=yes -o ConnectTimeout=10",
                                       f"{src}/", f"{host}:{tree}/"], src, 900, None, as_jail=False)
     if not sync["ok"]:
         journal.append("check", state="build-remote-down", rung=name, runner=host, detail=f"rsync: {sync['stderr_tail'][-200:]}")
@@ -1591,8 +1592,8 @@ def security(root, since: str, head: str, changed: list[str], cfg: Config) -> di
     """The security rung: the waiver lints, then `scripts/security_scan_run.py` over the batch (bandit with its baseline, semgrep with
     --baseline-commit, gitleaks over the batch's commits; osv-scanner only when `[check.security].osv` is on), reading only what is NEW.
     A scanner missing or at a version that is not pinned is REFUSED by name. Its table is in the row (`table`) and goes into the review
-    prompt under SECURITY SCAN. Runs here in the scratch tree: semgrep's --baseline-commit and gitleaks need the git history, which the
-    tree shipped to a runner does not carry (open: the spec's remote form)."""
+    prompt under SECURITY SCAN. Runs on `[check].build_remote` (never on this Mac) over the scratch tree shipped WITH its .git, under
+    `[check.security].path`; an unreachable runner is a not-run row."""
     if not cfg.security:
         return {"ok": True, "skipped": True, "stdout_tail": "skipped: not configured", "results": []}
     dirs = tuple(cfg.security.get("dirs") or ())
@@ -1601,8 +1602,16 @@ def security(root, since: str, head: str, changed: list[str], cfg: Config) -> di
     problems = security_lints(root, since, head, dirs=dirs)
     pins = dict(cfg.security.get("pins") or {})
     osv_on = bool(cfg.security.get("osv", False))
-    argv = [cfg.python or sys.executable, "scripts/security_scan_run.py", "--since", since, "--head", head, "--pins", json.dumps({**pins, "osv-scanner-enabled": osv_on})]
-    r = _run("security", argv, root, float(cfg.security.get("timeout_s", 720)), cfg)
+    if not cfg.build_remote:
+        return _not_run("security", cfg.security, "no runner", "no [check].build_remote: the security scan never runs on the manager's Mac", {}, problems)
+    path = ":".join([*(cfg.security.get("path") or ["/opt/homebrew/bin"]), "/usr/bin", "/bin", "/usr/sbin", "/sbin"])  # the runner's ssh PATH is only the system dirs
+    scan = shlex.join([_gate_python(cfg, GATE), "scripts/security_scan_run.py", "--since", since, "--head", head, "--pins", json.dumps({**pins, "osv-scanner-enabled": osv_on})])
+    # the pin check first (its report goes to stderr; a mismatch is the scan's own REFUSED line), then the scan under the same PATH
+    script = f"export PATH={shlex.quote(path)}; scripts/install_security_tools.sh --check >&2; {scan}"
+    rr = _remote_build(root, cfg, ("sh", "-c", script), "security", reuse=False)
+    if rr is None:
+        return _not_run("security", cfg.security, "runner down", "the build runner is unreachable: the security scan did not run (never run here)", {}, problems)
+    r = rr["results"][0]
     if (t := _timed_out_row("security", r)) is not None:
         return t
     m = SECURITY_LINE.search(r.get("stdout_tail") or "")

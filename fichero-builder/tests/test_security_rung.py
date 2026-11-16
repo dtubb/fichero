@@ -142,25 +142,74 @@ def test_the_rung_skips_unconfigured_and_unrequired_batches_and_stays_green_whil
 
 def test_a_rung_that_did_not_measure_is_not_run_never_green_and_names_why(repo, tmp_path, monkeypatch):
     monkeypatch.setattr(journal, "STATE", tmp_path / "state")
-    cfg = check_tool.Config(security={"enforce": False, "dirs": ["scripts"], "pins": {}})
+    cfg = check_tool.Config(security={"enforce": False, "dirs": ["scripts"], "pins": {}}, build_remote="m4:/gate")
     refused = ["REFUSED: bandit has no pinned version in harness.toml [check.security]"]
     out = "SECURITY-RESULT " + json.dumps({"rows": [], "refused": refused, "table": "none"})
-    monkeypatch.setattr(check_tool, "_run", lambda *a, **k: {"ok": False, "exit_code": 1, "timed_out": False, "stdout_tail": out, "stderr_tail": "x"})
+    monkeypatch.setattr(check_tool, "_remote_build", lambda *a, **k: {"ok": False, "skipped": False, "remote_env_red": True, "remote": "m4", "results": [{"ok": False, "exit_code": 1, "timed_out": False, "stdout_tail": out, "stderr_tail": "x"}]})
     r = check_tool.security(repo, "a", "b", ["scripts/x.py"], cfg)
     assert r["ok"] and r["not_run"] and "not-run: bandit refused" in r["stdout_tail"]
     rows = [x for x in journal.read() if x.get("state") == "not-run" and x.get("rung") == "security"]
     assert rows and rows[0].get("id") and "bandit" in rows[0]["reason"]
     # no SECURITY-RESULT line at all: the scan did not run, with the scanner's stderr kept
-    monkeypatch.setattr(check_tool, "_run", lambda *a, **k: {"ok": False, "exit_code": 1, "timed_out": False, "stdout_tail": "", "stderr_tail": "no module named x"})
+    monkeypatch.setattr(check_tool, "_remote_build", lambda *a, **k: {"ok": False, "skipped": False, "remote_env_red": True, "remote": "m4", "results": [{"ok": False, "exit_code": 1, "timed_out": False, "stdout_tail": "", "stderr_tail": "no module named x"}]})
     r = check_tool.security(repo, "a", "b", ["scripts/x.py"], cfg)
     assert r["not_run"] and "no module named x" in r["stdout_tail"]
 
 
 def test_a_refused_scanner_does_not_hide_the_reds_of_the_scanners_that_ran(repo, tmp_path, monkeypatch):
     monkeypatch.setattr(journal, "STATE", tmp_path / "state")
-    cfg = check_tool.Config(security={"enforce": False, "dirs": ["scripts"], "pins": {}})
+    cfg = check_tool.Config(security={"enforce": False, "dirs": ["scripts"], "pins": {}}, build_remote="m4:/gate")
     red = {"scanner": "gitleaks", "rule": "generic-api-key", "where": "a.py:4", "red": True}
     out = "SECURITY-RESULT " + json.dumps({"rows": [red], "refused": ["REFUSED: bandit is not installed on the runner", "REFUSED: semgrep is not installed on the runner"], "table": "t"})
-    monkeypatch.setattr(check_tool, "_run", lambda *a, **k: {"ok": False, "exit_code": 1, "timed_out": False, "stdout_tail": out, "stderr_tail": ""})
+    monkeypatch.setattr(check_tool, "_remote_build", lambda *a, **k: {"ok": False, "skipped": False, "remote_env_red": True, "remote": "m4", "results": [{"ok": False, "exit_code": 1, "timed_out": False, "stdout_tail": out, "stderr_tail": ""}]})
     r = check_tool.security(repo, "a", "b", ["scripts/x.py"], cfg)
     assert r["not_run"] and "bandit, semgrep refused" in r["stdout_tail"] and "gitleaks generic-api-key a.py:4" in r["stdout_tail"]
+
+
+# ---- #6589 item 10: the security rung runs on the build runner (`_remote_build`), never on this Mac
+
+def _sec_cfg(**kw):
+    sec = {"enforce": False, "dirs": ["scripts"], "pins": {}, "path": ["/opt/homebrew/bin", "/opt/tools/bin"], **kw}
+    return check_tool.Config(security=sec, build_remote="m4:/gate")
+
+
+def test_the_security_scan_goes_over_ssh_with_the_scanner_path_and_the_pin_check_first(tmp_path, monkeypatch):
+    seen = []
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    monkeypatch.setattr(check_tool, "security_lints", lambda *a, **k: [])
+    monkeypatch.setattr(check_tool, "_run", lambda *a, **k: pytest.fail("the security scan ran on this Mac"))
+    out = "SECURITY-RESULT " + json.dumps({"rows": [], "refused": [], "table": "none"})
+    monkeypatch.setattr(check_tool, "_remote_build", lambda root, cfg, cmd=(), name="build", reuse=True:
+                        (seen.append((cmd, name, reuse)), {"ok": True, "skipped": False, "results": [{"ok": True, "exit_code": 0, "stdout_tail": out, "stderr_tail": ""}]})[1])
+    r = check_tool.security(tmp_path, "a", "b", ["scripts/x.py"], _sec_cfg())
+    assert r["ok"] and not r.get("not_run")
+    (cmd, name, reuse), = seen
+    assert name == "security" and reuse is False
+    text = " ".join(cmd)
+    assert "/opt/homebrew/bin:/opt/tools/bin" in text and "PATH=" in text
+    assert text.index("install_security_tools.sh --check") < text.index("security_scan_run.py")  # the pin check, then the scan
+    assert "--since a" in text and "--head b" in text
+
+
+def test_an_unreachable_runner_is_a_not_run_row_with_the_reason_and_nothing_runs_here(tmp_path, monkeypatch):
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    monkeypatch.setattr(check_tool, "security_lints", lambda *a, **k: [])
+    monkeypatch.setattr(check_tool, "_run", lambda *a, **k: pytest.fail("the security scan ran on this Mac"))
+    monkeypatch.setattr(check_tool, "_remote_build", lambda *a, **k: None)
+    r = check_tool.security(tmp_path, "a", "b", ["scripts/x.py"], _sec_cfg())
+    assert r["ok"] and r["not_run"] and "runner down" in r["stdout_tail"]
+    assert [x for x in journal.read() if x.get("state") == "not-run" and x.get("rung") == "security"]
+    # no runner configured at all: not-run too, never a run here
+    r = check_tool.security(tmp_path, "a", "b", ["scripts/x.py"], check_tool.Config(security=_sec_cfg().security))
+    assert r["not_run"] and "build_remote" in r["stdout_tail"]
+
+
+def test_a_scan_that_exits_nonzero_on_the_runner_still_has_its_result_line_read(tmp_path, monkeypatch):
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    monkeypatch.setattr(check_tool, "security_lints", lambda *a, **k: [])
+    red = {"scanner": "gitleaks", "rule": "k", "where": "a.py:4", "red": True}
+    out = "SECURITY-RESULT " + json.dumps({"rows": [red], "refused": [], "table": "t"})
+    row = {"ok": False, "exit_code": 1, "timed_out": False, "stdout_tail": out, "stderr_tail": ""}
+    monkeypatch.setattr(check_tool, "_remote_build", lambda *a, **k: {"ok": False, "skipped": False, "remote_env_red": True, "remote": "m4", "results": [row]})
+    r = check_tool.security(tmp_path, "a", "b", ["scripts/x.py"], _sec_cfg())
+    assert "gitleaks k a.py:4" in r["stdout_tail"]
