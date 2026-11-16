@@ -89,8 +89,8 @@ def test_the_remote_wrapper_holds_the_machines_lock_while_its_script_runs_and_pa
     import time
     lock = str(tmp_path / "heavy.lock")
     log = tmp_path / "log"
-    one = check_tool._remote_heavy(sys.executable, lock, f"echo a-start >> {log}; sleep 1; echo a-end >> {log}; exit 7")
-    two = check_tool._remote_heavy(sys.executable, lock, f"echo b-start >> {log}; echo b-end >> {log}")
+    one = check_tool._remote_heavy(sys.executable, lock, f"echo a-start >> {shlex.quote(str(log))}; sleep 1; echo a-end >> {shlex.quote(str(log))}; exit 7")
+    two = check_tool._remote_heavy(sys.executable, lock, f"echo b-start >> {shlex.quote(str(log))}; echo b-end >> {shlex.quote(str(log))}")
     p1 = subprocess.Popen(["sh", "-c", one])
     t0 = time.monotonic()  # the first holds the lock once it has written a-start: a fixed 0.4 s lost the race at load 124 (2026-11-07)
     while not (log.exists() and "a-start" in log.read_text()) and time.monotonic() - t0 < 30:
