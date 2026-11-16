@@ -61,10 +61,19 @@ def check(event: dict[str, Any], cfg: dict[str, Any], *, worktree: Path, scratch
     return None
 
 
+_WRITTEN_BY = re.compile(r"^Written-By: \S.* using \S.* using Fichero Builder$")
+
+
 def commit_msg_problems(msg: str, cfg: dict[str, Any]) -> list[str]:
-    """Every `required_trailers` entry, and at least one of `trailer_one_of` (owner 2026-11-05: ONE trailer, `Written-By: <model>`; the old
-    `Directed-By: the maintainer` still passes on commits made before that ruling)."""
-    out = [f"the commit message lacks the trailer {t!r}" for t in cfg.get("required_trailers", []) if t not in msg]
-    if (one := cfg.get("trailer_one_of", [])) and not any(t in msg for t in one):
-        out.append(f"the commit message lacks a trailer: one of {one}")
+    """Exactly one trailer, `Written-By: <MODEL> using <HARNESS> using Fichero Builder` (agent-profiles.trailer.one-line); no
+    `Co-Authored-By`, no `Directed-By`, no second `Written-By`. The same rule for every harness: each runs `git commit`."""
+    lines = [ln.rstrip() for ln in msg.splitlines()]
+    shape = "Written-By: <MODEL> using <HARNESS> using Fichero Builder"
+    out = [f"the commit message carries {ln.split(':')[0]}; the one trailer is {shape}"
+           for ln in lines if re.match(r"(?i)(co-authored-by|directed-by):", ln)]
+    written = [ln for ln in lines if ln.lower().startswith("written-by:")]
+    if len(written) != 1:
+        out.append(f"the commit message needs exactly one Written-By trailer, `{shape}`; it has {len(written)}")
+    elif not _WRITTEN_BY.match(written[0]):
+        out.append(f"the Written-By trailer must read `{shape}`; got {written[0]!r}")
     return out
