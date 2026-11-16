@@ -30,7 +30,8 @@ def _prompt(tmp_path, files: dict[str, str], ladder: Path | None = None) -> str:
     g("add", "."), g("commit", "-q", "-m", "change")
     pinned = tmp_path / "pinned"
     pinned.mkdir()
-    (pinned / "harness.toml").write_text('[land]\nbranch = "landbr"\n' + MODELS)
+    (tmp_path / "wr").mkdir()
+    (pinned / "harness.toml").write_text(f'[land]\nbranch = "landbr"\n[jail]\nworkroot = "{tmp_path / "wr"}"\n' + MODELS)
     r = subprocess.run([sys.executable, str(SCRIPT), str(repo), "HEAD", "--pinned", str(pinned), "--verdicts", str(tmp_path / "v.json"), "--print",
                         *(["--ladder", str(ladder)] if ladder else [])],
                        capture_output=True, text=True)

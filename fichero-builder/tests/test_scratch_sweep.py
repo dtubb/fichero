@@ -72,3 +72,15 @@ def test_the_loop_runs_list_then_delete_at_most_every_six_hours(world, monkeypat
     scratch.when_idle(root)
     assert [r["state"] for r in journal.read() if r["event"] == "sweep-scratch"] == ["listed", "deleted"], "the second tick is inside the six hours"
     assert not (wr / "check-base-aaaa1111").exists() and (wr / "check-base-eeee5555").exists()
+
+
+def test_old_review_trees_and_cwds_are_swept_and_a_live_one_is_kept(world, monkeypatch):
+    """#6589 item 20: the review wrapper makes review-tree-* and review-* in the workroot; a crash leaves them there."""
+    root, wr, repo, make = world
+    gone = [make("review-tree-aaaa1111"), make("review-bbbb2222")]
+    live = make("review-tree-live0000", age=time.time())
+    monkeypatch.setattr(scratch, "_held", lambda: "")
+    f, n, _kb = scratch.list_step(root)
+    assert sorted(f.read_text().split()) == sorted(str(p) for p in gone) and n == 2
+    scratch.delete_step(root, f)
+    assert not any(p.exists() for p in gone) and live.exists()

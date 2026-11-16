@@ -11,8 +11,9 @@ from pathlib import Path
 
 from fichero_builder import journal
 
-PREFIXES = ("check-tree-", "check-base-tree-", "check-base-", "check-home-")  # what check_tool._mkdtemp makes; nothing else is touched
-RETAIN_H = 6.0  # a ladder runs at most a few hours (build 3600 s); anything this old is no live ladder's
+# what check_tool._mkdtemp makes, plus the review's tree and cwd (scripts/harness_review.py, #6589 item 20); nothing else is touched
+PREFIXES = ("check-tree-", "check-base-tree-", "check-base-", "check-home-", "review-tree-", "review-")
+RETAIN_H = 6.0  # a ladder (build 3600 s) or a review runs at most a few hours; anything this old is no live one's
 
 
 def _rules(root) -> dict:
