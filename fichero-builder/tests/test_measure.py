@@ -19,7 +19,7 @@ def _world(tmp_path, monkeypatch, min_free=1):
     (b / "df").write_text('#!/bin/sh\necho "Filesystem 1G-blocks Used Available"\necho "fake 100 1 99 1% /"\n')
     (b / "df").chmod(0o755)
     told = tmp_path / "told"
-    (b / "tell").write_text(f'#!/bin/sh\necho "$1 $2" >> {told}\n')
+    (b / "tell").write_text(f'#!/bin/sh\necho "$1 $2" >> {__import__("shlex").quote(str(told))}\n')
     (b / "tell").chmod(0o755)
     monkeypatch.setenv("PATH", f"{b}:{os.environ['PATH']}")
     gate = tmp_path / "gate"

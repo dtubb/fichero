@@ -472,7 +472,7 @@ def test_a_blocked_step_labels_its_issues_needs_your_decision_and_comments_the_q
     needs-your-decision and comments). A gh that fails is a row, never a traceback; resume takes the label off."""
     calls = tmp_path / "calls"
     gh = tmp_path / "gh"
-    gh.write_text(f'#!/bin/sh\necho "$*" >> {calls}\n')
+    gh.write_text(f'#!/bin/sh\necho "$*" >> {__import__("shlex").quote(str(calls))}\n')
     gh.chmod(0o755)
     lane(state)
     fake = Fake(chains={"1.1": [{"ok": False, "kind": "error", "why": "rules file broken"}]})

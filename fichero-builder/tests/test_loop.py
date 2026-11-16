@@ -133,7 +133,7 @@ def test_needs_maintainer_is_an_alert_with_the_pinned_diff_and_approve_reruns_as
 def test_send_back_and_ask_owner(state, tmp_path):
     calls = tmp_path / "calls"
     gh = tmp_path / "gh"
-    gh.write_text(f'#!/bin/sh\necho "$*" >> {calls}\n')
+    gh.write_text(f'#!/bin/sh\necho "$*" >> {__import__("shlex").quote(str(calls))}\n')
     gh.chmod(0o755)
     lane(state)
     fake = Fake(chains={"1.1": [{"ok": False, "kind": "error", "why": "boom"}, {"ok": False, "kind": "error", "why": "boom again"}]})

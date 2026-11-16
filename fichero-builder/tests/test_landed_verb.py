@@ -3,6 +3,7 @@ steps as one command (push only with --push), each a journal row, and stops red 
 engine repo cloned --no-checkout as in production, and a jail root under a fake sudo boundary."""
 from __future__ import annotations
 
+import shlex
 import json
 import os
 import subprocess
@@ -57,7 +58,7 @@ def world(tmp_path, monkeypatch):
     monkeypatch.setattr(landed, "as_worker", local)
     gh_log = tmp_path / "gh.log"
     gh = tmp_path / "gh"
-    gh.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$*\" >> {gh_log}\n")
+    gh.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$*\" >> {shlex.quote(str(gh_log))}\n")  # the checkout path may hold a space
     gh.chmod(0o755)
 
     def ready():

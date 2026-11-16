@@ -12,7 +12,7 @@ def test_a_short_message_is_typed_and_a_long_one_goes_to_a_file_the_pane_reads(t
     b = tmp_path / "bin"
     b.mkdir()
     log = tmp_path / "keys"
-    (b / "tmux").write_text(f'#!/bin/sh\ncase "$1" in list-panes) echo "%9";; capture-pane) echo "❯ ";; send-keys) shift; echo "$@" >> {log};; esac\n')
+    (b / "tmux").write_text(f'#!/bin/sh\ncase "$1" in list-panes) echo "%9";; capture-pane) echo "❯ ";; send-keys) shift; echo "$@" >> {__import__("shlex").quote(str(log))};; esac\n')
     (b / "tmux").chmod(0o755)
     monkeypatch.setenv("PATH", f"{b}:{os.environ['PATH']}")
     monkeypatch.setattr(tell.time, "sleep", lambda s: None)
