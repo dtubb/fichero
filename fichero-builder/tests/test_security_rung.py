@@ -217,7 +217,7 @@ def test_a_scan_that_exits_nonzero_on_the_runner_still_has_its_result_line_read(
     assert "gitleaks k a.py:4" in r["stdout_tail"]
 
 
-def _runner(monkeypatch, tmp_path, calls, slow=False):
+def _runner(monkeypatch, tmp_path, calls, slow=False, rival=None):
     """A fake runner: ssh scripts run in a local shell, a push to `host:path` goes to that local path, so the bare repo and its
     worktree are real. `calls` collects (name, argv) of every command; with `slow` the scan itself reports a timeout."""
     runner = tmp_path / "runner"
@@ -233,6 +233,8 @@ def _runner(monkeypatch, tmp_path, calls, slow=False):
             argv = [x.removeprefix("m4:") for x in argv]  # `host:path` is the local path here
             return real_run(name, argv, cwd, timeout_s, env, *a, **k)
         if name == "security-checkout":
+            if rival:  # another ladder's push lands between this run's push and its checkout, moving the shared `scan` ref
+                _g(rival[0], "push", "-q", "--force", str(runner / "security.git"), f"{rival[1]}:refs/heads/scan")
             return real_run(name, ["sh", "-c", local(argv[-1])], cwd, timeout_s, None, *a, **k)
         if name == "security":
             return {"name": name, "ok": not slow, "exit_code": 1 if slow else 0, "timed_out": slow, "seconds": timeout_s, "stdout_tail": "", "stderr_tail": ""}
@@ -294,3 +296,21 @@ def test_the_security_scan_times_out_at_its_own_budget_not_the_build_timeout(tmp
     r = check_tool.security(wt, "a", "b", ["x.py"], cfg)
     assert [t for n, _, t in calls if n == "security"] == [77.0]  # not 1800
     assert r["ok"] and r["results"][0]["timed_out"]  # an alert row, never a red
+
+
+def test_a_rival_push_between_the_push_and_the_checkout_cannot_change_the_commit_scanned(tmp_path, monkeypatch):
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    wt, since = _worktree_repo(tmp_path)
+    (wt / "a.py").write_text("x = 2\n")
+    _g(wt, "commit", "-qam", "mine")
+    mine = _g(wt, "rev-parse", "HEAD")
+    other = tmp_path / "other"  # the rival ladder's tree: a different commit on the same base
+    _g(tmp_path / "main", "worktree", "add", "-q", "--detach", str(other), since)
+    (other / "a.py").write_text("x = 99\n")
+    _g(other, "commit", "-qam", "theirs")
+    theirs = _g(other, "rev-parse", "HEAD")
+    runner = _runner(monkeypatch, tmp_path, [], rival=(other, theirs))
+    cfg = check_tool.Config(security={"dirs": ["."]}, build_remote="m4:/gate")
+    assert check_tool._remote_build(wt, cfg, ("true",), "security", False, 77.0)["ok"]
+    assert _g(runner / "security.git", "rev-parse", "refs/heads/scan") == theirs  # the rival really did move the ref
+    assert _g(runner / "security-tree", "rev-parse", "HEAD") == mine  # and this run still scanned its own commit

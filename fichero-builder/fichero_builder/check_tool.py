@@ -958,7 +958,7 @@ def _security_push(root, host: str, rbase: str) -> bool:
 
 
 def _remote_build_locked(root, cfg: Config, host: str, rbase: str, cmd: tuple = (), name: str = "build", reuse: bool = True, timeout_s: float | None = None) -> dict | None:
-    if name == "security":  # a worktree of the pushed `scan` ref in its own folder there (the build rung's tree is untouched); history comes with it
+    if name == "security":  # a worktree of this run's own head commit (pushed under `scan`) in its own folder there (the build rung's tree is untouched); history comes with it
         return _remote_build_synced(root, cfg, host, rbase, cmd, name, reuse, str(root), True, timeout_s)
     return _remote_build_synced(root, cfg, host, rbase, cmd, name, reuse, _stable_build_tree(root, cfg) if cfg.build_tree else str(root), False, timeout_s)
 
@@ -971,9 +971,11 @@ def _remote_build_synced(root, cfg: Config, host: str, rbase: str, cmd: tuple, n
                                                            "stdout_tail": f"reused: the same build key built green at {hit.get('head', '?')[:9]}", "stderr_tail": "", "reused": key}]}
     tree, derived = f"{rbase}/{'security-tree' if keep_git else 'build-tree'}", f"{rbase}/derived" + ("" if name == "build" else f"-{name}")  # a daily build: its own derived data
     if keep_git:
+        # the exact commit, never the shared `scan` ref: another ladder's push may have moved it since this run's push
+        head = (_lines(root, "rev-parse", "HEAD") or [""])[0]
         g, t = shlex.quote(f"{rbase}/security.git"), shlex.quote(tree)
         sync = run_command("security-checkout", ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host,
-                           f"git --git-dir={g} worktree prune; rm -rf {t}; git --git-dir={g} worktree add -q -f --detach {t} refs/heads/scan"], src, 300, None, as_jail=False)
+                           f"git --git-dir={g} worktree prune; rm -rf {t}; git --git-dir={g} worktree add -q -f --detach {t} {shlex.quote(head)}"], src, 300, None, as_jail=False)
     else:
         sync = run_command("build-sync", ["rsync", "-a", "--delete", "--exclude", ".git", "-e", "ssh -o BatchMode=yes -o ConnectTimeout=10",
                                           f"{src}/", f"{host}:{tree}/"], src, 900, None, as_jail=False)
