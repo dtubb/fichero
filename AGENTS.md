@@ -729,6 +729,12 @@ convention; a new `FOO_STATUS.md` at the root is wrong by construction.
 added deliberately: `git add -f agent-work/status/<file>.md`. Scratch you do not
 add stays local, which is the point.
 
+**Builder and manager files.** The worktrees folder holds worktrees only. Manager briefs, handoffs, reports and
+build logs live in the builder's state dir, under `manager/{briefs,handoffs,reports,logs}`. Everything else the builder writes
+(logs, land snapshots, scratch) goes under its state dir or its scratch dir (`[jail].workroot`), never in `$HOME` or
+the worktrees folder. `builder queue add` copies the brief it is given into `manager/briefs`, so a lane never
+depends on a loose file.
+
 **Product code.** Four peer products, one docs tree, one fixtures tree — full paths in
 Key Paths below. Pure crud or superseded material is `git rm`-ed, not parked at the root.
 
