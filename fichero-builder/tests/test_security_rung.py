@@ -352,3 +352,12 @@ def test_the_security_rung_s_real_script_text_runs_on_the_runner_and_its_result_
     _g(wt, "commit", "-qam", "broken scan")
     r = check_tool.security(wt, since, _g(wt, "rev-parse", "HEAD"), ["scripts/security_scan_run.py"], cfg)
     assert r["not_run"] and "boom from the scan" in r["stdout_tail"]
+
+
+def test_tail_keeps_a_security_result_line_whole_only_up_to_its_own_bound():
+    from fichero_builder import check_tool as ct
+    ok = ct.SECURITY_RESULT_PREFIX + "x" * 400
+    assert ct.tail("noise\n" + ok).endswith(ok)
+    huge = ct.SECURITY_RESULT_PREFIX + "y" * (ct.SECURITY_RESULT_MAX + 1)
+    out = ct.tail("noise\n" + huge)
+    assert len(out) <= 4000 and not out.endswith(huge)
