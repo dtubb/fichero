@@ -53,7 +53,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   stderr timeline only still yields the launch rows; the signpost export and the log for the same run agree within 5 ms or
   the row is marked `disagree` (never silently averaged). Test (to write):
   the new test_perf_log_readers file in fichero-server/tests/unit/scripts, case test_launch_and_interaction_lines_become_phase_rows_with_p50_p95_count.
-- `perf-sweep.source.engine-perf-lines` [GAP] (#6600) — `core/perf.py::perf_span` logs `PERF <name> <k=v …>
+- `perf-sweep.source.engine-perf-lines` [GAP] (#6600) — perf (a new test file), case perf_span logs `PERF <name> <k=v …>
   duration_ms=<n>` and `model_load` logs `model-lane: loaded <model> in <s> s (load <n> in this engine)` plus the
   WARNING `model loaded again`. The reader takes an engine log (the run's, or the app's embedded-engine log from a smoke
   run) and emits one row per span name with count, p50, p95, max, total (count × p50, the "how often" figure the owner
@@ -64,7 +64,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   ratchet, not here; this reader hands it the same parsed rows. Acceptance (fixture log): three names with known
   durations give three rows with exact p50/p95/total; a model loaded twice 30 s apart yields `reload: true`; a line that
   is not `PERF` or `model-lane` is ignored; an empty log gives zero rows and the run is marked `no-engine-log`, not
-  green. Test (to write): `test_perf_log_readers.py::test_perf_spans_group_by_name_with_count_total_and_model_reloads`.
+  green. Test (to write): test_perf_log_readers (a new test file), case test_perf_spans_group_by_name_with_count_total_and_model_reloads.
 - `perf-sweep.source.engine-profiles` [GAP] (#6600) — fresh engine profiles over the engine workloads (W1–W5 below),
   nightly, on the M4's gate venv, one workload at a time behind the heavy lock. **Time:** `pyinstrument -r json -o
   <run>/<w>.pyinstrument.json -r html -o <run>/<w>.html -- <driver>` is the batch and nightly default (in-process, no
@@ -78,7 +78,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   `/usr/bin/time -l` wraps every driver for the zero-overhead peak RSS (`maximum resident set size`) that the rung holds.
   **Disk:** `du -sk` of the scratch library, the engine cache dir, its log dir and the models dir before and after
   (`perf-rung-engine`'s pairs, unchanged), the delta per directory held exactly; DuckDB spill and old-row-version MiB
-  from `db/busy_evidence.py`'s lines. **CPU and energy:** CPU seconds from `/usr/bin/time -l` (`user` + `sys`) and the
+  from busy_evidence (a new test file)'s lines. **CPU and energy:** CPU seconds from `/usr/bin/time -l` (`user` + `sys`) and the
   ratio CPU/wall (parallel efficiency; a workload at 0.9 on an 8-core run is serial work waiting to be found); energy on
   the Mac is CPU time (no per-process energy counter is available without root; `powermetrics` is NOT used). Rows: the
   top 15 self-time frames that are ours (`fichero_server/`, `fichero_cli/`, `fichero_mcp/`), each with self ms, total ms,
@@ -111,7 +111,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   through `check_hang_ratchet.py`'s parser unchanged and yields one row per hang; a leaks export with one row is a red row;
   a SwiftUI export with `SidebarView` at 31 bodies for `sidebar-click` yields that row; a file-activity export yields
   bytes per path; a toc missing a pinned schema is REFUSED naming it. Test (to write):
-  `test_perf_sweep.py::test_app_trace_exports_become_rows_per_template_and_a_missing_schema_refuses`.
+  test_perf_sweep (a new test file), case test_app_trace_exports_become_rows_per_template_and_a_missing_schema_refuses.
 - `perf-sweep.source.runtime-checkers` [GAP] (#6600) — Xcode's runtime checkers run as scheme diagnostics in a dedicated
   test plan, `fichero/Tests/plans/fichero-diagnostics.xctestplan`, with two configurations because the Thread and
   Address sanitizers exclude each other: `tsan` (Thread Sanitizer, Main Thread Checker, Thread Performance Checker) and
@@ -127,7 +127,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   (main-thread I/O and priority inversions are performance) and as a bug for the sanitizers. Acceptance (fixture console
   logs): one TPC line yields one row with checker `tpc` and the frame; two identical MTC lines yield one row with count
   2; a clean log yields none; a plan run that did not finish is `not-run`. Test (to write):
-  `test_perf_sweep.py::test_runtime_checker_logs_become_rows_held_at_zero`.
+  test_perf_sweep (a new test file), case test_runtime_checker_logs_become_rows_held_at_zero.
 - `perf-sweep.source.xctest-metrics` [PARTIAL] (#6600; `quality.perf-rung-app` owns the plan) — the perf test plan
   `FicheroPerfTests` measures each app workload's scripted action with `measure(metrics: [XCTClockMetric(),
   XCTCPUMetric(), XCTMemoryMetric(), XCTStorageMetric(), XCTOSSignpostMetric(subsystem: "app.fichero.fichero", category:
@@ -137,7 +137,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   per-metric averages out of the xcresult (`xcrun xcresulttool get test-results tests --path <x>`, the
   `performanceMetrics` of each test) as rows, so the table has one line per workload for clock, CPU, memory and storage
   even when the baseline passes. Built: `LaunchPerformanceUITests.swift` (launch only). Open: the plan, the four other
-  actions, the baselines (Step 2.31). Test (to write): `test_perf_sweep.py::test_xcresult_performance_metrics_become_rows`.
+  actions, the baselines (Step 2.31). Test (to write): test_perf_sweep (a new test file), case test_xcresult_performance_metrics_become_rows.
 - `perf-sweep.source.metrickit-and-field` [GAP] (#6600) — two field sources, both light. **In the app:** a
   `MXMetricManagerSubscriber` registered at launch in every channel writes each daily `MXMetricPayload` and every
   `MXDiagnosticPayload` as the JSON MetricKit itself produces (`jsonRepresentation()`) into
@@ -153,7 +153,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   exception is a filing candidate regardless of rank. Acceptance (fixture payloads): a hang diagnostic yields a row with
   the top own frame; a disk-write exception yields a row with bytes; a payload with no responsiveness metrics yields no
   hang row and the run notes the missing field; a field issue list of three yields three rows tagged `organizer`. Test
-  (to write): `test_perf_sweep.py::test_metrickit_payloads_and_organizer_issues_become_field_rows`.
+  (to write): test_perf_sweep (a new test file), case test_metrickit_payloads_and_organizer_issues_become_field_rows.
 - `perf-sweep.source.machines` [GAP] (#6600; `pool.machines-declare-capabilities`) — where each source runs is declared,
   not discovered: `[machines].m4air` gains `tags = ["pytest", "guards", "swift-build", "xcode-tests", "gui", "profile"]`
   and the optional `sudo = ["py-spy"]`; the sweep refuses to profile on a machine without `profile`, refuses an app
@@ -162,7 +162,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   xctrace recordings and the engine profiles, each under the heavy lock. Acceptance: a rules file whose only `profile`
   machine lacks `gui` runs the engine profiles and marks the app profiles `not-run: no GUI machine`; a sweep configured
   with no `profile` machine refuses at load naming the tag. Test (to write):
-  `test_perf_sweep.py::test_profiles_place_only_on_declared_machines_and_say_not_run_otherwise`.
+  test_perf_sweep (a new test file), case test_profiles_place_only_on_declared_machines_and_say_not_run_otherwise.
 
 ## Workloads — the fixed, reproducible set
 
@@ -183,7 +183,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   and iPad simulators for CPU, memory and body counts (simulator timings are recorded but never ratcheted: a simulator
   is not a device). Acceptance: the table loads with ten workloads; one missing a corpus or a budget is refused by name;
   a workload's declared outputs are what the disk reader subtracts. Test (to write):
-  `test_perf_sweep.py::test_the_workload_table_loads_and_refuses_an_undeclared_corpus_or_budget`.
+  test_perf_sweep (a new test file), case test_the_workload_table_loads_and_refuses_an_undeclared_corpus_or_budget.
 - `perf-sweep.workload.corpus` [GAP] (#6600; `ruling-2026-11-13-no-archive-names-in-specs`) — every corpus is synthetic
   or openly licensed, and none is the owner's archive material: the generated perf fixture (`scripts/perf_fixture.py`,
   deterministic by seed), the repo's own test fixtures, and at most one open HTR test set from the vetted list the project
@@ -203,10 +203,10 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   phase or file:line), value, unit, count, share (of the workload's total for the kind, when it exists), source (the
   tool), trend_pct (vs the previous run on the same machine model and workload, null on the first), runs_seen,
   profile (the run-relative path of the trace, flamegraph or JSON the row came from)}`. `area` is derived from `where` by
-  the same path-to-area map the review lenses use (`fichero_builder/review_lenses.py`; `recipes/` → recipes,
+  the same path-to-area map the review lenses use (review_lenses (a new test file); `recipes/` → recipes,
   `Views/Sidebar/` → sidebar, and so on) so a hotspot and a reviewer finding land in the same bucket. Acceptance: a row
   missing `where`, `value` or `source` is refused; `area` for `fichero/fichero/Views/Sidebar/SidebarView.swift` is
-  `sidebar`. Test (to write): `test_perf_sweep.py::test_rows_have_one_shape_and_an_area_from_the_lens_map`.
+  `sidebar`. Test (to write): test_perf_sweep (a new test file), case test_rows_have_one_shape_and_an_area_from_the_lens_map.
 - `perf-sweep.output.table` [GAP] (#6600) — a run writes `<state>/perf/<run-id>/hotspots.json` (all rows) and
   `<state>/perf/latest.json` (a pointer plus the ranked top 50), where `<state>` is the builder's state dir
   (`journal.STATE`), and the profiles sit beside them for 30 days (the M4's Dev Disk; the manager's Mac holds the JSON
@@ -219,7 +219,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   up, fixed). `builder perf show [<run-id>]` prints the same table in the terminal; `builder perf diff <a> <b>` prints
   the rows whose trend crossed the band. Acceptance (fixture rows): the top 50 contains at most 10 per kind; a row 3%
   slower under a 6% band shows `~`; `show` prints every column; `diff` lists only band-crossing rows. Test (to write):
-  `test_perf_sweep.py::test_the_table_ranks_per_kind_greys_moves_inside_the_band_and_the_console_reads_latest`.
+  test_perf_sweep (a new test file), case test_the_table_ranks_per_kind_greys_moves_inside_the_band_and_the_console_reads_latest.
 - `perf-sweep.output.filing-rule` [GAP] (#6600) — a hotspot becomes a `Performance - <area>` issue when ALL hold:
   (1) it is above the kind's floor: time or CPU ≥ 5% of its workload's total, or a span whose `count × p50` ≥ 5% of the
   workload's wall; RAM ≥ 50 MB persistent or a top-10 allocator ≥ 25 MB peak; disk ≥ 10 MB written per run or ANY
@@ -241,7 +241,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   (fixture rows, a fake `gh`): a frame at 7% in two runs files one issue with the key, the title and the inline frames; the
   same row in a third run files nothing; the same key on a closed issue reopens it with a comment; a 7% row seen once
   files nothing; a hang of 300 ms seen once files; a fourth and a tenth new key in one pass each file their own issue (no cap, owner 2026-11-15). Test (to
-  write): `test_perf_sweep.py::test_the_filing_rule_floors_two_runs_dedupe_by_key_reopen_and_no_cap`.
+  write): test_perf_sweep (a new test file), case test_the_filing_rule_floors_two_runs_dedupe_by_key_reopen_and_no_cap.
 
 ## Ratchet — second goal: nothing gets slower
 
@@ -263,7 +263,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   nightly lowers it by `builder perf baseline --lower`, its own commit). Acceptance: four runs and a `--write` refuses
   naming the count; five write the median; an enforced measure 8% over is red naming it, the figures and the machine; a
   report-only measure over prints the figure and stays `report-only`, never green-by-silence; `--write` with a diff of
-  code in the same tree is refused. Test (to write): `test_perf_sweep.py::test_a_baseline_needs_five_runs_enforces_per_measure_and_only_falls`.
+  code in the same tree is refused. Test (to write): test_perf_sweep (a new test file), case test_a_baseline_needs_five_runs_enforces_per_measure_and_only_falls.
 - `perf-sweep.ratchet.noise-band` [GAP] (#6600) — the band is measured, not guessed: over the N baseline runs, `band =
   (p95 − p5) / median`; the tolerance applied is `max(tolerance from the file, 2 × band)` for time, CPU and RSS (exact
   measures ignore the band); a measure whose band exceeds 15% is marked `noisy`, never enforced, and files one
@@ -271,7 +271,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   model warm-up or a dirty library, not a wider tolerance). Simulator measures and any run under `thermal != nominal`
   never enter the band. Acceptance: runs 100, 101, 99, 104, 100 ms give a band of 5% and a tolerance of 10%; runs with
   a 20% band mark the measure `noisy` and file once; a VOID run is excluded from the band. Test (to write):
-  `test_perf_sweep.py::test_the_noise_band_widens_the_tolerance_and_a_noisy_measure_is_never_enforced`.
+  test_perf_sweep (a new test file), case test_the_noise_band_widens_the_tolerance_and_a_noisy_measure_is_never_enforced.
 
 ## Warnings — compiler, build-system and SwiftLint, listed and ratcheted the same way (#6610)
 
@@ -301,7 +301,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   that moves file is not new (counts are per kind, not per file, the SwiftLint ratchet's netting rule). Acceptance: a
   bundle with one more `Sendable` warning than the baseline is red naming it; one fewer is green and prints the lower
   count; a baseline edit that raises a count is refused; `--since` over a fixture pair reports only the item's own new
-  lines. Test (to write): `test_check_xcode_warning_ratchet.py::test_the_count_per_kind_and_platform_may_only_fall_and_since_names_the_item_s_lines`.
+  lines. Test (to write): test_check_xcode_warning_ratchet (a new test file), case test_the_count_per_kind_and_platform_may_only_fall_and_since_names_the_item_s_lines.
 - `perf-sweep.warnings.ranked-list-and-issues` [GAP] (#6610) — one list for all three warning sources: the xcode ratchet's
   kinds, `check_swiftlint_warning_ratchet.py`'s per-rule counts (`TOP_N_RULES` already computed there; the script gains
   `--json <out>` and nothing else) and ruff's per-rule counts where the quality stream holds them, written to
@@ -315,7 +315,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   also shortens every incremental build and is itself a build-time hotspot. Acceptance (fixture rows, fake `gh`): the
   list ranks three sources together; one issue per kind with the key; a repeat run files nothing new; a kind at zero
   closes; the Validate phase in a fixture pbxproj is listed as `script phase without outputs`. Test (to write):
-  `test_perf_sweep.py::test_warning_kinds_rank_across_sources_file_one_issue_each_and_close_at_zero`.
+  test_perf_sweep (a new test file), case test_warning_kinds_rank_across_sources_file_one_issue_each_and_close_at_zero.
 
 ## Rung states — a measurement that did not happen is not green
 
@@ -356,7 +356,7 @@ Smallest first; each step is one lane batch unless marked. Steps 1–2 produce v
 #### Step 2 — read what is already logged: app phases and engine spans into the first hotspot table (#6600)
 - Behaviours: `perf-sweep.source.app-log-phases`, `perf-sweep.source.engine-perf-lines`, `perf-sweep.output.row`,
   `perf-sweep.output.table`
-- Tests: fichero-server/tests/unit/scripts/test_perf_log_readers.py, fichero-builder/tests/test_perf_sweep.py
+- Tests: fichero-server/tests/unit/scripts/test_perf_log_readers (new), fichero-builder/tests/test_perf_sweep (new)
 - Depends on: 1
 - Size: S
 - Order: the two readers over fixture logs; the row shape and the area map; `hotspots.json` + `latest.json` from the
@@ -365,7 +365,7 @@ Smallest first; each step is one lane batch unless marked. Steps 1–2 produce v
 
 #### Step 3 — the workloads and the corpus manifest (#6600)
 - Behaviours: `perf-sweep.workload.set`, `perf-sweep.workload.corpus`, `perf-sweep.source.machines`
-- Tests: fichero-builder/tests/test_perf_sweep.py, fichero-server/tests/unit/scripts/test_perf_corpus.py
+- Tests: fichero-builder/tests/test_perf_sweep (new), fichero-server/tests/unit/scripts/test_perf_corpus (new)
 - Depends on: 2
 - Size: M
 - Order: the manifest and `builder install --corpus` (hash-verified); the `[perf.workloads]` table with W1–W5 as pytest
@@ -374,7 +374,7 @@ Smallest first; each step is one lane batch unless marked. Steps 1–2 produce v
 
 #### Step 4 — engine profiles nightly: pyinstrument or py-spy, memray, du, CPU/wall (#6600)
 - Behaviours: `perf-sweep.source.engine-profiles`
-- Tests: fichero-builder/tests/test_perf_sweep.py
+- Tests: fichero-builder/tests/test_perf_sweep (new)
 - Depends on: 3
 - Size: M
 - Order: readers over fixture outputs first; the nightly driver on the M4 behind the heavy lock, one workload at a time,
@@ -382,7 +382,7 @@ Smallest first; each step is one lane batch unless marked. Steps 1–2 produce v
 
 #### Step 5 — the filing rule through the watcher's filer (#6600)
 - Behaviours: `perf-sweep.output.filing-rule`
-- Tests: fichero-builder/tests/test_perf_sweep.py
+- Tests: fichero-builder/tests/test_perf_sweep (new)
 - Depends on: 2 (useful from the log rows alone), 4
 - Size: S
 - Order: floors, the two-run rule, the key, reopen-on-regression, the caps and placement, the issue body with the inline
@@ -391,7 +391,7 @@ Smallest first; each step is one lane batch unless marked. Steps 1–2 produce v
 #### Step 6 — the warnings ratchet and list (#6610)
 - Behaviours: `perf-sweep.warnings.from-the-result-bundle`, `perf-sweep.warnings.ratchet`,
   `perf-sweep.warnings.ranked-list-and-issues`
-- Tests: fichero-server/tests/unit/scripts/test_check_xcode_warning_ratchet.py, fichero-builder/tests/test_perf_sweep.py
+- Tests: fichero-server/tests/unit/scripts/test_check_xcode_warning_ratchet (new), fichero-builder/tests/test_perf_sweep (new)
 - Depends on: 1 (the kept build logs and result bundles)
 - Size: M
 - Order: `-resultBundlePath` on the build rung and the daily builds plus the `ipad-sim` daily build; the reader and the
@@ -402,7 +402,7 @@ Smallest first; each step is one lane batch unless marked. Steps 1–2 produce v
 
 #### Step 7 — the ratchet: budgets, five-run baselines, the noise band, enforce per measure (#6600)
 - Behaviours: `perf-sweep.ratchet.budgets`, `perf-sweep.ratchet.baseline-from-n-runs`, `perf-sweep.ratchet.noise-band`
-- Tests: fichero-server/tests/unit/scripts/test_perf_trial.py, fichero-builder/tests/test_perf_sweep.py
+- Tests: fichero-server/tests/unit/scripts/test_perf_trial.py, fichero-builder/tests/test_perf_sweep (new)
 - Depends on: 4, and five nightly runs having happened
 - Size: M
 - Order: the figure shape in `perf_trial.py`; `builder perf baseline --write/--lower`; the band; `[check.perf].enforce`
@@ -412,7 +412,7 @@ Smallest first; each step is one lane batch unless marked. Steps 1–2 produce v
 #### Step 8 — app profiles, runtime checkers, XCTest metrics and MetricKit (#6600; with dev-workflows Step 2.31)
 - Behaviours: `perf-sweep.source.app-profiles`, `perf-sweep.source.runtime-checkers`, `perf-sweep.source.xctest-metrics`,
   `perf-sweep.source.metrickit-and-field`
-- Tests: fichero-builder/tests/test_perf_sweep.py, fichero/Tests/UI/general/Launch/LaunchPerformanceUITests.swift
+- Tests: fichero-builder/tests/test_perf_sweep (new), fichero/Tests/UI/general/Launch/LaunchPerformanceUITests.swift
 - Depends on: 3, dev-workflows 2.8 (the Swift tests on the M4's GUI session) and 2.31
 - Size: L (two batches: recordings and exports; then the diagnostics plan and MetricKit)
 - Order: xctrace recordings of W6–W10 with the toc pinned and the exports read (the hang ratchet unchanged as the hang
