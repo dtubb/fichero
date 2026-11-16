@@ -97,6 +97,7 @@ daily_tests = [
   "fichero-server/tests/unit/db/test_shared_connection_lock.py",
   "fichero-server/tests/unit/api/test_mutation_log_names_its_actor.py",
   "fichero-server/tests/unit/api/test_no_model_work_in_gets.py",
+  "fichero-server/tests/unit/api/test_no_alias_modules_in_routes.py",
   "fichero-server/tests/unit/api/test_routes_hpc.py",
   "fichero-server/tests/unit/api/test_routes_kg_reset_removed.py",
   "fichero-server/tests/unit/api/test_structured_refusals_declared_5094.py",
@@ -194,6 +195,7 @@ daily_tests = [
 "fichero-server/src/fichero_server/" = [
   "fichero-server/tests/unit/db/test_shared_connection_lock.py",
   "fichero-server/tests/unit/api/test_mutation_log_names_its_actor.py",
+  "fichero-server/tests/unit/api/test_no_alias_modules_in_routes.py",
   "fichero-server/tests/unit/api/test_routes_hpc.py",
   "fichero-server/tests/unit/api/test_textedit_engine_primitives.py",
   "fichero-server/tests/unit/core/test_threads_fit_the_machine_5953.py",
