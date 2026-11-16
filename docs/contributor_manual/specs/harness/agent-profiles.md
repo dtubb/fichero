@@ -60,7 +60,7 @@ harnesses over time and a bake-off is just runs that share a brief.
   commit a worker makes carries exactly one trailer, the last line: `Written-By: <MODEL> using <HARNESS> using Fichero
   Builder`, MODEL the display name from `[models]` (`Claude Sonnet 4.6`, `Qwen3-Coder-Next`), e.g. `Written-By:
   Qwen3-Coder-Next using opencode using Fichero Builder`. No `Co-Authored-By`, no `Directed-By`, no second trailer. The
-  commit-msg hook (`fichero_builder/policy_hook.py`, installed by `start_tool.prepare`) refuses any other shape on new
+  commit-msg hook (`fichero-builder/fichero_builder/policy_hook.py`, installed by `start_tool.prepare`) refuses any other shape on new
   commits, including a bare `Written-By: <model>` and the old `Directed-By: the maintainer`; it is the one enforcement
   for every harness, since every harness runs `git commit`; the push-range guard keeps a date floor for commits made
   before 2026-11-05. The MODEL and HARNESS words come from the adapter, so the prompt tells the worker the exact line
@@ -68,7 +68,7 @@ harnesses over time and a bake-off is just runs that share a brief.
   `Written-By: sonnet` only, and two `Written-By` lines are each refused naming the rule;
   `check_agent_commits_authored_as_claude.py` treats a `Written-By:` commit as an agent commit and still requires the
   author `Claude <noreply@anthropic.com>`. Files that must change (Step 1.1): `harness.toml` (`required_trailers`,
-  `trailer_one_of`, the trailer sentence in `[brief].rules`), `fichero_builder/policy_hook.py`,
+  `trailer_one_of`, the trailer sentence in `[brief].rules`), `fichero-builder/fichero_builder/policy_hook.py`,
   `docs/contributor_manual/review-checklist.md` item 10, `AGENTS.md` "Commit Format",
   `scripts/check_agent_commits_authored_as_claude.py` (`AGENT_TRAILER`), `scripts/harness_review.py`'s prompt. Test (to write): fichero-builder/tests/test_trailer (new).
 
@@ -164,7 +164,7 @@ harnesses over time and a bake-off is just runs that share a brief.
   refreshed over the worktree as the worker user before the first prompt (under the workroot, never the owner's
   home), and a harness that cannot load them, or a start whose index build fails, **cannot take a lane**: it refuses
   with the reason and a journal row, never starts "without the index". Beyond those two, **tool sets are per role and
-  per project** (owner 2026-11-16): `roles/<role>.md` carries a `tools:` list and `projects/<project>/project.md` a
+  per project** (owner 2026-11-16): `roles/<role>.md` carries a `tools:` list and a `diff_bound:` line (§ E) and `projects/<project>/project.md` a
   `tools:` list of the servers that project provides, and a worker gets the two required servers plus the
   intersection of what its role asks and its project provides, nothing else: frontend gets the Xcode tools (the xcode
   MCP when it runs inside Xcode, Apple documentation search) and never the engine's; backend gets the engine and
@@ -177,7 +177,7 @@ harnesses over time and a bake-off is just runs that share a brief.
   config has the Xcode set and no engine server, a backend worker's the reverse; a server the project lacks yields a
   row; the assembled prompt names exactly the delivered servers. Test (to write): fichero-builder/tests/test_mcp_servers (new).
 - `agent-profiles.project.profile` [GAP] (#6627) — a project is its `harness.toml`: a `[project]` table (name, kind
-  `code` or `text`, languages, tools by name and path, the checks it owns, the paths each rung applies to, the
+  `code`, `data` or `text` (`data` is research on a Fichero library's records, the sibling's § E), languages, tools by name and path, the checks it owns, the paths each rung applies to, the
   integration branch) beside the existing `[check]`, `[policy]`, `[jail]`, `[land]`, `[models]` tables; the builder's
   code names no project (`dev-workflows.project.neutral` already guards strings). A second code project set up the
   same way (a Swift front end, a Python back end) runs a step from its file alone; a text project declares no build,
@@ -187,11 +187,14 @@ harnesses over time and a bake-off is just runs that share a brief.
   the project's file, each with a name, the role that does it, what starts it and what ends it: `brief` (the brief
   tool), `work` (a worker), the rungs (each a `[check]` rung by name, in order), `review`, `land`, `cleanup`; the
   builder runs the list, never a hard-wired order, and refuses a file whose list lacks a rung it would otherwise
-  assume. Fichero's code workflow is one instance; a text project's list has `work`, its guards, `review`, `land`,
+  assume. **What runs the list is one interface** (owner 2026-11-16): the harness's own plain loop today; LangGraph or
+  LangChain, or Fichero's own workflows and recipes, as options behind it, chosen in `[workflow].engine`, none of them
+  reaching a page, a verb or a prompt. Fichero's code workflow is one instance; a text project's list has `work`, its guards, `review`, `land`,
   `cleanup`. Acceptance: Fichero's list reproduces today's order; a list with `land` before `review` refuses; a text
   list with no build rung runs in the dry run. Test (to write): fichero-builder/tests/test_workflow (new).
 - `agent-profiles.workflow.text-project` [GAP] (#6640) (owner 2026-11-16: a book, or a research project inside
-  Fichero) — the proof that the builder is generic: a text project in its own repository with kind `text`, roles
+  Fichero) — the proof that the builder is generic: a text project in a **scratch test repository** (owner
+  2026-11-16; a real book repository later) with kind `text`, roles
   writing, editing, sourcing, reviewing, a step that is one chapter section or one source task, guards that are
   prose lints (length, citations present, no private names), review by a reviewer role, land as a fast-forward,
   cleanup; a research project uses the Researcher's tools through the same brief shape. Acceptance: a two-step text
@@ -201,12 +204,13 @@ harnesses over time and a bake-off is just runs that share a brief.
 ### E. Small, circumscribed workers
 
 - `agent-profiles.worker.small` [GAP] (#6625) (owner 2026-11-16) — a worker gets **one step**, a brief under 120 lines
-  that names its files and its tests by path, and a diff bound (`[check].diff_bound`, lines changed, generated files
-  excluded); the brief tool refuses a cluster with more than one step or a brief over the line cap, the policy hook
+  that names its files and its tests by path, and a diff bound **per role** (owner 2026-11-16: no single global
+  number): a `diff_bound:` line in `roles/<role>.md`, lines changed with generated files excluded, smaller for
+  bug-fixing and code-review, larger for a feature step; a role file with no bound refuses to start; the brief tool refuses a cluster with more than one step or a brief over the line cap, the policy hook
   counts the bound and the worker is told once then parked with a question; a step whose named files exceed the
   bound is split by `builder steps` before any brief. Acceptance: a two-step brief refuses; a 121-line brief refuses;
-  a diff past the bound yields one tell and then a park row; a brief with no named test is refused for a code
-  project. Test (to write): fichero-builder/tests/test_small_worker (new).
+  a diff past the role's bound yields one tell and then a park row; a role file with no `diff_bound:` refuses; a brief
+  with no named test is refused for a code project. Test (to write): fichero-builder/tests/test_small_worker (new).
 
 ### F. Swift rungs and the UI smoke
 
@@ -232,7 +236,8 @@ harnesses over time and a bake-off is just runs that share a brief.
 
 ### G. Runs, comparison, the console, cleanup
 
-- `agent-profiles.run.record` [GAP] (#6628) — every run writes one `run` row at its end: project, workflow step, role,
+- `agent-profiles.run.record` [GAP] (#6628) — every run writes one `run` record at its end, a Pydantic model in the harness store (owner 2026-11-16: Pydantic
+  models over DuckDB, the sibling's `store.one-database`; `journal.jsonl` stays the event log and gets the same row): project, workflow step, role,
   model (display name), harness, provider, brief id, generation, input and output tokens, cache tokens, money (from
   `dev-workflows.ledger.*`'s cheap sources, never a model's own report), wall seconds, review rounds, refusals,
   landed (head on the integration branch, by `builder landed`) or not, and the end reason. A bake-off is runs sharing
@@ -284,7 +289,7 @@ harnesses over time and a bake-off is just runs that share a brief.
 ### J. Worker isolation (owner 2026-11-16: a long step of its own, after the adapters)
 
 - `agent-profiles.isolation.baseline` [PARTIAL] (#6641) — today's wall stays the floor under every option below: a
-  worker runs as the second macOS user (`fichero_builder/jail.py`, `[jail]`, `sudo -u`), outside `staff`, the owner's
+  worker runs as the second macOS user (`fichero-builder/fichero_builder/jail.py`, `[jail]`, `sudo -u`), outside `staff`, the owner's
   home `700`, no GitHub credential, no ssh key, no Keychain item, the policy hook and the commit-msg hook, the
   once-per-set-up probe. Nothing in this section weakens it; an option is layered on top and a start still refuses when
   the user or its probe is missing. Acceptance: the probe's five refusals hold with any option on. Test (to write): fichero-builder/tests/test_jail (new), one case per option over the probe's refusals.
@@ -332,16 +337,22 @@ harnesses over time and a bake-off is just runs that share a brief.
   are per role and per project: a role lists only its tools.
 - Workers are small: one step, a short brief, named files and tests, a diff bound.
 - The builder is generic: project profile and declared workflow per project; text projects too.
+- The diff bound is per role, in the role profile; the text proof runs on a scratch repository; costs and tokens are
+  local only, never in an issue or the repository.
+- The harness state is Pydantic models over DuckDB (the database Fichero already uses; shared by builder, researcher,
+  writer and the generic harness), `journal.jsonl` kept as the event log; a workflow may run on LangGraph or LangChain
+  or on Fichero's own workflows and recipes, as options behind one interface.
+- The work stays inside the Fichero repository for now (its spec guards, specs and tests); the repository split is a
+  step kept and HELD until the owner says; Fichero Researcher comes after the Harness is solid, not soon.
+- Fichero's release comes first: the Harness is a side project with one of the three worker slots.
 - Worker isolation: the second user stays the baseline; a stronger, still practical option is chosen by a written
   comparison and a measured trial, then implemented behind the one wrapper; late in the order, after the adapters.
 
 ## Open questions for the owner
 
-1. The diff bound's first value for code steps (lines changed, generated files excluded)? [PROPOSED: 400.]
-2. The text project for Step 4.4: a scratch book repository made for the test, or a real one of the owner's?
-   [PROPOSED: a scratch one; a real one only after the owner reads the first run's rows.]
-3. Does the console keep money per run in the open, or only on the owner's machine? [PROPOSED: it is local only;
-   the page is bound to 127.0.0.1 as today.]
+All three answered 2026-11-16: the diff bound is per role in the role profile, no global number; Step 4.4 uses a scratch
+test repository, a real book repository later; costs and tokens stay local on 127.0.0.1 and never reach an issue or the
+repository. None open.
 
 ## Build order
 
@@ -535,7 +546,7 @@ Each bullet names a `dev-workflows.*` behaviour by its last two parts.
 
 | Doc | Says |
 |---|---|
-| `docs/contributor_manual/how-fichero-is-built.md` | a worker is model × harness × profile on a declared workflow; where prompts live; tool sets per role; the bake-off rule |
+| `docs/contributor_manual/how-fichero-is-built.md` | a worker is model × harness × profile on a declared workflow; where prompts live; tool sets per role; the diff bound per role; the bake-off rule; costs stay local |
 | `harness/builder-console.md` (sibling, being drafted) | the website's pages; the Runs, Compare and Bake-offs views take their columns from here |
 | `AGENTS.md` | the one trailer line; the root `agents/` folder is gone; prompts live in the builder |
 | `docs/contributor_manual/review-checklist.md` | item 10 is the one trailer line |
