@@ -36,7 +36,10 @@ extension ActivityPaneView {
             }
         }
         .listStyle(.sidebar)
-        .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
+        // The column's range is its width below, never its rows' (#6661, `ActivityPaneView+WindowLayout.swift`).
+        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+        .navigationSplitViewColumnWidth(min: Self.sidebarWidths.lowerBound, ideal: Self.sidebarIdealWidth,
+                                        max: Self.sidebarWidths.upperBound)
         .accessibilityIdentifier("activity.sidebar")
         .task(id: libraries.map(\.id)) { await readModelsOften() }
     }

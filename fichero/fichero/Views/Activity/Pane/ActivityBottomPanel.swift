@@ -37,7 +37,8 @@ struct ActivityBottomPanel: View {
             }
         }
         .padding(.horizontal, 12).padding(.vertical, 8)
-        .frame(minHeight: 120, idealHeight: 180, maxHeight: isFull ? .infinity : nil)
+        // It fills what `ActivityGraphsSplitStack` gives it, never sizing the centre by its chart or its figures (#6661).
+        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
         .background(.bar)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("activity.bottomPanel")
