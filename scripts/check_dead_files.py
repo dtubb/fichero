@@ -64,11 +64,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Preview/PDFViewer/PageImageGrid.swift": "#1945 — candidate dead file: page image grid helper types",
     "Models/DragDropModel.swift": "#1945 — candidate dead file: DragDropModel",
     "Intents/FicheroShortcuts.swift": "#2017 — App Intents/Shortcuts entry point helper",
-    "Views/Activity/Pane/ActivityToolbarVerbsBar.swift": (
-        "#6588 — not wired yet: the Activity window's Pause/Continue/Stop bar, tested by "
-        "ActivityToolbarVerbsTests; the iMac Activity-window work (batch-23) puts it in the toolbar. "
-        "Drop this entry when it does."
-    ),
     "Views/Settings/AI/AISettingsView+Tabs.swift": (
         "#6022 — false positive, NOT dead: this file's only own type, CloudAccessSection, is used "
         "by AISettingsView.defaultsTab in this same file (an extension of AISettingsView); the scanner "

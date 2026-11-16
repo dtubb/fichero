@@ -727,7 +727,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   `ActivityToolbarVerbsBar` (one control group over the pane's `activityVerbs`, the target Project › Activity reads) in
   the Activity window beside the Inspector toggle and in the main window's leading zone, right of the sidebar, drawn only
   while an Activity pane holds the focus (`docs/assets/activity-pane/window-toolbar-verbs.png`); the More menu (⋯) is in
-  the toolbar too. *Test:* `fichero/Tests/Unit/general/Views/Activity/Pane/ActivityToolbarVerbsTests.swift`.
+  the toolbar too. *Removed 2026-11-15:* `ActivityToolbarVerbsBar` and its tests went when the run controls (`activity.window.run-controls`) took its place in both toolbars.
 - `activity.window.bottom-panel` — **[PARTIAL]** (#6588; decision 25; supersedes the one-line status bar of
   `activity.pane.less-is-more-table` for the window: a main window's pane keeps the one line) the window's foot is a panel per
   tab, figures AND a graph together: **Runs** pages done per minute over the last hour (a sparkline) and "N running · N
