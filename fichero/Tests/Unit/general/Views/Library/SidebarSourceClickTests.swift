@@ -68,7 +68,7 @@ struct SidebarSourceClickTests {
     @Test("the toggle keeps nested and null values of the metadata")
     func toggleKeepsNestedAndNull() {
         let meta: [String: AnyCodable] = [
-            "tags": AnyCodable(["a", "b"]), "nested": AnyCodable(["k": 1]), "gone": AnyCodable(NSNull()),
+            "tags": AnyCodable(["a", "b"]), "nested": AnyCodable(["k": 1]), "gone": AnyCodable(NSNull())
         ]
         let payload = SourceViewSettings.metadata(settingShowImage: true, in: meta)
         #expect((payload["tags"] as? [any Sendable])?.count == 2)
