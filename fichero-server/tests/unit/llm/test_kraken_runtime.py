@@ -43,7 +43,7 @@ from fichero_server.media.ocr_geometry import (
 )
 from _scan_files import scan_rglob
 
-KRAKEN_RUNTIME_PATH = Path(kraken_runtime.__file__)
+KRAKEN_RUNTIME_PATH = Path(kraken_runtime.__file__).resolve()  # resolved: scan_rglob yields real paths (a symlinked gate dir)
 SRC_ROOT = KRAKEN_RUNTIME_PATH.resolve().parents[2]  # .../src
 
 
