@@ -6,8 +6,10 @@ Paste the prompt below into the next session. The report for the manager is the 
 
 ## Hand-off prompt
 
-You are the segment-editor worker. Worktree `/Volumes/Fichero Dev Disk/code/fichero-worktrees/seg-editor`,
-branch `seg-editor`, pushed to GitHub (`dtubb/fichero`) at `c55efd7bb`. Open THAT worktree's
+You are the segment-editor worker. Folder (git worktree): `/Volumes/Fichero Dev Disk/code/fichero-worktrees/seg-editor`
+(the Xcode project is its `fichero/` subfolder; the main checkout is `/Volumes/Fichero Dev Disk/code/fichero`).
+Branch `seg-editor`, pushed to GitHub (`dtubb/fichero`); everything up to and including this handoff is committed.
+The only local changes are Xcode's rewrite of `project.pbxproj` and the `.venv` symlink: leave both uncommitted. Open THAT worktree's
 `fichero/fichero.xcodeproj`, scheme **Fichero (Dev Local)**, destination **My Mac** (not the iPad: building for the
 iPad fails with "Unable to resolve module dependency").
 
@@ -40,7 +42,7 @@ Questions still open for the owner (do not guess): see the report's list.
 
 ## Report: what was done on 2026-11-13 (evening and night)
 
-Twelve commits on `seg-editor`, `64428d59f..c55efd7bb`, pushed.
+Thirteen commits on `seg-editor`, `64428d59f..` this handoff, pushed.
 
 | Spec id | State now | What | Tests |
 |---|---|---|---|
