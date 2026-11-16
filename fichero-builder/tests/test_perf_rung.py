@@ -157,7 +157,9 @@ def test_a_rung_that_did_not_measure_is_not_run_never_green_and_names_why(tmp_pa
     monkeypatch.setattr(check_tool, "_remote_build", lambda *a, **k: None)
     r = check_tool.perf(tmp_path, "a", eng, _perf_cfg())
     assert r["ok"] and r["not_run"] and "not-run: runner down" in r["stdout_tail"]
-    env_red = lambda err: {"ok": False, "skipped": False, "remote_env_red": True, "remote": "m4", "results": [{"exit_code": 1, "stderr_tail": err, "stdout_tail": ""}]}
+    def env_red(err):
+        return {"ok": False, "skipped": False, "remote_env_red": True, "remote": "m4", "results": [{"exit_code": 1, "stderr_tail": err, "stdout_tail": ""}]}
+
     monkeypatch.setattr(check_tool, "_remote_build", lambda *a, **k: env_red("ModuleNotFoundError: No module named pytest_benchmark"))
     r = check_tool.perf(tmp_path, "a", eng, _perf_cfg())
     assert r["ok"] and r["not_run"] and "not-run: perf tool refused" in r["stdout_tail"] and "pytest_benchmark" in r["stdout_tail"]
