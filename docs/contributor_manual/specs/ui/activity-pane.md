@@ -591,13 +591,13 @@ working, on which files, and what blocks it; the engine smarter about work that 
   import of a folder of 2,618 images lists one top-level row naming the folder and the count, three step children, and under
   the running step the files in flight by name. *Test:* not yet written: `ActivityNamesWhatItWorksOnTests.swift`, the engine's
   `test_row_says_what_ran_on_what_6441.py` extended.
-- `activity.failure.no-raw-text-ever` — **[GAP]** (#6597, #6588, #6354; `activity.pane.failure-with-its-fix-in-the-row`) the failure
+- `activity.failure.no-raw-text-ever` — **[OK]** (#6597, #6588, #6354; `activity.pane.failure-with-its-fix-in-the-row`) the failure
   table gains the kinds the release showed bare: a model that will not load (`model-broken`: "bge-m3 could not be loaded" ·
   Download Again), a library closed under a running job (`library-closed`: the job is not failed but PAUSED, "Paused: the
   project closed", Continue on reopen), a kept export whose folder is gone ("The export folder is gone" · Choose Folder…). A row,
   alert or Settings line never shows an exception name, an absolute path or an engine message; those live in Copy Details.
   Acceptance: the three stub failures list with those words and fixes, none containing `Error`, `/Users/` or `[`. *Test:*
-  `fichero-server/tests/unit/llm/test_every_failure_kind_has_a_fix_6354.py` extended.
+  `fichero-server/tests/unit/llm/test_every_failure_kind_has_a_fix_6354.py` (the three kinds) and `tests/unit/execution/test_failure_in_words_6212.py` (a job row's reason is the kind's row words, never exception text).
 
 ### Made exact 2026-11-14 (the spec review; the owner's open calls taken at the manager's recommendation, his to overturn)
 
