@@ -196,7 +196,7 @@ extension ActivityPaneView {
     private func stateCell(_ row: ActivityMonitorRow) -> some View {
         let glyph = ActivityPane.glyph(row)
         let line = ActivityPane.stateLine(row)
-        return ActivityRowHover { hovered in HStack(spacing: 6) {
+        return ActivityHoverTrackingView { hovered in HStack(spacing: 6) {
             Group {
                 if let symbol = glyph.symbol {
                     Image(systemName: symbol).foregroundStyle(glyph.tint)
