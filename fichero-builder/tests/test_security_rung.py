@@ -314,3 +314,41 @@ def test_a_rival_push_between_the_push_and_the_checkout_cannot_change_the_commit
     assert check_tool._remote_build(wt, cfg, ("true",), "security", False, 77.0)["ok"]
     assert _g(runner / "security.git", "rev-parse", "refs/heads/scan") == theirs  # the rival really did move the ref
     assert _g(runner / "security-tree", "rev-parse", "HEAD") == mine  # and this run still scanned its own commit
+
+
+def test_the_security_rung_s_real_script_text_runs_on_the_runner_and_its_result_line_reaches_the_row(tmp_path, monkeypatch):
+    """#6589 item 15: a fake remote that executes the REAL ssh script (the heavy-lock wrapper, `<gate>` substituted, cwd the security
+    tree at H): the scan's SECURITY-RESULT line is in the row's stdout, and a failing scan keeps its own error in the not-run row."""
+    import sys
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    monkeypatch.setattr(check_tool, "security_lints", lambda *a, **k: [])
+    wt, since = _worktree_repo(tmp_path)
+    (wt / "scripts").mkdir()
+    (wt / "scripts" / "install_security_tools.sh").write_text("#!/bin/sh\necho 'pins ok'\n")
+    (wt / "scripts" / "install_security_tools.sh").chmod(0o755)
+    scan = wt / "scripts" / "security_scan_run.py"
+    scan.write_text("import json, sys\nprint('SECURITY-RESULT ' + json.dumps({'rows': [], 'refused': [], 'table': 'none', 'argv': sys.argv[1:], 'pad': 'x' * 400}))\n")  # over 300 characters, as the real line is (326 bytes)
+    _g(wt, "add", "-A")
+    _g(wt, "commit", "-qm", "scan")
+    head = _g(wt, "rev-parse", "HEAD")
+    calls = []
+    runner = _runner(monkeypatch, tmp_path, calls)
+    (runner / "venv" / "bin").mkdir(parents=True)
+    (runner / "venv" / "bin" / "python").symlink_to(sys.executable)
+    real_run = check_tool.run_command  # the _runner's fake_run
+    def run(name, argv, cwd, timeout_s=0, env=None, *a, **k):
+        if name == "security":  # ssh <host> <script>: the script text runs in a local shell, as the remote login shell would
+            calls.append((name, list(argv), timeout_s))
+            p = subprocess.run(["sh", "-c", argv[-1]], capture_output=True, text=True)
+            return {"name": name, "ok": p.returncode == 0, "exit_code": p.returncode, "timed_out": False, "seconds": 0, "stdout_tail": check_tool.tail(p.stdout), "stderr_tail": check_tool.tail(p.stderr)}
+        return real_run(name, argv, cwd, timeout_s, env, *a, **k)
+    monkeypatch.setattr(check_tool, "run_command", run)
+    cfg = check_tool.Config(security={"enforce": False, "dirs": ["scripts"], "pins": {}}, build_remote="m4:/gate")
+    r = check_tool.security(wt, since, head, ["scripts/security_scan_run.py"], cfg)
+    assert not r.get("not_run"), r["stdout_tail"]
+    assert "SECURITY-RESULT" in r["results"][0]["stdout_tail"] and "pins ok" in r["results"][0]["stderr_tail"]
+    # a scan that dies keeps its own error in the not-run row, after the pin check's text
+    scan.write_text("import sys\nprint('Traceback: boom from the scan', file=sys.stderr)\nsys.exit(2)\n")
+    _g(wt, "commit", "-qam", "broken scan")
+    r = check_tool.security(wt, since, _g(wt, "rev-parse", "HEAD"), ["scripts/security_scan_run.py"], cfg)
+    assert r["not_run"] and "boom from the scan" in r["stdout_tail"]

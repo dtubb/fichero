@@ -210,13 +210,20 @@ def rules_problems(root) -> list[str]:
     return out
 
 
+SECURITY_RESULT_PREFIX = "SECURITY-RESULT "
 FAILURES = re.compile(r"^=+ (?:FAILURES|ERRORS) =+$")
 ERRLINE = re.compile(r"^(?:Traceback \(most recent|E\s{2,}\S|\w*(?:Error|Exception)\b.*:)")
 
 
 def tail(text: str, lines: int = 40, chars: int = 4000, line_chars: int = 300) -> str:
     """The last lines, bounded. A pytest failure section is kept whatever follows it: its end (the `E` lines) plus the run's
-    end, half the bound each; 40 lines of warnings once pushed the failure out of a red rung."""
+    end, half the bound each; 40 lines of warnings once pushed the failure out of a red rung. A `SECURITY-RESULT {json}` line is
+    never cut to `line_chars` (#6589 item 15: a 326-byte line lost its closing brace and the rung read it as absent): it is the
+    scan's one machine-read line, bounded by the scan itself (MAX_ROWS)."""
+    stripped = (text or "").strip().splitlines()
+    if stripped and stripped[-1].startswith(SECURITY_RESULT_PREFIX):
+        head = tail("\n".join(stripped[:-1]), lines - 1, chars, line_chars)
+        return (head + "\n" if head else "") + stripped[-1]
     all_lines = [ln[:line_chars] for ln in (text or "").strip().splitlines()]
     start = next((i for i, ln in enumerate(all_lines) if FAILURES.match(ln)), None)
     last = all_lines[-lines:]
