@@ -92,9 +92,9 @@ def test_warnings_are_read_from_the_bundle_normalised_to_kinds_and_blind_without
     # no bundle and no log is BLIND (exit 2), never green; an unreadable bundle is blind too
     baseline = tmp_path / "b.json"
     baseline.write_text("{}", encoding="utf-8")
-    assert m.main(["--platform", "mac", "--baseline", str(baseline)]) == 2
     assert m.main(["--platform", "mac", "--baseline", str(baseline), "--bundle", str(tmp_path / "gone.json"),
                    "--log", str(tmp_path / "gone.log")]) == 2
+    assert m.main(["--platform", "mac", "--baseline", str(baseline), "--bundle", str(tmp_path / "gone.json")]) == 2
     (tmp_path / "bad.json").write_text("not json", encoding="utf-8")
     assert m.main(["--platform", "mac", "--baseline", str(baseline), "--bundle", str(tmp_path / "bad.json")]) == 2
     assert "BLIND" in capsys.readouterr().err
@@ -170,6 +170,11 @@ def test_the_count_per_kind_and_platform_may_only_fall_and_since_names_the_item_
     assert m.main(["--platform", "mac", "--since", str(tmp_path / "base.json")]) == 2
 
 
-def test_the_script_runs_as_a_program_and_is_blind_in_an_empty_directory(tmp_path):
-    r = subprocess.run(["python3", str(SCRIPT), "--platform", "mac"], cwd=str(tmp_path), capture_output=True, text=True, timeout=60)
+def test_the_guards_rung_run_names_no_bundle_and_is_skipped_not_blind(tmp_path):
+    # every scripts/check_*.py runs bare in the guards rung, before any build: skipped, exit 0
+    r = subprocess.run(["python3", str(SCRIPT)], cwd=str(tmp_path), capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0 and "skipped: no build to read" in r.stdout
+    # the build rung names a bundle: a missing one is BLIND, never a silent green
+    r = subprocess.run(["python3", str(SCRIPT), "--platform", "mac", "--bundle", str(tmp_path / "gone.xcresult")],
+                       cwd=str(tmp_path), capture_output=True, text=True, timeout=60)
     assert r.returncode == 2 and "BLIND" in r.stderr

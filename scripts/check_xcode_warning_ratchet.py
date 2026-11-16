@@ -16,7 +16,7 @@ moves file is not new. A kind that falls is lowered in the baseline in the same 
   --update-baseline                   take the measured counts as the platform's baseline
   --since <base bundle or json>       only this item's new lines: kinds whose count rose over the base, naming the surplus lines
 
-Exit codes: 0 held (or fell), 1 GREW, 2 BLIND (no bundle and no log, unreadable input, a missing default baseline).
+Exit codes: 0 held (or fell, or skipped: no bundle or log named, as in the guards rung), 1 GREW, 2 BLIND (a named bundle/log that is missing or unreadable, a missing default baseline).
 """
 
 from __future__ import annotations
@@ -257,6 +257,10 @@ def main(argv: list[str] | None = None) -> int:
             if bad:
                 print("xcode warning baseline REFUSED: a baseline may only be lowered")
             return 1 if bad else 0
+        if not a.bundle and not a.log and a.since is None and not a.update_baseline:
+            # the guards rung runs every check_*.py before any build: no bundle was named, so there is nothing to read, and that is not red
+            print("check_xcode_warning_ratchet: skipped: no build to read")
+            return 0
         rows = read_warnings(a.bundle, a.log, a.platform)
         if a.since is not None:
             return run_since(a.platform, rows, read_warnings(a.since, None, a.platform))
