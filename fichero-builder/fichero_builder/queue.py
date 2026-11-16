@@ -2095,7 +2095,7 @@ def main(a) -> int:
             print(f"REFUSED: the brief {a.brief} is not a file")
             return 1
         kept = journal.STATE / "manager" / "briefs"  # a lane never depends on a loose file (#6589 item 21)
-        dest = kept / f"{a.lane}-{a.step}.txt"
+        dest = kept / f"{slug(a.lane)}-{slug(a.step)}.txt"
         if src.resolve() != dest.resolve():
             kept.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(src, dest)

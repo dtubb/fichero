@@ -840,3 +840,30 @@ def test_ensure_worktree_bases_a_managed_tree_on_a_bundle_of_the_steps_head(scra
     (scratch.tmp / "pin" / "harness.toml").write_text((scratch.tmp / "pin" / "harness.toml").read_text() + '[land]\nbranch = "integration"\n')
     assert work.ensure_worktree(a, "lane-x") == ""
     assert _g(wr / "wt-x", "rev-parse", "HEAD") == head and _g(wr / "wt-x", "branch", "--show-current") == "lane-x"
+
+
+def test_a_review_started_by_do_review_leaves_its_dirs_where_the_sweep_looks(tmp_path, monkeypatch):
+    """#6589: the review runs in its own process, which finds the state dir only through the environment; the loop's --state must reach it."""
+    import os
+    import time
+
+    from fichero_builder import scratch
+    fake = tmp_path / "scripts"
+    fake.mkdir()
+    (fake / "harness_review.py").write_text(
+        f"import sys\nsys.path.insert(0, {str(Path(work.__file__).parents[1])!r})\nfrom fichero_builder import scratch\n"
+        "(scratch.review_dir() / 'review-tree-left').mkdir()\nprint('READY')\n")
+    monkeypatch.setattr(work, "SCRIPTS", fake)
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")  # what `--state` does in the loop's process
+    monkeypatch.delenv("FICHERO_BUILDER_STATE", raising=False)
+    monkeypatch.delenv("XDG_STATE_HOME", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    ok, out = work.do_review(types.SimpleNamespace(name="m", pinned="/p"), "/r", "abc1234def", "/l.json", "/v.json", "opus")
+    assert ok, out
+    left = tmp_path / "s" / "review-scratch" / "review-tree-left"
+    assert left.is_dir() and not (tmp_path / "home").exists(), "under the loop's state dir, not the default one in $HOME"
+    os.utime(left, (time.time() - 7 * 3600,) * 2)
+    monkeypatch.setattr(scratch, "_held", lambda: "")
+    (tmp_path / "harness.toml").write_text("")
+    f, n, _ = scratch.list_step(tmp_path)
+    assert n == 1 and str(left) in f.read_text()

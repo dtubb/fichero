@@ -331,7 +331,8 @@ def do_review(a, repo: str, head: str, ladder: str, verdicts: str, model: str, h
     key = f"review {head[:9]}"
     journal.append("activity", kind="review", key=key, state="start", lane=a.name, model=model)  # which reviewer (6a)
     argv = [sys.executable, str(SCRIPTS / "harness_review.py"), repo, head, "--pinned", a.pinned, "--verdicts", verdicts, "--ladder", ladder, "--model", model]
-    p = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    # the review's review-scratch folder is under the state dir; this loop may have got its state dir from --state, so say it, or the sweep looks elsewhere
+    p = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env={**os.environ, "FICHERO_BUILDER_STATE": str(journal.STATE)})
     if holder is not None:
         holder["proc"] = p
     out = (p.communicate()[0] or "").strip()
