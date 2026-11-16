@@ -1,0 +1,3137 @@
+{
+ "errors": [],
+ "results": [
+  {
+   "code": "612             return 1\n613         scratch = Path(a.scratch or os.environ.get(\"TMPDIR\", \"/tmp\"))\n614         procs = pi_rpc.pi_procs(root=a.root, scratch=scratch, provider=a.provider, session_dir=scratch / \"pi-sessions\" / a.name,\n",
+   "col_offset": 61,
+   "end_col_offset": 67,
+   "filename": "fichero-builder/fichero_builder/__main__.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 377,
+    "link": "https://cwe.mitre.org/data/definitions/377.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Probable insecure usage of temp file/directory.",
+   "line_number": 613,
+   "line_range": [
+    613
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b108_hardcoded_tmp_directory.html",
+   "test_id": "B108",
+   "test_name": "hardcoded_tmp_directory"
+  },
+  {
+   "code": "260     if readable:\n261         os.chmod(d, 0o755)  # a tree the jailed user reads (public repo content only)\n262     return d\n",
+   "col_offset": 8,
+   "end_col_offset": 26,
+   "filename": "fichero-builder/fichero_builder/check_tool.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 732,
+    "link": "https://cwe.mitre.org/data/definitions/732.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Chmod setting a permissive mask 0o755 on file (d).",
+   "line_number": 261,
+   "line_range": [
+    261
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b103_set_bad_file_permissions.html",
+   "test_id": "B103",
+   "test_name": "set_bad_file_permissions"
+  },
+  {
+   "code": "1107             raise RuntimeError(f\"build tree failed: {r['stderr_tail']}\")\n1108         os.chmod(tree, 0o755)\n1109     else:\n",
+   "col_offset": 8,
+   "end_col_offset": 29,
+   "filename": "fichero-builder/fichero_builder/check_tool.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 732,
+    "link": "https://cwe.mitre.org/data/definitions/732.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Chmod setting a permissive mask 0o755 on file (tree).",
+   "line_number": 1108,
+   "line_range": [
+    1108
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b103_set_bad_file_permissions.html",
+   "test_id": "B103",
+   "test_name": "set_bad_file_permissions"
+  },
+  {
+   "code": "62             for d, dirs, files in os.walk(venv):\n63                 os.chmod(d, 0o755)\n64                 for n in files:\n",
+   "col_offset": 16,
+   "end_col_offset": 34,
+   "filename": "fichero-builder/fichero_builder/codemap.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 732,
+    "link": "https://cwe.mitre.org/data/definitions/732.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Chmod setting a permissive mask 0o755 on file (d).",
+   "line_number": 63,
+   "line_range": [
+    63
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b103_set_bad_file_permissions.html",
+   "test_id": "B103",
+   "test_name": "set_bad_file_permissions"
+  },
+  {
+   "code": "85         d = tempfile.mkdtemp(prefix=prefix, dir=self.workroot or None)\n86         os.chmod(d, 0o777)\n87         return d\n",
+   "col_offset": 8,
+   "end_col_offset": 26,
+   "filename": "fichero-builder/fichero_builder/jail.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 732,
+    "link": "https://cwe.mitre.org/data/definitions/732.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Chmod setting a permissive mask 0o777 on file (d).",
+   "line_number": 86,
+   "line_range": [
+    86
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b103_set_bad_file_permissions.html",
+   "test_id": "B103",
+   "test_name": "set_bad_file_permissions"
+  },
+  {
+   "code": "45     wt = f\"{d}/wt/{sha[:12]}\"\n46     up = _ssh(host, f\"mkdir -p {wt} {d}/tmp && tar -x -C {wt}\", stdin=tar.stdout, timeout=600)\n47     if up.returncode:\n",
+   "col_offset": 39,
+   "end_col_offset": 57,
+   "filename": "fichero-builder/fichero_builder/measure.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 377,
+    "link": "https://cwe.mitre.org/data/definitions/377.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Probable insecure usage of temp file/directory.",
+   "line_number": 46,
+   "line_range": [
+    46
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b108_hardcoded_tmp_directory.html",
+   "test_id": "B108",
+   "test_name": "hardcoded_tmp_directory"
+  },
+  {
+   "code": "48         return row(1, f\"shipping failed: {up.stderr.decode().strip()[-200:]}\")\n49     r = _ssh(host, f\"cd {wt} && TMPDIR={d}/tmp PYTHONPATH={SRC} {d}/venv/bin/python {shlex.join(argv)}; rc=$?; rm -rf {d}/tmp/*; exit $rc\")\n50     out = r.stdout.decode(errors=\"replace\")\n",
+   "col_offset": 42,
+   "end_col_offset": 58,
+   "filename": "fichero-builder/fichero_builder/measure.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 377,
+    "link": "https://cwe.mitre.org/data/definitions/377.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Probable insecure usage of temp file/directory.",
+   "line_number": 49,
+   "line_range": [
+    49
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b108_hardcoded_tmp_directory.html",
+   "test_id": "B108",
+   "test_name": "hardcoded_tmp_directory"
+  },
+  {
+   "code": "48         return row(1, f\"shipping failed: {up.stderr.decode().strip()[-200:]}\")\n49     r = _ssh(host, f\"cd {wt} && TMPDIR={d}/tmp PYTHONPATH={SRC} {d}/venv/bin/python {shlex.join(argv)}; rc=$?; rm -rf {d}/tmp/*; exit $rc\")\n50     out = r.stdout.decode(errors=\"replace\")\n",
+   "col_offset": 121,
+   "end_col_offset": 137,
+   "filename": "fichero-builder/fichero_builder/measure.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 377,
+    "link": "https://cwe.mitre.org/data/definitions/377.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Probable insecure usage of temp file/directory.",
+   "line_number": 49,
+   "line_range": [
+    49
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b108_hardcoded_tmp_directory.html",
+   "test_id": "B108",
+   "test_name": "hardcoded_tmp_directory"
+  },
+  {
+   "code": "1969         st = subprocess.run(g + [\"status\", \"--porcelain\"], capture_output=True, text=True).stdout\n1970         out[p] = f\"{head[:12]} {'clean' if not st else 'dirty ' + hashlib.sha1(st.encode()).hexdigest()[:8]}\"\n1971     return out\n",
+   "col_offset": 66,
+   "end_col_offset": 91,
+   "filename": "fichero-builder/fichero_builder/queue.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
+   "line_number": 1970,
+   "line_range": [
+    1970
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "72                                      method=\"POST\", headers={\"Content-Type\": \"application/json\", \"X-Builder-Token\": console.TOKEN})\n73         assert json.loads(urllib.request.urlopen(req, timeout=60).read())[\"ok\"]\n74         for _ in range(300):  # the verb runs in the console's thread: wait for it, as a person's refresh does\n",
+   "col_offset": 26,
+   "end_col_offset": 65,
+   "filename": "fichero-builder/tests/test_alerts_clear.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 22,
+    "link": "https://cwe.mitre.org/data/definitions/22.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+   "line_number": 73,
+   "line_range": [
+    73
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+   "test_id": "B310",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "74         for _ in range(300):  # the verb runs in the console's thread: wait for it, as a person's refresh does\n75             st = json.loads(urllib.request.urlopen(url + \"/api/status\", timeout=10).read())\n76             if len(st[\"open_alerts\"]) <= 1:\n",
+   "col_offset": 28,
+   "end_col_offset": 83,
+   "filename": "fichero-builder/tests/test_alerts_clear.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 22,
+    "link": "https://cwe.mitre.org/data/definitions/22.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+   "line_number": 75,
+   "line_range": [
+    75
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+   "test_id": "B310",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "105     _g(lane, \"checkout\", \"-q\", \"HEAD~1\", \"--\", \"scripts/check_known.py\")  # back to the base copy, then the lane runs the fix\n106     subprocess.run(cmd, shell=True, cwd=lane, check=True)\n107     assert '\"b.swift\"' not in (lane / \"scripts\" / \"check_known.py\").read_text() and '\"a.swift\"' in (lane / \"scripts\" / \"check_known.py\").read_text()\n",
+   "col_offset": 4,
+   "end_col_offset": 57,
+   "filename": "fichero-builder/tests/test_autofix.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 78,
+    "link": "https://cwe.mitre.org/data/definitions/78.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "subprocess call with shell=True identified, security issue.",
+   "line_number": 106,
+   "line_range": [
+    106
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b602_subprocess_popen_with_shell_equals_true.html",
+   "test_id": "B602",
+   "test_name": "subprocess_popen_with_shell_equals_true"
+  },
+  {
+   "code": "202     world.ready(), world.green()\n203     os.chmod(world.store, 0o666)\n204     assert world.go() == 1\n",
+   "col_offset": 4,
+   "end_col_offset": 32,
+   "filename": "fichero-builder/tests/test_landed_verb.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 732,
+    "link": "https://cwe.mitre.org/data/definitions/732.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Chmod setting a permissive mask 0o666 on file (store).",
+   "line_number": 203,
+   "line_range": [
+    203
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b103_set_bad_file_permissions.html",
+   "test_id": "B103",
+   "test_name": "set_bad_file_permissions"
+  },
+  {
+   "code": "128     try:\n129         r = urllib.request.urlopen(req, timeout=5)\n130         return r.status, json.loads(r.read())\n",
+   "col_offset": 12,
+   "end_col_offset": 50,
+   "filename": "fichero-builder/tests/test_status_page.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 22,
+    "link": "https://cwe.mitre.org/data/definitions/22.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+   "line_number": 129,
+   "line_range": [
+    129
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+   "test_id": "B310",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "144     url, _ = live\n145     st = json.loads(urllib.request.urlopen(url + \"/api/status\", timeout=5).read())\n146     a, b = st[\"lanes\"]\n",
+   "col_offset": 20,
+   "end_col_offset": 74,
+   "filename": "fichero-builder/tests/test_status_page.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 22,
+    "link": "https://cwe.mitre.org/data/definitions/22.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+   "line_number": 145,
+   "line_range": [
+    145
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+   "test_id": "B310",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "148     assert [x[\"id\"] for x in st[\"open_alerts\"]] == [\"b-s2-2\"] and st[\"spend_today_usd\"] >= 0 and \"heartbeat\" in st and \"last_review\" in st\n149     page = urllib.request.urlopen(url + \"/\", timeout=5).read().decode()\n150     assert console.TOKEN in page and \"__TOKEN__\" not in page and \"htm@3.1.1/preact/standalone\" in page, \"the token is in the page; Preact pinned\"\n",
+   "col_offset": 11,
+   "end_col_offset": 55,
+   "filename": "fichero-builder/tests/test_status_page.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 22,
+    "link": "https://cwe.mitre.org/data/definitions/22.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+   "line_number": 149,
+   "line_range": [
+    149
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+   "test_id": "B310",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "187     url, _ = live\n188     resp = urllib.request.urlopen(url + \"/api/events\", timeout=5)\n189     journal.append(\"queue\", lane=\"a\", step=\"s1\", state=\"checking\", detail=\"\")\n",
+   "col_offset": 11,
+   "end_col_offset": 65,
+   "filename": "fichero-builder/tests/test_status_page.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 22,
+    "link": "https://cwe.mitre.org/data/definitions/22.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+   "line_number": 188,
+   "line_range": [
+    188
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+   "test_id": "B310",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "227     url, ran = live\n228     assert json.loads(urllib.request.urlopen(url + \"/api/milestones\", timeout=5).read())[\"milestones\"] == [], \"nothing read yet: the cache, never gh\"\n229     code, _ = _post(url, {\"verb\": \"start-milestone\", \"args\": {\"milestone\": \"UX - Library\"}}, console.TOKEN)\n",
+   "col_offset": 22,
+   "end_col_offset": 80,
+   "filename": "fichero-builder/tests/test_status_page.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 22,
+    "link": "https://cwe.mitre.org/data/definitions/22.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+   "line_number": 228,
+   "line_range": [
+    228
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+   "test_id": "B310",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "510     try:\n511         assert json.loads(urllib.request.urlopen(url + \"/api/builds\", timeout=5).read())[\"builds\"][0][\"name\"] == \"Fichero-dev-bbbbbbbbb.dmg\"\n512         r = urllib.request.urlopen(url + \"/download/\" + \"b\" * 9, timeout=5)\n",
+   "col_offset": 26,
+   "end_col_offset": 80,
+   "filename": "fichero-builder/tests/test_status_page.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 22,
+    "link": "https://cwe.mitre.org/data/definitions/22.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+   "line_number": 511,
+   "line_range": [
+    511
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+   "test_id": "B310",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "511         assert json.loads(urllib.request.urlopen(url + \"/api/builds\", timeout=5).read())[\"builds\"][0][\"name\"] == \"Fichero-dev-bbbbbbbbb.dmg\"\n512         r = urllib.request.urlopen(url + \"/download/\" + \"b\" * 9, timeout=5)\n513         assert r.read() == b\"dmg-bytes\" * 1000 and 'filename=\"Fichero-dev-bbbbbbbbb.dmg\"' in r.headers[\"Content-Disposition\"]\n",
+   "col_offset": 12,
+   "end_col_offset": 75,
+   "filename": "fichero-builder/tests/test_status_page.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 22,
+    "link": "https://cwe.mitre.org/data/definitions/22.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+   "line_number": 512,
+   "line_range": [
+    512
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+   "test_id": "B310",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "515             with pytest.raises(urllib.error.HTTPError) as e:\n516                 urllib.request.urlopen(url + \"/download/\" + bad, timeout=5)\n517             assert e.value.code == 404, \"an overwritten build, or a path, is never served\"\n",
+   "col_offset": 16,
+   "end_col_offset": 75,
+   "filename": "fichero-builder/tests/test_status_page.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 22,
+    "link": "https://cwe.mitre.org/data/definitions/22.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+   "line_number": 516,
+   "line_range": [
+    516
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+   "test_id": "B310",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "613     for _ in range(3):\n614         urllib.request.urlopen(url + \"/api/status\", timeout=5).read()\n615     assert n[0] == 1, \"three requests within the cache's life: one compute\"\n",
+   "col_offset": 8,
+   "end_col_offset": 62,
+   "filename": "fichero-builder/tests/test_status_page.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 22,
+    "link": "https://cwe.mitre.org/data/definitions/22.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+   "line_number": 614,
+   "line_range": [
+    614
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+   "test_id": "B310",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "52 def _hash8(text: str) -> str:\n53     return hashlib.sha1(text.encode()).hexdigest()[:8]  # noqa: S324 - a name disambiguator, not security\n54 \n",
+   "col_offset": 11,
+   "end_col_offset": 38,
+   "filename": "fichero-server/src/fichero_server/actions/mcp_chat.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
+   "line_number": 53,
+   "line_range": [
+    53
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "46     return (\n47         real.startswith((\"/private/var/folders/\", \"/var/folders/\", \"/tmp/\", \"/private/tmp/\"))\n48         or \"/Data/tmp/\" in real\n",
+   "col_offset": 67,
+   "end_col_offset": 74,
+   "filename": "fichero-server/src/fichero_server/api/routes/library/core.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 377,
+    "link": "https://cwe.mitre.org/data/definitions/377.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Probable insecure usage of temp file/directory.",
+   "line_number": 47,
+   "line_range": [
+    47
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b108_hardcoded_tmp_directory.html",
+   "test_id": "B108",
+   "test_name": "hardcoded_tmp_directory"
+  },
+  {
+   "code": "284     tmp = Path(tempfile.gettempdir())\n285     if tmp.resolve() in (Path(\"/tmp\").resolve(), Path(\"/private/tmp\")):\n286         tmp = Path.home() / \"Library\" / \"Caches\" / \"Fichero\"\n",
+   "col_offset": 30,
+   "end_col_offset": 36,
+   "filename": "fichero-server/src/fichero_server/core/duckdb_session.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 377,
+    "link": "https://cwe.mitre.org/data/definitions/377.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Probable insecure usage of temp file/directory.",
+   "line_number": 285,
+   "line_range": [
+    285
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b108_hardcoded_tmp_directory.html",
+   "test_id": "B108",
+   "test_name": "hardcoded_tmp_directory"
+  },
+  {
+   "code": "96         return [\n97             Degraded(hashlib.sha1(key.encode()).hexdigest()[:12], e.area, _reason(e), e.count, time.strftime(\"%Y-%m-%dT%H:%M:%S\", time.localtime(e.first_at)))\n98             for key, e in list(_ENTRIES.items())  # a snapshot: a re-entrant note() may add a key mid-loop\n",
+   "col_offset": 21,
+   "end_col_offset": 47,
+   "filename": "fichero-server/src/fichero_server/core/failure_ledger.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
+   "line_number": 97,
+   "line_range": [
+    97
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "224                 rows = conn.execute(\n225                     f\"SELECT id FROM documents WHERE parent_id IN ({placeholders})\",\n226                     params,\n",
+   "col_offset": 22,
+   "end_col_offset": 67,
+   "filename": "fichero-server/src/fichero_server/db/__init__.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 225,
+   "line_range": [
+    225
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "1270         old = {row[0] for row in conn.execute(\n1271             f\"SELECT table_name FROM duckdb_tables() WHERE table_name IN ({marks})\", wanted).fetchall()}\n1272         if not old:\n",
+   "col_offset": 14,
+   "end_col_offset": 74,
+   "filename": "fichero-server/src/fichero_server/db/__init__.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 1271,
+   "line_range": [
+    1271
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "5361             rows = self.conn.execute(\n5362                 f\"SELECT id FROM {table} WHERE CAST(metadata AS VARCHAR) LIKE '%authority_links\\\"%'\"\n5363             ).fetchall()\n",
+   "col_offset": 18,
+   "end_col_offset": 33,
+   "filename": "fichero-server/src/fichero_server/db/__init__.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 5362,
+   "line_range": [
+    5362
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "5797                     raise ValueError(f\"refusing to count a table with an odd name: {table!r}\")\n5798                 row = fetch_one(conn.execute(f'SELECT count(*) FROM \"{table}\"'))\n5799                 counts[table] = int((row[0] if row else 0) or 0)\n",
+   "col_offset": 47,
+   "end_col_offset": 69,
+   "filename": "fichero-server/src/fichero_server/db/__init__.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 5798,
+   "line_range": [
+    5798
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "7904         self.execute(\n7905             f\"COPY (SELECT * FROM {relation}) TO '{destination_path}' (FORMAT PARQUET)\",\n7906             (str(jsonl_path),),\n",
+   "col_offset": 14,
+   "end_col_offset": 34,
+   "filename": "fichero-server/src/fichero_server/db/__init__.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 7905,
+   "line_range": [
+    7905
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "7928         # Import\n7929         self.conn.execute(f\"\"\"\n7930             INSERT INTO {sql_table}\n7931             SELECT * FROM read_parquet(?)\n7932         \"\"\", [str(confined_path)])\n7933 \n",
+   "col_offset": 30,
+   "end_col_offset": 24,
+   "filename": "fichero-server/src/fichero_server/db/__init__.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 7929,
+   "line_range": [
+    7929,
+    7930,
+    7931,
+    7932
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "8389             indexes = execute(\n8390                 f\"SELECT index_name, sql FROM duckdb_indexes() WHERE table_name = '{bare}'\"\n8391             ).fetchall()\n",
+   "col_offset": 18,
+   "end_col_offset": 83,
+   "filename": "fichero-server/src/fichero_server/db/__init__.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 8390,
+   "line_range": [
+    8390
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "48     \"\"\"One event, a plain INSERT (a new row: no upsert, duckdb#26830).\"\"\"\n49     db.execute(f\"INSERT INTO {EVENTS} ({', '.join(EVENT_COLUMNS)}) VALUES ({', '.join('?' for _ in EVENT_COLUMNS)})\",\n50                [values.get(c) if c != \"metadata\" else _json(values.get(\"metadata\")) for c in EVENT_COLUMNS])\n",
+   "col_offset": 17,
+   "end_col_offset": 29,
+   "filename": "fichero-server/src/fichero_server/db/activity_records.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 49,
+   "line_range": [
+    49
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "112     db.execute(\n113         f\"\"\"INSERT INTO {RUNS} (id, workflow_id, workflow_name, python_code, execution_log, workflow_snapshot,\n114             node_name_map, progress_timeline, diagram_mermaid, status, started_at, resolved_scope, estimated_cost)\n115         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n116         ON CONFLICT (id) DO UPDATE SET\n117             python_code = COALESCE(EXCLUDED.python_code, {RUNS}.python_code),\n118             workflow_snapshot = COALESCE(EXCLUDED.workflow_snapshot, {RUNS}.workflow_snapshot),\n119             node_name_map = COALESCE(EXCLUDED.node_name_map, {RUNS}.node_name_map),\n120             progress_timeline = COALESCE(EXCLUDED.progress_timeline, {RUNS}.progress_timeline),\n121             diagram_mermaid = COALESCE(EXCLUDED.diagram_mermaid, {RUNS}.diagram_mermaid),\n122             resolved_scope = COALESCE(EXCLUDED.resolved_scope, {RUNS}.resolved_scope),\n123             estimated_cost = COALESCE(EXCLUDED.estimated_cost, {RUNS}.estimated_cost),\n124             status = EXCLUDED.status,\n125             workflow_name = EXCLUDED.workflow_name\"\"\",\n126         [thread_id, workflow_id, workflow_name, python_code, None, _json(workflow_snapshot),\n",
+   "col_offset": 12,
+   "end_col_offset": 24,
+   "filename": "fichero-server/src/fichero_server/db/activity_records.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 113,
+   "line_range": [
+    113,
+    114,
+    115,
+    116,
+    117,
+    118,
+    119,
+    120,
+    121,
+    122,
+    123,
+    124,
+    125
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "144     if given:\n145         db.execute(f\"UPDATE {RUNS} SET {', '.join(f'{k} = ?' for k in given)} WHERE id = ?\",\n146                    [*given.values(), thread_id])\n",
+   "col_offset": 21,
+   "end_col_offset": 28,
+   "filename": "fichero-server/src/fichero_server/db/activity_records.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 145,
+   "line_range": [
+    145
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "168     # A constant offset, not the run's own line count: carrying the count beside every line made it 6x slower.\n169     db.execute(f\"INSERT INTO {LINES} (id, run_id, seq, line) SELECT gen_random_uuid()::VARCHAR, id, s - 1000000000, \"\n170                \"part FROM (SELECT id, unnest(string_split(execution_log, chr(10))) AS part, \"\n171                \"unnest(range(1, len(string_split(execution_log, chr(10))) + 1)) AS s \"\n172                f\"FROM {RUNS} WHERE id IN ({marks}) AND execution_log <> '')\", ids)\n173     wrong = db.execute_fetchall(\n",
+   "col_offset": 17,
+   "end_col_offset": 29,
+   "filename": "fichero-server/src/fichero_server/db/activity_records.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 169,
+   "line_range": [
+    169,
+    170,
+    171,
+    172
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "179                            \"left as they were\")\n180     db.execute(f\"UPDATE {RUNS} SET execution_log = NULL WHERE id IN ({marks})\", ids)\n181     return len(ids)\n",
+   "col_offset": 17,
+   "end_col_offset": 24,
+   "filename": "fichero-server/src/fichero_server/db/activity_records.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 180,
+   "line_range": [
+    180
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "206         with db.transaction():\n207             db.execute(f\"DELETE FROM {LINES} WHERE run_id = ?\", [thread_id])\n208             db.execute(f\"UPDATE {RUNS} SET execution_log = NULL WHERE id = ? AND execution_log IS NOT NULL\",\n",
+   "col_offset": 25,
+   "end_col_offset": 37,
+   "filename": "fichero-server/src/fichero_server/db/activity_records.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 207,
+   "line_range": [
+    207
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "207             db.execute(f\"DELETE FROM {LINES} WHERE run_id = ?\", [thread_id])\n208             db.execute(f\"UPDATE {RUNS} SET execution_log = NULL WHERE id = ? AND execution_log IS NOT NULL\",\n209                        [thread_id])\n",
+   "col_offset": 25,
+   "end_col_offset": 32,
+   "filename": "fichero-server/src/fichero_server/db/activity_records.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 208,
+   "line_range": [
+    208
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "230     write-ahead log it grows follows the log's size).\"\"\"\n231     db.execute(f\"UPDATE {RUNS} SET progress_timeline = ? WHERE id = ?\", [json.dumps(progress_timeline), thread_id])\n232     if replace or log_text:\n",
+   "col_offset": 17,
+   "end_col_offset": 24,
+   "filename": "fichero-server/src/fichero_server/db/activity_records.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 231,
+   "line_range": [
+    231
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "285             move_values_into_lines(db, deleted)\n286             db.execute(f\"INSERT INTO {LINES} (id, run_id, seq, line) SELECT gen_random_uuid()::VARCHAR, r, \"\n287                        f\"COALESCE((SELECT max(seq) FROM {LINES} WHERE run_id = r), 0) + 1, 'Run history deleted' \"\n288                        \"FROM (SELECT unnest(?::VARCHAR[]) AS r)\", [deleted])\n289     return deleted\n",
+   "col_offset": 25,
+   "end_col_offset": 37,
+   "filename": "fichero-server/src/fichero_server/db/activity_records.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 286,
+   "line_range": [
+    286,
+    287,
+    288
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "319     #6588), else now.\"\"\"\n320     db.execute(f\"UPDATE {RUNS} SET status = 'failed', error = ?, completed_at = COALESCE(completed_at, ?, \"\n321                \"CURRENT_TIMESTAMP) WHERE id = ?\", [reason, ended_at, thread_id])\n322 \n",
+   "col_offset": 17,
+   "end_col_offset": 24,
+   "filename": "fichero-server/src/fichero_server/db/activity_records.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 320,
+   "line_range": [
+    320,
+    321
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "924             rows = self.conn.execute(\n925                 f\"SELECT key, value FROM settings WHERE key IN ({placeholders})\",\n926                 keys,\n",
+   "col_offset": 18,
+   "end_col_offset": 64,
+   "filename": "fichero-server/src/fichero_server/db/app.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 925,
+   "line_range": [
+    925
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "1296             ):\n1297                 self.conn.execute(f\"DELETE FROM {table} WHERE user_id = ?\", [user_id])\n1298             self.conn.execute(\"DELETE FROM users WHERE id = ?\", [user_id])\n",
+   "col_offset": 36,
+   "end_col_offset": 48,
+   "filename": "fichero-server/src/fichero_server/db/app.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 1297,
+   "line_range": [
+    1297
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "1332             for table in self._USER_REFERENCING_TABLES:\n1333                 cursor = self.conn.execute(f\"SELECT * FROM {table} WHERE user_id = ?\", [user_id])\n1334                 columns = [d[0] for d in cursor.description]\n",
+   "col_offset": 45,
+   "end_col_offset": 59,
+   "filename": "fichero-server/src/fichero_server/db/app.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 1333,
+   "line_range": [
+    1333
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "1339                     have = {r[0] for r in self.conn.execute(\n1340                         f\"SELECT {columns[0]} FROM {table} WHERE user_id = ?\", [user_id]).fetchall()}\n1341                     missing = [r for r in rows if r[0] not in have]\n",
+   "col_offset": 26,
+   "end_col_offset": 33,
+   "filename": "fichero-server/src/fichero_server/db/app.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 1340,
+   "line_range": [
+    1340
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "1344                         self.conn.executemany(\n1345                             f\"INSERT INTO {table} ({', '.join(columns)}) VALUES ({marks})\", missing\n1346                         )\n",
+   "col_offset": 30,
+   "end_col_offset": 42,
+   "filename": "fichero-server/src/fichero_server/db/app.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 1345,
+   "line_range": [
+    1345
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "1349                 for table in reversed(self._USER_REFERENCING_TABLES):\n1350                     self.conn.execute(f\"DELETE FROM {table} WHERE user_id = ?\", [user_id])\n1351                 self.conn.execute(f\"UPDATE users SET {set_clause} WHERE id = ?\", [*params, user_id])\n",
+   "col_offset": 40,
+   "end_col_offset": 52,
+   "filename": "fichero-server/src/fichero_server/db/app.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 1350,
+   "line_range": [
+    1350
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "1350                     self.conn.execute(f\"DELETE FROM {table} WHERE user_id = ?\", [user_id])\n1351                 self.conn.execute(f\"UPDATE users SET {set_clause} WHERE id = ?\", [*params, user_id])\n1352             finally:\n",
+   "col_offset": 36,
+   "end_col_offset": 53,
+   "filename": "fichero-server/src/fichero_server/db/app.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 1351,
+   "line_range": [
+    1351
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "2270             results = self.conn.execute(\n2271                 f\"SELECT * FROM mcp_servers {where_sql} ORDER BY name\", params\n2272             ).fetchall()\n",
+   "col_offset": 18,
+   "end_col_offset": 44,
+   "filename": "fichero-server/src/fichero_server/db/app.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 2271,
+   "line_range": [
+    2271
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "2424             self.conn.execute(\n2425                 f\"DELETE FROM {table} WHERE {key_field} = ?\",\n2426                 [value],\n",
+   "col_offset": 18,
+   "end_col_offset": 30,
+   "filename": "fichero-server/src/fichero_server/db/app.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 2425,
+   "line_range": [
+    2425
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "49     sets = \"run_after = NULL, reason = NULL\" if clear_reason else \"run_after = NULL\"\n50     db.execute(f\"UPDATE jobs SET {sets} WHERE id = ? AND state = 'waiting'\", [job_id])\n51 \n",
+   "col_offset": 17,
+   "end_col_offset": 33,
+   "filename": "fichero-server/src/fichero_server/db/document_tree.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 50,
+   "line_range": [
+    50
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "55     marks = \", \".join(\"?\" for _ in reasons)\n56     db.execute(f\"UPDATE jobs SET reason = NULL WHERE id = ? AND reason IN ({marks})\", [job_id, *reasons])\n57 \n",
+   "col_offset": 17,
+   "end_col_offset": 75,
+   "filename": "fichero-server/src/fichero_server/db/document_tree.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 56,
+   "line_range": [
+    56
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "1047         conn.execute(\n1048             f\"\"\"\n1049             INSERT INTO canvas_layout (\n1050                 id, folder_id, item_id, x, y, z, w, h, d, angle, z_index, style, updated_at\n1051             )\n1052             SELECT\n1053                 parent_id || '::' || id,\n1054                 parent_id,\n1055                 id,\n1056                 COALESCE({x}, 0.0),\n1057                 COALESCE({y}, 0.0),\n1058                 COALESCE({z}, 0.0),\n1059                 TRY_CAST(json_extract({meta}, '$.canvas_w') AS DOUBLE),\n1060                 TRY_CAST(json_extract({meta}, '$.canvas_h') AS DOUBLE),\n1061                 TRY_CAST(json_extract({meta}, '$.canvas_d') AS DOUBLE),\n1062                 COALESCE({rot}, 0.0),\n1063                 COALESCE({zi}, 0),\n1064                 json_extract_string({meta}, '$.canvas_style'),\n1065                 COALESCE({col(\"updated_at\")}, CURRENT_TIMESTAMP)\n1066             FROM documents d\n1067             WHERE parent_id IS NOT NULL\n1068               AND (\n1069                 {x} IS NOT NULL\n1070                 OR {y} IS NOT NULL\n1071                 OR {z} IS NOT NULL\n1072                 OR {rot} IS NOT NULL\n1073                 OR COALESCE({zi}, 0) != 0\n1074                 OR (\n1075                   contains(CAST({meta} AS VARCHAR), '\"canvas_')\n1076                   AND (\n1077                     json_extract({meta}, '$.canvas_w') IS NOT NULL\n1078                     OR json_extract({meta}, '$.canvas_h') IS NOT NULL\n1079                     OR json_extract({meta}, '$.canvas_d') IS NOT NULL\n1080                     OR json_extract({meta}, '$.canvas_style') IS NOT NULL\n1081                   )\n1082                 )\n1083               )\n1084               AND NOT EXISTS (\n1085                 SELECT 1\n1086                 FROM canvas_layout c\n1087                 WHERE c.id = parent_id || '::' || d.id\n1088               )\n1089             \"\"\"\n1090         )\n",
+   "col_offset": 16,
+   "end_col_offset": 25,
+   "filename": "fichero-server/src/fichero_server/db/migrations/schema.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 1048,
+   "line_range": [
+    1048,
+    1049,
+    1050,
+    1051,
+    1052,
+    1053,
+    1054,
+    1055,
+    1056,
+    1057,
+    1058,
+    1059,
+    1060,
+    1061,
+    1062,
+    1063,
+    1064,
+    1065,
+    1066,
+    1067,
+    1068,
+    1069,
+    1070,
+    1071,
+    1072,
+    1073,
+    1074,
+    1075,
+    1076,
+    1077,
+    1078,
+    1079,
+    1080,
+    1081,
+    1082,
+    1083,
+    1084,
+    1085,
+    1086,
+    1087,
+    1088,
+    1089
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "1219     try:\n1220         tmp = Path(tempfile.mktemp(suffix=\".jpg\"))\n1221         result = subprocess.run(\n",
+   "col_offset": 19,
+   "end_col_offset": 49,
+   "filename": "fichero-server/src/fichero_server/db/storage.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 377,
+    "link": "https://cwe.mitre.org/data/definitions/377.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Use of insecure and deprecated function (mktemp).",
+   "line_number": 1220,
+   "line_range": [
+    1220
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b306-mktemp-q",
+   "test_id": "B306",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "807     db.execute(\n808         f\"UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = ?{_clear_waiting_on(db)} \"\n809         f\"WHERE id IN ({marks}) AND state IN ('waiting', 'running', 'paused')\",\n810         [stopped_by(run_id), utc_now(), *ended],\n",
+   "col_offset": 10,
+   "end_col_offset": 74,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 808,
+   "line_range": [
+    808,
+    809
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "1491             db.execute(\n1492                 f\"UPDATE jobs SET state = 'waiting', reason = NULL, run_after = NULL{_clear_waiting_on(db)} \"\n1493                 \"WHERE id = ? AND state = 'paused'\",\n1494                 [job_id],\n",
+   "col_offset": 18,
+   "end_col_offset": 84,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 1492,
+   "line_range": [
+    1492,
+    1493
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "1895         db.execute(\n1896             \"INSERT INTO jobs (id, kind, subject, model, state, attempts, started_by, created_at) VALUES \"\n1897             + \", \".join(\"(?, ?, ?, ?, 'waiting', 0, ?, ?)\" for _ in rows),\n1898             [\n",
+   "col_offset": 12,
+   "end_col_offset": 106,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 1896,
+   "line_range": [
+    1896,
+    1897
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "2642         db.execute(\n2643             f\"UPDATE jobs SET state = 'waiting', reason = 'Interrupted; carries on'{_clear_waiting_on(db)} \"\n2644             \"WHERE id = ? AND state = 'running'\",\n2645             [job_id],\n",
+   "col_offset": 14,
+   "end_col_offset": 83,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 2643,
+   "line_range": [
+    2643,
+    2644
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "2674     db.execute(\n2675         f\"UPDATE jobs SET state = 'cancelled', finished_at = ?, \"\n2676         f\"reason = 'Its workflow run stopped before this page was done' \"\n2677         f\"WHERE state IN ('waiting', 'running') AND kind IN ({', '.join('?' for _ in attached)}){not_live}\",\n2678         [utc_now(), *attached, *live],\n",
+   "col_offset": 10,
+   "end_col_offset": 61,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 2675,
+   "line_range": [
+    2675,
+    2676,
+    2677
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "2680     db.execute(\n2681         f\"UPDATE jobs SET state = 'cancelled', finished_at = ?, \"\n2682         f\"reason = 'The engine stopped before this batch finished' \"\n2683         f\"WHERE state IN ('waiting', 'running') AND kind = 'batch'{not_live}\",\n2684         [utc_now(), *live],\n",
+   "col_offset": 10,
+   "end_col_offset": 66,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 2681,
+   "line_range": [
+    2681,
+    2682,
+    2683
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "2689     db.execute(\n2690         f\"UPDATE jobs SET state = 'cancelled', reason = 'Stopped by you', finished_at = ? \"\n2691         f\"WHERE state = 'running' AND reason LIKE 'Stopping%' AND kind NOT IN ({', '.join('?' for _ in RUN_KINDS)}){not_live}\",\n2692         [utc_now(), *RUN_KINDS, *live],\n",
+   "col_offset": 10,
+   "end_col_offset": 79,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 2690,
+   "line_range": [
+    2690,
+    2691
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "2698         db.execute(\n2699             f\"UPDATE jobs SET state = 'cancelled', reason = 'Deleted by you', finished_at = COALESCE(finished_at, ?) \"\n2700             f\"WHERE state IN ('waiting', 'running', 'paused') AND {mark} IS NOT NULL{not_live}\",\n2701             [utc_now(), *live],\n",
+   "col_offset": 14,
+   "end_col_offset": 66,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 2699,
+   "line_range": [
+    2699,
+    2700
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "2706     db.execute(\n2707         f\"UPDATE jobs SET state = 'paused', run_after = NULL, reason = CASE WHEN reason = ? THEN ? ELSE reason END{_clear_waiting_on(db)} \"\n2708         f\"WHERE state IN ('waiting', 'running') AND reason IN (?, ?, ?){not_live}\",\n2709         [PAUSING, PAUSED_REASON, PAUSING, PAUSED_WITH_RUN, PAUSED_BETWEEN_STEPS, *live],\n",
+   "col_offset": 10,
+   "end_col_offset": 114,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 2707,
+   "line_range": [
+    2707,
+    2708
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "2716     db.execute(\n2717         f\"UPDATE jobs SET state = 'paused', reason = ?, run_after = NULL{_clear_waiting_on(db)} \"\n2718         f\"WHERE state IN ('waiting', 'running') AND COALESCE(target, '') <> 'huggingface-jobs' \"\n2719         f\"AND kind NOT IN ({', '.join('?' for _ in FAR_SIDE_KINDS)}){not_live}\",\n2720         [QUIT_REASON, *FAR_SIDE_KINDS, *live],\n",
+   "col_offset": 10,
+   "end_col_offset": 72,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 2717,
+   "line_range": [
+    2717,
+    2718,
+    2719
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "3041         db.execute(\n3042             f\"UPDATE jobs SET held_by = ? WHERE id IN ({', '.join('?' for _ in held)})\",\n3043             [HELD_BY_PAUSE_ALL, *held],\n",
+   "col_offset": 14,
+   "end_col_offset": 55,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 3042,
+   "line_range": [
+    3042
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "3073     if done:\n3074         db.execute(f\"UPDATE jobs SET held_by = NULL WHERE id IN ({', '.join('?' for _ in done)})\", done)\n3075     return let_go, runs\n",
+   "col_offset": 21,
+   "end_col_offset": 65,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 3074,
+   "line_range": [
+    3074
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "3135         db.execute(\n3136             f\"UPDATE jobs SET state = 'paused', reason = ? WHERE state = 'waiting' AND kind IN ({marks})\",\n3137             [PAUSED_REASON, *stored],\n",
+   "col_offset": 14,
+   "end_col_offset": 96,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 3136,
+   "line_range": [
+    3136
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "3140         db.execute(\n3141             f\"UPDATE jobs SET state = 'waiting', reason = NULL WHERE state = 'paused' AND kind IN ({marks})\",\n3142             stored,\n",
+   "col_offset": 14,
+   "end_col_offset": 99,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 3141,
+   "line_range": [
+    3141
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "3162     db.execute(\n3163         f\"UPDATE jobs SET state = 'cancelled', reason = 'Stopped by you', finished_at = ? \"\n3164         f\"WHERE state IN ('waiting', 'paused') AND kind IN ({', '.join('?' for _ in stored)})\",\n3165         [utc_now(), *stored],\n",
+   "col_offset": 10,
+   "end_col_offset": 60,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 3163,
+   "line_range": [
+    3163,
+    3164
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "3420     db.execute(\n3421         \"UPDATE jobs SET state = 'waiting', reason = 'Retried by you', attempts = 0, finished_at = NULL, run_after = NULL\"\n3422         f\"{', cleared_at = NULL' if _has_cleared_at(db) else ''}{_clear_waiting_on(db)} \"\n3423         f\"WHERE kind = ? AND parent_id IS NULL AND (state = 'failed' OR (state = 'running'{not_live}))\"\n3424         f\"{' AND deleted_at IS NULL' if _has_deleted_at(db) else ''}\",\n3425         [kind, *live],\n",
+   "col_offset": 8,
+   "end_col_offset": 122,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 3421,
+   "line_range": [
+    3421,
+    3422,
+    3423,
+    3424
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "3478     db.execute(\n3479         \"UPDATE jobs SET state = 'waiting', reason = 'Retried by you', attempts = 0, finished_at = NULL, \"\n3480         f\"{'cleared_at = NULL, ' if _has_cleared_at(db) else ''}run_after = NULL, detail = ? WHERE id = ?\",\n3481         [json.dumps(detail) if detail else None, job_id],\n",
+   "col_offset": 8,
+   "end_col_offset": 106,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 3479,
+   "line_range": [
+    3479,
+    3480
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "3855         db.execute(\n3856             f\"UPDATE jobs SET cleared_at = ? WHERE id IN ({marks})\", [utc_now(), *ids]\n3857         )\n",
+   "col_offset": 14,
+   "end_col_offset": 58,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 3856,
+   "line_range": [
+    3856
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "3917         marks = \", \".join(\"?\" for _ in under)\n3918         db.execute(f\"UPDATE jobs SET cleared_at = ? WHERE id IN ({marks})\", [now, *under])\n3919         archived.append(job_id)\n",
+   "col_offset": 21,
+   "end_col_offset": 65,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 3918,
+   "line_range": [
+    3918
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "3947         marks = \", \".join(\"?\" for _ in under)\n3948         db.execute(f\"UPDATE jobs SET cleared_at = ? WHERE id IN ({marks})\", [now, *under])\n3949         archived.append(thread_id)\n",
+   "col_offset": 21,
+   "end_col_offset": 65,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 3948,
+   "line_range": [
+    3948
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "3964         marks = \", \".join(\"?\" for _ in under)\n3965         db.execute(f\"UPDATE jobs SET cleared_at = NULL WHERE id IN ({marks})\", [*under])\n3966         out.append(job_id)\n",
+   "col_offset": 21,
+   "end_col_offset": 68,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 3965,
+   "line_range": [
+    3965
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "3977     db.execute(\n3978         f\"UPDATE jobs SET state = ?, reason = ?{_clear_waiting_on(db)}{mark}, attempts = attempts - 1 WHERE id = ?{alive}\",\n3979         [state, reason, *([blocked_by] if mark else []), job_id],\n",
+   "col_offset": 10,
+   "end_col_offset": 47,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 3978,
+   "line_range": [
+    3978
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "3996     if count:\n3997         db.execute(f\"UPDATE jobs SET blocked_by = NULL, reason = NULL WHERE {where}\", args)\n3998         _scheduler.wake(_key(db))\n",
+   "col_offset": 21,
+   "end_col_offset": 76,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 3997,
+   "line_range": [
+    3997
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "4026         db.execute(\n4027             f\"UPDATE jobs SET cleared_at = CASE WHEN cleared_at < deleted_at THEN cleared_at ELSE NULL END, deleted_at = NULL \"\n4028             f\"WHERE id IN ({marks})\",\n4029             [*under],\n",
+   "col_offset": 14,
+   "end_col_offset": 27,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 4027,
+   "line_range": [
+    4027,
+    4028
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "4104             db.execute(\n4105                 f\"UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = COALESCE(finished_at, ?) \"\n4106                 f\"WHERE id IN ({marks}) AND state IN ('waiting', 'paused', 'running')\",\n4107                 [DELETED_REASON, now, *under],\n",
+   "col_offset": 18,
+   "end_col_offset": 31,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 4105,
+   "line_range": [
+    4105,
+    4106
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "4110                 # An archive mark already there is kept (its time older than the delete's), so Undo leaves that row archived.\n4111                 f\"UPDATE jobs SET cleared_at = COALESCE(cleared_at, ?){', deleted_at = ?' if has_deleted else ''} \"\n4112                 f\"WHERE id IN ({marks})\",\n4113                 [now, *([now] if has_deleted else []), *under],\n",
+   "col_offset": 18,
+   "end_col_offset": 70,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 4111,
+   "line_range": [
+    4111,
+    4112
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "5263                 db.execute(\n5264                     \"UPDATE jobs SET state = 'running', started_at = ?, attempts = attempts + 1, \"\n5265                     f\"reason = ?{_clear_waiting_on(db)} WHERE id = ? AND state = 'waiting'\",\n5266                     [\n",
+   "col_offset": 20,
+   "end_col_offset": 32,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 5264,
+   "line_range": [
+    5264,
+    5265
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "5310                 db.execute(\n5311                     f\"UPDATE jobs SET reason = ? WHERE state = 'waiting' AND kind IN \"\n5312                     f\"({', '.join('?' for _ in stored)}) AND reason IS DISTINCT FROM ? \"\n5313                     f\"AND NOT {_PERSON_WAITS_SQL}\",\n5314                     [reason, *stored, reason],\n",
+   "col_offset": 22,
+   "end_col_offset": 23,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 5311,
+   "line_range": [
+    5311,
+    5312,
+    5313
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "5533                 db.execute(\n5534                     f\"UPDATE jobs SET reason = ? WHERE state = 'waiting' AND {waiting_on_first[0]}{unblocked} \"\n5535                     f\"AND reason IS DISTINCT FROM ?\",\n5536                     [said_first, *waiting_on_first[1], said_first],\n",
+   "col_offset": 22,
+   "end_col_offset": 77,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 5534,
+   "line_range": [
+    5534,
+    5535
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "5544                 db.execute(\n5545                     f\"UPDATE jobs SET reason = ? WHERE state = 'waiting' AND {text_held_sql}{unblocked} \"\n5546                     f\"AND reason IS DISTINCT FROM ?\",\n5547                     [READING_FIRST_REASON, *text_params, READING_FIRST_REASON],\n",
+   "col_offset": 22,
+   "end_col_offset": 77,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 5545,
+   "line_range": [
+    5545,
+    5546
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "5820             current.execute(\n5821                 f\"UPDATE jobs SET state = ?, reason = ?, finished_at = ?{_clear_waiting_on(current)} WHERE id = ?\",\n5822                 [state, reason, None if state == \"paused\" else utc_now(), job_id],\n",
+   "col_offset": 18,
+   "end_col_offset": 72,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 5821,
+   "line_range": [
+    5821
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "5890         db.execute(\n5891             f\"UPDATE jobs SET state = 'paused', reason = ?, run_after = NULL{_clear_waiting_on(db)} WHERE {rows}\",\n5892             [PAUSED_PROJECT_CLOSED, *params],\n",
+   "col_offset": 14,
+   "end_col_offset": 76,
+   "filename": "fichero-server/src/fichero_server/execution/jobs.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 5891,
+   "line_range": [
+    5891
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "303     raw = json.dumps([nodes, request.provider_override, request.model_override], sort_keys=True, default=str)\n304     return hashlib.sha1(raw.encode()).hexdigest()  # noqa: S324 -- a comparison key, not a secret\n305 \n",
+   "col_offset": 11,
+   "end_col_offset": 37,
+   "filename": "fichero-server/src/fichero_server/execution/runner.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
+   "line_number": 304,
+   "line_range": [
+    304
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "255         archive = Path(tmp) / \"release.whl\"\n256         with urllib.request.urlopen(SPACY_RELEASE_URL(name, version), timeout=60, context=https_context()) as response, \\\n257                 open(archive, \"wb\") as out:\n",
+   "col_offset": 13,
+   "end_col_offset": 106,
+   "filename": "fichero-server/src/fichero_server/llm/local_models.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 22,
+    "link": "https://cwe.mitre.org/data/definitions/22.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+   "line_number": 256,
+   "line_range": [
+    256
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+   "test_id": "B310",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "510 \n511     snapshot_download(repo_id=repo, local_dir=str(embed_process.one_folder_path(embeddings_path, model_id)), allow_patterns=files)\n512 \n",
+   "col_offset": 4,
+   "end_col_offset": 130,
+   "filename": "fichero-server/src/fichero_server/llm/local_models.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 494,
+    "link": "https://cwe.mitre.org/data/definitions/494.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Unsafe Hugging Face Hub download without revision pinning in snapshot_download()",
+   "line_number": 511,
+   "line_range": [
+    511
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b615_huggingface_unsafe_download.html",
+   "test_id": "B615",
+   "test_name": "huggingface_unsafe_download"
+  },
+  {
+   "code": "157     context = https_context() if url.startswith(\"https:\") else None\n158     return urllib.request.urlopen(request, timeout=READ_TIMEOUT_SECONDS, context=context)\n159 \n",
+   "col_offset": 11,
+   "end_col_offset": 89,
+   "filename": "fichero-server/src/fichero_server/llm/model_downloads.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 22,
+    "link": "https://cwe.mitre.org/data/definitions/22.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+   "line_number": 158,
+   "line_range": [
+    158
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+   "test_id": "B310",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "246 \n247         return AutoTokenizer.from_pretrained(  # type: ignore[return-value]\n248             model_id, local_files_only=not allow_download, cache_dir=str(hf_hub_dir())\n249         )\n250     except Exception:\n",
+   "col_offset": 15,
+   "end_col_offset": 9,
+   "filename": "fichero-server/src/fichero_server/llm/script_coverage.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 494,
+    "link": "https://cwe.mitre.org/data/definitions/494.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Unsafe Hugging Face Hub download without revision pinning in from_pretrained()",
+   "line_number": 247,
+   "line_range": [
+    247,
+    248,
+    249
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b615_huggingface_unsafe_download.html",
+   "test_id": "B615",
+   "test_name": "huggingface_unsafe_download"
+  },
+  {
+   "code": "454     req = urllib.request.Request(url, headers={\"User-Agent\": \"fichero-loove\"})\n455     with urllib.request.urlopen(req, timeout=timeout, context=https_context()) as resp:  # noqa: S310\n456         return resp.read()\n",
+   "col_offset": 9,
+   "end_col_offset": 78,
+   "filename": "fichero-server/src/fichero_server/llm/script_coverage.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 22,
+    "link": "https://cwe.mitre.org/data/definitions/22.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+   "line_number": 455,
+   "line_range": [
+    455
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+   "test_id": "B310",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "80     models_path.mkdir(parents=True, exist_ok=True)\n81     return Path(hf_hub_download(repo_id=spec[0], filename=spec[1], local_dir=str(models_path)))\n82 \n",
+   "col_offset": 16,
+   "end_col_offset": 94,
+   "filename": "fichero-server/src/fichero_server/llm/yolo_runtime.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 494,
+    "link": "https://cwe.mitre.org/data/definitions/494.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Unsafe Hugging Face Hub download without revision pinning in hf_hub_download()",
+   "line_number": 81,
+   "line_range": [
+    81
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b615_huggingface_unsafe_download.html",
+   "test_id": "B615",
+   "test_name": "huggingface_unsafe_download"
+  },
+  {
+   "code": "130     `pdf/bundled.rs`; there is no setting for another path).\"\"\"\n131     return Path(os.environ.get(\"TMPDIR\", \"/tmp\")) / \"kreuzberg-pdfium\" / \"libpdfium.dylib\"\n132 \n",
+   "col_offset": 41,
+   "end_col_offset": 47,
+   "filename": "fichero-server/src/fichero_server/loaders/kreuzberg_cache.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 377,
+    "link": "https://cwe.mitre.org/data/definitions/377.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Probable insecure usage of temp file/directory.",
+   "line_number": 131,
+   "line_range": [
+    131
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b108_hardcoded_tmp_directory.html",
+   "test_id": "B108",
+   "test_name": "hardcoded_tmp_directory"
+  },
+  {
+   "code": "197                 return\n198         tmpdir = Path(os.environ.get(\"TMPDIR\", \"/tmp\"))\n199         target_dir = tmpdir / \"kreuzberg-pdfium\"\n",
+   "col_offset": 47,
+   "end_col_offset": 53,
+   "filename": "fichero-server/src/fichero_server/loaders/kreuzberg_cache.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 377,
+    "link": "https://cwe.mitre.org/data/definitions/377.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Probable insecure usage of temp file/directory.",
+   "line_number": 198,
+   "line_range": [
+    198
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b108_hardcoded_tmp_directory.html",
+   "test_id": "B108",
+   "test_name": "hardcoded_tmp_directory"
+  },
+  {
+   "code": "132     try:\n133         with urllib.request.urlopen(request, timeout=timeout, context=https_context()) as response:  # noqa: S310 -- https IIIF servers\n134             return response.status, {k.lower(): v for k, v in response.headers.items()}, response.read()\n",
+   "col_offset": 13,
+   "end_col_offset": 86,
+   "filename": "fichero-server/src/fichero_server/media/iiif_fetch.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 22,
+    "link": "https://cwe.mitre.org/data/definitions/22.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+   "line_number": 133,
+   "line_range": [
+    133
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+   "test_id": "B310",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "34     \"\"\"The step's settings as one short hash: the cards the try ran, their models and answers, in a fixed order.\"\"\"\n35     return hashlib.sha1(json.dumps(cards, sort_keys=True, default=str).encode()).hexdigest()[:16]\n36 \n",
+   "col_offset": 11,
+   "end_col_offset": 80,
+   "filename": "fichero-server/src/fichero_server/recipes/adopt.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
+   "line_number": 35,
+   "line_range": [
+    35
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "86     \"\"\"A digest of what a folder covers: each node under it and its reading, so any added or changed page changes it.\"\"\"\n87     h = hashlib.sha1()\n88     for doc in sorted(leaves, key=lambda d: d.id):\n",
+   "col_offset": 8,
+   "end_col_offset": 22,
+   "filename": "fichero-server/src/fichero_server/recipes/catalogue_step.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
+   "line_number": 87,
+   "line_range": [
+    87
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "89         h.update(doc.id.encode())\n90         h.update(hashlib.sha1((doc.page_content or \"\").encode()).digest())\n91     return h.hexdigest()\n",
+   "col_offset": 17,
+   "end_col_offset": 64,
+   "filename": "fichero-server/src/fichero_server/recipes/catalogue_step.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
+   "line_number": 90,
+   "line_range": [
+    90
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "202                     text = c.page_content or \"\"\n203                     under[c.parent_id][1].append((c.id, hashlib.sha1(text.encode()).digest(), bool(text.strip())))\n204         level = [c for f in level for c in under[f][0] if c not in under]\n",
+   "col_offset": 56,
+   "end_col_offset": 83,
+   "filename": "fichero-server/src/fichero_server/recipes/catalogue_step.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
+   "line_number": 203,
+   "line_range": [
+    203
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "223     if old is not None:\n224         h = hashlib.sha1()\n225         for page, digest, _ in sorted(pages):\n",
+   "col_offset": 12,
+   "end_col_offset": 26,
+   "filename": "fichero-server/src/fichero_server/recipes/catalogue_step.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
+   "line_number": 224,
+   "line_range": [
+    224
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "33     \"\"\"The request itself, apart from `_harvest` so a test of the request is not a test of the stub that replaces it.\"\"\"\n34     with urllib.request.urlopen(CATALOG_URL, timeout=30, context=https_context()) as response:  # noqa: S310 (a fixed https URL)\n35         return json.load(response)\n",
+   "col_offset": 9,
+   "end_col_offset": 81,
+   "filename": "fichero-server/src/fichero_server/recipes/htr_united.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 22,
+    "link": "https://cwe.mitre.org/data/definitions/22.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+   "line_number": 34,
+   "line_range": [
+    34
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+   "test_id": "B310",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "283     blob = json.dumps({\"answers\": {k: given[k] for k in sorted(keys) if k in given}, \"steps\": steps}, sort_keys=True, default=str)\n284     return hashlib.sha1(blob.encode(\"utf-8\")).hexdigest()[:12]\n285 \n",
+   "col_offset": 11,
+   "end_col_offset": 45,
+   "filename": "fichero-server/src/fichero_server/recipes/stages.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
+   "line_number": 284,
+   "line_range": [
+    284
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "106         # a unix socket path must stay under ~100 bytes, so a short private (0700) folder of its own\n107         self._dir = Path(tempfile.mkdtemp(prefix=\"fa\", dir=\"/tmp\"))\n108         self.path = self._dir / \"s\"\n",
+   "col_offset": 59,
+   "end_col_offset": 65,
+   "filename": "fichero-server/src/fichero_server/remote_read/ssh_prompts.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 377,
+    "link": "https://cwe.mitre.org/data/definitions/377.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Probable insecure usage of temp file/directory.",
+   "line_number": 107,
+   "line_range": [
+    107
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b108_hardcoded_tmp_directory.html",
+   "test_id": "B108",
+   "test_name": "hardcoded_tmp_directory"
+  },
+  {
+   "code": "152     own = server_state_dir() / \"hpc-ssh\"\n153     return [own] if len(str(own)) <= 50 else [Path(f\"/tmp/fichero-ssh-{os.getuid()}\")]\n154 \n",
+   "col_offset": 53,
+   "end_col_offset": 70,
+   "filename": "fichero-server/src/fichero_server/remote_read/ssh_prompts.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 377,
+    "link": "https://cwe.mitre.org/data/definitions/377.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Probable insecure usage of temp file/directory.",
+   "line_number": 153,
+   "line_range": [
+    153
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b108_hardcoded_tmp_directory.html",
+   "test_id": "B108",
+   "test_name": "hardcoded_tmp_directory"
+  },
+  {
+   "code": "76 \n77     if resolved == \"0.0.0.0\":\n78         if source.get(NON_LOOPBACK_BIND_ACK_ENV) != NON_LOOPBACK_BIND_ACK_VALUE:\n",
+   "col_offset": 19,
+   "end_col_offset": 28,
+   "filename": "fichero-server/src/fichero_server/security/bind_host.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 605,
+    "link": "https://cwe.mitre.org/data/definitions/605.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible binding to all interfaces.",
+   "line_number": 77,
+   "line_range": [
+    77
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b104_hardcoded_bind_all_interfaces.html",
+   "test_id": "B104",
+   "test_name": "hardcoded_bind_all_interfaces"
+  },
+  {
+   "code": "123         return None\n124     if raw_host.strip() == \"0.0.0.0\":\n125         raise ValueError(\n",
+   "col_offset": 27,
+   "end_col_offset": 36,
+   "filename": "fichero-server/src/fichero_server/security/bind_host.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 605,
+    "link": "https://cwe.mitre.org/data/definitions/605.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible binding to all interfaces.",
+   "line_number": 124,
+   "line_range": [
+    124
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b104_hardcoded_bind_all_interfaces.html",
+   "test_id": "B104",
+   "test_name": "hardcoded_bind_all_interfaces"
+  },
+  {
+   "code": "323         Path(\"/private/var/folders\"),\n324         Path(\"/tmp\"),\n325         Path(\"/private/tmp\"),\n",
+   "col_offset": 13,
+   "end_col_offset": 19,
+   "filename": "fichero-server/src/fichero_server/security/path_security.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 377,
+    "link": "https://cwe.mitre.org/data/definitions/377.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Probable insecure usage of temp file/directory.",
+   "line_number": 324,
+   "line_range": [
+    324
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b108_hardcoded_tmp_directory.html",
+   "test_id": "B108",
+   "test_name": "hardcoded_tmp_directory"
+  },
+  {
+   "code": "37         source.seek(pos)\n38     return SafeET.parse(source)\n39 \n",
+   "col_offset": 11,
+   "end_col_offset": 31,
+   "filename": "fichero-server/src/fichero_server/security/xml_security.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 20,
+    "link": "https://cwe.mitre.org/data/definitions/20.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Using xml.etree.ElementTree.parse to parse untrusted XML data is known to be vulnerable to XML attacks. Replace xml.etree.ElementTree.parse with its defusedxml equivalent function or make sure defusedxml.defuse_stdlib() is called",
+   "line_number": 38,
+   "line_range": [
+    38
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b313-b320-xml-bad-elementtree",
+   "test_id": "B314",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "56         source.seek(pos)\n57     return SafeET.iterparse(source, events=events)\n58 \n",
+   "col_offset": 11,
+   "end_col_offset": 50,
+   "filename": "fichero-server/src/fichero_server/security/xml_security.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 20,
+    "link": "https://cwe.mitre.org/data/definitions/20.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Using xml.etree.ElementTree.iterparse to parse untrusted XML data is known to be vulnerable to XML attacks. Replace xml.etree.ElementTree.iterparse with its defusedxml equivalent function or make sure defusedxml.defuse_stdlib() is called",
+   "line_number": 57,
+   "line_range": [
+    57
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b313-b320-xml-bad-elementtree",
+   "test_id": "B314",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "65     reject_xml_entities(text[:4096].encode(\"utf-8\", errors=\"ignore\"))\n66     return SafeET.fromstring(text)\n",
+   "col_offset": 11,
+   "end_col_offset": 34,
+   "filename": "fichero-server/src/fichero_server/security/xml_security.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 20,
+    "link": "https://cwe.mitre.org/data/definitions/20.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Using xml.etree.ElementTree.fromstring to parse untrusted XML data is known to be vulnerable to XML attacks. Replace xml.etree.ElementTree.fromstring with its defusedxml equivalent function or make sure defusedxml.defuse_stdlib() is called",
+   "line_number": 66,
+   "line_range": [
+    66
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b313-b320-xml-bad-elementtree",
+   "test_id": "B314",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "312         f\"SELECT {', '.join(_TIE_COLUMNS)} FROM sync_files WHERE document_id IN ({marks})\", list(document_ids))\n313     db.execute(f\"DELETE FROM sync_files WHERE document_id IN ({marks})\", list(document_ids))\n314     return [\n",
+   "col_offset": 17,
+   "end_col_offset": 62,
+   "filename": "fichero-server/src/fichero_server/sync_folder.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 313,
+   "line_range": [
+    313
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "324         db.execute(\n325             f\"INSERT INTO sync_files ({', '.join(_TIE_COLUMNS)}) VALUES ({', '.join('?' for _ in _TIE_COLUMNS)}) \"\n326             \"ON CONFLICT (folder_id, rel_path) DO NOTHING\",\n327             [row.get(name) for name in _TIE_COLUMNS])\n",
+   "col_offset": 14,
+   "end_col_offset": 38,
+   "filename": "fichero-server/src/fichero_server/sync_folder.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 325,
+   "line_range": [
+    325,
+    326
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "106 \n107     processor = AutoProcessor.from_pretrained(args.base)\n108     model = AutoModelForImageTextToText.from_pretrained(args.base, torch_dtype=torch.bfloat16, device_map=\"cuda\",\n",
+   "col_offset": 16,
+   "end_col_offset": 56,
+   "filename": "fichero-server/src/fichero_server/training/hf_vision_lora_train.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 494,
+    "link": "https://cwe.mitre.org/data/definitions/494.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Unsafe Hugging Face Hub download without revision pinning in from_pretrained()",
+   "line_number": 107,
+   "line_range": [
+    107
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b615_huggingface_unsafe_download.html",
+   "test_id": "B615",
+   "test_name": "huggingface_unsafe_download"
+  },
+  {
+   "code": "107     processor = AutoProcessor.from_pretrained(args.base)\n108     model = AutoModelForImageTextToText.from_pretrained(args.base, torch_dtype=torch.bfloat16, device_map=\"cuda\",\n109                                                             use_safetensors=True)  # never unpickle a repository (#5981 sweep)\n110     model.config.use_cache = False\n",
+   "col_offset": 12,
+   "end_col_offset": 81,
+   "filename": "fichero-server/src/fichero_server/training/hf_vision_lora_train.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 494,
+    "link": "https://cwe.mitre.org/data/definitions/494.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Unsafe Hugging Face Hub download without revision pinning in from_pretrained()",
+   "line_number": 108,
+   "line_range": [
+    108,
+    109
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b615_huggingface_unsafe_download.html",
+   "test_id": "B615",
+   "test_name": "huggingface_unsafe_download"
+  },
+  {
+   "code": "564                         result = self.conn.execute(\n565                             f\"DELETE FROM {table} WHERE thread_id = ? RETURNING 1\",\n566                             [thread_id],\n",
+   "col_offset": 30,
+   "end_col_offset": 42,
+   "filename": "fichero-server/src/fichero_server/workflows/checkpointer.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 565,
+   "line_range": [
+    565
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "43 # name that says whose it is.\n44 SOCKET = Path(\"/tmp/fichero-acceptance.sock\")\n45 OUT = Path(os.environ.get(\"ACCEPTANCE_OUT\", REPO / \"acceptance-out\"))\n",
+   "col_offset": 14,
+   "end_col_offset": 44,
+   "filename": "scripts/acceptance/_engine.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 377,
+    "link": "https://cwe.mitre.org/data/definitions/377.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Probable insecure usage of temp file/directory.",
+   "line_number": 44,
+   "line_range": [
+    44
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b108_hardcoded_tmp_directory.html",
+   "test_id": "B108",
+   "test_name": "hardcoded_tmp_directory"
+  },
+  {
+   "code": "208     normalized = re.sub(r\"\\s+\", \" \", snippet.strip())\n209     digest = hashlib.sha1(normalized.encode(\"utf-8\")).hexdigest()[:10]\n210     return f\"{path.relative_to(base_dir).as_posix()}#{digest}\"\n",
+   "col_offset": 13,
+   "end_col_offset": 53,
+   "filename": "scripts/check_accessibility.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
+   "line_number": 209,
+   "line_range": [
+    209
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "90 def _signature_key(rel: str, snippet: str) -> str:\n91     digest = hashlib.sha1(_normalized_snippet(snippet).encode(\"utf-8\")).hexdigest()[:10]\n92     return f\"{rel}#{digest}\"\n",
+   "col_offset": 13,
+   "end_col_offset": 71,
+   "filename": "scripts/check_comment_hygiene.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
+   "line_number": 91,
+   "line_range": [
+    91
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "94 def _signature_key(rel: str, snippet: str) -> str:\n95     digest = hashlib.sha1(_normalized_snippet(snippet).encode(\"utf-8\")).hexdigest()[:10]\n96     return f\"{rel}#{digest}\"\n",
+   "col_offset": 13,
+   "end_col_offset": 71,
+   "filename": "scripts/check_feature_flags.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
+   "line_number": 95,
+   "line_range": [
+    95
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "114     try:\n115         root = ET.fromstring(xml_text)\n116     except ET.ParseError as exc:\n",
+   "col_offset": 15,
+   "end_col_offset": 38,
+   "filename": "scripts/check_hang_ratchet.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 20,
+    "link": "https://cwe.mitre.org/data/definitions/20.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Using xml.etree.ElementTree.fromstring to parse untrusted XML data is known to be vulnerable to XML attacks. Replace xml.etree.ElementTree.fromstring with its defusedxml equivalent function or make sure defusedxml.defuse_stdlib() is called",
+   "line_number": 115,
+   "line_range": [
+    115
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b313-b320-xml-bad-elementtree",
+   "test_id": "B314",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "104     normalized = re.sub(r\"\\s+\", \" \", snippet.strip())\n105     digest = hashlib.sha1(normalized.encode(\"utf-8\")).hexdigest()[:10]\n106     return f\"{rel}#{digest}\"\n",
+   "col_offset": 13,
+   "end_col_offset": 53,
+   "filename": "scripts/check_model_download_location.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
+   "line_number": 105,
+   "line_range": [
+    105
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "182 def _signature_key(rel: str, snippet: str) -> str:\n183     digest = hashlib.sha1(snippet.encode(\"utf-8\")).hexdigest()[:10]\n184     return f\"{rel}#{digest}\"\n",
+   "col_offset": 13,
+   "end_col_offset": 50,
+   "filename": "scripts/check_native_controls.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
+   "line_number": 183,
+   "line_range": [
+    183
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "54 def _signature_key(rel: str, snippet: str) -> str:\n55     digest = hashlib.sha1(_normalized_snippet(snippet).encode(\"utf-8\")).hexdigest()[:10]\n56     return f\"{rel}#{digest}\"\n",
+   "col_offset": 13,
+   "end_col_offset": 71,
+   "filename": "scripts/check_no_emoji_sf_symbols.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
+   "line_number": 55,
+   "line_range": [
+    55
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "72 def _sig(rel: str, body: str) -> str:\n73     digest = hashlib.sha1(body.encode(\"utf-8\")).hexdigest()[:10]\n74     return f\"{rel}#{digest}\"\n",
+   "col_offset": 13,
+   "end_col_offset": 47,
+   "filename": "scripts/check_python_comment_hygiene.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
+   "line_number": 73,
+   "line_range": [
+    73
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "71     norm = re.sub(r\"\\s+\", \" \", snippet).strip()\n72     return hashlib.sha1(f\"{rule}|{rel}|{norm}\".encode()).hexdigest()[:12]\n73 \n",
+   "col_offset": 11,
+   "end_col_offset": 56,
+   "filename": "scripts/check_shell_chrome.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
+   "line_number": 72,
+   "line_range": [
+    72
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "116     \"\"\"\n117     root = ET.fromstring(xml_text)\n118     items: list[AppcastItem] = []\n",
+   "col_offset": 11,
+   "end_col_offset": 34,
+   "filename": "scripts/check_sparkle_update_ready.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 20,
+    "link": "https://cwe.mitre.org/data/definitions/20.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Using xml.etree.ElementTree.fromstring to parse untrusted XML data is known to be vulnerable to XML attacks. Replace xml.etree.ElementTree.fromstring with its defusedxml equivalent function or make sure defusedxml.defuse_stdlib() is called",
+   "line_number": 117,
+   "line_range": [
+    117
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b313-b320-xml-bad-elementtree",
+   "test_id": "B314",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "311     try:\n312         with urllib.request.urlopen(url, timeout=timeout) as resp:  # noqa: S310 (fixed https feed URL)\n313             return resp.read().decode(\"utf-8\")\n",
+   "col_offset": 13,
+   "end_col_offset": 57,
+   "filename": "scripts/check_sparkle_update_ready.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 22,
+    "link": "https://cwe.mitre.org/data/definitions/22.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+   "line_number": 312,
+   "line_range": [
+    312
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+   "test_id": "B310",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "147     normalized = re.sub(r\"\\s+\", \" \", line.strip())\n148     digest = hashlib.sha1(normalized.encode(\"utf-8\")).hexdigest()[:10]\n149     return f\"{rel}#{digest}\"\n",
+   "col_offset": 13,
+   "end_col_offset": 53,
+   "filename": "scripts/check_swift_hand_rolled_urls.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
+   "line_number": 148,
+   "line_range": [
+    148
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "202     normalized = re.sub(r\"\\s+\", \" \", line.strip())\n203     digest = hashlib.sha1(normalized.encode(\"utf-8\")).hexdigest()[:10]\n204     return f\"{rel}#{digest}\"\n",
+   "col_offset": 13,
+   "end_col_offset": 53,
+   "filename": "scripts/check_swift_transport.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
+   "line_number": 203,
+   "line_range": [
+    203
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "147     normalized = re.sub(r\"\\s+\", \" \", snippet.strip())\n148     digest = hashlib.sha1(normalized.encode(\"utf-8\")).hexdigest()[:10]\n149     return f\"{path.relative_to(base_dir).as_posix()}#{digest}\"\n",
+   "col_offset": 13,
+   "end_col_offset": 53,
+   "filename": "scripts/check_tooltips.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
+   "line_number": 148,
+   "line_range": [
+    148
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "90     try:\n91         with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=300) as r:\n92             if rng and r.status != 206:\n",
+   "col_offset": 13,
+   "end_col_offset": 94,
+   "filename": "scripts/fetch_sample_corpus.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 22,
+    "link": "https://cwe.mitre.org/data/definitions/22.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+   "line_number": 91,
+   "line_range": [
+    91
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+   "test_id": "B310",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "131             partial = path.with_suffix(\".part\")\n132             with urllib.request.urlopen(urllib.request.Request(self.url, headers=AGENT), timeout=300) as r, partial.open(\"wb\") as out:\n133                 while chunk := r.read(1 << 20):\n",
+   "col_offset": 17,
+   "end_col_offset": 101,
+   "filename": "scripts/fetch_sample_corpus.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 22,
+    "link": "https://cwe.mitre.org/data/definitions/22.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+   "line_number": 132,
+   "line_range": [
+    132
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+   "test_id": "B310",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "246         data = _http(url)[0]\n247         if hashlib.sha1(b\"blob %d\\0\" % len(data) + data).hexdigest() != self.blobs[name]:\n248             raise OSError(f\"{name}: git blob sha mismatch\")\n",
+   "col_offset": 11,
+   "end_col_offset": 56,
+   "filename": "scripts/fetch_sample_corpus.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
+   "line_number": 247,
+   "line_range": [
+    247
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "264         lines = sorted(f\"{k} {size} md5:{md5}\" for k, (size, md5) in self.files.items())\n265         got = hashlib.md5(\"\\n\".join(lines).encode()).hexdigest()\n266         if got != listing_md5:\n",
+   "col_offset": 14,
+   "end_col_offset": 52,
+   "filename": "scripts/fetch_sample_corpus.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak MD5 hash for security. Consider usedforsecurity=False",
+   "line_number": 265,
+   "line_range": [
+    265
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "274         size, md5 = self.files[name]\n275         if (len(data), hashlib.md5(data).hexdigest()) != (size, md5):\n276             raise OSError(f\"{name}: not the bytes the record lists\")\n",
+   "col_offset": 23,
+   "end_col_offset": 40,
+   "filename": "scripts/fetch_sample_corpus.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak MD5 hash for security. Consider usedforsecurity=False",
+   "line_number": 275,
+   "line_range": [
+    275
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "301         want = self.files[name]\n302         got = hashlib.sha256(data).hexdigest() if len(want) == 64 else hashlib.sha1(b\"blob %d\\0\" % len(data) + data).hexdigest()\n303         if got != want:\n",
+   "col_offset": 71,
+   "end_col_offset": 116,
+   "filename": "scripts/fetch_sample_corpus.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak SHA1 hash for security. Consider usedforsecurity=False",
+   "line_number": 302,
+   "line_range": [
+    302
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "1101             data = _http(url)[0]\n1102             if (len(data), hashlib.md5(data).hexdigest()) != (size, md5):\n1103                 raise SystemExit(f\"{url}: changed upstream\")\n",
+   "col_offset": 27,
+   "end_col_offset": 44,
+   "filename": "scripts/fetch_sample_corpus.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak MD5 hash for security. Consider usedforsecurity=False",
+   "line_number": 1102,
+   "line_range": [
+    1102
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "1199 def _md5(path: Path) -> str:\n1200     digest = hashlib.md5()\n1201     with path.open(\"rb\") as handle:\n",
+   "col_offset": 13,
+   "end_col_offset": 26,
+   "filename": "scripts/fetch_sample_corpus.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 327,
+    "link": "https://cwe.mitre.org/data/definitions/327.html"
+   },
+   "issue_severity": "HIGH",
+   "issue_text": "Use of weak MD5 hash for security. Consider usedforsecurity=False",
+   "line_number": 1200,
+   "line_range": [
+    1200
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b324_hashlib.html",
+   "test_id": "B324",
+   "test_name": "hashlib"
+  },
+  {
+   "code": "18 ap.add_argument(\"--worktree\", default=os.getcwd())\n19 ap.add_argument(\"--scratch\", default=os.environ.get(\"TMPDIR\", \"/tmp\"))\n20 ap.add_argument(\"--root\", default=str(ROOT))\n",
+   "col_offset": 62,
+   "end_col_offset": 68,
+   "filename": "scripts/harness_policy_hook.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 377,
+    "link": "https://cwe.mitre.org/data/definitions/377.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Probable insecure usage of temp file/directory.",
+   "line_number": 19,
+   "line_range": [
+    19
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b108_hardcoded_tmp_directory.html",
+   "test_id": "B108",
+   "test_name": "hardcoded_tmp_directory"
+  },
+  {
+   "code": "47     tok = f'export CLAUDE_CODE_OAUTH_TOKEN=\"$(cat {shlex.quote(str(tokfile))})\" && '\n48 scratch = Path(jail.workroot or \"/tmp\") / a.name\n49 argv = S.prepare(a.root, a.worktree, S.brief_prompt(a.brief), scratch, model=a.model, claude_bin=claude)  # never the text on tmux's line\n",
+   "col_offset": 32,
+   "end_col_offset": 38,
+   "filename": "scripts/harness_start.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 377,
+    "link": "https://cwe.mitre.org/data/definitions/377.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Probable insecure usage of temp file/directory.",
+   "line_number": 48,
+   "line_range": [
+    48
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b108_hardcoded_tmp_directory.html",
+   "test_id": "B108",
+   "test_name": "hardcoded_tmp_directory"
+  },
+  {
+   "code": "83                         help=\"exit 1 if any open issue is STALE (the backlog rule, as a guard)\")\n84     parser.add_argument(\"--tsv\", default=\"/tmp/issue_triage.tsv\")\n85     args = parser.parse_args()\n",
+   "col_offset": 41,
+   "end_col_offset": 64,
+   "filename": "scripts/issue_triage.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 377,
+    "link": "https://cwe.mitre.org/data/definitions/377.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Probable insecure usage of temp file/directory.",
+   "line_number": 84,
+   "line_range": [
+    84
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b108_hardcoded_tmp_directory.html",
+   "test_id": "B108",
+   "test_name": "hardcoded_tmp_directory"
+  },
+  {
+   "code": "71         if len(rows) == 500:\n72             conn.executemany(\"INSERT INTO workflow_runs VALUES (\" + \", \".join(\"?\" * 17) + \")\", rows)\n73             rows = []\n",
+   "col_offset": 29,
+   "end_col_offset": 65,
+   "filename": "scripts/perf_activity_store_5645.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 72,
+   "line_range": [
+    72
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "74     if rows:\n75         conn.executemany(\"INSERT INTO workflow_runs VALUES (\" + \", \".join(\"?\" * 17) + \")\", rows)\n76     events = []\n",
+   "col_offset": 25,
+   "end_col_offset": 61,
+   "filename": "scripts/perf_activity_store_5645.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 75,
+   "line_range": [
+    75
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "80         if len(events) == 2000:\n81             conn.executemany(\"INSERT INTO activities VALUES (\" + \", \".join(\"?\" * 12) + \")\", events)\n82             events = []\n",
+   "col_offset": 29,
+   "end_col_offset": 62,
+   "filename": "scripts/perf_activity_store_5645.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 81,
+   "line_range": [
+    81
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "83     if events:\n84         conn.executemany(\"INSERT INTO activities VALUES (\" + \", \".join(\"?\" * 12) + \")\", events)\n85     conn.close()\n",
+   "col_offset": 25,
+   "end_col_offset": 58,
+   "filename": "scripts/perf_activity_store_5645.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 89,
+    "link": "https://cwe.mitre.org/data/definitions/89.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Possible SQL injection vector through string-based query construction.",
+   "line_number": 84,
+   "line_range": [
+    84
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+   "test_id": "B608",
+   "test_name": "hardcoded_sql_expressions"
+  },
+  {
+   "code": "121 \n122     with urllib.request.urlopen(url, timeout=timeout) as resp:  # noqa: S310 (fixed https feed)\n123         return resp.read().decode(\"utf-8\")\n",
+   "col_offset": 9,
+   "end_col_offset": 53,
+   "filename": "scripts/release_guard.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 22,
+    "link": "https://cwe.mitre.org/data/definitions/22.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+   "line_number": 122,
+   "line_range": [
+    122
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+   "test_id": "B310",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "45     \"\"\"Return [(nodeid, short_message)] for each failing/erroring testcase.\"\"\"\n46     root = ET.parse(junit_path).getroot()\n47     out: list[tuple[str, str]] = []\n",
+   "col_offset": 11,
+   "end_col_offset": 31,
+   "filename": "scripts/tests_to_issues.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 20,
+    "link": "https://cwe.mitre.org/data/definitions/20.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Using xml.etree.ElementTree.parse to parse untrusted XML data is known to be vulnerable to XML attacks. Replace xml.etree.ElementTree.parse with its defusedxml equivalent function or make sure defusedxml.defuse_stdlib() is called",
+   "line_number": 46,
+   "line_range": [
+    46
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b313-b320-xml-bad-elementtree",
+   "test_id": "B314",
+   "test_name": "blacklist"
+  },
+  {
+   "code": "125     out_dir = Path(args.out).resolve() if args.out else Path(\n126         f\"/tmp/fichero-ux-smoke-{uuid.uuid4().hex[:8]}\")\n127     out_dir.mkdir(parents=True, exist_ok=True)\n",
+   "col_offset": 10,
+   "end_col_offset": 32,
+   "filename": "scripts/ux_smoke.py",
+   "issue_confidence": "MEDIUM",
+   "issue_cwe": {
+    "id": 377,
+    "link": "https://cwe.mitre.org/data/definitions/377.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Probable insecure usage of temp file/directory.",
+   "line_number": 126,
+   "line_range": [
+    126
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b108_hardcoded_tmp_directory.html",
+   "test_id": "B108",
+   "test_name": "hardcoded_tmp_directory"
+  },
+  {
+   "code": "174     try:\n175         with urllib.request.urlopen(request, timeout=timeout) as response:\n176             body = response.read().decode()\n",
+   "col_offset": 13,
+   "end_col_offset": 61,
+   "filename": "scripts/verify_workflows.py",
+   "issue_confidence": "HIGH",
+   "issue_cwe": {
+    "id": 22,
+    "link": "https://cwe.mitre.org/data/definitions/22.html"
+   },
+   "issue_severity": "MEDIUM",
+   "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+   "line_number": 175,
+   "line_range": [
+    175
+   ],
+   "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+   "test_id": "B310",
+   "test_name": "blacklist"
+  }
+ ]
+}
