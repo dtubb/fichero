@@ -396,8 +396,8 @@ timeout_s = 720
 osv = false
 dirs = ["fichero-server/src", "fichero-cli/src", "fichero-mcp/src", "fichero-builder", "scripts", "fichero"]  # what the scanners and the waiver lints cover
 # The security rung runs on [check].build_remote (never on the manager's Mac); the runner's non-interactive ssh PATH is only the system
-# dirs, so the remote command puts these first. Add the directory bandit's `uv tool` install lives in (an owner path, not readable by workers).
-path = ["/opt/homebrew/bin"]
+# dirs, so the remote command puts these first. A leading ~/ expands to the runner's $HOME (bandit is a `uv tool` install in ~/.local/bin).
+path = ["/opt/homebrew/bin", "~/.local/bin"]
 # Pins are the exact versions `scripts/install_security_tools.sh` confirmed and wrote at install; an empty pin REFUSES the tool (a gate
 # that cannot read its tool fails). Written 2026-11-15 by --write-pins on the M4 (perf-sweep Step 1 b); the iMac is not installed yet.
 pins = { bandit = "1.9.4", semgrep = "1.185.0", gitleaks = "8.30.1", "osv-scanner" = "2.7.1" }

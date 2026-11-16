@@ -169,7 +169,7 @@ def test_a_refused_scanner_does_not_hide_the_reds_of_the_scanners_that_ran(repo,
 # ---- #6589 item 10: the security rung runs on the build runner (`_remote_build`), never on this Mac
 
 def _sec_cfg(**kw):
-    sec = {"enforce": False, "dirs": ["scripts"], "pins": {}, "path": ["/opt/homebrew/bin", "/opt/tools/bin"], **kw}
+    sec = {"enforce": False, "dirs": ["scripts"], "pins": {}, **kw}  # no `path`: the default in code
     return check_tool.Config(security=sec, build_remote="m4:/gate")
 
 
@@ -186,7 +186,8 @@ def test_the_security_scan_goes_over_ssh_with_the_scanner_path_and_the_pin_check
     (cmd, name, reuse), = seen
     assert name == "security" and reuse is False
     text = " ".join(cmd)
-    assert "/opt/homebrew/bin:/opt/tools/bin" in text and "PATH=" in text
+    assert "/opt/homebrew/bin:" in text and "PATH=" in text
+    assert 'export PATH=/opt/homebrew/bin:"$HOME/".local/bin:' in text  # ~/ is $HOME/ in double quotes: expanded on the runner, never quoted away
     assert text.index("install_security_tools.sh --check") < text.index("security_scan_run.py")  # the pin check, then the scan
     assert "--since a" in text and "--head b" in text
 

@@ -443,6 +443,7 @@ def _remote_heavy(py: str, lock: str, script: str) -> str:
     return shlex.join([py, "-c", _LOCK_CODE, lock, script])
 
 
+SECURITY_PATH = ("/opt/homebrew/bin", "~/.local/bin")  # semgrep and gitleaks (brew), bandit (a uv tool); overridden by `[check.security].path`
 GATE = "<gate>"  # stands for the runner's absolute gate dir in an argv built before the ssh that learns it
 
 
@@ -1604,10 +1605,12 @@ def security(root, since: str, head: str, changed: list[str], cfg: Config) -> di
     osv_on = bool(cfg.security.get("osv", False))
     if not cfg.build_remote:
         return _not_run("security", cfg.security, "no runner", "no [check].build_remote: the security scan never runs on the manager's Mac", {}, problems)
-    path = ":".join([*(cfg.security.get("path") or ["/opt/homebrew/bin"]), "/usr/bin", "/bin", "/usr/sbin", "/sbin"])  # the runner's ssh PATH is only the system dirs
+    # the runner's ssh PATH is only the system dirs; a leading ~/ becomes $HOME/ (expanded there, so it sits inside double quotes), the rest is quoted
+    parts = [*(cfg.security.get("path") or SECURITY_PATH), "/usr/bin", "/bin", "/usr/sbin", "/sbin"]
+    path = ":".join('"$HOME/"' + shlex.quote(d[2:]) if d.startswith("~/") else shlex.quote(d) for d in parts)
     scan = shlex.join([_gate_python(cfg, GATE), "scripts/security_scan_run.py", "--since", since, "--head", head, "--pins", json.dumps({**pins, "osv-scanner-enabled": osv_on})])
     # the pin check first (its report goes to stderr; a mismatch is the scan's own REFUSED line), then the scan under the same PATH
-    script = f"export PATH={shlex.quote(path)}; scripts/install_security_tools.sh --check >&2; {scan}"
+    script = f"export PATH={path}; scripts/install_security_tools.sh --check >&2; {scan}"
     rr = _remote_build(root, cfg, ("sh", "-c", script), "security", reuse=False)
     if rr is None:
         return _not_run("security", cfg.security, "runner down", "the build runner is unreachable: the security scan did not run (never run here)", {}, problems)
