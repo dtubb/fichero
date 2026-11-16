@@ -52,7 +52,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   right p50/p95; the launch milestones become ordered gaps whose sum is the last milestone's elapsed; a run with the
   stderr timeline only still yields the launch rows; the signpost export and the log for the same run agree within 5 ms or
   the row is marked `disagree` (never silently averaged). Test (to write):
-  `fichero-server/tests/unit/scripts/test_perf_log_readers.py::test_launch_and_interaction_lines_become_phase_rows_with_p50_p95_count`.
+  the new test_perf_log_readers file in fichero-server/tests/unit/scripts, case test_launch_and_interaction_lines_become_phase_rows_with_p50_p95_count.
 - `perf-sweep.source.engine-perf-lines` [GAP] (#6600) — `core/perf.py::perf_span` logs `PERF <name> <k=v …>
   duration_ms=<n>` and `model_load` logs `model-lane: loaded <model> in <s> s (load <n> in this engine)` plus the
   WARNING `model loaded again`. The reader takes an engine log (the run's, or the app's embedded-engine log from a smoke
@@ -87,7 +87,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   outputs, no engine): a pyinstrument JSON yields our frames only, ranked by self time with the share computed against
   the root's time; a memray stats JSON yields allocator rows by peak bytes; a `time -l` text yields RSS, user and sys;
   `du` pairs yield deltas; a machine without `sudo = ["py-spy"]` never spawns py-spy and the run says
-  `profiler: pyinstrument`. Test (to write): `fichero-builder/tests/test_perf_sweep.py::test_engine_profile_readers_rank_own_frames_allocators_disk_and_cpu_efficiency`.
+  `profiler: pyinstrument`. Test (to write): the new test_perf_sweep file in fichero-builder/tests, case test_engine_profile_readers_rank_own_frames_allocators_disk_and_cpu_efficiency.
 - `perf-sweep.source.app-profiles` [GAP] (#6600) — fresh app profiles over the app workloads (W6–W10), nightly, on the
   M4's GUI session, the Dev Local build from the daily `tests` build's derived data (`build-for-testing` output). The
   recorder is `xcrun xctrace record --template '<T>' --time-limit <s>s --launch -- <app> --env
@@ -194,7 +194,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   public-boundary grep that guards landings covers `scripts/perf_corpus.json` and the workload table. Acceptance: a
   manifest entry without a licence or a hash is refused; a mismatched hash on the runner refuses the run naming the
   corpus; the boundary grep over a fixture manifest carrying an archive name is red. Test (to write):
-  `fichero-server/tests/unit/scripts/test_perf_corpus.py::test_the_corpus_manifest_is_open_hashed_and_names_no_archive`.
+  the new test_perf_corpus file in fichero-server/tests/unit/scripts, case test_the_corpus_manifest_is_open_hashed_and_names_no_archive.
 
 ## Output — the ranked hotspot table and the filing rule
 
@@ -290,8 +290,8 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   Info.plist key`, `linker`). Acceptance (fixture JSON and a fixture log): a build-results JSON with 12 warnings yields 12
   normalised rows and the right kind counts; the owner's example line yields kind `script phase without outputs` with
   the phase named; two deprecations of different symbols are one kind with count 2; no bundle and no log is BLIND.
-  Test (to write): `fichero-server/tests/unit/scripts/test_check_xcode_warning_ratchet.py::test_warnings_are_read_from_the_bundle_normalised_to_kinds_and_blind_without_input`.
-- `perf-sweep.warnings.ratchet` [GAP] (#6610) — `scripts/check_xcode_warning_ratchet.py`, shaped exactly like
+  Test (to write): the new test_check_xcode_warning_ratchet file in fichero-server/tests/unit/scripts, case test_warnings_are_read_from_the_bundle_normalised_to_kinds_and_blind_without_input.
+- `perf-sweep.warnings.ratchet` [GAP] (#6610) — the new check_xcode_warning_ratchet file in scripts, shaped exactly like
   `check_swiftlint_warning_ratchet.py` (exit 0 held, 1 grew, 2 BLIND; `--update-baseline`; `--since <base>` for one
   item), holds `scripts/xcode_warning_baseline.json` = `{platform: {kind: count}}` EXACTLY: a batch that adds a warning
   of any kind on any platform is red naming the platform, the kind, the file and line, and both counts; a batch that
@@ -334,7 +334,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   ssh and fake rows): a 255 exit yields `not-run: runner down`; a remote exit 1 with "No module named pytest_benchmark"
   in stderr yields `not-run: perf tool refused` with the stderr in the row, never "unreachable"; empty pins yield
   `not-run: bandit refused`; a journal row for a `not-run` rung carries `state: not-run` and an `id`; the third in a row
-  files the issue once. Test (to write): extends `fichero-builder/tests/test_perf_rung.py` and `test_security_rung.py`
+  files the issue once. Test: new cases in `fichero-builder/tests/test_perf_rung.py` and `fichero-builder/tests/test_security_rung.py`
   with `test_a_rung_that_did_not_measure_is_not_run_never_green_and_names_why`.
 
 ## Build order
