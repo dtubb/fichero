@@ -154,3 +154,13 @@ def test_a_rung_that_did_not_measure_is_not_run_never_green_and_names_why(repo, 
     monkeypatch.setattr(check_tool, "_run", lambda *a, **k: {"ok": False, "exit_code": 1, "timed_out": False, "stdout_tail": "", "stderr_tail": "no module named x"})
     r = check_tool.security(repo, "a", "b", ["scripts/x.py"], cfg)
     assert r["not_run"] and "no module named x" in r["stdout_tail"]
+
+
+def test_a_refused_scanner_does_not_hide_the_reds_of_the_scanners_that_ran(repo, tmp_path, monkeypatch):
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    cfg = check_tool.Config(security={"enforce": False, "dirs": ["scripts"], "pins": {}})
+    red = {"scanner": "gitleaks", "rule": "generic-api-key", "where": "a.py:4", "red": True}
+    out = "SECURITY-RESULT " + json.dumps({"rows": [red], "refused": ["REFUSED: bandit is not installed on the runner", "REFUSED: semgrep is not installed on the runner"], "table": "t"})
+    monkeypatch.setattr(check_tool, "_run", lambda *a, **k: {"ok": False, "exit_code": 1, "timed_out": False, "stdout_tail": out, "stderr_tail": ""})
+    r = check_tool.security(repo, "a", "b", ["scripts/x.py"], cfg)
+    assert r["not_run"] and "bandit, semgrep refused" in r["stdout_tail"] and "gitleaks generic-api-key a.py:4" in r["stdout_tail"]

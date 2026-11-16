@@ -26,6 +26,7 @@ import sys
 import tempfile
 import threading
 import time
+import uuid
 import tomllib
 from dataclasses import dataclass, field, fields
 from pathlib import Path
@@ -1477,13 +1478,13 @@ def _timed_out_row(name: str, r: dict) -> dict | None:
     return None
 
 
-def _not_run(name: str, cfg_table: dict, reason: str, detail: str = "", extra: dict | None = None) -> dict:
+def _not_run(name: str, cfg_table: dict, reason: str, detail: str = "", extra: dict | None = None, also: list[str] = ()) -> dict:
     """A rung that measured nothing: `not-run: <reason>` with the remote stderr, a journal row (state not-run, an id) and never green
     (`perf-sweep.rung.not-run-is-visible`); the ladder still passes while `enforce` is off."""
     detail = (detail or "").strip()[-300:]
-    rid = f"{name}-not-run-{time.strftime('%Y%m%d%H%M%S')}-{sum(1 for x in journal.read() if x.get('state') == 'not-run') + 1}"
+    rid = f"{name}-not-run-{time.strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:8]}"  # unique without reading the journal
     journal.append("check", state="not-run", rung=name, id=rid, reason=reason, detail=detail)
-    return {**_report_only(name, cfg_table, False, [f"not-run: {reason}", *([detail] if detail else [])], extra), "not_run": True, "not_run_id": rid}
+    return {**_report_only(name, cfg_table, False, [f"not-run: {reason}", *([detail] if detail else []), *also], extra), "not_run": True, "not_run_id": rid}
 
 
 def perf(root, since: str, changed: list[str], cfg: Config) -> dict:
@@ -1607,13 +1608,14 @@ def security(root, since: str, head: str, changed: list[str], cfg: Config) -> di
     m = SECURITY_LINE.search(r.get("stdout_tail") or "")
     refused, rows, rows_table = [], [], "none"
     if not m:
-        return _not_run("security", cfg.security, "scan refused", "the scan printed no SECURITY-RESULT line: " + (r.get("stderr_tail") or r.get("stdout_tail") or "")[-300:], {"results": [r]})
+        return _not_run("security", cfg.security, "scan refused", "the scan printed no SECURITY-RESULT line: " + (r.get("stderr_tail") or r.get("stdout_tail") or "")[-300:], {"results": [r]}, problems)
     res = json.loads(m.group(1))
     refused, rows, rows_table = res.get("refused", []), res.get("rows", []), res.get("table", "none")
-    if refused:  # REFUSED: <tool> ... : the scanner is missing, unpinned or at another version, so nothing was scanned
-        tool = (re.match(r"REFUSED: (\S+)", refused[0]) or [None, "a scanner"])[1]
-        return _not_run("security", cfg.security, f"{tool} refused", "\n".join(refused), {"results": [r], "table": rows_table})
     reds = [x for x in rows if x.get("red")]
+    if refused:  # REFUSED: <tool> ...: that scanner did not scan; the others did, so their reds and the lint problems stay in the lines
+        tools = [(re.match(r"REFUSED: (\S+)", x) or [None, "a scanner"])[1] for x in refused]
+        return _not_run("security", cfg.security, f"{', '.join(tools)} refused", "\n".join(refused), {"results": [r], "table": rows_table},
+                        [*problems, *[f"{x['scanner']} {x['rule']} {x['where']}" for x in reds]])
     lines = [*problems, *refused, *[f"{x['scanner']} {x['rule']} {x['where']}" for x in reds]]
     return _report_only("security", cfg.security, not (problems or refused or reds), lines or ["no new finding"], {"results": [r], "table": rows_table})
 
