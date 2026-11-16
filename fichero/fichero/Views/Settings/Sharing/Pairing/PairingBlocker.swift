@@ -26,6 +26,8 @@ enum PairingBlocker: Equatable {
     case pinNotDerived
     /// The same, on an engine this app did not start (Dev Local): restarting sharing cannot mint a pin there (#5891).
     case pinNotDerivedOnExternalEngine
+    /// macOS's firewall blocks the engine, so no link made now could work (`sharing.firewall-prompt-says-what-to-click`).
+    case firewallBlocking
 
     /// The headline. Each cause names ITSELF.
     var headline: String {
@@ -38,6 +40,7 @@ enum PairingBlocker: Equatable {
         case .addressInvalid: return "That address doesn't work"
         case .pinNotDerived: return "Preparing the security certificate"
         case .pinNotDerivedOnExternalEngine: return "No security certificate for this address"
+        case .firewallBlocking: return "macOS is blocking other devices"
         }
     }
 
@@ -55,6 +58,8 @@ enum PairingBlocker: Equatable {
             return "Devices pair over HTTPS so the connection can be pinned. Restore the automatic address under Advanced."
         case .addressInvalid(let reason):
             return reason
+        case .firewallBlocking:
+            return FirewallCheck.blockedSentence
         case .pinNotDerivedOnExternalEngine:
             return "This engine was started outside Fichero, so Fichero can't make its certificate pin; "
                 + "restarting sharing here would change nothing. Start the engine from Fichero, or give it the pin."
@@ -74,7 +79,8 @@ enum PairingBlocker: Equatable {
         // The pin is normally minted when sharing turns on; when it is missing anyway the cure restarts the
         // engine, which stops work in flight, so it is a button the person presses, never automatic (#5891).
         case .pinNotDerived: return "Make a Pairing Link"
-        case .engineIsRemote, .addressMissing, .addressInsecure, .addressInvalid, .pinNotDerivedOnExternalEngine:
+        case .engineIsRemote, .addressMissing, .addressInsecure, .addressInvalid, .pinNotDerivedOnExternalEngine,
+             .firewallBlocking:
             return nil
         }
     }

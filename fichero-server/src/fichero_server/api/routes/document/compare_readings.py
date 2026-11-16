@@ -104,6 +104,12 @@ async def compare_readings(
     except RunComparisonError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     checked = bool(request.reference_checked_by and request.reference_checked_by.strip())
+    if not checked:  # no reading is checked: the figure is the readers' agreement, 1 - d / L, never an error rate
+        return CompareReadingsResponse(
+            measure="agreement", reference_label=ref_label, hypothesis_label=hyp_label, definition=AGREEMENT_DEFINITION,
+            scores=[ReadingScore(policy=x.policy, policy_description=x.policy_description, distance=x.distance,
+                                 reference_chars=x.reference_chars, hypothesis_chars=x.hypothesis_chars,
+                                 rate=1.0 - x.distance / max(x.reference_chars, x.hypothesis_chars, 1)) for x in scores])
     return CompareReadingsResponse(
         measure="cer" if checked else "agreement",
         reference_label=ref_label + (f" (checked by {request.reference_checked_by.strip()})" if checked else ""),
@@ -123,6 +129,11 @@ async def compare_readings(
 
 #: The convention readers are compared at (`source.disagree.normalised-first`).
 DISAGREEMENT_POLICY = "catmus-as-written"
+#: What the agreement figure is (`source.disagree.agreement-is-character-similarity-defined-once-and-never-accuracy`): never accuracy.
+AGREEMENT_DEFINITION = ("Agreement between the readers: 1 - d / L, where d is the edit distance between two readers' lines and L the longer of "
+                        "the two, in characters. A line's is the mean over its readers; the page's weights each line by its length. "
+                        "Case and punctuation count; u/v and i/j are one letter; abbreviations as written; diacritics compared as marks. "
+                        "No reading is checked, so it is not accuracy.")
 #: A reading made from a line's own words, not a reader's reading of the line.
 _DERIVED_TOOLS = frozenset({"line-from-its-words"})
 #: The levels a reading as written may carry: unset (a reader that says nothing reads as written) or as written.
@@ -149,12 +160,39 @@ class DisagreementWord(BaseModel):
     variants: list[DisagreementVariant] = Field(description="every distinct aligned word, most readers first")
 
 
+class ReaderSimilarity(BaseModel):
+    reader: str
+    distance: int = Field(description="Levenshtein distance between this reader's normalised line and the reference's")
+    length: int = Field(description="the longer of the two lines, in normalised characters")
+    agreement: float = Field(description="1 - distance / length (0-1); the reference itself is not listed")
+
+
+class AbsentReader(BaseModel):
+    reader: str = Field(description="the id of a compared reader with NO reading of this line")
+    why: str = Field(description="in words, from the writer's record: read the page and not this line, read another pass's lines, left this line out, or no reading")
+
+
+class AgainstCorrected(BaseModel):
+    reader: str
+    error_rate: float = Field(description="the character error rate of the reader's line against the corrected text, under the same convention")
+    reference_chars: int
+
+
 class DisagreementLine(BaseModel):
     segment_id: str
     reference_reader: str = Field(description="the medoid reading's reader id")
     text: str = Field(description="the reference reading, normalised")
-    agreement: float = Field(description="the mean of its words' agreement")
+    agreement: float = Field(description="character similarity between the readers: the mean over the readers other than the reference of 1 - d / L")
+    similarity: list[ReaderSimilarity] = Field(default_factory=list, description="each other reader's figures: what the definition line shows")
+    absent: list[AbsentReader] = Field(default_factory=list, description="every compared reader with no reading of this line, and why; not counted in `agreement`")
+    against_corrected: list[AgainstCorrected] = Field(default_factory=list, description="where a person's correction of this line exists: each reader's error rate against it; empty otherwise")
     words: list[DisagreementWord]
+
+
+class AgainstCorrectedPage(BaseModel):
+    error_rate: float = Field(description="the length-weighted mean of the readers' error rates over the lines that have a corrected text")
+    lines: int = Field(description="the lines that have a corrected text")
+    of_lines: int = Field(description="the lines compared")
 
 
 class DisagreementResponse(BaseModel):
@@ -162,7 +200,9 @@ class DisagreementResponse(BaseModel):
 
     page_id: str
     readers: list[DisagreementReader]
-    page_agreement: Optional[float] = Field(description="the mean over the page's words; null with no words")
+    page_agreement: Optional[float] = Field(description="the length-weighted mean of the lines' agreement (each line weighted by its reference's normalised length); null with no lines")
+    definition: str = Field(default="", description="what the agreement is, in words, for the app to print")
+    against_corrected: Optional[AgainstCorrectedPage] = Field(default=None, description="a separate figure, only where a person's correction exists")
     normalised_as: str = Field(description="the convention the readings were compared at")
     image_width: Optional[int] = Field(default=None, description="pixel width of the image the bboxes are in")
     image_height: Optional[int] = Field(default=None, description="pixel height of the image the bboxes are in")
@@ -264,8 +304,18 @@ def line_disagreement(readings: list[tuple[str, str]]) -> Optional[dict]:
         words.append({"text": word, "char_start": start, "char_end": end,
                       "agreement": len(variants.get(word, [])) / len(readings),
                       "variants": [{"text": t, "readers": r} for t, r in ordered]})
-    return {"reference_reader": ref_reader, "text": ref, "words": words,
-            "agreement": sum(w["agreement"] for w in words) / len(words)}
+    from fichero_server.llm.multilingual import levenshtein_distance
+
+    similarity = []
+    for i, (reader, text) in enumerate(readings):
+        if i == ref_index:
+            continue
+        distance = levenshtein_distance(ref, text)
+        length = max(len(ref), len(text))
+        similarity.append({"reader": reader, "distance": distance, "length": length,
+                           "agreement": 1.0 - distance / length if length else 1.0})
+    return {"reference_reader": ref_reader, "text": ref, "words": words, "similarity": similarity,
+            "agreement": sum(x["agreement"] for x in similarity) / len(similarity)}
 
 
 def _reader_of(row, artifacts: dict) -> tuple[str, str]:
@@ -353,7 +403,10 @@ def page_disagreement(db: Database, page_id: str) -> DisagreementResponse:
             if r.kind == "transcription" and r.level in _AS_WRITTEN_LEVELS and r.segment_id
             and r.producer_tool not in _DERIVED_TOOLS
             and getattr(r.provenance_kind, "value", r.provenance_kind) != "human"]
-    artifact_ids = sorted({r.derived_from_artifact_id for r in rows if r.derived_from_artifact_id})
+    every_row = list(db.query(ContentRepresentation, document_id=page_id))
+    page_rows = [r for r in every_row if r.kind == "transcription" and not r.segment_id and r.level in _AS_WRITTEN_LEVELS
+                 and r.producer_tool not in _DERIVED_TOOLS and getattr(r.provenance_kind, "value", r.provenance_kind) != "human"]
+    artifact_ids = sorted({r.derived_from_artifact_id for r in [*rows, *page_rows] if r.derived_from_artifact_id})
     artifacts = {a.id: a for a in db.query_in(Artifact, "id", artifact_ids)} if artifact_ids else {}
     # Each reader (a model and its run) in the order first met, with its newest reading of each segment.
     readers: dict[tuple[str, str], str] = {}
@@ -363,31 +416,67 @@ def page_disagreement(db: Database, page_id: str) -> DisagreementResponse:
         readers.setdefault(key, f"{key[0]}#{key[1]}")
         newest.setdefault(key, {})[row.segment_id] = row
     on_lines = [key for key in readers if line_ids & set(newest[key])]
+    # Readers that read the page and no line of it (their text is tied to nothing): compared nowhere, but never missing from the list.
+    page_only: dict[tuple[str, str], str] = {}
+    for row in sorted(page_rows, key=lambda r: (r.created_at, r.id)):
+        key = _reader_of(row, artifacts)
+        if key not in readers:
+            page_only.setdefault(key, f"{key[0]}#{key[1]}")
+    # A person's correction of a line is the corrected text the readers are measured against (never one of the readers).
+    corrected: dict[str, str] = {}
+    for row in sorted(every_row, key=lambda r: (r.created_at, r.id)):
+        if (row.kind == "transcription" and row.segment_id in line_ids and row.level in _AS_WRITTEN_LEVELS
+                and getattr(row.provenance_kind, "value", row.provenance_kind) == "human" and (row.content or "").strip()):
+            corrected[row.segment_id] = row.content
     runs_of: dict[str, list[str]] = {}
-    for model, run in on_lines:
+    every_key = [*on_lines, *page_only]
+    for model, run in every_key:
         runs_of.setdefault(model, []).append(run)
     labels = {key: _model_label(key[0]) + (f", run {runs_of[key[0]].index(key[1]) + 1}"
-                                           if len(runs_of[key[0]]) > 1 else "") for key in on_lines}
-    listed = [DisagreementReader(id=readers[k], label=labels[k]) for k in on_lines]
+                                           if len(runs_of[key[0]]) > 1 else "") for key in every_key}
+    ids = {**readers, **page_only}
+    listed = [DisagreementReader(id=ids[k], label=labels[k]) for k in every_key]
     if len(on_lines) < 2:
         return empty.model_copy(update={"readers": listed})
     out_lines: list[DisagreementLine] = []
-    every_word: list[float] = []
+    weighted: list[tuple[float, int]] = []
+    error_weighted: list[tuple[float, int]] = []
     for line in lines:
         given = [(readers[key], normalize(newest[key][line.id].content, policy))
                  for key in on_lines if line.id in newest[key]]
         found = line_disagreement(given)
         if found is None:
             continue
+        reason = str((line.metadata or {}).get("unread_reason") or "")
+        absent = [AbsentReader(reader=ids[k], why=(
+            "read the page, not tied to this line" if k in page_only else
+            f"left this line out: {reason}" if reason else "no reading of this line"))
+            for k in every_key if k not in on_lines or line.id not in newest[k]]
+        against: list[AgainstCorrected] = []
+        if line.id in corrected:
+            for reader, text in given:
+                try:
+                    score = character_error_rate(corrected[line.id], text, policy=policy)
+                except RunComparisonError:
+                    continue  # an empty corrected text has no denominator: no figure, not a zero
+                against.append(AgainstCorrected(reader=reader, error_rate=score.cer, reference_chars=score.reference_chars))
+                error_weighted.append((score.cer, score.reference_chars))
         ref_key = next(k for k in on_lines if readers[k] == found["reference_reader"])
         placed = _placed_words(newest[ref_key], words_of.get(line.id) or [], len(found["words"]), width, height)
         words = [DisagreementWord(**w, bbox=placed[i] if placed else None) for i, w in enumerate(found["words"])]
-        every_word += [w.agreement for w in words]
-        out_lines.append(DisagreementLine(segment_id=line.id, reference_reader=found["reference_reader"],
-                                          text=found["text"], agreement=found["agreement"], words=words))
+        weighted.append((found["agreement"], len(found["text"])))
+        out_lines.append(DisagreementLine(
+            segment_id=line.id, reference_reader=found["reference_reader"], text=found["text"], agreement=found["agreement"],
+            similarity=[ReaderSimilarity(**x) for x in found["similarity"]], absent=absent, against_corrected=against, words=words))
+    total = sum(w for _a, w in weighted)
+    error_total = sum(w for _e, w in error_weighted)
     return DisagreementResponse(
         page_id=page_id, readers=listed, normalised_as=policy.name, image_width=width, image_height=height,
-        page_agreement=(sum(every_word) / len(every_word)) if every_word else None, lines=out_lines)
+        page_agreement=(sum(a * w for a, w in weighted) / total) if total else None, definition=AGREEMENT_DEFINITION,
+        against_corrected=(AgainstCorrectedPage(error_rate=sum(e * w for e, w in error_weighted) / error_total,
+                                                lines=sum(1 for ln in out_lines if ln.against_corrected), of_lines=len(out_lines))
+                           if error_total else None),
+        lines=out_lines)
 
 
 @router.get("/{page_id}/disagreement", response_model=DisagreementResponse)
@@ -413,10 +502,40 @@ async def get_page_disagreement(page_id: str, db: Database = Depends(get_library
 PERSON_READER = "person"
 
 
+class CompareMeasure(BaseModel):
+    """What a candidate measured on the person's pages, for the column head (`wide.compare.price-and-time-per-candidate`).
+    Each figure is null where it was not measured, and `not_measured` then says why; nothing is guessed."""
+
+    cer: Optional[float] = Field(default=None, description="character error rate on the checked lines of the sample")
+    seconds: Optional[float] = Field(default=None, description="seconds the candidate took on the sample pages")
+    cost_usd: Optional[float] = Field(default=None, description="its cost on the sample pages; 0 on this Mac")
+    cost_basis: Optional[str] = Field(default=None, description="what the cost figure is: measured, an estimate or an upper bound")
+    local: bool = Field(default=False, description="it runs on this Mac, free")
+    not_measured: Optional[str] = Field(default=None, description="why a figure is missing, in words")
+    seconds_per_page: Optional[float] = Field(default=None, description="the sample's seconds divided by its pages")
+    pages_per_hour: Optional[float] = Field(default=None, description="pages an hour at the sample's rate")
+    project_pages: Optional[int] = Field(default=None, description="the pages the whole project would run over")
+    project_cost_usd: Optional[float] = Field(default=None, description="the sample's cost per page times the project's pages")
+    project_hours: Optional[float] = Field(default=None, description="the project's pages at the sample's rate, in hours")
+    project_basis: Optional[str] = Field(default=None, description="how the whole-project figures were worked out, in words")
+
+
 class CompareReader(BaseModel):
     id: str
     label: str
     kind: Literal["reader", "person", "candidate"]
+    measure: Optional[CompareMeasure] = Field(default=None, description="a Try candidate's figures; null for a page's own readers")
+
+
+class CompareFrame(BaseModel):
+    """The one image every candidate is drawn on: the page's current image (`media/current_image.py`), so A and B never
+    differ by a crop or a turn (`wide.compare.same-page-same-crop`)."""
+
+    read_from: Literal["original", "edited", "rendition"]
+    image_width: Optional[int] = None
+    image_height: Optional[int] = None
+    followed: bool = Field(description="the lines' place on this image is known (`frame_bbox` is set); false: they are drawn on the photograph")
+    note: str = Field(description="in words: which image this is, or why the photograph is used")
 
 
 class CompareReading(BaseModel):
@@ -438,6 +557,8 @@ class CompareLine(BaseModel):
     segment_id: Optional[str] = Field(default=None, description="null in a Try (its lines are copies)")
     order: int
     bbox: Optional[list[float]] = Field(default=None, description="[x, y, width, height] in the page image's pixels")
+    frame_bbox: Optional[list[float]] = Field(default=None, description=(
+        "the same box carried onto the page's current image (`frame`), in its pixels; null when the frame cannot be followed"))
     picture: Optional[str] = Field(default=None, description=(
         "a storage reference to the line's cut (`GET /api/segments/{id}/picture`), never a local path"))
     readings: list[CompareReading]
@@ -455,7 +576,65 @@ class CompareReadersResponse(BaseModel):
     readers: list[CompareReader]
     image_width: Optional[int] = None
     image_height: Optional[int] = None
+    frame: Optional[CompareFrame] = Field(default=None, description="the image the boxes are drawn on (null: the page has no image here)")
     lines: list[CompareLine]
+
+
+def frame_of(db: Database, document: Document, width: Optional[int], height: Optional[int]) -> tuple[Optional[CompareFrame], Any]:
+    """The page's current image as the frame every candidate is drawn on, and a function that carries a pixel box of the
+    photograph (`width` by `height`) onto it (None where the frame cannot be followed)."""
+    from pathlib import Path
+
+    from fichero_server.media.current_image import ORIGINAL, current_page_image, _size_of
+
+    try:
+        current = current_page_image(db, document)
+    except Exception:  # noqa: BLE001 -- an unreadable image: no frame, said by its absence, never guessed
+        current = None
+    if current is None:
+        return None, lambda box: None
+    if current.frame_unknown:
+        return (CompareFrame(read_from=current.kind, image_width=width, image_height=height, followed=False,
+                             note="the edits' place on the page is not known: drawn on the photograph"),
+                lambda box: None)
+    try:
+        size = _size_of(Path(current.path)) if current.kind != ORIGINAL else (float(width or 0) or None, float(height or 0) or None)
+    except Exception:  # noqa: BLE001
+        size = (None, None)
+    frame = CompareFrame(read_from=current.kind, image_width=int(size[0]) if size[0] else None,
+                         image_height=int(size[1]) if size[1] else None, followed=True, note=current.why)
+
+    def carry(box: Optional[list[float]]) -> Optional[list[float]]:
+        if box is None or not width or not height or not size[0] or not size[1]:
+            return None
+        if current.to_image is None:
+            return [round(v, 2) for v in box]
+        moved = current.to_image.carry_rect([box[0] / width, box[1] / height, box[2] / width, box[3] / height])
+        return [round(moved[0] * size[0], 2), round(moved[1] * size[1], 2), round(moved[2] * size[0], 2), round(moved[3] * size[1], 2)]
+
+    return frame, carry
+
+
+def candidate_measure(column: dict[str, Any], *, sample_pages: int = 0, project_pages: int | None = None) -> CompareMeasure:
+    """A Try column's figures for the head of its compare column: the error rate on the checked lines, the seconds, what it cost
+    on the sample pages with its basis; a figure it does not have says why (`wide.compare.price-and-time-per-candidate`)."""
+    cost = column.get("cost_usd") or {}
+    value = cost.get("value")
+    missing = [name for name, got in (("error rate", column.get("cer")), ("time", column.get("seconds"))) if got is None]
+    why = column.get("why") or (f"not measured: {' and '.join(missing)} (no checked lines to compare with, or not run to the end)"
+                                if missing else None)
+    seconds = column.get("seconds")
+    cost_usd = value if isinstance(value, (int, float)) else None
+    scaled: dict[str, Any] = {}
+    if seconds is not None and sample_pages > 0 and project_pages:
+        per_page = seconds / sample_pages
+        scaled = {"seconds_per_page": round(per_page, 2), "project_pages": project_pages,
+                  "pages_per_hour": round(3600 / per_page, 1) if per_page > 0 else None,
+                  "project_hours": round(per_page * project_pages / 3600, 2),
+                  "project_basis": f"scaled from the {sample_pages} sample pages to the project's {project_pages}",
+                  **({"project_cost_usd": round(cost_usd / sample_pages * project_pages, 2)} if cost_usd is not None else {})}
+    return CompareMeasure(cer=column.get("cer"), seconds=seconds, cost_usd=cost_usd, cost_basis=cost.get("basis"),
+                          local=bool(column.get("local")), not_measured=why, **scaled)
 
 
 def compare_lines(raw: list[dict[str, Any]]) -> list[CompareLine]:
@@ -505,7 +684,8 @@ def page_compare(db: Database, page_id: str, *, only: set[str] | None = None,
         raise LookupError(f"document {page_id} not found")
     width, height = _image_size(db, document)
     answer = working_pass(db, page_id)
-    empty = CompareReadersResponse(page_id=page_id, readers=[], image_width=width, image_height=height, lines=[])
+    frame, carry = frame_of(db, document, width, height)
+    empty = CompareReadersResponse(page_id=page_id, readers=[], image_width=width, image_height=height, frame=frame, lines=[])
     if answer.pass_id is None or is_unconverted_pass(answer.pass_id):
         return empty
     lines = ordered_lines(db, answer.pass_id)
@@ -568,7 +748,9 @@ def page_compare(db: Database, page_id: str, *, only: set[str] | None = None,
     built = compare_lines(raw)
     if only_differing:
         built = [line for line in built if line.differs]
-    return CompareReadersResponse(page_id=page_id, readers=readers, image_width=width, image_height=height, lines=built)
+    for line in built:
+        line.frame_bbox = carry(line.bbox)
+    return CompareReadersResponse(page_id=page_id, readers=readers, image_width=width, image_height=height, frame=frame, lines=built)
 
 
 def _overlap(a: list[float], b: list[float]) -> float:
@@ -596,13 +778,17 @@ def try_compare(db: Database, page_id: str, stage: str, *, only: set[str] | None
     if document is None:
         raise LookupError(f"document {page_id} not found")
     width, height = _image_size(db, document)
+    frame, carry = frame_of(db, document, width, height)
     readers: list[CompareReader] = []
     groups: list[dict[str, Any]] = []   # one per matched line: {"box": [...], "readings": {reader: text}}
+    # The count was kept when the try ended: counting the project here would walk it on every read.
+    sample_pages, project_pages = len(result.get("pages") or []), result.get("project_pages")
     for column in result.get("candidates") or []:
         page = next((p for p in column.get("per_page") or [] if p.get("id") == page_id), None)
         if page is None:
             continue
-        reader = CompareReader(id=str(column["card"]), label=str(column.get("name") or column["card"]), kind="candidate")
+        reader = CompareReader(id=str(column["card"]), label=str(column.get("name") or column["card"]), kind="candidate",
+                               measure=candidate_measure(column, sample_pages=sample_pages, project_pages=project_pages))
         placed = [r for r in page.get("readings") or [] if r.get("kind") == "transcription" and r.get("bbox") and r.get("text")]
         if not placed:
             continue
@@ -623,7 +809,9 @@ def try_compare(db: Database, page_id: str, stage: str, *, only: set[str] | None
     built = compare_lines(raw)
     if only_differing:
         built = [line for line in built if line.differs]
-    return CompareReadersResponse(page_id=page_id, readers=readers, image_width=width, image_height=height, lines=built)
+    for line in built:
+        line.frame_bbox = carry(line.bbox)
+    return CompareReadersResponse(page_id=page_id, readers=readers, image_width=width, image_height=height, frame=frame, lines=built)
 
 
 @router.get("/{page_id}/compare-readers", response_model=CompareReadersResponse)

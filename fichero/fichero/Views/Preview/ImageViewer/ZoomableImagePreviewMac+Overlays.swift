@@ -140,6 +140,8 @@ extension ZoomableImagePreview {
             annotationsEnabled: $annotationsEnabled,
             regionsEnabled: $regionsEnabled,
             inlineTextEnabled: $inlineTextEnabled,
+            orderNumbersEnabled: $showOrderNumbers,
+            boundingBoxesEnabled: $showBoundingBoxes,
             segmentEditingEnabled: windowState.map { state in
                 Binding(get: { state.isEditingSegments }, set: { state.isEditingSegments = $0 })
             },
@@ -218,7 +220,7 @@ extension ZoomableImagePreview {
                         coordinator: $imageCoordinator,
                         onPointer: { pointerFeed.publish($0) },
                         imageVisible: imageVisible,
-                        documentOverlay: documentOverlay
+                        documentOverlay: PreviewPointerProfile.timingOverlay { documentOverlay }
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     .overlay(alignment: .topLeading) {

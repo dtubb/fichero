@@ -275,3 +275,28 @@ extension EngineConfig {
         return isReachable ? .ready : .unreachable
     }
 }
+
+// MARK: - A paired host that was never chosen as this Mac's engine (#6418)
+
+extension EngineConfig {
+    /// The host the person chose with "Use It as This Mac's Engine"; only this one may stand in for the local engine.
+    static let wholeMacHostKey = "fichero.server.chosenWholeMacHost"
+
+    /// A stored host that is a paired Mac but was not chosen as the whole-Mac engine is a leftover of an earlier pairing
+    /// (before pairing stopped writing it): the launch would dial that Mac instead of starting this one's own engine, and
+    /// show a dead window when it is asleep. Returns true when it cleared one. macOS only; a host the person typed in
+    /// Engine › Advanced is not a paired Mac and is left alone.
+    @discardableResult
+    static func dropUnchosenPairedHost(
+        paired: [String] = PairedMachineStore.load().map(\.id),
+        defaults: UserDefaults = EngineConfig.defaults,
+        isMacOS: Bool = allowsEmbeddedLocalDefault
+    ) -> Bool {
+        guard isMacOS, let stored = defaults.string(forKey: userDefaultsKey)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !stored.isEmpty, paired.contains(stored),
+              defaults.string(forKey: wholeMacHostKey) != stored else { return false }
+        defaults.removeObject(forKey: userDefaultsKey)
+        defaults.removeObject(forKey: legacyUserDefaultsKey)
+        return true
+    }
+}

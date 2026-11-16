@@ -93,7 +93,10 @@ struct LibraryIconCell<Identity: Equatable & Sendable, Content: View>: View, Equ
             && lhs.tint == rhs.tint
     }
 
-    var body: some View { content }
+    var body: some View {
+        BodyCount.tick("LibraryIconCell")
+        return content
+    }
 }
 
 // LibraryRowHoverWash DELETED (Daniel, 2026-08-09: "why do we have hover?
@@ -123,7 +126,8 @@ struct LibrarySelectableRow<Identity: Equatable & Sendable, Content: View>: View
     }
 
     var body: some View {
-        content
+        BodyCount.tick("LibrarySelectableRow")
+        return content
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             // The ONE selection grammar (2026-08-09 ruling): accent fill

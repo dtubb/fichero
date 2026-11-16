@@ -48,6 +48,7 @@ extension ContentView {
                 // crashes on the next service (see LibraryServiceEnvironment).
                 if let library = libraryManager.getLibrary(id: windowState.libraryId) {
                     inspectorContainerView
+                        .columnBottomEdge(isCompact: horizontalSizeClass == .compact)
                         .libraryServiceEnvironment(library)
                         // The window/app-level objects don't cross the
                         // .inspector boundary either — re-inject everything
@@ -129,12 +130,59 @@ extension ContentView {
         // ContentView.swift, outside this file's edit scope for this pass —
         // left as a follow-up rather than adding a dead menu item.
         .overlay { immersiveReadingOverlay }
-        .background {
-            Button("Enter Full-Screen Reading", action: enterImmersiveReading)
-                .keyboardShortcut("r", modifiers: [.command, .control])
-                .opacity(0)
-                .disabled(immersiveReadingDocument == nil)
+        // Focus is the window's real full screen (`panes.focus-mode`, owner 2026-11-13): in on entering, back out on leaving
+        // only if focus took it there.
+        .onChange(of: isImmersiveReading) { _, focused in focusModeChanged(focused) }
+        .onChange(of: windowState.focusedPaneLeaf) { old, new in
+            if (old == nil) != (new == nil) { paneFocusChanged(new != nil) }
         }
+        // View › Focus on Pane (⌃⌘R) acts on this window (`panes.focus.any-pane-fills-the-screen`); on a Preview showing a
+        // page it is the page reader, as the chord always was.
+        .focusedSceneValue(\.focusOnPane, FocusedLibraryAction(
+            isEnabled: focusOnPaneStep != .nothing,
+            target: focusOnPaneStep == .leave ? "leave" : "enter",
+            run: { focusOnPane() }
+        ))
+        .background {
+            if windowState.focusedPaneLeaf != nil {
+                Button("Leave Focus") { windowState.focusedPaneLeaf = nil }
+                    .keyboardShortcut(.cancelAction)
+                    .opacity(0)
+            }
+        }
+    }
+
+    /// What ⌃⌘R would do now.
+    private var focusOnPaneStep: FocusMode.Step {
+        FocusMode.step(
+            focusedNow: windowState.focusedPaneLeaf, focusedKind: (focusedPane ?? paneFocusHint)?.paneKind,
+            // A page the reader can show (an image or a page), as its siblings are filtered: a folder is not one.
+            focusedLeaf: focusedLeafID,
+            hasPage: immersiveReadingDocument.map { $0.fileType == .image || $0.docType == .page } ?? false
+        )
+    }
+
+    /// ⌃⌘R, View › Focus on Pane: one chord, `FocusMode.step` decides.
+    func focusOnPane() {
+        switch focusOnPaneStep {
+        case .leave: windowState.focusedPaneLeaf = nil
+        case .readPage: enterImmersiveReading()
+        case .focus(let id): windowState.focusedPaneLeaf = id
+        case .nothing: break
+        }
+    }
+
+    /// A pane's Focus entered or left: the window's full screen as the reader's Focus does it, and the sidebar hidden
+    /// and put back as it was. The Inspector follows `effectiveShowInspectorSidebar`.
+    private func paneFocusChanged(_ focused: Bool) {
+        if focused {
+            windowState.columnsBeforeFocus = columnVisibility
+            columnVisibility = .detailOnly
+        } else if let before = windowState.columnsBeforeFocus {
+            columnVisibility = before
+            windowState.columnsBeforeFocus = nil
+        }
+        focusModeChanged(focused)
     }
 
     private var immersiveReadingDocument: Document? {
@@ -168,7 +216,26 @@ extension ContentView {
         }
     }
 
-    private func enterImmersiveReading() {
+    private func focusModeChanged(_ focused: Bool) {
+        #if os(macOS)
+        guard let window = NSApp.keyWindow ?? NSApp.mainWindow else { return }
+        let isFullScreen = window.styleMask.contains(.fullScreen)
+        if focused {
+            focusEnteredFullScreen = FocusMode.entersFullScreen(windowIsFullScreen: isFullScreen)
+            if focusEnteredFullScreen { window.toggleFullScreen(nil) }
+        } else {
+            if FocusMode.leavesFullScreen(focusEnteredIt: focusEnteredFullScreen, windowIsFullScreen: isFullScreen) {
+                window.toggleFullScreen(nil)
+            }
+            focusEnteredFullScreen = false
+        }
+        #endif
+    }
+
+    /// ⌃⌘R reads the current page; the Preview head's full-screen button (#6560) names the page the Preview shows, which
+    /// becomes the detail document so the reader opens on it and pages on from there.
+    func enterImmersiveReading(showing shown: Document? = nil) {
+        if let shown, shown.id != immersiveReadingDocument?.id { detailDocument = shown }
         guard immersiveReadingDocument != nil else { return }
         isImmersiveReading = true
     }
@@ -192,7 +259,8 @@ extension ContentView {
     /// this expression in reasonable time").
     @ViewBuilder
     private var detailColumn: some View {
-        detailShellColumn
+        // iOS's search field belongs to this column, whose bar draws its item (#6563).
+        iOSToolbarSearchable(detailShellColumn)
             // The capability bar spans the CONTENT and not the sidebar or
             // inspector, because it acts on the content selection (2026-08-28).
             // One tiny property, per this file's type-checker budget.
@@ -201,8 +269,7 @@ extension ContentView {
             // so it lands outermost — directly under the toolbar). Daniel,
             // 2026-08-30: Preview.app's markup bar, window-scoped.
             .safeAreaInset(edge: .top, spacing: 0) { annotationBarInset }
-            // The project's recipe run, live and then what it made (#5576, #5577).
-            .safeAreaInset(edge: .bottom, spacing: 0) { ProjectRunStripView(libraryId: windowState.libraryId) }
+            // No recipe-run strip along the bottom (owner 2026-11-13): a run is Activity's, not the main window's.
             .toolbar { detailToolbarContent }
             // The content-pane external drop (#4184), scoped to `detailColumn`
             // specifically — never the sidebar. Scope was the ONLY reason
@@ -298,21 +365,20 @@ extension ContentView {
             columnVisibility: $columnVisibility,
             preferredCompactColumn: $preferredCompactColumn
         ) {
+            // Each column runs to the iPad's bottom edge (`BottomSafeAreaPolicy`).
             sidebarContent
+                .columnBottomEdge(isCompact: horizontalSizeClass == .compact)
         } detail: {
             detailColumn
+                .columnBottomEdge(isCompact: horizontalSizeClass == .compact)
         }
         // Force DISJOINT, side-by-side columns (#3069): the default `.automatic`
         // style can fall back to an OVERLAID sidebar on macOS that draws on top
         // of the content/library list and clips its leading edge. `.balanced`
         // keeps the sidebar as a real column beside the content, fully visible.
         .navigationSplitViewStyle(.balanced)
-        // #4970: the sidebar toggle is the SYSTEM one. A hand-placed item at
-        // `.navigation` shared a toolbar section with Back/Forward and drew as
-        // one capsule over the content. ponytail: NavigationSplitView already
-        // places its toggle correctly in both sidebar states. If it falls into
-        // the overflow chevron under pressure again, file that against the
-        // system toggle; do not re-add a hand-placed one.
+        // The sidebar toggle is the system one on iOS. On the Mac the far-left
+        // pair replaces it (see `sidebarContent`).
         .navigationTitle(toolbarTitle)
         // No proxy icon here (removed 2026-10-11): a modifier that is present for a document and absent without one
         // changes the whole split view's identity when the window's project or item changes, so SwiftUI tore down
@@ -354,18 +420,16 @@ extension ContentView {
             // "Cross-window handoff" extension.
             kgFocusState.consumePendingHandoff()
         }
-        .onChange(of: documentStore.collections) { old, new in
-            handleCollectionsChange(old: old, new: new)
-        }
-        .onChange(of: documentStore.currentDocuments) { _, newDocs in
-            handleCurrentDocumentsChange(newDocs)
-        }
-        // Change-stream splices for page children land in childrenCache /
-        // collections, not currentDocuments — refresh the focused snapshots
-        // from the store's full-container lookup too (#4318).
-        .onChange(of: documentStore.revision) { _, _ in
-            handleDocumentRevisionChange()
-        }
+        // The store's roots, the shown folder's documents, and change-stream splices for page
+        // children (which land in childrenCache / collections, not currentDocuments, #4318), each
+        // refresh the focused snapshots. Watched by a child view so a folder load does not
+        // re-evaluate this whole window (#4228, `DocumentStoreChangeObserver`).
+        .background(DocumentStoreChangeObserver(
+            store: documentStore,
+            onCollectionsChange: { old, new in handleCollectionsChange(old: old, new: new) },
+            onCurrentDocumentsChange: { handleCurrentDocumentsChange($0) },
+            onRevisionChange: { handleDocumentRevisionChange() }
+        ))
         // Inspector visibility is per-window (@SceneStorage). It is NOT mirrored
         // into the app-wide ViewSettings any more — doing so flipped the
         // inspector in every open window at once (#1451). The View menu reaches
@@ -373,7 +437,11 @@ extension ContentView {
         .onChange(of: showInspectorSidebar) { _, _ in
             updateColumnVisibility()
         }
+        // The Mac's window toolbar draws items attached to the split view itself; an iPad's bars do not, so on iOS the
+        // same leading items are in the content column's bar instead (`detailToolbarContent`, #6563).
+        #if !os(iOS)
         .toolbar { mainToolbarContent }
+        #endif
         .onChange(of: viewSettings.previewMode) { _, newPreviewMode in
             handlePreviewModeChange(newPreviewMode)
         }
@@ -397,26 +465,23 @@ extension ContentView {
     @ViewBuilder
     private var decoratedNavigationSplitColumn: some View {
         navigationSplitColumn
-            // Multi-selection scoping (2026-08-09): registered BEFORE the
-            // single-id handler so a shrink-to-one still lets the navigate
-            // path run after the scope check declines it.
-            .onChange(of: sidebarSelectionState.selectedDestinations) { _, newDestinations in
-                handleSidebarMultiSelectionChange(newDestinations)
-            }
-            // A breadcrumb opening the node already selected (#5633): the same pane handler a
-            // click's selection change runs below, since re-selecting it changes nothing.
-            .onChange(of: sidebarSelectionState.reopenGeneration) { _, _ in
-                handleSidebarSelectionChange(sidebarSelectionState.selectedItemId)
-            }
-            .onChange(of: sidebarSelectionState.selectedItemId) { _, newFolderId in
-                selectedSidebarItemId = newFolderId
-                handleSidebarSelectionChange(newFolderId)
-                revealContentOnCompact()
-            }
-            // A project row chosen again (already selected): no selection changes, the person still means to go in.
-            .onChange(of: sidebarSelectionState.revealGeneration) { _, _ in
-                revealContentOnCompact()
-            }
+            // The sidebar's selection, watched by a child view so a click does not re-evaluate this
+            // whole window to draw its highlight (#4228, `SidebarSelectionObserver`). Multi-selection
+            // scoping (2026-08-09) first, so a shrink-to-one still lets the navigate path run after
+            // the scope check declines it; a breadcrumb opening the node already selected (#5633)
+            // runs the same pane handler a click does; a project row chosen again (already selected)
+            // changes no selection, but the person still means to go in.
+            .background(SidebarSelectionObserver(
+                selection: sidebarSelectionState,
+                onDestinationsChange: { handleSidebarMultiSelectionChange($0) },
+                onReopen: { handleSidebarSelectionChange(sidebarSelectionState.selectedItemId) },
+                onSelectedItemIdChange: { newFolderId in
+                    selectedSidebarItemId = newFolderId
+                    handleSidebarSelectionChange(newFolderId)
+                    revealContentOnCompact()
+                },
+                onReveal: { revealContentOnCompact() }
+            ))
             .onChange(of: sidebarMode) { _, _ in
                 handleSidebarModeChange()
             }

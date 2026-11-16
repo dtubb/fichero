@@ -41,7 +41,7 @@ _REQUIRED_FLOORS = {
     "langchain": ("1.3.9", "PYSEC-2026-2192"),
     "langchain-anthropic": ("1.4.6", "PYSEC-2026-2556"),
     "mcp": ("1.28.1", "PYSEC-2026-3483"),
-    "pillow": ("12.3.0", "22 image-decoder advisories"),
+    "pillow": ("13.0.0", "2026-11 advisories (#6600)"),
 }
 
 _SHIPPED_LISTS = ("briefcase.requires", "project.dependencies")

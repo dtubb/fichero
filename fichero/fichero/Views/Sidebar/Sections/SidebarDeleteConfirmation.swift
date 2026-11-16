@@ -120,9 +120,24 @@ func inheritedSelection(afterProposing proposed: [String], inherited: String?) -
 /// to the clicked row when nothing in the selection is deletable so the
 /// menu item's enabled state still reflects the row under the pointer.
 func sidebarContextDeleteTargets(clicked: SidebarItem, selection: [SidebarItem]) -> [SidebarItem] {
-    guard selection.count > 1, selection.contains(where: { $0.id == clicked.id }) else {
+    guard sidebarContextTargetIds(clicked: clicked.id, selection: selection.map(\.id)).count > 1 else {
         return [clicked]
     }
     let deletable = sidebarDeletableItems(selection)
     return deletable.isEmpty ? [clicked] : deletable
+}
+
+/// A sidebar delete takes all its rows out of the store BEFORE the engine calls (#6535), so a multi-selection goes
+/// together, as in Finder, instead of row by row as each `document.delete` lands. Local only; a row the engine then
+/// refuses comes back with the refresh `sidebarDeleteNeedsRefresh` asks for.
+@MainActor
+func sidebarRemoveRowsBeforeDelete(_ documents: [Document], from store: DocumentStore) {
+    store.removeDocuments(ids: Set(documents.map(\.id)))
+}
+
+/// Whether a sidebar delete re-reads the store afterwards (#6535): only when the engine took fewer than it was asked
+/// to. When every delete lands the rows are already gone and the change stream reports the rest, so the full refresh
+/// (3.6 s on a two-item delete, reloading the parent level) is not run.
+func sidebarDeleteNeedsRefresh(deleted: Int, asked: Int) -> Bool {
+    deleted < asked
 }

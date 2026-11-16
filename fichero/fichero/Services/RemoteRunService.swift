@@ -25,7 +25,6 @@ final class RemoteRunService {
         let shards: [Shard]
         let estimateGpuHours: Double?
         let actualSecondsPerShard: Double?
-        enum Offer: Equatable { case cancel, retryFailedShards, catchUp }
         var offers: [Offer] {
             switch farState {
             case "queued", "running": return [.cancel, .catchUp]
@@ -87,4 +86,8 @@ final class RemoteRunService {
         return service
     }
     #endif
+}
+
+extension RemoteRunService.Run {
+    enum Offer: Equatable { case cancel, retryFailedShards, catchUp }
 }

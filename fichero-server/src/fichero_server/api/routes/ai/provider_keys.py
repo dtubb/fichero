@@ -838,6 +838,8 @@ def _action_set_api_key(
     DeleteApiKeyParams,
     domains=["provider"],
     undoable=False,
+    owner_only=True,
+    owner_scope="app",
 )
 def _action_delete_api_key(
     db, params: DeleteApiKeyParams, ctx: ActionContext

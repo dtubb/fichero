@@ -105,8 +105,9 @@ UNIT_PLAN="fichero"
 # module: 'FicheroAPIClient' ... built without '-enable-testing'". Debug carries
 # testability, and build-for-testing under it succeeds. Verified both ways.
 UNIT_CONFIG="Debug"
-# The one surviving iOS-family scheme; it carries `fichero` and `fichero-ipad`.
-IOS_SCHEME="fichero-ios"
+# The iOS legs build the one multiplatform target through this scheme. The old `fichero-ios` scheme no longer exists
+# (xcodebuild: "does not contain a scheme named fichero-ios"), which left the iOS compile leg unrunnable (#6321).
+IOS_SCHEME="Fichero (Dev Local)"
 UI_SCHEME="Fichero (Dev Local)"
 GATE_DERIVED="${GATE_DERIVED:-build/gate-derived}"
 SWIFT_TESTS_DIR="fichero/Tests/Unit"
@@ -563,6 +564,12 @@ cmd_part() {
   run_leg "check_emit_change_coverage" run_gated "part-check_emit_change_coverage" 90 \
     "$part_py" scripts/check_emit_change_coverage.py \
     || failed=1
+  # What this item adds, red or green whatever the total says (#5995). A tree with no origin/integration has no item to measure.
+  if git rev-parse --verify -q origin/integration >/dev/null; then
+    run_leg "swiftlint-added-by-item" run_gated "part-swiftlint-added-by-item" 300 \
+      "$part_py" scripts/check_swiftlint_warning_ratchet.py --since origin/integration \
+      || failed=1
+  fi
 
   # 2. Build. Swift tests cannot run without it, and a part that does not
   #    compile is not verified whatever its tests say.
@@ -763,6 +770,9 @@ cmd_engine() {
     esac
   done
   local py; py="$(find_python)"
+  # pytest 9.2.0 fails test_perf_disk_reclaim; a venv built from uv.lock can carry it (#6320). The leg fails, in words, with its
+  # table row: not `die`, which would end verify-all after the Swift legs with no summary.
+  "$REPO_ROOT/scripts/check_pytest_pin.sh" "$py" || return 2
   local args=()
   if [[ -n "$area" ]]; then
     resolve_area "$area"
@@ -806,6 +816,7 @@ cmd_perf() {
   # entities, budget assertions). ~35-40 min; SLOW, not hung — two tests print
   # nothing for ~25 min each under -q (#4039), so stream with -rf and no -q.
   local py; py="$(find_python)"
+  "$REPO_ROOT/scripts/check_pytest_pin.sh" "$py" || return 2
   local args=("$@")
   [[ ${#args[@]} -gt 0 ]] || args=(fichero-server/tests/perf/)
   run_gated "perf-pytest" "${GATE_TIMEOUT_PERF:-5400}" \

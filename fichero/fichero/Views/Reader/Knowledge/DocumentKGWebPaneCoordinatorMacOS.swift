@@ -69,6 +69,8 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
     /// The pending automatic reload after a failed engine load; cancelled by
     /// the next explicit load so a stale retry cannot race a fresh document.
     var failureRetryTask: Task<Void, Never>?
+    /// The engine URL last asked for, so the failure page can offer Retry (#6450).
+    var lastRequestURL: URL?
     /// Whether the engine answers after a typed line could not reach it (13b out of reach), and the task
     /// that tells the page each change of it.
     var reachability: EngineReachabilityStore?
@@ -131,6 +133,7 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
             )
             return
         }
+        lastRequestURL = request.url
         webView.load(request)
     }
 
@@ -321,7 +324,11 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
     ) {
         loadFailurePageIfEngineLoad(webView, error: error)
     }
+}
 
+// MARK: - Web view callbacks
+
+extension DocumentKGWebPaneCoordinatorMacOS {
     private func loadFailurePageIfEngineLoad(_ webView: WKWebView, error: any Error) {
         if error.isCancellationError { return }
         // Scheme-handler failures lack a failing URL, while transport failures include one.
@@ -361,7 +368,7 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
             }
         }
         webView.loadHTMLString(
-            DocumentKGPaneRoute.loadFailureHTML(detail: error.localizedDescription),
+            DocumentKGPaneRoute.loadFailureHTML(detail: EngineWebViewError.words(for: error), retryURL: lastRequestURL),
             baseURL: nil
         )
     }
@@ -503,22 +510,23 @@ extension DocumentKGWebPaneCoordinatorMacOS {
         store.wentAway(reason)
     }
 
-    /// The Reader's caret line becomes the focused Source view's selection (#5155), revealed there:
-    /// scrolled and zoomed to (#5424), by the same one action as the Order list's double-click.
+    /// The Reader's caret line becomes the window's shared selection (#5155, #6482), revealed in a focused Preview:
+    /// scrolled and zoomed to (#5424), and shown in the Inspector -- the Lines view's click, one action.
     @MainActor
     func focusLine(_ focus: ReaderLineSelection.Focus) {
         guard let library else { return }
-        windowState?.revealSegments(
+        windowState?.pickInReader(
             [focus.segmentId], documentId: focus.pageId, store: SegmentStore.shared(for: library.segmentService)
         )
     }
 
-    /// The focused Source view's selection, shown in the Reader's text (#5155). Sent only on change.
+    /// The window's shared selection -- the focused Preview's, else the window's own -- shown in the Reader's text (#5155,
+    /// #6482). Sent only on change.
     @MainActor
     func syncSelectedLines(into webView: WKWebView) {
         guard let library else { return }
         var ids: [String] = []
-        if let selection = windowState?.focusedRegionSelection, let pageId = selection.documentId {
+        if let selection = windowState?.sharedRegionSelection, let pageId = selection.documentId {
             ids = InspectorPath.selectedSegmentIds(
                 selection: selection, documentId: pageId, store: SegmentStore.shared(for: library.segmentService)
             )

@@ -10,7 +10,7 @@ import Testing
 struct PreviewSelectAllPolicyGuardTests {
     private func regionsSource() throws -> String {
         let url = try AppSource.root().appendingPathComponent(
-            "Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+Regions.swift"
+            "Views/Preview/ImageViewer/Regions/Zoomable/ZoomableImagePreviewMac+Regions.swift"
         )
         return try String(contentsOf: url, encoding: .utf8)
     }
@@ -91,7 +91,7 @@ struct StickyMarkupArmingGuardTests {
         #expect(viewer.contains("case .star: pendingAnnotationTool = .bookmark; isDrawingRegion = true"))
 
         let annotations = try source(
-            "Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+Annotations.swift"
+            "Views/Preview/ImageViewer/Regions/Zoomable/ZoomableImagePreviewMac+Annotations.swift"
         )
         #expect(annotations.contains("pendingAnnotationTool = .bookmark\n            isDrawingRegion = true"))
         #expect(

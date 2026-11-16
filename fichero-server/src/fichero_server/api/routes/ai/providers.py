@@ -1068,6 +1068,8 @@ def _invert_create_provider(
     domains=["provider"],
     undoable=True,
     invert=_invert_create_provider,
+    owner_only=True,
+    owner_scope="app",
 )
 def _action_create_provider(
     db, params: ProviderCreateParams, ctx: ActionContext
@@ -1115,6 +1117,8 @@ def _invert_update_provider(
     domains=["provider"],
     undoable=True,
     invert=_invert_update_provider,
+    owner_only=True,
+    owner_scope="app",
 )
 def _action_update_provider(
     db, params: ProviderUpdateParams, ctx: ActionContext
@@ -1174,6 +1178,8 @@ def _invert_delete_provider(
     domains=["provider"],
     undoable=True,
     invert=_invert_delete_provider,
+    owner_only=True,
+    owner_scope="app",
 )
 def _action_delete_provider(
     db, params: ProviderDeleteParams, ctx: ActionContext
@@ -1209,6 +1215,8 @@ def _action_delete_provider(
     RestoreProviderParams,
     domains=["provider"],
     undoable=False,
+    owner_only=True,
+    owner_scope="app",
 )
 def _action_restore_provider(
     db, params: RestoreProviderParams, ctx: ActionContext
@@ -1247,6 +1255,8 @@ def _invert_remove_model(
     domains=["provider"],
     undoable=True,
     invert=_invert_remove_model,
+    owner_only=True,
+    owner_scope="app",
 )
 def _action_remove_model(
     db, params: RemoveModelParams, ctx: ActionContext
@@ -1275,6 +1285,8 @@ def _action_remove_model(
     RestoreModelParams,
     domains=["provider"],
     undoable=False,
+    owner_only=True,
+    owner_scope="app",
 )
 def _action_restore_model(
     db, params: RestoreModelParams, ctx: ActionContext

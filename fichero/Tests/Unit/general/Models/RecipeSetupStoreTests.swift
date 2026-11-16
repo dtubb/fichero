@@ -497,6 +497,30 @@ struct RecipeSetupStoreTests {
         #expect(RecipeStartFields.cost(nil) == "price unknown")
     }
 
+    /// WHY (`wide.start.enabled-on-any-run`, #5806): a plan whose only steps are cards (Prepare Images alone) has `runs` and no workflows;
+    /// Start was disabled with "every step is skipped" though the engine would run it.
+    @Test("Start is offered for a plan with a card run and no workflow, and not for a plan with nothing to run")
+    func startReadsRunsNotWorkflows() async {
+        let cardOnly = makeStore { request in
+            Self.reply(request, 200, """
+                {"runs":[{"card":"prepare","steps":["prep"],"job":"prepare-the-image","runs_on":"this-mac"}],"skipped":[],"workflows":[],"offered":[],"refusals":[],
+                 "estimate":{"pages":49,"runs":[],"total_cost_usd":0}}
+                """)
+        }
+        await cardOnly.loadStartPlan()
+        #expect(cardOnly.canStart)
+        #expect(cardOnly.startDisabledReason == nil)
+
+        let empty = makeStore { request in
+            Self.reply(request, 200, """
+                {"runs":[],"skipped":[],"workflows":[],"offered":[],"refusals":[],"estimate":{"pages":49,"runs":[],"total_cost_usd":0}}
+                """)
+        }
+        await empty.loadStartPlan()
+        #expect(empty.canStart == false)
+        #expect(empty.startDisabledReason?.contains("every step is skipped") == true)
+    }
+
     /// WHY (#5616): a step the last run did not finish runs again at Start; Ready says so under the step, with
     /// why, so the person is not surprised it runs again (and knows why it did not before).
     @Test("Ready says what the last run left undone under the step, and that it runs again")
@@ -653,6 +677,34 @@ struct RecipeSetupStoreTests {
         #expect(pagesAlone?["documents"] as? [String] == ["page-1"])
         #expect(pagesAlone?["folder_id"] == nil)
         #expect(RecipesMockURLProtocol.calls == 6)
+    }
+
+    /// WHY (#6295): "Run the first N pages" is for that one Start. It stayed set in the store, so a later Start (the menu's, or
+    /// "Run again on missed") sent `first_pages` again and re-ran the same N pages while the pages added since were never read.
+    @Test("the first N pages is for one Start: a later Start covers the whole project")
+    func firstPagesIsForOneStart() async {
+        defer { RecipesMockURLProtocol.requestHandler = nil }
+        let store = makeStore { request in
+            RecipesMockURLProtocol.calls += 1
+            let body = request.bodyOrStream()
+            RecipesMockURLProtocol.bodies["\(RecipesMockURLProtocol.calls) \(request.httpMethod ?? "")"] = [
+                "query": request.url?.query ?? "", "bytes": body.count,
+                "json": (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] ?? [:]
+            ]
+            return Self.reply(request, 200, Self.planJSON(refusals: ""))
+        }
+        func seen(_ key: String) -> [String: Any] { RecipesMockURLProtocol.bodies[key] ?? [:] }
+
+        await store.limitRun(toFirst: 40)
+        #expect(seen("1 GET")["query"] as? String == "first_pages=40")
+        #expect(await store.start(firstPages: store.runFirstPages))
+        #expect((seen("2 POST")["json"] as? [String: Any])?["first_pages"] as? Int == 40)
+        #expect(store.runFirstPages == nil, "an accepted Start spends the limit")
+
+        #expect(await store.start())
+        #expect(seen("3 POST")["bytes"] as? Int == 0, "the next Start is the whole project, with no first_pages")
+        await store.loadStartPlan()
+        #expect(seen("4 GET")["query"] as? String == "")
     }
 
     /// WHY (#5583, `source.onboard.auto.installed-model-first`): a step waiting for a model download

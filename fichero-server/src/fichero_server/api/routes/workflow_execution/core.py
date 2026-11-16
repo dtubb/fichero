@@ -24,7 +24,11 @@ from fastapi.responses import StreamingResponse
 
 from fichero_server.db import Database
 from fichero_server.security.revocation import end_on_revoke
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.errors import ErrorDetail
+from fichero_server.api.library_header import require_library_path
+from fichero_server.api.main import (
+    get_library_database, get_library_database_for_write, input_document_ids, read_check, recipe_check, write_check,
+)
 from fichero_server.models import Workflow
 from fichero_server.workflows.activity import get_activity_tracker
 from fichero_server.workflows.run_progress import summarize_run_state
@@ -32,6 +36,8 @@ from fichero_server.workflows.workflow_store import WorkflowStore
 
 
 from .schemas import (
+    DryRunResponse,
+    DryRunStep,
     ExecuteAcceptedResponse,
     ExecuteWorkflowRequest,
     ExecutionStatusResponse,
@@ -129,7 +135,29 @@ def _validate_workflow_for_execution(
     request: "ExecuteWorkflowRequest | None" = None,
     db: "Database | None" = None,
 ) -> None:
-    """Fail fast on malformed workflows before spawning a background run.
+    """Fail fast on malformed workflows before spawning a background run (400 with every problem)."""
+    errors = _execution_problems(workflow, request, db)
+    if errors:
+        detail = f"Workflow validation failed: {'; '.join(errors)}"
+        logger.warning(
+            "Workflow validation failed for id=%s name=%r: %s",
+            workflow.id,
+            workflow.name,
+            detail,
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=detail,
+        )
+
+
+def _execution_problems(
+    workflow: Workflow,
+    request: "ExecuteWorkflowRequest | None" = None,
+    db: "Database | None" = None,
+) -> list[str]:
+    """Every reason this workflow cannot be run as asked, in words; empty when it can. No run is started and no model is
+    called: a real run and a dry run (`workflows.canvas.dry-run`, #4370) ask this one function, so they cannot disagree.
 
     ``db`` resolves sub-workflow children the same way the list response does,
     so preflight sees the child THIS library holds — a user who edits a shared
@@ -188,18 +216,7 @@ def _validate_workflow_for_execution(
         except ValueError as exc:
             errors.append(str(exc))
 
-    if errors:
-        detail = f"Workflow validation failed: {'; '.join(errors)}"
-        logger.warning(
-            "Workflow validation failed for id=%s name=%r: %s",
-            workflow.id,
-            workflow.name,
-            detail,
-        )
-        raise HTTPException(
-            status_code=400,
-            detail=detail,
-        )
+    return errors
 
 
 # =============================================================================
@@ -306,12 +323,58 @@ async def stream_workflow_events(thread_id: str, http_request: Request) -> Strea
     )
 
 
-@router.post("/execute", status_code=202)
+@router.post("/dry-run", response_model=DryRunResponse)
+async def dry_run_workflow(
+    request: ExecuteWorkflowRequest,
+    http_request: Request,
+    db: Database = Depends(get_library_database),
+    library_path: str = Depends(require_library_path),
+) -> DryRunResponse:
+    """Test a workflow before spending a real run (`workflows.canvas.dry-run`, #4370).
+
+    Asks the same checks `/execute` makes (connections, models, privacy policy, run eligibility, the graph building) and
+    answers every problem in words, with the steps the run would take and which of them call a model. It starts no run,
+    calls no model, and writes nothing.
+    """
+    from fichero_server.workflows.runtime import to_workflow_def  # noqa: PLC0415
+    from fichero_server.workflows.validation import SCOPE_SENTENCES, node_uses_llm, workflow_scope  # noqa: PLC0415
+
+    # The documents the inputs and the selection name must be readable by the caller, as for a real run.
+    named = input_document_ids(request.inputs)
+    if request.selection is not None:
+        from fichero_server.workflows.selection import SelectionRefused, selection_document_ids  # noqa: PLC0415
+
+        try:
+            named += selection_document_ids(db, request.selection)
+        except SelectionRefused:  # a segment that is not there: the checks below say so in words
+            pass
+    if named:
+        await read_check(http_request, library_path, db, list(dict.fromkeys(named)))
+    workflow = WorkflowStore(db).get(request.workflow_id)
+    if not workflow:
+        from fichero_server.workflows.default_workflows import resolve_default_workflow  # noqa: PLC0415
+
+        workflow = resolve_default_workflow(request.workflow_id)
+    if not workflow:
+        raise HTTPException(status_code=404, detail=f"Workflow not found in this library: {request.workflow_id}")
+    problems = _execution_problems(workflow, request, db)
+    nodes = to_workflow_def(workflow).nodes
+    steps = [DryRunStep(node_id=n.id, name=n.label or n.tool, tool=n.tool, uses_model=node_uses_llm(n)) for n in nodes]
+    scope = workflow_scope(getattr(workflow, "config", None), workflow.nodes)
+    return DryRunResponse(
+        workflow_id=workflow.id, workflow_name=workflow.name, ok=not problems, problems=problems, steps=steps,
+        model_steps=sum(1 for s in steps if s.uses_model), scope=scope, scope_sentence=SCOPE_SENTENCES[scope],
+    )
+
+
+@router.post("/execute", status_code=202, responses={400: {"model": ErrorDetail, "description": (
+    "the run is refused at the door; for a cloud refusal `detail` carries `message` and the typed `refusal` with its fixes")}})
 async def execute_workflow(
     request: ExecuteWorkflowRequest,
     http_request: Request,
     background_tasks: BackgroundTasks,
     db: Database = Depends(get_library_database_for_write),
+    library_path: str = Depends(require_library_path),
 ) -> ExecuteAcceptedResponse:
     """
     Execute a workflow (non-blocking).
@@ -334,6 +397,18 @@ async def execute_workflow(
     Raises:
         404: Workflow not found
     """
+    # A run reads and writes the documents its inputs name, which the write dependency (path and query only) never sees (#6320).
+    # The typed `selection` is read the same way, and the app sends only that field (segments: the pages they are on).
+    named = input_document_ids(request.inputs)
+    if request.selection is not None:
+        from fichero_server.workflows.selection import SelectionRefused, selection_document_ids  # noqa: PLC0415
+
+        try:
+            named += selection_document_ids(db, request.selection)
+        except SelectionRefused:  # a segment that is not there: the run refuses it in words below
+            pass
+    if named:
+        await write_check(http_request, library_path, db, list(dict.fromkeys(named)))
     try:
         # Load workflow. The recipe may live in this library, or be a shipped
         # DEFAULT resolved from the global library (#4450/#4102): defaults are
@@ -354,7 +429,18 @@ async def execute_workflow(
                 detail=f"Workflow not found in this library: {request.workflow_id}",
             )
 
-        _validate_workflow_for_execution(workflow, request, db)
+        from fichero_server.llm import EgressRefusedError  # noqa: PLC0415
+        from fichero_server.llm.spend import CloudSpendRefusedError  # noqa: PLC0415
+
+        try:
+            _validate_workflow_for_execution(workflow, request, db)
+        except (EgressRefusedError, CloudSpendRefusedError) as refused:
+            # A cloud refusal at the door (`ai.cloud.hand-run-refused-before-it-starts`): the words AND the typed refusal, so a
+            # client offers the fixes as buttons and reads no sentence. `detail` is an object the app's error reader already takes.
+            raise HTTPException(status_code=400, detail={"message": str(refused),
+                                                         "refusal": refused.refusal.model_dump() if refused.refusal else None}) from refused
+
+        await recipe_check(http_request, library_path, db, workflow)  # ... and so does the recipe (#6325)
 
         # #5604: a run on segments or a group is checked against the project and the workflow's
         # steps before it starts; a step that runs on pages is refused in words, never run on the
@@ -446,8 +532,10 @@ def _resume_argument(request: "ResumeWorkflowRequest | None") -> Any:
 @router.post("/threads/{thread_id}/resume")
 async def resume_workflow(
     thread_id: str,
+    http_request: Request,
     request: ResumeWorkflowRequest | None = None,
     db: Database = Depends(get_library_database_for_write),
+    library_path: str = Depends(require_library_path),
 ) -> ExecutionStatusResponse:
     """
     Resume a paused workflow from checkpoint (non-blocking, #4317).
@@ -522,6 +610,13 @@ async def resume_workflow(
             )
 
         activity_tracker = get_activity_tracker(str(db.path))
+        # The run continues on the documents it started with and the ones this call adds; the caller must be able to write
+        # them all, and is shown none of the run's state otherwise (#6320).
+        # (the run's own record is checked by the router, `run_routes_checked`)
+        named = (input_document_ids(resume_state if isinstance(resume_state, dict) else None)
+                 + input_document_ids(request.inputs if request else None))
+        if named:
+            await write_check(http_request, library_path, db, list(dict.fromkeys(named)))
         await activity_tracker.store.update_workflow_run(
             thread_id=thread_id,
             status="running",
@@ -564,6 +659,8 @@ async def resume_workflow(
             thread_id=thread_id,
             provider_override=started_with.get("provider_override"),
             model_override=started_with.get("model_override"),
+            allow_cloud_once=bool(request and request.allow_cloud_once),
+            over_cap_once=bool(request and request.over_cap_once),
         )
 
         def _resume_workflow_thread() -> None:
@@ -692,6 +789,7 @@ async def get_thread_status(
         else:
             status = "completed"
 
+        failure = run.failure if run is not None and status in ("failed", "paused") else None
         account = None
         if run is not None:
             # The run's account (#5555), the one Activity shows: read from what was just read here.
@@ -708,6 +806,7 @@ async def get_thread_status(
             checkpoint_id=checkpoint_tuple.checkpoint["id"],
             current_state=None if view == "summary" else _sanitize_for_json(current_state),
             error=workflow_error,
+            failure=failure,
             progress=summarize_run_state(current_state, checkpoint_tuple.pending_writes),
             account=account,
         )

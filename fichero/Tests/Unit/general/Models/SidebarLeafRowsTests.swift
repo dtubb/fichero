@@ -50,7 +50,7 @@ struct SidebarLeafRowsTests {
 
     @Test("Trash and a trained model are drawn without a disclosure group")
     func nodesAreLeaves() throws {
-        #expect(!(try AppSource.code("Views/Sidebar/Sections/SidebarTrashRow.swift")).contains("DisclosureGroup"))
+        #expect(!(try AppSource.code("Views/Sidebar/Trash/SidebarTrashRow.swift")).contains("DisclosureGroup"))
         let models = try AppSource.code("Views/Sidebar/Sections/SidebarModelsNode.swift")
         // Only the Models node itself opens; each model inside it is a plain Label.
         #expect(models.components(separatedBy: "DisclosureGroup(").count == 2)

@@ -90,8 +90,10 @@ extension ZoomableImagePreview {
         // same up/down flip (Daniel, 2026-09-04) — appended last, because the
         // sequence runs from the page as scanned toward the most interpreted
         // view of it, and nobody opening a page wants the redrawing first.
+        // Whole pages only (#6482): a segment's own picture (`segment-picture`, cut to one region) is that
+        // segment's, shown where the segment is, never a way the PAGE looks — 28 of them buried Crop and Squared.
         renditions = await renditionService.appendingSVGRenditions(
-            to: renditionService.displayable(documentId: documentId),
+            to: renditionService.displayable(documentId: documentId).filter(\.isWholePage),
             documentId: documentId,
             artifactService: artifactService
         )

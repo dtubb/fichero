@@ -49,6 +49,9 @@ extension ActivityStore {
             guard let status = try await activityService.getRecipeRunStatus(jobId: jobId) else { return }
             let atOnce = RecipeRunPagesAtOnce(status)
             if recipeRunPagesAtOnce[jobId] != atOnce { recipeRunPagesAtOnce[jobId] = atOnce }
+            let capped = CloudCapFix.Stop(status)
+            if recipeRunStoppedAtCap[jobId] != capped { recipeRunStoppedAtCap[jobId] = capped }
+            if recipeRunOnceWords[jobId] != status.onceWords { recipeRunOnceWords[jobId] = status.onceWords }
             for (folder, steps) in RecipeFolderSteps.byFolder(status) where recipeFolderSteps[folder] != steps {
                 recipeFolderSteps[folder] = steps
             }
@@ -67,6 +70,19 @@ extension ActivityStore {
             let state = try await activityService.setJobPaused(id: jobId, paused: paused)
             patchJobState(state, jobId: jobId, runThreadId: runThreadId)
             await rereadJobOfItsOwn(jobId)
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    /// One of the window's global run controls on this project (`activity.window.run-controls`); the summary is read again
+    /// at once so the button turns. Returns the engine's refusal, in its words, or nil.
+    func runControl(_ control: ActivityRunControl) async -> String? {
+        do {
+            _ = try await activityService.runControl(control)
+            await refreshBackgroundJobs()
+            await resync()
             return nil
         } catch {
             return error.localizedDescription
@@ -253,7 +269,7 @@ extension ActivityStore {
     }
 
     /// The kind a waiting or paused kind row stands for (`waiting:<kind>`, `paused:<kind>`); nil for any other row.
-    static func queuedKind(ofRowId id: String) -> String? {
+    nonisolated static func queuedKind(ofRowId id: String) -> String? {
         for prefix in ["waiting:", "paused:"] where id.hasPrefix(prefix) && id.count > prefix.count {
             return String(id.dropFirst(prefix.count))
         }
@@ -312,8 +328,8 @@ extension ActivityStore {
         if runTrees[old] != nil { runTrees[old] = nil }
         if projectRunId == old { projectRunId = new }
         let selection = ActivityWindowSelectionState.shared
-        if selection.selection?.jobId == old {
-            selection.select(ActivitySelection(jobId: new, libraryId: selection.selection?.libraryId))
+        if let picked = selection.pick?.selection, picked.jobId == old {
+            selection.select(ActivitySelection(jobId: new, libraryId: picked.libraryId))
         }
     }
 
@@ -346,6 +362,29 @@ extension ActivityStore {
             return nil
         } catch {
             return error.localizedDescription
+        }
+    }
+}
+
+extension ActivityStore {
+    /// What a changed jobs list re-reads (from `refreshBackgroundJobs`): the queues shown, the open trees of rows that
+    /// changed or left the list, and recipe runs whose holding stages moved.
+    func rereadTreesOnJobsChange(from jobs: [ActivityJob], to after: [ActivityJob]) {
+        // The queues whose files are shown follow the list (#6599): each kind already read is read again.
+        for kind in queuedItems.keys { Task { await self.loadQueuedItems(rowId: "waiting:\(kind)") } }
+        // A job of its own whose details are open (its tree is loaded,
+        // #5561) is re-read when its row changes: the same one-key
+        // update a run's tree gets from the change stream.
+        let before = Dictionary(jobs.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for job in after where runTrees[job.id] != nil && before[job.id] != job {
+            scheduleTreeRead(threadId: job.id)
+        }
+        rereadRecipeRuns(holdingStagesChangedFrom: before, to: after)
+        // One that left the list has ended (done is not listed): its tree is read once more,
+        // so its details say how it ended (a recipe run's summary, #5577).
+        let listed = Set(after.map(\.id))
+        for id in before.keys where runTrees[id] != nil && !listed.contains(id) {
+            scheduleTreeRead(threadId: id)
         }
     }
 }

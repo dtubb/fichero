@@ -79,6 +79,16 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
     if unknown:
         problems.append(f"Material is handwriting, print, typescript or text (already text), not {', '.join(map(repr, unknown))}.")
     out["materials"] = [m for m in MATERIALS if m in materials] + unknown or ["handwriting"]
+    if "condition" in out:  # `designer.material.condition-asked`: none ticked is [], never a default
+        from fichero_server.recipes.condition import normalise as normalise_condition
+
+        out["condition"], refused = normalise_condition(out["condition"])
+        problems += refused
+    if "how" in out:  # `designer.how.*`
+        from fichero_server.recipes.how import normalise as normalise_how
+
+        out["how"], refused = normalise_how(out["how"])
+        problems += refused
     if "languages" in out:
         out["languages"] = list(dict.fromkeys(keep_or_refuse(v, resolve_language) for v in _list(out["languages"])))
     if "scripts" in out:
@@ -93,6 +103,16 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
         cap = out["cloud_spend_cap_usd"]
         if isinstance(cap, bool) or not isinstance(cap, (int, float)) or cap < 0:
             problems.append("The cloud spending cap is a number of dollars, 0 or more.")
+    if out.get("cloud_daily_cap_usd") is not None:  # null/empty: no daily answer of its own
+        cap = out["cloud_daily_cap_usd"]
+        if isinstance(cap, bool) or not isinstance(cap, (int, float)) or cap < 0:
+            problems.append("The daily cloud spending cap is a number of dollars, 0 or more.")
+    elif "cloud_daily_cap_usd" in out:
+        del out["cloud_daily_cap_usd"]
+    if "cloud_project_cap_usd" in out:
+        cap = out["cloud_project_cap_usd"]
+        if isinstance(cap, bool) or not isinstance(cap, (int, float)) or cap < 0:
+            problems.append("The project's total cloud spending cap is a number of dollars, 0 or more.")
     chosen = dict(out.get("directions") or {})
     bad = {s: d for s, d in chosen.items() if d not in SETUP_DIRECTIONS}
     if bad:
@@ -105,8 +125,8 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
         known = [s for s in scripts if not unknown_scripts([s])]
         out["directions"] = {s: chosen.get(s) or default_direction(s) for s in known}
     job_answers = out.get("job_answers")
-    if isinstance(job_answers, dict) and "normalise_how_far" in job_answers:
-        levels, refused = normalise_levels(job_answers["normalise_how_far"])
+    if isinstance(job_answers, dict) and ("normalise_how_far" in job_answers or job_answers.get("translate_into")):
+        levels, refused = normalise_levels(with_translation(job_answers))
         problems += refused
         out["job_answers"] = {**job_answers, "normalise_how_far": levels}
     if isinstance(job_answers, dict) and job_answers.get("review_lenses") is not None:
@@ -125,6 +145,12 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
             unknown = [k for k in said if k not in lens_ids()]
             if unknown:
                 problems.append(f"A review lens is {', '.join(lens_ids())}; not {', '.join(map(repr, unknown))}.")
+    from fichero_server.tool_context import REVIEW_MODES
+
+    if isinstance(job_answers, dict) and job_answers.get("second_review_mode") not in (None, *REVIEW_MODES):
+        problems.append(f"The second review's mode is {', '.join(REVIEW_MODES)}; not {job_answers['second_review_mode']!r}.")
+    if isinstance(job_answers, dict) and job_answers.get("leave_out") is not None and not isinstance(job_answers["leave_out"], bool):
+        problems.append(f"Leave Out is yes or no, not {job_answers['leave_out']!r}.")
     if isinstance(job_answers, dict) and job_answers.get("review_certainty_bar") not in (None, "", "whole-page"):
         bar = job_answers["review_certainty_bar"]
         try:
@@ -134,6 +160,17 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
         if not ok:
             problems.append(f"The certainty under which a line goes to the second model is a number above 0 and up to "
                             f"1 (or the whole page), not {bar!r}.")
+    if isinstance(job_answers, dict) and job_answers.get("prepare_operations") is not None:
+        from fichero_server.recipes.prepare_operations import IDS
+
+        said = job_answers["prepare_operations"]
+        unknown = [x for x in said if x not in IDS] if isinstance(said, list) else [said]
+        if unknown:
+            problems.append(f"A Prepare Images operation is {', '.join(IDS)}; not {', '.join(map(repr, unknown))}.")
+    by_folder = out.get(BY_FOLDER)
+    if by_folder is not None and (not isinstance(by_folder, dict) or any(
+            not isinstance(k, str) or not isinstance(v, dict) for k, v in by_folder.items())):
+        problems.append("An answer for one folder is kept under the folder's id: {folder id: {question: answer}}.")
     cap = out.get(SPEND_CAP)
     if cap is not None and (isinstance(cap, bool) or not isinstance(cap, (int, float)) or cap < 0):
         problems.append(f"The Hugging Face spend cap is an amount in dollars a month, $0 or more, not {cap!r}.")
@@ -146,6 +183,9 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
     return out
 
 
+#: Answers a folder gives for itself, over the project's (`prep.setup.three-questions-suggested-from-a-sample`): the
+#: Prepare Images questions, `{folder id: {question key: answer}}`, read by the Start plan.
+BY_FOLDER = "job_answers_by_folder"
 #: The ruled money-and-place answers (#5769, ruled 2026-10-17).
 SPEND_CAP = "hf_spend_cap_usd"
 COPIES_STAY = "copies_may_stay_on_cluster"
@@ -180,6 +220,22 @@ _SETUP_WORDS = {"abbreviations_expanded": "expanded", "normalised_spelling": "re
                 "normalized_spelling": "regularised"}
 #: A translation asked beside them: `translation:<language tag>`.
 TRANSLATION_PREFIX = "translation:"
+
+
+def with_translation(job_answers: dict[str, Any] | None) -> Any:
+    """Normalise's "Into what" with the language chosen under Translate added as its translation (#6452): the one code path,
+    `translation:<language>` in the levels, that Start's runs, the recipe's settings and the run titles already read. Where
+    only a language was chosen the levels are the translation alone; where it is already among them it is not added twice."""
+    answers = job_answers or {}
+    levels = answers.get("normalise_how_far")
+    into = str(answers.get("translate_into") or "").strip()
+    if not into:
+        return levels
+    asked = [] if levels in (None, "") else list(_list(levels))
+    if any(str(a).lower().startswith(TRANSLATION_PREFIX) and str(a)[len(TRANSLATION_PREFIX):].strip().lower() == into.lower()
+           for a in asked):
+        return asked
+    return [*asked, TRANSLATION_PREFIX + into]
 
 
 def normalise_levels(value: Any) -> tuple[list[str], list[str]]:

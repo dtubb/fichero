@@ -31,14 +31,17 @@ from importlib.metadata import PackageNotFoundError, version as package_version
 # before anything can pull in transformers, primes the kreuzberg cache, and
 # starts the import-timing epoch. See _startup.py (#5051).
 from fichero_server.api._startup import api_stamp as _api_stamp
+from fichero_server.api.change_stream import library_generation
 from fichero_server.core.single_flight import single_flight
 
 import logging
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
-from typing import Callable, Sequence
+from typing import Any, Callable, Sequence
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+import duckdb
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -48,7 +51,8 @@ from fichero_server.api.feature_tiers_generated import CUMULATIVE_ROUTE_PREFIXES
 from fichero_server.api.routes.ai.local_inference import shutdown_managed_local_inference_services
 from fichero_server.db import Database, db_manager
 from fichero_server.db.app import device_token_migration_error
-from fichero_server.db.manager import LibraryNotFoundError
+from fichero_server.db.manager import LibraryNotFoundError, RealLibraryRefused
+from fichero_server.db.volume_dropped import LibraryVolumeNotReachable
 from fichero_server.actions.undo import UndoRefused
 from fichero_server.api.routes.document.segment_conversion import ConversionRefusal
 from fichero_server.security import authz
@@ -62,6 +66,7 @@ from fichero_server.models import (
     MigrationFailureResponse,
 )
 from fichero_server.db.paths import migrate_legacy_server_state
+from fichero_server.security.multiuser import MultiuserOff
 from fichero_server.security.remote_backend import build_remote_backend_status
 # The ingest allow-list lives in fichero_server.security.path_security so the SERVING
 # side can consult the same authority (#4230). Kept under the historical
@@ -680,6 +685,8 @@ def _reset_first_registry_200_signal(app: FastAPI) -> None:
     than one) each get their own — see the module comment above."""
     app.state.first_registry_200_signal = asyncio.Event()
     app.state.last_request_at = time.monotonic()
+    app.state.starting = []
+    app.state.app_db_ready = None
 
 
 def _mark_first_registry_200(app: FastAPI) -> None:
@@ -1010,11 +1017,27 @@ async def lifespan(app: FastAPI):
     # since a slow first DB open was one of #4690's original suspects for
     # where the ~23s figure could be hiding. Both are already exception-safe
     # internally (never raise), so this cannot fail startup.
-    _api_stamp("app db open + provider seed/collapse start")
-    _seed_builtin_providers()
-    _collapse_duplicate_providers()
-    _api_stamp("app db open + provider seed/collapse complete")
-    _gate_multiuser_env()
+    # The app database opens, the built-in providers are seeded and Multi-user is gated AFTER the socket answers
+    # (`engine.launch.health-answers-before-the-rest`, #6371): health says `starting: ["app-db"]` meanwhile, and every
+    # other request waits for it (`_wait_for_the_app_database`), so no client can read an unseeded database (the SF9 race).
+    app.state.starting = ["app-db"]
+    app.state.app_db_ready = asyncio.Event()
+
+    def _open_app_db() -> None:
+        _api_stamp("app db open + provider seed/collapse start")
+        _seed_builtin_providers()
+        _collapse_duplicate_providers()
+        _api_stamp("app db open + provider seed/collapse complete")
+        _gate_multiuser_env()
+
+    async def _app_db_task() -> None:
+        try:
+            await asyncio.get_running_loop().run_in_executor(None, _open_app_db)
+        finally:  # a failed seed must not hold every request: the seed never raises, but the gate is released regardless
+            app.state.starting = [name for name in app.state.starting if name != "app-db"]
+            app.state.app_db_ready.set()
+
+    app_db_started = asyncio.create_task(_app_db_task())
 
     # Pairing codes are process-local; warn if a non-standard launcher exposes
     # a detectable multi-worker configuration.
@@ -1163,7 +1186,7 @@ async def lifespan(app: FastAPI):
         await _teardown(
             app, parent_watcher=parent_watcher, periodic_snapshot_task=periodic_snapshot_task,
             bonjour_started=bonjour_started, tailnet_forward=tailnet_forward,
-            mcp_tools_started=mcp_tools_started, warm_started=warm_started)
+            mcp_tools_started=mcp_tools_started, warm_started=warm_started, app_db_started=app_db_started)
 
 
 async def _step(what: str, step) -> None:
@@ -1178,7 +1201,7 @@ async def _step(what: str, step) -> None:
 
 
 async def _teardown(app: FastAPI, *, parent_watcher, periodic_snapshot_task, bonjour_started, tailnet_forward,
-                    mcp_tools_started, warm_started) -> None:
+                    mcp_tools_started, warm_started, app_db_started=None) -> None:
     """The lifespan's shutdown, in the order a normal quit has always had: live runs paused and streams closed, the projects
     checkpointed and closed (first, straight after the last thing that writes to them), then the network and local-model steps."""
     from fichero_server.api.change_stream import signal_sse_shutdown
@@ -1217,6 +1240,8 @@ async def _teardown(app: FastAPI, *, parent_watcher, periodic_snapshot_task, bon
     logger.info("Fichero API shutting down: closing projects")
     from fichero_server.db.app import checkpoint_app_db
 
+    if app_db_started is not None:
+        await _step("let the app database finish opening", lambda: app_db_started)  # a seed mid-write is not closed under
     await _step("checkpoint the projects", db_manager.checkpoint_all)  # first, fast: stopping runs below can outlast the app's wait
     await _step("checkpoint the app database", checkpoint_app_db)
     await _step("close the projects", db_manager.close_all)
@@ -1290,6 +1315,37 @@ async def _handle_missing_module(_request: Request, exc: ModuleNotFoundError):
     )
 
 
+@app.exception_handler(duckdb.OutOfMemoryException)
+async def _handle_duckdb_out_of_memory(request: Request, exc: duckdb.OutOfMemoryException):
+    """A query did not fit DuckDB's share of memory (the Air, 2026-10-30: 55 document views answered with a stack
+    trace). 503 with a sentence: the app shows it and asks again; nothing is lost. Logged once per route, not per poll."""
+    route = request.url.path
+    if route not in _OUT_OF_MEMORY_SAID:
+        _OUT_OF_MEMORY_SAID.add(route)
+        logger.error("DuckDB ran out of its memory share on %s: %s", route, str(exc).splitlines()[0])
+    return JSONResponse(
+        {"detail": "The library is short of memory for this request right now; it will be tried again. "
+                   "If this keeps happening, quit other apps or close a library you are not using."},
+        status_code=503,
+        headers={"Retry-After": "5"},
+    )
+
+
+_OUT_OF_MEMORY_SAID: set[str] = set()
+
+
+@app.exception_handler(LibraryVolumeNotReachable)
+async def _handle_library_volume_not_reachable(_request: Request, exc: LibraryVolumeNotReachable):
+    """The disk holding the library is gone (#6311): one typed 503 in words, not a 500 and a stack trace per request."""
+    return JSONResponse({"detail": str(exc), "reason": exc.reason, "library": exc.library}, status_code=503)
+
+
+@app.exception_handler(MultiuserOff)
+async def _handle_multiuser_off(_request: Request, exc: MultiuserOff):
+    """Accounts are off: a 409 with a name to branch on (`sharing.multiuser-404-is-a-409-in-the-engine`)."""
+    return JSONResponse({"detail": exc.detail, "code": "multiuser_off"}, status_code=409)
+
+
 @app.exception_handler(UndoRefused)
 async def _handle_undo_refused(_request: Request, exc: UndoRefused):
     """A step not taken back: a sentence and a machine reason (`safety.undo.refusal-loses-nothing`)."""
@@ -1304,6 +1360,12 @@ async def _handle_library_not_found(
     """A request named a library that does not exist: 404, nothing created
     (#5136). Only ``POST /api/library`` creates a library."""
     return JSONResponse({"detail": str(exc)}, status_code=404)
+
+
+@app.exception_handler(RealLibraryRefused)
+async def _handle_real_library_refused(_request: Request, exc: RealLibraryRefused):
+    """A dev engine never opens the owner's real projects (#6588): 403, in words, nothing opened."""
+    return JSONResponse({"detail": str(exc)}, status_code=403)
 
 
 @app.exception_handler(ConversionRefusal)
@@ -1462,6 +1524,18 @@ async def add_security_headers(request: Request, call_next):
 
 
 @app.middleware("http")
+async def _wait_for_the_app_database(request: Request, call_next):
+    """Every request but health waits until the app database is open and seeded (`engine.launch.health-answers-before-the-rest`).
+
+    Health answers at once with `starting` naming what is pending; a caller that is not health gets its answer a moment later
+    rather than a half-seeded database. The gate is an `Event` on `app.state`, absent (None) outside a running lifespan."""
+    ready = getattr(request.app.state, "app_db_ready", None)
+    if ready is not None and not ready.is_set() and request.scope.get("path") != "/api/health":
+        await ready.wait()
+    return await call_next(request)
+
+
+@app.middleware("http")
 async def _observe_first_registry_200(request: Request, call_next):
     """Fire `_first_registry_200_signal` on the app's own readiness leg, and
     track request activity for the after-ready warm-up's idle gate (#4690).
@@ -1574,6 +1648,11 @@ def _is_allowed_library_path(library_path: str) -> bool:
     # .fichero package still reads as a .fichero package.
     if expanded.suffix != ".fichero":
         return False
+    # #6588: a dev engine never serves the owner's real projects, not even one the app it serves has open.
+    from fichero_server.security.real_data_guard import library_refusal
+
+    if library_refusal(library_path):
+        return False
 
     if _is_allowed_local_path(library_path):
         return True
@@ -1628,11 +1707,21 @@ def get_library_database_for_write(
     )
 
 
+def get_library_database_for_named_write(
+    request: Request,
+    x_fichero_library_path: str = Depends(require_library_path),
+) -> Database:
+    """For a write whose body names what it touches and whose handler runs a registry action: the action checks each named id (and
+    the library itself when it names none), so a person shared one folder can write on that folder and nowhere else (#6325 O2)."""
+    return _get_library_database_for_access(request, x_fichero_library_path, write=True, named=[])
+
+
 def _get_library_database_for_access(
     request: Request,
     x_fichero_library_path: str,
     *,
     write: bool,
+    named: list[str | None] | None = None,
 ) -> Database:
     if not x_fichero_library_path:
         raise HTTPException(
@@ -1646,7 +1735,7 @@ def _get_library_database_for_access(
     _bootstrap_legacy_library_owner_if_needed(request, x_fichero_library_path)
 
     if write:
-        assert_library_write_authorized(request, x_fichero_library_path)
+        assert_library_write_authorized(request, x_fichero_library_path, named=named)
     else:
         assert_library_read_authorized(request, x_fichero_library_path)
 
@@ -1657,6 +1746,8 @@ def _get_library_database_for_access(
     except LibraryNotFoundError as e:
         # #5136: a missing library is refused, never created.
         raise HTTPException(status_code=404, detail=str(e)) from e
+    except RealLibraryRefused as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Failed to get database for {x_fichero_library_path}: {e}")
         raise HTTPException(
@@ -1735,8 +1826,11 @@ def assert_library_read_authorized(
     request: Request,
     library_path: str,
     target_id: str | None = None,
+    *,
+    named: list[str | None] | None = None,
 ) -> None:
-    """Authorize a user-initiated request before touching a library path."""
+    """Authorize a user-initiated request before touching a library path. `named`: the ids a handler read from the BODY
+    (None: the whole library); they replace the path and query ids, which a caller can set to anything (#6320)."""
     from fichero_server.security import authz
     from fichero_server.api.auth import library_access_denial_payload
 
@@ -1745,7 +1839,8 @@ def assert_library_read_authorized(
 
     user = getattr(getattr(request, "state", None), "user", None)
     # Every id the request names, not only the first (#5180); none -> the library itself.
-    targets = [target_id] if target_id is not None else (authz.target_ids_from_request(request) or [None])
+    targets = named if named is not None else (
+        [target_id] if target_id is not None else (authz.target_ids_from_request(request) or [None]))
     try:
         for target in targets:
             authz.assert_can_read(user, library_path, target)
@@ -1765,12 +1860,35 @@ def assert_library_read_authorized(
         ) from exc
 
 
+def assert_library_reads_every(request: Request, library_path: str, named: list[str | None], scope: Callable[[], Sequence[str]]) -> None:
+    """A read of the documents a body names: each named id (None: the whole library), then every document `scope()` lists
+    under them, so a page denied inside a readable folder is refused too. Refused whole, never quietly cut down."""
+    from fichero_server.api.auth import library_access_denial_payload
+    from fichero_server.security import authz
+
+    assert_library_read_authorized(request, library_path, named=named)
+    if getattr(getattr(request, "state", None), "bootstrap_auth", False):
+        return
+    if not authz.page_walk_needed(getattr(getattr(request, "state", None), "user", None), library_path):
+        return
+    if authz.is_library_owner(getattr(getattr(request, "state", None), "user", None), library_path):
+        return  # the owner's lists do not turn off because one page is restricted (#6325 item 6); the page itself stays theirs only if named
+    try:
+        authz.assert_can_read_every(getattr(getattr(request, "state", None), "user", None), library_path, scope(), bootstrap=False)
+    except authz.AuthorizationError as exc:
+        raise LibraryAccessDeniedError(
+            library_access_denial_payload(request, library_path, required="read", detail=str(exc))) from exc
+
+
 def assert_library_write_authorized(
     request: Request,
     library_path: str,
     target_id: str | None = None,
+    *,
+    named: list[str | None] | None = None,
 ) -> None:
-    """Authorize a user-initiated mutation before touching a library DB."""
+    """Authorize a user-initiated mutation before touching a library DB. `named`: the ids a handler read from the BODY (see
+    `assert_library_read_authorized`)."""
     from fichero_server.security import authz
     from fichero_server.api.auth import library_access_denial_payload
 
@@ -1779,7 +1897,8 @@ def assert_library_write_authorized(
 
     user = getattr(getattr(request, "state", None), "user", None)
     # Every id the request names, not only the first (#5180); none -> the library itself.
-    targets = [target_id] if target_id is not None else (authz.target_ids_from_request(request) or [None])
+    targets = named if named is not None else (
+        [target_id] if target_id is not None else (authz.target_ids_from_request(request) or [None]))
     try:
         for target in targets:
             authz.assert_can_write(user, library_path, target)
@@ -1792,6 +1911,200 @@ def assert_library_write_authorized(
                 detail=str(exc),
             )
         ) from exc
+
+
+def assert_library_writes_every(request: Request, library_path: str, named: list[str | None], scope: Callable[[], Sequence[str]]) -> None:
+    """The write twin of `assert_library_reads_every`: each named id, then every document `scope()` lists, must be writable."""
+    from fichero_server.security import authz
+
+    assert_library_write_authorized(request, library_path, named=named)
+    if getattr(getattr(request, "state", None), "bootstrap_auth", False):
+        return
+    if not authz.page_walk_needed(getattr(getattr(request, "state", None), "user", None), library_path, write=True):
+        return
+    if pages := list(scope()):  # the shared choke point, one answer per page; refused whole
+        assert_library_write_authorized(request, library_path, named=pages)
+
+
+def documents_under(db: Any, target_id: str | None) -> list[str]:
+    """The live documents a read or write of `target_id` reaches: the folder and everything under it, or (None or empty) every
+    live document, as the exporters read an empty id."""
+    from fichero_server.db.document_tree import live_document_rows
+    from fichero_server.recipes.runner import folder_scope
+
+    if not target_id:
+        return list(live_document_rows(db))
+    try:
+        return sorted(folder_scope(db, target_id))
+    except LookupError:  # not a live document: the route says so itself
+        return []
+
+
+def input_document_ids(inputs: dict | None) -> list[str]:
+    """The documents a free-form workflow `inputs` dict names at its top level (what a run reads or writes)."""
+    out: list[str] = []
+    for key in ("selected_doc_ids", "doc_ids", "document_ids", "doc_id", "document_id"):
+        value = (inputs or {}).get(key)
+        out += [str(v) for v in (value if isinstance(value, (list, tuple)) else [value]) if v]
+    return out
+
+
+def owner_check(request: Request | None, library_path: str) -> None:
+    """The library's owner only (bootstrap included); anyone else is refused with the same 403 a missing role gives (#6320)."""
+    from fichero_server.api.auth import library_access_denial_payload
+    from fichero_server.security import authz
+
+    if request is None or getattr(getattr(request, "state", None), "bootstrap_auth", False):
+        return
+    try:
+        authz.require_owner(getattr(getattr(request, "state", None), "user", None), library_path)
+    except authz.AuthorizationError as exc:
+        raise LibraryAccessDeniedError(
+            library_access_denial_payload(request, library_path, required="owner", detail=str(exc))) from exc
+
+
+async def read_check(request: Request, library_path: str, db: Any, ids: Sequence[str | None], *, deep: bool = True) -> None:
+    """Off the event loop (for a scoped caller it is a folder walk and one lookup per page): every id the BODY names, with
+    everything under it, is readable by the caller. An empty or missing id is the whole project."""
+    import asyncio
+
+    if request is None:  # an in-process call, not a request (a request always brings it)
+        return
+    named = [i or None for i in ids] or [None]
+    await asyncio.to_thread(assert_library_reads_every, request, library_path, named,
+                            lambda: [d for i in named for d in (documents_under(db, i) if deep else ([i] if i else []))])
+
+
+async def write_check(request: Request, library_path: str, db: Any, ids: Sequence[str | None], *, deep: bool = True) -> None:
+    """`read_check` for a route that writes: every document the body reaches must be writable."""
+    import asyncio
+
+    if request is None:
+        return
+    named = [i or None for i in ids] or [None]
+    await asyncio.to_thread(assert_library_writes_every, request, library_path, named,
+                            lambda: [d for i in named for d in (documents_under(db, i) if deep else ([i] if i else []))])
+
+
+async def recipe_check(request: Request | None, library_path: str | None, db: Any, workflow: Any) -> None:
+    """The one check before any recipe starts a run (execute, read-again, chains, batches, schedules). `workflow` is a recipe or its id.
+    The pages its nodes name must be writable; and a caller whose reads differ page by page may not start one whose source names no
+    page, or whose step writes to a path (`run_scope.recipe_hazard`). Owner, bootstrap and a plain editor are not touched (#6325, H1-H3)."""
+    if request is None or not library_path:
+        return
+    if isinstance(workflow, str):
+        from fichero_server.workflows.default_workflows import resolve_default_workflow
+        from fichero_server.workflows.workflow_store import WorkflowStore
+
+        workflow = WorkflowStore(db).get(workflow) or resolve_default_workflow(workflow)
+    if workflow is None:
+        return  # not found: the route says so
+    from fichero_server.api.auth import library_access_denial_payload
+    from fichero_server.workflows.run_scope import node_document_ids, recipe_hazard, with_sub_workflows
+    from fichero_server.workflows.subworkflow import sub_workflow_resolver_for_db
+
+    nodes = with_sub_workflows(workflow.nodes, sub_workflow_resolver_for_db(db))  # a `sub_workflow` step runs its child's steps
+    if pages := node_document_ids(nodes):
+        await write_check(request, library_path, db, pages)
+    if document_reader(request, library_path) is not None and (why := recipe_hazard(nodes)):
+        raise LibraryAccessDeniedError(library_access_denial_payload(request, library_path, required="read", detail=why))
+
+
+def recipe_save_check(request: Request | None, library_path: str | None, db: Any, nodes: Any) -> None:
+    """The hazard half of `recipe_check`, at the save: a schedule or a file watcher fires its recipe with no caller to check, so a caller
+    whose reads differ page by page may not save a recipe whose source names no page or whose step writes a path (#6325, review 8 item 4)."""
+    if request is None or not library_path or document_reader(request, library_path) is None:
+        return
+    from fichero_server.api.auth import library_access_denial_payload
+    from fichero_server.workflows.run_scope import recipe_hazard, with_sub_workflows
+    from fichero_server.workflows.subworkflow import sub_workflow_resolver_for_db
+
+    if why := recipe_hazard(with_sub_workflows(nodes, sub_workflow_resolver_for_db(db))):
+        raise LibraryAccessDeniedError(library_access_denial_payload(request, library_path, required="read", detail=why))
+
+
+async def run_check(request: Request, library_path: str | None, db: Any, thread_ids: Sequence[str | None], *, write: bool) -> None:
+    """A caller whose reads differ page by page may see a run's state, or act on it, only if they read (write) every page its record
+    names (`run_document_ids`). A run whose record names no page, or whose recipe has a source that reads by a word or a name or a
+    step that writes a path (`run_scope.recipe_hazard`), is refused to such a caller: the run holds text no page test can cover
+    (#6325, H1/H8/N6, review 8 item 1). The record does not say who started a run, so the starter is not let through."""
+    if request is None or not library_path or document_reader(request, library_path) is None:
+        return  # nothing can differ for this caller: no lookup, no walk
+    from fichero_server.workflows.activity import get_activity_tracker
+    from fichero_server.api.auth import library_access_denial_payload
+    from fichero_server.workflows.run_scope import node_document_ids, recipe_hazard, run_document_ids, with_sub_workflows
+    from fichero_server.workflows.subworkflow import sub_workflow_resolver_for_db
+
+    store = get_activity_tracker(str(db.path)).store
+    pages: list[str] = []
+    for thread_id in dict.fromkeys(t for t in thread_ids if t):
+        if (run := await store.get_workflow_run(thread_id)) is None:
+            continue
+        nodes = with_sub_workflows((getattr(run, "workflow_snapshot", None) or {}).get("nodes"), sub_workflow_resolver_for_db(db))
+        run_pages = list(dict.fromkeys([*run_document_ids(run), *node_document_ids(nodes)]))
+        if not run_pages or (why := recipe_hazard(nodes)):
+            raise LibraryAccessDeniedError(library_access_denial_payload(
+                request, library_path, required="write" if write else "read",
+                detail=why if run_pages else "This run names no page on its record, so no page you may read can be tested against it."))
+        pages += run_pages
+    if pages:
+        await (write_check if write else read_check)(request, library_path, db, list(dict.fromkeys(pages)))
+
+
+async def run_routes_checked(request: Request, library_path: str | None = Depends(optional_library_path)) -> None:
+    """A router-level dependency for the run routes: the one named by `{thread_id}` (a read for GET, a write otherwise)."""
+    if thread_id := request.path_params.get("thread_id"):
+        if library_path and document_reader(request, library_path) is not None:
+            await run_check(request, library_path, db_manager.get_database(library_path), [thread_id], write=request.method not in ("GET", "HEAD"))
+
+
+def document_reader(request: Request | None, library_path: str | None) -> Callable[[str], bool] | None:
+    """`may_read` for a retrieval or a tool that lists documents: None when every document is readable to this caller
+    (bootstrap, multi-user off, or no override or scope that could differ), else a per-document test (#6320)."""
+    from fichero_server.security import authz
+
+    state = getattr(request, "state", None)
+    user = getattr(state, "user", None)
+    if request is None or getattr(state, "bootstrap_auth", False) or not authz.page_walk_needed(user, library_path) or authz.reads_every_gated_page(user, library_path):
+        return None
+    return lambda doc_id: bool(readable_documents(request, library_path, [doc_id]))
+
+
+def entity_visible(may_read: Callable[[str], bool] | None, entity: Any) -> bool:
+    """An entity drawn only from pages the caller may not read is hidden; one with no source page stays visible
+    (`source.rights.claims-with-only-denied-evidence-are-hidden`, #6320). `may_read` is `document_reader`'s answer."""
+    docs = entity.source_document_ids
+    return may_read is None or not docs or any(may_read(d) for d in docs)
+
+
+def claim_visible(may_read: Callable[[str], bool] | None, claim: Any) -> bool:
+    """A claim resting on a page the caller may not read is hidden; one with no source page stays visible (#6320)."""
+    return may_read is None or not claim.source_document_id or may_read(claim.source_document_id)
+
+
+def whole_library_reader_only(request: Request, library_path: str | None = Depends(optional_library_path)) -> None:
+    """A dependency for a route that sums or walks the whole library's claims or entities (counts, centrality, paths,
+    co-occurrence): refused to a caller whose reads differ page by page, because a count or a path cannot be filtered
+    after the fact. Fails closed (#6320)."""
+    from fichero_server.api.auth import library_access_denial_payload
+    from fichero_server.security import authz
+
+    if document_reader(request, library_path) is not None and not authz.is_library_owner(getattr(request.state, "user", None), library_path):
+        raise LibraryAccessDeniedError(library_access_denial_payload(
+            request, library_path, required="read", detail="read access denied"))
+
+
+def editor_or_owner_only(request: Request, library_path: str | None = Depends(optional_library_path)) -> None:
+    """A dependency for a route that spends the owner's keys or uses the network (model comparison, web search, browser): a
+    viewer is refused; an editor, the owner and the single-user app pass (#6325 owner ruling)."""
+    from fichero_server.api.auth import library_access_denial_payload
+    from fichero_server.security import authz
+
+    state = getattr(request, "state", None)
+    if getattr(state, "bootstrap_auth", False) or authz.can_write(getattr(state, "user", None), library_path):
+        return
+    raise LibraryAccessDeniedError(library_access_denial_payload(
+        request, library_path, required="write", detail="write access required"))
 
 
 def readable_documents(request: Request | None, library_path: str | None, scope: list[str]) -> list[str]:
@@ -1947,10 +2260,13 @@ async def health_check(
     if x_fichero_library_path and db_manager.is_open(x_fichero_library_path):
         from starlette.concurrency import run_in_threadpool
 
-        return await run_in_threadpool(
+        answer = await run_in_threadpool(
             _health_sync, request, x_fichero_library_path, x_fichero_client_nonce, nonce
         )
-    return _health_sync(request, x_fichero_library_path, x_fichero_client_nonce, nonce)
+    else:
+        answer = _health_sync(request, x_fichero_library_path, x_fichero_client_nonce, nonce)
+    answer.starting = list(getattr(request.app.state, "starting", []))  # what is still opening, from memory (`engine.launch.health-answers-before-the-rest`)
+    return answer
 
 
 def _health_sync(
@@ -2187,14 +2503,31 @@ def _reset_dependency_report() -> None:
     _missing_required_modules.cache_clear()
 
 
+def _sharing_health():
+    from fichero_server.db.app import get_app_db  # lazy: app-import budget (#3950)
+    from fichero_server.security.sharing_report import sharing_report
+
+    return sharing_report(get_app_db())
+
+
 def _with_server_proof(response: HealthResponse, nonce: str | None) -> HealthResponse:
     """Attach HMAC(server bootstrap secret, nonce) when the client asks. Every health answer passes
     through here, so it also names any missing required package (#5384)."""
     from fichero_server import startup_warnings
+    from fichero_server.core import failure_ledger
+    from fichero_server.models import DegradedFailure
 
+    response.sharing = _sharing_health()  # `sharing.health-reports-sharing`: every answer, with or without a project
     response.missing_dependencies = _missing_required_modules()
     response.device_token_migration_error = device_token_migration_error()
     response.dependencies = {**response.dependencies, **startup_warnings.as_dependencies()}
+    try:
+        response.degraded = [DegradedFailure(**vars(d)) for d in failure_ledger.degraded()]
+    except Exception as exc:  # noqa: BLE001 -- health must never fail because of the ledger
+        response.degraded = []
+        # An empty list must not read as "nothing is degraded": say the ledger is broken, in the log and in health.
+        logger.warning("failure ledger failed while building /api/health: %s", type(exc).__name__)
+        response.dependencies = {**response.dependencies, "failure_ledger": f"failed: {type(exc).__name__}"}
     missing_routes = _missing_routes()
     if missing_routes:
         response.status = "unhealthy"
@@ -2212,25 +2545,40 @@ def _with_server_proof(response: HealthResponse, nonce: str | None) -> HealthRes
     return response
 
 
-@app.get("/api/stats", response_model=LibraryStatsResponse)
 @single_flight
-async def get_stats(db: Database = Depends(get_library_database)):
-    """Get library statistics for the current library."""
+async def _stats_once(*, db: Database) -> LibraryStatsResponse:
     from fichero_server.models import Document, Artifact
 
     def read() -> LibraryStatsResponse:
         return LibraryStatsResponse(
-            documents=sum(
-                1
-                for doc in db.all(Document)
-                if getattr(doc, "deleted_at", None) is None
-            ),
+            # A count, never every row hydrated (#6446: 1.8-3.3 s per poll on a large library).
+            documents=db.count_committed(Document, deleted_at=None),
             artifacts=db.count(Artifact),
             embedding_stats=EmbeddingStatsResponse(**db.embedding_stats()),
         )
 
     # Off the loop (#5843): opening LanceDB imports lancedb and waited 255 s on the import lock, holding /api/health.
     return await asyncio.to_thread(read)
+
+
+@app.get("/api/stats", response_model=LibraryStatsResponse)
+async def get_stats(request: Request, db: Database = Depends(get_library_database)):
+    """Get library statistics for the current library.
+
+    Kept until the library announces a change, and answered 304 to a caller that holds the current ETag (#6446).
+    """
+    from fichero_server.core import change_cache
+
+    library = str(db.path.parent)
+    tag = change_cache.etag(library, "stats")
+    if request.headers.get("if-none-match") == tag:
+        return Response(status_code=304, headers={"ETag": tag})
+    stats = change_cache.get(library, "stats")
+    if stats is None:
+        generation = library_generation(library)
+        stats = await _stats_once(db=db)
+        change_cache.put(library, "stats", generation, stats)
+    return JSONResponse(content=jsonable_encoder(stats), headers={"ETag": tag})
 
 
 @app.get("/api/stats/knowledge", response_model=KnowledgeRowCountsResponse)
@@ -2281,33 +2629,37 @@ def get_knowledge_row_counts(db: Database = Depends(get_library_database)):
 # Importing the nested module directly keeps exactly one entry per route.
 from fichero_server.api.routes import training as training_routes  # noqa: E402
 from fichero_server.api.routes import check as check_routes  # noqa: E402
+from fichero_server.api.routes import workers as workers_routes  # noqa: E402
 from fichero_server.api.routes import find_documents as find_documents_routes  # noqa: E402
 from fichero_server.api.routes import evaluation as evaluation_routes  # noqa: E402
 from fichero_server.api.routes import reading_at_scale as reading_at_scale_routes  # noqa: E402
 from fichero_server.api.routes import sync_folders as sync_folder_routes  # noqa: E402
 from fichero_server.api.routes import (  # noqa: E402
     ingest,
-    kg_claim_analysis,
-    kg_claim_search,
-    kg_curation_rules,
-    kg_entity_curation,
-    kg_graph,
-    kg_inclusion,
-    kg_mutations,
-    kg_nlp_draft_purge,
-    kg_render,
-    kg_predictions,
-    kg_pykeen,
-    kg_rebuild,
-    kg_review,
-    kg_search,
-    kg_sparql,
-    kg_triangulation,
     library,
     search,
     workflow_execution,
 )
+from fichero_server.api.routes.kg import (  # noqa: E402
+    claim_search as kg_claim_search,
+    entity_curation as kg_entity_curation,
+    graph as kg_graph,
+    predictions as kg_predictions,
+    pykeen as kg_pykeen,
+    rebuild as kg_rebuild,
+    render as kg_render,
+    search as kg_search,
+    claim_analysis as kg_claim_analysis,
+    curation_rules as kg_curation_rules,
+    inclusion as kg_inclusion,
+    mutations as kg_mutations,
+    nlp_draft_purge as kg_nlp_draft_purge,
+    review as kg_review,
+    sparql as kg_sparql,
+    triangulation as kg_triangulation,
+)
 from fichero_server.api.routes.ai import (  # noqa: E402
+    cloud_caps,
     hpc,
     local_inference,
     local_models,
@@ -2347,6 +2699,7 @@ from fichero_server.api.routes.document import (  # noqa: E402
     georeference as document_georeference,
     inspector as document_inspector,
     renditions,
+    templates as document_templates,
     notes,
     segment_pictures as document_segment_pictures,
     segment_readings as document_segment_readings,
@@ -2398,6 +2751,7 @@ from fichero_server.api.routes.system import (  # noqa: E402
     actions,
     actions_registry,
     activity,
+    activity_history,
     agent_memory,
     bookmarks,
     changes,
@@ -2406,7 +2760,9 @@ from fichero_server.api.routes.system import (  # noqa: E402
     fonts,
     locations,
     migrations,
+    prepare_images,
     projects,
+    recipe_cloud_cap,
     recipes,
     registries,
     settings,
@@ -2430,6 +2786,7 @@ RouteSpec = tuple[object, str, list[str]]
 
 _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (activity.router, "/api", ["activity"]),
+    (activity_history.router, "/api", ["activity"]),
     (agent_memory.router, "/api", ["agent-memory"]),
     (authz.router, "/api", ["authz"]),
     (auth_accounts.auth_router, "/api", ["auth"]),
@@ -2475,6 +2832,8 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # /api/training — train a reader as a job (#5398): Kraken on Hugging Face Jobs, landed as a card.
     (training_routes.router, "/api", ["training"]),
     (check_routes.router, "/api", ["check"]),
+    # /api/workers — dev workers: start, stop, tell (#6116; dev tier).
+    (workers_routes.router, "/api", ["workers"]),
     # /api/find-documents — where documents start and end in a box of loose pages (#5550).
     (find_documents_routes.router, "/api", ["find-documents"]),
     # /api/evaluation — trained against out-of-the-box readers on held-out checked pages (#5441).
@@ -2507,6 +2866,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # Renditions — alternative pixels of one node; ordered engine-side so the
     # preview and any card surface agree what "next" means (2026-08-20).
     (renditions.router, "/api", ["renditions"]),
+    (renditions.pages_router, "/api", ["renditions"]),
     (notes.router, "/api", ["notes"]),
     (projects.router, "/api", ["projects"]),
     (artifacts.router, "/api/artifacts", ["artifacts"]),
@@ -2516,6 +2876,8 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (chat.router, "/api/chat", ["chat"]),
     # Recipes (#4951): the job registry, checking a recipe, and assembling one from setup's answers.
     (recipes.router, "/api", ["recipes"]),
+    (prepare_images.router, "/api", ["recipes"]),
+    (recipe_cloud_cap.router, "/api", ["recipes"]),  # #6295: its own module, recipes.py is over a thousand lines
     # Topics (#5471): each topic's and each recipe job's explanation, written once.
     (topics.router, "/api", ["topics"]),
     (citations.router, "/api", ["citations"]),
@@ -2536,6 +2898,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # Datasets Stage 2 (spec §3/§4): the one renderer query — grid paging,
     # typed filters, date bins, facet counts — over attribute JSON.
     (dataset.router, "/api/documents", ["documents"]),
+    (document_templates.router, "/api/documents", ["documents"]),
     (references.router, "/api", ["references"]),
     # Inspectors mount under /documents/* and /entities/* — tag with the
     # owning resource so the OpenAPI generator groups operations under
@@ -2569,6 +2932,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # /api/hpc/clusters — configure/test an HPC (Slurm) cluster connection and
     # dry-run-submit a workflow run as an array job (HPC live-connection plan).
     (hpc.router, "/api/hpc", ["hpc"]),
+    (cloud_caps.router, "/api", ["ai"]),
     # /api/registries/epistemic-statuses and /api/registries/claim-kinds —
     # user-extensible vocabulary for KnowledgeClaim fields (#1102).
     (registries.router, "/api", ["registries"]),

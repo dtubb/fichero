@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 from fichero_server.db import db_manager
 from fichero_server.api.library_header import require_library_path
-from fichero_server.api.main import assert_library_read_authorized
+from fichero_server.api.main import assert_library_read_authorized, whole_library_reader_only
 from fichero_server.models.knowledge import KnowledgeEntity, KnowledgeClaim
 from fichero_server.llm.multilingual import (
     detect_language,
@@ -216,6 +216,7 @@ async def transliterate_endpoint(
 @router.post(
     "/entities/search",
     response_model=CrossLanguageSearchResponse,
+    dependencies=[Depends(whole_library_reader_only)],
     summary="Cross-language entity search",
     description="Search for entities across languages using transliteration matching.",
 )

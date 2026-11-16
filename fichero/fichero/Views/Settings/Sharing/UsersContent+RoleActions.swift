@@ -15,7 +15,6 @@ extension UsersContent {
     internal func updateRole(userId: String, role: String) async {
         guard authzSnapshot?.canManageRoles == true else { return }
         isApplyingRoleChange = true
-        authzError = nil
         defer { isApplyingRoleChange = false }
 
         do {
@@ -23,7 +22,7 @@ extension UsersContent {
             await refreshAuthz()
             syncAddMemberDefaults()
         } catch {
-            authzError = error.localizedDescription
+            showFailure(error, "Couldn't change that person's role")
             pendingRoleDrafts.removeValue(forKey: userId)
         }
     }
@@ -32,7 +31,6 @@ extension UsersContent {
     internal func revokeRole(userId: String) async {
         guard authzSnapshot?.canManageRoles == true else { return }
         isApplyingRoleChange = true
-        authzError = nil
         defer { isApplyingRoleChange = false }
 
         do {
@@ -40,7 +38,7 @@ extension UsersContent {
             await refreshAuthz()
             syncAddMemberDefaults()
         } catch {
-            authzError = error.localizedDescription
+            showFailure(error, "Couldn't remove that person from the project")
         }
     }
 

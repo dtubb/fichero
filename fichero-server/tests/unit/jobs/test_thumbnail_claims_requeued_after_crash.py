@@ -39,8 +39,10 @@ def test_after_a_kill_the_unfinished_thumbnails_wait_to_run_and_the_made_stay_do
     jobs._ensure(db)
     ids = _five_pages_killed_after_three(db, thumbs)
 
-    jobs.resume(db)  # the reopen after the restart
+    jobs.resume(db)  # the reopen after the restart: the two claims wait for the person (owner 2026-11-13)
 
+    assert _states(db, ids) == ["done"] * 3 + ["paused"] * 2
+    jobs.continue_after_quit(db, None)
     assert _states(db, ids) == ["done"] * 3 + ["waiting"] * 2
 
 

@@ -1,4 +1,6 @@
 {
   "_doc": "Pages built as public URLs but not linked from mkdocs nav. Public on purpose. Adding an entry is a decision to publish; see agents/ROADMAP.md.",
-  "unlinked_public_pages": []
+  "unlinked_public_pages": [
+    "contributor_manual/review-checklist.md"
+  ]
 }

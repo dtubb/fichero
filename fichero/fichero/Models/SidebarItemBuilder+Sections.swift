@@ -95,7 +95,7 @@ extension SidebarItemBuilder {
         // one, and the same two names ordered differently per section.
         let childFolders = folderItems.values
             .filter { parentFolderPath(of: $0.folderPath) == folderPath }
-            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            .sorted { $0.name.finderOrder($1.name) }
 
         for folder in childFolders {
             // Recursively build children for this folder

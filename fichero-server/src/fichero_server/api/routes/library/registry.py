@@ -28,6 +28,7 @@ import shutil
 import threading
 from collections import defaultdict
 from datetime import datetime
+from fichero_server.api.routes.auth.accounts import _require_owner_for_writes, _require_owner_or_bootstrap  # an app-wide or whole-library act: the owner's (#6320)
 from fichero_server.core.timeutil import utc_now
 from fichero_server.db import owner_grants
 from pathlib import Path
@@ -68,7 +69,7 @@ from fichero_server.models import (
 from fichero_server.db.storage import snapshot_library, settings
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(_require_owner_for_writes)])  # the Mac's list of libraries is the owner's
 
 
 def _escape_visible(value: str) -> str:
@@ -781,6 +782,8 @@ def _merge_library_knowledge_sidecars(
     UnicodeLibraryMergeParams,
     domains=["library"],
     atomic=False,
+    owner_only=True,
+    owner_scope="app",
 )
 def _action_unicode_merge_library(
     db: Database,
@@ -1068,7 +1071,7 @@ class ReleaseRefused(Exception):
     """A project cannot be released now; the message says why, in words (#5563)."""
 
 
-@action("library.release", ReleaseLibraryParams, domains=["library"], atomic=False)
+@action("library.release", ReleaseLibraryParams, domains=["library"], atomic=False, owner_only=True, owner_scope="app")
 def _action_release_library(
     db: Database,
     params: ReleaseLibraryParams,
@@ -1213,6 +1216,12 @@ def add_known_library(
             status_code=400,
             detail="Path must be a .fichero package (directory ending in .fichero)",
         )
+    # #6588: a dev engine neither registers nor opens the owner's real projects, whoever asks.
+    from fichero_server.security.real_data_guard import library_refusal
+
+    refused = library_refusal(pkg_path)
+    if refused:
+        raise HTTPException(status_code=403, detail=refused)
 
     try:
         # Check if already registered
@@ -1301,7 +1310,7 @@ def update_library_access(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@router.delete("/registry/{library_path:path}")
+@router.delete("/registry/{library_path:path}", dependencies=[Depends(_require_owner_or_bootstrap)])
 def remove_known_library(
     request: Request,
     library_path: str,

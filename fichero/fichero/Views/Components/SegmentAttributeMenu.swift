@@ -35,7 +35,7 @@ struct SegmentAttributeMenu: View {
                 }
             }
             Button("Mark as Text") { apply(.furniture(false)) }
-            Button("Mark as Furniture") { apply(.furniture(true)) }
+            Button("Not Part of the Text") { apply(.furniture(true)) }
             if let askForCode {
                 Divider()
                 Button("Language…") { askForCode(.language) }

@@ -54,14 +54,25 @@ class ChainService {
     func loadChains() async {
         isLoading = true
         error = nil
-
-        do {
-            chains = try await listChains()
-            logger.info("Loaded \(self.chains.count) chains")
-        } catch {
-            if !error.isCancellationError {
-                self.error = error.localizedDescription
-                logger.error("Failed to load chains: \(error.localizedDescription)")
+        // A load the engine's first-launch adoption cancels is asked again (#6479); a cancelled TASK stops, as before.
+        var attempt = 0
+        while true {
+            do {
+                chains = try await listChains()
+                logger.info("Loaded \(self.chains.count) chains")
+                break
+            } catch {
+                attempt += 1
+                let cancelled = error.isCancellationError
+                if let wait = ChainLoadRetry.wait(afterAttempt: attempt, requestCancelled: cancelled, taskCancelled: Task.isCancelled) {
+                    try? await Task.sleep(for: .seconds(wait))
+                    continue
+                }
+                if !cancelled {
+                    self.error = error.localizedDescription
+                    logger.error("Failed to load chains: \(error.localizedDescription)")
+                }
+                break
             }
         }
 

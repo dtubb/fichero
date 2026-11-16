@@ -444,14 +444,19 @@ def _build_cached(db: "Database", builder, cache: dict):
     """
     from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
 
+    from fichero_server.knowledge.trash_visibility import trashed_document_ids, visible_claims, visible_entities
+
     key = str(db.path)
-    signature = _cache_signature(db)
+    # Knowledge resting on a trashed page is out of view, so the Trash is part of the cache key: sending a page there
+    # or putting it back changes no claim row, only which ones this graph may show (`safety.trash.every-read-leaves-it-out`).
+    trashed = trashed_document_ids(db)
+    signature = (*_cache_signature(db), tuple(sorted(trashed)))
     cached = cache.get(key)
     if cached is not None and cached[0] == signature:
         return cached[1]
     graph = builder(
-        entities=db.query(KnowledgeEntity),
-        claims=db.query(KnowledgeClaim),
+        entities=visible_entities(db, db.query(KnowledgeEntity), trashed),
+        claims=visible_claims(db, db.query(KnowledgeClaim), trashed),
     )
     cache[key] = (signature, graph)
     return graph

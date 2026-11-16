@@ -88,6 +88,7 @@ struct EngineWorkSample: Equatable {
 
     /// The process's usage now; nil when it can't be read (gone, or not ours to read: see `isGone`).
     static func read(pid: pid_t) -> EngineWorkSample? {
+#if os(macOS)
         var info = rusage_info_v4()
         let status = withUnsafeMutablePointer(to: &info) {
             $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { proc_pid_rusage(pid, RUSAGE_INFO_V4, $0) }
@@ -100,5 +101,9 @@ struct EngineWorkSample: Equatable {
         return EngineWorkSample(
             cpuSeconds: ticks * Double(timebase.numer) / Double(timebase.denom) / 1e9,
             diskBytes: info.ri_diskio_bytesread + info.ri_diskio_byteswritten)
+#else
+        // libproc's proc_pid_rusage does not exist on iOS/iPadOS, and there is no local engine process to sample there (#6321).
+        return nil
+#endif
     }
 }

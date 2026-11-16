@@ -164,7 +164,7 @@ fallback, already on). The rest ship off-by-default, one toggle away.
   with WHICH source (rides #4636), never indistinguishable from hand/AI values; a value can
   carry several `sameAs` ids at once (Wikidata + VIAF + GeoNames).
 - `kg.enrich.geocode-place-entities` — **[GAP]** (#4600) location entities carry no
-  coordinates today (a Marshall-diary test found 281 unresolved place entities in one year
+  coordinates today (a diary test found 281 unresolved place entities in one year
   alone) — a typed geo attribute (lat/lon + precision + source, not a dict-of-`Any`) plus a
   geocoding pass that resolves a canonical place name against an offline gazetteer subset
   (GeoNames, bundled for the sandboxed engine, no network dependency for the common case) —

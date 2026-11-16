@@ -37,7 +37,8 @@ func sidebarRowAccessibilityHint(canBeRenamed: Bool) -> String {
 
 extension SidebarItemRow {
     var body: some View {
-        bodyContent
+        BodyCount.tick("SidebarItemRow")
+        return bodyContent
             // NO per-row TapGesture fallback any more (removed 2026-08-08,
             // #4571). The #645-era fallback predates textSelection(.disabled)
             // and the allowsHitTesting(false) pass-throughs that now let
@@ -175,11 +176,21 @@ extension SidebarItemRow {
                 fullWidthLabel
                     .sidebarDropHighlight(isDropTargeted, selected: isRowInSelection,
                                           mergeAbove: mergeSelectionAbove, mergeBelow: mergeSelectionBelow)
+                    // The row's own menu, always: an expanded group does not carry one (#6528, below).
+                    .contextMenu { SidebarDeferredMenuContent { rowContextMenu } }
+                    // A click on an expanded folder's own name selects it (`sidebarExpandedLabelTapActs`).
+                    .simultaneousGesture(TapGesture().onEnded {
+                        guard sidebarExpandedLabelTapActs(item, expandedItems.contains(item.id)) else { return }
+                        onExpandedLabelTap?()
+                    })
             }
             .modifier(SidebarRowDropGate(enabled: rowIsDropTarget, delegate: rowDropDelegate))
             // #4544: menu built at OPEN, not per render — see
-            // SidebarDeferredMenuContent.
-            .contextMenu { SidebarDeferredMenuContent { rowContextMenu } }
+            // SidebarDeferredMenuContent. #6528: only while the group holds no child rows; expanded, the
+            // outermost group's menu would take a right-click on any nested row and act on the ancestor.
+            .modifier(SidebarGroupContextMenu(
+                carries: sidebarGroupCarriesContextMenu(item, isExpanded: expandedItems.contains(item.id))
+            ) { SidebarDeferredMenuContent { rowContextMenu } })
             // Standard prominence keeps the disclosure chevron its normal grey on a selected row (Daniel,
             // 2026-08-10: a white chevron is invisible); it is no longer tinted accent, since the selected
             // row's name and icon no longer are (2026-10-11).

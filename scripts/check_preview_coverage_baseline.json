@@ -1,5 +1,4 @@
 {
-  "Activity/ActivityBrowserRow.swift": "declares a View, no #Preview",
   "Activity/ActivityViewHelpers.swift": "declares a View, no #Preview",
   "Activity/Comparison/RunComparisonRows.swift": "declares a View, no #Preview",
   "Activity/Comparison/RunComparisonView.swift": "declares a View, no #Preview",
@@ -8,7 +7,6 @@
   "Activity/Trace/RunArtifactRow.swift": "declares a View, no #Preview",
   "Activity/Trace/RunTraceStatusStyle.swift": "declares a View, no #Preview",
   "Activity/Trace/RunTraceView.swift": "declares a View, no #Preview",
-  "Activity/Window/ActivityDetailWindow.swift": "declares a View, no #Preview",
   "Activity/Window/ActivityMonitorWindow.swift": "declares a View, no #Preview",
   "Auth/AuthSheetView.swift": "declares a View, no #Preview",
   "Capture/CaptureInlineRowIOS.swift": "declares a View, no #Preview",

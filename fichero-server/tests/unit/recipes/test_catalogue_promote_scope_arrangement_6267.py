@@ -152,6 +152,29 @@ def test_undo_restores_content_queues_a_reembed_and_leaves_other_keys(db, monkey
     assert back.metadata["note"] == "kept"
 
 
+def test_an_undo_whose_reembed_cannot_be_queued_still_restores_and_tells_the_health_ledger(db, monkeypatch):
+    """The text is back; search lags. That is said where `/api/health` reads it (the failure ledger), not only in a log line."""
+    from fichero_server.core import failure_ledger
+
+    box, art = _described_folder(db)
+    art.content = NEW
+    db.save(art)
+    audit_id = _promote(db, folder_id=box).audit_id
+
+    calls: list = []
+
+    def refuse(_db, ids):
+        calls.append(ids)
+        if len(calls) == 1:  # the undo's own queue; the change event's later queue is not under test
+            raise RuntimeError("queue is shut")
+
+    monkeypatch.setattr("fichero_server.actions.page_text_cache.queue_reembed", refuse)
+    before = failure_ledger.counts().get("search|reembed|RuntimeError", 0)
+    undo_set(db, [audit_id], CTX)
+    assert db.get(Document, box).page_content == OLD
+    assert failure_ledger.counts()["search|reembed|RuntimeError"] == before + 1
+
+
 def test_a_language_code_is_matched_not_a_prefix():
     text = "Condition: bien [uncertain]."
     assert "[incierto]" in catalogue_step.parse_fields(text, "es-CO")["catalogue_condition"]

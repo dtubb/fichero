@@ -22,7 +22,8 @@ struct LibrarySharingBadge: View {
     @State private var isLoadingMembers = false
     @State private var membersError: String?
     @State private var isApplying = false
-    @State private var manageError: String?
+    /// A failed role change or removal, as the one alert (`sharing.alerts.no-bottom-strip`).
+    @State private var failurePrompt: FailureAlertPrompt?
 
     private let sharingRoles = ["owner", "editor", "viewer"]
 
@@ -107,12 +108,6 @@ struct LibrarySharingBadge: View {
                 }
             }
 
-            if let manageError {
-                Text(manageError)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-
             // Owners get the full "Share this library…" flow (#3149): add a
             // person (existing or new) at a role and get a share link.
             if canManage {
@@ -190,7 +185,7 @@ struct LibrarySharingBadge: View {
             members = try await library.actionsService.listLibraryMembers().members ?? []
         } catch {
             members = []
-            membersError = error.localizedDescription
+            membersError = "Fichero couldn't load who has this project. Close this and open it again."
         }
     }
 
@@ -211,14 +206,16 @@ struct LibrarySharingBadge: View {
     private func applyManagement(_ mutate: () async throws -> Void) async {
         guard canManage else { return }
         isApplying = true
-        manageError = nil
         defer { isApplying = false }
         do {
             try await mutate()
             await loadSnapshot()
             await loadMembers()
         } catch {
-            manageError = error.localizedDescription
+            let ownerSignIn = appState.ownerSignIn
+            failurePrompt = SharingFailurePrompt.make(
+                sharing: error, title: "Couldn't change who has \(library.displayName)", offers: [.signInAsOwner],
+                perform: { _ in Task { await ownerSignIn.run() } }, copy: { PlatformPasteboard.writeString($0) })
         }
     }
 }

@@ -40,6 +40,7 @@ struct OrganiseTryStrip: View {
             }
             .padding(.vertical, 4)
         }
+        .pagerScroller()
         .accessibilityIdentifier("setup.organise.tryStrip")
     }
 

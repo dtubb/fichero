@@ -96,6 +96,7 @@ cards:
     scripts: any
     languages: any
     material: [print, typescript]   # never handwriting: Kraken finds a hand's lines (#5451)
+    compare_on: [handwriting]       # ...but offered there to compare beside Kraken, never the default (#6271)
     licence: system
     pinnable: false
     note: Apple's on-device text recognition used to find the lines of print only; it keeps no text.

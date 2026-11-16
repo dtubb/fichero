@@ -15,12 +15,15 @@ import os
 import sys
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 from collections.abc import Iterator
 from typing import Any, Callable, Optional
 
 import typer
 
+from fichero_cli import run_failure
 from fichero_cli import FicheroClient, FicheroError
+from fichero_cli.client import CloudRefusedError
 from fichero_cli import client as client_module
 from fichero_cli.openapi_surface_generated import register_generated_openapi_commands
 from fichero_cli.formatters import render
@@ -394,7 +397,7 @@ def _report_fichero_error(ctx: typer.Context, exc: FicheroError) -> None:
 
 
 def _auth_error(ctx: typer.Context, exc: FicheroError) -> None:
-    if exc.status_code == 404 and "multi-user auth is disabled" in str(exc):
+    if exc.status_code in (404, 409) and "multi-user auth is disabled" in str(exc):  # 404 from an older engine
         typer.secho(
             "Multi-user auth is disabled on this engine.",
             fg=typer.colors.YELLOW,
@@ -820,7 +823,71 @@ def devices_pair(
     except (FicheroError, OSError) as exc:
         typer.echo(f"Pairing failed: {exc}", err=True)
         raise typer.Exit(1) from exc
+    for note in done.get("notes", []):  # which address answered and why the others did not (`sharing.client-tries-every-address`)
+        typer.echo(note)
     typer.echo(f"Paired as {done['name']!r} with {done['host']} (device {done['device_id']}); token stored.")
+
+
+@devices_app.command("invite")
+def devices_invite(
+    ctx: typer.Context,
+    address: str = typer.Option(None, "--address", help="Which address the link names: this-network or tailscale "
+                                "(default: tailscale when this host's forward is up, else this-network)."),
+    link_file: Path = typer.Option(None, "--link-file", help="Write the link here (owner-only) instead of printing it."),
+) -> None:
+    """Mint a pairing link on THIS host (run where Fichero shares) for `devices pair` on another machine; no GUI needed."""
+    from fichero_cli import pairing
+
+    if address not in (None, "this-network", "tailscale"):
+        typer.echo("--address takes this-network or tailscale.", err=True)
+        raise typer.Exit(2)
+    try:
+        with _client(ctx) as client:
+            state = client.sharing_state() or {}
+            local = (state.get("public_base_url") or "").strip() or None
+            tailnet = (state.get("tailnet_url") or "").strip() or None
+            forward = state.get("tailnet_forward") or "none"
+            tailnet_ok = tailnet is not None and forward == "ours"
+            # Sharing off: no sharing address. (A tailnet address alone is Tailscale running, not Fichero sharing.)
+            if local is None:
+                typer.echo("Sharing is off on this Mac: turn it on in Settings › Sharing, then invite again.", err=True)
+                raise typer.Exit(1)
+            chosen = address or ("tailscale" if tailnet_ok else "this-network")
+            if chosen == "tailscale" and not tailnet_ok:
+                why = {
+                    None: "Tailscale is not running on this Mac" if tailnet is None else "",
+                    "foreign": "another service holds this port on the tailnet (see Settings › Sharing)",
+                    "none": "Fichero has not published this Mac on the tailnet yet (turn Sharing off and on)",
+                    "unknown": "this engine cannot ask Tailscale (a sandboxed build; see Settings › Sharing)",
+                }.get(None if tailnet is None else forward, "the tailnet forward is not Fichero's own")
+                typer.echo(f"No Tailscale address to invite with: {why}. --address this-network names the local address.", err=True)
+                raise typer.Exit(1)
+            # This network: the engine itself refuses a link to an address nothing listens on (409,
+            # `sharing.link-names-a-listener`), and its words are shown below as "Could not invite".
+            api_url = pairing.tailnet_link_url(tailnet, local) if chosen == "tailscale" else local
+            mint = client.create_pairing_code()
+            try:  # the link carries the host's other addresses too; an older engine has no list, so the link has one
+                rows = (client.pair_addresses() or {}).get("items") or []
+            except FicheroError:
+                rows = []
+            text = pairing.invite_link(api_url=api_url, code=mint["code"], spki=mint.get("spki_pin"),
+                                       expires_at=mint.get("expires_at"), library_path=ctx.obj.get("library") or None,
+                                       alt_urls=pairing.alt_urls_from(rows, chosen=api_url, sharing_address=local))
+    except FicheroError as exc:
+        typer.echo(f"Could not invite: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    label = "Tailscale" if chosen == "tailscale" else "This network"
+    expires = (mint.get("expires_at") or "").replace("T", " ").rstrip("Z")[:16]
+    typer.echo(f"{label} ({urlparse(api_url).hostname}); the code expires {expires} UTC and works once.")
+    if link_file:
+        try:
+            pairing.write_owner_only(link_file, text + "\n")
+        except (FicheroError, OSError) as exc:
+            typer.echo(f"Could not write the link file: {exc}", err=True)
+            raise typer.Exit(1) from exc
+        typer.echo(f"Link written to {link_file}. On the other machine: fichero devices pair --link-file <that file>")
+    else:
+        typer.echo(text)
 
 
 @devices_app.command("forget")
@@ -2575,6 +2642,10 @@ def workflow_run(
         "openrouter/google/gemini-3-flash-preview), or a trained model's id as the app shows it "
         "(fichero-trained/<name>): the same choice as the app's Run menu.",
     ),
+    allow_cloud_once: bool = typer.Option(
+        False, "--allow-cloud-once", help="Let this run's calls go to a cloud model although the project keeps its pages here; saved nowhere."),
+    over_cap_once: bool = typer.Option(
+        False, "--over-cap-once", help="Let this run's calls go past a cloud spend cap; the spend is still booked, saved nowhere."),
 ) -> None:
     """Run a workflow on one document or several (one run over the selection, as the Run menu does)."""
     provider_override = model_override = None
@@ -2595,6 +2666,7 @@ def workflow_run(
             result = client.run_workflow(
                 workflow_id, {"selected_doc_ids": list(dict.fromkeys(doc_ids))},
                 provider_override=provider_override, model_override=model_override,
+                **({"allow_cloud_once": True} if allow_cloud_once else {}), **({"over_cap_once": True} if over_cap_once else {}),
             )
             # run_workflow now returns a typed ExecuteAcceptedResponse; the
             # FakeClient still hands back a raw dict, so handle both.
@@ -2611,6 +2683,11 @@ def workflow_run(
                     timeout_seconds=timeout,
                     fallback_workflow_id=workflow_id,
                 )
+    except CloudRefusedError as exc:  # a cap or the images rule: the words, the figures, the way through (`ai.cloud.cli-refuses-in-words`)
+        from fichero_cli import cloud_refusal
+
+        typer.secho(cloud_refusal.words(exc.refusal), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=cloud_refusal.EXIT_CODE) from exc
     except FicheroError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -2620,6 +2697,9 @@ def workflow_run(
         # Strip LangGraph implementation details from human output (#1081).
         # `--json` keeps the raw payload for diagnostics.
         typer.echo(render(_scrub_langgraph_internals(result)))
+    if wait and (failure := run_failure.of(result)):  # a run that failed: the words, the fix and the commands, exit 1
+        typer.secho(run_failure.words(failure, str(thread_id)), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=run_failure.EXIT_CODE)
 
 
 @app.command("activity-stream")
@@ -4172,8 +4252,15 @@ def workflow_status(
     ctx: typer.Context,
     thread_id: str = typer.Argument(..., help="Thread ID to inspect."),
 ) -> None:
-    """Show the current status of a workflow execution thread."""
-    _invoke(ctx, lambda c: c.execution_status(thread_id))
+    """Show the current status of a workflow execution thread. A run that failed also says why, the fix and the commands."""
+    try:
+        with _client(ctx) as client:
+            status = client.execution_status(thread_id)
+    except FicheroError as exc:
+        _report_fichero_error(ctx, exc)
+    typer.echo(render(status, as_json=ctx.obj["json"]))
+    if failure := run_failure.of(status):
+        typer.secho(run_failure.words(failure, thread_id), fg=typer.colors.RED, err=True)
 
 
 @workflow_app.command("stop")

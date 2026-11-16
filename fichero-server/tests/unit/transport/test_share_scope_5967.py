@@ -4,7 +4,6 @@ invitation can name the folder. A grant is (person, project, folder, role); a fo
 
 import pytest
 
-from fichero_server.api.routes.auth import pairing
 from fichero_server.db.manager import db_manager
 from fichero_server.models import DocType, Document
 from fichero_server.security import authz
@@ -14,7 +13,7 @@ from tests.unit.transport.test_person_bound_invite_5910 import _as, _invite, _re
 
 
 @pytest.fixture
-def project(harness, monkeypatch):
+def project(harness, monkeypatch):  # noqa: F811
     """A project with two folders and a loose page: owner, alice (editor of the whole project), bob (viewer of it)."""
     users = _multiuser_on(harness, monkeypatch)
     db = db_manager.get_database(harness.library)
@@ -35,7 +34,7 @@ def project(harness, monkeypatch):
     return type("Project", (), {"harness": harness, "users": users, "ids": ids, "library": str(harness.library)})
 
 
-def _person(harness, name):
+def _person(harness, name):  # noqa: F811
     from fichero_server.security import accounts
 
     return harness.app_db.create_user(username=name, display_name=name.title(), password_hash=accounts.hash_password("pw-" + name))
@@ -215,7 +214,8 @@ def test_every_listed_route_exists_and_filters_its_rows():
     assert not missing, f"listed but not a route (renamed?): {missing}"
     for name in authz.SCOPED_LIBRARY_READ_ROUTES:
         route = by_id[name]
-        filters = ("readable_documents" in inspect.getsource(route.endpoint)
+        source = inspect.getsource(route.endpoint)
+        filters = ("readable_documents" in source or "read_check(" in source  # a body that names its folder is walked, whole or refused
                    or any(getattr(d.call, "__name__", "") == "readable_rows" for d in _walk(route.dependant)))
         assert filters, f"{name} is on the scoped list but does not filter per row"
 

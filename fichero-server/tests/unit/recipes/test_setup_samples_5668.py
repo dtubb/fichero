@@ -197,3 +197,9 @@ def test_a_stage_not_chosen_cannot_be_tried_and_unticking_clears_its_result(clie
     kept.write_text(json.dumps({"stage": "names"}))
     assert client.get("/api/recipes/stages/names/try").status_code == 404
     assert not kept.exists()
+
+
+@pytest.fixture(autouse=True)
+def _no_long_download_wait(monkeypatch):
+    """A machine without the spaCy model queues a download nothing runs here: wait seconds for it, not the 30 minutes a person gets (#6320)."""
+    monkeypatch.setattr("fichero_server.recipes.samples.DOWNLOAD_WAIT_SECONDS", 3.0)

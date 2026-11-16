@@ -58,9 +58,9 @@ from fichero_server.api.routes.entity.entities import (
     TopEntityRow,
 )
 from fichero_server.api.routes.entity.inspector import EntityInspectorResponse
-from fichero_server.api.routes.kg_graph import NeighborhoodResponse
-from fichero_server.api.routes.kg_rebuild import RebuildResponse
-from fichero_server.api.routes.kg_search import KGSearchResponse
+from fichero_server.api.routes.kg.graph import NeighborhoodResponse
+from fichero_server.api.routes.kg.rebuild import RebuildResponse
+from fichero_server.api.routes.kg.search import KGSearchResponse
 from fichero_server.api.routes.ai.model_comparison import ComparisonResultResponse
 from fichero_server.api.routes.ai.provider_models import ProviderResponse
 from fichero_server.models.hermeneutics import Interpretation
@@ -149,6 +149,26 @@ class FicheroError(RuntimeError):
     def __init__(self, message: str, *, status_code: int | None = None) -> None:
         super().__init__(message)
         self.status_code = status_code
+
+
+class CloudRefusedError(FicheroError):
+    """A run was refused by a cloud rule (a cap, or the images switch) and the engine served the typed refusal, so a caller can
+    print its words and the way through (`cloud_refusal.words`). `refusal` is the engine's `detail.refusal`."""
+
+    def __init__(self, message: str, refusal: dict, *, status_code: int = 400, detail: Any = None) -> None:
+        super().__init__(message, status_code=status_code)
+        self.refusal = refusal
+        self.detail = detail  # the 400's whole `detail` (`{message, refusal}`), for a caller that passes it on (the MCP)
+
+
+def _cloud_refusal_of(response: Any) -> dict | None:
+    """The typed refusal a 400 carries (`detail.refusal`), else None."""
+    try:
+        detail = response.json().get("detail")
+    except (ValueError, AttributeError):
+        return None
+    refusal = detail.get("refusal") if isinstance(detail, dict) else None
+    return refusal if isinstance(refusal, dict) else None
 
 
 def engine_key(base_url: str | None, uds_path: str | None) -> str:
@@ -711,6 +731,11 @@ class FicheroClient:
                 "`fichero devices pair --link-file <file holding the host's pairing link>`.",
                 status_code=401,
             )
+        if response.status_code == 400:
+            refusal = _cloud_refusal_of(response)
+            if refusal is not None:
+                raise CloudRefusedError(refusal.get("words") or "A cloud rule refused this call.", refusal,
+                                        detail=response.json().get("detail"))
         if response.status_code >= 400:
             raise FicheroError(
                 f"{method} {path} -> {response.status_code}: {response.text}",
@@ -797,6 +822,18 @@ class FicheroClient:
 
     def revoke_device(self, device_id: str) -> Any:
         return self.request("POST", f"/api/pair/devices/{device_id}/revoke")
+
+    def sharing_state(self) -> Any:
+        """The host's sharing state: its addresses, the tailnet forward, Multi-user (`sharing.state-names-every-address`)."""
+        return self.request("GET", "/api/pair/sharing")
+
+    def pair_addresses(self) -> Any:
+        """Every address the host can be reached at, in the order to try (`sharing.address-choice`)."""
+        return self.request("GET", "/api/pair/addresses")
+
+    def create_pairing_code(self) -> Any:
+        """Mint one short-lived pairing code on this host (the owner over the engine's socket). Never logged."""
+        return self.request("POST", "/api/pair/code", json={})
 
     # -- notes -------------------------------------------------------------
     def create_note(
@@ -1108,6 +1145,8 @@ class FicheroClient:
         skip_cache: bool = False,
         provider_override: str | None = None,
         model_override: str | None = None,
+        allow_cloud_once: bool = False,
+        over_cap_once: bool = False,
     ) -> ExecuteAcceptedResponse:
         body: dict[str, Any] = {
             "workflow_id": workflow_id,
@@ -1121,6 +1160,10 @@ class FicheroClient:
             body["provider_override"] = provider_override
         if model_override:
             body["model_override"] = model_override
+        if allow_cloud_once:  # this run only; the engine writes it to no setting (`ai.cloud.one-run-overrides`)
+            body["allow_cloud_once"] = True
+        if over_cap_once:
+            body["over_cap_once"] = True
         return ExecuteAcceptedResponse.model_validate(
             self.request("POST", "/api/workflow-execution/execute", json=body)
         )

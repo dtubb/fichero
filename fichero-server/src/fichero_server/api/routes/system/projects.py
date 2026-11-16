@@ -10,13 +10,13 @@ from __future__ import annotations
 import logging
 from fichero_server.core.timeutil import utc_now
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from fichero_server.api.library_header import require_library_path
 from fichero_server.api.auth import request_actor
 from fichero_server.api.change_stream import emit_change
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.main import assert_library_read_authorized, get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.models.knowledge import (
     Project,
@@ -189,6 +189,7 @@ def include_item(
         default=None, alias="X-Fichero-Origin-Window"
     ),
     actor: str = Depends(request_actor),
+    http: Request = None,
 ) -> ProjectInclusion:
     if db.get(Project, project_id) is None:
         raise HTTPException(404, f"Project not found: {project_id}")
@@ -197,6 +198,8 @@ def include_item(
             400,
             f"target_type must be one of {sorted(VALID_TARGET_TYPES)}",
         )
+    if request.target_type == "document" and http is not None:  # the id is in the body: a document the caller may not read is not theirs to add (#6320)
+        assert_library_read_authorized(http, x_fichero_library_path, named=[request.target_id])
     # Dedup: don't create the same (project, target) twice.
     for existing in db.query(ProjectInclusion):
         if (

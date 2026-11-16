@@ -201,7 +201,7 @@ struct EditorView: View {
             return pagePreviewRoute(for: doc, isEditing: isEditing)
         }
         if doc.fileType == .pdf {
-            return .storageDisplay(documentId: doc.id)
+            return pdfPreviewRoute(for: doc)
         }
         if doc.fileType == .image {
             if isEditing && supportsImageEditingPreview {
@@ -232,7 +232,7 @@ struct EditorView: View {
             return .storageDisplay(documentId: doc.id)
         }
         if doc.fileType == .pdf {
-            return .storageDisplay(documentId: doc.id)
+            return pdfPreviewRoute(for: doc)
         }
         return .folderContents(folderId: doc.id)
     }
@@ -266,6 +266,7 @@ struct EditorView: View {
                 onNavigateToDocument: supportsFolderNav ? onNavigateToDocument : nil,
                 isEditing: isImageEditable ? editModeBinding : nil
             )
+            .sourcePaneImageControls(doc, enabled: isImageEditable)
         case .imageEditor:
             ImageEditorView(
                 document: doc,
@@ -282,7 +283,8 @@ struct EditorView: View {
             QuickLookDownloadView(document: doc)
         case .folderContents(let folderId):
             // A group previews here too, as its pages on its own board (#5570).
-            FolderContentsPreview(folderId: folderId, onNavigateToDocument: onNavigateToDocument)
+            // A plain folder shows in THIS pane's chosen view; a group is always its pages on its board.
+            FolderViewPreview(folderId: folderId, usesPaneView: doc.docType == .folder, onNavigateToDocument: onNavigateToDocument)
         case .glyph(let systemImage, let title):
             GlyphPreviewPlaceholder(systemImage: systemImage, title: title)
         case .entrySource:

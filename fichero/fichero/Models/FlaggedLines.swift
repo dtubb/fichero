@@ -3,9 +3,10 @@ import Foundation
 /// A line the teacher-line check flagged (#5446, `source.lines.reading-checked-against-the-page`): the
 /// engine's `line-against-page` check run stores a `reject` verdict on each flagged line's reading and
 /// lists the line, its flag and its scores in the run (`GET /api/check/runs/{id}`). A line is flagged
-/// while the newest verdict on that reading is a reject -- the training set's own rule
-/// (`kraken_set.lines_of_pass`) -- so a person's confirm clears it. Pure: the rules live where a test
-/// can reach them; `FlaggedLineStore` is the one place that reads the routes.
+/// while the newest verdict on that reading is a reject, so a person's confirm clears it. (The training set
+/// ranks a person's verdict above a model's whatever the order, `checking.verdicts.standing`; this store takes the
+/// newest of any trust, `flagged(verdicts:runs:documentId:)`.) Pure: the rules live where a test can reach them;
+/// `FlaggedLineStore` is the one place that reads the routes.
 enum FlaggedLines {
     /// One verdict as `GET /api/check/verdicts` lists it (`CheckVerdict.model_dump(mode="json")`).
     struct Verdict: Decodable, Equatable {
@@ -18,14 +19,6 @@ enum FlaggedLines {
         let runId: String?
         /// ISO 8601 as the engine writes it; the engine's own order is (created_at, id).
         let createdAt: String
-
-        enum CodingKeys: String, CodingKey {
-            case id, verdict, reasons, trust
-            case targetId = "target_id"
-            case documentId = "document_id"
-            case runId = "run_id"
-            case createdAt = "created_at"
-        }
     }
 
     struct VerdictList: Decodable {
@@ -41,11 +34,6 @@ enum FlaggedLines {
         /// Absent on a check run that is not the teacher-line check (it lists proposals instead).
         let flagged: [Flag]?
         let thresholds: Thresholds?
-
-        enum CodingKeys: String, CodingKey {
-            case state, counts, flagged, thresholds
-            case jobId = "job_id"
-        }
 
         /// The run is still writing its verdicts: its `flagged` list is not final until it has finished
         /// (the job's states: waiting, running, paused, then done, failed or cancelled).
@@ -67,13 +55,6 @@ enum FlaggedLines {
         let neighbour: Double
         /// The neighbour that matched best, in lines from this one (+1 the next line); nil when none.
         let offset: Int?
-
-        enum CodingKeys: String, CodingKey {
-            case flag, own, neighbour, offset
-            case documentId = "document_id"
-            case segmentId = "segment_id"
-            case readingId = "reading_id"
-        }
     }
 
     static let closerToANeighbour = "closer to a neighbour"
@@ -158,5 +139,31 @@ enum FlaggedLines {
             }
         }
         return lines
+    }
+}
+
+extension FlaggedLines.Verdict {
+    enum CodingKeys: String, CodingKey {
+        case id, verdict, reasons, trust
+        case targetId = "target_id"
+        case documentId = "document_id"
+        case runId = "run_id"
+        case createdAt = "created_at"
+    }
+}
+
+extension FlaggedLines.Run {
+    enum CodingKeys: String, CodingKey {
+        case state, counts, flagged, thresholds
+        case jobId = "job_id"
+    }
+}
+
+extension FlaggedLines.Flag {
+    enum CodingKeys: String, CodingKey {
+        case flag, own, neighbour, offset
+        case documentId = "document_id"
+        case segmentId = "segment_id"
+        case readingId = "reading_id"
     }
 }

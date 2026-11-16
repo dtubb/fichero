@@ -237,7 +237,7 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
   the document NAME (resolved over ALL loaded docs, not just the folder scope — the id-fallback
   bug), is **draggable** (shared `LibraryItemDrag` payload), and **clicks through** to the source
   (the existing `ClaimSourceRequest.request(for:)` cursor entity statements use). Pinned:
-  `ClaimSourceLabelTests`.
+  `ClaimSourceLabelTests`. Was: the drag payload is carried by the ROW since #6538, so a click on the Source cell still selects the claim (`fichero/Tests/Unit/general/Views/Library/LibraryOutlineRowDragTests.swift`).
 
 ### Legacy milestone fold — toolbar and shared chrome (#125 UX - Toolbars & Mini Toolbars,
 ### #251 Surface Chrome - Shared Components; both milestones had no spec of their own)
@@ -325,6 +325,87 @@ starting a new one.
   chrome without re-deriving it. Verified at HEAD: no `SurfaceChrome`-named type exists
   anywhere under `fichero/fichero/` — `MiniToolbar`/`PaneFilterBar` are shared, but the tab-bar
   half of the pattern is not yet extracted.
+- `panes.toolbar.sidebar-pair-once` — **[PARTIAL]** (owner 2026-11-13, a screenshot of two pairs) the Sidebar/Chat
+  pair (☰ ✦) is in the window toolbar ONCE: while the sidebar is up, in the sidebar column's own toolbar section
+  beside the window controls; while it is hidden, as its own island beside Back/Forward. Seen 2026-11-13: with the
+  sidebar hidden there were two pairs, because macOS moves the sidebar column's toolbar item into the window toolbar
+  when the column collapses, next to the island. *Built:* `ContentView.sidebarToolbarContent` offers its item only
+  while the sidebar is shown (`SidebarPairHome.declaredInColumn`, #6558). *Not built:* a look on screen. *Tests:*
+  `Models/SidebarColumnStateTests.swift`.
+- `panes.chrome.bars-do-not-name-the-selection` — **[PARTIAL]** (#4880) (owner 2026-11-13, a screenshot) a pane's bottom bar never
+  repeats what is selected: the Inspector's Content, Info, Outline and Order bars carried the selected item's name
+  (`EAP1477_…_IMG_009.jpg`) as their status line, which the pane head and the toolbar already say. The bar stays
+  (every inspector sub-pane has one, the 2026-08-23 rule), with its controls and no name; a pane whose bar counts
+  something (notes, citations, entities) keeps its count. *Built:* `DocumentInspector.withInspectorBar` passes no
+  status, `InspectorBottomMiniToolbar` draws none when it is empty. *Not built:* a look on screen. *Tests:*
+  `Views/Inspector/InspectorBottomBarStatusTests.swift`.
+- `panes.chrome.command-scroll-zooms` — **[PARTIAL]** (owner 2026-11-13) ⌘ + the scroll wheel, or a Magic Mouse's swipe,
+  zooms the view under the pointer wherever the view zooms by pinch: the Canvas already did (`CanvasScrollPan`, into the
+  cursor), the page image too (`ScrollWheelZoom`), and now the Items' Icon grid (one 0.1 step per scroll, in the pinch's
+  range). Without ⌘ a scroll is a scroll. One modifier, `View.commandScrollZoom` (`CommandScrollZoom`), for any view
+  that joins. *Not built:* List and Table row size, the Source pane's folder views' zoom button (#26), the pinch lag
+  the owner saw on the Canvas. *Tests:* `Views/Components/CommandScrollZoomTests.swift`.
+- `panes.chrome.one-filter-pattern` — **[GAP]** (#4374) (owner 2026-11-13, screenshots of every bar; supersedes the toolbar
+  prompt's items 13 and 14) every list of items has ONE bottom bar, the same five controls in the same order:
+  **+ · 🗑 · Metadata · Sort · Filter**. That is the sidebar, the Items pane in every view (List, Table, Icons,
+  Columns, Canvas, Space, Sheet, Cards, Timeline, Calendar, Map) and the Source pane's folder views.
+  - **+** adds: New Folder, New Item, Import (the old separate import button goes; it was already in +).
+  - **🗑** moves the selection to the Trash (the old **−**; the trash icon, as it says what happens).
+  - **Metadata** chooses what each row or card shows about an item (its attributes, `LibraryRowAttributesMenu`);
+    present in every bar, its menu empty where a view has nothing to show yet.
+  - **Sort** chooses the order (`librarySortMenu`); distinct from Metadata. On the Canvas and the 3D Space, where
+    position is the person's, Sort ARRANGES the cards in that order, once, as an action that can be undone (owner
+    2026-11-13), and the board then keeps whatever is moved by hand. Left out where order means nothing: the Map
+    (position is the place) shows four controls; and the sidebar, which keeps its own order (drag to arrange), has
+    no Sort.
+  - **Filter** is one rounded field, the filter icon (`line.3.horizontal.decrease.circle`) with a menu chevron inside
+    it, then the text: never a second row under the bar, never the search loupe, never a separate "Filter" button.
+    Its menu holds the toggles for what the list shows (for the Items list: Documents, which was its own 🗎 button,
+    and any Claims or Entities narrowing that makes sense; the sidebar's are `sidebar.filter-menu.shows-toggles`).
+    A toggle means the same thing in every pane.
+  Gone from the bars: Export (it is a menu command, File › Export), the ⚡ Run Workflow button with the header and
+  window it opened (neither worked: the header's search did not), and any second filter row ("☰ Filter … ⚙").
+  Reader, Segments and the Inspector take the same Filter field and Metadata button where they list things. One
+  component for the field and its menu (`PaneFilterField`), one for the Metadata button, so a bar cannot drift.
+  *Built (Items and the sidebar, 2026-11-13):* `PaneFilterField` / `PaneMetadataButton` (Views/Components); the Items
+  bar's + is a menu (New Folder, Import Files…), − is 🗑, the Show kinds and List's entity filter are the Filter's menu,
+  Claims/Entities filter through the same field, ⌘F focuses the inline field (the second row is gone), Sort is left
+  out on the Map; Export BibTeX (File › Export), the ⚡ bar button and the KG popover are gone from the bar. Sort on the
+  Canvas and the Space (2026-11-14, #6575) applies the order, then saves every top-level card at its As Filed slot in
+  that order (`CanvasArrangement.rowsBySort`) as ONE `canvas.layout.save` through the actions door (`AuditedAction`, one
+  ⌘Z step, "Arrange by Sort"), whatever Arrange by holds. *Not built:*
+  the Run Workflow picker sheet itself (still opened by the toolbar and menu; its search is the owner's complaint),
+  Reader, Segments and Inspector fields, a look on screen. `LibraryFilterToggleModel`
+  is unused by the app now (its tests remain). *Tests:* `Views/Library/ItemsBottomBarPatternTests.swift`,
+  `Views/Sidebar/SidebarBottomBarPatternTests.swift`, and the updated `LibraryMiniToolbarTests`,
+  `LibraryPaneSurfaceGuardTests`, `ToolbarGroupingTests`, `IconGridNarrowPaneTests`; Sort arranging:
+  `Views/Library/CanvasSortArrangeTests.swift`.
+- `panes.chrome.items-head-has-no-kind-menu` — **[PARTIAL]** (#4880) (owner 2026-11-13, a screenshot) the Items pane head has no
+  Documents / Claims / Entities menu: what the Items list shows is not a top-level choice of its head. Claims and
+  Entities are reached through their own rows in the sidebar (the project's Entities and Claims,
+  `SidebarDestination.knowledgeCollection`); a narrowing that makes sense in a list becomes a Filter option
+  (`panes.chrome.one-filter-pattern`). *Built:* the control (`LibraryContentKindControl`) is removed from
+  `LibraryView.libraryPaneHead`, and its file deleted. *Not built:* a look on screen.
+- `panes.chrome.bar-buttons-accessory-style` — **[PARTIAL]** (#4880) (owner 2026-11-13, Xcode 26 as the reference) on macOS
+  every button and menu in a pane head or a bottom bar wears the accessory-bar style, a bezel on hover and a fill
+  while pressed, as Xcode's navigator filter bar and jump bar do; iPad and iPhone keep today's borderless look. One
+  choice for all of them, `View.paneBarButtonStyle()` / `paneBarMenuStyle()` (`PaneBarStyle.swift`), used by the
+  sidebar bottom bar, the Library bottom bar, `PaneHead`, `PaneChromeMenu` and the Preview head's controls.
+  *Built:* the two modifiers and their call sites. *Not built:* a look on screen (hover the sidebar + and −, the
+  Library + and import, a pane head ✕ and +). *Tests:* `Views/Shell/PaneHead/PaneBarStyleTests.swift`.
+- `panes.chrome.bars-flush-on-mac` — **[PARTIAL]** (#4880) (owner 2026-11-13) on macOS the bottom bars and the inspector strip
+  are flat and opaque, in the pane's own background: no Liquid Glass island, no corner radius and nothing
+  translucent, so rows scrolling beneath never show through the controls (owner 2026-11-13, a screenshot of the
+  Items bar with its rows showing through) and the sidebar, Library and inspector bars read as one flat strip
+  each, as Xcode's do; iPad and iPhone keep the floating glass. One rule,
+  `PaneBarStyle.barIsFlush`, read by `PaneFilterBar`, `MiniToolbar`, the Library bottom bar and `SurfaceTabBar`.
+  *Built:* the rule and its four readers. *Not built:* a look on screen. *Tests:* `PaneBarStyleTests.swift`.
+- `panes.chrome.bar-hairline-rule` — **[PARTIAL]** (#4880) (owner 2026-11-13) on macOS every bottom bar draws exactly one
+  hairline above it and every top strip one below it, always: `PaneFilterBar` draws its own by default on the Mac
+  (`PaneBarStyle.barsDrawHairline`), the sidebar's bottom bar one above it, the Library's bottom bar keeps its one
+  `Divider` (the line it had; removing it would leave that bar with none), the inspector strip's line is unchanged.
+  On touch the glass island needs no line. *Built:* the default and the sidebar's line. *Not built:* a look on
+  screen (one line above each bottom bar, one below the inspector strip). *Tests:* `PaneBarStyleTests.swift`.
 
 Needs maintainer triage, not folded as a behavior here: **#3540** ("DECISIONS NEEDED —
 surface-consistency, fourteen open questions for the maintainer") asks which surfaces adopt `SurfaceChrome` and
@@ -348,6 +429,7 @@ Two more issues, redirected from the legacy "Library View" milestone while foldi
 `library-view-modes.md`'s pass 2 (neither is a view-MODE question; both are window/pane
 behavior this spec already owns):
 
+- `ui.window.resizes-smoothly` — **[GAP]** (#6548; owner 2026-11-11) a live window resize keeps up with the pointer: every frame under 16 ms. Measured 2026-11-11 (`⏱ window live resize`): 62 frames averaging 87.6 ms, slowest 1554.9 ms; another drag averaging 371.2 ms, slowest 1893.0 ms.
 - `panes.double-click-focuses-current-window` — **[GAP]** (#3364) double-clicking a
   sidebar/library item should focus/navigate in the CURRENT window by default; opening in a
   new window or tab stays reachable only from an explicit contextual command. Not verified
@@ -552,6 +634,8 @@ the browse→read flow down the centre.
   thumbnail above drives the reader below.
 - **Right** — the source image, anchored full height (historical documents are vertically
   oriented, so uninterrupted top-to-bottom space maximises zoom and minimises scrolling).
+
+> Companion (2026-11-08, #6441): `activity-pane.md` adds `PaneKind.activity` (an Activity pane scoped by library, in the kind switcher, saved in workspaces) and makes the generic Activity window a one-leaf pane list plus the Inspector.
 
 ## Behaviors (each → one pinning test)
 
@@ -1035,18 +1119,38 @@ the path (`PaneHead.swift:213-243`); only the Reader head has a whole-head conte
 breadcrumb was retired; the code has one again in every head, and the window title and subtitle
 also show the path (`ContentView+RootLayout.swift:311-317`).
 
-- `panes.chrome.one-pane-menu` — **[GAP]** (#5435) every pane head has a **+** that opens the
-  pane menu, and right-clicking anywhere on the pane head opens the same menu. Its entries, in
-  order: Split Right, Split Below; Show In This Pane ▸ (the kind); View ▸ (the kind's view mode
-  and lens); What to Show ▸ (the layers, `layers-on-the-source.md`); Pin; Link… / Unlink; Close
-  Pane. A kind that lacks an entry shows it disabled, never a different menu. Today the + offers
-  split only (`PaneChromeMenu.swift:14`) and What to show sits in Preview's footer.
-- `panes.chrome.head-keeps-only-what-moves` — **[GAP]** (#5435) a pane head keeps only the kind's
-  icon, the controls used constantly on that kind (Preview: up to parent and the page stepper),
-  pin and +. Everything else in the table above moves into the pane menu, and the more/overflow
-  capsule is retired. A footer that only repeats a head or menu entry (the PDF footer's close,
+- `panes.chrome.one-pane-menu` — **[PARTIAL]** (#5435; ruled by the owner 2026-11-13) every pane head has ONE pane menu,
+  at its right end (as Xcode's Editor Options sits at the right of its jump bar), and right-clicking anywhere on the
+  head opens the same menu. Its button is the pane's current view's icon (⊞ for Icon, ☰ for List, …) with a menu
+  chevron, never a + (owner 2026-11-13), so the head still says how the pane is shown. Its entries, in order: **Show as ▸** (the kind's views, each with its icon,
+  the current one ticked: Icon, List, Table, Columns; Sheet, Cards, Timeline, Calendar, Map; Canvas, Space; for
+  Source its lenses Read, Segments, Image and "Show folder as"); **Pane ▸** (the kinds: Items, Source, Reader, …,
+  each with its icon, the current one ticked); What to Show ▸ (the layers, `layers-on-the-source.md`); **Split Pane ▸**
+  (Right, Below); **Focus on Pane** (⌃⌘R: this pane alone, full screen, `panes.focus-mode`; a page also keeps its
+  one-click viewfinder in the head's centre, being where it is used most); **Pin Pane** (ticked while pinned); Link… /
+  Unlink; **Close Pane**. A kind that lacks an entry
+  shows it disabled, never a different menu. It replaces, in every head, the ✕ at the left, the kind picker, the
+  view picker, the pin button and the bare +. Today the + offers split only (`PaneChromeMenu.swift`), the ✕, kind
+  and view pickers sit at the head's left (`PaneHead`, `PaneKindSelector`) and What to show sits in Preview's footer.
+  *Built (2026-11-14):* the button is the pane's kind icon with a chevron (no +); the menu, and the head's
+  right-click, list Pane ▸ (the kinds, the current one ticked), Split, Focus on Pane (Leave Focus while that pane is in
+  Focus), Pin, Close (`PaneMenuEntries`). *Not built:* Show as ▸ and What to Show ▸ in the menu, Link…, removing the
+  head's ✕, kind and view pickers and pin button (the UI tests still find the ✕), and a Preview showing a page
+  focused from the menu opening the page reader as ⌃⌘R does (it shows the pane alone). *Tests:*
+  `fichero/Tests/Unit/general/Views/Shell/PaneMenuTests.swift`.
+- `panes.chrome.head-keeps-only-what-moves` — **[GAP]** (#5435; ruled by the owner 2026-11-13) with the pane menu on
+  the right, the head's LEFT is for moving through what the pane shows and nothing else: ‹ › previous and next,
+  ↑ up to the parent, the path, and the content's own controls where it has them (a page's rendition choice and page
+  count "9/110", the segment level). The head's CENTRE holds the current view's own tools (owner 2026-11-13): the
+  Canvas's (select, pan, zoom and fit, arrange, add) and the 3D Space's (orbit, reset the camera, zoom) live at the
+  very top of the pane, in its head, not floating over the view or in its bottom bar; a page's zoom and markup
+  toggle sit there too; a list may have none. So a head reads: left, moving through it; centre, this view's tools;
+  right, the pane menu. Everything else in the table above moves into the pane menu, and the
+  more/overflow capsule is retired. A footer that only repeats a head or menu entry (the PDF footer's close,
   title and pin) is removed. Prerequisite for `panes.chrome.head-and-footer-not-shared` (#4880),
-  since less chrome leaves one component to tune.
+  since less chrome leaves one component to tune. The path itself stays as `panes.chrome.breadcrumb-only-when-pinned`
+  says (owner 2026-11-13): on the Mac only a pinned pane shows it, the window toolbar shows the rest; every pane keeps
+  ‹ › ↑.
 - `panes.chrome.breadcrumb-only-when-pinned` — **[OK]** (#5437, macOS; iOS keeps the crumb, it has no toolbar path; pinned by `BreadcrumbOnlyWhenPinnedShapeTests`) the breadcrumb shows only on a
   pinned pane; on an unpinned pane it repeats the window toolbar and is hidden.
 - `panes.chrome.breadcrumb-opens-like-the-sidebar` — **[PARTIAL]** (#5633; implemented with unit
@@ -1115,15 +1219,173 @@ also show the path (`ContentView+RootLayout.swift:311-317`).
    Chat's new chat), built on the one shared component; every other footer is removed
    (`panes.chrome.footer-only-for-list-actions`).
 
-- `panes.chrome.head-floats-or-is-a-row` — **[GAP]** (#4974, #5435) on Preview and canvas panes the head's
+- `panes.focus-mode` — **[PARTIAL]** (#6575; owner 2026-11-13: real macOS full screen) any pane (Source, Reader, Segments,
+  the Preview) can go full screen as a FOCUS MODE: that one pane fills the screen in the window's real macOS full
+  screen (its own Space, the menu bar and toolbar hidden); the other panes, the sidebar and the Inspector are hidden;
+  a page sits on a plain dark ground. Esc, or Close in the pane's head, leaves and restores the window and panes
+  exactly as they were: a window already full screen stays full screen, only the other panes come back. One shared
+  mechanism, not one per pane: Focus on Pane in every pane menu (`panes.chrome.one-pane-menu`), View › Focus on Pane,
+  ⌃⌘R. Inside the Preview's focus the reader's page behaviour stays (fading chrome, ← → and a two-finger swipe turn
+  pages). *Built (the Preview page, 2026-11-13):* the reader's focus (⌃⌘R, the head's viewfinder) takes the window into
+  its real full screen when it is not there and leaves it only if focus took it there (`FocusMode`,
+  `ContentView.focusModeChanged`). *Built (2026-11-14):* ⌃⌘R on any other pane, or on a Source showing a folder,
+  focuses that pane (`FocusMode.step`, `WindowState.focusedPaneLeaf`): the window shows that one pane
+  (`PaneList.focusing`, a view of the stored list, which is never changed), hides the sidebar and the Inspector and goes
+  full screen by the same rule; Esc or ⌃⌘R again puts the sidebar's column visibility back as it was, the Inspector
+  back, and leaves full screen only if Focus entered it. View › Focus on Pane carries ⌃⌘R (Leave Focus while a pane is in
+  Focus, `FocusOnPaneButton`) and the pane menu has Focus on Pane (`panes.chrome.one-pane-menu`). *Not built:* the
+  fading overlay head with ✕ and a dark ground for a focused page view. *Tests:* `Models/FocusModeTests.swift`;
+  `fichero/Tests/Unit/general/Models/PaneFocusTests.swift`.
+- `panes.chrome.every-view-has-head-and-footer` — **[GAP]** (#4880) (owner 2026-11-13: "consistency") every view of every pane
+  has a head and a footer, the same two components, with each control in its zone: the head's left moves through what
+  the pane shows, its centre holds the view's tools, its right the pane menu (`panes.chrome.head-keeps-only-what-moves`,
+  `panes.chrome.one-pane-menu`); the footer is the shared bar (`panes.chrome.one-filter-pattern` for a list of items,
+  the same field and Metadata button where a view lists anything). No head floats or fades over its content: the
+  Canvas's and the 3D Space's are a row at the very top, as every other view's. Ruled (owner 2026-11-13):
+  the window-wide markup bar under the toolbar goes, and a page's markup tools appear in the head's centre of the pane
+  showing that page (Source or Reader) when its pencil is on, the common tools inline and the rest under a ⋯, so with
+  two pages in two panes each set of tools sits above the page it marks. Supersedes the floating half of
+  `panes.chrome.head-floats-or-is-a-row` and `panes.chrome.footer-only-for-list-actions`. *Not built.*
+- `panes.chrome.head-floats-or-is-a-row` — **[GAP]** **[SUPERSEDED in part]** by `panes.chrome.every-view-has-head-and-footer` (owner
+  2026-11-13: no head floats; every head is a row). (#4974, #5435) on Preview and canvas panes the head's
   remaining controls float over the content as a light overlay that fades when the pointer is
   idle and returns when it moves; on Library and Reader panes they are a thin row above the
   content. Today every head is a floating glass capsule bar 40 points high over a reserved row
   (`PaneHead.swift`, `PaneHeadMetrics` :495-512).
-- `panes.chrome.footer-only-for-list-actions` — **[GAP]** (#5435, #4880) a footer appears only on a
+- `panes.chrome.footer-only-for-list-actions` — **[GAP]** **[SUPERSEDED]** by `panes.chrome.every-view-has-head-and-footer` (owner
+  2026-11-13: every view has a footer). (#5435, #4880) a footer appears only on a
   pane whose list has its own actions (Library: add; Chat: new chat), built on the one shared
   component; Preview's quiet bar (image and PDF) and every other footer are removed, their
   entries living in the pane menu.
+
+### H. Bars like Xcode, one filter component, Focus mode (owner 2026-11-13, Mac first; APPROVED by the owner 2026-11-13 with its rulings below)
+
+> The owner, after a day in the window (2026-11-13): the Mac's pane heads and bottom bars should
+> sit like Xcode's (its heights and insets; a flat bar in the pane's own material with one
+> hairline; small controls that show a bezel only on hover; a thin head row over the Library and
+> the Reader); the sidebar's bottom bar becomes + − and a Filter field like Xcode's navigator,
+> with ⋯ for overflow (`sidebar-crud.md`, "The bottom bar"); every view's bottom bar is the same
+> shape with the same filter/options component; and any pane can take the whole screen on its own
+> (#6575). The iPad and iPhone keep their floating glass. These entries extend section G: nothing
+> here moves a control the pane menu (`panes.chrome.one-pane-menu`) already owns, and the pane
+> menu's What to Show ▸ stays a second door to the same switches the bar shows.
+
+- `panes.chrome.mac-bars-like-xcode` — **[GAP]** (#5435, #4880; owner 2026-11-13) app, macOS. A pane head and a bottom bar are flat bars in the pane's own material (no glass capsule, no second material) with ONE hairline between the bar and the content; their heights and insets are Xcode's: a bottom bar's controls are centred in its height and inset from the window's edge so nothing crowds the corner, and a pane head's buttons are inset from the top edge so they are not jammed against it. The numbers live in one metrics table (`PaneHeadMetrics`, `MiniToolbarMetrics`) that every bar reads; no bar pads itself. *Built:* nothing of this: every head is a 40 pt floating glass capsule over a reserved row (`PaneHead.swift`, `PaneHeadMetrics`); the Library's action bar and the sidebar's bar each carry their own padding. *Tests:* `PaneBarMetricsTests` (to write: one table, every bar reads it; a Mac bar is flat with one hairline, an iPad bar is glass).
+- `panes.chrome.bar-buttons-hover-bezel` — **[GAP]** (#5435; owner 2026-11-13) app, macOS. A button on a pane head or a bottom bar is an accessory-bar button: a small plain glyph (the `.small` control size) with no border at rest, a light bezel on hover and a pressed look on click, as Xcode's jump-bar and filter-bar buttons; a menu button adds its chevron the same way. ONE button style for every bar (`PaneBarButtonStyle`), so no bar draws its own. *Tests:* `PaneBarButtonStyleTests` (to write: the one style on every bar button; rest, hover and pressed as a pure table).
+- `panes.chrome.library-and-reader-head-is-28pt` — **[GAP]** (#4974; owner 2026-11-13; narrows `panes.chrome.head-floats-or-is-a-row`) app, macOS. The thin row above the Items (Library) pane and the Reader is 28 pt tall, the height of Xcode's jump bar, with small controls; the Preview and canvas heads keep floating and fading. *Tests:* `PaneBarMetricsTests` (to write: 28 for Items and Reader on the Mac).
+- `panes.chrome.ipad-keeps-floating-glass` — **[GAP]** (#5435; owner 2026-11-13) app, iPadOS and iOS. On the iPad and the iPhone the heads and bars stay floating glass, as iPadOS's own toolbars are; the Xcode bars are the Mac's alone, chosen by the one metrics table, never by a platform check inside a view. *Tests:* `PaneBarMetricsTests` (to write: the same table answers glass for the iPad).
+- `panes.bar.one-filter-and-options-component` — **[GAP]** (#4856, #4966; owner 2026-11-13) app. Items, Source, Reader and Segments share ONE bottom-bar shape and ONE filter/metadata/options component (`PaneFilterBar`, extended): on the left the view's own verbs (Items: +; the others none), in the centre the Filter field (`panes.bar.filter-field-like-xcode`) whose menu lists that view's filters as check-marked toggles, on the right the Options menu listing what the view's rows show, and ⋯ only when the bar overflows. A word means one thing: a **Filter** narrows the rows, an **Option** changes what a row shows, and a toggle with one name does the same thing in every view that has it. So Items' "Filter Entities" (today a KG popover plus an entity menu, `LibraryView+BottomActionBar.swift`) becomes the filter **Has Entities**, and the Reader's empty Filter menu ("No filters yet", `ReaderToolbar.swift`) and its Display menu become the Reader's filters and options of the table below; the Segments pane's own bar (`SegmentsFilterBar`, `source.editor.segments-list-has-a-filter-bar`) is this component, not a second one; the Source pane gains the bar. The table is the inventory; each view's own spec owns what an entry means. *Tests:* `PaneFilterBarInventoryTests` (to write: the four views mount the one component; a name is in at most one of Filter and Options per view; the Mac and the iPad render the same inventory).
+- `panes.bar.filter-field-like-xcode` — **[GAP]** (#4061; owner 2026-11-13; the sidebar's is `sidebar.bar.filter-field-like-xcode`) app. The Filter field is Xcode's: a rounded field; inside it on the left a line-in-circle filter glyph (`line.3.horizontal.decrease.circle`) with a small menu chevron that opens the view's filter toggles; the typed text filters by name as it does today; a clear button on the right only while there is text. One component serves the sidebar, Items, Reader, Segments and Source. *Tests:* `PaneFilterFieldTests` (to write: the glyph, the chevron's menu, the clear button's presence as a pure function of the text).
+
+| View | Filter (narrows the rows; the field's menu) | Options (what a row shows; the Options menu) |
+|---|---|---|
+| Items | typed name; Kind (document type); Has Entities, Has Claims (today's KG filter); Date; Tagged; Flagged; Not Read Yet | the view mode (Icons, List, Columns, Canvas); Sort (`library.sort.names-in-finder-order`, #6571, on its own branch); Group By; Thumbnails; Counts |
+| Source | typed segment label; Kind (Region, Line, Word); Has a Reading, No Reading; Flagged; Low Confidence (the Segments pane's facets) | the Display switches (`source.editor.display-menu-has-order-switches`): Image, Regions, Word Boxes, Text Inline, Shade by Reading Order, Order Numbers; Names, Statements, Notes (`layers-on-the-source.md`); Reading Order (`reader.order.switchable`'s picker) |
+| Reader | typed text (find in page); Kind; Has a Reading; Flagged; Low Confidence | Neighbouring Pages, Segments, Notes, Readings (`reader.content.options-in-the-bottom-bar`); Names, Statements, Translation (`layers.toggle.one-menu-per-surface`); Reading Order (`reader.order.switchable`) |
+| Segments | the facets of `source.editor.segments-list-has-a-filter-bar` | List, Strip, Grid; Pictures; Other Readings; Reading Order (the same picker) |
+
+- `panes.focus.any-pane-fills-the-screen` — **[PARTIAL]** (#6575; owner 2026-11-13) app, macOS. Every pane (Source, Reader, Segments, Preview, and the canvas and Chat kinds) can go to the window's REAL macOS full screen on its own: a **Focus** button on the pane head (the viewfinder glyph the Preview head's View Full Screen uses today, `preview.full-screen-page`) and **View › Focus on Pane** (⌃⌘R, the chord that today opens the full-window reader; Focus on the Preview IS that reader, so the chord keeps its meaning and gains every other pane). In Focus the window enters full screen (its own Space, the menu bar hidden), the sidebar, the Inspector and every other pane are hidden, the focused pane fills the screen, and a page view (Preview, Source, the Reader's lines) draws on black. The pane keeps its own state: zoom, page, selection, filter. *Built (2026-11-14):* ⌃⌘R and View › Focus on Pane focus any pane kind (`FocusMode.step`): the window shows that pane alone (`PaneList.focusing`), the sidebar and the Inspector hidden, in its real full screen; on a Preview showing a page the chord stays the page reader (`ImmersiveReaderView`, which fills the window and now its full screen); the pane menu's Focus on Pane. *Not built:* a Focus button on every head, the black ground for a page view. *Tests:* `fichero/Tests/Unit/general/Models/PaneFocusTests.swift`, `fichero/Tests/Unit/general/Views/Shell/PaneMenuTests.swift`.
+- `panes.focus.esc-restores-exactly` — **[PARTIAL]** (#6575; owner 2026-11-13) app, macOS. Esc, the head's ✕, or View › Focus on Pane again leaves Focus and restores the window exactly: the pane list, the sidebar and the Inspector, every pane's scroll and zoom, and the window's full-screen state as it was: a window that was already in full screen stays in full screen and only the hidden panes return; one that was not leaves full screen. Entering and leaving save nothing to the workspace. *Built (2026-11-14):* Esc, ⌃⌘R again or the menu's Leave Focus put the sidebar's column visibility back as it was (`WindowState.columnsBeforeFocus`), the Inspector back (Focus only masks `effectiveShowInspectorSidebar`), the stored pane list untouched (Focus is a view of it), and leave full screen only if Focus entered it. *Not built:* the head's ✕ in Focus; a check that every pane's scroll and zoom survive (they are the panes' own state, which Focus does not touch). *Tests:* `fichero/Tests/Unit/general/Models/PaneFocusTests.swift`, `fichero/Tests/Unit/general/Models/FocusModeTests.swift`.
+- `panes.focus.preview-keeps-its-chrome-and-paging` — **[GAP]** (#6575, #6560; owner 2026-11-13) app, macOS. Focus on a Preview showing a page keeps `ImmersiveReaderView`'s fading chrome and its ← → paging (`preview.full-screen-page`); Focus on any other pane shows that pane's own head as a fading overlay holding only its navigation and Focus's ✕. *Tests:* `PreviewFullScreenTests` (extended, to write: the immersive route under Focus; the overlay head's contents per kind).
+
+**Rulings (owner 2026-11-13; section H and its entries in `sidebar-crud.md`, `reader-view.md` and
+`segment-editor-crud.md` APPROVED with the recommended answer to each of the seventeen questions; the
+questions are closed and folded into the entries):**
+
+1. Mac Preview and canvas heads: **float** and fade (the 2026-10-04 ruling stands); only the Items and Reader heads are the 28 pt row.
+2. The "?" glyph: **both**: no help glyph on the sidebar's bar, and the "?" fallback badge on rows (`SidebarRowLabelCore`) gives way to the kind's own icon.
+3. Sources, folders only: a PDF split into pages is **shown** (it lists its pages as a folder does, `read.selecting-a-pdf-shows-its-pages`); its pages are hidden.
+4. The Metadata section: **keep** the proposed rows (Document Types, Tags, Languages, Dates).
+5. Hosts: **both**, the shared Macs and the compute hosts.
+6. The two words: **yes**: Filter narrows the rows, Options changes what a row shows.
+7. Focus on Pane: the **same** chord, ⌃⌘R, with the wider meaning.
+8. Focus on **all** pane kinds.
+9. Reader with a page selected and Segments off: **yes**: one editable row per line, as the Compare view; the Segments option adds the ink strips.
+10. Picking an order in the Reader: the **pane** only; the page order is chosen in the Order tab.
+11. Combining orders of different passes: **refuse**, naming both passes and offering to compose a pass first (#5232).
+12. Combine's default rule: **interleave** by position on the page; take-then is the other choice.
+13. Near-duplicates: identical sequences and **subsets** too.
+14. Drawing a region: the name **field** opens after the draw; Esc keeps the region.
+15. A pass that lands empty: **keep the older** lines drawn and listed, and say the new pass found none.
+16. Order titles keep the word **Layout Order**, with source and date.
+17. After a Combine the sources **fold** under the new order, hidden; one undo restores them beside it.
+
+## Build order (owner 2026-11-13, Mac first; each slice one reviewable commit with its tests)
+
+### Stage 1 — the bars
+
+#### Step 1.1 — Xcode's bars on the Mac: one metrics table, flat bars, hover bezels, the 28 pt head (#5435)
+- Behaviours: `panes.chrome.mac-bars-like-xcode`, `panes.chrome.bar-buttons-hover-bezel`, `panes.chrome.library-and-reader-head-is-28pt`, `panes.chrome.ipad-keeps-floating-glass`
+- Tests: PaneBarMetricsTests.swift (not yet written), PaneBarButtonStyleTests.swift (not yet written)
+- Size: M
+
+The worker items already drafted for these are the build; this step names them. Swift only. The iPad is proven by the same table answering glass.
+
+#### Step 1.2 — the sidebar's bar: + − Filter ⋯, the filter menu's toggles, per window (#5413)
+- Behaviours: `sidebar.bar.plus-minus-filter-overflow`, `sidebar.bar.filter-field-like-xcode`, `sidebar.bar.filter-menu-toggles-what-the-sidebar-shows`, `sidebar.bar.toggles-are-per-window`
+- Tests: SidebarBottomToolbarTests.swift (not yet written), SidebarFilterMenuTests.swift (not yet written)
+- Depends on: 1.1
+- Size: M
+
+The entries live in `sidebar-crud.md`, "The bottom bar". Rulings 2, 3 and 5 settle the "?", the paged PDF and Hosts.
+
+#### Step 1.3 — one filter/options component on Items, Source, Reader and Segments (#4856, #4966)
+- Behaviours: `panes.bar.one-filter-and-options-component`, `panes.bar.filter-field-like-xcode`
+- Tests: PaneFilterBarInventoryTests.swift (not yet written), PaneFilterFieldTests.swift (not yet written)
+- Depends on: 1.2
+- Size: M
+
+The inventory table above is the acceptance; ruling 6 fixes the two words.
+
+#### Step 1.4 — the Metadata section (after question 4)
+- Behaviours: `sidebar.bar.metadata-section`
+- Tests: test_stats_facets.py (not yet written), SidebarMetadataRowsTests.swift (not yet written)
+- Depends on: 1.2
+- Size: S
+
+### Stage 2 — Focus
+
+#### Step 2.1 — Focus on Pane: real full screen for any pane, Esc restores exactly, the Preview keeps its chrome (#6575)
+- Behaviours: `panes.focus.any-pane-fills-the-screen`, `panes.focus.esc-restores-exactly`, `panes.focus.preview-keeps-its-chrome-and-paging`
+- Tests: PaneFocusTests.swift (not yet written), fichero/Tests/Unit/general/Models/PreviewFullScreenTests.swift
+- Depends on: 1.1
+- Size: M
+
+Rulings 7 and 8: ⌃⌘R, every pane kind; the Preview's route is the existing one.
+
+### Stage 3 — the Reader's content and the orders it follows (`reader-view.md`, `segment-editor-crud.md`)
+
+#### Step 3.1 — one page by default, the whole document for a document, the options in the bar (#6579)
+- Behaviours: `reader.content.page-only-by-default`, `reader.content.options-in-the-bottom-bar`
+- Tests: ReaderContentScopeTests.swift (not yet written), ReaderOptionsTests.swift (not yet written)
+- Depends on: 1.3
+- Size: M
+
+#### Step 3.2 — the Reader line by line as the Compare view is, each row in its region's colour (#6576)
+- Behaviours: `reader.content.one-line-per-segment-like-compare`, `reader.content.line-carries-its-region-colour`
+- Tests: ReaderContentRowsTests.swift (not yet written), fichero/Tests/Unit/general/Views/Reader/ReaderLinesTests.swift
+- Depends on: 3.1
+- Size: M
+
+#### Step 3.3 — the order the Reader follows, switched with the one picker; one default, near-duplicates folded (#6576, #6421)
+- Behaviours: `reader.order.switchable`, `source.editor.orders.one-default-not-near-duplicates`
+- Tests: ReaderOrderFollowTests.swift (not yet written), test_orders_same_as.py (not yet written), ReadingOrderPickerDefaultTests.swift (not yet written)
+- Depends on: 3.2
+- Size: M
+
+Engine first (`same_as` in the list answer), then the picker in the Reader's bar. Rulings 10 (the pane's choice) and 13 (subsets fold too).
+
+#### Step 3.4 — Combine two or more orders into one, named and chosen, one undo (#6421)
+- Behaviours: `source.editor.orders.combined-and-edited-on-the-page`
+- Tests: test_combine_orders_6421.py (not yet written), OrderOverlayEditTests.swift (not yet written)
+- Depends on: 3.3
+- Size: M
+
+This is `segment-editor-crud.md` Step 1.14's combine half, re-scoped by the owner 2026-11-13 (two or more, named, chosen, one undo); the overlay editing half stays there. Rulings 11 (cross-pass refused, compose offered), 12 (interleave by default) and 17 (the sources fold under the result).
+
+### Stage 4 — the segments stay true (`segment-editor-crud.md` Steps 1.31 and 1.32; bug fixes, so they may run first)
+
+The list, the Order tab and the drawing refresh on the page's change event (#6574), a drawn region is always made (#6580), and the drag of a line into a region is restored (#6577) are specified and ordered in `segment-editor-crud.md`.
 
 ## Known bugs to fix (already observed by the creative director)
 
@@ -1597,6 +1859,9 @@ Creative director, running the app (the one-renderer + old split/close wiring st
   hidden" survives that architecture, or whether the issue's 2026-06-08 framing predates it and
   needs re-scoping to "never auto-collapsed below a size threshold" specifically, is a real
   open question — reshaped, needs maintainer triage, not decided by this pass.
+  Built: on the Mac the window can no longer be narrowed below its open panes (see the Built
+  note on `m2p.window-minimum-ignores-measured-width`), so resizing there no longer reaches the
+  collapse width; it still applies where the platform sets the width (iOS).
 - `panes.head.names-its-own-window` — **[PARTIAL]** (fixed 82ae96b9b; #4860 stays open for the
   maintainer to confirm on screen) a pane head names the library ITS OWN window (or, once
   panes carry their own scope, its own pane) is showing — never an app-wide pointer that any
@@ -1719,6 +1984,10 @@ is the source for the manuals' workspace screenshots. (As of 2026-09-16 the buil
 - `panes.visibility.show-brings-back-the-same-pane` **[BROKEN]** (#5027): hiding a pane and showing it again brings back the same pane, in its old place, at its old size, with its own kind and view, not a new pane at the end of the row.
 - `panes.head.kind-name-comes-from-the-kind` **[GAP]** (#5062): a pane head's kind chooser always shows the name of the kind the pane really is, because the name comes from the kind and is never passed separately.
 - `panes.inspector.sidebar-material` **[GAP]** (#5226): the Inspector column (and its tab strip) sits on the same translucent system material as the sidebar, as Xcode's inspector and NetNewsWire do, so both side columns look like one family in light and dark mode with text contrast intact.
+- `shell.inspector.toggle-reachable-on-ipad` **[PARTIAL]** (#6561; owner, on an iPad mini, 2026-11-12): on the iPad the Show/Hide Inspector button is in the content's navigation bar, beside the pane toggles, so the docked Inspector can be closed and brought back, as the Mac's toolbar button does. It used to be an item of the Inspector column's own toolbar, the Mac's place for it, and the iPad's docked column has no bar to draw it in. The Mac is unchanged. *Built:* `InspectorToggleHome` (the Mac's docked column, else the content bar), read by both toolbars. *Test:* `InspectorToggleHomeTests`.
+- `shell.toolbar.ipad-matches-the-mac` **[PARTIAL]** (#6563; owner, on an iPad mini, 2026-11-12): the iPad's bars carry what the Mac's toolbar does. The top of the sidebar has the Mac's Sidebar/Chat pair in place of the system toggle, and the pair moves to the content bar while the sidebar is hidden (`SidebarPairHome`; an iPhone keeps the system's own). The content bar has Back/Forward at its leading edge and search at its far right, with the search options as a submenu of the bar's overflow menu rather than a second loupe. The pane group has no Chat toggle wherever the pair is drawn. On the iPad the pair sits at the leading edge of the sidebar's bar and, with the sidebar hidden, at the content bar's leading edge ahead of Back/Forward, in the bar's own capsule; each glyph fits inside its pill (`.body` in 32 × 28 on iOS, `.title3` in 28 × 24 on the Mac). On iOS Show/Hide Items, Source and Reader are the Workspaces menu's first section, not a group in the bar (`PaneToggleHome`), so the bar reads Workspaces, the Inspector toggle, then search at the far right, and search stays whether the Inspector is open or not (owner, 2026-11-13). With that room the centre island is drawn on an iPad mini with both side columns open. *Not met:* the owner wants search in a capsule apart from the Inspector toggle; iPadOS keeps the "…" overflow button with search and draws the item before them in the same capsule, and no spacer, placement or pin parted them. When the bar is tight the Inspector toggle, search and the centre island stay, and the model chip, the bars capsule and the Workspaces menu overflow first; on the iPad the island is the bar's only centre item and its neighbours are secondary actions (`ContentView.islandNeighbourPlacement`). *Seen on the iPad 2026-11-12:* the pair, Back/Forward, search far right and the options in the overflow. *Test:* `SidebarColumnStateTests` (the pair's home), `ToolbarGroupingTests.exactlyFourPrincipalItems`.
+- `shell.panes.ipad-row-fits-its-column` **[PARTIAL]** (#6564; owner, on an iPad mini, 2026-11-12): on the iPad a workspace's panes fit the content column between the sidebar and the Inspector: no pane is drawn narrower than its own head and bottom bar need, the flexing pane keeps a usable width, and every pane keeps its content inside its own frame, never over the sidebar or a neighbour. The Mac is unchanged (its window minimum keeps panes usable). *Built:* `WorkspaceSplitStack.minPerPane(onIOS:)` (160 on iOS, 48 on the Mac) and `flexMinimum(onIOS:)` (220, 48), and each child clipped to its frame. *Seen on the iPad 2026-11-12:* Browse's icon strip went from about 80 to about 160 points. *Not met:* the strip's head row is still wider than 160 points and is clipped at both ends. *Test:* `WorkspaceSplitStackFlexMinimumTests`.
+- `shell.panes.ipad-bars-at-the-bottom-edge` **[PARTIAL]** (#6570; owner, on an iPad mini, 2026-11-13): on the iPad each column's bottom bar (the sidebar's, each pane's, the Inspector's) sits at the screen's bottom edge, as the Mac's do, not about 20 points above it for the home indicator; the iPhone keeps that margin. *Built:* `BottomSafeAreaPolicy`, applied at the root of each split-view column and the Inspector (the split view keeps a safe area per column, so a modifier outside them changed nothing). *Seen on the iPad 2026-11-13.* *Test:* `BottomSafeAreaPolicyTests`.
 - `panes.click-answers-in-its-own-frame` **[GAP]** (#5253): a click in the Reader, the Inspector, the Segments pane, a Preview page turn or a pane-kind switch changes the clicked thing in the same frame; whatever follows (another pane, an image, an engine call) comes after, with a visible loading state if it takes more than a moment. Each seam is timed in InteractionProfile. (The Library half landed in 12c9c23ef, 261485d4c.)
 - `panes.sidebar.title-bar-holds-sidebar-chat-and-add` **[GAP]** (#5292): the sidebar's title-bar area holds, left to right, Show/Hide Sidebar fixed at the far left, Show/Hide Chat beside it, and a large + pull-down carrying New Folder and Import ▸ Link, Copy, Move Files…; when the sidebar hides, Chat and + go with it and the sidebar button stays put. (Orders the chat button right of the sidebar button, unlike `panes.chat.toggle-in-sidebar-top`.)
 - `panes.head.kind-picker-matches-the-view-menu` **[GAP]** (#5297): the pane head's view picker lists Icons, List, Table and Columns as the View menu now does (ruled 2026-09-30 and built there in 1762871ce): each with its icon and a native checkmark, in shortcut order.

@@ -235,3 +235,16 @@ extension ConnectionPresentation {
         return .reconnect
     }
 }
+
+extension ConnectionPresentation {
+    /// #6418: on a Mac, a host the person set that does not answer is never the only way forward. The failure offers
+    /// "Use Own Engine" beside the retry: only for an engine on another machine, and only where a local engine exists.
+    static func offersOwnEngine(ownership: EngineOwnership, isMacOS: Bool = EngineConfig.allowsEmbeddedLocalDefault) -> Bool {
+        isMacOS && ownership == .remote
+    }
+
+    /// The words for that failure: which Mac was dialled, and what the button does.
+    static func ownEngineSentence(host: String) -> String {
+        "Fichero could not reach \(host). You can use this Mac's own engine instead; your libraries here are untouched."
+    }
+}

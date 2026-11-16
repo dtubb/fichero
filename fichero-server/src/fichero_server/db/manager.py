@@ -6,6 +6,7 @@ Each .fichero package directory gets its own Database instance.
 
 from __future__ import annotations
 
+import functools
 import logging
 
 import duckdb
@@ -15,7 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
 from fichero_server.api.change_stream import emit_change
-from fichero_server.db.library_paths import nfc_path
+from fichero_server.db.library_paths import nfc_path, canonical_library_key
 
 if TYPE_CHECKING:
     from fichero_server.db import Database
@@ -39,10 +40,95 @@ class LibraryNotFoundError(FileNotFoundError):
         )
 
 
+class RealLibraryRefused(PermissionError):
+    """A dev engine was asked to open a project in the owner's real library folders
+    (`runtime.dev-engine-refuses-real-data`, #6588). Nothing is opened; the API maps it to a 403 in words."""
+
+
 class DatabaseBusy(RuntimeError):
     """A consistent copy of a library's database could not be taken in time: another connection
     held a write transaction open past the wait (#5185). Named, so a caller refuses with the reason
     instead of a 500 -- and nothing was copied."""
+
+
+class OpenGate:
+    """At most `cap` library opens at once, admitted in the order they asked (`sharing.launch.opens-few-at-a-time`, #6430).
+
+    A launch that restores several large libraries used to open them all together and starve a small machine. A waiter that
+    arrives first is let in first, so the library the app asks for first (the last one used) opens first. An open that
+    needs another library (a move resuming) is already inside the gate and passes, so one cap never deadlocks itself."""
+
+    def __init__(self, cap: int):
+        self._cap = max(1, cap)
+        self._running = 0
+        self._queue: list[object] = []
+        self._cond = threading.Condition()
+        self._inside = threading.local()
+        #: The most opens ever running together; read by the test that pins the cap.
+        self.peak = 0
+
+    def __enter__(self) -> "OpenGate":
+        if getattr(self._inside, "held", False):
+            self._inside.nested = getattr(self._inside, "nested", 0) + 1
+            return self
+        ticket = object()
+        with self._cond:
+            self._queue.append(ticket)
+            while self._running >= self._cap or self._queue[0] is not ticket:
+                self._cond.wait()
+            self._queue.pop(0)
+            self._running += 1
+            self.peak = max(self.peak, self._running)
+            self._cond.notify_all()
+        self._inside.held = True
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        if getattr(self._inside, "nested", 0):
+            self._inside.nested -= 1
+            return
+        self._inside.held = False
+        with self._cond:
+            self._running -= 1
+            self._cond.notify_all()
+
+
+def _through_open_gate(get_database):
+    """An open library is returned at once; one that must be opened waits its turn at the gate (#6430)."""
+
+    @functools.wraps(get_database)
+    def gated(self, package_path, *, create=False):
+        if self.is_open(package_path):
+            return get_database(self, package_path, create=create)
+        with self._open_gate:
+            return get_database(self, package_path, create=create)
+
+    return gated
+
+
+def _open_cap() -> int:
+    try:
+        return int(os.environ.get("FICHERO_LIBRARY_OPEN_CAP", "2"))
+    except ValueError:
+        return 2
+
+
+def resume_pending_derivatives(db: "Database", package_path: str) -> None:
+    """The open's re-queue of stranded pages' derivatives (not new material: `arrived=False`). It queues nothing twice
+    (`activity.engine.open-queues-nothing-twice`): a row of the kind already waiting or paused is reused, and a page whose
+    row of that kind the person deleted is not queued again."""
+    try:
+        from fichero_server.execution import jobs
+        from fichero_server.importers.derivatives import queue_derivatives
+        from fichero_server.models import Document, Status
+
+        stranded = db.query(Document, status=Status.pending)
+        if stranded:
+            logger.info("Resuming derivatives for %d pending document(s)", len(stranded))
+            with jobs.not_what_was_deleted():
+                queue_derivatives(stranded, library_path=package_path, db=db, arrived=False)
+    except Exception:
+        logger.exception("Pending-derivative resume failed")
 
 
 class DatabaseManager:
@@ -75,7 +161,11 @@ class DatabaseManager:
         #: other launch-time open -- waited behind it. Two requests for the same library still get one
         #: open; `_lock` now guards only the dictionaries.
         self._open_locks: dict[str, threading.Lock] = {}
+        #: Each open package's database file as it was opened (device, inode): a package deleted and made again on disk
+        #: is a different file, and only then is its open connection stale (#1668, #6588).
+        self._file_ids: dict[str, tuple[int, int]] = {}
         self._lock = threading.Lock()
+        self._open_gate = OpenGate(_open_cap())
         logger.info("DatabaseManager initialized")
 
     def open_database(self, cache_key: str) -> "Database | None":
@@ -88,6 +178,7 @@ class DatabaseManager:
         """Whether this package already has its shared connection -- without opening it (#5257)."""
         return self._cache_key(Path(nfc_path(package_path))) in self._databases
 
+    @_through_open_gate
     def get_database(
         self, package_path: str | Path, *, create: bool = False
     ) -> "Database":
@@ -135,6 +226,12 @@ class DatabaseManager:
             open_lock = self._open_locks.setdefault(cache_key, threading.Lock())
         with open_lock:
             if cache_key not in self._databases:
+                from fichero_server.security.real_data_guard import library_refusal
+
+                refused = library_refusal(package_path)
+                if refused:
+                    logger.warning(refused)
+                    raise RealLibraryRefused(refused)
                 if (
                     not create
                     and not package_path.expanduser().is_dir()
@@ -186,6 +283,12 @@ class DatabaseManager:
                         repair_on_open(db)
                     except Exception:
                         logger.exception("Page text repair could not run")
+
+                    # The text a reading's document field lost to the artifact's provenance: a background job, never in the open
+                    # (queue_if_needed reads one setting and never raises).
+                    from fichero_server.maintenance import image_marker_repair
+
+                    image_marker_repair.queue_if_needed(db)
 
                     # Seed default workflow presets (Transcribe, Catalogue) into
                     # the GLOBAL library only (#4102) — they're app-level presets,
@@ -255,6 +358,11 @@ class DatabaseManager:
 
                 with self._lock:
                     self._databases[cache_key] = db
+                    try:
+                        stat = os.stat(db_path)
+                        self._file_ids[cache_key] = (stat.st_dev, stat.st_ino)
+                    except OSError:
+                        self._file_ids.pop(cache_key, None)
                 # A move a crash left between its checked copy and its source step (#5657): finished
                 # now if the other project is open too (it needs both, so after this one is registered).
                 from fichero_server.transfer.move import resume_pending_moves
@@ -280,21 +388,7 @@ class DatabaseManager:
                 # on open; the stages are idempotent (thumbnail is ensure-
                 # style, embed skips already-embedded rows).
                 if os.environ.get("FICHERO_SKIP_DERIVATIVE_RESUME") != "1":
-                    try:
-                        from fichero_server.importers.derivatives import (
-                            queue_derivatives,
-                        )
-                        from fichero_server.models import Document, Status
-
-                        stranded = db.query(Document, status=Status.pending)
-                        if stranded:
-                            logger.info(
-                                "Resuming derivatives for %d pending document(s)",
-                                len(stranded),
-                            )
-                            queue_derivatives(stranded, library_path=package_path, db=db, arrived=False)
-                    except Exception:
-                        logger.exception("Pending-derivative resume failed")
+                    resume_pending_derivatives(db, package_path)
 
                 # Runs the engine did not finish are marked interrupted, said with when (#5555): here,
                 # on every open, not left to the activity tracker's sweep, which is skipped when the
@@ -320,7 +414,7 @@ class DatabaseManager:
                     # A synced folder may have changed while the engine was off (#4952).
                     from fichero_server import sync_folder
 
-                    sync_folder.rescan(db)
+                    sync_folder.rescan(db, hold=True)  # held for the launch alert: nothing starts by itself (#6584)
                 except Exception:
                     logger.exception("Could not resume the library's jobs")
 
@@ -373,7 +467,22 @@ class DatabaseManager:
         did not, so a `/var`-spelled quiesce could miss the open handle.
         The Database keeps the caller's spelling; only the KEY canonicalizes.
         """
-        return os.path.realpath(str(Path(nfc_path(package_path)).expanduser()))
+        return canonical_library_key(Path(nfc_path(package_path)).expanduser())
+
+    def file_replaced(self, package_path: str | Path) -> bool:
+        """Whether the package's open connection points at a database file that is gone or was replaced on disk (#1668):
+        only then must it close before the package is used again. A package not open, or the same file, is False: an
+        open project with work in flight is never closed for being initialised again (#6588)."""
+        key = self._cache_key(package_path)
+        with self._lock:
+            if key not in self._databases:
+                return False
+            opened = self._file_ids.get(key)
+        try:
+            stat = os.stat(Path(nfc_path(package_path)).expanduser() / "fichero.duckdb")
+        except OSError:
+            return True
+        return opened is None or opened != (stat.st_dev, stat.st_ino)
 
     def close_database(self, package_path: str | Path):
         """Close the shared connection for a package."""
@@ -383,6 +492,7 @@ class DatabaseManager:
 
         with self._lock:
             closing = [self._databases.pop(k) for k in [k for k in self._databases if k == package_str]]
+            self._file_ids.pop(package_str, None)
         # Outside the manager's lock: a close waits for the statement in flight (#6247), and other libraries open meanwhile.
         for db in closing:
             db.close()
@@ -415,7 +525,7 @@ class DatabaseManager:
             if checkpoint:
                 for key in keys:
                     db = self._databases[key]
-                    with db._lock:
+                    with db._lock, db._volume_guard():
                         db.conn.execute("CHECKPOINT")
                     logger.info("Checkpointed database: %s", package_str)
 
@@ -534,7 +644,8 @@ class DatabaseManager:
                             checkpointed = False
                             try:
                                 for held in managed:
-                                    held.conn.execute("CHECKPOINT")
+                                    with held._volume_guard():
+                                        held.conn.execute("CHECKPOINT")
                                 checkpointed = True
                             except Exception as exc:  # noqa: BLE001 -- only the busy case is retried
                                 if "other write transactions" not in str(exc):

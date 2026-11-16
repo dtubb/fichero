@@ -10,9 +10,10 @@ import hashlib
 import io
 import tempfile
 from datetime import datetime, timezone
+from fichero_server.core.naturalsort import natural_key
 from fichero_server.core.timeutil import utc_now
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field, ValidationError, field_validator
@@ -27,11 +28,17 @@ from fichero_server.api.main import get_library_database, get_library_database_f
 from fichero_server.api.routes.workflow.batch import BatchResponse, get_batch_manager
 from fichero_server.api.routes.document.documents import _descendant_document_ids
 from fichero_server.db import Database
+from fichero_server.media.enhance import deskew as deskew_step, rotate as rotate_step
+from fichero_server.media.enhance import bleed_through as bleed_through_step, ruled_lines as ruled_lines_step
+from fichero_server.media.enhance import stain_flatten as stain_flatten_step
+from fichero_server.media.enhance import binarise as binarise_step, denoise as denoise_step
 from fichero_server.models import DocType, Document, FileType, ImageEditChain
 from fichero_server.models.anchors import NodeRegion, RegionConfidence
 from fichero_server.split_carry import carry_readings_over
 from fichero_server.execution.batch import BatchItemStatus, BatchStatus
 from fichero_server.db.storage import resolve_pdf_render_source, resolve_source
+from fichero_server.api.routes.ingest.image_prepare_shared import (  # noqa: F401
+    ContrastOperationRequest, MarkBlankOperationRequest, SquareOperationRequest, _answer_proposal, _invert_proposals, _proposal_state)
 # NOTE: apply_operation is imported inside the functions that render (#3985) and
 # apply_fuzzy_clean inside the one handler that uses it
 # (#3950). Importing any module in the tools package runs tools/__init__.py,
@@ -59,14 +66,16 @@ class CropOperationRequest(BaseModel):
     page: int = Field(1, ge=1)
 
 
-class RotateOperationRequest(BaseModel):
-    angle: float = Field(ge=-360.0, le=360.0)
-    expand: bool = True
+class RotateOperationRequest(rotate_step.Params):
     page: int = Field(1, ge=1)
 
 
-class StraightenOperationRequest(BaseModel):
+class StraightenOperationRequest(deskew_step.Params):
     page: int = Field(1, ge=1)
+    angle: Optional[float] = Field(
+        None, ge=-45.0, le=45.0,
+        description="The angle a person set on the Straighten dial, in degrees; absent, the page is measured and turned by what it finds (Auto).",
+    )
 
 
 class EnhanceOperationRequest(BaseModel):
@@ -74,6 +83,12 @@ class EnhanceOperationRequest(BaseModel):
     contrast: float = Field(1.0, ge=0.0)
     sharpen: float = Field(1.0, ge=0.0)
     auto_levels: bool = False
+    method: str = Field("pil", pattern="^(pil|clahe)$", description="clahe runs local contrast, the yellow cast, then the unsharp mask.")
+    profile: str = Field("handwritten", pattern="^(handwritten|typescript)$", description="The CLAHE settings for the kind of writing.")
+    clip: float | None = Field(None, ge=1.0, le=4.0, description="clahe: contrast limit; empty is the profile's.")
+    tile: int | None = Field(None, ge=4, le=16, description="clahe: tiles per side; empty is the profile's.")
+    gain: float | None = Field(None, ge=0.8, le=1.4, description="clahe: lightness multiplier; empty is the profile's.")
+    lift: float | None = Field(None, ge=-20.0, le=20.0, description="clahe: lightness offset; empty is the profile's.")
     page: int = Field(1, ge=1)
 
 
@@ -102,8 +117,23 @@ class FuzzyCleanOperationRequest(BaseModel):
     page: int = Field(1, ge=1)
 
 
-class DenoiseOperationRequest(BaseModel):
-    radius: int = Field(3, ge=3, le=5)
+class StainFlattenOperationRequest(stain_flatten_step.Params):
+    page: int = Field(1, ge=1)
+
+
+class RuledLinesOperationRequest(ruled_lines_step.Params):
+    page: int = Field(1, ge=1)
+
+
+class BleedThroughOperationRequest(bleed_through_step.Params):
+    page: int = Field(1, ge=1)
+
+
+class DenoiseOperationRequest(denoise_step.Params):
+    page: int = Field(1, ge=1)
+
+
+class BinariseOperationRequest(binarise_step.Params):
     page: int = Field(1, ge=1)
 
 
@@ -111,9 +141,12 @@ _OPERATION_MODELS = {
     "crop": CropOperationRequest, "rotate": RotateOperationRequest,
     "straighten": StraightenOperationRequest, "enhance": EnhanceOperationRequest,
     "remove_background": RemoveBackgroundOperationRequest, "segment": SegmentOperationRequest,
-    "brightness": FactorOperationRequest, "contrast": FactorOperationRequest,
+    "brightness": FactorOperationRequest, "contrast": ContrastOperationRequest,
     "sharpen": FactorOperationRequest, "fuzzy_clean": FuzzyCleanOperationRequest,
-    "denoise": DenoiseOperationRequest,
+    "denoise": DenoiseOperationRequest, "stain_flatten": StainFlattenOperationRequest,
+    "ruled_lines": RuledLinesOperationRequest, "bleed_through": BleedThroughOperationRequest,
+    "binarise": BinariseOperationRequest,
+    "square": SquareOperationRequest, "mark_blank": MarkBlankOperationRequest,
 }
 _PARAMETERLESS_OPERATIONS = {"flip_horizontal", "flip_vertical", "auto_levels", "grayscale", "auto_crop_border", "adaptive_binarize"}
 
@@ -187,14 +220,33 @@ class ImageBatchCropResponse(BaseModel):
 
 class BatchImageApplyRequest(BaseModel):
     folder_id: str
-    operation: Literal["crop", "split"]
+    operation: Literal[
+        "crop", "split", "rotate", "straighten", "flip_horizontal", "flip_vertical", "brightness", "contrast", "sharpen",
+        "auto_levels", "enhance", "fuzzy_clean", "denoise", "adaptive_binarize", "binarise", "grayscale", "remove_background",
+        "auto_crop_border", "square",
+    ]
     bbox: tuple[int, int, int, int] | None = None
     bboxes: list[tuple[int, int, int, int]] | None = None
+    params: dict[str, Any] = Field(default_factory=dict, description="the step's settings, for an operation that adds a chain step")
 
 
 class BatchImageUndoResponse(BaseModel):
     batch_id: str
     deleted_child_ids: list[str]
+    #: Pages whose chain lost the step this batch added.
+    removed_step_document_ids: list[str] = Field(default_factory=list)
+
+
+class BatchApplyPreviewItem(BaseModel):
+    document_id: str
+    name: str
+    before_base64: str = Field(description="the page as it is, a small JPEG")
+    after_base64: str = Field(description="the page with the operation applied, a small JPEG; nothing is written")
+
+
+class BatchApplyPreview(BaseModel):
+    previews: list[BatchApplyPreviewItem]
+    pages: int = Field(description="how many pages the batch would change")
 
 
 def _get_or_404_document(db: Database, document_id: str) -> Document:
@@ -278,43 +330,10 @@ def _load_source_image(path: Path, page: int = 1) -> Image.Image:
 
 
 def _remove_black_background_opencv(image: Image.Image) -> Image.Image:
-    """Port the archive contour-mask and crop path for black scanner borders.
+    """The archive contour-mask and crop path for black scanner borders: the one in `media/image_ops`, bounded in memory (#6384)."""
+    from fichero_server.media.image_ops import remove_black_background_opencv
 
-    Degrades gracefully when OpenCV is not installed (it is not bundled in the
-    shipped app): the image is returned unchanged rather than crashing the edit
-    with an ImportError.
-    """
-    from PIL import Image  # lazy (#3985): keep PIL off the engine boot path
-
-    try:
-        import cv2  # type: ignore[import-not-found]
-        import numpy as np
-    except ImportError:
-        return image.convert("RGBA")
-
-    rgb = np.array(image.convert("RGB"))
-    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
-    if np.count_nonzero(gray < 80) / gray.size < 0.01:
-        return image.convert("RGBA")
-    _, binary = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY)
-    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not contours:
-        return image.convert("RGBA")
-    areas = [cv2.contourArea(contour) for contour in contours]
-    largest = max(areas)
-    mask = np.zeros_like(binary)
-    for contour, area in zip(contours, areas):
-        if area >= largest * 0.2:
-            cv2.drawContours(mask, [contour], -1, 255, thickness=-1)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
-    mask = cv2.GaussianBlur(mask, (21, 21), 0)
-    ys, xs = np.nonzero(mask)
-    if not len(xs):
-        return image.convert("RGBA")
-    rgba = image.convert("RGBA")
-    rgba.putalpha(Image.fromarray(mask))
-    return rgba.crop((int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1))
+    return remove_black_background_opencv(image)
 
 
 def _remove_background(image: Image.Image, params: dict[str, Any]) -> Image.Image:
@@ -351,14 +370,6 @@ def _remove_background(image: Image.Image, params: dict[str, Any]) -> Image.Imag
         return rgba
 
     raise HTTPException(status_code=400, detail=f"Unsupported background method: {method}")
-
-
-def _estimate_straighten_angle(image: Image.Image) -> float:
-    """The one deskew estimate (media.image_ops.detect_deskew_angle); a second copy here broke
-    separately when OpenCV 5 changed HoughLinesP's result shape (#5385)."""
-    from fichero_server.media.image_ops import detect_deskew_angle
-
-    return detect_deskew_angle(image)
 
 
 def _foreground_segments(
@@ -920,6 +931,9 @@ def _render_and_append(
     derived = _apply_operation(base, op)
     op["derived_path"] = _write_derived_image(document_id, page, derived)
     op["created_at"] = utc_now().isoformat()
+    # The recipe on the row, as a rendition's `steps` row has it: the operation, its settings (`params`), the card, and for a
+    # batch the `batch_id` (`prep.derived-image-records-its-recipe`).
+    op.setdefault("card", {"method": str((op.get("params") or {}).get("method") or op.get("op")), "model_id": None})
     return _append_operation(db, document_id, op)
 
 
@@ -952,7 +966,9 @@ def rotate_image_impl(
         "page": page,
         "params": {"angle": request.angle, "expand": request.expand},
     }
-    return _render_and_append(db, document_id, source_path, op, page)
+    chain = _render_and_append(db, document_id, source_path, op, page)
+    _answer_proposal(db, doc, "turn")  # a person's turn answers the run's unsure turn
+    return chain
 
 
 def straighten_image_impl(
@@ -961,15 +977,22 @@ def straighten_image_impl(
     doc = _get_or_404_document(db, document_id)
     source_path, page = _resolve_source_and_page(db, doc, request.page)
     base = _load_source_image(source_path, page=page)
-    angle = _estimate_straighten_angle(base)
+    if request.angle is not None:  # the dial: the person's angle, applied as the chain's own straighten op does
+        angle, method = float(request.angle), "person"
+        derived = _apply_operation(base, {"op": "straighten", "params": {"angle": angle, "expand": True}})
+    else:
+        derived, account = deskew_step.run(base, deskew_step.Params())  # the one deskew: the angle it found and the page turned by it
+        angle, method = account["angle"], "auto"
     op = {
         "op": "straighten",
         "page": page,
-        "params": {"angle": angle, "expand": True},
+        "params": {"angle": angle, "expand": True, "method": method},
     }
-    derived = _apply_operation(base, op)
     op["derived_path"] = _write_derived_image(document_id, page, derived)
     op["created_at"] = utc_now().isoformat()
+    # The recipe on the row, as a rendition's `steps` row has it: the operation, its settings (`params`), the card, and for a
+    # batch the `batch_id` (`prep.derived-image-records-its-recipe`).
+    op.setdefault("card", {"method": str((op.get("params") or {}).get("method") or op.get("op")), "model_id": None})
     return _append_operation(db, document_id, op)
 
 
@@ -986,6 +1009,10 @@ def enhance_image_impl(
             "contrast": request.contrast,
             "sharpen": request.sharpen,
             "auto_levels": request.auto_levels,
+            # a clahe row names its method and profile; a plain row stays as rows have always been
+            **({"method": "clahe", "profile": request.profile,
+                **{k: getattr(request, k) for k in ("clip", "tile", "gain", "lift") if getattr(request, k) is not None}}
+               if request.method == "clahe" else {}),
         },
     }
     return _render_and_append(db, document_id, source_path, op, page)
@@ -1173,24 +1200,74 @@ async def segment_image(
     return ImageEditChainResponse.model_validate(result.result)
 
 
-@router.post("/batch-apply", response_model=BatchResponse)
+def _sample_pages(images: list[Document], db: Database, count: int) -> list[Document]:
+    """`count` pages spread over the folder in the project's page order: 3 is the first, the middle and the last."""
+    order = {doc_id: i for i, doc_id in enumerate(db.unit_of_work_ids())}
+    pages = sorted(images, key=lambda d: (order.get(d.id, len(order)), natural_key(d.name)))
+    if len(pages) <= count:
+        return pages
+    last = len(pages) - 1
+    return [pages[i] for i in sorted({round(k * last / (count - 1)) for k in range(count)})] if count > 1 else pages[:1]
+
+
+def _chain_step(request: BatchImageApplyRequest) -> dict[str, Any]:
+    return {"op": request.operation, "page": 1, "params": dict(request.params)}
+
+
+def _batch_apply_preview(db: Database, images: list[Document], request: BatchImageApplyRequest, count: int) -> BatchApplyPreview:
+    import base64
+
+    if request.operation == "split":
+        raise HTTPException(status_code=422, detail="A split makes new pages and has no before/after preview")
+    if request.operation == "crop":
+        if request.bbox is None:
+            raise HTTPException(status_code=422, detail="Crop batch requires bbox")
+        step = {"op": "crop", "page": 1, "params": dict(zip(("left", "top", "width", "height"), request.bbox, strict=True))}
+    else:
+        step = _chain_step(request)
+
+    def small(picture: Image.Image) -> str:
+        picture = picture.copy()
+        picture.thumbnail((480, 480))
+        out = io.BytesIO()
+        picture.convert("RGB").save(out, format="JPEG", quality=80)
+        return base64.b64encode(out.getvalue()).decode("ascii")
+
+    previews = []
+    for doc in _sample_pages(images, db, count):
+        source_path, page = _resolve_source_and_page(db, doc, 1)
+        before = _load_source_image(source_path, page=page)
+        after = _apply_operation(before, {**step, "page": page})
+        previews.append(BatchApplyPreviewItem(document_id=doc.id, name=doc.name, before_base64=small(before),
+                                              after_base64=small(after)))
+    return BatchApplyPreview(previews=previews, pages=len(images))
+
+
+@router.post("/batch-apply", response_model=BatchResponse | BatchApplyPreview)
 async def batch_apply_image_operation(
     request: BatchImageApplyRequest,
+    preview: int | None = Query(default=None, ge=1, le=3, description="3: show three sample pages before and after; nothing is written"),
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
-) -> BatchResponse:
-    """Apply one reversible crop or split spec to every image under a folder."""
+) -> BatchResponse | BatchApplyPreview:
+    """Apply one reversible image operation to every image under a folder: `crop` and `split` make child documents; any
+    other operation adds a step to each page's edit chain, stamped with this batch's id. `?preview=3` returns the first,
+    middle and last page before and after and writes nothing."""
     images = _folder_images(db, request.folder_id)
     if not images:
         raise HTTPException(status_code=422, detail="Folder has no image documents")
+    if preview is not None:
+        return await asyncio.to_thread(_batch_apply_preview, db, images, request, preview)
     if request.operation == "crop":
         if request.bbox is None:
             raise HTTPException(status_code=422, detail="Crop batch requires bbox")
         operation_request: CropOperationRequest | ImageSplitRequest = CropOperationRequest(
             left=request.bbox[0], top=request.bbox[1], width=request.bbox[2], height=request.bbox[3]
         )
-    else:
+    elif request.operation == "split":
         operation_request = ImageSplitRequest(bboxes=request.bboxes)
+    else:
+        operation_request = None  # a chain step: no request model, the step is built from `params`
 
     inputs = [
         {"source_id": image.id, "operation": request.operation, "child_ids": []}
@@ -1226,6 +1303,16 @@ async def batch_apply_image_operation(
             workflow_id=batch.workflow_id,
         )
         try:
+            if operation_request is None:
+                await asyncio.to_thread(_append_batch_step, db, image, request, batch.batch_id)
+                item.inputs["chain_document_id"] = image.id
+                item.status = BatchItemStatus.COMPLETED
+                item.completed_at = datetime.now(timezone.utc)
+                manager.activity_tracker.batch_item_completed(
+                    batch_id=batch.batch_id, thread_id=item.thread_id, item_index=item.item_index, duration_ms=0,
+                    workflow_id=batch.workflow_id)
+                await manager._save_batch(batch)
+                continue
             action_name = "image.crop_child" if request.operation == "crop" else "image.split"
             result = await asyncio.to_thread(
                 registry.invoke,
@@ -1285,6 +1372,12 @@ async def batch_apply_image_operation(
     return BatchResponse.from_batch(batch, include_items=True)
 
 
+def _append_batch_step(db: Database, image: Document, request: BatchImageApplyRequest, batch_id: str) -> None:
+    source_path, page = _resolve_source_and_page(db, image, 1)
+    step = {**_chain_step(request), "page": page, "who": "person", "batch_id": batch_id}
+    _render_and_append(db, image.id, source_path, step, page)
+
+
 @router.post("/batch-apply/{batch_id}/undo", response_model=BatchImageUndoResponse)
 async def undo_batch_image_operation(
     batch_id: str,
@@ -1300,13 +1393,17 @@ async def undo_batch_image_operation(
         for item in batch.items
         for child_id in item.inputs.get("child_ids", [])
     ]
+    stepped = [item.inputs["chain_document_id"] for item in batch.items if item.inputs.get("chain_document_id")]
+    for document_id in stepped:  # a chain batch: the step it added leaves each page's chain, the other steps stay
+        kept = [op for op in _chain_ops_snapshot(db, document_id) if op.get("batch_id") != batch_id]
+        await asyncio.to_thread(set_operations_impl, db, document_id, kept)
     for child_id in child_ids:
         child = db.get(Document, child_id)
         if child and child.deleted_at is None:
             await asyncio.to_thread(
                 registry.invoke, db, "document.delete", {"doc_id": child_id}, ctx
             )
-    return BatchImageUndoResponse(batch_id=batch_id, deleted_child_ids=child_ids)
+    return BatchImageUndoResponse(batch_id=batch_id, deleted_child_ids=child_ids, removed_step_document_ids=stepped)
 
 
 @router.post("/crops/batch", response_model=ImageBatchCropResponse)
@@ -1625,24 +1722,6 @@ def _action_crop(
 
 
 @action(
-    "image.rotate",
-    RotateImageActionParams,
-    domains=["image"],
-    undoable=True,
-    invert=_invert_image_chain,
-)
-def _action_rotate(
-    db: Database, params: RotateImageActionParams, ctx: ActionContext
-) -> tuple[dict, ChangeSpec]:
-    before_ops = _chain_ops_snapshot(db, params.document_id)
-    chain = rotate_image_impl(db, params.document_id, params)
-    after_ops = [dict(op) for op in chain.operations]
-    return _chain_result(chain), _image_chain_spec(
-        params.document_id, before_ops, after_ops
-    )
-
-
-@action(
     "image.straighten",
     StraightenImageActionParams,
     domains=["image"],
@@ -1800,3 +1879,10 @@ def _action_crop_image_child(
         emit_type="image.cropped",
         document_ids=[params.source_id, child.id],
     )
+
+
+# The prepare-images actions (square, blank, proposals, batch) live in their own module; imported last so they register with
+# the rest and `mark_blank_impl` stays reachable from here.
+from fichero_server.api.routes.ingest.image_prepare_actions import mark_blank_impl, square_image_impl  # noqa: E402, F401
+# One action per remaining chain operation, made from the vocabulary above (`image.ops.one-action-per-operation`, #6363).
+from fichero_server.api.routes.ingest import image_op_actions  # noqa: E402, F401

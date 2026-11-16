@@ -8,37 +8,106 @@ from fastapi import HTTPException
 from PIL import Image, ImageEnhance, ImageFilter, ImageOps, ImageStat
 
 
+#: The skew search: degrees either side of level, and the step between tries.
+_DESKEW_RANGE, _DESKEW_STEP = 15.0, 0.1
+#: The working width of the skew search.
+_DESKEW_WIDTH = 1200
+
+
 def detect_deskew_angle(image: Image.Image) -> float:
-    """Return the local Hough-estimated text-line skew angle, or zero."""
+    """The skew of the writing, in degrees (the slope of a line in pixels with y down), or zero.
+
+    Ink is what is darker than its neighbourhood inside the bright page, away from the page's own edge
+    (so the ruler, the table and the page edge are not read). The angle is the shear at which the ink's
+    row profile is sharpest; zero where there is no ink or no angle beats level by 5 %.
+    """
     try:
         import cv2  # type: ignore[import-not-found]
         import numpy as np
     except ImportError:
         return 0.0
     gray = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2GRAY)
-    lines = cv2.HoughLinesP(cv2.Canny(cv2.GaussianBlur(gray, (5, 5), 0), 50, 150), 1, np.pi / 180, threshold=100, minLineLength=max(80, gray.shape[1] // 5), maxLineGap=12)
-    if lines is None:
+    scale = min(1.0, _DESKEW_WIDTH / gray.shape[1])
+    if scale < 1.0:
+        gray = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+    page = gray > _page_threshold(gray)
+    margin = max(3, gray.shape[1] // 50)
+    # close the holes the ink itself makes in the bright page, then step in from its edge
+    page = cv2.morphologyEx(page.astype("uint8"), cv2.MORPH_CLOSE, np.ones((15, 15), "uint8"))
+    page = cv2.erode(page, np.ones((margin, margin), "uint8")).astype(bool)
+    local = cv2.blur(gray, (31, 31)).astype("int16")
+    ink = page & (gray.astype("int16") < local - 15)
+    ys, xs = np.nonzero(ink)
+    if len(xs) < 50:
         return 0.0
-    # OpenCV 4 returns (N, 1, 4), OpenCV 5 returns (N, 4); one shape for both (#5385).
-    segments = np.asarray(lines).reshape(-1, 4)
-    angles = [float(np.degrees(np.arctan2(y2-y1, x2-x1))) for x1, y1, x2, y2 in segments if -15 <= np.degrees(np.arctan2(y2-y1, x2-x1)) <= 15]
-    return float(np.median(angles)) if angles else 0.0
+    xs, ys = xs.astype("float64"), ys.astype("float64")
+    steps = int(round(_DESKEW_RANGE / _DESKEW_STEP))
+    angles = np.arange(-steps, steps + 1) * _DESKEW_STEP
+    height = gray.shape[0] + int(gray.shape[1] * np.tan(np.radians(_DESKEW_RANGE))) + 2
+    scores = []
+    for angle in angles:
+        rows = np.round(ys - xs * np.tan(np.radians(angle))).astype("int64") + height // 2
+        scores.append(float(np.var(np.bincount(rows, minlength=2 * height))))
+    level = scores[steps]
+    best = int(np.argmax(scores))
+    if scores[best] <= level * 1.05:
+        return 0.0
+    return round(float(angles[best]), 1)
+
+
+#: The automatic straighten does nothing under this many degrees (`prep.straighten-and-flatten`).
+STRAIGHTEN_MIN_DEGREES = 0.3
+
+
+def auto_straighten_angle(image: Image.Image) -> float:
+    """The skew angle of the writing, or 0.0 where it is under `STRAIGHTEN_MIN_DEGREES` (a page already square writes no row)."""
+    angle = detect_deskew_angle(image)
+    return angle if abs(angle) >= STRAIGHTEN_MIN_DEGREES else 0.0
+
+
+def _page_threshold(gray: "Any") -> float:
+    """The grey level between a dark ground and the bright page: the midpoint of the two Otsu class means.
+
+    20 (the old fixed level) where the two classes are under 60 levels apart or the bright class is under
+    5 % of the frame, so a frame without a dark ground is judged as before.
+    """
+    import numpy as np
+
+    hist = np.bincount(gray.ravel(), minlength=256).astype("float64")
+    levels = np.arange(256, dtype="float64")
+    w0 = np.cumsum(hist)
+    w1 = w0[-1] - w0
+    m0 = np.cumsum(hist * levels)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        mean0 = m0 / w0
+        mean1 = (m0[-1] - m0) / w1
+        between = w0 * w1 * (mean0 - mean1) ** 2
+    between = np.nan_to_num(between)
+    t = int(np.argmax(between))
+    if w1[t] < 0.05 * w0[-1] or mean1[t] - mean0[t] < 60:
+        return 20.0
+    return max(20.0, (mean0[t] + mean1[t]) / 2)
 
 
 def detect_content_bbox(image: Image.Image) -> tuple[int, int, int, int]:
-    """Find the non-border content rectangle using a local threshold."""
-    gray = image.convert("L")
-    pixels = gray.load()
-    xs, ys = [], []
-    for y in range(gray.height):
-        for x in range(gray.width):
-            if pixels[x, y] > 20:
-                xs.append(x)
-                ys.append(y)
-    if not xs:
+    """The rectangle of the bright page: pixels above the level between the dark ground and the page.
+
+    The level is `_page_threshold`; a grey table (about 40) is no longer content. A bright thing on the
+    table (a ruler) is still counted.
+    """
+    import numpy as np
+
+    gray = np.asarray(image.convert("L"))
+    mask = gray > _page_threshold(gray)
+    if not mask.any():
         return 0, 0, image.width, image.height
-    left, top, right, bottom = min(xs), min(ys), max(xs) + 1, max(ys) + 1
+    cols, rows = np.flatnonzero(mask.any(axis=0)), np.flatnonzero(mask.any(axis=1))
+    left, top, right, bottom = int(cols[0]), int(rows[0]), int(cols[-1]) + 1, int(rows[-1]) + 1
     return left, top, right - left, bottom - top
+
+
+#: The long side the page outline is found at (see `remove_black_background_opencv`).
+_MASK_DIM = 2048
 
 
 def remove_black_background_opencv(image: Image.Image) -> Image.Image:
@@ -59,7 +128,13 @@ def remove_black_background_opencv(image: Image.Image) -> Image.Image:
     except ImportError:
         return image.convert("RGBA")
 
-    gray = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2GRAY)
+    # The page outline is found on a copy no bigger than _MASK_DIM on its long side, then stretched back: a 100-megapixel scan
+    # took ~30 bytes a pixel here and, with the rest of the engine, killed it on an 8 GB Mac (#6384). A small image is unchanged.
+    scale = min(1.0, _MASK_DIM / max(image.size))
+    small = image if scale == 1.0 else image.resize(
+        (max(1, round(image.width * scale)), max(1, round(image.height * scale))), Image.Resampling.BOX
+    )
+    gray = cv2.cvtColor(np.array(small.convert("RGB")), cv2.COLOR_RGB2GRAY)
     if np.count_nonzero(gray < 80) / gray.size < 0.01:
         return image.convert("RGBA")
     _, binary = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY)
@@ -75,9 +150,16 @@ def remove_black_background_opencv(image: Image.Image) -> Image.Image:
     ys, xs = np.nonzero(mask)
     if not len(xs):
         return image.convert("RGBA")
-    rgba = image.convert("RGBA")
-    rgba.putalpha(Image.fromarray(mask))
-    return rgba.crop((int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1))
+    alpha = Image.fromarray(mask)
+    if scale != 1.0:
+        alpha = alpha.resize(image.size, Image.Resampling.BILINEAR)
+        box = (max(0, int(xs.min() / scale)), max(0, int(ys.min() / scale)),
+               min(image.width, int((xs.max() + 1) / scale) + 1), min(image.height, int((ys.max() + 1) / scale) + 1))
+    else:
+        box = (int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1)
+    page = image.crop(box).convert("RGBA")  # cut first, so the transparency is only ever built for the page itself
+    page.putalpha(alpha.crop(box))
+    return page
 
 
 #: Connectivity is computed at this bounded working size; similarity stays at
@@ -246,6 +328,40 @@ def apply_fuzzy_clean(
     return cleaned
 
 
+#: The two contrast profiles of the legacy `enhance.DocumentEnhancer` (clip, tile, gain, lift): handwriting and typescript.
+CLAHE_PROFILES = {"handwritten": (2.2, 8, 1.1, -5.0), "typescript": (1.6, 16, 1.0, 0.0)}
+
+
+def apply_clahe_contrast(image: Image.Image, *, profile: str = "handwritten", clip: float | None = None,
+                         tile: int | None = None, gain: float | None = None, lift: float | None = None) -> Image.Image:
+    """Local contrast on the lightness channel: LAB, CLAHE on L, then L x gain + lift (`image.enhance.contrast-clahe`,
+    #6190). Ported from the legacy `enhance.py` step 1 (handwritten: clip 2.2, tile 8, x1.1 -5; typescript: clip 1.6,
+    tile 16). The colour channels are untouched, so a page stays the colour it was. OpenCV is bundled; without it the
+    page is returned unchanged."""
+    try:
+        import cv2
+        import numpy as np
+    except ImportError:
+        return image
+    d_clip, d_tile, d_gain, d_lift = CLAHE_PROFILES.get(profile, CLAHE_PROFILES["handwritten"])
+    clip, tile = d_clip if clip is None else float(clip), max(1, d_tile if tile is None else int(tile))  # a 0 tile crashes cv2
+    gain, lift = d_gain if gain is None else float(gain), d_lift if lift is None else float(lift)
+    alpha = image.getchannel("A") if image.mode in {"RGBA", "LA"} else None
+    if image.mode.startswith("I"):  # 16/32-bit greys: scaled to 8 bits, not clipped (RGB conversion clipped them to white)
+        grey = np.asarray(image, dtype=np.float64)
+        span = max(float(grey.max() - grey.min()), 1.0)
+        image = Image.fromarray(((grey - grey.min()) * (255 / span)).astype(np.uint8))
+    tile = max(1, min(tile, min(image.size) // 8))  # tiles under 8 px turned a tiny uniform image white
+    lab = cv2.cvtColor(np.asarray(image.convert("RGB")), cv2.COLOR_RGB2LAB)
+    light = cv2.createCLAHE(clipLimit=clip, tileGridSize=(tile, tile)).apply(lab[:, :, 0])
+    lab[:, :, 0] = cv2.convertScaleAbs(light, alpha=gain, beta=lift)
+    out = Image.fromarray(cv2.cvtColor(lab, cv2.COLOR_LAB2RGB))
+    if alpha is not None:
+        out = out.convert("RGBA")
+        out.putalpha(alpha)
+    return out
+
+
 def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
     """Apply one saved image-edit operation; shared by preview and consumers."""
     name = str(op.get("op", "")).strip().lower()
@@ -253,26 +369,16 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
     if not isinstance(params, dict):
         raise HTTPException(400, f"Invalid params for operation: {name}")
     if name in {"rotate", "straighten", "auto_deskew"}:
-        angle = detect_deskew_angle(image) if name == "auto_deskew" and "angle" not in params else float(params.get("angle", 0))
-        # Exact quarter turns are LOSSLESS transposes (Daniel, 2026-08-30:
-        # "edits seemed to make the quality worse" — every rotate-left click
-        # was bicubic-resampling the whole page). Only a fractional angle
-        # needs interpolation.
-        quarter = angle % 360
-        if quarter in (0.0, 90.0, 180.0, 270.0):
-            transposes = {
-                90.0: Image.Transpose.ROTATE_90,
-                180.0: Image.Transpose.ROTATE_180,
-                270.0: Image.Transpose.ROTATE_270,
-            }
-            method = transposes.get(quarter)
-            return image.transpose(method) if method is not None else image
-        return image.rotate(
-            angle,
-            expand=bool(params.get("expand", True)),
-            resample=Image.Resampling.BICUBIC,
-            fillcolor="white",
-        )
+        from fichero_server.media.enhance import deskew, rotate
+
+        angle = deskew.measure(image, deskew.Params()) if name == "auto_deskew" and "angle" not in params else float(params.get("angle", 0))
+        return rotate.run(image, rotate.Params(angle=angle, expand=bool(params.get("expand", True))))[0]
+    if name == "mark_blank":  # a page's blank mark changes no pixel (`media.blank_page`)
+        return image
+    if name == "square":  # the page warped to a rectangle from its four corners (`media.square_page`)
+        from fichero_server.media.square_page import square_page
+
+        return square_page(image, params["quad"])[0]
     if name == "crop":
         base = ImageOps.exif_transpose(image) if bool(params.get("auto_orient", True)) else image
         missing = {key for key in ("left", "top", "width", "height") if key not in params}
@@ -294,11 +400,30 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
     if name == "brightness":
         return ImageEnhance.Brightness(image).enhance(float(params.get("factor", 1.0)))
     if name == "contrast":
-        return ImageEnhance.Contrast(image).enhance(float(params.get("factor", 1.0)))
+        from fichero_server.media.enhance import contrast
+
+        # A stored row is applied as it was saved, not re-validated: model_construct keeps the old behaviour for an out-of-range value.
+        return contrast.run(image, contrast.Params.model_construct(**{k: v for k, v in params.items() if k in contrast.Params.model_fields}))[0]
+    if name in {"stain_flatten", "ruled_lines", "bleed_through"}:
+        from fichero_server.media.enhance import STEPS
+
+        spec = STEPS[name.replace("_", "-")]
+        # A stored row is applied as it was saved (as the contrast row is): out-of-range values are not re-validated.
+        return spec.run(image, spec.params.model_construct(**{k: v for k, v in params.items() if k in spec.params.model_fields}))[0]
     if name == "sharpen":
         return ImageEnhance.Sharpness(image).enhance(float(params.get("factor", 1.0)))
     if name == "auto_levels":
         return ImageOps.autocontrast(image)
+    if name == "enhance" and params.get("method", "pil") != "pil":
+        if params["method"] != "clahe":
+            raise HTTPException(400, f"Unsupported enhance method: {params['method']}")
+        from fichero_server.media.enhance import contrast, sharpen, yellowing
+
+        # The legacy `DocumentEnhancer.enhance`: CLAHE on L, the yellow cast, then the unsharp mask.
+        given = {k: params[k] for k in ("clip", "tile", "gain", "lift") if params.get(k) is not None}
+        edited = contrast.run(image, contrast.Params(profile=params.get("profile", "handwritten"), **given))[0]
+        edited = yellowing.run(edited, yellowing.Params())[0]
+        return sharpen.run(edited, sharpen.Params())[0]
     if name == "enhance":
         edited = image.filter(ImageFilter.MedianFilter(size=3)) if params.get("denoise") else image
         if params.get("auto_levels"):
@@ -308,8 +433,15 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
         return edited
     if name == "fuzzy_clean":
         return apply_fuzzy_clean(image, despeckle_radius=int(params.get("despeckle_radius", 3)), background_clean=bool(params.get("background_clean", True)))
-    if name == "denoise":
+    if name == "denoise" and "speck" not in params:
+        # A row saved before specks existed re-renders as it always did (the PIL median, no OpenCV needed).
         return apply_fuzzy_clean(image, despeckle_radius=int(params.get("radius", 3)), background_clean=False)
+    if name in {"denoise", "binarise"}:
+        from fichero_server.media.enhance import STEPS
+
+        spec = STEPS[name]
+        # A stored row is applied as saved (not re-validated).
+        return spec.run(image, spec.params.model_construct(**{k: v for k, v in params.items() if k in spec.params.model_fields}))[0]
     if name == "adaptive_binarize":
         gray = image.convert("L")
         # ImageStat, not sum(gray.getdata()): Pillow 12.3 deprecates getdata

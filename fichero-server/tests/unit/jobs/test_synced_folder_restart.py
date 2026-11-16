@@ -99,6 +99,7 @@ def _restart(client, test_package, monkeypatch, while_off=None):
         while_off()
     monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())
     db = db_manager.get_database(test_package)
+    jobs.continue_after_quit(db, None)  # the open holds the folder's read for the launch alert; Continue brings it in (owner 2026-11-13)
     assert _reads_done(client)
     return db
 

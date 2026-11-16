@@ -1,0 +1,12 @@
+{
+  "tolerances": {
+    "wall_ms": 0.05,
+    "cpu_ms": 0.05,
+    "peak_rss_mb": 0.03,
+    "body_count": 0,
+    "hang_count": 0,
+    "leak_count": 0,
+    "disk_kib": 0
+  },
+  "figures": {}
+}

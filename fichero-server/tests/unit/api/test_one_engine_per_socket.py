@@ -121,6 +121,22 @@ def test_a_stale_socket_nobody_listens_on_is_reclaimed(sock_path):
     assert not Path(sock_path).exists()
 
 
+def test_the_socket_left_by_a_killed_orphan_is_released_to_the_next_engine(sock_path):
+    """`engine.stale-engines-ended-at-launch`: the app SIGKILLs a stale helper; the socket file it leaves has no
+    listener, so the new engine's claim reclaims it and can bind (a real process, a real SIGKILL)."""
+    orphan = _live_engine(sock_path)
+    orphan.process.kill()
+    orphan.process.wait(10)
+    assert Path(sock_path).exists()                              # the file outlives the process
+    claim_uds_path(sock_path)
+    assert not Path(sock_path).exists()
+    fresh = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        fresh.bind(sock_path)                                    # the next engine can take the path
+    finally:
+        fresh.close()
+
+
 def test_a_path_that_is_not_a_socket_is_refused_and_left_alone(sock_path):
     Path(sock_path).write_text("not a socket")
     with pytest.raises(EngineAlreadyServing, match="is not a socket"):

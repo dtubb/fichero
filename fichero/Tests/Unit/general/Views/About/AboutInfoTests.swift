@@ -110,4 +110,19 @@ final class AboutInfoTests: XCTestCase {
             "https://github.com/dtubb/fichero/blob/main/LICENSE"
         )
     }
+
+    func testBuildShaLineNamesTheCommitAndHidesAnUnknownOne() {
+        XCTAssertEqual(AboutInfo.buildShaLine("2b9b216c34"), "Build 2b9b216c34")
+        XCTAssertNil(AboutInfo.buildShaLine("unknown"))
+        XCTAssertNil(AboutInfo.buildShaLine(nil))
+        XCTAssertNil(AboutInfo.buildShaLine("  "))
+    }
+
+    func testSupportHeaderCarriesTheBuildSha() {
+        let about = SupportLogs.aboutText(
+            version: "1", build: "2", tier: "dev", osVersion: "27", model: "m", physicalMemory: 1,
+            freeDisk: "1 GB", date: Date(timeIntervalSince1970: 0), buildSha: "2b9b216c34"
+        )
+        XCTAssertTrue(about.contains("Build: 2b9b216c34"))
+    }
 }

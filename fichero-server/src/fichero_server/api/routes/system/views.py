@@ -12,10 +12,10 @@ from types import SimpleNamespace
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 
-from fichero_server.api.main import get_library_database
+from fichero_server.api.main import get_library_database, whole_library_reader_only
 from fichero_server.db import Database
 from fichero_server.models.knowledge import Annotation, KnowledgeClaim, KnowledgeEntity
-from fichero_server.models import Artifact, DocType, Document, FileType, Segment
+from fichero_server.models import Artifact, ContentRepresentation, DocType, Document, FileType, Segment
 from fichero_server.core.off_loop import off_loop
 
 router = APIRouter(prefix="/view", tags=["views"])
@@ -96,6 +96,27 @@ def _region_children(db: Database, document: Document) -> list[Document]:
     ]
     regions.sort(key=lambda doc: (doc.sequence or 0, doc.name))
     return regions
+
+
+#: The `region_in_parent.method` of a hand-drawn crop (`crop_image_child_impl`): an edit of the page's
+#: picture, never a section of its text (#6579).
+USER_CROP_METHOD = "user-crop"
+
+
+def region_sections(regions: list[Document]) -> list[Document]:
+    """The regions a page READS AS, or none: then the page reads as itself (#6579, owner 2026-11-13).
+
+    A page with no page children used to list every region child as a Reader section, so an image
+    page's crops showed as "Page 1 … crop — No transcription yet", "Page 2 …", and the page's own text,
+    from its lines, was never shown. A hand-drawn crop is never a section; other regions (diary
+    entries, splits) are the sections only when one of them has text of its own. Pure."""
+    sections = [
+        region
+        for region in regions
+        if region.region_in_parent is None or region.region_in_parent.method != USER_CROP_METHOD
+    ]
+    has_text = any(region.page_content and region.page_content.strip() for region in sections)
+    return sections if has_text else []
 
 
 def region_cohort(regions: list[Document], anchor: Document) -> list[Document]:
@@ -332,6 +353,12 @@ def artifact_pages(
     if not any(str(page["id"]) == owner for page in pages):
         entry: dict[str, object] = {
             "id": owner,
+            # The same keys every page entry carries (`transcript_pages`), so
+            # `transcript_text` and the reader never meet a short entry (#6578).
+            "number": None,
+            "label": artifact.step_name or artifact.artifact_type or "Artifact",
+            "title": artifact.step_name or artifact.artifact_type or "Artifact",
+            "is_region": False,
             "name": artifact.step_name or artifact.artifact_type or "Artifact",
             "page_label": None,
             "page_number": None,
@@ -654,6 +681,38 @@ def transcript_pages(document: Document, child_pages: list[Document]) -> list[di
     return pages
 
 
+def with_page_level_readings(
+    pages: list[dict[str, object]], readings: list[ContentRepresentation]
+) -> list[dict[str, object]]:
+    """An empty page shows the reading stored on the PAGE itself (#6470).
+
+    A page-level reading (``segment_id`` None: a Regularised version of the whole sheet) belongs to
+    no line, so the line-derived ``page_content`` never holds it and the Reader said "No transcription
+    yet" beside a table that showed the text. A page with text from its lines is left alone. Of a
+    page's own readings the one at ``as_written`` comes first, then the shipped levels in order; a
+    person's over a machine's; the newest. ``reading_level`` says which one is shown. Pure."""
+    from fichero_server.api.routes.document.segment_readings import _level_rank
+    from fichero_server.models import ProvenanceKind
+    from fichero_server.models.readings import counting_level
+
+    by_page: dict[str, list[ContentRepresentation]] = {}
+    for row in readings:
+        is_page_reading = row.segment_id is None and row.kind == "transcription"
+        if is_page_reading and row.retracted_at is None and row.content and row.content.strip():
+            by_page.setdefault(str(row.document_id), []).append(row)
+    result: list[dict[str, object]] = []
+    for page in pages:
+        rows = by_page.get(str(page["id"]))
+        if page["has_content"] or not rows:
+            result.append(page)
+            continue
+        best_level = min((counting_level(r.level) for r in rows), key=_level_rank)
+        at_level = [r for r in rows if counting_level(r.level) == best_level]
+        chosen = max(at_level, key=lambda r: (r.provenance_kind == ProvenanceKind.human, r.created_at, r.id))
+        result.append({**page, "content": chosen.content, "has_content": True, "reading_level": best_level})
+    return result
+
+
 def page_line_map(db: Database, page_id: str, content: str) -> list[dict[str, object]]:
     """Which LINE each stretch of a page's text came from, as offsets into `content`
     (Q5, 3c part c: the Reader finds the line under its caret without wrapping any line in an
@@ -740,9 +799,11 @@ def transcript_text(pages: list[dict[str, object]]) -> str:
     every stored offset. The reader renders from the structured page list; this
     text stays the offset-stable reading of the same document.
     """
+    # A page with no number (a document-level artifact, #6578) is joined under its
+    # title, or its position; pages that have numbers keep their text exactly.
     return "\n\n".join(
-        f"Page {page['number']}\n{page['content']}"
-        for page in pages
+        f"Page {page.get('number') or page.get('title') or page.get('label') or index}\n{page['content']}"
+        for index, page in enumerate(pages, start=1)
         if page["has_content"]
     )
 
@@ -891,7 +952,7 @@ def document_view(
     if document is not requested:
         child_pages = region_cohort(_region_children(db, document), requested)
     elif not child_pages:
-        child_pages = _region_children(db, document)
+        child_pages = region_sections(_region_children(db, document))
     if selected_page_ids is not None:
         child_pages = [p for p in child_pages if p.id in selected_page_ids]
     region_scoped = any(p.region_in_parent is not None for p in child_pages)
@@ -905,6 +966,30 @@ def document_view(
             document = db.get(Document, document.id) or document
         child_pages = [db.get(Document, p.id) or p if p.id in refreshed else p for p in child_pages]
     pages = transcript_pages(document, child_pages)
+    # A leaf with no stored text is still looked at as its one page: its lines may have readings (#6579).
+    candidate_ids = [str(p["id"]) for p in pages] if pages or child_pages else [document.id]
+    shown_empty = (
+        set(candidate_ids) if not pages else {str(p["id"]) for p in pages if not p["has_content"]}
+    )
+    if shown_empty:
+        readings = db.query_in(ContentRepresentation, "document_id", candidate_ids)
+        # The stored text is a cache of the lines' readings; one that is empty while the lines have
+        # readings (a write that missed the refresh) is derived now, with its line map (#6579).
+        missed = sorted(
+            shown_empty
+            & {
+                str(r.document_id)
+                for r in readings
+                if r.segment_id is not None and r.retracted_at is None and r.content and r.content.strip()
+            }
+        )
+        if missed and ensure_current(db, missed, even_if_stamped=True):
+            document = db.get(Document, document.id) or document
+            child_pages = [db.get(Document, p.id) or p for p in child_pages]
+            pages = transcript_pages(document, child_pages)
+        if pages:
+            # A reading stored on the page itself belongs to no line (#6470).
+            pages = with_page_level_readings(pages, readings)
     annotations_payload: list[dict[str, object]] | None = None
     compare_payload: dict[str, object] | None = None
     if artifact_id:
@@ -946,7 +1031,7 @@ def document_view(
     if not artifact_id and representation in (None, "", "content"):
         # The line map (3c part c): a sidecar, never a change to the text or its markup.
         for page in pages:
-            if page.get("has_content") and page.get("id"):
+            if page.get("has_content") and page.get("id") and "reading_level" not in page:
                 page["lines"] = page_line_map(db, str(page["id"]), str(page["content"]))
     # Two sources, and which one applied decides whether the transcript has to
     # travel at all. When it comes from the page children it is `transcript_text`
@@ -1051,7 +1136,7 @@ def document_view(
     )
 
 
-@router.get("/kg/global", response_class=HTMLResponse, openapi_extra=BULK)
+@router.get("/kg/global", response_class=HTMLResponse, openapi_extra=BULK, dependencies=[Depends(whole_library_reader_only)])
 @off_loop
 def global_kg_view(
     request: Request,

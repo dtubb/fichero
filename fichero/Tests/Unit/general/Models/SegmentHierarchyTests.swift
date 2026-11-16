@@ -190,6 +190,26 @@ final class SegmentHierarchyTests: XCTestCase {
 
     // MARK: - segments-list-nests
 
+    /// #6425: an order that lists a region AND its line at the same level (the engine used to seed it flat) showed
+    /// the line twice, nested and again beside its region. The line is a row once, under the region.
+    func testALineListedBesideItsRegionIsShownOnce() async throws {
+        let store = try await loadedPage().store
+        let segments = store.workingSegments(documentId: "page-1")
+        let rows = SegmentsPane.outline(segments, top: ["r1", "l1", "l2", "r2"])
+        XCTAssertEqual(rows.map(\.segmentId), ["r1", "r2"], "l1 and l2 are r1's rows, not top-level ones")
+        XCTAssertEqual(rows[0].children.map(\.segmentId), ["l1", "l2"])
+    }
+
+    /// #6425: the order a person set is the order the page reads, so a region's lines follow the stored order's sequence, not the
+    /// order the segments were made in.
+    func testARegionsLinesFollowTheStoredOrdersSequence() async throws {
+        let store = try await loadedPage().store
+        let segments = store.workingSegments(documentId: "page-1")
+        let rows = SegmentsPane.outline(segments, top: ["r1", "l2", "l1"])
+        XCTAssertEqual(rows.map(\.segmentId), ["r1"])
+        XCTAssertEqual(rows[0].children.map(\.segmentId), ["l2", "l1"])
+    }
+
     /// "The Segments list groups rows by region: its lines indented under it, a line discloses its words", each
     /// level in the order the page reads it.
     func testTheListGroupsLinesUnderRegionsInReadingOrder() async throws {
@@ -227,9 +247,10 @@ final class SegmentHierarchyTests: XCTestCase {
         XCTAssertTrue(script.contains("\"hue\":\"blue\""), script)
     }
 
-    /// The legend shows each region's hue once, in region reading order.
+    /// The legend shows each region's hue once, lowest first.
     func testTheLegendListsEachRegionsHueInOrder() async throws {
         let drawn = try await loadedPage().drawn
-        XCTAssertEqual(RegionColours.legend(of: drawn.boxes.compactMap(\.tone)), [0, 1])
+        XCTAssertEqual(RegionColours.legend(of: drawn.boxes.compactMap(\.tone)),
+                       Array(Set([RegionColours.hue(ofRegion: "r1"), RegionColours.hue(ofRegion: "r2")])).sorted())
     }
 }

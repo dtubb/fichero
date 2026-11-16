@@ -33,6 +33,8 @@ def test_a_claim_left_running_by_a_dead_process_is_requeued_on_open(db, thumbs):
     job_id = _claimed_by_a_dead_worker(db, "page-008")
 
     jobs.resume(db)
+    assert _state(db, job_id) == "paused"  # held for the person (owner 2026-11-13)
+    jobs.continue_after_quit(db, None)
 
     assert _state(db, job_id) == "waiting"  # no thumbnail file: its job stands, to run
 

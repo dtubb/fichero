@@ -274,7 +274,9 @@ final class ImageEditorModel {
         }
     }
 
-    func enhance(brightness: Double, contrast: Double, sharpen: Double, autoLevels: Bool) async {
+    func enhance(brightness: Double, contrast: Double, sharpen: Double, autoLevels: Bool,
+                 method: String = "pil", profile: String = "handwritten",
+                 clip: Double? = nil, tile: Int? = nil, gain: Double? = nil, lift: Double? = nil) async {
         await runOp { service in
             try await service.enhance(
                 documentId: self.documentId,
@@ -282,14 +284,35 @@ final class ImageEditorModel {
                 contrast: contrast,
                 sharpen: sharpen,
                 autoLevels: autoLevels,
+                method: method,
+                profile: profile,
+                clip: clip,
+                tile: tile,
+                gain: gain,
+                lift: lift,
                 page: self.page
             )
         }
     }
 
+    /// Auto Enhance: the ported cleanup at its defaults (CLAHE contrast), one click (`image.enhance.editor-enhance-is-the-new-step`).
+    func autoEnhance() async {
+        await enhance(brightness: 1.0, contrast: 1.0, sharpen: 1.0, autoLevels: false, method: "clahe")
+    }
+
+    /// Mirror the page left to right: one `flip_horizontal` row on the chain, as the other direct ops append theirs.
+    func flipHorizontal() async {
+        await runOp { service in
+            var ops = self.chain.operations.map(\.raw)
+            ops.append(AnyCodable(["op": "flip_horizontal", "page": self.page, "params": [:]] as [String: Any]))
+            return try await service.setOperations(documentId: self.documentId, operations: ops)
+        }
+    }
+
     func removeBackground(method: String = "opencv") async {
         await runOp { service in
-            try await service.removeBackground(documentId: self.documentId, method: method, page: self.page)
+            // A job, not a held request: a very large scan takes longer than a request may, and Activity shows it with Cancel (#6384).
+            try await service.removeBackgroundAsJob(documentId: self.documentId, method: method, page: self.page)
         }
     }
 
@@ -356,9 +379,11 @@ final class ImageEditorModel {
             return try await service.setOperations(documentId: self.documentId, operations: ops)
         }
     }
+}
 
-    // MARK: - Copy / Paste edits (Daniel, 2026-09-02)
+// MARK: - Copy / Paste edits (Daniel, 2026-09-02)
 
+@MainActor extension ImageEditorModel {
     /// Put this document's chain on the app-wide edit clipboard.
     func copyEdits() {
         ImageEditClipboard.shared.copy(

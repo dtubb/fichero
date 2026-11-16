@@ -15,12 +15,12 @@ from pydantic import BaseModel
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.auth import request_actor
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.main import whole_library_reader_only, get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.models import MutationListResponse
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/kg/triangulation")
+router = APIRouter(dependencies=[Depends(whole_library_reader_only)], prefix="/kg/triangulation")
 
 
 class TripleSupportResponse(BaseModel):

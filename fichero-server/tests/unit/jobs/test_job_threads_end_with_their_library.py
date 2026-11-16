@@ -54,9 +54,10 @@ def test_the_job_waits_for_the_library_to_open_again(test_package, monkeypatch):
     """WHY: ending the threads must not lose the work: the row stays waiting, and opening the
     library starts a thread for it again (`jobs.resume`)."""
     _waiting_job(monkeypatch, test_package)
-    db_manager.close_database(test_package)
+    db_manager.close_all()  # the quit (a project close alone pauses its waiting work, #6596)
 
     db = db_manager.get_database(test_package)
+    jobs.continue_after_quit(db, None)  # the open holds what the quit left (owner 2026-11-13); Continue lets it run
 
     assert db.execute_fetchone("SELECT state FROM jobs WHERE subject = 'page-1'")[0] == "waiting"
     assert any(t.is_alive() for t in jobs._scheduler.lanes["database"].threads)

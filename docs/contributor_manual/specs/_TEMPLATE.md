@@ -27,6 +27,10 @@
 > here (`Manual: TBD — <what the section must explain>`) and file an issue on the manual
 > milestone. "TBD" is allowed on a DRAFT and blocks APPROVED, so the gap is visible, never silent.
 > Tags: [OK] built · [MISSING] not built · [PARTIAL] exists elsewhere / not wired.
+>
+> Issues, labels and the order of milestones: `specs/harness/issues-and-labels.md` (the milestone is the spec; the
+> harness files one `step:N.M` issue per build-order step and closes them as they land; `specs/build-order.md` orders
+> the milestones).
 
 ## Intent (the design)
 

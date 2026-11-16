@@ -19,6 +19,8 @@ struct ShareLibrarySheet: View {
     /// Share one folder of the project instead of all of it (`sharing.settings.project-share-sheet`, #5967): the person reaches that
     /// folder and what is under it, nothing beside it. nil: the whole project.
     var folder: FolderShareTarget?
+    /// The other projects this sheet's one link gives (Multi-user off, the which-projects dialog's set, #6366).
+    var alsoLibraries: [String] = []
 
     @Environment(\.dismiss) private var dismiss
 
@@ -48,8 +50,14 @@ struct ShareLibrarySheet: View {
     // The short-lived, single-use pair code minted for the link — SAME code
     // semantics as the QR. nil until minted; the link cannot exist without it.
     @State var pairingCode: PairingCodeRecord?
+    /// The engine's addresses and the one the link carries (`sharing.share-sheet-offers-both-addresses`).
+    @State var sharingState: SharingStateRecord?
+    @State var addressChoice: AddressChoice?
     @State var spkiPin = ""
+    /// A hint in words under the Share button ("Choose a person…"); a failure is the alert below, never this line.
     @State var shareError: String?
+    /// A failure while sharing, as the one alert (Step 8.8): the sheet stays open with its choices kept.
+    @State var failurePrompt: FailureAlertPrompt?
     @State var copied = false
 
     // Inline "New person…" create
@@ -57,14 +65,12 @@ struct ShareLibrarySheet: View {
     @State var newUsername = ""
     @State var newPassword = ""
     @State var isCreating = false
-    @State var createError: String?
 
     // Members
     @State var members: [Components.Schemas.LibraryMember] = []
     @State var isLoadingMembers = false
     @State var membersError: String?
     @State var isApplying = false
-    @State var manageError: String?
 
     /// The share sheet grants Viewer/Editor only — Owner is deliberately NOT here
     /// (#3787). Owner is a whole-library administrator, granted on purpose in
@@ -77,11 +83,14 @@ struct ShareLibrarySheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                shareSection
-                if didShare {
+                if Self.sharesWithPeople(multiuser: EngineConfig.multiuserEnabled, folder: folder != nil) {
+                    shareSection
+                    if didShare { shareLinkSection }
+                    membersSection
+                } else {
+                    noAccountsSection
                     shareLinkSection
                 }
-                membersSection
             }
             .formStyle(.grouped)
             .navigationTitle(folder.map { "Share \"\($0.name)\"" } ?? "Share Project")
@@ -93,5 +102,6 @@ struct ShareLibrarySheet: View {
         }
         .frame(minWidth: 420, minHeight: 480)
         .task { await loadEverything() }
+        .failureAlert($failurePrompt)
     }
 }

@@ -263,9 +263,11 @@ struct LooveCoverageView: View {
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+}
 
-    // MARK: Matrix
+// MARK: Matrix
 
+extension LooveCoverageView {
     private func matrixTable(_ matrix: CoverageMatrix) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             if hasHeuristic(matrix) {

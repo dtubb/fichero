@@ -17,7 +17,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.library_header import require_library_path
+from fichero_server.api.main import get_library_database, get_library_database_for_write, input_document_ids, recipe_check, write_check
 from fichero_server.db import Database
 from fichero_server.security.revocation import end_on_revoke
 from fichero_server.execution.batch import (
@@ -302,7 +303,12 @@ def _run_off_the_request(http_request: Request, batch_id: str, events: Any) -> S
 
 
 @router.post("", response_model=BatchResponse)
-async def create_batch(request: CreateBatchRequest, db: Database = Depends(get_library_database_for_write)) -> BatchResponse:
+async def create_batch(
+    request: CreateBatchRequest,
+    db: Database = Depends(get_library_database_for_write),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
+) -> BatchResponse:
     """
     Create a new batch execution.
 
@@ -313,6 +319,10 @@ async def create_batch(request: CreateBatchRequest, db: Database = Depends(get_l
 
     if not request.items:
         raise HTTPException(status_code=400, detail="At least one item is required")
+    # Each item is a workflow's inputs: the documents they name are read and written by the run (#6320).
+    if named := [d for item in request.items for d in input_document_ids(item)]:
+        await write_check(http, library_path, db, named)
+    await recipe_check(http, library_path, db, request.workflow_id)  # and its recipe (#6325)
 
     batch = await manager.create_batch(
         workflow_id=request.workflow_id,
@@ -367,7 +377,8 @@ async def get_batch_progress(batch_id: str, db: Database = Depends(get_library_d
 
 
 @router.post("/{batch_id}/execute")
-async def execute_batch(batch_id: str, http_request: Request, db: Database = Depends(get_library_database_for_write)):
+async def execute_batch(batch_id: str, http_request: Request, db: Database = Depends(get_library_database_for_write),
+                        library_path: str = Depends(require_library_path)):
     """
     Execute a batch with Server-Sent Events progress streaming.
 
@@ -379,6 +390,7 @@ async def execute_batch(batch_id: str, http_request: Request, db: Database = Dep
     batch = await manager.get_batch(batch_id)
     if not batch:
         raise HTTPException(status_code=404, detail=f"Batch {batch_id} not found")
+    await recipe_check(http_request, library_path, db, batch.workflow_id)
 
     return _run_off_the_request(http_request, batch_id, lambda: manager.execute_batch(batch_id, store))
 
@@ -396,7 +408,8 @@ async def pause_batch(batch_id: str, db: Database = Depends(get_library_database
 
 
 @router.post("/{batch_id}/resume")
-async def resume_batch(batch_id: str, http_request: Request, db: Database = Depends(get_library_database_for_write)):
+async def resume_batch(batch_id: str, http_request: Request, db: Database = Depends(get_library_database_for_write),
+                       library_path: str = Depends(require_library_path)):
     """
     Resume a paused batch with SSE progress streaming.
 
@@ -408,6 +421,7 @@ async def resume_batch(batch_id: str, http_request: Request, db: Database = Depe
     batch = await manager.get_batch(batch_id)
     if not batch:
         raise HTTPException(status_code=404, detail=f"Batch {batch_id} not found")
+    await recipe_check(http_request, library_path, db, batch.workflow_id)
 
     return _run_off_the_request(http_request, batch_id, lambda: manager.resume_batch(batch_id, store))
 
@@ -425,7 +439,8 @@ async def cancel_batch(batch_id: str, db: Database = Depends(get_library_databas
 
 
 @router.post("/{batch_id}/retry")
-async def retry_batch(batch_id: str, http_request: Request, db: Database = Depends(get_library_database_for_write)):
+async def retry_batch(batch_id: str, http_request: Request, db: Database = Depends(get_library_database_for_write),
+                      library_path: str = Depends(require_library_path)):
     """
     Retry failed items in a batch with SSE progress streaming.
 
@@ -437,6 +452,7 @@ async def retry_batch(batch_id: str, http_request: Request, db: Database = Depen
     batch = await manager.get_batch(batch_id)
     if not batch:
         raise HTTPException(status_code=404, detail=f"Batch {batch_id} not found")
+    await recipe_check(http_request, library_path, db, batch.workflow_id)
 
     return _run_off_the_request(http_request, batch_id, lambda: manager.retry_failed_items(batch_id, store))
 

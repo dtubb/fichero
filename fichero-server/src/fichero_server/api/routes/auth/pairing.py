@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from fichero_server.core.timeutil import ensure_utc, utc_now
 import logging
 import os
+from pathlib import Path
 import secrets
 import threading
 import sys
@@ -20,12 +21,12 @@ from fastapi.routing import APIRoute
 from pydantic import BaseModel, Field
 from typing import Literal
 
+from fichero_server.security.multiuser import MultiuserOff
 from fichero_server.security import accounts
 from fichero_server.actions import ActionContext, ChangeSpec, action, registry
 from fichero_server.actions.registry import ActionRefused
-from fichero_server.api.auth import action_context, _has_proxy_origin_headers, _rate_limit_scope_from_request, _use_multiuser_auth, actor_from_request, ensure_owner_account
+from fichero_server.api.auth import app_action_context, _has_proxy_origin_headers, _rate_limit_scope_from_request, _use_multiuser_auth, actor_from_request, ensure_owner_account
 from fichero_server.api.routes.auth.accounts import _current_session_user
-from fichero_server.api.main import get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.db.app import AppDatabase, get_app_db
 from fichero_server.models import AccountUser, ActionAudit, Device
@@ -90,6 +91,7 @@ class _PairingCode:
     display_name: str = ""
     role: str = INVITE_DEFAULT_ROLE  # on `library`, for a NEW person (an existing person keeps the role they have)
     library: str | None = None
+    also_libraries: tuple[str, ...] = ()  # more projects a plain link gives (the which-projects dialog's set, #6366)
     folder_id: str | None = None  # a folder of `library` the invitation shares, not the whole project (#5967)
     never_expires: bool = False
     claimed: bool = False  # a redeem is under way: only one at a time may spend the code
@@ -129,6 +131,9 @@ class PairCodeRequest(BaseModel):
     display_name: str | None = None
     role: Literal["viewer", "editor"] = INVITE_DEFAULT_ROLE
     library: str | None = Field(default=None, description="the library the role is granted on, for a new person")
+    libraries: list[str] = Field(default_factory=list, description=(
+        "more projects a plain link (no person) gives the paired device, beside `library`: the which-projects dialog's ONE link "
+        "for a set (#6366); a path that is no project on this Mac is left out"))
     folder_id: str | None = Field(default=None, description=(
         "share one folder of that project instead of the whole project: the person reaches that folder and what is under "
         "it, nothing beside it (`sharing.share-sheet-chooses-what`)"))
@@ -153,11 +158,25 @@ class TailnetOfferResponse(BaseModel):
 
 class SharingStateResponse(BaseModel):
     multiuser_enabled: bool
+    # The host's addresses, in one place (`sharing.state-names-every-address`): the sharing address the engine was
+    # started with, its LAN IP, the tailnet name, and who holds the tailnet forward: "ours" | "foreign" | "none" |
+    # "unknown" (Tailscale is installed but this engine could not ask it: a sandboxed build, #5317).
+    public_base_url: str | None = None
+    lan_ip: str | None = None
     tailnet_url: str | None = None
+    tailnet_forward: Literal["ours", "foreign", "none", "unknown"] = "none"
     # The one command to paste in Terminal when this engine cannot make the tailnet forward itself
     # (a sandboxed app cannot run the Tailscale CLI, #5317); None when nothing is missing.
     tailnet_serve_command: str | None = None
+    # A tailnet forward Fichero did not make (`sharing.stale-forward-says-so`): {"holds", "free_with"}; the generic command
+    # above is withheld while it stands, since it fails the same way.
+    tailnet_serve_conflict: dict[str, str] | None = None
     paired_device_count: int
+    # How many of this Mac's projects someone can open (`sharing.host.asks-which-projects-when-nothing-is-shared`, #6366):
+    # 0 makes the app ask which projects to share.
+    shared_library_count: int = 0
+    # Why Multi-user cannot be turned on yet (no owner password chosen), else None: the pane reads this, not a guess.
+    multiuser_blocker: str | None = None
     # The audit row of a change this answer follows (PUT /multiuser): what ⌘Z takes back.
     audit_id: str | None = None
 
@@ -172,7 +191,9 @@ def _tailnet_serve_command() -> str | None:
 
     from fichero_server.security import tailscale_serve  # lazy: app-import budget (#3950)
 
-    if not tailscale_serve.tailnet_url():
+    # The name the engine knows without asking Tailscale (#6554): a sandboxed engine cannot run the CLI, so the person is
+    # shown the one command that makes the forward rather than nothing.
+    if not tailscale_serve.known_tailnet_url():
         return None
     from fichero_server.security.bind_host import listen_port
 
@@ -188,15 +209,44 @@ def _tailnet_serve_command() -> str | None:
     return shlex.join([cli or "tailscale", "serve", "--bg", f"--https={port}", want])
 
 
+def _shared_library_count(app_db: AppDatabase, *, multiuser: bool) -> int:
+    """The projects at least one person other than the owner holds a role on; with no accounts, a paired device reaches
+    this Mac's known projects, so they count once a device is paired (#6366). Each project once."""
+    shared = set()
+    for user in app_db.list_users():
+        if not user.is_owner and user.active:
+            shared.update(role.library_path for role in app_db.list_library_roles_for_user(user.id))
+    if not multiuser and any(not device.revoked for device in app_db.list_devices()):
+        from fichero_server.api.routes.library.registry import get_global_database  # lazy: routes import each other
+        from fichero_server.models import KnownLibrary
+
+        shared.update(row.path for row in get_global_database().query(KnownLibrary))
+    return len(shared)
+
+
 def _sharing_state(app_db: AppDatabase) -> SharingStateResponse:
     from fichero_server.security import tailscale_serve  # lazy: app-import budget (#3950)
-    from fichero_server.security.multiuser import multiuser_enabled
+    from fichero_server.security.multiuser import multiuser_enabled, owner_password_gap
 
+    from fichero_server.security import bind_host
+
+    try:
+        lan_ip = bind_host.primary_lan_ip() or None
+    except OSError:  # no network: no address, never a failed read of the pane
+        lan_ip = None
+    enabled = multiuser_enabled()
+    conflict = tailscale_serve.forward_conflict(bind_host.listen_port())
     return SharingStateResponse(
-        multiuser_enabled=multiuser_enabled(),
+        multiuser_enabled=enabled,
+        multiuser_blocker=None if enabled else owner_password_gap(app_db),
+        public_base_url=(os.environ.get("FICHERO_PUBLIC_BASE_URL") or "").strip() or None,
+        lan_ip=lan_ip,
         tailnet_url=tailscale_serve.detected_tailnet_url() or None,
-        tailnet_serve_command=_tailnet_serve_command(),
+        tailnet_forward=tailscale_serve.forward_state(bind_host.listen_port()),
+        tailnet_serve_command=None if conflict else _tailnet_serve_command(),
+        tailnet_serve_conflict=conflict,
         paired_device_count=sum(1 for d in app_db.list_devices() if not d.revoked),
+        shared_library_count=_shared_library_count(app_db, multiuser=enabled),
     )
 
 
@@ -247,6 +297,8 @@ class DeviceResponse(BaseModel):
     id: str
     name: str
     user_id: str
+    #: The signed-in person's name, filled by the device list only (the host's Inspector reads "<person> on <device>", #5738).
+    username: str | None = None
     created_at: datetime
     last_seen: datetime
     expires_at: datetime
@@ -277,7 +329,7 @@ def get_app_database() -> AppDatabase:
 
 def _multiuser_disabled() -> None:
     if not _use_multiuser_auth():
-        raise HTTPException(status_code=404, detail="multi-user auth is disabled")
+        raise MultiuserOff()
 
 
 def _to_public_device(device: Device, paired_by: str | None = None) -> DeviceResponse:
@@ -586,20 +638,49 @@ def sharing_state(request: Request, app_db: AppDatabase = Depends(get_app_databa
     return _sharing_state(app_db)
 
 
+class AddressRowResponse(BaseModel):
+    kind: Literal["tailnet", "local-name", "lan"]
+    url: str
+    label: str
+    listening: bool
+    reason: str | None = Field(default=None, description="why this row cannot work, in one line; none when nothing is known against it")
+
+
+class AddressListResponse(BaseModel):
+    items: list[AddressRowResponse]
+    count: int
+
+
+@router.get("/addresses", response_model=AddressListResponse)
+def pair_addresses(request: Request, app_db: AppDatabase = Depends(get_app_database)) -> AddressListResponse:
+    """Every address this Mac can be reached at, in the order to try (`sharing.address-choice`): the Share sheet draws it.
+    Never a loopback address. The host cannot see client isolation, so a `.local` or IP row is "listening", never "works"."""
+    _owner_only(request, app_db)
+    from fichero_server.security.sharing_report import address_rows  # lazy: app-import budget (#3950)
+
+    rows = address_rows()
+    return AddressListResponse(items=[AddressRowResponse(**r.model_dump()) for r in rows], count=len(rows))
+
+
 @router.put("/multiuser", response_model=SharingStateResponse)
 def set_multiuser(
     request: Request,
     body: MultiuserRequest,
     app_db: AppDatabase = Depends(get_app_database),
-    db: Database = Depends(get_library_database_for_write),
-    ctx: ActionContext = Depends(action_context),
+    ctx: ActionContext = Depends(app_action_context),
 ) -> SharingStateResponse:
     """Set the persisted Multi-user switch through the audited action layer (#5751); the Settings
-    switch, the CLI and MCP share this route. While Multi-user is off only the owner's signed-in session may
-    (`multiuser.owner-session-sets-the-switch`, #5908): never the start-up credential."""
-    if not _use_multiuser_auth() and getattr(request.state, "session", None) is None:
-        raise HTTPException(status_code=403, detail="sign in as the owner to change Multi-user")
+    switch, the CLI and MCP share this route. Only a request over the engine's Unix socket may (the Mac's own app, its
+    start-up credential, no key session needed); any TCP request is refused, an owner session included
+    (`multiuser.owner-session-sets-the-switch`, owner ruling 2026-11-12).
+    App-wide, so no library header is needed (`sharing.multiuser-switch-needs-no-library`): the audit row goes to the
+    global library package, as the known-library registry's actions do; the Settings window sends no library."""
+    if request.scope.get("fichero.transport") != "uds":  # owner ruling 2026-11-12: only this Mac's own app, over its socket
+        raise HTTPException(status_code=403, detail="only this Mac's own app can change Multi-user")
     _owner_only(request, app_db)
+    from fichero_server.api.routes.library.registry import get_global_database  # lazy: routes import each other
+
+    db: Database = get_global_database()  # after the refusals: a refused caller opens or creates nothing
     try:
         result = registry.invoke(db, "sharing.set_multiuser", body.model_dump(), ctx)
     except ActionRefused as exc:
@@ -661,6 +742,49 @@ def detected_tailnet(
     return TailnetOfferResponse(tailnet_url=tailscale_serve.detected_tailnet_url() or None)
 
 
+def _register_link_library(package: str) -> bool:
+    """Put the project a link was minted for on this Mac's known-library list if it is not there. False (logged) when it
+    could not be written: the redeem then refuses with a 503 before anything is made (`pair_device`)."""
+    from fichero_server.api.routes.library.registry import get_global_database  # lazy: routes import each other
+    from fichero_server.models import KnownLibrary
+
+    try:
+        registry = get_global_database()
+        if not registry.query(KnownLibrary, path=package):
+            registry.save(KnownLibrary(path=package, name=Path(package).name))
+    except Exception:
+        logger.warning("Could not register %s for a paired device", package, exc_info=True)
+        return False
+    return True
+
+
+def _library_a_link_is_for(request: Request, body: PairCodeRequest) -> str | None:
+    """The project a plain pairing link is minted for (the one named, else the one open in the request), as the registry
+    spells it, or None when it names no package on this Mac. A link minted for a project must reach it
+    (`sharing.link-grants-its-project`, #6359): the redeem puts it on this Mac's known-library list."""
+    from fichero_server.security import authz
+
+    from fichero_server.api.library_header import optional_library_path  # the header is percent-encoded: a space or accent
+
+    named = (body.library or optional_library_path(request) or "").strip()
+    package = authz.normalize_library_path(named) if named else None
+    if package is None or not os.path.isfile(os.path.join(package, "fichero.duckdb")):
+        return None
+    return package
+
+
+def _projects_a_link_also_gives(body: PairCodeRequest | None) -> tuple[str, ...]:
+    """The other projects a plain link names, as the registry spells them, each once; a path with no project is left out."""
+    from fichero_server.security import authz
+
+    out: list[str] = []
+    for named in body.libraries if body else []:
+        package = authz.normalize_library_path(named.strip()) if named.strip() else None
+        if package and package not in out and os.path.isfile(os.path.join(package, "fichero.duckdb")):
+            out.append(package)
+    return tuple(out)
+
+
 @router.post("/code", response_model=PairCodeResponse)
 def create_pairing_code(
     request: Request,
@@ -686,7 +810,9 @@ def create_pairing_code(
         from fichero_server.security import authz
 
         # The library is the one the owner named, else the one open in the request (X-Fichero-Library-Path).
-        library = body.library or request.headers.get("x-fichero-library-path") or None
+        from fichero_server.api.library_header import optional_library_path
+
+        library = body.library or optional_library_path(request) or None
         if library is not None:
             try:
                 authz.require_owner(_current_session_user(request), library)  # only the library's owner grants on it
@@ -719,9 +845,12 @@ def create_pairing_code(
             held = app_db.get_library_role(invited.id, library_path)
             granted_role = held.role if held else None
     from fichero_server.api.transport_diagnostics import network_listener_gap, tcp_listeners
+    from fichero_server.security import bind_host, tailscale_serve
 
-    # A link never names an address nothing listens on (`sharing.link-names-a-listener`).
-    if gap := network_listener_gap(os.environ.get("FICHERO_PUBLIC_BASE_URL") or "", tcp_listeners()):
+    # A link never names an address nothing listens on (`sharing.link-names-a-listener`); a live Tailscale forward to
+    # the loopback listener is somewhere to listen (t58).
+    forward = tailscale_serve.forward_state(bind_host.listen_port()) == "ours"
+    if gap := network_listener_gap(os.environ.get("FICHERO_PUBLIC_BASE_URL") or "", tcp_listeners(), tailnet_forward=forward):
         raise HTTPException(status_code=409, detail=gap)
     now = utc_now()
     _prune_pairing_codes(now)
@@ -740,7 +869,8 @@ def create_pairing_code(
         new_person=new_name is not None,
         display_name=(body.display_name or "").strip(),
         role=granted_role or "",
-        library=library_path,
+        library=library_path or _library_a_link_is_for(request, body),
+        also_libraries=() if person_name else _projects_a_link_also_gives(body),
         folder_id=folder_id,
         never_expires=body.never_expires and person_name is not None,
         minted_by=(_current_session_user(request).username if _current_session_user(request) else "host app"),  # "host app": a code naming no person
@@ -885,6 +1015,14 @@ def pair_device(
             if not chosen.active:
                 raise HTTPException(status_code=403, detail="user is disabled")
             user_id = chosen.id
+        # Before any account, grant or device exists: a registry that cannot be written refuses with nothing left behind.
+        for package in [p for p in (record.library, *record.also_libraries) if p]:
+            # The host's list of what a device may open names the project the link was minted for, even when it was never
+            # put in the registry (a project the app made on first run): else the guest is told it was not given it.
+            if not _register_link_library(package):
+                raise HTTPException(
+                    status_code=503, detail="this Mac could not record the shared project; try the link again",
+                )
         if new_account:
             chosen = app_db.create_user(
                 username=record.person,
@@ -932,6 +1070,12 @@ def pair_device(
         app_db.set_device_route(device.id, "tailnet" if _has_proxy_origin_headers(request) else "lan")
         record.used = True
         _PAIRING_CODES.pop(code, None)
+        for package in [p for p in (record.library, *record.also_libraries) if p]:
+            owner = app_db.get_user(user_id)
+            if owner is not None and owner.is_owner and app_db.get_library_role(owner.id, package) is None:
+                # The owner owns the project they minted a link for: a device that is theirs must reach it, whether or not
+                # the project ever had a roles row (one the app made on first run did not).
+                app_db.set_library_role(user_id=owner.id, library_path=package, role="owner")
         if record.person:
             _record_device_audit(
                 action_name="device.pair_for_person",
@@ -944,12 +1088,62 @@ def pair_device(
                 after=_to_public_device(device).model_dump(mode="json"),
             )
         return _to_pair_response(device, raw_token)
-    except HTTPException:
-        _record_pair_attempt(request, now)
+    except HTTPException as exc:
+        if exc.status_code != 503:  # this Mac's fault is not the guest's failed attempt
+            _record_pair_attempt(request, now)
         raise
     finally:
         if claimed_here is not None and not claimed_here.used:
             claimed_here.claimed = False  # a refusal spends nothing: the code is good for the next try
+
+
+class SignInDeviceRequest(BaseModel):
+    """A person signs a device in with no code (`sharing.people.sign-in-without-a-code`): sent once over the pinned TLS
+    connection, never stored or logged."""
+
+    device_name: str = Field(min_length=1)
+    username: str = Field(min_length=1)
+    password: str
+
+
+@router.post("/sign-in", response_model=PairResponse)
+def sign_in_device(
+    request: Request,
+    body: SignInDeviceRequest,
+    app_db: AppDatabase = Depends(get_app_database),
+) -> PairResponse:
+    """With accounts on, make a device bound to the person who signed in and hand back its token: the address, a username and
+    a password, no pair code (Step 8.9). The pair code stays for a device with no person (accounts off)."""
+    _require_secure_pairing_transport(request)
+    now = utc_now()
+    _check_pair_rate_limit(request, now, record_attempt=False)
+    try:
+        if not _use_multiuser_auth():
+            raise HTTPException(status_code=409, detail="this Mac does not use accounts: ask for a pairing link")
+        name = body.device_name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="device_name is required")
+        person = app_db.get_user_by_username(body.username.strip())
+        # An unknown name costs the same hash as a wrong password and reads the same: no one learns who has an account.
+        matches = accounts.verify_password(body.password, person.password_hash if person else accounts.hash_password(" "))
+        if person is None or not matches:
+            raise HTTPException(status_code=401, detail="invalid username or password")
+        if not person.active:
+            raise HTTPException(status_code=403, detail="user is disabled")
+        raw_token = accounts.new_session_token()
+        device = app_db.create_device(name=name, user_id=person.id, token_hash=accounts.hash_token(raw_token))
+        app_db.set_device_route(device.id, "tailnet" if _has_proxy_origin_headers(request) else "lan")
+        _record_device_audit(
+            action_name="device.sign_in",
+            actor=f"user:{person.username}",
+            params={"person": person.username, "device_name": name},
+            device_id=device.id,
+            after=_to_public_device(device).model_dump(mode="json"),
+        )
+        return _to_pair_response(device, raw_token)
+    except HTTPException:
+        _record_pair_attempt(request, now)
+        raise
 
 
 @router.post("/enroll", response_model=PairResponse)
@@ -1008,7 +1202,11 @@ def list_devices(
     if not user.is_owner:
         devices = [device for device in devices if device.user_id == user.id]
     paired_by = app_db.device_paired_by()
-    items = [_to_public_device(device, paired_by.get(device.id)) for device in devices]
+    names = {account.id: account.username for account in app_db.list_users()}
+    items = [
+        _to_public_device(device, paired_by.get(device.id)).model_copy(update={"username": names.get(device.user_id)})
+        for device in devices
+    ]
     return DeviceListResponse(items=items, count=len(items))
 
 

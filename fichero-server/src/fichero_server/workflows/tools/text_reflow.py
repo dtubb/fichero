@@ -140,101 +140,12 @@ def _reflow_text(text: str, preserve_indentation: bool = True) -> str:
     return final_text
 
 
-# ── ai-pass refinement ────────────────────────────────────────────────────────
+# ── config ─────────────────────────────────────────────────────────────────────
 
-_REFLOW_AI_INSTRUCTIONS = """You are a text refinement specialist for OCR and hard-wrapped documents.
-
-The user has provided text that has already been reflowed (soft-wrapped lines joined, paragraph breaks preserved).
-
-Your task: Review the reflowed text for any remaining issues:
-1. Incomplete word joins (e.g., "extra ordinary" should be "extraordinary")
-2. Awkward spacing or formatting artifacts
-3. Obvious OCR errors that contradict common sense
-4. Inconsistent hyphenation or word breaks
-
-Make minimal, targeted corrections only. Preserve:
-- Paragraph structure and blank lines
-- Original spelling and vocabulary (don't "fix" archaic or regional terms)
-- Any [ilegible] / [uncertain] markers, exactly as written
-- Quotations and emphasized text as-is
-- Proper nouns and unusual capitalization
-
-Return the refined text only, with no explanations."""
-
-
-REFINEMENT_UNAVAILABLE = "AI refinement isn't available yet (#5921)"
-_said_for: set[str] = set()  # runs that have been told; ponytail: process-local, cleared when it grows past 200
-
-
-def _say_refinement_unavailable(library_path: str) -> None:
-    """One Activity warning per run (#5921), not one per page: the pages still finish with their reflowed text."""
-    from fichero_server.workflows.node_context import get_current_node
-
-    node = get_current_node()
-    run_id = node.run_id if node else ""
-    if run_id in _said_for:
-        return
-    if len(_said_for) > 200:
-        _said_for.clear()
-    _said_for.add(run_id)
-    if not library_path:  # no library, no run history to write to
-        logger.warning(REFINEMENT_UNAVAILABLE)
-        return
-    try:
-        from fichero_server.db import db_manager
-        from fichero_server.workflows.activity import get_activity_tracker
-        from fichero_server.workflows.activity_types import ActivityLevel, ActivityType
-
-        db_path = str(db_manager.get_database(library_path).path)
-        get_activity_tracker(db_path).log(
-            type=ActivityType.SYSTEM_WARNING, level=ActivityLevel.WARNING, message=REFINEMENT_UNAVAILABLE,
-            workflow_id=node.workflow_id if node else None, thread_id=run_id or None, node_id=node.node_id if node else None)
-    except Exception:  # the page must finish even when Activity cannot be written
-        _said_for.discard(run_id)  # not said yet: the run's next page tries the Activity warning again
-        logger.warning(REFINEMENT_UNAVAILABLE)
-
-
-async def _refine_with_llm(text: str, llm_config: LLMConfig, library_path: str = "") -> str:
-    """Optional AI pass to refine reflowed text (catches edge cases the heuristics miss)."""
-    if not llm_config or not llm_config.provider:
-        return text
-
-    from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused
-    from fichero_server.execution.jobs import JobCancelled
-
-    try:
-        from fichero_server.llm import call_llm_with_cache
-    except ImportError:  # #5921: the refinement function does not exist (the import line alone, not the call)
-        _say_refinement_unavailable(library_path)
-        return text
-    try:
-        response = await call_llm_with_cache(
-            prompt=f"{_REFLOW_AI_INSTRUCTIONS}\n\n---\n\n{text}",
-            llm_config=llm_config,
-            cache_key=f"text_reflow_refine_{hash(text) % (10**9)}",
-        )
-        return response.strip() if response else text
-    except (WorkflowCancelled, WorkflowPaused, JobCancelled):
-        # A Stop or Pause is not a failed refinement (#5919 sweep): swallowed, the page would be marked done unrefined and
-        # never redone; raised, Resume does it again.
-        raise
-    except Exception:
-        # If LLM call fails, return the heuristic result
-        return text
-
-
-# ── config schema ──────────────────────────────────────────────────────────────
-
-TEXT_REFLOW_CONFIG = {
-    "use_ai_refinement": {
-        "type": "boolean",
-        "default": False,
-        "description": (
-            "Optional: Call LLM to refine reflowed text and catch edge-case word joins. "
-            "Disabled by default; programmatic reflow is sufficient for most cases."
-        ),
-    },
-}
+# Text Reflow has no options. `use_ai_refinement` was removed (owner ruling 2026-11-02, #5921): it called a function that
+# never existed, so it never did anything. A stored workflow that still names it is accepted and ignored: the config is not
+# read, and no step is validated against a closed list of options.
+TEXT_REFLOW_CONFIG: dict[str, Any] = {}
 
 # ── tool ───────────────────────────────────────────────────────────────────────
 
@@ -244,13 +155,12 @@ TEXT_REFLOW_CONFIG = {
     display_name="Text Reflow",
     description=(
         "Join soft-wrapped lines within paragraphs, preserve paragraph structure, "
-        "and de-hyphenate words split across line breaks. "
-        "Optional AI refinement pass available for edge-case word joins."
+        "and de-hyphenate words split across line breaks."
     ),
     category="transform",
     icon="text.alignleft",
     color="purple",
-    uses_llm=True,
+    uses_llm=False,
     supports_batch=True,
     input_ports=[
         PortDef(
@@ -279,24 +189,10 @@ async def text_reflow(
     state: State,
     llm_config: LLMConfig,
 ) -> dict[str, Any]:
-    """Reflow hard-wrapped text while preserving paragraph breaks.
-
-    Default: pure programmatic heuristics (fast, no LLM required).
-    Optional: AI refinement pass to catch edge-case word joins (disabled by default).
-    """
+    """Reflow hard-wrapped text while preserving paragraph breaks: pure programmatic heuristics, no model."""
     text: str = inputs.get("text") or ""
 
     if not text:
         return {"text": ""}
 
-    # Programmatic reflow (always)
-    reflowed = _reflow_text(text)
-
-    # Optional AI refinement pass
-    config = inputs.get("_config") or {}
-    use_ai = bool(config.get("use_ai_refinement", False))
-
-    if use_ai and llm_config:
-        reflowed = await _refine_with_llm(reflowed, llm_config, state.get("library_path", ""))
-
-    return {"text": reflowed.strip()}
+    return {"text": _reflow_text(text).strip()}

@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 /// Browser/Finder-style navigation history for the main app window.
 ///
@@ -74,5 +75,41 @@ struct AppNavigationHistory {
         guard canGoForward else { return nil }
         cursor += 1
         return current
+    }
+}
+
+/// The window's history as views see it (#4228): only whether Back and Forward are possible is
+/// observable, and each changes only when it actually flips.
+///
+/// `AppNavigationHistory` was `@State` on `ContentView`, so every recorded entry re-evaluated the
+/// whole window, and one sidebar click records three (the selection, then the view mode, then the
+/// detail document once the folder loads). The stack itself is not observed: recording an entry
+/// while Back was already possible changes nothing any view draws.
+@MainActor
+@Observable
+final class NavigationHistoryModel {
+    @ObservationIgnored private var history = AppNavigationHistory()
+    private(set) var canGoBack = false
+    private(set) var canGoForward = false
+
+    func push(_ entry: AppNavigationHistory.Entry) {
+        history.push(entry)
+        publish()
+    }
+
+    func goBack() -> AppNavigationHistory.Entry? {
+        defer { publish() }
+        return history.goBack()
+    }
+
+    func goForward() -> AppNavigationHistory.Entry? {
+        defer { publish() }
+        return history.goForward()
+    }
+
+    /// An `@Observable` property notifies on every set, equal or not, so each is set only when it changed.
+    private func publish() {
+        if canGoBack != history.canGoBack { canGoBack = history.canGoBack }
+        if canGoForward != history.canGoForward { canGoForward = history.canGoForward }
     }
 }

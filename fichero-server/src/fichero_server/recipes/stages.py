@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from fichero_server.recipes import prepare_operations
 from fichero_server.recipes.examples import example_credit
 
 
@@ -30,6 +31,9 @@ class Question:
     #: A question that names kinds (#5805): every kind by default (an empty answer), the person can type their own, no
     #: fixed `options`, and the listing's `suggestions` hold only what a sample try found.
     open_ended: bool = False
+    #: Unanswered, the answer is whether this job is in the project's recipe, so a stage the person ticked shows its
+    #: toggle on (Leave Out, #6070); empty for a question with a plain default.
+    plan_job: str = ""
 
 
 @dataclass(frozen=True)
@@ -54,9 +58,14 @@ STAGES: tuple[Stage, ...] = (
     Stage("prepare-images", "Prepare Images", ("split-pages", "prepare-the-image"),
           "Splits two-page scans into single pages and straightens, crops or brightens a page, keeping the original.",
           "A photograph of an open notebook becomes its left and right pages.",
-          (Question("two_pages_per_image", "Two pages per image?", "yes-no", default=False),
-           Question("prepare", "Straighten, crop, brighten?", "many",
-                    (("straighten", "Straighten"), ("crop", "Crop"), ("brighten", "Brighten")), default=[]))),
+          (Question("two_pages_per_image", "Two pages in one picture?", "yes-no", default=False, read_by_a_step=True),
+           Question("beside_the_page", "Anything beside the page?", "one",
+                    (("nothing", "Nothing"), ("ruler", "A ruler"), ("colour-card", "A colour card"),
+                     ("dark-mount", "A dark mount or table")), default="nothing"),
+           Question("the_paper", "The paper", "many",
+                    (("ruled", "Ruled or graph paper"), ("faded", "Stained or faded"),
+                     ("show-through", "Writing shows through")), default=[], read_by_a_step=True),
+           Question("check_missed_lines", "Check for lines and words the segmenter missed?", "yes-no", default=True))),
     Stage("find-regions", "Find Regions", ("find-regions",),
           "Finds the blocks on each page: columns, notes in the margin, headings, tables and pictures.",
           "One block of text, a note in the margin and the folio number: three blocks, the note kept apart.",
@@ -73,13 +82,20 @@ STAGES: tuple[Stage, ...] = (
           "Marks what is not writing as left out, before it is read: marks too small to be a line, anything off the page, and "
           "damage that only looks like writing. Nothing is deleted; you can bring any line back.",
           "A speck, a dark edge of the scanner bed and a stain are left out, each with its reason; the lines of writing are kept.",
-          ()),
+          # The step's on/off (`assemble.LEAVE_OUT_QUESTION`): in a plan that finds and reads lines unless answered no.
+          (Question("leave_out", "Leave out what is not writing before reading?", "yes-no", default=True, plan_job="leave-out"),)),
     Stage("read", "Read", ("read-a-line", "read-a-page", "correct", "tie-text-to-lines", "find-where-readers-disagree"),
           "Reads the writing line by line, and can correct it with a second model.",
           "“enel tþo q́ el escriuio, yental caso” read from its first line, ready to correct.",
           # Lines are read one by one; "or the page at once?" was dropped (ruled 2026-10-18, #5788).
           (Question("correct_with_a_second_model", "Have a second model check the reading? Slower and more accurate; may cost if it runs in the cloud.", "yes-no", default=False),
            Question("correct_with_another_model", "Add another model to review the reading after the first?", "yes-no", default=False),
+           # How the second model takes the first's work (#6257, owner 2026-10-29): it matters only once another model is added.
+           Question("second_review_mode", "How should the second model review?", "one",
+                    (("in-turn", "In turn: it reviews the first model's result"),
+                     ("compare", "Compare: it reviews the same reading on its own, and where they differ is flagged"),
+                     ("both", "Both: it reviews on its own, then settles the two and flags what it cannot settle")),
+                    default="in-turn", read_by_a_step=True),
            # Kraken, then a model for the unsure lines (variant A, #5894): the bar the step reads as `only_below_confidence`.
            Question("review_certainty_bar", "Send the second model only the lines Kraken is unsure of?", "one",
                     (("whole-page", "No: it checks the whole page"), ("0.5", "Only lines under 0.5 sure"),
@@ -92,11 +108,11 @@ STAGES: tuple[Stage, ...] = (
           "“tþo” written out as “tiempo”, “q́” as “que”.",
           (Question("normalise_how_far", "Into what?", "many", _LEVELS, default=["as_written"], read_by_a_step=True),),
           needs=("read",)),
-    # ponytail: Translate shares Normalise's job until a translation job of its own exists; `stage_of` names Normalise.
+    # ponytail: Translate shares Normalise's job until a translation job of its own exists; a run that translates is Translate's (`stage_of(translation=True)`).
     Stage("translate", "Translate", ("translate-transliterate-normalise",),
           "Translates the text into another language, any language you choose.",
           "“muchos Años despues” as “many years later”.",
-          (Question("translate_into", "Into which language?", "language", default=""),),
+          (Question("translate_into", "Into which language?", "language", default="", read_by_a_step=True),),
           needs=("read",)),
     Stage("organise", "Organise", ("find-documents-in-a-folder", "split-into-entries"),
           "Finds which pages belong together as one document, and splits a diary or register into its entries.",
@@ -153,6 +169,15 @@ STAGES: tuple[Stage, ...] = (
           "merchant, with 40 accounts bound in.",
           (),
           needs=("read",)),
+    # Questions only, no job (`sharing.setup-stage-is-offered-without-jobs`, `sharing.setup-stage-wording`): the two answers
+    # are kept with the library's Set Up answers; sharing and accounts themselves are the Mac's engine state, so nothing
+    # here runs at Start. Neither is pre-answered, and the words name no pins, certificates, ports or tokens.
+    Stage("sharing", "Sharing and accounts", (),
+          "Decide now whether other people or your other devices can open this library, and whether each person gets their "
+          "own account. You can leave both off and change this later.",
+          "",
+          (Question("sharing_open_to_others", "Let other people or your other Macs open this library?", "yes-no", default=False),
+           Question("accounts_each_person", "Give each person their own account?", "yes-no", default=False))),
 )
 
 #: The stages a sample run can try (`POST /api/recipes/stages/{stage}/try`): Find Lines and Read by the bake-off, the
@@ -171,8 +196,11 @@ def get_stage(stage_id: str) -> Stage | None:
     return next((s for s in STAGES if s.id == stage_id), None)
 
 
-def stage_of(job: str) -> Stage | None:
-    return next((s for s in STAGES if job in s.jobs), None)
+def stage_of(job: str, *, translation: bool = False) -> Stage | None:
+    """The stage a job belongs to. Translate shares Normalise's job, so a run that translates says so (`translation`) and is
+    Translate's, never Normalise's (#6452)."""
+    return next((s for s in STAGES if job in s.jobs and (s.id != "normalise" or not translation)
+                 and (s.id != "translate" or translation)), None)
 
 
 def sampleable(stage: Stage) -> bool:
@@ -226,13 +254,71 @@ def runs_or_by_hand(job: str) -> bool:
 
 def offered(stage: Stage) -> bool:
     """Whether Set Up offers this stage: at least one of its jobs is one Start runs by itself, or one that has a way to
-    do it by hand. A stage whose every job has no tool yet asks its questions for nothing, so it waits for its job."""
-    return any(runs_or_by_hand(job) for job in stage.jobs)
+    do it by hand. A stage whose every job has no tool yet asks its questions for nothing, so it waits for its job. A stage
+    with no jobs at all and questions of its own (Sharing and accounts) is offered: its questions are its whole point."""
+    return any(runs_or_by_hand(job) for job in stage.jobs) or (not stage.jobs and bool(stage.questions))
+
+
+def _answer(q: Question, answered: dict[str, Any], recipe: dict[str, Any] | None) -> Any:
+    """What a question shows: for a question tied to a job, once there is a recipe, whether the recipe has it (the plan is
+    what will run, so a saved answer the plan no longer follows, a step taken out on Ready, never shows); else the person's
+    answer, else its default."""
+    if not q.plan_job or recipe is None:
+        return answered.get(q.key, q.default)
+    return q.plan_job in {str(s.get("job")) for s in recipe.get("steps") or []}
+
+
+def answers_revision(stage: Stage, answers: dict[str, Any] | None, recipe: dict[str, Any] | None) -> str:
+    """What a try of this stage ran with, as one short word: the stage's own answers (its questions' keys, and the Prepare
+    Images operations) and its steps' models and settings. A try result keeps the one it ran with; the listing carries the
+    current one; they differ when the answers or the chosen model changed since (`wide.output.stale-says-so`). Nothing of
+    another stage is in it."""
+    import hashlib
+    import json
+
+    given = (answers or {}).get("job_answers") or {}
+    keys = {q.key for q in stage.questions} | ({prepare_operations.ANSWER} if stage.id == "prepare-images" else set())
+    steps = [{k: s.get(k) for k in ("id", "job", "model", "settings", "runs_on")}
+             for s in (recipe or {}).get("steps") or [] if str(s.get("job")) in stage.jobs]
+    blob = json.dumps({"answers": {k: given[k] for k in sorted(keys) if k in given}, "steps": steps}, sort_keys=True, default=str)
+    return hashlib.sha1(blob.encode("utf-8")).hexdigest()[:12]
+
+
+def _translating(recipe: dict[str, Any] | None, answered: dict[str, Any]) -> tuple[bool, bool]:
+    """(the recipe has the Normalise/Translate step, it asks a translation) -- Translate and Normalise share one step, and each is
+    on for its own part of "Into what", never both for the one step (#6452)."""
+    from fichero_server.recipes.answers import TRANSLATION_PREFIX, normalise_levels, with_translation
+
+    step = next((s for s in (recipe or {}).get("steps") or [] if s.get("job") == "translate-transliterate-normalise"), None)
+    if step is None:
+        return False, False
+    asked = with_translation(answered) if (answered.get("normalise_how_far") or answered.get("translate_into")) \
+        else (step.get("settings") or {}).get("target")
+    levels, _ = normalise_levels(asked or ["regularised"])
+    return True, any(x.startswith(TRANSLATION_PREFIX) for x in levels)
+
+
+def _stage_on(stage: Stage, in_recipe: set[str], recipe: dict[str, Any] | None, answered: dict[str, Any]) -> bool:
+    if stage.id not in ("normalise", "translate"):
+        return bool(in_recipe & set(stage.jobs))
+    present, translates = _translating(recipe, answered)
+    if not present:
+        return False
+    if stage.id == "translate":
+        return translates
+    from fichero_server.recipes.answers import TRANSLATION_PREFIX, normalise_levels, with_translation
+
+    asked = with_translation(answered) if (answered.get("normalise_how_far") or answered.get("translate_into")) else None
+    if asked is None:
+        step = next(s for s in recipe["steps"] if s.get("job") == "translate-transliterate-normalise")  # type: ignore[index]
+        asked = (step.get("settings") or {}).get("target")
+    levels, _ = normalise_levels(asked or ["regularised"])
+    return any(not x.startswith(TRANSLATION_PREFIX) for x in levels)
 
 
 def listing(recipe: dict[str, Any] | None, answers: dict[str, Any] | None = None,
             tried: dict[str, dict[str, Any]] | None = None) -> list[dict[str, Any]]:
-    """The thirteen stages, in pipeline order, each on or off in this project's recipe, with its questions (answered where the
+    """The stages, in pipeline order, each on or off in this project's recipe, with its questions (answered where the
     project has answered them, else their defaults) and its needs in words. `tried` is each stage's sample result, where
     it has one: what a kinds question suggests and Passages' example come from it and from nothing else."""
     in_recipe = {str(s.get("job")) for s in (recipe or {}).get("steps") or []}
@@ -250,14 +336,16 @@ def listing(recipe: dict[str, Any] | None, answers: dict[str, Any] | None = None
             "example_from_samples": example_from_samples(stage.id, result),
             # Only the jobs that run or can be done by hand: ticking Find Lines no longer ticks "Put in order" and
             # "Refine shapes", which nothing in Fichero does yet and Ready then listed as will-not-run (owner 2026-10-24).
-            "jobs": [j for j in stage.jobs if runs_or_by_hand(j)], "on": bool(in_recipe & set(stage.jobs)),
+            "jobs": [j for j in stage.jobs if runs_or_by_hand(j)], "on": _stage_on(stage, in_recipe, recipe, answered),
             "jobs_in_recipe": [j for j in stage.jobs if j in in_recipe],
             "questions": [{"key": q.key, "ask": q.ask, "kind": q.kind,
                            "options": [{"id": i, "title": t} for i, t in q.options], "default": q.default,
-                           "answer": _words(answered.get(q.key, q.default)) if q.open_ended else answered.get(q.key, q.default),
+                           "answer": _words(answered.get(q.key, q.default)) if q.open_ended else _answer(q, answered, recipe),
                            "read_by_a_step": q.read_by_a_step, "open_ended": q.open_ended,
                            "suggestions": suggested_kinds(stage.id, result) if q.open_ended else []}
                           for q in stage.questions],
+            "answers_revision": answers_revision(stage, answers, recipe),
+            "operations": prepare_operations.listing(answered) if stage.id == "prepare-images" else [],
             "needs": [{"stage": n, "why": f"{stage.title} needs {titles[n]}"} for n in stage.needs],
             "sampleable": sampleable(stage), "tried_by": "bake-off" if stage.id in TRIED_BY_THE_BAKEOFF else "workflow",
             "not_tried": None if sampleable(stage) else NOT_TRIED,

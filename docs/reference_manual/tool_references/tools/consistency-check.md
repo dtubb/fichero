@@ -29,6 +29,7 @@ Flag deterministic numeral, name, and formula inconsistencies.
 | Port | Type | Required | What it is |
 | --- | --- | --- | --- |
 | Inconsistencies (`inconsistencies`) | `json` | — | — |
+| Checked text (`text`) | `text` | — | — |
 
 ## Options
 

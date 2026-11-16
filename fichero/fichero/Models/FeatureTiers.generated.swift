@@ -66,8 +66,10 @@ enum FeatureKey: String, CaseIterable {
     case automation
     case mcpUi
     case agents
+    case devWorkers
     case integrations
     case iiif
+    case wideSetUp
 }
 
 struct FeatureDescriptor {
@@ -445,6 +447,13 @@ enum FeatureTiers {
             uxGroup: "Knowledge",
             notes: "In-app agent surface still in the rawest stage."
         ),
+        .devWorkers: .init(
+            name: "Dev workers",
+            tier: .dev,
+            swiftFlag: nil,
+            uxGroup: "Knowledge",
+            notes: "Engine-run dev worker processes (the dev harness,"
+        ),
         .integrations: .init(
             name: "Integrations",
             tier: .alpha,
@@ -458,6 +467,13 @@ enum FeatureTiers {
             swiftFlag: nil,
             uxGroup: "Core",
             notes: "IIIF image and annotation server interoperability."
+        ),
+        .wideSetUp: .init(
+            name: "Wide Set Up",
+            tier: .dev,
+            swiftFlag: nil,
+            uxGroup: "Core",
+            notes: "The wide Set Up (pager, operation switches, Compare); off in release until ratified."
         )
     ]
 }

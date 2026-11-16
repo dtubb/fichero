@@ -57,6 +57,13 @@ def test_a_co_authored_by_claude_trailer_counts_too(tmp_path):
     assert bad[:12] in _run(repo, f"{base}..HEAD").stdout
 
 
+
+def test_a_written_by_trailer_counts_as_an_agent_trailer(tmp_path):
+    """Owner 2026-11-05: a commit carries ONE trailer, `Written-By: <model>`; such a commit authored as the maintainer is named."""
+    repo, base = _repo(tmp_path)
+    bad = _commit(repo, "a", "bad\n\nWritten-By: Claude Opus 5.5", DANIEL)
+    assert bad[:12] in _run(repo, f"{base}..HEAD").stdout
+
 def test_a_maintainer_commit_with_no_agent_trailer_and_a_human_co_author_pass(tmp_path):
     repo, base = _repo(tmp_path)
     _commit(repo, "a", "mine", DANIEL)

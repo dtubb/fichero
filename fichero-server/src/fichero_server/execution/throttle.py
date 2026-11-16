@@ -578,4 +578,5 @@ def machine_state() -> dict:
         "in_use": mac_is_in_use() is not None,
         "why_wait": why_wait(),
         "models_held": _models_held(),
+        "paging": paging_now_on_this_mac(),
     }

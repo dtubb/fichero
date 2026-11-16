@@ -81,6 +81,9 @@ class ActionContext:
     # decide `KnowledgeClaim.provenance_kind` (`human` vs `agent`); it is
     # never an authorization input.
     via_mcp: bool = False
+    # A read-only action that lists documents keeps only those this returns True for (set for a caller whose reads differ
+    # page by page: a person with a deny, or shared a folder). None: everything (#6320).
+    may_read: "Callable[[str], bool] | None" = None
 
 
 def started_by_for(ctx: "ActionContext") -> str:
@@ -314,6 +317,21 @@ class ActionRegistry:
         target_ids = authz.target_ids_from_params(params)
         app_wide = reg.owner_only and reg.owner_scope == "app"  # checked above: it names no library to write
         if not ctx.is_bootstrap and not app_wide:
+            # A claim or entity rests on pages this caller may not read: its routes sit behind `whole_library_reader_only`, so the
+            # action twin is refused to the same callers (#6325: a denied editor deleted a seeded claim through /api/actions/invoke).
+            if target_ids and {"claim", "entity"} & set(reg.domains) and not (
+                authz.reads_every_gated_page(ctx.actor, ctx.library_path) or authz.is_library_owner(ctx.actor, ctx.library_path)
+            ):
+                raise authz.AuthorizationError("read access denied", required="read")
+            # A schedule or file watcher fires a saved recipe with no caller to check, so the save is held to the run rule (#6325, review 8 item 4).
+            if name in ("workflow.create", "workflow.update", "workflow.import") and authz.page_walk_needed(ctx.actor, ctx.library_path) and not (
+                authz.reads_every_gated_page(ctx.actor, ctx.library_path)
+            ):
+                from fichero_server.workflows.run_scope import recipe_hazard, saved_recipe_nodes, with_sub_workflows
+                from fichero_server.workflows.subworkflow import sub_workflow_resolver_for_db
+
+                if why := recipe_hazard(with_sub_workflows(saved_recipe_nodes(name, params), sub_workflow_resolver_for_db(db))):
+                    raise authz.AuthorizationError(why, required="read")
             if not target_ids:
                 authz.assert_can_write(ctx.actor, ctx.library_path)
             for target_id in target_ids:

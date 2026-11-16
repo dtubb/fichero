@@ -15,8 +15,8 @@ var textEditingHasKeyboard: Bool {
 
 enum PaneFocus: Hashable {
     case sidebar, content, preview, reading, chat, inspector
-    /// The Segments pane (#4942): a click in it claims command focus, so Split / Close act on it.
-    case segments
+    /// The Segments (#4942) and Activity (#6441) panes: a click in either claims command focus, so Split / Close act on it.
+    case segments, activity
 
     /// Where focus starts when a window opens (#5824): the sidebar, never a text field such as the reader's find field.
     static let launchDefault: PaneFocus = .sidebar
@@ -35,6 +35,7 @@ enum PaneFocus: Hashable {
         case .chat: return "Chat"
         case .inspector: return "Inspector"
         case .segments: return "Segments"
+        case .activity: return "Activity"
         }
     }
 
@@ -47,6 +48,7 @@ enum PaneFocus: Hashable {
         case .reading: .reading
         case .chat: .chat
         case .segments: .segments
+        case .activity: .activity
         case .sidebar, .inspector: nil
         }
     }
@@ -193,6 +195,7 @@ struct ContentView: View {
     @Environment(ConversationService.self) var conversationService
     @Environment(ImportService.self) var importService
     @Environment(WindowState.self) var windowState
+    @Environment(SegmentService.self) var segmentService: SegmentService?
     @Environment(WorkflowStore.self) var workflowStore
     @Environment(SavedSearchService.self) var savedSearchService
     @Environment(WorkflowStreamService.self) var workflowStreamService
@@ -357,10 +360,10 @@ struct ContentView: View {
     }
 
     /// #4882 HOLE 1, 2026-09-19: `WorkflowSidebarItem`'s synthesized
-    /// `Equatable` covers ALL 15 stored fields (name, description,
+    /// `Equatable` covers ALL 16 stored fields (name, description,
     /// nodeCount, edgeCount, isEnabled, folderPath, sortOrder, isSystem,
     /// isUntested, isDirectlyRunnable, acceptsModelOverride, acceptedInputs,
-    /// createdAt, updatedAt, requiresVision — besides `id`), so
+    /// createdAt, updatedAt, requiresVision, visionIsUnknown — besides `id`), so
     /// `activeWorkflowItem` can change on a SAME-id rename/nodeCount bump/
     /// `updatedAt` refresh from `workflowStore.workflows` — the Library
     /// path derives its item from that live list, so any store refresh can
@@ -400,6 +403,7 @@ struct ContentView: View {
     @State var activeSurfaceState = ActiveSurfaceState()
     /// Drives the distraction-free full-window reading overlay (#2520).
     @State var isImmersiveReading = false
+    @State var focusEnteredFullScreen = false  // `panes.focus-mode`: undo only what focus did
     /// Internal (not private): the toolbar's selection sync reads it from
     /// ContentView+Toolbar.swift, and `private` is file-scoped.
     @State var focusedDocument = FocusedDocument.shared
@@ -784,7 +788,7 @@ struct ContentView: View {
     @State var transientSearchType = "hybrid"
     @State var transientSearchSortBy = "relevance"
     @State var transientSearchSortDirection = "desc"
-    @State var navigationHistory = AppNavigationHistory()
+    @State var navigationHistory = NavigationHistoryModel()
     @State var isRestoringNavigationHistory = false
 
     // Injected from the window host (DocumentTabView) rather than grabbed as
@@ -847,6 +851,7 @@ struct ContentView: View {
     var body: some View {
         // Opt-in (FICHERO_PRINT_CHANGES=1): names the property that re-evaluated this body.
         if RenderDiagnostics.printChanges { Self._printChanges() }
+        BodyCount.tick("ContentView")
         // #2960: ErrorService is @Observable via @Environment, which has no
         // projected binding — @Bindable gives `$errorService.currentAlert`.
         @Bindable var errorService = errorService
@@ -960,6 +965,7 @@ struct ContentView: View {
             }
             return .ignored
         }
+        .modifier(CloudRefusalAlert())
         .alert(item: $errorService.currentAlert) { errorModel in
             let message = errorModel.recoverySuggestion != nil ?
                 "\(errorModel.message)\n\n\(errorModel.recoverySuggestion!)" :

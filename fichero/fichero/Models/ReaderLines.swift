@@ -14,6 +14,21 @@ enum ReaderLines {
         store.workingSegments(documentId: documentId).filter { $0.kind.lowercased() == "line" }
     }
 
+    /// What a click on a line's picture makes the selection, Finder style: a plain click is that line alone; ⌘ adds
+    /// it or takes it out; ⇧ takes the run from the last picked line to it, down the page's order (the whole run is
+    /// added to what is held with ⌘⇧, replaces it with ⇧ alone). An id off the page changes nothing.
+    static func picked(
+        _ id: String, held: [String], order: [String], command: Bool, shift: Bool
+    ) -> [String] {
+        guard let place = order.firstIndex(of: id) else { return held }
+        if shift, let anchorId = held.last, let anchor = order.firstIndex(of: anchorId) {
+            let run = Array(order[min(anchor, place)...max(anchor, place)])
+            return command ? held + run.filter { !held.contains($0) } : run
+        }
+        if command { return held.contains(id) ? held.filter { $0 != id } : held + [id] }
+        return [id]
+    }
+
     /// The lines the selection lights: a selected line, and the line a selected word sits in. The Lines
     /// mode follows the focused Preview's selection as the other Reader modes do.
     static func shown(_ selectedIds: [String], among lines: [Segment], segments: [Segment]) -> Set<String> {
@@ -104,6 +119,20 @@ final class ReaderLineEditor {
     private(set) var picture: Data?
     /// The reading that counts now, which a correction corrects; nil when none counts yet.
     private(set) var reading: InspectorText.Reading?
+    /// The line's label and the reading it shows (#6455): where none counts, the newest person's reading, never an unlabelled text.
+    private(set) var label: ShownReadingLabel?
+    /// The line's readings as a tree, for its disclosure triangle (#6492).
+    var versions: [ReadingTree] {
+        ReadingTree.build(
+            text?.allReadings ?? [], retracted: Set(text?.withdrawn.map(\.id) ?? []), showsWithdrawn: showsWithdrawn
+        )
+    }
+    /// The readings as the engine listed them, live and withdrawn.
+    private var text: InspectorText?
+    /// "Show Withdrawn Readings": the tree also lists the retracted readings, struck through.
+    var showsWithdrawn = false
+    /// The retracted readings' ids, for the tree to strike through.
+    var withdrawnIds: Set<String> { Set(text?.withdrawn.map(\.id) ?? []) }
     /// The words in the field.
     var draft: String
     /// Why the last save did not land.
@@ -115,7 +144,7 @@ final class ReaderLineEditor {
     }
 
     /// The words shown before any typing: the counting reading, else the segment's own text.
-    var shownWords: String { reading?.content ?? segment.text ?? "" }
+    var shownWords: String { label?.shown.content ?? reading?.content ?? segment.text ?? "" }
 
     var isChanged: Bool {
         draft.trimmingCharacters(in: .whitespacesAndNewlines) != shownWords.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -125,7 +154,10 @@ final class ReaderLineEditor {
     /// Inspector use.
     func load(_ service: SegmentService) async {
         let untouched = draft == shownWords
-        reading = (try? await service.readings(segmentId: segment.id))?.countingReading(ofKind: "transcription")
+        let readings = try? await service.readings(segmentId: segment.id)
+        reading = readings?.countingReading(ofKind: "transcription")
+        label = ShownReadingLabel(readings)
+        text = readings
         if untouched { draft = shownWords }  // words typed while it loaded are kept
         if picture == nil {
             picture = try? await SegmentPictureService(client: service.client)
@@ -155,7 +187,10 @@ final class ReaderLineEditor {
     }
 
     private func reread(_ service: SegmentService) async {
-        reading = (try? await service.readings(segmentId: segment.id))?.countingReading(ofKind: "transcription")
+        let readings = try? await service.readings(segmentId: segment.id)
+        reading = readings?.countingReading(ofKind: "transcription")
+        label = ShownReadingLabel(readings)
+        text = readings
         draft = shownWords
     }
 }

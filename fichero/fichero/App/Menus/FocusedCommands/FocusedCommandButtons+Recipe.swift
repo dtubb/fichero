@@ -83,6 +83,22 @@ struct FocusedSetUpButton: View {
     }
 }
 
+// MARK: - Cloud
+
+/// the project switch for the key window's project (`ai.cloud.switch-in-the-project`, #6022 place 1): the
+/// same switch as the Inspector's Cloud section, one audited action (`RecipeSetupStore.allowCloud(allowed:)`).
+struct FocusedCloudSwitchButton: View {
+    @FocusedValue(\.projectMenu) private var target
+
+    var body: some View {
+        let store = target?.library?.recipeSetupStore
+        Toggle(ProjectCloudSwitch.title, isOn: Binding(
+            get: { store?.cloudAllowed ?? false },
+            set: { allowed in if let store { Task { await store.allowCloud(allowed: allowed) } } }))
+            .disabled(store == nil)
+    }
+}
+
 // MARK: - Start
 
 /// Start (⇧⌘↩): the first yes for the key window's project — the same call setup's Start makes
@@ -119,7 +135,9 @@ struct FocusedStartRecipeButton: View {
     }
 
     private func start(_ store: RecipeSetupStore, projectId: UUID) async {
-        if store.startPlan == nil || store.startPlanFolderId != nil { await store.loadStartPlan() }
+        let wasLimited = store.runFirstPages != nil
+        store.runFirstPages = nil  // the menu's Start is the whole project, not a first-pages run left on Ready (#6295)
+        if store.startPlan == nil || store.startPlanFolderId != nil || wasLimited { await store.loadStartPlan() }
         guard store.canStart else {
             setUpProjectAction?.run()
             return
@@ -129,7 +147,7 @@ struct FocusedStartRecipeButton: View {
         #if os(macOS)
         if let selection = FirstRunWindow.startedRunSelection(jobId: store.startedRunJobId, projectId: projectId) {
             ActivityWindowSelectionState.shared.select(selection)
-            openWindow(id: ActivityWindowSelectionState.detailWindowID)
+            openWindow(id: ActivityWindowSelectionState.monitorWindowID)
         }
         #endif
     }
@@ -205,7 +223,7 @@ struct RunRecipeOnFolderMenuItem: View {
         #if os(macOS)
         if let selection = FirstRunWindow.startedRunSelection(jobId: store.startedRunJobId, projectId: library.id) {
             ActivityWindowSelectionState.shared.select(selection)
-            openWindow(id: ActivityWindowSelectionState.detailWindowID)
+            openWindow(id: ActivityWindowSelectionState.monitorWindowID)
         }
         #endif
     }

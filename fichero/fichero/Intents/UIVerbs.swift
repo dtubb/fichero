@@ -13,6 +13,8 @@ enum UIVerbs {
         case unknownPane(String)
         case unknownInspectorTab(String)
         case noLibrary
+        case notAProject(String)
+        case twoProjectsNamed(String)
 
         var errorDescription: String? {
             switch self {
@@ -22,6 +24,8 @@ enum UIVerbs {
             case .unknownInspectorTab(let name):
                 "Not an Inspector tab: \(name). Tabs: \(InspectorTab.allCases.map(\.rawValue).joined(separator: ", "))."
             case .noLibrary: "The window's project is not open."
+            case .notAProject(let text): "Not a project: \(text). Give a .fichero path, or the name of a project Fichero knows."
+            case .twoProjectsNamed(let name): "Two projects are named \(name). Give its .fichero path."
             }
         }
     }
@@ -33,6 +37,32 @@ enum UIVerbs {
         let library = manager.openLibrary(at: url)
         window?.libraryId = library.id
         return library.id
+    }
+
+    /// The project a verb's text names: a .fichero path (a leading ~ expanded), or the name of a project the app knows
+    /// (as the sidebar shows it, with or without .fichero). Anything else is refused and nothing is opened: a bare name
+    /// was once taken as a path under /, opened as a project that does not exist, and its Activity polled it for good.
+    static func projectURL(for text: String, knownPaths: [String]) throws -> URL {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let expanded = (trimmed as NSString).expandingTildeInPath
+        if expanded.hasPrefix("/") {
+            let url = URL(fileURLWithPath: expanded)
+            guard url.pathExtension == "fichero" else { throw Failure.notAProject(trimmed) }
+            return url
+        }
+        let name = trimmed.hasSuffix(".fichero") ? String(trimmed.dropLast(".fichero".count)) : trimmed
+        // One project reached by two spellings of its path (a symlink, an open and a registry entry) is one project.
+        let named = Dictionary(knownPaths.map { URL(fileURLWithPath: $0) }
+            .filter { $0.pathExtension == "fichero" && $0.deletingPathExtension().lastPathComponent == name }
+            .map { (LibraryManager.canonicalLibraryKey($0), $0) }, uniquingKeysWith: { first, _ in first })
+        guard let url = named.values.first, !name.isEmpty else { throw Failure.notAProject(trimmed) }
+        guard named.count == 1 else { throw Failure.twoProjectsNamed(name) }
+        return url
+    }
+
+    /// The projects a verb's name can find: the open ones and the known-projects registry the sidebar lists.
+    static func knownProjectPaths(manager: LibraryManager = .shared) -> [String] {
+        manager.openLibraries.map(\.url.path) + KnownLibraryRegistryStore.shared.libraries.map(\.path)
     }
 
     /// A node opened as a click on its crumb or row opens it (`PaneCrumb`, the Segments pane): the
@@ -106,7 +136,7 @@ enum UIPane: String, CaseIterable, AppEnum {
         self.init(rawValue: key == "reading" ? "reader" : key)
     }
 
-    /// The pane-list kind, for the panes that are one (Activity is a window; the Inspector a column).
+    /// The pane-list kind, for the panes that are one (the Inspector is a column).
     var paneKind: PaneKind? {
         switch self {
         case .library: .library
@@ -114,7 +144,8 @@ enum UIPane: String, CaseIterable, AppEnum {
         case .reader: .reading
         case .chat: .chat
         case .segments: .segments
-        case .inspector, .activity: nil
+        case .activity: .activity
+        case .inspector: nil
         }
     }
 

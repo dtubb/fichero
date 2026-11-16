@@ -34,6 +34,8 @@ class NodeContext:
     #: so work the node hands the job lanes is a child of its step (#5353).
     run_id: str = ""
     step: str = ""
+    #: The step's tool, the job id it runs (`read-a-page`, `normalise`): recorded on the readings it writes as `producer_tool`.
+    tool: str = ""
 
 
 _current_node: ContextVar[NodeContext | None] = ContextVar(
@@ -42,10 +44,10 @@ _current_node: ContextVar[NodeContext | None] = ContextVar(
 
 
 def set_current_node(
-    node_id: str, node_label: str = "", workflow_id: str = "", run_id: str = "", step: str = ""
+    node_id: str, node_label: str = "", workflow_id: str = "", run_id: str = "", step: str = "", tool: str = ""
 ) -> None:
     """Record the node about to execute in this task's context."""
-    _current_node.set(NodeContext(node_id, node_label, workflow_id, run_id, step))
+    _current_node.set(NodeContext(node_id, node_label, workflow_id, run_id, step, tool))
 
 
 def get_current_node() -> NodeContext | None:

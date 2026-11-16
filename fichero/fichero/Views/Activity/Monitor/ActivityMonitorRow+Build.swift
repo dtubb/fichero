@@ -41,7 +41,8 @@ extension ActivityMonitorRow {
             unknownState: phase == .unknown ? run.engineState : nil,
             transientState: Phase.transientWord(run.engineState),
             // The tree's end, else the runs table's, else (a finished run the engine gave no end) its start plus time.
-            ended: tree?.finishedAt ?? run.completedAt ?? Self.endFromStart(run.timestamp, seconds: tree?.seconds)
+            ended: tree?.finishedAt ?? run.completedAt ?? Self.endFromStart(run.timestamp, seconds: tree?.seconds),
+            startedBy: tree?.startedBy
         )
     }
 
@@ -51,7 +52,7 @@ extension ActivityMonitorRow {
     /// one job's, or a row that stands for many (the import's `derivatives`,
     /// `waiting:<kind>`), which the engine applies to each job not started.
     static func job(_ job: ActivityJob, libraryId: UUID?, projectName: String?) -> ActivityMonitorRow {
-        ActivityMonitorRow(
+        var row = ActivityMonitorRow(
             id: "\(libraryId?.uuidString ?? "")|job:\(job.id)",
             kind: .job,
             libraryId: libraryId,
@@ -61,16 +62,17 @@ extension ActivityMonitorRow {
             name: job.name,
             projectName: projectName,
             phase: Phase(job.state),
-            reason: job.remote?.words ?? job.reason,
+            // A failed row's words are the failure kind's ≤ 8-word line when the engine sends one, never a sentence cut short.
+            reason: (job.failure?.rowWords).flatMap { $0.isEmpty ? nil : $0 } ?? job.remote?.words ?? job.reason,
             workingOn: nil,
             done: job.current,
             total: job.total,
             started: nil,
             seconds: nil,
-            costUsd: nil,
+            costUsd: job.costUsd,
             tokens: 0,
             errors: job.state.isFailed ? 1 : 0,
-            model: nil,
+            model: job.model,
             isLive: false,
             children: nil,
             engineKind: job.taskType,
@@ -80,12 +82,21 @@ extension ActivityMonitorRow {
             transientState: Phase.transientWord(job.state.otherName),
             ended: job.failedAt
         )
+        row.trail = ActivityTrail.text(job.stages)  // the one progress of a recipe run
+        row.failure = job.failure
+        row.startedBy = job.startedBy
+        row.ended = job.finishedAt ?? job.failedAt
+        row.costEstimateUsd = job.costEstimateUsd
+        row.runsOn = job.runsOn
+        row.lane = job.lane
+        row.ranOnText = job.ranOn.map(\.words)
+        return row
     }
 
     private static func node(_ node: ActivityJobNode, run: ActivityRun, library: String) -> ActivityMonitorRow {
         let children = node.children.map { self.node($0, run: run, library: library) }
         let isStep = node.kind == "workflow-step" || node.kind == "workflow" || node.kind == "batch"
-        return ActivityMonitorRow(
+        var row = ActivityMonitorRow(
             id: "\(library)|\(node.id)",
             kind: isStep ? .step : .page,
             libraryId: run.libraryId,
@@ -111,6 +122,10 @@ extension ActivityMonitorRow {
             unknownState: Phase(engineState: node.state) == .unknown ? node.state : nil,
             transientState: Phase.transientWord(node.state)
         )
+        row.documentId = node.documentId
+        row.started = node.startedAt
+        row.ended = node.finishedAt
+        return row
     }
 
     /// A step's subject is "<run id>:<step>"; a page's is what it read, named

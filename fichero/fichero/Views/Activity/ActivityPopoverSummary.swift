@@ -53,18 +53,6 @@ struct ActivityPopoverSummary: Equatable {
         let stages: [ActivityPopoverStage]
     }
 
-    /// What is working right now, from the engine's one summary (`activity.popover.same-summary`, #5852): "Recipe ›
-    /// Stage › Workflow" and "7 of 20 pages · 2 of 8 folders", the same words the window's live block has.
-    struct Block: Equatable, Identifiable {
-        let id: String
-        let title: String
-        let counts: String
-        /// What a waiting block waits for; nil while it works.
-        let waiting: String?
-        /// The model by its own name and where it runs, the engine's words as sent ("Kraken · on this Mac"); nil with neither.
-        var subtitle: String?
-    }
-
     /// One kind of background work and its total, from the same summary; a wait looks waiting and says why.
     struct BackgroundRow: Equatable, Identifiable {
         let id: String
@@ -129,7 +117,10 @@ struct ActivityPopoverSummary: Equatable {
         blocks = (activity?.live ?? []).map(Self.block)
         background = (activity?.background ?? []).map(Self.backgroundLine)
         let runNames = Dictionary(jobs.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
-        upNext = (activity?.upNext ?? []).prefix(Self.upNextShown).map { Self.upNextLine($0, runName: { runNames[$0] }) }
+        // A waiting job its background line already says (same job, same name) is not said again as Up Next (#6599).
+        let waitingLines = Set((activity?.background ?? []).filter { $0.state == "waiting" }.map(\.name))
+        upNext = (activity?.upNext ?? []).filter { $0.runId != nil || !waitingLines.contains($0.name) }
+            .prefix(Self.upNextShown).map { Self.upNextLine($0, runName: { runNames[$0] }) }
         // A recipe run in hand, and everything under it: said once, by the run (#5666).
         let inHand = Self.runsInHand(jobs, runTrees: runTrees)
         runs = inHand.runs
@@ -177,7 +168,7 @@ struct ActivityPopoverSummary: Equatable {
                 // A page under a run is that run's work, said once by the run.
                 guard job.parentId == nil, seen.insert(job.id).inserted else { continue }
                 running.append(Item(id: job.id, name: job.name,
-                                    detail: job.showsProgress ? "\(job.current) of \(job.total)" : nil,
+                                    detail: job.total > 1 ? "\(job.current) of \(job.total)" : nil,  // never "0 of 1"
                                     done: job.current, total: job.total))
             case .waiting:
                 let count = max(job.total, 1)
@@ -203,14 +194,16 @@ struct ActivityPopoverSummary: Equatable {
             title: [live.recipe, live.stage, live.workflow].compactMap { $0 }.joined(separator: " › "),
             counts: [pages, folders, failed].compactMap { $0 }.joined(separator: " · "),
             waiting: live.state == "waiting" ? live.reason.map(worded) : nil,
-            subtitle: subtitle(model: live.model, place: live._where)
+            subtitle: subtitle(model: live.model, place: live._where),
+            timeLeft: timeLeft(seconds: live.secondsLeft),
+            cost: costText(live.costUsd)
         )
     }
 
     static func backgroundLine(_ line: Components.Schemas.BackgroundLine) -> BackgroundRow {
         BackgroundRow(
             id: line.kind,
-            text: (line.total ?? 0) > 0 ? "\(line.name) · \(line.done ?? 0) of \(line.total ?? 0)" : line.name,
+            text: (line.total ?? 0) > 1 ? "\(line.name) · \(line.done ?? 0) of \(line.total ?? 0)" : line.name,  // never "0 of 1"
             waiting: line.state == "waiting" ? (line.reason.map(worded) ?? "Waiting") : nil
         )
     }
@@ -263,7 +256,10 @@ struct ActivityPopoverSummary: Equatable {
     private static func ids(under node: ActivityJobNode) -> [String] {
         node.children.flatMap { [$0.id] + ids(under: $0) }
     }
+}
 
+// The engine's words and the Mac's readings, worded for the popover.
+extension ActivityPopoverSummary {
     /// A cause's first sentence: up to its first full stop followed by a space, or its first line (the engine's own
     /// words; nothing is rewritten).
     nonisolated static func firstSentence(_ text: String) -> String {
@@ -325,6 +321,13 @@ struct ActivityPopoverSummary: Equatable {
                 id: "heat", symbol: "thermometer.medium", value: value,
                 help: "Heat: " + (heat == .nominal ? "normal" : value.lowercased()),
                 isProblem: heat == .serious || heat == .critical))
+        }
+        // Shown only while it happens: the Mac is writing memory out, so new heavy work is held and Kraken reads one page at a time.
+        if machine.paging == true {
+            readings.append(MacReading(
+                id: "paging", symbol: "arrow.up.doc", value: "Paging",
+                help: "This Mac is writing memory to disk, so heavy work waits and Kraken reads one page at a time",
+                isProblem: true))
         }
         readings.append(machine.onBattery == true
             ? MacReading(id: "power", symbol: "battery.50percent", value: "Battery", help: "On battery")

@@ -146,6 +146,30 @@ extension CanvasOrtho2DRenderer {
         return hits.max { ($0.zIndex, $0.id) < ($1.zIndex, $1.id) }?.id
     }
 
+    /// The placeables whose drawn card the rubber band `rect` touches — the marquee hit-test
+    /// (`library.canvas.rubber-band-selects-what-it-touches`). A card is measured exactly as a click
+    /// measures it (`placeableId(atScreenPoint:)`): its centre on screen and its size over the same
+    /// `worldPerPoint` that pan and drag use. It used to need the band over the card's CENTRE.
+    func placeableIds(inScreenRect rect: CGRect, viewSize: CGSize) -> Set<String> {
+        let worldPerPoint = Canvas2DProjection.worldPerPoint(orthoScale: orthoScale, viewHeight: viewSize.height)
+        var result: Set<String> = []
+        for (id, placeable) in placeablesById {
+            let (width, height) = cardDimensions(placeable)
+            let center = Canvas2DProjection.screenPoint(
+                scene: Canvas2DProjection.scenePosition(placeable.position),
+                cameraX: camera.position.x,
+                cameraY: camera.position.y,
+                orthoScale: orthoScale,
+                viewSize: viewSize
+            )
+            let card = Canvas2DProjection.cardScreenRect(
+                center: center, width: width, height: height, worldPerPoint: worldPerPoint
+            )
+            if Canvas2DProjection.bandTouches(rect, card: card) { result.insert(id) }
+        }
+        return result
+    }
+
     /// The selection frame's corner handle under a screen point (within `tolerance` points), if any.
     /// Checked BEFORE the card: a handle sits on the card's corner, and a press there used to move
     /// the card instead of resizing it (2026-09-30).

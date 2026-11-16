@@ -96,6 +96,15 @@ extension EntityService {
         let declarations: [AttributeDeclaration]
         let values: [String: (any Sendable)?]
         let ownValues: [String: (any Sendable)?]
+        /// The kind the engine resolved (own, or inherited by level) and the rule that gave it.
+        var effectivePrototypeKey: String?
+        var kindRule: String = "none"
+        var kindFrom: String?
+        /// Per key, where the value came from (`proto.value.set-inherited-default-empty`).
+        var origins: [String: AttributeOrigin] = [:]
+        /// Names the origin words need: ancestor id -> name, prototype key -> label.
+        var ancestorNames: [String: String] = [:]
+        var prototypeLabels: [String: String] = [:]
     }
 
     /// GET /api/documents/{id}/effective-attributes plus the document's own
@@ -133,12 +142,41 @@ extension EntityService {
                 if (lhs.role == "title") != (rhs.role == "title") { return lhs.role == "title" }
                 return lhs.name < rhs.name
             }
+        let origins = AttributeOrigin.decodeAll(try? JSONEncoder().encode(resolved.origins))
+        let heldNames = Set(origins.values.compactMap(\.inheritedFrom) + [resolved.kindFrom].compactMap { $0 })
+        let kindRule: String? = resolved.kindRule
+        let effectiveKey: String? = resolved.effectivePrototypeKey
+        let kindFrom: String? = resolved.kindFrom
         return EffectiveAttributes(
             prototypeKey: resolved.prototypeKey,
             declarations: declarations,
             values: resolved.values.additionalProperties.value,
-            ownValues: own
+            ownValues: own,
+            effectivePrototypeKey: effectiveKey,
+            kindRule: kindRule ?? "none",
+            kindFrom: kindFrom,
+            origins: origins,
+            ancestorNames: await ancestorNames(ids: heldNames),
+            prototypeLabels: await prototypeLabels()
         )
+    }
+
+    /// Document names for the ancestors an origin names; an ancestor that cannot be read is left out
+    /// (the words then fall back to "an ancestor", never to a raw id).
+    private func ancestorNames(ids: Set<String>) async -> [String: String] {
+        var names: [String: String] = [:]
+        for id in ids {
+            guard let response = try? await client.api.getDocumentApiDocumentsDocIdGet(.init(path: .init(docId: id))),
+                  case .ok(let found) = response, let json = try? found.body.json else { continue }
+            let name: String? = json.name
+            if let name, !name.isEmpty { names[id] = name }
+        }
+        return names
+    }
+
+    private func prototypeLabels() async -> [String: String] {
+        let found = (try? await listDocumentPrototypes()) ?? []
+        return Dictionary(found.map { ($0.key, $0.label) }, uniquingKeysWith: { first, _ in first })
     }
 
     /// PUT /api/documents/{id} with only `attributes` set — wholesale replace

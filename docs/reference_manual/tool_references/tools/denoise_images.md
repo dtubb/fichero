@@ -31,7 +31,8 @@ This tool emits nothing.
 
 | Option | Type | Default | What it does |
 | --- | --- | --- | --- |
-| `radius` | integer | 3 | — |
+| `radius` | integer | 3 | Median filter size (3 or 5; 4 and above 5 read as 5). |
+| `speck` | integer | 5 | Ink blobs no larger than this many pixels each way are removed; 0 is off. |
 
 ## The prompt it sends
 

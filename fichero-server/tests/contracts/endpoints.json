@@ -392,14 +392,56 @@
         "response_model": "CleanupResponse"
       },
       {
+        "method": "POST",
+        "path": "/activity/continue-all",
+        "operation_id": "continue_all_api_activity_continue_all_post",
+        "summary": "Continue All",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "RunControlsResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/activity/history",
+        "operation_id": "get_activity_history_api_activity_history_get",
+        "summary": "Get Activity History",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "minutes",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ActivityHistory"
+      },
+      {
         "method": "GET",
         "path": "/activity/jobs",
         "operation_id": "list_background_jobs_api_activity_jobs_get",
         "summary": "List Background Jobs",
         "path_params": [],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "archived",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
         "request_model": null,
         "response_model": "BackgroundJobsResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/activity/jobs/archive",
+        "operation_id": "archive_jobs_api_activity_jobs_archive_post",
+        "summary": "Archive Jobs",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ArchiveJobsParams",
+        "response_model": "ArchiveJobsResponse"
       },
       {
         "method": "POST",
@@ -410,6 +452,16 @@
         "query_params": [],
         "request_model": null,
         "response_model": "ClearFailedResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/activity/jobs/delete",
+        "operation_id": "bulk_delete_jobs_api_activity_jobs_delete_post",
+        "summary": "Bulk Delete Jobs",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "DeleteJobsParams",
+        "response_model": "DeleteJobsResponse"
       },
       {
         "method": "GET",
@@ -455,6 +507,26 @@
         "response_model": "BackgroundPauseResponse"
       },
       {
+        "method": "POST",
+        "path": "/activity/jobs/unarchive",
+        "operation_id": "unarchive_jobs_api_activity_jobs_unarchive_post",
+        "summary": "Unarchive Jobs",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "JobIdsParams",
+        "response_model": "JobIdsResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/activity/jobs/undelete",
+        "operation_id": "undelete_jobs_api_activity_jobs_undelete_post",
+        "summary": "Undelete Jobs",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "JobIdsParams",
+        "response_model": "JobIdsResponse"
+      },
+      {
         "method": "GET",
         "path": "/activity/jobs/{job_id}",
         "operation_id": "get_job_tree_api_activity_jobs__job_id__get",
@@ -474,6 +546,18 @@
       },
       {
         "method": "POST",
+        "path": "/activity/jobs/{job_id}/bug-report",
+        "operation_id": "post_job_bug_report_api_activity_jobs__job_id__bug_report_post",
+        "summary": "Post Job Bug Report",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "BugReport"
+      },
+      {
+        "method": "POST",
         "path": "/activity/jobs/{job_id}/cancel",
         "operation_id": "cancel_job_api_activity_jobs__job_id__cancel_post",
         "summary": "Cancel Job",
@@ -483,6 +567,34 @@
         "query_params": [],
         "request_model": null,
         "response_model": "JobStateResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/activity/jobs/{job_id}/failed-pages",
+        "operation_id": "get_run_failed_pages_api_activity_jobs__job_id__failed_pages_get",
+        "summary": "Get Run Failed Pages",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "stage",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "RunPageStates"
       },
       {
         "method": "GET",
@@ -577,6 +689,26 @@
       },
       {
         "method": "GET",
+        "path": "/activity/models",
+        "operation_id": "activity_models_api_activity_models_get",
+        "summary": "Activity Models",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ActivityModelsResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/activity/pause-all",
+        "operation_id": "pause_all_api_activity_pause_all_post",
+        "summary": "Pause All",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "RunControlsResponse"
+      },
+      {
+        "method": "GET",
         "path": "/activity/recent",
         "operation_id": "get_recent_activities_api_activity_recent_get",
         "summary": "Get Recent Activities",
@@ -593,6 +725,22 @@
       },
       {
         "method": "GET",
+        "path": "/activity/recipes",
+        "operation_id": "activity_recipes_api_activity_recipes_get",
+        "summary": "Activity Recipes",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "days",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ActivityRecipesResponse"
+      },
+      {
+        "method": "GET",
         "path": "/activity/stats",
         "operation_id": "get_activity_stats_api_activity_stats_get",
         "summary": "Get Activity Stats",
@@ -606,6 +754,36 @@
         ],
         "request_model": null,
         "response_model": "ActivityStatsResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/activity/stop-all",
+        "operation_id": "stop_all_api_activity_stop_all_post",
+        "summary": "Stop All",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "RunControlsResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/activity/stopped-at-quit",
+        "operation_id": "list_stopped_at_quit_api_activity_stopped_at_quit_get",
+        "summary": "List Stopped At Quit",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "StoppedAtQuitResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/activity/stopped-at-quit/continue",
+        "operation_id": "continue_after_quit_api_activity_stopped_at_quit_continue_post",
+        "summary": "Continue After Quit",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ContinueAfterQuitParams",
+        "response_model": "ContinueAfterQuitResponse"
       },
       {
         "method": "GET",
@@ -837,6 +1015,28 @@
         "query_params": [],
         "request_model": null,
         "response_model": "AgentWriteRecordResponse"
+      }
+    ],
+    "ai": [
+      {
+        "method": "GET",
+        "path": "/ai/cloud-caps",
+        "operation_id": "get_cloud_caps_api_ai_cloud_caps_get",
+        "summary": "Get Cloud Caps",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "CloudCaps"
+      },
+      {
+        "method": "PUT",
+        "path": "/ai/cloud-caps",
+        "operation_id": "put_cloud_cap_api_ai_cloud_caps_put",
+        "summary": "Put Cloud Cap",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CloudCapSetting",
+        "response_model": "CloudCapsChanged"
       }
     ],
     "annotations": [
@@ -1339,6 +1539,16 @@
         "response_model": "FirstRunResponse"
       },
       {
+        "method": "POST",
+        "path": "/auth/owner-password",
+        "operation_id": "set_owner_password_api_auth_owner_password_post",
+        "summary": "Set Owner Password",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "OwnerPasswordRequest",
+        "response_model": "StatusResponse"
+      },
+      {
         "method": "GET",
         "path": "/auth/sessions",
         "operation_id": "list_sessions_api_auth_sessions_get",
@@ -1372,6 +1582,16 @@
       }
     ],
     "authz": [
+      {
+        "method": "GET",
+        "path": "/authz/access-matrix",
+        "operation_id": "access_matrix_api_authz_access_matrix_get",
+        "summary": "Access Matrix",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "AccessMatrixResponse"
+      },
       {
         "method": "GET",
         "path": "/authz/libraries",
@@ -2957,6 +3177,18 @@
       },
       {
         "method": "GET",
+        "path": "/content-representations/document/{document_id}/review-waiting",
+        "operation_id": "review_waiting_api_content_representations_document__document_id__review_waiting_get",
+        "summary": "Review Waiting",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ReviewWaiting"
+      },
+      {
+        "method": "GET",
         "path": "/content-representations/{representation_id}/revisions",
         "operation_id": "list_revisions_api_content_representations__representation_id__revisions_get",
         "summary": "List Revisions",
@@ -3522,6 +3754,30 @@
         "response_model": "fichero_server__models__DocumentListResponse"
       },
       {
+        "method": "DELETE",
+        "path": "/documents/{doc_id}/column-choice",
+        "operation_id": "clear_column_choice_api_documents__doc_id__column_choice_delete",
+        "summary": "Clear Column Choice",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ColumnChoiceAnswer"
+      },
+      {
+        "method": "PUT",
+        "path": "/documents/{doc_id}/column-choice",
+        "operation_id": "put_column_choice_api_documents__doc_id__column_choice_put",
+        "summary": "Put Column Choice",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": "ColumnChoice",
+        "response_model": "ColumnChoiceAnswer"
+      },
+      {
         "method": "POST",
         "path": "/documents/{doc_id}/duplicate",
         "operation_id": "duplicate_document_api_documents__doc_id__duplicate_post",
@@ -3800,6 +4056,18 @@
         "query_params": [],
         "request_model": null,
         "response_model": "PutBackResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/documents/{doc_id}/template",
+        "operation_id": "get_scope_template_api_documents__doc_id__template_get",
+        "summary": "Get Scope Template",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ScopeTemplate"
       },
       {
         "method": "GET",
@@ -4473,6 +4741,16 @@
     "export": [
       {
         "method": "POST",
+        "path": "/export/catalogue-workbook",
+        "operation_id": "export_catalogue_workbook_route_api_export_catalogue_workbook_post",
+        "summary": "The catalogue workbook of a folder or project, in its archive's template",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CatalogueWorkbookRequest",
+        "response_model": "CatalogueWorkbookResponse"
+      },
+      {
+        "method": "POST",
         "path": "/export/eleventy-site",
         "operation_id": "export_eleventy_site_route_api_export_eleventy_site_post",
         "summary": "Export Eleventy Site Route",
@@ -4532,6 +4810,18 @@
         "query_params": [],
         "request_model": null,
         "response_model": "KeptExportRemoved"
+      },
+      {
+        "method": "PATCH",
+        "path": "/export/kept/{export_id}",
+        "operation_id": "update_kept_export_api_export_kept__export_id__patch",
+        "summary": "Choose a kept export's folder again, or switch Keep up to date",
+        "path_params": [
+          "export_id"
+        ],
+        "query_params": [],
+        "request_model": "KeptExportUpdate",
+        "response_model": "KeptExport"
       },
       {
         "method": "POST",
@@ -5638,9 +5928,15 @@
         "operation_id": "batch_apply_image_operation_api_images_batch_apply_post",
         "summary": "Batch Apply Image Operation",
         "path_params": [],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "preview",
+            "required": false,
+            "type": "integer"
+          }
+        ],
         "request_model": "BatchImageApplyRequest",
-        "response_model": "BatchResponse"
+        "response_model": null
       },
       {
         "method": "POST",
@@ -5653,6 +5949,16 @@
         "query_params": [],
         "request_model": null,
         "response_model": "BatchImageUndoResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/images/batch-prepare/preview",
+        "operation_id": "batch_prepare_preview_api_images_batch_prepare_preview_post",
+        "summary": "Batch Prepare Preview",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "BatchPrepareRequest",
+        "response_model": "BatchPreparePreview"
       },
       {
         "method": "POST",
@@ -5711,6 +6017,18 @@
         "query_params": [],
         "request_model": "ImageEditChainUpsert",
         "response_model": "ImageEditChainResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/images/{document_id}/jobs",
+        "operation_id": "queue_image_operation_job_api_images__document_id__jobs_post",
+        "summary": "Queue Image Operation Job",
+        "path_params": [
+          "document_id"
+        ],
+        "query_params": [],
+        "request_model": "ImageOperationJobRequest",
+        "response_model": null
       },
       {
         "method": "POST",
@@ -7854,7 +8172,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "[MachineOut]"
+        "response_model": "MachineListResponse"
       },
       {
         "method": "POST",
@@ -8554,6 +8872,20 @@
         "response_model": null
       }
     ],
+    "pages": [
+      {
+        "method": "GET",
+        "path": "/pages/{page_id}/image-chain",
+        "operation_id": "get_image_chain_api_pages__page_id__image_chain_get",
+        "summary": "Get Image Chain",
+        "path_params": [
+          "page_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ImageChain"
+      }
+    ],
     "pair": [
       {
         "method": "POST",
@@ -8564,6 +8896,16 @@
         "query_params": [],
         "request_model": "PairRequest",
         "response_model": "PairResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/pair/addresses",
+        "operation_id": "pair_addresses_api_pair_addresses_get",
+        "summary": "Pair Addresses",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "AddressListResponse"
       },
       {
         "method": "POST",
@@ -8668,6 +9010,16 @@
         "query_params": [],
         "request_model": null,
         "response_model": "SharingStateResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/pair/sign-in",
+        "operation_id": "sign_in_device_api_pair_sign_in_post",
+        "summary": "Sign In Device",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SignInDeviceRequest",
+        "response_model": "PairResponse"
       },
       {
         "method": "GET",
@@ -9369,6 +9721,22 @@
         "response_model": "ModelCandidateList"
       },
       {
+        "method": "GET",
+        "path": "/recipes/chain-risk",
+        "operation_id": "chain_risk_api_recipes_chain_risk_get",
+        "summary": "Chain Risk",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "jobs",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ChainRisk"
+      },
+      {
         "method": "POST",
         "path": "/recipes/check",
         "operation_id": "check_api_recipes_check_post",
@@ -9387,6 +9755,42 @@
         "query_params": [],
         "request_model": "AcceptUnpricedRequest",
         "response_model": "AcceptedUnpriced"
+      },
+      {
+        "method": "GET",
+        "path": "/recipes/defaults",
+        "operation_id": "recipe_defaults_api_recipes_defaults_get",
+        "summary": "Recipe Defaults",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "condition",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "materials",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "matters",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "pages",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "places",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "RecipeDefaults"
       },
       {
         "method": "GET",
@@ -9519,6 +9923,26 @@
       },
       {
         "method": "GET",
+        "path": "/recipes/prepare-images/check",
+        "operation_id": "prepare_images_check_api_recipes_prepare_images_check_get",
+        "summary": "Prepare Images Check",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PrepareCheckList"
+      },
+      {
+        "method": "GET",
+        "path": "/recipes/prepare-images/facts",
+        "operation_id": "prepare_images_facts_api_recipes_prepare_images_facts_get",
+        "summary": "Prepare Images Facts",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PrepareImagesFacts"
+      },
+      {
+        "method": "GET",
         "path": "/recipes/project",
         "operation_id": "get_project_setup_api_recipes_project_get",
         "summary": "Get Project Setup",
@@ -9544,7 +9968,7 @@
         "summary": "Allow Cloud",
         "path_params": [],
         "query_params": [],
-        "request_model": null,
+        "request_model": "AllowCloudRequest",
         "response_model": "AllowCloudResult"
       },
       {
@@ -9608,6 +10032,16 @@
         "response_model": "ProjectSetup"
       },
       {
+        "method": "PUT",
+        "path": "/recipes/project/cloud-cap",
+        "operation_id": "change_cloud_cap_api_recipes_project_cloud_cap_put",
+        "summary": "Change Cloud Cap",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CloudCapChange",
+        "response_model": "CloudCapChanged"
+      },
+      {
         "method": "POST",
         "path": "/recipes/project/layers",
         "operation_id": "change_project_layers_api_recipes_project_layers_post",
@@ -9669,7 +10103,17 @@
         "path_params": [],
         "query_params": [
           {
+            "name": "first_pages",
+            "required": false,
+            "type": "integer"
+          },
+          {
             "name": "folder_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "steps",
             "required": false,
             "type": "string"
           },
@@ -9754,6 +10198,32 @@
       },
       {
         "method": "GET",
+        "path": "/recipes/questions",
+        "operation_id": "questions_api_recipes_questions_get",
+        "summary": "Questions",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "matters",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "pages",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "places",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "QuestionList"
+      },
+      {
+        "method": "GET",
         "path": "/recipes/routes",
         "operation_id": "routes_for_volume_api_recipes_routes_get",
         "summary": "Routes For Volume",
@@ -9761,7 +10231,7 @@
         "query_params": [
           {
             "name": "local_reader",
-            "required": true,
+            "required": false,
             "type": "string"
           },
           {
@@ -9776,7 +10246,7 @@
           },
           {
             "name": "teacher",
-            "required": true,
+            "required": false,
             "type": "string"
           }
         ],
@@ -9863,6 +10333,40 @@
         "query_params": [],
         "request_model": "TryStageRequest",
         "response_model": "StageTryResult"
+      },
+      {
+        "method": "GET",
+        "path": "/recipes/stages/{stage}/try-price",
+        "operation_id": "stage_try_price_api_recipes_stages__stage__try_price_get",
+        "summary": "Stage Try Price",
+        "path_params": [
+          "stage"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "TryPrice"
+      },
+      {
+        "method": "GET",
+        "path": "/recipes/suggestions",
+        "operation_id": "suggestions_api_recipes_suggestions_get",
+        "summary": "Suggestions",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SuggestionList"
+      },
+      {
+        "method": "GET",
+        "path": "/recipes/tries/page/{page_id}",
+        "operation_id": "tries_on_page_api_recipes_tries_page__page_id__get",
+        "summary": "Tries On Page",
+        "path_params": [
+          "page_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "TriesOnPage"
       }
     ],
     "references": [
@@ -11105,6 +11609,18 @@
       },
       {
         "method": "GET",
+        "path": "/segments/document/{doc_id}/doubtful",
+        "operation_id": "doubtful_lines_api_segments_document__doc_id__doubtful_get",
+        "summary": "Doubtful Lines",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "DoubtfulLines"
+      },
+      {
+        "method": "GET",
         "path": "/segments/document/{doc_id}/matches",
         "operation_id": "list_document_matches_api_segments_document__doc_id__matches_get",
         "summary": "List Document Matches",
@@ -11120,6 +11636,54 @@
         ],
         "request_model": null,
         "response_model": "SegmentMatchListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/segments/document/{doc_id}/on-rendition/{rendition_id}",
+        "operation_id": "segments_on_a_rendition_api_segments_document__doc_id__on_rendition__rendition_id__get",
+        "summary": "Segments On A Rendition",
+        "path_params": [
+          "doc_id",
+          "rendition_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SegmentsOnRendition"
+      },
+      {
+        "method": "GET",
+        "path": "/segments/document/{doc_id}/simplify-preview",
+        "operation_id": "preview_simplify_segments_api_segments_document__doc_id__simplify_preview_get",
+        "summary": "Preview Simplify Segments",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [
+          {
+            "name": "segment_ids",
+            "required": true,
+            "type": "array"
+          },
+          {
+            "name": "tolerance",
+            "required": true,
+            "type": "number"
+          }
+        ],
+        "request_model": null,
+        "response_model": "SimplifyPreview"
+      },
+      {
+        "method": "GET",
+        "path": "/segments/document/{doc_id}/validate",
+        "operation_id": "validate_document_segments_api_segments_document__doc_id__validate_get",
+        "summary": "Validate Document Segments",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SegmentValidation"
       },
       {
         "method": "GET",
@@ -11243,6 +11807,26 @@
         "query_params": [],
         "request_model": null,
         "response_model": "PassOriginalResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/segments/regenerate-outline",
+        "operation_id": "regenerate_outline_api_segments_regenerate_outline_post",
+        "summary": "Regenerate Outline",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SegmentRegenerateOutlineParams",
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/segments/reparent",
+        "operation_id": "reparent_segments_api_segments_reparent_post",
+        "summary": "Reparent Segments",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SegmentReparentParams",
+        "response_model": null
       },
       {
         "method": "POST",
@@ -12616,6 +13200,40 @@
         "response_model": null
       }
     ],
+    "workers": [
+      {
+        "method": "POST",
+        "path": "/workers",
+        "operation_id": "start_worker_api_workers_post",
+        "summary": "Start a dev worker process, recorded as a job row",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "WorkerStartParams",
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/workers/tell",
+        "operation_id": "tell_worker_api_workers_tell_post",
+        "summary": "Type a message into a task's current worker; refused for a stale generation",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "WorkerTellParams",
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/workers/{job_id}/stop",
+        "operation_id": "stop_worker_api_workers__job_id__stop_post",
+        "summary": "Stop a worker: its whole process group",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      }
+    ],
     "workflow-execution": [
       {
         "method": "DELETE",
@@ -12660,6 +13278,16 @@
       },
       {
         "method": "POST",
+        "path": "/workflow-execution/dry-run",
+        "operation_id": "dry_run_workflow_api_workflow_execution_dry_run_post",
+        "summary": "Dry Run Workflow",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ExecuteWorkflowRequest",
+        "response_model": "DryRunResponse"
+      },
+      {
+        "method": "POST",
         "path": "/workflow-execution/execute",
         "operation_id": "execute_workflow_api_workflow_execution_execute_post",
         "summary": "Execute Workflow",
@@ -12675,6 +13303,11 @@
         "summary": "List Workflow Runs Route",
         "path_params": [],
         "query_params": [
+          {
+            "name": "archived",
+            "required": false,
+            "type": "boolean"
+          },
           {
             "name": "limit",
             "required": false,
@@ -12693,6 +13326,16 @@
         ],
         "request_model": null,
         "response_model": "WorkflowRunListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/workflow-execution/runs/archive",
+        "operation_id": "archive_workflow_runs_route_api_workflow_execution_runs_archive_post",
+        "summary": "Archive Workflow Runs Route",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "WorkflowRunArchiveParams",
+        "response_model": "WorkflowRunArchiveResult"
       },
       {
         "method": "POST",

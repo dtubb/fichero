@@ -273,10 +273,10 @@ written and verified **before** the source changes, and the source only ever cha
   writes a **mirror journal row** in the source's `transfers` (same id, state `sending`, the items
   and the target); it becomes `verified` with the target's and `done` after the source's delete.
   Opening the source while a move is `verified`-not-`done` shows the pending step in the source's
-  Activity, in words ("Moving 12 items to Istmina: copied and checked there; removing them here
+  Activity, in words ("Moving 12 items to Archive B: copied and checked there; removing them here
   is waiting.", with Finish Now and Roll Back), and resumes it when the target is open. While a
   move of an item is pending, a second drag of that item (or of a folder holding it, or into it)
-  is refused in words: "These items are already being moved to Istmina." The mirror row is what
+  is refused in words: "These items are already being moved to Archive B." The mirror row is what
   makes the refusal checkable from the source alone.
 - **If the target write or verification fails,** every row and file the transfer wrote in the target is
   removed by the id map (they are new rows only this transfer made), the vocabulary entries it made are
@@ -712,7 +712,7 @@ Nothing in the project changes.
   is stamped by the far engine with the paired person; versions must match. Built: `POST /api/machines/pair`
   (a `.ts.net` address and the code the other Mac's Fichero shows) runs the existing device pairing with this
   engine as the device and keeps the machine and its token in the Keychain (`transfer/machines.py`); `GET
-  /api/machines` lists them; the far engine's routes take its device token, and its landing is its own audited
+  /api/machines` lists them as the `{items, count}` envelope, not a bare array (#6100; `fichero-server/tests/unit/transfer/test_transfer_between_machines.py`, `test_forget_machine.py`); the far engine's routes take its device token, and its landing is its own audited
   action `document.transfer_in` with its caller as the actor; a different contract sha256 is refused; `fichero-server/tests/unit/transfer/test_transfer_between_machines.py`.
   *Not built: the app's pairing sheet; forgetting a machine.*
 - `transfer.machine.egress-gated` — **[PARTIAL]** (#5657, #5239) a copy off this machine passes the one
@@ -786,7 +786,7 @@ Nothing in the project changes.
   (which rolls back).
 - `transfer.app.result-sheet` — **[PARTIAL]** (#5657) when a transfer cut anything or proposed a merge, a
   result sheet lists it (cuts by kind, proposals with Review…, types made); otherwise a quiet line
-  ("Moved 12 items to Istmina. Undo"). Built (build order 5): every drop opens a small sheet
+  ("Moved 12 items to Archive B. Undo"). Built (build order 5): every drop opens a small sheet
   (`ProjectTransferSheet`) with the dry run's plan (what goes, what is cut and listed, the merges proposed), then
   Move or Copy and the result in words; a refusal shows the engine's sentence; `OnboardingScreenshotsTests` writes
   `13-move-between-projects.png`. *Not built: Review… on a proposal, and the types made.*

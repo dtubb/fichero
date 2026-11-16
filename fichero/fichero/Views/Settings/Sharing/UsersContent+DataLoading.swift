@@ -10,19 +10,18 @@ extension UsersContent {
         // Pending invites are owner-only; a non-owner probe just returns empty.
         if store.currentUser?.isOwner == true {
             await store.loadInvites()
+            await store.loadAccessMatrix()
         }
         syncAddMemberDefaults()
     }
 
     @MainActor
     internal func refreshAuthz() async {
-        authzError = nil
         do {
             authzSnapshot = try await library.actionsService.loadLibraryAuthzSnapshot()
             pendingRoleDrafts.removeAll()
         } catch {
-            authzSnapshot = nil
-            authzError = error.localizedDescription
+            authzSnapshot = nil  // ponytail: a load that fails hides the roles section; an alert on every open would nag
         }
     }
 

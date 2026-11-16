@@ -23,6 +23,7 @@ import uuid
 from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fichero_server.media.rendition_boxes import SegmentsOnRendition
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
@@ -411,14 +412,21 @@ def _with_texts(db: Database, rows: list[Segment], reads: list[SegmentRead]) -> 
     none of them without one readings request each. A converted row whose words still come from
     its artifact keeps them; a stored reading is the answer otherwise.
     """
-    from fichero_server.api.routes.document.segment_readings import counting_readings
+    from fichero_server.api.routes.document.segment_readings import counting_answers
 
-    counted = counting_readings(db, rows)
+    counted = counting_answers(db, rows)
     source_of = {row.id: getattr(row, "source_artifact_id", None) for row in rows}
     for read in reads:
-        reading = counted.get(read.id)
-        if reading is None:
+        found = counted.get(read.id)
+        if found is None:
             continue
+        reading, answer = found
+        # The label's facts (#6451): why this reading is the shown one, its level and who read it.
+        read.counting_basis = answer.basis.value if answer is not None else "none"
+        read.counting_level = reading.level
+        read.read_by = reading.producer_model or reading.created_by
+        if answer is None:
+            continue  # none counts: the label names the newest person's reading; `text` is not claimed
         # A reading from another result than the one the pass came from (a later reader, a person) counts over the
         # words the pass's own result carried (#5707: after Read wrote a newer reading onto a Kraken pass's lines,
         # the list still served the pass's 00:40 words). The pass's own words stay where they are its result's.
@@ -506,6 +514,9 @@ async def list_segments_in_scope(
     # (`parent_id`; `document_ids` is a list), so a scope is never trusted. Every document in
     # it is checked the way a single-document read is, and the ones this caller may not read
     # are withheld -- and COUNTED, so a shorter list is never a silent one.
+    from fichero_server.knowledge.trash_visibility import visible_document_ids  # noqa: PLC0415
+
+    scope = visible_document_ids(db, scope)  # a trashed document's segments are out of view with it
     readable = readable_documents(request, x_fichero_library_path, scope)
     withheld = len(scope) - len(readable)
     scope = readable
@@ -523,6 +534,171 @@ async def list_segments_in_scope(
         items=items, count=len(items), total=total, document_ids=scope,
         withheld_documents=withheld,
     )
+
+
+@router.get("/document/{doc_id}/on-rendition/{rendition_id}", response_model=SegmentsOnRendition)
+@off_loop
+def segments_on_a_rendition(doc_id: str, rendition_id: str, db: Database = Depends(get_library_database)) -> SegmentsOnRendition:
+    """The page's live segments' boxes in this rendition's pixels, so the Preview can draw them on it (#6420)."""
+    from fichero_server.media.rendition_boxes import segments_on_rendition
+    from fichero_server.models import Rendition
+
+    doc = db.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    rendition = db.get(Rendition, rendition_id)
+    if rendition is None or rendition.document_id != doc_id:
+        raise HTTPException(status_code=404, detail=f"Rendition not found on this page: {rendition_id}")
+    return segments_on_rendition(db, doc, rendition, db.query(Segment, document_id=doc_id))
+
+
+class SegmentProblem(BaseModel):
+    """One thing wrong with a page's segments (`segment-editor.validate-before-export`)."""
+
+    kind: str = Field(description="no-shape, self-crossing, no-baseline, line-outside-regions, empty-region, overlap, "
+                                  "order-repeat, order-gap, order-missing or words-do-not-tile.")
+    segment_ids: list[str]
+    detail: str
+    pass_id: str
+    order_id: Optional[str] = None
+    share: Optional[float] = None
+
+
+class SegmentValidation(BaseModel):
+    document_id: str
+    problems: list[SegmentProblem]
+
+
+@router.get("/document/{doc_id}/validate", response_model=SegmentValidation)
+@off_loop
+def validate_document_segments(doc_id: str, db: Database = Depends(get_library_database)) -> SegmentValidation:
+    """What is wrong with the page's segments, per pass, before an export (`segment-editor.validate-before-export`):
+    reads, writes nothing. An empty list is a page with nothing to fix."""
+    from fichero_server.media import segment_checks
+    from fichero_server.models.reading_orders import ReadingOrder, ReadingOrderEntry
+
+    if not db.get(Document, doc_id):
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    rows = [row for row in db.query(Segment, document_id=doc_id) if row.deleted_at is None]
+    problems: list[SegmentProblem] = []
+    for pass_id in sorted({row.pass_id for row in rows}):
+        in_pass = [row for row in rows if row.pass_id == pass_id]
+        orders = [
+            (order, list(db.query(ReadingOrderEntry, order_id=order.id)))
+            for order in db.query(ReadingOrder, pass_id=pass_id) if order.deleted_at is None
+        ]
+        texts = {}
+        for row in in_pass:
+            if row.kind == "line":
+                counted = _counting_readings(db, row.id)
+                _rid, text = counted.get("transcription") or next(iter(counted.values()), (None, ""))
+                if text:
+                    texts[row.id] = text
+        problems.extend(
+            SegmentProblem(pass_id=pass_id, **problem) for problem in segment_checks.check_pass(in_pass, orders, texts)
+        )
+    return SegmentValidation(document_id=doc_id, problems=problems)
+
+
+class DoubtfulLine(BaseModel):
+    segment_id: str
+    #: The lowest confidence the line has (its shape's, its words' cuts', its reading's); 0 with a validator finding; None when
+    #: nothing measured it.
+    confidence: Optional[float] = None
+    #: Why it is doubtful, in words: "shape 42%", "cut 30%", and each finding's kind ("no-baseline", …).
+    reasons: list[str] = []
+
+
+class DoubtfulLines(BaseModel):
+    document_id: str
+    pass_id: Optional[str] = None
+    lines: list[DoubtfulLine]
+
+
+@router.get("/document/{doc_id}/doubtful", response_model=DoubtfulLines)
+@off_loop
+def doubtful_lines(doc_id: str, db: Database = Depends(get_library_database)) -> DoubtfulLines:
+    """The page's lines on its working pass by confidence, lowest first (`segment-editor.low-confidence-lens`): a line
+    with a validator finding first, then the least sure shape or word cut, then lines nothing measured. Reads, writes
+    nothing; the Check lens lists it and Next Doubtful steps through it."""
+    from fichero_server.api.routes.document.segment_readings import working_pass
+    from fichero_server.media import segment_checks
+    from fichero_server.models.reading_orders import ReadingOrder, ReadingOrderEntry
+
+    if not db.get(Document, doc_id):
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    pass_id = working_pass(db, doc_id).pass_id
+    rows = [row for row in db.query(Segment, document_id=doc_id) if row.deleted_at is None and row.pass_id == pass_id]
+    orders = [
+        (order, list(db.query(ReadingOrderEntry, order_id=order.id)))
+        for order in db.query(ReadingOrder, pass_id=pass_id) if order.deleted_at is None
+    ] if pass_id else []
+    findings: dict[str, list[str]] = {}
+    for problem in segment_checks.check_pass(rows, orders, {}):
+        for segment_id in problem["segment_ids"]:
+            findings.setdefault(segment_id, []).append(problem["kind"])
+    cuts: dict[str, float] = {}
+    for row in rows:
+        sure = (row.metadata or {}).get("cut_confidence")
+        if row.kind == "word" and row.parent_segment_id and isinstance(sure, (int, float)):
+            cuts[row.parent_segment_id] = min(cuts.get(row.parent_segment_id, 1.0), float(sure))
+
+    lines = []
+    for row in rows:
+        if row.kind != "line":
+            continue
+        reasons, measured = list(dict.fromkeys(findings.get(row.id, []))), []
+        if row.confidence is not None:
+            measured.append(row.confidence)
+            reasons.append(f"shape {round(row.confidence * 100)}%")
+        if row.id in cuts:
+            measured.append(cuts[row.id])
+            reasons.append(f"cut {round(cuts[row.id] * 100)}%")
+        reading_id = (_counting_readings(db, row.id).get("transcription") or (None, ""))[0]
+        reading = db.get(ContentRepresentation, reading_id) if reading_id else None
+        if reading is not None and reading.char_confidences:
+            # The reading's own certainty: the mean of its characters', as the recogniser gave them.
+            sure = sum(reading.char_confidences) / len(reading.char_confidences)
+            measured.append(sure)
+            reasons.append(f"reading {round(sure * 100)}%")
+        confidence = 0.0 if findings.get(row.id) else (min(measured) if measured else None)
+        lines.append(DoubtfulLine(segment_id=row.id, confidence=confidence, reasons=reasons))
+    lines.sort(key=lambda line: (line.confidence is None, line.confidence or 0.0))
+    return DoubtfulLines(document_id=doc_id, pass_id=pass_id, lines=lines)
+
+
+class SimplifiedShape(BaseModel):
+    segment_id: str
+    #: None: the outline (or baseline) is already as simple as the tolerance allows.
+    polygon: Optional[list[list[float]]] = None
+    baseline: Optional[list[list[float]]] = None
+
+
+class SimplifyPreview(BaseModel):
+    document_id: str
+    shapes: list[SimplifiedShape]
+
+
+@router.get("/document/{doc_id}/simplify-preview", response_model=SimplifyPreview)
+@off_loop
+def preview_simplify_segments(
+    doc_id: str,
+    segment_ids: list[str] = Query(..., min_length=1, description="The segments the slider simplifies."),
+    tolerance: float = Query(..., gt=0, description="How far, in image pixels, the simpler shape may stray."),
+    db: Database = Depends(get_library_database),
+) -> SimplifyPreview:
+    """What `segment.simplify` would write at this tolerance, written nowhere (`segment-editor.vertices`): the Shape
+    popover's slider draws it live and sends the action once on release. A shape it would not change is left out."""
+    rows = []
+    for segment_id in dict.fromkeys(segment_ids):
+        row = db.get(Segment, segment_id)
+        if row is None or row.deleted_at is not None or row.document_id != doc_id:
+            raise HTTPException(status_code=404, detail=f"Segment not found on this page: {segment_id}")
+        rows.append(row)
+    return SimplifyPreview(document_id=doc_id, shapes=[
+        SimplifiedShape(segment_id=row.id, polygon=polygon, baseline=baseline)
+        for row, polygon, baseline in _simplified_shapes(db, rows, tolerance)
+    ])
 
 
 @router.get("/document/{doc_id}", response_model=SegmentListResponse)
@@ -1144,6 +1320,27 @@ class SegmentCreateParams(BaseModel):
     baseline: Optional[list[list[float]]] = Field(default=None, description="The line's baseline as [[x, y], ...] points in page coordinates.")
     parent_segment_id: Optional[str] = Field(default=None, description="The segment this one sits inside (a line's region).")
     kind_raw: Optional[str] = Field(default=None, description='The kind as the source format named it (e.g. a PAGE XML region type).')
+    #: `segment-editor.marker`: a freehand stroke, simplified on the way in so the record never holds a point per pixel.
+    smoothing: Optional[float] = Field(
+        default=None, ge=0, le=1,
+        description="Simplify the outline and baseline as drawn by hand: 0 keeps nearly every bend, 1 the fewest points.",
+    )
+    #: `segment-editor.marker`: a line drawn as a baseline gets its outline from the ink, as Redraw Outline does.
+    outline_from_baseline: bool = Field(
+        default=False, description="Draw the line's outline from its baseline and the page's ink.",
+    )
+    #: `segment-editor.paintbrush`: the Paintbrush's stroke, `[x, y, width]` per point (x and y in page fractions, the
+    #: width in image pixels): the painted area becomes the outline, the path the baseline.
+    brush_stroke: Optional[list[list[float]]] = Field(
+        default=None,
+        description="A Paintbrush stroke, [x, y, width] per point (width in image pixels): its painted area is the outline, its path the baseline.",
+    )
+    #: `segment-editor.edge.overlapping-regions`: with no parent given, the engine puts the segment in the region that
+    #: holds most of it.
+    place_in_region: bool = Field(
+        default=False,
+        description="With no parent given, put the segment in the region holding most of it (the smaller on a tie).",
+    )
 
 
 def _invert_segment_create(before, after, ctx: ActionContext):
@@ -1160,6 +1357,20 @@ def _invert_segment_create(before, after, ctx: ActionContext):
         "segment.delete",
         {"segment_ids": segment_ids, "expected_versions": {sid: 1 for sid in segment_ids}},
     )
+
+
+def _simple_anchor(anchor: SourceAnchor | None) -> tuple[SourceAnchor | None, bool]:
+    """`segment-editor.edge.self-intersecting`: a self-crossing outline is never written. The anchor with its polygon
+    made the outer boundary of the area it covers, and its rect the bound of that; and whether it was changed."""
+    from fichero_server.media import line_join
+
+    if anchor is None or not anchor.polygon or len(anchor.polygon) < 4:
+        return anchor, False
+    polygon, simplified = line_join.simple_outline(anchor.polygon)
+    if not simplified:
+        return anchor, False
+    x0, y0, x1, y1 = line_join.bounds(polygon)
+    return anchor.model_copy(update={"polygon": polygon, "rect": [x0, y0, x1 - x0, y1 - y0]}), True
 
 
 def _create_segment_impl(
@@ -1199,8 +1410,9 @@ def _create_segment_impl(
     except (SegmentPassMismatchError, SegmentParentMismatchError, SegmentAnchorMismatchError, SegmentPassNotLive, SegmentNotLive) as exc:
         raise _as_http_error(exc) from exc
 
+    anchor, simplified = _simple_anchor(params.anchor)
     spec_obj = SegmentSpec(
-        kind=params.kind, anchor=params.anchor, baseline=params.baseline,
+        kind=params.kind, anchor=anchor, baseline=params.baseline,
         parent_segment_id=params.parent_segment_id, kind_raw=params.kind_raw,
     )
     # test-audit F14, 2026-09-20: the maker is set by the engine from WHO
@@ -1211,6 +1423,8 @@ def _create_segment_impl(
         document_id=params.document_id, pass_id=params.pass_id, spec=spec_obj,
         actor=ctx.actor, provenance_kind=provenance_kind_from_ctx(ctx), id=segment_id,
     )
+    if simplified:
+        segment.metadata = {**(segment.metadata or {}), "outline_simplified": True}
     db.save(segment)
     _place_in_as_written(db, segment, ctx)
     return segment
@@ -1255,6 +1469,11 @@ def _place_in_as_written(db: Database, segment: Segment, ctx: ActionContext) -> 
     # flag would be dead weight here, checked but never taken.
 )
 def _action_segment_create(db: Database, params: SegmentCreateParams, ctx: ActionContext):
+    params, outline = _marker_shapes(db, params)
+    if params.place_in_region and params.parent_segment_id is None and params.kind != "region":
+        region = _containing_region(db, params)
+        if region is not None:
+            params = params.model_copy(update={"parent_segment_id": region.id})
     segment = _create_segment_impl(db, params, ctx)
     change_spec = ChangeSpec(
         domains=["segment"],
@@ -1266,7 +1485,120 @@ def _action_segment_create(db: Database, params: SegmentCreateParams, ctx: Actio
         pass_ids=[segment.pass_id],
         document_ids=[segment.document_id],
     )
-    return {"segment_ids": [segment.id]}, change_spec
+    answer: dict = {"segment_ids": [segment.id]}
+    if outline is not None:
+        answer["outline"] = outline
+    if (segment.metadata or {}).get("outline_simplified"):
+        # `segment-editor.edge.self-intersecting`: the answer says the outline was simplified.
+        answer["simplified"] = True
+    return answer, change_spec
+
+
+def _containing_region(db: Database, params: SegmentCreateParams, minimum_span: float = 0.004) -> Segment | None:
+    """The live region of the pass that holds MOST (over half) of the new segment's bounds, the smaller on a tie
+    (`segment-editor.edge.overlapping-regions`, `SegmentShapes.containingRegion`'s rule); None when none does. A flat
+    baseline is padded to `minimum_span`, as it is drawn."""
+    from fichero_server.media import line_join
+
+    anchor = params.anchor
+    points = list(anchor.polygon or []) + list(params.baseline or [])
+    for shape in anchor.shapes or []:
+        points += list(shape.points or [])
+    if anchor.rect:
+        x, y, w, h = anchor.rect
+        points += [[x, y], [x + w, y + h]]
+    if not points:
+        return None
+    x0, y0, x1, y1 = line_join.bounds(points)
+    if x1 - x0 < minimum_span:
+        x0, x1 = (x0 + x1 - minimum_span) / 2, (x0 + x1 + minimum_span) / 2
+    if y1 - y0 < minimum_span:
+        y0, y1 = (y0 + y1 - minimum_span) / 2, (y0 + y1 + minimum_span) / 2
+    area = (x1 - x0) * (y1 - y0)
+    scored = []
+    for row in db.query(Segment, pass_id=params.pass_id):
+        if row.kind != "region" or row.deleted_at is not None or row.document_id != params.document_id:
+            continue
+        rx, ry, rw, rh = row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h
+        width = min(x1, rx + rw) - max(x0, rx)
+        height = min(y1, ry + rh) - max(y0, ry)
+        if width > 0 and height > 0:
+            scored.append((width * height / area, rw * rh, row))
+    held = [entry for entry in scored if entry[0] > 0.5]
+    return min(held, key=lambda entry: (-entry[0], entry[1]))[2] if held else None
+
+
+#: `segment-editor.marker`: the Douglas-Peucker tolerance, in image pixels, at smoothing 0 and 1.
+MARKER_TOLERANCE_PX = (0.5, 5.0)
+
+
+def _marker_shapes(db: Database, params: SegmentCreateParams) -> tuple[SegmentCreateParams, str | None]:
+    """A Marker stroke made ready to store (`segment-editor.marker`): the outline and baseline as drawn simplified at
+    `smoothing` in the page image's pixels, and a line drawn as a baseline given its outline from the ink. Answers the
+    params to create with and, when an outline was asked for, "drawn" or "none" (no ink along the baseline: the line
+    keeps its baseline alone, and the answer says so). Params with neither are returned untouched."""
+    if params.smoothing is None and not params.outline_from_baseline and not params.brush_stroke:
+        return params, None
+    from fichero_server.media import line_join, outline_from_baseline
+
+    document = db.get(Document, params.document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail=f"Document not found: {params.document_id}")
+    image, forward, back = _page_image_for_lines(db, document)
+    anchor, baseline = params.anchor, params.baseline
+    if params.brush_stroke:
+        from fichero_server.media import paint_stroke
+
+        low, high = MARKER_TOLERANCE_PX
+        pixels = forward([p[:2] for p in params.brush_stroke])
+        made = paint_stroke.painted(
+            [[x, y, p[2]] for (x, y), p in zip(pixels, params.brush_stroke) if len(p) >= 3],
+            low + (high - low) * (params.smoothing if params.smoothing is not None else 0.5),
+        )
+        if made is None:
+            raise HTTPException(status_code=422, detail="the brush stroke painted nothing: every point needs a width")
+        outline, centre = made
+        polygon = [[round(x, 6), round(y, 6)] for x, y in back(outline)]
+        x0, y0, x1, y1 = line_join.bounds(polygon)
+        anchor = anchor.model_copy(update={"polygon": polygon, "rect": [x0, y0, x1 - x0, y1 - y0], "shapes": None})
+        baseline = [[round(x, 6), round(y, 6)] for x, y in back(centre)]
+        return params.model_copy(update={"anchor": anchor, "baseline": baseline, "brush_stroke": None}), None
+    if params.smoothing is not None:
+        low, high = MARKER_TOLERANCE_PX
+        tolerance = low + (high - low) * params.smoothing
+        if anchor.polygon and len(anchor.polygon) > 3:
+            fewer = _fewer_points(anchor.polygon, True, 3, tolerance, forward, back)
+            if fewer is not None:
+                x0, y0, x1, y1 = line_join.bounds(fewer)
+                anchor = anchor.model_copy(update={"polygon": fewer, "rect": [x0, y0, x1 - x0, y1 - y0]})
+        if baseline and len(baseline) > 2:
+            baseline = _fewer_points(baseline, False, 2, tolerance, forward, back) or baseline
+    outline = None
+    if params.outline_from_baseline and baseline and len(baseline) >= 2:
+        neighbours = [
+            row.baseline for row in db.query(Segment, pass_id=params.pass_id)
+            if row.deleted_at is None and row.baseline and len(row.baseline) >= 2
+        ]
+        [drawn] = outline_from_baseline.outlines(image, [forward(baseline)], [forward(line) for line in neighbours], None)
+        outline = "none" if drawn is None else "drawn"
+        if drawn is not None:
+            polygon = [[round(x, 6), round(y, 6)] for x, y in back(drawn)]
+            x0, y0, x1, y1 = line_join.bounds(polygon)
+            anchor = anchor.model_copy(update={"polygon": polygon, "rect": [x0, y0, x1 - x0, y1 - y0], "shapes": None})
+    return params.model_copy(update={"anchor": anchor, "baseline": baseline}), outline
+
+
+def _fewer_points(points, closed: bool, least: int, tolerance: float, forward, back) -> list[list[float]] | None:
+    """Douglas-Peucker on `points` (page fractions) in the image's pixels; None when it would not drop a point or would
+    leave fewer than `least`."""
+    import cv2
+    import numpy as np
+
+    pixels = np.array(forward(points), dtype=np.float32).reshape(-1, 1, 2)
+    kept = cv2.approxPolyDP(pixels, tolerance, closed).reshape(-1, 2).tolist()
+    if len(kept) < least or len(kept) >= len(points):
+        return None
+    return [[round(x, 6), round(y, 6)] for x, y in back(kept)]
 
 
 class SegmentCreateManyParams(BaseModel):
@@ -1802,8 +2134,9 @@ def _action_segment_update(db: Database, params: SegmentUpdateParams, ctx: Actio
     before_version = row.version
     snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
 
+    simplified = False
     if params.anchor is not None:
-        row.anchor = params.anchor
+        row.anchor, simplified = _simple_anchor(params.anchor)
         bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(row.anchor)
         row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
     if params.baseline is not None:
@@ -1837,7 +2170,11 @@ def _action_segment_update(db: Database, params: SegmentUpdateParams, ctx: Actio
         pass_ids=[row.pass_id],
         document_ids=[row.document_id],
     )
-    return {"segment_id": row.id, "version": row.version}, spec
+    answer: dict = {"segment_id": row.id, "version": row.version}
+    if simplified:
+        # `segment-editor.edge.self-intersecting`: a reshape that crossed itself is stored as its outer boundary.
+        answer["simplified"] = True
+    return answer, spec
 
 
 #: The three facts a segment can carry from the cascade, plus the region-only
@@ -2121,6 +2458,20 @@ class SegmentUpdateManyParams(BaseModel):
     updates: list[SegmentAttributeUpdate] = Field(min_length=1, description='One change per segment, each with its id and version.')
 
 
+class SegmentReparentItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    segment_id: str
+    expected_version: int
+
+
+class SegmentReparentParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    segments: list[SegmentReparentItem] = Field(min_length=1, description='The segments to move, each with the version the caller saw.')
+    parent_segment_id: Optional[str] = Field(default=None, description='The segment they now sit inside (a line into a region); none lifts them out to the page.')
+
+
 class SegmentVersionRestore(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -2133,6 +2484,12 @@ class SegmentRestoreVersionsParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     restores: list[SegmentVersionRestore] = Field(min_length=1)
+    #: `segment-editor.reassign-by-drag`: the order entries `segment.reparent` moved, written back as they were
+    #: (by id) in this same action. None leaves every entry alone, as `segment.update_many`'s undo needs.
+    order_entries: Optional[list[SegmentOrderEntryParams]] = None
+    #: `segment-editor.cut-marks-editable`: each row's metadata as it was, {segment_id: metadata}, written back (a
+    #: version snapshot does not carry metadata). None leaves metadata alone.
+    metadata: Optional[dict[str, dict[str, Any]]] = None
 
 
 def _live_current_row(
@@ -2203,7 +2560,45 @@ def _invert_many_via_previous_version(before, after, ctx: ActionContext):
     ]
     if not restores:
         return None
-    return ("segment.restore_versions", {"restores": restores})
+    extra = {key: after[key] for key in ("order_entries", "metadata") if after.get(key) is not None}
+    return ("segment.restore_versions", {"restores": restores, **extra})
+
+
+def _reposition_entries(db: Database, rows: list[Segment]) -> list[dict[str, Any]]:
+    """Every order entry of `rows` moved to where page order puts it under the row's current parent
+    (`segment-editor.reassign-by-drag`); answers the entries as they were, for the undo."""
+    from fichero_server.api.routes.document.reading_orders import ENTRY_FIELDS, reposition_in_page_order
+    from fichero_server.models.reading_orders import ReadingOrder, ReadingOrderEntry
+
+    was: list[dict[str, Any]] = []
+    for row in rows:
+        for entry in db.query(ReadingOrderEntry, segment_id=row.id):
+            order = db.get(ReadingOrder, entry.order_id)
+            if order is None or order.deleted_at is not None:
+                continue
+            was.append({field: getattr(entry, field) for field in ENTRY_FIELDS})
+            reposition_in_page_order(db, order, entry, row)
+    return was
+
+
+def _put_entries_back(db: Database, entries: list[SegmentOrderEntryParams]) -> list[dict[str, Any]]:
+    """The entries written back as recorded (by id); answers them as they were just before, for a redo.
+    An entry deleted since is written back whole."""
+    from fichero_server.api.routes.document.reading_orders import ENTRY_FIELDS, restore_segment_entries
+    from fichero_server.models.reading_orders import ReadingOrderEntry
+
+    was: list[dict[str, Any]] = []
+    for item in entries:
+        entry = db.get(ReadingOrderEntry, item.id)
+        if entry is None:
+            # Deleted since: written back whole. It is not in `was`, so a redo cannot move it again -- it is where it
+            # was before the reparent, which is the honest place for an entry the redo did not see.
+            restore_segment_entries(db, [item.model_dump()])
+            continue
+        was.append({field: getattr(entry, field) for field in ENTRY_FIELDS})
+        entry.parent_entry_id, entry.position = item.parent_entry_id, item.position
+        db.save(entry)
+    return was
 
 
 @action(
@@ -2261,6 +2656,157 @@ def _action_segment_update_many(db: Database, params: SegmentUpdateManyParams, c
 
 
 @action(
+    "segment.reparent",
+    SegmentReparentParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_many_via_previous_version,
+)
+def _action_segment_reparent(db: Database, params: SegmentReparentParams, ctx: ActionContext):
+    """Move segments under another segment (a line into a region): ONE audit row, ONE undo step.
+
+    ALL OR NOTHING, like `segment.update_many`. The new parent must be live and in the same pass
+    and document as every moved segment, must not be one of them, and must not sit inside one of
+    them (a cycle). Each moved segment's entry, in every order that holds it, moves among the new
+    parent's children by page position (`segment-editor.reassign-by-drag`); the undo puts them back.
+    """
+    _refuse_repeated_ids([item.segment_id for item in params.segments])
+    rows = [_live_current_row(db, item.segment_id, item.expected_version) for item in params.segments]
+    moved_ids = {row.id for row in rows}
+
+    new_parent = None
+    if params.parent_segment_id is not None:
+        _assert_not_provisional_http(params.parent_segment_id, what="parent_segment_id")
+        new_parent = db.get(Segment, params.parent_segment_id)
+        if new_parent is None:
+            raise HTTPException(status_code=404, detail=f"Segment not found: {params.parent_segment_id}")
+        reason = segment_liveness_reason(db, new_parent.id)
+        if reason is not None:
+            raise _as_http_error(SegmentNotLive(new_parent.id, reason))
+        for row in rows:
+            if row.pass_id != new_parent.pass_id or row.document_id != new_parent.document_id:
+                raise _as_http_error(SegmentParentMismatchError(
+                    f"parent segment {new_parent.id!r} is not in pass {row.pass_id!r} of document {row.document_id!r}"
+                ))
+        # A segment may not move into itself or into anything it holds: walk up from the new parent.
+        cursor, hops = new_parent, 0
+        while cursor is not None and hops < 64:
+            if cursor.id in moved_ids:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"segment {cursor.id!r} cannot be moved into itself or something it holds",
+                )
+            cursor = db.get(Segment, cursor.parent_segment_id) if cursor.parent_segment_id else None
+            hops += 1
+
+    audit_id = uuid.uuid4().hex
+    before_versions: list[dict[str, Any]] = []
+    after_versions: list[dict[str, Any]] = []
+    for row in rows:
+        before_versions.append({"segment_id": row.id, "version": row.version})
+        snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        row.parent_segment_id = params.parent_segment_id
+        db.save(row)
+        after_versions.append({"segment_id": row.id, "version": row.version})
+    order_entries = _reposition_entries(db, rows)
+
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=[row.id for row in rows],
+        before={"versions": before_versions},
+        after={"versions": after_versions, "order_entries": order_entries},
+        emit_type="segment.updated",
+        segment_ids=[row.id for row in rows],
+        pass_ids=sorted({row.pass_id for row in rows}),
+        document_ids=sorted({row.document_id for row in rows}),
+    )
+    return {"versions": after_versions}, spec
+
+
+class SegmentTranslateParams(BaseModel):
+    """`segment-editor.group-drag`, `segment-editor.nudge`: the selection moved by one offset."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    segments: list[SegmentReparentItem] = Field(min_length=1, description="The segments to move, each with the version the caller saw.")
+    dx: float = Field(description="How far across, in fractions of the page.")
+    dy: float = Field(description="How far down, in fractions of the page.")
+
+
+def _anchor_points(row: Segment) -> list[list[float]]:
+    """Every point a segment is drawn by: its rect's corners, outline, shapes and baseline."""
+    anchor = row.anchor
+    points: list[list[float]] = list(row.baseline or [])
+    if anchor is not None:
+        if anchor.rect:
+            x, y, w, h = anchor.rect
+            points += [[x, y], [x + w, y + h]]
+        points += list(anchor.polygon or [])
+        for shape in anchor.shapes or []:
+            points += list(shape.points or [])
+    return points
+
+
+@action(
+    "segment.translate",
+    SegmentTranslateParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_many_via_previous_version,
+)
+def _action_segment_translate(db: Database, params: SegmentTranslateParams, ctx: ActionContext):
+    """Move every named segment by ONE offset (`segment-editor.group-drag`): its rect, outline, shapes and baseline
+    together, one action, one undo. All or nothing, like `segment.update_many`. The offset is held so the whole group
+    stays on the page, which keeps its shape (one offset for all, never one per segment)."""
+    _refuse_repeated_ids([item.segment_id for item in params.segments])
+    rows = [_live_current_row(db, item.segment_id, item.expected_version) for item in params.segments]
+    elsewhere = [row.id for row in rows if row.anchor is not None and row.anchor.rendition_id]
+    if elsewhere:
+        raise HTTPException(status_code=422, detail=f"segments measured on another image cannot be moved here: {elsewhere}")
+    points = [point for row in rows for point in _anchor_points(row)]
+    dx, dy = params.dx, params.dy
+    if points:
+        xs, ys = [p[0] for p in points], [p[1] for p in points]
+        dx = min(max(dx, -min(xs)), 1.0 - max(xs))
+        dy = min(max(dy, -min(ys)), 1.0 - max(ys))
+
+    def moved(pts):
+        return [[p[0] + dx, p[1] + dy, *p[2:]] for p in pts] if pts else pts
+
+    audit_id = uuid.uuid4().hex
+    before_versions, after_versions = [], []
+    for row in rows:
+        before_versions.append({"segment_id": row.id, "version": row.version})
+        snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        anchor = row.anchor
+        if anchor is not None:
+            update: dict[str, Any] = {"polygon": moved(anchor.polygon)}
+            if anchor.rect:
+                update["rect"] = [anchor.rect[0] + dx, anchor.rect[1] + dy, *anchor.rect[2:]]
+            if anchor.shapes:
+                update["shapes"] = [shape.model_copy(update={"points": moved(shape.points)}) for shape in anchor.shapes]
+            row.anchor = anchor.model_copy(update=update)
+            row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_and_tile_from_anchor(row.anchor)
+        row.baseline = moved(row.baseline)
+        db.save(row)
+        after_versions.append({"segment_id": row.id, "version": row.version})
+
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=[row.id for row in rows],
+        before={"versions": before_versions},
+        after={"versions": after_versions},
+        emit_type="segment.updated",
+        segment_ids=[row.id for row in rows],
+        pass_ids=sorted({row.pass_id for row in rows}),
+        document_ids=sorted({row.document_id for row in rows}),
+    )
+    return {"versions": after_versions, "dx": dx, "dy": dy}, spec
+
+
+@action(
     "segment.restore_versions",
     SegmentRestoreVersionsParams,
     domains=["segment"],
@@ -2305,13 +2851,26 @@ def _action_segment_restore_versions(
         _copy_version_onto_row(row, target)
         db.save(row)
         after_versions.append({"segment_id": row.id, "version": row.version})
+    entries_were = None if params.order_entries is None else _put_entries_back(db, params.order_entries)
+    metadata_was = None
+    if params.metadata is not None:
+        metadata_was = {}
+        for row, _target in pairs:
+            if row.id in params.metadata:
+                metadata_was[row.id] = dict(row.metadata or {})
+                row.metadata = params.metadata[row.id]
+                db.save(row)
+    # Entries put back move lines in `as-written`, which the page's text follows.
+    text_relevant = text_relevant or bool(params.order_entries)
 
     spec = ChangeSpec(
         audit_id=audit_id,
         domains=["segment"],
         target_ids=[row.id for row, _target in pairs],
         before={"versions": before_versions},
-        after={"versions": after_versions, "text_relevant": text_relevant},
+        after={"versions": after_versions, "text_relevant": text_relevant,
+               **({"order_entries": entries_were} if entries_were is not None else {}),
+               **({"metadata": metadata_was} if metadata_was is not None else {})},
         emit_type="segment.updated",
         segment_ids=[row.id for row, _target in pairs],
         pass_ids=sorted({row.pass_id for row, _target in pairs}),
@@ -2585,6 +3144,17 @@ class SegmentMergeParams(BaseModel):
     #: concurrent edit to the kept segment is still something that changed
     #: since the caller last read it.
     expected_versions: dict[str, int] = Field(description="Each segment's version as last read, {segment_id: version}; a changed segment is refused.")
+    #: `segment-editor.merge-lines`: the kept line takes the members' joined outline (their union,
+    #: bridged across a gap) and their baselines end to end, and the readings join, all in the page's
+    #: reading order. Off, the kept row keeps its own shape, as the region-edit combine needs.
+    join_geometry: bool = Field(False, description="Join the outlines and baselines onto the kept segment, in reading order.")
+    #: `segment-editor.merge-lines`, owner 2026-11-13: members in other regions are moved into the kept
+    #: segment's region and merged in the same action. Off, a merge across regions is refused, as the
+    #: Reader's backspace join needs (`source.textedit.backspace-joins-in-reading-order`).
+    move_into_region: bool = Field(False, description="Move members in other regions into the kept segment's region rather than refusing.")
+    #: `segment-editor.edge.word-across-lines`: the kept segment takes every member's outline as one shape each, in
+    #: the order given (a word broken at a line's end is one word with two shapes).
+    keep_shapes: bool = Field(False, description="Keep every member's outline as a shape of the kept segment, in the order given.")
 
 
 def _invert_merge(before, after, ctx: ActionContext):
@@ -2613,8 +3183,24 @@ def _invert_merge(before, after, ctx: ActionContext):
             },
             "representation_ids": after.get("representation_ids", []),
             "order_entries": after.get("order_entries", []),
+            "moved_children": after.get("moved_children", {}),
+            "moved_children_parents": after.get("moved_children_parents", {}),
+            "child_order_entries": after.get("child_order_entries", []),
+            **({"kept_metadata": after["kept_metadata"]} if after.get("kept_metadata") is not None else {}),
+            # The kept row's shape before a joined-geometry merge, restored from its snapshot.
+            **({"keep_restore": {
+                "segment_id": after["kept_id"], "version": after["kept_version"],
+                "expected_version": current_versions[after["kept_id"]],
+            }} if after.get("kept_version") is not None else {}),
         },
     )
+
+
+def _member_outline(row: Segment) -> list[list[float]] | None:
+    """A merge member's outline (its polygon, else its rect), for `keep_shapes`."""
+    from fichero_server.media import line_join
+
+    return line_join.outline_of(row.anchor) if row.anchor is not None else None
 
 
 @action(
@@ -2667,7 +3253,7 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
     # including one set and one unset), and merging across that boundary
     # would silently splice two unrelated passages into one segment.
     for row in rows.values():
-        if row.parent_segment_id != first.parent_segment_id:
+        if row.parent_segment_id != first.parent_segment_id and not params.move_into_region:
             raise _as_http_error(
                 SegmentRegionMismatchError(
                     "segments being merged are not all in the same region"
@@ -2724,6 +3310,23 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
     readings_by_member = {
         segment_id: _counting_readings(db, segment_id) for segment_id in params.segment_ids
     }
+    # `segment-editor.merge-lines`: with the geometry joined, everything joins in the PAGE's reading
+    # order (the engine's, not the click order), and the readings with the script's separator.
+    join_ids = list(params.segment_ids)
+    separator = " "
+    joined_shape = None
+    if params.join_geometry:
+        joined_shape = _joined_line_shape(db, rows, keep_row, readings_by_member)
+        join_ids, separator = joined_shape["order"], joined_shape["separator"]
+
+    # `segment-editor.merge-regions`: what the absorbed members held (a region's lines, a line's words) becomes the
+    # kept one's, placed into its order by page position; read before anything is written.
+    absorbed_set = set(absorbed_ids)
+    children = (
+        [row for row in db.query(Segment, pass_id=keep_row.pass_id)
+         if row.deleted_at is None and row.parent_segment_id in absorbed_set]
+        if params.join_geometry else []
+    )
 
     audit_id = uuid.uuid4().hex
     absorbed_versions: dict[str, int] = {}
@@ -2741,6 +3344,8 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
         snapshot_segment_version(db, row, deleted=True, actor=ctx.actor, audit_id=audit_id)
         row.deleted_at = now
         row.deleted_by = ctx.actor
+        # Moved into the kept line's region (`move_into_region`); the snapshot holds where it was.
+        row.parent_segment_id = keep_row.parent_segment_id
         db.save(row)
         absorbed_versions[absorbed_id] = pre_merge_version
         after_versions[absorbed_id] = row.version
@@ -2772,7 +3377,7 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
     for kind in sorted(joined_kinds):
         pieces = [
             readings_by_member[segment_id][kind][1]
-            for segment_id in params.segment_ids
+            for segment_id in join_ids
             if kind in readings_by_member[segment_id]
         ]
         if len(pieces) < 2:
@@ -2783,15 +3388,57 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
                 document_id=keep_row.document_id,
                 segment_id=params.keep_id,
                 kind=kind,
-                content=" ".join(pieces),
+                content=separator.join(pieces),
                 ctx=ctx,
             )
         )
+
+    # `segment-editor.merge-lines`: the kept line takes the joined shape, versioned like any reshape, so
+    # its undo restores the snapshot written here.
+    kept_version = None
+    kept_metadata = None
+    if params.keep_shapes and joined_shape is None:
+        outlines = [outline for outline in (_member_outline(rows[sid]) for sid in params.segment_ids) if outline]
+        if outlines:
+            from fichero_server.media import line_join
+            from fichero_server.models.anchors import AnchorShape, AnchorShapeKind
+
+            kept_version = keep_row.version
+            snapshot_segment_version(db, keep_row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+            x0, y0, x1, y1 = line_join.bounds([point for outline in outlines for point in outline])
+            keep_row.anchor = keep_row.anchor.model_copy(update={
+                "polygon": None, "rect": [x0, y0, x1 - x0, y1 - y0],
+                "shapes": [AnchorShape(kind=AnchorShapeKind.polygon, points=outline) for outline in outlines],
+            })
+            bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(keep_row.anchor)
+            keep_row.bbox_x, keep_row.bbox_y, keep_row.bbox_w, keep_row.bbox_h, keep_row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
+            db.save(keep_row)
+            after_versions[params.keep_id] = keep_row.version
+    if joined_shape is not None:
+        kept_version = keep_row.version
+        snapshot_segment_version(db, keep_row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        keep_row.anchor = keep_row.anchor.model_copy(update={
+            "polygon": joined_shape["outline"], "rect": joined_shape["rect"], "shapes": None,
+        })
+        keep_row.baseline = joined_shape["baseline"]
+        bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(keep_row.anchor)
+        keep_row.bbox_x, keep_row.bbox_y, keep_row.bbox_w, keep_row.bbox_h, keep_row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
+        # `segment-editor.cut-marks-editable`: pieces cut from one reading (words, characters) joined across the cut
+        # removed read from every stretch they held; the record keeps who joined them.
+        spans = [(rows[sid].metadata or {}).get("reading_span") for sid in params.segment_ids]
+        sources = {(rows[sid].metadata or {}).get("cut_from_representation_id") for sid in params.segment_ids}
+        if all(isinstance(span, list) and len(span) == 2 for span in spans) and len(sources) == 1 and None not in sources:
+            kept_metadata = dict(keep_row.metadata or {})
+            keep_row.metadata = {**kept_metadata, "reading_span": [min(a for a, _ in spans), max(b for _, b in spans)],
+                                 "cut_source": "person", "cut_confidence": 1.0}
+        db.save(keep_row)
+        after_versions[params.keep_id] = keep_row.version
 
     # The absorbed segments leave every reading order; unmerge writes the same rows back (2026-09-28).
     from fichero_server.api.routes.document.reading_orders import remove_segment_entries
 
     order_entries = remove_segment_entries(db, absorbed_ids)
+    moved_children, moved_children_parents, child_order_entries = _move_children_into(db, keep_row, children, ctx, audit_id)
     spec = ChangeSpec(
         audit_id=audit_id,
         domains=["segment"],
@@ -2809,6 +3456,14 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
             # freshen a replayed merge's `expected_versions` on redo, and
             # `_invert_merge` reads it to give `unmerge` a live token.
             "versions": after_versions,
+            # The members' children moved to the kept segment, their parents before, and their order entries.
+            "moved_children": moved_children,
+            "moved_children_parents": moved_children_parents,
+            "child_order_entries": child_order_entries,
+            # The kept row's version before its shape was joined; None when it kept its own.
+            "kept_version": kept_version,
+            # Its metadata before its stretch of the reading was joined (a snapshot carries none).
+            "kept_metadata": kept_metadata,
         },
         emit_type="segment.merged",
         segment_ids=[params.keep_id, *absorbed_ids],
@@ -2819,9 +3474,49 @@ def _action_merge(db: Database, params: SegmentMergeParams, ctx: ActionContext):
         {
             "kept_id": params.keep_id, "forwarding_ids": forwarding_ids,
             "representation_ids": merge_representation_ids,
+            **({"version": keep_row.version, "order": join_ids} if joined_shape is not None else {}),
         },
         spec,
     )
+
+
+def _joined_line_shape(
+    db: Database, rows: dict[str, Segment], keep_row: Segment, readings: dict[str, dict[str, tuple[str, str]]]
+) -> dict[str, Any]:
+    """`segment-editor.merge-lines`: the members' order on the page, their joined outline and baseline,
+    and the reading separator -- refused, before anything is written, when the shapes cannot be joined."""
+    from fichero_server.api.routes.document.segment_readings import (
+        _direction_of,
+        _lines_are_vertical,
+        direction_rungs,
+    )
+    from fichero_server.media import line_join
+
+    frames = {(row.anchor.rendition_id, row.anchor.space) for row in rows.values() if row.anchor is not None}
+    if len(frames) > 1:
+        raise HTTPException(status_code=422, detail="the segments are drawn on different images, so their shapes cannot be joined")
+    outlines = {sid: line_join.outline_of(row.anchor) for sid, row in rows.items()}
+    shapeless = [sid for sid, outline in outlines.items() if outline is None]
+    if shapeless:
+        raise HTTPException(status_code=422, detail=f"segments with no shape cannot be joined: {shapeless}")
+    document = db.get(Document, keep_row.document_id)
+    shapes = [row for row in db.query(Segment, pass_id=keep_row.pass_id) if row.deleted_at is None]
+    counted = readings.get(keep_row.id) or {}
+    _rid, text = counted.get("transcription") or next(iter(counted.values()), (None, ""))
+    direction, _level = _direction_of(
+        keep_row, document, text, _lines_are_vertical(shapes, document), direction_rungs(db, document)
+    )
+    ids = list(rows)
+    order = [ids[i] for i in line_join.join_order([outlines[sid] for sid in ids], direction)]
+    outline = line_join.joined_outline([outlines[sid] for sid in order], direction)
+    x0, y0, x1, y1 = line_join.bounds(outline)
+    return {
+        "order": order,
+        "outline": outline,
+        "rect": [x0, y0, x1 - x0, y1 - y0],
+        "baseline": line_join.joined_baseline([rows[sid].baseline for sid in order], direction),
+        "separator": line_join.reading_separator(keep_row.script),
+    }
 
 
 class SegmentUnmergeParams(BaseModel):
@@ -2849,6 +3544,46 @@ class SegmentUnmergeParams(BaseModel):
     #: The absorbed segments' order entries the merge took out, written back where they were. Only
     #: entries OF segments being restored are accepted.
     order_entries: list[SegmentOrderEntryParams] = Field(default_factory=list)
+    #: `segment-editor.merge-lines`: the kept segment's shape before a joined-geometry merge, as
+    #: `segment.restore_version`'s own three numbers, restored in this same action.
+    keep_restore: Optional[SegmentRestoreVersionParams] = None
+    #: `segment-editor.merge-regions`: the children the merge moved to the kept segment, {id: version as the merge
+    #: left it}, the parent each had, and their order entries before; all put back.
+    moved_children: dict[str, int] = {}
+    moved_children_parents: dict[str, Optional[str]] = {}
+    child_order_entries: list[SegmentOrderEntryParams] = Field(default_factory=list)
+    #: `segment-editor.cut-marks-editable`: the kept word's metadata before its stretch of the reading was joined.
+    kept_metadata: Optional[dict[str, Any]] = None
+
+
+def _move_children_into(
+    db: Database, keep_row: Segment, children: list[Segment], ctx: ActionContext, audit_id: str,
+) -> tuple[dict[str, int], dict[str, Optional[str]], list[dict]]:
+    """The absorbed members' children made the kept segment's, under `audit_id`, and placed in every order that held
+    them by page position among the kept segment's own (`segment-editor.merge-regions`). Answers their versions, their
+    parents before, and the order entries they had, for the undo."""
+    if not children:
+        return {}, {}, []
+    from fichero_server.api.routes.document.reading_orders import place_in_page_order, remove_segment_entries
+    from fichero_server.models.reading_orders import ReadingOrder
+
+    entries = remove_segment_entries(db, [child.id for child in children])
+    parents: dict[str, Optional[str]] = {}
+    versions: dict[str, int] = {}
+    for child in children:
+        parents[child.id] = child.parent_segment_id
+        snapshot_segment_version(db, child, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        child.parent_segment_id = keep_row.id
+        db.save(child)
+        versions[child.id] = child.version
+    for order_id in dict.fromkeys(entry["order_id"] for entry in entries):
+        order = db.get(ReadingOrder, order_id)
+        if order is None or order.deleted_at is not None:
+            continue
+        for child in children:
+            if any(entry["order_id"] == order_id and entry["segment_id"] == child.id for entry in entries):
+                place_in_page_order(db, order, child)
+    return versions, parents, entries
 
 
 @action("segment.unmerge", SegmentUnmergeParams, domains=["segment"], undoable=False)
@@ -2856,6 +3591,30 @@ def _action_unmerge(db: Database, params: SegmentUnmergeParams, ctx: ActionConte
     strangers = [entry.segment_id for entry in params.order_entries if entry.segment_id not in params.versions]
     if strangers:
         raise HTTPException(status_code=422, detail=f"order_entries name segments not being restored: {strangers}")
+    keep_target = None
+    if params.keep_restore is not None:
+        keep_row = db.get(Segment, params.keep_restore.segment_id)
+        if not keep_row:
+            raise HTTPException(status_code=404, detail=f"Segment not found: {params.keep_restore.segment_id}")
+        if keep_row.version != params.keep_restore.expected_version:
+            raise _as_http_error(SegmentStale(
+                keep_row.id, params.keep_restore.expected_version, keep_row.version,
+                _stale_changed_fields(db, keep_row.id, params.keep_restore.expected_version, keep_row),
+            ))
+        found = db.query(SegmentVersion, segment_id=keep_row.id, version=params.keep_restore.version)
+        if not found:
+            raise HTTPException(status_code=404, detail=f"segment {keep_row.id!r} has no version {params.keep_restore.version}")
+        keep_target = (keep_row, found[0])
+    moved_rows: list[Segment] = []
+    for child_id, expected in params.moved_children.items():
+        child = db.get(Segment, child_id)
+        if child is None or child.deleted_at is not None:
+            raise _as_http_error(SegmentPartGone(child_id))
+        if child.version != expected:
+            raise _as_http_error(SegmentStale(
+                child_id, expected, child.version, _stale_changed_fields(db, child_id, expected, child),
+            ))
+        moved_rows.append(child)
     audit_id = uuid.uuid4().hex
     # Slice 8 (#4934): the join this merge wrote stops counting again.
     _retract_readings(db, params.representation_ids)
@@ -2925,9 +3684,27 @@ def _action_unmerge(db: Database, params: SegmentUnmergeParams, ctx: ActionConte
         after_versions[segment_id] = row.version
         document_ids.add(row.document_id)
         pass_ids.add(row.pass_id)
+    if keep_target is not None:
+        keep_row, target = keep_target
+        snapshot_segment_version(db, keep_row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        _copy_version_onto_row(keep_row, target)
+        if params.kept_metadata is not None:
+            keep_row.metadata = params.kept_metadata  # a version snapshot carries no metadata
+        db.save(keep_row)
+        restored_ids.append(keep_row.id)
+        after_versions[keep_row.id] = keep_row.version
     from fichero_server.api.routes.document.reading_orders import restore_segment_entries
 
     restore_segment_entries(db, [entry.model_dump() for entry in params.order_entries])
+    if moved_rows:
+        from fichero_server.api.routes.document.reading_orders import remove_segment_entries
+
+        remove_segment_entries(db, [child.id for child in moved_rows])
+        for child in moved_rows:
+            snapshot_segment_version(db, child, deleted=False, actor=ctx.actor, audit_id=audit_id)
+            child.parent_segment_id = params.moved_children_parents.get(child.id)
+            db.save(child)
+        restore_segment_entries(db, [entry.model_dump() for entry in params.child_order_entries])
     spec = ChangeSpec(
         audit_id=audit_id,
         domains=["segment"],
@@ -2940,6 +3717,773 @@ def _action_unmerge(db: Database, params: SegmentUnmergeParams, ctx: ActionConte
         document_ids=list(document_ids),
     )
     return {"segment_ids": restored_ids}, spec
+
+
+# --- redraw an outline from its baseline (segment-editor) -----------------
+
+
+class SegmentRegenerateOutlineParams(BaseModel):
+    """`segment-editor.regenerate-polygon-from-baseline`: Redraw Outline from Baseline (⌘⇧R)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    segment_ids: list[str] = Field(description="The lines whose outlines are drawn again from their baselines.")
+    expected_versions: dict[str, int] = Field(description="Each segment's version as last read, {segment_id: version}; a changed segment is refused.")
+    fixed_height: Optional[float] = Field(
+        default=None, gt=0,
+        description="A band this many image pixels tall over the baseline, for a line with no ink to measure.",
+    )
+
+
+def _page_image_for_lines(db: Database, document: Document):
+    """The current page image as a PIL image, and the maps from the stored fractions (of the upright
+    photograph) to its pixels and back."""
+    from PIL import Image
+
+    from fichero_server.media.current_image import ORIGINAL, current_page_image
+    from fichero_server.media.upright import FRAME_UPRIGHT, open_in_frame
+
+    found = current_page_image(db, document)
+    if found is None:
+        raise HTTPException(status_code=422, detail="the page has no image to draw outlines on")
+    found = found.for_geometry()
+    image = open_in_frame(found.path, FRAME_UPRIGHT) if found.kind == ORIGINAL else Image.open(found.path)
+    width, height = image.size
+    to_image = found.to_image
+
+    def forward(points):
+        carried = to_image.carry(points) if to_image is not None else points
+        return [[x * width, y * height] for x, y in carried]
+
+    def back(points):
+        fractions = [[x / width, y / height] for x, y in points]
+        return to_image.inverse().carry(fractions) if to_image is not None else fractions
+
+    return image, forward, back
+
+
+@action(
+    "segment.regenerate_outline",
+    SegmentRegenerateOutlineParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_many_via_previous_version,
+)
+def _action_regenerate_outline(db: Database, params: SegmentRegenerateOutlineParams, ctx: ActionContext):
+    """Each line's outline drawn again from its baseline and the current page image, the page's other
+    baselines as bounds so outlines do not overlap; one action, one undo. All or nothing: a line with no
+    baseline, or one no outline could be drawn for, refuses the whole call and says which."""
+    from fichero_server.media import outline_from_baseline
+
+    if not params.segment_ids:
+        raise HTTPException(status_code=422, detail="segment_ids is empty: nothing to redraw")
+    _refuse_repeated_ids(params.segment_ids)
+    rows: list[Segment] = []
+    for segment_id in params.segment_ids:
+        _assert_not_provisional_http(segment_id, what="segment_id")
+        rows.append(_live_current_row(db, segment_id, _require_expected_version(params.expected_versions, segment_id)))
+    if len({(row.document_id, row.pass_id) for row in rows}) > 1:
+        raise _as_http_error(SegmentPassMismatchError("the lines being redrawn are not all in the same pass and document"))
+    # `segment-editor.edge.no-baseline`: said, never guessed around; Add Baseline is the way on.
+    no_baseline = [row.id for row in rows if not row.baseline or len(row.baseline) < 2]
+    if no_baseline:
+        raise HTTPException(status_code=422, detail=f"lines with no baseline cannot be redrawn from one: {no_baseline}")
+    elsewhere = [row.id for row in rows if row.anchor is not None and row.anchor.rendition_id]
+    if elsewhere:
+        raise HTTPException(status_code=422, detail=f"lines measured on another image cannot be redrawn on this one: {elsewhere}")
+
+    document = db.get(Document, rows[0].document_id)
+    image, forward, back = _page_image_for_lines(db, document)
+    chosen = {row.id for row in rows}
+    neighbours = [
+        row.baseline for row in db.query(Segment, pass_id=rows[0].pass_id)
+        if row.deleted_at is None and row.id not in chosen and row.baseline and len(row.baseline) >= 2
+    ]
+    fixed = params.fixed_height
+    drawn = outline_from_baseline.outlines(
+        image, [forward(row.baseline) for row in rows], [forward(line) for line in neighbours], fixed,
+    )
+    undrawn = [row.id for row, outline in zip(rows, drawn) if outline is None]
+    if undrawn:
+        raise HTTPException(
+            status_code=422,
+            detail=f"no outline could be drawn for {undrawn}: no ink was found along the baseline; give a fixed height",
+        )
+
+    audit_id = uuid.uuid4().hex
+    before_versions, after_versions = [], []
+    for row, outline in zip(rows, drawn):
+        polygon = [[round(x, 6), round(y, 6)] for x, y in back(outline)]
+        xs, ys = [p[0] for p in polygon], [p[1] for p in polygon]
+        before_versions.append({"segment_id": row.id, "version": row.version})
+        snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        row.anchor = row.anchor.model_copy(update={
+            "polygon": polygon, "rect": [min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)], "shapes": None,
+        })
+        bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(row.anchor)
+        row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
+        db.save(row)
+        after_versions.append({"segment_id": row.id, "version": row.version})
+
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=[row.id for row in rows],
+        before={"versions": before_versions},
+        after={"versions": after_versions},
+        emit_type="segment.updated",
+        segment_ids=[row.id for row in rows],
+        pass_ids=[rows[0].pass_id],
+        document_ids=[rows[0].document_id],
+    )
+    return {"segment_ids": [row.id for row in rows], "versions": after_versions}, spec
+
+
+class SegmentSimplifyParams(BaseModel):
+    """`segment-editor.vertices`: Simplify (⌥⌘S): fewer points on each outline and baseline."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    segment_ids: list[str] = Field(description="The segments whose outlines and baselines are simplified.")
+    expected_versions: dict[str, int] = Field(description="Each segment's version as last read, {segment_id: version}; a changed segment is refused.")
+    tolerance: float = Field(gt=0, description="How far, in image pixels, the simpler shape may stray from the one drawn.")
+
+
+@action(
+    "segment.simplify",
+    SegmentSimplifyParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_many_via_previous_version,
+)
+def _action_simplify(db: Database, params: SegmentSimplifyParams, ctx: ActionContext):
+    """Douglas-Peucker on each segment's outline (closed) and baseline (open), in the page image's pixels, so the
+    tolerance means the same on every page; one action, one undo. A segment already as simple as the tolerance allows
+    is left as it is and not bumped. An outline is never brought below three points, a baseline below two."""
+    if not params.segment_ids:
+        raise HTTPException(status_code=422, detail="segment_ids is empty: nothing to simplify")
+    _refuse_repeated_ids(params.segment_ids)
+    rows: list[Segment] = []
+    for segment_id in params.segment_ids:
+        _assert_not_provisional_http(segment_id, what="segment_id")
+        rows.append(_live_current_row(db, segment_id, _require_expected_version(params.expected_versions, segment_id)))
+
+    audit_id = uuid.uuid4().hex
+    after_versions, simplified_ids = [], []
+    for row, polygon, baseline in _simplified_shapes(db, rows, params.tolerance):
+        snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        if polygon is not None:
+            xs, ys = [p[0] for p in polygon], [p[1] for p in polygon]
+            row.anchor = row.anchor.model_copy(update={
+                "polygon": polygon, "rect": [min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)],
+            })
+            bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(row.anchor)
+            row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
+        if baseline is not None:
+            row.baseline = baseline
+        db.save(row)
+        after_versions.append({"segment_id": row.id, "version": row.version})
+        simplified_ids.append(row.id)
+    if not simplified_ids:
+        raise HTTPException(status_code=422, detail="the shapes are already as simple as that tolerance allows")
+
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=simplified_ids,
+        before=None,
+        after={"versions": after_versions},
+        emit_type="segment.updated",
+        segment_ids=simplified_ids,
+        pass_ids=[rows[0].pass_id],
+        document_ids=[rows[0].document_id],
+    )
+    return {"segment_ids": simplified_ids, "versions": after_versions}, spec
+
+
+def _simplified_shapes(
+    db: Database, rows: list[Segment], tolerance: float,
+) -> list[tuple[Segment, list[list[float]] | None, list[list[float]] | None]]:
+    """What Simplify makes of each row: (row, outline or None, baseline or None), None where the tolerance changes
+    nothing; rows it changes not at all are left out. The ONE computation `segment.simplify` writes and its preview
+    shows (`segment-editor.vertices`). Writes nothing."""
+    from fichero_server.media import line_join
+
+    if not rows:
+        return []
+
+    if len({(row.document_id, row.pass_id) for row in rows}) > 1:
+        raise _as_http_error(SegmentPassMismatchError("the segments being simplified are not all in the same pass and document"))
+    elsewhere = [row.id for row in rows if row.anchor is not None and row.anchor.rendition_id]
+    if elsewhere:
+        raise HTTPException(status_code=422, detail=f"segments measured on another image cannot be simplified here: {elsewhere}")
+
+    document = db.get(Document, rows[0].document_id)
+    _image, forward, back = _page_image_for_lines(db, document)
+
+    def fewer(points: list[list[float]], closed: bool, least: int) -> list[list[float]] | None:
+        return _fewer_points(points, closed, least, tolerance, forward, back)
+
+    shapes = []
+    for row in rows:
+        polygon = fewer(row.anchor.polygon, True, 3) if row.anchor is not None and row.anchor.polygon else None
+        baseline = fewer(row.baseline, False, 2) if row.baseline and len(row.baseline) > 2 else None
+        if polygon is None and baseline is None:
+            continue
+        if polygon is not None:
+            polygon, _crossed = line_join.simple_outline(polygon)  # dropping points can make an outline cross itself
+        shapes.append((row, polygon, baseline))
+    return shapes
+
+
+def _note_forwarding(
+    db: Database, row: Segment, kind: str, ctx: ActionContext, audit_id: str, reason: str | None = None,
+) -> None:
+    """The forwarding note a soft delete ("deleted") or its undo ("restored") leaves, as `segment.delete` and
+    `segment.undelete` do, so a reference to the segment can say what became of it."""
+    db.save(SegmentForwarding(
+        document_id=row.document_id, old_segment_id=row.id, kind=kind, new_segment_ids=[], actor=ctx.actor,
+        audit_id=audit_id, reason=reason, sequence=db.next_forwarding_sequence(),
+    ))
+
+
+class SegmentCutWordsParams(BaseModel):
+    """`segment-editor.cut-words-from-positions`: Cut Words on lines."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    segment_ids: list[str] = Field(description="The lines to cut into words.")
+    expected_versions: dict[str, int] = Field(description="Each line's version as last read, {segment_id: version}; a changed line is refused.")
+
+
+#: The cut sources a machine's cut can have; a word with another (a person's, an import's) is never replaced.
+MACHINE_CUT_SOURCES = ("ctc", "ink-gap")
+
+
+def _invert_cut_words(before, after, ctx: ActionContext):
+    """Reads ONLY `after`: the words this cut made go, the machine's words it replaced come back."""
+    if not after or not (after.get("made") or after.get("replaced")):
+        return None
+    return ("segment.uncut_words", {
+        "made": after.get("made", {}), "replaced": after.get("replaced", []),
+        "order_entries": after.get("order_entries", []),
+    })
+
+
+@action(
+    "segment.cut_words",
+    SegmentCutWordsParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_cut_words,
+    # A redo mints new word ids, so its undo is derived from its own `after`, not the first undo's params.
+    redo_via_own_invert=True,
+)
+def _action_cut_words(db: Database, params: SegmentCutWordsParams, ctx: ActionContext):
+    """Each line's counting reading split at its spaces into `word` children (`segment-editor.cut-words-from-positions`):
+    the cut between two words midway between where one ends and the next starts, from the recogniser's character
+    positions (`cut_source: ctc`) or, without them, from the gaps in the ink (`cut_source: ink-gap`, low confidence,
+    `segment-editor.cut-fallback-ink-gaps`); the line's outline cut across the baseline there. Each word records its
+    source, confidence, the reading it was cut from and its stretch of it (`segment-editor.cut-records-source-and-
+    confidence`). A machine's earlier words on the line are replaced; a person's are kept and not cut again. A line
+    that cannot be cut is left alone and named. One action, one undo."""
+    import numpy as np
+
+    from fichero_server.api.routes.document.segment_readings import (
+        _direction_of,
+        _lines_are_vertical,
+        direction_rungs,
+    )
+    from fichero_server.media import line_cut, line_join
+
+    if not params.segment_ids:
+        raise HTTPException(status_code=422, detail="segment_ids is empty: nothing to cut into words")
+    _refuse_repeated_ids(params.segment_ids)
+    rows: list[Segment] = []
+    for segment_id in params.segment_ids:
+        _assert_not_provisional_http(segment_id, what="segment_id")
+        rows.append(_live_current_row(db, segment_id, _require_expected_version(params.expected_versions, segment_id)))
+    if len({(row.document_id, row.pass_id) for row in rows}) > 1:
+        raise _as_http_error(SegmentPassMismatchError("the lines being cut are not all in the same pass and document"))
+    document = db.get(Document, rows[0].document_id)
+    shapes = [row for row in db.query(Segment, pass_id=rows[0].pass_id) if row.deleted_at is None]
+    vertical, rungs = _lines_are_vertical(shapes, document), direction_rungs(db, document)
+    page = None  # the page image, opened only for a line that needs the ink
+
+    plans, left_alone = [], []
+    for row in rows:
+        counted = _counting_readings(db, row.id)
+        source_id, text = counted.get("transcription") or next(iter(counted.values()), (None, ""))
+        if not text.strip():
+            left_alone.append({"segment_id": row.id, "reason": "no-reading"})
+            continue
+        if not row.baseline or len(row.baseline) < 2:
+            left_alone.append({"segment_id": row.id, "reason": "no-baseline"})
+            continue
+        outline = line_join.outline_of(row.anchor)
+        if outline is None or (row.anchor is not None and row.anchor.rendition_id):
+            left_alone.append({"segment_id": row.id, "reason": "no-outline" if outline is None else "another-image"})
+            continue
+        direction, _level = _direction_of(row, document, text, vertical, rungs)
+        baseline = line_cut.reading_baseline(row.baseline, direction)
+        spans = line_cut.word_spans(text)
+        reading = db.get(ContentRepresentation, source_id) if source_id else None
+        positions = reading.char_positions if reading is not None else None
+        if positions is not None and len(positions) == len(text) and direction != "rtl":
+            confidences = reading.char_confidences if reading.char_confidences and len(reading.char_confidences) == len(text) else None
+            cuts, source = line_cut.cuts_from_positions(spans, positions, confidences), "ctc"
+        else:
+            if page is None:
+                try:
+                    image, forward, _back = _page_image_for_lines(db, document)
+                    page = (np.asarray(image.convert("L")), forward)
+                except HTTPException:
+                    page = (None, None)
+            gray, forward = page
+            found = (line_cut.cuts_from_ink_gaps(gray, forward(outline), forward(baseline), len(spans) - 1)
+                     if gray is not None else None)
+            if found is None:
+                left_alone.append({"segment_id": row.id, "reason": "no-positions-and-no-ink-gaps"})
+                continue
+            cuts, source = found, "ink-gap"
+        fractions = [at for at, _sure in cuts]
+        if any(b <= a for a, b in zip(fractions, fractions[1:])) or any(not 0 < at < 1 for at in fractions):
+            left_alone.append({"segment_id": row.id, "reason": "cuts-out-of-order"})
+            continue
+        pieces = line_cut.baseline_pieces(baseline, fractions)
+        x0, y0, x1, y1 = line_join.bounds(outline)
+        reach = max(x1 - x0, y1 - y0)
+        polygons = line_cut.cut_outline_along(outline, pieces, [line_cut.across(baseline, at, reach) for at in fractions])
+        if polygons is None:
+            left_alone.append({"segment_id": row.id, "reason": "outline-not-cut"})
+            continue
+        sureness = line_cut.word_sureness([sure for _at, sure in cuts], len(spans))
+        plans.append((row, source_id, source, list(zip(spans, polygons, pieces, sureness))))
+    if not plans:
+        raise HTTPException(status_code=422, detail={"message": "no line could be cut into words", "left_alone": left_alone})
+
+    audit_id = uuid.uuid4().hex
+    now = utc_now()
+    made: dict[str, int] = {}
+    replaced: list[str] = []
+    from fichero_server.api.routes.document.reading_orders import remove_segment_entries
+    from fichero_server.models.geo import inside_polygon
+
+    replaced_entries: list[dict] = []
+    for row, source_id, source, words in plans:
+        children = [child for child in shapes if child.parent_segment_id == row.id and child.kind == "word"]
+        machine = [child for child in children if (child.metadata or {}).get("cut_source") in MACHINE_CUT_SOURCES]
+        kept = [child for child in children if child not in machine]
+        for child in machine:
+            snapshot_segment_version(db, child, deleted=True, actor=ctx.actor, audit_id=audit_id, reason="cut words again")
+            child.deleted_at, child.deleted_by = now, ctx.actor
+            db.save(child)
+            _note_forwarding(db, child, "deleted", ctx, audit_id, reason="cut words again")
+            replaced.append(child.id)
+        replaced_entries.extend(remove_segment_entries(db, [child.id for child in machine]))
+        kept_outlines = [o for o in (line_join.outline_of(child.anchor) for child in kept) if o]
+        for (start, end), polygon, piece, sure in words:
+            wx0, wy0, wx1, wy1 = line_join.bounds(polygon)
+            centre = ((wx0 + wx1) / 2, (wy0 + wy1) / 2)
+            # Inside the person's OUTLINE, not its bounding box: a slanted or L-shaped word's box covers words it
+            # does not.
+            if any(inside_polygon(centre, outline) for outline in kept_outlines):
+                continue  # a person's word is here already: matched by overlap, never duplicated
+            word = _create_segment_impl(db, SegmentCreateParams(
+                document_id=row.document_id, pass_id=row.pass_id, kind="word", parent_segment_id=row.id,
+                anchor=row.anchor.model_copy(update={
+                    "polygon": polygon, "rect": [wx0, wy0, wx1 - wx0, wy1 - wy0], "shapes": None, "granularity": "word",
+                }),
+                baseline=piece,
+            ), ctx)
+            word.metadata = {**(word.metadata or {}), "cut_source": source, "cut_confidence": sure,
+                             "cut_from_representation_id": source_id, "reading_span": [start, end]}
+            db.save(word)
+            made[word.id] = word.version
+
+    touched = [*made, *replaced]
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=touched,
+        before=None,
+        after={"made": made, "replaced": replaced, "order_entries": replaced_entries},
+        emit_type="segment.created",
+        segment_ids=touched,
+        pass_ids=[rows[0].pass_id],
+        document_ids=[rows[0].document_id],
+    )
+    return {"segment_ids": list(made), "replaced": replaced, "left_alone": left_alone,
+            "joinable": _hyphenated_pairs(db, [(row, words) for row, _source_id, _source, words in plans])}, spec
+
+
+#: How a line's reading ends when its last word goes on on the next line (`segment-editor.edge.word-across-lines`).
+LINE_END_HYPHENS = ("-", "¬", "⸗", "=", "\u00ad")
+
+
+def _hyphenated_pairs(db: Database, cut: list[tuple[Segment, list]]) -> list[list[str]]:
+    """The words broken at a line's end among the lines just cut: each line, in page order, whose reading ends with a
+    hyphen and whose next cut line's reading starts with no space, gives [its last word, the next line's first word]
+    (`segment-editor.edge.word-across-lines`). An offer only: nothing is joined here."""
+    from fichero_server.api.routes.document.segment_readings import _segment_order_key
+
+    def words_of(line: Segment) -> list[Segment]:
+        children = [row for row in db.query(Segment, parent_segment_id=line.id) if row.deleted_at is None and row.kind == "word"]
+        return sorted(children, key=lambda row: (row.metadata or {}).get("reading_span", [0])[0])
+
+    lines = sorted((row for row, _words in cut), key=_segment_order_key)
+    pairs = []
+    for line, following in zip(lines, lines[1:]):
+        text = (_counting_readings(db, line.id).get("transcription") or ("", ""))[1]
+        after = (_counting_readings(db, following.id).get("transcription") or ("", ""))[1]
+        if text.rstrip().endswith(LINE_END_HYPHENS) and after and not after[0].isspace():
+            first, second = words_of(line), words_of(following)
+            if first and second:
+                pairs.append([first[-1].id, second[0].id])
+    return pairs
+
+
+class SegmentMoveCutParams(BaseModel):
+    """`segment-editor.cut-marks-editable`: a cut mark dragged along the baseline."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    first_id: str = Field(description="The word (or character) before the cut, in reading order.")
+    second_id: str = Field(description="The word (or character) after it, on the same line.")
+    at: float = Field(gt=0, lt=1, description="Where the cut goes, as a fraction along the line's baseline.")
+    expected_versions: dict[str, int] = Field(description="Both pieces' versions as last read, {segment_id: version}.")
+
+
+@action(
+    "segment.move_cut",
+    SegmentMoveCutParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_many_via_previous_version,
+)
+def _action_move_cut(db: Database, params: SegmentMoveCutParams, ctx: ActionContext):
+    """The boundary between two neighbouring pieces of one line moved (`segment-editor.cut-marks-editable`): the two
+    pieces' joined outline and baseline cut again across the line's baseline at `at`; both become a person's cut
+    (`cut_source: person`, confidence 1); their stretches of the reading are unchanged (the text still splits where it
+    did). A cut outside the two pieces is refused. One action, one undo."""
+    from fichero_server.media import line_cut, line_join
+
+    first = _live_current_row(db, params.first_id, _require_expected_version(params.expected_versions, params.first_id))
+    second = _live_current_row(db, params.second_id, _require_expected_version(params.expected_versions, params.second_id))
+    if first.parent_segment_id is None or first.parent_segment_id != second.parent_segment_id or first.kind != second.kind:
+        raise HTTPException(status_code=422, detail="a cut is moved between two pieces of the same kind on one line")
+    line = db.get(Segment, first.parent_segment_id)
+    outlines = [line_join.outline_of(row.anchor) for row in (first, second)]
+    if line is None or not line.baseline or len(line.baseline) < 2 or None in outlines or not first.baseline or not second.baseline:
+        raise HTTPException(status_code=422, detail="the two pieces and their line need outlines and baselines to move a cut")
+    x0, y0, x1, y1 = line_join.bounds(outlines[0] + outlines[1])
+    stroke = line_cut.across(line.baseline, params.at, max(x1 - x0, y1 - y0) * 4)
+    joined = first.baseline + second.baseline[1:]
+    hits = line_cut.crossings(joined, stroke)
+    if not hits:
+        raise HTTPException(status_code=422, detail="the cut must stay between the start of the first piece and the end of the second")
+    pieces = line_cut.baseline_pieces(joined, hits[:1])
+    polygons = line_cut.cut_outline_along(line_join.joined_outline(outlines, None), pieces, [stroke])
+    if polygons is None:
+        raise HTTPException(status_code=422, detail="the outline could not be cut there")
+
+    audit_id = uuid.uuid4().hex
+    before_versions, after_versions = [], []
+    metadata_before = {row.id: dict(row.metadata or {}) for row in (first, second)}
+    for row, polygon, piece in zip((first, second), polygons, pieces):
+        before_versions.append({"segment_id": row.id, "version": row.version})
+        snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        px0, py0, px1, py1 = line_join.bounds(polygon)
+        row.anchor = row.anchor.model_copy(update={"polygon": polygon, "rect": [px0, py0, px1 - px0, py1 - py0]})
+        row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_and_tile_from_anchor(row.anchor)
+        row.baseline = piece
+        row.metadata = {**(row.metadata or {}), "cut_source": "person", "cut_confidence": 1.0}
+        db.save(row)
+        after_versions.append({"segment_id": row.id, "version": row.version})
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=[first.id, second.id],
+        before={"versions": before_versions},
+        # The pieces' metadata before the move, so the undo puts the machine's cut back as the machine's.
+        after={"versions": after_versions, "metadata": metadata_before},
+        emit_type="segment.updated",
+        segment_ids=[first.id, second.id],
+        pass_ids=[first.pass_id],
+        document_ids=[first.document_id],
+    )
+    return {"versions": after_versions}, spec
+
+
+class SegmentCutCharactersParams(BaseModel):
+    """`segment-editor.cut-characters`: Cut Characters on words."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    segment_ids: list[str] = Field(description="The words to cut into characters.")
+    expected_versions: dict[str, int] = Field(description="Each word's version as last read, {segment_id: version}; a changed word is refused.")
+
+
+@action(
+    "segment.cut_characters",
+    SegmentCutCharactersParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_cut_words,
+    redo_via_own_invert=True,
+)
+def _action_cut_characters(db: Database, params: SegmentCutCharactersParams, ctx: ActionContext):
+    """Each word cut into `character` children (`segment-editor.cut-characters`), as Cut Words does a line: from the
+    recogniser's character positions on its line's reading, between each two characters where the second starts, the
+    word's outline cut across its line's baseline there. Each character records its source (`ctc`), the confidence at
+    its cuts, the reading and its stretch of it. A word whose line has no positions (its words were cut from the ink),
+    a right-to-left word or a single character is left alone and named. A machine's earlier characters are replaced, a
+    person's kept. One action, one undo (`segment.uncut_words`)."""
+    from fichero_server.api.routes.document.reading_orders import remove_segment_entries
+    from fichero_server.media import line_cut, line_join
+
+    if not params.segment_ids:
+        raise HTTPException(status_code=422, detail="segment_ids is empty: nothing to cut into characters")
+    _refuse_repeated_ids(params.segment_ids)
+    words = [
+        _live_current_row(db, segment_id, _require_expected_version(params.expected_versions, segment_id))
+        for segment_id in params.segment_ids
+    ]
+    plans, left_alone = [], []
+    for word in words:
+        meta = word.metadata or {}
+        span, source_id = meta.get("reading_span"), meta.get("cut_from_representation_id")
+        line = db.get(Segment, word.parent_segment_id) if word.parent_segment_id else None
+        reading = db.get(ContentRepresentation, source_id) if source_id else None
+        outline = line_join.outline_of(word.anchor)
+        positions = reading.char_positions if reading is not None else None
+        if not span or line is None or reading is None or positions is None or len(positions) != len(reading.content):
+            left_alone.append({"segment_id": word.id, "reason": "no-positions"})
+            continue
+        if outline is None or not line.baseline or len(line.baseline) < 2 or not word.baseline:
+            left_alone.append({"segment_id": word.id, "reason": "no-outline-or-baseline"})
+            continue
+        start, end = span
+        if end - start < 2:
+            left_alone.append({"segment_id": word.id, "reason": "one-character"})
+            continue
+        if (meta.get("direction") or line.direction) == "rtl" or positions[end - 1] < positions[start]:
+            left_alone.append({"segment_id": word.id, "reason": "right-to-left"})
+            continue
+        x0, y0, x1, y1 = line_join.bounds(outline)
+        reach = max(x1 - x0, y1 - y0) * 4
+        strokes = [line_cut.across(line.baseline, positions[i], reach) for i in range(start + 1, end)]
+        fractions = [hit for stroke in strokes for hit in line_cut.crossings(word.baseline, stroke)[:1]]
+        if len(fractions) != len(strokes) or any(b <= a for a, b in zip(fractions, fractions[1:])):
+            left_alone.append({"segment_id": word.id, "reason": "cuts-outside-the-word"})
+            continue
+        pieces = line_cut.baseline_pieces(word.baseline, fractions)
+        polygons = line_cut.cut_outline_along(outline, pieces, strokes)
+        if polygons is None:
+            left_alone.append({"segment_id": word.id, "reason": "outline-not-cut"})
+            continue
+        confidences = reading.char_confidences if reading.char_confidences and len(reading.char_confidences) == len(reading.content) else None
+        plans.append((word, source_id, [
+            ((i, i + 1), polygon, piece, min(confidences[max(i - 1, start):i + 2]) if confidences else None)
+            for i, polygon, piece in zip(range(start, end), polygons, pieces)
+        ]))
+    if not plans:
+        raise HTTPException(status_code=422, detail={"message": "no word could be cut into characters", "left_alone": left_alone})
+
+    audit_id = uuid.uuid4().hex
+    now = utc_now()
+    made: dict[str, int] = {}
+    replaced: list[str] = []
+    replaced_entries: list[dict] = []
+    for word, source_id, characters in plans:
+        children = [
+            row for row in db.query(Segment, parent_segment_id=word.id)
+            if row.deleted_at is None and row.kind == "character"
+        ]
+        machine = [child for child in children if (child.metadata or {}).get("cut_source") in MACHINE_CUT_SOURCES]
+        if len(machine) < len(children):
+            left_alone.append({"segment_id": word.id, "reason": "a-person-cut-it"})
+            continue
+        for child in machine:
+            snapshot_segment_version(db, child, deleted=True, actor=ctx.actor, audit_id=audit_id, reason="cut characters again")
+            child.deleted_at, child.deleted_by = now, ctx.actor
+            db.save(child)
+            _note_forwarding(db, child, "deleted", ctx, audit_id, reason="cut characters again")
+            replaced.append(child.id)
+        replaced_entries.extend(remove_segment_entries(db, [child.id for child in machine]))
+        for (begin, stop), polygon, piece, sure in characters:
+            cx0, cy0, cx1, cy1 = line_join.bounds(polygon)
+            character = _create_segment_impl(db, SegmentCreateParams(
+                document_id=word.document_id, pass_id=word.pass_id, kind="character", parent_segment_id=word.id,
+                anchor=word.anchor.model_copy(update={
+                    "polygon": polygon, "rect": [cx0, cy0, cx1 - cx0, cy1 - cy0], "shapes": None,
+                    "granularity": "character",
+                }),
+                baseline=piece,
+            ), ctx)
+            character.metadata = {**(character.metadata or {}), "cut_source": "ctc", "cut_confidence": sure,
+                                  "cut_from_representation_id": source_id, "reading_span": [begin, stop]}
+            db.save(character)
+            made[character.id] = character.version
+    if not made:
+        raise HTTPException(status_code=422, detail={"message": "no word could be cut into characters", "left_alone": left_alone})
+
+    touched = [*made, *replaced]
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=touched,
+        before=None,
+        after={"made": made, "replaced": replaced, "order_entries": replaced_entries},
+        emit_type="segment.created",
+        segment_ids=touched,
+        pass_ids=sorted({word.pass_id for word in words}),
+        document_ids=sorted({word.document_id for word in words}),
+    )
+    return {"segment_ids": list(made), "replaced": replaced, "left_alone": left_alone}, spec
+
+
+class SegmentUncutWordsParams(BaseModel):
+    """Internal: `segment.cut_words`' inverse only."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    #: The words the cut made, {id: version as it left them}.
+    made: dict[str, int] = {}
+    #: The machine's words it replaced, brought back with their order entries.
+    replaced: list[str] = []
+    order_entries: list[SegmentOrderEntryParams] = Field(default_factory=list)
+
+
+@action("segment.uncut_words", SegmentUncutWordsParams, domains=["segment"], undoable=False)
+def _action_uncut_words(db: Database, params: SegmentUncutWordsParams, ctx: ActionContext):
+    """The words a Cut Words made go (soft-deleted, each with its note), and the ones it replaced come back where they
+    were. Every made word is checked first: one somebody has since changed refuses the undo."""
+    from fichero_server.api.routes.document.reading_orders import remove_segment_entries, restore_segment_entries
+
+    made_rows = []
+    for word_id, expected in params.made.items():
+        word = db.get(Segment, word_id)
+        if word is None or word.deleted_at is not None:
+            raise _as_http_error(SegmentPartGone(word_id))
+        if word.version != expected:
+            raise _as_http_error(SegmentStale(word_id, expected, word.version, _stale_changed_fields(db, word_id, expected, word)))
+        made_rows.append(word)
+    audit_id = uuid.uuid4().hex
+    now = utc_now()
+    for word in made_rows:
+        snapshot_segment_version(db, word, deleted=True, actor=ctx.actor, audit_id=audit_id, reason="uncut words")
+        word.deleted_at, word.deleted_by = now, ctx.actor
+        db.save(word)
+        db.save(SegmentForwarding(
+            document_id=word.document_id, old_segment_id=word.id, kind="deleted", new_segment_ids=[],
+            actor=ctx.actor, audit_id=audit_id, sequence=db.next_forwarding_sequence(),
+        ))
+    remove_segment_entries(db, [word.id for word in made_rows])
+    restored = []
+    for word_id in params.replaced:
+        word = db.get(Segment, word_id)
+        if word is None or word.deleted_at is None:
+            continue
+        snapshot_segment_version(db, word, deleted=True, actor=ctx.actor, audit_id=audit_id)
+        word.deleted_at, word.deleted_by = None, None
+        db.save(word)
+        _note_forwarding(db, word, "restored", ctx, audit_id)
+        restored.append(word)
+    restore_segment_entries(db, [entry.model_dump() for entry in params.order_entries])
+    rows = made_rows + restored
+    touched = [word.id for word in rows]
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=touched,
+        before=None,
+        after={"segment_ids": touched},
+        emit_type="segment.deleted",
+        segment_ids=touched,
+        pass_ids=sorted({word.pass_id for word in rows}),
+        document_ids=sorted({word.document_id for word in rows}),
+    )
+    return {"segment_ids": touched}, spec
+
+
+class SegmentAddBaselineParams(BaseModel):
+    """`segment-editor.edge.no-baseline`: Add Baseline on lines that have none."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    segment_ids: list[str] = Field(description="The lines to give a proposed baseline.")
+    expected_versions: dict[str, int] = Field(description="Each line's version as last read, {segment_id: version}; a changed line is refused.")
+
+
+def proposed_baseline(rect: list[float], direction: str | None) -> list[list[float]]:
+    """A baseline through a box in its line's direction, for a person to drag onto the ink: a quarter of the way up
+    from the bottom of a horizontal line (where letters stand), down the middle of a vertical one."""
+    x, y, w, h = rect
+    if direction in ("ttb", "btt"):
+        top, bottom = [x + w / 2, y], [x + w / 2, y + h]
+        return [top, bottom] if direction == "ttb" else [bottom, top]
+    standing = y + h * 0.75
+    left, right = [x, standing], [x + w, standing]
+    return [right, left] if direction == "rtl" else [left, right]
+
+
+@action(
+    "segment.add_baseline",
+    SegmentAddBaselineParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_many_via_previous_version,
+)
+def _action_add_baseline(db: Database, params: SegmentAddBaselineParams, ctx: ActionContext):
+    """Each named line with no baseline gets one proposed through its box in its direction, marked
+    `baseline: estimated`; a line that has one is left as it is. One action, one undo."""
+    from fichero_server.api.routes.document.segment_readings import (
+        _direction_of,
+        _lines_are_vertical,
+        direction_rungs,
+    )
+
+    if not params.segment_ids:
+        raise HTTPException(status_code=422, detail="segment_ids is empty: no line to give a baseline")
+    _refuse_repeated_ids(params.segment_ids)
+    rows = []
+    for segment_id in params.segment_ids:
+        _assert_not_provisional_http(segment_id, what="segment_id")
+        rows.append(_live_current_row(db, segment_id, _require_expected_version(params.expected_versions, segment_id)))
+    if len({(row.document_id, row.pass_id) for row in rows}) > 1:
+        raise _as_http_error(SegmentPassMismatchError("the lines are not all in the same pass and document"))
+    wanting = [row for row in rows if (not row.baseline or len(row.baseline) < 2) and row.anchor is not None and row.anchor.rect]
+    if not wanting:
+        raise HTTPException(status_code=422, detail="every line named has a baseline already, or no box to draw one in")
+    document = db.get(Document, rows[0].document_id)
+    shapes = [row for row in db.query(Segment, pass_id=rows[0].pass_id) if row.deleted_at is None]
+    vertical, rungs = _lines_are_vertical(shapes, document), direction_rungs(db, document)
+
+    audit_id = uuid.uuid4().hex
+    after_versions = []
+    for row in wanting:
+        counted = _counting_readings(db, row.id)
+        _rid, text = counted.get("transcription") or next(iter(counted.values()), (None, ""))
+        direction, _level = _direction_of(row, document, text, vertical, rungs)
+        snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        row.baseline = [[round(x, 6), round(y, 6)] for x, y in proposed_baseline(list(row.anchor.rect), direction)]
+        row.metadata = {**(row.metadata or {}), "baseline": "estimated"}
+        db.save(row)
+        after_versions.append({"segment_id": row.id, "version": row.version})
+
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=[row.id for row in wanting],
+        before=None,
+        after={"versions": after_versions},
+        emit_type="segment.updated",
+        segment_ids=[row.id for row in wanting],
+        pass_ids=[rows[0].pass_id],
+        document_ids=[rows[0].document_id],
+    )
+    return {"segment_ids": [row.id for row in wanting], "versions": after_versions}, spec
 
 
 # --- readings across a split and a merge (slice 8, #4934) ----------------
@@ -3065,7 +4609,7 @@ def estimated_cut(rect: list[float], fraction: float, direction: str | None) -> 
     return [[x, y, w * fraction, h], [x + w * fraction, y, w * (1 - fraction), h]]
 
 
-def _parts_cut_at(db: Database, original: Segment, offset: int) -> list["SegmentSplitPart"]:
+def _parts_cut_at(db: Database, original: Segment, offset: int) -> tuple[list["SegmentSplitPart"], bool]:
     """`at_offset` made into the two parts `segment.split` takes (#5154): reading spans at the
     character, boxes cut in proportion along the line's resolved direction. An estimate, because
     nothing records where a character sits on the image; `cut: estimated` says so on both rows."""
@@ -3087,7 +4631,12 @@ def _parts_cut_at(db: Database, original: Segment, offset: int) -> list["Segment
     direction, _level = _direction_of(
         original, document, text, _lines_are_vertical(shapes, document), direction_rungs(db, document)
     )
-    rects = estimated_cut(list(anchor.rect), offset / len(text), direction)
+    # `segment-editor.char-positions-kept`: where the recogniser placed the character, when it said; a right-to-left
+    # line keeps the proportional cut, because its positions run along the baseline as drawn, not as read.
+    positions = _reading_positions(db, _rid) if direction != "rtl" else None
+    measured = positions is not None and len(positions) == len(text)
+    fraction = positions[offset] if measured else offset / len(text)
+    rects = estimated_cut(list(anchor.rect), fraction, direction)
     return [
         SegmentSplitPart(
             anchor=SourceAnchor(
@@ -3098,13 +4647,13 @@ def _parts_cut_at(db: Database, original: Segment, offset: int) -> list["Segment
             reading_span=span,
         )
         for rect, span in zip(rects, ([0, offset], [offset, len(text)]))
-    ]
+    ], measured
 
 
 class SegmentSplitParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    segment_id: str = Field(description='The segment to split.')
+    segment_id: Optional[str] = Field(default=None, description='The segment to split (not with cut_path).')
     parts: list[SegmentSplitPart] = Field(default=[], description='The parts to split it into, each with its own anchor (or give at_offset).')
     #: Return in the Reader (#5154): split at this character of the line's counting reading,
     #: INSTEAD of giving `parts`. Nothing knows where a character sits on the image, so the box is
@@ -3116,7 +4665,36 @@ class SegmentSplitParams(BaseModel):
     #: the new parts are brand-new rows with nothing to compare yet, so
     #: only the one EXISTING id needs a token, the same shape
     #: `segment.update` already takes.
-    expected_version: int = Field(description="The segment's version as last read; a changed segment is refused.")
+    expected_version: Optional[int] = Field(
+        default=None, description="The segment's version as last read; a changed segment is refused (not with cut_path)."
+    )
+    #: The Knife (`segment-editor.split-knife`): a stroke, points in the fractions of the page the lines are
+    #: stored in, INSTEAD of `segment_id` and `parts`. Every line named in `expected_versions` whose baseline the
+    #: stroke crosses is cut there, its outline along the stroke; a line it does not cross is left alone and
+    #: named in the answer. One stroke over many lines is one action, one undo.
+    cut_path: Optional[list[list[float]]] = Field(
+        default=None, description="A knife stroke: split every named line whose baseline it crosses, at the crossings."
+    )
+    expected_versions: dict[str, int] = Field(
+        default={}, description="With cut_path: the lines the stroke may cross, {segment_id: version as last read}."
+    )
+
+
+def _unsplit_params(split: dict) -> dict:
+    """One split's record (`_split_one`) made into what `unsplit` takes to put it back."""
+    new_segment_ids = split.get("new_segment_ids", [])
+    current_versions = split["versions"]
+    return {
+        "segment_id": split["kept_id"], "version": split["pre_split_version"],
+        "expected_version": current_versions.get(split["kept_id"]),
+        "new_segment_ids": new_segment_ids,
+        "expected_versions": {
+            new_id: current_versions[new_id] for new_id in new_segment_ids if new_id in current_versions
+        },
+        "representation_ids": split.get("representation_ids", []),
+        "moved_children": split.get("moved_children", {}),
+        **({"kept_metadata": split["kept_metadata"]} if split.get("kept_metadata") is not None else {}),
+    }
 
 
 def _invert_split(before, after, ctx: ActionContext):
@@ -3128,6 +4706,9 @@ def _invert_split(before, after, ctx: ActionContext):
     `after` -- always fresh, whichever lap it is."""
     if not after:
         return None
+    if after.get("splits"):
+        # A knife stroke: every line it cut goes back in one step.
+        return ("segment.unsplit_many", {"splits": [_unsplit_params(split) for split in after["splits"]]})
     segment_id = after.get("kept_id")
     pre_split_version = after.get("pre_split_version")
     current_versions = after.get("versions")
@@ -3144,6 +4725,7 @@ def _invert_split(before, after, ctx: ActionContext):
                 new_id: current_versions[new_id] for new_id in new_segment_ids if new_id in current_versions
             },
             "representation_ids": after.get("representation_ids", []),
+            **({"kept_metadata": after["kept_metadata"]} if after.get("kept_metadata") is not None else {}),
         },
     )
 
@@ -3165,15 +4747,22 @@ def _invert_split(before, after, ctx: ActionContext):
     redo_via_own_invert=True,
 )
 def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
+    if params.cut_path is not None:
+        return _knife_split(db, params, ctx)
+    if params.segment_id is None or params.expected_version is None:
+        raise HTTPException(status_code=422, detail="split needs segment_id and expected_version, or a cut_path")
     _assert_not_provisional_http(params.segment_id, what="segment_id")
     original = db.get(Segment, params.segment_id)
     if not original:
         raise HTTPException(status_code=404, detail=f"Segment not found: {params.segment_id}")
     estimated = params.at_offset is not None
+    measured = False
     if estimated:
         if params.parts:
             raise HTTPException(status_code=422, detail="give parts or at_offset, not both")
-        params = params.model_copy(update={"parts": _parts_cut_at(db, original, params.at_offset)})
+        parts, measured = _parts_cut_at(db, original, params.at_offset)
+        params = params.model_copy(update={"parts": parts})
+        estimated = not measured
     if len(params.parts) < 2:
         raise HTTPException(status_code=422, detail="split needs two or more parts")
     reason = segment_liveness_reason(db, params.segment_id)
@@ -3210,6 +4799,57 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
     )
 
     audit_id = uuid.uuid4().hex
+    split = _split_one(
+        db, original, params.parts, estimated=estimated, readings_before_split=readings_before_split,
+        ctx=ctx, audit_id=audit_id, measured=measured,
+    )
+    new_ids = split["new_segment_ids"]
+    split_representation_ids = split["representation_ids"]
+    pre_split_version = split["pre_split_version"]
+    forwarding_id = split["forwarding_id"]
+
+    change_spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=[params.segment_id, *new_ids],
+        before=None,
+        after={
+            "kept_id": params.segment_id, "new_segment_ids": new_ids,
+            "forwarding_id": forwarding_id, "pre_split_version": pre_split_version,
+            # #4957 follow-up 1: every touched id's version as THIS call
+            # left it -- the kept id (bumped) and every new part (starts
+            # at 1) -- so `_invert_split`/`_refresh_replay_expected_versions`
+            # always have a live token to hand `unsplit`.
+            "versions": split["versions"],
+            # Slice 8 (#4934): the readings THIS split added, so its inverse
+            # retracts exactly those and nothing else.
+            "representation_ids": split_representation_ids,
+            # The kept line's metadata before its cut mark, which a version snapshot does not carry.
+            **({"kept_metadata": split["kept_metadata"]} if split.get("kept_metadata") is not None else {}),
+        },
+        emit_type="segment.split",
+        segment_ids=[params.segment_id, *new_ids],
+        pass_ids=[original.pass_id],
+        document_ids=[original.document_id],
+    )
+    return (
+        {
+            "kept_id": params.segment_id, "new_segment_ids": new_ids,
+            "forwarding_id": forwarding_id,
+            "representation_ids": split_representation_ids,
+        },
+        change_spec,
+    )
+
+
+def _split_one(
+    db: Database, original: Segment, parts: list[SegmentSplitPart], *, estimated: bool,
+    readings_before_split: dict[str, tuple[str, str]], ctx: ActionContext, audit_id: str,
+    children_by_part: list[list[Segment]] | None = None, measured: bool = False,
+) -> dict:
+    """One line split into `parts`, the first kept on the line's own id, under `audit_id`; the record its
+    undo needs. Shared by a split at given parts and a knife stroke over many lines. `children_by_part`, one list
+    per part, moves the line's words onto the part they fall in (`segment-editor.edge.knife-through-words`)."""
     pre_split_version = original.version
     # #4923: every action that changes a segment writes the version
     # snapshot (preimage) and bumps `Segment.version` -- named explicitly
@@ -3218,9 +4858,13 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
     # carries no geometry, only this version number.
     snapshot_segment_version(db, original, deleted=False, actor=ctx.actor, audit_id=audit_id)
 
-    first_part, *rest_parts = params.parts
-    if estimated:
-        original.metadata = {**(original.metadata or {}), "cut": "estimated"}
+    first_part, *rest_parts = parts
+    # How the cut was placed: in proportion (`estimated`), or at the recogniser's own character position (`measured`).
+    cut_mark = "estimated" if estimated else ("measured" if measured else None)
+    # A version snapshot carries no metadata: what the line had before the mark goes in the undo's record.
+    kept_metadata = dict(original.metadata or {}) if cut_mark else None
+    if cut_mark:
+        original.metadata = {**(original.metadata or {}), "cut": cut_mark}
     original.anchor = first_part.anchor
     original.baseline = first_part.baseline
     bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(original.anchor)
@@ -3250,8 +4894,8 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
         )
         if isinstance(original_box_index, int):
             row.metadata = {**row.metadata, "box_index": original_box_index}
-        if estimated:
-            row.metadata = {**row.metadata, "cut": "estimated"}
+        if cut_mark:
+            row.metadata = {**row.metadata, "cut": cut_mark}
         new_rows.append(row)
         new_ids.append(row.id)
     if new_rows:
@@ -3259,14 +4903,22 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
         # The parts follow the line they were cut from in every order that holds it; unsplit takes them out.
         from fichero_server.api.routes.document.reading_orders import place_after
 
-        place_after(db, params.segment_id, new_ids)
+        place_after(db, original.id, new_ids)
+
+    moved_children: dict[str, int] = {}
+    for part_id, children in zip(new_ids, (children_by_part or [])[1:]):
+        for child in children:
+            snapshot_segment_version(db, child, deleted=False, actor=ctx.actor, audit_id=audit_id)
+            child.parent_segment_id = part_id
+            db.save(child)
+            moved_children[child.id] = child.version
 
     # Slice 8 (#4934): each part that named a stretch gets its own reading,
-    # derived from the one that counted. The kept part is `params.segment_id`
+    # derived from the one that counted. The kept part is `original.id`
     # and the new parts are `new_ids`, in the order the caller gave them.
-    part_ids = [params.segment_id, *new_ids]
+    part_ids = [original.id, *new_ids]
     split_representation_ids: list[str] = []
-    for part, part_id in zip(params.parts, part_ids):
+    for part, part_id in zip(parts, part_ids):
         if part.reading_span is None:
             continue
         start, end = part.reading_span
@@ -3291,49 +4943,189 @@ def _action_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
 
     forwarding = SegmentForwarding(
         document_id=original.document_id,
-        old_segment_id=params.segment_id,
+        old_segment_id=original.id,
         kind="split",
         # The original id "stays on one part" -- included here so a caller
         # resolving the pre-split id sees every resulting id, including its
         # own (`resolve_segment`/`_forwarding_walk` treat a self-reference
         # as live, never as a hop).
-        new_segment_ids=[params.segment_id, *new_ids],
+        new_segment_ids=[original.id, *new_ids],
         actor=ctx.actor,
         audit_id=audit_id,
         sequence=db.next_forwarding_sequence(),
     )
     db.save(forwarding)
+    return {
+        "kept_id": original.id, "new_segment_ids": new_ids, "forwarding_id": forwarding.id,
+        "pre_split_version": pre_split_version,
+        "versions": {original.id: original.version, **{new_id: 1 for new_id in new_ids}},
+        "representation_ids": split_representation_ids,
+        "moved_children": moved_children,
+        **({"kept_metadata": kept_metadata} if kept_metadata is not None else {}),
+    }
 
+
+def _reading_positions(db: Database, representation_id: str | None) -> list[float] | None:
+    """The recogniser's character positions on a reading, 0 to 1 along the line, when it gave them."""
+    if representation_id is None:
+        return None
+    row = db.get(ContentRepresentation, representation_id)
+    return row.char_positions if row is not None else None
+
+
+def _knife_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
+    """`segment-editor.split-knife`: every named line whose baseline the stroke crosses is split at each crossing,
+    its outline cut along the stroke and each part given its stretch of baseline; the reading is cut at the
+    character nearest the crossing when positions are known, else in proportion and marked `cut: estimated`.
+    A line the stroke does not cross is left alone and named in the answer. All lines in one action, one undo."""
+    from fichero_server.api.routes.document.segment_readings import (
+        _direction_of,
+        _lines_are_vertical,
+        direction_rungs,
+    )
+    from fichero_server.media import line_cut, line_join
+
+    if params.parts or params.at_offset is not None or params.segment_id is not None:
+        raise HTTPException(status_code=422, detail="give a cut_path alone: not with segment_id, parts or at_offset")
+    if len(params.cut_path) < 2 or any(len(point) < 2 for point in params.cut_path):
+        raise HTTPException(status_code=422, detail="cut_path needs two or more [x, y] points")
+    if not params.expected_versions:
+        raise HTTPException(status_code=422, detail="expected_versions is empty: name the lines the stroke may cross")
+    stroke = [[float(point[0]), float(point[1])] for point in params.cut_path]
+    rows = []
+    for segment_id, version in params.expected_versions.items():
+        _assert_not_provisional_http(segment_id, what="segment_id")
+        reason = segment_liveness_reason(db, segment_id)
+        if reason is not None:
+            raise _as_http_error(SegmentNotLive(segment_id, reason))
+        rows.append(_live_current_row(db, segment_id, version))
+    if len({(row.document_id, row.pass_id) for row in rows}) > 1:
+        raise _as_http_error(SegmentPassMismatchError("the lines under the stroke are not all in the same pass and document"))
+
+    document = db.get(Document, rows[0].document_id)
+    shapes = [row for row in db.query(Segment, pass_id=rows[0].pass_id) if row.deleted_at is None]
+    vertical, rungs = _lines_are_vertical(shapes, document), direction_rungs(db, document)
+    planned: list[tuple[Segment, list[SegmentSplitPart], bool, dict, list[list[Segment]]]] = []
+    left_alone: list[dict] = []
+    for row in rows:
+        if not row.baseline or len(row.baseline) < 2:
+            # `segment-editor.edge.no-baseline`: said, never guessed around.
+            left_alone.append({"segment_id": row.id, "reason": "no-baseline"})
+            continue
+        if row.anchor is None or row.anchor.rendition_id:
+            left_alone.append({"segment_id": row.id, "reason": "another-image"})
+            continue
+        counted = _counting_readings(db, row.id)
+        source_id, text = counted.get("transcription") or next(iter(counted.values()), (None, ""))
+        direction, _level = _direction_of(row, document, text, vertical, rungs)
+        baseline = line_cut.reading_baseline(row.baseline, direction)
+        cuts = line_cut.crossings(baseline, stroke)
+        if not cuts:
+            left_alone.append({"segment_id": row.id, "reason": "grazed"})
+            continue
+        pieces = line_cut.baseline_pieces(baseline, cuts)
+        polygons = line_cut.cut_outline(line_join.outline_of(row.anchor), pieces, stroke)
+        if polygons is None:
+            left_alone.append({"segment_id": row.id, "reason": "grazed"})
+            continue
+        offsets, estimated = line_cut.reading_offsets(cuts, len(text), _reading_positions(db, source_id))
+        bounds = [0, *offsets, len(text)] if offsets else None
+        parts = []
+        for index, (polygon, piece) in enumerate(zip(polygons, pieces)):
+            x0, y0, x1, y1 = line_join.bounds(polygon)
+            parts.append(SegmentSplitPart(
+                anchor=row.anchor.model_copy(update={
+                    "polygon": polygon, "rect": [x0, y0, x1 - x0, y1 - y0], "shapes": None,
+                }),
+                baseline=piece,
+                reading_span=[bounds[index], bounds[index + 1]] if bounds else None,
+            ))
+        # `segment-editor.edge.knife-through-words`: each word goes with the part its centre falls in.
+        children_by_part: list[list[Segment]] = [[] for _ in polygons]
+        for child in shapes:
+            if child.parent_segment_id != row.id or child.id in params.expected_versions:
+                continue
+            child_outline = line_join.outline_of(child.anchor)
+            if child_outline is None:
+                children_by_part[0].append(child)
+                continue
+            x0, y0, x1, y1 = line_join.bounds(child_outline)
+            children_by_part[line_cut.part_holding([(x0 + x1) / 2, (y0 + y1) / 2], polygons)].append(child)
+        planned.append((
+            row, parts, bool(text) and estimated and bounds is not None, counted if bounds else {}, children_by_part,
+        ))
+    if not planned:
+        raise HTTPException(
+            status_code=422,
+            detail={"message": "the stroke crosses no named line's baseline", "left_alone": left_alone},
+        )
+
+    audit_id = uuid.uuid4().hex
+    splits = [
+        _split_one(
+            db, row, parts, estimated=estimated, readings_before_split=readings, ctx=ctx, audit_id=audit_id,
+            children_by_part=children,
+        )
+        for row, parts, estimated, readings, children in planned
+    ]
+    for split in splits:
+        kept_before = _divide_piece_spans(db, split, stroke)
+        if kept_before is not None and split.get("kept_metadata") is None:
+            split["kept_metadata"] = kept_before
+    touched = [segment_id for split in splits for segment_id in (split["kept_id"], *split["new_segment_ids"])]
     change_spec = ChangeSpec(
         audit_id=audit_id,
         domains=["segment"],
-        target_ids=[params.segment_id, *new_ids],
+        target_ids=touched,
         before=None,
         after={
-            "kept_id": params.segment_id, "new_segment_ids": new_ids,
-            "forwarding_id": forwarding.id, "pre_split_version": pre_split_version,
-            # #4957 follow-up 1: every touched id's version as THIS call
-            # left it -- the kept id (bumped) and every new part (starts
-            # at 1) -- so `_invert_split`/`_refresh_replay_expected_versions`
-            # always have a live token to hand `unsplit`.
-            "versions": {params.segment_id: original.version, **{new_id: 1 for new_id in new_ids}},
-            # Slice 8 (#4934): the readings THIS split added, so its inverse
-            # retracts exactly those and nothing else.
-            "representation_ids": split_representation_ids,
+            "splits": splits,
+            "versions": {key: value for split in splits for key, value in split["versions"].items()},
         },
         emit_type="segment.split",
-        segment_ids=[params.segment_id, *new_ids],
-        pass_ids=[original.pass_id],
-        document_ids=[original.document_id],
+        segment_ids=touched,
+        pass_ids=[rows[0].pass_id],
+        document_ids=[rows[0].document_id],
     )
-    return (
-        {
-            "kept_id": params.segment_id, "new_segment_ids": new_ids,
-            "forwarding_id": forwarding.id,
-            "representation_ids": split_representation_ids,
-        },
-        change_spec,
-    )
+    answer = {
+        "splits": [
+            {key: split[key] for key in ("kept_id", "new_segment_ids", "representation_ids", "moved_children")}
+            for split in splits
+        ],
+        "left_alone": left_alone,
+    }
+    return answer, change_spec
+
+
+def _divide_piece_spans(db: Database, split: dict, stroke: list[list[float]]) -> dict[str, Any] | None:
+    """A word (or character) split by a cut a person drew (`segment-editor.cut-marks-editable`): its stretch of the line's
+    reading divided between the pieces where a character begins nearest each cut, from the line reading's positions,
+    and every piece marked a person's cut (confidence 1). A piece with no stretch, or a line with no positions, keeps
+    what it had: nothing is guessed. Answers the kept piece's metadata before, for the undo; None when nothing changed."""
+    from fichero_server.media import line_cut
+
+    kept = db.get(Segment, split["kept_id"])
+    meta = (kept.metadata or {}) if kept is not None else {}
+    span, source_id = meta.get("reading_span"), meta.get("cut_from_representation_id")
+    line = db.get(Segment, kept.parent_segment_id) if kept is not None and kept.parent_segment_id else None
+    reading = db.get(ContentRepresentation, source_id) if source_id else None
+    positions = reading.char_positions if reading is not None else None
+    if not span or line is None or not line.baseline or positions is None or len(positions) != len(reading.content):
+        return None
+    start, end = span
+    cuts = line_cut.crossings(line.baseline, stroke)
+    inside = list(range(start + 1, end))
+    boundaries = sorted({min(inside, key=lambda k: abs(positions[k] - at)) for at in cuts} if inside else set())
+    pieces = [kept, *(db.get(Segment, sid) for sid in split["new_segment_ids"])]
+    if len(boundaries) != len(pieces) - 1:
+        return None
+    kept_before = dict(meta)
+    edges = [start, *boundaries, end]
+    for piece, begin, stop in zip(pieces, edges, edges[1:]):
+        piece.metadata = {**(piece.metadata or {}), "reading_span": [begin, stop], "cut_source": "person",
+                          "cut_confidence": 1.0, "cut_from_representation_id": source_id}
+        db.save(piece)
+    return kept_before
 
 
 class SegmentUnsplitParams(BaseModel):
@@ -3361,10 +5153,81 @@ class SegmentUnsplitParams(BaseModel):
     #: Slice 8 (#4934): the readings the split ADDED, to retract. Named by the
     #: acting row's own `after`, never replayed from an earlier call's params.
     representation_ids: list[str] = []
+    #: `segment-editor.edge.knife-through-words`: the words a knife moved onto a new part, {id: version as the
+    #: split left it}; put back under the kept line before the parts go.
+    moved_children: dict[str, int] = {}
+    #: The kept piece's metadata before a cut a person drew divided its stretch (`_divide_piece_spans`), put back:
+    #: a version snapshot does not carry metadata.
+    kept_metadata: Optional[dict[str, Any]] = None
 
 
 @action("segment.unsplit", SegmentUnsplitParams, domains=["segment"], undoable=False)
 def _action_unsplit(db: Database, params: SegmentUnsplitParams, ctx: ActionContext):
+    checked = _unsplit_checked(db, params)
+    audit_id = uuid.uuid4().hex
+    row, deleted_ids = _unsplit_apply(db, params, *checked, ctx=ctx, audit_id=audit_id)
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=[params.segment_id, *deleted_ids],
+        before=None,
+        # #4957 follow-up 1: singular `version` (not `versions`), matching
+        # `segment.update`/`.restore_version`'s own shared convention --
+        # `_refresh_replay_expected_versions` reads THIS key to freshen
+        # `segment.split`'s own singular `expected_version` when split is
+        # replayed for the FIRST redo (`unsplit` has no `invert` of its
+        # own, so that redo always takes the replay path, never own-invert).
+        after={"segment_id": params.segment_id, "version": row.version},
+        emit_type="segment.split",
+        segment_ids=[params.segment_id, *deleted_ids],
+        pass_ids=[row.pass_id],
+        document_ids=[row.document_id],
+    )
+    return {"segment_id": params.segment_id}, spec
+
+
+class SegmentUnsplitManyParams(BaseModel):
+    """Internal: a knife stroke's inverse only -- one `unsplit` per line the stroke cut, in one step."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    splits: list[SegmentUnsplitParams]
+
+
+@action("segment.unsplit_many", SegmentUnsplitManyParams, domains=["segment"], undoable=False)
+def _action_unsplit_many(db: Database, params: SegmentUnsplitManyParams, ctx: ActionContext):
+    """Every line a knife stroke cut put back. All of them are checked before any is touched, so a part
+    somebody has since edited refuses the whole undo rather than leaving half the stroke undone."""
+    if not params.splits:
+        raise HTTPException(status_code=422, detail="splits is empty: nothing to put back")
+    checked = [_unsplit_checked(db, split) for split in params.splits]
+    audit_id = uuid.uuid4().hex
+    touched: list[str] = []
+    versions: dict[str, int] = {}
+    rows = []
+    for split, found in zip(params.splits, checked):
+        row, deleted_ids = _unsplit_apply(db, split, *found, ctx=ctx, audit_id=audit_id)
+        touched.extend([split.segment_id, *deleted_ids])
+        versions[split.segment_id] = row.version
+        rows.append(row)
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=touched,
+        before=None,
+        # `versions`, so a redo's replay of the stroke compares against the lines as this undo left them.
+        after={"versions": versions},
+        emit_type="segment.split",
+        segment_ids=touched,
+        pass_ids=sorted({row.pass_id for row in rows}),
+        document_ids=sorted({row.document_id for row in rows}),
+    )
+    return {"segment_ids": list(versions)}, spec
+
+
+def _unsplit_checked(db: Database, params: SegmentUnsplitParams) -> tuple[Segment, Any, dict[str, Segment]]:
+    """Every refusal `unsplit` makes, before anything is written: the kept row, the version to restore it
+    to, and the live parts to fold back."""
     _assert_not_provisional_http(params.segment_id, what="segment_id")
     row = db.get(Segment, params.segment_id)
     if not row:
@@ -3402,8 +5265,22 @@ def _action_unsplit(db: Database, params: SegmentUnsplitParams, ctx: ActionConte
                 _stale_changed_fields(db, new_id, expected, new_row),
             ))
         live_new_rows[new_id] = new_row
+    for child_id, expected in params.moved_children.items():
+        child = db.get(Segment, child_id)
+        if child is None or child.deleted_at is not None:
+            raise _as_http_error(SegmentPartGone(child_id))
+        if child.version != expected:
+            raise _as_http_error(SegmentStale(
+                child_id, expected, child.version, _stale_changed_fields(db, child_id, expected, child),
+            ))
+    return row, target, live_new_rows
 
-    audit_id = uuid.uuid4().hex
+
+def _unsplit_apply(
+    db: Database, params: SegmentUnsplitParams, row: Segment, target: Any, live_new_rows: dict[str, Segment],
+    *, ctx: ActionContext, audit_id: str,
+) -> tuple[Segment, list[str]]:
+    """One split put back under `audit_id`: its readings retracted, its parts folded into the kept row."""
     now = utc_now()
 
     # Slice 8 (#4934): the readings the split ADDED stop counting again. Done
@@ -3411,6 +5288,12 @@ def _action_unsplit(db: Database, params: SegmentUnsplitParams, ctx: ActionConte
     # transaction's worth of writes in one readable place; the order does not
     # matter, because a retraction touches the reading and nothing else.
     _retract_readings(db, params.representation_ids)
+    # The words the knife moved go back under the kept line before their parts are deleted.
+    for child_id in params.moved_children:
+        child = db.get(Segment, child_id)
+        snapshot_segment_version(db, child, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        child.parent_segment_id = params.segment_id
+        db.save(child)
 
     # SOFT delete, with a forwarding note for each part (#4957 owed item).
     # This was the ONE hard delete left in the segment store, and it took
@@ -3467,6 +5350,8 @@ def _action_unsplit(db: Database, params: SegmentUnsplitParams, ctx: ActionConte
     row.parent_segment_id = target.parent_segment_id
     row.is_furniture = target.is_furniture
     row.mark_state = target.mark_state
+    if params.kept_metadata is not None:
+        row.metadata = params.kept_metadata
     bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(row.anchor)
     row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
     row.doc_kind = f"{row.document_id}:{row.kind}"
@@ -3480,24 +5365,7 @@ def _action_unsplit(db: Database, params: SegmentUnsplitParams, ctx: ActionConte
         audit_id=audit_id,
         sequence=db.next_forwarding_sequence(),
     ))
-    spec = ChangeSpec(
-        audit_id=audit_id,
-        domains=["segment"],
-        target_ids=[params.segment_id, *deleted_ids],
-        before=None,
-        # #4957 follow-up 1: singular `version` (not `versions`), matching
-        # `segment.update`/`.restore_version`'s own shared convention --
-        # `_refresh_replay_expected_versions` reads THIS key to freshen
-        # `segment.split`'s own singular `expected_version` when split is
-        # replayed for the FIRST redo (`unsplit` has no `invert` of its
-        # own, so that redo always takes the replay path, never own-invert).
-        after={"segment_id": params.segment_id, "version": row.version},
-        emit_type="segment.split",
-        segment_ids=[params.segment_id, *deleted_ids],
-        pass_ids=[row.pass_id],
-        document_ids=[row.document_id],
-    )
-    return {"segment_id": params.segment_id}, spec
+    return row, deleted_ids
 
 
 # --- carry / uncarry -----------------------------------------------------
@@ -4019,6 +5887,42 @@ async def reject_match(
     )
     result = registry.invoke(db, "segment.match_reject", {"match_id": match_id}, ctx)
     return result.result
+
+
+@router.post("/reparent")
+async def reparent_segments(
+    params: SegmentReparentParams,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(default=None, alias="X-Fichero-Origin-Window"),
+    actor: str = Depends(request_actor),
+) -> dict[str, Any]:
+    """`POST /api/segments/reparent` — move segments under another segment as one audited action and one undo step."""
+    ctx = _resolve_action_ctx(
+        actor=actor, library_path=x_fichero_library_path,
+        origin_window=x_fichero_origin_window, db=db,
+    )
+    try:
+        result = registry.invoke(db, "segment.reparent", params.model_dump(mode="json"), ctx)
+    except Exception as exc:
+        raise _as_http_error(exc) from exc
+    return {**result.result, "audit_id": result.audit_id}
+
+
+@router.post("/regenerate-outline")
+async def regenerate_outline(
+    params: SegmentRegenerateOutlineParams,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(default=None, alias="X-Fichero-Origin-Window"),
+    actor: str = Depends(request_actor),
+) -> dict[str, Any]:
+    ctx = _resolve_action_ctx(
+        actor=actor, library_path=x_fichero_library_path,
+        origin_window=x_fichero_origin_window, db=db,
+    )
+    result = registry.invoke(db, "segment.regenerate_outline", params.model_dump(mode="json"), ctx)
+    return {**result.result, "audit_id": result.audit_id}
 
 
 @router.post("/merge")

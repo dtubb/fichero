@@ -1,0 +1,1652 @@
+"""The check tool: argv lists with a cwd and a timeout each, typed results. (dev-workflows.tool.check, #6116.)"""
+
+from __future__ import annotations
+
+import os
+import shlex
+import sys
+from pathlib import Path
+
+import pytest
+
+from fichero_server.workflows import check_tool as ct
+
+REPO = Path(__file__).resolve().parents[4]
+
+KEYS = {"name", "argv", "exit_code", "ok", "timed_out", "seconds", "stdout_tail", "stderr_tail"}
+
+
+@pytest.fixture(autouse=True)
+def _own_journal(tmp_path_factory, monkeypatch):
+    """Every test here writes its rows (an activity row, a red-on-base evidence row) into its own tmp journal, never the owner's, and
+    outside tmp_path, which many tests here use as the git repo under test."""
+    from fichero_builder import journal
+    monkeypatch.setattr(journal, "STATE", tmp_path_factory.mktemp("journal-state"))
+
+
+def test_a_green_command_is_a_typed_result(tmp_path):
+    r = ct.run_command("hello", [sys.executable, "-c", "print('hi')"], tmp_path, 20)
+    assert set(r) == KEYS and r["ok"] and r["exit_code"] == 0 and r["stdout_tail"] == "hi" and not r["timed_out"]
+
+
+def test_a_red_command_keeps_its_exit_code_and_stderr_tail(tmp_path):
+    r = ct.run_command("bad", [sys.executable, "-c", "import sys; sys.stderr.write('boom\\n'); sys.exit(4)"], tmp_path, 20)
+    assert not r["ok"] and r["exit_code"] == 4 and r["stderr_tail"] == "boom"
+
+
+def test_a_command_past_its_timeout_is_timed_out_not_ok(tmp_path):
+    r = ct.run_command("slow", [sys.executable, "-c", "import time; time.sleep(30)"], tmp_path, 1)
+    assert r["timed_out"] and not r["ok"] and r["exit_code"] is None and r["seconds"] < 10
+
+
+def test_a_missing_program_is_a_red_result_not_a_raise(tmp_path):
+    r = ct.run_command("nope", ["/no/such/program"], tmp_path, 5)
+    assert not r["ok"] and r["exit_code"] is None and "No such file" in r["stderr_tail"]
+
+
+def test_a_red_pytest_tail_keeps_the_failure_when_warnings_follow_it():
+    """A red rung lost its failure text to 40 lines of warnings after it (chunk A's red, 2026-11-01)."""
+    text = "\n".join(["collected", "=" * 20 + " FAILURES " + "=" * 20, "_ test_x _", "    def test_x():", "E   AssertionError: the real reason", "t.py:3: AssertionError",
+                      "=" * 20 + " warnings summary " + "=" * 20, *[f"warning {i}" for i in range(200)], "=" * 20 + " short test summary info " + "=" * 20,
+                      "FAILED t.py::test_x", "1 failed, 14 passed"])
+    kept = ct.tail(text)
+    assert "E   AssertionError: the real reason" in kept and "1 failed, 14 passed" in kept
+    assert len(kept) <= 4100 and len(kept.splitlines()) <= 41
+    plain = "\n".join(f"line {i}" for i in range(100))
+    assert ct.tail(plain).splitlines()[0] == "line 60", "no failure section: the plain last lines"
+
+
+def test_the_tail_keeps_the_first_exception_when_a_long_run_buries_it_and_there_is_no_failure_section():
+    """2026-11-02: lane-sharing's red-on-base showed 'errors' but the importlib stat exception was above the 40-line window."""
+    text = "\n".join(["Traceback (most recent call last):", "  File x", "OSError: [Errno 5] Input/output error: '/t/x.py'"] + [f"noise {i}" for i in range(200)] + ["2 errors in 5s"])
+    out = ct.tail(text)
+    assert "OSError: [Errno 5]" in out and "2 errors in 5s" in out and len(out) <= 4000
+
+
+def test_a_load_flake_only_red_green_run_is_rerun_once_alone_and_a_real_failure_never_is(tmp_path, monkeypatch):
+    """Manager 2026-11-02: a teardown/import OSError or a DuckDB CHECKPOINT TransactionException with no FAILED test is re-run once
+    and logged; a FAILED test, or a second flake, stands."""
+    flake = {"ok": False, "exit_code": 1, "seconds": 1, "timed_out": False, "argv": [], "stderr_tail": "",
+             "stdout_tail": "E  _duckdb.TransactionException: TransactionContext Error: Cannot CHECKPOINT: other write\nERROR t.py::test_x\n1 error"}
+    green = {**flake, "ok": True, "exit_code": 0, "stdout_tail": "3 passed"}
+    failed = {**flake, "stdout_tail": "FAILED t.py::test_y - assert 1 == 2\nERROR t.py::test_x\nOSError"}
+    calls = []
+    monkeypatch.setattr(ct.journal, "STATE", tmp_path / "state")  # its retry rows go to a throwaway journal, never the owner's
+    monkeypatch.setenv(ct.journal.HEAVY_ENV, "1")  # green_runs takes the machine's heavy lock; this test must not queue behind a live check
+    for first, second, want_ok, want_calls in ((flake, green, True, 2), (failed, green, False, 1), (flake, flake, False, 2)):
+        seq, calls[:] = iter([first, second]), []
+        monkeypatch.setattr(ct, "pytest_rung", lambda *a, **k: calls.append(1) or next(seq))
+        r = ct.green_runs(tmp_path, ["pkg/test_t.py"], (), ct.Config(), 5)
+        assert r["ok"] is want_ok and len(calls) == want_calls, (first["stdout_tail"], r)
+    assert [x["rung"] for x in ct.journal.read() if x.get("event") == "check" and x.get("state") == "retry"] == ["green-run", "green-run"]
+
+
+def test_a_cancel_marker_for_the_ladders_head_kills_the_running_command(tmp_path, monkeypatch):
+    """A `builder done` at a newer head writes cancel-<head9>; the ladder's running command (another process' loop) is killed
+    within seconds, not at its timeout."""
+    import time
+    monkeypatch.setattr(ct.journal, "STATE", tmp_path)
+    ct._KEY[0] = "check aaaaaaaaa..bbbbbbbbb"
+    try:
+        ct.cancel_file("bbbbbbbbb").write_text("ccccccccc")
+        t0 = time.time()
+        r = ct.run_command("pytest", ["sleep", "60"], tmp_path, 120, as_jail=False)
+    finally:
+        ct._KEY[0] = ""
+    assert time.time() - t0 < 10 and r["ok"] is False and "cancelled: superseded" in r["stderr_tail"], r
+
+
+def test_the_tail_is_bounded(tmp_path):
+    r = ct.run_command("long", [sys.executable, "-c", "print('x'*5000); print('\\n'.join(map(str, range(100))))"], tmp_path, 20)
+    assert len(r["stdout_tail"].splitlines()) <= 40 and len(r["stdout_tail"]) <= 4000
+
+
+def _repo(tmp_path, n_guards, bodies=None):
+    s = tmp_path / "scripts"
+    s.mkdir()
+    for i in range(n_guards):
+        (s / f"check_g{i}.py").write_text((bodies or {}).get(i, "pass\n"))
+    return tmp_path
+
+
+
+def test_a_guard_that_times_out_is_re_run_once_and_a_plain_red_never_is(tmp_path):  # manager 2026-11-03: load 35, ok then timeout
+    log = tmp_path / "runs.log"
+    once = f"import os, time\nopen({str(log)!r}, 'a').write('g0\\n')\nif not os.path.exists({str(tmp_path / 'slow')!r} + '.done'):\n    open({str(tmp_path / 'slow')!r} + '.done', 'w').close(); time.sleep(5)\n"
+    hang = f"import time\nopen({str(log)!r}, 'a').write('g1\\n')\ntime.sleep(5)\n"
+    red = f"open({str(log)!r}, 'a').write('g2\\n')\nraise SystemExit(1)\n"
+    root = _repo(tmp_path, 3, {0: once, 1: hang, 2: red})
+    r = ct.guards(root, ct.Config(guard_glob="scripts/check_*.py", guard_timeout_s=1))
+    by = {x["name"]: x for x in r["results"]}
+    assert by["check_g0"]["ok"] and by["check_g0"]["retried"], "slow once, green the second time: the second result stands"
+    assert not by["check_g1"]["ok"] and by["check_g1"]["timed_out"] and by["check_g1"]["retried"], "a real hang stays red"
+    assert not by["check_g2"]["ok"] and "retried" not in by["check_g2"]
+    assert sorted(log.read_text().split()) == ["g0", "g0", "g1", "g1", "g2"], "each timed-out guard ran twice, the plain red once"
+
+def test_guards_refuse_when_too_few_are_found(tmp_path):
+    root = _repo(tmp_path, 3)
+    r = ct.guards(root, ct.Config(guard_glob="scripts/check_*.py", min_guards=20))
+    assert r["ok"] is False and "fewer than 20" in r["reason"] and r["results"] == []
+
+
+def test_guards_run_each_one_skip_the_listed_and_name_the_red_one(tmp_path):
+    root = _repo(tmp_path, 21, {1: "raise SystemExit(2)\n", 2: "raise SystemExit(2)\n"})
+    r = ct.guards(root, ct.Config(guard_glob="scripts/check_*.py", min_guards=20, guard_skip=frozenset({"check_g2"})))
+    names = [x["name"] for x in r["results"]]
+    assert "check_g2" not in names and len(names) == 20
+    assert r["ok"] is False and [x["name"] for x in r["results"] if not x["ok"]] == ["check_g1"]
+
+
+def test_skipped_guards_do_not_count_toward_the_minimum(tmp_path):  # review-2 H10
+    root = _repo(tmp_path, 20)
+    r = ct.guards(root, ct.Config(guard_glob="scripts/check_*.py", min_guards=20, guard_skip=frozenset({"check_g2"})))
+    assert not r["ok"] and "blind" in r["reason"]
+
+
+def test_fichero_is_the_first_project_in_its_own_harness_toml():
+    cfg = ct.load(REPO)
+    assert {"check_coverage_ratchet", "check_docs_paths", "check_hang_ratchet"} <= cfg.guard_skip and len(cfg.guard_skip) == 16
+    assert cfg.min_guards == 20 and cfg.guard_glob == "scripts/check_*.py" and cfg.ready == ("scripts/lane_ready_check.sh", "--no-guards", "HEAD")
+    assert ct.load(REPO / "no-such-dir") == ct.Config()  # no harness.toml = no project rules, nothing hardcoded
+    assert cfg.max_commits == 100 == ct.Config().max_commits
+
+
+def test_the_ready_checks_commit_cap_is_max_commits_from_the_trees_harness_toml_default_100(tmp_path):
+    """2026-11-03: the cap was a hard-coded 60 in the pinned script, raised to 100 by hand when a reviewed batch passed it. It is
+    [check].max_commits of the harness.toml in the tree (the pinned copy's under the ladder), default 100."""
+    import shutil
+
+    repo = Path(__file__).resolve().parents[4]
+    w = tmp_path / "w"
+    (w / "scripts").mkdir(parents=True)
+    shutil.copy(repo / "scripts" / "lane_ready_check.sh", w / "scripts" / "lane_ready_check.sh")
+    env = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_AUTHOR_NAME": "C", "GIT_AUTHOR_EMAIL": "noreply@anthropic.com",
+           "GIT_COMMITTER_NAME": "C", "GIT_COMMITTER_EMAIL": "noreply@anthropic.com", "FICHERO_PYTHON_BIN": sys.executable}
+
+    def g(*a):
+        subprocess.run(["git", "-C", str(w), *a], check=True, capture_output=True, env=env)
+    g("init", "-q", "-b", "integration"), g("add", "."), g("commit", "-qm", "base #1234")
+    g("update-ref", "refs/remotes/origin/integration", "HEAD")
+    for i in range(3):
+        (w / f"n{i}.txt").write_text("x\n")
+        g("add", "."), g("commit", "-qm", f"docs: note {i} #1234")
+
+    def ready(toml):
+        (w / "harness.toml").write_text(toml)
+        return subprocess.run(["bash", "scripts/lane_ready_check.sh", "--no-guards", "HEAD"], cwd=w, capture_output=True, text=True, env=env).stdout
+    assert "3 commits ahead of origin/integration (cap 2)" in ready("[land]\nbranch = \"integration\"\n[check]\nmax_commits = 2  # a note\n")
+    assert "commits ahead" not in ready("[check]\nmax_commits = 3\n"), "at the cap is fine"
+    assert "commits ahead" not in ready("[check]\nready = []\n"), "no value: the default 100"
+    assert "(cap 2)" in ready("[other]\nmax_commits = 99\n[check]\nmax_commits = 2\n") and "commits ahead" not in ready("[other]\nmax_commits = 1\n"), "only the [check] table counts"
+
+
+def test_the_build_rung_never_resolves_packages_so_a_read_only_check_tree_builds():
+    """2026-11-01: a real Swift check failed with exit 74, xcodebuild wanting to write Package.resolved into the owner-made
+    read-only scratch tree. Package.resolved is tracked, so resolution is told to read it and write nothing."""
+    cfg = ct.load(REPO)
+    assert "-disableAutomaticPackageResolution" in cfg.build
+    assert cfg.build.index("-disableAutomaticPackageResolution") < cfg.build.index("build")
+
+
+def test_a_test_of_a_top_level_package_imports_it_from_the_tree_root_under_the_jailed_pytest(tmp_path):
+    """Manager 2026-11-02: pipeline/tests/conftest.py does `from pipeline import ...`; the runner (python -I, safe path, only
+    the python_path dirs) never ran a pipeline test. A file under a top-level package gets the tree root on the path."""
+    (tmp_path / "pkg" / "tests").mkdir(parents=True)
+    (tmp_path / "pkg" / "__init__.py").write_text("VALUE = 7\n")
+    (tmp_path / "pkg" / "tests" / "test_p.py").write_text("from pkg import VALUE\ndef test_p():\n    assert VALUE == 7\n")
+    (tmp_path / "plain").mkdir()
+    (tmp_path / "plain" / "test_q.py").write_text("def test_q():\n    import importlib.util as u\n    assert u.find_spec('pkg') is None\n")
+    assert ct.pytest_rung(tmp_path, [str(tmp_path / "pkg" / "tests" / "test_p.py")], ct.Config(), timeout_s=120)["ok"]
+    assert ct.pytest_rung(tmp_path, ["pkg/tests/test_p.py"], ct.Config(), timeout_s=120)["ok"], "the ladder names its files relative to the tree"
+    assert ct.pytest_rung(tmp_path, [str(tmp_path / "plain" / "test_q.py")], ct.Config(), timeout_s=120)["ok"], "no package, no root on the path"
+
+
+def test_pytest_runs_named_files_with_the_fixed_env(tmp_path):
+    (tmp_path / "test_a.py").write_text("import os\ndef test_a():\n    assert os.environ['FICHERO_FEATURE_TIER'] == 'dev'\n    assert os.environ['OMP_NUM_THREADS'] == '2'\n    assert 'PYTHONSAFEPATH' not in os.environ\n    assert os.environ['RUFF_NO_CACHE'] == 'true'\n")
+    cfg = ct.Config(test_env={"FICHERO_FEATURE_TIER": "dev", "OMP_NUM_THREADS": "2"})
+    r = ct.pytest_rung(tmp_path, ["test_a.py"], cfg, timeout_s=120)
+    assert r["ok"], r
+    assert "-I" in r["argv"], "safe path is python -I (it implies -P), never an env var a test's children inherit (2026-11-05)"
+
+
+def test_pytest_with_no_files_is_red(tmp_path):
+    assert ct.pytest_rung(tmp_path, [], ct.Config(), timeout_s=5)["ok"] is False
+
+
+def test_contract_current_is_skipped_unless_engine_source_changed(tmp_path):
+    assert ct.contract_current(tmp_path, ["docs/x.md"], ct.load(REPO)) == {"ok": True, "skipped": True, "results": []}
+
+
+# --- diff bound, failing run (red on base), the ladder (dev-workflows.tool.check) ---
+
+import subprocess  # noqa: E402
+import tempfile  # noqa: E402
+
+
+def _git_repo(tmp_path):
+    def g(*a):
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=tmp_path, check=True, capture_output=True)
+    g("init", "-q", "-b", "main")
+    (tmp_path / "mod.py").write_text("VALUE = 1\n")
+    g("add", "."), g("commit", "-q", "-m", "base")
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=tmp_path, capture_output=True, text=True).stdout.strip()
+    return g, base
+
+
+def test_diff_bound_trips_on_too_many_files_or_lines(tmp_path):
+    g, base = _git_repo(tmp_path)
+    (tmp_path / "a.py").write_text("x\n" * 30)
+    (tmp_path / "b.py").write_text("y\n")
+    g("add", "."), g("commit", "-q", "-m", "more")
+    assert ct.diff_bound(tmp_path, base, "HEAD", ct.Config(max_files=5, max_lines=100))["ok"]
+    r = ct.diff_bound(tmp_path, base, "HEAD", ct.Config(max_files=1, max_lines=100))
+    assert not r["ok"] and "2 files" in r["stderr_tail"]
+    assert not ct.diff_bound(tmp_path, base, "HEAD", ct.Config(max_files=5, max_lines=10))["ok"]
+
+
+# four real pytest runs in scratch trees: 214 s alone, past the suite's 300 s at load ~13 (manager 2026-11-04: the machine runs
+# 20-40 overnight and during verify-all), so the bound is the work's, not the suite's
+@pytest.mark.timeout(1800)
+def test_red_on_base_needs_a_test_that_fails_on_base_and_passes_on_head(tmp_path):
+    from fichero_builder import journal
+    g, base = _git_repo(tmp_path)
+    (tmp_path / "mod.py").write_text("VALUE = 2\n")
+    (tmp_path / "test_mod.py").write_text("import mod\ndef test_v():\n    assert mod.VALUE == 2\n")
+    (tmp_path / "test_proves_nothing.py").write_text("def test_t():\n    assert True\n")
+    g("add", "."), g("commit", "-q", "-m", "change")
+    assert ct.red_on_base(tmp_path, base, "HEAD", ["test_mod.py"], timeout_s=900)["ok"]
+    r = ct.red_on_base(tmp_path, base, "HEAD", ["test_proves_nothing.py"], timeout_s=900)
+    assert not r["ok"] and "NOT RED ON BASE" in r["stderr_tail"]
+    assert "base ran on here, tree " in r["stderr_tail"] and "1 passed" in r["stderr_tail"], "where and how the base ran (2026-11-06)"
+    (row,) = [x for x in journal.read() if x["event"] == "red-on-base-base"]
+    assert row["file"] == "test_proves_nothing.py" and row["runner"] == "here" and "1 passed" in row["stdout_tail"]
+    assert not ct.red_on_base(tmp_path, base, "HEAD", [], timeout_s=5)["ok"]
+
+
+def test_check_tool_runs_the_ladder(tmp_path):
+    """dev-workflows.tool.check: rungs in order, stops at the first red, every result typed."""
+    calls = []
+    rungs = [("one", lambda: calls.append(1) or {"ok": True, "results": []}),
+             ("two", lambda: calls.append(2) or {"ok": False, "results": []}),
+             ("three", lambda: calls.append(3) or {"ok": True, "results": []})]
+    r = ct.ladder(rungs)
+    assert calls == [1, 2] and r["ok"] is False and r["failed"] == "two" and [x["name"] for x in r["rungs"]] == ["one", "two"]
+    assert ct.ladder(rungs[:1])["ok"] is True
+
+
+
+def test_every_rung_row_carries_wall_time_and_load(monkeypatch):
+    """dev-workflows.tool.check: each rung row records its own wall time and the load average, also for rungs with no `seconds`."""
+    rows = []
+    monkeypatch.setattr(ct, "ACTIVITY", lambda **kw: rows.append(kw))
+    monkeypatch.setattr(ct.os, "getloadavg", lambda: (7.25, 0, 0))
+    ct.ladder([("guards", lambda: {"ok": True, "results": []})])
+    start, end = [r for r in rows if r.get("rung") == "guards"]
+    assert start["state"] == "rung-start" and start["load"] == 7.2
+    assert end["state"] == "rung" and end["seconds"] is None and end["load"] == 7.2 and end["wall_s"] >= 0
+
+def _project(tmp_path, extra="", check_extra=""):
+    """A throwaway project: its own harness.toml, one good guard, one skipped bad guard; plus a pinned clone of it."""
+    work = tmp_path / "work"
+    work.mkdir()
+    g, _ = _git_repo(work)
+    (work / "ci").mkdir()
+    (work / "ci" / "lint_ok.py").write_text("pass\n")
+    (work / "ci" / "lint_bad.py").write_text("raise SystemExit(7)\n")
+    (work / "pyproject.toml").write_text("[tool.pytest.ini_options]\n")  # the pinned pytest config a rules file must name
+    (work / "harness.toml").write_text(
+        '[check]\n' + check_extra + 'ready = ["python3", "-c", "print(1)"]\nguard_glob = "ci/lint_*.py"\nmin_guards = 1\n'
+        'guard_skip = ["lint_bad"]\ncheck_paths = ["ci/", "harness.toml"]\nmax_files = 10\n[check.test_env]\nTINY_PROJECT = "yes"\n' + extra)
+    g("add", "."), g("commit", "-q", "-m", "project")
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
+    pinned = tmp_path / "pinned"
+    subprocess.run(["git", "clone", "-q", str(work), str(pinned)], check=True, capture_output=True)
+    return work, g, base, pinned
+
+
+def test_the_tool_runs_in_a_throwaway_project_with_its_own_config(tmp_path):
+    """Outside Fichero: no Fichero path, check name or env anywhere; the pinned copy's harness.toml says what to run."""
+    work, g, base, pinned = _project(tmp_path)
+    (work / "mod.py").write_text("VALUE = 2\n")
+    (work / "test_mod.py").write_text("import os, mod\ndef test_v():\n    assert mod.VALUE == 2 and os.environ['TINY_PROJECT'] == 'yes'\n")
+    g("add", "."), g("commit", "-q", "-m", "change")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    assert r["ok"], r
+    assert [x["name"] for x in r["rungs"]] == ["pinned-checks", "ready", "diff-bound", "red-on-base", "guards", "security", "contract-current", "since-guards", "build", "perf"]
+
+
+def test_an_approved_guard_data_file_is_head_s_copy_under_the_pinned_guard_and_nothing_else_is(tmp_path):
+    """Manager 2026-11-02: a guard reads its allowlist beside itself, so the PINNED guard judged HEAD's routes against the pinned
+    list and a batch that changed the list could never pass. guard_data names the .json files laid from HEAD; the script stays
+    pinned, a file not named keeps the pinned copy."""
+    work, g, base, pinned = _project(tmp_path)
+    (work / "ci" / "lint_data.py").write_text("import json, pathlib, sys\nok = 'b' in json.loads(pathlib.Path(__file__).with_name('lint_data.json').read_text())['allow']\nsys.exit(0 if ok else 1)\n")
+    (work / "ci" / "lint_data.json").write_text('{"allow": ["b"]}\n')
+    g("add", "."), g("commit", "-q", "-m", "guard and data")
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
+    subprocess.run(["git", "-C", str(pinned), "pull", "-q"], check=True, capture_output=True)
+    (work / "ci" / "lint_data.json").write_text('{"allow": ["b", "c"]}\n')  # the batch adds an entry; the guard now wants the new list
+    (work / "ci" / "lint_data.py").write_text("raise SystemExit(9)\n")  # a hostile edit of the SCRIPT in the same batch
+    (work / "mod.py").write_text("VALUE = 2\n")  # a source change comes with its test (red on base, green on head)
+    (work / "test_mod.py").write_text("import mod\ndef test_v():\n    assert mod.VALUE == 2\n")
+    g("add", "."), g("commit", "-q", "-m", "change the list and the script")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False, maintainer=True, guard_data=("ci/lint_data.json",))
+    assert r["ok"], [(x["name"], x.get("ok"), x.get("stderr_tail"), x.get("stdout_tail", "")[-200:]) for x in r["rungs"] if not x.get("ok")]  # the pinned script ran; the hostile one did not
+    tree = ct._scratch_tree(work, "HEAD", pinned, ct.load(pinned), data_from_head=("ci/lint_data.json", "ci/lint_ok.py"))
+    try:
+        assert '"c"' in (Path(tree) / "ci" / "lint_data.json").read_text(), "head's data file stays"
+        assert (Path(tree) / "ci" / "lint_data.py").read_text() != "raise SystemExit(9)\n", "the script is the pinned one"
+    finally:
+        ct._remove_scratch(tree)
+    tree = ct._scratch_tree(work, "HEAD", pinned, ct.load(pinned))
+    try:
+        assert '"c"' not in (Path(tree) / "ci" / "lint_data.json").read_text(), "not named: the pinned copy"
+    finally:
+        ct._remove_scratch(tree)
+
+
+def test_a_worker_cannot_change_the_checks_it_is_judged_by(tmp_path):
+    """The worker edits a guard, the config, or .claude/: needs-maintainer, nothing else runs."""
+    work, g, base, pinned = _project(tmp_path)
+    (work / "ci" / "lint_ok.py").write_text("raise SystemExit(0)  # edited by the worker\n")
+    g("add", "."), g("commit", "-q", "-m", "edit guard")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    assert not r["ok"] and r["failed"] == "pinned-checks" and [x["name"] for x in r["rungs"]] == ["pinned-checks"]
+    assert "ci/lint_ok.py" in r["rungs"][0]["stderr_tail"] and "needs-maintainer" in r["rungs"][0]["stderr_tail"]
+    g("reset", "-q", "--hard", base)
+    (work / ".claude").mkdir()
+    (work / ".claude" / "settings.json").write_text("{}")
+    (work / "sitecustomize.py").write_text("print('hi')\n")
+    g("add", "."), g("commit", "-q", "-m", "hooks")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    assert r["failed"] == "pinned-checks" and ".claude/settings.json" in r["rungs"][0]["stderr_tail"] and "sitecustomize.py" in r["rungs"][0]["stderr_tail"]
+
+
+def test_the_ladder_runs_the_pinned_guards_not_the_workers_copies(tmp_path):
+    """A guard the worker ADDS runs (allowed); the pinned config still skips lint_bad, and the pinned bytes win."""
+    work, g, base, pinned = _project(tmp_path)
+    (work / "ci" / "lint_new.py").write_text("raise SystemExit(3)\n")
+    (work / "mod.py").write_text("VALUE = 2\n")
+    (work / "test_mod.py").write_text("import os, mod\ndef test_v():\n    assert mod.VALUE == 2 and os.environ['TINY_PROJECT'] == 'yes'\n")
+    g("add", "."), g("commit", "-q", "-m", "add a failing guard")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    assert not r["ok"] and r["failed"] == "guards"
+    assert [x["name"] for x in r["rungs"][-1]["results"] if not x["ok"]] == ["lint_new"]
+
+
+def test_no_rung_sees_the_workers_home_or_a_real_base_path(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", "/Users/someone")
+    cfg = ct.Config(base_path_env="PROJ_BASE")
+    env = ct._env(tmp_path, cfg)
+    assert env["HOME"] != "/Users/someone" and env["PROJ_BASE"] and env["PROJ_BASE"] != env["HOME"]
+
+
+def test_a_big_diff_is_not_truncated_by_the_output_tail(tmp_path):
+    g, base = _git_repo(tmp_path)
+    for i in range(45):
+        (tmp_path / f"f{i}.txt").write_text("x\n")
+    g("add", "."), g("commit", "-q", "-m", "many")
+    r = ct.diff_bound(tmp_path, base, "HEAD", ct.Config(max_files=44))
+    assert not r["ok"] and "45 files" in r["stderr_tail"]
+
+
+
+def _sha(tmp_path):
+    return subprocess.run(["git", "rev-parse", "HEAD"], cwd=tmp_path, capture_output=True, text=True).stdout.strip()
+
+
+def test_an_unknown_auto_rule_refuses_the_rules_file(tmp_path):  # speed batch 1 (manager 2026-11-03): each rule named
+    (tmp_path / "harness.toml").write_text('[check]\nauto = ["red-on-base-trim-only", "approve-everything"]\n')
+    with pytest.raises(ValueError, match="approve-everything"):
+        ct.load(tmp_path)
+    (tmp_path / "harness.toml").write_text('[check]\nauto = ["red-on-base-trim-only", "weakened-tests-of-a-deleted-module"]\n')
+    assert ct.load(tmp_path).auto == ("red-on-base-trim-only", "weakened-tests-of-a-deleted-module")
+
+
+
+def test_a_test_file_whose_diff_touches_only_timeouts_or_comments_is_timeout_only_and_any_other_line_is_not(tmp_path):
+    """Manager 2026-11-05 (`red-on-base-timeout-only`): batch-25 raised one test's time bound and red-on-base stopped twice for it."""
+    g, _ = _git_repo(tmp_path)
+    body = "import pytest\n\ndef test_slow(tmp_path):\n    assert run(tmp_path, timeout_s=120)\n"
+    (tmp_path / "test_q.py").write_text(body)
+    g("add", "."), g("commit", "-qm", "t")
+    base = _sha(tmp_path)
+    (tmp_path / "test_q.py").write_text(body.replace("def test_slow", "# load 13 to 40 overnight\n@pytest.mark.timeout(1800)\ndef test_slow")
+                                        .replace("timeout_s=120", "timeout_s=900"))
+    g("commit", "-qam", "bound")
+    assert ct.timeout_only(tmp_path, base, "HEAD", "test_q.py"), "a number, a mark and a comment"
+    (tmp_path / "test_q.py").write_text(body.replace("timeout_s=120", "timeout_s=900").replace("assert run(", "assert not run("))
+    g("commit", "-qam", "and a changed assert")
+    assert not ct.timeout_only(tmp_path, base, "HEAD", "test_q.py"), "any other changed line keeps the red"
+    (tmp_path / "test_q.py").write_text(body + "    assert done()\n")
+    g("commit", "-qam", "an added line")
+    assert not ct.timeout_only(tmp_path, base, "HEAD", "test_q.py")
+    two = "import pytest\n\ndef test_a():\n    x = 1\n    assert x\n\n\ndef test_b():\n    y = 2\n"
+    (tmp_path / "test_m.py").write_text(two)
+    g("add", "."), g("commit", "-qm", "two tests")
+    mbase = _sha(tmp_path)
+    (tmp_path / "test_m.py").write_text(two.replace("    assert x\n", "") + "    assert x\n")  # the check moves to test_b
+    g("commit", "-qam", "move an assert")
+    assert not ct.timeout_only(tmp_path, mbase, "HEAD", "test_m.py"), "a moved assert is not a timeout change (review 106)"
+    (tmp_path / "test_m.py").write_text(two.replace("    assert x\n", "    if x:\n        assert x\n"))
+    g("commit", "-qam", "re-indent it under an if")
+    assert not ct.timeout_only(tmp_path, mbase, "HEAD", "test_m.py"), "a re-indented assert is not a timeout change"
+    (tmp_path / "test_m.py").write_text(two.replace("    x = 1\n    assert x\n", "    assert x\n    x = 1\n"))
+    g("commit", "-qam", "reorder: the assert before its setup")
+    assert not ct.timeout_only(tmp_path, mbase, "HEAD", "test_m.py"), "reordered lines are not a timeout change"
+    (tmp_path / "test_new.py").write_text("@pytest.mark.timeout(5)\ndef test_n():\n    pass\n")
+    g("add", "."), g("commit", "-qm", "new file")
+    assert not ct.timeout_only(tmp_path, base, "HEAD", "test_new.py"), "a new file is never timeout-only"
+
+def test_a_test_file_that_only_loses_checks_or_renames_a_test_is_trim_only_and_any_new_check_is_not(tmp_path):
+    g, _ = _git_repo(tmp_path)
+    (tmp_path / "test_q.py").write_text("def test_a_and_the_page():\n    x = 1\n    assert x\n    assert page(x)\n")
+    g("add", "."), g("commit", "-qm", "t")
+    base = _sha(tmp_path)
+    (tmp_path / "test_q.py").write_text("def test_a():\n    x = 1\n    assert x\n")  # renamed, one assert gone
+    g("commit", "-qam", "trim")
+    assert ct.trim_only(tmp_path, base, "HEAD", "test_q.py")
+    (tmp_path / "test_q.py").write_text("def test_a():\n    x = 1\n    assert x == 1\n")  # an edited assert is a new check
+    g("commit", "-qam", "edit")
+    assert not ct.trim_only(tmp_path, base, "HEAD", "test_q.py")
+    g("reset", "-q", "--hard", base)
+    (tmp_path / "test_q.py").write_text("def test_a_and_the_page():\n    x = 1\n    assert x\n    assert page(x)\ndef test_b():\n    pass\n")
+    g("commit", "-qam", "new test")
+    assert not ct.trim_only(tmp_path, base, "HEAD", "test_q.py"), "a new test function is not a trim"
+    (tmp_path / "test_new.py").write_text("def test_n():\n    pass\n")
+    g("add", "."), g("commit", "-qm", "new file")
+    assert not ct.trim_only(tmp_path, base, "HEAD", "test_new.py"), "a new file is never trim-only"
+
+
+def test_a_weakened_test_is_excused_only_when_every_lost_check_used_a_module_the_diff_deletes(tmp_path):
+    """The narrow rule (reviews -63, -65, -67): head is base with whole top-level tests removed, each one calling the deleted module."""
+    g, _ = _git_repo(tmp_path)
+    (tmp_path / "watch.py").write_text("def render(r):\n    return r\n")
+    (tmp_path / "test_watch.py").write_text("import watch\ndef test_page():\n    assert watch.render(1)\n")
+    (tmp_path / "test_page.py").write_text("import watch, mod\ndef test_page():\n    assert watch.render(2)\ndef test_mod():\n    assert mod.VALUE\n")
+    g("add", "."), g("commit", "-qm", "t")
+    base = _sha(tmp_path)
+    cfg = ct.Config()
+    g("rm", "-q", "watch.py", "test_watch.py")
+    (tmp_path / "test_page.py").write_text("import mod\ndef test_mod():\n    assert mod.VALUE\n")
+    g("commit", "-qam", "the watch page is deleted (owner)")
+    gone = ct.deleted_modules(tmp_path, base, "HEAD", cfg)
+    assert gone == {"watch"}
+    assert ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_watch.py", gone), "a deleted test file of the deleted module"
+    assert ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", gone), "a whole test of the deleted module removed"
+    (tmp_path / "test_page.py").write_text("import mod\n")
+    g("commit", "-qam", "and test_mod too")
+    assert not ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", gone), "test_mod never used watch"
+    assert not ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", set()), "nothing deleted: nothing excused"
+
+
+def test_the_deleted_module_rule_refuses_every_change_but_whole_tests_removed(tmp_path):  # reviews -63, -65, -67
+    g, _ = _git_repo(tmp_path)
+    (tmp_path / "watch.py").write_text("def render(r):\n    return r\n")
+    base_text = ("import pytest, watch, mod\ndef _check(x):\n    assert x\n"
+                 "def test_gone():\n    assert watch.render(1)\n"
+                 "def test_both():\n    assert mod.VALUE\n    assert watch.render(2)\n"
+                 "class TestA:\n    def test_render(self):\n        assert mod.VALUE\n    def _h(self):\n        assert 1\n"
+                 "def test_local():\n    watch = mod.VALUE\n    assert watch\n")
+    (tmp_path / "test_page.py").write_text(base_text)
+    g("add", "."), g("commit", "-qm", "t")
+    base = _sha(tmp_path)
+    g("rm", "-q", "watch.py")
+    g("commit", "-qm", "drop watch")
+    honest = base_text.replace("def test_gone():\n    assert watch.render(1)\n", "")
+    cases = {
+        "a cut inside a surviving test": honest.replace("    assert watch.render(2)\n", ""),
+        "a hollowed helper": honest.replace("    assert x\n", "    pass\n"),
+        "a class method cut": honest.replace("        assert mod.VALUE\n", "        pass\n"),
+        "a class helper cut": honest.replace("        assert 1\n", "        pass\n"),
+        "an added skip": honest.replace("def test_both", "@pytest.mark.skip\ndef test_both"),
+        "a local variable named like the module": honest.replace("def test_local():\n    watch = mod.VALUE\n    assert watch\n", ""),
+        "an import swapped for a mock": honest.replace("import pytest, watch, mod", "import pytest, watch\nimport unittest.mock as mod"),
+    }
+    for why, text in cases.items():
+        (tmp_path / "test_page.py").write_text(text)
+        g("commit", "-qam", why)
+        assert not ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", {"watch"}), why
+    (tmp_path / "test_page.py").write_text(honest)
+    g("commit", "-qam", "only the whole watch test removed")
+    assert ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_page.py", {"watch"})
+
+
+def test_a_known_gaps_list_that_only_adds_engine_routes_with_an_issue_resolves_itself_and_anything_else_stops(tmp_path):
+    import json
+    g, _ = _git_repo(tmp_path)
+    (tmp_path / "scripts").mkdir()
+    gaps, api = tmp_path / "scripts" / "check_x_known_gaps.json", tmp_path / "openapi.json"
+    gaps.write_text(json.dumps({"GET /api/a": "the app view is not built (#1)"}))
+    api.write_text(json.dumps({"paths": {"/api/a": {"get": {}}, "/api/b": {"post": {}}, "/api/c": {"get": {}}}}))
+    g("add", "."), g("commit", "-qm", "base")
+    base = _sha(tmp_path)
+    cfg = ct.Config(routes_file="openapi.json")
+    f = "scripts/check_x_known_gaps.json"
+
+    def head(d):
+        gaps.write_text(json.dumps(d))
+        g("commit", "-qam", "gaps")
+        return ct.known_gaps_added_only(tmp_path, base, "HEAD", f, cfg)
+    assert head({"GET /api/a": "the app view is not built (#1)", "POST /api/b": "engine first (#6346)"}) == ""
+    assert "removes" in head({"POST /api/b": "engine first (#6346)"})
+    assert "changes the text" in head({"GET /api/a": "built later (#1)"})
+    assert "not a route" in head({"GET /api/a": "the app view is not built (#1)", "GET /api/nowhere": "x (#2)"})
+    assert "no issue" in head({"GET /api/a": "the app view is not built (#1)", "GET /api/c": "no reason given"})
+    assert head({"GET /api/a": "the app view is not built (#1)", "GET /api/c": "Step 2.1 builds the view"}) == ""
+    assert "known-gaps" in ct.known_gaps_added_only(tmp_path, base, "HEAD", "openapi.json", cfg)
+
+def test_the_auto_rules_are_off_unless_named_and_each_decision_is_a_journal_row(tmp_path, monkeypatch):
+    """Wired: the weakened check of the ladder and the red-on-base loop skip only what a named rule excuses, with an `auto` row."""
+    from fichero_builder import journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    g, _ = _git_repo(tmp_path)
+    (tmp_path / "test_q.py").write_text("def test_a():\n    assert 1\n    assert 2\n")
+    g("add", "."), g("commit", "-qm", "t")
+    base = _sha(tmp_path)
+    (tmp_path / "test_q.py").write_text("def test_a():\n    assert 1\n")
+    g("commit", "-qam", "trim")
+    ran = []
+    monkeypatch.setattr(ct, "pytest_rung", lambda root, files, cfg, t: (ran.append(files), {"ok": True})[1])
+    monkeypatch.setattr(ct, "green_runs", lambda *a, **k: {"name": "green", "ok": True, "stdout_tail": ""})
+    off = ct.red_on_base(tmp_path, base, "HEAD", ["test_q.py"], ct.Config())
+    assert ran == [["test_q.py"]] and not off["ok"] and "NOT RED ON BASE" in off["stderr_tail"], "off: the old refusal"
+    ran.clear()
+    on = ct.red_on_base(tmp_path, base, "HEAD", ["test_q.py"], ct.Config(auto=("red-on-base-trim-only",)))
+    assert ran == [] and on["ok"], "on: no red owed, the green run still runs"
+    assert [(r["rule"], r["file"]) for r in journal.read() if r["event"] == "auto"] == [("red-on-base-trim-only", "test_q.py")]
+
+
+
+def test_the_deleted_module_rule_matches_the_full_module_path_never_a_same_named_one(tmp_path):  # review -72
+    g, _ = _git_repo(tmp_path)
+    for pkg in ("src/pkg_a", "src/pkg_b"):
+        (tmp_path / pkg).mkdir(parents=True)
+        (tmp_path / pkg / "__init__.py").write_text("")
+        (tmp_path / pkg / "models.py").write_text("X = 1\n")
+    (tmp_path / "test_b.py").write_text("from pkg_b import models\ndef test_gone():\n    assert models.X\ndef test_kept():\n    assert 1\n")
+    (tmp_path / "test_a.py").write_text("from pkg_a import models as m\ndef test_gone():\n    assert m.X\ndef test_kept():\n    assert 1\n")
+    g("add", "."), g("commit", "-qm", "t")
+    base = _sha(tmp_path)
+    g("rm", "-q", "src/pkg_a/models.py")
+    for f in ("test_a.py", "test_b.py"):
+        (tmp_path / f).write_text("def test_kept():\n    assert 1\n")
+    g("commit", "-qam", "pkg_a.models is deleted")
+    gone = ct.deleted_modules(tmp_path, base, "HEAD", ct.Config(python_path=("src",)))
+    assert gone == {"src.pkg_a.models", "pkg_a.models"}, "dotted paths, never the bare name"
+    assert ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_a.py", gone), "its tests called pkg_a.models"
+    assert not ct.weakened_by_a_deleted_module(tmp_path, base, "HEAD", "test_b.py", gone), "pkg_b.models is still there"
+
+def test_the_ladder_excuses_a_deleted_modules_tests_only_when_the_rule_is_named_and_says_so_in_a_row(tmp_path, monkeypatch):  # review -70
+    from fichero_builder import journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    for auto, refused in (("", True), ('auto = ["weakened-tests-of-a-deleted-module"]\n', False)):
+        root = tmp_path / ("on" if auto else "off")
+        root.mkdir()
+        work, g, _base, pinned = _project(root, check_extra=auto)
+        (work / "watch.py").write_text("def render(r):\n    return r\n")
+        (work / "test_page.py").write_text("import watch\ndef test_page():\n    assert watch.render(1)\ndef test_other():\n    assert 1\n")
+        g("add", "."), g("commit", "-qm", "the page")
+        base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
+        subprocess.run(["git", "-C", str(pinned), "pull", "-q"], check=True, capture_output=True)
+        g("rm", "-q", "watch.py")
+        (work / "test_page.py").write_text("def test_other():\n    assert 1\n")
+        g("commit", "-qam", "the page is deleted (owner)")
+        r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+        said = "\n".join(x.get("stderr_tail", "") for x in r["rungs"])
+        assert ("weakens existing tests" in said) is refused, auto or "off"
+    assert [(x["rule"], x["file"]) for x in journal.read() if x["event"] == "auto"] == [("weakened-tests-of-a-deleted-module", "test_page.py")]
+
+def test_a_worker_cannot_weaken_its_own_tests(tmp_path):
+    """A test function removed, fewer asserts, or more skips in an existing test file: needs-maintainer."""
+    work, g, base, pinned = _project(tmp_path)
+    (work / "test_old.py").write_text("def test_a():\n    assert 1\n    assert 2\ndef test_b():\n    assert 3\n")
+    g("add", "."), g("commit", "-q", "-m", "tests")
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
+    subprocess.run(["git", "-C", str(pinned), "pull", "-q"], check=True, capture_output=True)
+    cfg = ct.load(pinned)
+    (work / "test_old.py").write_text("def test_a():\n    assert 1\ndef test_b():\n    assert 3\n")  # one assert fewer
+    g("commit", "-qam", "weaker")
+    assert ct.weakened_tests(work, base, "HEAD", cfg) == ["test_old.py"]
+    g("reset", "-q", "--hard", base)
+    (work / "test_old.py").write_text("def test_a():\n    assert 1\n    assert 2\ndef test_b():\n    assert 3\ndef test_c():\n    assert 4\n")
+    g("commit", "-qam", "stronger")
+    assert ct.weakened_tests(work, base, "HEAD", cfg) == []
+    g("reset", "-q", "--hard", base)
+    (work / "test_old.py").write_text("import pytest\n@pytest.mark.skip\ndef test_a():\n    assert 1\n    assert 2\ndef test_b():\n    assert 3\n")
+    g("commit", "-qam", "skip")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    assert r["failed"] == "pinned-checks" and "test_old.py" in r["rungs"][0]["stderr_tail"]
+
+
+def test_a_worker_cannot_rewrite_its_own_acceptance(tmp_path):
+    """The item's own spec bullet may flip its status tag or gain (#N); any other change is needs-maintainer."""
+    work, g, base0, pinned = _project(tmp_path)
+    (work / "rules").mkdir()
+    spec = work / "rules" / "s.md"
+    spec.write_text("- `demo.item.one` [PROPOSED] — it does the thing, and ten more.\n- `demo.other` [OK] — unrelated.\n")
+    g("add", "."), g("commit", "-q", "-m", "spec")
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
+    cfg = ct.Config(spec_dir="rules")
+    spec.write_text("- `demo.item.one` [OK] (#12) — it does the thing, and ten more.\n- `demo.other` [OK] — unrelated.\n")
+    g("commit", "-qam", "tag flip")
+    assert ct.acceptance_changed(work, base, "HEAD", cfg, ["demo.item.one"]) == []
+    spec.write_text("- `demo.item.one` [OK] — it does less.\n- `demo.other` [OK] — unrelated.\n")
+    g("commit", "-qam", "rewrite")
+    hits = ct.acceptance_changed(work, base, "HEAD", cfg, ["demo.item.one"])
+    assert hits and "rules/s.md" in hits[0]
+    assert ct.acceptance_changed(work, base, "HEAD", cfg, ["demo.other"]) == []  # only the item's own ids are protected
+
+
+def test_a_workers_git_config_filter_never_runs_at_checkout(tmp_path):
+    """review 2 B2: smudge filters in the worker's .git/config must not run when the ladder makes its trees."""
+    g, base = _git_repo(tmp_path)
+    (tmp_path / ".gitattributes").write_text("*.txt filter=evil\n")
+    (tmp_path / "a.txt").write_text("x\n")
+    g("add", "."), g("commit", "-q", "-m", "attrs")
+    marker = tmp_path.parent / (tmp_path.name + "-ran")
+    g("config", "filter.evil.smudge", f"touch {marker}; cat")
+    g("config", "filter.evil.clean", "cat")
+    g("config", "diff.external", f"touch {marker}")
+    tree = ct._scratch_tree(tmp_path, "HEAD", tmp_path, ct.Config())
+    ct.diff_bound(tmp_path, base, "HEAD", ct.Config())
+    ct._git(tmp_path, "worktree", "remove", "--force", tree)
+    assert not marker.exists()
+
+
+def _change(work, g):
+    (work / "mod.py").write_text("VALUE = 2\n")
+    (work / "test_mod.py").write_text("import mod\ndef test_v():\n    assert mod.VALUE == 2\n")
+    g("add", "."), g("commit", "-q", "-m", "change")
+
+
+def test_a_missing_jail_user_refuses_the_ladder(tmp_path):
+    from fichero_server.workflows.jail import JailMissing
+    work, g, base, pinned = _project(tmp_path, '[jail]\nuser = "no-such-user-xyz"\n')
+    _change(work, g)
+    with pytest.raises(JailMissing):
+        ct.run_ladder(work, base, "HEAD", pinned)
+    assert ct._JAIL is None
+
+
+def test_the_ladder_runs_its_commands_as_the_jail_user(tmp_path, monkeypatch):
+    monkeypatch.setenv("PATH", "/usr/bin:/bin:" + str(Path(sys.executable).parent))  # no gh login to trip the probe
+    h = tmp_path / "ownerhome"
+    h.mkdir()
+    h.chmod(0)  # the probe's floor wants the owner's home unreadable
+    monkeypatch.setenv("HOME", str(h))
+    sudo = tmp_path / "sudo"
+    sudo.write_text('#!/bin/sh\necho "$3" >> "%s/asked"\nshift 4\nexec "$@"\n' % tmp_path)
+    sudo.chmod(0o755)
+    work, g, base, pinned = _project(tmp_path, check_extra=f'python = "{sys.executable}"\ncontract_guards = ["ci/lint_ok.py"]\ncontract_paths = ["src/"]\npytest_config = "pyproject.toml"\n', extra=f'[land]\nbranch = "main"\nboundary = "ci/"\n'
+                                f'[jail]\nuser = "root"\nsudo = "{sudo}"\nworkroot = "{tmp_path}"\ndeny_read = ["{tmp_path}/secret"]\n')
+    _change(work, g)
+    r = ct.run_ladder(work, base, "HEAD", pinned)
+    assert r["ok"], r
+    assert "root" in (tmp_path / "asked").read_text()  # ready, pytest and guards went through sudo
+    assert ct._JAIL is None
+
+
+def test_no_jail_table_refuses_the_ladder(tmp_path):
+    from fichero_server.workflows.jail import JailMissing
+    work, g, base, pinned = _project(tmp_path, "")
+    _change(work, g)
+    with pytest.raises(JailMissing, match="no \\[jail\\]"):
+        ct.run_ladder(work, base, "HEAD", pinned)
+
+
+def test_unknown_check_keys_refuse(tmp_path):
+    (tmp_path / "harness.toml").write_text("[check]\nguard_glob_typo = 1\n")
+    with pytest.raises(ValueError, match="unknown keys"):
+        ct.load(tmp_path)
+
+
+def test_a_new_file_under_a_pinned_path_or_any_conftest_is_a_question(tmp_path):
+    """Review 3 H2: added files, not only changed ones, are judged; a new guard (guard_glob) is the one allowed addition."""
+    work, g, base, pinned = _project(tmp_path)
+    (work / "ci" / "helper.py").write_text("x = 1\n")
+    (work / "tests").mkdir()
+    (work / "tests" / "conftest.py").write_text("import pytest\n")
+    g("add", "."), g("commit", "-q", "-m", "adds")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    err = r["rungs"][0]["stderr_tail"]
+    assert r["failed"] == "pinned-checks" and "ci/helper.py" in err and "tests/conftest.py" in err
+
+
+def test_red_on_base_applies_only_to_the_paths_the_rules_file_names(tmp_path):
+    """Spec 'by path': a docs change is not red-on-base-able; a change under red_paths still needs its failing test."""
+    work, g, base, pinned = _project(tmp_path, "")
+    cfg_extra = '\nred_paths = ["src/"]\n'
+    (pinned / "harness.toml").write_text((pinned / "harness.toml").read_text().replace("[check]\n", "[check]" + cfg_extra, 1))
+    (work / "docs").mkdir()
+    (work / "docs" / "a.md").write_text("hi\n")
+    g("add", "."), g("commit", "-q", "-m", "docs")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    assert r["ok"] and "not required" in [x for x in r["rungs"] if x["name"] == "red-on-base"][0]["stdout_tail"]
+    (work / "src").mkdir()
+    (work / "src" / "m.py").write_text("X = 1\n")
+    g("add", "."), g("commit", "-q", "-m", "source with no test")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    assert r["failed"] == "red-on-base" and "needs a test" in r["rungs"][-1]["stderr_tail"]
+
+
+def test_the_build_rung_runs_only_for_build_paths_and_reports_red(tmp_path, monkeypatch):  # owner 2026-11-01: a build-only Swift rung
+    monkeypatch.setattr(ct.journal, "STATE", tmp_path / "s")  # a red build writes its log there: never the owner's
+    cfg = ct.Config(build_paths=("fichero/",), build=("sh", "-c", "echo built > built.txt; exit 1"), build_lock=str(tmp_path / "b.lock"))
+    assert ct.build(tmp_path, ["fichero-server/src/x.py"], cfg)["skipped"], "no Swift touched: no build"
+    assert ct.build(tmp_path, ["fichero/App.swift"], ct.Config())["skipped"], "no build configured: no build"
+    r = ct.build(tmp_path, ["fichero/App.swift"], cfg)
+    assert not r["ok"] and not r["skipped"] and r["results"][0]["exit_code"] == 1
+    assert (tmp_path / "built.txt").exists(), "the build ran in the tree it was given"
+    assert ct.build(tmp_path, ["fichero/App.swift"], ct.Config(build_paths=("fichero/",), build=("true",)))["ok"]
+    deep = ct.Config(build_paths=("fichero/",), build=("true",), build_lock=str(tmp_path / "no" / "such" / "dir" / "b.lock"))
+    assert ct.build(tmp_path, ["fichero/App.swift"], deep)["ok"] and (tmp_path / "no" / "such" / "dir" / "b.lock").exists(), "the lock's dir is made (review 2 R2)"
+
+
+
+def test_the_build_rung_retries_once_on_a_locked_build_db_and_never_on_another_red(tmp_path, monkeypatch):  # manager 2026-11-03
+    monkeypatch.setattr(ct, "BUILD_RETRY_WAIT_S", 0)
+    monkeypatch.setattr(ct.journal, "STATE", tmp_path / "s")  # never the owner's
+    msg = "error: unable to attach DB: error: accessing build database /d/XCBuildData/build.db: database is locked Possibly there are two concurrent builds running in the same filesystem location."
+    once = ("sh", "-c", f"if [ -e ran ]; then exit 0; fi; touch ran; echo '{msg}' >&2; exit 65")
+    r = ct.build(tmp_path, ["fichero/App.swift"], ct.Config(build_paths=("fichero/",), build=once))
+    assert r["ok"] and r["results"][0]["retried"], "the second run stands"
+    (tmp_path / "ran").unlink()
+    always = ("sh", "-c", f"echo '{msg}' >&2; echo x >> runs; exit 65")
+    r = ct.build(tmp_path, ["fichero/App.swift"], ct.Config(build_paths=("fichero/",), build=always))
+    assert not r["ok"] and (tmp_path / "runs").read_text().count("x") == 2, "once only"
+    other = ("sh", "-c", "echo 'error: no such module' >&2; echo y >> other; exit 65")
+    r = ct.build(tmp_path, ["fichero/App.swift"], ct.Config(build_paths=("fichero/",), build=other))
+    assert not r["ok"] and (tmp_path / "other").read_text().count("y") == 1 and "retried" not in r["results"][0], "a real red is never re-run"
+
+
+def test_a_red_build_keeps_every_error_line_and_the_whole_log_whatever_follows_them(tmp_path, monkeypatch):  # manager 2026-11-03 (bb3 -185)
+    from fichero_builder import journal, work
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    noisy = ("sh", "-c", "echo '/w/fichero/A.swift:12:5: error: cannot find X in scope'; echo '/w/fichero/B.swift:3:1: error: missing return';"
+             " i=0; while [ $i -lt 400 ]; do echo \"note: a long line of build noise number $i that pushes everything out of a tail\"; i=$((i+1)); done;"
+             " echo '** BUILD FAILED **' >&2; exit 65")
+    r = ct.build(tmp_path, ["fichero/App.swift"], ct.Config(build_paths=("fichero/",), build=noisy))
+    res = r["results"][0]
+    assert not r["ok"] and "A.swift:12:5: error" not in res["stdout_tail"], "the tail alone lost them"
+    assert res["errors"].splitlines() == ["/w/fichero/A.swift:12:5: error: cannot find X in scope", "/w/fichero/B.swift:3:1: error: missing return", "** BUILD FAILED **"]
+    log = Path(res["log"])
+    assert log.parent == tmp_path / "s" / "build-logs" and "number 399" in log.read_text() and "A.swift:12:5" in log.read_text()
+    said = work._tail({"rungs": [{"name": "build", "ok": False, **r}]})
+    assert "A.swift:12:5: error" in said and str(log) in said, "the finding names the errors and the log"
+    g = ct.build(tmp_path, ["fichero/App.swift"], ct.Config(build_paths=("fichero/",), build=("true",)))
+    assert g["ok"] and "log" not in g["results"][0] and len(list((tmp_path / "s" / "build-logs").iterdir())) == 1, "a green build writes no log"
+
+
+def _build_world(tmp_path, monkeypatch):
+    """An engine repo with fichero/, a workroot holding the stable build tree and the derived dir, and a fake xcodebuild."""
+    from fichero_builder import journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    monkeypatch.setattr(ct, "_XCODE", ["Xcode 26.1"])
+    repo, wr = tmp_path / "repo", tmp_path / "wr"
+    repo.mkdir(), (wr / "derived").mkdir(parents=True)
+    g = lambda *a: subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=repo, check=True, capture_output=True)  # noqa: E731
+    g("init", "-q", "-b", "main")
+    (repo / "fichero").mkdir()
+    (repo / "fichero" / "App.swift").write_text("let a = 1\n")
+    (repo / "harness.toml").write_text("[check]\n")
+    g("add", "."), g("commit", "-qm", "base")
+    log = tmp_path / "builds.log"
+    script = f'echo "$PWD" >> {log}; [ -e {wr}/derived/stale ] && {{ echo "error: stale module" >&2; exit 65; }}; [ -e fichero/RED ] && {{ echo "error: no X" >&2; exit 65; }}; [ -e fichero/SRCERR ] && {{ echo "$PWD/fichero/App.swift:1:5: error: cannot find x in scope" >&2; exit 65; }}; exit 0'
+    cfg = ct.Config(build_paths=("fichero/",), build=("sh", "-c", script, "_", "-derivedDataPath", str(wr / "derived")), build_tree=str(wr / "build-tree"))
+
+    def scratch():  # a NEW path per ladder, as today
+        d = tempfile.mkdtemp(dir=tmp_path)
+        subprocess.run(["git", "-C", str(repo), "worktree", "add", "--detach", "-q", d, "HEAD"], check=True, capture_output=True)
+        return d
+    return repo, wr, g, log, cfg, scratch
+
+
+def test_the_build_runs_in_one_stable_tree_and_a_green_key_is_reused_for_the_same_fichero_tree(tmp_path, monkeypatch):  # manager 2026-11-03
+    repo, wr, g, log, cfg, scratch = _build_world(tmp_path, monkeypatch)
+    r = ct.build(scratch(), ["fichero/App.swift"], cfg)
+    assert r["ok"] and log.read_text().split() == [str((wr / "build-tree").resolve())], "built in the stable tree, not the scratch one"
+    r = ct.build(scratch(), ["fichero/App.swift"], cfg)
+    assert r["ok"] and r["results"][0]["reused"] and len(log.read_text().split()) == 1, "same fichero/ tree: reused, not built"
+    (repo / "harness.toml").write_text("[check]\nx = 1\n")
+    g("commit", "-qam", "a harness-only change")
+    assert ct.build(scratch(), ["fichero/App.swift"], cfg)["results"][0].get("reused"), "a change outside fichero/ keeps the key"
+    (repo / "fichero" / "App.swift").write_text("let a = 2\n")
+    g("commit", "-qam", "swift")
+    r = ct.build(scratch(), ["fichero/App.swift"], cfg)
+    assert r["ok"] and not r["results"][0].get("reused") and len(log.read_text().split()) == 2, "a new fichero/ tree builds"
+    monkeypatch.setattr(ct, "_XCODE", ["Xcode 27.0"])
+    assert not ct.build(scratch(), ["fichero/App.swift"], cfg)["results"][0].get("reused"), "another Xcode never reuses"
+
+
+def test_an_incremental_red_is_built_once_more_from_a_clean_derived_dir_and_a_red_is_never_cached(tmp_path, monkeypatch):
+    repo, wr, g, log, cfg, scratch = _build_world(tmp_path, monkeypatch)
+    (wr / "derived" / "stale").write_text("x")  # stale build state: red until the derived dir is cleared
+    r = ct.build(scratch(), ["fichero/App.swift"], cfg)
+    assert r["ok"] and r["results"][0]["retried"] == "clean" and not (wr / "derived" / "stale").exists(), "the clean build stands"
+    (repo / "fichero" / "RED").write_text("x")
+    g("add", "."), g("commit", "-qm", "a real compile error")
+    n = len(log.read_text().split())
+    r = ct.build(scratch(), ["fichero/App.swift"], cfg)
+    assert not r["ok"] and r["results"][0]["retried"] == "clean" and len(log.read_text().split()) == n + 2, "a real red: red twice"
+    r = ct.build(scratch(), ["fichero/App.swift"], cfg)
+    assert not r["ok"] and not r["results"][0].get("reused"), "a red is never reused"
+    (repo / "fichero" / "RED").unlink()
+    (repo / "fichero" / "SRCERR").write_text("x")
+    g("add", "-A"), g("commit", "-qm", "a Swift source error")
+    (wr / "derived" / "warm").write_text("x")
+    n = len(log.read_text().split())
+    r = ct.build(scratch(), ["fichero/App.swift"], cfg)
+    assert not r["ok"] and "retried" not in r["results"][0] and len(log.read_text().split()) == n + 1, "a source error: built once, no clean retry"
+    assert "App.swift:1:5: error: cannot find x in scope" in r["results"][0]["errors"] and (wr / "derived" / "warm").exists(), "the derived dir stays warm"
+    outside = ct.Config(build_paths=("fichero/",), build=("true", "-derivedDataPath", str(tmp_path / "elsewhere")), build_tree=str(wr / "build-tree"))
+    assert ct._derived_dir(outside) == "", "a derived dir outside the workroot is never cleared"
+
+def test_the_build_rung_counts_a_deleted_swift_file_as_a_change(tmp_path):  # review 1 M7
+    import subprocess
+
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    (tmp_path / "fichero").mkdir()
+    (tmp_path / "fichero" / "A.swift").write_text("a")
+    env = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t", "HOME": str(tmp_path)}
+    subprocess.run(["git", "-C", str(tmp_path), "add", "-A"], check=True, env=env)
+    subprocess.run(["git", "-C", str(tmp_path), "commit", "-q", "-m", "base"], check=True, env=env)
+    base = subprocess.run(["git", "-C", str(tmp_path), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    (tmp_path / "fichero" / "A.swift").unlink()
+    subprocess.run(["git", "-C", str(tmp_path), "commit", "-qam", "delete"], check=True, env=env)
+    assert ct.build_names(tmp_path, base, "HEAD") == ["fichero/A.swift"]
+
+
+def test_the_ready_rung_lets_the_projects_scripts_import_their_siblings(tmp_path):  # first real check, 2026-11-01
+    """The ladder's safe path (`python -I`) is for pytest alone; a readiness script runs guard scripts by plain python, and those
+    import helpers beside them, which safe path forbids."""
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts" / "_helper.py").write_text("OK = True\n")
+    (tmp_path / "scripts" / "guard.py").write_text("from _helper import OK\nassert OK\n")
+    (tmp_path / "scripts" / "ready.sh").write_text(f"#!/bin/sh\nexec {shlex.quote(sys.executable)} scripts/guard.py\n")
+    (tmp_path / "scripts" / "ready.sh").chmod(0o755)
+    r = ct.ready(tmp_path, ct.Config(ready=("scripts/ready.sh",)))
+    assert r["ok"], r["stderr_tail"]
+    (tmp_path / "scripts" / "check_spawn.py").write_text("import subprocess, sys; sys.exit(subprocess.run([sys.executable, 'scripts/guard.py']).returncode)\n")
+    g = ct.guards(tmp_path, ct.Config(guard_glob="scripts/check_*.py"))
+    assert g["ok"], g["results"]  # a guard that runs a sibling script by plain python: the same rule
+
+
+def test_scratch_dirs_are_removed_through_the_jail_when_one_is_set(tmp_path, monkeypatch):  # 2026-11-01: nine check-base dirs left behind
+    calls = []
+
+    class FakeJail:
+        def argv(self, argv, cwd=None, env=None):
+            calls.append(list(argv))
+            return argv
+    monkeypatch.setattr(ct, "_JAIL", FakeJail())
+    d = tmp_path / "scratch"
+    d.mkdir()
+    (d / "f").write_text("x")
+    ct._remove_scratch(str(d))
+    assert not d.exists() and calls and calls[0][:2] == ["rm", "-rf"]
+
+
+def test_a_builder_change_owes_a_red_on_base_test_and_its_tests_run_with_the_builder_on_the_path():
+    """dev-workflows.tool.check: the project's own harness.toml puts fichero-builder under red_paths and python_path."""
+    cfg = ct.load(REPO)
+    assert ct._needs_red(["fichero-builder/fichero_builder/work.py"], [], cfg), "a Builder source change needs a red-on-base test"
+    assert not ct._needs_red(["docs/contributor_manual/a.md"], [], cfg)
+    assert "fichero-builder" in cfg.python_path
+
+
+def test_a_maintainer_approve_excuses_a_conftest_edit_that_is_pinned_by_name(tmp_path):
+    """conftest.py is pinned by name anywhere; the manager's approve (maintainer=True) records it, a bare run refuses."""
+    work, g, base, pinned = _project(tmp_path)
+    (work / "conftest.py").write_text("# the maintainer's edit\n")
+    g("add", "."), g("commit", "-q", "-m", "conftest")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    assert not r["ok"] and r["failed"] == "pinned-checks" and "pinned by name" in r["rungs"][0]["stderr_tail"]
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False, maintainer=True)
+    assert r["rungs"][0]["ok"] and "conftest.py" in r["rungs"][0]["stdout_tail"], r
+
+
+def test_a_maintainer_batch_records_the_pinned_change_and_runs_the_rest(tmp_path):
+    """A maintainer batch changes a pinned file on purpose: with maintainer=True the pinned-checks row says so and stays
+    green, the ladder judges the candidate by its own rules; a weakened test or rewritten acceptance still refuses."""
+    work, g, base, pinned = _project(tmp_path)
+    (work / "ci" / "lint_ok.py").write_text("raise SystemExit(0)  # edited by the maintainer\n")
+    (work / "mod.py").write_text("VALUE = 2\n")
+    (work / "test_mod.py").write_text("import mod\ndef test_v():\n    assert mod.VALUE == 2\n")
+    g("add", "."), g("commit", "-q", "-m", "edit guard")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False, maintainer=True)
+    assert r["ok"], r
+    assert r["rungs"][0]["ok"] and "ci/lint_ok.py" in r["rungs"][0]["stdout_tail"] and "maintainer" in r["rungs"][0]["stdout_tail"]
+    assert [x["name"] for x in r["rungs"]][:3] == ["pinned-checks", "ready", "diff-bound"]
+    (work / "test_old.py").write_text("def test_a():\n    assert 1\n    assert 2\ndef test_b():\n    assert 3\n")
+    g("add", "."), g("commit", "-q", "-m", "a test")
+    base2 = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
+    (work / "test_old.py").write_text("def test_a():\n    assert 1\n")
+    g("add", "."), g("commit", "-q", "-m", "weaken")
+    r = ct.run_ladder(work, base2, "HEAD", pinned, jail_required=False, maintainer=True)
+    assert not r["ok"] and r["failed"] == "pinned-checks" and "weakens" in r["rungs"][0]["stderr_tail"]
+    # a rewritten acceptance line under --maintainer still refuses (the pinned list is noted; the acceptance rule is not)
+    (tmp_path / "two").mkdir()
+    work, g, _b, pinned = _project(tmp_path / "two", check_extra='spec_dir = "rules"\n')
+    (work / "rules").mkdir()
+    (work / "rules" / "s.md").write_text("- `demo.item.one` [PROPOSED] — it does the thing, and ten more.\n")
+    g("add", "."), g("commit", "-q", "-m", "spec")
+    base3 = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
+    subprocess.run(["git", "fetch", "-q", str(work)], cwd=pinned, check=True)  # the pinned clone knows the spec commit
+    (work / "rules" / "s.md").write_text("- `demo.item.one` [OK] — it does less.\n")
+    g("commit", "-qam", "rewrite acceptance")
+    r = ct.run_ladder(work, base3, "HEAD", pinned, jail_required=False, maintainer=True, protected_ids=["demo.item.one"])
+    assert not r["ok"] and r["failed"] == "pinned-checks" and "acceptance" in r["rungs"][0]["stderr_tail"]
+
+
+def test_a_guard_and_its_test_changed_together_are_tested_on_head_and_judged_by_the_pinned_guard(tmp_path):
+    """Manager 2026-11-02: pinned copies JUDGE, they are not the code under test. A maintainer batch adds a rule to a guard and
+    a test of that rule: the pytest rungs run on head's own tree (the test sees the new rule), while the guards rung still runs
+    the pinned guard's bytes (head's copy would exit 5)."""
+    work, g, base, pinned = _project(tmp_path)
+    (work / "ci" / "lint_ok.py").write_text("RULE = 2\nif __name__ == '__main__':\n    raise SystemExit(5)\n")
+    (work / "test_rule.py").write_text("import runpy\ndef test_rule():\n    assert runpy.run_path('ci/lint_ok.py').get('RULE') == 2\n")
+    g("add", "."), g("commit", "-q", "-m", "a guard rule and its test")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False, maintainer=True)
+    assert r["ok"], r
+    rungs = {x["name"]: x for x in r["rungs"]}
+    assert rungs["red-on-base"]["ok"] and rungs["guards"]["ok"] and "ci/lint_ok.py" in rungs["pinned-checks"]["stdout_tail"]
+
+
+def test_a_maintainer_batch_skips_the_diff_bound_and_a_worker_range_keeps_it(tmp_path):
+    """Owner 2026-11-02: guards that stop ordinary work are loosened; the 25-file/1500-line bound is for a jailed worker's
+    range, a maintainer batch is split for review by size instead (land_tool.review_groups)."""
+    work, g, base, pinned = _project(tmp_path, check_extra="max_lines = 3\n")
+    (work / "mod.py").write_text("VALUE = 2\n")
+    (work / "test_mod.py").write_text("import mod\ndef test_v():\n    assert mod.VALUE == 2\n")
+    g("add", "."), g("commit", "-q", "-m", "change")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    assert not r["ok"] and r["failed"] == "diff-bound", r
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False, maintainer=True)
+    assert r["ok"], r
+    row = next(x for x in r["rungs"] if x["name"] == "diff-bound")
+    assert row["ok"] and "maintainer" in row["stdout_tail"] and "5 lines" in row["stdout_tail"], "the size is still shown"
+
+
+def test_a_since_guard_runs_with_the_range_base_only_when_the_diff_touches_its_prefix(tmp_path):
+    """#6318: the SwiftLint ratchet's `--since` question (did this item add warnings in the files it changes) ran in the gate
+    only; `[check].since_guards` runs a guard with `--since <base>` in the scratch tree when the diff touches its prefix."""
+    work, g, base, pinned = _project(tmp_path, check_extra='since_guards = { "ci/since_g.py" = "app/" }\nred_paths = ["src/"]\n')
+    (work / "ci" / "since_g.py").write_text(
+        "import sys, pathlib\nargs = sys.argv[1:]\nprint('since', args)\n"
+        "raise SystemExit(1 if args[:1] == ['--since'] and pathlib.Path('app/warn.txt').exists() else 0)\n")
+    g("add", "."), g("commit", "-q", "-m", "the guard")
+    subprocess.run(["git", "-C", str(pinned), "pull", "-q"], check=True, capture_output=True)
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
+    (work / "other.txt").write_text("x\n")
+    g("add", "."), g("commit", "-q", "-m", "not under app/")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    row = next(x for x in r["rungs"] if x["name"] == "since-guards")
+    assert r["ok"] and row.get("skipped"), r
+    (work / "app").mkdir()
+    (work / "app" / "warn.txt").write_text("a warning\n")
+    g("add", "."), g("commit", "-q", "-m", "adds a warning")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    assert not r["ok"] and r["failed"] == "since-guards", r
+    row = next(x for x in r["rungs"] if x["name"] == "since-guards")
+    assert f"'--since', '{base}'" in row["results"][0]["stdout_tail"], "the guard gets the range's base"
+
+
+def test_a_change_under_a_whole_tests_prefix_runs_that_tests_dir_whole_in_the_green_run(tmp_path):
+    """review of fd9f26187: a Builder source change ran only its own new test, so an old test it broke slipped through."""
+    work, g, _b, pinned = _project(tmp_path, extra='[check.whole_tests]\n"mod.py" = "suite"\n',
+                                   check_extra=f'python = "{sys.executable}"\npython_path = ["."]\nred_paths = ["mod.py"]\n')
+    (work / "suite").mkdir()
+    (work / "mod.py").write_text("VALUE = 1\n")
+    (work / "suite" / "test_old.py").write_text("import mod\ndef test_old():\n    assert mod.VALUE == 1\n")
+    g("add", "."), g("commit", "-q", "-m", "old suite")
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
+    subprocess.run(["git", "fetch", "-q", str(work)], cwd=pinned, check=True)
+    (work / "mod.py").write_text("VALUE = 2\n")
+    (work / "test_mod.py").write_text("import mod\ndef test_v():\n    assert mod.VALUE == 2\n")
+    g("add", "."), g("commit", "-q", "-m", "change")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    assert not r["ok"] and r["failed"] == "red-on-base", r
+    assert "test_old" in r["rungs"][-1]["stdout_tail"] + r["rungs"][-1]["stderr_tail"]
+
+
+@pytest.mark.parametrize("name,write", [
+    ("symlink", lambda w: (w / "link").symlink_to("mod.py")),
+    ("sitecustomize", lambda w: (w / "sitecustomize.py").write_text("pass\n")),
+    ("claude-dir", lambda w: ((w / ".claude").mkdir(), (w / ".claude" / "settings.json").write_text("{}\n"))),
+    ("new-pinned-file", lambda w: (w / "ci" / "helper.py").write_text("pass\n")),
+    ("pth", lambda w: (w / "x.pth").write_text("import os\n")),
+    ("sitecustomize-under-a-dir-named-like-the-note",  # the phrase inside a worker-chosen path must not clear its own violation
+     lambda w: ((w / "a: a pinned check file was x").mkdir(), (w / "a: a pinned check file was x" / "sitecustomize.py").write_text("pass\n"))),
+])
+def test_a_maintainer_batch_clears_only_a_changed_pinned_file_not_the_other_pinned_refusals(tmp_path, name, write):
+    work, g, base, pinned = _project(tmp_path)
+    (work / "ci" / "lint_ok.py").write_text("raise SystemExit(0)  # edited by the maintainer\n")  # the one thing --maintainer clears
+    write(work)
+    (work / "mod.py").write_text("VALUE = 2\n")
+    (work / "test_mod.py").write_text("import mod\ndef test_v():\n    assert mod.VALUE == 2\n")
+    g("add", "-A"), g("commit", "-q", "-m", name)
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False, maintainer=True)
+    assert not r["ok"] and r["failed"] == "pinned-checks", r
+    said = r["rungs"][0]["stderr_tail"]
+    assert "needs-maintainer" in said and "a pinned check file was changed" not in said
+
+
+def _whole_project(tmp_path):
+    """An engine-shaped `tests` package (with __init__.py) beside pkg/tests, a whole_tests dir with no __init__.py whose
+    old test does `from tests import _helper`: one pytest over both collects the wrong `tests` and errors."""
+    work, g, _b, pinned = _project(tmp_path, extra='[check.whole_tests]\n"pkg/lib.py" = "pkg/tests"\n',
+                                   check_extra=f'python = "{sys.executable}"\npython_path = ["pkg"]\nred_paths = ["pkg/"]\n')
+    (work / "pkg" / "tests").mkdir(parents=True)
+    (work / "tests").mkdir()
+    (work / "tests" / "__init__.py").write_text("")
+    (work / "pkg" / "lib.py").write_text("VALUE = 1\n")
+    (work / "pkg" / "gone.py").write_text("X = 1\n")
+    (work / "pkg" / "tests" / "_helper.py").write_text("ANSWER = 1\n")
+    (work / "pkg" / "tests" / "test_old.py").write_text(
+        "import gone, lib\nfrom tests import _helper\ndef test_old():\n    assert lib.VALUE >= 1 and _helper.ANSWER == 1 and gone.X == 1\n")
+    g("add", "."), g("commit", "-q", "-m", "old suite")
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
+    subprocess.run(["git", "fetch", "-q", str(work)], cwd=pinned, check=True)
+    return work, g, base, pinned
+
+
+def test_a_whole_tests_dir_runs_as_its_own_pytest_beside_an_engine_shaped_tests_package(tmp_path):
+    """review 5 must-fix 1: fichero-builder/tests has no __init__.py, the engine's tests/ has one; in one process the
+    second `from tests import x` failed. Each whole dir is its own pytest from its package dir; both runs are recorded."""
+    work, g, base, _pinned = _whole_project(tmp_path)
+    (work / "pkg" / "lib.py").write_text("VALUE = 2\n")
+    (work / "tests" / "test_new.py").write_text("import lib\ndef test_v():\n    assert lib.VALUE == 2\n")
+    g("add", "."), g("commit", "-q", "-m", "change")
+    r = ct.run_ladder(work, base, "HEAD", _pinned, jail_required=False)
+    assert r["ok"], r["rungs"][-1]["stdout_tail"] + r["rungs"][-1]["stderr_tail"]
+    row = next(x for x in r["rungs"] if x["name"] == "red-on-base")
+    assert len(row["runs"]) == 2 and all(x["ok"] for x in row["runs"])
+    assert "test_new.py" in " ".join(row["runs"][0]["argv"]) and "pkg/tests" in " ".join(row["runs"][1]["argv"])
+    assert "test_new.py" not in " ".join(row["runs"][1]["argv"]), "the engine-shaped run keeps only the changed files"
+
+
+@pytest.mark.parametrize("path", ["pkg/pyproject.toml", "pkg/tests/pyproject.toml", "pkg/.pytest.ini", "pkg/tests/.pytest.ini",
+                                  "pkg/pytest.toml", "pkg/.pytest.toml"])
+def test_a_pytest_config_file_anywhere_is_a_pinned_name_so_it_cannot_turn_the_whole_tests_run_into_collection(tmp_path, path):
+    """review 6 must-fix 1: the whole-tests run used the package's own pyproject.toml, or pytest's upward search, so a
+    worker-added config with `addopts = --co` made a red suite green by collecting only. Every name pytest reads is pinned."""
+    work, g, base, pinned = _whole_project(tmp_path)
+    (work / "pkg" / "lib.py").write_text("VALUE = 0\n")  # breaks test_old
+    body = ('[tool.pytest.ini_options]\naddopts = "--co"\n' if path.endswith("pyproject.toml")
+            else "[pytest]\naddopts = --co\n" if path.endswith(".ini") else '[pytest]\naddopts = "--co"\n')
+    (work / path).write_text(body)
+    g("add", "-A"), g("commit", "-q", "-m", "config")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    assert not r["ok"] and r["failed"] == "pinned-checks", r
+
+
+def test_a_deletion_under_a_whole_tests_prefix_runs_the_dir_whole_even_with_no_test_changed(tmp_path):
+    """review 5 must-fix 3: a delete-only commit skipped red-on-base, so the old test importing the deleted file never ran."""
+    work, g, base, pinned = _whole_project(tmp_path)
+    (work / "pkg" / "gone.py").unlink()
+    (work / "pkg" / "lib.py").unlink()
+    g("add", "-A"), g("commit", "-q", "-m", "delete")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False)
+    assert not r["ok"] and r["failed"] == "red-on-base", r
+    assert "test_old" in r["rungs"][-1]["stdout_tail"] + r["rungs"][-1]["stderr_tail"]
+
+
+def test_a_change_outside_the_whole_tests_prefix_runs_only_the_changed_test_files(tmp_path):
+    work, g, base, pinned = _whole_project(tmp_path)
+    (work / "other.py").write_text("Y = 1\n")
+    (work / "tests" / "test_new.py").write_text("import sys; sys.path.insert(0, \".\")\nimport other\ndef test_v():\n    assert other.Y == 1\n")
+    g("add", "."), g("commit", "-q", "-m", "elsewhere")
+    cfg = ct.load(pinned)
+    assert ct._whole_tests(["other.py", "tests/test_new.py"], cfg) == ()
+    assert ct._whole_tests(["pkg/lib.py"], cfg) == ("pkg/tests",)
+
+
+
+def test_a_whole_tests_list_runs_its_test_files_engine_shaped_beside_the_changed_tests_and_its_dirs_whole(monkeypatch):
+    """2026-11-08: five tree-scanning guardrail tests sat red on integration for hours: no batch edits them, so none ran.
+    A prefix may name a list; a `.py` entry runs with the changed tests (engine-shaped), a dir runs whole as before."""
+    cfg = ct.Config(whole_tests={"src/app/": ["tests/scripts/test_db_guardrail.py", "tests/seams/test_seam.py"], "builder/": "builder/tests"})
+    assert ct._whole_tests(["src/app/x.py"], cfg) == ("tests/scripts/test_db_guardrail.py", "tests/seams/test_seam.py")
+    assert ct._whole_tests(["src/app/x.py", "builder/b.py"], cfg)[0] == "builder/tests"
+    assert ct._whole_tests(["docs/a.md"], cfg) == ()
+    ran = []
+    ok = {"ok": True, "argv": [], "exit_code": 0, "timed_out": False, "seconds": 1, "stdout_tail": "", "stderr_tail": ""}
+    monkeypatch.setattr(ct, "pytest_rung", lambda tree, fs, cfg, t: (ran.append(("engine", tuple(fs))), {**ok, "name": "pytest"})[1])
+    monkeypatch.setattr(ct, "whole_tests_rung", lambda tree, d, cfg, t: (ran.append(("whole", d)), {**ok, "name": "pytest"})[1])
+    r = ct.green_runs("/t", ["tests/test_new.py"], ("builder/tests", "tests/scripts/test_db_guardrail.py"), cfg, 60)
+    assert r["ok"] and ran == [("engine", ("tests/test_new.py", "tests/scripts/test_db_guardrail.py")), ("whole", "builder/tests")]
+
+def test_already_built_exempts_only_a_test_only_commit_that_names_its_test(tmp_path):
+    """The worker writes the message: a line on a commit that also changes source would opt out of the red proof."""
+    g, base = _git_repo(tmp_path)
+    (tmp_path / "test_a.py").write_text("def test_a():\n    assert True\n")
+    g("add", "."), g("commit", "-q", "-m", "good\n\nAlready built: #9 test_a.py::test_a")
+    (tmp_path / "test_b.py").write_text("def test_b():\n    assert True\n")
+    (tmp_path / "mod.py").write_text("VALUE = 2\n")
+    g("add", "."), g("commit", "-q", "-m", "source too\n\nAlready built: #9 test_b.py::test_b")
+    (tmp_path / "test_c.py").write_text("def test_c():\n    assert True\n")
+    g("add", "."), g("commit", "-q", "-m", "no test named\n\nAlready built: #9")
+    (tmp_path / "test_d.py").write_text("def test_d():\n    assert True\n")
+    g("add", "."), g("commit", "-q", "-m", "another test named\n\nAlready built: #9 test_a.py::test_a")
+    assert ct.already_built_files(tmp_path, base, "HEAD", ct.Config(test_globs=("test_*.py",))) == {"test_a.py"}
+
+
+def test_already_built_must_pass_on_base_so_a_source_commit_before_it_cannot_skip_the_red(tmp_path):
+    """Review of range 1: the source in one commit and the test in a test-only commit with the line skipped the red proof for a
+    behaviour that was not on base. "Already built" means the test passes on base, so that is what is run."""
+    g, base = _git_repo(tmp_path)
+    (tmp_path / "mod.py").write_text("VALUE = 2\n")
+    g("add", "."), g("commit", "-q", "-m", "the source")
+    (tmp_path / "test_new.py").write_text("import mod\ndef test_v():\n    assert mod.VALUE == 2\n")
+    g("add", "."), g("commit", "-q", "-m", "the test\n\nAlready built: #9 test_new.py::test_v")
+    r = ct.red_on_base(tmp_path, base, "HEAD", ["test_new.py"], timeout_s=120)
+    assert not r["ok"] and "fails on base" in r["stderr_tail"]
+
+
+def test_a_source_change_whose_every_test_is_excused_is_refused(tmp_path):
+    """Review of range 1: source in one commit, `assert True` with the line in a test-only commit: it passes on base, so no test owed a red."""
+    g, base = _git_repo(tmp_path)
+    (tmp_path / "mod.py").write_text("VALUE = 2\n")
+    g("add", "."), g("commit", "-q", "-m", "the source")
+    (tmp_path / "test_x.py").write_text("def test_x():\n    assert True\n")
+    g("add", "."), g("commit", "-q", "-m", "a test\n\nAlready built: #9 test_x.py::test_x")
+    r = ct.red_on_base(tmp_path, base, "HEAD", ["test_x.py"], timeout_s=120)
+    assert not r["ok"] and "owes a red" in r["stderr_tail"]
+
+
+def test_a_source_change_with_another_test_that_goes_red_may_also_carry_an_excused_one(tmp_path):
+    """One step can fix a thing and prove another was there."""
+    g, base = _git_repo(tmp_path)
+    (tmp_path / "test_have.py").write_text("def test_h():\n    assert True\n")
+    g("add", "."), g("commit", "-q", "-m", "proof\n\nAlready built: #9 test_have.py::test_h")
+    (tmp_path / "mod.py").write_text("VALUE = 2\n")
+    (tmp_path / "test_new.py").write_text("import mod\ndef test_n():\n    assert mod.VALUE == 2\n")
+    g("add", "."), g("commit", "-q", "-m", "the fix")
+    assert ct.red_on_base(tmp_path, base, "HEAD", ["test_have.py", "test_new.py"], timeout_s=120)["ok"]
+
+
+def test_an_already_built_test_that_goes_red_on_head_is_refused_by_the_green_run(tmp_path):
+    """Passes on base, fails at head, through a change outside the red paths: the line excuses the red run, never the green one."""
+    g, base = _git_repo(tmp_path)
+    (tmp_path / "mod.py").write_text("VALUE = 2\n")
+    g("add", "."), g("commit", "-q", "-m", "not a red path")
+    (tmp_path / "test_x.py").write_text("import mod\ndef test_x():\n    assert mod.VALUE == 1\n")
+    g("add", "."), g("commit", "-q", "-m", "proof\n\nAlready built: #9 test_x.py::test_x")
+    r = ct.red_on_base(tmp_path, base, "HEAD", ["test_x.py"], ct.Config(red_paths=("src/",)), timeout_s=120)
+    assert not r["ok"] and "Already built" not in r["stderr_tail"] and "owes a red" not in r["stderr_tail"], "stopped by the green run"
+
+
+def test_a_commit_that_says_already_built_owes_no_red_on_base_but_its_test_still_runs_green(tmp_path):
+    """A worker that found the behaviour in place commits the proving test with the line `Already built: #N <test>`: that
+    test passes on base by design, so red-on-base does not refuse it; it still runs in the green run."""
+    g, base = _git_repo(tmp_path)
+    (tmp_path / "test_have.py").write_text("import mod\ndef test_v():\n    assert mod.VALUE == 1\n")
+    g("add", "."), g("commit", "-q", "-m", "docs: the value is there\n\nAlready built: #9 test_have.py::test_v")
+    assert ct.red_on_base(tmp_path, base, "HEAD", ["test_have.py"], timeout_s=120)["ok"]
+    # the same size and the same mtime second as the passing version: pytest's rewrite cache would serve the OLD bytecode
+    # (stale pyc flake, 1 in ~3 runs before the fresh pycache prefix per rung)
+    mtime = os.stat(tmp_path / "test_have.py").st_mtime
+    (tmp_path / "test_have.py").write_text("import mod\ndef test_v():\n    assert mod.VALUE == 3\n")
+    os.utime(tmp_path / "test_have.py", (mtime, mtime))
+    g("add", "."), g("commit", "-q", "-m", "docs: broken\n\nAlready built: #9 test_have.py::test_v")
+    assert not ct.red_on_base(tmp_path, base, "HEAD", ["test_have.py"], timeout_s=120)["ok"], "it fails on base, so the line is refused"
+    (tmp_path / "test_other.py").write_text("def test_t():\n    assert True\n")
+    g("add", "."), g("commit", "-q", "-m", "a plain commit")
+    r = ct.red_on_base(tmp_path, base, "HEAD", ["test_other.py"], timeout_s=120)
+    assert not r["ok"] and "NOT RED ON BASE" in r["stderr_tail"], "a test from a commit without the line still owes a red"
+
+
+def test_the_ready_check_skips_its_guard_copy_with_no_guards_because_the_guards_rung_runs_them(tmp_path):
+    """2026-11-02: the ready rung ran every guard again (60 s cap each) before the guards rung ran them from the pinned copy;
+    under load one timed out and refused a green batch. The Builder passes --no-guards; a bare run still runs them."""
+    import shutil
+
+    repo = Path(__file__).resolve().parents[4]
+    w = tmp_path / "w"
+    (w / "scripts").mkdir(parents=True)
+    shutil.copy(repo / "scripts" / "lane_ready_check.sh", w / "scripts" / "lane_ready_check.sh")
+    (w / "pipeline" / "projects").mkdir(parents=True)
+    (w / "pipeline" / "projects" / "fichero.toml").write_text('[repo]\npython_path = "."\n[[ladder]]\nname = "fast-guards"\nskip = []\n')
+    for i in range(20):
+        (w / "scripts" / f"check_ok{i:02}.py").write_text("pass\n")
+    (w / "scripts" / "check_red.py").write_text("raise SystemExit('red guard')\n")
+    env = {**os.environ, "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_AUTHOR_NAME": "C", "GIT_AUTHOR_EMAIL": "noreply@anthropic.com",
+           "GIT_COMMITTER_NAME": "C", "GIT_COMMITTER_EMAIL": "noreply@anthropic.com",
+           "FICHERO_PYTHON_BIN": sys.executable}  # the script looks for a python with tomllib on PATH: the remote runner has none there (2026-11-03, red-on-base on the iMac)
+    def g(*a):
+        subprocess.run(["git", "-C", str(w), *a], check=True, capture_output=True, env=env)
+    g("init", "-q", "-b", "integration"), g("add", "."), g("commit", "-qm", "base #1234")
+    g("update-ref", "refs/remotes/origin/integration", "HEAD")
+    (w / "notes.txt").write_text("x\n")
+    g("add", "."), g("commit", "-qm", "docs: a note #1234\n\nDirected-By: the maintainer")
+    run = lambda *a: subprocess.run(["bash", "scripts/lane_ready_check.sh", *a], cwd=w, capture_output=True, text=True, env=env)  # noqa: E731
+    bare = run("HEAD")
+    assert bare.returncode == 1 and "check_red.py" in bare.stdout, bare.stdout
+    skipped = run("--no-guards", "HEAD")
+    assert skipped.returncode == 0 and "READY" in skipped.stdout, skipped.stdout
+    assert "--no-guards" in ct.load(repo).ready, "the Builder's ready rung passes it"
+
+
+def test_the_green_run_is_one_pytest_per_package_so_two_tests_dirs_never_shadow_each_other(monkeypatch):
+    """Real check 2026-11-02: fichero-server/tests and fichero-builder/tests in one pytest: `tests.test_queue_verb` not found."""
+    seen = []
+    monkeypatch.setattr(ct, "pytest_rung", lambda tree, fs, cfg, t: seen.append(fs) or {"argv": fs, "exit_code": 0, "ok": True, "seconds": 0,
+                                                                                         "stdout_tail": "", "stderr_tail": ""})
+    r = ct.green_runs(".", ["fichero-server/tests/a/test_x.py", "fichero-builder/tests/test_y.py", "fichero-server/tests/test_z.py"], (), ct.Config(), 5)
+    assert seen == [["fichero-server/tests/a/test_x.py", "fichero-server/tests/test_z.py"], ["fichero-builder/tests/test_y.py"]]
+    assert r["ok"] and len(r["runs"]) == 2
+
+
+def _fake_ssh(tmp_path, monkeypatch):
+    """An `ssh` that runs the remote script here (host and -o flags dropped), or fails as ssh does when `down` exists."""
+    b = tmp_path / "bin"
+    b.mkdir()
+    (b / "ssh").write_text('#!/bin/sh\nwhile [ "$1" = "-o" ]; do shift 2; done\nshift\n'
+                           f'[ -f {tmp_path}/down ] && {{ echo "ssh: connect to host imac: No route to host" >&2; exit 255; }}\nexec sh -c "$1"\n')
+    (b / "ssh").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{b}:{os.environ['PATH']}")
+
+
+def test_a_remote_runner_runs_the_engine_pytest_there_and_an_unreachable_one_alerts_and_runs_it_here(tmp_path, monkeypatch):
+    """[check].remote (manager 2026-11-02): the tree is shipped once, the same pytest runs in the copy with the remote's
+    interpreter and the rung's env, and the copy is gone at the end; unreachable = one alert row, then the run here."""
+    from fichero_builder import journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    _fake_ssh(tmp_path, monkeypatch)
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    g, _ = _git_repo(tree)
+    (tree / "test_where.py").write_text("import os\ndef test_where():\n    assert os.environ['FICHERO_FEATURE_TIER'] == 'dev'\n"
+                                        f"    open({str(tmp_path / 'ran')!r}, 'a').write(os.path.dirname(__file__) + '\\n')\n")
+    (tmp_path / "gate").mkdir()
+    cfg = ct.Config(test_env={"FICHERO_FEATURE_TIER": "dev"}, remote=f"imac:{tmp_path / 'gate'}", remote_python=sys.executable)
+    r = ct.pytest_rung(tree, ["test_where.py"], cfg, timeout_s=120)
+    assert r["ok"] and r["remote"] == "imac", r
+    assert ct.pytest_rung(tree, ["test_where.py"], cfg, timeout_s=120)["ok"]
+    where = (tmp_path / "ran").read_text().split()
+    assert len(where) == 2 and where[0] == where[1] and where[0].startswith(str(tmp_path / "gate" / "run-")), "one copy, shipped once"
+    ct._drop_remote(cfg)
+    assert [x.name for x in (tmp_path / "gate").iterdir()] == ["heavy.lock"], "the copy is removed at the end; the machine's lock file stays"
+    (tmp_path / "down").write_text("")
+    r = ct.pytest_rung(tree, ["test_where.py"], cfg, timeout_s=120)
+    assert r["ok"] and "remote" not in r, "unreachable: the same tests ran here"
+    assert (tmp_path / "ran").read_text().split()[-1] == str(tree)
+    (a,) = [x for x in journal.read() if x["event"] == "alert"]
+    assert a["step"] == "remote" and "unreachable" in a["what"] and "No route" in a["what"]
+    assert ct.pytest_rung(tree, ["test_where.py"], cfg, timeout_s=120)["ok"]
+    assert len([x for x in journal.read() if x["event"] == "alert"]) == 1, "one alert per ladder, not one per run"
+    ct._drop_remote(cfg)
+
+
+def test_one_ladders_end_keeps_the_other_running_ladders_remote_copy(tmp_path, monkeypatch):
+    """(2026-11-07: the waits are minutes, not seconds: on the loaded iMac a 120 s inner run timed out and the test failed on
+    timing, not on what it pins.) Review 2026-11-02: with [check].parallel = 2 the first ladder to end deleted every shipped copy, including the one the other
+    ladder was still running tests in. Each thread removes only the trees it shipped."""
+    import threading
+    from fichero_builder import journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    _fake_ssh(tmp_path, monkeypatch)
+    (tmp_path / "gate").mkdir()
+    cfg = ct.Config(remote=f"imac:{tmp_path / 'gate'}", remote_python=sys.executable)
+    trees = []
+    for n in ("a", "b"):
+        t = tmp_path / f"tree-{n}"
+        t.mkdir()
+        _git_repo(t)
+        (t / "test_x.py").write_text("def test_x():\n    assert 1\n")
+        trees.append(t)
+    b_shipped, a_dropped, seen = threading.Event(), threading.Event(), {}
+
+    def ladder_a():
+        assert ct.pytest_rung(trees[0], ["test_x.py"], cfg, timeout_s=600)["ok"]
+        b_shipped.wait(600)
+        ct._drop_remote(cfg)
+        a_dropped.set()
+
+    def ladder_b():
+        assert ct.pytest_rung(trees[1], ["test_x.py"], cfg, timeout_s=600)["ok"]
+        b_shipped.set()
+        a_dropped.wait(600)
+        seen["after_a_ended"] = sorted(x.name for x in (tmp_path / "gate").iterdir() if x.name.startswith("run-"))
+        ct._drop_remote(cfg)
+    ts = [threading.Thread(target=f) for f in (ladder_a, ladder_b)]
+    [t.start() for t in ts]
+    [t.join(900) for t in ts]
+    assert len(seen["after_a_ended"]) == 1, "b's copy survived a's end"
+    assert not [x for x in (tmp_path / "gate").iterdir() if x.name.startswith("run-")], "and b removed its own"
+
+
+def test_weakened_tests_refuse_until_the_manager_approves_and_the_approval_is_recorded(tmp_path):
+    """Manager 2026-11-02: a test a lane renamed because of an owner ruling (#6088) was refused with no way through. Approve
+    (the alert's approve|send-back, like needs-maintainer) re-runs the check with approve_weakened, noted in the row."""
+    work, g, base, pinned = _project(tmp_path)
+    (work / "test_old.py").write_text("def test_cloud_is_off():\n    assert 1\n")
+    g("add", "."), g("commit", "-q", "-m", "a test")
+    base2 = subprocess.run(["git", "rev-parse", "HEAD"], cwd=work, capture_output=True, text=True).stdout.strip()
+    (work / "test_old.py").write_text("def test_cloud_is_the_default():\n    assert 1\n")
+    g("add", "."), g("commit", "-q", "-m", "rename per the owner's ruling")
+    r = ct.run_ladder(work, base2, "HEAD", pinned, jail_required=False)
+    assert not r["ok"] and r["failed"] == "pinned-checks" and "weakens existing tests" in r["rungs"][0]["stderr_tail"]
+    r = ct.run_ladder(work, base2, "HEAD", pinned, jail_required=False, approve_weakened=True)
+    assert r["rungs"][0]["ok"] and "approved weakened tests: test_old.py" in r["rungs"][0]["stdout_tail"], r["rungs"][0]
+
+
+def test_a_test_file_whose_tests_are_unchanged_owes_no_red_and_any_other_refusal_can_be_approved(tmp_path):
+    """Manager 2026-11-02 (sharing a0d60afec2): a lane only added its route to OWNER_ONLY_GETS in an existing sweep test, which
+    of course passes on base. Its test functions are unchanged: no red owed. Any other red-on-base refusal says
+    needs-approval (the loop makes it an approve|send-back alert) and approve_red records it and runs the green run."""
+    g, base = _git_repo(tmp_path)
+    (tmp_path / "test_sweep.py").write_text("GETS = {'/a'}\ndef test_every_get_is_owner_only():\n    assert all(p.startswith('/') for p in GETS)\n")
+    g("add", "."), g("commit", "-q", "-m", "the sweep test")
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=tmp_path, capture_output=True, text=True).stdout.strip()
+    (tmp_path / "test_sweep.py").write_text("GETS = {'/a', '/api/pair/addresses'}\ndef test_every_get_is_owner_only():\n    assert all(p.startswith('/') for p in GETS)\n")
+    g("add", "."), g("commit", "-q", "-m", "a new route, registered")
+    assert ct.data_only(tmp_path, base, "HEAD", "test_sweep.py")
+    assert ct.red_on_base(tmp_path, base, "HEAD", ["test_sweep.py"], timeout_s=120)["ok"], "data only: no red owed, green at head"
+    # review 2026-11-02: with a source change beside it, a data-only edit excuses nothing (the change owes a red or an approve)
+    (tmp_path / "mod.py").write_text("VALUE = 2\n")
+    (tmp_path / "test_sweep.py").write_text("GETS = {'/a', '/api/pair/addresses', '/b'}\ndef test_every_get_is_owner_only():\n    assert all(p.startswith('/') for p in GETS)\n")
+    g("add", "."), g("commit", "-q", "-m", "source plus a data-only test edit")
+    r = ct.red_on_base(tmp_path, base, "HEAD", ["test_sweep.py"], timeout_s=120)
+    assert not r["ok"] and "mod.py changed and every changed test says Already built or changes only module data" in r["stderr_tail"]
+    assert ct.red_on_base(tmp_path, base, "HEAD", ["test_sweep.py"], timeout_s=120, approve_red=True)["ok"]
+    (tmp_path / "test_sweep.py").write_text("def helper():\n    return 0\nGETS = {'/a', '/api/pair/addresses', '/b'}\ndef test_every_get_is_owner_only():\n    assert all(p.startswith('/') for p in GETS)\n")
+    g("add", "."), g("commit", "-q", "-m", "a new helper")
+    assert not ct.data_only(tmp_path, base, "HEAD", "test_sweep.py"), "a new helper is not data"
+    (tmp_path / "test_new.py").write_text("def test_t():\n    assert True\n")
+    g("add", "."), g("commit", "-q", "-m", "a test that proves nothing")
+    r = ct.red_on_base(tmp_path, base, "HEAD", ["test_new.py"], timeout_s=120)
+    assert not r["ok"] and "NOT RED ON BASE" in r["stderr_tail"] and "needs-approval" in r["stderr_tail"]
+    r = ct.red_on_base(tmp_path, base, "HEAD", ["test_new.py"], timeout_s=120, approve_red=True)
+    assert r["ok"] and "approved by the manager: NOT RED ON BASE" in r["stdout_tail"]
+
+
+def test_an_approve_naming_test_files_excuses_only_those(tmp_path):
+    """Defect 2026-11-02: an approve given for one test file excused another later. A tuple approve_red excuses a refusal only
+    when it names one of those files."""
+    g, base = _git_repo(tmp_path)
+    (tmp_path / "test_a.py").write_text("def test_t():\n    assert True\n")
+    g("add", "."), g("commit", "-q", "-m", "a test that proves nothing")
+    r = ct.red_on_base(tmp_path, base, "HEAD", ["test_a.py"], timeout_s=120, approve_red=("test_other.py",))
+    assert not r["ok"] and "NOT RED ON BASE: test_a.py" in r["stderr_tail"]
+    r = ct.red_on_base(tmp_path, base, "HEAD", ["test_a.py"], timeout_s=120, approve_red=("test_a.py",))
+    assert r["ok"] and "approved by the manager: NOT RED ON BASE: test_a.py" in r["stdout_tail"]
+
+
+def test_a_new_file_under_a_pinned_path_refuses_until_approved_and_the_approval_is_recorded(tmp_path):
+    work, g, base, pinned = _project(tmp_path)
+    (work / "ci" / "helper.py").write_text("X = 1\n")  # not a guard: a new file under the pinned ci/ path
+    g("add", "."), g("commit", "-q", "-m", "a helper")
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False, maintainer=True)
+    assert not r["ok"] and "a new file under a pinned path" in r["rungs"][0]["stderr_tail"]
+    r = ct.run_ladder(work, base, "HEAD", pinned, jail_required=False, maintainer=True, approve_pinned_new=True)
+    assert r["rungs"][0]["ok"] and "approved new pinned files: ci/helper.py" in r["rungs"][0]["stdout_tail"], r["rungs"][0]
+
+
+def test_run_tests_runs_the_named_paths_in_a_scratch_tree_of_the_head(tmp_path):
+    """The console's Run tests (owner 2026-11-02): the pinned pytest over chosen paths on a commit, never the caller's tree."""
+    work, g, base, pinned = _project(tmp_path)
+    (work / "test_area.py").write_text("def test_ok():\n    assert True\n")
+    g("add", "."), g("commit", "-q", "-m", "an area test")
+    (work / "test_area.py").write_text("def test_ok():\n    assert False  # uncommitted: never run\n")
+    r = ct.run_tests(work, "HEAD", pinned, ["test_area.py"], jail_required=False)
+    assert r["ok"] and r["name"] == "tests", r
+
+
+def test_a_collection_error_says_which_file_could_not_be_collected(tmp_path):
+    """Manager 2026-11-02: a ModuleNotFoundError at collection read as a generic red."""
+    (tmp_path / "test_x.py").write_text("from nowhere_at_all import thing\ndef test_x():\n    assert thing\n")
+    r = ct.green_runs(tmp_path, ["test_x.py"], (), ct.Config(), 120)
+    assert not r["ok"] and r["stderr_tail"].startswith("could not collect test_x.py: ModuleNotFoundError"), r["stderr_tail"][:300]
+
+
+def test_an_import_only_change_to_a_test_file_owes_no_red(tmp_path):
+    """Manager 2026-11-02: test_pi_policy_extension.py changed one import line (the `tests.` prefix) and was NOT RED ON BASE."""
+    g, base = _git_repo(tmp_path)
+    (tmp_path / "test_imp.py").write_text("from os import path\ndef test_t():\n    assert path\n")
+    g("add", "."), g("commit", "-q", "-m", "t")
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=tmp_path, capture_output=True, text=True).stdout.strip()
+    (tmp_path / "test_imp.py").write_text("import os.path as path\ndef test_t():\n    assert path\n")
+    g("add", "."), g("commit", "-q", "-m", "import only")
+    assert ct.data_only(tmp_path, base, "HEAD", "test_imp.py")
+
+
+def test_a_guard_green_is_reused_for_the_same_inputs_and_runs_again_when_one_changes(tmp_path):
+    """Speed 5 (manager 2026-11-02): key = the guard file + its inputs' tree ids (or the whole tree) + tool versions."""
+    g, _ = _git_repo(tmp_path)
+    (tmp_path / "ci").mkdir()
+    (tmp_path / "ci" / "check_a.py").write_text("import pathlib, sys\nopen('ran', 'a').write('x')\nsys.exit(0)\n")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "m.py").write_text("x = 1\n")
+    (tmp_path / ".gitignore").write_text("ran\n")
+    g("add", "."), g("commit", "-q", "-m", "a guard")
+    cfg = ct.Config(guard_glob="ci/check_*.py", min_guards=1, guard_inputs={"check_a": ["src/"]})
+    ct.GUARD_CACHE[0] = tmp_path.parent / f"{tmp_path.name}-cache.json"
+    try:
+        assert ct.guards(tmp_path, cfg)["ok"] and (tmp_path / "ran").read_text() == "x"
+        r = ct.guards(tmp_path, cfg)
+        assert r["ok"] and r["results"][0].get("cached") and (tmp_path / "ran").read_text() == "x", "the same inputs: reused, not run"
+        (tmp_path / "src" / "m.py").write_text("x = 2\n")
+        g("commit", "-qam", "an input changed")
+        r = ct.guards(tmp_path, cfg)
+        assert r["ok"] and not r["results"][0].get("cached") and (tmp_path / "ran").read_text() == "xx", "an input changed: it runs"
+    finally:
+        ct.GUARD_CACHE[0] = None
+
+
+def test_two_overlapping_ladders_keep_the_jail_until_the_last_one_ends():
+    """Review 2026-11-02: with [check].parallel = 2 the first ladder to end set the jail to None and the other's rungs ran as the owner."""
+    j = object()
+    ct._jail_enter(j), ct._jail_enter(j)
+    ct._jail_exit()
+    assert ct._JAIL is j
+    ct._jail_exit()
+    assert ct._JAIL is None
+
+
+def test_a_batch_that_touches_no_build_path_skips_the_build_without_ever_taking_the_heavy_lock(monkeypatch):
+    """2026-11-06: build() took the heavy lock before it saw the batch built nothing, so a docs-only or harness batch waited hours on the
+    owner's Xcode hold. The skip is decided first; only a real compile takes the lock."""
+    import contextlib
+
+    from fichero_builder import journal
+    taken = []
+
+    @contextlib.contextmanager
+    def heavy(what, yields=False):
+        taken.append(what)
+        yield
+    monkeypatch.setattr(journal, "heavy", heavy)
+    cfg = ct.Config(build=("true",), build_paths=("fichero/",))
+    r = ct.build("/nowhere", ["README.md", "fichero-builder/fichero_builder/queue.py"], cfg)
+    assert r == {"ok": True, "skipped": True, "results": []} and taken == [], "no build path: no lock, no wait"
+    monkeypatch.setattr(ct, "_build_locked", ct._heavy("xcodebuild (the build rung)")(lambda root, changed, cfg: {"ok": True, "skipped": False, "results": []}))
+    assert ct.build("/nowhere", ["fichero/App.swift"], cfg)["skipped"] is False and taken == ["xcodebuild (the build rung)"], "a Swift change takes it"
+
+
+def test_auto_remote_guards_go_in_one_batch_a_git_guard_stays_here_and_a_remote_red_counts_only_if_red_here(tmp_path, monkeypatch):
+    """manager 2026-11-06: the Pro sat at load 30 to 57 under the ladders while the owner's Xcode ran: guards go to the runners."""
+    monkeypatch.setattr(ct.journal, "STATE", tmp_path / "journal")  # never the live ladder's guards lock
+    (tmp_path / "journal").mkdir()
+    root = _repo(tmp_path, 22, {0: "import subprocess\n", 1: "pass\n", 2: "raise SystemExit(1)\n"})
+    sent = []
+
+    def batch(scripts, r, cfg):
+        sent.append(sorted(s.stem for s in scripts))
+        return {s.stem: {"name": s.stem, "exit_code": int(s.stem in ("check_g1", "check_g2")), "ok": s.stem not in ("check_g1", "check_g2"),
+                         "timed_out": False, "stdout_tail": "", "stderr_tail": "no .git here", "remote": "imac"} for s in scripts}
+    monkeypatch.setattr(ct, "_remote_guard_batch", batch)
+    r = ct.guards(root, ct.Config(guard_glob="scripts/check_*.py", min_guards=20, remote_guards="auto", remotes=("imac:~/g",)))
+    by = {x["name"]: x for x in r["results"]}
+    assert len(sent) == 1 and "check_g0" not in sent[0] and len(sent[0]) == 21, "one batch; the guard that names subprocess stays here"
+    assert "remote" not in by["check_g0"] and by["check_g0"]["ok"]
+    assert by["check_g1"]["ok"] and by["check_g1"]["rerun_here"], "red only over there (the runner's): green here, so green"
+    assert not by["check_g2"]["ok"] and by["check_g2"]["rerun_here"], "red there and here: a real red"
+    monkeypatch.setattr(ct, "_remote_guard_batch", lambda *a: None)
+    r = ct.guards(root, ct.Config(guard_glob="scripts/check_*.py", min_guards=20, remote_guards="auto", remotes=("imac:~/g",)))
+    assert len(r["results"]) == 22 and not any(x.get("remote") for x in r["results"]), "no runner: every guard runs here"
+
+
+def test_the_remote_guard_batch_runs_every_guard_with_its_own_timeout_in_one_call_and_reports_each(tmp_path, monkeypatch):
+    """The batch driver itself, its ssh replaced by a local shell: one call, a result per guard, a hang cut at the guard timeout."""
+    root = _repo(tmp_path, 3, {1: "raise SystemExit(3)\n", 2: "import time\ntime.sleep(5)\n"})
+    calls = []
+
+    def ssh(host, script, timeout_s, stdin=None):
+        calls.append(host)
+        return subprocess.run(["/bin/sh", "-c", script], input=stdin, capture_output=True, timeout=timeout_s)
+    monkeypatch.setattr(ct, "_ssh", ssh)
+    monkeypatch.setattr(ct, "_ship", lambda r, cfg, rem="": str(r))
+    cfg = ct.Config(guard_glob="scripts/check_*.py", guard_timeout_s=1, remotes=("imac:~/g",), remote_python=sys.executable)
+    out = ct._remote_guard_batch(sorted((root / "scripts").glob("check_*.py")), root, cfg)
+    assert calls == ["imac"], "one ssh for the whole batch"
+    assert out["check_g0"]["ok"] and out["check_g0"]["remote"] == "imac"
+    assert out["check_g1"]["exit_code"] == 3 and not out["check_g1"]["ok"]
+    assert out["check_g2"]["timed_out"] and not out["check_g2"]["ok"], "a hang is cut at the guard's own timeout"
+
+
+def test_the_build_runs_on_the_build_remote_with_its_own_derived_data_and_falls_back_here_when_that_mac_is_down(tmp_path, monkeypatch):
+    """manager 2026-11-06 t88: the build rung on the M1 Air so the Pro stays the owner's; unreachable = the build here, as before."""
+    monkeypatch.setattr(ct.journal, "STATE", tmp_path / "journal")
+    (tmp_path / "journal").mkdir()
+    monkeypatch.setattr(ct, "_build_key", lambda src, cfg, cmd=(): "k1")
+    monkeypatch.setattr(ct, "_lines", lambda *a, **k: ["abc123"])
+    up = [0]
+    monkeypatch.setattr(ct, "_ssh", lambda host, script, t, stdin=None: subprocess.CompletedProcess(
+        [], 0 if up[0] == 0 else 255, b"/Users/Shared/fg-air\n" if up[0] == 0 else b"", b"" if up[0] == 0 else b"timed out"))
+    ran = []
+
+    def run(name, argv, cwd, timeout_s, env=None, as_jail=True, log=None):
+        ran.append((name, argv, as_jail))
+        return {"name": name, "argv": argv, "exit_code": 0, "ok": True, "timed_out": False, "seconds": 1, "stdout_tail": "", "stderr_tail": ""}
+    monkeypatch.setattr(ct, "run_command", run)
+    monkeypatch.setattr(ct, "_build_locked", lambda root, changed, cfg: {"ok": True, "skipped": False, "results": [{"here": True}]})
+    cfg = ct.Config(build=("xcodebuild", "-derivedDataPath", "/Users/Shared/fichero-worker/derived", "-disableAutomaticPackageResolution", "build"),
+                    build_paths=("fichero/",), build_remote="air:~/fichero-gate")
+    r = ct.build(str(tmp_path), ["fichero/A.swift"], cfg)
+    assert r["ok"] and r["results"][0]["remote"] == "air"
+    (_, sync, j1), (_, b, j2) = ran
+    assert sync[0] == "rsync" and "--delete" in sync and sync[-1] == "air:/Users/Shared/fg-air/build-tree/" and not j1
+    script = b[-1]
+    assert "/Users/Shared/fg-air/derived" in script and "/Users/Shared/fichero-worker" not in script, "its own derived data, under the registered root"
+    assert "-disableAutomaticPackageResolution" not in script and "cd /Users/Shared/fg-air/build-tree" in script and not j2
+    assert "/Users/Shared/fg-air/heavy.lock" in script, "under that Mac's own one-heavy-job lock"
+    ran.clear()
+    assert ct.build(str(tmp_path), ["fichero/A.swift"], cfg)["results"][0].get("reused") == "k1" and ran == [], "a green key is reused"
+    up[0] = 1
+    monkeypatch.setattr(ct, "_build_key", lambda src, cfg, cmd=(): "k2")
+    assert ct.build(str(tmp_path), ["fichero/A.swift"], cfg)["results"] == [{"here": True}], "that Mac down: the build runs here"
+    up[0], red = 0, ["error: unable to find a destination"]
+
+    def run_red(name, argv, cwd, timeout_s, env=None, as_jail=True, log=None):
+        ok = name != "build"
+        return {"name": name, "argv": argv, "exit_code": 0 if ok else 70, "ok": ok, "timed_out": False, "seconds": 1,
+                "stdout_tail": "" if ok else red[0], "stderr_tail": ""}
+    monkeypatch.setattr(ct, "run_command", run_red)
+    monkeypatch.setattr(ct, "_build_key", lambda src, cfg, cmd=(): "k3")
+    assert ct.build(str(tmp_path), ["fichero/A.swift"], cfg)["results"] == [{"here": True}], "a red that names no source: built here"
+    red[0] = "/x/fichero/A.swift:3:5: error: cannot find 'b' in scope"
+    monkeypatch.setattr(ct, "_build_key", lambda src, cfg, cmd=(): "k4")
+    r = ct.build(str(tmp_path), ["fichero/A.swift"], cfg)
+    assert not r["ok"] and r["results"][0]["remote"] == "air", "a Swift source error over there is the code's red"
+
+
+
+def test_the_daily_builds_run_each_named_command_on_the_build_remote_with_its_own_derived_data_and_never_here(tmp_path, monkeypatch):
+    """#6390 (owner 2026-11-07): the iOS app and the Swift test target, which the build rung never compiles, once a day on the
+    Air; no build remote = nothing runs (never the owner's Pro); the Air down = could not run, not a red."""
+    monkeypatch.setattr(ct.journal, "STATE", tmp_path / "journal")
+    (tmp_path / "journal").mkdir()
+    monkeypatch.setattr(ct, "_build_key", lambda src, cfg, cmd=(): "")
+    monkeypatch.setattr(ct, "_lines", lambda *a, **k: ["abc123"])
+    up = [0]
+    monkeypatch.setattr(ct, "_ssh", lambda host, script, t, stdin=None: subprocess.CompletedProcess(
+        [], 0 if up[0] == 0 else 255, b"/Users/Shared/fg-air\n" if up[0] == 0 else b"", b""))
+    ran = []
+
+    def run(name, argv, cwd, timeout_s, env=None, as_jail=True, log=None):
+        ran.append((name, argv))
+        ok = name != "tests"
+        return {"name": name, "argv": argv, "exit_code": 0 if ok else 65, "ok": ok, "timed_out": False, "seconds": 1,
+                "stdout_tail": "" if ok else "/x/fichero/T.swift:26:9: error: cannot find 'APIClient' in scope", "stderr_tail": ""}
+    monkeypatch.setattr(ct, "run_command", run)
+    monkeypatch.setattr(ct, "_build_locked", lambda *a: pytest.fail("a daily build never runs on this Mac"))
+    daily = {"ios-sim": ("xcodebuild", "-destination", "generic/platform=iOS Simulator", "-derivedDataPath", "d", "build"),
+             "tests": ("xcodebuild", "-destination", "platform=macOS", "-derivedDataPath", "d", "build-for-testing")}
+    assert ct.daily_builds(str(tmp_path), ct.Config(daily_builds=daily)) == [], "no build remote: nothing runs"
+    cfg = ct.Config(build=("xcodebuild", "build"), build_paths=("fichero/",), build_remote="air:~/fichero-gate", daily_builds=daily)
+    res = dict(ct.daily_builds(str(tmp_path), cfg))
+    assert res["ios-sim"]["ok"] and not res["tests"]["ok"], "a Swift source error in the test target is the code's red"
+    scripts = {n: a[-1] for n, a in ran if n in daily}
+    assert "/Users/Shared/fg-air/derived-ios-sim" in scripts["ios-sim"] and "generic/platform=iOS Simulator" in scripts["ios-sim"]
+    assert "/Users/Shared/fg-air/derived-tests" in scripts["tests"] and "build-for-testing" in scripts["tests"]
+    up[0] = 1
+    assert [r for _, r in ct.daily_builds(str(tmp_path), cfg)] == [None, None], "the Air down: could not run, never a red"
+
+def test_the_scratch_checkout_gets_minutes_not_gits_60_s_and_a_kill_names_its_reason(tmp_path, monkeypatch):
+    """2026-11-07: at load 100 with Defender scanning, the scratch `worktree add` passed 60 s and was killed: 'reset died of
+    signal 9', then a red with an empty reason."""
+    seen = []
+
+    def git(root, *args, timeout_s=60):
+        seen.append((args[2] if len(args) > 2 else args[0], timeout_s))
+        return {"ok": False, "stderr_tail": "", "timed_out": True, "exit_code": -9}
+    monkeypatch.setattr(ct, "_git", git)
+    monkeypatch.setattr(ct, "_lines", lambda *a, **k: ["abc123"])
+    with pytest.raises(RuntimeError) as e:
+        ct._scratch_tree(tmp_path, "HEAD", tmp_path, ct.Config())
+    assert ("worktree", ct.SCRATCH_CHECKOUT_S) in seen and ct.SCRATCH_CHECKOUT_S >= 600
+    assert "timed out after 600 s" in str(e.value), "never an empty reason"
+
+
+def test_a_base_tree_that_cannot_be_made_is_an_infra_error_never_a_red_to_approve(tmp_path, monkeypatch):
+    """Alert 416 (2026-11-07): the base tree's checkout passed git's 60 s at load 22 and came back as a red-on-base offering only
+    approve or send-back; an approve would skip the proof, a send-back blames the lane. It is a check that could not run."""
+    seen = []
+
+    def git(root, *args, timeout_s=60):
+        seen.append((args[0], timeout_s))
+        if args[0] == "worktree":
+            return {"ok": False, "stderr_tail": "", "timed_out": True, "exit_code": -9}
+        return {"ok": True, "stdout_tail": "abc123\n", "stderr_tail": ""}
+    monkeypatch.setattr(ct, "_git", git)
+    with pytest.raises(RuntimeError) as e:
+        ct.red_on_base(tmp_path, "base0", "HEAD", ["tests/test_x.py"], ct.Config())
+    assert "could not make the base tree" in str(e.value) and "timed out" in str(e.value)
+    assert ("worktree", ct.SCRATCH_CHECKOUT_S) in seen
+
+
+def test_a_tree_reached_through_a_symlink_keeps_each_folders_conftest_to_its_folder(tmp_path):
+    """#6589, 2026-11-15: the M4's and the iMac's ~/fichero-gate are links to a Dev Disk. pytest's cwd is the real path
+    while `-c` and the tree's folders were the link's, so test ids rooted outside their folders and an autouse fixture of
+    tests/unit/recipes/conftest.py ran under every test in the run (a Kraken page ran on MainThread, egress read the
+    wrong places). Every path the run hands pytest is the real one."""
+    real = tmp_path / "real"
+    (real / "a").mkdir(parents=True)
+    (real / "b").mkdir()
+    (real / "pyproject.toml").write_text("[tool.pytest.ini_options]\n")
+    (real / "a" / "conftest.py").write_text(
+        "import os, pytest\n@pytest.fixture(autouse=True)\ndef only_a(monkeypatch):\n    monkeypatch.setenv('ONLY_A', '1')\n")
+    (real / "a" / "test_a.py").write_text("import os\ndef test_a():\n    assert os.environ.get('ONLY_A') == '1'\n")
+    (real / "b" / "test_b.py").write_text("import os\ndef test_b():\n    assert 'ONLY_A' not in os.environ\n")
+    link = tmp_path / "link"
+    link.symlink_to(real)
+    r = ct.pytest_rung(link, ["a/test_a.py", "b/test_b.py"], ct.Config(pytest_config="pyproject.toml"), timeout_s=120)
+    assert r["ok"], r["stdout_tail"]
+
+
+def test_a_whole_tests_dir_reached_through_a_symlink_still_loads_its_own_conftest(tmp_path):
+    """#6589 review: the whole-tests run names its tests dir by an absolute path through the link; with the `-c` real and
+    the dir not, pytest's rootdir and confcutdir no longer held the dir, and its conftest stopped loading."""
+    real = tmp_path / "real"
+    (real / "pkg" / "tests").mkdir(parents=True)
+    (real / "pkg" / "pyproject.toml").write_text("[tool.pytest.ini_options]\n")
+    (real / "pkg" / "tests" / "conftest.py").write_text(
+        "import pytest\n@pytest.fixture(autouse=True)\ndef mine(monkeypatch):\n    monkeypatch.setenv('MINE', '1')\n")
+    (real / "pkg" / "tests" / "test_m.py").write_text("import os\ndef test_m():\n    assert os.environ.get('MINE') == '1'\n")
+    link = tmp_path / "link"
+    link.symlink_to(real)
+    r = ct.whole_tests_rung(link, "pkg/tests", ct.Config(), timeout_s=120)
+    assert r["ok"], r["stdout_tail"] + r["stderr_tail"]
+    assert "1 passed" in r["stdout_tail"]

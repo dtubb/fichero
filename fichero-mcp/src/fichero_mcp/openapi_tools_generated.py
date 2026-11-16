@@ -256,16 +256,52 @@ def fichero_activity_cleanup_old_activities(
     return _rt.call("DELETE", "/api/activity/cleanup", params={"days": days})
 
 
+def fichero_activity_continue_all(
+) -> Any:
+    "Continue All\n\nContinue All, the Play of the window's Play/Pause: the work Pause All held goes on (a workflow run from its\ncheckpoint), background work is let go; a row a person paused by hand stays paused.\n\nRoute: POST /api/activity/continue-all (toolset `activity`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/activity/continue-all")
+
+
+def fichero_activity_get_history(
+    *,
+    minutes: Annotated[Optional[int], Field(description='the window, in minutes ending now')] = None,
+) -> Any:
+    "Get Activity History\n\nPages done and failed, dollars and tokens per minute, pages by runtime, and today's spend by provider\n(`activity.window.bottom-panel`). Read-only; the reads are of what was committed and run off the loop.\n\nRoute: GET /api/activity/history (toolset `activity`; reads)."
+    return _rt.call("GET", "/api/activity/history", params={"minutes": minutes})
+
+
 def fichero_activity_list_background_jobs(
+    *,
+    archived: Annotated[Optional[bool], Field(description='the ARCHIVED rows instead (Show Archived, `activity.pane.archive-old-runs`)')] = None,
 ) -> Any:
     'List Background Jobs\n\nThe SINGLE source of running background jobs, so every activity surface\n(toolbar popover AND full viewer) agrees (FIX 3). Merges:\n\n- the derivative/embed queue (embedding + importing/processing), from the\n  live in-memory progress map; and\n- workflow runs (Kraken Detect Regions / HTR, transcription, …) that are\n  RUNNING or recently FAILED — with the failure reason, so a run that died\n  on "Kraken not installed" shows a clear FAILED entry instead of vanishing.\n\nRead-only and cheap (a point-in-time read + recent-run query + one CPU\nsample), so the UI can poll it without adding load of its own. Per-library,\nmatching the rest of /activity.\n\nRoute: GET /api/activity/jobs (toolset `activity`; reads).'
-    return _rt.call("GET", "/api/activity/jobs")
+    return _rt.call("GET", "/api/activity/jobs", params={"archived": archived})
+
+
+def fichero_activity_archive_jobs(
+    *,
+    ids: Annotated[Optional[list[Any]], Field(description='ended rows to archive.')] = None,
+    older_than_days: Annotated[Optional[int], Field(description='with `states`: only rows that ended more than this many days ago.')] = None,
+    states: Annotated[Optional[list[Any]], Field(description='also every top-level ended job of its own in these states.')] = None,
+) -> Any:
+    'Archive Jobs\n\nArchive (`activity.pane.archive-old-runs`, #6583): an ended row leaves the table and keeps everything; Show Archived\n(`GET /api/activity/jobs?archived=true`) lists it; `POST …/unarchive` puts it back. A row still going is skipped and named.\n\nRoute: POST /api/activity/jobs/archive (toolset `activity`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/activity/jobs/archive", json=_rt.body({"ids": ids, "older_than_days": older_than_days, "states": states}))
 
 
 def fichero_activity_clear_failed_jobs(
 ) -> Any:
     'Clear Failed Jobs\n\nClear Failed (`activity.window.clear-failed`, #5634): every failed job the jobs list shows is\ncleared. Its row is kept (its run\'s tree and the record still read it) and no longer listed; a\nretry lists it again. Failed workflow runs are cleared by `POST /api/workflow-execution/runs/delete`\nwith `statuses: ["failed"]`.\n\nRoute: POST /api/activity/jobs/clear-failed (toolset `activity`; changes data, as the agent account when one exists).'
     return _rt.call("POST", "/api/activity/jobs/clear-failed")
+
+
+def fichero_activity_bulk_delete_jobs(
+    *,
+    ids: Annotated[Optional[list[Any]], Field(description="job ids, or a kind's row (`waiting:<kind>`, `paused:<kind>`)")] = None,
+    states: Annotated[Optional[list[Any]], Field(description='also every top-level job of its own in these states (Clear Finished…: done, failed, cancelled)')] = None,
+    stop_running: Annotated[Optional[bool], Field(description='Stop then Delete (the person confirmed): a running row is asked to stop and deleted at once instead of skipped. Default: false.')] = None,
+) -> Any:
+    "Bulk Delete Jobs\n\nDelete in Activity (`activity.window.delete-any-row`, #6583): any row the jobs list shows, in any state, and a\nkind's row for the whole group. A waiting or paused job is cancelled first; a job running now is skipped and named.\nThe rows are kept (a tree, the record and a Retry still read them) and never listed again, after a relaunch too.\nWorkflow runs are deleted by `POST /api/workflow-execution/runs/delete`.\n\nRoute: POST /api/activity/jobs/delete (toolset `activity`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/activity/jobs/delete", json=_rt.body({"ids": ids, "states": states, "stop_running": stop_running}))
 
 
 def fichero_activity_list_queued_items(
@@ -294,6 +330,22 @@ def fichero_activity_set_background_paused(
     return _rt.call("PUT", "/api/activity/jobs/paused", json=_rt.body({"paused": paused}))
 
 
+def fichero_activity_unarchive_jobs(
+    *,
+    ids: Annotated[list[Any], Field(description='Ids.')],
+) -> Any:
+    'Unarchive Jobs\n\nPut Back (`activity.pane.archive-old-runs`): the archived rows are listed again, unchanged.\n\nRoute: POST /api/activity/jobs/unarchive (toolset `activity`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/activity/jobs/unarchive", json=_rt.body({"ids": ids}))
+
+
+def fichero_activity_undelete_jobs(
+    *,
+    ids: Annotated[list[Any], Field(description='Ids.')],
+) -> Any:
+    'Undelete Jobs\n\nUndo of Delete (`activity.pane.archive-old-runs`, #6583): the deleted rows come back in the state they had.\n\nRoute: POST /api/activity/jobs/undelete (toolset `activity`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/activity/jobs/undelete", json=_rt.body({"ids": ids}))
+
+
 def fichero_activity_get_job_tree(
     *,
     job_id: Annotated[str, Field(description='Job Id')],
@@ -303,12 +355,31 @@ def fichero_activity_get_job_tree(
     return _rt.call("GET", f"/api/activity/jobs/{job_id}", params={"depth": depth})
 
 
+def fichero_activity_post_job_bug_report(
+    *,
+    job_id: Annotated[str, Field(description='Job Id')],
+) -> Any:
+    'Post Job Bug Report\n\nThe bug report for a failed workflow run (`run.fail.bug-report-route`, #6354): a title, a plain-text body and two attachments\n(`run.json`, `log.txt`), built here so the app, the CLI and an agent send the same one, with what is private taken out\n(`llm/failure.redact`). Builds and answers; sends nothing. 404 when the project has no such run, 409 (in words) when the run\ndid not fail.\n\nRoute: POST /api/activity/jobs/{job_id}/bug-report (toolset `activity`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", f"/api/activity/jobs/{job_id}/bug-report")
+
+
 def fichero_activity_cancel_job(
     *,
     job_id: Annotated[str, Field(description='Job Id')],
 ) -> Any:
     'Cancel Job\n\nStop one job: a waiting or paused one ends cancelled; a page a run waits for is withdrawn;\na training Job is cancelled on Hugging Face. A job running here finishes its item (the state\nreturned says `running`).\n\nRoute: POST /api/activity/jobs/{job_id}/cancel (toolset `activity`; changes data, as the agent account when one exists).'
     return _rt.call("POST", f"/api/activity/jobs/{job_id}/cancel")
+
+
+def fichero_activity_get_run_failed_pages(
+    *,
+    job_id: Annotated[str, Field(description='Job Id')],
+    limit: Annotated[Optional[int], Field(description='Limit')] = None,
+    offset: Annotated[Optional[int], Field(description='Offset')] = None,
+    stage: Annotated[Optional[str], Field(description='a Set Up stage id; omitted: a page that failed in any stage')] = None,
+) -> Any:
+    'Get Run Failed Pages\n\nEvery failed page of a run with its one reason, paged (`activity.run.failed-pages-paged`, #5960): the account lists the first ten;\nthis is the rest, so "and 14 more" is never the only answer.\n\nRoute: GET /api/activity/jobs/{job_id}/failed-pages (toolset `activity`; reads).'
+    return _rt.call("GET", f"/api/activity/jobs/{job_id}/failed-pages", params={"limit": limit, "offset": offset, "stage": stage})
 
 
 def fichero_activity_get_job_log(
@@ -337,7 +408,7 @@ def fichero_activity_set_job_paused(
     job_id: Annotated[str, Field(description='Job Id')],
     paused: Annotated[bool, Field(description='true pauses this job; false resumes it.')],
 ) -> Any:
-    'Set Job Paused\n\nPause one waiting job, or resume a paused one (`activity.pause.per-job`). A paused job stays\npaused across relaunch. A running job finishes the item it is on; a page a workflow run is\nwaiting for is paused with its run (409).\n\nRoute: PUT /api/activity/jobs/{job_id}/paused (toolset `activity`; changes data, as the agent account when one exists).'
+    "Set Job Paused\n\nPause one waiting job, or resume a paused one (`activity.pause.per-job`). A paused job stays\npaused across relaunch. A running job finishes the item it is on; a page a workflow run is\nwaiting for is paused with its run (409). A paused workflow run is resumed from its checkpoint, as\nits own Resume does: the row's Continue is the one verb (#6588; it answered 409 before).\n\nRoute: PUT /api/activity/jobs/{job_id}/paused (toolset `activity`; changes data, as the agent account when one exists)."
     return _rt.call("PUT", f"/api/activity/jobs/{job_id}/paused", json=_rt.body({"paused": paused}))
 
 
@@ -357,6 +428,18 @@ def fichero_activity_get_metrics_summary(
     return _rt.call("GET", "/api/activity/metrics/summary", params={"hours": hours})
 
 
+def fichero_activity_models(
+) -> Any:
+    "Activity Models\n\nThe Models tree (`activity.window.models-tree`, `activity.resources.everything-measured`, #6588): every model this\nproject used today or the engine holds now, by place (this Mac, remote, cloud) and provider, loaded or not, active or\nnot, its memory where measured, today's pages, calls and seconds.\n\nRoute: GET /api/activity/models (toolset `activity`; reads)."
+    return _rt.call("GET", "/api/activity/models")
+
+
+def fichero_activity_pause_all(
+) -> Any:
+    "Pause All\n\nPause All (`activity.window.run-controls`, #6588): every running and waiting piece of work of this project, a\nperson's runs too, pauses as its own Pause does, and background work is paused so nothing new starts. One undo step;\nContinue All lets go exactly what it held.\n\nRoute: POST /api/activity/pause-all (toolset `activity`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/activity/pause-all")
+
+
 def fichero_activity_get_recent_activities(
     *,
     limit: Annotated[Optional[int], Field(description='Limit')] = None,
@@ -365,12 +448,41 @@ def fichero_activity_get_recent_activities(
     return _rt.call("GET", "/api/activity/recent", params={"limit": limit})
 
 
+def fichero_activity_recipes(
+    *,
+    days: Annotated[Optional[int], Field(description='Days')] = None,
+) -> Any:
+    "Activity Recipes\n\nThe Recipes view (`activity.window.recipes`, decision 37, #6588): each recipe of the last `days` with its runs and\ntheir steps, and the rates that compare them (failed %, seconds a page, cost a page, each step's model and place).\n\nRoute: GET /api/activity/recipes (toolset `activity`; reads)."
+    return _rt.call("GET", "/api/activity/recipes", params={"days": days})
+
+
 def fichero_activity_get_stats(
     *,
     hours: Annotated[Optional[int], Field(description='Number of hours to analyze')] = None,
 ) -> Any:
     'Get Activity Stats\n\nGet aggregated activity statistics.\n\nReturns counts by type and level, error/warning counts,\naverage workflow duration, and success rate.\n\nRoute: GET /api/activity/stats (toolset `activity`; reads).'
     return _rt.call("GET", "/api/activity/stats", params={"hours": hours})
+
+
+def fichero_activity_stop_all(
+) -> Any:
+    'Stop All\n\nStop All (`activity.window.run-controls`): every running, waiting and paused piece of work of this project stops as\nits own Stop does; what it did is kept, and Retry runs it again. Not undoable.\n\nRoute: POST /api/activity/stop-all (toolset `activity`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/activity/stop-all")
+
+
+def fichero_activity_list_stopped_at_quit(
+) -> Any:
+    'List Stopped At Quit\n\nWhat the quit left unfinished and the open paused (`activity.launch.nothing-starts-one-alert`, #6584): the job\nrows that read "Stopped when Fichero quit" and the workflow runs the quit paused. Nothing of it runs until\n`POST /api/activity/stopped-at-quit/continue`.\n\nRoute: GET /api/activity/stopped-at-quit (toolset `activity`; reads).'
+    return _rt.call("GET", "/api/activity/stopped-at-quit")
+
+
+def fichero_activity_continue_after_quit(
+    *,
+    all: Annotated[Optional[bool], Field(description='All. Default: false.')] = None,
+    ids: Annotated[Optional[list[Any]], Field(description='the rows to continue; None with `all` for every one.')] = None,
+) -> Any:
+    "Continue After Quit\n\nThe launch alert's Continue (`activity.launch.nothing-starts-one-alert`): the chosen rows the quit stopped are let\ngo; a workflow run the quit paused is resumed from its checkpoint. Nothing else is touched.\n\nRoute: POST /api/activity/stopped-at-quit/continue (toolset `activity`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/activity/stopped-at-quit/continue", json=_rt.body({"all": all, "ids": ids}))
 
 
 def fichero_activity_get_workflow(
@@ -493,6 +605,21 @@ def fichero_orchestration_get_agent_write_record(
 ) -> Any:
     'Get a specific write record\n\nGet details of a specific agent write record.\n\nRoute: GET /api/agents/write/audit/{record_id} (toolset `orchestration`; reads).'
     return _rt.call("GET", f"/api/agents/write/audit/{record_id}")
+
+
+def fichero_ai_get_cloud_caps(
+) -> Any:
+    'Get Cloud Caps\n\nThe app-wide monthly and daily cloud caps a project with no cap of its own is held to.\n\nRoute: GET /api/ai/cloud-caps (toolset `ai`; reads).'
+    return _rt.call("GET", "/api/ai/cloud-caps")
+
+
+def fichero_ai_put_cloud_cap(
+    *,
+    cap_usd: Annotated[Optional[float], Field(description='the cap in US$ (0 is a cap: nothing is sent); null clears it (monthly returns to 10, daily to none)')] = None,
+    which: Annotated[str, Field(description='which app-wide cap. One of: monthly, daily.')],
+) -> Any:
+    'Put Cloud Cap\n\nSet or clear one app-wide cap (`app.set_cloud_cap`, audited first: no audit row, no change). Owner only: it decides what\nevery project that has no cap of its own may spend.\n\nRoute: PUT /api/ai/cloud-caps (toolset `ai`; changes data, as the agent account when one exists).'
+    return _rt.call("PUT", "/api/ai/cloud-caps", json=_rt.body({"cap_usd": cap_usd, "which": which}))
 
 
 def fichero_annotations_list(
@@ -882,6 +1009,14 @@ def fichero_auth_migrate_owner(
     return _rt.call("POST", "/api/auth/migrate-owner", json=_rt.body({"client": client, "public_key_pem": public_key_pem}))
 
 
+def fichero_auth_set_owner_password(
+    *,
+    password: Annotated[str, Field(description='Password.')],
+) -> Any:
+    "Set Owner Password\n\nThe owner of THIS Mac chooses their password (`multiuser.turning-on-needs-an-owner-password`, #6565).\n\nFirst-run gives the owner a key and a random password nobody chose, and an owner who already has a key cannot\nregister another through first-run or migrate-owner, so the app had no way to ask for a password. Local only\n(the Unix socket), and only the local owner: the app's own start-up credential, or the owner's signed-in session.\nWorks with Multi-user off (the point) or on. The 8-character rule applies; audited before the change.\n\nRoute: POST /api/auth/owner-password (toolset `auth`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/auth/owner-password", json=_rt.body({"password": password}))
+
+
 def fichero_auth_list_sessions(
 ) -> Any:
     'List Sessions\n\nRoute: GET /api/auth/sessions (toolset `auth`; reads).'
@@ -904,6 +1039,12 @@ def fichero_auth_sign_in(
 ) -> Any:
     'Sign In\n\nRoute: POST /api/auth/sign-in (toolset `auth`; changes data, as the agent account when one exists).'
     return _rt.call("POST", "/api/auth/sign-in", json=_rt.body({"client_id": client_id, "nonce": nonce, "signature": signature}))
+
+
+def fichero_authz_access_matrix(
+) -> Any:
+    'Access Matrix\n\nEvery person\'s access across every known library, for Settings > Sharing > Accounts (#2083).\n\nOwner-only when multi-user is on. A person with no role on a library has a null cell: that is "no access", the\nwords the screen shows, and it is the same answer the library list and a write give them.\n\nRoute: GET /api/authz/access-matrix (toolset `authz`; reads).'
+    return _rt.call("GET", "/api/authz/access-matrix")
 
 
 def fichero_authz_list_accessible_libraries(
@@ -1252,7 +1393,7 @@ def fichero_chains_list(
     limit: Annotated[Optional[int], Field(description='Limit')] = None,
     offset: Annotated[Optional[int], Field(description='Offset')] = None,
 ) -> Any:
-    'List Chains\n\nList all workflow chains.\n\nRoute: GET /api/chains (toolset `chains`; reads).'
+    "List Chains\n\nList the workflow chains of the open library (the process's own when no library is named).\n\nRoute: GET /api/chains (toolset `chains`; reads)."
     return _rt.call("GET", "/api/chains", params={"limit": limit, "offset": offset})
 
 
@@ -2008,6 +2149,8 @@ def fichero_engine_connected_clients(
 
 def fichero_content_representations_create_route(
     *,
+    char_confidences: Annotated[Optional[list[Any]], Field(description='Char Confidences.')] = None,
+    char_positions: Annotated[Optional[list[Any]], Field(description='Char Positions.')] = None,
     content: Annotated[str, Field(description='Content.')],
     corrects_representation_id: Annotated[Optional[str], Field(description='Corrects Representation Id.')] = None,
     derived_from_artifact_id: Annotated[Optional[str], Field(description='Derived From Artifact Id.')] = None,
@@ -2020,6 +2163,8 @@ def fichero_content_representations_create_route(
     language_meta: Annotated[Optional[dict[str, Any]], Field(description='Language Meta.')] = None,
     level: Annotated[Optional[str], Field(description='Level.')] = None,
     machine_confidence: Annotated[Optional[float], Field(description='Machine Confidence.')] = None,
+    producer_model: Annotated[Optional[str], Field(description='Producer Model.')] = None,
+    producer_tool: Annotated[Optional[str], Field(description='Producer Tool.')] = None,
     read_from_rendition_id: Annotated[Optional[str], Field(description='Read From Rendition Id.')] = None,
     script: Annotated[Optional[str], Field(description='Script.')] = None,
     script_meta: Annotated[Optional[dict[str, Any]], Field(description='Script Meta.')] = None,
@@ -2027,7 +2172,7 @@ def fichero_content_representations_create_route(
     source_anchor: Annotated[Optional[dict[str, Any]], Field(description='Where a record points on a page — the one anchor type. Used by annotations, OCR geometry, entity mentions, claim evidence and content representations. One type means one overlay renderer, one hit tester, one "scroll to this", and one place to get the coordinate maths right. ``rendition_id`` is the field whose absence caused the original defect: a box carried four numbers and never said which pixel frame they were fractions OF, so geometry computed on an enhanced or split rendition was drawn over the original spread. It is optional only so existing rows stay readable — new writes must set it whenever the frame is not the node\'s own.')] = None,
 ) -> Any:
     'Create Representation Route\n\n`POST /api/content-representations` — write one reading.\n\nRoute: POST /api/content-representations (toolset `content-representations`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/content-representations", json=_rt.body({"content": content, "corrects_representation_id": corrects_representation_id, "derived_from_artifact_id": derived_from_artifact_id, "derived_from_representation_id": derived_from_representation_id, "document_id": document_id, "expected_counting_id": expected_counting_id, "guideline": guideline, "kind": kind, "language": language, "language_meta": language_meta, "level": level, "machine_confidence": machine_confidence, "read_from_rendition_id": read_from_rendition_id, "script": script, "script_meta": script_meta, "segment_id": segment_id, "source_anchor": source_anchor}))
+    return _rt.call("POST", "/api/content-representations", json=_rt.body({"char_confidences": char_confidences, "char_positions": char_positions, "content": content, "corrects_representation_id": corrects_representation_id, "derived_from_artifact_id": derived_from_artifact_id, "derived_from_representation_id": derived_from_representation_id, "document_id": document_id, "expected_counting_id": expected_counting_id, "guideline": guideline, "kind": kind, "language": language, "language_meta": language_meta, "level": level, "machine_confidence": machine_confidence, "producer_model": producer_model, "producer_tool": producer_tool, "read_from_rendition_id": read_from_rendition_id, "script": script, "script_meta": script_meta, "segment_id": segment_id, "source_anchor": source_anchor}))
 
 
 def fichero_content_representations_create_batch_route(
@@ -2045,6 +2190,14 @@ def fichero_content_representations_list(
 ) -> Any:
     'List Representations\n\nRoute: GET /api/content-representations/document/{document_id} (toolset `content-representations`; reads).'
     return _rt.call("GET", f"/api/content-representations/document/{document_id}")
+
+
+def fichero_content_representations_review_waiting(
+    *,
+    document_id: Annotated[str, Field(description='Document Id')],
+) -> Any:
+    'Review Waiting\n\nHow many lines `reading.choose_many` would confirm on this page (`wide.review.accept-line-and-all`).\n\nRoute: GET /api/content-representations/document/{document_id}/review-waiting (toolset `content-representations`; reads).'
+    return _rt.call("GET", f"/api/content-representations/document/{document_id}/review-waiting")
 
 
 def fichero_content_representations_list_revisions(
@@ -2436,6 +2589,24 @@ def fichero_documents_get_children(
     return _rt.call("GET", f"/api/documents/{doc_id}/children", params={"level": level, "limit": limit, "sort_by": sort_by, "sort_direction": sort_direction, "summary": summary})
 
 
+def fichero_documents_clear_column_choice(
+    *,
+    doc_id: Annotated[str, Field(description='Doc Id')],
+) -> Any:
+    'Clear Column Choice\n\nRoute: DELETE /api/documents/{doc_id}/column-choice (toolset `documents`; changes data, as the agent account when one exists).'
+    return _rt.call("DELETE", f"/api/documents/{doc_id}/column-choice")
+
+
+def fichero_documents_put_column_choice(
+    *,
+    doc_id: Annotated[str, Field(description='Doc Id')],
+    hide: Annotated[Optional[list[Any]], Field(description='Column keys left out of the table and the export.')] = None,
+    only_kind: Annotated[Optional[str], Field(description="Show this prototype's columns only.")] = None,
+) -> Any:
+    'Put Column Choice\n\nRoute: PUT /api/documents/{doc_id}/column-choice (toolset `documents`; changes data, as the agent account when one exists).'
+    return _rt.call("PUT", f"/api/documents/{doc_id}/column-choice", json=_rt.body({"hide": hide, "only_kind": only_kind}))
+
+
 def fichero_documents_duplicate(
     *,
     doc_id: Annotated[str, Field(description='Doc Id')],
@@ -2605,6 +2776,14 @@ def fichero_documents_restore(
 ) -> Any:
     "Restore Document\n\nPut Back (`safety.trash.put-back`): the item and what was deleted with it return to its\nold folder, or to the project's Sources folder when that folder is in the Trash or gone. The\nanswer says where, in words.\n\nRoute: POST /api/documents/{doc_id}/restore (toolset `documents`; changes data, as the agent account when one exists)."
     return _rt.call("POST", f"/api/documents/{doc_id}/restore")
+
+
+def fichero_documents_get_scope_template(
+    *,
+    doc_id: Annotated[str, Field(description='Doc Id')],
+) -> Any:
+    "Get Scope Template\n\nThe columns of a scope: its rows' effective prototype (the union when they differ), narrowed by the saved choice.\n\nRoute: GET /api/documents/{doc_id}/template (toolset `documents`; reads)."
+    return _rt.call("GET", f"/api/documents/{doc_id}/template")
 
 
 def fichero_documents_get_view(
@@ -3011,6 +3190,18 @@ def fichero_evaluation_model_scores(
     return _rt.call("GET", "/api/evaluation/scores", params={"model": model, "reader": reader})
 
 
+def fichero_export_catalogue_workbook_route(
+    *,
+    format: Annotated[Optional[str], Field(description='xlsx: one workbook; csv: a zip of one file per sheet. One of: xlsx, csv. Default: "xlsx".')] = None,
+    kept_export_id: Annotated[Optional[str], Field(description="Write into this kept export's folder (queued) instead of returning the file.")] = None,
+    proposals: Annotated[Optional[str], Field(description='A machine\'s unanswered proposals are marked, or left out of a delivered sheet. One of: marked, omitted. Default: "marked".')] = None,
+    prototype_key: Annotated[Optional[str], Field(description="Write this prototype's columns instead of the rows' own.")] = None,
+    target_id: Annotated[Optional[str], Field(description='A folder or project id; omitted writes the whole library.')] = None,
+) -> Any:
+    "The catalogue workbook of a folder or project, in its archive's template\n\nThe same builder the recipe's last step runs (`catalogue_sheet.workbook`): attributes, pages, the graph and the\nrecord; never a model. No local path in the request: the file comes back, or is queued into a kept export.\n\nRoute: POST /api/export/catalogue-workbook (toolset `export`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/export/catalogue-workbook", json=_rt.body({"format": format, "kept_export_id": kept_export_id, "proposals": proposals, "prototype_key": prototype_key, "target_id": target_id}))
+
+
 def fichero_export_eleventy_site_route(
     *,
     output_path: Annotated[str, Field(description='Destination folder for the site project.')],
@@ -3054,7 +3245,7 @@ def fichero_export_list_kept_exports(
 def fichero_export_keep(
     *,
     folder: Annotated[str, Field(description="A full path to a folder on the engine's disk, outside the project.")],
-    format: Annotated[str, Field(description='What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR. One of: word, markdown, plain-text, alto, pagexml, tei, hocr.')],
+    format: Annotated[str, Field(description='What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR. One of: word, markdown, plain-text, alto, pagexml, tei, hocr, catalogue-workbook, word-transcript.')],
     per: Annotated[str, Field(description='One file per page, or one per document (the page formats are one per page) One of: page, document.')],
 ) -> Any:
     'Keep an export in a folder, written again as the work changes\n\nOne-way: Fichero writes the folder and never reads it back. Each write overwrites only the\nfiles this export wrote (a hand edit to one is overwritten) and leaves every other file alone;\nnothing is deleted. Writing is background work (paused by Pause Background Work). Refused (422),\nin one sentence, for a folder that is not there, a system folder, a folder inside the project,\nor a page format asked for one file per document.\n\nRoute: POST /api/export/kept (toolset `export`; changes data, as the agent account when one exists).'
@@ -3067,6 +3258,16 @@ def fichero_export_remove_kept(
 ) -> Any:
     'Stop keeping an export (the files it wrote stay in the folder)\n\nRoute: DELETE /api/export/kept/{export_id} (toolset `export`; changes data, as the agent account when one exists).'
     return _rt.call("DELETE", f"/api/export/kept/{export_id}")
+
+
+def fichero_export_update_kept(
+    *,
+    export_id: Annotated[str, Field(description='Export Id')],
+    folder: Annotated[Optional[str], Field(description='Choose Folder…: a full path to the folder the export writes to from now on, outside the project.')] = None,
+    keep_up_to_date: Annotated[Optional[bool], Field(description='Keep up to date: off, an edit queues no rewrite.')] = None,
+) -> Any:
+    "Choose a kept export's folder again, or switch Keep up to date\n\nChoose Folder… (`activity.kept-export.one-row-per-export`, #6588): the export writes to the new folder from now\non, and a row its gone folder paused writes there. Keep up to date off: an edit queues no rewrite, Write Now still\nwrites. A folder that cannot be kept is refused (422) in one sentence, nothing changed.\n\nRoute: PATCH /api/export/kept/{export_id} (toolset `export`; changes data, as the agent account when one exists)."
+    return _rt.call("PATCH", f"/api/export/kept/{export_id}", json=_rt.body({"folder": folder, "keep_up_to_date": keep_up_to_date}))
 
 
 def fichero_export_write_kept(
@@ -3113,15 +3314,18 @@ def fichero_export_training_route(
 
 def fichero_export_word_route(
     *,
-    include_images: Annotated[Optional[bool], Field(description="Embed each page's scan; false prints no image and no note, and never opens the scan files. Default: true.")] = None,
+    blank_pages_listed_once: Annotated[Optional[bool], Field(description='Print no body for a page sorted blank; end the folder with one line listing them as image ranges. Default: false.')] = None,
+    include_images: Annotated[Optional[bool], Field(description="Off prints neither the image nor the 'image not included' note: a page is its heading and text. Default: true.")] = None,
     include_knowledge_graph: Annotated[Optional[bool], Field(description='Append relevant knowledge graph entities and claims. Default: true.')] = None,
     output_path: Annotated[str, Field(description='Destination .docx path.')],
     overwrite: Annotated[Optional[bool], Field(description='Overwrite existing .docx. Default: false.')] = None,
+    page_break_per_page: Annotated[Optional[bool], Field(description='Start each page on a new Word page. Default: false.')] = None,
+    per: Annotated[Optional[str], Field(description='\'folder\' writes a .zip of one transcript .docx per folder of the scope (page by page, no images, a page break per page, blank pages listed once): the options above are fixed for it. One of: document, folder. Default: "document".')] = None,
     recursive: Annotated[Optional[bool], Field(description='Include descendants of folders. Default: true.')] = None,
     target_id: Annotated[Optional[str], Field(description='Optional document/folder id to export; omitted exports library.')] = None,
 ) -> Any:
-    'Export Word Route\n\nExport a library, folder, or document as a Word .docx file.\n\nRoute: POST /api/export/word (toolset `export`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/export/word", json=_rt.body({"include_images": include_images, "include_knowledge_graph": include_knowledge_graph, "output_path": output_path, "overwrite": overwrite, "recursive": recursive, "target_id": target_id}))
+    'Export Word Route\n\nExport a library, folder, or document as a Word .docx file (or, per folder, a zip of them).\n\nRoute: POST /api/export/word (toolset `export`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/export/word", json=_rt.body({"blank_pages_listed_once": blank_pages_listed_once, "include_images": include_images, "include_knowledge_graph": include_knowledge_graph, "output_path": output_path, "overwrite": overwrite, "page_break_per_page": page_break_per_page, "per": per, "recursive": recursive, "target_id": target_id}))
 
 
 def fichero_find_documents_list_proposals(
@@ -3847,13 +4051,15 @@ def fichero_iiif_import_from(
 
 def fichero_images_batch_apply_operation(
     *,
+    preview: Annotated[Optional[int], Field(description='3: show three sample pages before and after; nothing is written')] = None,
     bbox: Annotated[Optional[list[Any]], Field(description='Bbox.')] = None,
     bboxes: Annotated[Optional[list[Any]], Field(description='Bboxes.')] = None,
     folder_id: Annotated[str, Field(description='Folder Id.')],
-    operation: Annotated[str, Field(description='Operation. One of: crop, split.')],
+    operation: Annotated[str, Field(description='Operation. One of: crop, split, rotate, straighten, flip_horizontal, flip_vertical, brightness, contrast, sharpen, auto_levels, enhance, fuzzy_clean, denoise, adaptive_binarize, binarise, grayscale, remove_background, auto_crop_border, square.')],
+    params: Annotated[Optional[dict[str, Any]], Field(description="the step's settings, for an operation that adds a chain step.")] = None,
 ) -> Any:
-    'Batch Apply Image Operation\n\nApply one reversible crop or split spec to every image under a folder.\n\nRoute: POST /api/images/batch-apply (toolset `images`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/images/batch-apply", json=_rt.body({"bbox": bbox, "bboxes": bboxes, "folder_id": folder_id, "operation": operation}))
+    "Batch Apply Image Operation\n\nApply one reversible image operation to every image under a folder: `crop` and `split` make child documents; any\nother operation adds a step to each page's edit chain, stamped with this batch's id. `?preview=3` returns the first,\nmiddle and last page before and after and writes nothing.\n\nRoute: POST /api/images/batch-apply (toolset `images`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/images/batch-apply", params={"preview": preview}, json=_rt.body({"bbox": bbox, "bboxes": bboxes, "folder_id": folder_id, "operation": operation, "params": params}))
 
 
 def fichero_images_undo_batch_operation(
@@ -3862,6 +4068,16 @@ def fichero_images_undo_batch_operation(
 ) -> Any:
     'Undo Batch Image Operation\n\nReverse every completed derived child recorded by an image batch.\n\nRoute: POST /api/images/batch-apply/{batch_id}/undo (toolset `images`; changes data, as the agent account when one exists).'
     return _rt.call("POST", f"/api/images/batch-apply/{batch_id}/undo")
+
+
+def fichero_images_batch_prepare_preview(
+    *,
+    folder_id: Annotated[str, Field(description='Folder Id.')],
+    operation: Annotated[dict[str, Any], Field(description="The correction to copy, in fractions of the upright frame (a square's four corners) or degrees (a turn).")],
+    source_document_id: Annotated[Optional[str], Field(description='the page the correction was made on: it already has it, so it is left out.')] = None,
+) -> Any:
+    "Batch Prepare Preview\n\nThe folder's first, middle and last page with the correction applied, before anything runs. Writes no row.\n\nRoute: POST /api/images/batch-prepare/preview (toolset `images`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/images/batch-prepare/preview", json=_rt.body({"folder_id": folder_id, "operation": operation, "source_document_id": source_document_id}))
 
 
 def fichero_images_batch_crop(
@@ -3917,6 +4133,16 @@ def fichero_images_put_edit_chain(
     return _rt.call("PUT", f"/api/images/{document_id}/edits", json=_rt.body({"operations": operations}))
 
 
+def fichero_images_queue_operation_job(
+    *,
+    document_id: Annotated[str, Field(description='Document Id')],
+    action: Annotated[str, Field(description='An `image.<op>` action that takes a `document_id`, e.g. `image.remove_background`.')],
+    params: Annotated[Optional[dict[str, Any]], Field(description="The action's settings; the page comes from the path.")] = None,
+) -> Any:
+    'Queue Image Operation Job\n\nAsk for an image operation as a job (`image.ops.long-operation-is-a-job`, #6384): returns the job id at once; the operation\nruns on the images lane, reports through Activity, and is cancelled as any job is. The same action as the direct route.\n\nRoute: POST /api/images/{document_id}/jobs (toolset `images`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", f"/api/images/{document_id}/jobs", json=_rt.body({"action": action, "params": params}))
+
+
 def fichero_images_crop(
     *,
     document_id: Annotated[str, Field(description='Document Id')],
@@ -3936,12 +4162,18 @@ def fichero_images_enhance(
     document_id: Annotated[str, Field(description='Document Id')],
     auto_levels: Annotated[Optional[bool], Field(description='Auto Levels. Default: false.')] = None,
     brightness: Annotated[Optional[float], Field(description='Brightness. Default: 1.0.')] = None,
+    clip: Annotated[Optional[float], Field(description="clahe: contrast limit; empty is the profile's.")] = None,
     contrast: Annotated[Optional[float], Field(description='Contrast. Default: 1.0.')] = None,
+    gain: Annotated[Optional[float], Field(description="clahe: lightness multiplier; empty is the profile's.")] = None,
+    lift: Annotated[Optional[float], Field(description="clahe: lightness offset; empty is the profile's.")] = None,
+    method: Annotated[Optional[str], Field(description='clahe runs local contrast, the yellow cast, then the unsharp mask. Default: "pil".')] = None,
     page: Annotated[Optional[int], Field(description='Page. Default: 1.')] = None,
+    profile: Annotated[Optional[str], Field(description='The CLAHE settings for the kind of writing. Default: "handwritten".')] = None,
     sharpen: Annotated[Optional[float], Field(description='Sharpen. Default: 1.0.')] = None,
+    tile: Annotated[Optional[int], Field(description="clahe: tiles per side; empty is the profile's.")] = None,
 ) -> Any:
     'Enhance Image\n\nRoute: POST /api/images/{document_id}/operations/enhance (toolset `images`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", f"/api/images/{document_id}/operations/enhance", json=_rt.body({"auto_levels": auto_levels, "brightness": brightness, "contrast": contrast, "page": page, "sharpen": sharpen}))
+    return _rt.call("POST", f"/api/images/{document_id}/operations/enhance", json=_rt.body({"auto_levels": auto_levels, "brightness": brightness, "clip": clip, "contrast": contrast, "gain": gain, "lift": lift, "method": method, "page": page, "profile": profile, "sharpen": sharpen, "tile": tile}))
 
 
 def fichero_images_remove_background(
@@ -3982,10 +4214,11 @@ def fichero_images_segment(
 def fichero_images_straighten(
     *,
     document_id: Annotated[str, Field(description='Document Id')],
+    angle: Annotated[Optional[float], Field(description='The angle a person set on the Straighten dial, in degrees; absent, the page is measured and turned by what it finds (Auto).')] = None,
     page: Annotated[Optional[int], Field(description='Page. Default: 1.')] = None,
 ) -> Any:
     'Straighten Image\n\nRoute: POST /api/images/{document_id}/operations/straighten (toolset `images`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", f"/api/images/{document_id}/operations/straighten", json=_rt.body({"page": page}))
+    return _rt.call("POST", f"/api/images/{document_id}/operations/straighten", json=_rt.body({"angle": angle, "page": page}))
 
 
 def fichero_images_preview(
@@ -5848,6 +6081,14 @@ def fichero_notes_delete_link(
     return _rt.call("DELETE", f"/api/notes/{note_id}/links/{link_id}")
 
 
+def fichero_renditions_get_image_chain(
+    *,
+    page_id: Annotated[str, Field(description='Page Id')],
+) -> Any:
+    "Get Image Chain\n\nThe page's image chain: the photograph, each rendition in the order made with its operation and figure in words, which\none every later step reads and each one passed over with its reason.\n\nRoute: GET /api/pages/{page_id}/image-chain (toolset `renditions`; reads)."
+    return _rt.call("GET", f"/api/pages/{page_id}/image-chain")
+
+
 def fichero_pairing_pair_device(
     *,
     code: Annotated[str, Field(description='Code.')],
@@ -5860,18 +6101,25 @@ def fichero_pairing_pair_device(
     return _rt.call("POST", "/api/pair", json=_rt.body({"code": code, "device_name": device_name, "new_password": new_password, "password": password, "username": username}))
 
 
+def fichero_pairing_pair_addresses(
+) -> Any:
+    'Pair Addresses\n\nEvery address this Mac can be reached at, in the order to try (`sharing.address-choice`): the Share sheet draws it.\nNever a loopback address. The host cannot see client isolation, so a `.local` or IP row is "listening", never "works".\n\nRoute: GET /api/pair/addresses (toolset `pairing`; reads).'
+    return _rt.call("GET", "/api/pair/addresses")
+
+
 def fichero_pairing_create_code(
     *,
     display_name: Annotated[Optional[str], Field(description='Display Name.')] = None,
     expires_in_days: Annotated[Optional[int], Field(description='default 7.')] = None,
     folder_id: Annotated[Optional[str], Field(description='share one folder of that project instead of the whole project: the person reaches that folder and what is under it, nothing beside it (`sharing.share-sheet-chooses-what`)')] = None,
+    libraries: Annotated[Optional[list[Any]], Field(description="more projects a plain link (no person) gives the paired device, beside `library`: the which-projects dialog's ONE link for a set (#6366); a path that is no project on this Mac is left out.")] = None,
     library: Annotated[Optional[str], Field(description='the library the role is granted on, for a new person.')] = None,
     never_expires: Annotated[Optional[bool], Field(description='Never Expires. Default: false.')] = None,
     role: Annotated[Optional[str], Field(description='Role. One of: viewer, editor. Default: "viewer".')] = None,
     username: Annotated[Optional[str], Field(description='Username.')] = None,
 ) -> Any:
     'Create Pairing Code\n\nMint a short-lived one-time pairing code for the authenticated caller.\n\nRoute: POST /api/pair/code (toolset `pairing`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/pair/code", json=_rt.body({"display_name": display_name, "expires_in_days": expires_in_days, "folder_id": folder_id, "library": library, "never_expires": never_expires, "role": role, "username": username}))
+    return _rt.call("POST", "/api/pair/code", json=_rt.body({"display_name": display_name, "expires_in_days": expires_in_days, "folder_id": folder_id, "libraries": libraries, "library": library, "never_expires": never_expires, "role": role, "username": username}))
 
 
 def fichero_pairing_list_devices(
@@ -5927,7 +6175,7 @@ def fichero_pairing_set_multiuser(
     *,
     enabled: Annotated[bool, Field(description='Enabled.')],
 ) -> Any:
-    "Set Multiuser\n\nSet the persisted Multi-user switch through the audited action layer (#5751); the Settings\nswitch, the CLI and MCP share this route. While Multi-user is off only the owner's signed-in session may\n(`multiuser.owner-session-sets-the-switch`, #5908): never the start-up credential.\n\nRoute: PUT /api/pair/multiuser (toolset `pairing`; changes data, as the agent account when one exists)."
+    "Set Multiuser\n\nSet the persisted Multi-user switch through the audited action layer (#5751); the Settings\nswitch, the CLI and MCP share this route. Only a request over the engine's Unix socket may (the Mac's own app, its\nstart-up credential, no key session needed); any TCP request is refused, an owner session included\n(`multiuser.owner-session-sets-the-switch`, owner ruling 2026-11-12).\nApp-wide, so no library header is needed (`sharing.multiuser-switch-needs-no-library`): the audit row goes to the\nglobal library package, as the known-library registry's actions do; the Settings window sends no library.\n\nRoute: PUT /api/pair/multiuser (toolset `pairing`; changes data, as the agent account when one exists)."
     return _rt.call("PUT", "/api/pair/multiuser", json=_rt.body({"enabled": enabled}))
 
 
@@ -5935,6 +6183,16 @@ def fichero_pairing_sharing_state(
 ) -> Any:
     'Sharing State\n\nRead Sharing state: Multi-user, the detected tailnet address, paired device count (#5751).\n\nRoute: GET /api/pair/sharing (toolset `pairing`; reads).'
     return _rt.call("GET", "/api/pair/sharing")
+
+
+def fichero_pairing_sign_in_device(
+    *,
+    device_name: Annotated[str, Field(description='Device Name.')],
+    password: Annotated[str, Field(description='Password.')],
+    username: Annotated[str, Field(description='Username.')],
+) -> Any:
+    'Sign In Device\n\nWith accounts on, make a device bound to the person who signed in and hand back its token: the address, a username and\na password, no pair code (Step 8.9). The pair code stays for a device with no person (accounts off).\n\nRoute: POST /api/pair/sign-in (toolset `pairing`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/pair/sign-in", json=_rt.body({"device_name": device_name, "password": password, "username": username}))
 
 
 def fichero_pairing_detected_tailnet(
@@ -6433,6 +6691,14 @@ def fichero_recipes_model_candidates(
     return _rt.call("GET", "/api/recipes/candidates", params={"cloud_allowed": cloud_allowed, "job": job, "languages": languages, "mac_memory_gb": mac_memory_gb, "material": material, "online": online, "period": period, "scripts": scripts, "step": step, "worth_only": worth_only})
 
 
+def fichero_recipes_chain_risk(
+    *,
+    jobs: Annotated[str, Field(description='Jobs')],
+) -> Any:
+    "Chain Risk\n\nOne line per model step of these jobs (comma separated, in the recipe's order): what feeds it and what it feeds, the earliest marked\ncheck first (`designer.how.chain-risk-on-ready`). From the job registry; the app has no copy.\n\nRoute: GET /api/recipes/chain-risk (toolset `recipes`; reads)."
+    return _rt.call("GET", "/api/recipes/chain-risk", params={"jobs": jobs})
+
+
 def fichero_recipes_check(
     *,
     recipe: Annotated[dict[str, Any], Field(description='The recipe to check, as GET /api/recipes/project returns it.')],
@@ -6449,6 +6715,18 @@ def fichero_recipes_accept_unpriced_cloud_model(
 ) -> Any:
     "Accept Unpriced Cloud Model\n\nAccept that this project runs one cloud model with no listed price (or take the yes back): its calls are counted at an\nassumed price and listed apart (`ai.where.accept-unpriced-cloud-model`). The one audited action every refused path names, and the\none Start's yes uses; kept in the project, keyed by provider and model, not in Set Up's answers.\n\nRoute: POST /api/recipes/cloud/accept-unpriced (toolset `recipes`; changes data, as the agent account when one exists)."
     return _rt.call("POST", "/api/recipes/cloud/accept-unpriced", json=_rt.body({"model": model, "provider": provider, "withdraw": withdraw}))
+
+
+def fichero_recipes_defaults(
+    *,
+    condition: Annotated[Optional[str], Field(description='Condition')] = None,
+    materials: Annotated[Optional[str], Field(description='Materials')] = None,
+    matters: Annotated[Optional[str], Field(description='Matters')] = None,
+    pages: Annotated[Optional[int], Field(description='Pages')] = None,
+    places: Annotated[Optional[str], Field(description='Places')] = None,
+) -> Any:
+    'Recipe Defaults\n\nThe defaults the answers so far propose, each saying why (`designer.defaults.table`, `designer.defaults.says-why`). Reads, writes nothing.\n\nRoute: GET /api/recipes/defaults (toolset `recipes`; reads).'
+    return _rt.call("GET", "/api/recipes/defaults", params={"condition": condition, "materials": materials, "matters": matters, "pages": pages, "places": places})
 
 
 def fichero_recipes_derived_facts(
@@ -6517,6 +6795,18 @@ def fichero_recipes_put_places(
     return _rt.call("PUT", "/api/recipes/places", json=_rt.body({"places": places}))
 
 
+def fichero_recipes_prepare_images_check(
+) -> Any:
+    'Prepare Images Check\n\nPages to check (`prep.check.worklist-of-proposals-and-a-sample`): every page with an open proposal, then one\nconfident page in twenty.\n\nRoute: GET /api/recipes/prepare-images/check (toolset `recipes`; reads).'
+    return _rt.call("GET", "/api/recipes/prepare-images/check")
+
+
+def fichero_recipes_prepare_images_facts(
+) -> Any:
+    'Prepare Images Facts\n\nWhat the Prepare Images card shows besides its questions (`prep.setup.three-questions-suggested-from-a-sample`,\n`prep.estimate.time-on-this-mac-before-start`): answers suggested from five sample pages, and the time line.\n\nRoute: GET /api/recipes/prepare-images/facts (toolset `recipes`; reads).'
+    return _rt.call("GET", "/api/recipes/prepare-images/facts")
+
+
 def fichero_recipes_get_project_setup(
 ) -> Any:
     "Get Project Setup\n\nThe open project's saved setup answers and recipe, and whether it inherits the app's cloud setting.\n\nRoute: GET /api/recipes/project (toolset `recipes`; reads)."
@@ -6533,9 +6823,11 @@ def fichero_recipes_save_project_setup(
 
 
 def fichero_recipes_allow_cloud(
+    *,
+    allowed: Annotated[Optional[bool], Field(description="yes (the default) or no to pages going to a cloud model, for this project, over the app's switch. Default: true.")] = None,
 ) -> Any:
-    "Allow Cloud\n\nThe one click on a refused cloud call (`ai.where.one-egress-gate`, #5368): say yes, for this project, to cloud\nmodels. An audited action (who, when, which project), undoable, and reversible in Set Up (the same `cloud_allowed`\nanswer). Nothing else in the project's setup changes.\n\nRoute: POST /api/recipes/project/allow-cloud (toolset `recipes`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/recipes/project/allow-cloud")
+    "Allow Cloud\n\nThe one click on a refused cloud call (`ai.where.one-egress-gate`, #5368): say yes, for this project, to cloud\nmodels. An audited action (who, when, which project), undoable, and reversible in Set Up (the same `cloud_allowed`\nanswer). Nothing else in the project's setup changes. `allowed: false` says no, for this project, whatever the app's\nswitch says (`ai.cloud.project-overrides-the-default`, #6348): the same action sets yes or no.\n\nRoute: POST /api/recipes/project/allow-cloud (toolset `recipes`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/recipes/project/allow-cloud", json=_rt.body({"allowed": allowed}))
 
 
 def fichero_recipes_what_runs_by_itself(
@@ -6582,6 +6874,19 @@ def fichero_recipes_use_bakeoff_choice(
     return _rt.call("POST", f"/api/recipes/project/bakeoffs/{bakeoff_id}/use", json=_rt.body({"card": card, "folder_id": folder_id, "granularity": granularity, "scope": scope}))
 
 
+def fichero_recipes_change_cloud_cap(
+    *,
+    cap_usd: Annotated[Optional[float], Field(description="the most the project's cloud calls may cost a month, in US$ (0 is a cap); left out: unchanged.")] = None,
+    clear_daily_cap: Annotated[Optional[bool], Field(description="remove the project's own daily cap (the app's, if any, applies) Default: false.")] = None,
+    clear_project_cap: Annotated[Optional[bool], Field(description="remove the project's total cap (no such limit) Default: false.")] = None,
+    daily_cap_usd: Annotated[Optional[float], Field(description="the most the project's cloud calls may cost in a (UTC) day, in US$ (0 is a cap; `answers.cloud_daily_cap_usd`); left out: unchanged.")] = None,
+    project_cap_usd: Annotated[Optional[float], Field(description='the most the project may spend on cloud calls in all, across months (`answers.cloud_project_cap_usd`); left out: unchanged.')] = None,
+    run_cap_usd: Annotated[Optional[float], Field(description='the cap of the run under way (`StartRequest.run_cap_usd`), changed in place: a run paused at it carries on when this is higher (`designer.budget.fix-during-the-run`); refused when no run holds a cap; left out: unchanged.')] = None,
+) -> Any:
+    'Change Cloud Cap\n\nSet the project\'s monthly cloud cap (`answers.cloud_spend_cap_usd`) and/or its total cap\n(`answers.cloud_project_cap_usd`), and nothing else in its setup: Set Up\'s "Raise the cap to N" (#6295). One\n`project.save_setup`, so audited and undoable as one step; the answer names the audit row.\n\nRoute: PUT /api/recipes/project/cloud-cap (toolset `recipes`; changes data, as the agent account when one exists).'
+    return _rt.call("PUT", "/api/recipes/project/cloud-cap", json=_rt.body({"cap_usd": cap_usd, "clear_daily_cap": clear_daily_cap, "clear_project_cap": clear_project_cap, "daily_cap_usd": daily_cap_usd, "project_cap_usd": project_cap_usd, "run_cap_usd": run_cap_usd}))
+
+
 def fichero_recipes_change_project_layers(
     *,
     languages: Annotated[Optional[list[Any]], Field(description='BCP 47 language tags to add.')] = None,
@@ -6622,22 +6927,29 @@ def fichero_recipes_run_summary(
 
 def fichero_recipes_get_start_plan(
     *,
+    first_pages: Annotated[Optional[int], Field(description='plan Start on the first N pages of the project in Finder order ("run fewer pages", #6295); never with `folder_id`')] = None,
     folder_id: Annotated[Optional[str], Field(description='plan Start on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); omit for the whole project')] = None,
+    steps: Annotated[Optional[str], Field(description="plan Start on these steps alone (comma-separated step ids), over the whole project: one stage's Run this step (`wide.output.run-this-step`); 422 for an id the recipe does not have")] = None,
     summary: Annotated[Optional[bool], Field(description="a lean answer for an agent: each step's candidates are its picked and recommended ones (else its first), not the whole menu, which grows with the models this Mac has; the whole plan is this GET without it (openapi.mcp.answers-fit-an-agent) An agent's default: true.")] = True,
 ) -> Any:
     'Get Start Plan\n\nWhat Start would run on this project, or on one folder of it, with the estimate, before anything runs\n(`source.onboard.estimate-before-start`). 422 for a folder not in the project.\n\nRoute: GET /api/recipes/project/start (toolset `recipes`; reads).'
-    return _rt.call("GET", "/api/recipes/project/start", params={"folder_id": folder_id, "summary": summary})
+    return _rt.call("GET", "/api/recipes/project/start", params={"first_pages": first_pages, "folder_id": folder_id, "steps": steps, "summary": summary})
 
 
 def fichero_recipes_start_project(
     *,
     accept_unpriced: Annotated[Optional[list[Any]], Field(description="cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`)")] = None,
+    allow_cloud_once: Annotated[Optional[bool], Field(description="let THIS run's calls go to a cloud model although the project keeps its pages on this Mac; kept on the run, written to no setting, ended with the run (`ai.cloud.one-run-overrides`) Default: false.")] = None,
     documents: Annotated[Optional[list[Any]], Field(description="run the recipe on these pages alone, as a finished run's `missed.documents` names them (source.recipe.run-again-on-what-was-missed, #6170); never with `folder_id`.")] = None,
+    first_pages: Annotated[Optional[int], Field(description='run the recipe on the first N pages of the project in Finder order alone ("run fewer pages", #6295); never with `folder_id` or `documents`.')] = None,
     folder_id: Annotated[Optional[str], Field(description='run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project.')] = None,
+    over_cap_once: Annotated[Optional[bool], Field(description="let THIS run's calls go past a cloud spend cap; the spend is still booked (`ai.cloud.one-run-overrides`) Default: false.")] = None,
     redo: Annotated[Optional[list[Any]], Field(description='step ids to run again on pages that already have their output; the others run only on pages that do not.')] = None,
+    run_cap_usd: Annotated[Optional[float], Field(description="the most this run's cloud calls may cost, held beside the project's caps, the lowest deciding (`designer.budget.run-cap`, #6295); kept on the run's row; null: the project's caps alone.")] = None,
+    steps: Annotated[Optional[list[Any]], Field(description="run these steps alone over the whole project (one stage's Run this step, `wide.output.run-this-step`); empty: the whole recipe.")] = None,
 ) -> Any:
     "Start Project\n\nThe first yes: record that the person pressed Start, on which recipe version (audited,\nundoable), and run the recipe over the project's material as one `run-a-recipe` job\n(`source.recipe.start-runs-the-steps`): its runnable steps in order, the skipped ones named with why.\nRefused with 422 while the plan has refusals (a recipe that fails the check, or nothing to run).\nWith `folder_id`, the run covers that folder's live pages alone, and a folder not in the project, or one\nwith no pages, is refused with 422 (`source.recipe.folder-scoped-start`).\nThe response is the plan as started: its `runs` and `workflows` are the run's, as `started.workflows` is.\n\nRoute: POST /api/recipes/project/start (toolset `recipes`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/recipes/project/start", json=_rt.body({"accept_unpriced": accept_unpriced, "documents": documents, "folder_id": folder_id, "redo": redo}))
+    return _rt.call("POST", "/api/recipes/project/start", json=_rt.body({"accept_unpriced": accept_unpriced, "allow_cloud_once": allow_cloud_once, "documents": documents, "first_pages": first_pages, "folder_id": folder_id, "over_cap_once": over_cap_once, "redo": redo, "run_cap_usd": run_cap_usd, "steps": steps}))
 
 
 def fichero_recipes_use_installed_instead(
@@ -6691,14 +7003,24 @@ def fichero_recipes_list_purposes(
     return _rt.call("GET", "/api/recipes/purposes")
 
 
+def fichero_recipes_questions(
+    *,
+    matters: Annotated[Optional[str], Field(description='Matters')] = None,
+    pages: Annotated[Optional[int], Field(description='Pages')] = None,
+    places: Annotated[Optional[str], Field(description='Places')] = None,
+) -> Any:
+    'Questions\n\nThe one list the app asks About the Material and How from. It invents none (`designer.material.condition-asked`,\n`designer.how.*`). `places`, `matters` and `pages` are the answers so far, comma separated: the answer says the card they propose.\n\nRoute: GET /api/recipes/questions (toolset `recipes`; reads).'
+    return _rt.call("GET", "/api/recipes/questions", params={"matters": matters, "pages": pages, "places": places})
+
+
 def fichero_recipes_routes_for_volume(
     *,
-    local_reader: Annotated[str, Field(description='Local Reader')],
+    local_reader: Annotated[Optional[str], Field(description='Local Reader')] = None,
     pages: Annotated[Optional[int], Field(description='Pages')] = None,
     sample_pages: Annotated[Optional[int], Field(description='Sample Pages')] = None,
-    teacher: Annotated[str, Field(description='Teacher')],
+    teacher: Annotated[Optional[str], Field(description='Teacher')] = None,
 ) -> Any:
-    "Routes For Volume\n\nWhat can we do with this many pages? The cloud, this-Mac and distil routes side by side,\neach figure marked measured, estimate or unknown (`source.onboard.routes-for-the-volume`).\n`pages` defaults to the project's own count.\n\nRoute: GET /api/recipes/routes (toolset `recipes`; reads)."
+    "Routes For Volume\n\nWhat can we do with this many pages? The cloud, this-Mac and distil routes side by side,\neach figure marked measured, estimate or unknown (`source.onboard.routes-for-the-volume`).\n`pages` defaults to the project's own count; `teacher` and `local_reader` default to the models the project's plan reads with\n(a cloud one and one on this Mac), and a route whose model the plan has none of says its figures are unknown.\n\nRoute: GET /api/recipes/routes (toolset `recipes`; reads)."
     return _rt.call("GET", "/api/recipes/routes", params={"local_reader": local_reader, "pages": pages, "sample_pages": sample_pages, "teacher": teacher})
 
 
@@ -6750,6 +7072,28 @@ def fichero_recipes_try_stage(
 ) -> Any:
     "Try Stage\n\nTry a stage on the sample pages before Start (section 7c, `source.onboard.stages.sample-run-reuses`), comparing\n2 or 3 of its step's candidates side by side (`source.onboard.stages.compares-candidates`): `candidates`, else the\nstep's own model and the finder's next ones, each running the stage's own steps on its own copy of the samples\n(one `try-a-stage` job in Activity); the answer's `candidates` are the columns (the bake-off row's fields, each\nwith its `per_page`, `names` and `measures`). Read and Find Lines start the bake-off instead (its evaluation job)\nwhen no candidates are named and the samples hold its corrected lines. The result is the stage's, kept beside the setup\nand replaced by the next try, never the project's work. A stage whose steps use the cloud says its cost and\nis refused (402) without `cost_ok`; a stage that is off, cannot be tried, or cannot run says why (422).\n\nRoute: POST /api/recipes/stages/{stage}/try (toolset `recipes`; changes data, as the agent account when one exists)."
     return _rt.call("POST", f"/api/recipes/stages/{stage}/try", json=_rt.body({"candidates": candidates, "cost_ok": cost_ok, "page_ids": page_ids}))
+
+
+def fichero_recipes_stage_try_price(
+    *,
+    stage: Annotated[str, Field(description='Stage')],
+) -> Any:
+    'Stage Try Price\n\nThe price of a Try of the stage on its samples, read and written nowhere: the app puts it on the button ("Compare on These\nPages, about $0.12"). A stage with nothing to pay says `cloud` false.\n\nRoute: GET /api/recipes/stages/{stage}/try-price (toolset `recipes`; reads).'
+    return _rt.call("GET", f"/api/recipes/stages/{stage}/try-price")
+
+
+def fichero_recipes_suggestions(
+) -> Any:
+    "Suggestions\n\nThe one list of what the project's answers and sample suggest, each with its reason (`wide.suggest.one-list-from-the-engine`).\nThe app draws it and reasons about none of it. Reads, writes nothing.\n\nRoute: GET /api/recipes/suggestions (toolset `recipes`; reads)."
+    return _rt.call("GET", "/api/recipes/suggestions")
+
+
+def fichero_recipes_tries_on_page(
+    *,
+    page_id: Annotated[str, Field(description='Page Id')],
+) -> Any:
+    'Tries On Page\n\nThe kept tries that ran on this page, labelled as tries (`wide.try.shown-outside-set-up`): stage, date, model, readings on its lines.\n\nRoute: GET /api/recipes/tries/page/{page_id} (toolset `recipes`; reads).'
+    return _rt.call("GET", f"/api/recipes/tries/page/{page_id}")
 
 
 def fichero_references_list(
@@ -7660,14 +8004,18 @@ def fichero_segments_create(
     *,
     anchor: Annotated[dict[str, Any], Field(description='Where a record points on a page — the one anchor type. Used by annotations, OCR geometry, entity mentions, claim evidence and content representations. One type means one overlay renderer, one hit tester, one "scroll to this", and one place to get the coordinate maths right. ``rendition_id`` is the field whose absence caused the original defect: a box carried four numbers and never said which pixel frame they were fractions OF, so geometry computed on an enhanced or split rendition was drawn over the original spread. It is optional only so existing rows stay readable — new writes must set it whenever the frame is not the node\'s own.')],
     baseline: Annotated[Optional[list[Any]], Field(description="The line's baseline as [[x, y], ...] points in page coordinates.")] = None,
+    brush_stroke: Annotated[Optional[list[Any]], Field(description='A Paintbrush stroke, [x, y, width] per point (width in image pixels): its painted area is the outline, its path the baseline.')] = None,
     document_id: Annotated[str, Field(description='The document (page) the segment is on.')],
     kind: Annotated[str, Field(description="The segment's kind: region, line, word, ...")],
     kind_raw: Annotated[Optional[str], Field(description='The kind as the source format named it (e.g. a PAGE XML region type).')] = None,
+    outline_from_baseline: Annotated[Optional[bool], Field(description="Draw the line's outline from its baseline and the page's ink. Default: false.")] = None,
     parent_segment_id: Annotated[Optional[str], Field(description="The segment this one sits inside (a line's region).")] = None,
     pass_id: Annotated[str, Field(description='The pass (layer) the segment joins.')],
+    place_in_region: Annotated[Optional[bool], Field(description='With no parent given, put the segment in the region holding most of it (the smaller on a tie). Default: false.')] = None,
+    smoothing: Annotated[Optional[float], Field(description='Simplify the outline and baseline as drawn by hand: 0 keeps nearly every bend, 1 the fewest points.')] = None,
 ) -> Any:
     'Create Segment\n\nRoute: POST /api/segments (toolset `segments`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/segments", json=_rt.body({"anchor": anchor, "baseline": baseline, "document_id": document_id, "kind": kind, "kind_raw": kind_raw, "parent_segment_id": parent_segment_id, "pass_id": pass_id}))
+    return _rt.call("POST", "/api/segments", json=_rt.body({"anchor": anchor, "baseline": baseline, "brush_stroke": brush_stroke, "document_id": document_id, "kind": kind, "kind_raw": kind_raw, "outline_from_baseline": outline_from_baseline, "parent_segment_id": parent_segment_id, "pass_id": pass_id, "place_in_region": place_in_region, "smoothing": smoothing}))
 
 
 def fichero_segments_create_bulk(
@@ -7712,6 +8060,14 @@ def fichero_segments_list_document(
     return _rt.call("GET", f"/api/segments/document/{doc_id}", params={"area": area, "artifact_id": artifact_id, "kind": kind, "pass_id": pass_id})
 
 
+def fichero_segments_doubtful_lines(
+    *,
+    doc_id: Annotated[str, Field(description='Doc Id')],
+) -> Any:
+    "Doubtful Lines\n\nThe page's lines on its working pass by confidence, lowest first (`segment-editor.low-confidence-lens`): a line\nwith a validator finding first, then the least sure shape or word cut, then lines nothing measured. Reads, writes\nnothing; the Check lens lists it and Next Doubtful steps through it.\n\nRoute: GET /api/segments/document/{doc_id}/doubtful (toolset `segments`; reads)."
+    return _rt.call("GET", f"/api/segments/document/{doc_id}/doubtful")
+
+
 def fichero_segments_list_document_matches(
     *,
     doc_id: Annotated[str, Field(description='Doc Id')],
@@ -7719,6 +8075,33 @@ def fichero_segments_list_document_matches(
 ) -> Any:
     'List Document Matches\n\nThe matches recorded on one page (`source.segment.match-record`, #5165): what a person\nreviews -- accepts, rejects, or carries readings and marks across. Before this, a match could\nbe proposed, accepted and rejected, and nothing could LIST them, so a proposal nobody had the\nid of could never be reviewed. Oldest first.\n\nRoute: GET /api/segments/document/{doc_id}/matches (toolset `segments`; reads).'
     return _rt.call("GET", f"/api/segments/document/{doc_id}/matches", params={"state": state})
+
+
+def fichero_segments_on_a_rendition(
+    *,
+    doc_id: Annotated[str, Field(description='Doc Id')],
+    rendition_id: Annotated[str, Field(description='Rendition Id')],
+) -> Any:
+    "Segments On A Rendition\n\nThe page's live segments' boxes in this rendition's pixels, so the Preview can draw them on it (#6420).\n\nRoute: GET /api/segments/document/{doc_id}/on-rendition/{rendition_id} (toolset `segments`; reads)."
+    return _rt.call("GET", f"/api/segments/document/{doc_id}/on-rendition/{rendition_id}")
+
+
+def fichero_segments_preview_simplify(
+    *,
+    doc_id: Annotated[str, Field(description='Doc Id')],
+    segment_ids: Annotated[list[str], Field(description='The segments the slider simplifies.')],
+    tolerance: Annotated[float, Field(description='How far, in image pixels, the simpler shape may stray.')],
+) -> Any:
+    "Preview Simplify Segments\n\nWhat `segment.simplify` would write at this tolerance, written nowhere (`segment-editor.vertices`): the Shape\npopover's slider draws it live and sends the action once on release. A shape it would not change is left out.\n\nRoute: GET /api/segments/document/{doc_id}/simplify-preview (toolset `segments`; reads)."
+    return _rt.call("GET", f"/api/segments/document/{doc_id}/simplify-preview", params={"segment_ids": segment_ids, "tolerance": tolerance})
+
+
+def fichero_segments_validate_document(
+    *,
+    doc_id: Annotated[str, Field(description='Doc Id')],
+) -> Any:
+    "Validate Document Segments\n\nWhat is wrong with the page's segments, per pass, before an export (`segment-editor.validate-before-export`):\nreads, writes nothing. An empty list is a page with nothing to fix.\n\nRoute: GET /api/segments/document/{doc_id}/validate (toolset `segments`; reads)."
+    return _rt.call("GET", f"/api/segments/document/{doc_id}/validate")
 
 
 def fichero_segments_get_document_text(
@@ -7763,11 +8146,14 @@ def fichero_segments_reject_match(
 def fichero_segments_merge(
     *,
     expected_versions: Annotated[dict[str, Any], Field(description="Each segment's version as last read, {segment_id: version}; a changed segment is refused.")],
+    join_geometry: Annotated[Optional[bool], Field(description='Join the outlines and baselines onto the kept segment, in reading order. Default: false.')] = None,
     keep_id: Annotated[str, Field(description='The segment that survives the merge.')],
+    keep_shapes: Annotated[Optional[bool], Field(description="Keep every member's outline as a shape of the kept segment, in the order given. Default: false.")] = None,
+    move_into_region: Annotated[Optional[bool], Field(description="Move members in other regions into the kept segment's region rather than refusing. Default: false.")] = None,
     segment_ids: Annotated[list[Any], Field(description='The segments to merge.')],
 ) -> Any:
     'Merge Segments\n\nRoute: POST /api/segments/merge (toolset `segments`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/segments/merge", json=_rt.body({"expected_versions": expected_versions, "keep_id": keep_id, "segment_ids": segment_ids}))
+    return _rt.call("POST", "/api/segments/merge", json=_rt.body({"expected_versions": expected_versions, "join_geometry": join_geometry, "keep_id": keep_id, "keep_shapes": keep_shapes, "move_into_region": move_into_region, "segment_ids": segment_ids}))
 
 
 def fichero_segments_create_pass(
@@ -7806,15 +8192,36 @@ def fichero_segments_get_pass_original(
     return _rt.call("GET", f"/api/segments/passes/{pass_id}/original")
 
 
+def fichero_segments_regenerate_outline(
+    *,
+    expected_versions: Annotated[dict[str, Any], Field(description="Each segment's version as last read, {segment_id: version}; a changed segment is refused.")],
+    fixed_height: Annotated[Optional[float], Field(description='A band this many image pixels tall over the baseline, for a line with no ink to measure.')] = None,
+    segment_ids: Annotated[list[Any], Field(description='The lines whose outlines are drawn again from their baselines.')],
+) -> Any:
+    'Regenerate Outline\n\nRoute: POST /api/segments/regenerate-outline (toolset `segments`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/segments/regenerate-outline", json=_rt.body({"expected_versions": expected_versions, "fixed_height": fixed_height, "segment_ids": segment_ids}))
+
+
+def fichero_segments_reparent(
+    *,
+    parent_segment_id: Annotated[Optional[str], Field(description='The segment they now sit inside (a line into a region); none lifts them out to the page.')] = None,
+    segments: Annotated[list[Any], Field(description='The segments to move, each with the version the caller saw.')],
+) -> Any:
+    'Reparent Segments\n\n`POST /api/segments/reparent` — move segments under another segment as one audited action and one undo step.\n\nRoute: POST /api/segments/reparent (toolset `segments`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/segments/reparent", json=_rt.body({"parent_segment_id": parent_segment_id, "segments": segments}))
+
+
 def fichero_segments_split(
     *,
     at_offset: Annotated[Optional[int], Field(description="Split at this character of the line's reading instead of giving parts.")] = None,
-    expected_version: Annotated[int, Field(description="The segment's version as last read; a changed segment is refused.")],
+    cut_path: Annotated[Optional[list[Any]], Field(description='A knife stroke: split every named line whose baseline it crosses, at the crossings.')] = None,
+    expected_version: Annotated[Optional[int], Field(description="The segment's version as last read; a changed segment is refused (not with cut_path).")] = None,
+    expected_versions: Annotated[Optional[dict[str, Any]], Field(description='With cut_path: the lines the stroke may cross, {segment_id: version as last read}. Default: {}.')] = None,
     parts: Annotated[Optional[list[Any]], Field(description='The parts to split it into, each with its own anchor (or give at_offset). Default: [].')] = None,
-    segment_id: Annotated[str, Field(description='The segment to split.')],
+    segment_id: Annotated[Optional[str], Field(description='The segment to split (not with cut_path).')] = None,
 ) -> Any:
     'Split Segment\n\nRoute: POST /api/segments/split (toolset `segments`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/segments/split", json=_rt.body({"at_offset": at_offset, "expected_version": expected_version, "parts": parts, "segment_id": segment_id}))
+    return _rt.call("POST", "/api/segments/split", json=_rt.body({"at_offset": at_offset, "cut_path": cut_path, "expected_version": expected_version, "expected_versions": expected_versions, "parts": parts, "segment_id": segment_id}))
 
 
 def fichero_segments_undelete(
@@ -7859,12 +8266,13 @@ def fichero_segments_update(
 def fichero_segments_correct_line(
     *,
     segment_id: Annotated[str, Field(description='Segment Id')],
+    corrects_representation_id: Annotated[Optional[str], Field(description='The reading of this line to correct, at ITS level and kind (a compared reading, `source.editor.compare-two-to-four-readings-with-the-line-picture-and-edit-in-line`). Unset: the one that counts now.')] = None,
     expected_counting_id: Annotated[Optional[str], Field(description='The reading that counted when you read the line. When another counts now, the correction is refused (409, naming it) and nothing is written. Unset: the one that counts now.')] = None,
     kind: Annotated[Optional[str], Field(description='The kind of reading corrected. Default: "transcription".')] = None,
     text: Annotated[str, Field(description="The line's corrected text.")],
 ) -> Any:
     "Correct Segment Line\n\nCorrect a line: the segment and its new text, nothing more (#5499, `source.reading.correct-a-line`).\n\nOne `representation.create` -- the action every correction is -- with the document, the reading it\ncorrects (the one that counts now, or the artifact text a provisional one still lives in) and the\ncompare-and-set worked out here. Audited and undoable as that action is; who corrected it is the caller,\nso a person's correction is a person's reading and counts over a machine's. The answer is the reading; the\nline's outline, which the correction did not change, is not repeated in it (#5697): the segment has it.\n\nRoute: POST /api/segments/{segment_id}/correct (toolset `segments`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", f"/api/segments/{segment_id}/correct", json=_rt.body({"expected_counting_id": expected_counting_id, "kind": kind, "text": text}))
+    return _rt.call("POST", f"/api/segments/{segment_id}/correct", json=_rt.body({"corrects_representation_id": corrects_representation_id, "expected_counting_id": expected_counting_id, "kind": kind, "text": text}))
 
 
 def fichero_segments_get_picture(
@@ -8185,7 +8593,7 @@ def fichero_sources_update(
 
 def fichero_engine_get_stats(
 ) -> Any:
-    'Get Stats\n\nGet library statistics for the current library.\n\nRoute: GET /api/stats (toolset `engine`; reads).'
+    'Get Stats\n\nGet library statistics for the current library.\n\nKept until the library announces a change, and answered 304 to a caller that holds the current ETag (#6446).\n\nRoute: GET /api/stats (toolset `engine`; reads).'
     return _rt.call("GET", "/api/stats")
 
 
@@ -8643,7 +9051,7 @@ def fichero_training_preview_set(
     scope_ids: Annotated[list[str], Field(description='Folders or pages whose teacher-read lines are the lessons.')],
     teacher: Annotated[str, Field(description='The model whose line readings are the lessons.')],
 ) -> Any:
-    "What a training set from these pages would hold, and the flagged lines it leaves out\n\nCounted exactly as a training job builds its set, nothing written or sent\n(`compute.tune.set-excludes-flagged-lines`): the pages and lines that would teach, the lines left\nout by flag (an empty or `null` reading, a reading whose newest check verdict rejects it) with\neach line's segment, whether the check had run on the set's lines, the held-out pages and the\npages missing with why.\n\nRoute: GET /api/training/set (toolset `training`; reads)."
+    "What a training set from these pages would hold, and the flagged lines it leaves out\n\nCounted exactly as a training job builds its set, nothing written or sent\n(`compute.tune.set-excludes-flagged-lines`): the pages and lines that would teach, the lines left\nout by flag (an empty or `null` reading, a reading whose standing check verdict rejects it: a person's verdict outranks a model's, otherwise the newest) with\neach line's segment, whether the check had run on the set's lines, the held-out pages and the\npages missing with why.\n\nRoute: GET /api/training/set (toolset `training`; reads)."
     return _rt.call("GET", "/api/training/set", params={"held_out_ids": held_out_ids, "scope_ids": scope_ids, "teacher": teacher})
 
 
@@ -8789,6 +9197,39 @@ def fichero_users_update(
     return _rt.call("PATCH", f"/api/users/{user_id}", json=_rt.body({"active": active, "display_name": display_name, "is_owner": is_owner, "password": password}))
 
 
+def fichero_workers_start(
+    *,
+    brief: Annotated[str, Field(description='Brief.')],
+    kind: Annotated[str, Field(description='Kind.')],
+    model: Annotated[Optional[str], Field(description='Model. Default: "sonnet".')] = None,
+    scenario: Annotated[Optional[dict[str, Any]], Field(description='Scenario.')] = None,
+    task: Annotated[Optional[str], Field(description='Task. Default: "".')] = None,
+    timeout_s: Annotated[float, Field(description='Timeout S.')],
+    tmux_session: Annotated[Optional[str], Field(description='Tmux Session. Default: "".')] = None,
+    workdir: Annotated[str, Field(description='Workdir.')],
+) -> Any:
+    'Start a dev worker process, recorded as a job row\n\nStart a worker of `kind` (`claude` in a tmux window, or `fake`) in `workdir`. Through `worker.start`.\n\nRoute: POST /api/workers (toolset `workers`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/workers", json=_rt.body({"brief": brief, "kind": kind, "model": model, "scenario": scenario, "task": task, "timeout_s": timeout_s, "tmux_session": tmux_session, "workdir": workdir}))
+
+
+def fichero_workers_tell(
+    *,
+    generation: Annotated[int, Field(description='Generation.')],
+    task: Annotated[str, Field(description='Task.')],
+    text: Annotated[str, Field(description='Text.')],
+) -> Any:
+    "Type a message into a task's current worker; refused for a stale generation\n\nThrough `worker.tell`: 409 when `generation` is not the task's current worker.\n\nRoute: POST /api/workers/tell (toolset `workers`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/workers/tell", json=_rt.body({"generation": generation, "task": task, "text": text}))
+
+
+def fichero_workers_stop(
+    *,
+    job_id: Annotated[str, Field(description='Job Id')],
+) -> Any:
+    'Stop a worker: its whole process group\n\nThrough `worker.stop`.\n\nRoute: POST /api/workers/{job_id}/stop (toolset `workers`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", f"/api/workers/{job_id}/stop")
+
+
 def fichero_workflow_execution_clear_all_cache(
 ) -> Any:
     'Clear All Cache\n\nClear all cached node results.\n\nThis will cause all nodes in all workflows to be re-executed on next run.\n\nReturns:\n    Number of entries deleted\n\nRoute: DELETE /api/workflow-execution/cache (toolset `workflow-execution`; changes data, as the agent account when one exists).'
@@ -8810,8 +9251,9 @@ def fichero_workflow_execution_compare_runs(
     return _rt.call("GET", "/api/workflow-execution/comparisons", params={"left": left, "right": right})
 
 
-def fichero_workflow_execution_execute(
+def fichero_workflow_execution_dry_run(
     *,
+    allow_cloud_once: Annotated[Optional[bool], Field(description="Let THIS run's calls go to a cloud model although the project keeps its pages on this Mac; written to no setting, ended with the run (`ai.cloud.one-run-overrides`) Default: false.")] = None,
     checkpoint_ns: Annotated[Optional[str], Field(description='Checkpoint namespace, for a sub-workflow. Default: "".')] = None,
     force_new: Annotated[Optional[bool], Field(description='Force New. Default: false.')] = None,
     force_recompute: Annotated[Optional[bool], Field(description='Run it again for real: bypass every cache. Default: false.')] = None,
@@ -8819,6 +9261,28 @@ def fichero_workflow_execution_execute(
     interrupt_after: Annotated[Optional[list[Any]], Field(description='Interrupt After.')] = None,
     interrupt_before: Annotated[Optional[list[Any]], Field(description='Interrupt Before.')] = None,
     model_override: Annotated[Optional[str], Field(description='Run every step with this model.')] = None,
+    over_cap_once: Annotated[Optional[bool], Field(description="Let THIS run's calls go past a cloud spend cap; the spend is still booked, so the next refusal counts it; written to no setting, ended with the run (`ai.cloud.one-run-overrides`) Default: false.")] = None,
+    provider_override: Annotated[Optional[str], Field(description='Run every step on this provider.')] = None,
+    selection: Annotated[Optional[dict[str, Any]], Field(description='The declared scope of a run. Validation is the whole point: this is the first place in the system that can say "that request does not describe a coherent selection" and refuse, rather than running and discovering the scope was wrong from its effects on real archival data.')] = None,
+    skip_cache: Annotated[Optional[bool], Field(description='Skip Cache. Default: false.')] = None,
+    thread_id: Annotated[Optional[str], Field(description="Continue this run's thread; made up when not given.")] = None,
+    workflow_id: Annotated[str, Field(description='The workflow to run.')],
+) -> Any:
+    'Dry Run Workflow\n\nTest a workflow before spending a real run (`workflows.canvas.dry-run`, #4370).\n\nAsks the same checks `/execute` makes (connections, models, privacy policy, run eligibility, the graph building) and\nanswers every problem in words, with the steps the run would take and which of them call a model. It starts no run,\ncalls no model, and writes nothing.\n\nRoute: POST /api/workflow-execution/dry-run (toolset `workflow-execution`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/workflow-execution/dry-run", json=_rt.body({"allow_cloud_once": allow_cloud_once, "checkpoint_ns": checkpoint_ns, "force_new": force_new, "force_recompute": force_recompute, "inputs": inputs, "interrupt_after": interrupt_after, "interrupt_before": interrupt_before, "model_override": model_override, "over_cap_once": over_cap_once, "provider_override": provider_override, "selection": selection, "skip_cache": skip_cache, "thread_id": thread_id, "workflow_id": workflow_id}))
+
+
+def fichero_workflow_execution_execute(
+    *,
+    allow_cloud_once: Annotated[Optional[bool], Field(description="Let THIS run's calls go to a cloud model although the project keeps its pages on this Mac; written to no setting, ended with the run (`ai.cloud.one-run-overrides`) Default: false.")] = None,
+    checkpoint_ns: Annotated[Optional[str], Field(description='Checkpoint namespace, for a sub-workflow. Default: "".')] = None,
+    force_new: Annotated[Optional[bool], Field(description='Force New. Default: false.')] = None,
+    force_recompute: Annotated[Optional[bool], Field(description='Run it again for real: bypass every cache. Default: false.')] = None,
+    inputs: Annotated[Optional[dict[str, Any]], Field(description="The workflow's inputs, a JSON object.")] = None,
+    interrupt_after: Annotated[Optional[list[Any]], Field(description='Interrupt After.')] = None,
+    interrupt_before: Annotated[Optional[list[Any]], Field(description='Interrupt Before.')] = None,
+    model_override: Annotated[Optional[str], Field(description='Run every step with this model.')] = None,
+    over_cap_once: Annotated[Optional[bool], Field(description="Let THIS run's calls go past a cloud spend cap; the spend is still booked, so the next refusal counts it; written to no setting, ended with the run (`ai.cloud.one-run-overrides`) Default: false.")] = None,
     provider_override: Annotated[Optional[str], Field(description='Run every step on this provider.')] = None,
     selection: Annotated[Optional[dict[str, Any]], Field(description='The declared scope of a run. Validation is the whole point: this is the first place in the system that can say "that request does not describe a coherent selection" and refuse, rather than running and discovering the scope was wrong from its effects on real archival data.')] = None,
     skip_cache: Annotated[Optional[bool], Field(description='Skip Cache. Default: false.')] = None,
@@ -8826,17 +9290,26 @@ def fichero_workflow_execution_execute(
     workflow_id: Annotated[str, Field(description='The workflow to run.')],
 ) -> Any:
     'Execute Workflow\n\nExecute a workflow (non-blocking).\n\nThis endpoint starts workflow execution in the background and returns\nimmediately with a 202 Accepted response. Use the stream_url to\nsubscribe to real-time progress events via SSE.\n\nFlow:\n1. POST /execute → 202 Accepted with thread_id and stream_url\n2. GET /stream/{thread_id} → SSE stream with progress events\n3. Events: start, node_begin, node_end, parallel_complete, complete, error\n\nArgs:\n    request: Execution parameters including workflow_id and inputs\n\nReturns:\n    202 Accepted with thread_id and stream_url for SSE subscription\n\nRaises:\n    404: Workflow not found\n\nRoute: POST /api/workflow-execution/execute (toolset `workflow-execution`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/workflow-execution/execute", json=_rt.body({"checkpoint_ns": checkpoint_ns, "force_new": force_new, "force_recompute": force_recompute, "inputs": inputs, "interrupt_after": interrupt_after, "interrupt_before": interrupt_before, "model_override": model_override, "provider_override": provider_override, "selection": selection, "skip_cache": skip_cache, "thread_id": thread_id, "workflow_id": workflow_id}))
+    return _rt.call("POST", "/api/workflow-execution/execute", json=_rt.body({"allow_cloud_once": allow_cloud_once, "checkpoint_ns": checkpoint_ns, "force_new": force_new, "force_recompute": force_recompute, "inputs": inputs, "interrupt_after": interrupt_after, "interrupt_before": interrupt_before, "model_override": model_override, "over_cap_once": over_cap_once, "provider_override": provider_override, "selection": selection, "skip_cache": skip_cache, "thread_id": thread_id, "workflow_id": workflow_id}))
 
 
 def fichero_workflow_execution_list_runs_route(
     *,
+    archived: Annotated[Optional[bool], Field(description='the ARCHIVED runs instead (Show Archived, `activity.pane.archive-old-runs`)')] = None,
     limit: Annotated[Optional[int], Field(description='Limit')] = None,
     offset: Annotated[Optional[int], Field(description='Offset')] = None,
     status: Annotated[Optional[list[str]], Field(description='Filter to these statuses (e.g. ?status=failed). Omit for every non-deleted run, newest first.')] = None,
 ) -> Any:
     "List Workflow Runs Route\n\nList workflow runs from the runs table (#4960).\n\nThe SAME record the toolbar popover already reads (``/activity/jobs``\ncalls this store's ``list_workflow_runs`` too) — not the lossy event\nlog ``GET /activity`` reads, which is why the popover and the Activity\nwindow disagreed (verified: `agent-work/reviews/\nactivity-system-review-2026-09-20.md` §2). A run with no ``activities``\nrows at all still appears here, and paging/sorting/filtering are all\npushed to SQL (``ORDER BY started_at DESC, thread_id DESC LIMIT ...\nOFFSET ...`` in ``ActivityStore.list_workflow_runs``), so listing cost\ndoes not grow with the total number of runs in the library.\n\nRoute: GET /api/workflow-execution/runs (toolset `workflow-execution`; reads)."
-    return _rt.call("GET", "/api/workflow-execution/runs", params={"limit": limit, "offset": offset, "status": status})
+    return _rt.call("GET", "/api/workflow-execution/runs", params={"archived": archived, "limit": limit, "offset": offset, "status": status})
+
+
+def fichero_workflow_execution_archive_runs_route(
+    *,
+    thread_ids: Annotated[list[Any], Field(description='ended runs to archive.')],
+) -> Any:
+    'Archive Workflow Runs Route\n\nArchive ended runs; `GET /runs?archived=true` lists them, `POST /api/activity/jobs/unarchive` puts them back.\n\nRoute: POST /api/workflow-execution/runs/archive (toolset `workflow-execution`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/workflow-execution/runs/archive", json=_rt.body({"thread_ids": thread_ids}))
 
 
 def fichero_workflow_execution_delete_runs_route(
@@ -8925,11 +9398,13 @@ def fichero_workflow_execution_read_pages_again(
 def fichero_workflow_execution_resume(
     *,
     thread_id: Annotated[str, Field(description='Thread Id')],
+    allow_cloud_once: Annotated[Optional[bool], Field(description="Let this resumed run's calls go to a cloud model once (`ai.cloud.one-run-overrides`). Default: false.")] = None,
     answer: Annotated[Optional[Any], Field(description='The answer to the question the run paused on.')] = None,
     inputs: Annotated[Optional[dict[str, Any]], Field(description='New inputs for the paused run.')] = None,
+    over_cap_once: Annotated[Optional[bool], Field(description="Let this resumed run's calls go past a cloud spend cap once (`ai.cloud.one-run-overrides`). Default: false.")] = None,
 ) -> Any:
     'Resume Workflow\n\nResume a paused workflow from checkpoint (non-blocking, #4317).\n\nContinues execution from the last checkpoint, optionally with new inputs\nor an interrupt() answer. The run is dispatched to the SAME dedicated\nworker-thread path as ``/execute`` — it streams SSE via\n``GET /stream/{thread_id}``, honors pause/cancel, and hits the document\ncompletion boundary — instead of blocking the FastAPI event loop with a\nsynchronous ``ainvoke`` that emitted no events and force-wrote\n``completed``.\n\nArgs:\n    thread_id: Thread ID from original execution\n    request: Optional new inputs / interrupt answer\n\nReturns:\n    Execution status with status="running" once dispatched\n\nRaises:\n    404: Thread not found\n    500: Resume error\n\nRoute: POST /api/workflow-execution/threads/{thread_id}/resume (toolset `workflow-execution`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", f"/api/workflow-execution/threads/{thread_id}/resume", json=_rt.body({"answer": answer, "inputs": inputs}))
+    return _rt.call("POST", f"/api/workflow-execution/threads/{thread_id}/resume", json=_rt.body({"allow_cloud_once": allow_cloud_once, "answer": answer, "inputs": inputs, "over_cap_once": over_cap_once}))
 
 
 def fichero_workflow_execution_get_run(
@@ -9223,20 +9698,34 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_activity_list_activities", "activity", "GET", "/api/activity", fichero_activity_list_activities),
     GeneratedTool("fichero_activity_get_batch", "activity", "GET", "/api/activity/batch/{batch_id}", fichero_activity_get_batch),
     GeneratedTool("fichero_activity_cleanup_old_activities", "activity", "DELETE", "/api/activity/cleanup", fichero_activity_cleanup_old_activities),
+    GeneratedTool("fichero_activity_continue_all", "activity", "POST", "/api/activity/continue-all", fichero_activity_continue_all),
+    GeneratedTool("fichero_activity_get_history", "activity", "GET", "/api/activity/history", fichero_activity_get_history),
     GeneratedTool("fichero_activity_list_background_jobs", "activity", "GET", "/api/activity/jobs", fichero_activity_list_background_jobs),
+    GeneratedTool("fichero_activity_archive_jobs", "activity", "POST", "/api/activity/jobs/archive", fichero_activity_archive_jobs),
     GeneratedTool("fichero_activity_clear_failed_jobs", "activity", "POST", "/api/activity/jobs/clear-failed", fichero_activity_clear_failed_jobs),
+    GeneratedTool("fichero_activity_bulk_delete_jobs", "activity", "POST", "/api/activity/jobs/delete", fichero_activity_bulk_delete_jobs),
     GeneratedTool("fichero_activity_list_queued_items", "activity", "GET", "/api/activity/jobs/kind/{kind}/items", fichero_activity_list_queued_items),
     GeneratedTool("fichero_activity_set_background_mode", "activity", "PUT", "/api/activity/jobs/mode", fichero_activity_set_background_mode),
     GeneratedTool("fichero_activity_set_background_paused", "activity", "PUT", "/api/activity/jobs/paused", fichero_activity_set_background_paused),
+    GeneratedTool("fichero_activity_unarchive_jobs", "activity", "POST", "/api/activity/jobs/unarchive", fichero_activity_unarchive_jobs),
+    GeneratedTool("fichero_activity_undelete_jobs", "activity", "POST", "/api/activity/jobs/undelete", fichero_activity_undelete_jobs),
     GeneratedTool("fichero_activity_get_job_tree", "activity", "GET", "/api/activity/jobs/{job_id}", fichero_activity_get_job_tree),
+    GeneratedTool("fichero_activity_post_job_bug_report", "activity", "POST", "/api/activity/jobs/{job_id}/bug-report", fichero_activity_post_job_bug_report),
     GeneratedTool("fichero_activity_cancel_job", "activity", "POST", "/api/activity/jobs/{job_id}/cancel", fichero_activity_cancel_job),
+    GeneratedTool("fichero_activity_get_run_failed_pages", "activity", "GET", "/api/activity/jobs/{job_id}/failed-pages", fichero_activity_get_run_failed_pages),
     GeneratedTool("fichero_activity_get_job_log", "activity", "GET", "/api/activity/jobs/{job_id}/log", fichero_activity_get_job_log),
     GeneratedTool("fichero_activity_get_run_page_states", "activity", "GET", "/api/activity/jobs/{job_id}/pages", fichero_activity_get_run_page_states),
     GeneratedTool("fichero_activity_set_job_paused", "activity", "PUT", "/api/activity/jobs/{job_id}/paused", fichero_activity_set_job_paused),
     GeneratedTool("fichero_activity_retry_job", "activity", "POST", "/api/activity/jobs/{job_id}/retry", fichero_activity_retry_job),
     GeneratedTool("fichero_activity_get_metrics_summary", "activity", "GET", "/api/activity/metrics/summary", fichero_activity_get_metrics_summary),
+    GeneratedTool("fichero_activity_models", "activity", "GET", "/api/activity/models", fichero_activity_models),
+    GeneratedTool("fichero_activity_pause_all", "activity", "POST", "/api/activity/pause-all", fichero_activity_pause_all),
     GeneratedTool("fichero_activity_get_recent_activities", "activity", "GET", "/api/activity/recent", fichero_activity_get_recent_activities),
+    GeneratedTool("fichero_activity_recipes", "activity", "GET", "/api/activity/recipes", fichero_activity_recipes),
     GeneratedTool("fichero_activity_get_stats", "activity", "GET", "/api/activity/stats", fichero_activity_get_stats),
+    GeneratedTool("fichero_activity_stop_all", "activity", "POST", "/api/activity/stop-all", fichero_activity_stop_all),
+    GeneratedTool("fichero_activity_list_stopped_at_quit", "activity", "GET", "/api/activity/stopped-at-quit", fichero_activity_list_stopped_at_quit),
+    GeneratedTool("fichero_activity_continue_after_quit", "activity", "POST", "/api/activity/stopped-at-quit/continue", fichero_activity_continue_after_quit),
     GeneratedTool("fichero_activity_get_workflow", "activity", "GET", "/api/activity/workflow/{workflow_id}", fichero_activity_get_workflow),
     GeneratedTool("fichero_activity_delete", "activity", "DELETE", "/api/activity/{activity_id}", fichero_activity_delete),
     GeneratedTool("fichero_agent_memory_list_notes", "agent-memory", "GET", "/api/agent-memory", fichero_agent_memory_list_notes),
@@ -9248,6 +9737,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_orchestration_approve_agent_write", "orchestration", "POST", "/api/agents/write/approve", fichero_orchestration_approve_agent_write),
     GeneratedTool("fichero_orchestration_get_agent_write_audit", "orchestration", "GET", "/api/agents/write/audit", fichero_orchestration_get_agent_write_audit),
     GeneratedTool("fichero_orchestration_get_agent_write_record", "orchestration", "GET", "/api/agents/write/audit/{record_id}", fichero_orchestration_get_agent_write_record),
+    GeneratedTool("fichero_ai_get_cloud_caps", "ai", "GET", "/api/ai/cloud-caps", fichero_ai_get_cloud_caps),
+    GeneratedTool("fichero_ai_put_cloud_cap", "ai", "PUT", "/api/ai/cloud-caps", fichero_ai_put_cloud_cap),
     GeneratedTool("fichero_annotations_list", "annotations", "GET", "/api/annotations", fichero_annotations_list),
     GeneratedTool("fichero_annotations_create", "annotations", "POST", "/api/annotations", fichero_annotations_create),
     GeneratedTool("fichero_annotations_crop_ephemeral", "annotations", "POST", "/api/annotations/crop", fichero_annotations_crop_ephemeral),
@@ -9285,9 +9776,11 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_auth_logout", "auth", "POST", "/api/auth/logout", fichero_auth_logout),
     GeneratedTool("fichero_auth_me", "auth", "GET", "/api/auth/me", fichero_auth_me),
     GeneratedTool("fichero_auth_migrate_owner", "auth", "POST", "/api/auth/migrate-owner", fichero_auth_migrate_owner),
+    GeneratedTool("fichero_auth_set_owner_password", "auth", "POST", "/api/auth/owner-password", fichero_auth_set_owner_password),
     GeneratedTool("fichero_auth_list_sessions", "auth", "GET", "/api/auth/sessions", fichero_auth_list_sessions),
     GeneratedTool("fichero_auth_revoke_session", "auth", "POST", "/api/auth/sessions/{session_id}/revoke", fichero_auth_revoke_session),
     GeneratedTool("fichero_auth_sign_in", "auth", "POST", "/api/auth/sign-in", fichero_auth_sign_in),
+    GeneratedTool("fichero_authz_access_matrix", "authz", "GET", "/api/authz/access-matrix", fichero_authz_access_matrix),
     GeneratedTool("fichero_authz_list_accessible_libraries", "authz", "GET", "/api/authz/libraries", fichero_authz_list_accessible_libraries),
     GeneratedTool("fichero_authz_get_library_snapshot", "authz", "GET", "/api/authz/library", fichero_authz_get_library_snapshot),
     GeneratedTool("fichero_authz_revoke_library_member_role", "authz", "DELETE", "/api/authz/members", fichero_authz_revoke_library_member_role),
@@ -9396,6 +9889,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_content_representations_create_route", "content-representations", "POST", "/api/content-representations", fichero_content_representations_create_route),
     GeneratedTool("fichero_content_representations_create_batch_route", "content-representations", "POST", "/api/content-representations/batch", fichero_content_representations_create_batch_route),
     GeneratedTool("fichero_content_representations_list", "content-representations", "GET", "/api/content-representations/document/{document_id}", fichero_content_representations_list),
+    GeneratedTool("fichero_content_representations_review_waiting", "content-representations", "GET", "/api/content-representations/document/{document_id}/review-waiting", fichero_content_representations_review_waiting),
     GeneratedTool("fichero_content_representations_list_revisions", "content-representations", "GET", "/api/content-representations/{representation_id}/revisions", fichero_content_representations_list_revisions),
     GeneratedTool("fichero_content_representations_create_revision", "content-representations", "POST", "/api/content-representations/{representation_id}/revisions", fichero_content_representations_create_revision),
     GeneratedTool("fichero_conversion_status", "conversion", "GET", "/api/conversion/status", fichero_conversion_status),
@@ -9435,6 +9929,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_documents_get_ancestors", "documents", "GET", "/api/documents/{doc_id}/ancestors", fichero_documents_get_ancestors),
     GeneratedTool("fichero_documents_export_annotations_jsonld", "documents", "GET", "/api/documents/{doc_id}/annotations.jsonld", fichero_documents_export_annotations_jsonld),
     GeneratedTool("fichero_documents_get_children", "documents", "GET", "/api/documents/{doc_id}/children", fichero_documents_get_children),
+    GeneratedTool("fichero_documents_clear_column_choice", "documents", "DELETE", "/api/documents/{doc_id}/column-choice", fichero_documents_clear_column_choice),
+    GeneratedTool("fichero_documents_put_column_choice", "documents", "PUT", "/api/documents/{doc_id}/column-choice", fichero_documents_put_column_choice),
     GeneratedTool("fichero_documents_duplicate", "documents", "POST", "/api/documents/{doc_id}/duplicate", fichero_documents_duplicate),
     GeneratedTool("fichero_documents_get_effective_attributes", "documents", "GET", "/api/documents/{doc_id}/effective-attributes", fichero_documents_get_effective_attributes),
     GeneratedTool("fichero_formats_export_document_page", "formats", "GET", "/api/documents/{doc_id}/export/{format_name}", fichero_formats_export_document_page),
@@ -9454,6 +9950,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_documents_purge", "documents", "DELETE", "/api/documents/{doc_id}/purge", fichero_documents_purge),
     GeneratedTool("fichero_documents_related", "documents", "GET", "/api/documents/{doc_id}/related", fichero_documents_related),
     GeneratedTool("fichero_documents_restore", "documents", "POST", "/api/documents/{doc_id}/restore", fichero_documents_restore),
+    GeneratedTool("fichero_documents_get_scope_template", "documents", "GET", "/api/documents/{doc_id}/template", fichero_documents_get_scope_template),
     GeneratedTool("fichero_documents_get_view", "documents", "GET", "/api/documents/{doc_id}/view", fichero_documents_get_view),
     GeneratedTool("fichero_documents_get_workflow_runs", "documents", "GET", "/api/documents/{doc_id}/workflow-runs", fichero_documents_get_workflow_runs),
     GeneratedTool("fichero_documents_patch_workspace_items", "documents", "PATCH", "/api/documents/{doc_id}/workspace", fichero_documents_patch_workspace_items),
@@ -9496,12 +9993,14 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_evaluation_start", "evaluation", "POST", "/api/evaluation/runs", fichero_evaluation_start),
     GeneratedTool("fichero_evaluation_status", "evaluation", "GET", "/api/evaluation/runs/{job_id}", fichero_evaluation_status),
     GeneratedTool("fichero_evaluation_model_scores", "evaluation", "GET", "/api/evaluation/scores", fichero_evaluation_model_scores),
+    GeneratedTool("fichero_export_catalogue_workbook_route", "export", "POST", "/api/export/catalogue-workbook", fichero_export_catalogue_workbook_route),
     GeneratedTool("fichero_export_eleventy_site_route", "export", "POST", "/api/export/eleventy-site", fichero_export_eleventy_site_route),
     GeneratedTool("fichero_export_excel_route", "export", "POST", "/api/export/excel", fichero_export_excel_route),
     GeneratedTool("fichero_export_jsonl_route", "export", "POST", "/api/export/jsonl", fichero_export_jsonl_route),
     GeneratedTool("fichero_export_list_kept_exports", "export", "GET", "/api/export/kept", fichero_export_list_kept_exports),
     GeneratedTool("fichero_export_keep", "export", "POST", "/api/export/kept", fichero_export_keep),
     GeneratedTool("fichero_export_remove_kept", "export", "DELETE", "/api/export/kept/{export_id}", fichero_export_remove_kept),
+    GeneratedTool("fichero_export_update_kept", "export", "PATCH", "/api/export/kept/{export_id}", fichero_export_update_kept),
     GeneratedTool("fichero_export_write_kept", "export", "POST", "/api/export/kept/{export_id}/write", fichero_export_write_kept),
     GeneratedTool("fichero_export_markdown_folder_route", "export", "POST", "/api/export/markdown-folder", fichero_export_markdown_folder_route),
     GeneratedTool("fichero_export_parquet_route", "export", "POST", "/api/export/parquet", fichero_export_parquet_route),
@@ -9583,11 +10082,13 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_iiif_import_from", "iiif", "POST", "/api/iiif/import", fichero_iiif_import_from),
     GeneratedTool("fichero_images_batch_apply_operation", "images", "POST", "/api/images/batch-apply", fichero_images_batch_apply_operation),
     GeneratedTool("fichero_images_undo_batch_operation", "images", "POST", "/api/images/batch-apply/{batch_id}/undo", fichero_images_undo_batch_operation),
+    GeneratedTool("fichero_images_batch_prepare_preview", "images", "POST", "/api/images/batch-prepare/preview", fichero_images_batch_prepare_preview),
     GeneratedTool("fichero_images_batch_crop", "images", "POST", "/api/images/crops/batch", fichero_images_batch_crop),
     GeneratedTool("fichero_images_crop_child", "images", "POST", "/api/images/{document_id}/crop", fichero_images_crop_child),
     GeneratedTool("fichero_images_delete_edit_chain", "images", "DELETE", "/api/images/{document_id}/edits", fichero_images_delete_edit_chain),
     GeneratedTool("fichero_images_get_edit_chain", "images", "GET", "/api/images/{document_id}/edits", fichero_images_get_edit_chain),
     GeneratedTool("fichero_images_put_edit_chain", "images", "PUT", "/api/images/{document_id}/edits", fichero_images_put_edit_chain),
+    GeneratedTool("fichero_images_queue_operation_job", "images", "POST", "/api/images/{document_id}/jobs", fichero_images_queue_operation_job),
     GeneratedTool("fichero_images_crop", "images", "POST", "/api/images/{document_id}/operations/crop", fichero_images_crop),
     GeneratedTool("fichero_images_enhance", "images", "POST", "/api/images/{document_id}/operations/enhance", fichero_images_enhance),
     GeneratedTool("fichero_images_remove_background", "images", "POST", "/api/images/{document_id}/operations/remove-background", fichero_images_remove_background),
@@ -9795,7 +10296,9 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_notes_forward_links", "notes", "GET", "/api/notes/{note_id}/forward-links", fichero_notes_forward_links),
     GeneratedTool("fichero_notes_create_link", "notes", "POST", "/api/notes/{note_id}/links", fichero_notes_create_link),
     GeneratedTool("fichero_notes_delete_link", "notes", "DELETE", "/api/notes/{note_id}/links/{link_id}", fichero_notes_delete_link),
+    GeneratedTool("fichero_renditions_get_image_chain", "renditions", "GET", "/api/pages/{page_id}/image-chain", fichero_renditions_get_image_chain),
     GeneratedTool("fichero_pairing_pair_device", "pairing", "POST", "/api/pair", fichero_pairing_pair_device),
+    GeneratedTool("fichero_pairing_pair_addresses", "pairing", "GET", "/api/pair/addresses", fichero_pairing_pair_addresses),
     GeneratedTool("fichero_pairing_create_code", "pairing", "POST", "/api/pair/code", fichero_pairing_create_code),
     GeneratedTool("fichero_pairing_list_devices", "pairing", "GET", "/api/pair/devices", fichero_pairing_list_devices),
     GeneratedTool("fichero_pairing_renew_device_token", "pairing", "POST", "/api/pair/devices/renew", fichero_pairing_renew_device_token),
@@ -9806,6 +10309,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_pairing_revoke_invite", "pairing", "DELETE", "/api/pair/invites/{invite_id}", fichero_pairing_revoke_invite),
     GeneratedTool("fichero_pairing_set_multiuser", "pairing", "PUT", "/api/pair/multiuser", fichero_pairing_set_multiuser),
     GeneratedTool("fichero_pairing_sharing_state", "pairing", "GET", "/api/pair/sharing", fichero_pairing_sharing_state),
+    GeneratedTool("fichero_pairing_sign_in_device", "pairing", "POST", "/api/pair/sign-in", fichero_pairing_sign_in_device),
     GeneratedTool("fichero_pairing_detected_tailnet", "pairing", "GET", "/api/pair/tailnet", fichero_pairing_detected_tailnet),
     GeneratedTool("fichero_orchestration_list_policy_rules", "orchestration", "GET", "/api/policies/orchestration", fichero_orchestration_list_policy_rules),
     GeneratedTool("fichero_orchestration_create_policy_rule", "orchestration", "POST", "/api/policies/orchestration", fichero_orchestration_create_policy_rule),
@@ -9857,8 +10361,10 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_reading_orders_place_in", "reading-orders", "POST", "/api/reading-orders/{order_id}/place", fichero_reading_orders_place_in),
     GeneratedTool("fichero_recipes_assemble", "recipes", "POST", "/api/recipes/assemble", fichero_recipes_assemble),
     GeneratedTool("fichero_recipes_model_candidates", "recipes", "GET", "/api/recipes/candidates", fichero_recipes_model_candidates),
+    GeneratedTool("fichero_recipes_chain_risk", "recipes", "GET", "/api/recipes/chain-risk", fichero_recipes_chain_risk),
     GeneratedTool("fichero_recipes_check", "recipes", "POST", "/api/recipes/check", fichero_recipes_check),
     GeneratedTool("fichero_recipes_accept_unpriced_cloud_model", "recipes", "POST", "/api/recipes/cloud/accept-unpriced", fichero_recipes_accept_unpriced_cloud_model),
+    GeneratedTool("fichero_recipes_defaults", "recipes", "GET", "/api/recipes/defaults", fichero_recipes_defaults),
     GeneratedTool("fichero_recipes_derived_facts", "recipes", "GET", "/api/recipes/derived", fichero_recipes_derived_facts),
     GeneratedTool("fichero_recipes_choose_font", "recipes", "PUT", "/api/recipes/font", fichero_recipes_choose_font),
     GeneratedTool("fichero_recipes_list_hands", "recipes", "GET", "/api/recipes/hands", fichero_recipes_list_hands),
@@ -9867,6 +10373,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_search_languages", "recipes", "GET", "/api/recipes/languages", fichero_recipes_search_languages),
     GeneratedTool("fichero_recipes_get_places", "recipes", "GET", "/api/recipes/places", fichero_recipes_get_places),
     GeneratedTool("fichero_recipes_put_places", "recipes", "PUT", "/api/recipes/places", fichero_recipes_put_places),
+    GeneratedTool("fichero_recipes_prepare_images_check", "recipes", "GET", "/api/recipes/prepare-images/check", fichero_recipes_prepare_images_check),
+    GeneratedTool("fichero_recipes_prepare_images_facts", "recipes", "GET", "/api/recipes/prepare-images/facts", fichero_recipes_prepare_images_facts),
     GeneratedTool("fichero_recipes_get_project_setup", "recipes", "GET", "/api/recipes/project", fichero_recipes_get_project_setup),
     GeneratedTool("fichero_recipes_save_project_setup", "recipes", "PUT", "/api/recipes/project", fichero_recipes_save_project_setup),
     GeneratedTool("fichero_recipes_allow_cloud", "recipes", "POST", "/api/recipes/project/allow-cloud", fichero_recipes_allow_cloud),
@@ -9875,6 +10383,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_start_bakeoff", "recipes", "POST", "/api/recipes/project/bakeoffs", fichero_recipes_start_bakeoff),
     GeneratedTool("fichero_recipes_bakeoff_result", "recipes", "GET", "/api/recipes/project/bakeoffs/{bakeoff_id}", fichero_recipes_bakeoff_result),
     GeneratedTool("fichero_recipes_use_bakeoff_choice", "recipes", "POST", "/api/recipes/project/bakeoffs/{bakeoff_id}/use", fichero_recipes_use_bakeoff_choice),
+    GeneratedTool("fichero_recipes_change_cloud_cap", "recipes", "PUT", "/api/recipes/project/cloud-cap", fichero_recipes_change_cloud_cap),
     GeneratedTool("fichero_recipes_change_project_layers", "recipes", "POST", "/api/recipes/project/layers", fichero_recipes_change_project_layers),
     GeneratedTool("fichero_recipes_get_review_instructions", "recipes", "GET", "/api/recipes/project/review-instructions", fichero_recipes_get_review_instructions),
     GeneratedTool("fichero_recipes_runs", "recipes", "GET", "/api/recipes/project/runs", fichero_recipes_runs),
@@ -9888,6 +10397,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_use_readers_for_step", "recipes", "POST", "/api/recipes/project/steps/use-readers", fichero_recipes_use_readers_for_step),
     GeneratedTool("fichero_recipes_use_setup_pick_for_step", "recipes", "POST", "/api/recipes/project/steps/use-setup-pick", fichero_recipes_use_setup_pick_for_step),
     GeneratedTool("fichero_recipes_list_purposes", "recipes", "GET", "/api/recipes/purposes", fichero_recipes_list_purposes),
+    GeneratedTool("fichero_recipes_questions", "recipes", "GET", "/api/recipes/questions", fichero_recipes_questions),
     GeneratedTool("fichero_recipes_routes_for_volume", "recipes", "GET", "/api/recipes/routes", fichero_recipes_routes_for_volume),
     GeneratedTool("fichero_recipes_get_samples", "recipes", "GET", "/api/recipes/samples", fichero_recipes_get_samples),
     GeneratedTool("fichero_recipes_choose_samples", "recipes", "PUT", "/api/recipes/samples", fichero_recipes_choose_samples),
@@ -9895,6 +10405,9 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_list_stages", "recipes", "GET", "/api/recipes/stages", fichero_recipes_list_stages),
     GeneratedTool("fichero_recipes_stage_try_result", "recipes", "GET", "/api/recipes/stages/{stage}/try", fichero_recipes_stage_try_result),
     GeneratedTool("fichero_recipes_try_stage", "recipes", "POST", "/api/recipes/stages/{stage}/try", fichero_recipes_try_stage),
+    GeneratedTool("fichero_recipes_stage_try_price", "recipes", "GET", "/api/recipes/stages/{stage}/try-price", fichero_recipes_stage_try_price),
+    GeneratedTool("fichero_recipes_suggestions", "recipes", "GET", "/api/recipes/suggestions", fichero_recipes_suggestions),
+    GeneratedTool("fichero_recipes_tries_on_page", "recipes", "GET", "/api/recipes/tries/page/{page_id}", fichero_recipes_tries_on_page),
     GeneratedTool("fichero_references_list", "references", "GET", "/api/references", fichero_references_list),
     GeneratedTool("fichero_references_delete", "references", "DELETE", "/api/references/{reference_id}", fichero_references_delete),
     GeneratedTool("fichero_references_get", "references", "GET", "/api/references/{reference_id}", fichero_references_get),
@@ -9988,7 +10501,11 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_segments_carry_across_match", "segments", "POST", "/api/segments/carry", fichero_segments_carry_across_match),
     GeneratedTool("fichero_segments_delete", "segments", "POST", "/api/segments/delete", fichero_segments_delete),
     GeneratedTool("fichero_segments_list_document", "segments", "GET", "/api/segments/document/{doc_id}", fichero_segments_list_document),
+    GeneratedTool("fichero_segments_doubtful_lines", "segments", "GET", "/api/segments/document/{doc_id}/doubtful", fichero_segments_doubtful_lines),
     GeneratedTool("fichero_segments_list_document_matches", "segments", "GET", "/api/segments/document/{doc_id}/matches", fichero_segments_list_document_matches),
+    GeneratedTool("fichero_segments_on_a_rendition", "segments", "GET", "/api/segments/document/{doc_id}/on-rendition/{rendition_id}", fichero_segments_on_a_rendition),
+    GeneratedTool("fichero_segments_preview_simplify", "segments", "GET", "/api/segments/document/{doc_id}/simplify-preview", fichero_segments_preview_simplify),
+    GeneratedTool("fichero_segments_validate_document", "segments", "GET", "/api/segments/document/{doc_id}/validate", fichero_segments_validate_document),
     GeneratedTool("fichero_segments_get_document_text", "segments", "GET", "/api/segments/document/{document_id}/text", fichero_segments_get_document_text),
     GeneratedTool("fichero_segments_propose_match", "segments", "POST", "/api/segments/matches", fichero_segments_propose_match),
     GeneratedTool("fichero_segments_accept_match", "segments", "POST", "/api/segments/matches/{match_id}/accept", fichero_segments_accept_match),
@@ -9998,6 +10515,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_segments_delete_pass", "segments", "DELETE", "/api/segments/passes/{pass_id}", fichero_segments_delete_pass),
     GeneratedTool("fichero_segments_set_pass_ground_truth", "segments", "PUT", "/api/segments/passes/{pass_id}/ground-truth", fichero_segments_set_pass_ground_truth),
     GeneratedTool("fichero_segments_get_pass_original", "segments", "GET", "/api/segments/passes/{pass_id}/original", fichero_segments_get_pass_original),
+    GeneratedTool("fichero_segments_regenerate_outline", "segments", "POST", "/api/segments/regenerate-outline", fichero_segments_regenerate_outline),
+    GeneratedTool("fichero_segments_reparent", "segments", "POST", "/api/segments/reparent", fichero_segments_reparent),
     GeneratedTool("fichero_segments_split", "segments", "POST", "/api/segments/split", fichero_segments_split),
     GeneratedTool("fichero_segments_undelete", "segments", "POST", "/api/segments/undelete", fichero_segments_undelete),
     GeneratedTool("fichero_segments_get", "segments", "GET", "/api/segments/{segment_id}", fichero_segments_get),
@@ -10100,11 +10619,16 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_users_create", "users", "POST", "/api/users", fichero_users_create),
     GeneratedTool("fichero_users_delete", "users", "DELETE", "/api/users/{user_id}", fichero_users_delete),
     GeneratedTool("fichero_users_update", "users", "PATCH", "/api/users/{user_id}", fichero_users_update),
+    GeneratedTool("fichero_workers_start", "workers", "POST", "/api/workers", fichero_workers_start),
+    GeneratedTool("fichero_workers_tell", "workers", "POST", "/api/workers/tell", fichero_workers_tell),
+    GeneratedTool("fichero_workers_stop", "workers", "POST", "/api/workers/{job_id}/stop", fichero_workers_stop),
     GeneratedTool("fichero_workflow_execution_clear_all_cache", "workflow-execution", "DELETE", "/api/workflow-execution/cache", fichero_workflow_execution_clear_all_cache),
     GeneratedTool("fichero_workflow_execution_get_all_cache_stats", "workflow-execution", "GET", "/api/workflow-execution/cache/stats", fichero_workflow_execution_get_all_cache_stats),
     GeneratedTool("fichero_workflow_execution_compare_runs", "workflow-execution", "GET", "/api/workflow-execution/comparisons", fichero_workflow_execution_compare_runs),
+    GeneratedTool("fichero_workflow_execution_dry_run", "workflow-execution", "POST", "/api/workflow-execution/dry-run", fichero_workflow_execution_dry_run),
     GeneratedTool("fichero_workflow_execution_execute", "workflow-execution", "POST", "/api/workflow-execution/execute", fichero_workflow_execution_execute),
     GeneratedTool("fichero_workflow_execution_list_runs_route", "workflow-execution", "GET", "/api/workflow-execution/runs", fichero_workflow_execution_list_runs_route),
+    GeneratedTool("fichero_workflow_execution_archive_runs_route", "workflow-execution", "POST", "/api/workflow-execution/runs/archive", fichero_workflow_execution_archive_runs_route),
     GeneratedTool("fichero_workflow_execution_delete_runs_route", "workflow-execution", "POST", "/api/workflow-execution/runs/delete", fichero_workflow_execution_delete_runs_route),
     GeneratedTool("fichero_workflow_execution_list_threads", "workflow-execution", "GET", "/api/workflow-execution/threads", fichero_workflow_execution_list_threads),
     GeneratedTool("fichero_workflow_execution_delete_thread", "workflow-execution", "DELETE", "/api/workflow-execution/threads/{thread_id}", fichero_workflow_execution_delete_thread),
@@ -10143,4 +10667,4 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_views_document", "views", "GET", "/view/document/{doc_id}", fichero_views_document),
     GeneratedTool("fichero_views_global_kg", "views", "GET", "/view/kg/global", fichero_views_global_kg),
 )
-TAGS: tuple[str, ...] = ("actions", "activity", "agent-memory", "annotations", "artifacts", "auth", "authz", "batches", "bibliography", "bookmarks", "campaigns", "canvas", "chains", "chat", "check", "citation-rendering", "citation-usages", "citations", "claim-curation", "claim-links", "claims", "classifications", "content-representations", "conversion", "documents", "editorial", "engine", "entities", "evaluation", "export", "find-documents", "folders", "fonts", "formats", "georeference", "hands", "hpc", "iiif", "images", "ingest", "integrations", "knowledge-graph", "letterforms", "library", "library-items", "library-links", "library-sync", "links", "local-inference", "local-models", "locations", "machines", "mcp", "mcp-servers", "migrations", "model-comparison", "models", "multilingual", "notes", "orchestration", "pairing", "projects", "providers", "reading-at-scale", "reading-orders", "recipes", "references", "registries", "renditions", "research", "rights", "sandbox", "schedules", "search", "search-explanation", "segments", "settings", "signs", "source-settings", "sources", "storage", "sync-folders", "tasks", "topics", "training", "triggers", "users", "views", "workflow-execution", "workflows",)
+TAGS: tuple[str, ...] = ("actions", "activity", "agent-memory", "ai", "annotations", "artifacts", "auth", "authz", "batches", "bibliography", "bookmarks", "campaigns", "canvas", "chains", "chat", "check", "citation-rendering", "citation-usages", "citations", "claim-curation", "claim-links", "claims", "classifications", "content-representations", "conversion", "documents", "editorial", "engine", "entities", "evaluation", "export", "find-documents", "folders", "fonts", "formats", "georeference", "hands", "hpc", "iiif", "images", "ingest", "integrations", "knowledge-graph", "letterforms", "library", "library-items", "library-links", "library-sync", "links", "local-inference", "local-models", "locations", "machines", "mcp", "mcp-servers", "migrations", "model-comparison", "models", "multilingual", "notes", "orchestration", "pairing", "projects", "providers", "reading-at-scale", "reading-orders", "recipes", "references", "registries", "renditions", "research", "rights", "sandbox", "schedules", "search", "search-explanation", "segments", "settings", "signs", "source-settings", "sources", "storage", "sync-folders", "tasks", "topics", "training", "triggers", "users", "views", "workers", "workflow-execution", "workflows",)

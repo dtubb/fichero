@@ -52,7 +52,7 @@
    {
     "id": "entry-0002",
     "order_id": "order-0003",
-    "segment_id": "seg-0007",
+    "segment_id": "seg-0017",
     "position": 2.0,
     "parent_entry_id": null,
     "version": 1
@@ -60,7 +60,7 @@
    {
     "id": "entry-0003",
     "order_id": "order-0003",
-    "segment_id": "seg-0017",
+    "segment_id": "seg-0016",
     "position": 3.0,
     "parent_entry_id": null,
     "version": 1
@@ -68,7 +68,7 @@
    {
     "id": "entry-0004",
     "order_id": "order-0003",
-    "segment_id": "seg-0012",
+    "segment_id": "seg-0018",
     "position": 4.0,
     "parent_entry_id": null,
     "version": 1
@@ -76,104 +76,8 @@
    {
     "id": "entry-0005",
     "order_id": "order-0003",
-    "segment_id": "seg-0010",
-    "position": 5.0,
-    "parent_entry_id": null,
-    "version": 1
-   },
-   {
-    "id": "entry-0006",
-    "order_id": "order-0003",
-    "segment_id": "seg-0011",
-    "position": 6.0,
-    "parent_entry_id": null,
-    "version": 1
-   },
-   {
-    "id": "entry-0007",
-    "order_id": "order-0003",
-    "segment_id": "seg-0009",
-    "position": 7.0,
-    "parent_entry_id": null,
-    "version": 1
-   },
-   {
-    "id": "entry-0008",
-    "order_id": "order-0003",
-    "segment_id": "seg-0008",
-    "position": 8.0,
-    "parent_entry_id": null,
-    "version": 1
-   },
-   {
-    "id": "entry-0009",
-    "order_id": "order-0003",
-    "segment_id": "seg-0013",
-    "position": 9.0,
-    "parent_entry_id": null,
-    "version": 1
-   },
-   {
-    "id": "entry-0010",
-    "order_id": "order-0003",
-    "segment_id": "seg-0016",
-    "position": 10.0,
-    "parent_entry_id": null,
-    "version": 1
-   },
-   {
-    "id": "entry-0011",
-    "order_id": "order-0003",
-    "segment_id": "seg-0005",
-    "position": 11.0,
-    "parent_entry_id": null,
-    "version": 1
-   },
-   {
-    "id": "entry-0012",
-    "order_id": "order-0003",
-    "segment_id": "seg-0003",
-    "position": 12.0,
-    "parent_entry_id": null,
-    "version": 1
-   },
-   {
-    "id": "entry-0013",
-    "order_id": "order-0003",
-    "segment_id": "seg-0004",
-    "position": 13.0,
-    "parent_entry_id": null,
-    "version": 1
-   },
-   {
-    "id": "entry-0014",
-    "order_id": "order-0003",
-    "segment_id": "seg-0006",
-    "position": 14.0,
-    "parent_entry_id": null,
-    "version": 1
-   },
-   {
-    "id": "entry-0015",
-    "order_id": "order-0003",
-    "segment_id": "seg-0018",
-    "position": 15.0,
-    "parent_entry_id": null,
-    "version": 1
-   },
-   {
-    "id": "entry-0016",
-    "order_id": "order-0003",
-    "segment_id": "seg-0014",
-    "position": 16.0,
-    "parent_entry_id": null,
-    "version": 1
-   },
-   {
-    "id": "entry-0017",
-    "order_id": "order-0003",
     "segment_id": "seg-next-0001",
-    "position": 17.0,
+    "position": 5.0,
     "parent_entry_id": null,
     "version": 1
    }
@@ -181,8 +85,8 @@
  },
  "neighbours": {
   "order_id": "order-0003",
-  "segment_id": "seg-0014",
-  "previous_segment_id": "seg-0018",
+  "segment_id": "seg-0018",
+  "previous_segment_id": "seg-0016",
   "next_segment_id": "seg-next-0001"
  },
  "across": {

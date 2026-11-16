@@ -406,6 +406,22 @@ async def resolve_source_settings(
     return _resolved_for(db, segment_id, document_id)
 
 
+def segment_ancestors(db: Database, segment: Optional[Segment], limit: int = 16) -> list[Segment]:
+    """The segment's parents, nearest first (word -> line -> region), for the cascade's walk up them (#4938). Stops at
+    the top, at a parent that is gone, or after `limit` hops (a cycle is never followed forever)."""
+    ancestors: list[Segment] = []
+    seen = {segment.id} if segment else set()
+    parent_id = segment.parent_segment_id if segment else None
+    while parent_id and parent_id not in seen and len(ancestors) < limit:
+        parent = db.get(Segment, parent_id)
+        if parent is None:
+            break
+        ancestors.append(parent)
+        seen.add(parent_id)
+        parent_id = parent.parent_segment_id
+    return ancestors
+
+
 def _resolved_for(db: Database, segment_id: Optional[str], document_id: Optional[str]) -> ResolvedSourceSettings:
     segment = db.get(Segment, segment_id) if segment_id else None
     if segment_id and segment is None:
@@ -423,11 +439,13 @@ def _resolved_for(db: Database, segment_id: Optional[str], document_id: Optional
     # derivation uses (`resolve_direction(text=)`), not a second implementation. Language is
     # never guessed from the script; without a statement it is "not determined", naming it.
     text = _text_of(db, segment, document)
-    script = resolve_script(segment=segment, document=document, project=project, text=text)
+    # The segment's parents, nearest first: a value set on a region is its lines' and words' (#4938).
+    ancestors = segment_ancestors(db, segment)
+    script = resolve_script(segment=segment, document=document, project=project, text=text, ancestors=ancestors)
     language = resolve_language(
         document=document, segment=segment, detect=False,
         script=script.language if script.source == SOURCE_DETECTED else None,
-        guess_english=False, project_language=project.language,
+        guess_english=False, project_language=project.language, ancestors=ancestors,
     )
     from fichero_server.api.routes.document.segment_readings import _lines_are_vertical, direction_rungs
 
@@ -436,7 +454,7 @@ def _resolved_for(db: Database, segment_id: Optional[str], document_id: Optional
     # "ltr from the script" here while the Reader drew it top to bottom.
     vertical = _lines_are_vertical(_page_lines(db, segment, document), document) if document else None
     direction = resolve_direction(
-        segment=segment, document=document, text=text, lines_are_vertical=vertical,
+        segment=segment, document=document, text=text, lines_are_vertical=vertical, ancestors=ancestors,
         **direction_rungs(db, document),
     )
     encoding = resolve_encoding(

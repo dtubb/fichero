@@ -49,6 +49,28 @@ final class SegmentService {
         }
     }
 
+    /// The page's live segments' boxes in a rendition's pixels (#6420), for the Preview to draw on the rendition it shows.
+    /// `followed` false means the engine does not know where the rendition sits on the photograph: no boxes, and `note` says why.
+    func segmentBoxes(documentId: String, renditionId: String) async throws -> SegmentBoxesOnRendition {
+        let response = try await client.api.segmentsOnARenditionApiSegmentsDocumentDocIdOnRenditionRenditionIdGet(
+            path: .init(docId: documentId, renditionId: renditionId)
+        )
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.json
+            return SegmentBoxesOnRendition(
+                followed: body.followed, note: body.note, size: body.imageWidth.flatMap { width in
+                    body.imageHeight.map { CGSize(width: width, height: $0) }
+                }, boxes: body.boxes?.additionalProperties ?? [:]
+            )
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw SegmentServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, _):
+            throw SegmentServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
     /// ONE segment as it is now, resolved through forwarding (merge, split, or
     /// deleted-then-restored) when the id is no longer live
     /// (`source.segment.forwarding`).
@@ -108,7 +130,8 @@ extension SegmentService {
                     machineConfidence: $0.machineConfidence, readFromRenditionId: $0.readFromRenditionId,
                     producerModel: $0.producerModel, producerProvider: $0.producerProvider,
                     producerRunId: $0.producerRunId, producerStep: $0.producerStep, createdAt: $0.createdAt,
-                    provisional: $0.provisional, derivedFromArtifactId: $0.derivedFromArtifactId
+                    provisional: $0.provisional, derivedFromArtifactId: $0.derivedFromArtifactId,
+                    derivedFromId: $0.derivedFromRepresentationId
                 )
             }
             let counting = body.counting.additionalProperties.mapValues {
@@ -177,6 +200,45 @@ extension SegmentService {
 }
 
 extension SegmentService {
+    /// What is wrong with a page's segments before an export (`segment-editor.validate-before-export`): a read, nothing
+    /// written; empty when there is nothing to fix.
+    func problems(documentId: String) async throws -> [Components.Schemas.SegmentProblem] {
+        let response = try await client.api.validateDocumentSegmentsApiSegmentsDocumentDocIdValidateGet(
+            path: .init(docId: documentId)
+        )
+        switch response {
+        case .ok(let okResponse): return try okResponse.body.json.problems
+        case .unprocessableContent: throw SegmentServiceError.serverError("the page could not be checked")
+        case .undocumented(let statusCode, _): throw SegmentServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
+    /// The page's doubtful lines, least sure first (`segment-editor.low-confidence-lens`): the ids of the lines something
+    /// measured or found wrong, in the engine's order. A read.
+    func doubtfulLines(documentId: String) async throws -> [String] {
+        let response = try await client.api.doubtfulLinesApiSegmentsDocumentDocIdDoubtfulGet(path: .init(docId: documentId))
+        switch response {
+        case .ok(let okResponse): return try okResponse.body.json.lines.filter { $0.confidence != nil }.map(\.segmentId)
+        case .unprocessableContent: throw SegmentServiceError.serverError("the page's lines could not be read")
+        case .undocumented(let statusCode, _): throw SegmentServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
+    /// What Simplify would make of `segmentIds` at `tolerance` image pixels, written nowhere (`segment-editor.vertices`):
+    /// the paths the Shape popover's slider draws live. A shape the tolerance would not change is left out.
+    func simplifyPreview(documentId: String, segmentIds: [String], tolerance: Double) async throws -> [[[Double]]] {
+        let response = try await client.api.previewSimplifySegmentsApiSegmentsDocumentDocIdSimplifyPreviewGet(
+            path: .init(docId: documentId), query: .init(segmentIds: segmentIds, tolerance: tolerance)
+        )
+        switch response {
+        case .ok(let okResponse):
+            let shapes = try okResponse.body.json.shapes
+            return SimplifyRelease.paths(polygons: shapes.map(\.polygon), baselines: shapes.map(\.baseline))
+        case .unprocessableContent: throw SegmentServiceError.serverError("the shapes could not be simplified")
+        case .undocumented(let statusCode, _): throw SegmentServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
     /// The language, script, direction and encoding the engine resolves for ONE segment, each with
     /// where it came from (#5158; `GET /api/source-settings/resolve`). Empty for an id it cannot find.
     func resolvedSettings(segmentId: String) async throws -> [InspectorLanguage.Setting] {
@@ -260,4 +322,12 @@ enum SegmentServiceError: Error, LocalizedError {
             return "Server error: \(message)"
         }
     }
+}
+
+/// What `segmentBoxes` answers: segment id to its [x, y, w, h] in the rendition's pixels.
+struct SegmentBoxesOnRendition: Equatable {
+    let followed: Bool
+    let note: String?
+    let size: CGSize?
+    let boxes: [String: [Double]]
 }

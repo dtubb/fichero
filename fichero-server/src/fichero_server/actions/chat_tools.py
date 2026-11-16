@@ -245,6 +245,7 @@ def dispatch_tool_call(
     run_id: str | None = None,
     library_path: str | None = None,
     is_bootstrap: bool = False,
+    may_read: Any = None,
     reg: ActionRegistry | None = None,
 ) -> ActionResult:
     """Run a model-requested tool call through the audited action choke point.
@@ -274,6 +275,7 @@ def dispatch_tool_call(
         run_id=run_id,
         library_path=library_path,
         is_bootstrap=is_bootstrap,
+        may_read=may_read,
     )
     logger.debug(
         "chat tool dispatch: tool=%s -> action=%s actor=%s", tool_name, action_name, actor

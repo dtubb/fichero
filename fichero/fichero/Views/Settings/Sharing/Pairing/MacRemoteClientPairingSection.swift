@@ -15,18 +15,29 @@ struct MacRemoteClientPairingSection: View {
     @State private var pairCode = ""
     // This Mac's own `.ts.net` address, from its own engine; a host in another tailnet always asks for its invite.
     @State private var ownTailnetURL: String?
-    @State private var clientPairingError: String?
+    /// A failed connect, as the one alert (`sharing.alerts.one-alert-per-failure`); never a line of raw text under the fields.
+    @State private var failurePrompt: FailureAlertPrompt?
     @State private var isClientPairing = false
     // Shown only after the host answers "person required": a Multi-user host asks who this Mac is.
     @State private var needsPerson = false
     @State private var personName = ""
     @State private var personPassword = ""
+    /// A typed address's key, read at first contact and trusted by the person (`HostKeyProbe`); nil pin for a public CA.
+    @State private var trusted: (url: URL, pin: String?)?
+    @State private var trustAsk: HostKeyFingerprint.Ask?
+    /// Which button asked, kept while the person decides about a host's key.
+    @State private var pendingSwitch = false
+
+    /// Called once after a connect succeeded, so the window that holds this section closes (#6432).
+    private let onConnected: () -> Void
 
     init(
         appState: AppState,
         backendService: EmbeddedBackendService,
-        libraryManager: LibraryManager
+        libraryManager: LibraryManager,
+        onConnected: @escaping () -> Void = {}
     ) {
+        self.onConnected = onConnected
         self._appState = Bindable(wrappedValue: appState)
         self._backendService = Bindable(wrappedValue: backendService)
         self._libraryManager = Bindable(wrappedValue: libraryManager)
@@ -54,18 +65,12 @@ struct MacRemoteClientPairingSection: View {
             }
 
             // Asked only after the host answers that it needs a person.
-            if ConnectSheetModel.asksForPerson(hostAskedForPerson: needsPerson) {
+            if ConnectSheetModel.asksForPerson(hostAskedForPerson: needsPerson || linkSignsIn) {
                 TextField("Username", text: $personName)
                     .textFieldStyle(.roundedBorder)
                     .autocorrectionDisabled()
                 SecureField("Password", text: $personPassword)
                     .textFieldStyle(.roundedBorder)
-            }
-
-            if let clientPairingError {
-                Label(clientPairingError, systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
             }
 
             HStack {
@@ -75,9 +80,13 @@ struct MacRemoteClientPairingSection: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
-                .disabled(!ConnectSheetModel.canConnect(
-                    codeRoute: chosenNeedsCodeOnly, code: pairCode, link: clientInvite, isConnecting: isClientPairing,
-                    needsPerson: needsPerson, name: personName, password: personPassword))
+                .disabled(!canConnect)
+                // The explicit whole-Mac choice: this Mac then uses that Mac's engine for everything, until switched back.
+                Button("Use It as This Mac's Engine") {
+                    Task { await connectThisMacAsRemoteClient(switchesWholeMac: true) }
+                }
+                .disabled(!canConnect)
+                .accessibilityIdentifier("sharing.connect.useAsEngine")
             }
         }
         // A tapped fichero:// link lands here (#3788): prefill it so the person SEES what they are about to connect to
@@ -100,6 +109,11 @@ struct MacRemoteClientPairingSection: View {
             }
         }
         .onDisappear { nearby.stop() }
+        .failureAlert($failurePrompt)
+        .hostTrustAlert($trustAsk) { ask in
+            trusted = (ask.url, ask.pin)
+            Task { await connectThisMacAsRemoteClient(switchesWholeMac: pendingSwitch) }
+        }
     }
 
     /// The Fichero Macs nearby, this Mac left out; picking one starts pairing with it (#5892). "Searching…" in grey
@@ -114,7 +128,6 @@ struct MacRemoteClientPairingSection: View {
         ForEach(hosts, id: \.publicURL) { host in
             Button {
                 chosen = host
-                clientPairingError = nil
             } label: {
                 Label(host.name, systemImage: chosen == host ? "checkmark.circle.fill" : "desktopcomputer")
             }
@@ -134,6 +147,10 @@ struct MacRemoteClientPairingSection: View {
         if let chosen, chosenNeedsCodeOnly, let url = chosen.publicURL {
             return RemoteClientPairingFields(remoteURL: url, pairCode: pairCode, spkiPin: nil, libraryPath: "")
         }
+        if let trusted, HostKeyProbe.typedAddress(clientInvite) == trusted.url {
+            // A typed address signs a person in pinned to the key they trusted; no code, no project named.
+            return HostKeyProbe.signInFields(trusted.url, pin: trusted.pin)
+        }
         let fields = try RemoteClientPairing.pairingFields(fromInviteOrPayload: clientInvite)
         if let chosen, !HostChoices.invite(fields.remoteURL, isFor: chosen) {
             throw APIError.badRequest("That invite is for another Mac than \(chosen.name). Paste the one shown on \(chosen.name).")
@@ -141,44 +158,103 @@ struct MacRemoteClientPairingSection: View {
         return fields
     }
 
-    /// The host the pasted invite points at, shown read-only so the person sees where they are about to connect.
-    private var inviteHost: String? {
-        (try? RemoteClientPairing.pairingFields(fromInviteOrPayload: clientInvite))
-            .flatMap { URL(string: $0.remoteURL)?.host }
+    /// A pasted link with no code is for a person (Step 8.9): the name and password fields show at once.
+    /// So does a typed address: there is no code to give.
+    private var linkSignsIn: Bool {
+        HostKeyProbe.typedAddress(clientInvite) != nil
+            || (try? RemoteClientPairing.pairingFields(fromInviteOrPayload: clientInvite))?.pairCode.isEmpty == true
     }
 
-    private func connectThisMacAsRemoteClient() async {
+    /// The host the pasted invite (or typed address) points at, shown read-only so the person sees where they connect.
+    private var inviteHost: String? {
+        HostKeyProbe.typedAddress(clientInvite)?.host
+            ?? (try? RemoteClientPairing.pairingFields(fromInviteOrPayload: clientInvite)).flatMap { URL(string: $0.remoteURL)?.host }
+    }
+
+    /// First contact with a typed address: read the key it presents and ask the person to trust its fingerprint. A host a
+    /// public CA certifies (`tailscale serve`) needs no pin and is trusted as is. Returns false when the ask is shown.
+    private func trustTypedAddress() async throws -> Bool {
+        guard let address = HostKeyProbe.typedAddress(clientInvite), trusted?.url != address else { return true }
+        guard let ask = try await HostKeyProbe.firstContact(address) else {
+            trusted = (address, nil)
+            return true
+        }
+        trustAsk = ask
+        return false
+    }
+
+    private var canConnect: Bool {
+        ConnectSheetModel.canConnect(
+            codeRoute: chosenNeedsCodeOnly, code: pairCode, link: clientInvite, isConnecting: isClientPairing,
+            needsPerson: needsPerson || linkSignsIn, name: personName, password: personPassword)
+    }
+
+    /// Connect pairs and keeps this Mac's own engine: the host's libraries show under it in the sidebar and open beside the
+    /// local ones. `switchesWholeMac` is the other choice, the old one: this Mac then runs on that Mac's engine (#6418).
+    private func connectThisMacAsRemoteClient(switchesWholeMac: Bool = false) async {
+        pendingSwitch = switchesWholeMac
         isClientPairing = true
-        clientPairingError = nil
         defer { isClientPairing = false }
 
         let previousHost = engineHost
         do {
+            guard try await trustTypedAddress() else { return }
             let pairingFields = try fieldsToPair()
-            let result = try await RemoteClientPairing.pairDevice(
+            // The same sequence the phone runs (`sharing.both-clients-run-the-same-checks`): try the link's addresses, check the
+            // contract before any code is sent, pair, keep the token (or revoke), confirm the project, persist.
+            let apiRoot = try await RemoteClientPairing.pairAndPersistHost(
                 remoteURL: pairingFields.remoteURL,
                 pairCode: pairingFields.pairCode,
                 deviceName: RemoteClientPairing.defaultDeviceName(),
                 expectedSPKIPin: pairingFields.spkiPin,
-                person: PairingPerson(username: personName, password: personPassword)
+                libraryPath: pairingFields.libraryPath,
+                person: PairingPerson(username: personName, password: personPassword),
+                altURLs: pairingFields.altURLs,
+                makesAppHost: switchesWholeMac
             )
-            try await RemoteClientPairing.probeRemoteHealth(at: result.apiRoot, expectedSPKIPin: pairingFields.spkiPin)
-            try RemoteClientPairing.persistPairedHost(
-                result,
-                expectedSPKIPin: pairingFields.spkiPin,
-                libraryPath: pairingFields.libraryPath
-            )
+            guard switchesWholeMac else {
+                // The host's whole list for this device now, not at the next launch: its row shows every project it shares.
+                await ConnectSheetModel.finishConnect(
+                    reload: { libraryManager.pairedMachines = PairedMachineStore.load() },
+                    readHostList: { await libraryManager.checkSharedRows() }, close: onConnected)
+                return
+            }
             // The one procedure that changes the engine host (stop, write, repoint, start, check, roll back) is shared
             // with Settings › Engine › Advanced › Apply (#5916).
             try await engineHostSwitch().run(
-                from: previousHost, to: result.apiRoot.absoluteString,
+                from: previousHost, to: apiRoot.absoluteString,
                 notResponding: "Paired successfully, but the verified remote host is not responding now.",
                 onFailure: { _ in
-                    RemoteClientPairing.rollbackFailedHostSwitch(previousHost: previousHost, attemptedHost: result.apiRoot)
+                    RemoteClientPairing.rollbackFailedHostSwitch(previousHost: previousHost, attemptedHost: apiRoot)
                 })
+            EngineConfig.defaults.set(apiRoot.absoluteString, forKey: EngineConfig.wholeMacHostKey)
+            onConnected()
         } catch {
             if error as? RemoteClientPairingError == .personRequired { needsPerson = true }
-            clientPairingError = error.localizedDescription
+            failurePrompt = SharingFailurePrompt.make(
+                pairing: error, host: inviteHost ?? chosen?.name ?? "the other Mac",
+                offers: [.pasteLinkAgain, .openTailscale, .tryAgain, .openNetworkSettings, .signIn, .checkForUpdates],
+                perform: perform, copy: { PlatformPasteboard.writeString($0) })
+        }
+    }
+
+    /// A fix button of the alert, done here.
+    private func perform(_ fix: SharingFailurePrompt.Fix) {
+        switch fix {
+        case .pasteLinkAgain:
+            if let pasted = NSPasteboard.general.string(forType: .string) { clientInvite = pasted }
+        case .openTailscale:
+            NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/Tailscale.app"))
+        case .tryAgain:
+            Task { await connectThisMacAsRemoteClient(switchesWholeMac: pendingSwitch) }
+        case .openNetworkSettings, .openAppSettings:
+            if let url = URL(string: "x-apple.systempreferences:com.apple.Network-Settings.extension") { NSWorkspace.shared.open(url) }
+        case .signIn:
+            needsPerson = true
+        case .checkForUpdates:
+            SparkleUpdater.shared.checkForUpdates()
+        case .turnSharingOffAndOn, .signInAsOwner:
+            break
         }
     }
 
@@ -221,7 +297,8 @@ struct RemoteConnectionChooserSheet: View {
                 MacRemoteClientPairingSection(
                     appState: appState,
                     backendService: backendService,
-                    libraryManager: libraryManager
+                    libraryManager: libraryManager,
+                    onConnected: { dismiss() }
                 )
             }
             .formStyle(.grouped)

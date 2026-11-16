@@ -10,7 +10,7 @@ import tempfile
 from datetime import datetime, timezone
 from enum import Enum
 
-from fichero_server.core.timeutil import ensure_utc, utc_now
+from fichero_server.core.timeutil import ensure_utc, same_version, utc_now
 from fichero_server.core.naturalsort import in_folder_order
 from pathlib import Path
 from typing import Any, Literal, Optional
@@ -34,7 +34,7 @@ from fichero_server.api.routes.document.trash import (
     trash_listing,
 )
 from fichero_server.db import Database
-from fichero_server.db.node_levels import NodeLevel, resolve_level
+from fichero_server.db.node_levels import NodeLevel, containers_to_look_through, resolve_level
 from fichero_server.models.knowledge import (
     Annotation,
     ClassificationDimension,
@@ -52,6 +52,7 @@ from fichero_server.models import (
     RelatedDocumentsResponse,
 )
 from fichero_server.security.path_security import validate_stored_document_path
+from fichero_server.security import authz
 from fichero_server.core.perf import perf_span
 from fichero_server.db.storage import auto_snapshot_before_risky_operation
 from fichero_server.db.storage_snapshots import SnapshotRefused
@@ -502,14 +503,19 @@ def _with_group_dates(db: Database, items: list[Document]) -> list[Document]:
     return items
 
 
-def _batched_children_of(db: Database, rows: list[Document]):
+def _batched_children_of(db: Database, rows: list[Document], level: NodeLevel | str = NodeLevel.content):
     """One committed IN-query prefetches every listed container's children —
     resolve_level's per-container callable then answers from the dict.
     2026-08-24: the content tier for a 152-child folder ran ~75 sequential
     per-container queries and cost 2.4s of the sidebar-click wait.
+
+    Only the containers `resolve_level` will look through are fetched (none at the stored tier): the sidebar's
+    stored view of 66 folders read their 4,000 pages whole, and that was the read that failed at 256 MiB on the
+    Air (2026-10-30).
     """
-    prefetched: dict[str, list[Document]] = {row.id: [] for row in rows}
-    for child in db.query_in_committed(Document, "parent_id", [row.id for row in rows]):
+    wanted = containers_to_look_through(db, rows, level)
+    prefetched: dict[str, list[Document]] = {row.id: [] for row in wanted}
+    for child in db.query_in_committed(Document, "parent_id", [row.id for row in wanted]):
         if child.parent_id in prefetched:
             prefetched[child.parent_id].append(child)
 
@@ -786,10 +792,11 @@ async def list_documents(
 @router.get("/collections")
 async def list_collections(
     db: Database = Depends(get_library_database),
+    readable=Depends(readable_rows),
 ) -> DocumentListResponse:
     """List all root-level items (documents without parents)."""
-    items = _ordered_by_sort_order(_list_documents(db, parent_id=None))
-    return DocumentListResponse(items=items, count=len(items))
+    items, withheld = readable(_ordered_by_sort_order(_list_documents(db, parent_id=None)))
+    return DocumentListResponse(items=items, count=len(items), withheld=withheld)
 
 
 def _apply_listing_sort(
@@ -1047,7 +1054,7 @@ def _invert_relink(before: dict | None, after: dict | None, ctx: "ActionContext"
     return ("document.unrelink_originals", {"moved": moved}) if moved else None
 
 
-@action("document.relink_originals", RelinkParams, domains=["document"], undoable=True, invert=_invert_relink)
+@action("document.relink_originals", RelinkParams, domains=["document"], undoable=True, invert=_invert_relink, owner_only=True, owner_scope="app")
 def _action_relink_originals(db: Database, params: RelinkParams, ctx: "ActionContext"):
     """Point the project's missing originals at where they are now (#5672): planned again here, never trusted from
     the caller, and only the matched pages and their folders are changed."""
@@ -1061,7 +1068,7 @@ def _action_relink_originals(db: Database, params: RelinkParams, ctx: "ActionCon
     return result, spec
 
 
-@action("document.unrelink_originals", UnrelinkParams, domains=["document"])
+@action("document.unrelink_originals", UnrelinkParams, domains=["document"], owner_only=True, owner_scope="app")
 def _action_unrelink_originals(db: Database, params: UnrelinkParams, ctx: "ActionContext"):
     """Undo Locate Originals: each page and folder points where it pointed before."""
     from fichero_server.importers import relink
@@ -1112,6 +1119,7 @@ def _action_promote_catalogue(db: Database, params: PromoteCatalogueParams, ctx:
 def _action_unpromote_catalogue(db: Database, params: UnpromoteCatalogueParams, ctx: "ActionContext"):
     """Undo promoting the catalogue: each folder's content, metadata and attributes are what they were."""
     from fichero_server.actions.page_text_cache import queue_reembed
+    from fichero_server.core import failure_ledger
     from fichero_server.recipes import catalogue_step
     from fichero_server.workflows.attribute_sources import BY_PERSON, SOURCES
 
@@ -1153,8 +1161,10 @@ def _action_unpromote_catalogue(db: Database, params: UnpromoteCatalogueParams, 
         if "page_content" in was and content_ours:
             try:
                 queue_reembed(db, [folder_id])  # search reads the content, as after put_in_content
-            except Exception:  # noqa: BLE001 -- the content is back; search catches up on the next re-embed
+            except Exception as exc:  # noqa: BLE001 -- the content is back; search catches up on the next re-embed
                 logger.exception("could not queue the re-embed of folder %s", folder_id)
+                failure_ledger.note("search", "reembed", type(exc).__name__,
+                                    sentence="Search is not indexing the pages an undo put back: the re-index could not be queued")
     ids = list(params.before)
     return {"put_back": ids}, ChangeSpec(domains=["document"], target_ids=ids, emit_type="document.updated",
                                          document_ids=ids, emit_fn=_emit_document_change_spec)
@@ -1663,7 +1673,7 @@ async def get_children(
             # the folder keeps the order the user was just looking at.
             return resolve_level(
                 db, rows, level,
-                children_of=_batched_children_of(db, rows),
+                children_of=_batched_children_of(db, rows, level),
             )
 
         children = await asyncio.to_thread(_fetch)
@@ -1733,6 +1743,12 @@ class EffectiveAttributesResponse(BaseModel):
     prototype_key: str | None
     declarations: dict[str, Any]
     values: dict[str, Any]
+    #: How ``prototype_key`` was found: ``own`` | ``inherited`` | ``none``; ``kind_from`` is the ancestor's id.
+    effective_prototype_key: str | None = None
+    kind_rule: str = "none"
+    kind_from: str | None = None
+    #: Per key where the value came from: ``{origin: here|inherited|default|empty, from, source}``.
+    origins: dict[str, dict[str, Any]] = {}
 
 
 @router.get("/{doc_id}/effective-attributes")
@@ -1747,31 +1763,38 @@ async def get_effective_attributes(
     """
     from fichero_server.models.node_prototypes import (
         PrototypeResolutionError,
+        effective_node_attributes,
+        resolve_node_prototype,
         resolve_prototype_attributes,
     )
     from fichero_server.models.prototype_schema import attribute_declarations
 
     doc = _document_or_404(db, doc_id)
 
+    kind = resolve_node_prototype(db, doc)
     declarations: dict[str, Any] = {}
     values: dict[str, Any] = {}
-    if doc.prototype_key:
-        try:
-            effective = resolve_prototype_attributes(db, doc.prototype_key)
-            decls = attribute_declarations(effective)
-        except (PrototypeResolutionError, ValueError) as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
-        declarations = {
-            name: decl.model_dump(mode="json") for name, decl in decls.items()
-        }
-        values = {name: decl.default for name, decl in decls.items()}
+    origins: dict[str, dict[str, Any]] = {}
+    try:
+        if kind.key:
+            decls = attribute_declarations(resolve_prototype_attributes(db, kind.key))
+            declarations = {name: decl.model_dump(mode="json") for name, decl in decls.items()}
+        for name, found in effective_node_attributes(db, doc).items():
+            values[name] = found["value"]
+            origins[name] = {k: found[k] for k in ("origin", "from", "source")}
+    except (PrototypeResolutionError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     own = doc.attributes if isinstance(doc.attributes, dict) else {}
     values.update(own)
     return EffectiveAttributesResponse(
         prototype_key=doc.prototype_key,
+        effective_prototype_key=kind.key,
         declarations=declarations,
         values=values,
+        kind_rule=kind.rule,
+        kind_from=kind.from_id,
+        origins=origins,
     )
 
 
@@ -2957,7 +2980,7 @@ def update_document_impl(
     # non-null value. (#774 + audit on 2026-05-03.)
     update_data = update.model_dump(exclude_unset=True, exclude_none=True)
     expected = update_data.pop("expected_updated_at", None)
-    if expected is not None and ensure_utc(expected) != ensure_utc(doc.updated_at):
+    if expected is not None and not same_version(expected, doc.updated_at):
         raise HTTPException(status_code=409, detail={
             "reason": "stale",
             "message": ("this was changed since you opened it; nothing was written. "
@@ -4494,7 +4517,12 @@ def _action_empty_trash(
     db: Database, params: DocumentEmptyTrashParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
     """Empty Trash: everything in this project's Trash, removed for good in one recorded step.
-    A snapshot first; no snapshot, nothing removed (#5070's rule, once for the whole Trash)."""
+    A snapshot first; no snapshot, nothing removed (#5070's rule, once for the whole Trash).
+
+    Only the library's owner empties it when accounts are on (`safety.trash.who-may-empty`, manager ruling 2026-11-05);
+    in a personal library, or for the owner's own key, the caller is the owner."""
+    if not ctx.is_bootstrap and authz.multiuser_enabled():
+        authz.require_owner(ctx.actor, ctx.library_path)
     if ctx.library_path:
         try:
             auto_snapshot_before_risky_operation(ctx.library_path, reason="Before emptying the Trash")

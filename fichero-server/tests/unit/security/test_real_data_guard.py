@@ -94,6 +94,8 @@ NOT_A_STARTER = {
     "scripts/verify_python.sh": "boots on a base path from mktemp -d",
     "fichero-server/scripts/test_engine_harness.py": "boots on its own temp dir",
     "fichero-server/scripts/start_tailscale_backend.sh": "execs start_fichero_server.sh, which is guarded",
+    "scripts/dev_engine.sh": "names uvicorn only in its pgrep pattern; the start is start_dev_local_engine.sh's",
+    "scripts/test_dev_engine.sh": "a fake engine (a sleeping python whose argv mimics uvicorn) on a temp socket; no data",
     "scripts/smoke-release-embedded-backend.sh": "launches the installed app (its embedded engine is the app's); "
                                                  "it only pgreps/stops a dev engine on the container socket",
 }
@@ -160,3 +162,55 @@ def test_no_script_sets_the_owners_switch() -> None:
         for path in scan_rglob(REPO / folder, "*"):
             if path.is_file() and path.suffix in {".sh", ".py"} and "__pycache__" not in path.parts:
                 assert not sets_the_switch(path.read_text(encoding="utf-8", errors="ignore")), f"{path} names the switch"
+
+
+# ── The projects a running dev engine opens (#6588) ──────────────────────────────────────────────────────────
+
+
+def _dev_env(home: Path, roots: str = "") -> dict[str, str]:
+    return {"FICHERO_BASE_PATH": str(home / "Fichero Dev Test" / "state"), guard.LIBRARY_ROOTS_ENV: roots}
+
+
+def test_a_dev_engine_refuses_to_open_a_project_in_the_real_folders_in_words(home: Path) -> None:
+    """The Dev Local engine opened ~/Fichero/article_fichero_jesuits.fichero (and rebuilt its indexes) because the
+    app it served had it open; its allowed roots only ever added places. A dev engine opens none of the real ones."""
+    roots = f"{home / 'Fichero Dev Test'}{os.pathsep}{home / 'Fichero Test Corpus'}"
+    said = guard.library_refusal(home / "Fichero" / "Library One.fichero", home, _dev_env(home, roots))
+    assert said and "Refusing to open" in said and "Fichero Dev Test" in said
+    assert guard.library_refusal(home / "fichero" / "Library One.fichero", home, _dev_env(home, roots)), "case folded"
+    assert guard.library_refusal(home / "Fichero Projects" / "Marshall.fichero", home, _dev_env(home, roots))
+
+
+def test_a_dev_engine_opens_scratch_projects_and_a_real_folder_listed_on_purpose(home: Path) -> None:
+    roots = f"{home / 'Fichero Dev Test'}{os.pathsep}{home / 'Fichero Projects'}"
+    env = _dev_env(home, roots)
+    assert guard.library_refusal(home / "Fichero Dev Test" / "Scratch.fichero", home, env) is None
+    assert guard.library_refusal(home / "Fichero Projects" / "Marshall.fichero", home, env) is None, "listed on purpose"
+    assert guard.library_refusal(home / "Fichero" / "Library One.fichero", home, env), "~/Fichero is still not listed"
+    assert guard.library_refusal(home / "Fichero" / "Library One.fichero", home, _dev_env(home, str(home))), \
+        "a root above the real folder does not list it"
+
+
+def test_the_apps_own_engine_is_untouched(home: Path) -> None:
+    """No base path: the engine the app spawns (it never sets one) opens the person's projects wherever they live."""
+    assert guard.library_refusal(home / "Fichero" / "Library One.fichero", home, {}) is None
+
+
+def test_the_database_open_and_the_routes_refuse_a_real_project_and_open_nothing(home: Path, monkeypatch) -> None:
+    from fastapi import HTTPException
+
+    from fichero_server.api import main
+    from fichero_server.api.routes.library import registry
+    from fichero_server.db.manager import DatabaseManager, RealLibraryRefused
+
+    monkeypatch.setenv("HOME", str(home))
+    for key, value in _dev_env(home, str(home / "Fichero Dev Test")).items():
+        monkeypatch.setenv(key, value)
+    real = home / "Fichero" / "Library One.fichero"
+    with pytest.raises(RealLibraryRefused):
+        DatabaseManager().get_database(real)
+    assert not (real / "fichero.duckdb").exists(), "nothing opened, nothing written"
+    assert main._is_allowed_library_path(str(real)) is False
+    with pytest.raises(HTTPException) as refused:
+        registry.add_known_library(request=None, path=str(real), name=None, db=None)  # refused before the db
+    assert refused.value.status_code == 403

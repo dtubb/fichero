@@ -121,7 +121,8 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: PaneHeadMetrics.rowSpacing) {
+        BodyCount.tick("PaneHead")
+        return VStack(alignment: .leading, spacing: PaneHeadMetrics.rowSpacing) {
             HStack(spacing: PaneHeadMetrics.capsuleSpacing) {
                 identityCapsule
                 if showsBreadcrumb { breadcrumbCapsule }
@@ -202,7 +203,7 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
                         Image(systemName: "xmark")
                             .font(.caption.weight(.semibold))
                     }
-                    .buttonStyle(.borderless)
+                    .paneBarButtonStyle()
                     .accessibilityLabel(isInSplit ? "Close this split" : "Close pane")
                     .help(isInSplit ? "Close this split" : "Close this pane")
                     Divider().frame(height: PaneHeadMetrics.dividerHeight)
@@ -295,7 +296,7 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
                     Button { onCrumb(crumb) } label: {
                         Image(systemName: crumb.icon).foregroundStyle(crumb.tint)
                     }
-                    .buttonStyle(.borderless)
+                    .paneBarButtonStyle()
                     .help(crumb.title)
                     .accessibilityLabel(crumb.title)
                 } else {
@@ -373,7 +374,11 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
             crumbSegmentCore(crumb, isLeaf: isLeaf)
         }
     }
+}
 
+// MARK: - Crumbs and controls
+
+extension PaneHead {
     @ViewBuilder
     private func crumbSegmentCore(_ crumb: PaneCrumb, isLeaf: Bool) -> some View {
         // Icon carries the row's sidebar colour; only the TEXT dims on
@@ -392,7 +397,7 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
             let children = crumbChildren?(crumb) ?? []
             if children.isEmpty {
                 Button { onCrumb(crumb) } label: { label }
-                    .buttonStyle(.borderless)
+                    .paneBarButtonStyle()
                     .help("Go to \(crumb.title)")
             } else {
                 Menu {
@@ -446,7 +451,7 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
                         isPinned.wrappedValue ? Color.accentColor : Color.secondary
                     )
             }
-            .buttonStyle(.borderless)
+            .paneBarButtonStyle()
             .accessibilityIdentifier("paneHeadPinToggle")
             .accessibilityLabel(isPinned.wrappedValue
                 ? "Unpin this pane — follow selection"
@@ -475,9 +480,7 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
     /// The pane's own controls sitting in the row (not folded), reported to the test probe.
     private var inRowControls: some View {
         HStack(spacing: 6) { controls() }
-            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
-                onPartFrame?(PaneHeadMetrics.controlsIdentifier, $0)
-            }
+            .reportsFrame(PaneHeadMetrics.controlsIdentifier, to: onPartFrame)
     }
 
     /// Shared chrome, automatic: the pin TOGGLE (when the pane supplies its state), the split "+" (from the
@@ -498,7 +501,7 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
             } label: {
                 Image(systemName: toolsIcon)
             }
-            .buttonStyle(.borderless)
+            .paneBarButtonStyle()
             // Reads as toggled while its row is out (the pencil case
             // must show it is armed — Daniel, 2026-08-29).
             .foregroundStyle(showsTools ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.primary))
@@ -517,9 +520,7 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
             .help("More controls")
             .accessibilityLabel("More controls")
             .accessibilityIdentifier(PaneHeadMetrics.overflowIdentifier)
-            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
-                onPartFrame?(PaneHeadMetrics.overflowIdentifier, $0)
-            }
+            .reportsFrame(PaneHeadMetrics.overflowIdentifier, to: onPartFrame)
     }
 
     /// ONE capsule treatment, so every zone reads as the same material floating
@@ -555,4 +556,17 @@ enum PaneHeadMetrics {
     static let overflowIdentifier = "PaneHeadOverflow"
     /// The pane's own controls while they sit in the row (the test probe's key, #5213).
     static let controlsIdentifier = "PaneHeadControls"
+}
+
+extension View {
+    /// Report this view's global frame to the test probe, and only when there is one: measuring for nobody is a
+    /// geometry action SwiftUI sees cycle between duplicate values at launch (#6478).
+    @ViewBuilder
+    fileprivate func reportsFrame(_ part: String, to report: ((String, CGRect) -> Void)?) -> some View {
+        if let report {
+            onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { report(part, $0) }
+        } else {
+            self
+        }
+    }
 }

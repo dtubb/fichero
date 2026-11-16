@@ -24,6 +24,8 @@ what a retry can select on.
 
 from __future__ import annotations
 
+from contextvars import ContextVar
+
 import contextlib
 import itertools
 import logging
@@ -119,6 +121,11 @@ def queue_derivatives(
         return []
 
     docs = list(docs)
+    if not arrived:
+        # The open's recovery of stranded pages (#6584, `activity.relaunch.only-running-work-resumes`): a page whose
+        # derivative already FAILED is not one the quit stranded. It said why (`derivative_error`), and its Retry runs it
+        # again; queued at every open it failed again at every open.
+        docs = [doc for doc in docs if "derivative_error" not in (doc.metadata or {})]
     taken: set[str] = set()
     if arrived and docs:
         # New material: after Start, a "just do it" project runs its recipe over it (`source.onboard.just-do-it`).
@@ -823,6 +830,21 @@ def _open_stage_db(library: str, doc_id: str) -> "tuple[Database, Document] | No
 class SourceMissing(Exception):
     """A page's original is not where it was imported from; the message is the sentence the job row shows (#5818)."""
 
+    in_words = True  # its message is the row's words (`jobs.failed_reason`)
+
+
+#: True while a derivative stage runs as a JOB on the lane (`_embed_job`): a failure then ends the job failed in words. An
+#: import's inline pass (`generate_derivative`) runs with it False: the error is recorded and the import goes on.
+LOUD: ContextVar[bool] = ContextVar("fichero_derivatives_loud", default=False)
+
+
+class DerivativeFailed(Exception):
+    """A thumbnail or an embed could not be made: the message is the plain sentence with its fix that the job row shows
+    (owner 2026-11-13: never fail silently; `activity.run.failed-is-never-requeued-by-itself`). The raw error stays on the
+    document's metadata for Copy Details."""
+
+    in_words = True  # its message is the row's words (`jobs.failed_reason`)
+
 
 def _thumbnail_stage(doc_id: str, library: str) -> Path | None:
     """Generate one document's thumbnail and announce it IMMEDIATELY — the
@@ -901,53 +923,48 @@ def _thumbnail_stage_body(doc_id: str, library: str) -> Path | None:
     return thumb
 
 
-#: How soon an embed job whose model is missing looks again.
-EMBED_RETRY_SECONDS = 120.0
-
-
-#: A download that failed (offline for every round) is not queued again for this long, so the embed job's retry every
-#: EMBED_RETRY_SECONDS does not leave a stream of failed download rows overnight.
-DOWNLOAD_RETRY_WINDOW_SECONDS = 3600.0
+#: What a row blocked on the search model says (the blocker's short words, once; never the long sentence).
+SEARCH_MODEL_BLOCKED = "Waiting for the search model"
+SEARCH_MODEL_BROKEN = "The search model could not be loaded"
 
 
 def wait_for_the_search_model(db, why: str, cause: BaseException | None = None) -> None:
-    """The running embed job waits (it comes back after EMBED_RETRY_SECONDS) while the app fetches Search's model; never
-    a failed page (#6218). Raises `JobDeferred` with `why`."""
+    """The running job cannot go on: Search's model is missing or will not load. The row is BLOCKED on the model's
+    download (or on the typed need when no download supplies it): the lane never picks it, never re-defers it every two
+    minutes, and the blocker's end unblocks it (`activity.pane.blocked-under-its-blocker`, #6593). Raises `JobBlocked`."""
+    from fichero_server.db.embed_process import is_a_load_defect
     from fichero_server.execution import jobs
 
-    job_id = getattr(jobs._current, "job_id", None)
-    if job_id:
-        jobs.come_back_after(db, job_id, EMBED_RETRY_SECONDS)
-    _fetch_the_search_model(db)
-    raise jobs.JobDeferred(why) from cause
+    blocker = _fetch_the_search_model(db)
+    words = SEARCH_MODEL_BROKEN if is_a_load_defect(why) else SEARCH_MODEL_BLOCKED
+    raise jobs.JobBlocked(words, blocker) from cause
 
 
-def _fetch_the_search_model(db) -> None:
-    """Search's model is missing: queue its download in the app (a row in Activity). Not while one waits or runs, not
-    within the window after one failed, and not when the files are already in the cache (the load failed for another
-    reason, which the job's own sentence says). The finished download clears the embedder's back-off."""
+def _fetch_the_search_model(db) -> str:
+    """Search's model is missing: what blocks the work. The id of its `download-model` job: one that waits, runs or is
+    paused, else the latest one that ended (a FAILED download is never queued again by itself, decision 15: it stays the
+    blocker and carries the fix), else a new one queued in the app. The typed need `model:embeddings:<id>` when no job
+    supplies it (the files are cached and the load failed for another reason, or no download can be queued)."""
     import duckdb
 
+    from fichero_server.db import embed_process
+    from fichero_server.llm.local_models import DOWNLOAD_KIND, MODELS_BASE, enqueue_download
+    from fichero_server.execution import jobs
+
+    need = "model:embeddings:?"
     try:
-        from datetime import timedelta
-
-        from fichero_server.core.timeutil import utc_now
-        from fichero_server.db import embed_process
-        from fichero_server.execution import jobs
-        from fichero_server.llm.local_models import DOWNLOAD_KIND, MODELS_BASE, enqueue_download
-
         model = db._get_embedding_space().source_model_name  # the project's own model (#6122)
         subject = f"embeddings:{model}"
+        need = f"model:{subject}"
         if embed_process._cached(model, str(MODELS_BASE / "embeddings")):
-            return
-        if jobs.is_queued_or_running(db, DOWNLOAD_KIND, subject):
-            return
-        since = utc_now() - timedelta(seconds=DOWNLOAD_RETRY_WINDOW_SECONDS)
-        if jobs.failed_since(db, DOWNLOAD_KIND, subject, since):
-            return
-        enqueue_download(db, "embeddings", model, started_by="automatic")
-    except (ValueError, ImportError, OSError, duckdb.Error) as exc:  # no such model here, no cache folder, an unreadable job table: the embed still defers with its sentence
+            return need
+        found = jobs.latest_job_id(db, DOWNLOAD_KIND, subject)
+        if found:
+            return found
+        return enqueue_download(db, "embeddings", model, started_by="automatic") or need
+    except (ValueError, ImportError, OSError, duckdb.Error) as exc:  # no such model here, no cache folder, an unreadable job table: blocked on the need
         logger.warning("could not queue the search model's download: %s", exc)
+        return need
 
 
 def _embed_stage(doc_id: str, library: str) -> None:
@@ -1019,6 +1036,12 @@ def _embed_stage(doc_id: str, library: str) -> None:
                 "Could not persist derivative outcome for %s: %s", doc_id, exc
             )
             return
+        if embed_error and LOUD.get():
+            # Loud, never silent (owner 2026-11-13): the embed JOB ends failed with a plain sentence; the raw error is on the
+            # document's metadata (`embedding_error`) for Copy Details. An inline call (an import's own derivative pass,
+            # `generate_derivative`) records the error and goes on: the import is not the thing that failed.
+            raise DerivativeFailed(f"Search could not index {doc.name}. Try again; if it fails again, the page's text may "
+                                   "be unreadable.")
 
         # NO per-doc document.updated here — see the docstring. The bulk-embed
         # flood re-fired heavy content loads and made the UI unusable.
@@ -1182,7 +1205,22 @@ def _thumbnail_job(db: "Database", doc_id: str) -> Path | None:
     error = str((doc.metadata or {}).get("derivative_error") or "") if doc is not None else ""
     if error.endswith(MISSING_ORIGINAL_TAIL):
         raise SourceMissing(error)
+    if error:
+        # Loud, never silent (owner 2026-11-13): the job ends failed with a plain sentence and its fix, shown in Activity, and
+        # is not run again at the next open (`queue_derivatives` skips a document whose derivative failed).
+        raise DerivativeFailed(
+            f"The thumbnail for {doc.name if doc is not None else 'this page'} could not be made. "
+            "Try again, or open the file to check it is a readable image.")
     return thumb
+
+
+def _embed_job(db: "Database", doc_id: str) -> None:
+    """The embed kind: the stage, loud (a failure ends the job failed in words, owner 2026-11-13)."""
+    token = LOUD.set(True)
+    try:
+        _embed_stage(doc_id, _library_of(db))
+    finally:
+        LOUD.reset(token)
 
 
 def _embed_knowledge_job(db: "Database", subject: str) -> None:
@@ -1225,7 +1263,7 @@ def register_job_kinds() -> None:
                        # Cheap, and what the person sees: made before the heavy local work queued
                        # after them (`activity.lane.thumbnails-first`, #5585).
                        first=True)
-    jobs.register_kind(EMBED_KIND, lambda db, doc_id: _embed_stage(doc_id, _library_of(db)),
+    jobs.register_kind(EMBED_KIND, lambda db, doc_id: _embed_job(db, doc_id),
                        model="embedder", name="Embed for search",
                        # Its own lane (#5847: the embedder is a child process): an embed beside a Kraken page must not
                        # unload Kraken's models at the end of a step and reload them for the next.

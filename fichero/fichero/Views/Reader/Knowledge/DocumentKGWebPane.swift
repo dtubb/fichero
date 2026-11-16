@@ -46,6 +46,12 @@ enum ReaderZoom {
     static func pinched(_ zoom: Double, by magnification: Double) -> Double {
         min(range.upperBound, max(range.lowerBound, zoom * (1 + magnification)))
     }
+
+    /// A pinch gesture's running scale (1.0 = no change since it began) applied to the zoom it began at, kept in range:
+    /// the Lines view's pinch (#6428), through the same clamp as the web pane's.
+    static func scaled(from start: Double, by scale: Double) -> Double {
+        pinched(start, by: scale - 1)
+    }
 }
 
 struct DocumentKGWebPane: NSViewRepresentable {

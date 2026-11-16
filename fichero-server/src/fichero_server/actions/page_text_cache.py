@@ -40,12 +40,19 @@ _TEXT_EMIT_TYPES = frozenset({"pass.working_chosen"})
 #: Segment actions that add, remove, merge, split, restore or re-parent the lines of a pass.
 #: Moves in a reading order: the page's text follows its `as-written` order (Q5), so a move there
 #: changes the text. A move in another named order derives the same text and writes nothing.
-_ORDER_ACTIONS = frozenset({"reading_order.place", "reading_order.restore_place", "reading_order.remove"})
+_ORDER_ACTIONS = frozenset({
+    "reading_order.place", "reading_order.restore_place", "reading_order.remove",
+    # Order by clicking and its undo (`segment-editor.order-by-clicking`).
+    "reading_order.sequence", "reading_order.restore_positions",
+})
 
 _MEMBERSHIP_ACTIONS = frozenset({
     "segment.create", "segment.create_many", "segment.delete", "segment.undelete",
-    "segment.merge", "segment.unmerge", "segment.split", "segment.unsplit",
+    "segment.merge", "segment.unmerge", "segment.split", "segment.unsplit", "segment.unsplit_many",
+    "segment.cut_words", "segment.uncut_words",
     "segment.uncombine", "segment.restore_version", "segment.restore_versions",
+    # A re-parent moves the lines' order entries among their new region's (`segment-editor.reassign-by-drag`).
+    "segment.reparent",
     "segment.pass_create", "segment.pass_delete", "segment.pass_restore",
 })
 
@@ -313,7 +320,7 @@ def _store(db: Any, doc: Any, text: str, now: Any, standing: str | None = None) 
     return text_changed
 
 
-def ensure_current(db: Any, document_ids: list[str]) -> list[str]:
+def ensure_current(db: Any, document_ids: list[str], *, even_if_stamped: bool = False) -> list[str]:
     """Re-derive, ONCE, any of these pages whose cached text predates the current derivation.
 
     Called on read (the Reader's page, #5148 follow-up). A changed derivation used to leave every
@@ -321,7 +328,10 @@ def ensure_current(db: Any, document_ids: list[str]) -> list[str]:
     Chinese text stayed doubled in libraries imported before the fix. The stamp makes a cache say
     which derivation wrote it; a read that finds an older one refreshes it, stamps it, and the
     next read costs one dict lookup. Pages that are not a derived cache -- no working pass, or a
-    person's own edit of `page_content` -- are left alone. Returns the ids whose text changed."""
+    person's own edit of `page_content` -- are left alone. Returns the ids whose text changed.
+
+    ``even_if_stamped`` re-derives a page whose stamp is current too: the Reader passes it for a page
+    whose stored text is empty while its lines have readings (#6579), a cache that missed a write."""
     from fichero_server.api.routes.document.segment_readings import DERIVATION_VERSION, document_text
     from fichero_server.core.timeutil import utc_now
     from fichero_server.models import Document
@@ -330,7 +340,9 @@ def ensure_current(db: Any, document_ids: list[str]) -> list[str]:
     changed: list[str] = []
     for document_id in document_ids:
         doc = db.get(Document, document_id)
-        if doc is None or (doc.metadata or {}).get(DERIVATION_STAMP) == DERIVATION_VERSION:
+        if doc is None or (
+            not even_if_stamped and (doc.metadata or {}).get(DERIVATION_STAMP) == DERIVATION_VERSION
+        ):
             continue
         if page_content_is_user_edited(doc) or not _derives_text(_working_pass_id(db, document_id)):
             continue

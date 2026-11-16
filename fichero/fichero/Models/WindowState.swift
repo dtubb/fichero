@@ -44,6 +44,10 @@ class WindowState {
     /// where the user is pointing at a specific row RIGHT NOW.
     var liveDocumentSelection: [String] = []
 
+    /// The Activity pane's selected row in this window (`activity.pane.inspector-shows-the-selected-row`, #6441): what the
+    /// Inspector's Activity section shows while the Activity pane holds the focus.
+    var activityPick: ActivityPaneSelection?
+
     /// Why the last drop onto a library folder cell failed, or nil (#4474).
     /// Rendered by `LibraryView`'s drop alert. The sidebar has the same surface
     /// in `SidebarState.dropErrorMessage`; the library pane had none at all, so
@@ -88,13 +92,43 @@ class WindowState {
     /// Select is ON from the first click (Daniel, 2026-09-02: "Selection
     /// should default on") — a window opens able to select regions without
     /// first opening the markup bar.
-    var activeMarkupTool: PreviewMarkupTool? = .select
+    var activeMarkupTool: PreviewMarkupTool? = .select {
+        // Another tool chosen puts the Knife down (`segment-editor.split-knife`).
+        didSet {
+            if activeMarkupTool != oldValue {
+                knifeArmed = false; markerArmed = false; orderArmed = false; brushArmed = false; paintArmed = false
+            }
+        }
+    }
 
     /// Segment editing is a MODE of the Source view (`source.editor.segment-focus`, #5114,
     /// ruled 2026-09-27). Off -- the default -- the page is for reading and nothing on it
     /// changes; `SegmentEditingMode` holds the rule. Per-window, like the armed tool: two
     /// Source views split in one window edit together.
-    var isEditingSegments = false
+    var isEditingSegments = false {
+        didSet {
+            // One state: the mode is Segments exactly while the page edits segments.
+            if isEditingSegments, previewMode != .segments { previewMode = .segments }
+            if !isEditingSegments, previewMode == .segments { previewMode = .read }
+        }
+    }
+
+    /// The line Reader's ⌥-click on a versions triangle (#6492): every line open or closed, as in Finder. The stamp
+    /// rises with each ⌥-click so a row's own earlier click stops counting.
+    var readerVersionsAllOpen = false
+    var readerVersionsStamp = 0
+
+    /// The folder tree is hidden while the chat stands alone in the left column (`SidebarColumnState`).
+    var sidebarTreeHidden = false
+
+    /// The Preview's mode (`PreviewWorkMode`): Read, Segments or Image. Segments IS `isEditingSegments`; each is set from
+    /// the other, so the head's three-way control and the older Edit Segments entries never disagree.
+    var previewMode: PreviewWorkMode = .read {
+        didSet {
+            let editing = previewMode == .segments
+            if isEditingSegments != editing { isEditingSegments = editing }
+        }
+    }
 
     /// What the Segments pane shows instead of the page: a set gathered from the Inspector --
     /// "Everything in This Hand", "Every Instance" of a sign (#4942). Nil shows the page.
@@ -111,6 +145,81 @@ class WindowState {
     /// The points of a polygon or baseline being drawn with the Shape tool, in the order clicked. Here,
     /// not in the canvas layer, so Escape (the preview's exit command) can abandon it.
     var drawingPoints: [[Double]] = []
+
+    /// K held in Edit Segments: the Knife, spring-loaded for one stroke (`segment-editor.split-knife`). Released,
+    /// the tool goes back to what it was.
+    var knifeHeld = false
+
+    /// The Knife chosen from the tool row, or by a tap of K: every stroke cuts until another tool is chosen or Esc.
+    var knifeArmed = false
+
+    /// A Knife stroke was let go while K was held, so letting go of K puts the Knife back rather than choosing it.
+    var knifeStrokedWhileHeld = false
+
+    /// The Marker (`segment-editor.marker`), by the Knife's rules: M held is the Marker for one stroke, a tap of M
+    /// chooses it until another tool or Esc. The stroke so far is in the page's fractions.
+    var markerHeld = false
+    var markerArmed = false
+    var markerStrokedWhileHeld = false
+    var markerStroke: [[Double]] = []
+    /// The kind the last drawn segment was: a closed Marker stroke makes one of that kind (owner 2026-11-13).
+    var lastDrawnKind = "region"
+
+    /// The pane in Focus (`panes.focus.any-pane-fills-the-screen`): it alone fills the window, in its real full screen,
+    /// the sidebar and the Inspector hidden; nil when no pane is in Focus. Window state only: never saved to a workspace.
+    var focusedPaneLeaf: UUID?
+    /// The sidebar's column visibility before Focus hid it, put back when Focus is left (`panes.focus.esc-restores-exactly`).
+    var columnsBeforeFocus: NavigationSplitViewVisibility?
+
+    /// The Brush (`segment-editor.select-brush`), by the Knife's rules: B held paints one selection stroke, a tap of B
+    /// chooses it. The stroke is drawn locally and sent nowhere: selecting is not an action. `brushSize` is its diameter
+    /// in screen points, `[` and `]` change it.
+    var brushHeld = false
+    var brushArmed = false
+    var brushStrokedWhileHeld = false
+    var brushStroke: [[Double]] = []
+    var brushSize = 24.0
+
+    /// The Paintbrush (`segment-editor.paintbrush`), a mode (P, or the tool row): a drag paints along a line of ink and
+    /// makes it a line. `paintWidth` is the brush's width on screen, in points, `[` and `]` change it.
+    var paintArmed = false
+    var paintStroke: [[Double]] = []
+    var paintWidth = 20.0
+
+    /// The cut mark last clicked, [the piece before it, the piece after it] (`segment-editor.cut-marks-editable`): ⌫
+    /// removes that cut. A press anywhere else lets it go.
+    var selectedCutMark: [String]?
+
+    /// Words the last Cut Words found broken at a line's end, [first piece, second piece] each
+    /// (`segment-editor.edge.word-across-lines`): what Join Broken Words joins; emptied once joined.
+    var brokenWords: [[String]] = []
+
+    /// The Order tool (`segment-editor.order-by-clicking`): while it is chosen, segments clicked in turn are numbered
+    /// 1, 2, 3 …; leaving it (O, Return, Esc, another tool) sends the clicks once as `reading_order.sequence`.
+    var orderArmed = false
+    var orderClicks: [String] = []
+    /// ⇧ on the first click: the clicked segments read right after this one (the selection's).
+    var orderAfter: String?
+
+    /// The Shape popover's Simplify slider (`segment-editor.vertices`): the tolerance in image pixels while the slider is
+    /// held (nil otherwise). The page asks the engine what Simplify would make at it and draws that (`simplifyPreview`,
+    /// paths in the page's fractions); nothing is written until the slider is let go (`simplifyRelease`).
+    var simplifyTolerance: Double?
+    var simplifyPreview: [[[Double]]] = []
+    /// The slider let go: the page sends ONE `segment.simplify` at this tolerance. A new value each release.
+    var simplifyRelease: SimplifyRelease?
+
+    /// The page's reading-order numbers shown for a moment after regions are merged (`segment-editor.merge-regions`), so
+    /// the person sees where the moved lines now read. Off again by itself.
+    var orderOverlayFlash = false
+    var orderOverlayStamp = UUID()
+
+    /// A short word from the segment editor about the edit just made (the Knife's lines left alone), shown over the page
+    /// for a few seconds; nil when there is nothing to say.
+    var segmentNotice: String?
+
+    /// The Knife's stroke so far, in the page's fractions, while it is being drawn.
+    var knifeStroke: [[Double]] = []
 
     /// Escape during a drawing: drop the points clicked so far and make nothing. True when there was a
     /// drawing to abandon -- that Escape does nothing else; the next one clears as it always has.
@@ -130,6 +239,14 @@ class WindowState {
     /// `@Observable` property), so the pane releases it when it goes (`releaseRegionSelection`).
     private(set) var focusedRegionSelection: RegionSelection?
 
+    /// The selection the window shares while NO Preview is focused (a Reader and an Inspector with no Preview
+    /// open): the Reader's lines, the Order lists and the Inspector still select as one. Owner 2026-11-10:
+    /// a segment picked in the Reader must show in the document Inspector.
+    let windowSelection = RegionSelection()
+
+    /// The selection the lists, the Reader and the Inspector read and write: the focused Preview's, else the window's.
+    var sharedRegionSelection: RegionSelection { focusedRegionSelection ?? windowSelection }
+
     /// A pane was USED (a click, a band, ⌘A, a verb): its selection is the one the window acts on.
     func focusRegionSelection(_ selection: RegionSelection) {
         if focusedRegionSelection !== selection { focusedRegionSelection = selection }
@@ -144,6 +261,20 @@ class WindowState {
         return InspectorPath.reveal(
             segmentIds: segmentIds, into: focusedRegionSelection, documentId: documentId, store: store
         )
+    }
+
+    /// A line picked in the Reader -- a plain click in Lines, the caret in Content (#6482, `reader.order.reveal-line-in-preview`,
+    /// owner 2026-11-11): it becomes the SHARED selection whether or not a Preview is open, the focused Preview zooms to it,
+    /// and, when the selection changed, the Inspector shows its Content tab, where the line's Segment pane is. Answers the
+    /// ids selected.
+    @discardableResult
+    func pickInReader(_ segmentIds: [String], documentId: String, store: SegmentStore) -> [String] {
+        let before = InspectorPath.selectedSegmentIds(selection: sharedRegionSelection, documentId: documentId, store: store)
+        let picked = focusedRegionSelection != nil
+            ? revealSegments(segmentIds, documentId: documentId, store: store)
+            : InspectorPath.select(segmentIds: segmentIds, into: windowSelection, documentId: documentId, store: store)
+        if !picked.isEmpty, picked != before { request(.showInspectorTab(.content)) }
+        return picked
     }
 
     /// A pane appeared: it becomes the focus only if nothing is focused yet, so opening a second

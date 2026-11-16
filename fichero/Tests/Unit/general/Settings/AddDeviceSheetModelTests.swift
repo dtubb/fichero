@@ -54,4 +54,26 @@ struct AddDeviceSheetModelTests {
         #expect(Model.expiresText(expiresAt: now.addingTimeInterval(-5), now: now) == "Renewing…")
         #expect(Model.expiresText(expiresAt: nil, now: now) == "Never expires")  // an invitation with no end (expires_at null)
     }
+
+    /// `sharing.multiuser-shares-by-address` (#6568): Multi-user on shares the Mac by its Tailscale address and an account.
+    @Test("Multi-user on with a Tailscale address that can work: the address alone, no code or QR")
+    func multiuserSharesByTheTailscaleAddress() {
+        let rows = AddressChoiceModel.rows(sharingAddress: "https://studio.local:8765",
+                                           tailnetURL: "https://studio.tail1234.ts.net", tailnetForward: "ours")
+        let row = Model.signInAddress(multiuser: true, rows: rows)
+        #expect(row?.url?.absoluteString == "https://studio.tail1234.ts.net:8765")
+        #expect(Model.signInNote.contains("sign in with an account"))
+    }
+
+    @Test("Multi-user off, or no Tailscale address that can work: the pinned link, its QR and the code stay")
+    func otherwiseThePairingLinkStays() {
+        let tailnet = AddressChoiceModel.rows(sharingAddress: "https://studio.local:8765",
+                                              tailnetURL: "https://studio.tail1234.ts.net", tailnetForward: "ours")
+        #expect(Model.signInAddress(multiuser: false, rows: tailnet) == nil)
+        let localOnly = AddressChoiceModel.rows(sharingAddress: "https://studio.local:8765", tailnetURL: nil, tailnetForward: "none")
+        #expect(Model.signInAddress(multiuser: true, rows: localOnly) == nil)
+        let held = AddressChoiceModel.rows(sharingAddress: "https://studio.local:8765",
+                                           tailnetURL: "https://studio.tail1234.ts.net", tailnetForward: "foreign")
+        #expect(Model.signInAddress(multiuser: true, rows: held) == nil)
+    }
 }

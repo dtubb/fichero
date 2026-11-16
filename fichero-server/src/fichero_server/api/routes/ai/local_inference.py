@@ -9,9 +9,10 @@ import shlex
 import threading
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path
 from pydantic import BaseModel, Field
 
+from fichero_server.api.routes.auth.accounts import _require_owner_for_writes
 from fichero_server.llm.local_inference import (
     ExternalLocalInferenceProcess,
     LocalInferenceCapabilities,
@@ -26,12 +27,10 @@ from fichero_server.llm.local_inference import (
     ManagedLocalInferenceProcess,
 )
 from fichero_server.llm.local_model_facts import get_local_inference_capabilities
-from fichero_server.llm.mlx_model_store import get_mlx_model_store
-from fichero_server.llm.mlx_runtime import get_mlx_runtime
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/local-inference")
+router = APIRouter(prefix="/local-inference", dependencies=[Depends(_require_owner_for_writes)])  # the Mac's runtime is the owner's
 
 DEFAULT_OMLX_PROFILE_ID = "app-omlx"
 DEFAULT_OMLX_BASE_URL = "http://localhost:8000/v1"
@@ -564,3 +563,15 @@ def delete_local_inference_model(
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return LocalInferenceModelDeleteResponse(status="ok", freed_bytes=freed)
+
+
+def get_mlx_model_store():
+    from fichero_server.llm.mlx_model_store import get_mlx_model_store as _get  # lazy: the app import budget (#5798)
+
+    return _get()
+
+
+def get_mlx_runtime():
+    from fichero_server.llm.mlx_runtime import get_mlx_runtime as _get  # lazy: the app import budget (#5798)
+
+    return _get()

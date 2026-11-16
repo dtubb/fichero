@@ -258,6 +258,23 @@ struct ActivityJob: Identifiable, Equatable {
     /// The engine put this row in History (`group` is "earlier"): a run that ended, was stopped or was interrupted
     /// (`activity.window.history-group`, #5851). A live row, a queue beside it, is false.
     let isEarlier: Bool
+    /// What ran on what (`activity.pane.row-says-what-ran-on-what`): the stages' trail, the pages the row runs over,
+    /// the stage's model; and the cost (`activity.pane.cost-per-row-and-totals`). Empty or nil on an engine before these.
+    var stages: [Stage] = []
+    var ranOn: RanOver?
+    var model: String?
+    var costUsd: Double?
+    var costEstimateUsd: Double?
+    /// Where it runs and on which lane, as the engine says (the Where tab, #6588): "this-mac", "other-mac", "cloud", "cluster".
+    var runsOn: String?
+    var lane: String?
+    /// Who or what started it, in the engine's words ("automatic", "schedule:…"), and when it ended (the Activity pane's
+    /// source glyph and time, `activity.pane.icons-say-source-and-kind`).
+    var startedBy: String?
+    var finishedAt: Date?
+    /// Why a failed (or paused-for-a-cause) row failed and what to do (`run.fail.run-carries-its-failure`,
+    /// `activity.pane.failure-with-its-fix-in-the-row`): the engine's one table, never a code.
+    var failure: Failure?
 
     struct Remote: Equatable {
         let target: String
@@ -286,6 +303,20 @@ struct ActivityJob: Identifiable, Equatable {
             Remote(target: $0.target ?? "", farState: $0.farState, shards: $0.shards, pagesLanded: $0.pagesLanded ?? 0)
         }
         self.isEarlier = job.group?.rawValue == "earlier"
+        self.stages = (job.stages ?? []).map { Stage(title: $0.title, state: $0.state, done: $0.done ?? 0, total: $0.total ?? 0) }
+        self.ranOn = job.ranOn.map { RanOver(kind: $0.kind, count: $0.count ?? 0, name: $0.name) }
+        self.model = job.model
+        self.costUsd = job.costUsd
+        self.costEstimateUsd = job.costEstimateUsd
+        self.runsOn = job.runsOn?.rawValue
+        self.lane = job.lane
+        self.startedBy = job.startedBy
+        self.finishedAt = job.finishedAt
+        self.failure = job.failure.map {
+            Failure(kind: $0.kind.rawValue, words: $0.words, fix: $0.fix, actions: ($0.actions ?? []).map { $0.kind.rawValue },
+                    rowWords: $0.rowWords ?? "",
+                    folderFor: ($0.actions ?? []).first { $0.kind == .chooseFolder }?.control)
+        }
     }
 
     /// Test/preview seam — construct without the generated schema.

@@ -1,6 +1,6 @@
 # Catalogue Table — folders as rows, the prototype's columns, edits as attribute edits — Design Spec (#6282, #5636)
 
-> Milestone: source-model
+> Milestone: catalogue-table
 > Manual: TBD — a section, "The catalogue table", telling a researcher that a project or box opens as
 > a table with one row per folder and the columns of the folders' kind (their prototype), that a cell
 > edits in place and is theirs from then on, that a machine's value shows as proposed until accepted,

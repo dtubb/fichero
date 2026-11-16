@@ -216,7 +216,7 @@ struct SettingsSharedModelPicker: View {
         for provider in appState.providers {
             do {
                 let configured = try await appState.providerService
-                    .listProviderModels(providerId: provider.id)
+                    .configuredModels(providerId: provider.id)
                 modelsByType[provider.providerType] = AISettingsView
                     .configuredModelInfos(from: configured, providerType: provider.providerType)
             } catch {

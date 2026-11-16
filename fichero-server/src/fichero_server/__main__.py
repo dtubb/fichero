@@ -9,6 +9,7 @@ defaults to production behavior otherwise.
 from __future__ import annotations
 
 import argparse
+import errno
 import logging
 import os
 import pathlib
@@ -21,7 +22,8 @@ import faulthandler
 import tracemalloc
 import warnings
 
-from fichero_server.security.bind_host import listen_port, resolve_bind_host
+from fichero_server.security.bind_host import listen_port, port_in_use_message, resolve_bind_host
+from fichero_server.security.bind_host import private_interface_ips as _private_interface_ips
 from fichero_server.security.bind_host import resolve_lan_bind_host
 from fichero_server.security.bind_host import primary_lan_ip as _primary_lan_ip
 from fichero_server.security.security_scoped_access import activate_library_bookmarks
@@ -52,6 +54,11 @@ logger = logging.getLogger(__name__)
 _LAUNCH_EPOCH = time.monotonic()
 
 
+#: How long uvicorn keeps an idle connection open: four of the app's five-second health probes, so a pooled connection is not
+#: closed between two probes (`engine.health.probe-survives-a-closed-keep-alive`, #6372). uvicorn's own default is 5 s.
+KEEP_ALIVE_SECONDS = 20
+
+
 def _stamp(label: str) -> None:
     """One line on the engine's launch timeline, in ms since module import."""
     logger.info("engine-launch: %s @ %.0fms", label, (time.monotonic() - _LAUNCH_EPOCH) * 1000)
@@ -64,13 +71,80 @@ def _app_db_for_listener():
 
 
 def _listener_hosts(bind_host: str, app_db=None) -> list[str]:  # noqa: ARG001 -- the app db no longer gates the listener
-    """Sharing on listens on this network: the loopback port, plus the LAN address the app named (`FICHERO_LAN_HOST`).
-    There is no separate "This network" switch (owner ruling 2026-10-20, #5897); Tailscale reaches the loopback port
-    through `tailscale serve`."""
+    """Sharing on listens on this network: the loopback port, the LAN address the app named (`FICHERO_LAN_HOST`), and
+    every private interface address of this Mac, so another Mac reaches it over the Thunderbolt bridge (#6383, owner
+    ruling 2026-11-07, extends #5897). There is no separate "This network" switch; Tailscale reaches the loopback port
+    through `tailscale serve`. Never 0.0.0.0, never a public address beyond the one named."""
     lan_host = resolve_lan_bind_host()
-    if lan_host is None or lan_host == bind_host:
+    if lan_host is None:
         return [bind_host]
-    return [bind_host, lan_host]
+    return list(dict.fromkeys([bind_host, lan_host, *_private_interface_ips()]))
+
+
+def _slot_address(host: str, bind_host: str, port: int) -> str | None:
+    """The address to bind for one listener slot. Inside the sandbox the machine's own Bonjour name resolves to
+    LOOPBACK, so a bind-by-name collided with our own first socket (EADDRINUSE, 2026-08-27): a LAN slot that resolves to
+    nothing or to loopback gets the real interface IP instead."""
+    try:
+        addr = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)[0][4][0]
+    except socket.gaierror:
+        addr = None
+    if host != bind_host and (addr is None or addr.startswith("127.")):
+        try:
+            return _primary_lan_ip()
+        except OSError as exc:
+            logger.error("Sharing LAN listener skipped: %s unusable and the LAN IP could not be determined (%s).", host, exc)
+            return None
+    if addr is None:
+        logger.error("Sharing listener skipped: %s does not resolve.", host)
+    return addr
+
+
+def _bind_sharing_listeners(hosts: list[str], bind_host: str, port: int, *, bind=None, retries: int = 4,
+                            wait: float = 0.5) -> list[socket.socket]:
+    """Bind each Sharing listener slot ON ITS OWN (t52, live 2026-11-06): one slot that fails never drops the others, so
+    a LAN address the Mac no longer has leaves the loopback port up for Tailscale, the CLI and MCP. A port still held
+    by the engine this one replaces (a Sharing toggle restarts it) is tried again for ~2 s; a LAN address the Mac no
+    longer has is replaced by the address it has now, so the listener follows the network."""
+    bind = bind or _bind_listener_socket
+    sockets: list[socket.socket] = []
+    for host in hosts:
+        addr = _slot_address(host, bind_host, port)
+        for attempt in range(retries + 1):
+            if addr is None or addr in {s.getsockname()[0] for s in sockets}:
+                break
+            try:
+                sockets.append(bind(addr, port))
+                logger.info("Sharing listener: bound %s (%s):%d", addr, host, port)
+                break
+            except OSError as exc:
+                if exc.errno == errno.EADDRNOTAVAIL and host != bind_host:
+                    try:
+                        current = _primary_lan_ip()
+                    except OSError:
+                        current = None
+                    if current and current != addr:
+                        logger.info("Sharing listener: %s is no longer this Mac's address; binding %s", addr, current)
+                        addr = current
+                        continue
+                if exc.errno == errno.EADDRINUSE and attempt < retries:
+                    time.sleep(wait)
+                    continue
+                logger.error("Sharing listener could NOT bind %s (%s):%d (%s); the other listeners stay up.",
+                             addr, host, port, exc)
+                break
+    return sockets
+
+
+def _port_held_line(bind_host: str, port: int) -> str | None:
+    """The log line when something already answers on the port (`sharing.stale-server-holding-the-port`), else None.
+    The first words are the line the harness reads; the rest is the sentence the app shows."""
+    family = socket.AF_INET6 if ":" in bind_host else socket.AF_INET
+    with socket.socket(family, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if sock.connect_ex((bind_host, port)) == 0:
+            return f"Port {port} is already in use on {bind_host}. {port_in_use_message(port)}"
+    return None
 
 
 def _bind_listener_socket(host: str, port: int) -> socket.socket:
@@ -256,7 +330,16 @@ def _main(argv: list[str] | None = None):
     # The search embedder's worker is forked from a seed made NOW, before any thread of ours exists (#6237).
     from fichero_server.db import embed_process
 
+    engine_log_path = (os.environ.get("FICHERO_ENGINE_LOG_PATH") or "").strip()
+    if engine_log_path:
+        # The app captures our stdout/stderr into this file: bound it ourselves (engine.log-rotates-by-size). Rotate
+        # before the seed so it inherits the fresh descriptors; the watcher thread only after it (#6237).
+        from fichero_server.core import engine_log
+
+        engine_log.rotate_and_prune(pathlib.Path(engine_log_path))
     embed_process.start_seed()
+    if engine_log_path:
+        engine_log.start_watch(pathlib.Path(engine_log_path))
 
     # Survive a client that hangs up mid-write (readiness probe cancel, a
     # connection closed right after a 401) instead of dying with SIGPIPE. Set
@@ -407,6 +490,7 @@ def _main(argv: list[str] | None = None):
         uds_kwargs = dict(
             app=uds_app,
             workers=1,
+            timeout_keep_alive=KEEP_ALIVE_SECONDS,
             log_level="info",
             loop="asyncio",
             ws="websockets-sansio",
@@ -444,62 +528,7 @@ def _main(argv: list[str] | None = None):
             tcp_hosts = _listener_hosts(tcp_bind_host, _app_db_for_listener())
             # 8765 is the product port; a dev or test engine may choose another (#5895).
             tcp_port = listen_port()
-            tcp_sockets = []
-            try:
-                for h in tcp_hosts:
-                    # Resolve to an ADDRESS first: inside the sandbox the
-                    # machine's own Bonjour name resolves to LOOPBACK, so a
-                    # bind-by-name collided with our own first socket
-                    # (EADDRINUSE, named-host log 2026-08-27 18:55). A LAN
-                    # slot that resolves to nothing or to loopback gets the
-                    # real interface IP instead.
-                    try:
-                        addr = socket.getaddrinfo(
-                            h, tcp_port, socket.AF_INET, socket.SOCK_STREAM
-                        )[0][4][0]
-                    except socket.gaierror:
-                        addr = None
-                    is_lan_slot = h != tcp_bind_host
-                    if is_lan_slot and (addr is None or addr.startswith("127.")):
-                        try:
-                            addr = _primary_lan_ip()
-                        except OSError as exc:
-                            logger.error(
-                                "Sharing LAN listener skipped: %s unusable and "
-                                "the LAN IP could not be determined (%s).",
-                                h,
-                                exc,
-                            )
-                            continue
-                    if addr is None:
-                        logger.error("Sharing listener skipped: %s does not resolve.", h)
-                        continue
-                    bound = {s.getsockname()[0] for s in tcp_sockets}
-                    if addr in bound:
-                        logger.info(
-                            "Sharing listener: %s resolves to %s, already bound; skipping.",
-                            h,
-                            addr,
-                        )
-                        continue
-                    logger.info("Sharing listener: binding %s (%s):%d", addr, h, tcp_port)
-                    tcp_sockets.append(_bind_listener_socket(addr, tcp_port))
-            except OSError as exc:
-                # The app must not lose its engine because a stale process
-                # holds 8765 — keep UDS, but say exactly what is broken. And
-                # CLOSE anything already bound: a leaked listening socket
-                # accepts connections no server will ever answer.
-                for sock in tcp_sockets:
-                    sock.close()
-                tcp_sockets = []
-                logger.error(
-                    "Sharing listener could NOT bind %s:%d (%s) — running "
-                    "UDS-only; Sharing, CLI and MCP are UNAVAILABLE until the "
-                    "port is free and the engine restarts.",
-                    tcp_bind_host,
-                    tcp_port,
-                    exc,
-                )
+            tcp_sockets = _bind_sharing_listeners(tcp_hosts, tcp_bind_host, tcp_port)
             from fichero_server.api.transport_diagnostics import note_tcp_listeners
 
             note_tcp_listeners([s.getsockname()[0] for s in tcp_sockets])  # what a pairing link may name (#5736)
@@ -507,6 +536,7 @@ def _main(argv: list[str] | None = None):
                 tcp_kwargs = dict(
                     app="fichero_server.api.tcp_transport:app",
                     workers=1,
+                    timeout_keep_alive=KEEP_ALIVE_SECONDS,
                     log_level="info",
                     loop="asyncio",
                     ws="websockets-sansio",
@@ -564,6 +594,7 @@ def _main(argv: list[str] | None = None):
         host=bind_host,
         port=port,
         workers=1,
+        timeout_keep_alive=KEEP_ALIVE_SECONDS,
         log_level="info",
         # Python 3.14 + uvloop can crash in asyncgen finalization paths.
         # Keep runtime stable by using the stdlib asyncio loop.
@@ -596,16 +627,9 @@ def _main(argv: list[str] | None = None):
     )
 
     # Preflight port check avoids noisy socket ResourceWarning when bind fails.
-    socket_family = socket.AF_INET6 if ":" in bind_host else socket.AF_INET
-    with socket.socket(socket_family, socket.SOCK_STREAM) as sock:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        if sock.connect_ex((bind_host, port)) == 0:
-            logger.error(
-                "Port %d is already in use on %s. Stop the existing backend process and retry.",
-                port,
-                bind_host,
-            )
-            return
+    if held := _port_held_line(bind_host, port):
+        logger.error("%s", held)
+        return
 
     if len(listener_hosts) == 1:
         try:

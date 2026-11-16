@@ -242,8 +242,10 @@ final class ProjectRunStripTests: XCTestCase {
         let strip = try XCTUnwrap(ProjectRunStrip(store: store))
         XCTAssertTrue(strip.isLive)
         XCTAssertEqual(strip.title, "Transcribe (Kraken) · stage 1 of 3", "the running stage by name, never an id")
-        XCTAssertEqual(strip.detail, "1 done · 0 failed · 1 left · \(ActivityMonitorRow.duration(120)) left · "
-                       + "Waiting: memory is tight", "the stage's run account, in the engine's words")
+        // The re-recorded tree (1a6dd1c06) carries the stage's note, "runs on all 2 pages": the engine's words too.
+        XCTAssertEqual(strip.detail, "1 done · 0 failed · 1 left · runs on all 2 pages · "
+                       + "\(ActivityMonitorRow.duration(120)) left · Waiting: memory is tight",
+                       "the stage's run account, in the engine's words")
         XCTAssertTrue(strip.failed.isEmpty)
 
         await store.refreshBackgroundJobs()
@@ -363,8 +365,10 @@ final class ProjectRunStripTests: XCTestCase {
         XCTAssertFalse(strip.isLive)
         XCTAssertEqual(strip.title, "Recipe run failed")
         // The recorded summary says where lines and regions were found first (58baaff4e, #5668).
+        // ...and, since the step timing (#6215), the slowest step it names.
         XCTAssertEqual(strip.detail, "Lines on 2 of 2 pages · regions on 0 of 2 pages · Read 2 of 2 pages · "
-                       + "Names: 1 People · 1 Places · 1 page dated · 1 date named · 1 statement")
+                       + "Names: 1 People · 1 Places · 1 page dated · 1 date named · 1 statement · "
+                       + "Slowest step: lines and read: 1.3 s")
     }
 
     func testRelaunch_aSummaryThePersonClosed_staysClosed() async throws {
@@ -464,7 +468,7 @@ final class ProjectRunStripTests: XCTestCase {
         let b = try XCTUnwrap(store.recipeFolderSteps["B"])
         XCTAssertFalse(b.allDone, "a step that cannot tell is not done")
         XCTAssertEqual(b.words, "Find lines and Read each line: done\nexport: cannot tell")
-        XCTAssertTrue(RecipeFolderSteps(steps: [.init(name: "Read", done: 1, of: 1)]).allDone)
+        XCTAssertTrue(RecipeFolderSteps(steps: [.init(name: "Read", done: 1, total: 1)]).allDone)
     }
 
     func testStrip_aRunOverOneFolder_saysNothingMoreThanItsStage() async throws {
@@ -541,5 +545,14 @@ final class ProjectRunStripStateTests: XCTestCase {
         }
         XCTAssertFalse(ProjectRunStrip(jobId: "r1", node: nil, job: nil).spins, "nothing read yet: waiting, still")
         XCTAssertFalse(ProjectRunStrip(jobId: "r1", node: try Self.node(state: "done"), job: nil).spins)
+    }
+
+    /// `ai.cloud.one-run-overrides` (#6349): what the run was given for this run alone is said beside its line, and nothing is added
+    /// when it was given none.
+    func testStrip_saysWhatTheRunWasGivenForThisRunAlone() {
+        var strip = ProjectRunStrip(jobId: "r1", isLive: true, title: "Read", detail: "3 done")
+        XCTAssertEqual(strip.shownDetail, "3 done")
+        strip.onceWords = "Cloud allowed for this run"
+        XCTAssertEqual(strip.shownDetail, "3 done · Cloud allowed for this run")
     }
 }

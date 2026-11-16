@@ -42,7 +42,7 @@ brew install python@3.12
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -e 'fichero-server[dev]' -e ./fichero-cli -e ./fichero-mcp
-pip install pytest ruff
+pip install 'pytest==9.1.1' 'pytest-asyncio==1.4.0' ruff  # not 9.2.0: test_perf_disk_reclaim fails there
 ```
 
 `pytest` and `ruff` are not in the `[dev]` extra, but the lint/test commands assume

@@ -10,11 +10,12 @@ from datetime import datetime
 from fichero_server.core.timeutil import utc_now
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from fichero_server.api.auth import action_context
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.library_header import optional_library_path
+from fichero_server.api.main import claim_visible, document_reader, whole_library_reader_only, get_library_database, get_library_database_for_write
 from fichero_server.actions.registry import registry
 from fichero_server.db import Database
 from fichero_server.models.knowledge import (
@@ -155,7 +156,7 @@ def restore_claim_link_impl(
 # =============================================================================
 
 
-@router.post("/claims/{claim_id}/links", response_model=KnowledgeClaimLink)
+@router.post("/claims/{claim_id}/links", dependencies=[Depends(whole_library_reader_only)], response_model=KnowledgeClaimLink)
 async def create_claim_link(
     claim_id: str,
     request: ClaimLinkCreateRequest,
@@ -174,7 +175,7 @@ async def create_claim_link(
     return KnowledgeClaimLink.model_validate(result.result)
 
 
-@router.get("/claims/{claim_id}/links", response_model=ClaimLinkListResponse)
+@router.get("/claims/{claim_id}/links", dependencies=[Depends(whole_library_reader_only)], response_model=ClaimLinkListResponse)
 @off_loop
 def list_claim_links(
     claim_id: str,
@@ -199,6 +200,7 @@ def list_claim_links(
 
 @router.get("/claim-links/{link_id}", response_model=KnowledgeClaimLink)
 async def get_claim_link(
+    request: Request,
     link_id: str,
     db: Database = Depends(get_library_database),
 ) -> KnowledgeClaimLink:
@@ -206,10 +208,15 @@ async def get_claim_link(
     link = db.get(KnowledgeClaimLink, link_id)
     if link is None:
         raise HTTPException(status_code=404, detail=f"Claim link not found: {link_id}")
+    may_read = document_reader(request, optional_library_path(request))
+    for claim_id in (link.claim_id, link.related_claim_id):  # a link to a claim on a denied page is not shown (#6320)
+        claim = db.get(KnowledgeClaim, claim_id) if may_read is not None else None
+        if claim is not None and not claim_visible(may_read, claim):
+            raise HTTPException(status_code=403, detail="You may not read the page this link rests on")
     return link
 
 
-@router.patch("/claim-links/{link_id}", response_model=KnowledgeClaimLink)
+@router.patch("/claim-links/{link_id}", dependencies=[Depends(whole_library_reader_only)], response_model=KnowledgeClaimLink)
 async def update_claim_link(
     link_id: str,
     request: ClaimLinkUpdateRequest,
@@ -228,7 +235,7 @@ async def update_claim_link(
     return KnowledgeClaimLink.model_validate(result.result)
 
 
-@router.delete("/claim-links/{link_id}")
+@router.delete("/claim-links/{link_id}", dependencies=[Depends(whole_library_reader_only)])
 async def delete_claim_link(
     link_id: str,
     db: Database = Depends(get_library_database_for_write),
@@ -251,7 +258,7 @@ async def delete_claim_link(
 # =============================================================================
 
 
-@router.get("/claims/{claim_id}/related", response_model=ClaimListResponse)
+@router.get("/claims/{claim_id}/related", dependencies=[Depends(whole_library_reader_only)], response_model=ClaimListResponse)
 @off_loop
 def get_related_claims(
     claim_id: str,

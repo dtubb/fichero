@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.auth import action_context
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.main import whole_library_reader_only, get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.models.knowledge import (
     ClaimSuppressionRule,
@@ -19,7 +19,7 @@ from fichero_server.models.knowledge import (
     EntityType,
 )
 
-router = APIRouter(prefix="/kg/curation-rules")
+router = APIRouter(dependencies=[Depends(whole_library_reader_only)], prefix="/kg/curation-rules")
 
 
 class EntityRuleCreateRequest(BaseModel):

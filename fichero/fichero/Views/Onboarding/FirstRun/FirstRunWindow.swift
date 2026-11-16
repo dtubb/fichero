@@ -27,11 +27,16 @@ struct FirstRunWindow: View {
     static let sidebarWidth: CGFloat = 260
     /// The window's size on the Mac; the content column gets what the step list leaves.
     static let windowSize = CGSize(width: 820, height: 600)
+    /// The wide Set Up holds the list and both columns whole; off, the window is today's.
+    static func windowSize(wide: Bool) -> CGSize {
+        guard wide, let width = SetupPager.Layout.of(.mac).windowWidth else { return windowSize }
+        return CGSize(width: width, height: windowSize.height)
+    }
 
-    @State private var step: SetupStep
+    @State var step: SetupStep
     /// Change… on a stage page's worked-out language goes back to About the Material (the step is private here).
     func showAboutMaterial() { step = .aboutMaterial }
-    @State private var flow: SetupFlow
+    @State var flow: SetupFlow
     /// Models & Services' Add… opens Settings' own add-provider sheet here, preselected or not
     /// (`source.onboard.app.provider-sheet-in-step`).
     @State var addProvider: AddProviderRequest?
@@ -48,6 +53,11 @@ struct FirstRunWindow: View {
     /// Why a cancelled new project's folder could not go to the Trash; said before the window closes (#6117).
     @State var discardError: String?
     @State var isSaving = false  // read by the Ready page in FirstRunWindow+Recipe.swift
+
+    /// Flag off, AI and ML Models shows no spinner while it saves, as today.
+    private var showsSavingSpinner: Bool {
+        (isSaving && (step != .whatFicheroRuns || FeatureManager.shared.isWideSetUpEnabled)) || newProject.isCreating
+    }
 
     let mode: Mode
     /// Tells the window which project setup made, when setup finishes, so it shows that project.
@@ -68,33 +78,17 @@ struct FirstRunWindow: View {
         if let newProject { _newProject = State(initialValue: newProject) }
     }
 
-    /// The pages each way in starts with (`source.onboard.project.one-view`). Pure, for the tests.
-    static func flow(for mode: Mode, isCompanionPlatform: Bool = SetupFlow.runsOnCompanionPlatform) -> SetupFlow {
-        switch mode {
-        case .firstRun: SetupFlow(includesApp: true, project: .none, isCompanionPlatform: isCompanionPlatform)
-        case .newProject: SetupFlow(includesApp: false, project: .new)
-        case .setUp: SetupFlow(includesApp: false, project: .existing)
-        }
-    }
-
     /// The store of the project being set up; nil until Your project has made one.
     var store: RecipeSetupStore? { project?.recipeSetupStore }
-
-    /// The pages, with one per stage chosen so far.
-    private var steps: [SetupStep] {
-        var current = flow
-        current.chosenStages = store?.chosenStageIds ?? []
-        return current.steps
-    }
 
     var body: some View {
         HStack(spacing: 0) {
             sidebar
             Divider()
             // minWidth 0: a wide row never pushes the sheet past its window (#5624).
-            content
+            paged(content
                 .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
+                .clipped())
         }
         // The project's services, for every way in: Set Up… is given its project, a new project is made inside this
         // window (Your project), and a sheet hangs above the library tree that injects them (review 365, 360).
@@ -102,7 +96,8 @@ struct FirstRunWindow: View {
         // The fixed two-pane card is a desktop window size; a compact companion
         // presentation sizes to its sheet instead (#2807).
         #if os(macOS)
-        .frame(width: Self.windowSize.width, height: Self.windowSize.height)
+        .frame(width: Self.windowSize(wide: featureManager.isWideSetUpEnabled).width,
+               height: Self.windowSize(wide: featureManager.isWideSetUpEnabled).height)
         #endif
         // Reopen where the person left off: the project's saved answers and
         // recipe (GET /api/recipes/project), the purposes, the jobs and the stages.
@@ -166,10 +161,12 @@ struct FirstRunWindow: View {
     }
 
     /// Advance within the steps; the LAST one finishes (#2807).
-    private func advance() {
+    func advance() {
         // Your project makes the project; the steps after it save into it.
         if step == .project {
+            isSaving = true  // before the Task: a second press in the same turn finds it held
             Task {
+                defer { isSaving = false }
                 guard let made = await newProject.create() else { return }
                 project = made
                 step = step.next(in: steps)
@@ -195,7 +192,9 @@ struct FirstRunWindow: View {
         }
         // AI and ML Models: Continue writes the answer, the default included (`source.onboard.places-cap-projects`).
         if step == .whatFicheroRuns, let placesStore {
+            isSaving = true
             Task {
+                defer { isSaving = false }
                 if await placesStore.keepAnswer() { step = step.next(in: steps) }
             }
             return
@@ -203,8 +202,8 @@ struct FirstRunWindow: View {
         // Continue keeps the answers so far as a draft on the project, so setup can be closed
         // at any step; saving is not Start.
         guard step.savesDraft, let store else { step = step.next(in: steps); return }
+        isSaving = true
         Task {
-            isSaving = true
             let saved = await store.save()
             isSaving = false
             // A refused save stays on its step with the engine's words.
@@ -331,9 +330,12 @@ extension FirstRunWindow {
                 Text(reason).font(.callout).foregroundStyle(.secondary).lineLimit(2)
                     .accessibilityIdentifier("setup.footer.startReason")
             }
-            if isSaving || newProject.isCreating { ProgressView().controlSize(.small) }
+            if showsSavingSpinner { ProgressView().controlSize(.small) }
             if model.showsBack {
-                Button("Back") { step = step.previous(in: steps) }
+                Button("Back") {
+                    // Wide Set Up: Back is the pager's own move, as the arrows and the swipe are (`wide.pager.*`).
+                    if FeatureManager.shared.isWideSetUpEnabled { movePage(forward: false) } else { step = step.previous(in: steps) }
+                }
             }
             if !model.primaryLivesInPage {
                 Button(model.primary.title) { perform(model.primary.action) }
@@ -371,7 +373,7 @@ extension FirstRunWindow {
         #if os(macOS)
         guard let selection = Self.startedRunSelection(jobId: store.startedRunJobId, projectId: project?.id) else { return }
         ActivityWindowSelectionState.shared.select(selection)
-        openWindow(id: ActivityWindowSelectionState.detailWindowID)
+        openWindow(id: ActivityWindowSelectionState.monitorWindowID)
         #endif
     }
 

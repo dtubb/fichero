@@ -233,39 +233,68 @@ class ChainProgressEvent(BaseModel):
 
 
 class ChainStore:
-    """Manages workflow chain definitions.
+    """Workflow chain definitions.
 
-    Currently stores in memory; could be extended to persist to database.
+    With a library database a chain is stored in THAT library (a `LibrarySetting` row), so it survives a restart and is
+    never seen from another library (#3181). With no database (a caller that names no library) it is held in memory
+    for the process, as before.
     """
+
+    PREFIX = "chain:"
 
     def __init__(self):
         self._chains: dict[str, WorkflowChain] = {}
 
-    def save(self, chain: WorkflowChain) -> WorkflowChain:
+    @staticmethod
+    def _row_id(chain_id: str) -> str:
+        return f"{ChainStore.PREFIX}{chain_id}"
+
+    def save(self, chain: WorkflowChain, db: Any = None) -> WorkflowChain:
         """Save a chain definition."""
         chain.updated_at = utc_now()
-        self._chains[chain.id] = chain
+        if db is None:
+            self._chains[chain.id] = chain
+        else:
+            from fichero_server.models.knowledge import LibrarySetting  # noqa: PLC0415
+
+            db.save(LibrarySetting(id=self._row_id(chain.id), value=chain.model_dump_json()))
         return chain
 
-    def get(self, chain_id: str) -> WorkflowChain | None:
+    def get(self, chain_id: str, db: Any = None) -> WorkflowChain | None:
         """Get a chain by ID."""
-        return self._chains.get(chain_id)
+        if db is None:
+            return self._chains.get(chain_id)
+        from fichero_server.models.knowledge import LibrarySetting  # noqa: PLC0415
 
-    def list(self, limit: int = 50, offset: int = 0) -> list[WorkflowChain]:
+        row = db.get(LibrarySetting, self._row_id(chain_id))
+        return WorkflowChain.model_validate_json(row.value) if row is not None else None
+
+    def _all(self, db: Any) -> list[WorkflowChain]:
+        if db is None:
+            return list(self._chains.values())
+        from fichero_server.models.knowledge import LibrarySetting  # noqa: PLC0415
+
+        return [WorkflowChain.model_validate_json(r.value) for r in db.all(LibrarySetting) if r.id.startswith(self.PREFIX)]
+
+    def list(self, limit: int = 50, offset: int = 0, db: Any = None) -> list[WorkflowChain]:
         """List all chains."""
-        chains = sorted(
-            self._chains.values(),
-            key=lambda c: c.updated_at,
-            reverse=True,
-        )
+        chains = sorted(self._all(db), key=lambda c: c.updated_at, reverse=True)
         return chains[offset : offset + limit]
 
-    def delete(self, chain_id: str) -> bool:
+    def count(self, db: Any = None) -> int:
+        return len(self._all(db))
+
+    def delete(self, chain_id: str, db: Any = None) -> bool:
         """Delete a chain by ID."""
-        if chain_id in self._chains:
-            del self._chains[chain_id]
-            return True
-        return False
+        if db is None:
+            return self._chains.pop(chain_id, None) is not None
+        from fichero_server.models.knowledge import LibrarySetting  # noqa: PLC0415
+
+        row = db.get(LibrarySetting, self._row_id(chain_id))
+        if row is None:
+            return False
+        db.delete(row)
+        return True
 
 
 # Global chain store instance

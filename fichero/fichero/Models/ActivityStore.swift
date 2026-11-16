@@ -21,7 +21,7 @@ final class ActivityStore: ChangeEventConsumer {
 
     // ─── Refresh signal (views observe this) ──────────────────────────────────
     /// Bumped whenever an activity SSE event arrives or a reconnect resync fires.
-    /// `ActivityBrowserView` observes this to reload its run list.
+    /// `ActivityPaneView` observes this to reload its run list.
     var refreshToken: Int = 0
     /// Coalesces activity-frame bursts into one refreshToken bump (see
     /// `applyActivityEvent`).
@@ -53,7 +53,7 @@ final class ActivityStore: ChangeEventConsumer {
     // MARK: - Run list (#3231, #4960)
     //
     // The store owns the live+history run-list merge (previously assembled
-    // inside ActivityBrowserView). Views observe `runs`/`runLoadFailures` and
+    // inside a view). Views observe `runs`/`runLoadFailures` and
     // call `rebuildRuns`, passing @Environment deps in. `runs` is patched
     // in place (`patchRun`) — no method here reassigns the whole array.
     var runs: [ActivityRun] = []
@@ -61,6 +61,7 @@ final class ActivityStore: ChangeEventConsumer {
     var treeReadFailures: [String: String] = [:]
     /// A run's page dots, by the run's job id (`activity.window.page-grid`).
     var pageGrids: [String: ActivityPageGrid] = [:]
+    var failedPageLists: [String: [ActivityDetails.FailedPageRow]] = [:]  // every failed page by run, once asked for (#5960)
     /// Which read a footer line came from: the run list, or the jobs poll (#5469).
     enum LoadSource: Int { case runs, jobs }
     private struct FailureKey: Hashable {
@@ -80,10 +81,13 @@ final class ActivityStore: ChangeEventConsumer {
         return ordered.filter { seen.insert($0).inserted }
     }
 
-    /// Set ONE footer line, or clear it with nil; untouched when unchanged.
-    func setLoadFailure(_ message: String?, library: UUID, source: LoadSource) {
+    /// Set ONE footer line, or clear it with nil; untouched when unchanged. True when the line changed.
+    @discardableResult
+    func setLoadFailure(_ message: String?, library: UUID, source: LoadSource) -> Bool {
         let key = FailureKey(library: library, source: source)
-        if loadFailures[key] != message { loadFailures[key] = message }
+        guard loadFailures[key] != message else { return false }
+        loadFailures[key] = message
+        return true
     }
 
     /// The library this store belongs to, named in a jobs-poll footer line (#5469).
@@ -106,10 +110,11 @@ final class ActivityStore: ChangeEventConsumer {
     // Kraken Detect Regions, …) + rough process CPU%. `GET /api/activity/jobs`
     // is polled here — global, cheap, no SSE frame for it — and the two
     // surfaces observe these properties, so they cannot disagree about what is
-    // running or whether it FAILED. Updated in place, only when the value
-    // actually changes (no-wholesale-rerender): a steady 100%-idle poll never
-    // invalidates the observing views.
+    // running or whether it FAILED. Updated in place, only when the value actually
+    // changes (no-wholesale-rerender): a steady idle poll never invalidates the views.
     var backgroundJobs: [ActivityJob] = []
+    var archivedRuns: [ActivityRun] = []  // Show Archived's runs (`workflow_run.archive`), read with `archivedJobs`
+    var archivedJobs: [ActivityJob] = []  // Show Archived's rows (`activity.pane.archive-old-runs`): read on request, never polled
     /// Counts the Find the Documents runs seen to end, a recipe's step among them (`finddocs.review.items`):
     /// Items and the Inspector read their proposals again when it moves.
     private(set) var findDocumentsRunsEnded = 0
@@ -138,8 +143,7 @@ final class ActivityStore: ChangeEventConsumer {
     /// began before it is older than that answer: its mode and pause are not
     /// applied, or a poll in flight while Pause All was chosen put "running" back.
     @ObservationIgnored var modeAnswers = 0
-    /// Runs Delete or Clear Failed removed: a live execution still held in the
-    /// app's memory does not bring its row back on the next rebuild (#5634).
+    /// Runs Delete or Archive Failed removed: a live execution still in memory does not bring its row back (#5634).
     @ObservationIgnored var deletedRunIds: Set<String> = []
 
     // MARK: - Run trees (#5415: the Activity table's run → step → page rows)
@@ -167,13 +171,17 @@ final class ActivityStore: ChangeEventConsumer {
     /// A recipe run's folders done of its folders in all (`activity.run.progress-per-folder`, #5540), keyed
     /// by the run's id: read from its status each time its tree is read, one key patched, only when changed.
     var recipeRunFolders: [String: RecipeRunFolders] = [:]
-    /// Which recipe steps are done on each folder (`activity.run.folder-steps-done`, #5642), keyed by the folder's id:
-    /// read from the same status as the run's folders, a folder patched only when its count changed.
+    /// Which recipe steps are done on each folder (`activity.run.folder-steps-done`, #5642), by folder id, from the run's status.
     /// ponytail: one dictionary, so a patch re-reads every folder row's mark; a store per folder if that shows.
     var recipeFolderSteps: [String: RecipeFolderSteps] = [:]
     /// How many pages a running recipe run reads at once and why (`recipes-run.memory.gate-shown`, #6217), keyed by the
     /// run's id: read from the same status as its folders; removed when the status no longer says.
     var recipeRunPagesAtOnce: [String: RecipeRunPagesAtOnce] = [:]
+    /// A recipe run a step of which was paused at a cloud spend cap (#6295), by run id: the engine's `stopped_at_cap`, `reason`
+    /// and the caps that let the refused call through, from the same status; removed when it goes on. The strip offers the change.
+    var recipeRunStoppedAtCap: [String: CloudCapFix.Stop] = [:]
+    /// What a recipe run was given for this run alone, in the engine's words (`once_words`), by run id.
+    var recipeRunOnceWords: [String: String] = [:]
     /// The recipe run the project window's strip shows (#5576, #5577): the
     /// project's running recipe run, seen on the jobs poll, and once it ends,
     /// that run until the person puts it away. Its words are its tree's
@@ -253,7 +261,7 @@ final class ActivityStore: ChangeEventConsumer {
             while !Task.isCancelled {
                 await self?.refreshBackgroundJobs()
                 guard let self else { return }
-                try? await Task.sleep(for: jobsPollFailures == 0 ? jobsPollInterval : Self.pollInterval(afterFailures: jobsPollFailures))
+                try? await Task.sleep(for: Self.nextJobsPollWait(failures: jobsPollFailures, base: jobsPollInterval))
             }
         }
     }
@@ -273,20 +281,7 @@ final class ActivityStore: ChangeEventConsumer {
             }
             jobsReadOnce = true
             if backgroundJobs != snapshot.jobs {
-                // A job of its own whose details are open (its tree is loaded,
-                // #5561) is re-read when its row changes: the same one-key
-                // update a run's tree gets from the change stream.
-                let before = Dictionary(backgroundJobs.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-                for job in snapshot.jobs where runTrees[job.id] != nil && before[job.id] != job {
-                    scheduleTreeRead(threadId: job.id)
-                }
-                rereadRecipeRuns(holdingStagesChangedFrom: before, to: snapshot.jobs)
-                // One that left the list has ended (done is not listed): its tree is read once more,
-                // so its details say how it ended (a recipe run's summary, #5577).
-                let listed = Set(snapshot.jobs.map(\.id))
-                for id in before.keys where runTrees[id] != nil && !listed.contains(id) {
-                    scheduleTreeRead(threadId: id)
-                }
+                rereadTreesOnJobsChange(from: backgroundJobs, to: snapshot.jobs)
                 if Self.aFindDocumentsRunEnded(from: backgroundJobs, to: snapshot.jobs) { findDocumentsRunsEnded += 1 }
                 backgroundJobs = snapshot.jobs
                 EngineRestartPolicy.runningJobs = snapshot.jobs.filter { $0.state == .running }.count
@@ -303,9 +298,11 @@ final class ActivityStore: ChangeEventConsumer {
                 log.debug("ActivityStore: jobs poll failed \(error.localizedDescription, privacy: .public)")
                 return
             }
+            // Said once in the log, when it starts or changes, not on every tick it stands.
             let message = Self.runLoadFailureMessage(libraryName: library.displayName, error: error)
-            log.error("ActivityStore: jobs poll refused: \(message, privacy: .public)")
-            setLoadFailure(message, library: library.id, source: .jobs)
+            if setLoadFailure(message, library: library.id, source: .jobs) {
+                log.error("ActivityStore: jobs poll refused: \(message, privacy: .public)")
+            }
         }
     }
 

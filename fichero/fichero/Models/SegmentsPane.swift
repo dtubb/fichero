@@ -76,16 +76,43 @@ enum SegmentsPane {
         var id: String { segmentId }
     }
 
+    /// The outline with only the rows a filter shows (`SegmentsFilter.Result.shown`, #6476); nil keeps every row.
+    /// A row the filter hides takes its children with it: the filter always shows a match's ancestors, so a shown
+    /// row never sits under a hidden one.
+    static func pruned(_ rows: [OutlineRow], keeping shown: Set<String>?) -> [OutlineRow] {
+        guard let shown else { return rows }
+        return rows.filter { shown.contains($0.segmentId) }.map {
+            OutlineRow(segmentId: $0.segmentId, kind: $0.kind, children: pruned($0.children, keeping: shown))
+        }
+    }
+
     /// The rows under `top` (the level the list shows, in its order), each holding its children as written,
     /// to any depth. An id not on the page is a row with no children.
     static func outline(_ segments: [Segment], top: [String]) -> [OutlineRow] {
         let byId = Dictionary(segments.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let byParent = Dictionary(grouping: segments.filter { $0.parentSegmentId != nil }, by: { $0.parentSegmentId ?? "" })
+        // Children follow the order's own sequence where it lists them, then the segments' own order (#6425).
+        let place = Dictionary(top.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
         func row(_ id: String, depth: Int) -> OutlineRow {
-            let children = depth < 8 ? (byParent[id] ?? []).map { row($0.id, depth: depth + 1) } : []
+            let kids = (byParent[id] ?? []).enumerated().sorted {
+                (place[$0.element.id] ?? Int.max, $0.offset) < (place[$1.element.id] ?? Int.max, $1.offset)
+            }.map(\.element)
+            let children = depth < 8 ? kids.map { row($0.id, depth: depth + 1) } : []
             return OutlineRow(segmentId: id, kind: byId[id]?.kind ?? "", children: children)
         }
-        return top.map { row($0, depth: 0) }
+        // An id whose ancestor is also in `top` is shown under that ancestor, not again beside it (#6425).
+        let held = Set(top)
+        func underHeldAncestor(_ id: String) -> Bool {
+            var cursor = byId[id]?.parentSegmentId
+            var hops = 0
+            while let parent = cursor, hops < 8 {
+                if held.contains(parent) { return true }
+                cursor = byId[parent]?.parentSegmentId
+                hops += 1
+            }
+            return false
+        }
+        return top.filter { !underHeldAncestor($0) }.map { row($0, depth: 0) }
     }
 
     static func hasChildren(_ segmentId: String, in segments: [Segment]) -> Bool {
@@ -119,6 +146,26 @@ enum SegmentsPane {
     /// `direction` is the segment's resolved one (#5199): its words are an isolate in it, so a Syriac line
     /// reads right to left after the Latin kind and never reorders it. A caption stays one row, so a
     /// vertical line's words are isolated as written rather than stacked.
+    /// The Segments list's first row (#6415, `source.editor.segments-list-starts-at-the-page-with-its-orders`): the page
+    /// by its name, and what it holds ("19 lines, 2 regions"); shown only at the page's top level.
+    struct PageRow: Equatable {
+        let title: String
+        let detail: String
+    }
+
+    static func pageRow(name: String?, segments: [Segment], parentId: String?) -> PageRow? {
+        guard parentId == nil, !segments.isEmpty else { return nil }
+        return PageRow(title: name ?? "Page", detail: InspectorMaking.counts(segments))
+    }
+
+    /// The place a row's number counts from (#6476: one numbering everywhere): a region among the page's regions -- lines
+    /// folded under an earlier region would otherwise make the second one "Region 25" -- any other row by its place.
+    static func numberingPlace(of segment: Segment?, at index: Int, among segments: [Segment]) -> Int {
+        guard let segment, segment.kind == "region",
+              let place = segments.filter({ $0.kind == "region" }).firstIndex(where: { $0.id == segment.id }) else { return index }
+        return place
+    }
+
     static func rowLabel(_ segment: Segment?, at index: Int, direction: String? = nil, numbered: Bool = true) -> String {
         let kind = segment.map(InspectorPath.name(of:)) ?? "Segment"
         let named = segment?.cell != nil ? kind : "\(kind) \(index + 1)"
@@ -127,6 +174,14 @@ enum SegmentsPane {
         }
         let horizontal = direction == "ttb" || direction == "btt" ? nil : direction
         return "\(numbered ? named : kind) · \(SegmentLabel.layout(text, direction: horizontal).text)"
+    }
+
+    /// The segment with the words its row shows (#6492): the counting reading's when the page's compare answer has one,
+    /// else its own text.
+    static func showing(_ shown: String?, on segment: Segment?) -> Segment? {
+        guard let shown, var segment else { return segment }
+        segment.text = shown
+        return segment
     }
 
     /// What an unread row's help says to do (#5505); nil for a row with a reading or of a kind that has none.

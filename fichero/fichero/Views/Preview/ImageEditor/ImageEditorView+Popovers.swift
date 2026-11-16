@@ -3,12 +3,33 @@ import SwiftUI
 extension ImageEditorView {
     // MARK: - Enhance popover
 
+    private var enhanceChoice: EnhanceChoice {
+        EnhanceChoice(localContrast: localContrast, typescript: localContrastTypescript)
+    }
+
     var enhancePopover: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Enhance").font(.headline)
-            enhanceSlider("Brightness", value: $brightness)
-            enhanceSlider("Contrast", value: $contrast)
-            enhanceSlider("Sharpen", value: $sharpen)
+            Toggle("Local contrast (faded writing)", isOn: $localContrast)
+            if localContrast {
+                Picker("Writing", selection: $localContrastTypescript) {
+                    Text("Handwritten").tag(false)
+                    Text("Typescript").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: localContrastTypescript) { resetClaheValues() }
+                Toggle("Fine-tune", isOn: $localContrastFineTune)
+                if localContrastFineTune {
+                    claheSlider("Clip", value: $claheClip, range: 1...4, format: "%.1f")
+                    claheSlider("Tiles", value: $claheTile, range: 4...16, format: "%.0f")
+                    claheSlider("Gain", value: $claheGain, range: 0.8...1.4, format: "%.2f")
+                    claheSlider("Lift", value: $claheLift, range: -20...20, format: "%.0f")
+                }
+            } else {
+                enhanceSlider("Brightness", value: $brightness)
+                enhanceSlider("Contrast", value: $contrast)
+                enhanceSlider("Sharpen", value: $sharpen)
+            }
             HStack {
                 Button("Auto Levels") {
                     enhanceCommitted = true
@@ -23,7 +44,13 @@ extension ImageEditorView {
                             brightness: brightness,
                             contrast: contrast,
                             sharpen: sharpen,
-                            autoLevels: false
+                            autoLevels: false,
+                            method: enhanceChoice.method,
+                            profile: enhanceChoice.profile,
+                            clip: fineTuned ? claheClip : nil,
+                            tile: fineTuned ? Int(claheTile.rounded()) : nil,
+                            gain: fineTuned ? claheGain : nil,
+                            lift: fineTuned ? claheLift : nil
                         )
                     }
                     resetEnhanceSliders()
@@ -108,9 +135,39 @@ extension ImageEditorView {
         }
     }
 
+    /// The four CLAHE values are sent only when the person is fine-tuning local contrast.
+    private var fineTuned: Bool { localContrast && localContrastFineTune }
+
+    /// The profile's own clip, tiles, gain and lift (`image_ops.CLAHE_PROFILES`), so the sliders start where the profile is.
+    private func resetClaheValues() {
+        claheClip = localContrastTypescript ? 1.6 : 2.2
+        claheTile = localContrastTypescript ? 16 : 8
+        claheGain = localContrastTypescript ? 1.0 : 1.1
+        claheLift = localContrastTypescript ? 0 : -5
+    }
+
+    private func claheSlider(_ label: String, value: Binding<Double>, range: ClosedRange<Double>, format: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text(label).font(.subheadline)
+                Spacer()
+                Text(String(format: format, value.wrappedValue))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: value, in: range)
+        }
+    }
+
     private func resetEnhanceSliders() {
         brightness = 1.0
         contrast = 1.0
         sharpen = 1.0
+        var choice = enhanceChoice
+        choice.reset()  // back to the default (local contrast on), so the next untouched Apply is a clahe row again
+        localContrast = choice.localContrast
+        localContrastTypescript = choice.typescript
+        localContrastFineTune = false
+        resetClaheValues()
     }
 }

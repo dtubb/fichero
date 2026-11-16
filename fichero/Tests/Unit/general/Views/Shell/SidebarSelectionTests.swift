@@ -6,7 +6,8 @@ struct SidebarSelectionTests {
     /// The #645/#1165 per-row tap fallback is REMOVED (2026-08-08, #4571):
     /// it competed in the gesture arena over the label, so modifier-clicks on
     /// the NAME could not extend a selection. List(selection:) owns every
-    /// click now; this pin keeps the second write path from returning.
+    /// click now; this pin keeps the second write path from returning. One
+    /// guarded exception, the expanded folder's name, writes through the same seam.
     @Test("the per-row tap fallback stays deleted — one selection write path")
     func tapFallbackStaysDeleted() throws {
         let repoRoot = try AppSource.root()
@@ -18,7 +19,17 @@ struct SidebarSelectionTests {
             encoding: .utf8
         )
         #expect(!body.contains("requestSelectionFallback"))
-        #expect(!body.contains("simultaneousGesture(TapGesture()"))
+        // One tap gesture is allowed, and only this one (c936cd652): an expanded folder's NAME,
+        // which the drag machinery claims, takes the click the whole row gives up while expanded
+        // (`sidebar.selection.an-expanded-folder-selects-from-its-name`). It is guarded so it
+        // never acts together with the whole-row fallback, and it writes through the same one
+        // seam (`onExpandedLabelTap` → `fallbackTap` → `applySidebarSelectionProposal`). It goes
+        // when the drag moves to a row-level item provider and the List owns every click (#6545).
+        #expect(body.components(separatedBy: "simultaneousGesture(TapGesture()").count - 1 == 1)
+        let gesture = try #require(body.range(of: "simultaneousGesture(TapGesture()"))
+        let handler = body[gesture.upperBound...].prefix(240)
+        #expect(handler.contains("sidebarExpandedLabelTapActs"))
+        #expect(handler.contains("onExpandedLabelTap?()"))
     }
 
     @Test("sidebar destination parses and serializes document ids")
@@ -349,7 +360,7 @@ struct SidebarSelectionTests {
         // stays stamped as handled, reconcileRestoredSelection() never
         // re-drives it and the restored row never routes to its detail view.
         // The routing moved into SidebarView+SelectionRouting.swift (a split of the handling file).
-        let handlingSource = try appSource("Views/Sidebar/Sections/SidebarView+SelectionRouting.swift")
+        let handlingSource = try appSource("Views/Sidebar/Sections/Selection/SidebarView+SelectionRouting.swift")
         // The lookup moved from a findItemById tree walk to the O(1)
         // cachedItem(id:) index (#4228 perf lane); the un-stamp contract after
         // a failed resolution is what this test pins, not the lookup mechanism.

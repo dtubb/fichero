@@ -25,7 +25,8 @@ private struct PairingInviteLink {
     }()
 }
 
-/// The universal-link form of a pairing invite (#3791): `https://fichero.app/pair?payload=…`.
+/// The universal-link form of a pairing invite (#3791): `https://tubb.ca/apps/fichero/pair?payload=…`
+/// (moved from fichero.app, owner ruling 2026-11-02).
 /// Same `payload` query as the custom-scheme link — the domain is only a name
 /// the app claims via Associated Domains so a tapped link resolves even where the
 /// `fichero://` scheme isn't registered (e.g. Mail on a colleague's device). The
@@ -33,8 +34,8 @@ private struct PairingInviteLink {
 /// against the domain.
 private struct PairingUniversalLink {
     static let scheme = "https"
-    static let host = "fichero.app"
-    static let path = "/pair"
+    static let host = "tubb.ca"
+    static let path = "/apps/fichero/pair"
 }
 
 enum RemoteClientPairing {
@@ -65,12 +66,21 @@ enum RemoteClientPairing {
             }
             return try pairingFields(from: payload)
         }
-        return try pairingFields(from: trimmed)
+        do {
+            return try pairingFields(from: trimmed)
+        } catch is DecodingError {
+            // An address typed where a link goes (`10.10.10.1:8765`, #6383) is not JSON: say it isn't a pairing link,
+            // naming what was pasted, never the decoder's "isn't in the correct format".
+            throw PairingFailureError(failure: .invalidLink, context: .init(host: trimmed))
+        }
     }
 
     static func inviteLinkString(from payload: PairingQRCodePayload) throws -> String {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
+        // Sorted keys: JSONEncoder orders keys per PROCESS otherwise (three launches, three orders, 2026-10-31), so two
+        // copies of one link differed by eye and the QR's bytes differed from the link's (`sharing.qr-drawn-once-per-payload`).
+        encoder.outputFormatting = .sortedKeys
         let data = try encoder.encode(payload)
         let encodedPayload = data.base64EncodedString().addingPercentEncoding(
             withAllowedCharacters: PairingInviteLink.queryValueAllowedCharacters
@@ -86,14 +96,15 @@ enum RemoteClientPairing {
             requireSecureTransportForRemote: true
         )
         let validatedSPKIPin = try resolvedSPKIPin(payload.spki, for: validatedURL)
-        guard let libraryPath = normalizedLibraryPath(payload.libraryPath) else {
-            throw RemoteClientPairingError.missingLibraryPath
-        }
+        // A link with no project (a host with none open) is not refused here: pairing asks the host which it shares
+        // (`sharing.ios-bad-library-path`).
+        let libraryPath = normalizedLibraryPath(payload.libraryPath) ?? ""
         return RemoteClientPairingFields(
             remoteURL: validatedURL.absoluteString,
             pairCode: payload.pairCode,
             spkiPin: validatedSPKIPin,
-            libraryPath: libraryPath
+            libraryPath: libraryPath,
+            altURLs: payload.altURLs ?? []
         )
     }
 
@@ -165,7 +176,7 @@ enum RemoteClientPairing {
     }
 
     /// Whether `url` is a pairing invite in EITHER form — the custom
-    /// `fichero://pair` scheme or the `https://fichero.app/pair` universal link
+    /// `fichero://pair` scheme or the `https://tubb.ca/apps/fichero/pair` universal link
     /// (#3791). The app's `onOpenURL` handlers route on this so both forms reach
     /// the same pairing flow. Public within the target so `FicheroApp` can call it.
     static func isPairingInviteLink(_ url: URL) -> Bool {
@@ -192,142 +203,6 @@ enum RemoteClientPairing {
             return rawValue.removingPercentEncoding ?? rawValue
         }
         return nil
-    }
-
-    static func pairDevice(
-        remoteURL: String,
-        pairCode: String,
-        deviceName: String,
-        expectedSPKIPin: String?,
-        person: PairingPerson? = nil
-    ) async throws -> PairingExchangeResult {
-        let code = pairCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        let name = deviceName.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard !code.isEmpty else {
-            throw RemoteClientPairingError.missingPairCode
-        }
-        guard !name.isEmpty else {
-            throw RemoteClientPairingError.missingDeviceName
-        }
-
-        let url = try validatedRemoteURL(
-            from: remoteURL,
-            allowLocalhost: false,
-            requireSecureTransportForRemote: true
-        )
-        let normalizedSPKIPin = try expectedSPKIPin.map(RemoteCertificatePinning.validatedSPKIPin)
-        let response = try await PairingService(apiRoot: url, expectedSPKIPin: normalizedSPKIPin)
-            .pairDeviceUnauthenticated(code: code, deviceName: name, person: person)
-        return PairingExchangeResult(
-            apiRoot: url,
-            deviceToken: response.deviceToken,
-            expiresAt: response.expiresAt
-        )
-    }
-
-    /// The host's credentials only: token, pin (or none for a public CA) and the expiry renewal reads. A synced
-    /// project's ask (#5898) stores just these; it does not move this Mac's engine to the host.
-    @MainActor
-    static func persistHostCredentials(_ result: PairingExchangeResult, expectedSPKIPin: String?) throws {
-        try PairingService.persistAuthToken(result.deviceToken, for: result.apiRoot)
-        // No pin for a publicly-trusted host. Storing one would be worse than
-        // useless: `shouldEnforcePinning` only grants the public-CA exemption
-        // while NO pin is recorded, so writing one here re-arms enforcement
-        // against a key we do not hold (#5041).
-        if let expectedSPKIPin {
-            try RemoteCertificatePinning.persistSPKIPin(expectedSPKIPin, hostString: result.apiRoot.absoluteString)
-        } else {
-            RemoteCertificatePinning.clearPersistedSPKIPin(hostString: result.apiRoot.absoluteString)
-        }
-        // Record the token's expiry so renewal can fire before it lapses (#3096).
-        DeviceTokenRenewal.storeExpiry(result.expiresAt, host: result.apiRoot.absoluteString)
-    }
-
-    @MainActor
-    static func persistPairedHost(
-        _ result: PairingExchangeResult,
-        expectedSPKIPin: String?,
-        libraryPath: String?
-    ) throws {
-        try persistHostCredentials(result, expectedSPKIPin: expectedSPKIPin)
-        EngineConfig.storeHost(result.apiRoot.absoluteString)
-        // Reset the failover endpoint set to just this newly paired endpoint
-        // (#3098): a fresh pairing establishes THE paired host, so a previous
-        // Mac's endpoints must not linger and be walked during a later failover.
-        PairedHostEndpointStore.clear()
-        PairedHostEndpointStore.record(result.apiRoot)
-        if let libraryPath = normalizedLibraryPath(libraryPath) {
-            EngineConfig.defaults.set(libraryPath, forKey: RemoteAccessConfig.pairedLibraryPathKey)
-        } else {
-            EngineConfig.defaults.removeObject(forKey: RemoteAccessConfig.pairedLibraryPathKey)
-        }
-    }
-
-    @MainActor
-    static func probeRemoteHealth(at apiRoot: URL, expectedSPKIPin: String? = nil) async throws {
-        let client = try FicheroClient(baseURL: apiRoot, expectedSPKIPin: expectedSPKIPin)
-
-        let response = try await client.api.healthCheckApiHealthGet(.init())
-        switch response {
-        case .ok(let okResponse):
-            let health = try okResponse.body.json
-            guard isAcceptableHealthStatus(health.status) else {
-                throw APIError.badRequest("Remote host health check failed.")
-            }
-            // #5047: a healthy engine we cannot speak to is still unusable. This
-            // probe is remote by definition, so the check always applies here —
-            // unlike the app's own health check, where an embedded engine always
-            // matches its app by construction.
-            if let mismatch = ContractCompatibility.mismatch(engine: health.contract) {
-                throw RemoteClientPairingError.contractMismatch(
-                    headline: mismatch.headline,
-                    detail: mismatch.detail
-                )
-            }
-        default:
-            throw APIError.httpError(statusCode: -1, message: "API returned error status")
-        }
-    }
-
-    @MainActor
-    static func pairAndPersistHost(
-        remoteURL: String,
-        pairCode: String,
-        deviceName: String,
-        expectedSPKIPin: String?,
-        libraryPath: String? = nil,
-        person: PairingPerson? = nil
-    ) async throws -> URL {
-        let result = try await pairDevice(
-            remoteURL: remoteURL,
-            pairCode: pairCode,
-            deviceName: deviceName,
-            expectedSPKIPin: expectedSPKIPin,
-            person: person
-        )
-        let normalizedSPKIPin = try expectedSPKIPin.map(RemoteCertificatePinning.validatedSPKIPin)
-        // #3372: the QR/deep-link carries `libraryPath`, but that value is
-        // attacker-supplied — nothing in the exchange so far proves the Mac
-        // actually shares it with this device. Confirm it against the server's
-        // own accessible-library set (GET /api/authz/libraries) BEFORE persisting
-        // it, so a forged path can never be written to disk. The authenticated
-        // confirm call needs the device token in the Keychain, so persist the
-        // token first; if confirmation fails, clear it — never leave a
-        // half-persisted pairing behind.
-        try PairingService.persistAuthToken(result.deviceToken, for: result.apiRoot)
-        do {
-            try await confirmLibraryAccess(
-                libraryPath: libraryPath,
-                apiRoot: result.apiRoot,
-                expectedSPKIPin: normalizedSPKIPin
-            )
-        } catch {
-            AuthTokenMiddleware.clearRemoteToken(hostString: result.apiRoot.absoluteString)
-            throw error
-        }
-        try persistPairedHost(result, expectedSPKIPin: expectedSPKIPin, libraryPath: libraryPath)
-        return result.apiRoot
     }
 
     /// #3372: verify the paired credential can actually access `libraryPath`
@@ -430,7 +305,7 @@ enum RemoteClientPairing {
         return revoked
     }
 
-    private static func normalizedLibraryPath(_ path: String?) -> String? {
+    static func normalizedLibraryPath(_ path: String?) -> String? {
         let trimmed = path?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !trimmed.isEmpty else { return nil }
         return trimmed

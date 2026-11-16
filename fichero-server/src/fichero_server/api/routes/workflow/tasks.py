@@ -9,6 +9,7 @@ Provides REST endpoints for:
 
 import logging
 from datetime import timedelta
+from fichero_server.api.routes.auth.accounts import _require_owner_or_bootstrap  # an app-wide or whole-library act: the owner's (#6320)
 from fichero_server.core.timeutil import utc_now
 from typing import Any, Optional
 
@@ -146,7 +147,7 @@ def _task_to_response(task: BackgroundTask) -> TaskResponse:
 
 
 @router.post(
-    "/reindex",
+    "/reindex", dependencies=[Depends(_require_owner_or_bootstrap)],
     response_model=TaskResponse,
     summary="Create reindex job",
     description="Creates a background task to reindex all documents in LanceDB.",
@@ -179,7 +180,7 @@ async def create_reindex_task(
 
 
 @router.post(
-    "/metrics",
+    "/metrics", dependencies=[Depends(_require_owner_or_bootstrap)],
     response_model=TaskResponse,
     summary="Trigger metrics recomputation",
     description="Creates a background task to recompute library metrics.",
@@ -544,7 +545,7 @@ class TaskSystemHealthResponse(BaseModel):
 
 
 @router.post(
-    "/reanchor",
+    "/reanchor", dependencies=[Depends(_require_owner_or_bootstrap)],
     response_model=TaskResponse,
     summary="Create frame re-anchor job",
     description=(
@@ -582,7 +583,7 @@ async def create_reanchor_task(
 
 
 @router.post(
-    "/vector-repair",
+    "/vector-repair", dependencies=[Depends(_require_owner_or_bootstrap)],
     response_model=TaskResponse,
     summary="Create vector repair job",
     description="Creates a background task to repair LanceDB vector index consistency.",
@@ -614,7 +615,7 @@ async def create_vector_repair_task(
 
 
 @router.post(
-    "/kg-metrics",
+    "/kg-metrics", dependencies=[Depends(_require_owner_or_bootstrap)],
     response_model=TaskResponse,
     summary="Create knowledge graph metrics job",
     description="Creates a background task to recompute knowledge graph metrics.",

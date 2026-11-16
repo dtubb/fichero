@@ -224,3 +224,37 @@ def test_removing_a_kept_export_leaves_its_files(client, page, tmp_path):
     assert client.get("/api/export/kept").json()["exports"] == []
     assert (folder / "book-p1.md").exists()
     assert client.post(f"/api/export/kept/{export_id}/write").status_code == 404
+
+
+def test_a_rewrite_with_an_unchanged_input_renders_nothing(client, db, page, tmp_path, monkeypatch):
+    """The work "changing" with the same text and names (an exclude, a tag) queues a rewrite, and it renders nothing.
+    WHY (#6417): a Word export re-rendered in a scratch folder on every edit filled the owner's disk."""
+    from fichero_server import kept_export
+
+    folder = tmp_path / "plain2"
+    folder.mkdir()
+    export_id = _keep(client, folder, "markdown", "page")
+    assert _written(client, export_id, ["book-p1.md"])
+    renders = []
+    real = kept_export._render
+    monkeypatch.setattr(kept_export, "_render", lambda *a, **k: renders.append(1) or real(*a, **k))
+    kept_export.write(db, f"{export_id}:{page.id}")
+    assert renders == []
+    (folder / "book-p1.md").unlink()  # the file gone: it is written again
+    kept_export.write(db, f"{export_id}:{page.id}")
+    assert renders == [1] and (folder / "book-p1.md").exists()
+
+
+def test_a_write_on_a_nearly_full_disk_refuses_in_words_and_writes_nothing(client, db, page, tmp_path, monkeypatch):
+    """WHY (#6417): a disk that fills mid-write failed every other job with Errno 28; the export says so and waits."""
+    from fichero_server import kept_export
+
+    folder = tmp_path / "full"
+    folder.mkdir()
+    export_id = _keep(client, folder, "markdown", "page")
+    assert _written(client, export_id, ["book-p1.md"])
+    (folder / "book-p1.md").unlink()
+    monkeypatch.setattr(kept_export.shutil, "disk_usage", lambda _p: SimpleNamespace(free=50 * 1024**2))
+    with pytest.raises(kept_export.KeptExportRefused, match=r"only 0\.0 GB is free"):
+        kept_export.write(db, export_id)
+    assert list(folder.iterdir()) == []

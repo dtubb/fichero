@@ -87,9 +87,7 @@ def _ended_under(db: Any, parent_job_id: str, documents: list[str]) -> str | Non
     """The batch under the step that ended done for these pages: a step run again after its replay failed replays its
     answers, never queuing a second batch (review 3). A row set aside as failed while a batch of it is still open at
     the provider is adopted too (and put back to waiting to follow it): a second batch would bill the pages twice."""
-    for job_id, state, detail in db.execute_fetchall(
-            "SELECT id, state, detail FROM jobs WHERE parent_id = ? AND kind = ? AND state IN ('done', 'failed') "
-            "ORDER BY created_at DESC, rowid DESC", [parent_job_id, KIND]):
+    for job_id, state, detail in jobs.children_of(db, parent_job_id, KIND, ("done", "failed")):
         detail = json.loads(detail or "{}")
         if set(documents) <= set(detail.get("documents") or ()) and (
                 state == "done" or any(b.get("state") == "open" for b in detail.get("batches") or ())):

@@ -23,6 +23,9 @@ from fichero_server.api.library_header import optional_library_path, require_lib
 from fichero_server.api.change_stream import emit_change
 from fichero_server.api.auth import action_context, request_actor
 from fichero_server.api.main import (
+    document_reader,
+    entity_visible,
+    whole_library_reader_only,
     _is_allowed_library_path,
     assert_library_read_authorized,
     db_manager,
@@ -832,7 +835,7 @@ class EntityBulkUpsertResponse(BaseModel):
     id_by_name: dict[str, str]
 
 
-@router.post("/bulk", response_model=EntityBulkUpsertResponse)
+@router.post("/bulk", dependencies=[Depends(whole_library_reader_only)], response_model=EntityBulkUpsertResponse)
 async def bulk_upsert_entities(
     request: EntityBulkUpsertRequest,
     db: Database = Depends(get_library_database_for_write),
@@ -1166,7 +1169,7 @@ def _action_restore_entity(
     return entity.model_dump(mode="json"), spec
 
 
-@router.post("", response_model=KnowledgeEntity)
+@router.post("", dependencies=[Depends(whole_library_reader_only)], response_model=KnowledgeEntity)
 async def upsert_entity(
     request: EntityUpsertRequest,
     db: Database = Depends(get_library_database_for_write),
@@ -1285,6 +1288,11 @@ def list_entities_impl(
     return entities[offset : offset + limit]
 
 
+def entity_reader(request: Request) -> Any:
+    """The caller's per-document read test (None: every page is readable to them)."""
+    return document_reader(request, optional_library_path(request))
+
+
 @router.get("", response_model=EntityListResponse)
 async def list_entities(
     q: Annotated[str | None, Query()] = None,
@@ -1295,6 +1303,7 @@ async def list_entities(
     offset: Annotated[int, Query(ge=0)] = 0,
     run_id: Annotated[str | None, Query(description="Only the entities this run named (its attribution entry)")] = None,
     db: Database = Depends(get_library_database),
+    may_read=Depends(entity_reader),
 ) -> EntityListResponse:
     """List knowledge entities with optional filtering.
 
@@ -1312,6 +1321,7 @@ async def list_entities(
         offset=offset,
         run_id=run_id,
     )
+    items = [e for e in items if entity_visible(may_read, e)]
     return EntityListResponse(items=items, count=len(items))
 
 
@@ -1320,7 +1330,7 @@ async def list_entities(
 # =============================================================================
 
 
-@router.get("/alias-map", response_model=EntityAliasMapResponse)
+@router.get("/alias-map", dependencies=[Depends(whole_library_reader_only)], response_model=EntityAliasMapResponse)
 async def get_entity_alias_map(
     db: Database = Depends(get_library_database),
 ) -> EntityAliasMapResponse:
@@ -1359,7 +1369,7 @@ async def get_entity_alias_map(
     return EntityAliasMapResponse(entries=entries)
 
 
-@router.get("/resolve/{value}", response_model=EntityResolutionResponse)
+@router.get("/resolve/{value}", dependencies=[Depends(whole_library_reader_only)], response_model=EntityResolutionResponse)
 async def resolve_entity(
     value: str,
     db: Database = Depends(get_library_database),
@@ -1406,7 +1416,7 @@ class TopEntityRow(BaseModel):
     claim_count: int
 
 
-@router.get("/top", response_model=TopEntityListResponse)
+@router.get("/top", dependencies=[Depends(whole_library_reader_only)], response_model=TopEntityListResponse)
 async def top_entities(
     entity_type: Annotated[EntityType | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 30,
@@ -1476,7 +1486,7 @@ async def top_entities(
     return TopEntityListResponse(items=out, count=len(out))
 
 
-@router.get("/claim-counts", response_model=ClaimCountsResponse)
+@router.get("/claim-counts", dependencies=[Depends(whole_library_reader_only)], response_model=ClaimCountsResponse)
 async def entity_claim_counts(
     db: Database = Depends(get_library_database),
 ) -> ClaimCountsResponse:
@@ -1513,6 +1523,7 @@ async def entity_claim_counts(
 
 @router.get(
     "/digest",
+    dependencies=[Depends(whole_library_reader_only)],
     response_class=Response,
     include_in_schema=True,
     responses={
@@ -1580,11 +1591,14 @@ def entity_digest(
 async def get_entity(
     entity_id: str,
     db: Database = Depends(get_library_database),
+    may_read=Depends(entity_reader),
 ) -> KnowledgeEntity:
     """Get a knowledge entity by ID."""
     entity = db.get(KnowledgeEntity, entity_id)
     if entity is None:
         raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+    if not entity_visible(may_read, entity):
+        raise HTTPException(status_code=403, detail="You may not read the pages this entity rests on")
     return entity
 
 
@@ -1605,7 +1619,7 @@ class EntityPatchRequest(BaseModel):
     metadata: dict | None = None
 
 
-@router.patch("/{entity_id}", response_model=KnowledgeEntity)
+@router.patch("/{entity_id}", dependencies=[Depends(whole_library_reader_only)], response_model=KnowledgeEntity)
 async def patch_entity(
     entity_id: str,
     request: EntityPatchRequest,
@@ -1663,7 +1677,7 @@ async def patch_entity(
     return KnowledgeEntity.model_validate(result.result)
 
 
-@router.delete("/{entity_id}", status_code=204)
+@router.delete("/{entity_id}", dependencies=[Depends(whole_library_reader_only)], status_code=204)
 async def delete_entity(
     entity_id: str,
     cascade_claims: bool = Query(
@@ -1732,7 +1746,7 @@ class EntityCoOccurrence(BaseModel):
     shared_claims: int
 
 
-@router.get("/{entity_id}/documents", response_model=EntityDocumentListResponse)
+@router.get("/{entity_id}/documents", dependencies=[Depends(whole_library_reader_only)], response_model=EntityDocumentListResponse)
 async def get_entity_documents(
     entity_id: str,
     limit: int = 100,
@@ -1784,7 +1798,7 @@ async def get_entity_documents(
     return EntityDocumentListResponse(items=items, count=len(items))
 
 
-@router.get("/{entity_id}/co-occurrence", response_model=EntityCoOccurrenceListResponse)
+@router.get("/{entity_id}/co-occurrence", dependencies=[Depends(whole_library_reader_only)], response_model=EntityCoOccurrenceListResponse)
 @off_loop
 def get_entity_co_occurrence(
     entity_id: str,
@@ -1871,7 +1885,7 @@ class EntityDrillDownResponse(BaseModel):
     claim_excerpts: list[str]
 
 
-@router.get("/{entity_id}/drill-down", response_model=EntityDrillDownResponse)
+@router.get("/{entity_id}/drill-down", dependencies=[Depends(whole_library_reader_only)], response_model=EntityDrillDownResponse)
 async def entity_drill_down(
     entity_id: str,
     documents_limit: int = 20,
@@ -1910,7 +1924,7 @@ async def entity_drill_down(
     )
 
 
-@router.post("/{entity_id}/aliases", response_model=KnowledgeEntity)
+@router.post("/{entity_id}/aliases", dependencies=[Depends(whole_library_reader_only)], response_model=KnowledgeEntity)
 async def add_entity_aliases(
     entity_id: str,
     request: EntityAliasRequest,
@@ -2108,7 +2122,7 @@ def assemble_entity_biography(
     )
 
 
-@router.get("/{entity_id}/biography", response_model=EntityBiographyResponse)
+@router.get("/{entity_id}/biography", dependencies=[Depends(whole_library_reader_only)], response_model=EntityBiographyResponse)
 async def get_entity_biography(
     entity_id: str,
     claims_limit: int = Query(default=500, ge=1, le=2000),
@@ -2156,6 +2170,7 @@ def _render_entity_export(biography: EntityBiographyResponse, format_type: str) 
 
 @router.get(
     "/{entity_id}/export",
+    dependencies=[Depends(whole_library_reader_only)],
     response_class=Response,
     summary="Download an entity biography",
     responses={
@@ -2241,6 +2256,7 @@ def _action_list_entities(
         limit=params.limit,
         offset=params.offset,
     )
+    items = [e for e in items if entity_visible(ctx.may_read, e)]
     result = {
         "items": [entity.model_dump(mode="json") for entity in items],
         "count": len(items),
@@ -2271,6 +2287,8 @@ def _action_get_entity(
         raise HTTPException(
             status_code=404, detail=f"Entity not found: {params.entity_id}"
         )
+    if not entity_visible(ctx.may_read, entity):
+        raise HTTPException(status_code=403, detail="You may not read the pages this entity rests on")
     return entity.model_dump(mode="json"), ChangeSpec(domains=["entity"])
 
 
@@ -2297,8 +2315,11 @@ def _action_entity_neighborhood(
     # module scope would couple the entity + kg routers' import order.
     from fichero_server.api.routes.kg.graph import neighborhood_impl
 
+    focus = db.get(KnowledgeEntity, params.entity_id)
+    if focus is not None and not entity_visible(ctx.may_read, focus):
+        raise HTTPException(status_code=403, detail="You may not read the pages this entity rests on")
     response = neighborhood_impl(
-        db, params.entity_id, hops=params.hops, limit=params.limit, rank=params.rank
+        db, params.entity_id, hops=params.hops, limit=params.limit, rank=params.rank, may_read=ctx.may_read
     )
     return response.model_dump(mode="json"), ChangeSpec(domains=["entity", "claim"])
 
@@ -2467,7 +2488,7 @@ class PlaceAsOfResponse(BaseModel):
     reason: str | None = None
 
 
-@router.get("/{entity_id}/place", response_model=PlaceAsOfResponse)
+@router.get("/{entity_id}/place", dependencies=[Depends(whole_library_reader_only)], response_model=PlaceAsOfResponse)
 async def place_as_of(
     entity_id: str,
     as_of: str = Query(..., min_length=1, max_length=40, description="A year or ISO 8601 date (astronomical count: -329 is 330 BC)"),
@@ -2540,7 +2561,7 @@ def _action_adopt_boundary(db: Database, params: EntityAdoptBoundaryParams, ctx:
             _entity_spec(entity.id, before=None, after={"entity_id": entity.id, "place_id": place.id}, emit="entity.updated"))
 
 
-@router.get("/{entity_id}/linked-places")
+@router.get("/{entity_id}/linked-places", dependencies=[Depends(whole_library_reader_only)])
 async def place_as_linked_places(
     entity_id: str,
     db: Database = Depends(get_library_database),
@@ -2910,7 +2931,7 @@ def _mention_correction_answer(result: Any) -> MentionCorrectionResponse:
     return MentionCorrectionResponse.model_validate({**result.result, "audit_id": result.audit_id})
 
 
-@router.post("/{entity_id}/mentions/repoint", response_model=MentionCorrectionResponse)
+@router.post("/{entity_id}/mentions/repoint", dependencies=[Depends(whole_library_reader_only)], response_model=MentionCorrectionResponse)
 async def repoint_mention(
     entity_id: str,
     request: MentionRepointRequest,
@@ -2932,7 +2953,7 @@ async def repoint_mention(
     return _mention_correction_answer(result)
 
 
-@router.post("/{entity_id}/mentions/respan", response_model=MentionCorrectionResponse)
+@router.post("/{entity_id}/mentions/respan", dependencies=[Depends(whole_library_reader_only)], response_model=MentionCorrectionResponse)
 async def respan_mention(
     entity_id: str,
     request: MentionRespanRequest,

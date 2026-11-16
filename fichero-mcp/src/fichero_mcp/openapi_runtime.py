@@ -50,6 +50,8 @@ def configure(read: ClientFactory, write: ClientFactory) -> None:
 
 def _detail(exc: FicheroError) -> Any:
     """The engine's ``detail`` from a FicheroError's ``"<METHOD> <path> -> <status>: <body>"``."""
+    if getattr(exc, "refusal", None) is not None and isinstance(getattr(exc, "detail", None), dict):
+        return _with_ways_through(exc.detail)  # a cloud refusal (`fichero_cli.client.CloudRefusedError`): the typed refusal, intact
     text = str(exc)
     marker = f"-> {exc.status_code}: "
     if exc.status_code is None or marker not in text:
@@ -59,7 +61,54 @@ def _detail(exc: FicheroError) -> Any:
         parsed = json.loads(body)
     except ValueError:
         return body
-    return parsed.get("detail", parsed) if isinstance(parsed, dict) else parsed
+    return _with_ways_through(parsed.get("detail", parsed)) if isinstance(parsed, dict) else parsed
+
+
+def _with_ways_through(detail: Any) -> Any:
+    """A cloud refusal's `detail` (`{message, refusal}`) keeps `refusal` intact and its message names the tool's own arguments that
+    go through (`ai.cloud.mcp-refuses-in-words`, #6350): `allow_cloud_once`, `over_cap_once`, and the tools that set the caps and the yes."""
+    if isinstance(detail, dict) and isinstance(detail.get("failure"), dict):
+        return _with_failure_ways(detail)
+    refusal = detail.get("refusal") if isinstance(detail, dict) else None
+    if not isinstance(refusal, dict):
+        return detail
+    kinds = {f.get("kind") for f in refusal.get("fixes") or []}
+    ways = []
+    if "allow-once" in kinds:
+        ways.append("call fichero_workflow_run again with allow_cloud_once=true (this run only, nothing is saved)")
+    if "over-cap-once" in kinds:
+        ways.append("call fichero_workflow_run again with over_cap_once=true (this run only; the spend is still booked)")
+    if "raise-to" in kinds:
+        ways.append("raise the cap with fichero_ai_put_cloud_cap (the app's) or fichero_recipes_change_cloud_cap (the project's)")
+    if "allow-project" in kinds:
+        ways.append("allow cloud for the project with fichero_recipes_allow_cloud")
+    if "allow-everywhere" in kinds:
+        ways.append("allow cloud for every project with fichero_recipes_put_places")
+    message = str(detail.get("message") or refusal.get("words") or "A cloud rule refused this call.")
+    return {**detail, "message": message + (" Ways through: " + "; ".join(ways) + "." if ways else "")}
+
+
+_FAILURE_TOOLS = {
+    "retry": "call fichero_activity_retry_job with this run's id",
+    "resume": "call fichero_activity_retry_job with this run's id",
+    "choose-model": "call fichero_workflow_run again with provider_override and model_override naming another model",
+    "open-settings": "give the provider a new key with fichero_providers_set_api_key, or change it in the app (Settings > AI)",
+    "report-bug": "call fichero_activity_post_job_bug_report with this run's id for a report that leaves out what is private",
+    "reconnect": "reconnect the folder in the app, then run it again",
+}
+
+
+def _with_failure_ways(detail: dict) -> dict:
+    """A failed run's `detail` (`{message, failure}`) keeps `failure` intact and its message names the tool that does each action
+    (`run.fail.mcp-says-the-fix`, #6354); the bug report first for a bug in Fichero."""
+    failure = detail["failure"]
+    actions = list(failure.get("actions") or [])
+    if failure.get("kind") == "unexpected":
+        actions.sort(key=lambda a: a.get("kind") != "report-bug")
+    ways = list(dict.fromkeys(_FAILURE_TOOLS[a["kind"]] for a in actions if a.get("kind") in _FAILURE_TOOLS))
+    message = str(detail.get("message") or failure.get("words") or "The run stopped.")
+    fix = f" Fix: {failure['fix']}" if failure.get("fix") else ""
+    return {**detail, "message": message + fix + (" Ways on: " + "; ".join(ways) + "." if ways else "")}
 
 
 def call(method: str, path: str, *, params: dict | None = None, json: Any = None, files: Any = None) -> Any:

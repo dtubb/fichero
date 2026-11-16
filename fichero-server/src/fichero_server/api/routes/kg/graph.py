@@ -14,12 +14,14 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 
-from fichero_server.api.main import get_library_database
+from fichero_server.api.library_header import optional_library_path
+from fichero_server.api.main import document_reader, entity_visible, get_library_database, whole_library_reader_only
 from fichero_server.db import Database
 from fichero_server.models import KGGraphListResponse
+from fichero_server.models.knowledge import KnowledgeEntity
 from fichero_server.core.off_loop import off_loop
 
 logger = logging.getLogger(__name__)
@@ -37,6 +39,7 @@ class CentralityRow(BaseModel):
 
 @router.get(
     "/centrality",
+    dependencies=[Depends(whole_library_reader_only)],
     response_model=KGGraphListResponse,
     summary="Top-k entities by composite centrality",
     description=(
@@ -81,6 +84,7 @@ class CooccurrenceNeighbour(BaseModel):
 
 @router.get(
     "/cooccurrence/{entity_id}",
+    dependencies=[Depends(whole_library_reader_only)],
     response_model=KGGraphListResponse,
     summary="Co-occurrence neighbours of an entity",
     description=(
@@ -136,6 +140,7 @@ class GraphMetricsResponse(BaseModel):
 
 @router.get(
     "/metrics",
+    dependencies=[Depends(whole_library_reader_only)],
     response_model=GraphMetricsResponse,
     summary="Library-wide KG metrics (counts + averages)",
     description=(
@@ -206,6 +211,7 @@ class TraverseResponse(BaseModel):
 
 @router.get(
     "/traverse/{entity_id}",
+    dependencies=[Depends(whole_library_reader_only)],
     response_model=TraverseResponse,
     summary="BFS traversal — entity neighbourhood",
     description=(
@@ -315,6 +321,7 @@ def traverse(
 
 @router.get(
     "/path",
+    dependencies=[Depends(whole_library_reader_only)],
     response_model=PathResponse,
     summary="Shortest path between two entities",
     description=(
@@ -406,6 +413,7 @@ def neighborhood_impl(
     hops: int = 1,
     limit: int = 50,
     rank: str = "edge_weight",
+    may_read=None,
 ) -> NeighborhoodResponse:
     """Core focus-neighborhood computation shared by the route and the
     ``entity.neighborhood`` action.
@@ -444,6 +452,8 @@ def neighborhood_impl(
 
     # Statements resting only on trashed pages draw no edges (`safety.trash.dependants-go-with-their-source`).
     claims_all = visible_claims(db, db.query(KnowledgeClaim))
+    if may_read is not None:  # a claim on a page the caller may not read draws no edge (#6320)
+        claims_all = [c for c in claims_all if not c.source_document_id or may_read(c.source_document_id)]
     candidate_edges: list[NeighborhoodEdge] = []
     candidate_neighbor_ids: dict[str, int] = {}  # entity_id → hop
     frontier: set[str] = {entity_id}
@@ -625,6 +635,7 @@ def neighborhood_impl(
     ),
 )
 async def neighborhood(
+    request: Request,
     entity_id: str,
     hops: int = Query(default=1, ge=1, le=3),
     limit: int = Query(default=50, ge=1, le=500),
@@ -640,7 +651,11 @@ async def neighborhood(
     ),
     db: Database = Depends(get_library_database),
 ) -> NeighborhoodResponse:
-    return neighborhood_impl(db, entity_id, hops=hops, limit=limit, rank=rank)
+    may_read = document_reader(request, optional_library_path(request))
+    focus = db.get(KnowledgeEntity, entity_id)
+    if focus is not None and not entity_visible(may_read, focus):
+        raise HTTPException(403, "You may not read the pages this entity rests on")
+    return neighborhood_impl(db, entity_id, hops=hops, limit=limit, rank=rank, may_read=may_read)
 
 
 # ---------------------------------------------------------------------------
@@ -659,6 +674,7 @@ class PageRankRow(BaseModel):
 
 @router.get(
     "/pagerank",
+    dependencies=[Depends(whole_library_reader_only)],
     response_model=KGGraphListResponse,
     summary="Top-k entities by PageRank",
     description=(
@@ -717,6 +733,7 @@ class CommunityRow(BaseModel):
 
 @router.get(
     "/communities",
+    dependencies=[Depends(whole_library_reader_only)],
     response_model=KGGraphListResponse,
     summary="Cluster entities into communities (Louvain / label propagation)",
     description=(
@@ -779,6 +796,7 @@ class SimilarEntityRow(BaseModel):
 
 @router.get(
     "/similar/{entity_id}",
+    dependencies=[Depends(whole_library_reader_only)],
     response_model=KGGraphListResponse,
     summary="Structurally-similar entities (Jaccard / Adamic-Adar / preferential attachment)",
     description=(
@@ -851,6 +869,7 @@ class ComponentRow(BaseModel):
 
 @router.get(
     "/components",
+    dependencies=[Depends(whole_library_reader_only)],
     response_model=KGGraphListResponse,
     summary="Connected components of the entity graph",
     description=(
@@ -888,6 +907,7 @@ class TriangleRow(BaseModel):
 
 @router.get(
     "/triangles/{entity_id}",
+    dependencies=[Depends(whole_library_reader_only)],
     response_model=TriangleRow,
     summary="Triangle count for an entity",
     description=(
@@ -931,6 +951,7 @@ class ClusteringRow(BaseModel):
 
 @router.get(
     "/clustering",
+    dependencies=[Depends(whole_library_reader_only)],
     response_model=KGGraphListResponse,
     summary="Clustering coefficient per entity",
     description=(

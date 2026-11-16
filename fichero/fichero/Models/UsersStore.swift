@@ -27,6 +27,10 @@ final class UsersStore {
     /// Pending (unredeemed, unexpired) account invites, owner-only (#3157).
     private(set) var invites: [Components.Schemas.InviteResponse] = []
 
+    /// Every person's access across every known library (`GET /api/authz/access-matrix`, owner-only; #2083). Nil until
+    /// read, and after a non-owner's refusal.
+    private(set) var accessMatrix: Components.Schemas.AccessMatrixResponse?
+
     private let client: FicheroClient
     private let log = Logger(subsystem: "app.fichero.fichero", category: "UsersStore")
 
@@ -71,6 +75,22 @@ final class UsersStore {
         }
     }
 
+    /// Read the access matrix. A refusal (the caller is not an owner) leaves it nil: the screen then shows nothing, not an error.
+    func loadAccessMatrix() async {
+        do {
+            let response = try await client.api.accessMatrixApiAuthzAccessMatrixGet(.init())
+            if case .ok(let okResponse) = response {
+                accessMatrix = try okResponse.body.json
+            } else {
+                accessMatrix = nil
+            }
+        } catch {
+            if error.isCancellationError { return }
+            accessMatrix = nil
+            log.error("Failed to load the access matrix: \(error.localizedDescription)")
+        }
+    }
+
     /// Create an account (owner-only on the engine). Reloads the list on success.
     /// Throws `UsersStoreError` with the engine's message on 4xx so the caller
     /// can surface it (e.g. 409 "username already exists").
@@ -107,6 +127,19 @@ final class UsersStore {
             throw Self.error(from: response)
         }
         await reload()
+    }
+
+    /// The owner of this Mac chooses their password (`sharing.multiuser-off-says-so`: before Multi-user can be turned on),
+    /// through the local-only `POST /api/auth/owner-password` (#6565): it needs neither the owner's list of people (refused
+    /// while Multi-user is off) nor a key session. A refusal keeps the engine's status and words for `AccountsOnSequence`.
+    func setOwnerPassword(_ password: String) async throws {
+        let response = try await client.api.setOwnerPasswordApiAuthOwnerPasswordPost(body: .json(.init(password: password)))
+        guard case .ok = response else {
+            if case .undocumented(let status, let payload) = response {
+                throw AccountsOnSequence.Refusal(status: status, detail: await EngineErrorDetail.message(from: payload))
+            }
+            throw AccountsOnSequence.Refusal(status: 422, detail: nil)
+        }
     }
 
     // MARK: - Invites (#3157)
@@ -162,8 +195,9 @@ final class UsersStore {
         await load()
     }
 
+    /// Every route here is gated by Multi-user, so a 404 means accounts are off (`sharing.undocumented-never-reaches-the-person`).
     private static func error(from response: some Sendable) -> UsersStoreError {
-        UsersStoreError(message: "\(response)")
+        UsersStoreError(message: PersonFacingError.message(forResponse: response, context: .init(accountsOff: true)))
     }
 }
 

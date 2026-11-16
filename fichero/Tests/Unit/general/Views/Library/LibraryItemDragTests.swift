@@ -30,7 +30,8 @@ final class LibraryItemDragTests: XCTestCase {
             ("Views/Inspector/Artifacts/ArtifactListView.swift", ".draggable(LibraryItemDrag("),
             ("Views/Inspector/Notes/Annotations/AnnotationListView.swift", ".draggable(LibraryItemDrag("),
             ("Views/Library/Notes/NoteListView.swift", ".draggable(LibraryItemDrag("),
-            ("Views/Library/ViewModes/Table/LibraryView+TableColumns.swift", ".draggable(libraryItemDrag(for: page))")
+            // Table rows drag as ROWS, never from a cell (#6538): `LibraryOutlineRowDragTests`.
+            ("Views/Library/ViewModes/Table/LibraryOutlineRowDrag.swift", "forDocument(page, libraryId: libraryId)")
         ]
 
         for (path, marker) in surfaces {

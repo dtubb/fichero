@@ -312,10 +312,11 @@ class TestDeferredEmbedding:
 
         monkeypatch.setattr(type(db), "embed", exploding_embed)
 
+        # The import's inline pass records the error and goes on (the embed JOB is the loud one, owner 2026-11-13).
         generate_derivative(doc.id, test_package)
 
         refreshed = db.get(Document, doc.id)
-        assert refreshed.status == Status.completed
+        assert refreshed.status == Status.completed, "the page is not stranded pending"
         assert "embeds failed" in refreshed.metadata["embedding_error"]
 
     def test_the_upload_import_path_defers_embedding_and_queues_the_stage(

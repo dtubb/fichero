@@ -226,6 +226,25 @@ def _artifact_and_box(
     return artifact(pass_row.source_artifact_id), box_index
 
 
+def without_provisional_twins(items: list[ReadingRead]) -> list[ReadingRead]:
+    """One listing per reading (`source.recipe.one-reading-a-line`, #6085): a provisional reading whose
+    stored twin (same artifact, kind and content, not taken back) is also listed says the line twice, so
+    it is dropped here and every client gets one row. The twin has the stored reading's words but not its
+    date (the artifact's, not the row's), so what counts CAN change: where the twin was the newest machine
+    reading, the counted words are now the next reading's, because the stored reading is the one ranked
+    (#5558; `test_6085_one_listing.py`). A counting twin is no longer kept. A choice only ever names a
+    stored reading.
+    """
+    stored = {
+        (i.derived_from_artifact_id, i.kind, i.content)
+        for i in items
+        if not i.provisional and not i.retracted and i.derived_from_artifact_id is not None
+    }
+    if not stored:
+        return items
+    return [i for i in items if not (i.provisional and (i.derived_from_artifact_id, i.kind, i.content) in stored)]
+
+
 def provisional_readings(
     db: Database,
     segment_id: str,
@@ -336,9 +355,16 @@ def _reading_read_from_row(row: ContentRepresentation) -> ReadingRead:
 
 
 def readings_of_segment(
-    db: Database, segment_id: str, *, artifact_memo: dict[str, Artifact | None] | None = None
+    db: Database, segment_id: str, *, artifact_memo: dict[str, Artifact | None] | None = None,
+    with_provisional_twins: bool = False,
 ) -> list[ReadingRead]:
     """Every reading of one segment, from BOTH stores.
+
+    One listing per reading (#6085): a provisional reading whose stored twin is also listed is dropped
+    (`without_provisional_twins`). `with_provisional_twins=True` keeps it, for a caller that looks a
+    reading up by id: a verdict recorded on the line's reading before conversion is keyed by the
+    provisional id, which conversion does not carry over, and a new editorial span may still name that
+    id (it is accepted and kept, though not drawn).
 
     A real segment is resolved first (`resolve_segment`), so a reading written
     against an id that has since been merged away is still found under the
@@ -361,7 +387,7 @@ def readings_of_segment(
         seen.add(row.id)
         items.append(_reading_read_from_row(row))
     items.extend(provisional_readings(db, live_id, artifact_memo=artifact_memo))
-    return items
+    return items if with_provisional_twins else without_provisional_twins(items)
 
 
 def _document_readings(db: Database, document_id: str) -> list[ContentRepresentation]:
@@ -409,15 +435,20 @@ def counting_texts(db: Database, rows: list[Segment], kind: str = "transcription
     return {segment_id: reading.content for segment_id, reading in counting_readings(db, rows, kind).items()}
 
 
-def counting_readings(db: Database, rows: list[Segment], kind: str = "transcription") -> dict[str, ReadingRead]:
-    """Each row's COUNTING reading of `kind`, by segment id, for a list of rows at once (#5139).
+def counting_answers(
+    db: Database, rows: list[Segment], kind: str = "transcription",
+) -> dict[str, tuple[ReadingRead, CountingAnswer | None]]:
+    """Each row's COUNTING reading AND why it counts, for a row with any reading of `kind` (#6451). Where NONE counts the answer is
+    None and the reading is the newest person's (else the newest), so a label can name it ("N readings, none chosen").
+
+    `counting_readings` is this, narrowed to the rows where one counts. By segment id, for a list of rows at once (#5139).
 
     What a segment list hands back as `text`: the same answer the page's text uses for that
     segment (`counting_by_kind`, the project's rule, a person's choice), so a list row and the
     page can never disagree. ONE readings query and one choices query for the whole list, by
     segment id (indexed) -- not a request per segment, which is what a caller had to do before,
     and not a whole document's readings for one page of a library listing. A row with no
-    reading of `kind`, or none that counts, is absent.
+    reading of `kind` is absent.
     """
     ids = [row.id for row in rows]
     if not ids:
@@ -432,7 +463,7 @@ def counting_readings(db: Database, rows: list[Segment], kind: str = "transcript
     choices: dict[str, list[ReadingChoice]] = {}
     for choice in db.query_in(ReadingChoice, "segment_id", list(by_segment)):
         choices.setdefault(choice.segment_id, []).append(choice)
-    texts: dict[str, ReadingRead] = {}
+    texts: dict[str, tuple[ReadingRead, CountingAnswer | None]] = {}
     retired_memo: dict[tuple[str, str], set[str]] = {}   # a line's words worked out once (#5190)
     pass_of = {row.id: row.pass_id for row in rows}
     marked = ground_truth_pass_ids(db, pass_of.values())
@@ -443,8 +474,18 @@ def counting_readings(db: Database, rows: list[Segment], kind: str = "transcript
             retired_memo=retired_memo, on_ground_truth=pass_of.get(segment_id) in marked, measures=measures,
         )
         if counted is not None and counted.representation_id is not None:
-            texts[segment_id] = next(i for i in items if i.id == counted.representation_id)
+            texts[segment_id] = (next(i for i in items if i.id == counted.representation_id), counted)
+        else:
+            people = [i for i in items if i.provenance_kind == ProvenanceKind.human]
+            texts[segment_id] = (max(people or items, key=lambda i: (i.created_at, i.id)), None)
     return texts
+
+
+def counting_readings(db: Database, rows: list[Segment], kind: str = "transcription") -> dict[str, ReadingRead]:
+    """Each row's COUNTING reading of `kind` (see `counting_answers`); a row where none counts is absent."""
+    return {
+        segment_id: reading for segment_id, (reading, answer) in counting_answers(db, rows, kind).items() if answer is not None
+    }
 
 
 def _readings_for_live_rows(
@@ -493,6 +534,7 @@ def _readings_for_live_rows(
                 located=(artifact(pass_row.source_artifact_id), box_index),
             )
         )
+        by_segment[row.id] = without_provisional_twins(by_segment[row.id])
     return by_segment
 
 
@@ -501,9 +543,9 @@ class ReadingMeasures:
     a person checked it, and its reader's measured CER on this project. A caller counting a whole page
     hands one in, so the verdicts are read once and each reader's card once, not once per line.
 
-    * **Checked.** The reading's own newest verdict (`check.verdict`) is a person's confirm; or it was made
+    * **Checked.** The reading's own standing verdict (`check.verdict`; a person's outranks a model's, then the newest) is a person's confirm; or it was made
       from a page reading (`derived_from_artifact_id`, the tie) a person confirmed (their newest verdict on
-      it) or marked reviewed, and its own newest verdict is not a reject (a doubtful tied stretch stays
+      it) or marked reviewed, and its own standing verdict is not a reject (a doubtful tied stretch stays
       doubtful).
     * **Measured.** The reader is the page result it was read in (`derived_from_artifact_id`: its provider
       and model), its CER the newest evaluation on that model's card scored on this project's pages
@@ -518,12 +560,14 @@ class ReadingMeasures:
         self._scores: dict[tuple[str, str], float | None] = {}
 
     def _newest_verdicts(self) -> dict[str, Any]:
-        """The newest reading verdict per target, and the newest a PERSON gave (keyed `person:<id>`)."""
+        """The standing reading verdict per target (a person's over a model's, `checking.verdicts.standing`), and the
+        newest a PERSON gave (keyed `person:<id>`)."""
         if self._verdicts is None:
+            from fichero_server.checking.verdicts import standing
             from fichero_server.models.checking import CheckVerdict
 
             newest: dict[str, Any] = {}
-            for v in sorted(self.db.query(CheckVerdict, layer="readings"), key=lambda v: (v.created_at, v.id)):
+            for v in sorted(self.db.query(CheckVerdict, layer="readings"), key=standing):
                 newest[v.target_id] = v
                 if v.trust == "person":
                     newest[f"person:{v.target_id}"] = v
@@ -895,6 +939,7 @@ async def list_segment_readings(
                   else counting.get(kind))
         items = [item for item in items if matches_kind_filter(item, kind)]
         counting = {kind: answer} if answer is not None else {}
+    items = sorted(items, key=lambda item: item.created_at, reverse=True)  # newest first (`source.editor.content-listed-newest-first-in-the-pane`)
     return ReadingListResponse(items=items, count=len(items), counting=counting)
 
 
@@ -939,6 +984,9 @@ class LineCorrectionBody(BaseModel):
     expected_counting_id: Optional[str] = Field(None, description=(
         "The reading that counted when you read the line. When another counts now, the correction is "
         "refused (409, naming it) and nothing is written. Unset: the one that counts now."))
+    corrects_representation_id: Optional[str] = Field(None, description=(
+        "The reading of this line to correct, at ITS level and kind (a compared reading, `source.editor."
+        "compare-two-to-four-readings-with-the-line-picture-and-edit-in-line`). Unset: the one that counts now."))
 
 
 @router.post("/{segment_id}/correct", response_model=ContentRepresentation)
@@ -961,16 +1009,25 @@ async def correct_segment_line(
         segment = _live_segment(db, segment_id)  # a provisional id refused, a merged-away one followed
         segment_id = segment.id
         items = readings_of_segment(db, segment_id)
-        current = counting_by_kind(db, segment_id, items).get(payload.kind)
+        kind, level = payload.kind, None
+        chosen = None
+        if payload.corrects_representation_id is not None:
+            chosen = next((item for item in items if item.id == payload.corrects_representation_id), None)
+            if chosen is None:
+                raise HTTPException(status_code=404, detail="That reading is not a reading of this line.")
+            kind, level = chosen.kind, chosen.level
+        current = counting_by_kind_and_level(db, segment_id, items).get((kind, counting_level(level)))
         counting_id = current.representation_id if current is not None else None
-        counted = next((item for item in items if item.id == counting_id), None)
+        counted = chosen or next((item for item in items if item.id == counting_id), None)
         params: dict[str, Any] = {
             "document_id": segment.document_id,
             "segment_id": segment_id,
-            "kind": payload.kind,
+            "kind": kind,
             "content": payload.text,
             "expected_counting_id": payload.expected_counting_id or counting_id,
         }
+        if level is not None:
+            params["level"] = level
         if counted is not None and counted.provisional:
             params["derived_from_artifact_id"] = counted.derived_from_artifact_id
         elif counted is not None:
@@ -1593,7 +1650,12 @@ def _why_omitted(
 #:     with no markup gains only the stamp, and is not re-embedded).
 #: 16: a pass of words never takes the page from a pass of read lines (#5648); that changed which text a page
 #:     comes out as and shipped without a bump, so pages cached before it re-derive once (#5778).
-DERIVATION_VERSION = 16
+#: 17: a provisional reading whose stored twin is also listed is no longer listed (#6085), so where the twin
+#:     was the newest machine reading the counted words are the next reading's; the bump re-derives every page once.
+#: 18: a person's check verdict on a machine reading outranks a model's whatever the order (#6327), and `checked`
+#:     (which ranks machine readings, 13) reads the standing verdict, so where a model's later verdict used to
+#:     decide `checked` the counted reading can differ; the bump re-derives every page once.
+DERIVATION_VERSION = 18
 #: sha256 of the derivation's source (`derivation_source_digest`), pinned beside the version so a
 #: change to the code without a bump fails `test_derivation_version.py`.
 #: Re-pinned without a bump for #5467: the working pass is read through `working_pass`; a page
@@ -1601,7 +1663,7 @@ DERIVATION_VERSION = 16
 #: unconverted result derives nothing the cache stores (`page_text_cache._derives_text`).
 #: Re-pinned without a bump for #5522: a pass whose result the read checker flagged waits to be
 #: chosen. No result carried a flag before #5522, so no cached page's text changes.
-DERIVATION_SOURCE_SHA256 = "f369f5f01ead3bda96ed177ddc05557f13d55ed31a2a72b88dbd5695f80f21cb"
+DERIVATION_SOURCE_SHA256 = "642f7411a9a80925fa20a20a82135a3a4c9c737baab723dee0b6ca0297b791be"
 
 
 def derivation_source_digest() -> str:

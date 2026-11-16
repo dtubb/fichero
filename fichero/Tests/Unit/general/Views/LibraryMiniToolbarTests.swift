@@ -62,7 +62,9 @@ struct LibraryMiniToolbarTests {
         let mini = try Self.appSource("Views/Library/LibraryView+MiniToolbar.swift")
         #expect(mini.contains("var libraryMiniToolbar"))
         #expect(mini.contains("var librarySortMenu"))
-        #expect(mini.contains("var libraryFilterToggleButton"))
+        // One inline Filter field, not a toggle revealing a row (`panes.chrome.one-filter-pattern`, owner 2026-11-13).
+        #expect(mini.contains("PaneFilterField("))
+        #expect(!mini.contains("var libraryFilterToggleButton"))
         #expect(
             !mini.contains("librarySearchField"),
             "a second search field in the mini toolbar would compete with the #4604 resident one"
@@ -140,15 +142,10 @@ struct LibraryMiniToolbarTests {
         try #require(pieces.count > 1, "bottomInsetContent declaration not found")
         let body = pieces[1]
             .components(separatedBy: "\n    }")[0]
-        // ONE persistent row since 2026-08-23: the transient ⌘F reveal sits
-        // above the action bar, which hosts the whole cluster.
-        let filter = body.range(of: "filterBarView")
-        let bar = body.range(of: "libraryBottomActionBar")
-        #expect(filter != nil)
-        #expect(bar != nil)
-        if let filter, let bar {
-            #expect(filter.lowerBound < bar.lowerBound, "the reveal sits above the one bar")
-        }
+        // ONE row (owner 2026-11-13, `panes.chrome.one-filter-pattern`): the filter is the bar's inline field;
+        // no second row is revealed above it.
+        #expect(body.range(of: "filterBarView") == nil)
+        #expect(body.range(of: "libraryBottomActionBar") != nil)
     }
 
     /// ANSWERED 2026-08-23 (supersedes the #4424 deferral): bottom, for every
@@ -188,9 +185,10 @@ struct LibraryMiniToolbarTests {
         let inspector = try Self.appSource(
             "Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"
         )
-        #expect(inspector.contains("DefaultToolbarItem(kind: .search"))
         #expect(inspector.contains("nativeToolbarSearch(detailView)"))
+        // The native search item moved to the window toolbar with the iPad's bars (81c6d74, #6561).
         let toolbar = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
+        #expect(toolbar.contains("DefaultToolbarItem(kind: .search"))
         #expect(!toolbar.contains(".searchable("))
         for source in [toolbar, inspector] {
             #expect(

@@ -58,17 +58,55 @@ def _run(args: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(args, capture_output=True, check=True, text=True, timeout=20)
 
 
-def detected_tailnet_url(cli: str | None = None, *, run=None) -> str:
+def _ts_net_origin(host: str) -> str:
+    host = host.strip().rstrip(".").lower()
+    return f"https://{host}" if host.endswith(".ts.net") and not host.startswith("*") else ""
+
+
+def known_tailnet_url(env: Mapping[str, str] | None = None, *, cert_names=None, storage_dirs=None) -> str:
+    """This Mac's tailnet origin as the engine already knows it, without asking Tailscale (`sharing.tailnet-name-known-
+    without-the-cli`, #6554): the `.ts.net` sharing address, else a `.ts.net` name the serving certificate carries, else a
+    Remote Access folder named for one (`<host>-<port>-<hash>`). "" when none. ``cert_names``/``storage_dirs`` stand in
+    for the certificate and the folder listing in tests. Never raises."""
+    source = env if env is not None else os.environ
+    explicit = tailnet_url(source)
+    if explicit:
+        return _ts_net_origin(urlparse(explicit).hostname or "") or explicit
+    certfile = (source.get("FICHERO_TLS_CERTFILE") or "").strip()
+    if cert_names is None:
+        from fichero_server.security.sharing_report import _certificate_names  # lazy: reads the certificate
+
+        cert_names = _certificate_names() if certfile else []
+    for name in cert_names:
+        if origin := _ts_net_origin(name):
+            return origin
+    if storage_dirs is None:
+        try:
+            storage_dirs = sorted(p.name for p in os.scandir(os.path.dirname(os.path.dirname(certfile))) if p.is_dir()) \
+                if certfile else []
+        except OSError:
+            storage_dirs = []
+    for folder in storage_dirs:
+        if origin := _ts_net_origin(folder.rsplit("-", 2)[0] if folder.count("-") >= 2 else ""):
+            return origin
+    return ""
+
+
+def detected_tailnet_url(cli: str | None = None, *, run=None, known=None) -> str:
     """The https address of this Mac on the tailnet (``https://<host>.<tailnet>.ts.net``), or "" when
     Tailscale is missing, stopped or not logged in. For the share sheet to offer instead of a typed
-    address (#5318). Never raises."""
+    address (#5318). A Tailscale that cannot be asked (the sandboxed engine runs the CLI and reads no JSON, #6554) is not
+    a stopped one: the name the engine already knows is offered (`known_tailnet_url`; ``known`` stands in for it in
+    tests). Never raises."""
     cli = cli or tailscale_cli()
     if cli is None:
         return ""
     try:
         status = json.loads((run or _run)([cli, "status", "--json"]).stdout or "{}")
     except (OSError, ValueError, subprocess.SubprocessError):
-        return ""
+        status = {}
+    if not status.get("BackendState"):
+        return known_tailnet_url() if known is None else known
     if status.get("BackendState") != "Running":
         return ""
     name = str((status.get("Self") or {}).get("DNSName") or "").rstrip(".").lower()
@@ -128,6 +166,60 @@ def ensure_forward(port: int, cli: str) -> bool:
     return True
 
 
+def sharing_on(env: Mapping[str, str] | None = None) -> bool:
+    """Whether this engine is SHARING: the one predicate the tailnet forward is gated on (review 2026-10-31, H).
+
+    A certificate alone is not sharing: `start_fichero_server.sh` always makes a loopback certificate, and the app
+    always sets FICHERO_TLS_CERTFILE and FICHERO_UDS_PATH. Sharing is: the app hosting (FICHERO_TCP_TLS_ALSO=1, set
+    only while Sharing is on; or FICHERO_LAN_HOST), a non-loopback sharing address, or a tailnet address asked for."""
+    source = env if env is not None else os.environ
+    if (source.get("FICHERO_TCP_TLS_ALSO") or "").strip() == "1" or (source.get("FICHERO_LAN_HOST") or "").strip():
+        return True
+    if tailnet_url(source):
+        return True
+    host = (urlparse((source.get("FICHERO_PUBLIC_BASE_URL") or "").strip()).hostname or "").lower()
+    return bool(host) and host not in ("127.0.0.1", "localhost", "::1")
+
+
+def forward_state(port: int) -> str:
+    """What holds the tailnet ``port`` now, for `GET /api/pair/sharing` (`sharing.state-names-every-address`):
+    "ours" (this engine's loopback TLS listener), "foreign" (something Fichero did not make), "none" (free, Tailscale not
+    installed, or this engine is not sharing: then Tailscale is not even asked), "unknown" (Tailscale is installed but
+    this engine could not ask it: a sandboxed build cannot run the CLI (#5317), it timed out, or it printed no JSON; the
+    pane must not read this as "not running", review 2026-10-31 H4). Never raises."""
+    if not sharing_on():
+        return "none"
+    cli = tailscale_cli()
+    if cli is None:
+        return "none"
+    try:
+        current = forward_target(serve_status(cli), port)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return "unknown"
+    if current is None:
+        return "none"
+    return "ours" if current == wanted_target(port) else "foreign"
+
+
+def forward_conflict(port: int) -> dict[str, str] | None:
+    """A forward Fichero did not make on the tailnet ``port`` (`sharing.stale-forward-says-so`): what it goes to and the one
+    command that frees it, else None. The raw forward earlier engines made to this listener is replaced, so no conflict.
+    Not sharing, no Tailscale, or Tailscale not answering: None (`forward_state` says "unknown" for that). Never raises."""
+    if not sharing_on():
+        return None
+    cli = tailscale_cli()
+    if cli is None:
+        return None
+    try:
+        current = forward_target(serve_status(cli), port)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+    if current is None or current in (wanted_target(port), f"tcp://127.0.0.1:{port}"):
+        return None
+    kind = "--tcp" if current.startswith("tcp://") else "--https"
+    return {"holds": current, "free_with": f"{os.path.basename(cli) if cli != APP_BUNDLE_CLI else 'tailscale'} serve {kind}={port} off"}
+
+
 def remove_forward(port: int, cli: str) -> None:
     _run([cli, "serve", f"--https={port}", "off"])
 
@@ -140,16 +232,26 @@ def start_for_engine(env: Mapping[str, str] | None = None, *, log) -> tuple[str,
     (and the remote-backend status reports the forward missing), not a failed launch.
     """
     source = env if env is not None else os.environ
-    # Any engine with a TLS listener: the app's (FICHERO_TCP_TLS_ALSO sets the certificate too)
-    # and start_fichero_server.sh's, which never set that flag and so never forwarded (#5320).
-    if not tailnet_url(source) or not (source.get("FICHERO_TLS_CERTFILE") or "").strip():
+    # Any SHARING engine with a TLS listener: the app's (FICHERO_TCP_TLS_ALSO sets the certificate too) and
+    # start_fichero_server.sh's with a sharing address (#5320). A certificate alone is not sharing: an engine nobody
+    # shared is never published on the tailnet, and Tailscale is not even asked (review 2026-10-31, H).
+    if not (source.get("FICHERO_TLS_CERTFILE") or "").strip() or not sharing_on(source):
+        return None
+    cli = tailscale_cli()
+    # A `.ts.net` sharing address (or FICHERO_TAILNET_URL) asks for the forward outright; otherwise a Mac that
+    # shares at `.local` still gets one whenever Tailscale is running, so the Tailscale address works too
+    # (`sharing.tailnet-forward-whenever-tailscale-is-up`: on a campus network it was the only one that did).
+    asked = bool(tailnet_url(source))
+    if not asked and not (cli and detected_tailnet_url(cli)):
+        # Said, never silent (t55: no line at all left the owner's missing forward unexplained).
+        log.info("Sharing over Tailscale: no forward: %s", "Tailscale is not installed" if cli is None else
+                 "Tailscale did not answer (not running, or this engine cannot run its command)")
         return None
     # A socket-only engine binds no TCP port: forwarding to it would hand every guest a 502 (#5752).
     if (source.get("FICHERO_UDS_PATH") or "").strip() and source.get("FICHERO_TCP_TLS_ALSO") != "1":
         log.warning("Sharing over Tailscale: this engine listens on a socket only, so nothing is forwarded")
         return None
     port = listen_port(source)
-    cli = tailscale_cli()
     if cli is None:
         log.warning("Sharing over Tailscale, but Tailscale is not installed: nothing forwards port %d", port)
         return None

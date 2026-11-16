@@ -27,6 +27,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from fichero_server.api.routes.document.trash_storage import plan_trash_storage, remove_planned_files
 from fichero_server.models import ActionAudit, DocType, Document
 
 FromFolderState = Literal["top", "live", "in-trash", "gone"]
@@ -90,22 +91,43 @@ class EmptyTrashPreview(BaseModel):
     documents: int = Field(description="Every document, page and folder that will be removed")
     statements: int = Field(description="Statements that rest on them and go with them")
     moved: list[MovedGroup] = Field(default_factory=list)
+    notes: int = Field(default=0, description="Notes whose every linked document is in the Trash; they go with it")
+    stored_files: int = Field(
+        default=0, description="The library's own stored files (copied-in originals, derived images) that will be removed"
+    )
+    stored_bytes: int = Field(default=0, description="Their total size in bytes")
+    detail: str = Field(default="", description="What else goes, in words with the counts; empty when nothing else does")
     sentence: str = Field(description="The question to ask before emptying")
 
 
 class EmptyTrashResult(EmptyTrashPreview):
     deleted_document_ids: list[str] = Field(default_factory=list)
     entities_pruned: int = 0
+    files_removed: int = 0
+    bytes_freed: int = 0
+    notes_removed: int = 0
 
 
 # ---------------------------------------------------------------------------
 # reading the Trash
 
 
-def _all_documents(db: Any) -> dict[str, Document]:
-    from fichero_server.api.routes.document.documents import _list_documents_raw
+#: What the Trash needs of a row to place a deleted item: the tree and the deletion, never the page's text or its line
+#: boxes. The Air read all 69k documents whole on every Trash poll (2 s of event loop, and the first query to fail at
+#: the 256 MiB cap, 2026-10-30).
+_TRASH_FIELDS = ("id", "parent_id", "name", "doc_type", "deleted_at", "deleted_by")
 
-    return {doc.id: doc for doc in _list_documents_raw(db)}
+
+def _trash_and_its_folders(db: Any) -> dict[str, Any]:
+    """The deleted rows and every folder above them (`_TRASH_FIELDS`), by id: all that finding the tops and saying where
+    they came from walks, so a poll costs the size of the Trash and not of the library."""
+    by_id = {row.id: row for row in db.query_fields(Document, _TRASH_FIELDS, not_null=("deleted_at",))}
+    above = {row.parent_id for row in by_id.values() if row.parent_id} - by_id.keys()
+    while above:
+        found = db.query_fields_in(Document, _TRASH_FIELDS, "id", above)
+        by_id.update((row.id, row) for row in found)
+        above = {row.parent_id for row in found if row.parent_id} - by_id.keys()
+    return by_id
 
 
 def _is_top_level(doc: Document, by_id: dict[str, Document]) -> bool:
@@ -124,8 +146,8 @@ def _top_level_of(doc: Document, by_id: dict[str, Document]) -> Document:
 
 
 def trashed_items(db: Any) -> tuple[list[Document], dict[str, int], dict[str, Document]]:
-    """The Trash's top-level documents (newest first), how many each carries, and every row."""
-    by_id = _all_documents(db)
+    """The Trash's top-level documents (newest first), how many each carries, and the rows walked."""
+    by_id = _trash_and_its_folders(db)
     trashed = [doc for doc in by_id.values() if doc.deleted_at is not None]
     tops: dict[str, Document] = {}
     counts: dict[str, int] = {}
@@ -236,6 +258,8 @@ def trash_listing(
     tops, counts, by_id = trashed_items(db)
     tops, withheld = keep_readable(tops)
     page = tops[offset : offset + limit] if limit is not None else tops[offset:]
+    whole = {doc.id: doc for doc in db.query_in_committed(Document, "id", [doc.id for doc in page])}
+    page = [whole[doc.id] for doc in page if doc.id in whole]  # the page's rows whole: the item carries its document
     reasons = moved_reasons(db, [doc.id for doc in page])
     taken = taken_back_reasons(db, [doc.id for doc in page])
     items = []
@@ -365,23 +389,54 @@ def empty_preview(db: Any) -> EmptyTrashPreview:
         if n == 0
         else f"Delete {n} {'item' if n == 1 else 'items'} for good? This cannot be undone."
     )
+    plan = plan_trash_storage(db)
     return EmptyTrashPreview(
-        items=n, documents=len(all_ids), statements=statements, moved=moved, sentence=sentence
+        items=n, documents=len(all_ids), statements=statements, moved=moved, sentence=sentence,
+        notes=len(plan.note_ids), stored_files=len(plan.files), stored_bytes=plan.bytes,
+        detail=_detail_sentence(len(plan.note_ids), len(plan.files), plan.bytes),
     )
+
+
+def _size_words(size: int) -> str:
+    for unit, step in (("GB", 1 << 30), ("MB", 1 << 20), ("KB", 1 << 10)):
+        if size >= step:
+            return f"{size / step:.1f} {unit}"
+    return f"{size} bytes"
+
+
+def _detail_sentence(notes: int, files: int, size: int) -> str:
+    """"It also removes 3 stored files (4.2 MB) and 2 notes.": what else goes with the items, in counts; empty when nothing."""
+    parts = []
+    if files:
+        parts.append(f"{files} stored {'file' if files == 1 else 'files'} ({_size_words(size)})")
+    if notes:
+        parts.append(f"{notes} {'note' if notes == 1 else 'notes'}")
+    return f"It also removes {' and '.join(parts)}." if parts else ""
 
 
 def empty_trash(db: Any) -> EmptyTrashResult:
     """Remove everything in the Trash. The caller has taken the snapshot first."""
     from fichero_server.api.routes.document.documents import purge_document_impl
 
+    from fichero_server.models.knowledge import Note
+
     preview = empty_preview(db)
     tops, _all = _all_trashed_ids(db)
+    plan = plan_trash_storage(db)  # read before the rows go: the files are named by them
     deleted: list[str] = []
     pruned = 0
     for top in tops:
         ids, _claims, entities, _docs, _artifacts = purge_document_impl(db, top.id, library_path=None)
         deleted.extend(ids)
         pruned += entities
+    notes_removed = 0
+    for note_id in plan.note_ids:
+        note = db.get(Note, note_id)
+        if note is not None:
+            db.delete(note)
+            notes_removed += 1
+    files_removed, bytes_freed = remove_planned_files(plan.files)
     return EmptyTrashResult(
-        **preview.model_dump(), deleted_document_ids=deleted, entities_pruned=pruned
+        **preview.model_dump(), deleted_document_ids=deleted, entities_pruned=pruned,
+        files_removed=files_removed, bytes_freed=bytes_freed, notes_removed=notes_removed,
     )

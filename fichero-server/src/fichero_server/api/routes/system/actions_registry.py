@@ -341,7 +341,23 @@ def _undo_context(ctx: Any, origin_window: str | None, library_path: str | None)
     return ActionContext(actor="system", origin_window=origin_window, library_path=library_path)
 
 
+def _database_holding(db: Database, audit_ids: list[str]) -> Database:
+    """The database the steps live in: the window's library, or the GLOBAL package when none of them is there and all
+    of them are in it. App-wide actions (`owner_scope="app"`: the Multi-user switch, the known-library registry) write
+    their rows to the global package, and a library window, the CLI or MCP must still take them back
+    (`sharing.multiuser-switch-needs-no-library`, review 2026-10-31). A set is never split across two histories."""
+    if any(db.get(ActionAudit, audit_id) is not None for audit_id in audit_ids):
+        return db
+    from fichero_server.api.routes.library.registry import get_global_database  # lazy: routes import each other
+
+    global_db = get_global_database()
+    if all(global_db.get(ActionAudit, audit_id) is not None for audit_id in audit_ids):
+        return global_db
+    return db  # not found anywhere: the library's own "gone" refusal says so
+
+
 def _undo_set_or_refuse(db: Database, audit_ids: list[str], ctx: ActionContext, request: Request) -> UndoneSet:
+    db = _database_holding(db, audit_ids)
     try:
         return undo_steps_together(db, audit_ids, ctx)
     except authz.AuthorizationError as exc:

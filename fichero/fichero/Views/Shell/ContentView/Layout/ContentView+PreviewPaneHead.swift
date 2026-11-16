@@ -54,18 +54,26 @@ extension ContentView {
                 }
                 let lens: PreviewLens = (tab == .edits) ? .edit : .preview
                 if previewLens != lens { previewLens = lens }
+                // The Inspector's Edits facet is the Image mode; leaving it leaves Image.
+                if tab == .edits { windowState.previewMode = .image } else if windowState.previewMode == .image {
+                    windowState.previewMode = .read
+                }
             }
     }
 
     /// Explicitly typed (the reader's type-checker rule applied here).
-    var previewSelector: PaneKindSelector<PreviewLens> {
+    /// `selectionIsFolder` dims the "Show folder as" section while the pane is not showing a folder.
+    func previewSelector(selectionIsFolder: Bool) -> PaneKindSelector<PreviewWorkMode> {
         PaneKindSelector(
             kindTitle: SourcePane.name,
             kindIcon: ToolbarSymbols.previewPane,
             currentKind: .preview,
-            lenses: PreviewLens.allCases,
-            lensTitle: { (lens: PreviewLens) in lens.title },
-            lensIcon: { (lens: PreviewLens) in lens.icon },
+            // Read, Segments, Image (`source.editor.preview-has-three-modes`): the lens menu IS the mode. Only
+            // Read where the shown thing has no segments to edit.
+            lenses: previewChrome.canEditSegments ? PreviewWorkMode.allCases : [.read],
+            lensTitle: { (mode: PreviewWorkMode) in mode.title },
+            lensIcon: { (mode: PreviewWorkMode) in mode.icon },
+            extraLensMenu: { AnyView(PreviewFolderViewMenuSection(selectionIsFolder: selectionIsFolder)) },
             lens: previewLensBinding
         )
     }
@@ -73,12 +81,14 @@ extension ContentView {
     /// Picking Edit ENTERS edit mode (Daniel, 2026-08-29): the lens writes the
     /// same per-window key the Inspector's Edits facet and EditorView already
     /// share, so the head, the inspector and the canvas cannot disagree.
-    var previewLensBinding: Binding<PreviewLens> {
+    var previewLensBinding: Binding<PreviewWorkMode> {
         Binding(
-            get: { previewLens },
-            set: { lens in
-                previewLens = lens
-                previewEditorTab = (lens == .edit) ? .edits : .content
+            get: { windowState.previewMode },
+            set: { mode in
+                windowState.previewMode = mode
+                // Image is the old Edit lens (the pixels); Read and Segments are the old Preview lens.
+                previewLens = (mode == .image) ? .edit : .preview
+                previewEditorTab = (mode == .image) ? .edits : .content
             }
         )
     }
@@ -112,7 +122,10 @@ extension ContentView {
         if browserSelection.count > 1 {
             if !crumbs.isEmpty { crumbs.removeLast() }
             crumbs.append(.multiSelection(count: browserSelection.count))
+        } else if shown?.docType != .folder {
+            crumbs += previewDetailCrumbs(shown)
         }
+        let selectionIsFolder = browserSelection.count <= 1 && shown?.docType == .folder
         // Tools slot retired 2026-08-30: the markup row graduated to the
         // WINDOW-level annotation bar (below the toolbar, above the workflow
         // bar) — annotation is not a preview-pane feature.
@@ -130,7 +143,7 @@ extension ContentView {
             },
             selector: {
                 PreviewHeadSelectorGroup(
-                    selector: self.previewSelector,
+                    selector: self.previewSelector(selectionIsFolder: selectionIsFolder),
                     chrome: self.previewChrome,
                     onUpToParent: parentCrumb.flatMap { (parent: PaneCrumb) -> (() -> Void)? in
                         guard parent.isNavigable, browserSelection.count <= 1 else { return nil }
@@ -139,12 +152,61 @@ extension ContentView {
                     }
                 )
             },
-            controls: { PreviewHeadLensControls(chrome: self.previewChrome) },
+            controls: { PreviewHeadLensControls(chrome: self.previewChrome, onEnterFullScreen: previewFullScreenAction(shown)) },
             tools: { EmptyView() },
             canSplit: previewPaneCanSplit,
             switchableRoots: PaneCrumb.otherLibraries(than: windowState.libraryId)
         )
         .environment(\.offersTranscriptionFont, true)
+    }
+
+    /// The head's View Full Screen (#6560): the shown page or image in the full-window reader; nil where there is none.
+    private func previewFullScreenAction(_ shown: Document?) -> (() -> Void)? {
+        guard PreviewFullScreen.canEnter(shown: shown, selectionCount: browserSelection.count) else { return nil }
+        return { enterImmersiveReading(showing: shown) }
+    }
+
+    /// What the page is showing past the page itself (owner 2026-11-10): the region selected on it, and the
+    /// rendition on screen, as plain crumbs after the page: "Page 3 › Region 2 › Crop". Neither navigates.
+    @MainActor
+    private func previewDetailCrumbs(_ shown: Document?) -> [PaneCrumb] {
+        var out: [PaneCrumb] = []
+        if let shown, let region = selectedRegionName(on: shown.id) {
+            out.append(PaneCrumb(id: "shown-region", title: region, icon: "rectangle.dashed", isNavigable: false))
+        }
+        // A page with one rendition has nothing to name: the menu is hidden then too.
+        let names = previewChrome.renditionNames
+        if names.count > 1, names.indices.contains(previewChrome.renditionIndex) {
+            out.append(PaneCrumb(
+                id: "shown-rendition", title: names[previewChrome.renditionIndex], icon: "photo", isNavigable: false
+            ))
+        }
+        return out
+    }
+
+    /// "Region 2": the region the focused selection is in on this page (the one segment selected, or its nearest
+    /// region), counted among the page's regions as every other surface counts them. Nil for none or for several.
+    @MainActor
+    private func selectedRegionName(on documentId: String) -> String? {
+        guard let segmentService else { return nil }
+        let store = SegmentStore.shared(for: segmentService)
+        let ids = InspectorPath.selectedSegmentIds(
+            selection: windowState.sharedRegionSelection, documentId: documentId, store: store
+        )
+        let segments = store.workingSegments(documentId: documentId)
+        let byId = Dictionary(segments.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let regions = Set(ids.compactMap { id -> String? in
+            var cursor = byId[id]
+            var hops = 0
+            while let current = cursor, current.kind != "region", hops < 32 {
+                cursor = current.parentSegmentId.flatMap { byId[$0] }
+                hops += 1
+            }
+            return cursor?.kind == "region" ? cursor?.id : nil
+        })
+        guard regions.count == 1, let regionId = regions.first,
+              let place = segments.filter({ $0.kind == "region" }).firstIndex(where: { $0.id == regionId }) else { return nil }
+        return "Region \(place + 1)"
     }
 
     /// #4705 increment 2: routes through `PaneSurface.allowsSplit`, the ONE

@@ -117,6 +117,32 @@ Surfaces: `ImageEditorView` (+`+Canvas`/`+Clipboard`/`+Popovers`/`+Toolbar`/`+Ty
   committed/saved, so reverting always discards real, saved work, never just an in-progress
   draft. Pinned: `ImageEditStepEditingTests` (suite `ImageEditStepEditingTests`, case
   "delete-a-step and revert-to-original stay reachable and confirmed").
+- `preview.edit.readers-send-the-current-image` — **[OK]** (#6296) every step that sends a page to a model (line
+  read, whole-page read, review, Find Regions with Kraken or YOLO, Find Lines, the tie and the check) reads the page's
+  CURRENT image, resolved in one place (`media/current_image.current_page_image`): the edit chain applied, else the
+  newest rendition whose place on the photograph is known, else the original. Undo in Preview removes the edit, so the
+  next step reads what is under it. Stored lines stay fractions of the upright photograph: a step that cuts from the
+  page carries its lines onto the image it reads, and a step that finds on it carries what it found back
+  (`media/frame_map.py`: crop, quarter and any-angle turn, flip, a recorded homography). A rendition whose frame is not
+  recorded (a flatten, a turn with no angle) is passed over and the page read on its photograph, said in the log. An edit chain with an edit of unknown frame is
+  still what a whole-page read sends; a step that cuts or stores lines reads the photograph then (`PageImage.for_geometry`).
+  A saved reading says which image it was read from (`Artifact.data.image_read`): the skip-if-done cache and the per-line
+  resume (`working_lines.unread_by`) answer only for the same image, so an edit or Undo is read again. The recipe's page-done
+  card check (`recipes/done.py`) does not compare the image yet: a page it calls done is skipped by a recipe run.
+  Pinned: `tests/unit/media/test_current_image_6296.py`, `tests/unit/workflows/test_every_step_sends_the_edited_image_6296.py`.
+- `preview.edit.reading-field-keeps-its-text` — **[OK]** (#6320) a reading's document field (`description`, `caption`, `doc_type`...) holds the
+  reading's TEXT. What a run adds to the artifact's `data` to say how it was made (`image_read`, `episode_id`, `thinking`, the read flag,
+  `media.current_image.PROVENANCE_KEYS`) stays on the artifact and is never the field's value; `llm_base.save_artifact` takes only the other
+  keys of `data` (a tool's own structured answer), else the first 1000 characters of the text. A field a dev build had left as that provenance
+  (`{"episode_id": ...}` since 2026-08-12, `{"image_read": ..., "episode_id": ...}` since 2026-10-30) is put back by a background job the open
+  queues once (`maintenance/image_marker_repair.py`, marked done in `librarysettings`): from the newest artifact of the field's type (`doc_type`
+  reads `classification`, `script_type` reads `script_classification`), no model, a page saved only when a field changed. A flagged (looping) read and a compare arm are saved as readings but never take the field (a flagged read writes nothing onto the
+  page, #5522), and the repair never puts their text back; it touches only a dict of provenance keys with `image_read` or `episode_id` in it.
+  Its Activity row (the scheduler keeps the words from `jobs.note_done`) says how many fields it put back and how many it could not (no
+  artifact of their type that is not flagged or a compare arm, or a step whose `metadata_field` was overridden); those stay as they are, and
+  the row's detail, the log and the audit (`repair.reading-fields`, with the pages put back, the pages left and the library) name them. A stop
+  or a defer resumes from a cursor in the row's detail with its counts kept. Tests: `tests/unit/observability/test_episode_vision_wiring.py::test_a_run_with_a_library_leaves_the_text_in_the_documents_field_not_its_provenance`,
+  `tests/unit/workflows/test_image_marker_repair.py`.
 - `preview.edit.rendition-caches-invalidate-on-every-edit` — **[OK]** a successful edit drops
   BOTH derived-pixel caches (not just the storage-service one), including on the way OUT of
   the editor, so leaving edit mode can never show stale pixels; a batch-applied edit
@@ -206,16 +232,16 @@ as *Note*, where it is reached the same way.
 
 ### Behaviors
 
-- `preview.edit.tool.one-icon-table` — **[GAP]** (#1420) every place a tool or its step is shown (toolbar, chain row, Add Step, batch sheet, the Set Up worklist) draws the glyph from `ImageEditOperation.icon`; a Swift test asserts the table has no two ops sharing a glyph and that the toolbar's buttons use it. Today three tables disagree (`ImageEditingService.swift:39-55`, `ImageEditorView+Toolbar.swift`, `ImageEditChainPanel+Steps.swift`).
-- `preview.edit.tool.set-is-exactly-this` — **[GAP]** (#1420) the toolbar holds Crop, Rotate Left, Rotate Right, Straighten, Split, Mark, Auto Enhance, Adjust, Undo, Revert, Before, Compare and (with a selection) Apply to Selection, each once, each with a help tag and an accessibility label; Remove Background, Despeckle, Segment and the `angle` popover are gone from it; a Swift availability test lists the identifiers.
+- `preview.edit.tool.one-icon-table` — **[PARTIAL]** (#1420) every place a tool or its step is shown (toolbar, chain row, Add Step, batch sheet, the Set Up worklist) draws the glyph from `ImageEditOperation.icon`; a Swift test asserts the table has no two ops sharing a glyph and that the toolbar's buttons use it. Today three tables disagree (`ImageEditingService.swift:39-55`, `ImageEditorView+Toolbar.swift`, `ImageEditChainPanel+Steps.swift`). Built 2026-11-08 [app] `ImageEditOperation.glyphs` is the one table, every chain operation has a glyph and none repeats, and the toolbar and Add Step draw from it (`ImageEditToolSetTests`, Swift not compiled here). Not built: the chain row and the batch sheet were already on `ImageEditOperation.icon` and now share it; the Set Up worklist is not checked
+- `preview.edit.tool.set-is-exactly-this` — **[PARTIAL]** (#1420) the toolbar holds Crop, Rotate Left, Rotate Right, Straighten, Split, Mark, Auto Enhance, Adjust, Undo, Revert, Before, Compare and (with a selection) Apply to Selection, each once, each with a help tag and an accessibility label; Remove Background, Despeckle, Segment and the `angle` popover are gone from it; a Swift availability test lists the identifiers. Built 2026-11-08 [app] Flip and Auto Enhance are on the toolbar (`imageEditFlip`, `imageEditAutoEnhance`). Not built: Adjust, and the removal of Remove Background, Despeckle, Segment and the angle popover, which wait for Adjust (Step T.4) so no capability goes before its new home
 - `preview.edit.tool.crop-is-a-page-box` — **[GAP]** (#6188) Crop is always visible; selecting it shows the page box with handles seeded from `page_region`'s quad (solid) or the proposal (dashed) or the whole frame; dragging an edge keeps a rectangle, dragging a corner alone makes a quadrilateral; Return writes a `crop` row with the box, `method: person`, and, when the quad is not a rectangle, a `square` row with the corners so the engine warps it (`prep.square.corner-handles-correct-it`); *Find Page* re-runs `prep.find-the-page` and reseeds.
-- `preview.edit.tool.straighten-is-a-dial` — **[GAP]** (#6190) Straighten shows a dial and a grid; *Auto* fills it; the row records the angle; the live preview is `LiveEditPreview`'s existing `CIFilter.straighten`.
+- `preview.edit.tool.straighten-is-a-dial` — **[PARTIAL]** (#6190) Straighten shows a dial and a grid; *Auto* fills it; the row records the angle; the live preview is `LiveEditPreview`'s existing `CIFilter.straighten`. Built 2026-11-08 [engine] `POST /api/images/{id}/operations/straighten` and `image.straighten` take an optional `angle` in degrees, applied and recorded on the row as `method: person`, and none is Auto, which records the measured angle as `method: auto` (`test_straighten_takes_the_angle_a_person_set_on_the_dial`). Not built: the dial, the grid and Auto in the app
 - `preview.edit.tool.split-is-a-gutter-line` — **[GAP]** (#5382) Split shows the gutter line seeded from the automatic plan; drag and Return cut (`preview.edit.crop-and-split-are-reversible`); *Don't split* writes the decision so the worklist drops the page.
 - `preview.edit.tool.mark-ruler-card-blank` — **[GAP]** (#6198) Mark's Ruler and Colour Card draw regions with those kinds; Blank Page toggles the mark, which hides the page in the item view and skips it in later steps, and Unhide clears it from the editor or the item view's hidden line (`prep.blank-pages-hidden-in-the-item-view`); the regions are read by Leave Out (`image.enhance.leave-out-reads-the-page-box`) and exported as detector labels (`prep.yolo.fine-tune-from-corrected-regions`).
 - `preview.edit.tool.adjust-previews-live-before-after` — **[GAP]** (#6190; owner 2026-10-29) Adjust holds one section per step of the enhancement suite (Contrast, Yellowing, Stains, Ruling, Show-through, Denoise, Sharpen, Binarise, Flatten), each with its switch, its sliders from the step's params model and a Reset; every slider previews on the picture while dragging (Core Image where a filter matches, else the engine's preview of the one pending step at reduced size within 300 ms) and the Before gesture shows the original at any time; on Apply the engine's render replaces the preview; one row per switched-on step records the values. Built: the live path for the three PIL sliders (`LiveEditPreview.swift`, #3673). Missing: the new steps, the Before gesture, the engine-side pending preview.
 - `preview.edit.tool.adjust-sections-match-the-suite` — **[GAP]** (#6185) a Swift test walks the engine's step registry (from the OpenAPI schema of the params models) and asserts Adjust has a section for every pixel step and no section for a step the engine lacks, so the editor and the recipe cannot drift (`image.enhance.every-step-is-a-recipe-step-and-an-editor-control`).
 - `preview.edit.tool.proposal-is-the-tools-handles` — **[GAP]** (#5382) a page opened from the Set Up worklist (`prep.check.worklist-of-proposals-and-a-sample`) comes up with the proposing tool selected and its dashed handles shown; Return accepts, a drag corrects; either writes the `who: person` row (`prep.check.correction-replaces-the-runs-row`).
-- `preview.edit.tool.compare-is-hold-and-wipe` — **[GAP]** (#4872) Before is press-and-hold; Compare toggles the wipe; the Side-by-Side mode and the Original/Edited segment are removed (`preview.edit.compare-modes-single-side-by-side-wipe` is superseded by this line).
+- `preview.edit.tool.compare-is-hold-and-wipe` — **[PARTIAL]** (#4872) Before is press-and-hold; Compare toggles the wipe; the Side-by-Side mode and the Original/Edited segment are removed (`preview.edit.compare-modes-single-side-by-side-wipe` is superseded by this line). Built 2026-11-08 [app] Before is a press-and-hold button (`imageEditBefore`), Compare toggles the wipe (`imageEditCompare`), and the Side-by-Side mode and the Original/Edited segment are removed (`ImageEditCompareModesTests`, Swift not compiled here). Not built: the owner's look at it
 - `preview.edit.tool.retired-ops-still-render` — **[GAP]** (#6190) a chain carrying `remove_background`, `fuzzy_clean`, `segment` or a legacy `enhance` renders to the same pixels as before and shows its row; no new row of those kinds is written by the app.
 
 ### Build order
@@ -254,6 +280,8 @@ as *Note*, where it is reached the same way.
   (`doc.fileType == .pdf`, not a page) returns `.storageDisplay` unconditionally, with no
   `isEditing` check at all. The per-page raster edit chain (`ImageEditorView`) already works;
   a PDF parent simply never routes to it.
+  *Built:* a PDF that has listed pages no longer returns `.storageDisplay`; it previews as its pages
+  (`EditorView.pdfPreviewRoute`, `library.pdf.opens-as-its-pages`), so the toggle question applies to one with none.
 - `preview.edit.continuous-scroll-through-pages` — **[GAP]** (#1933) the image editor should
   scroll continuously through a document's pages/images, the way the PDF viewer's continuous
   mode does, rather than one page at a time. Not verified as built — the editor's canvas

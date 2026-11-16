@@ -34,7 +34,27 @@ def measured_seconds_per_page(db, model: str) -> float | None:
     return statistics.median(seconds) if seconds else None
 
 
+def default_models(plan: dict[str, Any]) -> tuple[str, str]:
+    """The cloud teacher and this Mac's reader the project's plan already reads with, as `(teacher, local_reader)`: a reading run on a
+    cloud provider is the teacher (`provider/model`), a reading run here the local reader; "" for one the plan has none of. The routes
+    then say what they do not know instead of guessing a model for the person."""
+    from fichero_server.recipes.assemble import READING_JOBS
+
+    teacher = local = ""
+    for run in plan.get("runs") or []:
+        if not set(run.get("steps") or []) & READING_JOBS:
+            continue
+        model, where = run.get("model_override") or "", run.get("runs_on") or ""
+        if where.startswith("cloud:"):
+            teacher = teacher or (f"{where.partition(':')[2]}/{model}" if model else "")
+        else:
+            local = local or model
+    return teacher, local
+
+
 def _cloud_cost(teacher: str, pages: int) -> float | None:
+    if not teacher:
+        return None
     from fichero_server.workflows.model_comparison import estimate_cost
 
     provider, _, model = teacher.partition("/")
@@ -42,7 +62,7 @@ def _cloud_cost(teacher: str, pages: int) -> float | None:
 
 
 def _local_time(db, reader: str, pages: int) -> dict[str, Any]:
-    per_page = measured_seconds_per_page(db, reader)
+    per_page = measured_seconds_per_page(db, reader) if reader else None
     return _figure(None if per_page is None else per_page * pages, "measured",
                    f"median of this Mac's finished '{reader}' pages")
 
@@ -55,18 +75,19 @@ def routes_for_volume(db, pages: int, *, teacher: str, local_reader: str,
     (for example ``kraken:kraken-zenodo-21788410``); `sample_pages` how many pages the teacher labels
     on the distil route (capped at the volume)."""
     sample = min(sample_pages, pages)
+    cloud_name, mac_name = teacher or "a cloud model", local_reader or "a reader on this Mac"
     unmeasured_accuracy = _figure(None, "measured", "this project's checked pages (run the bake-off)")
     teacher_cost = _figure(_cloud_cost(teacher, pages), "estimate", "price list x per-page tokens")
     return [
-        {"id": "cloud", "title": f"Read it all with {teacher}", "pages": pages,
+        {"id": "cloud", "title": f"Read it all with {cloud_name}", "pages": pages,
          "cost_usd": teacher_cost,
          "time_seconds": _figure(None, "measured", "a cloud model's speed is not measured yet"),
          "accuracy_cer": unmeasured_accuracy, "leaves_this_mac": True},
-        {"id": "this-mac", "title": f"Read it all on this Mac with {local_reader}", "pages": pages,
+        {"id": "this-mac", "title": f"Read it all on this Mac with {mac_name}", "pages": pages,
          "cost_usd": _figure(0.0, "measured", "runs on this Mac"),
          "time_seconds": _local_time(db, local_reader, pages),
          "accuracy_cer": unmeasured_accuracy, "leaves_this_mac": False},
-        {"id": "distil", "title": f"Distil {teacher} into a small model, then read it all", "pages": pages,
+        {"id": "distil", "title": f"Distil {cloud_name} into a small model, then read it all", "pages": pages,
          "steps": [
              {"step": "label a sample", "pages": sample,
               "cost_usd": _figure(_cloud_cost(teacher, sample), "estimate", "price list x per-page tokens")},

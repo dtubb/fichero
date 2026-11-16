@@ -1,4 +1,7 @@
+import OSLog
 import SwiftUI
+
+private let selectionLogger = Logger(subsystem: "app.fichero.fichero", category: "SidebarSelection")
 
 // MARK: - View Components
 
@@ -18,20 +21,26 @@ extension SidebarView {
             // switching to Research keeps the shell sidebar like Knowledge Graph,
             // Activity, etc. (sidebar-persistence fix).
             unifiedContent
-
-            // Bottom toolbar — owns the sidebar filter field + sidebar-scoped
-            // actions as one unified bottom toolbar (#4061). No standalone
-            // filter chrome above the bar.
-            if shouldShowBottomToolbar {
-                SidebarBottomToolbar(
-                    itemRegistry: itemRegistry,
-                    importFiles: importFiles,
-                    deleteItem: handleDeleteSelection,
-                    hasSelection: selectedItem != nil,
-                    sidebarFilterText: $sidebarFilterText,
-                    knowledgeRowStores: libraryManager.openLibraries.map(\.knowledgeRowCountsStore)
-                )
-            }
+                // Bottom toolbar — owns the sidebar filter field + sidebar-scoped actions as one unified bottom
+                // toolbar (#4061). The list's bottom bar, not a row after it, so the rows scroll under it in the
+                // sidebar's own material (`sidebar.bottom-bar.flush-in-sidebar-material`, owner 2026-11-13).
+                .safeAreaBar(edge: .bottom, spacing: 0) {
+                    if shouldShowBottomToolbar {
+                        VStack(spacing: 0) {
+                            if SidebarBottomToolbar.drawsHairlineAbove { Divider() }
+                            SidebarBottomToolbar(
+                                itemRegistry: itemRegistry,
+                                deleteItem: handleDeleteSelection,
+                                hasSelection: selectedItem != nil,
+                                sidebarFilterText: $sidebarFilterText,
+                                knowledgeRowStores: libraryManager.openLibraries.map(\.knowledgeRowCountsStore)
+                            )
+                        }
+                    }
+                }
+                #if os(macOS)
+                .scrollEdgeEffectStyle(.hard, for: .bottom)  // Xcode's navigator edge, not the soft fade
+                #endif
         }
     }
 
@@ -53,7 +62,12 @@ extension SidebarView {
             // Its own section with no heading, so the Projects section after it is a peer, as Finder's
             // Favourites and Locations are (Daniel, 2026-10-11): a sidebar list draws a section's heading
             // between sections.
-            if let top = sections.top {
+            if let top = sections.top,
+               SidebarProjectSections.showsAlwaysThere(
+                   requiresExternalEngine: EngineConfig.requiresExternalBackendConnection,
+                   alwaysTherePath: libraryManager.globalLibrary?.url.path,
+                   pairedLibraryPath: RemoteAccessConfig.pairedLibraryPath
+               ) {
                 Section {
                     alwaysThereProjectItems(top)
                 }
@@ -71,6 +85,39 @@ extension SidebarView {
                         .accessibilityIdentifier(SidebarAccessibilityID.projectsHeading)
                 }
             }
+            // One section per paired Mac (one that shared nothing yet says so), titled by its name, below Projects
+            // (owner 2026-11-06, `sharing.guest.machines-group`); one how-to-pair section when no Mac is paired.
+            ForEach(SharedMachineSections.sections(
+                libraryManager.pairedMachines, openOnHost: libraryManager.hostOpenLibraries
+            )) { section in
+                let machine = section.machine
+                Section {
+                    ForEach(section.rows, id: \.self) { row in
+                        switch row {
+                        case .library(let path):
+                            SharedLibraryRowView(
+                                machine: "", library: path,
+                                unavailableSentence: libraryManager.greyedSharedRows
+                                    .contains(SharedRowAvailability.key(host: machine.id, library: path))
+                                    ? "Not available: \(machine.shownName) no longer shares this" : nil
+                            ) {
+                                guard let open = libraryManager.openSharedLibrary else {
+                                    libraryManager.connectToLibraryRequested = true
+                                    return
+                                }
+                                Task { await open(machine, path) }
+                            }
+                        case .nothingShared(let sentence):
+                            Text(sentence).foregroundStyle(.secondary)
+                        }
+                    }
+                } header: {
+                    // The person's name for this Mac, with Rename… (#6556).
+                    SharedMachineHeader(machine: machine) { libraryManager.renamePairedMachine(machine.id, to: $0) }
+                }
+            }
+            // No "Shared Libraries" section until a Mac is paired (`sharing.guest.no-section-until-paired`);
+            // File > Connect to Library… is the way in.
             // App-level destinations pinned once at the bottom, not repeated
             // under every library (#1456).
             pinnedGlobalNavigationRows()
@@ -86,18 +133,6 @@ extension SidebarView {
         }
         // File's and Project's project verbs when the window shows the always-there project (#5652).
         .focusedSceneValue(\.projectVerbs, windowAlwaysThereProjectVerbs)
-        // ⌘A over the sidebar selects the CURRENT library's visible rows
-        // (Daniel, 2026-08-23) — published, never key-handled here, because
-        // `SelectAllButton` owns the chord and asks which pane has focus.
-        // Through the same commit seam a click uses, so a select-all cannot
-        // bypass the resilience filter and primary derivation.
-        .focusedSceneValue(
-            \.sidebarSelectAll,
-            FocusedLibraryAction(
-                isEnabled: !currentLibraryVisibleDestinations.isEmpty,
-                run: { applySidebarSelectionProposal(Set(currentLibraryVisibleDestinations)) }
-            )
-        )
         // NO .tint on this List. #4371 tinted the selection to the grey fill;
         // on the current SDK that tint did not hold for the FOCUSED
         // (emphasized) selection, which rendered the saturated accent platter
@@ -177,6 +212,11 @@ extension SidebarView {
     /// interval, primary derivation. Extracted from the binding setter so the
     /// fallback cannot drift from the native path.
     func applySidebarSelectionProposal(_ proposed: Set<SidebarDestination>) {
+        // Every selection proposal, for "why did this row get selected" (#6528 follow-up): debug level, so it costs
+        // nothing unless streamed (`log stream --level debug --predicate 'category == "SidebarSelection"'`).
+        let proposedIds = proposed.map(\.serializedID).sorted().joined(separator: ",")
+        let currentIds = selectionState.selectedDestinations.map(\.serializedID).sorted().joined(separator: ",")
+        selectionLogger.debug("proposed=\(proposedIds, privacy: .public) current=\(currentIds, privacy: .public)")
             // A click that triggers the lazy child load rebuilds the tree,
             // and while the clicked row is momentarily absent from the
             // rendered rows the List writes the selection back WITHOUT it
@@ -199,7 +239,9 @@ extension SidebarView {
                     SidebarView.droppedRowIsMomentarilyMissing(
                         destination,
                         cachedItemMissing: cachedItem(id: destination.serializedID) == nil,
-                        wasRecentlyDeleted: recentlyDeleted.contains(destination.serializedID)
+                        wasRecentlyDeleted: recentlyDeleted.contains(destination.serializedID),
+                        rebuiltRecently: SidebarView.rebuiltRecently(
+                            at: max(lastTreeRebuildAt, selectionState.programmaticSelectionAt))
                     )
                 }
             )
@@ -224,7 +266,8 @@ extension SidebarView {
             // selection returns the same primary, so this is a no-op and the
             // detail pane stays put while the selection is built.
             if selectionState.selectedDestination != primary {
-                selectionState.selectedDestination = primary
+                // The highlight is drawn first, the routing after (`routeAfterHighlight`).
+                selectionState.routeAfterHighlight(primary)
             } else {
                 // No reroute — `.onChange` will not fire, so close the
                 // interval here rather than leaving it open until the next
@@ -275,14 +318,24 @@ extension SidebarView {
     static func droppedRowIsMomentarilyMissing(
         _ destination: SidebarDestination,
         cachedItemMissing: Bool,
-        wasRecentlyDeleted: Bool
+        wasRecentlyDeleted: Bool,
+        rebuiltRecently: Bool = true
     ) -> Bool {
+        // Outside a rebuild a dropped row is the person's deselect, whatever the index holds
+        // (`sidebar.deselect-always-works`, owner 2026-11-13): a lazily loaded folder the index could not
+        // resolve was restored on every deselect, so it could never be deselected.
+        guard rebuiltRecently else { return false }
         switch destination {
         case .library, .browser, .run, .knowledgeCollection, .trainedModel, .trash:
             return false
         default:
             return cachedItemMissing && !wasRecentlyDeleted
         }
+    }
+
+    /// Whether the tree's item index was rebuilt within the moment a List takes to reconcile its rows (#4297).
+    nonisolated static func rebuiltRecently(at rebuilt: Date, now: Date = Date()) -> Bool {
+        now.timeIntervalSince(rebuilt) < 1.0
     }
 }
 

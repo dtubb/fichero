@@ -1365,6 +1365,8 @@ def _invert_import_to_delete(
     domains=["document"],
     undoable=True,
     invert=_invert_import_to_delete,
+    owner_only=True,  # a server path is the engine owner's (#6325)
+    owner_scope="app",
     # atomic=False (2026-08-09): the default atomic=True wrapped the ENTIRE
     # file ingest — text extraction, both PDF parses, every page save, every
     # page embedding, and (before the pre-warm fix) the 19s model load — in
@@ -1489,6 +1491,8 @@ def _upsert_sidecar_entities(db: Database, docs: list[Document], ctx) -> None:
     # A folder is a resumable sequence of committed files/batches. Wrapping the
     # whole import hides every row behind one transaction until the last file.
     atomic=False,
+    owner_only=True,
+    owner_scope="app",
 )
 def _action_import_folder(
     db: Database, params: IngestFolderRequest, ctx: ActionContext
@@ -1573,6 +1577,8 @@ def _made_folder_id(db: Database, docs: list[Document], destination_id: str, pat
     XlsxIngestRequest,
     domains=["document"],
     undoable=False,
+    owner_only=True,
+    owner_scope="app",
 )
 def _action_import_xlsx(
     db: Database, params: XlsxIngestRequest, ctx: ActionContext

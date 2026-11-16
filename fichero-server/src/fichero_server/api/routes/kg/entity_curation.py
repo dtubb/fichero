@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 from fichero_server.api.library_header import require_library_path
 from fichero_server.api.auth import action_context, request_actor
 from fichero_server.api.routes.auth.accounts import _require_owner_or_bootstrap
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.main import whole_library_reader_only, get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.db.manager import db_manager
 from fichero_server.db.embeddings import KG_ENTITY_EMBEDDINGS_TABLE
@@ -41,8 +41,8 @@ from fichero_server.core.off_loop import off_loop
 if TYPE_CHECKING:
     from fichero_server.knowledge.dedupe import EntityMergeGroup
 
-router = APIRouter(prefix="/kg/entity-curation")
-kg_entities_router = APIRouter(prefix="/kg/entities", tags=["knowledge-graph"])
+router = APIRouter(dependencies=[Depends(whole_library_reader_only)], prefix="/kg/entity-curation")
+kg_entities_router = APIRouter(dependencies=[Depends(whole_library_reader_only)], prefix="/kg/entities", tags=["knowledge-graph"])
 
 
 
@@ -880,7 +880,7 @@ async def embed_entities(
     return EmbedEntitiesResponse(**result.result)
 
 
-@router.get("/semantic", response_model=KGGraphListResponse)
+@router.get("/semantic", response_model=KGGraphListResponse, dependencies=[Depends(whole_library_reader_only)])
 async def search_entities_semantic(
     q: str = Query(..., description="Natural language query"),
     entity_type: EntityType | None = Query(default=None),
@@ -1995,6 +1995,8 @@ def _invert_set_external_authority_enabled(
     domains=["kg"],
     undoable=True,
     invert=_invert_set_external_authority_enabled,
+    owner_only=True,
+    owner_scope="app",
 )
 def _action_set_external_authority_enabled(
     db: Database, params: SetExternalAuthorityEnabledParams, ctx: ActionContext

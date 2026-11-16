@@ -97,6 +97,8 @@ extension ContentView {
     /// horizontally, so a zoomed pan never turns the page.
     func handlePreviewSiblingSwipe(_ notification: Notification) {
         guard let direction = notification.object as? Int else { return }
+        // The full-screen reader turns its own page on the swipe, through its own list and page-turn (#6560).
+        guard PreviewFullScreen.windowTakesTheSwipe(readerIsUp: isImmersiveReading) else { return }
         NavTrace.log("previewSiblingSwipe", "direction \(direction)")
         #if os(macOS)
         // Park the horizontal push for the swap this step causes (Daniel,

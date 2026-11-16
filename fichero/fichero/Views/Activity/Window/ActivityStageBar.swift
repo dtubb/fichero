@@ -111,7 +111,7 @@ private struct Hatch: Shape {
     ActivityStageBar(segments: [
         .init(id: "find-lines", title: "Find Lines", fill: 1, hatched: false, failedPages: 0, label: "Find Lines, done"),
         .init(id: "read", title: "Read", fill: 0.4, hatched: true, failedPages: 2, label: "Read, partial, 2 failed"),
-        .init(id: "names", title: "Names", fill: 0, hatched: false, failedPages: 0, label: "Names, waiting"),
+        .init(id: "names", title: "Names", fill: 0, hatched: false, failedPages: 0, label: "Names, waiting")
     ])
     .frame(width: 320)
     .padding()

@@ -58,6 +58,7 @@ from fastapi.testclient import TestClient  # noqa: E402 -- after the test enviro
 
 # Keep existing route-heavy tests running against the broader dev API surface.
 os.environ.setdefault("FICHERO_FEATURE_TIER", "dev")
+os.environ.setdefault("FICHERO_DEV_WORKERS", "1")  # worker_process.start refuses without it
 # Tests assume a clean library by default — disable automatic preset seeding
 # so assertions like "GET /workflows returns []" keep working.
 os.environ.setdefault("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
@@ -865,6 +866,13 @@ def pytest_collection_modifyitems(config, items):  # noqa: ARG001
         nodeid = item.nodeid
         if nodeid.startswith(prefix):
             nodeid = nodeid[len(prefix):]
+        # a run from a symlinked or other-volume checkout (the M4 gate dir) roots pytest elsewhere and
+        # the nodeid comes out as "../../x/fichero-server::name": rebuild it from the file's own path
+        if nodeid not in known:
+            try:
+                nodeid = f"{item.path.relative_to(_Path(__file__).resolve().parent.parent).as_posix()}::{item.nodeid.split('::', 1)[1]}"
+            except (ValueError, IndexError, AttributeError):
+                pass
         if nodeid in known:
             item.add_marker(
                 pytest.mark.xfail(

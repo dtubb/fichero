@@ -1,6 +1,6 @@
 # Source Model — The synced folder — Design Spec (#TBD)
 
-> Milestone: source-model
+> Milestone: synced-folder
 > Manual: TBD — a "Keeping a folder in step" section: tying a project or a folder of it to a
 > folder on disk, what Fichero writes there and when, which files it reads back, what happens to
 > files that arrive, change or disappear there, how an existing folder of TEI, ALTO or PAGE XML is

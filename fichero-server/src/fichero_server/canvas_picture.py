@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:  # PIL loads only when a picture is drawn: the engine's startup import budget
     from PIL import Image, ImageFont
 
+from fichero_server.core.naturalsort import natural_key
 from fichero_server.models import DocType, Document
 from fichero_server.models.canvas import CanvasItem, CanvasItemKind, CanvasLayout
 from fichero_server.models.knowledge import KnowledgeEntity
@@ -81,7 +82,7 @@ def _fit(text: str, font: ImageFont.ImageFont, width: float) -> str:
 
 
 def _group_members(db: Any, group_id: str) -> list[Document]:
-    return sorted(db.query(Document, parent_id=group_id), key=lambda d: (d.sort_order or 0, d.name or ""))
+    return sorted(db.query(Document, parent_id=group_id), key=lambda d: (d.sort_order or 0, natural_key(d.name)))
 
 
 def _card_for(db: Any, item_id: str) -> dict | None:
@@ -150,7 +151,7 @@ def render_canvas_picture(
             links.append(item)
 
     children = sorted(
-        db.query(Document, parent_id=folder_id), key=lambda d: (d.sort_order or 0, d.name or "")
+        db.query(Document, parent_id=folder_id), key=lambda d: (d.sort_order or 0, natural_key(d.name))
     )
     unplaced_all = [doc for doc in children if doc.id not in placed_ids]
     unplaced = unplaced_all[:MAX_UNPLACED]

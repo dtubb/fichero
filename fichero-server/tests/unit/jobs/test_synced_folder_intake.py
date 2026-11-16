@@ -43,7 +43,9 @@ def _restart(test_package, monkeypatch):
     """The engine stops and starts again, as the app does; the reopened library."""
     db_manager.close_database(test_package)
     monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())
-    return db_manager.get_database(test_package)
+    db = db_manager.get_database(test_package)
+    jobs.continue_after_quit(db, None)  # the open holds the folder's read for the launch alert; Continue brings it in (owner 2026-11-13)
+    return db
 
 
 def _edit_outside(path: Path, old: str, new: str) -> str:

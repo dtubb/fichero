@@ -188,9 +188,9 @@ requires = [
     "opencv-python-headless",
     # Document Processing
     "PyMuPDF>=1.28,<2",  # 2.0 pulls pymupdf4llm/pymupdf_layout 2.0 (no licence metadata); stay on the tested line
-    # 12.3.0 fixes 22 image-decoder advisories (PYSEC-2026-2253..2257,
+    # 13.0.0 closes the 2026-11 Pillow advisories (#6600); 12.3.0 had fixed 22 image-decoder advisories (PYSEC-2026-2253..2257,
     # 3451..3454, 3493..3496) — all reachable from imported user files.
-    "Pillow>=12.3.0",
+    "Pillow>=13.0.0",
     # HEIC/HEIF decoding (#4214). Not optional: HEIC is the iPhone camera
     # default, and without it an imported photo becomes a record with no
     # thumbnail and no error — the wrong-but-silent shape.
@@ -352,6 +352,7 @@ fichero_server = [
     "resources/fonts/*",
     "resources/default_workflows/*.json",
     "resources/workflow_meta/*.json",
+    "resources/prototypes/*.json",
     "resources/fonts/*",
     "recipes/seed/*.yaml","recipes/seed/*.txt","recipes/seed/*.gz",
     "recipes/seed/*/*",
@@ -373,7 +374,7 @@ name = "fichero-server"
 version = "2026.10.30"
 description = "Headless server for Fichero — embedded FastAPI service that powers document processing, AI workflows, and data storage."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     # Core — these ship in the Briefcase bundle
     # Floors mirror [tool.briefcase.app.fichero_server].requires; see the
@@ -451,7 +452,7 @@ dependencies = [
     "convertdate",  # Julian / French Republican / Hebrew / Islamic calendars
     "jdcal",        # Julian Day Number <-> Gregorian, the sort key
     "PyMuPDF>=1.28,<2",
-    "Pillow>=12.3.0",  # 22 image-decoder advisories fixed in 12.3.0
+    "Pillow>=13.0.0",  # 2026-11 advisories fixed in 13.0.0 (#6600)
     # HEIC/HEIF decoding (#4214). Not optional: HEIC is the iPhone camera
     # default, and without it an imported photo becomes a record with no
     # thumbnail and no error — the wrong-but-silent shape.
@@ -494,6 +495,10 @@ dev = [
     "networkx",
     "rdflib",
     "pandas",
+    # #6589 #6600: the engine perf rung (scripts/perf_engine_run.py) needs both; pinned, installed into the gate venv by
+    # scripts/install_security_tools.sh
+    "pytest-benchmark==5.3.1",
+    "pyinstrument==5.1.3",
 ]
 
 # #4227: console entry points moved with their code — `fichero` is declared by

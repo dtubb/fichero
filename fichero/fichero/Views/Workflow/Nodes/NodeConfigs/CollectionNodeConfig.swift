@@ -84,7 +84,7 @@ struct CollectionNodeConfig: View {
         let allFolders = documents
             .filter { $0.docType == .folder }
             .sorted { lhs, rhs in
-                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                lhs.name.finderOrder(rhs.name)
             }
 
         let validFolderIds = Set(allFolders.map(\.id))
@@ -97,7 +97,7 @@ struct CollectionNodeConfig: View {
 
         for key in childrenMap.keys {
             childrenMap[key]?.sort { lhs, rhs in
-                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                lhs.name.finderOrder(rhs.name)
             }
         }
 
@@ -107,7 +107,7 @@ struct CollectionNodeConfig: View {
                 folder.parentId == nil && folder.name != "Inbox"
             }
             .sorted { lhs, rhs in
-                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                lhs.name.finderOrder(rhs.name)
             }
         let orderedRoots = inboxRoots + otherRoots
 

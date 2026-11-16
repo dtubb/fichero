@@ -456,6 +456,16 @@ exposes them.
 - Response: `200` with the owner `user` and the registered `client`. `401` for a missing or wrong launch secret, `403`
   over TCP, `404` when no owner exists (use first-run), `409` when the owner already has a key, `422` for a non-P-256 key.
 
+`POST /api/auth/owner-password`
+
+- Purpose: the owner of this Mac chooses their password (`multiuser.turning-on-needs-an-owner-password`, #6565), so
+  Multi-user can be turned on even when the owner already has a key and first-run and migrate-owner both answer `409`.
+  Local only (the engine's Unix socket) and only the local owner (the app's start-up credential, or the owner's own
+  signed-in session). Audited before the change; the password is never in the audit row.
+- Request: body `password` (at least 8 characters). Response: `200` with `status`. `403` over TCP or for anyone but the
+  owner, `409` when the library has several owners, `422` for a password under 8 characters. It records the chosen
+  password, so the Multi-user switch no longer refuses for the missing password.
+
 `POST /api/auth/invites/redeem`
 
 - Purpose: accept an invite with a password, or with the person's own key (`multiuser.invite-registers-public-key`,
@@ -528,7 +538,17 @@ All under `/api/auth/local-clients`. Off until the owner turns a switch on (`mul
 - Purpose: read Sharing state (#5751). Owner only.
 - Response: `200` with `multiuser_enabled`, `tailnet_url`, `tailnet_serve_command`
   (the one command to paste when the app cannot make the tailnet forward, #5317)
-  and `paired_device_count`.
+  and `paired_device_count`, plus `multiuser_blocker` (why accounts cannot be
+  turned on yet) and `tailnet_serve_conflict` (a forward Fichero did not make, and
+  the command that frees it).
+
+`GET /api/pair/addresses`
+
+- Purpose: every address this Mac can be reached at, in the order to try: the
+  tailnet name when its forward is Fichero's own, then the `.local` name, then the
+  LAN IP (`sharing.address-choice`). Owner only. Never a loopback address.
+- Response: `200` with `{items, count}`; each item has `kind`, `url`, `label`,
+  `listening` and `reason` (one line why it cannot work, else null).
 
 `PUT /api/pair/multiuser`
 
@@ -740,6 +760,7 @@ non-image batch ids return `404`.
 - `GET /api/recipes/project/bakeoffs/{bakeoff_id}` — a bake-off's pages, its job's state and its ranked table; scores are read from each model's card.
 - `POST /api/recipes/project/bakeoffs/{bakeoff_id}/use` — make a scored candidate the reading step's reader for the project or one folder (audited, undoable).
 - `PUT /api/segments/passes/{pass_id}/ground-truth` — mark a pass as ground truth, or unmark it (#5513).
+- `POST /api/workflow-execution/dry-run` — test a workflow before a real run (`workflows.canvas.dry-run`, #4370): the same request as `/execute`, answered `{ok, problems, steps, model_steps, scope, scope_sentence}`. `problems` is every reason `/execute` would refuse it, in words; `steps` are the steps it would take, each with `uses_model`. It starts no run, calls no model and writes nothing.
 - `POST /api/workflow-execution/threads/{thread_id}/read-again` — one new run of the same workflow and model over the pages a run did not do: the pages that failed, or after an interruption the pages not done (#5555).
 - `GET /api/activity/jobs/{job_id}/pages` — one entry per page of a run with its state in each stage, in reading order, paged (`stage` a Set Up stage id, omitted for every stage; `offset`, `limit` up to 2000; `total` is the pages in all): the page grid's read, instead of the thousands of step rows under `GET /api/activity/jobs/{job_id}` (`activity.run.page-states`, #5960).
 - `GET /api/activity/jobs/{job_id}/log` — the log of one Activity row and the rows under it, newest last: a run's activity events, a step's node events, and each job's own lines (started, failed and why, waiting and for what); nothing from another row (#5561).
@@ -748,7 +769,7 @@ non-image batch ids return `404`.
 
 `docs/contributor_manual/specs/safety/trash.md` (#2077, #5243) and `safety/undo.md` (#5242, #5658).
 
-- `GET /api/documents/trash` — the Trash of the project the request names (one per project). Each thing deleted once, newest first: `item_count` (what inside went with it), `deleted_at`, `deleted_by`, where it was (`from_folder_id`, `from_folder_path`, `from_folder_state`: `top`, `live`, `in-trash`, `gone`, and `from_where` in words), and why (`reason`: `deleted` or `moved`; for a move `moved_to_project`, `moved_on`, `transfer_id`; `why` in words, "Moved to Istmina on 10 Oct 2026"). `total` counts every item the caller may see.
+- `GET /api/documents/trash` — the Trash of the project the request names (one per project). Each thing deleted once, newest first: `item_count` (what inside went with it), `deleted_at`, `deleted_by`, where it was (`from_folder_id`, `from_folder_path`, `from_folder_state`: `top`, `live`, `in-trash`, `gone`, and `from_where` in words), and why (`reason`: `deleted` or `moved`; for a move `moved_to_project`, `moved_on`, `transfer_id`; `why` in words, "Moved to Archive B on 10 Oct 2026"). `total` counts every item the caller may see.
 - A move between projects writes the reason by soft-deleting its source through `document.delete` with `moved_to: {project, transfer_id}`.
 - `POST /api/documents/{doc_id}/restore` — Put Back: the item and what was deleted with it return to its old folder, or to the project's Sources folder when that folder is in the Trash or gone. Answers `folder_id`, `folder_name`, `into_sources`, `folder_in_trash_id` (offer to put the folder back too) and `message` ("Put back in Sources: its folder is in the Trash."). Recorded and undoable.
 - `GET /api/documents/trash/empty` — what Empty Trash would remove (`items`, `documents`, `statements`), the moves it would make permanent (`moved`, one line per target project) and the question to ask. Changes nothing.
@@ -1023,6 +1044,17 @@ it is on and answers `running`; a training Job is cancelled on Hugging Face. A p
 run is waiting for is paused with its run (`409`); an unknown id is `404`. MCP: `fichero_jobs`,
 `fichero_pause_background_work`, `fichero_job_pause`, `fichero_job_cancel`.
 
+The window's run controls (`activity.window.run-controls`, #6588): `POST /api/activity/pause-all` pauses every running
+and waiting piece of work of this project, and `POST /api/activity/continue-all` lets go exactly what Pause All held (a
+workflow run from its checkpoint; a row a person paused by hand stays paused). `POST /api/activity/stop-all` stops every
+running, waiting and paused piece of work as its own Stop does; what it did is kept, Retry runs it again, and it is not
+undoable. Each answers the summary that says whether the button shows Play or Pause.
+
+`GET /api/activity/models` is the window's Models tree (`activity.window.models-tree`, #6588): every model used today or
+held now, by place (this Mac, remote, cloud) and provider, loaded or not, working or not, its memory where measured.
+`GET /api/activity/recipes` is the Recipes view (`activity.window.recipes`, #6588): each recipe of the last `days` (default
+30) with its runs and their steps, and the rates that compare them (failed %, seconds a page, cost a page).
+
 `POST /api/activity/jobs/clear-failed` is the Activity window's Clear Failed (`job.clear_failed`, audited): failed jobs are hidden from the list (kept in the table, with `cleared_at`), alongside the failed workflow runs the window deletes; it answers how many it cleared. Retrying a cleared job lists it again (#5634).
 
 `POST /api/activity/jobs/{job_id}/retry` runs a failed or stopped job again through `job.retry`
@@ -1087,8 +1119,8 @@ model read and a person checked), the Job's `last_lines` when it ends, and, once
 `reader_id` (`kraken-trained-…`) or `model_id` (`fichero-trained/…`) to read with. The job also appears in `GET /api/activity/jobs`.
 
 Every training set leaves out flagged lines (#5446, `compute.tune.set-excludes-flagged-lines`): a line
-whose reading is empty or the word `null`, and a line whose newest check verdict (`check.verdict`, a
-person's or a checker model's) rejects it. The set's manifest and the job's `training_set` count them
+whose reading is empty or the word `null`, and a line whose standing check verdict (`check.verdict`, a
+person's or a checker model's) rejects it: a person's verdict outranks a model's whatever the order, otherwise the newest stands. The set's manifest and the job's `training_set` count them
 (`lines_left_out`, `left_out` by flag, `left_out_lines` with each line's segment), say how many lines
 carry a verdict and whether the check had run (`check_ran`), and name the flags checked
 (`flags_checked`). `GET /api/training/set?teacher=…&scope_ids=…[&held_out_ids=…]` counts the same set
@@ -1729,3 +1761,13 @@ Spec: `docs/contributor_manual/specs/source/models-chains-and-projects.md` (`sou
 - `GET /api/settings/compute`: how hard local model work may push this Mac (`priority`: `balanced`, the default, keeps the Mac usable; `fast` drops the throttle; `background` yields to everything) and on which processor (`device`: `auto`, `cpu`, `gpu`), plus `effective`, what applies now (`FICHERO_COMPUTE_PRIORITY` / `FICHERO_COMPUTE_DEVICE` override the saved choice for a test run).
 - `PUT /api/settings/compute`: save those preferences (owner only); Kraken reads them on its next page.
 - A Kraken reader rides the run-level override: `provider_override: "kraken"` with `model_override` a catalogue id (`kraken-catmus-medieval`) or a `.mlmodel` path sets the reader of every node that reads lines with Kraken; a workflow with no such node refuses it (`400`).
+
+## Catalogue columns, workbook, Prepare Images and caps
+
+- `GET /api/documents/{doc_id}/template` — the columns of a scope: its rows' effective prototype (the union when they differ), narrowed by the saved choice.
+- `PUT /api/documents/{doc_id}/column-choice` — save which columns the scope shows (`hide`, `only_kind`) as one undoable step; `DELETE` clears the choice (back to the union).
+- `POST /api/export/catalogue-workbook` — the catalogue workbook of a folder or project in its archive's template (`target_id`, `format` xlsx or csv zip, `prototype_key`, `proposals`). The file comes back as base64, or, with `kept_export_id`, is queued into that kept export (a write). Reads are checked against the body's `target_id` and every page under it.
+- `POST /api/images/batch-prepare/preview` — the first, middle and last page of a folder with a square or turn applied, before a batch runs (`folder_id`, `operation`, `source_document_id`). Writes nothing; each page shown is read-checked.
+- `GET /api/recipes/prepare-images/check` — Prepare Images' pages to check: every page with an open proposal, then one confident page in twenty.
+- `GET /api/recipes/prepare-images/facts` — what the Prepare Images card shows besides its questions: answers suggested from five sample pages, the time estimate on this Mac, and how many pages need a check.
+- `PUT /api/recipes/project/cloud-cap` — change the project's monthly cloud cap (`cap_usd`) and/or its total cap (`project_cap_usd`, or `clear_project_cap`) without touching the rest of Set Up; one audited, undoable step.

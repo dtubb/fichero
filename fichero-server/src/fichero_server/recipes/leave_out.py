@@ -5,7 +5,9 @@ left-out flag Read and the Reader already skip) and `metadata["left_out"]` says 
 Inspector (`segment.update`, `is_furniture` false). A line is left out when it is
 
 * too small to be useful: far thinner than the page's median line, or a speck (`too small`),
-* off the page: its centre is outside the page's box, e.g. the black scanner bed (`off the page`),
+* off the page: its centre is outside the page's box, e.g. the black scanner bed (`off the page`); on a ruler or a colour
+  card page-crop found beside the paper, `ruler` / `colour card` (`page_furniture` metadata) instead,
+* on a show-through-only verso (document metadata `show_through_only` true): every line, `show-through-only verso`,
 * damaged or bleed-through: Kraken's shape confidence is very low AND the ink contrast under it is low
   (`likely bleed-through`).
 
@@ -23,6 +25,12 @@ from typing import Any
 TOO_SMALL = "too small"
 OFF_THE_PAGE = "off the page"
 BLEED = "likely bleed-through"
+RULER = "ruler"
+COLOUR_CARD = "colour card"
+SHOW_THROUGH = "show-through"
+SHOW_THROUGH_ONLY_VERSO = "show-through-only verso"
+#: Page-crop's names for the furniture it left out (`page_furniture` metadata), and the reason each gives a line on it.
+FURNITURE_REASONS = {"ruler": RULER, "colour card": COLOUR_CARD}
 #: A line whose thinner side is under this share of the page's median line is too small to be a line of writing.
 THIN_BELOW = 0.25
 #: Fewer lines than this on a page and the median says nothing: only a speck is too small.
@@ -39,6 +47,7 @@ def _thickness(line: dict[str, float]) -> float:
 
 
 def decide(lines: list[dict[str, Any]], *, page_box: list[float] | None = None,
+           furniture: list[dict[str, Any]] | None = None,
            contrast_of: Callable[[dict[str, Any]], float | None] | None = None,
            too_small: bool = True, off_page: bool = True, bleed: bool = True) -> dict[str, str]:
     """Which lines to leave out, and why: `{id: reason}`. Each line is `{id, x, y, w, h, confidence}` (fractions of the
@@ -52,6 +61,11 @@ def decide(lines: list[dict[str, Any]], *, page_box: list[float] | None = None,
             bx, by, bw, bh = page_box
             if not (bx <= cx <= bx + bw and by <= cy <= by + bh):
                 reason = OFF_THE_PAGE
+                for item in furniture or []:  # outside the page AND on a named strip or card: say which
+                    fx, fy, fw, fh = item["box"]
+                    if fx <= cx <= fx + fw and fy <= cy <= fy + fh and item.get("kind") in FURNITURE_REASONS:
+                        reason = FURNITURE_REASONS[item["kind"]]
+                        break
         if reason is None and too_small:
             if ln["w"] * ln["h"] < SPECK_AREA or (median and _thickness(ln) < THIN_BELOW * median):
                 reason = TOO_SMALL
@@ -92,7 +106,6 @@ def leave_out_pages(db: Any, documents: list[str], run_id: str,
     from fichero_server.models import Document, Segment
     from fichero_server.recipes.done import judged_key, page_finished
     from fichero_server.models.knowledge import ProvenanceKind
-    from fichero_server.workflows.tools.sources import _resolve_abs_path
 
     library = Path(db.path).parent
     account: dict[str, Any] = {"pages": 0, "left_out": 0, "why": {}, "refused": 0}
@@ -106,14 +119,18 @@ def leave_out_pages(db: Any, documents: list[str], run_id: str,
         account["pages"] += 1
         doc = db.get(Document, doc_id)
         page_box = ((doc.metadata or {}).get("page_box") if doc is not None else None)
+        furniture = (doc.metadata or {}).get("page_furniture") if doc is not None else None
+        verso_only = bool(doc is not None and (doc.metadata or {}).get("show_through_only")
+                          and not (doc.metadata or {}).get("show_through_included"))  # one click includes the page
         # The rules judge every line (the median is the page's own); only a machine's, still-kept line can be marked.
         lines = [{"id": r.id, "x": r.bbox_x, "y": r.bbox_y, "w": r.bbox_w, "h": r.bbox_h, "confidence": r.confidence}
                  for r in rows if not r.is_furniture]
         # The page's image is opened only when the bleed rule has a line it could judge.
         unsure = any(ln["confidence"] is not None and ln["confidence"] < LOW_CONFIDENCE for ln in lines)
-        image = _open_image(_resolve_abs_path(doc, str(library))) if unsure and doc is not None else None
+        image = _open_image(_contrast_path(db, doc, str(library))) if unsure and not verso_only and doc is not None else None
         contrast = (lambda ln: _ink_contrast(image, ln)) if image is not None else None
-        verdicts = decide(lines, page_box=page_box, contrast_of=contrast)
+        verdicts = ({ln["id"]: SHOW_THROUGH_ONLY_VERSO for ln in lines} if verso_only
+                    else decide(lines, page_box=page_box, furniture=furniture, contrast_of=contrast))
         updates: list[dict[str, Any]] = []
         whys: dict[str, int] = {}
         for row in rows:
@@ -138,6 +155,54 @@ def leave_out_pages(db: Any, documents: list[str], run_id: str,
         for why, n in whys.items():
             account["why"][why] = account["why"].get(why, 0) + n
     return account
+
+
+def _contrast_path(db: Any, doc: Any, library: str) -> str | None:
+    """The file the ink contrast is read from: the newest `enhanced` rendition in the document's own frame (no transform,
+    so a line's fractions land on the same ink), else the page's own image."""
+    from fichero_server.models import Rendition
+    from fichero_server.workflows.tools.sources import _resolve_abs_path
+
+    enhanced = [r for r in db.query(Rendition, document_id=doc.id) if r.role == "enhanced" and r.transform is None]
+    if enhanced:
+        return max(enhanced, key=lambda r: (r.created_at, r.id)).path
+    return _resolve_abs_path(doc, library)
+
+
+def sample_findings(db: Any, documents: list[str]) -> dict[str, int]:
+    """What Leave Out would mark on these pages, without marking anything (`wide.leaveout.decided-from-page-quality`): `pages` judged
+    and `with_findings` pages where at least one line would be left out. The bleed rule is skipped (it needs the image)."""
+    from fichero_server.models import Document, Segment
+
+    out = {"pages": 0, "with_findings": 0}
+    for doc_id in documents:
+        rows = [r for r in db.query(Segment, document_id=doc_id) if r.kind == "line" and r.deleted_at is None and not r.is_furniture]
+        if not rows:
+            continue
+        doc = db.get(Document, doc_id)
+        meta = (doc.metadata or {}) if doc is not None else {}
+        lines = [{"id": r.id, "x": r.bbox_x, "y": r.bbox_y, "w": r.bbox_w, "h": r.bbox_h, "confidence": r.confidence} for r in rows]
+        out["pages"] += 1
+        out["with_findings"] += bool(decide(lines, page_box=meta.get("page_box"), furniture=meta.get("page_furniture"), bleed=False))
+    return out
+
+
+#: Leave Out is suggested on when this share of the sample's pages have a finding, or the person said the pages are damaged.
+FINDING_SHARE = 0.4
+DAMAGE_CONDITIONS = ("torn", "water-damage", "stains")
+
+
+def suggestion(findings: dict[str, int], condition: list[str] | None) -> dict[str, Any]:
+    """`{value, why}`: no fixed default, the sample and the condition decide, and the stage page says why."""
+    hurt = [c for c in condition or [] if c in DAMAGE_CONDITIONS]
+    if hurt:
+        return {"value": True, "why": "you said the pages are " + ", ".join(c.replace("-", " ") for c in hurt) + "; damaged areas are left out before reading"}
+    seen, found = findings.get("pages", 0), findings.get("with_findings", 0)
+    if seen and found / seen >= FINDING_SHARE:
+        return {"value": True, "why": f"{found} of {seen} sample pages have marks that are not writing"}
+    if seen:
+        return {"value": False, "why": f"{found} of {seen} sample pages have marks that are not writing, so nothing needs leaving out"}
+    return {"value": False, "why": "there are no sample pages with lines yet to judge"}
 
 
 def _open_image(path: str | None) -> Any | None:

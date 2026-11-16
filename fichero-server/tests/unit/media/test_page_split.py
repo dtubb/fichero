@@ -119,3 +119,18 @@ def test_whole_frame_says_so():
     the outline was not found rather than pass the frame off as a detection."""
     outline = ps.whole_frame(300, 200)
     assert outline.method == "frame" and outline.box == (0, 0, 300, 200) and outline.confidence == 0.0
+
+
+def _dip(depth_to, paper):
+    profile = np.full(200, paper, dtype=np.float32)
+    profile[95:105] = depth_to  # a 40 px gutter at the middle (step 4)
+    return profile
+
+
+def test_the_gutter_must_be_dark_and_darker_than_its_neighbours():
+    """`prep.split-at-the-gutter` (the legacy neighbour test): under 180 and 15 darker than the columns beside it."""
+    _, clear = ps.find_gutter(_dip(110, 210))
+    _, too_pale = ps.find_gutter(_dip(185, 235))  # a clear dip, but not under 180
+    _, no_step = ps.find_gutter(_dip(165, 172))  # under 180, only 7 darker than the paper
+    assert clear > ps.MIN_GUTTER_CONFIDENCE
+    assert too_pale == 0.0 and no_step == 0.0

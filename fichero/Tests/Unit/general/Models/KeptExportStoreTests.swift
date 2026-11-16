@@ -131,7 +131,10 @@ struct KeptExportStoreTests {
         for format in [KeptExportStore.Format.word, .markdown, .plainText] {
             #expect(KeptExportStore.allowsPerDocument(format))
         }
-        #expect(KeptExportStore.formats.count == 7, "Word, Markdown, plain text, ALTO, PAGE, TEI, hOCR")
+        #expect(
+            KeptExportStore.formats.count == 9,
+            "Word, Markdown, plain text, ALTO, PAGE, TEI, hOCR, the catalogue workbook, the Word transcript"
+        )
 
         let client = makeClient { request in
             let body = KeptExportURLProtocol.seen.last?.body ?? [:]
@@ -143,10 +146,93 @@ struct KeptExportStoreTests {
         #expect(KeptExportURLProtocol.seen.last?.body["per"] as? String == "page", "never asked per document")
     }
 
+    /// WHY: the catalogue workbook is one Catálogo.xlsx for the whole project; the engine refuses it
+    /// per page. The row must hold only per document, and a request must never ask otherwise.
+    @Test("the catalogue workbook is one file per project: per document only")
+    func catalogueWorkbookIsPerDocumentOnly() async throws {
+        let format = KeptExportStore.Format.catalogueWorkbook
+        #expect(KeptExportStore.formats.contains(format))
+        #expect(KeptExportStore.allowsPerDocument(format) && !KeptExportStore.allowsPerPage(format))
+        #expect(KeptExportStore.title(of: format) == "Catalogue workbook (Excel)")
+        var draft = KeptExportStore.Draft(folder: nil, format: .alto, per: .page)
+        draft.format = format
+        #expect(draft.per == .document, "choosing the workbook makes the row per document")
+        draft.per = .page
+        #expect(draft.per == .document, "per page cannot be chosen for the workbook")
+
+        let client = makeClient { _ in
+            let body = KeptExportURLProtocol.seen.last?.body ?? [:]
+            return (200, Self.exportJSON(id: "k3", folder: "/Exports/Sheet", format: body["format"] as? String ?? "",
+                                         per: body["per"] as? String ?? ""))
+        }
+        let store = KeptExportStore(client: client)
+        #expect(await store.keep(folder: URL(fileURLWithPath: "/Exports/Sheet"), format: format, per: .page))
+        let sent = KeptExportURLProtocol.seen.last?.body
+        #expect(sent?["format"] as? String == "catalogue-workbook" && sent?["per"] as? String == "document")
+    }
+
+    /// WHY: the Word transcript is one .docx per folder, page by page; a single page is no transcript, so
+    /// the engine refuses it per page. The row must hold per document only, and say what it writes.
+    @Test("the Word transcript is one file per folder: per document only")
+    func wordTranscriptIsPerDocumentOnly() async throws {
+        let format = KeptExportStore.Format.wordTranscript
+        #expect(KeptExportStore.formats.contains(format))
+        #expect(KeptExportStore.allowsPerDocument(format) && !KeptExportStore.allowsPerPage(format))
+        #expect(KeptExportStore.title(of: format) == "Word transcript (one per folder)")
+        var draft = KeptExportStore.Draft(folder: nil, format: .markdown, per: .page)
+        draft.format = format
+        #expect(draft.per == .document)
+        draft.per = .page
+        #expect(draft.per == .document, "per page cannot be chosen for the transcript")
+
+        let client = makeClient { _ in
+            let body = KeptExportURLProtocol.seen.last?.body ?? [:]
+            return (200, Self.exportJSON(id: "k4", folder: "/Exports/T", format: body["format"] as? String ?? "",
+                                         per: body["per"] as? String ?? ""))
+        }
+        let store = KeptExportStore(client: client)
+        #expect(await store.keep(folder: URL(fileURLWithPath: "/Exports/T"), format: format, per: .page))
+        let sent = KeptExportURLProtocol.seen.last?.body
+        #expect(sent?["format"] as? String == "word-transcript" && sent?["per"] as? String == "document")
+    }
+
     // MARK: Removing, writing
 
     /// WHY: × on a kept export must DELETE that export's own route (the engine stops writing; the
     /// files stay), and only that row leaves the list.
+    /// WHY: decision 28 (#6588). An export whose folder is gone has one way back, Choose Folder…, and a person who wants the
+    /// folder left alone switches Keep up to date off; both must reach the engine's PATCH and splice the export it answers.
+    @Test("Choose Folder… and Keep up to date are one PATCH each, and the answer replaces that export")
+    func chooseFolderAndKeepUpToDatePatch() async throws {
+        let client = makeClient { request in
+            switch (request.httpMethod ?? "GET", request.url?.path ?? "") {
+            case ("GET", "/api/export/kept"):
+                return (200, #"{"exports":[\#(Self.exportJSON(id: "k1", folder: "/Gone/Letters", format: "word", per: "document"))]}"#)
+            case ("PATCH", "/api/export/kept/k1"):
+                let body = KeptExportURLProtocol.seen.last?.body ?? [:]
+                let folder = body["folder"] as? String ?? "/Gone/Letters"
+                let isOn = body["keep_up_to_date"] as? Bool ?? true
+                return (200, #"{"id":"k1","folder":"\#(folder)","format":"word","per":"document","files":[],"#
+                        + #""in_the_way":[],"pending":0,"last_written":null,"keep_up_to_date":\#(isOn)}"#)
+            default:
+                return (404, "{}")
+            }
+        }
+        let store = KeptExportStore(client: client)
+        await store.load()
+
+        #expect(await store.chooseFolder("k1", folder: URL(fileURLWithPath: "/tmp/Chosen")))
+        let moved = try #require(KeptExportURLProtocol.seen.last { $0.method == "PATCH" })
+        #expect(moved.body["folder"] as? String == "/tmp/Chosen")
+        #expect(moved.body["keep_up_to_date"] == nil, "only what changed is sent")
+        #expect(store.exports.first?.folder == "/tmp/Chosen")
+
+        #expect(await store.setKeepUpToDate("k1", false))
+        let switched = try #require(KeptExportURLProtocol.seen.last { $0.method == "PATCH" })
+        #expect(switched.body["keep_up_to_date"] as? Bool == false && switched.body["folder"] == nil)
+        #expect(store.exports.first?.keepUpToDate == false)
+    }
+
     @Test("removing a kept export calls DELETE and removes only that row")
     func removingCallsDelete() async {
         let client = makeClient { request in

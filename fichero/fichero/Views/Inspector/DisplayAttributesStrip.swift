@@ -64,6 +64,11 @@ struct DisplayAttributesStrip: View {
     @State var entityCount: Int?
     @State var claimCount: Int?
 
+    /// The value to store for a setting being normalized, or nil when it is already stored as that.
+    nonisolated static func rewrite(_ stored: String, as normalized: String) -> String? {
+        stored == normalized ? nil : normalized
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
@@ -86,10 +91,14 @@ struct DisplayAttributesStrip: View {
 
             // Normalize persisted CSV payloads so malformed/empty tokens from older
             // builds don't keep toggles in an inconsistent state across launches.
-            shownAttributesRaw = csvString(shownAttributes)
-            shownArtifactsRaw = csvString(shownArtifactTypes)
-            shownKGRaw = csvString(shownKGItems)
-            shownMetadataRaw = csvString(shownMetadataKeys)
+            // Written only when normalizing changed them (#4228): this runs on every
+            // click, and every `@AppStorage` write, even of the same value, posts a
+            // UserDefaults change that re-evaluates every `@AppStorage` view in the
+            // window (`ContentView` and `LibraryView` among them).
+            if let raw = Self.rewrite(shownAttributesRaw, as: csvString(shownAttributes)) { shownAttributesRaw = raw }
+            if let raw = Self.rewrite(shownArtifactsRaw, as: csvString(shownArtifactTypes)) { shownArtifactsRaw = raw }
+            if let raw = Self.rewrite(shownKGRaw, as: csvString(shownKGItems)) { shownKGRaw = raw }
+            if let raw = Self.rewrite(shownMetadataRaw, as: csvString(shownMetadataKeys)) { shownMetadataRaw = raw }
         }
         // Keep the strip's KG counts consistent with the Entities/Claims tabs
         // (#3618): when the shared stores mutate (change-stream #1863 — merge,

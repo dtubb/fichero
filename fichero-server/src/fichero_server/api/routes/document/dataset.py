@@ -22,9 +22,10 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
-from fichero_server.api.main import get_library_database
+from fichero_server.api.library_header import require_library_path
+from fichero_server.api.main import get_library_database, read_check
 from fichero_server.db import Database
 from fichero_server.db.dataset_query import (
     DatasetBins,
@@ -69,10 +70,15 @@ def _defaults_for(db: Database, prototype_keys: set[str]) -> dict[str, dict]:
 async def dataset_query(
     query: DatasetQuery,
     db: Database = Depends(get_library_database),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
 ) -> dict:
     """The renderer query: rows page + optional bins + optional facets."""
     if query.limit < 1 or query.limit > 500:
         raise HTTPException(status_code=422, detail="limit must be 1..500")
+    # The scope is in the body, which the read dependency never sees; rows, bins and facets all count the documents under it, so
+    # the caller must read every one (a query naming neither a folder nor ids is the whole project) (#6320).
+    await read_check(http, library_path, db, [query.parent_id, *(query.ids or [])] if (query.parent_id or query.ids) else [None])
 
     try:
         result = run_dataset_query(db, query)

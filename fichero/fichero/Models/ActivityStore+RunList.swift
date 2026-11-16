@@ -41,8 +41,10 @@ extension ActivityStore {
             setLoadFailure(nil, library: library.id, source: .runs)
         } catch {
             let message = Self.runLoadFailureMessage(libraryName: library.displayName, error: error)
-            log.error("ActivityStore: run list load failed: \(message, privacy: .public)")
-            setLoadFailure(message, library: library.id, source: .runs)
+            // A standing refusal (a project the engine may not open) is logged once, when it starts, not every reload.
+            if setLoadFailure(message, library: library.id, source: .runs) {
+                log.error("ActivityStore: run list load failed: \(message, privacy: .public)")
+            }
         }
     }
 
@@ -114,6 +116,23 @@ extension ActivityStore {
         } catch {
             log.error("ActivityStore: deleteRuns failed \(error.localizedDescription, privacy: .public)")
             return RunDeleteOutcome(deletedIds: [], skippedIds: threadIds ?? [], failure: error.localizedDescription)
+        }
+    }
+
+    /// Delete job rows of their own (`activity.window.delete-any-row`, #6583): the engine's
+    /// `job.delete`, each deleted row spliced out of `backgroundJobs` in place (a kind's row
+    /// `waiting:<kind>` goes with the jobs it stood for). Skipped ids (running now, unknown)
+    /// keep their row, returned so the caller can say so. The same shape as `deleteRuns`.
+    @discardableResult
+    func deleteJobs(ids: [String], states: [String]? = nil, stopRunning: Bool = false) async -> RunDeleteOutcome {
+        do {
+            let answer = try await activityService.deleteJobs(ids: ids, states: states, stopRunning: stopRunning)
+            let gone = Set(answer.deletedIds).union(ids.filter { $0.hasPrefix("waiting:") || $0.hasPrefix("paused:") })
+            backgroundJobs.removeAll { gone.contains($0.id) }
+            return RunDeleteOutcome(deletedIds: answer.deletedIds, skippedIds: answer.skippedIds)
+        } catch {
+            log.error("ActivityStore: deleteJobs failed \(error.localizedDescription, privacy: .public)")
+            return RunDeleteOutcome(deletedIds: [], skippedIds: ids, failure: error.localizedDescription)
         }
     }
 
@@ -212,7 +231,7 @@ extension ActivityStore {
     /// with the one engine-date parser (fractional seconds, any offset); a
     /// time it cannot read is `nil`, shown as unknown and logged, never
     /// replaced by "now", which made every row say "just now" (#5432).
-    private func historicalRun(
+    func historicalRun(
         from summary: Components.Schemas.WorkflowRunSummary,
         library: LibraryManager.LibraryReference
     ) -> ActivityRun {

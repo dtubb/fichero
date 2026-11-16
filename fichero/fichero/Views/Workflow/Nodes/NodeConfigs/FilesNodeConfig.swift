@@ -204,7 +204,7 @@ private extension FilesNodeConfig {
         documentStore.collections
             .filter { $0.docType == .folder }
             .sorted { lhs, rhs in
-                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                lhs.name.finderOrder(rhs.name)
             }
     }
 
@@ -221,7 +221,7 @@ private extension FilesNodeConfig {
                 return validFolderIds.contains(parentId)
             }
             .sorted { lhs, rhs in
-                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                lhs.name.finderOrder(rhs.name)
             }
 
         var seen = Set<String>()
@@ -253,7 +253,7 @@ private extension FilesNodeConfig {
         }
         for key in map.keys {
             map[key]?.sort { lhs, rhs in
-                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                lhs.name.finderOrder(rhs.name)
             }
         }
         return map
@@ -266,7 +266,7 @@ private extension FilesNodeConfig {
                 folder.parentId == nil && folder.name != "Inbox"
             }
             .sorted { lhs, rhs in
-                lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                lhs.name.finderOrder(rhs.name)
             }
         return inbox + otherRoots
     }

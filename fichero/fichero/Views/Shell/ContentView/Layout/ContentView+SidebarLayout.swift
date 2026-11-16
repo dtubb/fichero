@@ -30,9 +30,13 @@ extension ContentView {
 
     @ViewBuilder
     var sidebarContent: some View {
+        // The chat stands alone when the far-left sidebar button hid the tree (`SidebarColumnState`).
+        let chatAlone = windowState.sidebarTreeHidden && showChatPane && appState.isBackendRunning
         VStack(spacing: 0) {
-            sidebarTree
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if !chatAlone {
+                sidebarTree
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
             // Chat lives BELOW the folder tree (spec panes.chat.below-sidebar):
             // the assistant chat is no longer a centre pane. Gated on the SAME
             // `showChatPane` the sparkles toolbar toggle drives; the divider
@@ -49,16 +53,18 @@ extension ContentView {
             if showChatPane,
                appState.isBackendRunning,
                let library = libraryManager.getLibrary(id: windowState.libraryId) {
-                ResizableDivider(
-                    width: $sidebarChatHeight,
-                    minWidth: 140,
-                    maxWidth: 700,
-                    edge: .trailing,
-                    axis: .vertical
-                )
+                if !chatAlone {
+                    ResizableDivider(
+                        width: $sidebarChatHeight,
+                        minWidth: 140,
+                        maxWidth: 700,
+                        edge: .trailing,
+                        axis: .vertical
+                    )
+                }
                 chatSurface
-                    .frame(height: CGFloat(sidebarChatHeight))
-                    .frame(maxWidth: .infinity)
+                    .frame(height: chatAlone ? nil : CGFloat(sidebarChatHeight))
+                    .frame(maxWidth: .infinity, maxHeight: chatAlone ? .infinity : nil)
                     // #4513: a missing @Environment object is a HARD crash, and
                     // ChatView's subtree reads EIGHT services non-optionally
                     // (APIClient, ChatService, ConversationService, DocumentStore,
@@ -107,6 +113,14 @@ extension ContentView {
             max: 600
         )
         .focusedSceneValue(\.sidebarMode, sidebarModeBinding)
+        // #4970 kept the SYSTEM sidebar toggle because a hand-placed item shared a toolbar
+        // section with Back/Forward. On the Mac that is reversed on purpose (Daniel, 2026-11-11):
+        // the Sidebar/Chat pair is a toolbar item of this column, beside the window controls, and the
+        // system toggle is removed from this same column view, where Apple's docs apply the modifier.
+        // The iPad does the same (#6563): the pair replaces the system toggle wherever the pair is drawn, and a compact
+        // iPhone, which has no pair, keeps the system's own (`SidebarPairHome`).
+        .toolbar(removing: sidebarPairHome == nil ? nil : .sidebarToggle)
+        .toolbar { sidebarToolbarContent }
         // NOTE: \.showInspector is published from the detail column in
         // ContentView.navigationSplitColumn (always present), NOT here — the
         // sidebar leaves the hierarchy when collapsed, which disabled ⌘⌥I
@@ -225,7 +239,8 @@ extension ContentView {
             // resolving a pane-head menu item's SF Symbol through CUICatalog mid-animation crashed
             // (-[NSCache objectForKey:] in CUICatalog, the ⌘⌥4 Compare crash the CD reported).
             // Switching workspaces is an instant composition change, not an animated one.
-            paneListRow(activePaneList)
+            // Focus shows one pane of the stored list, which it never changes (`panes.focus.esc-restores-exactly`).
+            paneListRow(windowState.focusedPaneLeaf.map { activePaneList.focusing($0) } ?? activePaneList)
         }
     }
 }

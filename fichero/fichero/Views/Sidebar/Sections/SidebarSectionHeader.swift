@@ -34,6 +34,9 @@ func sidebarLibraryHeaderAccessibilityValue(isCurrent: Bool) -> String {
 /// and routing them by capability rather than by the id they carry is what made
 /// a move into a copy (#4401).
 struct LibrarySectionHeader: View {
+    /// A project's symbol in the sidebar: this row's, and a shared Mac's library rows' (#6557).
+    nonisolated static let systemImage = "books.vertical"
+
     let library: LibraryManager.LibraryReference
     let itemCount: Int
     var isCurrentLibrary: Bool = false
@@ -61,6 +64,9 @@ struct LibrarySectionHeader: View {
     @State private var isDropTargeted = false
     // @AppStorage, not a plain defaults read, so the host mark follows the Sharing switch live.
     @AppStorage(RemoteAccessConfig.hostingEnabledKey) private var hostingEnabled = false
+    /// The sidebar Metadata's switches (`sidebar.filter-menu.shows-toggles`): the count and the sharing marks.
+    @AppStorage(SidebarMetadata.itemCount.storageKey) private var showsItemCount = true
+    @AppStorage(SidebarMetadata.sharingState.storageKey) private var showsSharingState = true
 
     var body: some View {
         headerContent
@@ -132,7 +138,7 @@ struct LibrarySectionHeader: View {
     @ViewBuilder
     private var headerContent: some View {
         HStack(spacing: 6) {
-            Image(systemName: "books.vertical")
+            Image(systemName: Self.systemImage)
                 // White over the solid accent drop platter — the same
                 // inversion rule as the item rows (rowContentColor, #4568).
                 .foregroundStyle(
@@ -150,7 +156,7 @@ struct LibrarySectionHeader: View {
                 .truncationMode(.middle)  // Finder's rule: keep the distinguishing tail (2026-09-28)
                 .foregroundStyle(isDropTargeted ? Color.white : Color.primary)
             locationBadge
-            if SharedMark.showsOnHost(hostingEnabled: hostingEnabled,
+            if showsSharingState, SharedMark.showsOnHost(hostingEnabled: hostingEnabled,
                               isLocal: library.host.isLocal) {
                 Image(systemName: SharedMark.symbol)
                     .font(.caption)
@@ -158,9 +164,9 @@ struct LibrarySectionHeader: View {
                     .help(SharedMark.hostHelp)
                     .accessibilityLabel(SharedMark.hostHelp)
             }
-            LibrarySharingBadge(library: library)
+            if showsSharingState { LibrarySharingBadge(library: library) }
             Spacer()
-            if itemCount > 0 {
+            if showsItemCount, itemCount > 0 {
                 Text("\(itemCount)")
                     .font(.caption)
                     .foregroundStyle(isDropTargeted ? AnyShapeStyle(Color.white) : AnyShapeStyle(.secondary))

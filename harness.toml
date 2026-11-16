@@ -1,0 +1,551 @@
+# Per-project rules for the dev harness (fichero-builder/fichero_builder/check_tool.py `load`).
+# Fichero is the first project; another project carries its own harness.toml with the same keys.
+[check]
+# The jail user's own tools, copied into the workroot by the owner-side set-up (nothing is read from the owner's home).
+python = "/Users/Shared/fichero-worker/venv/bin/python"
+path = "/Users/Shared/fichero-worker/bin:/Users/Shared/fichero-worker/venv/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+python_path = ["fichero-server/src", "fichero-cli/src", "fichero-mcp/src", "fichero-builder"]
+base_path_env = "FICHERO_BASE_PATH"
+ready = ["scripts/lane_ready_check.sh", "--no-guards", "HEAD"]  # the guards rung runs every guard from the pinned copy
+base_ref = "origin/integration"
+max_commits = 100  # the most commits a lane may be ahead of origin/integration (lane_ready_check.sh reads it; the pinned copy's value judges)
+guard_glob = "scripts/check_*.py"
+guard_timeout_s = 60
+min_guards = 20
+parallel = 2   # speed 3 (manager 2026-11-02): two ladders at once when their batches share no file; 1 = one at a time
+# Guards the nightly gate runs instead (reasons: pipeline/projects/fichero.toml [ladder.skip]).
+guard_skip = [
+  "check_closed_issues_landed", "check_unmerged_work", "check_merged_worktrees", "check_no_orphan_stashes",
+  "check_coverage_ratchet", "check_embedded_engine_signing", "check_hang_ratchet", "check_mac_app_store_target",
+  "check_release_staples_app", "check_sparkle_update_ready", "check_swiftlint_warning_ratchet",
+  "check_test_plans_runnable", "check_engine_imports_bundled", "check_release_size_ratchet", "check_docs_paths",
+  "check_file_placement",  # the whole-tree mode (no flag) walks 8,000 tracked files and needs git: nightly; the --since mode runs per batch via since_guards
+]
+contract_paths = ["fichero-server/src/"]
+contract_guards = [
+  "scripts/check_openapi_route_set_current.py", "scripts/check_contract_identity_current.py",
+  "scripts/check_mcp_generated_current.py",
+]
+# A diff under the prefix runs the guard with `--since <base>` (its question about this range only, #6318). The whole-tree
+# ratchet stays in guard_skip; swiftlint must be in [check].path for the worker (a copy in <workroot>/bin, like ruff).
+since_guards = { "scripts/check_swiftlint_warning_ratchet.py" = "fichero/", "scripts/check_file_placement.py" = "" }  # "" = every diff: a stray repo-root file sits under no product prefix; its Swift rules run on every diff too
+check_paths = [
+  "scripts/", "harness.toml", ".github/", ".gitattributes", ".gitmodules", "pyproject.toml", "pytest.ini",
+  "fichero-server/pyproject.toml", "fichero-server/pytest.ini", "fichero-cli/pyproject.toml", "fichero-mcp/pyproject.toml",
+  "fichero-builder/fichero_builder/lint.py",  # the ready check's lint ratchet: judges the batch, so a batch never edits the copy that judges it
+]
+# red-on-base is owed only by engine/CLI/MCP/Builder Python; Swift or contract changes need a Lead build row, docs and specs neither.
+red_paths = ["fichero-server/src/", "fichero-cli/src/", "fichero-mcp/src/", "fichero-builder/fichero_builder/"]
+# a Builder source change also runs the whole Builder tests dir in the green run (a broken old test slipped through once).
+spec_dir = "docs/contributor_manual/specs"
+test_globs = ["test_*.py", "*_test.py"]
+# speed batch 1 (manager 2026-11-03): rule classes the ladder decides by itself, each an `auto` journal row the manager audits
+auto = ["red-on-base-trim-only", "red-on-base-timeout-only", "weakened-tests-of-a-deleted-module", "approval-carry-same-file-diffs", "guard-data-added-routes",
+        "allowlist-entries-only-removed"]
+routes_file = "fichero-server/tests/contracts/openapi.json"  # the engine's routes at head (guard-data-added-routes)
+# manager 2026-11-04: a rebase whose ONLY conflict is the generated contract identity takes upstream's and re-bakes it with the
+# project's own tool (#4705), never by hand
+generated = ["fichero-server/src/fichero_server/api/contract_identity_generated.py",
+             "fichero/fichero-api-client/Sources/FicheroAPIClient/ContractIdentity.generated.swift"]
+rebake = ["{python}", "fichero-server/scripts/export_openapi_schema.py", "--bake-identity-from", "fichero-server/tests/contracts/openapi.json"]
+rebake_issue = "#4705"
+# 2026-11-14: a rebase left the contracts and the engine embed list stale and the guards bounced the batch: after every rebase that moves a
+# managed lane these run in its worktree as the worker and a change is committed citing rebake_issue; an external lane's red names them
+regen = ["FICHERO_PYTHON_BIN={python} bash fichero-server/scripts/sync_openapi_schema.sh", "{python} scripts/regen_engine_embed_filelist.py",
+         "rm -rf fichero/fichero-api-client/.build"]
+# pytest runs with plugin autoload OFF, the pinned config, and only these plugins (module names in the worker venv).
+pytest_config = "fichero-server/pyproject.toml"
+# manager 2026-11-02 (the Pro is CPU-bound): the engine pytest runs go to the M4 iMac, then the M1 Air (added 2026-11-03; each venv
+# synced by `builder machines sync`); a runner unreachable or under 5 GiB free = an alert and the next, then the run here; the build
+# rung and the guards that call git stay on the Pro
+remote = ["m4:~/fichero-gate", "imac:~/fichero-gate", "air:~/fichero-gate"]  # manager 2026-11-09 11:58: the M4 first (~/fichero-gate is a link to its Dev Disk), the Pro is the owner's Xcode machine
+# manager 2026-11-06 (the Pro at load 30 to 57 beside the owner's Xcode): "auto" sends every guard that names no git, subprocess, swiftlint
+# or xcodebuild to the first runner in ONE ssh batch (no heavy lock there); a red there is re-run here before it counts
+remote_guards = "auto"
+# manager 2026-11-06 t88: the build rung on the M1 Air (its own derived data under ~/fichero-gate), so the Pro stays the owner's; the Air
+# unreachable, or a red there that names no Swift source error, builds here as before
+build_remote = "m4:~/fichero-gate"  # 2026-11-09: the M4 (Xcode 27, derived data on its Dev Disk); the Air stays in remote above
+remote_min_free_gb = 6  # manager 2026-11-06: a runner under 6 GiB free is skipped
+pytest_plugins = ["anyio.pytest_plugin", "_hypothesis_pytestplugin", "langsmith.pytest_plugin", "pytest_timeout", "pytest_asyncio.plugin"]
+
+# A diff under build_paths compiles the app (build only, never a test run: a test run quits the owner's app) in the
+# scratch tree, one build at a time on this machine (owner 2026-11-01). Derived data under the shared area so a
+# second build reuses it; a stale incremental build is a known failure shape: delete the folder and run again.
+build_paths = ["fichero/"]
+# A landed batch touching these (the app, the engine, the CLI, MCP) earns the post-landing dev build; a harness-only batch builds none.
+product_paths = ["fichero/", "fichero-server/src/", "fichero-cli/src/", "fichero-mcp/src/"]
+# The Dev Local scheme: a compile of the app alone (Dev Embedded's "Embed Fichero Server" phase wants a briefcase-staged
+# engine, which is the release lane's job, not a check). No signing: the worker user has no identity (review 1 M6, N7).
+# The check tree is owner-made and read-only to the worker, and Package.resolved is tracked: resolution reads it and writes
+# nothing (-disableAutomaticPackageResolution); a first real Swift check failed with exit 74 writing it (2026-11-01).
+build = ["xcodebuild", "-project", "fichero/fichero.xcodeproj", "-scheme", "Fichero (Dev Local)",
+         "-destination", "platform=macOS", "-derivedDataPath", "/Users/Shared/fichero-worker/derived", "-jobs", "4",
+         "-skipPackagePluginValidation", "-disableAutomaticPackageResolution", "CODE_SIGNING_ALLOWED=NO", "build"]
+build_timeout_s = 3600
+# Only the owner's process takes this lock, so it lives in the owner's own state dir (~ expands), not the shared area.
+build_lock = "~/.local/state/fichero-builder/build.lock"
+# one STABLE tree for the build rung (and build-check), so xcodebuild is incremental (manager 2026-11-03: every ladder built
+# in a new path, median 8.5 min); the jail user's workroot, beside its own derived dir, never the owner's Xcode data
+build_tree = "/Users/Shared/fichero-worker/build-tree"
+# The engine-owned repository check and land judge from: outside every home dir, owner-owned, world-readable (the jailed
+# user reads its objects and the scratch worktrees made from it). Set up once: git clone --no-checkout <owner repo> here;
+# chmod -R a+rX; a local `integration` branch; fetch landing branches into it by ref.
+engine_repo = "/Users/Shared/fichero-engine"
+
+# every _scan_files test, the functional ones too, once a day on the loop's checkout (`builder daily-builds`), red = an alert
+daily_tests = [
+  "fichero-server/tests/unit/db/test_shared_connection_lock.py",
+  "fichero-server/tests/unit/api/test_mutation_log_names_its_actor.py",
+  "fichero-server/tests/unit/api/test_no_model_work_in_gets.py",
+  "fichero-server/tests/unit/api/test_no_alias_modules_in_routes.py",
+  "fichero-server/tests/unit/api/test_routes_hpc.py",
+  "fichero-server/tests/unit/api/test_routes_kg_reset_removed.py",
+  "fichero-server/tests/unit/api/test_structured_refusals_declared_5094.py",
+  "fichero-server/tests/unit/api/test_textedit_engine_primitives.py",
+  "fichero-server/tests/unit/core/test_no_test_arms_a_repeating_dump_6007.py",
+  "fichero-server/tests/unit/core/test_threads_fit_the_machine_5953.py",
+  "fichero-server/tests/unit/db/test_every_used_model_is_declared.py",
+  "fichero-server/tests/unit/db/test_query_where_extra_sql_is_constant.py",
+  "fichero-server/tests/unit/db/test_saved_is_found_after_a_crash.py",
+  "fichero-server/tests/unit/execution/test_failure_in_words_6212.py",
+  "fichero-server/tests/unit/formats/test_real_files_lose_no_text.py",
+  "fichero-server/tests/unit/importers/test_folder_of_images_and_layout.py",
+  "fichero-server/tests/unit/importers/test_pages_in_icloud_5669.py",
+  "fichero-server/tests/unit/jobs/test_a_job_that_dies_with_the_engine.py",
+  "fichero-server/tests/unit/jobs/test_adopted_folder.py",
+  "fichero-server/tests/unit/jobs/test_one_throttle_rule_5819.py",
+  "fichero-server/tests/unit/jobs/test_synced_folder.py",
+  "fichero-server/tests/unit/jobs/test_synced_folder_keep_arranged.py",
+  "fichero-server/tests/unit/llm/test_egress_gate_every_call_site.py",
+  "fichero-server/tests/unit/llm/test_kraken_runtime.py",
+  "fichero-server/tests/unit/llm/test_kraken_two_pages_at_once.py",
+  "fichero-server/tests/unit/llm/test_master_output_language.py",
+  "fichero-server/tests/unit/llm/test_models_live_in_the_store.py",
+  "fichero-server/tests/unit/llm/test_one_egress_gate_5368.py",
+  "fichero-server/tests/unit/llm/test_spacy_pipelines_as_files_to_spec.py",
+  "fichero-server/tests/unit/media/test_enhance_three_doors.py",
+  "fichero-server/tests/unit/media/test_no_leftovers_of_the_old_rendition_choice_6296.py",
+  "fichero-server/tests/unit/media/test_quartz_names_resolved_before_threads_5745.py",
+  "fichero-server/tests/unit/models/test_doctype_references_valid.py",
+  "fichero-server/tests/unit/packaging/test_engine_starts_without_unbundled_packages.py",
+  "fichero-server/tests/unit/recipes/test_htr_united_verifies_https_5809.py",
+  "fichero-server/tests/unit/recipes/test_topic_registry.py",
+  "fichero-server/tests/unit/scripts/test_app_loggers_share_one_subsystem_6124.py",
+  "fichero-server/tests/unit/scripts/test_check_capability_reference_current.py",
+  "fichero-server/tests/unit/scripts/test_check_routes_use_action_layer.py",
+  "fichero-server/tests/unit/scripts/test_db_access_guardrail.py",
+  "fichero-server/tests/unit/scripts/test_guardrails_scan_floor.py",
+  "fichero-server/tests/unit/scripts/test_ios_never_links_ingest_3282.py",
+  "fichero-server/tests/unit/scripts/test_no_unrunnable_tests.py",
+  "fichero-server/tests/unit/scripts/test_route_write_authz_guardrail.py",
+  "fichero-server/tests/unit/scripts/test_scan_files_skips_nested_worktrees.py",
+  "fichero-server/tests/unit/scripts/test_sf_symbol_names.py",
+  "fichero-server/tests/unit/scripts/test_single_connection_guardrail.py",
+  "fichero-server/tests/unit/seams/test_change_event_seam.py",
+  "fichero-server/tests/unit/seams/test_discarded_result_seam.py",
+  "fichero-server/tests/unit/seams/test_focused_value_seam.py",
+  "fichero-server/tests/unit/seams/test_mcp_never_spawns_an_engine_5512.py",
+  "fichero-server/tests/unit/seams/test_optional_callback_seam.py",
+  "fichero-server/tests/unit/seams/test_retired_geometry_field_seam.py",
+  "fichero-server/tests/unit/seams/test_state_channel_seam.py",
+  "fichero-server/tests/unit/seams/test_swallowed_exception_seam.py",
+  "fichero-server/tests/unit/security/test_real_data_guard.py",
+  "fichero-server/tests/unit/security/test_security_guardrails.py",
+  "fichero-server/tests/unit/test_one_delete_path_to_the_trash_5243.py",
+  "fichero-server/tests/unit/transfer/test_every_id_field_is_classified.py",
+  "fichero-server/tests/unit/transfer/test_incoming_copy_security.py",
+  "fichero-server/tests/unit/transfer/test_transfer_a_page_whole.py",
+  "fichero-server/tests/unit/transfer/test_transfer_is_never_half_done.py",
+  "fichero-server/tests/unit/transport/test_remote_run_in_activity_to_spec.py",
+  "fichero-server/tests/unit/transport/test_revoke_ends_every_stream_5913.py",
+  "fichero-server/tests/unit/workflows/test_a_new_result_is_a_pass_at_once.py",
+  "fichero-server/tests/unit/workflows/test_routed_workflow_round_trip_3949.py",
+  "fichero-server/tests/unit/workflows/test_spacy_never_blocks_the_loop.py",
+]
+
+# 2026-11-08: the tree-scanning guardrail tests (they import scripts/_scan_files) each run when a batch touches what they scan
+# (the roots each passed to scan_rglob, recorded on a real run); five sat red on integration for hours because no batch edits them.
+[check.whole_tests]
+"fichero-builder/fichero_builder/" = "fichero-builder/tests"
+"docs/reference_manual/tool_references/" = [
+  "fichero-server/tests/unit/scripts/test_check_capability_reference_current.py",
+]
+"fichero-cli/tests/" = [
+  "fichero-server/tests/unit/scripts/test_scan_files_skips_nested_worktrees.py",
+]
+"fichero-mcp/src/" = [
+  "fichero-server/tests/unit/seams/test_mcp_never_spawns_an_engine_5512.py",
+]
+"fichero-mcp/tests/" = [
+  "fichero-server/tests/unit/scripts/test_scan_files_skips_nested_worktrees.py",
+]
+"fichero-server/" = [
+  "fichero-server/tests/unit/workflows/test_routed_workflow_round_trip_3949.py",
+]
+"fichero-server/bin/" = [
+  "fichero-server/tests/unit/security/test_real_data_guard.py",
+]
+"fichero-server/scripts/" = [
+  "fichero-server/tests/unit/security/test_real_data_guard.py",
+]
+"fichero-server/src/" = [
+  "fichero-server/tests/unit/core/test_no_test_arms_a_repeating_dump_6007.py",
+  "fichero-server/tests/unit/llm/test_kraken_runtime.py",
+]
+"fichero-server/src/fichero_server/" = [
+  "fichero-server/tests/unit/db/test_shared_connection_lock.py",
+  "fichero-server/tests/unit/api/test_mutation_log_names_its_actor.py",
+  "fichero-server/tests/unit/api/test_no_alias_modules_in_routes.py",
+  "fichero-server/tests/unit/api/test_routes_hpc.py",
+  "fichero-server/tests/unit/api/test_textedit_engine_primitives.py",
+  "fichero-server/tests/unit/core/test_threads_fit_the_machine_5953.py",
+  "fichero-server/tests/unit/db/test_every_used_model_is_declared.py",
+  "fichero-server/tests/unit/db/test_query_where_extra_sql_is_constant.py",
+  "fichero-server/tests/unit/db/test_saved_is_found_after_a_crash.py",
+  "fichero-server/tests/unit/execution/test_failure_in_words_6212.py",
+  "fichero-server/tests/unit/jobs/test_a_job_that_dies_with_the_engine.py",
+  "fichero-server/tests/unit/jobs/test_one_throttle_rule_5819.py",
+  "fichero-server/tests/unit/llm/test_egress_gate_every_call_site.py",
+  "fichero-server/tests/unit/llm/test_kraken_two_pages_at_once.py",
+  "fichero-server/tests/unit/llm/test_master_output_language.py",
+  "fichero-server/tests/unit/llm/test_models_live_in_the_store.py",
+  "fichero-server/tests/unit/llm/test_one_egress_gate_5368.py",
+  "fichero-server/tests/unit/media/test_enhance_three_doors.py",
+  "fichero-server/tests/unit/media/test_no_leftovers_of_the_old_rendition_choice_6296.py",
+  "fichero-server/tests/unit/media/test_quartz_names_resolved_before_threads_5745.py",
+  "fichero-server/tests/unit/models/test_doctype_references_valid.py",
+  "fichero-server/tests/unit/packaging/test_engine_starts_without_unbundled_packages.py",
+  "fichero-server/tests/unit/recipes/test_htr_united_verifies_https_5809.py",
+  "fichero-server/tests/unit/recipes/test_topic_registry.py",
+  "fichero-server/tests/unit/scripts/test_db_access_guardrail.py",
+  "fichero-server/tests/unit/scripts/test_single_connection_guardrail.py",
+  "fichero-server/tests/unit/seams/test_change_event_seam.py",
+  "fichero-server/tests/unit/seams/test_discarded_result_seam.py",
+  "fichero-server/tests/unit/seams/test_retired_geometry_field_seam.py",
+  "fichero-server/tests/unit/seams/test_swallowed_exception_seam.py",
+  "fichero-server/tests/unit/security/test_security_guardrails.py",
+  "fichero-server/tests/unit/transfer/test_every_id_field_is_classified.py",
+  "fichero-server/tests/unit/workflows/test_a_new_result_is_a_pass_at_once.py",
+  "fichero-server/tests/unit/workflows/test_spacy_never_blocks_the_loop.py",
+]
+"fichero-server/src/fichero_server/api/" = [
+  "fichero-server/tests/unit/api/test_no_model_work_in_gets.py",
+]
+"fichero-server/src/fichero_server/api/routes/" = [
+  "fichero-server/tests/unit/api/test_routes_kg_reset_removed.py",
+  "fichero-server/tests/unit/api/test_structured_refusals_declared_5094.py",
+  "fichero-server/tests/unit/scripts/test_check_routes_use_action_layer.py",
+  "fichero-server/tests/unit/scripts/test_route_write_authz_guardrail.py",
+  "fichero-server/tests/unit/transport/test_remote_run_in_activity_to_spec.py",
+  "fichero-server/tests/unit/transport/test_revoke_ends_every_stream_5913.py",
+]
+"fichero-server/src/fichero_server/execution/" = [
+  "fichero-server/tests/unit/seams/test_state_channel_seam.py",
+]
+"fichero-server/src/fichero_server/workflows/" = [
+  "fichero-server/tests/unit/seams/test_state_channel_seam.py",
+]
+"fichero-server/tests/" = [
+  "fichero-server/tests/unit/core/test_no_test_arms_a_repeating_dump_6007.py",
+  "fichero-server/tests/unit/scripts/test_no_unrunnable_tests.py",
+  "fichero-server/tests/unit/scripts/test_scan_files_skips_nested_worktrees.py",
+  "fichero-server/tests/unit/seams/test_retired_geometry_field_seam.py",
+]
+"fichero/fichero/" = [
+  "fichero-server/tests/unit/scripts/test_app_loggers_share_one_subsystem_6124.py",
+  "fichero-server/tests/unit/scripts/test_ios_never_links_ingest_3282.py",
+  "fichero-server/tests/unit/scripts/test_sf_symbol_names.py",
+  "fichero-server/tests/unit/seams/test_focused_value_seam.py",
+  "fichero-server/tests/unit/seams/test_optional_callback_seam.py",
+  "fichero-server/tests/unit/test_one_delete_path_to_the_trash_5243.py",
+]
+"scripts/" = [
+  "fichero-server/tests/unit/scripts/test_guardrails_scan_floor.py",
+  "fichero-server/tests/unit/security/test_real_data_guard.py",
+]
+
+# #6390 (owner 2026-11-07): what the build rung never compiles, built once a day on build_remote (the Air; never this Mac), each
+# with its own derived data there, red = an alert: the iOS app (macOS-only APIs in shared Swift broke it unseen) and the Swift
+# test target (a missing import landed unseen). -derivedDataPath is replaced over there.
+[check.daily_builds]
+ios-sim = ["xcodebuild", "-project", "fichero/fichero.xcodeproj", "-scheme", "Fichero (Dev Local)", "-destination", "generic/platform=iOS Simulator",
+           "-derivedDataPath", "derived", "-jobs", "4", "-skipPackagePluginValidation", "CODE_SIGNING_ALLOWED=NO", "build"]
+tests = ["xcodebuild", "-project", "fichero/fichero.xcodeproj", "-scheme", "Fichero (Dev Local)", "-destination", "platform=macOS",
+         "-derivedDataPath", "derived", "-jobs", "4", "-skipPackagePluginValidation", "CODE_SIGNING_ALLOWED=NO", "build-for-testing"]
+
+# Speed 5 inputs (2026-11-08, read with an audit hook: what each guard opens and lists, two levels deep; scripts/ whole).
+# Undeclared = the whole tree (a guard that starts a subprocess, or lists the root). ponytail: a stat-only read is not seen,
+# so a guard reading a path only by .exists() can be reused stale; verify-all runs every guard uncached each night.
+[check.guard_inputs]
+check_accessibility = ["fichero/fichero", "scripts"]
+check_action_surface_matrix = ["fichero/fichero", "scripts"]
+check_agents_route_tier_claim = ["AGENTS.md", "fichero-server/src", "scripts"]
+check_ai_model_metadata = ["fichero-server/src", "scripts"]
+check_app_intent_action_coverage = ["fichero-server/src", "fichero/fichero", "scripts"]
+check_appkit_imports = ["fichero/fichero", "scripts"]
+check_appkit_leaks = ["fichero/fichero", "scripts"]
+check_applescript_coverage = ["fichero/fichero", "scripts"]
+check_appsource_paths = ["fichero/Tests", "scripts"]
+check_artifact_type_contract = ["fichero-server/src", "fichero/fichero", "scripts"]
+check_canonical_renderers = ["fichero/fichero", "scripts"]
+check_capability_reference_current = ["docs/reference_manual", "fichero-server/src", "mkdocs.yml", "scripts"]
+check_capability_scrapes = ["fichero/Tests", "scripts"]
+check_change_consumers_registered = ["fichero/fichero", "scripts"]
+check_change_event_contract = ["fichero-server/src", "fichero/fichero", "scripts"]
+check_comment_hygiene = ["fichero/fichero", "scripts"]
+check_contract_identity_current = ["fichero-server/src", "fichero-server/tests", "scripts"]
+check_crud_completeness = ["fichero-server/tests", "scripts"]
+check_dead_files = ["fichero/fichero", "scripts"]
+check_docs_publication = ["docs", "docs/assets", "docs/contributor_manual", "docs/reference_manual", "mkdocs.yml", "scripts"]
+check_duplicate_paths = ["fichero-server/src", "fichero-server/tests", "scripts"]
+check_emit_change_coverage = ["fichero-server/src", "fichero/fichero", "scripts"]
+check_endpoint_coverage_matrix = ["fichero-cli/src", "fichero-server/tests", "fichero/fichero", "scripts"]
+check_engine_version_stamp = ["fichero/fichero", "fichero/fichero.xcodeproj", "scripts"]
+check_environment_forwarding = ["fichero/fichero", "scripts"]
+check_feature_flags = ["fichero/fichero", "scripts"]
+check_folder_organization = ["fichero/fichero", "scripts"]
+check_generated_wrapper_drift = ["fichero/fichero", "fichero/fichero-api-client", "scripts"]
+check_hand_rolled_app_root = ["fichero", "fichero/Configs", "fichero/Tests", "fichero/fichero", "fichero/fichero-api-client", "fichero/fichero.xcodeproj", "scripts"]
+check_harness_neutral = ["fichero-builder/fichero_builder", "fichero-server/src", "scripts"]
+check_import_render_completeness = ["fichero-server/src", "fichero/fichero", "scripts"]
+check_import_tests_prove_delivery = ["fichero-server/tests", "scripts"]
+check_ios_remote_client_target = ["fichero/fichero", "fichero/fichero-api-client", "fichero/fichero.xcodeproj", "scripts"]
+check_locale_safe_binary_pipes = ["fichero-server/scripts", "scripts"]
+check_localization = ["fichero/fichero", "scripts"]
+check_mainactor_view_statics = ["fichero/Tests", "fichero/fichero", "scripts"]
+check_mas_flag_containment = ["fichero/fichero", "scripts"]
+check_mcp_generated_current = ["fichero-mcp/src", "fichero-server/scripts", "fichero-server/tests", "scripts"]
+check_model_download_location = ["fichero-server/src", "scripts"]
+check_naive_datetimes = ["fichero-cli/src", "fichero-mcp/src", "fichero-server/src", "scripts"]
+check_name_truncation = ["fichero/fichero", "scripts"]
+check_native_controls = ["fichero/fichero", "scripts"]
+check_native_row_containers = ["fichero/fichero", "scripts"]
+check_no_ambient_owner_in_tests = ["fichero-server/tests", "scripts"]
+check_no_emoji_sf_symbols = ["fichero/fichero", "scripts"]
+check_no_hardcoded_engine_base = ["fichero/fichero", "scripts"]
+check_no_raw_urlsession = ["fichero/fichero-api-client", "scripts"]
+check_no_raw_urlsession_app = ["fichero/fichero", "scripts"]
+check_observer_pattern = ["fichero/fichero", "scripts"]
+check_openapi_client_parity = ["fichero-cli/src", "fichero-server/tests", "fichero/fichero-api-client", "scripts"]
+check_openapi_route_set_current = ["docs/contributor_manual", "fichero-server/pyproject.toml", "fichero-server/src", "fichero-server/tests", "fichero/fichero-api-client", "scripts"]
+check_openapi_shadow_types = ["fichero-server/tests", "fichero/fichero", "scripts"]
+check_openapi_typed_fields = ["fichero-server/tests", "fichero/fichero", "scripts"]
+check_openapi_version_current = ["docs/contributor_manual", "fichero-server/pyproject.toml", "fichero-server/tests", "fichero/fichero-api-client", "scripts"]
+check_preview_coverage = ["fichero/fichero", "scripts"]
+check_pydantic_persistence_writes = ["fichero-server/src", "scripts"]
+check_python_comment_hygiene = ["fichero-server/src", "scripts"]
+check_raw_geometry_readers = ["fichero-cli/src", "fichero-mcp/src", "fichero-server/src", "scripts"]
+check_reader_touch_targets = ["fichero/fichero", "scripts"]
+check_requirements_matches_pyproject = ["fichero-server/pyproject.toml", "fichero-server/requirements.txt", "scripts"]
+check_rest_conventions = ["fichero-server/tests", "scripts"]
+check_routes_use_action_layer = ["fichero-server/src", "scripts"]
+check_scene_environment_injection = ["fichero/fichero", "scripts"]
+check_schema_names_are_unique = ["fichero-server/src", "scripts"]
+check_schema_roundtrip_keys = ["fichero-server/tests", "fichero/fichero", "scripts"]
+check_selection_grammar = ["fichero/fichero", "scripts"]
+check_service_consistency = ["fichero/fichero", "scripts"]
+check_setup_model_pickers = ["fichero-server/src", "fichero-server/tests", "scripts"]
+check_shell_chrome = ["fichero/fichero", "scripts"]
+check_sidebar_items = ["fichero/fichero", "scripts"]
+check_silent_write_swallow = ["fichero-server/src", "scripts"]
+check_spec_behaviors_are_tagged = ["docs/contributor_manual", "scripts"]
+check_spec_broken_has_issue = ["docs/contributor_manual", "scripts"]
+check_spec_build_order_shape = ["docs/contributor_manual", "scripts"]
+check_spec_manual_refs = ["docs/contributor_manual", "scripts"]
+check_spec_milestones = ["docs/contributor_manual", "scripts"]
+check_spec_no_duplicates = ["docs/contributor_manual", "scripts"]
+check_specs_have_tests = ["agent-work/specs", "docs/contributor_manual", "fichero-cli/tests", "fichero-mcp/tests", "fichero-server/tests", "fichero/Tests", "scripts"]
+check_stacked_presentation_modifiers = ["fichero/fichero", "scripts"]
+check_store_wholesale_reload = ["fichero/fichero", "scripts"]
+check_swift_hand_rolled_urls = ["fichero/fichero", "scripts"]
+check_swift_test_self_references = ["fichero/Tests", "scripts"]
+check_swift_transport = ["fichero/fichero", "scripts"]
+check_swiftc_floor = ["fichero-server/bin", "fichero-server/scripts", "scripts"]
+check_tcp_transport_wrapper = ["fichero-server/scripts", "fichero-server/src", "fichero-server/tests", "scripts"]
+check_test_assertions = ["fichero-server/tests", "fichero/fichero", "scripts"]
+check_test_userdefaults_isolation = ["fichero/Tests", "scripts"]
+check_tool_outputs_declared = ["fichero-server/src", "scripts"]
+check_toolbar_item_ids = ["fichero/fichero", "scripts"]
+check_tooltips = ["fichero/fichero", "scripts"]
+check_touch_reachable_actions = ["fichero/fichero", "scripts"]
+check_transport_banner_matches_schemes = ["fichero-server/src", "fichero/fichero.xcodeproj", "scripts"]
+check_trash_seam_reads = ["fichero-server/src", "scripts"]
+check_uitest_boot_gating = ["fichero/fichero", "scripts"]
+check_undo_coverage = ["fichero-server/tests", "fichero/fichero", "scripts"]
+check_verify_all_modes = ["docs/contributor_manual", "scripts"]
+check_view_endpoint_access = ["fichero/fichero", "scripts"]
+check_view_type_depth_bounds = ["fichero/fichero", "scripts"]
+check_xcode_config_invariants = ["fichero/fichero.xcodeproj", "scripts"]
+check_xcode_registration = ["fichero/fichero", "fichero/fichero.xcodeproj", "scripts"]
+
+[check.test_env]
+FICHERO_FEATURE_TIER = "dev"
+OMP_NUM_THREADS = "2"
+
+[check.perf]
+# #6600 Step 2.30: the engine perf rung (REPORT-ONLY until real batches have measured the budget). Runs on [check].build_remote, never on
+# the manager's Mac; figures judged against scripts/perf_baseline.json. A timeout is one alert row, never a red.
+enforce = false
+timeout_s = 360   # the 6-minute budget
+
+[check.security]
+# #6600 Step 2.30: the security rung (REPORT-ONLY). Reads only what is NEW in the batch. Runs in the scratch tree because semgrep
+# --baseline-commit and gitleaks need git history. osv-scanner stays OFF until lane deps-security clears the Dependabot alerts.
+enforce = false
+timeout_s = 720
+osv = false
+dirs = ["fichero-server/src", "fichero-cli/src", "fichero-mcp/src", "fichero-builder", "scripts", "fichero"]  # what the scanners and the waiver lints cover
+# Pins are the exact versions `scripts/install_security_tools.sh` confirmed and wrote at install; an empty pin REFUSES the tool (a gate
+# that cannot read its tool fails). Written 2026-11-15 by --write-pins on the M4 (perf-sweep Step 1 b); the iMac is not installed yet.
+pins = { bandit = "1.9.4", semgrep = "1.185.0", gitleaks = "8.30.1", "osv-scanner" = "2.7.1" }
+
+[policy]
+# Refused with a reason by the PreToolUse hook (fast feedback; the land step and the OS layer are the boundary).
+# Each rule: a regex over the command text and the reason shown to the worker.
+rules = [
+  { re = '\bgit\s+stash\b', reason = "git stash is shared by every worktree; commit a WIP instead" },
+  { re = '\bgit\s+push\b', reason = "workers never push; the land step pushes (main and integration are PR/land only)" },
+  { re = '\bxcodebuild\b', reason = "xcodebuild quits the maintainer's running app; the manager builds" },
+  { re = '\bpkill\b', reason = "pkill by pattern kills other agents' processes" },
+  { re = '\bkillall\b', reason = "killall by pattern kills other agents' processes" },
+  { re = '\bls\b[^|;&]*(&&|;|\|)[^|;&]*\brm\s+-\w*[rR]', reason = "an ls and an rm -r in one command wiped a directory once; list, then delete as separate steps" },
+]
+# one trailer, `Written-By: <MODEL> using <HARNESS> using Fichero Builder` (owner 2026-11-16, agent-profiles.trailer.one-line); policy_hook.py checks the exact shape
+required_trailers = ["Written-By: "]
+trailer_one_of = []
+
+# Workers and the ladder run as this second macOS user; a missing user REFUSES (no fallback to the owner's user).
+# Owner set-up, once: sysadminctl -addUser fichero-worker (no admin); sudoers line `<owner> ALL=(fichero-worker) NOPASSWD: ALL`;
+# mkdir /Users/Shared/fichero-worker (writable by both, files public data only); `claude` signed in as that user;
+# a venv readable by it for [check].python (the owner's .venv under ~ is not); a world-readable bare mirror to clone from.
+[jail]
+user = "fichero-worker"
+workroot = "/Users/Shared/fichero-worker"
+owner_home = "/Users/danieltubb"   # what ~ means below when the probe runs as the worker
+code_map = "~/.local/bin/jcodemunch-mcp"   # the owner's install; copied under workroot for the worker (dev-workflows.run.code-map); absent = the worker greps
+deny_read = ["~/.config/gh", "~/.ssh", "~/.claude", "~/Fichero Projects"]
+
+[land]
+branch = "integration"   # the branch the Lead pushes a green head to
+# `builder landed` keeps the pinned copy for the next check here, as pinned-<sha7> (absolute: a relative path lands inside the repo).
+pinned_dir = "/Users/Shared/fichero-pinned"
+# Regexes over every ADDED line and commit message; any hit refuses the land (the public/private boundary).
+boundary = ['/Users/(?!Shared/)[A-Za-z0-9._-]+/', 'sk-ant-[A-Za-z0-9_-]{8,}', 'gh[ps]_[A-Za-z0-9]{20,}', 'BEGIN [A-Z ]*PRIVATE KEY']
+
+[loop]
+# manager 2026-11-04 (alerts 315, 316): the lanes the loop ticks, named; a lane not here (an old milestone lane in queue.json) never starts.
+# Build-order milestones are taken only with feed_milestones = true: a lane is queued on purpose.
+only = ["lane-sharing", "lane-onboard", "lane-ie", "harness-gen3", "harness-unblock", "dev-workflows", "spec-writer", "lane-qwen", "lane-qwen2", "builder-6466", "builder-harness", "ux", "builder-autofix", "release-hardening", "release-defaults", "fixes", "perf-review", "duckdb-busy", "deps-security", "issue-close", "code-org", "code-org-g1", "code-org-g2", "code-org-p1", "code-org-s5", "code-org-g0", "code-org-v1", "loop-lanes"]  # spec-writer: a Fable session writing specs (2026-11-06); lane-qwen: the Qwen trial, #6380 (2026-11-07)
+# owner 2026-11-06: two lanes' chains at once (the pool was one worker, so [check].parallel = 2 was never used)
+lanes = 2
+feed_milestones = false
+# dev-workflows.run.loop-external-intake: an external lane is taken by itself at this many commits past the land branch, or when
+# its oldest unlanded commit is this old, if its HEAD is a finished step; findings and LANDED go to its pane through `tell`
+intake_commits = 8
+intake_hours = 3
+# tell = "<script> <pane> <text>"   # unset: the tracked `builder tell` (fichero_builder/tell.py)
+# #6466 (owner 2026-11-10): external lanes the loop runs by itself, as managed worker lanes in [jail].workroot/wt-<lane>, one fresh
+# session per batch, no session of a person watching. A lane not here still waits for its own `builder done`.
+dispatch = ["lane-ie"]  # first watched batch 2026-11-10; widen to lane-sharing, lane-onboard, spec-writer once one batch has landed by itself
+# a blocked step this many hours old is retried once in a fresh session, then parked at the end of its lane with one alert
+blocked_hours = 4
+
+[loop.approved_pinned]
+# #6466: a maintainer lane's pinned-checks refusal naming ONLY these files at exactly these blobs is approved by itself
+"scripts/harness_start.py" = "177b793f2e51a5d5f54e198f64f04baff2632ee4"
+
+[machines]
+# dev-workflows.run.measure: test machines `builder measure` ships a lane's commit to (ssh host, the gate dir with venv/)
+imac = { ssh = "imac", dir = "~/fichero-gate", min_free_gb = 5 }
+m1air = { ssh = "air", dir = "~/fichero-gate", min_free_gb = 5 }   # the owner's M1 Air: any time
+m4air = { ssh = "m4", dir = "~/fichero-gate", min_free_gb = 5 }    # the M4 Air: gate runner since 2026-11-09 (headless; ~/fichero-gate -> /Volumes/Fichero Dev Disk/fichero-gate), a GUI session for the app
+
+[queue]
+# `builder queue run` (dev-workflows.tool.queue): how many `builder work` processes run at once; the ladder is one at a time regardless.
+# owner 2026-11-14 (#6590): two at once
+workers = 2
+
+[brief]
+# Project rules put at the top of every cluster brief (scripts/harness_brief.py); project names belong here, not in code.
+rules = """
+Python is [check].python in harness.toml, run from fichero-server with PYTHONPATH=src for engine tests, from fichero-builder with PYTHONPATH=. for Builder tests. Every commit: author Claude, message ends with its issue line ("This step owes" below says which) + ONE trailer, "Written-By: <MODEL> using <HARNESS> using Fichero Builder", MODEL the model's display name; no Co-Authored-By, no Directed-By (owner 2026-11-16). A spec-line commit is separate if a behaviour is in the spec. No local paths or names in commits.
+LOAD: the machine is loaded. One pytest at a time, each with its own --basetemp under [jail].workroot/bt-<name> and GIT_CONFIG_GLOBAL set to a scratch file, named files only (the ones you touch and the readers of what you change), OMP_NUM_THREADS=2; never a directory or the full suite; never xcodebuild.
+RULES (earlier clusters were sent back for these):
+- No reassuring prose (docstring, comment, commit message, spec line) without a test that proves it. State only what the code does.
+- No "decided" / "ruled" / a date of a decision unless a ruling file or issue comment exists.
+- Before changing a shared function, list every reader (grep), say what each does with the change, run those readers' tests. If a pinned derivation changes (test_derivation_version) re-pin in the SAME commit.
+- A skipped issue ("stale", "not real") needs the grep/probe shown in your DONE message; never skip on a guess.
+- Whenever you add a tool, a workflow node or a route, run the generators in the same commit: the capability reference (scripts/generate_capability_reference.py), the OpenAPI and MCP files (the official tool, AGENTS.md ~134); a stale one fails the ready check.
+- Run scripts/check_test_assertions.py and ruff on changed files; if routes/contract change, regenerate with the official tool (AGENTS.md ~134), never hand-merge generated files; a new engine .py file -> scripts/regen_engine_embed_filelist.py.
+- Test through the real route/action, not only the helper (a helper-only test passed once while the route 500'd).
+- A commit that builds a spec behaviour carries the trailer line `Behaviour: <id>`, so the landing marks that line [OK].
+- Find code with the jcodemunch tools (search_symbols, get_file_outline, get_symbol_source, find_references, search_text); Read only a file you edit.
+- When every item is committed, end your turn with the exact line DONE <short sha of the branch head>; the loop ends on that line and on nothing else.
+"""
+
+[spend]
+# Caps the watcher enforces (dev-workflows.run.watch-tick): 8 USD per worker session, 60 USD per day (owner ruling
+# 2026-11-01 evening, raised from 5/20 after the day cap parked the product worker; notional under the Max login, not a
+# bill). A worker whose model has no price here does not start.
+window = 200000   # plain sonnet's window (owner 2026-11-02: every turn stays under 200k; handoffs often, cheap and reliable)
+handoff_at = 0.85
+handoff_tokens = 175000   # owner 2026-11-02: hand off here, an absolute count (a lane used 17M tokens for three steps on a 1M window)
+session_usd = 8
+day_usd = 60
+silent_s = 1800
+prices = { sonnet = [3, 15], opus = [15, 75], haiku = [1, 5] }
+
+[models]
+# One model per role (dev-workflows.models.by-config); a role whose provider is not in `providers` is a question for a
+# person, never a fallback. `claude-code` = an interactive Claude Code session in a pane (the model is its /model name);
+# `anthropic` and `omlx` are Pi providers (their models and prices live in Pi's models.json). Change by editing here.
+providers = ["claude-code", "anthropic", "omlx"]
+builder = { provider = "claude-code", model = "sonnet" }  # owner 2026-11-02: plain sonnet, the 200k window in [spend].window
+reviewer = { provider = "claude-code", model = "opus", context = 200000 }  # its review cap is 40% of this at 3.5 bytes a token
+# manager 2026-11-02 (6a): sonnet reviews by default; opus (`reviewer`) when a range touches these paths, and once per milestone
+reviewer_fast = { provider = "claude-code", model = "sonnet", context = 200000 }
+# owner 2026-11-06 (t28): these lanes' batches always get the full reviewer; half-done fast reviews cost them whole rounds
+opus_lanes = ["lane-sharing", "lane-qwen", "lane-qwen2"]  # lane-qwen: Opus reviews every Qwen batch (owner 2026-11-07, #6380)
+reviewer_paths = ["fichero-builder/", "scripts/harness_", "scripts/lane_ready_check.sh", "harness.toml"]
+spec-writer = { provider = "claude-code", model = "opus" }
+helper = { provider = "claude-code", model = "haiku" }
+manager = { provider = "claude-code", model = "haiku" }  # reads alerts and answers them (dev-workflows.run.loop-roles)
+researcher = { provider = "claude-code", model = "sonnet" }
+
+[triage.labels]
+# `builder triage --labels` (dev-workflows.tool.triage, rules in specs/harness/issues-and-labels.md): a label outside
+# the closed set (step:N.M, type:bug|feature|task, priority:P0-P3, phase:R0-R6, needs-spec, needs-your-decision,
+# needs-your-test, status:blocked) is reported and never deleted; this table says which label its issues get. A
+# `spec:<stem>` value is a temporary hint `--milestones` turns into the spec's milestone and then removes from the issue.
+# A label absent here maps to nothing. Edit here, not in code.
+sharing = "spec:sharing-two-macs"
+performance = "type:bug"
+security = "type:bug"
+needs-design = "needs-spec"
+
+[perf.workloads]
+# #6600 Step 3 (perf-sweep.workload.set): the ten fixed workloads of the performance sweep. side, driver (a pytest or script command from the
+# repo root, or FICHERO_PERF_WORKLOAD=<w> for an app scenario in the Dev Local build), corpus (a name in scripts/perf_corpus.json), outputs
+# (the directories the workload writes, which the disk reader subtracts) and budget_s. A workload missing one is refused by name.
+w1 = { side = "engine", corpus = "perf-trial-samples", budget_s = 900, outputs = ["library", "cache", "log"], driver = [
+  "pytest fichero-server/tests/perf/test_document_pipeline_perf.py fichero-server/tests/perf/test_engine_cold_start_perf.py fichero-server/tests/perf/test_recipe_run_100_pages.py"] }
+w2 = { side = "engine", corpus = "perf-trial-page", budget_s = 1800, outputs = ["library", "cache", "log", "models"], driver = [
+  "pytest fichero-server/tests/perf/test_dense_page_whole_read_perf.py fichero-server/tests/perf/test_segment_edit_undo_perf.py",
+  "python fichero-server/scripts/bench_reading.py --pages 20"] }
+w3 = { side = "engine", corpus = "perf-trial-samples", budget_s = 300, outputs = ["library", "log"], driver = [
+  "pytest fichero-server/tests/perf/test_search_workload_perf.py"] }
+w4 = { side = "engine", corpus = "perf-trial-samples", budget_s = 3600, outputs = ["library", "log"], driver = [
+  "pytest fichero-server/tests/perf/test_entity_list_perf.py fichero-server/tests/perf/test_entity_detail_perf.py"] }
+w5 = { side = "engine", corpus = "perf-trial-samples", budget_s = 300, outputs = ["library", "log"], driver = [
+  "python scripts/perf_activity_store_5645.py"] }
+w6 = { side = "app", corpus = "perf-trial-samples", budget_s = 120, outputs = ["library", "log", "trace"], driver = "FICHERO_PERF_WORKLOAD=w6" }
+w7 = { side = "app", corpus = "perf-trial-samples", budget_s = 120, outputs = ["library", "log", "trace"], driver = "FICHERO_PERF_WORKLOAD=w7" }
+w8 = { side = "app", corpus = "perf-trial-page", budget_s = 180, outputs = ["library", "log", "trace"], driver = "FICHERO_PERF_WORKLOAD=w8" }
+w9 = { side = "app", corpus = "perf-trial-samples", budget_s = 120, outputs = ["library", "log", "trace"], driver = "FICHERO_PERF_WORKLOAD=w9" }
+w10 = { side = "app", corpus = "perf-trial-samples", budget_s = 120, outputs = ["library", "log", "trace"], driver = "FICHERO_PERF_WORKLOAD=w10" }
+
+[perf.machines.m4air]
+# #6600 Step 3 (perf-sweep.source.machines): where each source runs is declared, never probed. `profile` = may be profiled on, `gui` = has a
+# GUI session for xctrace. sudo lists the tools the owner allowed without a password through one narrow sudoers line (py-spy, the M4 only).
+tags = ["pytest", "guards", "swift-build", "xcode-tests", "gui", "profile"]
+sudo = ["py-spy"]

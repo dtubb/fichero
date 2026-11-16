@@ -43,6 +43,8 @@ def ratchet(tmp_path, monkeypatch):
     monkeypatch.setattr(_history, "HISTORY_PATH", tmp_path / "history.jsonl")
     monkeypatch.delenv("FICHERO_PERF_NO_HISTORY", raising=False)
     monkeypatch.setattr(_history, "_another_perf_run_is_active", lambda: False)
+    # Tests that verify baseline writing must set FICHERO_PERF_TIGHTEN=1
+    monkeypatch.setenv("FICHERO_PERF_TIGHTEN", "1")
     return baseline
 
 

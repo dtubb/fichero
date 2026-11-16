@@ -495,6 +495,7 @@ async def list_all_artifacts(
         artifact_type=artifact_type or None,
         run_id=run_id or None,
         step_name=step_name or None,
+        hide_trashed=True,  # a trashed document's artifacts are out of view with it
         limit=limit,
         offset=offset,
     )
@@ -1261,14 +1262,23 @@ def _action_translate(
     )
 
     # Run the translation (async, off the sync action handler)
-    translated = asyncio.get_event_loop().run_until_complete(
-        translate_text(
-            text,
-            source_lang=params.source_lang,
-            target_lang=params.target_lang,
-            config=llm_config,
-        )
+    # A sync action runs on a worker thread, which has no event loop: `get_event_loop()` raised there, so Translate from an
+    # artifact's menu failed (#4306). A fresh loop is made; under a running loop it runs on its own thread instead.
+    coro = translate_text(
+        text,
+        source_lang=params.source_lang,
+        target_lang=params.target_lang,
+        config=llm_config,
     )
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        translated = asyncio.run(coro)
+    else:
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            translated = pool.submit(asyncio.run, coro).result()
 
     # Save the translation artifact
     from fichero_server.models import Artifact as ArtifactModel

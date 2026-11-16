@@ -960,6 +960,10 @@ def migrate_spatial_node_layout_fields(
     _run_atomic_migration(conn, "migrate_spatial_node_layout_fields", _step, failures)
 
 
+#: `librarysettings` row: this library's legacy canvas fields have been copied to `canvas_layout`.
+CANVAS_BACKFILLED_SETTING = "canvas_layout_backfilled"
+
+
 def migrate_canvas_layout_table(
     conn, failures: list[MigrationFailure] | None = None
 ) -> None:
@@ -969,6 +973,11 @@ def migrate_canvas_layout_table(
     layouts by copying any document position/style data into the dedicated table
     the first time a library sees this migration. Idempotent: create-if-missing
     plus insert-only-when-absent on the deterministic ``scope_id::item_id`` key.
+
+    Once per library (`CANVAS_BACKFILLED_SETTING`): this read every row's metadata on every open. `DocumentUpdate` can
+    still set these fields; a row changed after the marker is not copied, and `_load_canvas_layout` shows it through its
+    `_legacy_canvas_documents` fallback. JSON is parsed only for a row that names a `canvas_` key: parsing all 70k rows'
+    line boxes failed at the 256 MiB floor on the Air, the library opened without it, and the next open failed again.
     """
 
     def _step() -> None:
@@ -1008,6 +1017,14 @@ def migrate_canvas_layout_table(
         )
         if not documents_exists:
             logger.debug("documents table does not exist, skipping canvas_layout backfill")
+            return
+        # A library with no settings table yet has no saved layout worth the marker; the next open records it.
+        has_settings = bool(fetch_one(conn.execute(
+            "SELECT 1 FROM duckdb_tables() WHERE table_name = 'librarysettings'"
+        )))
+        if has_settings and fetch_one(conn.execute(
+            "SELECT 1 FROM librarysettings WHERE id = ?", [CANVAS_BACKFILLED_SETTING]
+        )):
             return
         # A library from before the spatial columns has none of them yet: this runs before
         # `_materialize_schema` adds them. Reading a column that is not there failed the whole
@@ -1054,10 +1071,15 @@ def migrate_canvas_layout_table(
                 OR {z} IS NOT NULL
                 OR {rot} IS NOT NULL
                 OR COALESCE({zi}, 0) != 0
-                OR json_extract({meta}, '$.canvas_w') IS NOT NULL
-                OR json_extract({meta}, '$.canvas_h') IS NOT NULL
-                OR json_extract({meta}, '$.canvas_d') IS NOT NULL
-                OR json_extract({meta}, '$.canvas_style') IS NOT NULL
+                OR (
+                  contains(CAST({meta} AS VARCHAR), '"canvas_')
+                  AND (
+                    json_extract({meta}, '$.canvas_w') IS NOT NULL
+                    OR json_extract({meta}, '$.canvas_h') IS NOT NULL
+                    OR json_extract({meta}, '$.canvas_d') IS NOT NULL
+                    OR json_extract({meta}, '$.canvas_style') IS NOT NULL
+                  )
+                )
               )
               AND NOT EXISTS (
                 SELECT 1
@@ -1066,6 +1088,11 @@ def migrate_canvas_layout_table(
               )
             """
         )
+        if has_settings:
+            conn.execute(
+                "INSERT INTO librarysettings (id, value, updated_at) VALUES (?, '1', now())",
+                [CANVAS_BACKFILLED_SETTING],
+            )
         logger.info("canvas_layout table migration completed")
 
     _run_atomic_migration(conn, "migrate_canvas_layout_table", _step, failures)
@@ -1185,7 +1212,8 @@ def migrate_kept_exports_table(
     ``kept_exports``: one row per export kept (folder, format, one file per page or per
     document); a removed one keeps its row with ``removed_at``. ``kept_export_files``: one row per
     file the export wrote (``written``) or found in its way (``in-the-way``), so a later write
-    overwrites only its own files. Idempotent: create-if-missing only.
+    overwrites only its own files. ``keep_up_to_date`` (on by default, #6588): off, an edit queues no rewrite; Write
+    Now still writes. Idempotent: create-if-missing only.
     """
 
     def _step() -> None:
@@ -1199,6 +1227,7 @@ def migrate_kept_exports_table(
             "rel_path VARCHAR NOT NULL, sha256 VARCHAR, written_at TIMESTAMP, state VARCHAR NOT NULL, "
             "PRIMARY KEY (export_id, rel_path))"
         )
+        conn.execute("ALTER TABLE kept_exports ADD COLUMN IF NOT EXISTS keep_up_to_date BOOLEAN DEFAULT TRUE")
 
     _run_atomic_migration(conn, "migrate_kept_exports_table", _step, failures)
 

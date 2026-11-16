@@ -69,6 +69,7 @@ extension LibraryManager {
         // library the window shows is loaded and awaited; the others follow in the background, so the
         // sidebar and the front library are usable while the rest arrive.
         let order = Self.frontFirst(openLibraries.map(\.id), front: currentLibraryId)
+        launchOpenOrder = order
         let byId = Dictionary(openLibraries.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         guard let frontId = order.first, let front = byId[frontId] else { return }
         await loadLibraryDataIfNeeded(for: front)
@@ -83,6 +84,7 @@ extension LibraryManager {
         let rest = order.dropFirst().compactMap { byId[$0] }
         guard !rest.isEmpty else {
             LaunchProfile.milestone("all libraries ready", detail: "1 library")
+            launchOpenOrder = []
             return
         }
         // All at once, not one after another (#5228): each load is engine round trips, and the engine
@@ -93,6 +95,7 @@ extension LibraryManager {
             }
             for load in loads { await load.value }
             LaunchProfile.milestone("all libraries ready", detail: "\(rest.count + 1) libraries")
+            self.launchOpenOrder = []  // the opening is over: a later refetch is not an opening (#6430)
         }
     }
 
@@ -114,6 +117,9 @@ extension LibraryManager {
         // Flip readiness before any library work so restore's registry writes
         // cannot race the engine's socket bind.
         backendIsReady = true
+        // The paired host's library BEFORE anything loads (#6555): adopting it after `backendDidBecomeReady` let the guest's own
+        // local `global.fichero` load first, a path the remote host rejects (403) and the load retried.
+        adoptPairedRemoteLibrary()
         restoreSavedLibraries()
         LaunchProfile.milestone("saved libraries restored")
         // The libraries the app restored load NOW, beside the registry fetch, not after it (#5228):
@@ -254,6 +260,7 @@ extension LibraryManager {
     /// entries are recents/known libraries, not the set currently open for
     /// remote use.
     func adoptPairedRemoteLibrary() {
+        pairedMachines = PairedMachineStore.load()
         guard EngineConfig.requiresExternalBackendConnection else { return }
         let path = RemoteAccessConfig.pairedLibraryPath
         guard !path.isEmpty else { return }
@@ -312,6 +319,12 @@ extension LibraryManager {
             startAccessing: false
         )
 
+        // The library this replaces may already be live (its window started the Activity poll and the change stream with the
+        // guest's own local path, #6555): stop them, or they keep sending that path to the remote host every two seconds.
+        for replaced in openLibraries where replaced.id == Self.globalLibraryId {
+            replaced.activityStore.stop()
+            replaced.changeStream.stop()
+        }
         openLibraries.removeAll { $0.id == Self.globalLibraryId }
         openLibraries.insert(library, at: 0)
         currentLibraryId = library.id
@@ -376,6 +389,11 @@ extension LibraryManager {
               !loadingLibraryIds.contains(library.id) else {
             return
         }
+        // A remote host serves only its own library (#6555): never load the guest's local one against it.
+        guard GuestLibraryChoice.mayLoad(
+            libraryPath: library.url.path, remoteHost: EngineConfig.requiresExternalBackendConnection,
+            pairedPath: RemoteAccessConfig.pairedLibraryPath
+        ) else { return }
 
         loadingLibraryIds.insert(library.id)
         defer { loadingLibraryIds.remove(library.id) }
@@ -423,6 +441,8 @@ extension LibraryManager {
                 \(Self.loadFailureReason(error: store.error, isConnected: store.isConnected), privacy: .public)
                 """
             )
+            // The host refused this library: another try sends the same path (#6555). Stop, and say so.
+            if GuestLibraryChoice.isLibraryRefusal(store.error) { guestLibraryProblem = GuestLibraryChoice.refusedWords; return }
             scheduleLoadRetry(for: library)
             return
         }
@@ -640,5 +660,12 @@ extension LibraryManager {
             knowledgeCountsLoaded, trashLoaded
         )
         libraryManagerLogger.info("⏱ loadLibraryData exit — library: \(library.displayName)")
+    }
+}
+
+extension LibraryManager.LibraryReference {
+    /// Where this library dials now: its own paired Mac when pinned, else the app-wide engine host.
+    var currentEndpoint: (URL, TransportMode) {
+        pinnedToHost ? (host.url, .https) : (EngineConfig.host, EngineConfig.transportMode)
     }
 }

@@ -14,6 +14,7 @@ fetcher is a fake that materializes a file after a delay (or never).
 from __future__ import annotations
 
 import asyncio
+import shutil
 import threading
 from pathlib import Path
 
@@ -31,6 +32,9 @@ def evicted(monkeypatch):
     real = dataless.dataless_reason
     monkeypatch.setattr(dataless, "dataless_reason",
                         lambda path: "a cloud placeholder (test)" if str(path) in gone else real(path))
+    # the room to fetch is the fake's, never the disk the test runs on (a full runner disk refused every fetch, #6589 item 14);
+    # a test about a full disk patches it again
+    monkeypatch.setattr(shutil, "disk_usage", lambda path: type("U", (), {"free": 10 ** 12})())
     dataless.NOT_FETCHED.clear()
     yield gone
     dataless.NOT_FETCHED.clear()

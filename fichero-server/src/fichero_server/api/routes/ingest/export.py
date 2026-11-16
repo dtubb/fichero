@@ -1,24 +1,32 @@
 """Document export routes, and the project's kept exports (#5485, `/export/kept`)."""
 
+import asyncio
+import base64
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.auth import action_context
 from fichero_server.api.library_header import optional_library_path
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.library_header import require_library_path
+from fichero_server.api.main import (
+    assert_library_reads_every, documents_under, get_library_database, write_check,
+    get_library_database_for_write)
 from fichero_server.db import Database
 from fichero_server.export_service import (
+    export_catalogue_xlsx,
     export_eleventy_site,
     export_excel_xlsx,
     export_jsonl,
     export_parquet,
     export_markdown_folder,
     export_word_docx,
+    export_word_transcripts,
 )
 
 router = APIRouter(prefix="/export", tags=["export"])
@@ -72,7 +80,17 @@ class WordExportRequest(BaseModel):
     )
     include_images: bool = Field(
         default=True,
-        description="Embed each page's scan; false prints no image and no note, and never opens the scan files",
+        description="Off prints neither the image nor the 'image not included' note: a page is its heading and text",
+    )
+    page_break_per_page: bool = Field(default=False, description="Start each page on a new Word page")
+    blank_pages_listed_once: bool = Field(
+        default=False,
+        description="Print no body for a page sorted blank; end the folder with one line listing them as image ranges",
+    )
+    per: Literal["document", "folder"] = Field(
+        default="document",
+        description="'folder' writes a .zip of one transcript .docx per folder of the scope (page by page, no "
+        "images, a page break per page, blank pages listed once): the options above are fixed for it",
     )
 
 
@@ -80,6 +98,7 @@ class WordExportResponse(BaseModel):
     output_path: str
     document_count: int
     bytes_written: int
+    files: list[str] = Field(default_factory=list, description="per folder: the .docx names inside the zip")
 
 
 class ExcelExportRequest(BaseModel):
@@ -199,9 +218,12 @@ class EleventySiteExportResponse(BaseModel):
 @router.post("/jsonl", response_model=JsonlExportResponse)
 async def export_jsonl_route(
     request: JsonlExportRequest,
+    http: Request,
+    library_path: str = Depends(require_library_path),
     db: Database = Depends(get_library_database_for_write),
 ) -> JsonlExportResponse:
     """Export canonical records as a JSON Lines file."""
+    await _read_checked(http, library_path, db, request.target_id)
     try:
         result = export_jsonl(
             db=db,
@@ -266,9 +288,12 @@ async def export_training_route(
 @router.post("/parquet", response_model=ParquetExportResponse)
 async def export_parquet_route(
     request: ParquetExportRequest,
+    http: Request,
+    library_path: str = Depends(require_library_path),
     db: Database = Depends(get_library_database_for_write),
 ) -> ParquetExportResponse:
     """Export canonical records as a typed Parquet bundle."""
+    await _read_checked(http, library_path, db, request.target_id)
     try:
         result = export_parquet(
             db=db,
@@ -290,10 +315,13 @@ async def export_parquet_route(
 @router.post("/eleventy-site", response_model=EleventySiteExportResponse)
 async def export_eleventy_site_route(
     request: EleventySiteExportRequest,
+    http: Request,
+    library_path: str = Depends(require_library_path),
     db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Depends(optional_library_path),
 ) -> EleventySiteExportResponse:
     """Publish a library, folder, or subfolder as an 11ty/Netlify static site."""
+    await _read_checked(http, library_path, db, request.target_id)
     try:
         result = export_eleventy_site(
             db=db,
@@ -323,10 +351,13 @@ async def export_eleventy_site_route(
 @router.post("/markdown-folder", response_model=MarkdownFolderExportResponse)
 async def export_markdown_folder_route(
     request: MarkdownFolderExportRequest,
+    http: Request,
+    library_path: str = Depends(require_library_path),
     db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Depends(optional_library_path),
 ) -> MarkdownFolderExportResponse:
     """Export a library, folder, or document as a Markdown folder."""
+    await _read_checked(http, library_path, db, request.target_id)
     try:
         result = export_markdown_folder(
             db=db,
@@ -355,11 +386,19 @@ async def export_markdown_folder_route(
 @router.post("/word", response_model=WordExportResponse)
 async def export_word_route(
     request: WordExportRequest,
+    http: Request,
+    library_path: str = Depends(require_library_path),
     db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str | None = Depends(optional_library_path),
 ) -> WordExportResponse:
-    """Export a library, folder, or document as a Word .docx file."""
+    """Export a library, folder, or document as a Word .docx file (or, per folder, a zip of them)."""
+    await _read_checked(http, library_path, db, request.target_id)
     try:
+        if request.per == "folder":
+            return WordExportResponse(**export_word_transcripts(
+                db=db, output_path=Path(request.output_path), target_id=request.target_id,
+                overwrite=request.overwrite, package_path=x_fichero_library_path,
+            ).__dict__)
         result = export_word_docx(
             db=db,
             output_path=Path(request.output_path),
@@ -369,6 +408,8 @@ async def export_word_route(
             package_path=x_fichero_library_path,
             include_knowledge_graph=request.include_knowledge_graph,
             include_images=request.include_images,
+            page_break_per_page=request.page_break_per_page,
+            blank_pages_listed_once=request.blank_pages_listed_once,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -383,9 +424,12 @@ async def export_word_route(
 @router.post("/excel", response_model=ExcelExportResponse)
 async def export_excel_route(
     request: ExcelExportRequest,
+    http: Request,
+    library_path: str = Depends(require_library_path),
     db: Database = Depends(get_library_database_for_write),
 ) -> ExcelExportResponse:
     """Export a library, folder, or document as an Excel .xlsx workbook."""
+    await _read_checked(http, library_path, db, request.target_id)
     try:
         result = export_excel_xlsx(
             db=db,
@@ -404,12 +448,81 @@ async def export_excel_route(
     return ExcelExportResponse(**result.__dict__)
 
 
+class CatalogueWorkbookRequest(BaseModel):
+    """What to write: the catalogue of a folder or project, in its rows' effective prototype's template."""
+
+    target_id: str | None = Field(default=None, description="A folder or project id; omitted writes the whole library")
+    format: Literal["xlsx", "csv"] = Field(default="xlsx", description="xlsx: one workbook; csv: a zip of one file per sheet")
+    prototype_key: str | None = Field(default=None, description="Write this prototype's columns instead of the rows' own")
+    proposals: Literal["marked", "omitted"] = Field(
+        default="marked", description="A machine's unanswered proposals are marked, or left out of a delivered sheet")
+    kept_export_id: str | None = Field(
+        default=None, description="Write into this kept export's folder (queued) instead of returning the file")
+
+
+class CatalogueWorkbookResponse(BaseModel):
+    filename: str = Field(description="The file's name: Catálogo.xlsx or Catálogo.zip")
+    media_type: str
+    #: ponytail: the file rides in the JSON envelope (base64); a streamed binary body when a workbook outgrows memory.
+    content_base64: str | None = Field(default=None, description="The file, base64; none when it was queued into a kept export")
+    sheets: list[str] = Field(default_factory=list)
+    row_count: int = 0
+    job_id: str | None = Field(default=None, description="The queued write, when kept_export_id was given")
+
+
+async def _read_checked(http: Request, library_path: str, db: Database, target_id: str | None) -> None:
+    """The id is in the body, which the write dependency never sees (a decoy id in the query stood in): read-check it and every page
+    under it before a file is written (#6320)."""
+    target_id = target_id or None  # an empty id is the whole project to the exporters: it must be checked as the whole project
+    # off the event loop: for a scoped caller this is the folder walk plus one authz lookup per page
+    await asyncio.to_thread(assert_library_reads_every, http, library_path, [target_id], lambda: documents_under(db, target_id))
+
+
+_WORKBOOK_TYPES = {"xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "csv": "application/zip"}
+
+
+@router.post("/catalogue-workbook", response_model=CatalogueWorkbookResponse,
+             summary="The catalogue workbook of a folder or project, in its archive's template")
+async def export_catalogue_workbook_route(
+    request: CatalogueWorkbookRequest,
+    http: Request,
+    library_path: str = Depends(require_library_path),
+    db: Database = Depends(get_library_database),
+) -> CatalogueWorkbookResponse:
+    """The same builder the recipe's last step runs (`catalogue_sheet.workbook`): attributes, pages, the graph and the
+    record; never a model. No local path in the request: the file comes back, or is queued into a kept export."""
+    from fichero_server import kept_export
+
+    suffix = ".xlsx" if request.format == "xlsx" else ".zip"
+    name = f"{kept_export.WORKBOOK_NAME}{suffix}"
+    # The id is in the body, which the read dependency never sees: check it here, with every page under it (#6320).
+    await _read_checked(http, library_path, db, request.target_id)
+    if request.kept_export_id:
+        await write_check(http, library_path, db, [None])  # a read export, except that this one queues a write of the WHOLE project (#6320)
+        kept = kept_export._export(db, request.kept_export_id)
+        if kept is None or kept["format"] != "catalogue-workbook":
+            raise HTTPException(status_code=404, detail="No kept catalogue-workbook export with that id.")
+        return CatalogueWorkbookResponse(filename=name, media_type=_WORKBOOK_TYPES[request.format],
+                                         job_id=kept_export.write_now(db, request.kept_export_id))
+    try:
+        with tempfile.TemporaryDirectory(prefix="fichero-catalogue-") as scratch:
+            result = export_catalogue_xlsx(db, Path(scratch) / f"out{suffix}", request.target_id, request.prototype_key,
+                                           overwrite=True, proposals=request.proposals, file_format=request.format)
+            data = Path(result.output_path).read_bytes()
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return CatalogueWorkbookResponse(filename=name, media_type=_WORKBOOK_TYPES[request.format],
+                                     content_base64=base64.b64encode(data).decode("ascii"), sheets=result.sheets,
+                                     row_count=result.row_count)
+
+
 # ---------------------------------------------------------------------------------------------------
 # Kept exports (#5485, spec models-chains-and-projects section 7b, screen 3): an up-to-date copy of
 # the project's work in a folder outside it, written again as the work changes (`kept_export.py`).
 # ---------------------------------------------------------------------------------------------------
 
-KeptExportFormat = Literal["word", "markdown", "plain-text", "alto", "pagexml", "tei", "hocr"]
+KeptExportFormat = Literal["word", "markdown", "plain-text", "alto", "pagexml", "tei", "hocr", "catalogue-workbook",
+                         "word-transcript"]
 KeptExportPer = Literal["page", "document"]
 
 
@@ -442,6 +555,18 @@ class KeptExport(BaseModel):
                                               "left alone")
     pending: int = Field(description="writes waiting (their jobs are in Activity)")
     last_written: datetime | None = None
+    keep_up_to_date: bool = Field(default=True, description="rewritten as the work changes (on by default); off, only "
+                                                            "Write Now writes")
+
+
+class KeptExportUpdate(BaseModel):
+    folder: str | None = Field(default=None, description="Choose Folder…: a full path to the folder the export writes "
+                                                         "to from now on, outside the project")
+    keep_up_to_date: bool | None = Field(default=None, description="Keep up to date: off, an edit queues no rewrite")
+
+
+class KeptExportUpdateParams(KeptExportUpdate):
+    export_id: str
 
 
 class KeptExportList(BaseModel):
@@ -474,6 +599,15 @@ def _action_unkeep(db: Database, params: KeptExportIdParams, ctx: ActionContext)
     kept_export.remove(db, params.export_id)
     return {"id": params.export_id}, ChangeSpec(domains=["library"], before={"id": params.export_id},
                                                 emit_type="export.unkept")
+
+
+@action("export.update", KeptExportUpdateParams, domains=["library"], undoable=False)
+def _action_update(db: Database, params: KeptExportUpdateParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server import kept_export
+
+    kept_export.update(db, params.export_id, folder=params.folder, keep_up_to_date=params.keep_up_to_date)
+    changed = params.model_dump(exclude_none=True)
+    return {"id": params.export_id}, ChangeSpec(domains=["library"], after=changed, emit_type="export.updated")
 
 
 def _kept(db: Database, export_id: str) -> KeptExport:
@@ -523,6 +657,27 @@ async def remove_kept_export(
     _kept(db, export_id)
     registry.invoke(db, "export.unkeep", {"export_id": export_id}, ctx)
     return KeptExportRemoved(id=export_id)
+
+
+@router.patch("/kept/{export_id}", response_model=KeptExport,
+              summary="Choose a kept export's folder again, or switch Keep up to date")
+async def update_kept_export(
+    export_id: str,
+    request: KeptExportUpdate,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> KeptExport:
+    """Choose Folder… (`activity.kept-export.one-row-per-export`, #6588): the export writes to the new folder from now
+    on, and a row its gone folder paused writes there. Keep up to date off: an edit queues no rewrite, Write Now still
+    writes. A folder that cannot be kept is refused (422) in one sentence, nothing changed."""
+    from fichero_server.kept_export import KeptExportRefused
+
+    _kept(db, export_id)
+    try:
+        registry.invoke(db, "export.update", {"export_id": export_id, **request.model_dump(exclude_none=True)}, ctx)
+    except KeptExportRefused as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _kept(db, export_id)
 
 
 @router.post("/kept/{export_id}/write", response_model=KeptExportWriting,

@@ -471,7 +471,11 @@ struct PDFPageWithToolbar: View {
             #endif
         }
     }
+}
 
+// MARK: - Page content and its toolbar
+
+extension PDFPageWithToolbar {
     private var pageContent: some View {
         ZStack {
             PDFPageView(

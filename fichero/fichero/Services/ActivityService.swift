@@ -17,13 +17,9 @@ class ActivityService {
 
     /// Convenience initializer from APIClient - extracts library path
     convenience init(apiClient: APIClient) {
-        let libraryPath = apiClient.currentLibraryPath ?? ""
-        let ficheroClient = FicheroClient(
-            baseURL: EngineConfig.host,
-            libraryPath: libraryPath,
-            transportMode: EngineConfig.transportMode
-        )
-        self.init(ficheroClient: ficheroClient)
+        // Share the library's own client (a reference type), never a new one on the app-wide host: a library pinned to
+        // a paired Mac keeps dialling that Mac (`sharing.guest.library-pinned-to-its-host`, #6360).
+        self.init(ficheroClient: apiClient.client)
     }
 
     // MARK: - Activity Queries
@@ -158,10 +154,11 @@ class ActivityService {
     func listWorkflowRuns(
         status: [String]? = nil,
         limit: Int = 50,
-        offset: Int = 0
+        offset: Int = 0,
+        archived: Bool = false
     ) async throws -> Components.Schemas.WorkflowRunListResponse {
         let response = try await client.api.listWorkflowRunsRouteApiWorkflowExecutionRunsGet(
-            query: .init(status: status, limit: limit, offset: offset),
+            query: .init(status: status, limit: limit, offset: offset, archived: archived),
         )
 
         switch response {
@@ -235,14 +232,15 @@ class ActivityService {
     /// toolbar Activity popover and the full Activity viewer read so they can't
     /// disagree about what is running. No filters, so the only outcomes are a
     /// value or a transport/HTTP failure the caller decides how to surface.
-    func getBackgroundJobs() async throws -> BackgroundJobsSnapshot {
-        let response = try await client.api.listBackgroundJobsApiActivityJobsGet()
+    func getBackgroundJobs(archived: Bool = false) async throws -> BackgroundJobsSnapshot {
+        // `archived`: the ARCHIVED rows instead (Show Archived, `activity.pane.archive-old-runs`, #6583).
+        let response = try await client.api.listBackgroundJobsApiActivityJobsGet(query: .init(archived: archived))
 
         switch response {
         case .ok(let okResponse):
             let body = try okResponse.body.json
             return BackgroundJobsSnapshot(
-                jobs: (body.jobs ?? []).map { ActivityJob($0) },
+                jobs: ActivityJob.withLiveRuns((body.jobs ?? []).map { ActivityJob($0) }, live: body.activity?.live ?? []),
                 processCpuPercent: body.processCpuPercent,
                 cpuCount: body.cpuCount,
                 paused: body.paused ?? false,
@@ -250,6 +248,9 @@ class ActivityService {
                 machine: body.machine,
                 activity: body.activity
             )
+        case .unprocessableContent(let error):  // the `archived` query gave the route a 422 (regenerated client)
+            let detail = try? error.body.json
+            throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, let payload):
             // A refusal keeps the engine's typed body (#5469): the footer names
             // WHY (the project's location vs the app's credentials).

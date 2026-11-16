@@ -49,11 +49,21 @@ final class ImageWithCursorTrackingIOSCoordinator: NSObject, UIScrollViewDelegat
 
     func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) {
         onScaleChanged?(scale)
+        settleToFitIfFitted()
         Task { @MainActor [weak self] in
             // Yield so the binding-write task scheduled inside `onScaleChanged`
             // runs before we reopen the gate, mirroring the macOS guard (#748).
             await Task.yield()
             self?.isUserMagnifying = false
+        }
+    }
+
+    /// The scroll view laid out: apply a fit that was waiting for a size, or a re-fit after a resize (#6559, #4279).
+    func layoutDidChange() {
+        guard let scrollView else { return }
+        let hasImage = (imageView as? UIImageView)?.image != nil
+        if owner.applyAutomaticFit(scrollView: scrollView, coordinator: self, hasImage: hasImage) != nil {
+            centerContent()
         }
     }
 
@@ -74,6 +84,8 @@ final class ImageWithCursorTrackingIOSCoordinator: NSObject, UIScrollViewDelegat
         let insetX = max(0, (viewSize.width - scaledW) / 2)
         let insetY = max(0, (viewSize.height - scaledH) / 2)
         scrollView.contentInset = UIEdgeInsets(top: insetY, left: insetX, bottom: insetY, right: insetX)
+        // Every zoom change passes through here, so this is where the fitted page stops scrolling (#6559).
+        syncPanningToZoom()
     }
 
     func updateVisibleRect() {
@@ -187,6 +199,87 @@ final class ImageWithCursorTrackingIOSCoordinator: NSObject, UIScrollViewDelegat
         let targetX = min(max(0, visibleRect.origin.x + deltaX), maxX) - scrollView.contentInset.left
         let targetY = min(max(0, visibleRect.origin.y + deltaY), maxY) - scrollView.contentInset.top
         scrollView.setContentOffset(CGPoint(x: targetX, y: targetY), animated: false)
+    }
+}
+
+// MARK: - Page swipe (#6559)
+
+extension ImageWithCursorTrackingIOSCoordinator: UIGestureRecognizerDelegate {
+    /// A fitted page does not scroll, so a sideways swipe on it turns the page instead of nudging the image; a
+    /// zoomed-in page pans as before. The pinch is a separate recognizer, so zooming works either way. The pinch's
+    /// floor, the fitted size, is kept here too.
+    func syncPanningToZoom() {
+        guard let scrollView else { return }
+        let fit = calculateFitScale()
+        scrollView.minimumZoomScale = PageSwipe.minimumZoom(fitScale: fit, minScale: owner.minScale)
+        let zoomedIn = PageSwipe.isZoomedIn(scale: scrollView.zoomScale, fitScale: fit)
+        if scrollView.isScrollEnabled != zoomedIn { scrollView.isScrollEnabled = zoomedIn }
+        // A page that isn't zoomed in always rests centred: a new page, a fit, a pinch back out. Without this a page
+        // kept the last one's scroll position and could sit off to the left or out of view. Not mid-pinch, where
+        // the pinch owns the offset.
+        guard !zoomedIn, !scrollView.isZooming, !scrollView.isZoomBouncing,
+              let image = (imageView as? UIImageView)?.image else { return }
+        let zoom = scrollView.zoomScale
+        let resting = PageSwipe.restingOffset(
+            scaledContent: CGSize(width: image.size.width * zoom, height: image.size.height * zoom),
+            viewSize: scrollView.bounds.size
+        )
+        if abs(scrollView.contentOffset.x - resting.x) > 0.5 || abs(scrollView.contentOffset.y - resting.y) > 0.5 {
+            scrollView.contentOffset = resting
+        }
+    }
+
+    /// A pinch that ends at or near the fitted size springs back to exactly the whole page, centred, as in Photos
+    /// (#6559). Scrolling is off there, so a page left off-centre would otherwise stay stuck where the pinch let go.
+    func settleToFitIfFitted() {
+        guard let scrollView, let fit = calculateFitScale(),
+              !PageSwipe.isZoomedIn(scale: scrollView.zoomScale, fitScale: fit) else { return }
+        // centerContent puts the offset at the resting point too (syncPanningToZoom).
+        UIView.animate(withDuration: 0.25, delay: 0, options: [.curveEaseOut, .allowUserInteraction]) {
+            scrollView.zoomScale = fit
+            self.centerContent()
+        }
+        // Back at fit, the automatic fit owns the zoom again, so a resize re-fits (#4279).
+        userHasZoomedManually = false
+        noteAutoFitApplied()
+        onScaleChanged?(fit)
+    }
+
+    /// The page-swipe recognizer, on the scroll view itself: a SwiftUI drag over the representable lost to the
+    /// scroll view's own pan.
+    func installPageSwipe(on scrollView: UIScrollView) {
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePageSwipe(_:)))
+        pan.delegate = self
+        pan.maximumNumberOfTouches = 1
+        scrollView.addGestureRecognizer(pan)
+    }
+
+    @objc func handlePageSwipe(_ pan: UIPanGestureRecognizer) {
+        guard pan.state == .ended, let view = pan.view else { return }
+        let translation = pan.translation(in: view)
+        let size = CGSize(width: translation.x, height: translation.y)
+        let step = PageSwipe.step(
+            translation: size,
+            predictedEnd: PageSwipe.predictedEnd(translation: size, velocity: pan.velocity(in: view)),
+            isZoomedIn: false
+        )
+        if let step { owner.onPageStep?(step) }
+    }
+
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
+              pan !== scrollView?.panGestureRecognizer else { return true }
+        guard owner.onPageStep != nil, let scrollView else { return false }
+        let zoomedIn = PageSwipe.isZoomedIn(scale: scrollView.zoomScale, fitScale: calculateFitScale())
+        return PageSwipe.claimsDrag(velocity: pan.velocity(in: pan.view), isZoomedIn: zoomedIn)
+    }
+
+    /// The pinch and the image's tap still see the touches.
+    func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool {
+        true
     }
 }
 

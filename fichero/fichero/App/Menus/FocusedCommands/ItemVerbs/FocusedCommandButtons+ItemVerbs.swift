@@ -308,13 +308,26 @@ struct FocusedDeleteButton: View {
     @FocusedValue(\.itemVerbs) private var items
     @FocusedValue(\.sidebarActions) private var sidebarActions
     @FocusedValue(\.sidebarSelectionInfo) private var selectionInfo
+    @FocusedValue(\.segmentMenu) private var segments
+    @FocusedValue(\.focusedPaneKind) private var focusedPane
+    /// Published only by a focused Activity table (#6441).
+    @FocusedValue(\.activityVerbs) private var activity
 
     var body: some View {
-        let target = FocusedItemVerbs.target(items: items, actions: sidebarActions, info: selectionInfo)
-        DeleteItemsMenuItem(target: target)
-        // With nothing selected, Rename's reason above says it once.
-        if let reason = ItemVerbs.deleteReason(target), reason != ItemVerbs.nothingSelected {
-            Text(reason)
+        // The focused Activity table takes ⌘⌫ for its selected rows (the Mail rule, Stop then Delete when one runs).
+        if let activity {
+            Button(ActivityPaneVerb.delete.title, role: .destructive) { activity.perform(.delete) }
+                .disabled(!activity.enabled.contains(.delete))
+        // The Preview holding segments takes ⌘⌫ for them (#6413): one keyed Delete, the item list's or the segments'.
+        } else if let segments, SegmentDeleteRoute.takesDelete(focusedPane: focusedPane, selectedSegments: segments.selectionCount) {
+            Button(SegmentMenuContent.deleteTitle(segments.selectionCount), role: .destructive) { segments.delete() }
+        } else {
+            let target = FocusedItemVerbs.target(items: items, actions: sidebarActions, info: selectionInfo)
+            DeleteItemsMenuItem(target: target)
+            // With nothing selected, Rename's reason above says it once.
+            if let reason = ItemVerbs.deleteReason(target), reason != ItemVerbs.nothingSelected {
+                Text(reason)
+            }
         }
     }
 }

@@ -293,3 +293,17 @@ def test_rule_6_catches_another_appstorage_name_for_the_host(tmp_path: Path) -> 
 def test_rule_6_allows_reading_the_host_key(tmp_path: Path) -> None:
     _write(tmp_path, "Services/S.swift", "let host = EngineConfig.defaults.string(forKey: EngineConfig.userDefaultsKey)\n")
     assert not scan(tmp_path)
+
+
+def test_flags_a_response_interpolated_into_a_string(tmp_path: Path) -> None:
+    """`sharing.undocumented-never-reaches-the-person`: a response enum is never printed for a person."""
+    _write(tmp_path, "Models/S.swift", 'throw StoreError(message: "\\(response)")\n')
+    assert scan(tmp_path)
+    _write(tmp_path, "Models/T.swift", 'let text = "Failed: \\(undocumentedPayload)"\n')
+    assert len(scan(tmp_path)) == 2
+
+
+def test_allows_a_response_in_a_log_line_and_in_person_facing_error(tmp_path: Path) -> None:
+    _write(tmp_path, "Models/S.swift", 'logger.error("bad answer \\(response)")\n')
+    _write(tmp_path, "Services/PersonFacingError.swift", 'let label = "\\(response)"\n')
+    assert not scan(tmp_path)

@@ -27,6 +27,8 @@ struct DocumentOverlay: Equatable {
         var parentSegmentId: String?
         /// Its region's hue and its shade along the reading order (`RegionColours.Tone`); nil draws plain.
         var tone: RegionColours.Tone?
+        /// A line's reading number, drawn when `showsOrderNumbers`.
+        var orderNumber: Int?
         /// The segment's resolved direction (`SegmentStore`, from the page text), so its inline reading is
         /// set the way the line is written (#5411). Nil: not resolved.
         var direction: String?
@@ -35,6 +37,10 @@ struct DocumentOverlay: Equatable {
     var boxes: [Box] = []
     /// The library's transcription family for the inline words (#5438); nil draws in the system font.
     var transcriptionFamily: String?
+    /// "Show Order Numbers" (Display menu): a small number on each line's box.
+    var showsOrderNumbers = false
+    /// "Show Bounding Box" (Display menu): the box around a polygon or baseline, drawn beside it, dashed and faint.
+    var showsBoundingBoxes = false
 
     /// The finest level drawn: read once per draw, not once per box. Only it sets its reading inline.
     var finestLevel: SegmentHierarchy.Level { SegmentHierarchy.finestLevel(boxes.map(\.kind)) }
@@ -127,12 +133,55 @@ struct DocumentOverlay: Equatable {
     /// The boxes a redraw of `dirty` (document coordinates) must paint, each with its document rect.
     /// AppKit asks for only the newly exposed strip when the page scrolls, and a box outside it is
     /// already on screen or not visible at all -- so a scroll of a 4,525-box page paints a handful.
+    /// The order overlay's arrows (`segment-editor.order-overlay`): from each numbered line's start (its box's top-left,
+    /// where its number sits) to the next number's, in number order. Page fractions.
+    func orderArrows() -> [(from: [Double], to: [Double])] {
+        let numbered = boxes.compactMap { box in box.orderNumber.map { ($0, box.bbox) } }
+            .filter { $0.1.count >= 2 }.sorted { $0.0 < $1.0 }
+        return zip(numbered, numbered.dropFirst()).compactMap { this, next in
+            next.0 == this.0 + 1 ? (Array(this.1.prefix(2)), Array(next.1.prefix(2))) : nil
+        }
+    }
+
     func boxes(in dirty: CGRect, imageRect: CGRect) -> [(box: Box, rect: CGRect)] {
         boxes.compactMap { box in
             guard let rect = DocumentBoxMapping.rect(normalized: box.bbox, imageRect: imageRect),
                   rect.intersects(dirty) else { return nil }
             return (box, rect)
         }
+    }
+
+    /// Each selected rect's region tone, parallel to `selected(in:imageRect:)`: a selection is drawn in its region's hue
+    /// (#6422, `colour.selection-takes-its-region-hue`); nil for a rect no box is drawn at (an artifact's geometry).
+    func selectedTones(in dirty: CGRect, imageRect: CGRect) -> [RegionColours.Tone?] {
+        let toneByBox = Dictionary(boxes.map { ($0.bbox, $0.tone) }, uniquingKeysWith: { first, _ in first })
+        return selected.compactMap { bbox -> RegionColours.Tone?? in
+            guard let rect = DocumentBoxMapping.rect(normalized: bbox, imageRect: imageRect), rect.intersects(dirty)
+            else { return nil }
+            return .some(toneByBox[bbox] ?? nil)
+        }
+    }
+
+    /// The region boxes that light with the hovered and selected segments (#6422): each segment's nearest region
+    /// ancestor drawn on the page, once each; a region itself lights nothing more.
+    func litRegions(for segmentIds: [String]) -> [Box] {
+        guard !segmentIds.isEmpty else { return [] }
+        let byId = Dictionary(boxes.compactMap { box in box.segmentId.map { ($0, box) } }, uniquingKeysWith: { first, _ in first })
+        var seen: Set<String> = []
+        var lit: [Box] = []
+        for id in segmentIds {
+            var cursor = byId[id]?.parentSegmentId
+            var hops = 0
+            while let current = cursor, hops < 16 {
+                if let box = byId[current], box.kind == "region" {
+                    if seen.insert(current).inserted { lit.append(box) }
+                    break
+                }
+                cursor = byId[current]?.parentSegmentId
+                hops += 1
+            }
+        }
+        return lit
     }
 
     /// The selected rects a redraw of `dirty` must paint.

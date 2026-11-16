@@ -82,11 +82,6 @@ struct InspectorSelectAllKey: FocusedValueKey {
     typealias Value = FocusedLibraryAction
 }
 
-/// The sidebar answering ⌘A over the CURRENT library's visible rows.
-struct SidebarSelectAllKey: FocusedValueKey {
-    typealias Value = FocusedLibraryAction
-}
-
 /// The preview answering ⌘A by selecting the whole image.
 struct PreviewSelectAllKey: FocusedValueKey {
     typealias Value = FocusedLibraryAction

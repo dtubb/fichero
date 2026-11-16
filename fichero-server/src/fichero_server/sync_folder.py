@@ -274,10 +274,20 @@ def set_intake(db: Any, folder_id: str, on: bool) -> None:
         _unwatch(folder_id)
 
 
-def _queue_read(db: Any, folder_id: str) -> None:
+def _queue_read(db: Any, folder_id: str, *, hold: bool = False) -> str:
+    """Queue the folder's read. `hold` (the open's rescan): the read waits for the person as every row the open found
+    does (`activity.launch.nothing-starts-one-alert`): a rescan at open records nothing and starts no recipe run; the
+    launch alert lists the folder and Continue brings its files in."""
     register_job_kinds()
-    jobs.enqueue(db, READ_KIND, folder_id, started_by="sync",
-                 run_after=utc_now() + timedelta(seconds=QUIET_SECONDS))
+    if hold and jobs._was_deleted(db, READ_KIND, [folder_id]) and not jobs._live_row(db, READ_KIND, folder_id):
+        return ""  # a read the person deleted is not queued again by the open (`activity.engine.open-queues-nothing-twice`)
+    job_id = jobs.enqueue(db, READ_KIND, folder_id, started_by="sync",
+                          run_after=utc_now() + timedelta(seconds=QUIET_SECONDS))
+    if hold:  # a row already paused (the last session's quit hold) is reused as it is: no twin, and its reason stays
+        db.execute("UPDATE jobs SET state = 'paused', reason = ?, run_after = NULL WHERE id = ? AND state = 'waiting'",
+                   [jobs.NEW_MATERIAL_REASON, job_id])
+        db.execute("UPDATE jobs SET run_after = NULL WHERE id = ? AND state = 'paused'", [job_id])
+    return job_id
 
 
 def untie(db: Any, folder_id: str) -> None:
@@ -618,13 +628,15 @@ def _bring_in(db: Any, path: Path, doc_id: str, fmt: str) -> bool:
     return True
 
 
-def rescan(db: Any) -> None:
+def rescan(db: Any, *, hold: bool = False) -> None:
     """On library open: compare each tied folder with the checksums Fichero recorded, so changes made
-    while the engine was off are found (`source.sync.rescan-after-downtime`)."""
+    while the engine was off are found (`source.sync.rescan-after-downtime`). `hold` (the open): the folder's
+    read is queued PAUSED for the launch alert, so nothing is imported and no recipe run starts by itself
+    (`activity.launch.nothing-starts-one-alert`, owner 2026-11-13)."""
     for folder in _folders(db):
         if folder["intake"] or folder["mode"] == KEEP_ARRANGED:
             _watch(db, folder)
-            _queue_read(db, folder["id"])  # handled as though seen live
+            _queue_read(db, folder["id"], hold=hold)  # as though seen live, but held for the person at open
             continue
         root = Path(folder["path"])
         rows = db.execute_fetchall(

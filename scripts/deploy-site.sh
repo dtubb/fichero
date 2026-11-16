@@ -53,4 +53,13 @@ git add apps/fichero
 git commit -m "Update Fichero app page" || echo "Nothing to commit"
 git push
 
-echo "Done — Netlify will deploy automatically"
+# The push alone has not always started a Netlify build; ask for one. The hook URL is a secret
+# (FICHERO_NETLIFY_BUILD_HOOK, never committed); unset means the push is trusted to deploy.
+if [ -n "${FICHERO_NETLIFY_BUILD_HOOK:-}" ]; then
+  curl -fsS -X POST -d '{}' "$FICHERO_NETLIFY_BUILD_HOOK" >/dev/null \
+    && echo "Netlify build triggered" \
+    || echo "warning: the Netlify build hook failed; relying on the push" >&2
+else
+  echo "FICHERO_NETLIFY_BUILD_HOOK not set; relying on the push to deploy"
+fi
+echo "Done — Netlify deploys the push (and the build just requested)"

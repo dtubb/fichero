@@ -76,6 +76,83 @@ struct SetupStagesTests {
                     .stage("dates"), .ready])
     }
 
+    @Test("source.recipe.leave-out-stage: Leave Out's toggle is the stage tick and the engine's `leave_out` answer, saved with the others")
+    func leaveOutToggle() throws {
+        let leaveOut = SetupStageChoice.Stage(id: "leave-out", jobs: ["leave-out"], needs: [])
+        let store = RecipeSetupStore(client: StagesMockURLProtocol.client())
+        store.stageChoice = SetupStageChoice(stages: [Self.lines, leaveOut], chosen: ["find-lines", "leave-out"])
+        store.toggle(stage: "leave-out")
+        #expect(store.jobAnswers[question: RecipeSetupStore.leaveOutQuestion] == .yesNo(false))
+        #expect(store.removedJobs == ["leave-out"])
+        store.toggle(stage: "leave-out")
+        #expect(store.jobAnswers[question: RecipeSetupStore.leaveOutQuestion] == .yesNo(true))
+        let saved = try JSONSerialization.jsonObject(with: JSONEncoder().encode(store.jobAnswers)) as? [String: Any]
+        #expect(saved?["leave_out"] as? Bool == true, "an answer no typed field names is still saved, under the engine's key")
+        let asked = try JSONDecoder().decode(Components.Schemas.StageQuestion.self, from: Data("""
+        {"key": "leave_out", "ask": "Leave out what is not writing before reading?", "kind": "yes-no",
+         "default": true, "answer": false, "read_by_a_step": false}
+        """.utf8))
+        #expect(SetupStagePage.answer(to: asked, in: RecipeSetupAnswers.JobAnswers()) == .yesNo(false), "the engine's answer shows")
+    }
+
+    @Test("source.recipe.second-reviewer: the mode picker reads the engine's question, in turn by default, and saves the choice under its key")
+    func secondReviewMode() throws {
+        let question = try JSONDecoder().decode(Components.Schemas.StageQuestion.self, from: Data("""
+        {"key": "second_review_mode", "ask": "How should the second model review?", "kind": "one",
+         "options": [{"id": "in-turn", "title": "In turn"}, {"id": "compare", "title": "Compare"},
+                     {"id": "both", "title": "Both"}],
+         "default": "in-turn", "answer": "in-turn", "read_by_a_step": true}
+        """.utf8))
+        var answers = RecipeSetupAnswers.JobAnswers()
+        #expect(SetupStagePage.answer(to: question, in: answers) == .text("in-turn"), "in turn until the person chooses")
+        answers[question: RecipeSetupStore.secondReviewModeQuestion] = .text("both")
+        #expect(SetupStagePage.answer(to: question, in: answers) == .text("both"))
+        let saved = try JSONSerialization.jsonObject(with: JSONEncoder().encode(answers)) as? [String: Any]
+        #expect(saved?["second_review_mode"] as? String == "both", "an answer no typed field names is saved under the engine's key")
+        #expect(RecipeSetupStore.secondReviewStepId == "correct-2")
+    }
+
+    @Test("source.recipe.leave-out-stage: the page's toggle and Ready's take out and put back keep the stage's tick and the answer in step")
+    func leaveOutStaysInStep() async {
+        let leaveOut = SetupStageChoice.Stage(id: "leave-out", jobs: ["leave-out"], needs: [])
+        let store = RecipeSetupStore(client: StagesMockURLProtocol.client())
+        store.stageChoice = SetupStageChoice(stages: [Self.lines, leaveOut], chosen: ["find-lines", "leave-out"])
+        store.setLeaveOut(false)  // the toggle on the page
+        #expect(store.stageChoice?.chosen == ["find-lines"], "the chooser's tick follows the toggle")
+        #expect(store.removedJobs == ["leave-out"])
+        store.setLeaveOut(true)
+        #expect(store.stageChoice?.chosen == ["find-lines", "leave-out"])
+        #expect(store.jobAnswers[question: RecipeSetupStore.leaveOutQuestion] == .yesNo(true))
+        #expect(!store.removedJobs.contains("leave-out"))
+        store.removedJobs = ["other-step"]
+        store.setLeaveOut(false)
+        #expect(Set(store.removedJobs) == ["other-step", "leave-out"], "a step taken out on Ready stays out")
+        await store.putBack(job: "leave-out")  // Ready's put back
+        #expect(store.jobAnswers[question: RecipeSetupStore.leaveOutQuestion] == .yesNo(true))
+        #expect(store.stageChoice?.chosen.contains("leave-out") == true)
+        await store.takeOut(job: "leave-out")  // Ready's take out: no saved yes against a plan without the step
+        #expect(store.jobAnswers[question: RecipeSetupStore.leaveOutQuestion] == .yesNo(false))
+        #expect(store.stageChoice?.chosen.contains("leave-out") == false)
+    }
+
+    @Test("source.recipe.leave-out-stage: turning Leave Out off on its own page keeps the page, and Continue goes to the next stage")
+    func leaveOutToggleOffContinuesToTheNextStage() {
+        let leaveOut = SetupStageChoice.Stage(id: "leave-out", jobs: ["leave-out"], needs: [])
+        let store = RecipeSetupStore(client: StagesMockURLProtocol.client())
+        store.stageChoice = SetupStageChoice(
+            stages: [Self.lines, leaveOut, Self.names], chosen: ["find-lines", "leave-out", "names"])
+        let page = SetupStep.stage("leave-out")
+        store.setLeaveOut(false)  // the page's toggle: the tick goes, the person is still on the page
+        var flow = SetupFlow(includesApp: false, project: .existing)
+        flow.chosenStages = store.stageIds(keeping: "leave-out")
+        #expect(page.next(in: flow.steps) == .stage("names"), "Continue goes to the next chosen stage, not Ready")
+        #expect(page.previous(in: flow.steps) == .stage("find-lines"), "Back goes to the stage before")
+        flow.chosenStages = store.stageIds(keeping: "names")  // on the next page the unticked stage is gone
+        #expect(!flow.steps.contains(page))
+        #expect(SetupStep.stage("names").previous(in: flow.steps) == .stage("find-lines"))
+        #expect(store.chosenStageIds == ["find-lines", "names"])
+    }
+
     @Test("source.onboard.stages.goals-are-shortcuts: a goal ticks its stages; a stage unticked afterwards stays so")
     func goalsAreShortcuts() {
         var choice = choice()

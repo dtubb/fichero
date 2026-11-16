@@ -519,7 +519,7 @@ def test_multiuser_flag_off_leaves_shared_secret_behavior_unchanged(
         "/api/auth/login",
         json={"username": "alice", "password": "password"},
     )
-    assert login.status_code == 404
+    assert login.status_code == 409  # `sharing.multiuser-404-is-a-409-in-the-engine`
 
     session_auth = client.get("/api/providers", headers=_bearer(raw_token))
     assert session_auth.status_code == 401

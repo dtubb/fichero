@@ -1,6 +1,6 @@
 {
  "name": "Accounts → Spreadsheet (CSV)",
- "description": "Use this when: a page (or each page of a document) holds historical accounts — cuentas, tithe books, tribute rolls, expense lists — and you want spreadsheet rows out. Reads amounts as a paleographer (roman numerals, the U thousands mark, maravedís/pesos/reales), keeps the original text, and normalizes amounts to numbers where certain. One CSV artifact per page; open or export from the artifact.",
+ "description": "Use this when: a page (or each page of a document) holds historical accounts — cuentas, tithe books, tribute rolls, expense lists — and you want spreadsheet rows out. Reads amounts as a paleographer (roman numerals, the U thousands mark, maravedís/pesos/reales), keeps the original text, and normalizes amounts to numbers where certain. One CSV artifact per page; open or export from the artifact. A final Check Consistency step flags a figure that disagrees with its words and a name spelled two ways.",
  "format": "nodes",
  "is_template": true,
  "is_system": true,
@@ -14,7 +14,7 @@
   "paleography"
  ],
  "config": {
-  "preset_version": 2
+  "preset_version": 3
  },
  "nodes": [
   {
@@ -39,6 +39,15 @@
     "prompt": "Extract the account entries on this page into CSV.\n\nThis is a HISTORICAL page of accounts (cuentas). Read it as a paleographer:\n- One CSV row per account entry, in page order. Columns: entry_text, date, concept, amount_original, amount_normalized, unit, running_total, notes.\n- entry_text: the entry as written, original spelling preserved (expand abbreviations with [brackets] only).\n- amount_original: exactly as written — roman numerals, the U/cuento thousands mark (e.g. iiiUdcccxx), or spelled-out amounts.\n- amount_normalized: the same amount as a plain arabic number; leave empty if the reading is uncertain rather than guessing.\n- unit: maravedís, pesos, reales, ducados, tomines... as the page gives it.\n- running_total/notes: totals (\"suma\", \"monta\"), carried amounts, marginal checks; note [UNCERTAIN] readings here.\n- First line = the header row. Quote any field containing a comma. Output ONLY the CSV.",
     "thinking_mode": "long"
    }
+  },
+  {
+   "id": "consistency",
+   "tool": "consistency-check",
+   "label": "Check Consistency",
+   "position_x": 560,
+   "position_y": 200,
+   "inputs": {},
+   "config": {}
   }
  ],
  "edges": [
@@ -55,6 +64,13 @@
    "target": "accounts",
    "source_port": "documents",
    "target_port": "documents"
+  },
+  {
+   "id": "edge-table-consistency",
+   "source": "accounts",
+   "target": "consistency",
+   "source_port": "text",
+   "target_port": "text"
   }
  ]
 }

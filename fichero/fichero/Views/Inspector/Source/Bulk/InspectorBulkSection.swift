@@ -78,7 +78,9 @@ struct InspectorBulkSection: View {
             note = refusal.words
         case .success(let params):
             guard let actionsService = actionStore?.actionsService else { return }
-            let steps = windowSteps, stepName = SegmentBulkEdit.stepName(verb, count: (try? SegmentBulkEdit.lines(selectedIds).get().count) ?? selectedIds.count)
+            let steps = windowSteps
+            let lineCount = (try? SegmentBulkEdit.lines(selectedIds).get().count) ?? selectedIds.count
+            let stepName = SegmentBulkEdit.stepName(verb, count: lineCount)
             Task {
                 do {
                     try await AuditedAction.run(action, params: params, actionName: stepName, actionsService: actionsService, steps: steps)

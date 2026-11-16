@@ -138,7 +138,9 @@ class WorkflowExecutionService {
         interruptAfter: [String] = [],
         providerOverride: String? = nil,
         modelOverride: String? = nil,
-        selection: Components.Schemas.WorkflowSelection? = nil
+        selection: Components.Schemas.WorkflowSelection? = nil,
+        allowCloudOnce: Bool = false,
+        overCapOnce: Bool = false
     ) async throws -> ExecuteAcceptedResponse {
         let inputsPayload = Components.Schemas.ExecuteWorkflowRequest.InputsPayload(
             additionalProperties: try objectContainer(fromJSON: inputs)
@@ -151,6 +153,8 @@ class WorkflowExecutionService {
             interruptAfter: interruptAfter,
             providerOverride: (providerOverride?.isEmpty == false) ? providerOverride : nil,
             modelOverride: (modelOverride?.isEmpty == false) ? modelOverride : nil,
+            allowCloudOnce: allowCloudOnce ? true : nil,
+            overCapOnce: overCapOnce ? true : nil,
             selection: selection
         )
 
@@ -181,6 +185,15 @@ class WorkflowExecutionService {
                 status: (payload.status ?? .accepted).rawValue,
                 streamUrl: payload.streamUrl
             )
+        case .badRequest(let refused):
+            // A run refused at the door: for a cloud refusal the engine's words (`detail.message`) and the typed
+            // refusal with its fixes (`detail.refusal`); `CloudRefusalAlert` offers them.
+            logger.error("Execute workflow refused: 400")
+            let body = (try? refused.body.json).flatMap { try? JSONEncoder().encode($0) }
+            let parsed = body.flatMap { try? JSONDecoder().decode(CloudRefusedBody.self, from: $0) }?.detail
+            if let refusal = parsed?.refusal { throw WorkflowExecutionError.cloudRefused(refusal) }
+            let message = parsed?.message ?? EngineErrorDetail.message(from: body)
+            throw WorkflowExecutionError.serverError(400, message ?? "Execute workflow was refused")
         case .unprocessableContent:
             logger.error("Execute workflow failed: validation error")
             throw WorkflowExecutionError.serverError(422, "Validation error")
@@ -220,13 +233,18 @@ class WorkflowExecutionService {
     // MARK: - Resume Workflow
 
     /// Resume a paused workflow
-    func resumeWorkflow(threadId: String, inputs: [String: Any]? = nil) async throws -> ExecutionThread {
+    func resumeWorkflow(
+        threadId: String, inputs: [String: Any]? = nil, allowCloudOnce: Bool = false, overCapOnce: Bool = false
+    ) async throws -> ExecutionThread {
         let body: Operations.ResumeWorkflowApiWorkflowExecutionThreadsThreadIdResumePost.Input.Body?
-        if let inputs = inputs {
-            let inputsPayload = Components.Schemas.ResumeWorkflowRequest.InputsPayload(
-                additionalProperties: try objectContainer(fromJSON: inputs)
-            )
-            body = .json(.init(inputs: inputsPayload))
+        if inputs != nil || allowCloudOnce || overCapOnce {
+            // This resumed run only (`ai.cloud.one-run-overrides`); written to no setting.
+            let inputsPayload = try inputs.map {
+                Components.Schemas.ResumeWorkflowRequest.InputsPayload(
+                    additionalProperties: try objectContainer(fromJSON: $0))
+            }
+            body = .json(.init(
+                inputs: inputsPayload, allowCloudOnce: allowCloudOnce ? true : nil, overCapOnce: overCapOnce ? true : nil))
         } else {
             body = nil
         }
@@ -326,9 +344,11 @@ class WorkflowExecutionService {
             throw WorkflowExecutionError.serverError(422, "Delete thread failed")
         }
     }
+}
 
-    // MARK: - Pause / Cancel
+// MARK: - Pause / Cancel
 
+@MainActor extension WorkflowExecutionService {
     /// Signal a pause. Returns WHAT THE ENGINE SAID (#4402).
     ///
     /// This used to return `Void`: the 200 body was decoded by the generated
@@ -436,4 +456,21 @@ class WorkflowExecutionService {
             throw WorkflowExecutionError.unrecognizedControlStatus(raw)
         }
     }
+}
+
+/// The 400's body as the engine sends it: `detail` is a sentence or, for a cloud refusal, an object carrying `message` and the
+/// typed `refusal`. The declared body is `ErrorDetail` (a string or any object), so the object is read here, not off the generated type.
+struct CloudRefusedBody: Decodable {
+    struct Detail: Decodable {
+        let message: String?
+        let refusal: Components.Schemas.CloudRefusal?
+    }
+    let detail: Detail?
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        detail = try? container.decode(Detail.self, forKey: .detail)
+    }
+
+    private enum CodingKeys: String, CodingKey { case detail }
 }

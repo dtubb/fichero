@@ -69,6 +69,11 @@ struct CanvasSceneView: View {
     var groupNodeIds: Set<String> = []
     /// A group's pages, in order, as page nodes; nil draws groups as empty frames.
     var pagesOfGroup: ((String) async -> [SpatialNode])?
+    /// Bumped by the bar's Sort while this board shows (`panes.chrome.one-filter-pattern`): each bump arranges the
+    /// cards in the new order, once, through `saveSortArrangement`.
+    var sortArrangeToken = 0
+    /// Saves an arranged board as ONE audited, undoable action (the host has the actions door).
+    var saveSortArrangement: ((_ scope: String, _ rows: [CanvasItemLayout]) -> Void)?
     /// Each loaded group's pages, keyed by group node id (`CanvasSceneView+Groups.swift`).
     @State var groupPages: [String: [SpatialNode]] = [:]
     /// The pages a dragged group carries, with where each started. Moved live, never saved: they
@@ -164,7 +169,9 @@ struct CanvasSceneView: View {
     /// a pane resize, a card arriving or a page shape landing changes the default grid, and must not
     /// move a card the person did not move. An arrangement (`savedRows` given) is a fresh layout the
     /// person asked for, so it is not held.
-    private func resolvedState(in viewportSize: CGSize, savedRows: [CanvasItemLayout]? = nil) -> CanvasSceneState {
+    private func resolvedState(
+        in viewportSize: CGSize, savedRows: [CanvasItemLayout]? = nil, arrangement: CanvasArrangement? = nil
+    ) -> CanvasSceneState {
         let rows = savedRows ?? layoutStore?.layout(for: scopeKey) ?? []
         let columns = CanvasGridPlacement.sharedColumnCount(
             itemCount: placeableCount, viewportSize: viewportSize, cell: gridCell
@@ -186,7 +193,7 @@ struct CanvasSceneView: View {
             // 1.0 × 0.75 (§18.1 defect 4): CanvasCardGeometry normalises on
             // area, so a double-spread is 1.22 wide and needs the room.
             gridCell: gridCell,
-            arrangement: CanvasArrangement.stored(arrangementRaw)
+            arrangement: arrangement ?? CanvasArrangement.stored(arrangementRaw)
         )
         if savedRows == nil {
             // Before nesting: a group's pages follow wherever the group is held.
@@ -213,7 +220,7 @@ struct CanvasSceneView: View {
             // items loaded and its first page shapes known. Drawn earlier, the first frame showed the
             // default grid and the cards then slid to their saved places.
             let board = CanvasOpenGate.mayDraw(settledScope: settledScope, scope: scopeKey, viewport: geo.size)
-                ? resolvedState(in: geo.size) : nil
+                ? CanvasBoardProfile.timing(.resolve) { resolvedState(in: geo.size) } : nil
             RealityView { content in
                 // BEFORE the first reconcile (first-load fix, 2026-08-22, same
                 // as CanvasSpaceView): configureController runs in `.task`,
@@ -235,7 +242,7 @@ struct CanvasSceneView: View {
                 renderer.storageService = storageService
                 renderer.setFaces(faces)
                 renderer.detailTier = CanvasDetailTier.forZoomScale(renderer.reportedZoomScale)
-                renderer.reconcile(to: board)
+                CanvasBoardProfile.timing(.reconcile) { renderer.reconcile(to: board) }
             }
             // Plain drag on a card MOVES the card (#4290). It is disabled only
             // while Space is held, which is the deliberate "move the view"
@@ -248,7 +255,6 @@ struct CanvasSceneView: View {
             // A scope being switched to keeps the old board hidden until the new one has settled.
             .opacity(board == nil ? 0 : 1)
             .highPriorityGesture(resizeDrag(in: geo.size), isEnabled: !spaceHeld)
-            .highPriorityGesture(nodeDrag(in: geo.size), isEnabled: !spaceHeld)
             .highPriorityGesture(tapSelect)
             .onReceive(NotificationCenter.default.publisher(for: .canvasFocusZoomToggle)) { note in
                 guard let id = note.object as? String else { return }
@@ -275,7 +281,8 @@ struct CanvasSceneView: View {
             // selection and node drag are untouched.
             #if os(macOS)
             .overlay {
-                CanvasScrollPanView(onSecondaryClick: { secondaryClick(at: $0, in: geo.size) }, onScroll: { delta in
+                CanvasScrollPanView(onSecondaryClick: { secondaryClick(at: $0, in: geo.size) },
+                                    onPrimaryPress: { finishLeftoverDrag() }, onScroll: { delta in
                     // Raw-delta mapping (user, 2026-08-20, trackpad + Magic
                     // Mouse both verified against the ortho (x, −y)
                     // projection).
@@ -289,7 +296,7 @@ struct CanvasSceneView: View {
                     // put while the scale changes — pan by the anchor times
                     // the world-per-point change, same mapping the pan uses.
                     let oldScale = renderer.orthoScale
-                    renderer.setOrthoScale(oldScale * Float(1 + delta * 0.005), live: true)
+                    renderer.setOrthoScale(oldScale * Float(CanvasScrollZoom.factor(delta: delta)), live: true)
                     renderer.settleZoomSoon()
                     let wppOld = Canvas2DProjection.worldPerPoint(
                         orthoScale: oldScale, viewHeight: geo.size.height
@@ -354,6 +361,7 @@ struct CanvasSceneView: View {
             // card out in it and saves those places. As a default for unplaced cards only, it did
             // nothing to any card a person had moved, and once positions save that is all of them.
             .onChange(of: arrangementRaw) { _, raw in arrangeBoard(CanvasArrangement.stored(raw), in: geo.size) }
+            .onChange(of: sortArrangeToken) { arrangeBySort(in: geo.size) }
             .onDisappear { controller?.onMoveInto = nil }
             .task(id: folderScopeId) {
                 configureController()
@@ -410,9 +418,11 @@ struct CanvasSceneView: View {
     /// a rubber band selected cards and then nothing could be done with them).
     @State var groupDragOrigins: [String: SIMD3<Double>] = [:]
     @State var lastTapAt: Date = .distantPast
+}
 
-    // MARK: - Gestures
+// MARK: - Gestures
 
+extension CanvasSceneView {
     func draggedWorld(
         start: SIMD3<Float>, translation: CGSize, viewHeight: CGFloat, id: String
     ) -> SIMD3<Double> {
@@ -435,11 +445,11 @@ struct CanvasSceneView: View {
     /// Tinderbox-style canvas the plain drag has to belong to the card under the
     /// pointer, and a camera pan competing for it is why moving items didn't work.
     ///
-    /// `minimumDistance` is deliberately LOOSER than `nodeDrag`'s 2pt: the card
-    /// drag therefore activates first and sets `draggingNodeId`, so the guard
-    /// below is decided rather than racing whichever handler SwiftUI runs first.
+    /// The ONE drag on the board (#4601): a press on a card moves it (`pressMovesCard`, the canvas's own hit test),
+    /// anywhere else rubber-bands. The entity-targeted card drag that raced it is gone, so 3 points is enough to tell a
+    /// drag from a click.
     private func panOrMarquee(in size: CGSize) -> some Gesture {
-        DragGesture(minimumDistance: 6)
+        DragGesture(minimumDistance: 3)
             .updating($marqueeRect) { value, state, _ in
                 // A live resize is a drag too, and it starts on a handle rather
                 // than on a card — so `draggingNodeId` is nil and the marquee
@@ -529,6 +539,7 @@ struct CanvasSceneView: View {
                   let world = renderer.worldPosition(of: id) else { return false }
             pressDragging = true
             draggingNodeId = id
+            CanvasDragLog.began(id)
             dragStartScene = Canvas2DProjection.scenePosition(world)
             dragOriginWorld = world
             // Pressing one card of a multiple selection moves the whole selection.
@@ -556,12 +567,14 @@ struct CanvasSceneView: View {
                 renderer.liveMove(id: page, toWorld: pageOrigin + (world - origin))
             }
         }
-        renderer.setHoverTarget(renderer.dropTargetId(nearWorld: world, excluding: id))
+        let under = dropTarget(near: world, dragged: id)
+        renderer.setHoverTarget(DropOutcome.lightsTarget(under, modifiers: optionHeld ? .forceLink : []) ? under?.id : nil)
         controller?.dispatch(.dragMoved(id: id, position: world))
+        CanvasDragLog.moved()
         return true
     }
 
-    /// Drop the card: the same end, save and undo as the entity-targeted `nodeDrag`.
+    /// Drop the card: its end, save and undo.
     private func endPressDrag(_ value: DragGesture.Value, in size: CGSize) {
         defer {
             pressDragging = false
@@ -580,6 +593,7 @@ struct CanvasSceneView: View {
         }
         renderer.setHoverTarget(nil)
         let target = dropTarget(near: world, dragged: id)
+        CanvasDragLog.ended(id, dropTarget: target.map { "\($0)" })
         let modifiers: CanvasDropModifiers = optionHeld ? .forceLink : []
         controller?.dispatch(.dragEnded(id: id, position: world, dropTarget: target, modifiers: modifiers))
         if target == nil, let controller, let origin = dragOriginWorld {
@@ -616,6 +630,16 @@ extension CanvasSceneView {
 
     /// Lay every card out in `arrangement` and save those places: an action, like Finder's Clean
     /// Up By, and with a drag the only thing that moves a card (#5629).
+    /// Sort, on this board: every card at its As Filed slot -- the order the Sort just gave `nodes` -- whatever
+    /// Arrange by holds, saved once; the board then keeps whatever is moved by hand.
+    func arrangeBySort(in size: CGSize) {
+        guard let layoutStore, let saveSortArrangement else { return }
+        let rows = CanvasArrangement.rowsBySort(
+            resolvedState(in: size, savedRows: [], arrangement: .asFiled), keeping: layoutStore.layout(for: scopeKey)
+        )
+        saveSortArrangement(scopeKey, rows)
+    }
+
     func arrangeBoard(_ arrangement: CanvasArrangement, in size: CGSize) {
         guard arrangement != .free, let layoutStore else { return }
         let rows = CanvasArrangement.rowsPinning(

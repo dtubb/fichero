@@ -92,3 +92,13 @@ def REVIEWER_CONFIG():
     from fichero_server.llm import LLMConfig
 
     return LLMConfig(provider=REVIEWER[0], model=REVIEWER[1])
+
+
+async def test_a_line_batch_reply_ending_in_null_is_asked_once_more_before_it_is_believed(page, monkeypatch):  # noqa: F811
+    """#6305: a dropped line padded with null at the end would put each answer one line early."""
+    replies = [json.dumps(REREAD[1:] + [None]), json.dumps(REREAD)]
+    result, calls = await _run(page, monkeypatch, lambda n, prompt: replies.pop(0))
+
+    assert calls == [1, 3, 3]
+    assert _counting(page) == REREAD
+    assert not result["results"][0].get("error")

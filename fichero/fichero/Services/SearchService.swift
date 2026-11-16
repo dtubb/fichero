@@ -296,9 +296,11 @@ class SearchService {
             transcriptExcerpts: generated.transcriptExcerpts ?? []
         )
     }
+}
 
-    // MARK: - Type Conversions
+// MARK: - Type Conversions
 
+@MainActor extension SearchService {
     /// Extract reindex status from untyped response container
     private func extractReindexStatus(from container: OpenAPIRuntime.OpenAPIValueContainer) -> ReindexStatus {
         var status = "unknown"

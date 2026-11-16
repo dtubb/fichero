@@ -46,7 +46,7 @@ def _candidate_document_ids(inputs: dict[str, Any], state: State) -> list[str]:
 def append_image_edit_operations(
     inputs: dict[str, Any],
     state: State,
-    build_operation: Callable[[Document], dict[str, Any]],
+    build_operation: Callable[[Document], dict[str, Any] | None],
 ) -> list[dict[str, Any]]:
     """Persist edit-chain operations for workflow-selected documents.
 
@@ -65,6 +65,8 @@ def append_image_edit_operations(
         if doc is None:
             continue
         operation = build_operation(doc)
+        if operation is None:  # nothing to do for this page: no row
+            continue
         operation.setdefault("created_at", utc_now().isoformat())
 
         rows = list(db.query(ImageEditChain, document_id=doc.id))
@@ -234,6 +236,8 @@ def persist_workflow_renditions(
                 is_primary=False,
                 producer_tool=str(state.get("tool_name") or inputs.get("tool_name") or ""),
                 producer_run_id=str(state.get("run_id") or ""),
+                producer_batch_id=str(state.get("batch_id") or inputs.get("batch_id") or "") or None,
+                steps=result.get("steps") or None,
                 note=f"produced by the {role} workflow",
             )
             db.save(rendition)

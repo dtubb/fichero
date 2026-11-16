@@ -14,6 +14,11 @@ struct PairingIncomingLinkSheet: View {
 
     @State private var isPairing = true
     @State private var errorMessage: String?
+    /// A failed pairing, as the one alert (`sharing.alerts.one-alert-per-failure`); the sheet behind it says only that it is not connected.
+    @State private var failurePrompt: FailureAlertPrompt?
+    /// The host that asked who this device is (Step 8.9): its sign-in alert pairs again with the person.
+    @State private var signInHost: String?
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         NavigationStack {
@@ -21,16 +26,8 @@ struct PairingIncomingLinkSheet: View {
                 if isPairing {
                     ProgressView("Connecting…")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let errorMessage {
-                    VStack(spacing: 16) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.largeTitle)
-                            .foregroundStyle(.red)
-                        Text(errorMessage)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if errorMessage != nil {
+                    ContentUnavailableView("Not Connected", systemImage: "exclamationmark.triangle")
                 }
             }
             .navigationTitle("Connecting…")
@@ -42,9 +39,11 @@ struct PairingIncomingLinkSheet: View {
             }
         }
         .task { await pair() }
+        .failureAlert($failurePrompt)
+        .personSignInAlert(host: $signInHost) { person in Task { await pair(person: person) } }
     }
 
-    private func pair() async {
+    private func pair(person: PairingPerson? = nil) async {
         isPairing = true
         errorMessage = nil
         do {
@@ -54,7 +53,9 @@ struct PairingIncomingLinkSheet: View {
                 pairCode: fields.pairCode,
                 deviceName: RemoteClientPairing.defaultDeviceName(),
                 expectedSPKIPin: fields.spkiPin,
-                libraryPath: fields.libraryPath
+                libraryPath: fields.libraryPath,
+                person: person,
+                altURLs: fields.altURLs
             )
             // Pairing persisted the new host; repoint the app-level client so
             // the reconnect probe targets it. Library adoption + reload fire once
@@ -65,7 +66,21 @@ struct PairingIncomingLinkSheet: View {
             await onConnected()
         } catch {
             isPairing = false
-            errorMessage = error.localizedDescription
+            errorMessage = ""
+            let host = (try? RemoteClientPairing.pairingFields(fromInviteOrPayload: url.absoluteString))
+                .flatMap { URL(string: $0.remoteURL)?.host } ?? "your Mac"
+            if SharingFailurePrompt.asksForPerson(error) {
+                signInHost = host
+                return
+            }
+            failurePrompt = SharingFailurePrompt.make(
+                pairing: error,
+                host: host,
+                offers: SharingFailurePrompt.phoneOffers.subtracting([.pasteLinkAgain]),
+                perform: { fix in
+                    if let page = SharingFailurePrompt.url(for: fix) { openURL(page) } else { Task { await pair() } }
+                },
+                copy: { PlatformPasteboard.writeString($0) })
         }
     }
 }

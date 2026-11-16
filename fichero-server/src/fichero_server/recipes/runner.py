@@ -47,6 +47,7 @@ from typing import Any, NamedTuple
 
 from fichero_server.db import document_tree
 from fichero_server.execution import jobs
+from fichero_server.llm import run_overrides, spend
 from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused
 from fichero_server.recipes.assemble import PURPOSES, TOOL_PURPOSES
 
@@ -122,11 +123,13 @@ def _plan(db: Any) -> dict[str, Any]:
     stays_local = not places.may_leave_to(answers, "cloud")
     # New material runs only what What runs by itself ticks; with Nothing runs automatically, nothing (#5478).
     return plan_start(setup["recipe"], stays_local=stays_local, automatic=answers.get("automatic"),
-                      job_answers=answers.get("job_answers"), db=db)
+                      job_answers=answers.get("job_answers"),
+                      job_answers_by_folder=answers.get("job_answers_by_folder"), db=db)
 
 
 def enqueue(db: Any, plan: dict[str, Any], *, documents: list[str] | None, started_by: str,
-            redo: list[str] | None = None, folder_id: str | None = None) -> str:
+            redo: list[str] | None = None, folder_id: str | None = None, first_pages: int | None = None, plan_reads: dict | None = None,
+            run_cap_usd: float | None = None, allow_cloud_once: bool = False, over_cap_once: bool = False) -> str:
     """Queue one run of the plan; `documents` None is all the project's material, or with `folder_id` that
     folder's (`source.recipe.folder-scoped-start`); `redo` names the steps to run again on pages that already have
     their output (`source.recipe.done-is-not-redone`). The downloads the plan found under way are kept on the run,
@@ -136,11 +139,16 @@ def enqueue(db: Any, plan: dict[str, Any], *, documents: list[str] | None, start
     detail = {"runs": plan["runs"], "skipped": plan["skipped"], "documents": documents, "redo": list(redo or []),
               "folder_id": folder_id, "awaited": awaited,
               # Its name and page count in Activity (#5615), as they were when it was queued.
-              "title": _recipe_title(db), "pages": _pages_counted(db, documents)}
-    words = "Waiting to run the recipe" + (f" on {len(documents)} new pages" if documents is not None else
+              "title": _recipe_title(db), "pages": _pages_counted(db, documents, plan_reads),
+              **({"run_cap_usd": run_cap_usd} if run_cap_usd is not None else {}),
+              # This run only (`ai.cloud.one-run-overrides`): kept on the run's row, read by `_run`, ended with the run.
+              **({"allow_cloud_once": True} if allow_cloud_once else {}), **({"over_cap_once": True} if over_cap_once else {})}
+    words = "Waiting to run the recipe" + (f" on the first {len(documents)} pages" if first_pages else
+                                           f" on {len(documents)} new pages" if documents is not None else
                                            " on one folder" if folder_id else "")
-    return jobs.enqueue_remote(db, KIND, f"recipe:{uuid.uuid4()}", target="this-mac", detail=json.dumps(detail),
-                               reason=words, started_by=started_by)
+    job_id = jobs.enqueue_remote(db, KIND, f"recipe:{uuid.uuid4()}", target="this-mac", detail=json.dumps(detail),
+                                 reason=words, started_by=started_by)
+    return job_id  # its run cap (`run_cap_usd` in the detail) is held from the moment `_run` starts it, not while it waits
 
 
 def _recipe_title(db: Any) -> str | None:
@@ -152,11 +160,11 @@ def _recipe_title(db: Any) -> str | None:
         return None
 
 
-def _pages_counted(db: Any, documents: list[str] | None) -> int | None:
+def _pages_counted(db: Any, documents: list[str] | None, memo: dict | None = None) -> int | None:
     from fichero_server.recipes.done import pages_for
 
     try:
-        return len(pages_for(db, {}, documents))
+        return len(pages_for(db, {}, documents, memo=memo))
     except Exception:  # noqa: BLE001 -- the row is named without its count
         return None
 
@@ -335,9 +343,11 @@ def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: s
         workflow = workflow.model_copy(deep=True)
         for node in workflow.nodes:
             node["config"] = {**(node.get("config") or {}), **(card["tool_config"].get(node.get("tool")) or {})}
+    once = run_overrides.for_run(parent)  # the recipe's own "once" answers, given to this step's run
     request = ExecuteWorkflowRequest(workflow_id=workflow.id, inputs={"selected_doc_ids": documents},
                                      thread_id=thread_id, provider_override=card["provider_override"],
-                                     model_override=card["model_override"], skip_cache=True)
+                                     model_override=card["model_override"], skip_cache=True,
+                                     allow_cloud_once=once.get("allow_cloud", False), over_cap_once=once.get("over_cap", False))
     # Pages a live run of the same reader already reads are joined, not read beside (#5848): the step reads the rest
     # itself and then waits for that run, so a resume and a Retry, or two Starts, never read a page twice.
     reader = reader_key(workflow, request)
@@ -421,9 +431,9 @@ def _adopt_step_run(thread_id: str, parent: str) -> tuple[str, str, str | None]:
 def _park(db: Any, job_id: str, detail: dict[str, Any], card: dict[str, Any], thread_id: str) -> None:
     """Park the recipe on a paused step run: remember the run, go back to waiting (off the lane), come back soon to look again."""
     detail["awaiting"] = {"card": card.get("id"), "child": thread_id}
-    jobs.save_detail(db, job_id, json.dumps(detail), reason="Paused with its run")
+    jobs.save_detail(db, job_id, json.dumps(detail), reason=jobs.PAUSED_WITH_RUN)
     jobs.come_back_after(db, job_id, PAUSED_LOOK_AGAIN_SECONDS)
-    raise jobs.JobDeferred("Paused with its run")
+    raise jobs.JobDeferred(jobs.PAUSED_WITH_RUN)
 
 
 def _wait_out_a_pause(db: Any, job_id: str) -> None:
@@ -433,7 +443,7 @@ def _wait_out_a_pause(db: Any, job_id: str) -> None:
 
     if pause_requested(job_id) and not _stop_asked(job_id):
         jobs.come_back_after(db, job_id, PAUSED_LOOK_AGAIN_SECONDS)
-        raise jobs.JobDeferred("Paused between steps")
+        raise jobs.JobDeferred(jobs.PAUSED_BETWEEN_STEPS)
 
 
 def _resume_step_run(db: Any, thread_id: str, recipe_id: str | None = None) -> None:
@@ -463,6 +473,18 @@ def _awaited_child(db: Any, job_id: str) -> str | None:
     """The step run a parked recipe is waiting on, if it is parked on one."""
     row = jobs.read_job(db, job_id)
     return ((json.loads(row["detail"] or "{}")).get("awaiting") or {}).get("child")
+
+
+def resume_capped_runs(db: Any) -> list[str]:
+    """Resume, by the one Resume (`pause_recipe`), every recipe run whose step run is paused at a cap that is now higher than it was
+    (`spend.raised_cap_stops`); a lowered or unchanged cap resumes nothing. Called after the caps change (`designer.budget.fix-during-the-run`)."""
+    resumed: list[str] = []
+    for child in spend.raised_cap_stops(str(_library(db))):
+        parent = jobs.parent_of(db, child)
+        if parent and jobs._job_row(db, parent)[1] in ("running", "waiting", "paused"):
+            pause_recipe(db, parent, False)  # forgets the stop, resumes the step run from its checkpoint, takes the recipe up
+            resumed.append(parent)
+    return resumed
 
 
 def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
@@ -509,6 +531,11 @@ def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
         if awaited_state == "paused":
             # A person paused the step's run itself: Resume on the recipe resumes that run (the recipe adopts it when it is taken up).
             clear_pause(awaited)
+            from fichero_server.llm.retry import forget_rate_limit_pause
+            from fichero_server.llm.spend import forget_cap_stop
+
+            forget_cap_stop(awaited)
+            forget_rate_limit_pause(awaited)
             _resume_step_run(db, awaited, job_id)
             document_tree.release_waiting_job(db, job_id, clear_reason=True)
             jobs.wake_lane(db)
@@ -518,9 +545,14 @@ def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
     child = jobs.running_child(db, job_id)
     if child is not None:
         clear_pause(child)  # still winding down to its pause: let it go on
+        from fichero_server.llm.retry import forget_rate_limit_pause
+        from fichero_server.llm.spend import forget_cap_stop
+
+        forget_cap_stop(child)
+        forget_rate_limit_pause(child)
         if jobs._job_row(db, child)[1] == "paused":
             _resume_step_run(db, child, job_id)
-    document_tree.clear_job_reason_if(db, job_id, (jobs.PAUSING, "Paused with its run"))
+    document_tree.clear_job_reason_if(db, job_id, (jobs.PAUSING, jobs.PAUSED_WITH_RUN))
     document_tree.release_waiting_job(db, job_id)  # a parked recipe is taken up now
     jobs.wake_lane(db)
     return jobs._job_row(db, job_id)[1]
@@ -596,6 +628,7 @@ def request_cancel(db: Any, job_id: str) -> str:
     if state in ("waiting", "paused"):
         child = jobs.running_child(db, job_id)  # a recipe parked on a paused step run stops that run too
         jobs.cancel_waiting(db, job_id)
+        _drop_the_run_cap(db, job_id)  # a run paused at its cap keeps the cap while it waits: ended off the lane, `_run` never clears it
         if child is not None:
             jobs.pass_stopper(job_id, child)
             try:
@@ -750,16 +783,7 @@ def _run_catalogue(db: Any, card: dict[str, Any], documents: list[str], parent: 
     return None, "done", None
 
 
-def _run_prepare(db: Any, documents: list[str], parent: str,
-                 step: dict[str, Any]) -> tuple[str | None, str, str | None]:
-    """Each faded page gets a prepared rendition (`source.onboard.auto.prepare-damaged-images`, #5580); the step's
-    account (`prepared`) says how many it prepared, how many were clear and how many had no image to look at."""
-    from fichero_server.recipes.prepare import prepare_pages
-
-    step["prepared"] = prepare_pages(db, documents, parent, stop=lambda: _stop_asked(parent))
-    if _stop_asked(parent):  # stopped before its next page (#5609): the account counts the pages it looked at
-        return None, "cancelled", "Stopped by you"
-    return None, "done", None
+from fichero_server.recipes.prepare_run import run_prepare as _run_prepare  # noqa: E402  (the step lives in its own module)
 
 
 def _run_regions(db: Any, card: dict[str, Any], documents: list[str], parent: str,
@@ -769,12 +793,17 @@ def _run_regions(db: Any, card: dict[str, Any], documents: list[str], parent: st
     many pages and regions, and pages with no image."""
     from fichero_server.recipes.regions import find_regions
 
+    from fichero_server.recipes.regions import SAMPLE_PAGES
+
+    measure = SAMPLE_PAGES if card.get("measure_whole") else None  # a ruler or a card beside the page
     step["regions_found"] = find_regions(db, documents, parent, card["model"], stop=lambda: _stop_asked(parent),
-                                         provider=card.get("provider") or "yolo",
+                                         provider=card.get("provider") or "yolo", measure_pages=measure,
                                          say=lambda words: jobs.say(db, parent, words))
     if _stop_asked(parent):
         return None, "cancelled", "Stopped by you"
-    return None, "done", None
+    from fichero_server.recipes.regions import saved_by_the_page_box
+
+    return None, "done", saved_by_the_page_box(step["regions_found"])
 
 
 def _run_table(db: Any, card: dict[str, Any], documents: list[str], parent: str,
@@ -892,9 +921,39 @@ def _run_embed(db: Any, documents: list[str], parent: str, started_by: str) -> t
         time.sleep(_CHECK_POLL_SECONDS)
 
 
-def _run_export(db: Any, card: dict[str, Any], documents: list[str]) -> tuple[str | None, str, str | None]:
-    from fichero_server import sync_folder
+def _keep_catalogue_formats(db: Any, card: dict[str, Any]) -> None:
+    """The workbook and the per-folder transcripts are kept exports in the card's folder (`catalogue.export.recipe-last-step`):
+    kept once, then written again (the whole export) on the run's last batch, after Catalogue; the quiet-period hook keeps
+    them current when the work changes. Never a model."""
+    from fichero_server import kept_export
 
+    kept = [f for f in card.get("formats") or [] if f in (*kept_export.WHOLE_FORMATS, *kept_export.FOLDER_FORMATS)]
+    for fmt in kept:
+        resolved = kept_export._refuse_folder(db, card["folder"])
+        have = next((e for e in kept_export._exports(db) if e["format"] == fmt and e["folder"] == resolved), None)
+        if have is None:
+            kept_export.keep(db, card["folder"], fmt, "document")
+        else:
+            kept_export.write_now(db, have["id"])
+
+
+def _run_export(db: Any, card: dict[str, Any], documents: list[str]) -> tuple[str | None, str, str | None]:
+    from fichero_server import kept_export, sync_folder
+
+    formats = card.get("formats") or []
+    ours = [f for f in formats if f in (*kept_export.WHOLE_FORMATS, *kept_export.FOLDER_FORMATS)]
+    if ours:
+        if not card.get("folder"):
+            return None, "failed", "the step keeps the catalogue as a file, and names no folder to keep it in"
+        if card.get("final"):  # written once the Catalogue step has described the folders, over the whole run
+            try:
+                _keep_catalogue_formats(db, card)
+            except kept_export.KeptExportRefused as exc:
+                return None, "failed", str(exc)
+        formats = [f for f in formats if f not in ours]
+        if not formats:
+            return None, "done", None
+        card = {**card, "formats": formats}
     tied = {f["path"]: f["id"] for f in sync_folder._folders(db)}
     folder = card.get("folder")
     if folder and str(Path(folder)) not in tied:
@@ -919,6 +978,32 @@ def _run_publish(db: Any, card: dict[str, Any], parent: str) -> tuple[str | None
 
 
 logger = logging.getLogger(__name__)
+
+
+#: What the queue raises through a step on purpose (stop, come back later, out of reach, a pause): never swallowed as an error.
+_RUN_CONTROL = (jobs.JobCancelled, jobs.JobDeferred, jobs.JobOutOfReach, ParkedOnStepRun, WorkflowPaused, WorkflowCancelled)
+
+
+def _title_of(card: dict[str, Any]) -> str:
+    from fichero_server.recipes.jobs import get_job
+
+    known = get_job(card.get("job") or "")
+    topic = known.topic if known else None
+    return topic.title if topic else ", ".join(card["steps"])
+
+
+def _check_failed(step: dict[str, Any], batch: dict[str, Any], state: str, child: str | None, documents: list[str],
+                  named: str, problems: list[str], what: str) -> None:
+    """A step ended but Fichero's own bookkeeping after it raised (#6298): what it lost is not known, so its pages are not
+    read as done. A done step becomes partial and its pages are kept as lost (the Catalogue skips their folders and kept exports
+    are not trusted); the batch is noted, so the run ends "Done with failures" in these words, and a failed step stays failed."""
+    words = f"Fichero hit an error {what} after the step ended, so its pages are not counted as done (the log has the detail)"
+    if state == "done" and step["state"] == "done":
+        step.update(state="partial", why=words)
+    step["failed_ids"] = sorted({*(step.get("failed_ids") or []), *documents})
+    if state in ("done", "failed"):
+        _note_batch(step, batch, "partial" if state == "done" else "failed", child, words)
+    problems.append(f"step {named}: {words}")
 
 
 def could_not_start(card: dict[str, Any], exc: Exception) -> str:
@@ -1202,10 +1287,53 @@ def _holding_the_served_model(job_id: str, cards: list[dict[str, Any]]):
             module.let_go_served_models(job_id)
 
 
-def _run(db: Any, job_id: str) -> dict[str, Any]:
+class RunEnded(RuntimeError):
+    """The run's own end in words ("Done with failures: ...", "Stopped: ..."): said as it is, never wrapped (#6298)."""
+
+
+def _drop_the_run_cap(db: Any, job_id: str) -> bool:
+    """Clear the run's cap file. False (logged) when it could not be cleared: a stale cap file must not replace the run's own result."""
     try:
+        spend.clear_run_cap(str(_library(db)), job_id)
+    except Exception:  # noqa: BLE001 -- see the docstring
+        logger.exception("run %s: its run cap could not be cleared", job_id)
+        return False
+    return True
+
+
+def _hold_the_run_cap(db: Any, job_id: str) -> None:
+    """Hold the run's own cap (`designer.budget.run-cap`) from its start: a queued run that is cancelled before it starts leaves none
+    behind. A run coming back after a pause keeps the cap it had (it may have been changed since), and its baseline."""
+    cap = json.loads((jobs.read_job(db, job_id) or {}).get("detail") or "{}").get("run_cap_usd")
+    library = str(_library(db))
+    if cap is not None and (spend.run_cap(library) or {}).get("job_id") != job_id:
+        spend.set_run_cap(library, job_id, cap)
+
+
+def _hold_the_run_overrides(db: Any, job_id: str) -> None:
+    """The run's "allow cloud once" / "run past the cap once" (`ai.cloud.one-run-overrides`), from its row: the calls the recipe makes
+    itself carry its id; each step workflow it starts is given the same two answers (`_run_workflow`)."""
+    detail = json.loads((jobs.read_job(db, job_id) or {}).get("detail") or "{}")
+    run_overrides.set_for_run(job_id, allow_cloud=bool(detail.get("allow_cloud_once")), over_cap=bool(detail.get("over_cap_once")))
+
+
+def _run(db: Any, job_id: str) -> dict[str, Any]:
+    deferred = False
+    try:
+        _hold_the_run_overrides(db, job_id)
+        _hold_the_run_cap(db, job_id)
         return _run_the_plan(db, job_id)
+    except (RunEnded, *_RUN_CONTROL) as exc:
+        deferred = isinstance(exc, (jobs.JobDeferred, ParkedOnStepRun, WorkflowPaused))  # it comes back: its run cap stays
+        raise
+    except Exception as exc:  # noqa: BLE001 -- a slip in the run's own plan ends it in plain words, its work kept (#6298)
+        logger.exception("run %s: stopped on an error", job_id)
+        raise RuntimeError("The run stopped on an error in Fichero. What it finished is kept, and Start carries on from there; "
+                           "the log has the detail.") from exc
     finally:  # stopped, failed, paused or done: a page saved before Search got to it is embedded after all (#6126)
+        if not deferred:
+            _drop_the_run_cap(db, job_id)
+            run_overrides.clear(job_id)
         try:
             end_search_watch(db, job_id, (jobs.read_job(db, job_id) or {}).get("started_by") or "owner")
         except Exception:  # noqa: BLE001 -- never replace the run's own result or error with a queueing failure
@@ -1219,7 +1347,7 @@ def _run_the_plan(db: Any, job_id: str) -> dict[str, Any]:
         # Paused with its run: wait, and write nothing else. Re-picked every PAUSED_LOOK_AGAIN_SECONDS, a paused run that
         # did its work first submitted a page row each time for the lane to withdraw (437: ~17k rows overnight).
         jobs.come_back_after(db, job_id, PAUSED_LOOK_AGAIN_SECONDS)
-        raise jobs.JobDeferred("Paused with its run")
+        raise jobs.JobDeferred(jobs.PAUSED_WITH_RUN)
     row = jobs.read_job(db, job_id)
     # Said at once: working out each step's pages can take a while on a big project (#5610, #5606).
     jobs.save_detail(db, job_id, row["detail"] or "{}", reason="Getting ready: working out which pages each step needs")
@@ -1227,7 +1355,8 @@ def _run_the_plan(db: Any, job_id: str) -> dict[str, Any]:
     started_by = row["started_by"] or "owner"
     cards = detail["runs"]
     if not (detail.get("steps") and "batches_done" in detail):  # a resumed run keeps its checkpoint
-        detail["steps"] = [{"steps": card["steps"], "card": card["card"], "state": "waiting", "child_id": None}
+        detail["steps"] = [{"steps": card["steps"], "card": card["card"], "state": "waiting", "child_id": None,
+                            **({"translation": card["translation"]} if card.get("translation") else {})}
                            for card in cards]
         detail["batches_done"], detail["batch_states"] = 0, [None] * len(cards)
     steps = detail["steps"]
@@ -1267,7 +1396,12 @@ def _run_the_plan(db: Any, job_id: str) -> dict[str, Any]:
         jobs.save_detail(db, job_id, json.dumps(detail), reason=words)
         raise jobs.JobCancelled(words)
     over = f" over {total} {'folder' if total == 1 else 'folders'}" if total else ""
-    failures = _failures_words(db, cards, steps, total)
+    try:
+        failures = _failures_words(db, cards, steps, total)
+    except Exception:  # noqa: BLE001 -- the run's work is done; only the words about it failed (#6298)
+        logger.exception("run %s: could not word its failures", job_id)
+        failed = [", ".join(c["steps"]) for c, st in zip(cards, steps) if st.get("failed_batches")]
+        failures = ("some steps failed or lost pages: " + "; ".join(failed) + " (see each step)") if failed else ""
     if halted:
         words = f"Stopped: {halted}{folders}"
     elif failures:
@@ -1277,7 +1411,7 @@ def _run_the_plan(db: Any, job_id: str) -> dict[str, Any]:
                                                          if detail["skipped"] else "")
     jobs.save_detail(db, job_id, json.dumps(detail), reason=words)
     if halted or failures:
-        raise RuntimeError(words)
+        raise RunEnded(words)
     return {"steps": steps}
 
 
@@ -1424,7 +1558,13 @@ def _start_beside(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str,
                   index: int) -> _Beside | None:
     """Step `index` started on its own thread while the step before it runs; its end is taken when its turn comes."""
     card, step = detail["runs"][index], detail["steps"][index]
-    documents, scratch, kinds = _step_pages(db, card, step, batch, tree, detail)
+    try:
+        documents, scratch, kinds = _step_pages(db, card, step, batch, tree, detail)
+    except _RUN_CONTROL:
+        raise
+    except Exception:  # noqa: BLE001 -- start nothing beside; the step's own turn works its pages out under its guard (#6298)
+        logger.exception("recipe step %s: could not start beside the step before it", ", ".join(card["steps"]))
+        return None
     card = _text_is_the_hosted_readers(_asked_again(card, set(detail.get("redo") or [])))
     if not documents or _stop_asked(job_id):
         return None
@@ -1585,11 +1725,27 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
             continue
         if early is not None:
             documents, scratch, kinds = early.documents, early.scratch, early.kinds
+            already = scratch.get("already_done", 0)
+            if card["card"] not in ("publish", "catalogue"):
+                _count_on_the_folder(detail, batch, index, already, (already or 0) + len(documents))
         else:
-            documents, scratch, kinds = _step_pages(db, card, step, batch, tree, detail)
-        already = scratch.get("already_done", 0)
-        if card["card"] not in ("publish", "catalogue"):  # those are over the whole run, not a folder
-            _count_on_the_folder(detail, batch, index, already, (already or 0) + len(documents))
+            try:
+                documents, scratch, kinds = _step_pages(db, card, step, batch, tree, detail)
+                already = scratch.get("already_done", 0)
+                if card["card"] not in ("publish", "catalogue"):  # those are over the whole run, not a folder
+                    _count_on_the_folder(detail, batch, index, already, (already or 0) + len(documents))
+            except _RUN_CONTROL:
+                raise
+            except Exception:  # noqa: BLE001 -- the step fails alone before anything is sent or spent; the rest go on (#6298)
+                logger.exception("recipe step %s: its pages could not be worked out", named)
+                why = f"{_title_of(card)} was not run: Fichero hit an error working out its pages (the log has the detail)."
+                here[index]["state"] = states[index] = "failed"
+                _settle(step, "failed", None, why)
+                _note_batch(step, batch, "failed", None, why)  # the run's end names it (never a plain Done), and Stop-on-repeat counts it
+                step["outright_in_a_row"] = step.get("outright_in_a_row", 0) + 1
+                problems.append(why)
+                jobs.save_detail(db, job_id, json.dumps(detail))
+                continue
         if not documents:
             _add(step, scratch)
             here[index]["state"] = states[index] = "done"
@@ -1628,6 +1784,8 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
             ahead[after] = _start_beside(db, job_id, detail, batch, tree, started_by, after)
             if ahead[after] is not None:
                 card = _text_is_the_hosted_readers(card)
+        if card["card"] == "export":
+            card = {**card, "final": final}  # the workbook and the transcripts are written once, on the last batch
         try:
             if early is not None:  # it has been running beside the step before: its end is what this step ended with
                 child, state, why = early.future.result()
@@ -1641,7 +1799,7 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
         except WorkflowPaused as paused:  # a page waiting for the lane was withdrawn by the run's Pause (#5863, 434)
             # The run is not done: the row goes back to waiting and resumes from its checkpoint, after a pause's grace.
             jobs.come_back_after(db, job_id, PAUSED_LOOK_AGAIN_SECONDS)
-            raise jobs.JobDeferred("Paused with its run") from paused
+            raise jobs.JobDeferred(jobs.PAUSED_WITH_RUN) from paused
         except WorkflowCancelled:  # withdrawn by the run's Stop: stopped, not failed
             child, (state, why) = None, ("cancelled", "Stopped by you")
         except Exception as exc:  # noqa: BLE001 -- the step fails alone, said in one line; the rest still run (#5684)
@@ -1661,8 +1819,20 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
             step.setdefault("batch_jobs", []).append({"folder": batch["folder"], "child_id": child})
         here[index]["state"] = states[index] = state
         if card["card"] not in ("publish", "catalogue"):
-            _recount_on_the_folder(db, detail, batch, index, step, documents, state, already)
-        _after_the_step(db, card, step, batch, documents, state, child, why, scratch, problems, named)
+            try:
+                _recount_on_the_folder(db, detail, batch, index, step, documents, state, already)
+            except _RUN_CONTROL:
+                raise
+            except Exception:  # noqa: BLE001 -- the counts are lost, not the run; said (#6298)
+                logger.exception("recipe step %s: could not recount its folder after it ended", named)
+                _check_failed(step, batch, state, child, documents, named, problems, "recounting its folder")
+        try:
+            _after_the_step(db, card, step, batch, documents, state, child, why, scratch, problems, named)
+        except _RUN_CONTROL:
+            raise
+        except Exception:  # noqa: BLE001 -- what the step lost is unknown, so its pages are not read as done (#6298)
+            logger.exception("recipe step %s: could not check its pages after it ended", named)
+            _check_failed(step, batch, state, child, documents, named, problems, "checking its pages")
         jobs.save_detail(db, job_id, json.dumps(detail))  # the step's end on this batch is a checkpoint
     return problems
 
@@ -1690,7 +1860,8 @@ def _run_card(db: Any, card: dict[str, Any], documents: list[str], kinds: dict[s
     elif card["card"] == "catalogue":
         child, state, why = _run_catalogue(db, card, documents, job_id, scratch)
     elif card["card"] == "prepare":
-        child, state, why = _run_prepare(db, documents, job_id, scratch)
+        child, state, why = _run_prepare(db, documents, job_id, scratch, paper=card.get("paper") or [],
+                                       operations=card.get("operations"))
     elif card["card"] == "leave-out":
         from fichero_server.recipes.leave_out import run_step
 
@@ -1897,7 +2068,8 @@ def _status(db: Any, job_id: str) -> dict[str, Any]:
             step["child_id"] = jobs.running_child(db, job_id)
         child = jobs.read_job(db, step["child_id"]) if step.get("child_id") else None
         if child is not None:
-            step["state"] = child["state"]
+            if not (step["state"] == "partial" and child["state"] == "done"):
+                step["state"] = child["state"]  # a stored partial is kept when its job reads done: the list records what the run did (#6319)
             if child["state"] in ("failed", "cancelled") and not step.get("why"):
                 step["why"] = child["reason"]
     if row["state"] in ("done", "failed", "cancelled"):
@@ -1910,7 +2082,14 @@ def _status(db: Any, job_id: str) -> dict[str, Any]:
             elif step["state"] == "running":
                 step.update(state="not run", why=f"stopped when the run ended, before this step finished: {ended}")
     reason = row["reason"]
-    if row["state"] == "waiting":
+    run_ids = [(detail.get("awaiting") or {}).get("child"), *(s.get("child_id") for s in steps)]
+    from fichero_server.llm.spend import stopped_at_cap
+
+    capped = stopped_at_cap(run_ids)  # a step's run paused at a cap: the row says so, and the app offers the change
+    capped = capped if row["state"] not in ("done", "cancelled") else None
+    if capped:
+        reason = capped["words"]
+    elif row["state"] == "waiting":
         ahead = [r["id"] for r in jobs.find_jobs(db, kinds=[KIND], states=["running"]) if r["id"] != job_id]
         if ahead:
             reason = f"Waiting for the recipe run {ahead[0]} to finish: recipe runs go one at a time"
@@ -1919,7 +2098,18 @@ def _status(db: Any, job_id: str) -> dict[str, Any]:
             "started_by": row["started_by"], "folder_id": detail.get("folder_id"),
             # `activity.run.progress-per-folder`: written by the run as it goes; absent before it starts.
             "folders_done": detail.get("folders_done"), "folders_total": detail.get("folders_total"),
-            "folder_steps": folder_steps(detail)}
+            "folder_steps": folder_steps(detail), "stopped_at_cap": bool(capped),
+            "stopped_needs_cap_usd": (capped or {}).get("needed_cap_usd"),
+            "stopped_needs_project_cap_usd": (capped or {}).get("needed_project_cap_usd"),
+            "stopped_refusal": (capped or {}).get("refusal"), "once_words": once_words(detail)}
+
+
+def once_words(detail: dict[str, Any]) -> str | None:
+    """Activity's words for a run given a one-run override (`ai.cloud.one-run-overrides`, #6349): what the person said yes to for
+    this run alone; None when it asked for none."""
+    said = [words for key, words in (("allow_cloud_once", "Cloud allowed for this run"),
+                                     ("over_cap_once", "Ran past the cap by your say")) if detail.get(key)]
+    return "; ".join(said) or None
 
 
 def started_plan(db: Any, job_id: str) -> dict[str, Any]:

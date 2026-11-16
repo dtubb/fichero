@@ -83,6 +83,33 @@ extension DocumentStore {
         }
     }
 
+    /// The version the next text save sends (#5348): the newer of the last save's and the editor's copy; none after a
+    /// refusal, because then the save is the person's choice to replace the other Mac's text.
+    func versionForNextTextSave(_ id: String, seen: Date) -> Date? {
+        if pageContentReplacing.remove(id) != nil { return nil }
+        // The newer of the two: a save of this text moves the version on, and a rename or metadata edit on this Mac
+        // moves the editor's own copy on, so neither is read as another Mac's change.
+        guard let saved = pageContentVersions[id] else { return seen }
+        return max(saved, seen)
+    }
+
+    func textSaveWasRefused(_ id: String) {
+        pageContentReplacing.insert(id)
+    }
+
+    /// One text save (#5348). The version is read here, inside the store's save task, after any earlier save of this
+    /// document has finished. A refusal copies the person's text to the clipboard so it is never lost.
+    func updateText(_ id: String, content: String, seen: Date, service: DocumentService) async throws -> Document {
+        let expected = versionForNextTextSave(id, seen: seen)
+        do {
+            return try await service.updateDocument(id, pageContent: content, expectedUpdatedAt: expected)
+        } catch DocumentServiceError.stale {
+            PlatformPasteboard.writeString(content)
+            textSaveWasRefused(id)
+            throw DocumentServiceError.stale
+        }
+    }
+
     /// Persist a document's `page_content` via a STORE-OWNED task that runs to
     /// completion regardless of view lifecycle.
     ///
@@ -125,6 +152,7 @@ extension DocumentStore {
             self?.markOwnWrite(documentId)
             do {
                 let updated = try await save()
+                self?.pageContentVersions[documentId] = updated.updatedAt
                 self?.refreshLocalContent(updated)
                 return nil
             } catch {

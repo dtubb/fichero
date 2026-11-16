@@ -73,6 +73,10 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
         let stages = try XCTUnwrap(body.range(of: "ForEach(ProjectMenuStage.allCases)"))
         XCTAssertLessThan(setUp.lowerBound, start.lowerBound)
         XCTAssertLessThan(start.lowerBound, stages.lowerBound)
+        // The project's cloud switch follows Start (`ai.cloud.switch-in-the-project`, #6022).
+        let cloud = try XCTUnwrap(body.range(of: "FocusedCloudSwitchButton()"), "the Project menu lacks the cloud switch")
+        XCTAssertLessThan(start.lowerBound, cloud.lowerBound)
+        XCTAssertLessThan(cloud.lowerBound, stages.lowerBound)
 
         // Each built stage is a titled Section holding its verbs; Workflows ▸ and Chat ▸ moved here.
         XCTAssertTrue(body.contains(
@@ -217,24 +221,27 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
         XCTAssertFalse(appSource.contains("FocusedRenameButton()\n                    .keyboardShortcut(.return, modifiers: [])"))
     }
 
-    /// Activity's Stop and Read Again are in the menu bar (#5652 slice 3): the Project menu's Activity
-    /// section renders the focused buttons, and the Activity window's row buttons, its context menu and
-    /// the menu bar render the same `ActivityStopMenuItem` / `ActivityReadAgainMenuItem` on the target
-    /// `runMenuTarget(for:)` makes. No hand-made Stop or Read Again button is left in the window.
-    func testActivityStopAndReadAgainAreInTheMenuBar() throws {
+    /// Activity's Stop is in the menu bar (#5652 slice 3): the Project menu's Activity section renders the focused buttons,
+    /// and the Activity window's row buttons, its context menu and the menu bar render the same `ActivityStopMenuItem` on the
+    /// target `runMenuTarget(for:)` makes. Read Again is in neither the menu bar nor the row menu: Retry is the one verb for
+    /// running a failed row again (`activity.pane.verbs-one-word-each`, #6599). No hand-made Stop is left in the window.
+    func testActivityStopIsInTheMenuBarAndRetryIsTheOneRerun() throws {
         let menus = try Self.appSource("App/Menus/PageAndProjectMenuCommands.swift")
         XCTAssertTrue(menus.contains("Section(\"Activity\") {\n                FocusedActivityRunButtons()"))
         let buttons = try Self.appSource("App/Menus/FocusedCommands/FocusedCommandButtons+Activity.swift")
         XCTAssertTrue(buttons.contains("ActivityStopMenuItem(target: target)"))
-        XCTAssertTrue(buttons.contains("ActivityReadAgainMenuItem(target: target)"))
-        // The one-bar window (`activity.window.one-button`): the selected run's target reaches the menu bar from the groups
-        // view, whose row menu renders the shared Stop item; no hand-made Stop or Read Again button is left in it.
-        let window = try Self.appSource("Views/Activity/Window/ActivityGroupsView.swift")
-        XCTAssertTrue(window.contains(".focusedSceneValue(\\.activityRun, selectedRunTarget)"))
-        XCTAssertTrue(window.contains("rows.count == 1 ? rows.first.map(stopTarget) : nil"))
-        XCTAssertTrue(window.contains("ActivityStopMenuItem(target: stopTarget(row))"))
-        XCTAssertFalse(window.contains("Button(\"Stop\")"))
-        XCTAssertFalse(window.contains("Button(action: readAgain)"))
+        XCTAssertFalse(buttons.contains("ActivityReadAgainMenuItem(target: target)"))
+        // The Activity pane (`activity.pane.commands-through-the-table`): the selected run's target and the verb list reach the
+        // menu bar from the pane; its row menu is the one verb list, Retry among it; no hand-made Stop is left.
+        // Published by the focused table, never by the scene: two Activity panes never take each other's verbs.
+        let table = try Self.appSource("Views/Activity/Pane/ActivityPaneView+Table.swift")
+        XCTAssertTrue(table.contains(".focusedValue(\\.activityRun, selectedRunTarget(in: shown))"))
+        XCTAssertTrue(table.contains(".focusedValue(\\.activityVerbs, verbTarget(in: shown))"))
+        XCTAssertFalse(try Self.appSource("Views/Activity/Pane/ActivityPaneView.swift").contains(".focusedSceneValue(\\.activity"))
+        XCTAssertTrue(table.contains("ForEach(ActivityPaneVerb.allCases)"))
+        XCTAssertFalse(table.contains("ActivityReadAgainMenuItem"))
+        XCTAssertFalse(table.contains("Button(\"Stop\")"))
+        XCTAssertTrue(menus.contains("FocusedActivityVerbButtons()"))
     }
 
     /// Read became Page and the Segment menu folded into it (#5652 slice 2): the bar has no Read and no Segment menu;
@@ -247,9 +254,10 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
         let project = try XCTUnwrap(source.range(of: "CommandMenu(\"Project\")"))
         let body = String(source[page.upperBound..<project.lowerBound])
         for item in ["Menu(\"Reader Lens\")", "DoubtfulWordMenuSection()", "ImagePreviewMenuCommands()",
-                     "RotateImageMenuSection()", "Section(\"Segments\") {\n                SegmentMenuContent()"] {
+                     "RotateImageMenuSection()"] {
             XCTAssertTrue(body.contains(item), "Page is missing \(item)")
         }
+        XCTAssertFalse(body.contains("SegmentMenuContent()"), "the Segments section moved to Edit › Segments ▸ (#6413)")
         let app = try Self.appSource("FicheroApp.swift")
         XCTAssertFalse(app.contains("CommandMenu(\"Read\")"))
         XCTAssertFalse(app.contains("CommandMenu(\"Segment\")"))

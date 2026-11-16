@@ -74,3 +74,13 @@ enum UndoableChange {
         count == 1 ? "\(verb) \(one)" : "\(verb) \(count) \(many)"
     }
 }
+
+/// The one parameter shape of `document.delete`, the Trash action (`safety.trash.one-delete-path`, #5243): the sidebar,
+/// the Library pane and Shortcuts all send this, so a delete has one call shape for the engine to hold to.
+struct DocumentDeleteActionParams: Encodable, Sendable {
+    let docId: String
+
+    enum CodingKeys: String, CodingKey {
+        case docId = "doc_id"
+    }
+}

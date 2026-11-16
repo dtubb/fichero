@@ -22,6 +22,7 @@ extension LibraryView {
         .tableStyle(.inset)
         #if os(macOS)
         .alternatingRowBackgrounds()
+        .background(LibraryTableDisclosureAligner())  // #6473
         #endif
         .contextMenu(forSelectionType: String.self) { items in
             // Deterministic primary pick, not Set hash order (#4160):
@@ -58,6 +59,9 @@ extension LibraryView {
     /// Folders disclose in place, as the sidebar's do (Daniel, 2026-10-11): a folder, a folder in it, and that
     /// folder's items. ponytail: three levels, since a row builder cannot recurse (its type would be infinite);
     /// a deeper folder opens with a double-click. Add a level here if a project nests deeper as a rule.
+    ///
+    /// Every row carries its own drag (`outlineRowDragProvider`, #6538): a drag on a cell would
+    /// take that cell's clicks from the table's selection.
     @TableRowBuilder<LibraryOutlineNode>
     private func outlineRows(for node: LibraryOutlineNode) -> some TableRowContent<LibraryOutlineNode> {
         if nodeCanExpand(node) {
@@ -66,8 +70,9 @@ extension LibraryView {
                     outlineChildRows(for: childGroup)
                 }
             }
+            .itemProvider { outlineRowDragProvider(for: node) }
         } else {
-            TableRow(node)
+            TableRow(node).itemProvider { outlineRowDragProvider(for: node) }
         }
     }
 
@@ -80,16 +85,18 @@ extension LibraryView {
                     if nodeCanExpand(child) {
                         DisclosureTableRow(child, isExpanded: expansionBinding(for: child)) {
                             ForEach(child.children ?? []) { grandchild in
-                                TableRow(grandchild)
+                                TableRow(grandchild).itemProvider { outlineRowDragProvider(for: grandchild) }
                             }
                         }
+                        .itemProvider { outlineRowDragProvider(for: child) }
                     } else {
-                        TableRow(child)
+                        TableRow(child).itemProvider { outlineRowDragProvider(for: child) }
                     }
                 }
             }
+            .itemProvider { outlineRowDragProvider(for: node) }
         } else {
-            TableRow(node)
+            TableRow(node).itemProvider { outlineRowDragProvider(for: node) }
         }
     }
 
@@ -217,7 +224,7 @@ extension LibraryView {
             of: LibraryOutlineNode.self,
             selection: $selection,
             sortOrder: outlineSortOrder,
-            columnCustomization: $tableColumnCustomization
+            columnCustomization: tableColumnCustomization
         ) {
             outlineColumns
         } rows: {

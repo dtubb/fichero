@@ -82,6 +82,7 @@ from fichero_server.db.embeddings import (
 )
 from fichero_server.db.manager import DatabaseManager, db_manager  # noqa: F401
 from fichero_server.db.busy_evidence import watch_statement
+from fichero_server.db import volume_dropped
 from fichero_server.errors import ErrorCategory, handle_error
 from fichero_server.security.path_security import resolve_under_allowed_roots
 from fichero_server.core.duckdb_session import fetch_one
@@ -1926,11 +1927,17 @@ class Database(DatabaseEmbeddingMixin):
                                 else self.conn.execute(sql, params)
                             )
                             if fetch == "all":
-                                return cur.fetchall()
-                            if fetch == "one":
-                                return fetch_one(cur)
-                        return cur
+                                result = cur.fetchall()
+                            elif fetch == "one":
+                                result = fetch_one(cur)
+                            else:
+                                result = cur
+                        if volume_dropped.is_down(self.path):
+                            volume_dropped.recovered(self.path)
+                        return result
                     except duckdb.Error as exc:
+                        if (down := volume_dropped.classify(self.path, exc)) is not None:
+                            raise down from exc
                         if self._is_invalidated_error(exc):
                             # The cause, always (#5644): "invalidated" also means "closed", and a
                             # FATAL behind it went unseen for weeks without its own words here.
@@ -2117,8 +2124,12 @@ class Database(DatabaseEmbeddingMixin):
                             )
                             columns = [desc[0] for desc in cur.description]
                             rows = fetch_one(cur) if fetch == "one" else cur.fetchall()
+                        if volume_dropped.is_down(self.path):
+                            volume_dropped.recovered(self.path)
                         return rows, columns
                     except duckdb.Error as exc:
+                        if (down := volume_dropped.classify(self.path, exc)) is not None:
+                            raise down from exc
                         if self._is_invalidated_error(exc):
                             # The cause, always (#5644): "invalidated" also means "closed", and a
                             # FATAL behind it went unseen for weeks without its own words here.
@@ -2180,13 +2191,25 @@ class Database(DatabaseEmbeddingMixin):
             self._tx_state.after_rollback_hooks = hooks
         hooks.append(hook)
 
+    @contextmanager
+    def _volume_guard(self):
+        """A statement outside the retry loops (commit, CHECKPOINT, BEGIN, COMMIT): a DuckDB error from a disk that is not
+        answering is the typed outage, not a raw 500 (#6311)."""
+        try:
+            yield
+        except duckdb.Error as exc:
+            down = volume_dropped.classify(self.path, exc)
+            if down is None:
+                raise
+            raise down from exc
+
     def _ensure_transaction_started(self) -> None:
         if not self.in_transaction or getattr(self._tx_state, "started", False):
             return
         self._transaction_gate.acquire()
         try:
             try:
-                with self._lock:
+                with self._lock, self._volume_guard():
                     self.conn.execute("BEGIN TRANSACTION")
             except duckdb.Error as exc:
                 if not self._is_invalidated_error(exc):
@@ -2260,12 +2283,12 @@ class Database(DatabaseEmbeddingMixin):
             started = bool(getattr(self._tx_state, "started", False))
             if outermost and started:
                 if getattr(self._tx_state, "rollback_only", False):
-                    with self._lock:
+                    with self._lock, self._volume_guard():
                         self.conn.execute("ROLLBACK")
                     hooks = list(getattr(self._tx_state, "after_rollback_hooks", []))
                     raise_rollback_only = True
                 else:
-                    with self._lock:
+                    with self._lock, self._volume_guard():
                         self.conn.execute("COMMIT")
                     hooks = list(getattr(self._tx_state, "after_commit_hooks", []))
         except Exception:
@@ -2273,7 +2296,7 @@ class Database(DatabaseEmbeddingMixin):
             if not outermost:
                 self._tx_state.rollback_only = True
             if outermost and started:
-                with self._lock:
+                with self._lock, self._volume_guard():
                     self.conn.execute("ROLLBACK")
             if outermost:
                 hooks = list(getattr(self._tx_state, "after_rollback_hooks", []))
@@ -2598,7 +2621,7 @@ class Database(DatabaseEmbeddingMixin):
         sql_table = self._sql_table_name(SavedSearch)
         self._ensure_table(SavedSearch)
         with self._lock:
-            rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+            rows = self._execute(f"SELECT * FROM {sql_table}", fetch="all")
             columns = [desc[0] for desc in self.conn.description]
         return [
             hydrated
@@ -2613,7 +2636,7 @@ class Database(DatabaseEmbeddingMixin):
         sql_table = self._sql_table_name(ResearchProject)
         self._ensure_table(ResearchProject)
         with self._lock:
-            rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+            rows = self._execute(f"SELECT * FROM {sql_table}", fetch="all")
             columns = [desc[0] for desc in self.conn.description]
         return [
             hydrated
@@ -2626,7 +2649,7 @@ class Database(DatabaseEmbeddingMixin):
         sql_table = self._sql_table_name(model_cls)
         self._ensure_table(model_cls)
         with self._lock:
-            rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+            rows = self._execute(f"SELECT * FROM {sql_table}", fetch="all")
             columns = [desc[0] for desc in self.conn.description]
         return [
             hydrated
@@ -2641,7 +2664,7 @@ class Database(DatabaseEmbeddingMixin):
         sql_table = self._sql_table_name(SpatialRoom)
         self._ensure_table(SpatialRoom)
         with self._lock:
-            rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+            rows = self._execute(f"SELECT * FROM {sql_table}", fetch="all")
             columns = [desc[0] for desc in self.conn.description]
         return [
             hydrated
@@ -2657,7 +2680,7 @@ class Database(DatabaseEmbeddingMixin):
         self._ensure_table(KnowledgeEntity)
         with self._lock:
             clause = f" WHERE {where}" if where else ""
-            rows = self._execute(f"SELECT * FROM {sql_table}{clause}").fetchall()
+            rows = self._execute(f"SELECT * FROM {sql_table}{clause}", fetch="all")
             columns = [desc[0] for desc in self.conn.description]
         return [
             hydrated
@@ -2672,7 +2695,7 @@ class Database(DatabaseEmbeddingMixin):
         sql_table = self._sql_table_name(Note)
         self._ensure_table(Note)
         with self._lock:
-            rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+            rows = self._execute(f"SELECT * FROM {sql_table}", fetch="all")
             columns = [desc[0] for desc in self.conn.description]
         return [
             hydrated
@@ -2687,7 +2710,7 @@ class Database(DatabaseEmbeddingMixin):
         sql_table = self._sql_table_name(Milestone)
         self._ensure_table(Milestone)
         with self._lock:
-            rows = self._execute(f"SELECT * FROM {sql_table}").fetchall()
+            rows = self._execute(f"SELECT * FROM {sql_table}", fetch="all")
             columns = [desc[0] for desc in self.conn.description]
         return [
             hydrated
@@ -2703,7 +2726,7 @@ class Database(DatabaseEmbeddingMixin):
         self._ensure_table(Workflow)
         with self._lock:
             clause = f" WHERE {where}" if where else ""
-            rows = self._execute(f"SELECT w.* FROM {sql_table} AS w{clause}").fetchall()
+            rows = self._execute(f"SELECT w.* FROM {sql_table} AS w{clause}", fetch="all")
             columns = [desc[0] for desc in self.conn.description]
         return [
             hydrated
@@ -2927,6 +2950,32 @@ class Database(DatabaseEmbeddingMixin):
                 value.updated_at = utc_now()
                 self.save(value)
         self.save_many(missing, new=True)  # the new ones in one statement, not two a row (#6221)
+        self._seed_shipped_document_prototypes(existing)
+
+    def _seed_shipped_document_prototypes(self, existing: dict[str, Any]) -> None:
+        """Load `resources/prototypes/*.json` as read-only built-ins; a changed shipped file migrates forward by key.
+
+        A project's own (non-built-in) prototype that happens to share a key is never overwritten.
+        """
+        from fichero_server.models.knowledge import ClassificationDimension, ClassificationValue
+        from fichero_server.models.shipped_prototypes import shipped_prototypes
+
+        new, changed = [], []
+        for proto in shipped_prototypes():
+            value = existing.get(proto["key"])
+            if value is None:
+                new.append(ClassificationValue(
+                    dimension=ClassificationDimension.document_prototype, key=proto["key"], label=proto["label"],
+                    parent_key=proto.get("parent_key"), attributes=dict(proto["attributes"]), is_builtin=True))
+            elif value.is_builtin and (value.label, value.parent_key, value.attributes) != (
+                    proto["label"], proto.get("parent_key"), proto["attributes"]):
+                value.label, value.parent_key = proto["label"], proto.get("parent_key")
+                value.attributes = dict(proto["attributes"])
+                value.updated_at = utc_now()
+                changed.append(value)
+        for value in changed:
+            self.save(value)
+        self.save_many(new, new=True)
 
     def _seed_builtin_node_classes(self) -> None:
         """Ensure the built-in node_class values exist in fresh DB fixtures."""
@@ -3350,6 +3399,8 @@ class Database(DatabaseEmbeddingMixin):
                     # or the retry mints its cursor from the same dead
                     # connection and this path fails where `get` survives.
                     self._read_conn = None
+                    if (down := volume_dropped.classify(self.path, exc)) is not None:
+                        raise down from exc
                     if self._is_invalidated_error(exc):
                         self._reconnect_after_invalidated()
                     if attempt == 1:
@@ -3371,9 +3422,13 @@ class Database(DatabaseEmbeddingMixin):
                         cur = self._read_conn.execute(sql, params or {})
                         rows = cur.fetchall()
                     columns = [d[0] for d in cur.description]
+                    if volume_dropped.is_down(self.path):
+                        volume_dropped.recovered(self.path)
                     return rows, columns
                 except duckdb.Error as exc:
                     self._read_conn = None
+                    if (down := volume_dropped.classify(self.path, exc)) is not None:
+                        raise down from exc
                     if self._is_invalidated_error(exc):
                         self._reconnect_after_invalidated()
                     if attempt == 1:
@@ -3596,23 +3651,55 @@ class Database(DatabaseEmbeddingMixin):
             if (hydrated := self._hydrate_row(model, columns, row)) is not None
         ]
 
-    def query_fields(self, model: Type[BaseModel], fields: Sequence[str], **filters) -> list[SimpleNamespace]:
-        """Only `fields` of the rows `query(model, **filters)` returns, JSON read but not hydrated: for a scan that
-        compares a few fields of every row. A names page read and validated every stored entity whole, its
-        mentions and all, to compare their names (#6236). Read-only records: `get` the one row to change."""
-        for name in (*fields, *filters):
+    def query_fields(self, model: Type[BaseModel], fields: Sequence[str], *, not_null: Sequence[str] = (), **filters) -> list[SimpleNamespace]:
+        """Only `fields` of the rows `query(model, **filters)` returns (and, of those, the rows with every `not_null`
+        column set), JSON read but not hydrated: for a scan that compares a few fields of every row. A names page read
+        and validated every stored entity whole, its mentions and all, to compare their names (#6236). Read-only
+        records: `get` the one row to change."""
+        for name in (*fields, *filters, *not_null):
             if not _VALID_IDENTIFIER.match(name):
                 raise ValueError(f"Invalid column name: {name}")
         self._ensure_table(model)
-        where = " AND ".join(f"{k} IS NULL" if v is None else f"{k} = ${k}" for k, v in filters.items()) or "TRUE"
-        rows, columns = self._execute_fetch_with_columns(
+        where = " AND ".join([*(f"{k} IS NULL" if v is None else f"{k} = ${k}" for k, v in filters.items()),
+                              *(f"{k} IS NOT NULL" for k in not_null)]) or "TRUE"
+        rows, columns = self._fields_fetch(
             f"SELECT {', '.join(fields)} FROM {self._sql_table_name(model)} WHERE {where}",
             {k: getattr(v, "value", v) for k, v in filters.items() if v is not None},
         )
+        return self._field_records(model, fields, rows, columns)
+
+    def query_fields_in(self, model: Type[BaseModel], fields: Sequence[str], column: str, values) -> list[SimpleNamespace]:
+        """`query_fields` for the rows whose `column` is one of `values`, chunked as `query_in` is."""
+        for name in (*fields, column):
+            if not _VALID_IDENTIFIER.match(name):
+                raise ValueError(f"Invalid column name: {name}")
+        self._ensure_table(model)
+        values, out = list(dict.fromkeys(values)), []
+        if len(values) > 500:  # one scan with the list as one value, not a scan of the column for each 500 (70 for a box)
+            rows, columns = self._fields_fetch(
+                f"SELECT {', '.join(fields)} FROM {self._sql_table_name(model)} WHERE {column} IN (SELECT unnest($values))",
+                {"values": values},
+            )
+            return self._field_records(model, fields, rows, columns)
+        for start in range(0, len(values), 500):
+            chunk = values[start : start + 500]
+            rows, columns = self._fields_fetch(
+                f"SELECT {', '.join(fields)} FROM {self._sql_table_name(model)} "
+                f"WHERE {column} IN ({','.join(f'$v{i}' for i in range(len(chunk)))})",
+                {f"v{i}": value for i, value in enumerate(chunk)},
+            )
+            out.extend(self._field_records(model, fields, rows, columns))
+        return out
+
+    def _fields_fetch(self, sql: str, params: dict):
+        """A `query_fields` read: of what was committed, off the transaction gate, under a caller's `reading_committed` (#6178)."""
+        return (self._read_fetch_with_columns if self._reads_committed_now() else self._execute_fetch_with_columns)(sql, params)
+
+    def _field_records(self, model: Type[BaseModel], fields: Sequence[str], rows, columns) -> list[SimpleNamespace]:
         out = []
         for row in rows:
             parsed = self._parse_json_fields(model, dict(zip(columns, row)))
-            if "id" in parsed and parsed["id"] is None:
+            if "id" in columns and parsed["id"] is None:
                 continue  # a null-PK ghost, skipped as `_hydrate_row` skips it
             out.append(SimpleNamespace(**{name: parsed[name] for name in fields}))
         return out
@@ -3830,10 +3917,14 @@ class Database(DatabaseEmbeddingMixin):
         artifact_type: str | None = None,
         run_id: str | None = None,
         step_name: str | None = None,
+        hide_trashed: bool = False,
         limit: int,
         offset: int = 0,
     ) -> tuple[list["Artifact"], int]:
         """One DB-side page of artifacts plus the total match count (#4319).
+
+        ``hide_trashed`` leaves out the artifacts of a document in the Trash, in the same WHERE as the count and the page, so
+        paging and ``total`` stay true (`safety.trash.dependants-go-with-their-source`).
 
         Replaces the listing route's full-scan + Python-sort + slice: the
         WHERE, ORDER BY, LIMIT and OFFSET all run in DuckDB, so a large
@@ -3863,6 +3954,10 @@ class Database(DatabaseEmbeddingMixin):
             if value is not None:
                 clauses.append(f"{column} = ${column}")
                 params[column] = value
+        if hide_trashed:
+            clauses.append(
+                "(document_id IS NULL OR document_id NOT IN (SELECT id FROM documents WHERE deleted_at IS NOT NULL))"
+            )
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
 
         total_row = self._execute(
@@ -3978,7 +4073,8 @@ class Database(DatabaseEmbeddingMixin):
 
     def commit(self) -> None:
         """Commit pending DuckDB work through the typed DB wrapper."""
-        self.conn.commit()
+        with self._volume_guard():
+            self.conn.commit()
 
     def knowledge_claim_entity_id_values(
         self,
@@ -4002,19 +4098,22 @@ class Database(DatabaseEmbeddingMixin):
                     "source_document_id": source_document_id,
                     "needle": f'%"{entity_id}"%',
                 },
-            ).fetchall()
+                fetch="all",
+            )
         elif source_document_id is not None:
             rows = self._execute(
                 "SELECT entity_ids FROM knowledgeclaims WHERE source_document_id = $id",
                 {"id": source_document_id},
-            ).fetchall()
+                fetch="all",
+            )
         elif entity_id is not None:
             rows = self._execute(
                 "SELECT entity_ids FROM knowledgeclaims WHERE entity_ids LIKE $needle",
                 {"needle": f'%"{entity_id}"%'},
-            ).fetchall()
+                fetch="all",
+            )
         else:
-            rows = self._execute("SELECT entity_ids FROM knowledgeclaims").fetchall()
+            rows = self._execute("SELECT entity_ids FROM knowledgeclaims", fetch="all")
         return [row[0] for row in rows]
 
     def knowledge_claim_source_document_ids_for_entity(
@@ -4024,7 +4123,8 @@ class Database(DatabaseEmbeddingMixin):
         rows = self._execute(
             "SELECT source_document_id FROM knowledgeclaims WHERE entity_ids LIKE $needle",
             {"needle": f'%"{entity_id}"%'},
-        ).fetchall()
+            fetch="all",
+        )
         return [row[0] for row in rows]
 
     def knowledge_claims_for_seed_documents(
@@ -4105,10 +4205,10 @@ class Database(DatabaseEmbeddingMixin):
 
     def knowledge_entity_canonical_name(self, entity_id: str) -> str | None:
         """Return a single entity's canonical name, if present."""
-        row = fetch_one(self._execute(
+        row = self._execute(
             "SELECT canonical_name FROM knowledgeentitys WHERE id = $id",
-            {"id": entity_id},
-        ))
+            {"id": entity_id}, fetch="one"
+        )
         return row[0] if row and row[0] else None
 
     def knowledge_entity_ids_scoped_to_documents(self, doc_ids: set[str]) -> set[str]:
@@ -4127,7 +4227,8 @@ class Database(DatabaseEmbeddingMixin):
             rows = self._execute(
                 f"SELECT id FROM knowledgeentitys WHERE {clauses}",
                 params,
-            ).fetchall()
+                fetch="all",
+            )
             for (entity_id,) in rows:
                 if entity_id:
                     found.add(entity_id)
@@ -4151,7 +4252,8 @@ class Database(DatabaseEmbeddingMixin):
             LIMIT $limit
             """,
             {"needle": f'%"{entity_id}"%', "limit": limit},
-        ).fetchall()
+            fetch="all",
+        )
 
     def knowledge_claim_excerpts_for_entity(
         self, entity_id: str, limit: int
@@ -4167,7 +4269,8 @@ class Database(DatabaseEmbeddingMixin):
             LIMIT $limit
             """,
             {"needle": f'%"{entity_id}"%', "limit": limit},
-        ).fetchall()
+            fetch="all",
+        )
         return [excerpt for (excerpt,) in rows if excerpt]
 
     def entity_document_claim_counts(
@@ -4184,7 +4287,8 @@ class Database(DatabaseEmbeddingMixin):
             LIMIT $limit
             """,
             {"needle": f'%"{entity_id}"%', "limit": limit},
-        ).fetchall()
+            fetch="all",
+        )
         return [(doc_id, int(claim_count or 0)) for doc_id, claim_count in rows]
 
     def artifact_data_for_types(self, artifact_types: Sequence[str]) -> list[Any]:
@@ -4196,15 +4300,16 @@ class Database(DatabaseEmbeddingMixin):
         rows = self._execute(
             f"SELECT data FROM artifacts WHERE artifact_type IN ({placeholders})",
             params,
-        ).fetchall()
+            fetch="all",
+        )
         return [row[0] for row in rows]
 
     def document_page_content(self, document_id: str) -> str | None:
         """Return a document's full page content by id."""
-        row = fetch_one(self._execute(
+        row = self._execute(
             "SELECT page_content FROM documents WHERE id = $id",
-            {"id": document_id},
-        ))
+            {"id": document_id}, fetch="one"
+        )
         return row[0] if row else None
 
     def live_document_identity_rows(self, document_ids: Sequence[str]) -> list[tuple]:
@@ -4217,7 +4322,8 @@ class Database(DatabaseEmbeddingMixin):
             f"SELECT id, name, doc_type, file_type FROM documents "
             f"WHERE id IN ({placeholders}) AND deleted_at IS NULL",
             {f"d{i}": doc_id for i, doc_id in enumerate(ids)},
-        ).fetchall()
+            fetch="all",
+        )
 
     def artifact_entity_document_matches(
         self,
@@ -4247,7 +4353,8 @@ class Database(DatabaseEmbeddingMixin):
             LIMIT $limit
             """,
             params,
-        ).fetchall()
+            fetch="all",
+        )
 
     def artifact_content_matches(self, *, query: str, limit: int) -> list[tuple]:
         """Artifacts whose text content or structured data contains the query.
@@ -4275,7 +4382,8 @@ class Database(DatabaseEmbeddingMixin):
             LIMIT $limit
             """,
             {"needle": f"%{query.strip().lower()}%", "limit": limit},
-        ).fetchall()
+            fetch="all",
+        )
 
     def recent_content_document_rows(self, limit: int) -> list[tuple]:
         """Most recently updated documents with non-empty page content."""
@@ -4290,13 +4398,15 @@ class Database(DatabaseEmbeddingMixin):
             LIMIT $limit
             """,
             {"limit": limit},
-        ).fetchall()
+            fetch="all",
+        )
 
     def keyword_artifact_rows(self) -> list[tuple[Any, str]]:
         """Keyword artifact data plus document id for keyword cloud counts."""
         return self._execute(
-            "SELECT data, document_id FROM artifacts WHERE artifact_type = 'keywords'"
-        ).fetchall()
+            "SELECT data, document_id FROM artifacts WHERE artifact_type = 'keywords'",
+            fetch="all",
+        )
 
     def knowledge_table_signature(self, table_name: str) -> tuple[int, str]:
         """Return ``(count, max_updated_at)`` for cacheable KG tables."""
@@ -4304,9 +4414,9 @@ class Database(DatabaseEmbeddingMixin):
             raise ValueError(f"Invalid table name: {table_name}")
         if table_name not in {"knowledgeclaims", "knowledgeentitys"}:
             raise ValueError(f"Unsupported knowledge table: {table_name}")
-        row = fetch_one(self._execute(
-            f"SELECT COUNT(*), MAX(updated_at) FROM {table_name}"
-        ))
+        row = self._execute(
+            f"SELECT COUNT(*), MAX(updated_at) FROM {table_name}", fetch="one"
+        )
         if not row:
             return (0, "")
         return (int(row[0] or 0), str(row[1]) if row[1] is not None else "")
@@ -5559,14 +5669,46 @@ class Database(DatabaseEmbeddingMixin):
     #: node, or a diary entry split from a page (#5581) is not a page to read, and a page's entries do not make it
     #: a file with pages.
     _UNIT_OF_WORK_WHERE = (
-        "d.deleted_at IS NULL AND COALESCE(d.node_kind, '') NOT IN ('workflow', 'entry') "
+        # A page hidden as blank (`media.blank_page.mark_blank`: excluded AND `metadata.blank.blank` true) is never a unit of
+        # work. A page excluded for any other reason stays one, as it was before blank marking existed: no migration, and
+        # pages a person excluded in earlier libraries are still counted, sampled and run.
+        # CASE, not AND: inside a NOT, an AND parses every row's metadata as JSON (line boxes and all).
+        "d.deleted_at IS NULL AND NOT (CASE WHEN COALESCE(d.exclude_from_processing, FALSE) "
+        "THEN COALESCE(json_extract_string(d.metadata, '$.blank.blank'), '') = 'true' ELSE FALSE END) "
+        "AND COALESCE(d.node_kind, '') NOT IN ('workflow', 'entry') "
         "AND (d.doc_type = 'page' OR (d.doc_type = 'file' AND NOT EXISTS (SELECT 1 FROM documents c "
         "WHERE c.parent_id = d.id AND c.deleted_at IS NULL AND COALESCE(c.node_kind, '') <> 'entry')))")
+
+    def documents_attributes_naming(self, value: str) -> list[tuple[str, Any]]:
+        """(id, attributes) of the documents whose attributes mention `value`: one scan of one column for a whole library."""
+        rows = self.execute_fetchall(
+            "SELECT id, attributes FROM documents WHERE contains(CAST(attributes AS VARCHAR), ?)", [f'"{value}"'], committed=True)
+        return [(row[0], json.loads(row[1]) if isinstance(row[1], str) else row[1]) for row in rows]
+
+    def cut_pages_of(self, ids: list[str]) -> list[tuple[str, str | None]]:
+        """(id, parent_id) of these `chunk` rows that are pages cut from a photograph and not hidden as blank: JSON read
+        here, a batch at a time, so a cut page's line boxes never reach Python (`recipes.done.split_pages`)."""
+        return [tuple(row) for row in self.execute_fetchall(
+            f"""SELECT id, parent_id FROM documents WHERE id IN ({",".join("?" * len(ids))})
+                AND COALESCE(json_extract_string(metadata, '$.split_source_id'), '') NOT IN ('', 'false', '0')
+                AND NOT (CASE WHEN COALESCE(exclude_from_processing, FALSE)
+                         THEN COALESCE(CAST(json_extract(metadata, '$.blank.blank') AS VARCHAR), '') = 'true' ELSE FALSE END)""",
+            ids, committed=True)]
 
     def unit_of_work_count(self) -> int:
         """Every page, and every file that has no pages: what a recipe's estimate counts (`_UNIT_OF_WORK_WHERE`)."""
         return int(self.execute_fetchall(
             f"SELECT COUNT(*) FROM documents d WHERE {self._UNIT_OF_WORK_WHERE}")[0][0])
+
+    def prepare_check_rows(self) -> list[tuple[str, str, str | None, str | None, str | None, str | None, str | None]]:
+        """`(id, name, prep_proposals json, page_region.method, page_kind, show_through_included, show_through_of)` of every
+        unit of work: Prepare Images' worklist."""
+        return self.execute_fetchall(
+            "SELECT d.id, d.name, json_extract_string(d.metadata, '$.prep_proposals'), "
+            "json_extract_string(d.metadata, '$.page_region.method'), "
+            "json_extract_string(d.metadata, '$.page_kind'), json_extract_string(d.metadata, '$.show_through_included'), "
+            "json_extract_string(d.metadata, '$.show_through_of') "
+            f"FROM documents d WHERE {self._UNIT_OF_WORK_WHERE}", committed=True)
 
     def unit_of_work_ids(self) -> list[str]:
         """The ids `unit_of_work_count` counts, in Finder order (#5849): by the full path from the project's root (at
@@ -5581,9 +5723,13 @@ class Database(DatabaseEmbeddingMixin):
         wanted = [r[0] for r in self.execute_fetchall(
             f"SELECT d.id FROM documents d WHERE {self._UNIT_OF_WORK_WHERE}", committed=True)]
 
+        keys: dict[str, tuple] = {}  # each folder's key once, shared by the pages under it: a key a page was 400 MB at 70k
+
         def node(doc_id: str) -> tuple:
-            name, sort_order, sequence, _parent = rows[doc_id]
-            return in_folder_order(SimpleNamespace(id=doc_id, name=name, sort_order=sort_order, sequence=sequence))
+            if doc_id not in keys:
+                name, sort_order, sequence, _parent = rows[doc_id]
+                keys[doc_id] = in_folder_order(SimpleNamespace(id=doc_id, name=name, sort_order=sort_order, sequence=sequence))
+            return keys[doc_id]
 
         def path(doc_id: str) -> tuple:
             out, seen, parent = [], {doc_id}, rows[doc_id][3]
@@ -5682,7 +5828,7 @@ class Database(DatabaseEmbeddingMixin):
         TABLES, copying after one produced the full schema. That failure was
         silent — the copy was a valid, non-empty, entirely empty database.
         """
-        with self._lock:
+        with self._lock, self._volume_guard():
             self.conn.execute("CHECKPOINT")
 
     def count(self, model: Type[T], **filters) -> int:
@@ -5691,7 +5837,7 @@ class Database(DatabaseEmbeddingMixin):
         self._ensure_table(model)
 
         if not filters:
-            result = fetch_one(self._execute(f"SELECT COUNT(*) FROM {sql_table}"))
+            result = self._execute(f"SELECT COUNT(*) FROM {sql_table}", fetch="one")
         else:
             # Validate column names to prevent SQL injection
             for k in filters.keys():
@@ -5709,9 +5855,9 @@ class Database(DatabaseEmbeddingMixin):
                 for k in filters.keys()
             )
             params = {k: v for k, v in filters.items() if v is not None}
-            result = fetch_one(self._execute(
-                f"SELECT COUNT(*) FROM {sql_table} WHERE {where}", params or None
-            ))
+            result = self._execute(
+                f"SELECT COUNT(*) FROM {sql_table} WHERE {where}", params or None, fetch="one"
+            )
 
         return result[0] if result else 0
 
@@ -6377,8 +6523,21 @@ class Database(DatabaseEmbeddingMixin):
             # anyway — so an entirely unembedded library looked identical to a
             # fully embedded one. The outcome now carries its reason so a
             # caller can count and report causes rather than a bare failure.
-            logger.warning("Failed to create embedding for %s: %s", doc.id, e)
+            from fichero_server.core import failure_ledger
+            from fichero_server.core.log_throttle import log_collapsed
             from fichero_server.db.embed_process import EmbedderUnavailable
+
+            # A model that cannot load is said ONCE, by the loader (`embeddings._get_shared_embedder`); the Air logged
+            # this warning 31,385 times for one cause (2026-10-30). The outcome below still carries the words.
+            # A failing loop repeats this per document (380,611 lines in one engine.log): collapse it; the ledger counts the
+            # cause once through `note`, so the record carries `ledgered` and the handler stays out.
+            log_collapsed(logger, logging.DEBUG if isinstance(e, EmbedderUnavailable) else logging.WARNING,
+                          "Failed to create embedding for %s: %s", doc.id, e, cause=e, extra={"ledgered": True})
+            failure_ledger.note(
+                "search", "embed", type(e.__cause__ or e).__name__,
+                sentence="Search is not indexing new pages: the search model cannot be loaded"
+                if isinstance(e, EmbedderUnavailable) else "Search is not indexing new pages: embedding fails",
+            )
 
             self.last_embed_outcome = EmbedOutcome(
                 embedded=False,
@@ -7157,8 +7316,9 @@ class Database(DatabaseEmbeddingMixin):
                         WHERE d.deleted_at IS NULL
                           AND d.page_content IS NOT NULL
                           AND length(d.page_content) > 0
-                        """
-                    ).fetchall()
+                        """,
+                        fetch="all",
+                    )
                     uncovered_ids = [
                         row[0] for row in candidate_id_rows
                         if row[0] not in embedded_doc_ids
@@ -7183,7 +7343,8 @@ class Database(DatabaseEmbeddingMixin):
                                     WHERE d.id IN ({chunk_placeholders})
                                     """,
                                     chunk_params,
-                                ).fetchall()
+                                    fetch="all",
+                                )
                             )
                         matched = []
                         for row in rows:
@@ -7967,6 +8128,8 @@ class Database(DatabaseEmbeddingMixin):
                     try:
                         return self.conn.execute(sql)
                     except duckdb.Error as exc:
+                        if (down := volume_dropped.classify(self.path, exc)) is not None:
+                            raise down from exc
                         if self._is_invalidated_error(exc):
                             logger.warning(
                                 "DuckDB connection for %s was invalidated during schema reconciliation; see the next line for what was done",

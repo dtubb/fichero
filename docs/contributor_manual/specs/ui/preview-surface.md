@@ -216,7 +216,7 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
   on screen on C01_005 and C01_052.
 - `ui.preview.draws-what-the-segments-list-lists` — **[PARTIAL]** (#5463; owner: the engine) With every
   box switch on, Preview draws every box of the page's working pass, the same pass the Segments list
-  lists and the page's text reads, whatever other result the page has beside it. On a Marshall diary
+  lists and the page's text reads, whatever other result the page has beside it. On a diary
   page the list showed Apple Vision's words and Preview drew none of them while a Detect Segments
   (Kraken) run was going: the segment list (`GET /api/segments/document/{id}`, which the canvas reads)
   counted a run's result not yet made a pass as a candidate for the working pass, and the Order list
@@ -233,7 +233,7 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
   (`ReadingOrderStore.loadFollowing`). Pinned by
   `ImportedPageDrawsItsBoxesTests.testPreviewTheSegmentsListAndTheReaderNameTheSamePassOnAPageWithTwoPasses`
   and `.testAPassChangeEventMovesThatPagesSegmentsListToTheNewWorkingPassInPlace`.
-  PARTIAL until seen on screen on the Marshall page. Box colours are not part of this behaviour: they are
+  PARTIAL until seen on screen on a diary page. Box colours are not part of this behaviour: they are
   owned by `source/segment-editor.md`, "Box colour and the segment hierarchy" (ruled 2026-10-04:
   the region's hue, shaded along the working pass's reading order; #5426, #5463).
 
@@ -259,6 +259,34 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
   `fichero/Tests/Unit/general/Views/Preview/SiblingStepTests.swift` (work counts and order, not
   timings: timing assertions on a shared build machine are flaky). Timed on screen by the
   `preview swipe → image` signpost (`InteractionProfile`). PARTIAL until timed on screen.
+
+- `preview.full-screen-page` — **[PARTIAL]** (#6560; owner 2026-11-12: the iPad has it, the Mac had none) Mac. The Preview head
+  offers **View Full Screen** (a viewfinder button beside the zoom-controls toggle) while it shows one page or image; it opens
+  that page in the full-window reader ⌃⌘R already opens (`ImmersiveReaderView`, `markup.immersive-full-screen-reading`): the
+  page on black, the chrome fading, no second viewer. ← and → turn to the previous and next page whether the chrome shows or
+  not (no modifier: ⌘← stays the system's), a two-finger swipe left or right does the same while the page is not zoomed
+  past the window (owner 2026-11-13), and Esc or its ✕ leaves to the Preview on the page last shown. A folder, a
+  multiple selection or a non-page file offers no button. The iPad keeps its own button on the image bar. *Built:*
+  `PreviewFullScreen.canEnter`, `PreviewHeadLensControls.onEnterFullScreen` (macOS), `ContentView.enterImmersiveReading(showing:)`,
+  `KeyboardPageStep` in `KeyboardExitCatcher`, the swipe in `ImmersiveReaderView` (`PreviewFullScreen.windowTakesTheSwipe`). *Not built:* a look on screen; the window's
+  own macOS full screen (the reader fills the window, as ⌃⌘R always did). *Tests:* `Models/PreviewFullScreenTests.swift`.
+  *Owner 2026-11-13 (#6575): the window's own macOS full screen is now Focus mode for EVERY pane,
+  `panes.focus.any-pane-fills-the-screen` (`ui/panes-workspaces.md` H); this entry keeps the Preview's
+  fading chrome and arrow paging under it (`panes.focus.preview-keeps-its-chrome-and-paging`).*
+
+### F. Clicking and dragging on the page
+
+- `preview.page-click-and-drag-are-timed` — **[PARTIAL]** (#5253; owner: the app) A click on the
+  Preview image logs one `⏱ preview region press took N ms` line, split into steps: dispatch (the
+  AppKit mouse-down reaching the region layer), select (the layer's verb), overlay (the document
+  overlay handed its new boxes and selection), draw (the overlay's draw) and render (the main
+  thread's next turn, after the commit). A drag on the image (a move, a band, a reshape) logs one
+  `⏱ preview region drag took N ms` line on release: how many moves, the average and slowest wait
+  from a move to the frame after it, and how many times the overlay was rebuilt and how long that
+  took altogether, so a slow drag says whether the time went into the overlay. *Test:*
+  `PreviewPointerProfileTests`. The first reading in the real app is owed.
+
+- `preview.ios.swipe-turns-pages` — **[PARTIAL]** (#6559; owner, on an iPad mini, 2026-11-12) on the iPad and iPhone a horizontal swipe on a page image at its fitted size turns to the previous or next image in its folder, as in Photos; a zoomed-in page pans instead, and a short or mostly vertical drag does nothing. The blue prev/next buttons over the image (#2420) are gone on touch; VoiceOver keeps Previous image and Next image as actions. The Mac keeps its own controls. Owner, on the iPad, 2026-11-13: a swipe still scrolled the image instead of turning the page. At its fitted size the image never scrolls (only a pinch acts on it) and a horizontal swipe turns the page; zoomed in, it pans. Neither the inline nor the full-screen view zooms out below the fitted size: a pinch past it springs back, and Zoom Out stops there. A pinch that ends at or near the fitted size settles back to the whole page, centred, never left off to one side; every new page opens centred too, never at the last page's scroll position. The full-screen view opens with the page already drawn, a sideways swipe turns its pages too, and a zoomed-in page pans there instead of dragging the view down to close. While the next page is still loading, however it was turned (a swipe, the pane's arrows, a key), a spinner shows over the current one (owner, 2026-11-13: large images are slow from a shared Mac). *Built:* `PageSwipe`, read by a pan recognizer on the image's own scroll view (`ImageWithCursorTrackingIOSCoordinator`), which also turns scrolling off at fit; the zoom floor is `PageSwipe.minimumZoom`; `PageTurnSpinner` while a page loads. *Test:* `PageSwipeTests`. *Not seen:* pages of a multi-page TIFF swiping the same way (#6559).
 
 ## PASS 2 — the fold (9 waiting issues, every body read fresh)
 

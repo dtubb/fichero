@@ -135,6 +135,13 @@ class RunStep:
     # honest version of the gap: 'ran, produced nothing' is a finding, not an
     # absence.
     produced_nothing: bool = False
+    # What the step spent (`workflows.run.cost-tracking-per-node`, #4343): present only when the step called a model, so a
+    # step that called nothing shows nothing rather than a fabricated zero. `cost_usd` is None when nothing could be priced
+    # (never a stand-in zero); `cost_priced` says whether every call priced.
+    model_calls: int | None = None
+    total_tokens: int | None = None
+    cost_usd: float | None = None
+    cost_priced: bool | None = None
     artifacts: list[RunStepArtifact] = field(default_factory=list)
 
 
@@ -361,6 +368,10 @@ def build_run_steps(
             files_failed=sum(1 for f in files if f.get("status") in ("error", "failed")),
             artifact_count=len(node_artifacts),
             produced_nothing=status in _TERMINAL_STEP_STATUSES and not node_artifacts,
+            model_calls=entry.get("model_calls") if entry else None,
+            total_tokens=entry.get("total_tokens") if entry else None,
+            cost_usd=entry.get("cost_usd") if entry else None,
+            cost_priced=entry.get("cost_priced") if entry else None,
             artifacts=[
                 _artifact_record(a, node_name_map=names, document_names=doc_names)
                 for a in node_artifacts

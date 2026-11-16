@@ -39,7 +39,7 @@ from fastapi.responses import JSONResponse
 
 from fichero_server.security import accounts
 from fichero_server.api import client_presence
-from fichero_server.api.library_header import require_library_path
+from fichero_server.api.library_header import optional_library_path, require_library_path
 from fichero_server.actions import ActionContext
 from fichero_server.db.app import AppDatabaseBusy, get_app_db
 from fichero_server.security.multiuser import multiuser_enabled
@@ -64,6 +64,7 @@ _UNAUTHENTICATED_PATHS = frozenset(
         "/api/auth/local-clients/register",
         "/api/auth/invites/redeem",
         "/api/pair",
+        "/api/pair/sign-in",
         "/openapi.json",
         "/docs",
         "/redoc",
@@ -636,6 +637,39 @@ def action_context(
         client=client,
         origin_window=x_fichero_origin_window,
         library_path=x_fichero_library_path,
+        is_bootstrap=bool(getattr(request.state, "bootstrap_auth", False)),
+        device=_device_attribution(request),
+        may_read=_action_reader(request, x_fichero_library_path),
+    )
+
+
+def _action_reader(request: Request, library_path: str):
+    """The caller's per-document read test for an action (None when every page is readable to them): the one reader
+    chat also uses, so `/api/actions/invoke` and the chat tools filter alike (#6320)."""
+    from fichero_server.api.main import document_reader
+
+    return document_reader(request, library_path)
+
+
+def app_action_context(
+    request: Request,
+    x_fichero_origin_window: str | None = Header(default=None, alias="X-Fichero-Origin-Window"),
+    x_fichero_client: str | None = Header(default=None, alias="X-Fichero-Client"),
+) -> ActionContext:
+    """`action_context` for an APP-WIDE action (`owner_scope="app"`): the same actor, client, device and bootstrap
+    reading, but the library header is optional. The Settings window's client sends none (its PairingService has no
+    library), and an app-wide switch must not answer 400 "open a library first" for it
+    (`sharing.multiuser-switch-needs-no-library`)."""
+    client = (
+        x_fichero_client.strip()
+        if isinstance(x_fichero_client, str) and x_fichero_client.strip()
+        else None
+    )
+    return ActionContext(
+        actor=actor_from_request(request),
+        client=client,
+        origin_window=x_fichero_origin_window,
+        library_path=optional_library_path(request),
         is_bootstrap=bool(getattr(request.state, "bootstrap_auth", False)),
         device=_device_attribution(request),
     )

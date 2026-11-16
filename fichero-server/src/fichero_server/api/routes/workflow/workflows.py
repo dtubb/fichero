@@ -9,7 +9,7 @@ import logging
 from typing import Annotated, Any, Optional
 from fichero_server.core.timeutil import utc_now
 
-from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.db.app import get_app_db
@@ -17,7 +17,7 @@ from fichero_server.db import Database
 from fichero_server.api.library_header import require_library_path
 from fichero_server.api.auth import request_actor
 from fichero_server.api.change_stream import emit_change
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.main import get_library_database, get_library_database_for_write, read_check, recipe_save_check
 # NOTE: fichero_server.llm is imported inside the one handler that prices a model
 # (#3950) — it pulls langchain_core at startup for a cost lookup.
 from fichero_server.workflows.types import (
@@ -191,7 +191,9 @@ class WorkflowResponse(BaseModel):
     # client copy of this rule read the parent's nodes only, so a delegating
     # parent — the case where the whole vision requirement lives in a child —
     # was reported as needing nothing.
-    requires_vision: bool = False
+    # None = could not be determined (a sub-workflow did not resolve and no node needed vision): the UI treats it as "may need
+    # a vision model" (`workflows.requires-vision-unknown`, #4506), never as "does not".
+    requires_vision: bool | None = False
     # True = a shipped preset. The server already knows this and enforces it
     # (`_reject_if_read_only` 403s delete and update), but never serialised it,
     # so the client's `isSystem` was a constant False and four surfaces read it
@@ -214,6 +216,10 @@ class WorkflowResponse(BaseModel):
     # here for the same reason as requires_vision: a client re-deriving it
     # gets delegating workflows wrong, and the summary payload has no nodes
     # to derive it from at all.
+    # Where the workflow runs: "per_file" (once for each document picked) or "once_per_folder" (its output attaches to the
+    # folder), with the sentence the run menu shows before anything runs (`workflows.defaults.declared-scope`, #4397).
+    scope: str = "per_file"
+    scope_sentence: str = ""
     accepted_inputs: list[str] = ["documents"]
 
 
@@ -268,15 +274,23 @@ def _workflow_input_kinds(wf, workflow_resolver) -> list[str]:
     )
 
 
-def _workflow_requires_vision(wf, workflow_resolver) -> bool:
+def _scope_fields(wf) -> dict[str, str]:
+    """The workflow's declared scope and the sentence that names it (`workflows.defaults.declared-scope`)."""
+    from fichero_server.workflows.validation import SCOPE_SENTENCES, workflow_scope
+
+    scope = workflow_scope(getattr(wf, "config", None), getattr(wf, "nodes", None))
+    return {"scope": scope, "scope_sentence": SCOPE_SENTENCES[scope]}
+
+
+def _workflow_requires_vision(wf, workflow_resolver) -> bool | None:
     """Whether this workflow — or any sub-workflow it runs — needs vision.
 
     Served so the app can stop deriving it from the node list: that copy read
     the parent only and answered "no" for every delegating workflow (#3804).
     """
-    from fichero_server.workflows.validation import workflow_requires_vision
+    from fichero_server.workflows.validation import workflow_requires_vision_or_unknown
 
-    return workflow_requires_vision(
+    return workflow_requires_vision_or_unknown(
         getattr(wf, "nodes", None),
         workflow_resolver=workflow_resolver,
     )
@@ -822,6 +836,7 @@ def _workflow_to_response(
         ),
         requires_vision=_workflow_requires_vision(workflow, workflow_resolver),
         accepted_inputs=_workflow_input_kinds(workflow, workflow_resolver),
+        **_scope_fields(workflow),
         is_system=bool(getattr(workflow, "is_system", False)),
     )
 
@@ -855,6 +870,7 @@ def _get_workflow_or_default(db: Database, workflow_id: str) -> "Workflow | None
 @router.post("")
 async def create_workflow(
     workflow: WorkflowDef,
+    http: Request = None,
     db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
@@ -863,6 +879,7 @@ async def create_workflow(
     actor: str = Depends(request_actor),
 ) -> WorkflowResponse:
     """Create and save a workflow definition."""
+    recipe_save_check(http, x_fichero_library_path, db, workflow.nodes)
     try:
         db_workflow = create_workflow_impl(db, workflow)
 
@@ -956,6 +973,7 @@ async def import_workflow(
     name: str = "",
     description: str = "",
     workflow_data: dict = Body(default_factory=dict),
+    http: Request = None,
     db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
@@ -964,6 +982,7 @@ async def import_workflow(
     actor: str = Depends(request_actor),
 ) -> WorkflowResponse:
     """Import a workflow from JSON data."""
+    recipe_save_check(http, x_fichero_library_path, db, workflow_data.get("nodes") if isinstance(workflow_data.get("nodes"), list) else [])
     try:
         db_workflow = import_workflow_impl(db, name, description, workflow_data)
 
@@ -1195,8 +1214,13 @@ async def estimate_workflow_cost(
     workflow_id: str,
     request: WorkflowCostEstimateRequest,
     db: Database = Depends(get_library_database),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
 ) -> WorkflowCostEstimateResponse:
     """Estimate run cost from file count and per-file token assumptions."""
+    # The count of pages under a selection is itself a read of it (#6320).
+    if request.selected_doc_ids:
+        await read_check(http, library_path, db, list(request.selected_doc_ids))
     workflow = _get_workflow_or_default(db, workflow_id)
     if not workflow:
         raise HTTPException(
@@ -1334,6 +1358,7 @@ def update_workflow_impl(
 async def update_workflow(
     workflow_id: str,
     workflow: WorkflowDef,
+    http: Request = None,
     db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
@@ -1342,6 +1367,8 @@ async def update_workflow(
     actor: str = Depends(request_actor),
 ) -> WorkflowResponse:
     """Update an existing workflow."""
+    if "nodes" in workflow.model_fields_set:
+        recipe_save_check(http, x_fichero_library_path, db, workflow.nodes)
     try:
         logger.debug(
             "[UPDATE] workflow=%s received nodes=%s edges=%s",

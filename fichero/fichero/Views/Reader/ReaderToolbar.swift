@@ -135,6 +135,10 @@ struct ReaderToolbar: View {
     var regionsEnabled: Binding<Bool>?
     /// Draw each recognised word's text INSIDE its box (2026-08-31).
     var inlineTextEnabled: Binding<Bool>?
+    /// "Show Order Numbers": the reading number on each line (the Preview's Display menu).
+    var orderNumbersEnabled: Binding<Bool>?
+    /// "Show Bounding Box": the box beside a polygon or baseline (the Preview's Display menu).
+    var boundingBoxesEnabled: Binding<Bool>?
     /// The segment-editing MODE (#5114). Lives in this menu because the ruling put it
     /// with the view's other options. nil where there are no segments to edit.
     var segmentEditingEnabled: Binding<Bool>?
@@ -217,7 +221,8 @@ struct ReaderToolbar: View {
     /// both windows. Four display switches, nothing else: the ⓘ entry went
     /// because the inspector has its own affordances.
     /// Whether the What to show menu has anything to switch: false on the placeholder bar of a page still loading (or whose
-    /// original failed to load), which holds the bar's geometry with the glyph in place, greyed (`source.preview.what-to-show-always-there`, #6010).
+    /// original failed to load), which holds the bar's geometry with the glyph in place, greyed
+    /// (`source.preview.what-to-show-always-there`, #6010).
     nonisolated static func whatToShowHasSwitches(hasTextBoxes: Bool, hasAnnotations: Bool, hasImage: Bool) -> Bool {
         hasTextBoxes || hasAnnotations || hasImage
     }
@@ -248,6 +253,15 @@ struct ReaderToolbar: View {
             if let inlineTextEnabled {
                 Toggle("Show Text Inline", isOn: inlineTextEnabled)
             }
+            if let boundingBoxesEnabled {
+                Toggle("Show Bounding Box", isOn: boundingBoxesEnabled)
+                    .accessibilityIdentifier("previewShowBoundingBoxes")
+            }
+            if textBoxesEnabled != nil || regionsEnabled != nil { TextReadoutToggles() }
+            if let orderNumbersEnabled {
+                Toggle("Show Order Numbers", isOn: orderNumbersEnabled)
+                    .accessibilityIdentifier("previewShowOrderNumbers")
+            }
             if !regionLegend.isEmpty {
                 Divider()
                 // The legend (#5426): each region's hue, its gradient from first line to last.
@@ -259,14 +273,12 @@ struct ReaderToolbar: View {
                             SelectionStyle.regionLegendSwatch(hue: hue)
                         }
                     }
-                    Text("The shade is the reading order: the first line darkest.")
+                    Toggle("Shade by Reading Order", isOn: Binding(
+                        get: { RegionColours.shadesByOrder },
+                        set: { EngineConfig.defaults.set($0, forKey: RegionColours.shadeKey) }
+                    ))
+                    .accessibilityIdentifier("previewShadeByOrder")
                 }
-            }
-            if let segmentEditingEnabled {
-                Divider()
-                Toggle("Edit Segments", isOn: segmentEditingEnabled)
-                    .help("Draw, move, join and delete segments on this page. Off, the page is for reading.")
-                    .accessibilityIdentifier("previewEditSegments")
             }
         } label: {
             Image(systemName: "switch.2")

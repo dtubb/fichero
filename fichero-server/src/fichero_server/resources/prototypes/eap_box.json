@@ -1,0 +1,16 @@
+{
+ "key": "eap_box",
+ "label": "EAP box",
+ "parent_key": null,
+ "attributes": {
+  "subfolders": "eap_digital_folder",
+  "catalogue_original_reference": {
+   "type": "text",
+   "inherits": true,
+   "labels": {
+    "es": "Referencia original de archivo físico",
+    "en": "Original Reference"
+   }
+  }
+ }
+}

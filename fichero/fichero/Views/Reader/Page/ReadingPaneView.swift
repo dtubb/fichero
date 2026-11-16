@@ -65,6 +65,7 @@ struct ReadingPaneView: View {
     /// whichever tab was activated most recently anywhere), same class of
     /// bug `paneArtifactService` below was already fixed for.
     @Environment(WindowState.self) var windowState
+    @Environment(SegmentService.self) var segmentService: SegmentService?
     /// THIS window's artifact service (2026-09-02): the lens loader used to
     /// resolve `LibraryManager.currentLibraryId` — the app-globally current
     /// library, not this pane's — so in a multi-library window the "Showing"
@@ -447,6 +448,7 @@ struct ReadingPaneView: View {
             // named artifact — and the View menu carries the "Showing"
             // submenu those choices used to need two extra head menus for.
             shownLabel: readerShownLabel,
+            titleForms: .showing(lens: readerLensBinding.wrappedValue.title, what: readerShownLabel),
             extraLensMenu: { self.readerShowingMenu() },
             lens: readerLensBinding
         )
@@ -491,6 +493,7 @@ struct ReadingPaneView: View {
             // what is shown, not another way to choose it.
             controls: {
                 self.readerTableExportControl
+                self.readerHeadTryControls
             },
             tools: { EmptyView() },
             switchableRoots: PaneCrumb.otherLibraries(than: windowState.libraryId)
@@ -522,7 +525,10 @@ struct ReadingPaneView: View {
                 }
             }
     }
+}
 
+// MARK: - Reader focus and its providers
+extension ReadingPaneView {
     /// Publish the reader's window-scoped focus keys — but ONLY from the PRIMARY reader pane. A
     /// window-scoped `focusedSceneValue` admits one publisher per key; a workspace's second reader
     /// (Compare) mounts its own `SplittablePane`, so without this gate both publish the same keys

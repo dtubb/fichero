@@ -1,6 +1,5 @@
 # Source Model — Build notes: readings, the cascade, orders and links (slices 8 to 10)
 
-> Milestone: source-model
 > Manual: TBD — none of its own; engineering notes behind `readings-and-apparatus.md`,
 > `languages-scripts-signs.md` and `segments-and-geometry.md`.
 >

@@ -65,3 +65,15 @@ def uds_client(harness, peer=None):
         await harness.app(scope, receive, send)
 
     return TestClient(over_the_socket, base_url="http://testserver", headers={**harness.lib_header, "Authorization": ""})
+
+
+def mac_app_client(harness):
+    """The Mac's own app: the engine's Unix socket plus the start-up credential (the one caller allowed to flip Multi-user)."""
+    http = uds_client(harness)
+    http.headers["Authorization"] = f"Bearer {harness.bootstrap}"
+    return http
+
+
+def tcp_app_client(harness):
+    """The start-up credential over TCP (loopback): what a remote caller holding it would get."""
+    return harness.host()

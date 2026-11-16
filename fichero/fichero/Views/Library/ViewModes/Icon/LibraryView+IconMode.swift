@@ -82,7 +82,10 @@ extension LibraryView {
         filmstrip: Bool, itemMin: CGFloat, itemMax: CGFloat, @ViewBuilder content: () -> Content
     ) -> some View {
         if filmstrip {
-            LazyHGrid(rows: [GridItem(.fixed(Self.iconRowHeight(scale: effectiveIconScale)))], alignment: .top, spacing: 20, content: content)
+            LazyHGrid(
+                rows: [GridItem(.fixed(Self.iconRowHeight(scale: effectiveIconScale)))],
+                alignment: .top, spacing: 20, content: content
+            )
         } else {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: itemMin, maximum: itemMax))], alignment: .center, spacing: 20, content: content)
         }
@@ -91,6 +94,12 @@ extension LibraryView {
     /// The scale the grid draws at RIGHT NOW: the in-flight pinch value when
     /// a gesture is live, the persisted one otherwise.
     private var effectiveIconScale: Double { liveIconScale ?? iconViewScale }
+
+    /// One ⌘-scroll step of the icon size: 0.1 per step, kept in the pinch's range (0.5 up to the pane's maximum).
+    nonisolated static func iconScale(after step: Int, from scale: Double, maximum: Double) -> Double {
+        let next = ((scale + Double(step) * 0.1) * 20).rounded() / 20
+        return max(0.5, min(maximum, next))
+    }
 
     var iconsView: some View {
         // Parsed ONCE per render, not twice per tile (2026-08-31 perf): the
@@ -373,6 +382,11 @@ extension LibraryView {
                             pinchBaseScale = iconViewScale
                         }
                 )
+                // ⌘ + scroll zooms the icons too, as pinch does (`panes.chrome.command-scroll-zooms`, owner 2026-11-13).
+                .commandScrollZoom { step in
+                    iconViewScale = Self.iconScale(after: step, from: iconViewScale, maximum: pinchMax)
+                    pinchBaseScale = iconViewScale
+                }
                 .onChange(of: geometry.size.width) { _, newWidth in
                     // #4966: the SAME pane-clamped minimum the grid itself
                     // renders with, not a second, parallel formula — this is
@@ -390,9 +404,16 @@ extension LibraryView {
                         pinchBaseScale = newPinchMax
                     }
                 }
+                .onChange(of: geometry.size.height) { _, newHeight in
+                    gridIsFilmstrip = Self.iconIsFilmstrip(paneHeight: newHeight, scale: iconViewScale)
+                }
+                .onChange(of: iconViewScale) { _, newScale in
+                    gridIsFilmstrip = Self.iconIsFilmstrip(paneHeight: geometry.size.height, scale: newScale)
+                }
                 .onAppear {
                     let clampedMin = Self.iconGridItemBounds(scale: iconViewScale, paneWidth: geometry.size.width).min
                     gridColumnCount = Self.iconColumnCount(paneWidth: geometry.size.width, itemMin: clampedMin)
+                    gridIsFilmstrip = Self.iconIsFilmstrip(paneHeight: geometry.size.height, scale: iconViewScale)
 
                     // Restored-from-launch selection scroll (#808). On launch
                     // the previous selection is restored but the LazyVGrid

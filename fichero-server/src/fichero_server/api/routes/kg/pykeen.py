@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.auth import request_actor
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.main import whole_library_reader_only, get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.knowledge.pykeen_inference import (
     StoredPrediction,
@@ -23,7 +23,7 @@ from fichero_server.models import PykeenListResponse, KGGraphListResponse
 from fichero_server.core.off_loop import off_loop
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/kg/pykeen")
+router = APIRouter(dependencies=[Depends(whole_library_reader_only)], prefix="/kg/pykeen")
 
 
 def _pykeen_unavailable(exc: ImportError) -> HTTPException:

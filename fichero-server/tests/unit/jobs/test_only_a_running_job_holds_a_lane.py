@@ -70,7 +70,7 @@ def test_a_stale_holder_from_a_previous_engine_run_is_cleared_at_startup(db, lan
     assert lane.lane.running == {}  # the lane's holders are in memory: a new engine has none
     jobs.resume(db)
     row = jobs.read_job(db, "old")
-    assert row["state"] == "waiting" and row["reason"] == "Interrupted; carries on"  # not running, so not a holder
+    assert row["state"] == "paused" and row["reason"] == jobs.QUIT_REASON  # not running, so not a holder (paused for the person)
     queued = jobs.enqueue(db, NEXT, "n1")
     assert _wait_for(lambda: "n1" in lane.ran)  # the next job takes the lane at once
     assert "old" not in lane.lane.running

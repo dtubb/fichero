@@ -1,0 +1,148 @@
+import SwiftUI
+
+#if os(macOS)  // RegionInteractionLayer is Mac-only (an AppKit event layer)
+
+/// The lasso in Select (`segment-editor.select-marquee-lasso`): ⌥-drag from empty page draws a loop, and letting go
+/// selects every segment mostly inside it, at the level being edited (lines; regions with ⌘), ⇧ adding to the selection.
+/// Selecting is not an action: nothing is sent.
+extension RegionInteractionLayer {
+    /// True when the event belongs to a lasso (so nothing else acts on it).
+    func handleLasso(_ event: PreviewPointerEvent, at viewPoint: CGPoint, in size: CGSize) -> Bool {
+        let point = [Double(event.point.x), Double(event.point.y)]
+        switch event.phase {
+        case .pressed:
+            guard event.option, event.clickCount == 1, isBandSelecting, artifactId != nil,
+                  !hitsAnything(at: viewPoint, in: size) else { return false }
+            lasso = [point]
+            bandCommand = event.command
+            return true
+        case .dragged:
+            guard !lasso.isEmpty else { return false }
+            lasso.append(point)
+            return true
+        case .released:
+            guard !lasso.isEmpty else { return false }
+            let loop = KnifeStroke.thinned(lasso + [point])
+            lasso = []
+            if loop.count >= 3 { selectRegions(inLoop: loop) } else { handleTap(at: viewPoint, in: size) }
+            return true
+        }
+    }
+
+    /// The Order tool (`segment-editor.order-by-clicking`): a click on a segment numbers it next, or takes its number
+    /// away; ⇧ on the first click continues after the selected segment. True while the tool is chosen, so nothing else
+    /// acts on the page meanwhile. Nothing is sent until the tool is left.
+    func handleOrderClick(_ event: PreviewPointerEvent, at viewPoint: CGPoint, in size: CGSize) -> Bool {
+        guard let windowState, windowState.orderArmed, drawsSegments else { return false }
+        guard event.phase == .pressed,
+              let picked = RegionHitTesting.pick(at: viewPoint, boxes: boxes.map { $0.box.bbox }, in: size, visible: visible),
+              let segmentId = boxes[picked].box.segmentId else { return true }
+        let selected = selection.resolvedIndices(in: allBoxes).first.flatMap { allBoxes[$0].segmentId }
+        windowState.clickInOrder(segmentId, after: event.shift ? selected : nil)
+        return true
+    }
+
+    /// The numbers clicked so far, on each segment's top-left corner.
+    @ViewBuilder
+    func liveOrderNumbers(in size: CGSize) -> some View {
+        let clicks = windowState?.orderClicks ?? []
+        ForEach(Array(clicks.enumerated()), id: \.element) { number, segmentId in
+            if let box = allBoxes.first(where: { $0.segmentId == segmentId }),
+               let rect = BoundingBoxGeometry.viewRect(normalized: box.bbox, in: size, visible: visible) {
+                Text("\(number + 1)")
+                    .font(.caption.bold().monospacedDigit())
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 5).padding(.vertical, 1)
+                    .background(Color.accentColor, in: Capsule())
+                    .offset(x: rect.minX, y: rect.minY)
+            }
+        }
+    }
+
+    /// The Brush in Edit Segments (`segment-editor.select-brush`): with B held, or the Brush chosen, a drag paints; letting
+    /// go selects every segment the paint touches at the level being edited (⇧ adds to the selection, ⌥ at the start
+    /// takes away). True while it is the Brush's stroke.
+    func handleBrush(_ event: PreviewPointerEvent, in size: CGSize) -> Bool {
+        guard let windowState, drawsSegments, artifactId != nil else { return false }
+        guard windowState.brushHeld || windowState.brushArmed || !windowState.brushStroke.isEmpty else { return false }
+        let point = [Double(event.point.x), Double(event.point.y)]
+        switch event.phase {
+        case .pressed:
+            windowState.brushStroke = [point]
+            bandCommand = event.command
+            brushSubtracts = event.option
+        case .dragged:
+            guard !windowState.brushStroke.isEmpty else { return true }
+            windowState.brushStroke.append(point)
+        case .released:
+            let stroke = windowState.brushStroke + [point]
+            windowState.brushStroke = []
+            if windowState.brushHeld { windowState.brushStrokedWhileHeld = true }
+            selectPainted(stroke, radius: brushRadius(in: size))
+        }
+        return true
+    }
+
+    /// The brush's radius in page fractions, across and down, for its size on screen.
+    func brushRadius(in size: CGSize) -> [Double] {
+        let half = (windowState?.brushSize ?? 24) / 2
+        guard size.width > 0, size.height > 0 else { return [0, 0] }
+        return [half / size.width * visible.width, half / size.height * visible.height]
+    }
+
+    private func selectPainted(_ stroke: [[Double]], radius: [Double]) {
+        guard let artifactId else { return }
+        let shown = boxes.map { SegmentSelectionGestures.Box(index: $0.index, bbox: $0.box.bbox, level: $0.box.level) }
+        let hits = SegmentSelectionGestures.touched(
+            by: stroke, radius: radius, boxes: shown, level: SegmentSelectionGestures.level(of: shown, commandHeld: bandCommand)
+        )
+        if brushSubtracts {
+            for index in hits where selection.isSelected(index, in: artifactId) {
+                selection.toggle(index, artifactId: artifactId, documentId: documentId, in: allBoxes)
+            }
+            return
+        }
+        guard !hits.isEmpty else { if !shiftHeldForBrush { selection.clear() }; return }
+        var remaining = hits[...]
+        if !shiftHeldForBrush {
+            selection.select(hits[0], artifactId: artifactId, documentId: documentId, in: allBoxes)
+            remaining = hits.dropFirst()
+        }
+        for index in remaining where !selection.isSelected(index, in: artifactId) {
+            selection.toggle(index, artifactId: artifactId, documentId: documentId, in: allBoxes)
+        }
+    }
+
+    /// The paint so far: a band as wide as the brush along the stroke, and the brush's circle where the pointer is.
+    @ViewBuilder
+    func liveBrush(in size: CGSize) -> some View {
+        let stroke = windowState?.brushStroke ?? []
+        if !stroke.isEmpty, visible.width > 0, visible.height > 0 {
+            let points = stroke.map {
+                CGPoint(x: ($0[0] - visible.minX) / visible.width * size.width,
+                        y: ($0[1] - visible.minY) / visible.height * size.height)
+            }
+            let width = windowState?.brushSize ?? 24
+            Path { path in path.addLines(points) }
+                .stroke(Color.accentColor.opacity(0.3), style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
+                .accessibilityIdentifier("segmentEditor.brush")
+        }
+    }
+
+    /// The loop so far, drawn over the page.
+    @ViewBuilder
+    func liveLasso(in size: CGSize) -> some View {
+        if lasso.count >= 2, visible.width > 0, visible.height > 0 {
+            Path { path in
+                path.addLines(lasso.map {
+                    CGPoint(x: ($0[0] - visible.minX) / visible.width * size.width,
+                            y: ($0[1] - visible.minY) / visible.height * size.height)
+                })
+            }
+            .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 1, lineJoin: .round, dash: [4, 3]))
+            .accessibilityIdentifier("segmentEditor.lasso")
+        }
+    }
+}
+
+#endif

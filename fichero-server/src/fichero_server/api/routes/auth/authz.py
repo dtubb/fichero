@@ -105,6 +105,71 @@ def list_accessible_libraries(
     return AccessibleLibraryListResponse(items=items, count=len(items))
 
 
+class AccessMatrixLibrary(BaseModel):
+    library_path: str
+    library_name: str
+
+
+class AccessMatrixCell(BaseModel):
+    library_path: str
+    #: owner / editor / viewer, or null: no access.
+    role: str | None = None
+
+
+class AccessMatrixPerson(BaseModel):
+    user_id: str
+    username: str
+    display_name: str
+    is_owner_account: bool
+    active: bool
+    access: list[AccessMatrixCell]
+
+
+class AccessMatrixResponse(BaseModel):
+    libraries: list[AccessMatrixLibrary]
+    people: list[AccessMatrixPerson]
+
+
+@router.get("/access-matrix", response_model=AccessMatrixResponse)
+def access_matrix(
+    request: Request,
+    registry_db: Database = Depends(get_global_database),
+) -> AccessMatrixResponse:
+    """Every person's access across every known library, for Settings > Sharing > Accounts (#2083).
+
+    Owner-only when multi-user is on. A person with no role on a library has a null cell: that is "no access", the
+    words the screen shows, and it is the same answer the library list and a write give them.
+    """
+    app_db = get_app_db()
+    state = getattr(request, "state", None)
+    if authz.multiuser_enabled() and not getattr(state, "bootstrap_auth", False):
+        try:
+            authz.require_app_owner(getattr(state, "user", None))
+        except authz.AuthorizationError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+    libraries = [
+        AccessMatrixLibrary(
+            library_path=authz.normalize_library_path(lib.path) or lib.path,
+            library_name=lib.name or lib.path.rstrip("/").split("/")[-1],
+        )
+        for lib in sorted(registry_db.all(KnownLibrary), key=lambda lib: lib.last_accessed, reverse=True)
+    ]
+    people = []
+    for user in app_db.list_users():
+        roles = {r.library_path: r.role for r in app_db.list_library_roles_for_user(user.id)}
+        people.append(
+            AccessMatrixPerson(
+                user_id=user.id,
+                username=user.username,
+                display_name=user.display_name,
+                is_owner_account=bool(user.is_owner),
+                active=bool(user.active),
+                access=[AccessMatrixCell(library_path=lib.library_path, role=roles.get(lib.library_path)) for lib in libraries],
+            )
+        )
+    return AccessMatrixResponse(libraries=libraries, people=people)
+
+
 @router.get("/library", response_model=LibraryAuthzSnapshot)
 def get_library_authz_snapshot(
     request: Request,

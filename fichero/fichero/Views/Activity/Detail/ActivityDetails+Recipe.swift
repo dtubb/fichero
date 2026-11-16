@@ -30,21 +30,6 @@ extension ActivityDetails {
 
     /// What a recipe run made, in words (#5577).
     struct Summary: Equatable {
-        /// A stage's failed pages and its Read Again.
-        struct Failed: Equatable, Identifiable {
-            let id: String
-            let text: String
-            let offer: String?
-            let threadId: String
-        }
-
-        /// A step the plan skipped, why, and whether setup has a fix for it.
-        struct Skipped: Equatable, Identifiable {
-            let id: String
-            let text: String
-            let hasFix: Bool
-        }
-
         /// The summary in the engine's words, one line per figure, shown as given (#5577):
         /// "Read 198 of 203 pages"; "Names: 120 People · 40 Places". Empty when the engine sends none.
         let lines: [String]
@@ -72,12 +57,6 @@ extension ActivityDetails {
     /// `source.recipe.download-failure-waits`). Read from the run summary's `download_failed`, which the engine
     /// words and orders; nothing is decided here.
     struct DownloadFailure: Equatable, Identifiable {
-        struct Next: Equatable {
-            let card: String
-            let name: String
-            /// A cloud candidate until pages may leave: shown, never pressed.
-            let needsPermission: Bool
-        }
         let steps: [String]
         let model: String
         let reason: String
@@ -167,5 +146,31 @@ extension ActivityDetails {
         let download = downloadFailures(summary.downloadFailed ?? [])
         let missed = summary.missed.map { MissedOffer(words: $0.words, offer: $0.offer, folderId: $0.folderId, documents: $0.documents) }
         return Summary(lines: summary.lines ?? [], failed: failed, skipped: skipped, downloadFailed: download, missed: missed)
+    }
+}
+
+extension ActivityDetails.Summary {
+    /// A stage's failed pages and its Read Again.
+    struct Failed: Equatable, Identifiable {
+        let id: String
+        let text: String
+        let offer: String?
+        let threadId: String
+    }
+
+    /// A step the plan skipped, why, and whether setup has a fix for it.
+    struct Skipped: Equatable, Identifiable {
+        let id: String
+        let text: String
+        let hasFix: Bool
+    }
+}
+
+extension ActivityDetails.DownloadFailure {
+    struct Next: Equatable {
+        let card: String
+        let name: String
+        /// A cloud candidate until pages may leave: shown, never pressed.
+        let needsPermission: Bool
     }
 }

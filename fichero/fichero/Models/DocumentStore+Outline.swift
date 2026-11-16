@@ -30,7 +30,12 @@ extension DocumentStore {
             revision += 1
             return outline
         } catch {
-            logger.error("outline fetch failed for \(id, privacy: .public): \(error.localizedDescription)")
+            if (error as? DocumentServiceError)?.isNotFound == true {
+                // A restored or stale id: not a failure, the caller falls back (#6479).
+                logger.info("outline: \(id, privacy: .public) is not in the library")
+            } else {
+                logger.error("outline fetch failed for \(id, privacy: .public): \(error.localizedDescription)")
+            }
             return nil
         }
     }

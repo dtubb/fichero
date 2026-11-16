@@ -61,11 +61,13 @@ def _make_mock_watcher(triggers: list | None = None):
 
 @pytest.fixture
 def mock_watcher(client):
-    from fichero_server.api.routes.workflow.triggers import get_file_watcher
+    from fichero_server.api.routes.workflow.triggers import get_file_watcher, get_file_watcher_for_write
     mock = _make_mock_watcher()
     app.dependency_overrides[get_file_watcher] = lambda: mock
+    app.dependency_overrides[get_file_watcher_for_write] = lambda: mock  # the write routes take this one (#6320)
     yield mock
     app.dependency_overrides.pop(get_file_watcher, None)
+    app.dependency_overrides.pop(get_file_watcher_for_write, None)
 
 
 # ---------------------------------------------------------------------------

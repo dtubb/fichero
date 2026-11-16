@@ -19,6 +19,16 @@ enum InspectorReadingEdit {
         }
     }
 
+    /// How tall the reading field is: the space the Inspector's pane gives it, less what shares the pane with it
+    /// (the Save and Cancel row and the section above), never under `minimumFieldHeight`. It follows the container, so a
+    /// short reading no longer sits in a four-line box with its own scrollbar while the pane below is empty (#6449).
+    static let minimumFieldHeight: CGFloat = 120
+    static let reservedBesideField: CGFloat = 96
+
+    static func fieldHeight(container: CGFloat) -> CGFloat {
+        max(minimumFieldHeight, container - reservedBesideField)
+    }
+
     /// The Reader's own message for a typed line: the new text, correcting the reading shown. A segment
     /// no reading counts for yet (`reading` nil) gets a first reading, correcting nothing.
     static func message(documentId: String, segmentId: String, text: String, editing reading: InspectorText.Reading?)
@@ -73,7 +83,8 @@ struct InspectorReadingEditor: View {
         case .vertical:
             #if os(macOS)
             VerticalTextEditor(text: $text)
-                .frame(minWidth: 60, maxWidth: .infinity, minHeight: 180)
+                .frame(minWidth: 60, maxWidth: .infinity)
+                .containerRelativeFrame(.vertical) { height, _ in InspectorReadingEdit.fieldHeight(container: height) }
                 .accessibilityLabel("Reading, top to bottom")
             #else
             horizontalField(rightToLeft: false)
@@ -84,12 +95,16 @@ struct InspectorReadingEditor: View {
     }
 
     private func horizontalField(rightToLeft: Bool) -> some View {
-        TextField("Reading", text: $text, axis: .vertical)
+        TextEditor(text: $text)
             .font(BundledFonts.shared.font(.body))
             .multilineTextAlignment(rightToLeft ? .trailing : .leading)
             .environment(\.layoutDirection, rightToLeft ? .rightToLeft : .leftToRight)
-            .textFieldStyle(.roundedBorder)
-            .lineLimit(1...6)
+            .scrollContentBackground(.hidden)
+            .padding(4)
+            .background(Color(platformColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(.separator))
+            .accessibilityLabel("Reading")
+            .containerRelativeFrame(.vertical) { height, _ in InspectorReadingEdit.fieldHeight(container: height) }
     }
 }
 

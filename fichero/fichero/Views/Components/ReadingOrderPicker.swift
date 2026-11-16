@@ -20,28 +20,42 @@ struct ReadingOrderPicker: View {
     @State var note: String?
     /// Flows from earlier pages (or the project) this page could continue (#5160 residue).
     @State var flowsOnto = ReadingOrderChoice.FlowsOnto()
+    /// The pass a "Delete This Order…" asks to delete, while its confirmation shows.
+    @State private var confirmingPassDelete: String?
 
     private var shown: ReadingOrderSummary? { store.orders.first { $0.id == store.orderId } }
+
+    /// The working pass's orders, then the other passes', each titled with its pass (#6421).
+    private var sections: ReadingOrderChoice.PickerSections {
+        ReadingOrderChoice.sections(
+            store.orders, workingPassId: store.workingPassId,
+            passes: segmentService.map { SegmentStore.shared(for: $0).passes(documentId: documentId) } ?? []
+        )
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
+                // The order's name is a plain heading with its glyph, not a small subtitle menu (#6482).
+                Image(systemName: "list.number").foregroundStyle(.secondary).accessibilityHidden(true)
+                let sections = sections
                 Menu {
-                    ForEach(store.orders) { order in
-                        Button { Task { try? await store.choose(order.id) } } label: {
-                            if order.id == store.orderId {
-                                Label(ReadingOrderChoice.title(order), systemImage: "checkmark")
-                            } else {
-                                Text(ReadingOrderChoice.title(order))
-                            }
+                    ForEach(sections.thisPass) { orderButton($0) }
+                    if !sections.otherPasses.isEmpty {
+                        Section("From other passes") {
+                            ForEach(sections.otherPasses) { orderButton($0) }
                         }
                     }
                     Divider()
                     Button("New Order…") { name = ""; naming = .named }
                     Button("New Flow…") { name = ""; naming = .flow }
                     continueFlowMenu
+                    if let passId = ReadingOrderChoice.deletablePass(shown) {
+                        Divider()
+                        Button("Delete This Order…", role: .destructive) { confirmingPassDelete = passId }
+                    }
                 } label: {
-                    Text(shown.map(ReadingOrderChoice.title) ?? "Order")
+                    Text(sections.title(of: store.orderId) ?? shown.map(ReadingOrderChoice.title) ?? "Order").font(.headline)
                 }
                 .fixedSize()
                 .help(ReadingOrderChoice.help(shown))
@@ -62,6 +76,15 @@ struct ReadingOrderPicker: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .task(id: documentId) { await loadFlowsOnto() }
+        .confirmationDialog("Delete this order and the pass it comes from?",
+                            isPresented: Binding(get: { confirmingPassDelete != nil }, set: { if !$0 { confirmingPassDelete = nil } })) {
+            Button("Delete", role: .destructive) {
+                if let passId = confirmingPassDelete { Task { await deletePass(passId) } }
+                confirmingPassDelete = nil
+            }
+        } message: {
+            Text("The page's boxes and lines in this pass go with it. Edit ▸ Undo brings them back.")
+        }
         .alert(naming?.title ?? "", isPresented: Binding(get: { naming != nil }, set: { if !$0 { naming = nil } })) {
             TextField("Name", text: $name)
             Button("Create") {
@@ -73,6 +96,29 @@ struct ReadingOrderPicker: View {
             Text(naming == .flow
                  ? "A flow starts with this page's segments and can continue onto other pages."
                  : "A new order starts as a copy of this page's order, to rearrange.")
+        }
+    }
+
+    private func orderButton(_ item: ReadingOrderChoice.PickerItem) -> some View {
+        Button { Task { try? await store.choose(item.id) } } label: {
+            if item.id == store.orderId {
+                Label(item.title, systemImage: "checkmark")
+            } else {
+                Text(item.title)
+            }
+        }
+    }
+
+    /// Delete This Order… (a Layout Order): the pass it comes from, through Info › Making's own `segment.pass_delete` (⌘Z).
+    private func deletePass(_ passId: String) async {
+        guard let segmentService, let actionsService = actionStore?.actionsService else { return }
+        do {
+            try await PassDeletion.run(documentId: documentId, passId: passId, actionsService: actionsService,
+                                       store: SegmentStore.shared(for: segmentService), steps: windowSteps)
+            try? await store.reloadOrders()
+            note = nil
+        } catch {
+            note = "The order could not be deleted: \(error.localizedDescription)"
         }
     }
 

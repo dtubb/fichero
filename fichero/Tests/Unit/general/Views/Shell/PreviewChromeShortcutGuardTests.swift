@@ -186,7 +186,8 @@ struct PreviewMarkupRowOrderGuardTests {
         #expect(SegmentVerbs.offered(.all, isEditing: true, selectionCount: 1).contains("previewMarkupDelete"))
         #expect(!SegmentVerbs.offered(.all, isEditing: true, selectionCount: 1).contains("previewMarkupCombine"))
         #expect(SegmentVerbs.offered(.all, isEditing: true, selectionCount: 2).contains("previewMarkupCombine"))
-        #expect(SegmentVerbs.offered(.all, isEditing: false, selectionCount: 2).isEmpty, "reading, a selection is for reading")
+        #expect(SegmentVerbs.offered(.all, isEditing: false, selectionCount: 2) == ["previewMarkupDelete", "previewMarkupCombine"], "no mode: the verbs follow the selection (#6413)")
+        #expect(SegmentVerbs.offered(.all, isEditing: false, selectionCount: 0).isEmpty, "nothing selected, no tool: nothing offered")
     }
 }
 
@@ -256,7 +257,7 @@ struct PreviewMarkupSelectionVerbGuardTests {
     @Test("selection marks snap to one strip per line, from either selection seam")
     func selectionResolvesLikeHighlight() throws {
         let canvas = try source(
-            "Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+Annotations.swift"
+            "Views/Preview/ImageViewer/Regions/Zoomable/ZoomableImagePreviewMac+Annotations.swift"
         )
         // Region selection first, reader text selection second — the two
         // seams a highlight already knew about.
@@ -276,8 +277,8 @@ struct PreviewMarkupSelectionVerbGuardTests {
 /// mark the markup row drew saved correctly and rendered invisible.
 struct PreviewWhatToShowMenuGuardTests {
     /// Five since 2026-09-27 (Q2, ruled: the switches are LAYERS -- the image on or off, the overlays
-    /// on or off; af98d696b added Show Image).
-    @Test("the menu offers exactly the five display switches: the image and the four overlays")
+    /// on or off; af98d696b added Show Image). Seven now: Show Bounding Box and Show Order Numbers.
+    @Test("the menu offers exactly the seven display switches: the image and the six overlays")
     func fiveSwitchesByName() throws {
         let toolbar = try String(
             contentsOf: AppSource.root().appendingPathComponent(
@@ -285,12 +286,13 @@ struct PreviewWhatToShowMenuGuardTests {
             ), encoding: .utf8
         )
         for title in [
-            "Show Image", "Show Annotations", "Show Word Bounding Boxes", "Show Regions", "Show Text Inline"
+            "Show Image", "Show Annotations", "Show Word Bounding Boxes", "Show Regions", "Show Text Inline",
+            "Show Bounding Box", "Show Order Numbers"
         ] {
             #expect(toolbar.contains("Toggle(\"\(title)\", isOn:"), "missing \(title)")
         }
         let toggles = toolbar.components(separatedBy: "Toggle(\"Show ").count - 1
-        #expect(toggles == 5, "the what-to-show menu grew or lost a switch (\(toggles))")
+        #expect(toggles == 7, "the what-to-show menu grew or lost a switch (\(toggles))")
     }
 
     @Test("annotation overlays default to ON")
@@ -339,7 +341,7 @@ struct JoinIsTheOneNameGuardTests {
     private static let files = [
         "Views/Shell/PaneHead/PreviewMarkupToolsRow.swift",
         "Views/Inspector/Artifacts/ArtifactPanel+Regions.swift",
-        "Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+Regions.swift",
+        "Views/Preview/ImageViewer/Regions/Zoomable/ZoomableImagePreviewMac+Regions.swift",
         "Views/Reader/ReaderToolbar.swift"
     ]
 
@@ -384,7 +386,7 @@ struct DocumentOverlayWiringGuardTests {
         #expect(overlays.contains("drawsBoxes: false"))
         #expect(overlays.contains("drawsGeometricMarks: false"))
         #expect(overlays.contains("drawsInlineText: false"))
-        let regions = try source("Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+Regions.swift")
+        let regions = try source("Views/Preview/ImageViewer/Regions/Zoomable/ZoomableImagePreviewMac+Regions.swift")
         #expect(regions.contains("drawsSelection: false"))
         let tracking = try source("Views/Preview/ImageViewer/CursorTracking/ImageWithCursorTrackingMac.swift")
         #expect(tracking.contains("syncDocumentOverlay(documentOverlay, in: trackingView)"))

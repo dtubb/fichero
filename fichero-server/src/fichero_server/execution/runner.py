@@ -158,6 +158,16 @@ _RUNNING_WORKFLOWS_LIMIT = 100
 _EXITED_WORKFLOW_STATUSES = {"completed", "failed", "cancelled"}
 
 
+def refused_event(thread_id: str, workflow_id: str) -> Any:
+    """The single `refused` stream event of a run paused at a cloud spend cap (`ai.cloud.hand-run-refused-before-it-starts`, #6349):
+    `data` is the typed refusal (words, figures, fixes) the engine kept when it asked the run to pause; None for any other pause."""
+    from fichero_server.api.routes.workflow_execution.schemas import SSEEvent  # noqa: PLC0415
+    from fichero_server.llm import spend  # noqa: PLC0415
+
+    refusal = (spend.stopped_at_cap([thread_id]) or {}).get("refusal")
+    return SSEEvent(event="refused", thread_id=thread_id, workflow_id=workflow_id, data=refusal) if refusal else None
+
+
 class WorkflowEventHub:
     """Fan-out pub/sub for a single workflow thread's SSE events (#2546).
 
@@ -467,7 +477,7 @@ def _is_internal_langchain_node(name: str) -> bool:
     return name.startswith(_INTERNAL_LANGCHAIN_NAME_PREFIXES)
 
 
-def _typed_failure(exc: BaseException | None) -> dict[str, str] | None:
+def _typed_failure(exc: BaseException | None) -> dict[str, Any] | None:
     """A failure's category from the exception the runtime raised, never from its message
     (`runtime.errors-are-typed`, #5353): memory, unavailable in this build, a model that is not here,
     egress refused, quota. None for an exception with no type of its own (the message words decide then)."""
@@ -484,9 +494,20 @@ def _typed_failure(exc: BaseException | None) -> dict[str, str] | None:
     if isinstance(exc, ProviderQuotaError):
         return {"category": "quota", "message": "Provider quota or rate limit reached.",
                 "action": "Top up account or switch provider/model."}
+    from fichero_server.llm.spend import CloudSpendRefusedError
+
+    if isinstance(exc, CloudSpendRefusedError):  # a cap refused the call (`ai.cloud.one-typed-refusal`): the fixes ride along
+        out: dict[str, Any] = {"category": "spend_refused", "message": "A cloud spend cap refused this call.",
+                               "action": "Raise the cap, or run past it once."}
+        if exc.refusal is not None:
+            out["refusal"] = exc.refusal.model_dump()
+        return out
     if isinstance(exc, LocalOnlyViolationError):
-        return {"category": "egress_refused", "message": "This project keeps its pages on this Mac.",
-                "action": "Allow cloud models for the project (one click, recorded), or choose a model on this Mac."}
+        out = {"category": "egress_refused", "message": "This project keeps its pages on this Mac.",
+               "action": "Allow cloud models for the project (one click, recorded), or choose a model on this Mac."}
+        if getattr(exc, "refusal", None) is not None:
+            out["refusal"] = exc.refusal.model_dump()
+        return out
     if isinstance(exc, (MemoryShortError, LocalModelMemoryUnavailableError)):
         return {"category": "memory", "message": "This Mac does not have the memory for this model now.",
                 "action": "Close other work, or choose a smaller model."}
@@ -499,12 +520,37 @@ def _typed_failure(exc: BaseException | None) -> dict[str, str] | None:
     return None
 
 
-def _classify_provider_error(error_text: str, exc: BaseException | None = None) -> dict[str, str]:
+def _classify_provider_error(error_text: str, exc: BaseException | None = None) -> dict[str, Any]:
     """Classify provider-facing failures into stable UI categories (#732). The exception's own type decides
     first (`_typed_failure`); its message words only when it has none."""
     typed = _typed_failure(exc)
     if typed is not None:
-        return typed
+        return _with_kind(typed, exc, error_text)
+    return _with_kind(_classify_by_words(error_text), exc, error_text)
+
+
+def _with_kind(category: dict[str, Any], exc: BaseException | None, error_text: str) -> dict[str, Any]:
+    """The legacy category, plus the `kind` the one table (`llm/failure.classify`) gives the same failure, so a page's reason
+    and the run's agree."""
+    from fichero_server.llm.failure import classify
+
+    return {**category, "kind": classify(exc, error_text or "").kind}
+
+
+def _run_failure(exc: BaseException | None, text: str, workflow: Any, *, done: int | None = None, total: int | None = None) -> dict[str, Any]:
+    """The failure a run that ended failed carries (`llm/failure.classify`), as the JSON the run row, the status route, the jobs
+    list and the stream serve. Never raises: a run's end must not fail over its explanation."""
+    from fichero_server.llm.failure import classify
+
+    try:
+        return classify(exc, text, step=getattr(workflow, "name", None), provider=getattr(workflow, "provider", None),
+                        model=getattr(workflow, "model", None), done=done, total=total).model_dump(mode="json")
+    except Exception:  # noqa: BLE001
+        logger.exception("could not classify the run's failure")
+        return {}
+
+
+def _classify_by_words(error_text: str) -> dict[str, Any]:
     text = (error_text or "").lower()
 
     # Before any provider category: failures that are about the FILES, not
@@ -1198,10 +1244,16 @@ async def _run_workflow_in_background(
 ) -> None:
     """Run a workflow in the background (see `_run_workflow_body`), every model call it makes for this project: the gate reads
     the project's own rule (`ai.where.egress-at-every-call`, #5368). The workflow bar, a recipe, a schedule and MCP all run here."""
+    from fichero_server.llm import run_overrides  # noqa: PLC0415
     from fichero_server.recipes.places import bound_project  # noqa: PLC0415
 
-    with bound_project(db.path.parent if hasattr(db, "path") else None):
-        await _run_workflow_body(thread_id, workflow, request, db, resume_input=resume_input, is_resume=is_resume)
+    # "Allow cloud once" / "run past the cap once": this run's calls only, kept nowhere else, gone when the run ends or pauses.
+    run_overrides.set_for_run(thread_id, allow_cloud=request.allow_cloud_once, over_cap=request.over_cap_once)
+    try:
+        with bound_project(db.path.parent if hasattr(db, "path") else None):
+            await _run_workflow_body(thread_id, workflow, request, db, resume_input=resume_input, is_resume=is_resume)
+    finally:
+        run_overrides.clear(thread_id)
 
 
 async def _run_workflow_body(
@@ -1519,6 +1571,21 @@ async def _run_workflow_body(
                 data={"reason": reason, **({"review": review} if review else {})},
             )
         )
+        if refused := refused_event(thread_id, workflow_id):  # paused at a cap: the typed refusal, so the app need not read a sentence
+            event_queue.put(refused)
+        paused_failure = None
+        if refused is not None:
+            from fichero_server.llm.failure import from_refusal
+
+            paused_failure = from_refusal(refused.data, step=workflow.name).model_dump(mode="json")
+        else:
+            from fichero_server.llm import retry as llm_retry  # noqa: PLC0415
+
+            if limited := llm_retry.paused_for_rate_limit([thread_id]):  # paused because its provider is rate-limiting
+                from fichero_server.llm.failure import _build  # noqa: PLC0415
+
+                paused_failure = _build("rate-limited", None, None, "", step=workflow.name,
+                                        provider=limited["provider"]).model_dump(mode="json")
         activity_tracker.workflow_paused(
             workflow_id=workflow_id,
             thread_id=thread_id,
@@ -1531,6 +1598,7 @@ async def _run_workflow_body(
             execution_log=execution_log_lines.text(),
             progress_timeline=progress_timeline,
             run_usage=_run_usage_record(),
+            failure=paused_failure,
         )
 
     peak_memory.start()
@@ -2654,8 +2722,10 @@ async def _run_workflow_body(
             complete_data["empty_output_reason"] = completion_metadata.get(
                 "empty_output_reason", ""
             )
+        _failure = _run_failure(None, _empty_reason, workflow) if _all_files_failed else None
         if _all_files_failed:
             complete_data["error"] = _empty_reason
+            complete_data["failure"] = _failure
         event_queue.put(
             SSEEvent(
                 event="complete",
@@ -2677,6 +2747,7 @@ async def _run_workflow_body(
             completed_at=datetime.now(timezone.utc),
             run_usage=_run_usage_record(),
             partial=None if _all_files_failed else partial_words(final_state),
+            failure=_failure,
         )
 
     except WorkflowCancelled:
@@ -2724,6 +2795,7 @@ async def _run_workflow_body(
 
         # #2612: surface the underlying provider/auth/quota message in Activity.
         failure_message, failure_cls = _systemic_failure_message(e)
+        run_failure = _run_failure(e, str(e), workflow, done=max(e.total_count - e.error_count, 0), total=e.total_count)
 
         # Log activity: workflow failed (systemic error)
         activity_tracker.workflow_failed(
@@ -2752,6 +2824,7 @@ async def _run_workflow_body(
                     "error_category": failure_cls["category"],
                     "error_message": failure_cls["message"],
                     "error_action": failure_cls["action"],
+                    "failure": run_failure,
                 },
             )
         )
@@ -2768,12 +2841,13 @@ async def _run_workflow_body(
             error=failure_message,
             completed_at=datetime.now(timezone.utc),
             run_usage=_run_usage_record(),
+            failure=run_failure,
         )
         # #4315: failed runs revert their processing documents to pending.
         await _finalize_documents("failed", error=str(e)[:500])
 
     except Exception as e:
-        logger.exception(f"Background workflow error for {workflow_id}")
+        logger.exception("Background workflow error for %s (run %s)", workflow_id, thread_id)
         state["status"] = "failed"
         state["error"] = str(e)
 
@@ -2783,6 +2857,7 @@ async def _run_workflow_body(
         ).total_seconds() * 1000
 
         await log_execution(f"ERROR: {str(e)}")
+        run_failure = _run_failure(e, str(e), workflow)
 
         # Log activity: workflow failed
         activity_tracker.workflow_failed(
@@ -2804,6 +2879,7 @@ async def _run_workflow_body(
                 data={
                     "error": str(e),
                     "error_category": _classify_provider_error(str(e), e)["category"],
+                    "failure": run_failure,
                 },
             )
         )
@@ -2821,6 +2897,7 @@ async def _run_workflow_body(
             error=str(e),
             completed_at=datetime.now(timezone.utc),
             run_usage=_run_usage_record(),
+            failure=run_failure,
         )
         # #4315: failed runs revert their processing documents to pending.
         await _finalize_documents("failed", error=str(e)[:500])

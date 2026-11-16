@@ -365,6 +365,58 @@ class TestDocumentViewRoute:
         assert pages[1]["has_content"] is False
         assert transcript_text(pages) == "Page 1\nonly text"
 
+    def test_a_page_level_reading_with_no_segment_fills_an_empty_page(self):
+        """#6470: a Regularised reading stored on the page itself (segment_id None) is the page's
+        shown reading; the Reader said "No transcription yet" because only line-derived text counted."""
+        from fichero_server.api.routes.system.views import with_page_level_readings
+        from fichero_server.models import ContentRepresentation, SourceAnchor
+
+        pages = [
+            {"id": "a", "number": 1, "content": "", "has_content": False},
+            {"id": "b", "number": 2, "content": "from lines", "has_content": True},
+            {"id": "c", "number": 3, "content": "", "has_content": False},
+        ]
+        def reading(doc, text, level, **kw):
+            return ContentRepresentation(document_id=doc, segment_id=None, kind="transcription",
+                                         content=text, level=level, **kw,
+                                         source_anchor=SourceAnchor(document_id=doc, granularity="page"))
+        readings = [
+            reading("a", "regularised page", "regularised"),
+            reading("a", "as written page", "as_written"),
+            reading("b", "ignored", "regularised"),
+            reading("c", "   ", "regularised"),
+        ]
+        shown = with_page_level_readings(pages, readings)
+        assert shown[0]["content"] == "as written page"
+        assert shown[0]["has_content"] is True
+        assert shown[0]["reading_level"] == "as_written"
+        assert shown[1]["content"] == "from lines"
+        assert shown[2]["has_content"] is False
+        only_regularised = with_page_level_readings(pages[:1], readings[:1])
+        assert only_regularised[0]["content"] == "regularised page"
+        assert only_regularised[0]["reading_level"] == "regularised"
+
+    def test_the_document_view_shows_a_pages_own_reading_without_a_line_map(self, client, db):
+        """`reader.content.a-page-shows-its-own-reading` (#6470): the wiring, not just the helper."""
+        from fichero_server.models import ContentRepresentation, SourceAnchor
+
+        doc = _make_document(doc_id="own-doc", name="Deed.pdf", doc_type=DocType.file, file_type=FileType.pdf)
+        db.save(doc)
+        for number in (1, 2):
+            db.save(_make_document(doc_id=f"own-p{number}", name=f"Page {number}", doc_type=DocType.page,
+                                   parent_id=doc.id, sequence=number))
+        db.save(ContentRepresentation(
+            document_id="own-p1", segment_id=None, kind="transcription", content="regularised page one",
+            level="regularised", source_anchor=SourceAnchor(document_id="own-p1", granularity="page")))
+        response = client.get(f"/view/document/{doc.id}")
+        pages = json.loads(re.search(r"const documentData = (\{.*?\});\n", response.text, re.S).group(1))["pages"]
+        assert pages[0]["content"] == "regularised page one"
+        assert pages[0]["has_content"] is True
+        assert pages[0]["reading_level"] == "regularised"
+        assert "lines" not in pages[0]
+        assert pages[1]["has_content"] is False
+        assert "reading_level" not in pages[1]
+
     def test_transcript_pages_of_leaf_document_is_its_own_page(self):
         from fichero_server.api.routes.system.views import transcript_pages
 
@@ -1009,6 +1061,21 @@ class TestArtifactView:
         assert result[0]["name"] == "Extract Accounts"
         assert result[0]["has_content"] is True
         assert result[0]["table"]["headers"] == ["x"]
+
+    def test_parent_anchored_artifact_does_not_crash_transcript_text(self, client, db):
+        """#6578: a document-level artifact (no listed page) gave an entry with no
+        "number" and the view 500'd with KeyError in transcript_text."""
+        from fichero_server.api.routes.system.views import transcript_text
+        from fichero_server.models import Artifact, DocType
+        doc = _make_document(doc_id="av-doc3", name="C.pdf", doc_type=DocType.file)
+        db.save(doc)
+        artifact = Artifact(document_id=doc.id, artifact_type="regularised", content="plain text")
+        db.save(artifact)
+        response = client.get(f"/view/document/{doc.id}", params={"artifact_id": artifact.id})
+        assert response.status_code == 200
+        assert "plain text" in response.text
+        assert transcript_text([{"id": "x", "content": "t", "has_content": True}]) == "Page 1\nt"
+        assert transcript_text([{"number": 3, "content": "t", "has_content": True}]) == "Page 3\nt"
 
     def test_route_404s_on_unknown_artifact(self, client, db):
         from fichero_server.models import DocType

@@ -76,7 +76,7 @@ def _pair(client) -> str:
     code = client.post("/api/pair/code").json()["code"]
     paired = client.post("/api/machines/pair", json={"address": "far-mac.tail1234.ts.net", "code": code})
     assert paired.status_code == 200, paired.text
-    assert [m["id"] for m in client.get("/api/machines").json()] == [paired.json()["id"]]
+    assert [m["id"] for m in client.get("/api/machines").json()["items"]] == [paired.json()["id"]]
     assert paired.json()["url"] == "https://far-mac.tail1234.ts.net" and "token" not in paired.json()
     return paired.json()["id"]
 

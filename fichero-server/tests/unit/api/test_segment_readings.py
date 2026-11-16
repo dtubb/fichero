@@ -266,10 +266,9 @@ class TestReadingsAreWritten:
         # noise: an apparatus has to say who read each way.
         assert {"maria", "juan"} <= authors
         assert "qwen" in authors, "the machine's own reading lost its author"
-        # A provisional reading's author is the run that produced it -- the only
-        # author that text has.
-        provisional = [item for item in items if item["provisional"]]
-        assert [item["created_by"] for item in provisional] == ["qwen"]
+        # The provisional twin of the machine's stored reading is not listed a second time
+        # (`source.recipe.one-reading-a-line`, #6085): the stored one carries the author.
+        assert [item for item in items if item["provisional"]] == []
 
     def test_a_written_and_read_pair_is_joined_and_can_be_undone(self, db, client):
         """`source.reading.written-read-pair` -- a different relation from
@@ -460,22 +459,18 @@ class TestTheReadSeamAnswersFromBothStores:
         assert items[0]["derived_from_artifact_id"] == artifact.id
         assert items[0]["provenance_kind"] == ProvenanceKind.workflow.value
 
-    def test_a_converted_line_keeps_its_provisional_reading(self, db, client):
+    def test_a_converted_line_lists_its_reading_once(self, db, client):
         doc = _make_doc(db)
         artifact = _artifact(db, doc)
         _convert(client, artifact.id)
         segment = _converted_segments(db, artifact.id)[2]
 
         items = client.get(f"/api/segments/{segment.id}/readings").json()["items"]
-        provisional = [i for i in items if i["provisional"]]
-        # The provisional reading is STILL offered after conversion -- the seam
-        # does not stop answering from the block just because a record exists.
-        assert [i["content"] for i in provisional] == ["nombre"]
-        # And conversion's own recorded reading says the same words.
-        recorded = [i for i in items if not i["provisional"]]
-        assert [i["content"] for i in recorded] == ["nombre"]
+        # One listing (`source.recipe.one-reading-a-line`, #6085): conversion's recorded reading says
+        # the same words from the same artifact, so its provisional twin is not listed beside it.
+        assert [(i["provisional"], i["content"]) for i in items] == [(False, "nombre")]
 
-    def test_a_real_reading_and_a_provisional_one_stand_side_by_side(self, db, client):
+    def test_a_stored_reading_and_its_provisional_twin_are_listed_once(self, db, client):
         doc = _make_doc(db)
         artifact = _artifact(db, doc)
         _convert(client, artifact.id)
@@ -483,10 +478,10 @@ class TestTheReadSeamAnswersFromBothStores:
         _write(db, segment, content="nombre (corrected)")
 
         payload = client.get(f"/api/segments/{segment.id}/readings").json()
-        # Three: conversion's machine reading, the person's correction, and the
-        # provisional one still read out of the block.
-        assert payload["count"] == 3
-        assert sorted(i["provisional"] for i in payload["items"]) == [False, False, True]
+        # Two: conversion's machine reading and the person's correction. The provisional reading out
+        # of the block says what the stored machine reading says, so it is not listed a second time.
+        assert payload["count"] == 2
+        assert [i["provisional"] for i in payload["items"]] == [False, False]
         # And the counting answer rides on the same read, so no client renders
         # a machine's guess unlabelled while it fetches the answer separately.
         answer = payload["counting"]["transcription"]

@@ -120,13 +120,9 @@ class StorageService {
     }
 
     convenience init(apiClient: APIClient) {
-        let libraryPath = apiClient.currentLibraryPath ?? ""
-        let ficheroClient = FicheroClient(
-            baseURL: EngineConfig.host,
-            libraryPath: libraryPath,
-            transportMode: EngineConfig.transportMode
-        )
-        self.init(ficheroClient: ficheroClient)
+        // Share the library's own client (a reference type), never a new one on the app-wide host: a library pinned to
+        // a paired Mac keeps dialling that Mac (`sharing.guest.library-pinned-to-its-host`, #6360).
+        self.init(ficheroClient: apiClient.client)
     }
 
     // MARK: - Image Loading
@@ -371,7 +367,11 @@ class StorageService {
     /// A flight is for one document at one epoch: a view reloading after an invalidate starts a fresh fetch instead of joining
     /// the old one and showing the old picture (## 1049).
     nonisolated static func flightKey(_ docId: String, _ epoch: Int) -> String { "\(docId)#\(epoch)" }
+}
 
+// MARK: - Cache, decoding and URLs
+
+@MainActor extension StorageService {
     /// Evict a document's cached images — call when the user knows a
     /// thumbnail has changed (e.g., after a rebuild/reindex).
     func invalidateImageCache(for docId: String) {

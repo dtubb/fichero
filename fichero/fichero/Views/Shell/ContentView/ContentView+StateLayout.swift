@@ -164,7 +164,8 @@ extension ContentView {
     }
 
     var effectiveShowInspectorSidebar: Bool {
-        showInspectorSidebar && !shellCollapsePolicy.collapseInspector
+        // Focus hides the Inspector without changing the window's choice, so leaving it brings it back.
+        showInspectorSidebar && !shellCollapsePolicy.collapseInspector && windowState.focusedPaneLeaf == nil
     }
 
     var shouldUseSplittablePane: Bool {
@@ -183,6 +184,11 @@ extension ContentView {
         inspectorPlacement != .sheet
     }
 
+    /// Where this window's Show/Hide Inspector button sits (#6561).
+    var inspectorToggleHome: InspectorToggleHome {
+        InspectorToggleHome.current(usesDockedInspector: usesDockedInspector)
+    }
+
     var paneAwareDetailMinWidth: Double {
         guard supportsReadingWorkspace else {
             return ContentView.contentMinWidth
@@ -198,8 +204,21 @@ extension ContentView {
                 ? max(ContentView.contentListMinWidth, max(ContentView.pdfCanvasMinWidth, 300))
                 : max(ContentView.pdfCanvasMinWidth, 300)
         case .widescreen:
-            return adaptiveWidescreenPanePlan.minimumWidth
+            // The FLOOR the panes can shed to, never the plan for the measured width: this value is the window's
+            // minimum width, and a minimum that follows the measured width changes the width it is measured from, so
+            // the split view's column size moved during its own constraints pass (#6447, SIGABRT).
+            let visibility = paneVisibility
+            return Self.widescreenDetailMinWidth(
+                grid: visibility.grid, canvas: visibility.canvas, reading: visibility.reading, chat: showChatPane
+            )
         }
+    }
+
+    /// The floor the chosen panes can shed to: the plan for width 0. It takes no width, so it cannot follow one (#6447).
+    static func widescreenDetailMinWidth(grid: Bool, canvas: Bool, reading: Bool, chat: Bool) -> Double {
+        WidescreenPanePlan.make(
+            showDocumentGrid: grid, showDocumentCanvas: canvas, showReadingPane: reading, showChatPane: chat, availableWidth: 0
+        ).minimumWidth
     }
 
     static func adaptiveWidescreenAvailableWidth(
@@ -244,7 +263,6 @@ extension ContentView {
         return 0
         #else
         return Self.shellWindowMinWidth(
-            windowWidth: measuredWindowWidth,
             horizontalSizeClass: horizontalSizeClass,
             sidebarVisible: showSidebar,
             inspectorVisible: showInspectorSidebar,

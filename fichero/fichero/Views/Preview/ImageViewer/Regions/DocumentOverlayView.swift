@@ -16,6 +16,7 @@ final class DocumentOverlayView: NSView {
         didSet {
             guard overlay != oldValue else { return }
             needsDisplay = true
+            InteractionProfile.lap(.regionPress, "overlay")
             setAccessibilityIdentifier(overlay.documentId.map { SegmentBoxAccessibility.pagePrefix + $0 })
         }
     }
@@ -24,6 +25,8 @@ final class DocumentOverlayView: NSView {
     private var hovered: CGRect? {
         didSet { if hovered != oldValue { needsDisplay = true } }
     }
+    /// The box under the pointer: its region's hue colours the hover and lights its region (#6422).
+    private var hoveredBox: DocumentOverlay.Box?
 
     override var isFlipped: Bool { false }  // the image view's own space: y grows upward
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
@@ -95,18 +98,22 @@ final class DocumentOverlayView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        hovered = boxRect(at: point)
+        let found = box(at: point)
+        hoveredBox = found?.box
+        hovered = found?.rect
     }
 
-    override func mouseExited(with event: NSEvent) { hovered = nil }
+    override func mouseExited(with event: NSEvent) {
+        hoveredBox = nil
+        hovered = nil
+    }
 
     /// The smallest box containing `point` -- the same "smallest wins" the click path uses, and the hover
     /// label's (`DocumentOverlay.smallestContaining`, #5411).
-    private func boxRect(at point: CGPoint) -> CGRect? {
+    private func box(at point: CGPoint) -> (box: DocumentOverlay.Box, rect: CGRect)? {
         guard let imageRect else { return nil }
-        let rects = overlay.boxes(in: CGRect(origin: point, size: CGSize(width: 0.001, height: 0.001)),
-                                  imageRect: imageRect).map(\.rect)
-        return DocumentOverlay.smallestContaining(point, in: rects).map { rects[$0] }
+        let found = overlay.boxes(in: CGRect(origin: point, size: CGSize(width: 0.001, height: 0.001)), imageRect: imageRect)
+        return DocumentOverlay.smallestContaining(point, in: found.map(\.rect)).map { found[$0] }
     }
 
     /// The ONE rule for where the image sits in its view, the same one the pointer path uses.
@@ -187,8 +194,13 @@ final class DocumentOverlayView: NSView {
         drawWashes(in: dirtyRect, imageRect: imageRect, scale: scale, emphasized: emphasized)  // BEHIND the boxes
         drawMarks(in: dirtyRect, imageRect: imageRect, scale: scale)
         drawBoxes(in: dirtyRect, imageRect: imageRect, scale: scale, line: line)
+        if overlay.showsOrderNumbers {
+            drawOrderArrows(imageRect: imageRect, scale: scale)
+            drawOrderNumbers(in: dirtyRect, imageRect: imageRect, scale: scale)
+        }
         drawMarquees(in: dirtyRect, imageRect: imageRect, scale: scale)
         drawSelection(in: dirtyRect, imageRect: imageRect, scale: scale, line: line, emphasized: emphasized)
+        InteractionProfile.lap(.regionPress, "draw")
     }
 
     private func drawWashes(in dirtyRect: NSRect, imageRect: CGRect, scale: CGFloat, emphasized: Bool) {
@@ -200,6 +212,15 @@ final class DocumentOverlayView: NSView {
         for rect in DocumentOverlay.rects(overlay.linkedWashes, in: dirtyRect, imageRect: imageRect) {
             NSBezierPath(roundedRect: rect, xRadius: 2 / scale, yRadius: 2 / scale).fill()
         }
+    }
+
+    /// No reading yet: hollow and dashed, never hidden, so it can be seen, picked and typed (also the faint box beside a polygon).
+    private func drawHollow(_ rect: CGRect, colour: NSColor, width: CGFloat, dash: [CGFloat]) {
+        let hollow = NSBezierPath(rect: rect)
+        colour.setStroke()
+        hollow.lineWidth = width
+        hollow.setLineDash(dash, count: 2, phase: 0)
+        hollow.stroke()
     }
 
     /// Every level at once, each inside its parent and lighter than it (ruled 2026-10-05, hierarchy A, #5426):
@@ -230,6 +251,10 @@ final class DocumentOverlayView: NSView {
                 && DocumentOverlay.setsTextInline(kind: box.kind, finest: finest)
             // A segment with its own shapes is drawn AS them -- the outline its file drew, the baseline
             // under its ink -- never as the box around them (#5163's residue).
+            if overlay.showsBoundingBoxes, !box.shapes.isEmpty {
+                // The box beside the polygon: faint and dashed so it never reads as the shape itself.
+                drawHollow(rect, colour: colour(0.5), width: line, dash: [3 / scale, 3 / scale])
+            }
             if !box.shapes.isEmpty, !setsText {
                 ShapeDrawing.draw(box.shapes, imageRect: imageRect, scale: scale, look: .init(
                     line: width,
@@ -241,12 +266,7 @@ final class DocumentOverlayView: NSView {
                 continue
             }
             if box.noReading {
-                // No reading yet: hollow and dashed, never hidden, so it can be seen, picked and typed.
-                let hollow = NSBezierPath(rect: rect)
-                colour(1).setStroke()
-                hollow.lineWidth = width
-                hollow.setLineDash([4 / scale, 3 / scale], count: 2, phase: 0)
-                hollow.stroke()
+                drawHollow(rect, colour: colour(1), width: width, dash: [4 / scale, 3 / scale])
                 continue
             }
             let path = NSBezierPath(rect: rect)
@@ -265,31 +285,60 @@ final class DocumentOverlayView: NSView {
         }
     }
 
-    /// The hovered box: its wash and outline -- a fill only here and on selection, never at rest (#5207).
-    private func drawHover(_ rect: CGRect, line: CGFloat) {
+    /// Each line's reading number, small, at its box's top-left, in its region's colour on a plate so it reads on the scan.
+    private func drawOrderNumbers(in dirtyRect: NSRect, imageRect: CGRect, scale: CGFloat) {
+        // The context is scaled to the image; the size is divided back so the number stays caption-sized at any zoom.
+        let base = NSFont.preferredFont(forTextStyle: .caption1)
+        let font = NSFont(descriptor: base.fontDescriptor, size: base.pointSize / scale) ?? base
+        for (box, rect) in overlay.boxes(in: dirtyRect, imageRect: imageRect) {
+            guard let number = box.orderNumber else { continue }
+            let text = "\(number)" as NSString
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: font, .foregroundColor: NSColor.labelColor
+            ]
+            let size = text.size(withAttributes: attributes)
+            let plate = NSRect(x: rect.minX, y: rect.minY, width: size.width + 6 / scale, height: size.height)
+            NSColor.textBackgroundColor.withAlphaComponent(0.8).setFill()
+            NSBezierPath(roundedRect: plate, xRadius: 3 / scale, yRadius: 3 / scale).fill()
+            text.draw(at: NSPoint(x: plate.minX + 3 / scale, y: plate.minY), withAttributes: attributes)
+        }
+    }
+
+    /// The hovered box: its wash and outline in its region's hue (#6422) -- a fill only here and on selection, never at
+    /// rest (#5207).
+    private func drawHover(_ rect: CGRect, tone: RegionColours.Tone?, line: CGFloat) {
         let path = NSBezierPath(rect: rect)
-        SelectionStyle.hoverBase.withAlphaComponent(SelectionStyle.hoverWashAlpha).setFill()
+        let colour = SelectionStyle.hover(tone)
+        colour.withAlphaComponent(SelectionStyle.hoverWashAlpha).setFill()
         path.fill()
-        SelectionStyle.hoverBase.withAlphaComponent(SelectionStyle.hoverAlpha).setStroke()
+        colour.withAlphaComponent(SelectionStyle.hoverAlpha).setStroke()
         path.lineWidth = line
         path.stroke()
     }
+}
 
+// MARK: - Drawing the selection and its handles
+
+extension DocumentOverlayView {
     /// The hover, the Inspector's selected annotation, and the selected boxes (with their handles
     /// while editing) -- all in the selection's own style.
     private func drawSelection(
         in dirtyRect: NSRect, imageRect: CGRect, scale: CGFloat, line: CGFloat, emphasized: Bool
     ) {
         let selected = overlay.selected(in: dirtyRect, imageRect: imageRect)
+        let tones = overlay.selectedTones(in: dirtyRect, imageRect: imageRect)
+        // The region a hovered or selected line sits in lights with it, in its hue (#6422).
+        drawLitRegions(lighting: hoveredBox?.segmentId, in: dirtyRect, imageRect: imageRect, line: line)
         if let hovered, hovered.intersects(dirtyRect), !selected.contains(hovered) {
-            drawHover(hovered, line: line)
+            drawHover(hovered, tone: hoveredBox?.tone, line: line)
         }
+        // The Inspector's selected annotation and a box with no region: the selection's own accent.
         let stroke = SelectionStyle.stroke(emphasized: emphasized)
         let wash = SelectionStyle.washBase(emphasized: emphasized)
             .withAlphaComponent(SelectionStyle.washAlpha(emphasized: emphasized))
         // In Edit Segments the selection is Preview's marquee (#5215): dashed, with eight handles.
         let dashed = overlay.isEditing
-        let outline = { (rect: CGRect) in
+        let outline = { (rect: CGRect, stroke: NSColor, wash: NSColor) in
             let path = NSBezierPath(rect: rect)
             wash.setFill()
             path.fill()
@@ -301,12 +350,16 @@ final class DocumentOverlayView: NSView {
         // The Inspector's selected annotation: the same selection look as a selected box.
         if let bbox = overlay.selectedMark,
            let rect = DocumentBoxMapping.rect(normalized: bbox, imageRect: imageRect), rect.intersects(dirtyRect) {
-            outline(rect)
+            outline(rect, stroke, wash)
         }
         // Handles only for ONE selected box, as in Preview (#5236): with several, each is marked and the
         // set moves together; 27 boxes of 8 handles each was a wall of dots.
         let handles = overlay.isEditing && selected.count == 1
         for (index, rect) in selected.enumerated() {
+            // Each selected box in its region's hue (#6422).
+            let tone = tones.indices.contains(index) ? tones[index] : nil
+            let stroke = SelectionStyle.stroke(tone, emphasized: emphasized)
+            let wash = SelectionStyle.wash(tone, emphasized: emphasized)
             let shapes = overlay.selectedShapes.indices.contains(index) ? overlay.selectedShapes[index] : []
             if !shapes.isEmpty {
                 // Outlined as itself; in Edit Segments, a handle per point and one per side (Reshape).
@@ -326,43 +379,10 @@ final class DocumentOverlayView: NSView {
                 }
                 continue
             }
-            outline(rect)
+            outline(rect, stroke, wash)
             guard handles else { continue }  // handles only in Edit Segments, on a single selection
             drawFrameHandles(around: rect, scale: scale, line: line, stroke: stroke)
         }
-    }
-
-    /// The eight resize handles of a selected box or shape frame, as Preview draws them.
-    private func drawFrameHandles(around rect: CGRect, scale: CGFloat, line: CGFloat, stroke: NSColor) {
-        for handle in SelectionStyle.handleRects(around: rect, side: SelectionStyle.handleSide / scale) {
-            let square = NSBezierPath(rect: handle)
-            SelectionStyle.handleFill.setFill()
-            square.fill()
-            stroke.setStroke()
-            square.lineWidth = line
-            square.stroke()
-        }
-    }
-}
-
-/// A drawn segment box as an accessibility element (#5192): the image overlay and a PDF page make
-/// them the same way, so a test or a script asks both surfaces one question.
-enum SegmentBoxAccessibility {
-    static let identifierPrefix = "SegmentBox-"
-    /// The view a page's boxes are drawn in, named for its page (#5193).
-    static let pagePrefix = "SegmentPage-"
-
-    static func element(
-        segmentId: String, kind: String, frame: CGRect, in parent: NSView, selected: Bool
-    ) -> NSAccessibilityElement {
-        let element = NSAccessibilityElement()
-        element.setAccessibilityRole(.group)
-        element.setAccessibilityIdentifier(identifierPrefix + segmentId)
-        element.setAccessibilityLabel(kind.capitalized)
-        element.setAccessibilityParent(parent)
-        element.setAccessibilityFrameInParentSpace(frame)
-        element.setAccessibilitySelected(selected)
-        return element
     }
 }
 #endif

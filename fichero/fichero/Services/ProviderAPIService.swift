@@ -19,6 +19,8 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Provide
 @Observable
 class ProviderAPIService {
     private let client: FicheroClient
+    /// One fetch of a provider's configured models for every picker that asks (#6376).
+    private let configuredLists = ConfiguredModelLists()
 
     /// Initialize with FicheroClient (preferred)
     init(ficheroClient: FicheroClient) {
@@ -372,6 +374,14 @@ extension ProviderAPIService {
             throw ProviderAPIServiceError.validationError(detail?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, _):
             throw ProviderAPIServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
+    /// `listProviderModels`, shared: pickers that ask together get one request per provider, and a
+    /// provider the engine has no model list for (404) has an empty one (#6376).
+    func configuredModels(providerId: String) async throws -> [Components.Schemas.UserModelResponse] {
+        try await configuredLists.models(providerId: providerId) { [self] in
+            try await listProviderModels(providerId: providerId)
         }
     }
 

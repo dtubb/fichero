@@ -216,8 +216,8 @@ extension SidebarView {
             deleteState: deleteState,
             sidebarState: sidebarState,
             libraryManager: libraryManager,
-            onOpenChatWithCurrentScope: onOpenChatWithCurrentScope
-        ,
+            onOpenChatWithCurrentScope: onOpenChatWithCurrentScope,
+            onSelectionProposal: { applySidebarSelectionProposal($0) },
             mergeSelectionAbove: mergeAbove,
             mergeSelectionBelow: mergeBelow,
             // A schedule, trigger or batch changed by its own verb: read them again (#5712).
@@ -226,7 +226,8 @@ extension SidebarView {
                     await loadAutomationData()
                     await loadActivityData()
                 }
-            }
+            },
+            onExpandedLabelTap: expandedLabelTap(on: item, orderedSiblings: orderedSiblings)
         )
         .contentShape(Rectangle())
         // Full payload (#4123): document rows export a real file copy + RTF
@@ -254,28 +255,10 @@ extension SidebarView {
         // (empty payload + moveDisabled), which both work. The observing
         // gesture routes through the SAME commit seam as the List binding
         // (applySidebarSelectionProposal), so there is still one write path.
-        // ponytail: plain clicks only — ⇧/⌘ label clicks stay with the List
-        // (they did not work on these rows before either); revisit if Daniel
-        // needs modifier-extension on the name itself.
         row
             .simultaneousGesture(TapGesture().onEnded {
-                // #145 widened the fallback to MODIFIER clicks: on rows whose
-                // drag payload owns label presses, ⇧/⌘ on the NAME never
-                // reached List either ('you shift click on the name of the
-                // next line, it isn't added' / 'ditto for command click').
-                // Same Finder semantics, same ONE commit seam.
-                let proposal = sidebarFallbackProposal(
-                    clicked: item.destination,
-                    current: selectionState.selectedDestinations,
-                    anchor: selectionState.selectedDestination,
-                    orderedSiblings: orderedSiblings,
-                    modifiers: (
-                        shift: NSEvent.modifierFlags.contains(.shift),
-                        command: NSEvent.modifierFlags.contains(.command)
-                    )
-                )
-                guard proposal != selectionState.selectedDestinations else { return }
-                applySidebarSelectionProposal(proposal)
+                guard sidebarFallbackTapActs(item, sidebarState.expandedItems.contains(item.id)) else { return }
+                fallbackTap(on: item, orderedSiblings: orderedSiblings)
             })
         #else
         row

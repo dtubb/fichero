@@ -35,6 +35,7 @@ extension ContentView {
             // choice per window, the same ruling two lines below in the
             // non-KG branch already states and follows).
             browserSelection.removeAll()
+            NavTrace.log("folder.kgCollectionClear", "nil")
             detailDocument = nil
             kgFocusState.clear()
             return
@@ -78,12 +79,9 @@ extension ContentView {
         guard let prefixedId = newFolderId,
               prefixedId.hasPrefix("doc:") else { return }
         let docId = String(prefixedId.dropFirst("doc:".count))
-        // Force-clear any previewed document immediately so the inspector
-        // reflects the newly-selected folder before the async applyDoc
-        // resolution completes. Without this, detailDocument stays set to
-        // the previously-previewed file and inspectorDocument step 1 can
-        // match it against the stale browserSelection. (#795)
-        detailDocument = nil
+        // #795: a folder that must be fetched clears the previewed document first, so the inspector never matches the
+        // previous file against a stale selection meanwhile. A folder already in hand is applied in ONE write: the clear
+        // made every click two detail changes, each running the whole detail cascade (#4228).
         // Closure to apply a resolved Document — sets detailDocument (#961).
         // Folders now keep the current layout so the WebKit/reading pane
         // stays visible for folder-level aggregate content (#1405).
@@ -92,15 +90,21 @@ extension ContentView {
         let applyDoc: (Document) -> Void = { doc in
             applySidebarSelectedDocument(doc)
         }
-        if detailDocument?.id != docId {
-            if let doc = documentStore.currentDocuments.first(where: { $0.id == docId }) {
-                applyDoc(doc)
-            } else {
-                Task { @MainActor in
-                    let fetched = try? await documentStore.documentService.getDocument(docId)
-                    if let fetched, sidebarSelectionState.selectedItemId == prefixedId {
-                        applyDoc(fetched)
-                    }
+        let inHand = documentStore.currentDocuments.first(where: { $0.id == docId })
+            ?? documentStore.collections.first(where: { $0.id == docId })
+        switch SidebarFolderDetail.plan(currentDetailId: detailDocument?.id, folderId: docId, inHand: inHand != nil) {
+        case .keep:
+            // Still fed through, for the run selection (#4523); the detail write is equal, so nothing changes.
+            if let current = detailDocument { applyDoc(current) }
+        case .apply:
+            if let inHand { applyDoc(inHand) }
+        case .clearThenFetch:
+            NavTrace.log("folder.forceClear", docId)
+            detailDocument = nil
+            Task { @MainActor in
+                let fetched = try? await documentStore.documentService.getDocument(docId)
+                if let fetched, sidebarSelectionState.selectedItemId == prefixedId {
+                    applyDoc(fetched)
                 }
             }
         }
@@ -159,6 +163,7 @@ extension ContentView {
         // Cascades: `handleDetailDocumentChange` clears `pageFocusDocument`
         // and `syncFocusedDocumentSelection(nil)` clears the focused-document
         // toolbar context (the stale workflow chip's source).
+        NavTrace.log("library.changeClear", "nil")
         detailDocument = nil
         browserSelection.removeAll()
         if activeSearchQuery != nil {

@@ -2279,7 +2279,7 @@
       "Views/Sidebar/Sections/SidebarView+LibraryHeaderHelpers.swift::handleLibraryHeaderItemDrop",
       "Views/Sidebar/Sections/SidebarView+LibraryHeaderHelpers.swift::libraryDisclosureLabel",
       "Views/Sidebar/Sections/SidebarView+PinnedNavigationRows.swift::pinnedGlobalNavigationRows",
-      "Views/Sidebar/Sections/SidebarView+SelectionHandling.swift::handleSelection",
+      "Views/Sidebar/Sections/Selection/SidebarView+SelectionHandling.swift::handleSelection",
       "Views/Sidebar/Sections/SidebarView+UnifiedLibrarySections.swift::UnifiedLibraryBuckets",
       "Views/Sidebar/Sections/SidebarView+UnifiedLibrarySections.swift::isUnifiedSectionExpanded",
       "Views/Sidebar/Sections/SidebarView+UnifiedLibrarySections.swift::setUnifiedSectionExpanded",

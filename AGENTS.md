@@ -98,7 +98,7 @@ fails any run whose coverage drops — baselines move only by deliberate
 `--update-baseline` commits.
 
 **Design-led surfaces carry ONE name across FOUR places** (guardrails enforce, all in the gate
-AND in CI): a spec `docs/contributor_manual/specs/<name>.md`, a GitHub milestone named `<name>`
+on the Macs; there is no GitHub CI): a spec `docs/contributor_manual/specs/<name>.md`, a GitHub milestone named `<name>`
 (its description points back at the spec), a **user-manual section** that tells a USER about the
 surface, and a test tag of the same area name **front and back** — Swift `@Tag` in
 `fichero/Tests/Unit/general/TestTags.swift`, pytest marker in `fichero-server/pyproject.toml`.
@@ -126,7 +126,7 @@ coverage table (milestone→spec→manual, and spec→milestone/manual). Rules o
 
 Read this first when you pick the work up from another session or another tool (Claude Code, OpenCode, Codex). Nothing below depends on one harness's memory.
 
-**Where state lives.** GitHub issues and milestones are the source of truth (labels: `needs-your-test`, `needs-your-decision`, `residue`). `STATE.md` (current state, "Next Session — Start Here"), `HISTORY.md` and `MEMORY.md` are gitignored and live in the repo-root checkout `~/code/fichero`. Branches: `integration` is what is tested and pushed; `main` is only ever fast-forwarded by the manager locally, and pushed to GitHub only by the maintainer. Unfinished work is kept as commits on its own branch (never merged half-done): `c-batch-store` (#5711 run-log lines; its fold at open is too slow), `b-residues` (#5713 WebKit test flake).
+**Where state lives.** GitHub issues and milestones are the source of truth: the milestone is the spec, labels say order and kind within it (`step:N.M`, `type:*`, `priority:*`, `needs-spec`, `needs-your-decision`, `needs-your-test`, `status:blocked`), and `docs/contributor_manual/specs/build-order.md` says which milestone is worked first; the harness keeps all of it current after landing, never a person by hand (spec `docs/contributor_manual/specs/harness/issues-and-labels.md`). `STATE.md` (current state, "Next Session — Start Here"), `HISTORY.md` and `MEMORY.md` are gitignored and live in the repo-root checkout `~/code/fichero`. Branches: `integration` is what is tested and pushed; `main` is only ever fast-forwarded by the manager locally, and pushed to GitHub only by the maintainer. Unfinished work is kept as commits on its own branch (never merged half-done): `c-batch-store` (#5711 run-log lines; its fold at open is too slow), `b-residues` (#5713 WebKit test flake).
 
 **Commands that matter.**
 - Dev engine for the Xcode "Fichero (Dev Local)" scheme: `scripts/start_dev_local_engine.sh` (restarts it from this checkout; scratch base `~/Fichero Dev Test/state`). The maintainer runs the app from Xcode himself; you restart the engine, he presses ⌘R.
@@ -469,7 +469,7 @@ either**. If a client needs logic, the logic belongs in the engine.
 
 - **Route tiers.** `FICHERO_FEATURE_TIER` (`release` | `beta` | `alpha` | `dev`, default
   `release`) in `api/main.py`, table in `api/feature_tiers_generated.py`.
-  **21 route groups are tier-gated** (`scripts/check_agents_route_tier_claim.py` checks it); a
+  **22 route groups are tier-gated** (`scripts/check_agents_route_tier_claim.py` checks it); a
   default (release) engine registers only `/api/ingest` and `/api/search` — `workflows`,
   `kg`, `claims`, `chat`, `mcp` and the rest need `beta`+. The app spawns its engine at
   its own build tier so it never notices, but a hand-started engine at the default tier
@@ -623,8 +623,8 @@ instead of opening a duplicate — the same reuse-don't-duplicate discipline we 
 
 **Each agent is the AUTHOR of its own commits — NOT a `Co-Authored-By` trailer on a
 human-authored commit.** The agent doing the work is the git *author* (Claude →
-`Claude <noreply@anthropic.com>`; another model → that model's name); the human who directed it is
-credited by a `Directed-By:` trailer, not by owning the authorship. This is what makes
+`Claude <noreply@anthropic.com>`, whatever model wrote it: the authorship checks accept no other, and the model is named in the trailer); the human who directed it is
+not credited in the commit at all. The commit carries ONE trailer, `Written-By: <MODEL> using <HARNESS> using Fichero Builder`, naming the model that wrote the code (its display name) and the harness it ran in (owner 2026-11-16); no `Co-Authored-By`, no `Directed-By`; older commits keep theirs. This is what makes
 `git log --author=Claude` and GitHub's contributor view cleanly separate agent work from the
 maintainer's own edits — a `Co-Authored-By` line does not (it leaves the human as author). Every agent worktree
 carries `user.name Claude` / `user.email noreply@anthropic.com` in its `--worktree` config, set at creation (the
@@ -635,7 +635,7 @@ commit made anywhere else:
 git -c user.name="Claude" -c user.email="noreply@anthropic.com" \
   commit -m "docs: fix faq models (#1234)
 
-Directed-By: the maintainer"
+Written-By: Claude Opus 5.5"
 ```
 
 ---

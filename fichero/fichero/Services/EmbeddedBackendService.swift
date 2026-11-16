@@ -33,6 +33,9 @@ func isRunningXCTests() -> Bool {
 final class EmbeddedBackendService {
     var status: BackendStatus = .stopped
     var errorMessage: String?
+    /// One line saying the launch ended leftover engines from an earlier run (`engine.stale-engines-ended-at-launch`),
+    /// shown in the connection status; nil when none were ended.
+    var staleEngineNotice: String?
 
     // Plumbing, not observed UI state — exclude from @Observable tracking, and
     // `nonisolated(unsafe)` so the nonisolated Swift-6 `deinit` can read it

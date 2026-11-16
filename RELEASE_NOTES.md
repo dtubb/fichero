@@ -2,6 +2,15 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.11.12
+What changed since 2026.10.30.
+
+- iPad and iPhone: the app launches again, a device paired to a Mac opens that Mac's library, and the iOS build compiles again.
+- Segments, Reader and Inspector: a filter bar, facts after each row, other readers' words under each row, the Inspector in grouped boxes, and region-coloured hover in the Preview.
+- Sidebar and library: a faster folder click, the Trash as a disclosure group, and table column widths remembered across windows.
+- Canvas: a click never continues the last drag, one rubber band everywhere, and ⌘-scroll zoom that never snaps.
+- Sharing: the pane title says what it shows.
+
 ## 2026.10.30
 What changed since 2026.10.28.
 
@@ -829,7 +838,7 @@ cards and sheet rows gain Run Workflow and exclusion menus.
 transcripts as each page's text, deduped entities, renditions — with real
 progress counts, thumbnails, and the corpus landing under the folder you
 dropped it on. Re-dropping an already-imported corpus repairs it instead
-of silently doing nothing. All 29 Marshall diaries are staged and ready.
+of silently doing nothing. All 29 diary volumes are staged and ready.
 
 **Sidecars carry their own facts.** A `x.jpg.transcript.txt` beside an
 image becomes its text on any plain folder drop; an `.iffy.json` stating

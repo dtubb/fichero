@@ -9,16 +9,20 @@ has no answer fails the page's step, naming the model and the lines: nothing is 
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 
 from fichero_server.media.upright import open_in_frame
 
 from fichero_server.llm.line_reader import (
+    REASK_NOTE,
     CONCURRENT_CALLS,
     _crop_data_uri,
     line_call_config,
     parse_answer,
 )
+
+logger = logging.getLogger(__name__)
 
 PROMPT = (
     "Each of the {n} images is one line cut from a photographed page. Under each is the text it was "
@@ -54,15 +58,20 @@ async def re_ask(image_path: str, lines: list[dict[str, Any]], page_answer: str,
     page = open_in_frame(image_path, frame)  # the frame the lines' polygons were measured on (`media/upright.py`)
     gate = asyncio.Semaphore(CONCURRENT_CALLS)
 
-    async def ask(group: list[dict[str, Any]]) -> list[str | None] | None:
+    async def ask(group: list[dict[str, Any]], reask: bool = False) -> list[str | None] | None:
         async with gate:
             raw = await llm.vision(images=[_crop_data_uri(page, g["polygon"]) for g in group],
-                                   prompt=_prompt([g["text"] for g in group], page_answer, language),
+                                   prompt=_prompt([g["text"] for g in group], page_answer, language) + (REASK_NOTE.format(n=len(group)) if reask else ""),
                                    config=line_call_config(config, len(group)))
         return parse_answer(raw, len(group))
 
     async def one_batch(group: list[dict[str, Any]]) -> list[str | None]:
         answer = await ask(group)
+        if answer is not None and len(group) > 1 and answer[-1] is None:
+            # A null at the end may be a dropped line padded out (#6305): once more with a changed prompt (the same one would be a
+            # cache hit), then believed.
+            logger.warning("re-ask: a batch of %d lines ended in null or empty; asked once more", len(group))
+            answer = await ask(group, reask=True)
         if answer is None and len(group) > 1:
             singles = await asyncio.gather(*(ask([g]) for g in group))
             answer = [s[0] if s else None for s in singles]

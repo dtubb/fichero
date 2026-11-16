@@ -150,7 +150,7 @@ from fichero_server.models.readings import (
 if TYPE_CHECKING:
     from fichero_server.api.routes.system.activity import ActivityResponse
     from fichero_server.api.routes.workflow.batch import BatchResponse
-    from fichero_server.api.routes.kg_entity_curation import EntityAuditResponse
+    from fichero_server.api.routes.kg.entity_curation import EntityAuditResponse
 
 
 logger = logging.getLogger(__name__)
@@ -1181,6 +1181,10 @@ class Rendition(BaseModel):
     producer_run_id: str | None = None
     producer_tool: str | None = None
     producer_model: str | None = None
+    #: The batch ("Apply to Selection") that made this rendition, beside `producer_run_id` for a recipe run.
+    producer_batch_id: str | None = None
+    #: The recipe that made these pixels, in order: each `{step, params, card: {method, model_id}}` (`prep.derived-image-records-its-recipe`).
+    steps: list[dict[str, Any]] | None = None
 
     #: Staging bookkeeping carried through from the sidecar contract:
     #: ``storage`` is where the bytes live (e.g. ``"staged"``) and
@@ -1264,6 +1268,14 @@ class Workflow(BaseModel):
 
     # Default config for steps/nodes
     config: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("config", mode="after")
+    @classmethod
+    def _declared_scope_is_one_of_two(cls, v: dict[str, Any]) -> dict[str, Any]:
+        """A workflow that declares its scope declares one of the two (`workflows.defaults.declared-scope`, #4397)."""
+        if "scope" in v and v["scope"] not in ("per_file", "once_per_folder"):
+            raise ValueError('config.scope must be "per_file" or "once_per_folder"')
+        return v
 
     # LLM configuration
     provider: str = ""
@@ -2052,6 +2064,40 @@ class ContractIdentity(BaseModel):
     sha256: str
 
 
+class DegradedFailure(BaseModel):
+    """One thing the engine keeps failing at, in words (`engine.silent.health-lists-degraded`). Class and count only."""
+
+    id: str
+    area: str
+    reason: str = Field(description="One sentence a person can read: what stopped, the exception class, how many.")
+    count: int
+    since: str = Field(description="Local time of the first failure, ISO 8601 without zone.")
+
+
+class SharingAddress(BaseModel):
+    """One address the host can be reached at, and whether something is listening on it now."""
+
+    kind: Literal["tailnet", "local-name", "lan"]
+    url: str
+    listening: bool
+    label: str = ""
+    reason: str | None = None
+
+
+class SharingHealth(BaseModel):
+    """What this engine is sharing, for `GET /api/health` (`sharing.health-reports-sharing`). No secrets."""
+
+    on: bool
+    listeners: list[str]
+    addresses: list[SharingAddress]
+    certificate_names: list[str]
+    #: The sentence to show when the Mac's address changed under a running listener, else none (`sharing.listener-follows-the-network`).
+    address_changed: str | None = None
+    tailnet_forward: Literal["ours", "foreign", "none", "unknown"]
+    multiuser: bool
+    paired_devices: int
+
+
 class HealthResponse(BaseModel):
     """Response from ``GET /api/health`` endpoint.
 
@@ -2070,6 +2116,8 @@ class HealthResponse(BaseModel):
     backend_version: str | None = None
     active_libraries: int | None = None
     remote_backend: RemoteBackendHealth | None = None
+    #: Sharing, apart from `remote_backend` (the ssh-loopback status: its `enabled=false` is not "sharing off").
+    sharing: SharingHealth | None = None
     server_proof: str | None = None
     # Instance identity (#2862): the host app passes FICHERO_LAUNCH_NONCE at
     # spawn and verifies it is echoed here, proving this responder is the engine
@@ -2084,9 +2132,15 @@ class HealthResponse(BaseModel):
     #: Packages the engine imports by name for a feature (lxml for PAGE/ALTO/TEI) that are not
     #: installed; empty when all are present (#5384).
     missing_dependencies: list[str] = Field(default_factory=list)
+    #: What the engine is still doing after it began answering, emptied as each piece finishes: `app-db` while the app database
+    #: is opening and the built-in providers are seeded (`engine.launch.health-answers-before-the-rest`, #6371). Empty once ready.
+    starting: list[str] = Field(default_factory=list)
     #: Error type name when moving old device tokens to the new clients table failed at open (#5799). The old
     #: tokens still work and the move is retried at the next open; None when nothing is pending. A warning only.
     device_token_migration_error: str | None = None
+    #: What keeps failing (`core/failure_ledger.py`): empty when nothing is. `status` stays "healthy" (the engine
+    #: answers); this list is the signal that a path (search, reading) is not working.
+    degraded: list[DegradedFailure] = Field(default_factory=list)
     # Live dependency versions for the About box's "Built with" (Daniel wants
     # them DERIVED, never hard-typed). Keys are lowercased pip distribution
     # names → installed version; a lib that is not installed is simply absent
@@ -2516,6 +2570,14 @@ class ClaimListResponse(BaseModel):
 
     items: list[KnowledgeClaim]
     count: int
+    sources_in_trash: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description=(
+            "For each listed statement that rests on a live source AND one in the Trash, the ids of its sources in the "
+            "Trash. Empty for a statement with none in the Trash. Read when listing, never stored "
+            "(`safety.trash.dependants-go-with-their-source`)."
+        ),
+    )
 
 
 class ClaimLinkListResponse(BaseModel):

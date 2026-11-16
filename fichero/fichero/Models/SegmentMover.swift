@@ -1,0 +1,112 @@
+import CoreTransferable
+import Foundation
+import UniformTypeIdentifiers
+
+/// Move lines into a region, or out to the page, from any surface (`source.editor.segment-verbs-are-the-same-everywhere`,
+/// Step 1.25): a menu item, a drop on a region row, a key. ONE plan (`SegmentEdit.reparent`), ONE audited
+/// `segment.reparent` call (one ⌘Z for the whole selection) and one runner, the way `SegmentDeleter` does Delete.
+@MainActor
+enum SegmentMover {
+    static let actionName = "Move Lines"
+
+    /// The regions `ids` could move into: every other region of the page, in the page's order, minus any the selection
+    /// itself holds. Uses the one rule `OrderDrop.accepted` (a segment goes only into one exactly a level coarser).
+    static func targets(for ids: [String], in segments: [Segment]) -> [Segment] {
+        guard !ids.isEmpty else { return [] }
+        return segments.filter { region in
+            region.kind == "region" && !OrderDrop.accepted(ids, into: region, in: segments).isEmpty
+                && OrderDrop.accepted(ids, into: region, in: segments).count == ids.count
+        }
+    }
+
+    /// Whether any of `ids` sits in a region now, so "Lift Out of Region" means something.
+    static func canLift(_ ids: [String], in segments: [Segment]) -> Bool {
+        let byId = Dictionary(segments.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return ids.contains { byId[$0]?.parentSegmentId != nil }
+    }
+
+    /// What a drag of selected segments in Select does when it is let go (`segment-editor.reassign-by-drag`).
+    enum Drop: Equatable {
+        /// Move the shapes by the drag (the drag stayed in the lines' own region, ⌘ was held, or not every one is a line).
+        case move
+        /// Make them the lines of this region (nil: out to the page); their shapes stay where they are.
+        case reassign(into: String?)
+    }
+
+    /// The verb for `dragged` let go at `point` (the page's fractions): lines dropped on another region (the one holding the
+    /// point, the smaller on a tie: `SegmentShapes.containingRegion`) or on no region are reassigned; dropped inside the
+    /// region they share, or with ⌘ held, or when any is not a line, the shapes move.
+    static func drop(of dragged: [Segment], at point: [Double], among segments: [Segment], commandHeld: Bool) -> Drop {
+        guard !commandHeld, !dragged.isEmpty, dragged.allSatisfy({ SegmentHierarchy.Level(kind: $0.kind) == .line }) else {
+            return .move
+        }
+        let draggedIds = Set(dragged.map(\.id))
+        let target = SegmentShapes.containingRegion(for: [point], among: segments.filter { !draggedIds.contains($0.id) })?.id
+        return dragged.allSatisfy({ $0.parentSegmentId == target }) ? .move : .reassign(into: target)
+    }
+
+    /// Why nothing was sent, in words.
+    static func problem(_ refusal: SegmentEdit.Refusal) -> String {
+        switch refusal {
+        case .tooFew: "Select a line to move."
+        case .versionUnknown: "These lines are not saved yet, so they cannot be moved."
+        case .noBaseline: "A line with no baseline cannot be redrawn from one."
+        case .noOrder: "This page has no reading order to set."
+        }
+    }
+
+    /// Move `segments` into `parent` (nil: out to the page): nil when it was sent, else why not, never silent.
+    static func run(
+        _ segments: [Segment], into parent: String?, documentId: String, store: SegmentStore,
+        services: (actions: ActionsService?, steps: WindowSteps?)
+    ) async -> String? {
+        let (actionsService, steps) = services
+        guard let actionsService else { return "This window cannot edit." }
+        switch SegmentEdit.reparent(segments, into: parent) {
+        case .failure(let refusal):
+            return problem(refusal)
+        case .success(let call):
+            do {
+                try await SegmentEditRunner(actionsService: actionsService, store: store).run(
+                    call, documentId: documentId, actionName: actionName, steps: steps
+                )
+                return nil
+            } catch {
+                return "The lines were not moved: \(error.localizedDescription)"
+            }
+        }
+    }
+}
+
+/// What a drag of lines carries: their ids, for a drop onto a region row. Dragged out of the app it is the lines' text
+/// (`source.editor.order-list-drags-out-and-into-a-workflow`), so the same drag drops into a document or the Desktop.
+struct SegmentDrag: Codable, Transferable, Equatable {
+    var ids: [String]
+    var text: String
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .segmentDrag)
+        ProxyRepresentation(exporting: \.text)
+    }
+
+    /// What ONE row carries: that row alone. A List drags every selected row and asks each for its own item, so a row
+    /// that carried the whole selection made four Desktop clippings of all four lines from a drag of four (#6476); a drop
+    /// on a region gathers the rows' ids again. `text` gives the row's words for the drag out of the app.
+    static func forRow(_ segmentId: String, text: (String) -> String?) -> SegmentDrag {
+        SegmentDrag(ids: [segmentId], text: text(segmentId) ?? "")
+    }
+
+    /// This drag as a List row's item provider (`View.itemProvider`). The ROW drags, not its content: a `.draggable`
+    /// on a row's words takes the mouse-down before the List sees it, so a click on the words never selected the row
+    /// (#6476, the Library table's same fault in #6538).
+    func itemProvider() -> NSItemProvider {
+        let provider = NSItemProvider()
+        provider.register(self)
+        return provider
+    }
+}
+
+extension UTType {
+    /// The app's own type for a drag of lines; private to the app, so no other app takes the ids for anything.
+    static let segmentDrag = UTType(exportedAs: "app.fichero.fichero.segment-drag", conformingTo: .data)
+}

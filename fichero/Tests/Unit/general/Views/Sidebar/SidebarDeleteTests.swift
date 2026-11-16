@@ -100,4 +100,39 @@ extension SidebarDeleteTests {
         let batches = sidebarDeleteBatches([doc("c", parent: "p", in: library)], parentOf: { parents[$0] })
         #expect(batches.documents.flatMap { $0.documents.map(\.id) } == ["c"])
     }
+
+    // MARK: - safety.trash.drop-to-trash (#5243)
+
+    @Test func aDropOnTheTrashTakesDocumentsOnlyAndLeavesAFolderChildToTheFolder() {
+        let parents = ["child": "folder", "folder": "root"]
+        let roots = sidebarTrashDropRoots(
+            ["doc:folder", "doc:child", "search:s1", "doc:other"], parentOf: { parents[$0] })
+        #expect(roots == ["folder", "other"])
+    }
+
+    @Test func aDropOnTheTrashSurvivesAParentCycleWithoutHanging() {
+        let parents = ["a": "b", "b": "a"]
+        #expect(sidebarTrashDropRoots(["doc:a"], parentOf: { parents[$0] }) == ["a"])
+    }
+}
+
+/// `delete.multi-selection-goes-together` (#6535)
+@MainActor
+extension SidebarDeleteTests {
+    @Test func aMultiSelectionLeavesTheStoreTogetherBeforeTheEngineIsAsked() {
+        let store = DocumentStore(apiClient: APIClient())
+        let first = Document(id: "first", parentId: "parent", docType: .folder, name: "First")
+        let second = Document(id: "second", parentId: "parent", docType: .folder, name: "Second")
+        let kept = Document(id: "kept", parentId: "parent", docType: .folder, name: "Kept")
+        store.childrenCache["parent"] = [first, second, kept]
+        sidebarRemoveRowsBeforeDelete([first, second], from: store)
+        #expect(store.childrenCache["parent"]?.map(\.id) == ["kept"])
+        #expect(store.recentlyDeletedDocumentIds.isSuperset(of: ["first", "second"]))
+    }
+
+    @Test func theStoreIsReadAgainOnlyWhenTheEngineKeptSomething() {
+        #expect(!sidebarDeleteNeedsRefresh(deleted: 2, asked: 2))
+        #expect(sidebarDeleteNeedsRefresh(deleted: 1, asked: 2))
+        #expect(sidebarDeleteNeedsRefresh(deleted: 0, asked: 1))
+    }
 }

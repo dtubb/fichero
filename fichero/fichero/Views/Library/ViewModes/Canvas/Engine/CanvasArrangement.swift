@@ -194,6 +194,15 @@ extension CanvasArrangement {
     }
 }
 
+extension CanvasArrangement {
+    /// The bar's Sort on the Canvas or the Space (`panes.chrome.one-filter-pattern`, owner 2026-11-13): a board
+    /// resolved As Filed -- the order the Sort gave its nodes -- as rows for every top-level card (a group's pages
+    /// follow their group), each keeping its size, angle and style.
+    static func rowsBySort(_ asFiled: CanvasSceneState, keeping existing: [CanvasItemLayout]) -> [CanvasItemLayout] {
+        rowsPinning(asFiled.placeables.filter { $0.containerId == nil }, keeping: existing)
+    }
+}
+
 // MARK: - Where a person left each board (2026-09-30)
 
 /// The camera (centre and zoom) a person last left each folder's canvas at, per folder scope, kept

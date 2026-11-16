@@ -113,6 +113,60 @@ struct InspectorPath: Equatable {
         return picked.map(\.0)
     }
 
+    /// The rows a LIST picked (the Segments pane, the Order tab), made the shared selection in the list's own order so it
+    /// reads top to bottom. Always written: the Segments pane's pick never reached the Preview or the Inspector because
+    /// the list called `onSelected?(select(...))`, and an optional call with no callback never evaluates its argument
+    /// (#6476). Answers the ids selected.
+    @MainActor
+    @discardableResult
+    static func selectListPicks(
+        _ picked: Set<String>, order: [String], into selection: RegionSelection, documentId: String, store: SegmentStore
+    ) -> [String] {
+        let inOrder = order.filter(picked.contains)
+        return select(
+            segmentIds: inOrder.isEmpty ? picked.sorted() : inOrder, into: selection, documentId: documentId, store: store
+        )
+    }
+
+    /// Up/Down over the selected segments (#6457): the selection moves one place in reading order, as Finder's does, and
+    /// Shift adds the next one beyond the far end. The edge stops it (no wrap). Answers the ids now selected, or nil when
+    /// nothing moves (an id not in the order, or the edge), so the key keeps its other job.
+    static func stepped(
+        _ selected: [String], in order: [String], by step: Int, extend: Bool, startsFromNothing: Bool = false
+    ) -> [String]? {
+        guard step != 0, !order.isEmpty else { return nil }
+        // Nothing selected is where the keys START, as in Finder: Down takes the first, Up the last (#6474 -- with this
+        // answering nil the arrows did nothing in a window until something had been clicked).
+        // Only on surfaces whose arrows have no other job (the Inspector, the Lines list): the Preview's pan and page with them.
+        if selected.isEmpty { return startsFromNothing ? [step > 0 ? order[0] : order[order.count - 1]] : nil }
+        let places = selected.compactMap { order.firstIndex(of: $0) }.sorted()
+        guard let first = places.first, let last = places.last else { return nil }
+        let target = step > 0 ? last + step : first + step
+        guard order.indices.contains(target) else { return nil }
+        guard extend else { return [order[target]] }
+        return Array(Set(places + [target])).sorted().map { order[$0] }
+    }
+
+    /// The step a Shift+arrow takes in a list that extends (#6457): nil without Shift, so a plain arrow keeps its other job.
+    static func extendPlaces(_ places: Int, shift: Bool) -> Int? { shift && places != 0 ? places : nil }
+
+    /// Up/Down on the shared selection (#6457), for any surface that has focus: the order is the shown page's boxes in reading order,
+    /// the selection moves through `select` so the Preview, the Reader and the Inspector change together. False when nothing moves.
+    @MainActor
+    static func stepSelection(
+        by step: Int, extend: Bool, startsFromNothing: Bool = false, selection: RegionSelection, documentId: String,
+        store: SegmentStore
+    ) -> Bool {
+        guard let shown = SegmentDisplay.selected(for: documentId, store: store) else { return false }
+        let order = shown.geometry.boxes.compactMap(\.segmentId)
+        let selected = selectedSegmentIds(selection: selection, documentId: documentId, store: store)
+        guard let next = stepped(
+            selected, in: order, by: step, extend: extend, startsFromNothing: startsFromNothing
+        ) else { return false }
+        select(segmentIds: next, into: selection, documentId: documentId, store: store)
+        return true
+    }
+
     /// REVEAL (#5424, `reader.order.reveal-line-in-preview`): select `segmentIds` exactly as `select`
     /// does, then ask the pane owning `selection` to scroll and zoom to their boxes (their union). The
     /// ONE reveal action: the Order tab's and the Order pane's double-click and the Reader's line click

@@ -33,8 +33,8 @@ def test_the_estimate_finds_the_drawn_tilt(degrees):
 
 
 def test_straighten_uses_the_same_estimate():
-    from fichero_server.api.routes.ingest.image_editing import _estimate_straighten_angle
+    from fichero_server.media.enhance import deskew
     from fichero_server.media.image_ops import detect_deskew_angle
 
-    im = _tilted_lines(4.0)
-    assert _estimate_straighten_angle(im) == detect_deskew_angle(im) != 0.0
+    im = _tilted_lines(4.0)  # the editor's Straighten and the node both measure with deskew.measure (`media/enhance/deskew.py`)
+    assert deskew.measure(im, deskew.Params()) == detect_deskew_angle(im) != 0.0

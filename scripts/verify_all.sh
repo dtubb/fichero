@@ -157,8 +157,7 @@ fi
 # #4699: any scripts/check_*.py guardrail that imports fichero_server (nine of
 # them do) resolves whatever checkout its editable install points at unless
 # PYTHONPATH says otherwise — in a worktree that can silently be the ORIGINAL
-# checkout, not this one. ci.yml sets this on every backend step
-# (ci.yml:51/67/99); release-all.sh sets it per invocation. Exporting it once
+# checkout, not this one. release-all.sh sets it per invocation. Exporting it once
 # here, right after PYTHON_BIN, covers every check_*.py call below (the
 # guardrail loop previously set nothing) as well as the ruff/pytest/OpenAPI
 # calls that already prefixed it per-line — same three src paths, now
@@ -357,6 +356,10 @@ run_fast() {
     run_check "$(basename "$guardrail")" "${PYTHON_BIN}" "$guardrail"
   done
   run_check "check_emit_change_coverage.py" "${PYTHON_BIN}" scripts/check_emit_change_coverage.py
+  # What this item adds, red or green whatever the total says (#5995). A tree with no origin/integration has no item to measure.
+  if git rev-parse --verify -q origin/integration >/dev/null; then
+    run_check "swiftlint added by this item" "${PYTHON_BIN}" scripts/check_swiftlint_warning_ratchet.py --since origin/integration
+  fi
 
   run_check "version-date" scripts/check_version_date.sh
 

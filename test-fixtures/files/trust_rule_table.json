@@ -1,0 +1,9 @@
+[
+  {"host": "studio.tail1234.ts.net", "public_ca": true},
+  {"host": "Studio.Tail1234.TS.NET", "public_ca": true},
+  {"host": "macbook-air-m1.local", "public_ca": false},
+  {"host": "192.168.1.2", "public_ca": false},
+  {"host": "100.64.0.1", "public_ca": false},
+  {"host": "localhost", "public_ca": false},
+  {"host": "ts.net.attacker.example", "public_ca": false}
+]

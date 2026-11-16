@@ -5,12 +5,16 @@ import SwiftUI
 /// each was chosen, Compare on These Pages (a cloud try says its cost first and runs only on a yes), and what it made per
 /// page. Read and Find Lines are tried by the comparison of candidates, which the page shows under its steps.
 struct SetupStageSamples: View {
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @State var store: SetupStageTryStore
     /// Use This One, per model, from the compare window (the use-candidate route); nil where a step cannot take it.
     var useThis: ((StageCandidate) -> Void)?
     /// Keeps the choices on screen on the project before a try: the engine tries what the saved setup has chosen, so a
     /// step just ticked is "not chosen" until this runs (`source.onboard.stages.try-reads-the-screen`, #6015). False: do not try.
     var saveFirst: (() async -> Bool)?
+    /// The stage listing's `answers_revision` now, and what Run this step starts (the wide Set Up's output state).
+    var currentRevision: String?
+    var runThisStep: (() -> Void)?
     @State private var comparing: ComparedPage?
 
     private func compare(costOK: Bool = false) {
@@ -23,6 +27,10 @@ struct SetupStageSamples: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("On your pages").font(.headline)
+            if FeatureManager.shared.isWideSetUpEnabled {
+                let state = store.outputState(currentRevision: currentRevision, estimate: nil)
+                StepOutputStateView(state: state, runThisStep: runThisStep, stop: { Task { await store.stop() } })
+            }
             // A sample's name is the engine's for that page ("f. 1r"), never a Document's raw name.
             ForEach(store.samples, id: \.id) { sample in
                 HStack(alignment: .center) {
@@ -43,8 +51,12 @@ struct SetupStageSamples: View {
                     }
                 }
             }
+            if FeatureManager.shared.isWideSetUpEnabled, let first = store.samples.first {
+                RenditionChainStripView(client: store.client, pageId: first.id)
+                    .id(first.id)
+            }
             HStack(alignment: .firstTextBaseline) {
-                Button("Compare on These Pages") { compare() }
+                Button(SetupStageTryStore.compareTitle(price: store.price)) { compare() }
                     .disabled(store.isTrying || store.samples.isEmpty || store.result?.isUnderWay == true)
                 if store.isTrying || store.result?.isUnderWay == true { ProgressView().controlSize(.small) }
                 if let words = store.result?.underWayWords {
@@ -71,12 +83,45 @@ struct SetupStageSamples: View {
                 Text("Add some pages to the project first: there are none to compare on yet.")
                     .font(.callout).foregroundStyle(.secondary)
             }
-            if let result = store.result { resultView(result) }
+            if let result = store.result {
+                resultView(result).opacity(StepOutputStateView.opacity(
+                    of: store.outputState(currentRevision: currentRevision, estimate: nil),
+                    wideSetUp: FeatureManager.shared.isWideSetUpEnabled))
+            }
         }
-        .task { await store.load(); await store.follow() }
-        .sheet(item: $comparing) { page in
-            StageCompareWindow(pageId: page.id, name: store.name(of: page.id),
-                               candidates: store.result?.candidates ?? [], useThis: useThis)
+        .task { await store.load(); await store.loadPrice(); await store.follow() }
+        .sheet(item: $comparing) { page in compareWindow(page) }
+    }
+
+    private func compareWindow(_ page: ComparedPage) -> some View {
+        StageCompareWindow(pageId: page.id, name: store.name(of: page.id),
+                           candidates: store.result?.candidates ?? [], useThis: useThis,
+                           readers: CompareReadersStore(client: store.client, pageId: page.id, tryStage: store.stageId,
+                                                        platform: .of(compactWidth: sizeClass == .compact)))
+    }
+
+    private func pageReading(_ page: SetupStageTryResult.Page) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(store.name(of: page.id)).font(.callout.weight(.medium))
+            let summary = SetupStageTryResult.summary(of: page)
+            if !summary.isEmpty { Text(summary).font(.caption).foregroundStyle(.secondary) }
+            if let reading = page.readings?.first {
+                Text(reading.text).font(.callout).lineLimit(4)
+            }
+            ForEach(page.statements?.prefix(3).map { $0 } ?? [], id: \.self) { statement in
+                Text(statement).font(.caption)
+            }
+        }
+    }
+
+    /// Compare, at two models and not at one: the one door to the compare view from a stage page (`wide.compare.one-view-from-the-pager`).
+    @ViewBuilder
+    private func compareDoor(_ result: SetupStageTryResult, models: Int) -> some View {
+        // Out of the wideSetUp flag: it fixes an owner-reported defect (#5727).
+        if StageCompareDoor.showsCompare(candidates: models),
+           let first = (result.pages ?? store.samples.map(\.id)).first {
+            Button("See the Readings") { comparing = ComparedPage(id: first) }
+                .accessibilityIdentifier("setup.stage.compare")
         }
     }
 
@@ -85,8 +130,14 @@ struct SetupStageSamples: View {
         if let error = result.failure {
             Label(error, systemImage: "xmark.octagon").font(.callout).foregroundStyle(.red)
         }
+        if FeatureManager.shared.isWideSetUpEnabled {
+            StepResultFiguresView(result: result, name: { store.name(of: $0) }, showDifferences: {
+                if let first = (result.pages ?? store.samples.map(\.id)).first { comparing = ComparedPage(id: first) }
+            })
+        }
         // Each model beside the others on each page (#6034).
         let compared = (result.candidates ?? []).filter { !($0.perPage ?? []).isEmpty }
+        compareDoor(result, models: compared.count)
         if compared.count > 1 {
             // First the candidates side by side on each page, the picture with each one's lines and its reading
             // (#6034), counts under each; the page's name opens it larger in the compare window (#6047, #5856).
@@ -106,19 +157,7 @@ struct SetupStageSamples: View {
                 }
             }
         }
-        ForEach(result.perPage ?? [], id: \.id) { page in
-            VStack(alignment: .leading, spacing: 2) {
-                Text(store.name(of: page.id)).font(.callout.weight(.medium))
-                let summary = SetupStageTryResult.summary(of: page)
-                if !summary.isEmpty { Text(summary).font(.caption).foregroundStyle(.secondary) }
-                if let reading = page.readings?.first {
-                    Text(reading.text).font(.callout).lineLimit(4)
-                }
-                ForEach(page.statements?.prefix(3).map { $0 } ?? [], id: \.self) { statement in
-                    Text(statement).font(.caption)
-                }
-            }
-        }
+        ForEach(result.perPage ?? [], id: \.id) { page in pageReading(page) }
         // Organise on its run of pages (`finddocs.review.setup-page`): the strip, its proposed documents as dashed
         // groups over it, its entries under their pages.
         if result.documents != nil || result.entries != nil {
@@ -145,6 +184,12 @@ struct SetupStageSamples: View {
 
 /// The page the compare window is open on.
 struct ComparedPage: Identifiable { let id: String }
+
+/// When a stage page offers Compare (`wide.compare.one-view-from-the-pager`): with two or more candidates that read pages, never with one.
+/// The Inspector's Compare Readers opens the same `CompareReadersView` over the same store, so there is one view, two doors.
+enum StageCompareDoor {
+    nonisolated static func showsCompare(candidates: Int) -> Bool { candidates >= 2 }
+}
 
 #Preview("Samples before a try") {
     SetupStageSamples(store: SetupStageTryStore(client: FicheroClient(libraryPath: nil), stageId: "names"))

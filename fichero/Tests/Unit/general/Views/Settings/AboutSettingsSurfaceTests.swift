@@ -51,14 +51,6 @@ final class AboutSettingsSurfaceTests: XCTestCase {
         XCTAssertTrue(source.contains("NSApp.sendAction(Selector((\"showSettingsWindow:\")), to: nil, from: nil)"))
     }
 
-    func testShellNoLongerPresentsSeparateMCPOrIntegrationsSheets() throws {
-        let libraryWindowSource = try Self.appSource("App/LibraryWindow.swift")
-        let modifiersSource = try Self.appSource("Views/Shell/ContentView/ContentViewModifiers.swift")
-        XCTAssertFalse(libraryWindowSource.contains("MCPServersSheet()"))
-        XCTAssertFalse(libraryWindowSource.contains("IntegrationsPlaceholderSheet("))
-        XCTAssertFalse(modifiersSource.contains("MCPServersSheet()"))
-    }
-
     func testAboutViewUsesBundleCopyrightBeforeFallback() throws {
         let source = try Self.appSource("Views/About/AboutView.swift")
         XCTAssertTrue(source.contains("NSHumanReadableCopyright"))

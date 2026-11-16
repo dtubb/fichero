@@ -299,15 +299,24 @@ def next_run(db: Any, a: Answers, cards: list[Card], *, volume: int, named: list
 TRANSCRIPTION_FORMATS = ("pagexml", "alto", "tei", "hocr", "plain-text")
 
 
+def _live_passes(db: Any) -> list[Any]:
+    """Every live pass, the columns the counts ask of it: every Start plan and every finished step counts them (`counted`)."""
+    from fichero_server.models.segments import SegmentPass
+
+    return db.query_fields(SegmentPass, ("document_id", "provenance_kind", "ground_truth", "import_format", "model", "created_at"),
+                           deleted_at=None)
+
+
 def person_made_pages(db: Any) -> list[str]:
     """Every page with a live pass a person made or marked ground truth (`made_by_a_person`, #5513), oldest
     pass first; then every page with a reading a person made on any pass (#5499)."""
     from fichero_server.models import ContentRepresentation
-    from fichero_server.models.segments import SegmentPass, made_by_a_person
+    from fichero_server.models.segments import made_by_a_person
 
-    passes = [p for p in db.query(SegmentPass) if not p.deleted_at and made_by_a_person(p)]
+    passes = [p for p in _live_passes(db) if made_by_a_person(p)]
     pages = [p.document_id for p in sorted(passes, key=lambda p: p.created_at)]
-    corrected = sorted((r for r in db.query(ContentRepresentation, provenance_kind="human") if r.segment_id),
+    corrected = sorted((r for r in db.query_fields(ContentRepresentation, ("document_id", "segment_id", "created_at"),
+                                                   provenance_kind="human") if r.segment_id),
                        key=lambda r: r.created_at)
     return list(dict.fromkeys(pages + [r.document_id for r in corrected]))
 
@@ -315,9 +324,9 @@ def person_made_pages(db: Any) -> list[str]:
 def unmarked_import_pages(db: Any) -> int:
     """How many pages hold imported transcriptions nobody has marked ground truth and no person-made pass:
     what the readiness sentence names, since on a corpus project it is why nothing counts (#5513)."""
-    from fichero_server.models.segments import SegmentPass, made_by_a_person
+    from fichero_server.models.segments import made_by_a_person
 
-    live = [p for p in db.query(SegmentPass) if not p.deleted_at]
+    live = _live_passes(db)
     counted = {p.document_id for p in live if made_by_a_person(p)}
     return len({p.document_id for p in live
                 if p.import_format in TRANSCRIPTION_FORMATS and not made_by_a_person(p)} - counted)

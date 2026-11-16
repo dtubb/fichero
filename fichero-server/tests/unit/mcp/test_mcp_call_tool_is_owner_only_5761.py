@@ -2,7 +2,6 @@
 reach it through `POST /api/actions/invoke`, and a chat whose actor is not the owner is never offered MCP tools."""
 from __future__ import annotations
 
-import pytest
 
 from fichero_server.security import accounts, authz
 from tests.unit.transport.test_two_macs_end_to_end_to_spec import _bearer, two_macs  # noqa: F401

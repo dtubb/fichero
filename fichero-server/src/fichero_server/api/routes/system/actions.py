@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from fichero_server.api.library_header import require_library_path
 from fichero_server.api.auth import request_actor
 from fichero_server.api.change_stream import emit_change
-from fichero_server.api.main import get_library_database
+from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.models import (
     ActionCategoriesResponse,
@@ -139,6 +139,11 @@ def action_to_response(action: Action) -> ActionResponse:
 
 def get_action_store(db: Database = Depends(get_library_database)) -> ActionStore:
     """Get ActionStore for current library."""
+    return ActionStore(db)
+
+
+def get_action_store_for_write(db: Database = Depends(get_library_database_for_write)) -> ActionStore:
+    """The store, for a route that makes, changes, removes or uses an action: a viewer is refused (#6320)."""
     return ActionStore(db)
 
 
@@ -302,7 +307,7 @@ async def get_action(action_id: str, store: ActionStore = Depends(get_action_sto
 @router.post("", response_model=ActionResponse)
 async def create_action(
     request: CreateActionRequest,
-    store: ActionStore = Depends(get_action_store),
+    store: ActionStore = Depends(get_action_store_for_write),
     x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -326,7 +331,7 @@ async def create_action(
 async def update_action(
     action_id: str,
     request: UpdateActionRequest,
-    store: ActionStore = Depends(get_action_store),
+    store: ActionStore = Depends(get_action_store_for_write),
     x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -374,7 +379,7 @@ async def update_action(
 @router.delete("/{action_id}", response_model=ActionSuccessResponse)
 async def delete_action(
     action_id: str,
-    store: ActionStore = Depends(get_action_store),
+    store: ActionStore = Depends(get_action_store_for_write),
     x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -446,7 +451,7 @@ async def export_action(
 @router.post("/import", response_model=ActionResponse)
 async def import_action(
     request: ImportActionRequest,
-    store: ActionStore = Depends(get_action_store),
+    store: ActionStore = Depends(get_action_store_for_write),
     x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -477,7 +482,7 @@ async def import_action(
 @router.post("/from-node", response_model=ActionResponse)
 async def create_action_from_node(
     request: CreateFromNodeRequest,
-    store: ActionStore = Depends(get_action_store),
+    store: ActionStore = Depends(get_action_store_for_write),
     x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
@@ -506,7 +511,7 @@ async def create_action_from_node(
 @router.post("/composite", response_model=ActionResponse)
 async def create_composite_action(
     request: CreateCompositeRequest,
-    store: ActionStore = Depends(get_action_store),
+    store: ActionStore = Depends(get_action_store_for_write),
     x_fichero_library_path: str = Depends(require_library_path),
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"

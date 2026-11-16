@@ -277,3 +277,29 @@ async def test_artifact_carries_its_episode_id(tmp_path: Path, db, test_package)
     artifacts = db.query(Artifact, document_id=doc.id)
     assert artifacts, "no artifact saved"
     assert (artifacts[0].data or {}).get("episode_id") == episode_id
+
+
+@pytest.mark.asyncio
+async def test_a_run_with_a_library_leaves_the_text_in_the_documents_field_not_its_provenance(tmp_path: Path, db, test_package) -> None:
+    """A run's artifact data holds `image_read` and `episode_id` (provenance for the cache and the inspector). The document's
+    metadata field (`description`, `caption`...) is the reading's TEXT: it must never take that data in its place (#6320)."""
+    from fichero_server.models import Artifact, Document, DocType, FileType
+
+    image = tmp_path / "scan.png"
+    image.write_bytes(b"\x89PNG\r\n\x1a\nfakebytes")
+    doc = Document(name="scan.png", path=str(image), doc_type=DocType.file, file_type=FileType.image,
+                   metadata={"source_path": str(image)})
+    db.save(doc)
+    config = VisionToolConfig(artifact_type="description", update_page_content=False, trigger_embedding=False,
+                              supports_apple_vision=False, metadata_field="description")
+    episodes.set_library(str(test_package))
+    try:
+        with patch("fichero_server.llm.vision", new=AsyncMock(return_value="a harbour at dusk")):
+            await process_vision(files=[str(image)], documents=[doc.model_dump(mode="json")], prompt="Describe.",
+                                 llm_config=LLMConfig(provider="mock", model="mock-vl"), library_path=str(test_package),
+                                 task_id=None, tool_config=config, vision_mode="llm")
+    finally:
+        episodes.set_library(None)
+    data = db.query(Artifact, document_id=doc.id)[0].data or {}
+    assert "episode_id" in data and "image_read" in data  # the shape of a real run: both ride on the artifact
+    assert db.get(Document, doc.id).metadata["description"] == "a harbour at dusk"

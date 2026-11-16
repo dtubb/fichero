@@ -22,11 +22,10 @@ REMOTE_PLACES = ("cluster", "huggingface")
 
 
 def in_flight(db: Any, recipe_job_id: str, target: str) -> int:
-    rows = db.execute_fetchall("SELECT detail FROM jobs WHERE parent_id = ? AND kind = ? AND state IN ('waiting', "
-                               "'running', 'paused')", [recipe_job_id, read_job.KIND])
     import json
 
-    return sum(1 for (detail,) in rows if (json.loads(detail or "{}").get("request") or {}).get("target") == target)
+    rows = jobs.children_of(db, recipe_job_id, read_job.KIND, ("waiting", "running", "paused"))
+    return sum(1 for (_id, _state, detail) in rows if (json.loads(detail or "{}").get("request") or {}).get("target") == target)
 
 
 def send_ahead(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, Any] | None, tree: Any,

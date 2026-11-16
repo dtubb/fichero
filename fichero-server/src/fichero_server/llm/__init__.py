@@ -571,6 +571,25 @@ class LLMConfig:
     # measurably. (#872 Phase 3 step 15)
     reasoning_effort: str | None = None
 
+    def __post_init__(self) -> None:
+        # A ceiling or timeout saved as text (typed into a field, a string in a saved node) is the whole number it spells, or
+        # refused here naming the field, not a TypeError at a comparison later in a run (#6298).
+        for name in ("max_tokens", "timeout"):
+            value = getattr(self, name)
+            if value is None or (isinstance(value, int) and not isinstance(value, bool)):
+                number = value
+            else:
+                try:
+                    number = float(value) if not isinstance(value, bool) else float("nan")
+                    if not number.is_integer():  # 8192.7, nan, inf
+                        raise ValueError(value)
+                    number = int(number)
+                except (TypeError, ValueError, OverflowError):
+                    raise ValueError(f"{name} is {value!r}, not a whole number: set it as a number") from None
+            if number is not None and number < 0:  # 0 stays, as it always read: no ceiling set
+                raise ValueError(f"{name} is {value!r}: it cannot be below 0")
+            setattr(self, name, number)
+
     def get_model_name(self) -> str:
         """Get the provider-routed model name (provider/model).
 
@@ -770,6 +789,7 @@ class EgressRefusedError(LocalOnlyViolationError):
         self.project = project
         model_label = f"/{model}" if model else ""
         from fichero_server.llm.egress import project_name
+        from fichero_server.llm.refusal import for_images
 
         name = project_name(project)
         who = f"The project {name} keeps its pages on this Mac" if name else "No project is open for this call, and a call outside a project is not sent"
@@ -777,6 +797,8 @@ class EgressRefusedError(LocalOnlyViolationError):
             f"{who}, so the {kind} call to {provider}{model_label} was not sent (nothing left this Mac). "
             "Allow cloud models for the project (one click, recorded), or say yes in its Set Up, or choose a model that runs on this Mac.",
         )
+        #: the typed refusal (`ai.cloud.one-typed-refusal`): its fixes are buttons, served here and computed by no client
+        self.refusal = for_images(project=name, words=self.args[0])
 
 
 class LLMBatchItemError(RuntimeError):
@@ -1243,8 +1265,9 @@ def _local_runtime_missing(origin_error: BaseException | None) -> bool:
     return isinstance(origin_error, LocalModelUnavailableError)
 
 
-def is_local_only() -> bool:
-    """Whether LLM calls must stay on local / built-in providers only."""
+def is_local_only(*, with_places: bool = True) -> bool:
+    """Whether LLM calls must stay on local / built-in providers only. `with_places=False` leaves out the Set Up places answer
+    (the app's default for the cloud, which a project's own answer overrides, `ai.cloud.project-overrides-the-default`)."""
     raw = os.environ.get("FICHERO_LOCAL_ONLY")
     if raw is not None:
         return raw.strip().lower() in {"1", "true", "yes", "on"}
@@ -1262,7 +1285,7 @@ def is_local_only() -> bool:
     # is local-only. `local_only_ai` stays only as the older stored form.
     from fichero_server.recipes.places import THIS_MAC, get_places
 
-    return get_places() == [THIS_MAC]
+    return with_places and get_places() == [THIS_MAC]
 
 
 def _place_of(config: LLMConfig) -> str:
@@ -1290,15 +1313,22 @@ def _enforce_local_only_provider(config: LLMConfig, *, kind: str) -> None:
     from fichero_server.recipes.places import refusal
 
     place = "another-mac" if _place_of(config) == "own_machine" else "cloud"
-    because = refusal(place)
+    # The cloud is the project's own answer over the app's switch (`ai.cloud.project-overrides-the-default`, #6348): the project
+    # check below judges it (it inherits the app's when the project has not answered). Another Mac stays the app's call.
+    because = None if place == "cloud" else refusal(place)
     if because:
         raise LocalOnlyViolationError(config.provider, model=config.model, kind=kind, because=because)
-    if is_local_only():
+    # The cloud's app-wide default (the places answer) is not a ceiling: the project's own answer is judged below.
+    if is_local_only(with_places=place != "cloud"):
         raise LocalOnlyViolationError(config.provider, model=config.model, kind=kind)
     from fichero_server.llm.egress import current_library, project_allows_leaving
 
     library = current_library()  # the one reading of the project: a Set Up try's scratch copy is its real project
-    if not project_allows_leaving(library):
+    from fichero_server.llm import run_overrides
+
+    if not project_allows_leaving(library) and not run_overrides.allows_cloud():  # "allow cloud once" is this run's, nothing saved
+        if place == "cloud" and (app_no := refusal("cloud")):  # no yes from the project and the app's places say no: say the app's words
+            raise LocalOnlyViolationError(config.provider, model=config.model, kind=kind, because=app_no)
         raise EgressRefusedError(config.provider, model=config.model, kind=kind, project=library)
 
 

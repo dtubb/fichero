@@ -20,6 +20,27 @@ extension ShareLibrarySheet {
     func loadEverything() async {
         await usersStore.load()
         await loadMembers()
+        // The addresses the link can carry (`sharing.share-sheet-offers-both-addresses`); a failure leaves the one address.
+        await readSharingState()
+        if !Self.sharesWithPeople(multiuser: EngineConfig.multiuserEnabled, folder: folder != nil) {
+            await mintPairingCodeIfPossible()
+        }
+    }
+
+    /// Reads the addresses the link can carry, asking a few more times while the forward reads `none` or nothing came back:
+    /// the engine makes it just after it is ready. A failed read keeps the last good state (review P1, P2).
+    @MainActor
+    func readSharingState() async {
+        guard EngineConfig.engineIsLocal else { return }
+        for attempt in 0..<4 {
+            if attempt > 0 {
+                try? await Task.sleep(for: .seconds(2))
+                if Task.isCancelled { return }
+            }
+            if let state = try? await PairingService(apiRoot: EngineConfig.host).sharingState() { sharingState = state }
+            loadSPKIPin()  // the pin lands after a restart; "still minting" must not stay forever (t73)
+            if !PairingCardRefresh.readsForwardAgain(stateLoaded: sharingState != nil, forward: sharingState?.tailnetForward) { return }
+        }
     }
 
     @MainActor
@@ -31,7 +52,7 @@ extension ShareLibrarySheet {
             members = try await library.actionsService.listLibraryMembers().members ?? []
         } catch {
             members = []
-            membersError = error.localizedDescription
+            membersError = "Fichero couldn't load who has this project. Close this and open it again."
         }
     }
 
@@ -41,7 +62,6 @@ extension ShareLibrarySheet {
     @MainActor
     func createNewPerson() async {
         isCreating = true
-        createError = nil
         defer { isCreating = false }
         let username = newUsername.trimmingCharacters(in: .whitespaces)
         do {
@@ -58,7 +78,7 @@ extension ShareLibrarySheet {
                 newPassword = ""
             }
         } catch {
-            createError = error.localizedDescription
+            showFailure(error, "Couldn't add that person")
         }
     }
 }

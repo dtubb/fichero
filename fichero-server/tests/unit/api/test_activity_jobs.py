@@ -90,6 +90,7 @@ class TestJobsEndpoint:
                         status="failed",
                         error="Kraken is not installed. Install it from Settings → AI.",
                         progress_timeline=[],
+                        failure=None,  # a run row always carries its failure (#6354)
                     ),
                     SimpleNamespace(  # a completed run must NOT show as a job
                         thread_id="t-done",
@@ -98,6 +99,7 @@ class TestJobsEndpoint:
                         status="completed",
                         error=None,
                         progress_timeline=[],
+                        failure=None,  # a run row always carries its failure (#6354)
                     ),
                 ]
 

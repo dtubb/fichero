@@ -91,14 +91,6 @@ private struct WorkflowRunActionPayload: Encodable {
     }
 }
 
-private struct DocumentDeleteActionPayload: Encodable {
-    let docId: String
-
-    enum CodingKeys: String, CodingKey {
-        case docId = "doc_id"
-    }
-}
-
 private func invokeAuditedAction<Params: Encodable & Sendable>(
     _ name: String,
     params: Params
@@ -196,7 +188,7 @@ struct DeleteDocumentIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult {
-        let payload = DocumentDeleteActionPayload(docId: document.id)
+        let payload = DocumentDeleteActionParams(docId: document.id)
         _ = try await invokeAuditedAction("document.delete", params: payload)
         return .result(dialog: "Deleted document.")
     }

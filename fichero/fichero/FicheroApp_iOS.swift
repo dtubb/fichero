@@ -104,6 +104,19 @@ private struct FicheroSharedPlatformRoot: View {
     let executionObserver: WorkflowExecutionObserver
 
     @State private var pendingPairURL: IdentifiableURL?
+    @State private var showingChooser = false
+
+    /// Only the libraries shared with this person; choosing one opens it (`sharing.ios.shared-library-chooser`).
+    private var chooser: some View {
+        SharedLibraryChooserView(machines: libraryManager.pairedMachines) { machine, path in
+            showingChooser = false
+            Task {
+                await SharedLibraryOpener.openOnDevice(
+                    hostRoot: machine.id, libraryPath: path, appState: appState, libraryManager: libraryManager,
+                    reconnect: { await reconnectToConfiguredHost() })
+            }
+        }
+    }
 
     private var activeLibrary: LibraryManager.LibraryReference? {
         LibraryWorkspaceSelection.activeLibrary(
@@ -139,12 +152,13 @@ private struct FicheroSharedPlatformRoot: View {
                     )
                         .environment(windowState)
                         .environment(library.apiClient)
+                        .toolbar {
+                            ToolbarItem(placement: .navigation) {
+                                Button("Libraries", systemImage: "books.vertical") { showingChooser = true }
+                            }
+                        }
                 } else {
-                    ContentUnavailableView(
-                        "Project Unavailable",
-                        systemImage: "externaldrive.badge.exclamationmark",
-                        description: Text("Fichero could not load the project.")
-                    )
+                    NavigationStack { chooser }
                 }
             }
         )
@@ -161,6 +175,13 @@ private struct FicheroSharedPlatformRoot: View {
                 IOSConnectionRecoveryBar { await reconnectToConfiguredHost() }
             }
         }
+        .background { Color.clear.sheet(isPresented: $showingChooser) { NavigationStack { chooser } } }
+        // A host stopped sharing, or a shared library would not open: one alert (Step 8.8).
+        .background { Color.clear.failureAlert(Bindable(libraryManager).sharingFailure) }
+        .task {
+            SharedLibraryOpener.installOnDevice(
+                libraryManager: libraryManager, appState: appState, reconnect: { await reconnectToConfiguredHost() })
+        }
         .onOpenURL { url in
             // Account invite link (#3157): route to the redeem gate. The token
             // is a secret query param, so it is never logged.
@@ -168,7 +189,7 @@ private struct FicheroSharedPlatformRoot: View {
                 appState.sessionStore.beginInviteRedemption(token: token)
                 return
             }
-            // Accepts both fichero://pair and the https://fichero.app/pair
+            // Accepts both fichero://pair and the https://tubb.ca/apps/fichero/pair
             // universal link (#3791).
             guard RemoteClientPairing.isPairingInviteLink(url) else { return }
             pendingPairURL = IdentifiableURL(url: url)

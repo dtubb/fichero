@@ -14,9 +14,11 @@ Storage layout:
 Models are app-wide (shared across all .fichero libraries).
 """
 
+import contextlib
 import json
 import logging
 import shutil
+import threading
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -173,6 +175,16 @@ def SPACY_RELEASE_URL(name: str, version: str) -> str:  # noqa: N802 -- a consta
 _CODE_SUFFIXES = (".py", ".pyc", ".pyo", ".pyd", ".so", ".dylib", ".dll", ".pth", ".sh", ".exe")
 
 
+def store_stamp() -> tuple[tuple[str, int], ...]:
+    """When each runtime's folder in the model store last gained or lost a model: a cache of anything that says what is
+    on this Mac (the Start plan, #6446) keys on it, so a finished download is seen at once."""
+    # ponytail: folder mtimes, one level down; a model replaced in place inside its own folder is not seen.
+    try:
+        return tuple(sorted((p.name, p.stat().st_mtime_ns) for p in MODELS_BASE.iterdir() if p.is_dir()))
+    except OSError:
+        return ()
+
+
 def spacy_pipeline_path(name: str) -> Path | None:
     """The pipeline's data folder in the model store, when it has been downloaded."""
     folder = MODELS_BASE / "spacy" / f"{name}-{SPACY_PIPELINE_VERSION}"
@@ -200,6 +212,21 @@ def load_spacy_pipeline(name: str):
 def clear_spacy_pipelines() -> None:
     """Forget the loaded pipelines (a model replaced in the store, or a test)."""
     _SPACY_PIPELINES.clear()
+
+
+def bytes_once(folder: Path) -> int:
+    """The size of a folder on disk, each file counted once: a link and the blob it leads to are one file (#6591)."""
+    seen: set[tuple[int, int]] = set()
+    total = 0
+    for f in folder.rglob("*"):
+        try:
+            st = f.stat()
+            if f.is_file() and (st.st_dev, st.st_ino) not in seen:
+                seen.add((st.st_dev, st.st_ino))
+                total += st.st_size
+        except OSError:  # a link whose blob has not arrived, or a file gone mid-walk
+            continue
+    return total
 
 
 def _dir_bytes(folder: Path) -> int:
@@ -266,8 +293,8 @@ def embedding_model_installed(model_id: str) -> bool | None:
     key = next((k for k in EMBEDDINGS_MODELS if k.lower() == model_id.lower()), None)
     if key is None:
         return None
-    folder = LocalModelManager()._embeddings_model_dir(key)
-    return folder.is_dir() and next(folder.rglob("*"), None) is not None
+    manager = LocalModelManager()
+    return manager._embedding_state(key, manager._embeddings_model_dir(key))[0]
 
 
 def spacy_pipeline_available(name: str) -> bool:
@@ -461,6 +488,29 @@ def _fastembed_source_repo(model_id: str) -> str | None:
     return None
 
 
+def _fastembed_hub_repo(fastembed_name: str) -> str | None:
+    """The Hub repo fastembed fetches a model from (its registered source), or None when it lists none."""
+    try:
+        from fastembed import TextEmbedding
+
+        for entry in TextEmbedding._list_supported_models():
+            if entry.model.lower() == fastembed_name.lower():
+                return entry.sources.hf
+    except (ImportError, AttributeError):
+        pass
+    return None
+
+
+def _fetch_into_folder(repo: str, files: list[str], embeddings_path: Path, model_id: str) -> None:
+    """The Hub repo's named files as real files in the model's one folder under the shared folder's `embeddings_path`
+    (no cache, no links)."""
+    from huggingface_hub import snapshot_download
+
+    from fichero_server.db import embed_process
+
+    snapshot_download(repo_id=repo, local_dir=str(embed_process.one_folder_path(embeddings_path, model_id)), allow_patterns=files)
+
+
 class LocalModelManager:
     """Manages locally-downloaded AI models.
 
@@ -552,12 +602,8 @@ class LocalModelManager:
             # FastEmbed stores models in subdirectories
             # The directory name replaces / with -- in the model ID
             model_dir = self._embeddings_model_dir(model_id)
-            is_downloaded = model_dir.exists() and any(model_dir.rglob("*"))
-            size = (
-                sum(f.stat().st_size for f in model_dir.rglob("*") if f.is_file())
-                if is_downloaded
-                else 0
-            )
+            is_downloaded, state, error = self._embedding_state(model_id, model_dir)
+            size = bytes_once(model_dir) if is_downloaded else 0
 
             results.append(
                 LocalModelInfo(
@@ -571,10 +617,26 @@ class LocalModelManager:
                     expected_size_mb=info["disk_mb"],
                     path=str(model_dir) if is_downloaded else None,
                     metadata=info,
-                    download_state="installed" if is_downloaded else "idle",
+                    download_state=state,
+                    download_error=error,
                 )
             )
         return results
+
+    def _embedding_state(self, model_id: str, model_dir: Path) -> tuple[bool, str, str | None]:
+        """(is_downloaded, download_state, error). A model in its one folder (#6591) is installed only when every
+        file is there and its last load did not fail ("broken": the files exist but it does not load); an older
+        cache layout is installed when it has files, as before."""
+        from fichero_server.db import embed_process
+
+        folder = Path(embed_process.one_folder_path(self.embeddings_path, model_id))
+        if folder.is_dir() and model_dir == folder:
+            marker = folder / embed_process.BROKEN_MARKER
+            if marker.exists():
+                return False, "broken", marker.read_text().strip() or "The model's files are here but it does not load."
+            return embed_process.one_folder_ready(self.embeddings_path, model_id), "installed", None
+        present = model_dir.exists() and any(model_dir.rglob("*"))
+        return present, "installed" if present else "idle", None
 
     def download_embeddings_model(self, model_id: str) -> None:
         """Download an embeddings model via FastEmbed.
@@ -604,9 +666,30 @@ class LocalModelManager:
         space = search_embeddings.SUPPORTED_EMBEDDING_SPACES.get(model_id.lower())
         if space is not None:
             search_embeddings._register_fastembed_model_for_space(space)
-        TextEmbedding(model_name=space.fastembed_model_name if space else model_id, cache_dir=cache_dir)
+        fastembed_name = space.fastembed_model_name if space else model_id
+        repo = _fastembed_hub_repo(fastembed_name)
+        if repo is None:  # fastembed does not list it with a Hub source: its own fetch, as before
+            TextEmbedding(model_name=fastembed_name, cache_dir=cache_dir)
+        else:
+            self._fetch_embeddings_into_one_folder(model_id, fastembed_name, repo)
         search_embeddings.forget_load_failures()  # the model is here: search tries it afresh, not after its back-off
         logger.info(f"Embeddings model '{model_id}' downloaded successfully")
+
+    def _fetch_embeddings_into_one_folder(self, model_id: str, fastembed_name: str, repo: str) -> None:
+        """The model's files as plain files in ONE real folder, then loaded once: "installed" means it loads (#6591).
+        The Hub cache's sharded blob store keeps `model.onnx` and `model.onnx_data` in different real folders, which
+        onnxruntime refuses ("External data path escapes model directory")."""
+        from fichero_server.db import embed_process
+
+        folder = Path(embed_process.one_folder_path(self.embeddings_path, model_id))
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / embed_process.BROKEN_MARKER).unlink(missing_ok=True)
+        _fetch_into_folder(repo, embed_process.one_folder_files(model_id), self.embeddings_path, model_id)
+        try:
+            embed_process.load_text_embedding(fastembed_name, str(self.embeddings_path), 1)
+        except Exception as exc:  # noqa: BLE001 -- whatever the load raised is why this model is broken
+            (folder / embed_process.BROKEN_MARKER).write_text(f"{type(exc).__name__}: {exc}"[:500])
+            raise RuntimeError(f"The search model {model_id.split('/')[-1]} downloaded but does not load.") from exc  # why: the marker, Copy Details
 
     def delete_embeddings_model(self, model_id: str) -> int:
         """Delete a downloaded embeddings model.
@@ -619,7 +702,7 @@ class LocalModelManager:
         """
         model_dir = self._embeddings_model_dir(model_id)
         if model_dir.exists():
-            size = sum(f.stat().st_size for f in model_dir.rglob("*") if f.is_file())
+            size = bytes_once(model_dir)
             shutil.rmtree(model_dir)
             logger.info(f"Deleted embeddings model '{model_id}' ({size} bytes)")
             return size
@@ -840,10 +923,10 @@ def model_display_name(runtime: str, model: str) -> str:
     return "the model"
 
 
-def _job_detail(db) -> tuple[str | None, dict]:
+def _job_detail(db, job_id: str | None = None) -> tuple[str | None, dict]:
     from fichero_server.execution import jobs
 
-    job_id = jobs.current_job_id()
+    job_id = job_id or jobs.current_job_id()
     if db is None or job_id is None:
         return job_id, {}
     row = jobs.read_job(db, job_id)
@@ -853,14 +936,20 @@ def _job_detail(db) -> tuple[str | None, dict]:
         return job_id, {}
 
 
-def _say_progress(db, words: str) -> None:
+def _say_progress(db, words: str, *, job_id: str | None = None, bytes_done: int | None = None,
+                  bytes_total: int | None = None) -> None:
     """The running job's reason, in words ("Downloading Qwen2.5-VL 7B: 1.2 GB of 5.6 GB"); nothing outside a job.
-    Kept beside the rest of the row's detail: a stop asked of it is in there."""
+    Kept beside the rest of the row's detail: a stop asked of it is in there, and so are a download's typed bytes
+    (`bytes_done`, `bytes_total`). `job_id` is for a thread that is not the job's own (the folder watcher)."""
     from fichero_server.execution import jobs
 
-    job_id, detail = _job_detail(db)
+    job_id, detail = _job_detail(db, job_id)
     if job_id is not None:
         detail["progress"] = words
+        if bytes_done is not None:
+            detail["bytes_done"] = bytes_done
+        if bytes_total:
+            detail["bytes_total"] = bytes_total
         jobs.save_detail(db, job_id, json.dumps(detail), reason=words)
 
 
@@ -908,12 +997,17 @@ def _run_download(subject: str, db=None) -> None:
 
     said = {"at": 0.0}
     began = time.monotonic()
+    job_id = jobs.current_job_id()
+
+    def report(have: int, total: int | None) -> None:
+        _say_progress(db, progress_words(person, have, total, time.monotonic() - began),
+                      job_id=job_id, bytes_done=have, bytes_total=total)
 
     def on_bytes(have: int, total: int | None) -> None:
         now = time.monotonic()
         if now - said["at"] >= PROGRESS_EVERY_SECONDS or not have:
             said["at"] = now
-            _say_progress(db, progress_words(person, have, total, now - began))
+            report(have, total)
 
     try:
         if runtime == "mlx":
@@ -929,10 +1023,13 @@ def _run_download(subject: str, db=None) -> None:
             from fichero_server.llm.yolo_runtime import download
 
             _say_progress(db, f"Downloading {person}")
-            with_retries(lambda: download(name), name=person, should_stop=should_stop)
+            with _watching_growth(*_download_folder(runtime, name), report):
+                with_retries(lambda: download(name), name=person, should_stop=should_stop)
         elif runtime in _DOWNLOADABLE:
             _say_progress(db, f"Downloading {person}")
-            with_retries(lambda: LocalModelManager().download_model(runtime, name), name=person, should_stop=should_stop)
+            with _watching_growth(*_download_folder(runtime, name), report):
+                with_retries(lambda: LocalModelManager().download_model(runtime, name), name=person,
+                             should_stop=should_stop)
         else:
             raise ValueError(f"no download for {subject!r}")
     except DownloadStopped as stopped:
@@ -953,6 +1050,55 @@ def _run_download(subject: str, db=None) -> None:
         jobs.come_back_after(db, job_id, COME_BACK_AFTER_SECONDS)
         raise jobs.JobDeferred(str(broken)) from broken
     say_installed(runtime, name)
+
+
+def _download_folder(runtime: str, name: str) -> tuple[Path, int | None]:
+    """The folder a model's fetch grows and the catalogue's expected bytes for it (None when the catalogue has
+    no figure): what the progress watcher measures."""
+    if runtime == "yolo":
+        from fichero_server.llm import yolo_runtime
+
+        spec = yolo_runtime.YOLO_MODELS.get(name)
+        return yolo_runtime._models_path(), (spec[3] if spec else None)
+    if runtime == "whisper":
+        from fichero_server.llm.whisper_runtime import whisper_store_dir
+
+        folder = whisper_store_dir()
+    elif runtime == "spacy":
+        folder = MODELS_BASE / "spacy"
+    else:
+        folder = MODELS_BASE / "embeddings"
+    catalogue = _DOWNLOADABLE.get(runtime, {})
+    key = next((k for k in catalogue if k.lower() == name.lower()), None)
+    return folder, (catalogue[key]["disk_mb"] * 1_000_000 if key else None)
+
+
+@contextlib.contextmanager
+def _watching_growth(folder: Path, expected: int | None, report):
+    """While a fetch runs, a thread measures how much `folder` has grown since the fetch began (each file once) and
+    says it every PROGRESS_EVERY_SECONDS, against the catalogue's expected size; it stops when the fetch ends,
+    however it ends (#6592). The model's own fetch says nothing, so the folder is the only honest meter."""
+    stop = threading.Event()
+    baseline = bytes_once(folder) if folder.exists() else 0
+
+    def watch() -> None:
+        last = 0
+        while not stop.wait(PROGRESS_EVERY_SECONDS):
+            try:
+                have = max(0, bytes_once(folder) - baseline) if folder.exists() else 0
+                if have > last:
+                    last = have
+                    report(have, max(expected, have) if expected else None)
+            except Exception as exc:  # noqa: BLE001 -- a meter that fails must never fail the download
+                logger.warning("download progress not read: %s", exc)
+
+    watcher = threading.Thread(target=watch, name="download-progress", daemon=True)
+    watcher.start()
+    try:
+        yield
+    finally:
+        stop.set()
+        watcher.join(5)
 
 
 def _set_up_mlx_runtime(db) -> None:

@@ -29,6 +29,24 @@ struct ActivityPopoverUpNextTests {
         #expect(lines[2].waiting == "in the queue")
     }
 
+    /// The owner's popover, 2026-11-15: "Update kept export · Letters" twice, once as its background line and once as Up Next;
+    /// and "Find regions · 0 of 1" for one-item work (#6599).
+    @Test("a waiting job its background line says is not Up Next again, and one-item work has no count")
+    func saidOnce() throws {
+        let json = """
+        {"live": [], "history": 0,
+         "background": [{"kind": "kept-export", "name": "Update kept export · Letters", "state": "waiting", "reason": "Waiting a moment",
+                         "done": 0, "total": 1},
+                        {"kind": "regions", "name": "Find regions", "state": "running", "done": 0, "total": 1}],
+         "up_next": [{"id": "k", "name": "Update kept export · Letters", "why": "Waiting a moment"},
+                     {"id": "s", "name": "Describe", "run_id": "run", "why": "after Read"}]}
+        """
+        let summary = try JSONDecoder().decode(Components.Schemas.ActivitySummary.self, from: Data(json.utf8))
+        let popover = ActivityPopoverSummary(jobs: [], paused: false, activity: summary)
+        #expect(popover.upNext.map(\.id) == ["s"], "a run's stage stays; the kept export is said once")
+        #expect(popover.background.map(\.text) == ["Update kept export · Letters", "Find regions"])
+    }
+
     @Test("a live block's subtitle is the engine's model and where, as sent; neither: none (activity.summary.where-and-model)")
     func subtitle() throws {
         let json = """
@@ -39,23 +57,5 @@ struct ActivityPopoverUpNextTests {
         let summary = try JSONDecoder().decode(Components.Schemas.ActivitySummary.self, from: Data(json.utf8))
         let blocks = ActivityPopoverSummary(jobs: [], paused: false, activity: summary).blocks
         #expect(blocks.map(\.subtitle) == ["Kraken · on this Mac", "in the cloud", nil])
-    }
-
-    @Test("the window lists the engine's UP NEXT items that are not rows, in order, each with its run (two runs tell apart)")
-    func windowLines() throws {
-        let json = """
-        {"live": [], "background": [], "history": 0, "up_next": [
-          {"id": "row", "name": "A queued run", "why": "in the queue"},
-          {"id": "run-a:2", "name": "Describe", "stage": "Describe", "after": "Read", "why": "after Read", "run_id": "run-a"},
-          {"id": "run-b:2", "name": "Describe", "stage": "Describe", "after": "Read", "why": "after Read", "run_id": "run-b"}]}
-        """
-        let summary = try JSONDecoder().decode(Components.Schemas.ActivitySummary.self, from: Data(json.utf8))
-        let names = ["run-a": "Mosquera box", "run-b": "Marshall Diaries · Letters"]
-        let lines = ActivityPopoverSummary.upNextLines([summary], excluding: ["row"], runName: { names[$0] })
-        #expect(lines.map(\.id) == ["run-a:2", "run-b:2"])
-        #expect(lines.map(\.title) == ["Describe · Mosquera box", "Describe · Marshall Diaries · Letters"])
-        #expect(lines.first?.waiting == "after Read")
-        #expect(ActivityPopoverSummary.upNextLines([summary], excluding: []).count == 3)
-        #expect(ActivityPopoverSummary.upNextLines([summary], excluding: []).last?.title == "Describe", "no run known: the stage alone")
     }
 }

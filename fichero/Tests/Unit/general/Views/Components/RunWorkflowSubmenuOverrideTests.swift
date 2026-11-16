@@ -101,6 +101,7 @@ final class RunWorkflowSubmenuOverrideTests: XCTestCase {
         var constructions = 0
         var carried = 0
         var carriedVision = 0
+        var carriedUnknown = 0
         for file in storeFiles {
             let source = try String(
                 contentsOf: models.appendingPathComponent(file), encoding: .utf8
@@ -108,6 +109,7 @@ final class RunWorkflowSubmenuOverrideTests: XCTestCase {
             constructions += source.components(separatedBy: "WorkflowSidebarItem(").count - 1
             carried += source.components(separatedBy: "acceptsModelOverride:").count - 1
             carriedVision += source.components(separatedBy: "requiresVision:").count - 1
+            carriedUnknown += source.components(separatedBy: "visionIsUnknown:").count - 1
         }
         XCTAssertGreaterThanOrEqual(constructions, 6, "Expected every known store rebuild to be scanned.")
         XCTAssertEqual(
@@ -122,6 +124,13 @@ final class RunWorkflowSubmenuOverrideTests: XCTestCase {
             carriedVision, constructions,
             "A WorkflowStore path builds a WorkflowSidebarItem without requiresVision — "
             + "it will silently default to false and stop filtering the model submenu."
+        )
+        // `workflows.requires-vision-unknown`: the engine's null (it could not tell) rides beside `requiresVision`; a rebuild that
+        // drops it shows no "May need vision" until the next full load.
+        XCTAssertEqual(
+            carriedUnknown, constructions,
+            "A WorkflowStore path builds a WorkflowSidebarItem without visionIsUnknown — "
+            + "the step popover will not say a sub-workflow may need a vision model."
         )
     }
 

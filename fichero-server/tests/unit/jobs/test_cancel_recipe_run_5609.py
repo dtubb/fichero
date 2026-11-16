@@ -170,5 +170,5 @@ def test_activity_stop_reaches_the_run__a_run_left_stopping_when_the_engine_went
     assert (jobs.read_job(db, stopped)["state"], jobs.read_job(db, stopped)["reason"]) == \
         ("cancelled", "Stopped by you")
     assert (jobs.read_job(db, going)["state"], jobs.read_job(db, going)["reason"]) == \
-        ("waiting", "Interrupted; carries on")
+        ("paused", jobs.QUIT_REASON)  # held for the person (owner 2026-11-13); the stopped one ended
     jobs.cancel_waiting(db, going)

@@ -12,6 +12,7 @@ Routes require the X-Fichero-Library-Path header.
 """
 
 import asyncio
+import os
 import functools
 import re
 import json
@@ -36,7 +37,7 @@ from pydantic import BaseModel, Field
 
 from fichero_server.api.auth import action_context
 from fichero_server.api.change_stream import CHANGE_ID_LISTS, ChangeEvent, _change_hub
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.main import get_library_database, get_library_database_for_write, run_check
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.db import Database, committed
 from fichero_server.workflows.activity import (
@@ -48,6 +49,8 @@ from fichero_server.workflows.activity import (
     get_activity_tracker,
 )
 from fichero_server.models import ActivityListResponse
+from fichero_server.api.routes.system.bug_report import BugReport
+from fichero_server.llm.failure import RunFailure
 from fichero_server.workflows.run_account import RunAccount
 from fichero_server.recipes.run_view import RecipeRunStep, RecipeRunSummary, StepTiming
 
@@ -186,6 +189,35 @@ class BackgroundJob(BaseModel):
     # beside it, shown at the top; "earlier" is a run that is stopped, interrupted, failed or old, folded below.
     # The list is already in this order.
     group: Literal["live", "earlier"] = "live"
+    # Why a failed workflow run failed, what to do, and the buttons for it (`run.fail.run-carries-its-failure`, #6354): the engine's
+    # one table, beside `reason`'s words (which are unchanged). Null for a row that has not failed or a failure from an engine
+    # before this.
+    failure: Optional[RunFailure] = None
+    # What ran on what (`activity.pane.row-says-what-ran-on-what`, #6441): the pages or files the row runs over, the
+    # recipe's stages with each one's state and counts (a recipe run), and the model or provider of the stage running now.
+    ran_on: Optional["RanOn"] = None
+    stages: Optional[list["StageCount"]] = None
+    model: Optional[str] = None
+    # Cost (`activity.pane.cost-per-row-and-totals`, #6441): the cloud dollars spent so far, null for local work or no priced
+    # call; and, while it runs, the estimate to finish at the run's own pace (spent per page done times the pages left).
+    cost_usd: Optional[float] = None
+    cost_estimate_usd: Optional[float] = None
+    # Where it runs and on which lane (`activity.window.toolbar-tabs`, the Where tab, #6588): this Mac, another Mac, the
+    # cloud or a cluster; null for a row the engine cannot place.
+    runs_on: Optional[Literal["this-mac", "other-mac", "cloud", "cluster"]] = None
+    lane: Optional[str] = None
+    # What blocks this row (`activity.pane.blocked-under-its-blocker`, #6593): the id of the job it waits on (a model's
+    # download) or a typed need ("model:embeddings:<id>") when no job supplies it. A blocked row is never picked by the lane;
+    # the app draws it under its blocker. Null for any row that is not blocked.
+    blocked_by: Optional[str] = None
+
+
+class RanOn(BaseModel):
+    """What a row runs over: `pages` or `page` with a count; a name when the engine knows one (a folder's)."""
+
+    kind: str
+    count: int = 0
+    name: Optional[str] = None
 
 
 #: A row in one of these states has ended: stopped, interrupted, failed or done.
@@ -207,6 +239,61 @@ def order_for_activity(jobs: "list[BackgroundJob]") -> "list[BackgroundJob]":
     for job in jobs:
         job.group = "earlier" if rank(job) == 2 else "live"
     return sorted(jobs, key=rank)  # stable
+
+
+def _lane_of(kind: str) -> Optional[str]:
+    """The lane a stored job's kind runs on (`execution.jobs.KINDS`), or None for a kind not registered."""
+    from fichero_server.execution import jobs as job_queue
+
+    registered = job_queue.KINDS.get(kind)
+    return registered.lane if registered is not None else None
+
+
+def _runs_on(kind: str, remote: Any, cost_usd: Optional[float]) -> str:
+    """Where a listed row runs (the Where tab, #6588): a remote read on its target (Hugging Face is the cloud, anything
+    else a cluster); the remote lane and any priced call (even at $0) the cloud; everything else this Mac."""
+    from fichero_server.remote_read import job as read_job
+
+    if kind == read_job.KIND:
+        target = getattr(remote, "target", None)
+        return "cloud" if target in (None, read_job.TARGET) else "cluster"
+    if _lane_of(kind) == "remote" or cost_usd is not None:
+        return "cloud"
+    return "this-mac"
+
+
+def _run_failure(run: Any) -> Any:
+    """A failed run's failure: the one its record kept, else for a run interrupted (the engine stopped, its project closed)
+    the `interrupted` kind, so its row says why and offers Retry rather than a bare red X (#6588)."""
+    from fichero_server.workflows.run_account import CLOSED_PREFIX, INTERRUPTED_PREFIX
+
+    if getattr(run, "failure", None):
+        return run.failure
+    if (getattr(run, "error", None) or "").startswith((INTERRUPTED_PREFIX, CLOSED_PREFIX)):
+        from fichero_server.llm import failure as failure_mod
+
+        return failure_mod.of_kind("interrupted")
+    return None
+
+
+def _run_runs_on(db: Database, thread_id: str) -> Optional[str]:
+    """Where a workflow run runs (the Where tab, #6588): where its page jobs ran. The cloud when any page's job is on the
+    remote lane or made a call to a provider (its recorded `usage` place), else this Mac; None before any page job."""
+    from fichero_server.execution import jobs as job_queue
+
+    rows = job_queue.page_jobs_of_run(db, thread_id)
+    if not rows:
+        return None
+    for kind, detail in rows:
+        if _lane_of(kind) == "remote":
+            return "cloud"
+        try:
+            usage = (json.loads(detail) if detail else {}).get("usage") or []
+        except (TypeError, ValueError):
+            usage = []
+        if any(isinstance(call, dict) and call.get("place") == "provider" for call in usage):
+            return "cloud"
+    return "this-mac"
 
 
 def _remote_row(db, row: dict) -> "RemoteRunRow | None":
@@ -245,6 +332,8 @@ class MachineState(BaseModel):
     why_wait: Optional[str] = None
     # The models the engine itself holds in memory now, with what each takes (#6129): what it could hand back when memory is tight.
     models_held: list[HeldModel] = Field(default_factory=list)
+    # This Mac is writing memory to disk NOW (pages written out or swap grown over the last minute): `recipes-run.memory.hold-when-paging`.
+    paging: bool = False
 
 
 def _run_finished_at(status: str, completed_at: Any) -> Optional[datetime]:
@@ -277,11 +366,28 @@ class QueuedItem(BaseModel):
     subject: str
     state: str
     reason: Optional[str] = None
+    # The file it works on, by name (`activity.pane.children-are-what-it-works-on`, #6599); null for a subject that is no
+    # document.
+    name: Optional[str] = None
 
 
 class QueuedItemListResponse(BaseModel):
     items: list[QueuedItem]
     count: int
+
+
+class StageCount(BaseModel):
+    """One Set Up stage of a live block (`activity.summary.stage-counts`, #5960), so the bar is drawn from the list read."""
+
+    stage: str = Field(description="Set Up's stage id")
+    title: str
+    state: str = Field(description="done, partial, running, waiting, skipped, failed or not run")
+    done: int = 0
+    failed: int = 0
+    total: int = 0
+
+
+BackgroundJob.model_rebuild()  # `stages` names StageCount, defined here
 
 
 class LiveBlock(BaseModel):
@@ -304,6 +410,13 @@ class LiveBlock(BaseModel):
     where: Optional[str] = Field(None, description=(
         "where it runs in words: 'on this Mac', 'on your own machine' or 'in the cloud'; null when unknown "
         "(`activity.summary.where-and-model`, #5960)"))
+    stages: list[StageCount] = Field(default_factory=list, description=(
+        "the run's stages in Set Up's order with their state and pages (`activity.summary.stage-counts`, #5960); empty for a workflow run "
+        "outside a recipe"))
+    seconds_left: Optional[float] = Field(None, description="the running stage's time left; null until it has done a page (#5960)")
+    eta_basis: Optional[str] = Field(None, description="what `seconds_left` rests on: \"this run's pace\" (`activity.summary.eta-basis`)")
+    cost_usd: Optional[float] = Field(None, description=(
+        "the run's cloud calls in dollars so far, from its stages' usage; null when unpriced (`activity.summary.cost-so-far`)"))
 
 
 class BackgroundLine(BaseModel):
@@ -315,6 +428,9 @@ class BackgroundLine(BaseModel):
     reason: Optional[str] = None
     done: int = 0
     total: int = 0
+    seconds_left: Optional[float] = Field(None, description=(
+        "the items left at the kind's median time per item; null when none of the kind is measured (`activity.summary.eta-basis`, #5960)"))
+    eta_basis: Optional[str] = Field(None, description='what `seconds_left` rests on: "the last 50 of this kind"')
 
 
 class UpNextItem(BaseModel):
@@ -339,15 +455,37 @@ class ActivitySummary(BaseModel):
     history: int = 0
     up_next: list[UpNextItem] = Field(default_factory=list, description=(
         "work not yet started, in lane order, each with what it waits for (`activity.summary.up-next`, #5960)"))
+    controls: Literal["pause", "play", "none"] = Field(default="none", description=(
+        "what the window's Play/Pause button shows (`activity.window.run-controls`, #6588): play while Pause All holds work "
+        "(Play continues it), pause while anything runs or waits, none when neither"))
+    stoppable: int = Field(default=0, description="how many pieces of work Stop All would stop: running, waiting and paused")
 
 
 _LIVE_STATES = ("running", "waiting", "paused")
 
 
-def background_lines(jobs: "list[BackgroundJob]") -> list[BackgroundLine]:
-    """One line per kind of work nobody runs as a run of their own, with its total; none for an ended row."""
-    return [BackgroundLine(kind=j.task_type, name=j.name, state=j.state, reason=j.reason, done=j.current, total=j.total)
-            for j in jobs if j.task_type not in _RUN_TASK_TYPES and j.state in _LIVE_STATES]
+def is_live_recipe_run(job: "BackgroundJob") -> bool:
+    """A recipe run that is working, waiting or paused: the summary's live block stands for it."""
+    return job.task_type == "run-a-recipe" and job.state in _LIVE_STATES
+
+
+#: What a background line's time left rests on when the kind has no pace of its own yet (`activity.summary.eta-basis`).
+KIND_PACE_BASIS = "the last 50 of this kind"
+
+
+def background_lines(jobs: "list[BackgroundJob]", per_item: Optional[dict[str, float]] = None) -> list[BackgroundLine]:
+    """One line per kind of work nobody runs as a run of their own, with its total; none for an ended row. `per_item`: the kind's
+    median seconds an item took (`jobs.seconds_per_item`), which gives a running line its time left."""
+    per_item = per_item or {}
+    lines = []
+    for j in jobs:
+        if j.task_type in _RUN_TASK_TYPES or j.state not in _LIVE_STATES:
+            continue
+        pace, left = per_item.get(j.task_type), max(0, j.total - j.current)
+        lines.append(BackgroundLine(kind=j.task_type, name=j.name, state=j.state, reason=j.reason, done=j.current, total=j.total,
+                                    seconds_left=round(pace * left, 1) if pace and left else None,
+                                    eta_basis=KIND_PACE_BASIS if pace and left else None))
+    return lines
 
 
 def workflow_block(job: "BackgroundJob", model: Optional[str] = None, where: Optional[str] = None) -> LiveBlock:
@@ -366,9 +504,16 @@ def recipe_block(job: "BackgroundJob", status: dict[str, Any], workflow_name: Op
     steps = status.get("steps") or []
     running = next((st for st in steps if st.get("state") == "running"), None) \
         or next((st for st in steps if st.get("state") in ("waiting", "paused")), None)
+    from fichero_server.recipes import live_stages
+
+    seconds_left, eta_basis = live_stages.eta(status)
     account = (running or {}).get("account")
     waiting = status.get("reason") if status.get("state") == "waiting" else status.get("waiting_for")
+    if job.reason:
+        waiting = job.reason  # the row's own words, the one derivation (`_recipe_state`): the block and the tree say the same, as the row did
     return LiveBlock(
+        stages=[StageCount(**row) for row in live_stages.stage_counts(status)], seconds_left=seconds_left, eta_basis=eta_basis,
+        cost_usd=live_stages.cost_so_far(status),
         id=job.id, recipe=job.name, stage=(running or {}).get("doing"), workflow=workflow_name, state=job.state,
         reason=waiting, done=account.pages_done if account else 0, failed=account.pages_failed if account else 0,
         left=account.pages_left if account else 0, total=account.pages_total if account else 0,
@@ -493,8 +638,17 @@ async def activity_summary(db: Database, jobs: "list[BackgroundJob]",
                            statuses: "dict[str, dict[str, Any]] | None" = None) -> ActivitySummary:
     """THE summary (`activity.popover.same-summary`): built once per poll from the ordered job list, so the popover and
     the window can only agree."""
-    return ActivitySummary(live=await live_blocks(db, jobs, statuses), background=background_lines(jobs),
-                           history=sum(1 for j in jobs if j.group == "earlier"), up_next=up_next(jobs, statuses))
+    from fichero_server.execution import jobs as job_queue
+
+    kinds = sorted({j.task_type for j in jobs if j.task_type not in _RUN_TASK_TYPES and j.state in _LIVE_STATES})
+    paces = await asyncio.to_thread(lambda: {k: p for k in kinds if (p := job_queue.seconds_per_item(db, k)) is not None})
+    held = await asyncio.to_thread(job_queue.held_count, db)
+    top = [j for j in jobs if not j.parent_id and j.group == "live"]
+    going = any(j.state in ("running", "waiting") for j in top)
+    return ActivitySummary(live=await live_blocks(db, jobs, statuses), background=background_lines(jobs, paces),
+                           history=sum(1 for j in jobs if j.group == "earlier"), up_next=up_next(jobs, statuses),
+                           controls="play" if held else "pause" if going else "none",
+                           stoppable=sum(1 for j in top if j.state in _LIVE_STATES))
 
 
 class BackgroundJobsResponse(BaseModel):
@@ -770,6 +924,7 @@ def _reads_committed(route):
 @_reads_committed
 async def list_background_jobs(
     db: Database = Depends(get_library_database),
+    archived: bool = Query(False, description="the ARCHIVED rows instead (Show Archived, `activity.pane.archive-old-runs`)"),
 ) -> BackgroundJobsResponse:
     """The SINGLE source of running background jobs, so every activity surface
     (toolbar popover AND full viewer) agrees (FIX 3). Merges:
@@ -858,6 +1013,8 @@ async def list_background_jobs(
                     # A run without its end time still lists, with its reason: never vanish over a timestamp.
                     failed_at=_utc(getattr(run, "completed_at", None)) if status == "failed" else None,
                     finished_at=_run_finished_at(status, getattr(run, "completed_at", None)),
+                    failure=_run_failure(run) if status == "failed" else None,
+                    runs_on=await asyncio.to_thread(_run_runs_on, db, run.thread_id),
                 )
             )
     except Exception as exc:  # never let the jobs list fail over the workflow half
@@ -872,7 +1029,7 @@ async def list_background_jobs(
     from fichero_server.recipes import runner as recipe_runner
 
     # Once per poll: the summary reads this one too. Off the loop (#5843): the reads wait on the transaction gate.
-    listed = await asyncio.to_thread(job_queue.snapshot, db)
+    listed = await asyncio.to_thread(job_queue.snapshot, db, archived=archived)
     recipe_statuses: dict[str, dict[str, Any]] = {}  # each live recipe run's status, read once for the list and the summary
     for row in listed:
         state, reason = row["state"], row["reason"]
@@ -894,6 +1051,22 @@ async def list_background_jobs(
             total = pages if pages is not None else 0
             if row["id"] in recipe_statuses:
                 total = _recipe_pages_in_all(recipe_statuses[row["id"]], total)
+        # What ran on what (`activity.pane.row-says-what-ran-on-what`): the stages' trail and the model for a recipe run; the
+        # count of pages for any row (a group row stands for many).
+        stages = model = cost = estimate = None
+        if row["id"] in recipe_statuses:
+            from fichero_server.recipes import live_stages
+
+            status = recipe_statuses[row["id"]]
+            stages = [StageCount(**st) for st in live_stages.stage_counts(status)]
+            _where, model = await _stage_where_and_model(db, row["id"])
+            cost = live_stages.cost_so_far(status)
+            estimate = _cost_estimate(cost, stages, state)
+        elif row["count"] == 1:
+            cost = await asyncio.to_thread(_job_cost, db, row["id"])  # a job of its own: its cloud calls' dollars, else null
+            # Named as its tree names it, by its kind's own words when it has them (a kept export's folder and pages, #6588).
+            name = await asyncio.to_thread(job_queue.listed_name, db, row["id"]) or name
+        ran_on = RanOn(kind="pages" if total != 1 else "page", count=total)
         jobs.append(
             BackgroundJob(
                 id=row["id"],
@@ -912,7 +1085,13 @@ async def list_background_jobs(
                 failed_at=_utc(row.get("failed_at")) if state == "failed" else None,
                 finished_at=_utc(row.get("finished_at")),
                 started_by=row.get("started_by"),
-                remote=await asyncio.to_thread(_remote_row, db, row),  # a database read
+                blocked_by=row.get("blocked_by"),
+                remote=(remote := await asyncio.to_thread(_remote_row, db, row)),  # a database read
+                ran_on=ran_on, stages=stages, model=model, cost_usd=cost, cost_estimate_usd=estimate,
+                runs_on=_runs_on(row["kind"], remote, cost), lane=_lane_of(row["kind"]),
+                # A row paused for a cause a person removes carries its fix, as a failed run does (#6588).
+                failure=(await asyncio.to_thread(job_queue.paused_failure, db, row["id"], reason)
+                         if state == "paused" and row["count"] == 1 else None),
             )
         )
 
@@ -927,6 +1106,10 @@ async def list_background_jobs(
     # Off the loop (Fable review #2): the tree walk and the machine readings run subprocesses (ps, pmset).
     usage = await asyncio.to_thread(process_tree_rusage)  # once per poll, shared by memory and energy (#5358)
     jobs = order_for_activity(jobs)
+    # The summary names every live run as a block; a run that is a live block is not also a row of the list
+    # (`activity.summary.one-row-per-run-in-list`, #5960): the list is the queue, the background kinds and History.
+    summary = await activity_summary(db, jobs, recipe_statuses)
+    jobs = [j for j in jobs if not is_live_recipe_run(j)]
     return BackgroundJobsResponse(
         jobs=jobs,
         count=len(jobs),
@@ -938,7 +1121,7 @@ async def list_background_jobs(
         mode=job_queue.mode(),
         machine=MachineState(**await asyncio.to_thread(throttle.machine_state)),
         summary=await asyncio.to_thread(_queue_summary, db, listed),
-        activity=await activity_summary(db, jobs, recipe_statuses),
+        activity=summary,
     )
 
 
@@ -961,7 +1144,19 @@ async def list_queued_items(
     from fichero_server.execution import jobs as job_queue
 
     items = await asyncio.to_thread(job_queue.items_of_kind, db, kind, limit=limit, offset=offset)
-    return QueuedItemListResponse(items=[QueuedItem(**i) for i in items], count=len(items))
+    names = await asyncio.to_thread(_document_names, db, [i["subject"] for i in items])
+    return QueuedItemListResponse(items=[QueuedItem(**i, name=names.get(i["subject"])) for i in items], count=len(items))
+
+
+def _document_names(db: Database, ids: list[str]) -> dict[str, str]:
+    """The names of the documents among `ids`, by id, in one read; an id that is no document is absent."""
+    from fichero_server.execution import jobs as job_queue
+
+    try:
+        return job_queue.document_names(db, ids)
+    except Exception as exc:  # noqa: BLE001 -- the items still list, unnamed
+        logger.warning("queued items: no document names: %s", exc)
+        return {}
 
 
 @router.get("/jobs/{job_id}", response_model=JobTree)
@@ -1026,6 +1221,37 @@ def _cut(node: dict[str, Any], depth: int) -> None:
         return
     for child in node["children"]:
         _cut(child, depth - 1)
+
+
+def _job_cost(db, job_id: str) -> Optional[float]:
+    """The dollars of the cloud calls under one job (`activity.pane.cost-per-row-and-totals`, #6598): a call priced at $0 reads
+    0.0 (free), local calls and a job with no calls read null. Calls recorded in each job's `detail["usage"]`."""
+    from fichero_server.execution.jobs import RUN_KINDS
+    from fichero_server.llm.usage import price_call
+
+    try:
+        rows = db.execute_fetchall(
+            "WITH RECURSIVE t AS (SELECT id, kind, detail FROM jobs WHERE id = ? "
+            "UNION ALL SELECT j.id, j.kind, j.detail FROM jobs j JOIN t ON j.parent_id = t.id) "
+            f"SELECT detail FROM t WHERE detail IS NOT NULL AND kind NOT IN ({', '.join('?' * len(RUN_KINDS))})",
+            [job_id, *RUN_KINDS], committed=True)
+        calls = [price_call(u) for (detail,) in rows for u in (json.loads(detail) or {}).get("usage", [])]
+    except Exception as exc:  # noqa: BLE001 -- the row stands without its cost
+        logger.warning("list_background_jobs: no cost for job %s: %s", job_id, exc)
+        return None
+    cloud = [c.cost_usd for c in calls if c.priced and not c.free]
+    return round(sum(cloud), 4) if cloud else None
+
+
+def _cost_estimate(spent: Optional[float], stages: "list[StageCount]", state: str) -> Optional[float]:
+    """What a live run may still cost, at its own pace: the running stage's spent-per-page times its pages left; None when
+    nothing priced has been spent yet, the run has ended, or no stage runs (`activity.pane.cost-per-row-and-totals`)."""
+    if not spent or state not in ("running", "waiting", "paused"):
+        return None
+    running = next((s for s in stages if s.state == "running" and s.done > 0 and s.total > s.done), None)
+    if running is None:
+        return None
+    return round(spent / running.done * (running.total - running.done), 4)
 
 
 def _recipe_progress(status: dict[str, Any], pages: int) -> tuple[int, int]:
@@ -1169,25 +1395,39 @@ def person_lines(lines: list["JobLogLine"]) -> list["JobLogLine"]:
     return kept
 
 
-def _job_rows_log(node: dict[str, Any]) -> list[JobLogLine]:
-    """The lines a job's own row says, and the rows under it: it started, how it ended, what it waits for."""
+def _job_rows_log(node: dict[str, Any], stage: Optional[str] = None, seen: Optional[set[tuple[Optional[str], str]]] = None
+                  ) -> list[JobLogLine]:
+    """The lines a job's own row says, and the rows under it: it started, how it ended, what it waits for.
+
+    Keyed by (stage, page) (`activity.log.one-line-per-page`, #5960): a stage says its start and end once, and a page says only that it
+    failed, once for the stage; a page that merely finished says nothing, however many step rows the lanes handled it in."""
+    seen = set() if seen is None else seen
     name = node.get("display_name") or node.get("name") or node["id"]
+    page = node.get("document_id")
     lines = []
-    if node.get("started_at"):
+    if page is None and node.get("started_at"):
         lines.append(JobLogLine(timestamp=node["started_at"], level="info", message=f"Started {name}",
                                 job_id=node["id"], detail="developer"))
     state, reason = node.get("state") or "", node.get("reason")
     ended = {"done": ("info", f"Done: {name}"),
              "failed": ("error", f"Failed: {name}: {reason or 'no reason recorded'}"),
              "cancelled": ("warning", f"Stopped: {name}" + (f": {reason}" if reason else ""))}.get(state)
+    if page is not None and ended is not None and (state != "failed" or (stage, page) in seen):
+        ended = None  # a page's Done is no line; its failure is one line a stage
+    if page is not None and state == "failed":
+        seen.add((stage, page))
     if ended is not None:
         lines.append(JobLogLine(timestamp=node.get("finished_at"), level=ended[0], message=ended[1],
                                 job_id=node["id"]))
-    elif reason:
-        lines.append(JobLogLine(timestamp=None, level="info", message=f"{state.capitalize()}: {name}: {reason}",
-                                job_id=node["id"], detail="developer"))
+    elif reason and page is None:
+        # A held row says why, to the person (decision 27: a row that ran is never "nothing written"); paused is a warning,
+        # something the person can fix, so Problems shows it too (#6588).
+        lines.append(JobLogLine(timestamp=None, level="warning" if state == "paused" else "info",
+                                message=f"{state.capitalize()}: {name}: {reason}", job_id=node["id"],
+                                detail="person" if state == "paused" else "developer"))
+    below = node["id"] if node.get("kind") in ("workflow", "run-a-recipe") else stage
     for child in node.get("children", []):
-        lines.extend(_job_rows_log(child))
+        lines.extend(_job_rows_log(child, below, seen))
     return lines
 
 
@@ -1272,6 +1512,23 @@ async def get_run_page_states(
                          items=[RunPageState.model_validate(page) for page in pages[offset:offset + limit]])
 
 
+@router.get("/jobs/{job_id}/failed-pages", response_model=RunPageStates)
+async def get_run_failed_pages(
+    job_id: str,
+    stage: Optional[str] = Query(None, description="a Set Up stage id; omitted: a page that failed in any stage"),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(200, ge=1, le=2000),
+    db: Database = Depends(get_library_database),
+) -> RunPageStates:
+    """Every failed page of a run with its one reason, paged (`activity.run.failed-pages-paged`, #5960): the account lists the first ten;
+    this is the rest, so "and 14 more" is never the only answer."""
+    from fichero_server.api.routes.system.activity_pages import failed_only
+
+    pages = failed_only(await _run_page_list(db, job_id, stage))
+    return RunPageStates(job_id=job_id, stage=stage, total=len(pages), offset=offset,
+                         items=[RunPageState.model_validate(page) for page in pages[offset:offset + limit]])
+
+
 @router.get("/jobs/{job_id}/log", response_model=JobLog)
 async def get_job_log(
     job_id: str,
@@ -1325,6 +1582,29 @@ async def get_job_log(
     return JobLog(job_id=job_id, lines=lines[-_JOB_LOG_LIMIT:])
 
 
+@router.post("/jobs/{job_id}/bug-report", response_model=BugReport)
+async def post_job_bug_report(job_id: str, db: Database = Depends(get_library_database)) -> BugReport:
+    """The bug report for a failed workflow run (`run.fail.bug-report-route`, #6354): a title, a plain-text body and two attachments
+    (`run.json`, `log.txt`), built here so the app, the CLI and an agent send the same one, with what is private taken out
+    (`llm/failure.redact`). Builds and answers; sends nothing. 404 when the project has no such run, 409 (in words) when the run
+    did not fail."""
+    from fichero_server.api.routes.system import bug_report
+    from fichero_server.core import engine_log
+
+    run = await get_activity_tracker(str(db.path)).store.get_workflow_run(job_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"no workflow run {job_id!r} in this project")
+    if run.status != "failed" or not run.failure:
+        raise HTTPException(status_code=409, detail="This run did not fail, so there is nothing to report. A bug report is for a run that stopped.")
+    problems = await get_job_log(job_id, "person", "problems", db)
+    path = os.environ.get("FICHERO_ENGINE_LOG_PATH", "").strip()
+    trace = None
+    if run.failure.get("kind") == "unexpected" and path:
+        trace = await asyncio.to_thread(engine_log.traceback_for_run, Path(path), job_id)
+    return bug_report.build_report(run, [f"{x.timestamp} {x.level} {x.message}" for x in problems.lines], traceback=trace,
+                                   env=await asyncio.to_thread(bug_report.environment))
+
+
 @router.put("/jobs/paused", response_model=BackgroundPauseResponse)
 async def set_background_paused(
     request: BackgroundPauseRequest,
@@ -1349,6 +1629,141 @@ async def set_background_mode(
     `automatic`; `paused` pauses all background work. Kept across relaunch."""
     result = registry.invoke(db, "background.mode", {"mode": request.mode}, ctx)
     return BackgroundModeResponse.model_validate(result.result)
+
+
+class RunControlsResponse(BaseModel):
+    ids: list[str] = Field(description="the rows the control acted on")
+    count: int
+    runs_resumed: list[str] = Field(default_factory=list, description="Continue All: the paused workflow runs resumed")
+
+
+class RunControlsParams(BaseModel):
+    pass
+
+
+@router.post("/pause-all", response_model=RunControlsResponse)
+async def pause_all(
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> RunControlsResponse:
+    """Pause All (`activity.window.run-controls`, #6588): every running and waiting piece of work of this project, a
+    person's runs too, pauses as its own Pause does, and background work is paused so nothing new starts. One undo step;
+    Continue All lets go exactly what it held."""
+    result = registry.invoke(db, "activity.pause_all", {}, ctx)
+    return RunControlsResponse.model_validate(result.result)
+
+
+@router.post("/continue-all", response_model=RunControlsResponse)
+async def continue_all(
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> RunControlsResponse:
+    """Continue All, the Play of the window's Play/Pause: the work Pause All held goes on (a workflow run from its
+    checkpoint), background work is let go; a row a person paused by hand stays paused."""
+    result = registry.invoke(db, "activity.continue_all", {}, ctx)
+    return RunControlsResponse.model_validate(result.result)
+
+
+@router.post("/stop-all", response_model=RunControlsResponse)
+async def stop_all(
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> RunControlsResponse:
+    """Stop All (`activity.window.run-controls`): every running, waiting and paused piece of work of this project stops as
+    its own Stop does; what it did is kept, and Retry runs it again. Not undoable."""
+    result = registry.invoke(db, "activity.stop_all", {}, ctx)
+    return RunControlsResponse.model_validate(result.result)
+
+
+class ActivityModel(BaseModel):
+    """One model of the Models tree (`activity.window.models-tree`, #6588)."""
+
+    id: str
+    name: str
+    place: Literal["this-mac", "remote", "cloud"]
+    provider: str
+    loaded: bool = Field(description="held in memory now")
+    active: bool = Field(description="a page or call on it is in flight now")
+    memory_bytes: Optional[int] = Field(default=None, description="what it holds in memory; null when nothing measures it")
+    memory_estimated: bool = Field(default=False, description="memory_bytes is the size its load is given, not measured")
+    running: int = 0
+    pages_today: int = 0
+    calls_today: int = 0
+    seconds_today: float = 0.0
+
+
+class ActivityModelsResponse(BaseModel):
+    models: list[ActivityModel] = Field(default_factory=list)
+
+
+@router.get("/models", response_model=ActivityModelsResponse)
+async def activity_models(db: Database = Depends(get_library_database)) -> ActivityModelsResponse:
+    """The Models tree (`activity.window.models-tree`, `activity.resources.everything-measured`, #6588): every model this
+    project used today or the engine holds now, by place (this Mac, remote, cloud) and provider, loaded or not, active or
+    not, its memory where measured, today's pages, calls and seconds."""
+    from fichero_server.workflows.activity_models import models
+
+    found = await asyncio.to_thread(models, db)
+    return ActivityModelsResponse(models=[ActivityModel(**m) for m in found])
+
+
+class RecipeStepRow(BaseModel):
+    id: str
+    name: str
+    model: Optional[str] = None
+    place: Optional[str] = Field(default=None, description="where most of its calls went (this_mac, own_machine, provider)")
+    state: Optional[str] = None
+    pages_done: int = 0
+    pages_failed: int = 0
+    seconds: Optional[float] = None
+    seconds_per_page: Optional[float] = Field(default=None, description="the median of its pages' own times")
+    tokens: int = 0
+    cost_usd: Optional[float] = None
+    cost_per_page: Optional[float] = None
+
+
+class RecipeRunRow(BaseModel):
+    id: str
+    status: str
+    started_at: Optional[str] = None
+    ended_at: Optional[str] = None
+    scope: Optional[str] = None
+    pages_done: int = 0
+    pages_failed: int = 0
+    failed_pct: Optional[float] = None
+    seconds: Optional[float] = None
+    seconds_per_page: Optional[float] = None
+    cost_usd: Optional[float] = None
+    cost_per_page: Optional[float] = None
+    steps: list[RecipeStepRow] = Field(default_factory=list)
+
+
+class RecipeRow(BaseModel):
+    id: str
+    name: str
+    run_count: int = 0
+    pages_done: int = 0
+    pages_failed: int = 0
+    failed_pct: Optional[float] = None
+    seconds_per_page: Optional[float] = None
+    cost_usd: Optional[float] = None
+    cost_per_page: Optional[float] = None
+    last_run: Optional[str] = None
+    runs: list[RecipeRunRow] = Field(default_factory=list)
+
+
+class ActivityRecipesResponse(BaseModel):
+    recipes: list[RecipeRow] = Field(default_factory=list)
+
+
+@router.get("/recipes", response_model=ActivityRecipesResponse)
+async def activity_recipes(days: int = 30, db: Database = Depends(get_library_database)) -> ActivityRecipesResponse:
+    """The Recipes view (`activity.window.recipes`, decision 37, #6588): each recipe of the last `days` with its runs and
+    their steps, and the rates that compare them (failed %, seconds a page, cost a page, each step's model and place)."""
+    from fichero_server.workflows.activity_recipes import recipes
+
+    found = await asyncio.to_thread(recipes, db, days=max(1, min(days, 365)))
+    return ActivityRecipesResponse(recipes=[RecipeRow(**r) for r in found])
 
 
 class JobPauseRequest(BaseModel):
@@ -1390,7 +1805,20 @@ async def set_job_paused(
 ) -> JobStateResponse:
     """Pause one waiting job, or resume a paused one (`activity.pause.per-job`). A paused job stays
     paused across relaunch. A running job finishes the item it is on; a page a workflow run is
-    waiting for is paused with its run (409)."""
+    waiting for is paused with its run (409). A paused workflow run is resumed from its checkpoint, as
+    its own Resume does: the row's Continue is the one verb (#6588; it answered 409 before)."""
+    from fichero_server.execution import jobs as job_queue
+
+    if not request.paused:
+        try:
+            kind, state = job_queue._job_row(db, job_id)
+        except KeyError:
+            kind, state = None, None
+        if kind == "workflow" and state == "paused":
+            from fichero_server.api.routes.workflow_execution import core
+
+            await core.resume_workflow(job_id, None, db=db)
+            return JobStateResponse(id=job_id, state="running")
     return _control_job(db, ctx, "job.pause", {"job_id": job_id, "paused": request.paused})
 
 
@@ -1409,6 +1837,7 @@ async def cancel_job(
 @router.post("/jobs/{job_id}/retry", response_model=RetryResponse, response_model_exclude_none=True)
 async def retry_job(
     job_id: str,
+    http: Request,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> RetryResponse:
@@ -1426,6 +1855,8 @@ async def retry_job(
     if kind == "workflow":
         from fichero_server.api.routes.workflow_execution.core import read_again
 
+        await run_check(http, str(Path(db.path).parent), db, [job_id], write=True)  # as `read-again` on the run routes (#6325)
+
         new_thread, _workflow, _pages = await read_again(db, job_id)
         return RetryResponse(id=new_thread, state="running", replaces=job_id)
     if kind is not None and job_queue._is_attached(kind) and job_queue.run_of_page(db, job_id):
@@ -1433,6 +1864,7 @@ async def retry_job(
         # ended reopens for it, a run still going takes it into its queue. Never a new run, never a 409 for a live one.
         from fichero_server.api.routes.workflow_execution.core import retry_page_in_run
 
+        await run_check(http, str(Path(db.path).parent), db, [job_queue.run_of_page(db, job_id)], write=True)  # the page's run
         _run_id, how = await retry_page_in_run(db, job_id)
         return RetryResponse(id=job_id, state="running" if how == "reopened" else "waiting")
     return RetryResponse(**_control_job(db, ctx, "job.retry", {"job_id": job_id}).model_dump())
@@ -1469,6 +1901,197 @@ def _action_job_clear_failed(db: Database, params: ClearFailedParams, ctx: Actio
         domains=["activity"], target_ids=ids, before={"state": "failed"},
         after={"cleared": len(ids)}, emit_type="job.updated",
     )
+
+
+class DeleteJobsParams(BaseModel):
+    ids: list[str] = Field(default_factory=list, description="job ids, or a kind's row (`waiting:<kind>`, `paused:<kind>`)")
+    states: Optional[list[str]] = Field(default=None, description=(
+        "also every top-level job of its own in these states (Clear Finished…: done, failed, cancelled)"))
+    stop_running: bool = Field(default=False, description=(
+        "Stop then Delete (the person confirmed): a running row is asked to stop and deleted at once instead of skipped"))
+
+
+class DeleteJobsResponse(BaseModel):
+    deleted_ids: list[str] = Field(description="the rows deleted: kept in the table, never listed again")
+    skipped_ids: list[str] = Field(description="the rows left: running now, or unknown")
+    count: int
+
+
+@router.post("/jobs/delete", response_model=DeleteJobsResponse)
+async def bulk_delete_jobs(
+    params: DeleteJobsParams,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> DeleteJobsResponse:
+    """Delete in Activity (`activity.window.delete-any-row`, #6583): any row the jobs list shows, in any state, and a
+    kind's row for the whole group. A waiting or paused job is cancelled first; a job running now is skipped and named.
+    The rows are kept (a tree, the record and a Retry still read them) and never listed again, after a relaunch too.
+    Workflow runs are deleted by `POST /api/workflow-execution/runs/delete`."""
+    result = registry.invoke(db, "job.delete", params.model_dump(), ctx)
+    return DeleteJobsResponse.model_validate(result.result)
+
+
+def _invert_job_delete(before: dict | None, after: dict | None, ctx: ActionContext):
+    return ("job.undelete", {"ids": list((after or {}).get("deleted_ids") or [])})
+
+
+@action("job.delete", DeleteJobsParams, domains=["activity"], undoable=True, invert=_invert_job_delete)
+def _action_job_delete(db: Database, params: DeleteJobsParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.execution import jobs as job_queue
+
+    deleted, skipped = job_queue.delete_jobs(db, params.ids, params.states, stop_running=params.stop_running)
+    result = {"deleted_ids": deleted, "skipped_ids": skipped, "count": len(deleted)}
+    return result, ChangeSpec(
+        domains=["activity"], target_ids=deleted, before={"asked": params.ids, "states": params.states},
+        after=result, emit_type="job.updated",
+    )
+
+
+class JobIdsParams(BaseModel):
+    ids: list[str]
+
+
+class JobIdsResponse(BaseModel):
+    ids: list[str] = Field(description="the rows the action reached")
+    count: int
+
+
+@router.post("/jobs/undelete", response_model=JobIdsResponse)
+async def undelete_jobs(
+    params: JobIdsParams,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> JobIdsResponse:
+    """Undo of Delete (`activity.pane.archive-old-runs`, #6583): the deleted rows come back in the state they had."""
+    result = registry.invoke(db, "job.undelete", params.model_dump(), ctx)
+    return JobIdsResponse.model_validate(result.result)
+
+
+@action("job.undelete", JobIdsParams, domains=["activity"], undoable=True,
+        invert=lambda before, after, ctx: ("job.delete", {"ids": list((after or {}).get("ids") or [])}))
+def _action_job_undelete(db: Database, params: JobIdsParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.execution import jobs as job_queue
+
+    ids = job_queue.undelete_jobs(db, params.ids)
+    result = {"ids": ids, "count": len(ids)}
+    return result, ChangeSpec(domains=["activity"], target_ids=ids, before={"asked": params.ids}, after=result, emit_type="job.updated")
+
+
+class ArchiveJobsParams(BaseModel):
+    ids: list[str] = Field(default_factory=list, description="ended rows to archive")
+    states: Optional[list[str]] = Field(default=None, description="also every top-level ended job of its own in these states")
+    older_than_days: Optional[int] = Field(default=None, ge=0, description="with `states`: only rows that ended more than this many days ago")
+
+
+class ArchiveJobsResponse(BaseModel):
+    archived_ids: list[str]
+    skipped_ids: list[str] = Field(description="rows not archived: still waiting, paused or running, or unknown")
+    count: int
+
+
+@router.post("/jobs/archive", response_model=ArchiveJobsResponse)
+async def archive_jobs(
+    params: ArchiveJobsParams,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ArchiveJobsResponse:
+    """Archive (`activity.pane.archive-old-runs`, #6583): an ended row leaves the table and keeps everything; Show Archived
+    (`GET /api/activity/jobs?archived=true`) lists it; `POST …/unarchive` puts it back. A row still going is skipped and named."""
+    result = registry.invoke(db, "job.archive", params.model_dump(), ctx)
+    return ArchiveJobsResponse.model_validate(result.result)
+
+
+@action("job.archive", ArchiveJobsParams, domains=["activity"], undoable=True,
+        invert=lambda before, after, ctx: ("job.unarchive", {"ids": list((after or {}).get("archived_ids") or [])}))
+def _action_job_archive(db: Database, params: ArchiveJobsParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.execution import jobs as job_queue
+
+    archived, skipped = job_queue.archive_jobs(db, params.ids, params.states, params.older_than_days)
+    result = {"archived_ids": archived, "skipped_ids": skipped, "count": len(archived)}
+    return result, ChangeSpec(domains=["activity"], target_ids=archived, before=params.model_dump(), after=result,
+                              emit_type="job.updated")
+
+
+@router.post("/jobs/unarchive", response_model=JobIdsResponse)
+async def unarchive_jobs(
+    params: JobIdsParams,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> JobIdsResponse:
+    """Put Back (`activity.pane.archive-old-runs`): the archived rows are listed again, unchanged."""
+    result = registry.invoke(db, "job.unarchive", params.model_dump(), ctx)
+    return JobIdsResponse.model_validate(result.result)
+
+
+@action("job.unarchive", JobIdsParams, domains=["activity"], undoable=True,
+        invert=lambda before, after, ctx: ("job.archive", {"ids": list((after or {}).get("ids") or [])}))
+def _action_job_unarchive(db: Database, params: JobIdsParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.execution import jobs as job_queue
+
+    ids = job_queue.unarchive_jobs(db, params.ids)
+    result = {"ids": ids, "count": len(ids)}
+    return result, ChangeSpec(domains=["activity"], target_ids=ids, before={"asked": params.ids}, after=result, emit_type="job.updated")
+
+
+class StoppedAtQuitItem(BaseModel):
+    id: str
+    kind: str = Field(description="the engine's kind of work, or `workflow` for a workflow run")
+    name: str
+    subject: Optional[str] = None
+    started_at: Optional[datetime] = None
+
+
+class StoppedAtQuitResponse(BaseModel):
+    items: list[StoppedAtQuitItem]
+    count: int
+
+
+@router.get("/stopped-at-quit", response_model=StoppedAtQuitResponse)
+@_reads_committed
+async def list_stopped_at_quit(db: Database = Depends(get_library_database)) -> StoppedAtQuitResponse:
+    """What the quit left unfinished and the open paused (`activity.launch.nothing-starts-one-alert`, #6584): the job
+    rows that read "Stopped when Fichero quit" and the workflow runs the quit paused. Nothing of it runs until
+    `POST /api/activity/stopped-at-quit/continue`."""
+    from fichero_server.execution import jobs as job_queue
+    from fichero_server.execution.runner import QUIT_PAUSED_ERROR
+
+    items = [StoppedAtQuitItem(**row) for row in await asyncio.to_thread(job_queue.stopped_at_quit, db)]
+    store = get_activity_tracker(str(db.path)).store
+    for run in await store.list_workflow_runs(statuses=["paused"], limit=500):
+        if run.error == QUIT_PAUSED_ERROR:
+            items.append(StoppedAtQuitItem(id=run.thread_id, kind="workflow", name=run.workflow_name or "Workflow run",
+                                           started_at=_utc(run.started_at)))
+    return StoppedAtQuitResponse(items=items, count=len(items))
+
+
+class ContinueAfterQuitParams(BaseModel):
+    ids: Optional[list[str]] = Field(default=None, description="the rows to continue; None with `all` for every one")
+    all: bool = False
+
+
+class ContinueAfterQuitResponse(BaseModel):
+    continued_ids: list[str]
+    count: int
+
+
+@router.post("/stopped-at-quit/continue", response_model=ContinueAfterQuitResponse)
+async def continue_after_quit(
+    params: ContinueAfterQuitParams,
+    db: Database = Depends(get_library_database_for_write),
+) -> ContinueAfterQuitResponse:
+    """The launch alert's Continue (`activity.launch.nothing-starts-one-alert`): the chosen rows the quit stopped are let
+    go; a workflow run the quit paused is resumed from its checkpoint. Nothing else is touched."""
+    from fichero_server.execution import jobs as job_queue
+    from fichero_server.workflows.activity import resume_quit_paused_runs
+
+    if not params.all and not params.ids:
+        return ContinueAfterQuitResponse(continued_ids=[], count=0)
+    wanted = None if params.all else list(params.ids or [])
+    continued = await asyncio.to_thread(job_queue.continue_after_quit, db, wanted)
+    store = get_activity_tracker(str(db.path)).store
+    runs = [r.thread_id for r in await store.list_workflow_runs(statuses=["paused"], limit=500)]
+    continued += await resume_quit_paused_runs(store, db, runs if wanted is None else [i for i in wanted if i in runs])
+    return ContinueAfterQuitResponse(continued_ids=continued, count=len(continued))
 
 
 def _invert_job_pause(before: dict | None, after: dict | None, ctx: ActionContext):
@@ -1529,6 +2152,60 @@ def _action_background_pause(
         domains=["activity"], before={"paused": before}, after={"paused": params.paused},
         emit_type="background.paused" if params.paused else "background.resumed",
     )
+
+
+def _resume_runs_later(db: Database, runs: list[str]) -> None:
+    """Resume these paused workflow runs from their checkpoints once the action commits, on the engine's background loop
+    (an action is synchronous; a resume is not)."""
+    if not runs:
+        return
+    from fichero_server.api.routes.workflow_execution import core
+    from fichero_server.execution.runner import on_background_loop
+
+    async def resume() -> None:
+        for run in runs:
+            try:
+                await core.resume_workflow(run, None, db=db)
+            except Exception as exc:  # noqa: BLE001 -- one run that cannot resume stays paused; the rest go on
+                logger.warning("Continue All could not resume run %s: %s", run, exc)
+
+    db.add_after_commit_hook(lambda: on_background_loop(resume()))
+
+
+@action("activity.pause_all", RunControlsParams, domains=["activity"], undoable=True,
+        invert=lambda before, after, ctx: ("activity.continue_all", {}))
+def _action_pause_all(db: Database, params: RunControlsParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.execution import jobs as job_queue
+
+    held = job_queue.pause_all(db)
+    db.add_after_commit_hook(lambda: job_queue.set_paused(True))  # nothing new starts while it holds
+    return {"ids": held, "count": len(held)}, ChangeSpec(
+        domains=["activity"], target_ids=held, before={}, after={"ids": held}, emit_type="background.paused")
+
+
+@action("activity.continue_all", RunControlsParams, domains=["activity"], undoable=True,
+        invert=lambda before, after, ctx: ("activity.pause_all", {}))
+def _action_continue_all(db: Database, params: RunControlsParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.execution import jobs as job_queue
+
+    let_go, runs = job_queue.continue_all(db)
+    db.add_after_commit_hook(lambda: job_queue.set_paused(False))
+    _resume_runs_later(db, runs)
+    ids = let_go + runs
+    return {"ids": ids, "count": len(ids), "runs_resumed": runs}, ChangeSpec(
+        domains=["activity"], target_ids=ids, before={}, after={"ids": ids}, emit_type="background.resumed")
+
+
+@action("activity.stop_all", RunControlsParams, domains=["activity"])
+def _action_stop_all(db: Database, params: RunControlsParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.execution import jobs as job_queue
+
+    held = job_queue.held_count(db)
+    asked = job_queue.stop_all(db, ctx.actor, ctx.client)
+    if held:
+        db.add_after_commit_hook(lambda: job_queue.set_paused(False))  # Pause All's hold of the background ends with it
+    return {"ids": asked, "count": len(asked)}, ChangeSpec(
+        domains=["activity"], target_ids=asked, before={}, after={"ids": asked}, emit_type="job.updated")
 
 
 def _invert_mode(before: dict | None, after: dict | None, ctx: ActionContext):

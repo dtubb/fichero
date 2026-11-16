@@ -140,8 +140,8 @@ final class EditorViewDisplayRoutingTests: XCTestCase {
     }
 
     func testPDFFileIsNotDivertedToTextEvenWithContent() {
-        // A PDF file routes to its storage display, not the text reader, even if
-        // page_content happens to be populated.
+        // A PDF file with no listed pages routes to its storage display, not the text reader, even if
+        // page_content happens to be populated (one with pages shows them, `PDFOpensAsItsPagesTests`).
         let doc = Document(
             id: "pdf-file-1",
             docType: .file,

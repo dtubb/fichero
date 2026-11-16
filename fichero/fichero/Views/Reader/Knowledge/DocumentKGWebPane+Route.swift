@@ -126,11 +126,14 @@ extension DocumentKGPaneRoute {
     /// This replaces the retired remote-host "unavailable" copy: the pane
     /// is never gated any more, so the only thing this page may claim is
     /// that a load failed, with the engine's own error detail.
-    static func loadFailureHTML(detail: String) -> String {
+    static func loadFailureHTML(detail: String, retryURL: URL? = nil) -> String {
         let escaped = detail
             .replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "<", with: "&lt;")
             .replacingOccurrences(of: ">", with: "&gt;")
+        // A Retry link back to the same engine URL (#6450); without one, the old sentence.
+        let retryLink = retryURL.map { "<p><a href=\"\($0.absoluteString.replacingOccurrences(of: "&", with: "&amp;"))\">Retry</a></p>" }
+            ?? "<p>Check that the engine is running, then reopen this pane to retry.</p>"
         return """
         <!doctype html>
         <html lang="en">
@@ -158,7 +161,7 @@ extension DocumentKGPaneRoute {
           <main>
             <h1>The knowledge graph page failed to load.</h1>
             <p>\(escaped)</p>
-            <p>Check that the engine is running, then reopen this pane to retry.</p>
+            \(retryLink)
           </main>
         </body>
         </html>

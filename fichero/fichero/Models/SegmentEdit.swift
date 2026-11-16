@@ -20,19 +20,44 @@ enum SegmentEdit {
         case delete(SegmentDeleteRequest)
         case merge(SegmentMergeRequest)
         case updateMany(SegmentUpdateManyRequest)
+        /// Move into a region, or out to the page (`segment.reparent`).
+        case reparent(SegmentReparentRequest)
         /// Reshape's baseline edit (`SegmentShapes.reshape`).
         case baseline(SegmentBaselineRequest)
         /// The Shape tool's polygon or baseline (`SegmentShapes.create`).
         case create(SegmentCreateRequest)
+        /// Redraw Outline from Baseline (`segment.regenerate_outline`).
+        case regenerateOutline(SegmentRegenerateOutlineRequest)
+        /// The Knife's stroke (`segment.split` with `cut_path`).
+        case knife(SegmentKnifeRequest)
+        /// Simplify (`segment.simplify`).
+        case simplify(SegmentSimplifyRequest)
+        /// Cut Words (`segment.cut_words`).
+        case cutWords(SegmentCutWordsRequest)
+        /// Add Baseline (`segment.add_baseline`).
+        case addBaseline(SegmentCutWordsRequest)
+        /// Cut Characters (`segment.cut_characters`).
+        case cutCharacters(SegmentCutWordsRequest)
+        /// Order by clicking (`reading_order.sequence`).
+        case sequence(ReadingOrderSequenceRequest)
+        /// The selection moved by one offset (`segment.translate`).
+        case translate(SegmentTranslateRequest)
+        /// A cut mark moved (`segment.move_cut`).
+        case moveCut(SegmentMoveCutRequest)
 
         func encode(to encoder: any Encoder) throws {
+            try payload.encode(to: encoder)
+        }
+        /// The request body each kind sends (the tools' half is `toolPayload`, SegmentEdit+Tools.swift).
+        var payload: any Encodable {
             switch self {
-            case .update(let params): try params.encode(to: encoder)
-            case .baseline(let params): try params.encode(to: encoder)
-            case .create(let params): try params.encode(to: encoder)
-            case .delete(let params): try params.encode(to: encoder)
-            case .merge(let params): try params.encode(to: encoder)
-            case .updateMany(let params): try params.encode(to: encoder)
+            case .update(let params): params
+            case .baseline(let params): params
+            case .create(let params): params
+            case .delete(let params): params
+            case .merge(let params): params
+            case .updateMany(let params): params
+            default: toolPayload
             }
         }
     }
@@ -70,6 +95,10 @@ enum SegmentEdit {
         case versionUnknown
         /// Join needs two or more; delete needs one.
         case tooFew
+        /// A line with no baseline has nothing to redraw its outline from (`segment-editor.edge.no-baseline`).
+        case noBaseline
+        /// The page has no `as-written` order for the Order tool to set (`segment-editor.order-by-clicking`).
+        case noOrder
     }
 
     /// MOVE: the box goes to `rect`, and its outline and every extra shape move by the same offset, so
@@ -132,16 +161,39 @@ enum SegmentEdit {
         ))
     }
 
-    /// JOIN the segments picked; the first picked is the one kept.
-    static func join(_ segments: [Segment]) -> Result<Call, Refusal> {
+    /// MOVE the segments picked into `parent` (a line into a region), or out to the page when `parent` is nil.
+    /// One audited action, one ⌘Z. The engine refuses a parent in another pass and a move into itself.
+    static func reparent(_ segments: [Segment], into parent: String?) -> Result<Call, Refusal> {
+        guard !segments.isEmpty else { return .failure(.tooFew) }
+        guard let versions = versions(of: segments) else { return .failure(.versionUnknown) }
+        return .success(Call(
+            action: "segment.reparent",
+            params: .reparent(SegmentReparentRequest(
+                segments: segments.map { SegmentReparentRequest.Item(segmentId: $0.id, expectedVersion: versions[$0.id] ?? 0) },
+                parentSegmentId: parent
+            ))
+        ))
+    }
+
+    /// JOIN the segments picked; the first picked is the one kept. `asLines` is the segment editor's
+    /// Merge (`segment-editor.merge-lines`): the engine joins the outlines and baselines in reading order
+    /// and moves lines from other regions into the kept one's. Without it (the Reader's backspace join)
+    /// the kept shape stays and a join across regions is refused.
+    static func join(_ segments: [Segment], asLines: Bool = false) -> Result<Call, Refusal> {
         guard segments.count >= 2, let keep = segments.first else { return .failure(.tooFew) }
         guard let versions = versions(of: segments) else { return .failure(.versionUnknown) }
         return .success(Call(
             action: "segment.merge",
             params: .merge(SegmentMergeRequest(
-                segmentIds: segments.map(\.id), keepId: keep.id, expectedVersions: versions
+                segmentIds: segments.map(\.id), keepId: keep.id, expectedVersions: versions,
+                joinGeometry: asLines ? true : nil, moveIntoRegion: asLines ? true : nil
             ))
         ))
+    }
+
+    /// Whether a Join merges regions (so their lines move into the kept one and the order is shown after).
+    static func joinsRegions(_ segments: [Segment]) -> Bool {
+        segments.count >= 2 && segments.allSatisfy { $0.kind.lowercased() == "region" }
     }
 
     /// One outline point moved; anything past x and y is kept as it was.
@@ -157,7 +209,7 @@ enum SegmentEdit {
         return moved
     }
 
-    private static func versions(of segments: [Segment]) -> [String: Int]? {
+    static func versions(of segments: [Segment]) -> [String: Int]? {
         var versions: [String: Int] = [:]
         for segment in segments {
             guard let version = segment.version else { return nil }
@@ -208,14 +260,49 @@ struct SegmentDeleteRequest: Encodable, Equatable {
     }
 }
 
+private enum ReparentItemKeys: String, CodingKey {
+    case segmentId = "segment_id", expectedVersion = "expected_version"
+}
+
+/// `segment.reparent`: move segments under another segment, each with the version it was read at.
+struct SegmentReparentRequest: Encodable, Equatable {
+    struct Item: Encodable, Equatable {
+        let segmentId: String
+        let expectedVersion: Int
+
+        func encode(to encoder: any Encoder) throws {
+            var container = encoder.container(keyedBy: ReparentItemKeys.self)
+            try container.encode(segmentId, forKey: .segmentId)
+            try container.encode(expectedVersion, forKey: .expectedVersion)
+        }
+    }
+
+    let segments: [Item]
+    let parentSegmentId: String?
+
+    enum CodingKeys: String, CodingKey { case segments, parentSegmentId = "parent_segment_id" }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(segments, forKey: .segments)
+        try container.encodeIfPresent(parentSegmentId, forKey: .parentSegmentId)
+    }
+}
+
 /// `segment.merge`: Join. The first segment picked is kept; the engine orders the text.
 struct SegmentMergeRequest: Encodable, Equatable {
     let segmentIds: [String]
     let keepId: String
     let expectedVersions: [String: Int]
+    /// Absent unless set, so every other join sends what it always sent.
+    var joinGeometry: Bool?
+    var moveIntoRegion: Bool?
+    /// A word broken at a line's end joined as one word with both pieces' shapes (`segment-editor.edge.word-across-lines`).
+    var keepShapes: Bool?
 
     enum CodingKeys: String, CodingKey {
         case segmentIds = "segment_ids", keepId = "keep_id", expectedVersions = "expected_versions"
+        case joinGeometry = "join_geometry", moveIntoRegion = "move_into_region", keepShapes = "keep_shapes"
     }
 }
 
@@ -249,67 +336,4 @@ struct SegmentAttributeUpdateParams: Encodable, Equatable {
 
 struct SegmentUpdateManyRequest: Encodable, Equatable {
     let updates: [SegmentAttributeUpdateParams]
-}
-
-/// Sends a `SegmentEdit.Call` through the audited choke point and registers ⌘Z for it by its own
-/// audit id, then re-reads the page's segments so the boxes show the result.
-@MainActor
-struct SegmentEditRunner {
-    /// Posted ONCE per change this runner makes -- the edit, its ⌘Z, its ⇧⌘Z -- with the page's id as
-    /// `object`, after the store has re-read it. A surface that shows the page but did not make the
-    /// edit re-reads it on this (#5171: a direction set in the Segment menu or the Inspector reaches the
-    /// Reader now, not on its next open). One post per change, never a poll.
-    static let didChange = Notification.Name("SegmentEditRunner.didChange")
-
-    let actionsService: ActionsService
-    let store: SegmentStore
-
-    /// Answers the audit id the edit wrote.
-    @discardableResult
-    func run(
-        _ call: SegmentEdit.Call, documentId: String, actionName: String, steps: WindowSteps?,
-        afterChange: @escaping @MainActor () async -> Void = {}
-    ) async throws -> String {
-        let store = store
-        let result = try await AuditedAction.run(
-            call.action, params: call.params, actionName: actionName, actionsService: actionsService, steps: steps,
-            afterChange: {
-                await store.load(documentId: documentId, force: true)
-                await afterChange()
-                NotificationCenter.default.post(name: SegmentEditRunner.didChange, object: documentId)
-            }
-        )
-        return result.auditId
-    }
-}
-
-/// Re-reads a page on `SegmentEditRunner.didChange`: the Reader's hold on segment edits made elsewhere
-/// (#5171). `reload` gets the changed page's id; whether that page is on screen is its call.
-@MainActor
-final class SegmentChangeObserver {
-    nonisolated(unsafe) private var token: (any NSObjectProtocol)?
-
-    nonisolated(unsafe) private var sourceToken: (any NSObjectProtocol)?
-
-    /// `reload` gets the changed page's id, or nil for EVERY page shown: a direction stated on a source
-    /// (`SourceDirection.didChange`) reaches every page below it.
-    init(reload: @escaping @MainActor @Sendable (String?) async -> Void) {
-        token = NotificationCenter.default.addObserver(
-            forName: SegmentEditRunner.didChange, object: nil, queue: .main
-        ) { note in
-            guard let pageId = note.object as? String else { return }
-            Task { @MainActor in await reload(pageId) }
-        }
-        // ponytail: every shown page, not only those under the node; filter by ancestry if a Reader of many pages makes this slow.
-        sourceToken = NotificationCenter.default.addObserver(
-            forName: SourceDirection.didChange, object: nil, queue: .main
-        ) { _ in
-            Task { @MainActor in await reload(nil) }
-        }
-    }
-
-    deinit {
-        if let token { NotificationCenter.default.removeObserver(token) }
-        if let sourceToken { NotificationCenter.default.removeObserver(sourceToken) }
-    }
 }

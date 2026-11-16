@@ -1,0 +1,382 @@
+import FicheroAPIClient
+import SwiftUI
+
+/// The Reader's Lines mode (#5414, `reader.lines.image-above-text`): down the page, each line's picture
+/// cut from the source above its reading, editable in place. The working pass's lines in the engine's
+/// order (`ReaderLines.lines`). It follows the focused Preview's selection as the other Reader modes do,
+/// and a click on a line's picture reveals it there (#5424's one reveal, as the Reader's line click).
+/// Zoom is the Reader's own (`webZoom`): the pane's zoom buttons and ⌘+/⌘− scale picture and words.
+struct ReaderLinesView: View {
+    let documentId: String
+    let zoom: Double
+    /// A trackpad pinch on the lines moves the Reader's one zoom, as on the web pane (#6428).
+    var onPinchZoom: ((Double) -> Void)?
+
+    #if os(macOS)
+    @State private var pinchStart: Double?
+    #endif
+    @Environment(SegmentService.self) private var segmentService: SegmentService?
+    @Environment(WindowState.self) private var windowState: WindowState?
+
+    var body: some View {
+        if let segmentService {
+            content(SegmentStore.shared(for: segmentService))
+                .task(id: documentId) { await SegmentStore.shared(for: segmentService).load(documentId: documentId) }
+        } else {
+            PaneEmptyStateView(reason: "This window cannot read a page's lines.")
+        }
+    }
+
+    @ViewBuilder
+    private func content(_ store: SegmentStore) -> some View {
+        let lines = ReaderLines.lines(documentId: documentId, store: store)
+        if lines.isEmpty {
+            PaneEmptyStateView(
+                reason: store.isLoading(documentId: documentId)
+                    ? "Reading the page's lines…" : "This page has no lines yet. Find lines on it first.",
+                systemImage: "text.below.photo"
+            )
+        } else {
+            let direction = store.directionResolver(documentId: documentId)
+            let shown = ReaderLines.shown(selectedIds(store), among: lines, segments: store.segments(documentId: documentId))
+            ScrollViewReader { proxy in
+                List(lines) { line in
+                    ReaderLineRow(
+                        segment: line, direction: direction(line.id), zoom: zoom,
+                        isSelected: shown.contains(line.id),
+                        onPick: { pick(line.id, among: lines, store: store) }
+                    )
+                    .id(line.id)
+                    // The window test (#6474) reads which rows the shared selection has lit.
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("reader.line.row")
+                    .accessibilityValue(shown.contains(line.id) ? "selected" : "")
+                    .listRowSeparator(.hidden)
+                }
+                .listStyle(.plain)
+                // Up/Down step the shared selection through the page's lines (#6457), as in the Inspector and the Preview.
+                .onKeyPress(.upArrow, phases: .down) { press in step(-1, extend: press.modifiers.contains(.shift), store) }
+                .onKeyPress(.downArrow, phases: .down) { press in step(1, extend: press.modifiers.contains(.shift), store) }
+                #if os(macOS)
+                .simultaneousGesture(MagnifyGesture()
+                    .onChanged { value in
+                        let start = pinchStart ?? zoom
+                        pinchStart = start
+                        onPinchZoom?(ReaderZoom.scaled(from: start, by: value.magnification))
+                    }
+                    .onEnded { _ in pinchStart = nil })
+                #endif
+                .onChange(of: shown) { _, now in
+                    guard let first = lines.first(where: { now.contains($0.id) }) else { return }
+                    withAnimation { proxy.scrollTo(first.id, anchor: .center) }
+                }
+            }
+        }
+    }
+
+    /// The focused Preview's selection on this page, as segment ids -- the Inspector's one resolution.
+    private func selectedIds(_ store: SegmentStore) -> [String] {
+        guard let selection = windowState?.sharedRegionSelection else { return [] }
+        return InspectorPath.selectedSegmentIds(selection: selection, documentId: documentId, store: store)
+    }
+
+    private func step(_ places: Int, extend: Bool, _ store: SegmentStore) -> KeyPress.Result {
+        guard let selection = windowState?.sharedRegionSelection,
+              InspectorPath.stepSelection(
+                  by: places, extend: extend, startsFromNothing: true, selection: selection, documentId: documentId, store: store
+              )
+        else { return .ignored }
+        return .handled
+    }
+
+    /// A click on a line's picture: the one line (selected, revealed in the Preview, shown in the Inspector), or --
+    /// with ⌘ or ⇧ -- a set made as Finder makes it (`ReaderLines.picked`), written into the one shared selection so the
+    /// Preview, the Order list and the Segments list show the same lines.
+    private func pick(_ segmentId: String, among lines: [Segment], store: SegmentStore) {
+        #if os(macOS)
+        let flags = NSEvent.modifierFlags
+        let (command, shift) = (flags.contains(.command), flags.contains(.shift))
+        #else
+        let (command, shift) = (false, false)
+        #endif
+        guard command || shift, let selection = windowState?.sharedRegionSelection else {
+            reveal(segmentId, store: store)
+            return
+        }
+        let held = InspectorPath.selectedSegmentIds(selection: selection, documentId: documentId, store: store)
+        let ids = ReaderLines.picked(segmentId, held: held, order: lines.map(\.id), command: command, shift: shift)
+        if ids.isEmpty { selection.clear() } else {
+            _ = InspectorPath.select(segmentIds: ids, into: selection, documentId: documentId, store: store)
+        }
+    }
+
+    /// A plain click: the one line, selected for the whole window, zoomed to in the Preview, shown in the Inspector (#6482).
+    private func reveal(_ segmentId: String, store: SegmentStore) {
+        windowState?.pickInReader([segmentId], documentId: documentId, store: store)
+    }
+}
+
+/// ONE line: its picture, and below it (beside it, for a vertical line) its reading, editable in place.
+/// The Lines mode's row and the Preview's double-click popover are this view (#5414).
+struct ReaderLineRow: View {
+    let segment: Segment
+    /// The line's resolved direction (the engine's cascade); nil reads as written across.
+    let direction: String?
+    let zoom: Double
+    var isSelected = false
+    /// A click on the picture; nil when there is nothing to reveal (the popover sits on the line already).
+    var onPick: (() -> Void)?
+
+    @Environment(SegmentService.self) private var segmentService: SegmentService?
+    @Environment(ActionStore.self) private var actionStore: ActionStore?
+    @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
+    @Environment(WindowState.self) private var windowState: WindowState?
+    @State private var deleteNote: String?
+    @Environment(TranscriptionFontStore.self) private var transcriptionFont: TranscriptionFontStore?
+    @State private var editor: ReaderLineEditor
+    @State private var correcting: Segment?
+    /// This line's own versions-triangle click and the ⌥-click stamp it was made under (#6492).
+    @State private var versionsOwn: (open: Bool, stamp: Int)?
+    /// View > Show Withdrawn Readings: the versions tree also lists the retracted readings, struck through.
+    @AppStorage("reader.showWithdrawnReadings") private var showsWithdrawn = false
+
+    init(segment: Segment, direction: String?, zoom: Double, isSelected: Bool = false, onPick: (() -> Void)? = nil) {
+        self.segment = segment
+        self.direction = direction
+        self.zoom = zoom
+        self.isSelected = isSelected
+        self.onPick = onPick
+        _editor = State(initialValue: ReaderLineEditor(segment: segment))
+    }
+
+    private var metrics: ReaderLines.Metrics { ReaderLines.Metrics(zoom: zoom) }
+
+    private var versionsOpen: Bool {
+        ReaderVersionsTriangle.isOpen(own: versionsOwn, allOpen: windowState?.readerVersionsAllOpen ?? false,
+                                      stamp: windowState?.readerVersionsStamp ?? 0)
+    }
+
+    var body: some View {
+        // ponytail: split in three (content, verbs target, modifiers): as one expression the type-checker crashed
+        // ("failed to produce diagnostic", Mac build of 3f34a7456).
+        rowContent
+        .padding(8)
+        .background(isSelected ? Color.accentColor.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 6))
+        // Correct This Line (#5499): the engine's one verb, the line and its words.
+        .contextMenu {
+            CorrectThisLineButton(segment: segment) { correcting = $0 }
+            SegmentVerbMenu(ids: verbIds, documentId: segment.documentId, onNote: { deleteNote = $0 })
+            Divider()
+            Button(role: .destructive) { deleteLines() } label: { Label("Delete", systemImage: "trash") }
+        }
+        .correctThisLine($correcting)
+        .overlay(alignment: .bottomLeading) {
+            if let deleteNote { Text(deleteNote).font(.caption).foregroundStyle(.secondary).padding(4) }
+        }
+        // Page › Segments › Correct This Line… on the selected line (#5652), the same verb as this row's menu.
+        .focusedSceneValue(\.lineVerbs, lineVerbsTarget)
+        .onChange(of: showsWithdrawn, initial: true) { _, now in editor.showsWithdrawn = now }
+        .task(id: segment.id) {
+            if let segmentService { await editor.load(segmentService) }
+        }
+    }
+
+    /// The lines a verb on this row means: the row, or the focused selection when it holds the row.
+    private var verbIds: [String] {
+        guard let segmentService else { return [segment.id] }
+        let held = SegmentDeleter.selectedIds(
+            windowState?.sharedRegionSelection, documentId: segment.documentId, store: SegmentStore.shared(for: segmentService)
+        )
+        return SegmentDeleter.ids(row: segment.id, held: held)
+    }
+
+    private var lineVerbsTarget: LineVerbsTarget? {
+        guard isSelected else { return nil }
+        var target = LineVerbsTarget(segment: segment, delete: { deleteLines() })
+        if CorrectLine.offers(segment) { target.correct = { correcting = segment } }  // a ternary lost @MainActor
+        return target
+    }
+
+    @ViewBuilder
+    private var rowContent: some View {
+        Group {
+            switch ReaderLines.arrangement(direction: direction) {
+            case .above:
+                VStack(alignment: .leading, spacing: 6) {
+                    ScrollView(.horizontal) { picture }
+                    words
+                }
+            case .beside:
+                HStack(alignment: .top, spacing: 8) {
+                    picture
+                    words
+                }
+            }
+        }
+    }
+
+    /// Delete this line, or -- when it is part of the focused Source view's selection -- every line selected there:
+    /// the one `segment.delete` batch, one ⌘Z (`source.editor.delete-selected-lines`); why not is said on the row.
+    private func deleteLines() {
+        guard let segmentService else { return }
+        let store = SegmentStore.shared(for: segmentService)
+        let focused = windowState?.sharedRegionSelection
+        let held = SegmentDeleter.selectedIds(focused, documentId: segment.documentId, store: store)
+        let ids = SegmentDeleter.ids(row: segment.id, held: held)
+        let actionsService = actionStore?.actionsService, steps = windowSteps, documentId = segment.documentId
+        Task {
+            deleteNote = await SegmentDeleter.run(
+                SegmentDeleter.segments(ids, documentId: documentId, store: store), documentId: documentId,
+                store: store, actionsService: actionsService, steps: steps, clearing: focused
+            )
+        }
+    }
+
+    /// The line's picture at `metrics.pictureExtent` across the line, always larger than its words.
+    @ViewBuilder
+    private var picture: some View {
+        let extent = metrics.pictureExtent
+        let vertical = ReaderLines.arrangement(direction: direction) == .beside
+        Button { onPick?() } label: {
+            Group {
+                if let data = editor.picture, let image = PlatformImage(data: data) {
+                    Image(platformImage: image).resizable().scaledToFit()
+                } else {
+                    Rectangle().fill(.quaternary)
+                        .overlay { Image(systemName: "photo").foregroundStyle(.secondary) }
+                        .frame(width: vertical ? extent : extent * 6, height: vertical ? extent * 6 : extent)
+                }
+            }
+            .frame(width: vertical ? extent : nil, height: vertical ? nil : extent)
+            .clipShape(RoundedRectangle(cornerRadius: 3))
+            .frame(
+                minWidth: MiniToolbar<EmptyView, EmptyView>.touchTargetSide,
+                minHeight: MiniToolbar<EmptyView, EmptyView>.touchTargetSide
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(onPick == nil)
+        .accessibilityLabel("Picture of the line")
+        .help(onPick == nil ? "" : "Show this line in \(SourcePane.name)")
+    }
+
+    private var words: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                if ReadingTree.discloses(editor.versions) {
+                    ReaderVersionsTriangle(own: $versionsOwn, count: ReaderLineVersions.flattened(editor.versions).count)
+                }
+                if let label = editor.label {
+                    Label(label.text, systemImage: label.glyph)
+                        .font(.caption).foregroundStyle(.secondary)
+                        .help(label.help)
+                        .accessibilityLabel("\(label.text), \(label.help)")
+                }
+            }
+            field
+            if ReadingTree.discloses(editor.versions), versionsOpen {
+                ReaderLineVersions(roots: editor.versions, countingId: editor.reading?.id, withdrawn: editor.withdrawnIds)
+            }
+            if editor.isChanged {
+                HStack {
+                    Spacer()
+                    Button("Revert", role: .cancel) { editor.revert() }
+                    Button("Save") { Task { await save() } }
+                }
+                .font(.caption)
+            }
+            if let note = editor.note {
+                Text(note).font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var field: some View {
+        switch InspectorReadingEdit.layout(direction: direction) {
+        case .vertical:
+            #if os(macOS)
+            VerticalTextEditor(text: $editor.draft, pointSize: metrics.fontSize)
+                .frame(minWidth: metrics.fontSize * 2, maxWidth: .infinity, minHeight: metrics.pictureExtent * 4)
+                .accessibilityLabel("Reading, top to bottom")
+            #else
+            horizontalField(rightToLeft: false)
+            #endif
+        case .horizontal(let rightToLeft):
+            horizontalField(rightToLeft: rightToLeft)
+        }
+    }
+
+    private func horizontalField(rightToLeft: Bool) -> some View {
+        TextField("Reading", text: $editor.draft, axis: .vertical)
+            .font(BundledFonts.shared.font(size: metrics.fontSize, family: transcriptionFont?.family))
+            .multilineTextAlignment(rightToLeft ? .trailing : .leading)
+            .environment(\.layoutDirection, rightToLeft ? .rightToLeft : .leftToRight)
+            .textFieldStyle(.plain)
+            .lineLimit(1...6)
+            .onSubmit { Task { await save() } }
+            .accessibilityLabel("Reading of the line")
+    }
+
+    /// The Inspector's own save (`InspectorReadingEdit.save` through `ReaderTextEditRunner`).
+    private func save() async {
+        guard editor.isChanged, let segmentService, let actionsService = actionStore?.actionsService else { return }
+        let runner = ReaderTextEditRunner(
+            actionsService: actionsService, segmentService: segmentService, steps: windowSteps,
+            refreshPage: { _ in }
+        )
+        await editor.save(runner: runner, service: segmentService)
+    }
+}
+
+/// The Preview's double-click popover (`preview.segment.double-click-popover`): the segment's picture
+/// large, its reading below, editable -- one row of the Lines mode, the same view.
+struct ReaderLinePopover: View {
+    let segmentId: String
+    let documentId: String
+
+    @Environment(SegmentService.self) private var segmentService: SegmentService?
+
+    var body: some View {
+        Group {
+            if let segmentService, let row = Self.row(segmentId: segmentId, documentId: documentId,
+                                                       store: SegmentStore.shared(for: segmentService)) {
+                row
+            } else {
+                Text("This segment cannot be read here.").font(.callout).foregroundStyle(.secondary).padding()
+            }
+        }
+        .frame(minWidth: 320, idealWidth: 520, maxWidth: 720)
+    }
+
+    /// The row the popover shows: the Lines mode's row for that segment, at the popover's zoom.
+    @MainActor
+    static func row(segmentId: String, documentId: String, store: SegmentStore) -> ReaderLineRow? {
+        guard let segment = store.segments(documentId: documentId).first(where: { $0.id == segmentId }) else { return nil }
+        return ReaderLineRow(
+            segment: segment, direction: store.direction(of: segmentId, documentId: documentId),
+            zoom: ReaderLines.popoverZoom
+        )
+    }
+}
+
+#if DEBUG
+#Preview("Lines: a Syriac line and a vertical Chinese line") {
+    let anchor = SourceAnchorValue(generated: Components.Schemas.SourceAnchorOutput(documentId: "p1"))
+    let syriac = Segment(
+        id: "l1", provisional: false, documentId: "p1", passId: "p", kind: "line", kindRaw: nil,
+        parentSegmentId: nil, provenanceKind: .externalImport, anchor: anchor, baseline: nil,
+        text: "ܐܒܪܗܡ ܐܘܠܕ ܠܐܝܣܚܩ", confidence: nil, sourceArtifactId: nil, boxIndex: 0, pageIndex: nil, metadata: nil
+    )
+    var chinese = syriac
+    chinese.id = "l2"
+    chinese.text = "登庸九年"
+    return VStack(alignment: .leading, spacing: 12) {
+        ReaderLineRow(segment: syriac, direction: "rtl", zoom: 1.2, isSelected: true)
+        ReaderLineRow(segment: chinese, direction: "ttb", zoom: 1.2)
+    }
+    .padding()
+    .frame(width: 480)
+}
+#endif

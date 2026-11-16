@@ -225,12 +225,21 @@ struct CanvasDropTests {
         #expect(outcome == .moveInto(containerId: "c"))
     }
 
-    @Test("drop on a leaf links to it")
+    @Test("a plain drop on a leaf places the card beside it; ⌥ links (#4601: lines kept appearing between cards)")
     func leaf() {
-        let outcome = DropOutcome.classify(
-            draggedId: "a", target: CanvasDropTarget(id: "b", kind: .leaf), position: pos, modifiers: []
-        )
-        #expect(outcome == .link(targetId: "b"))
+        let leaf = CanvasDropTarget(id: "b", kind: .leaf)
+        #expect(DropOutcome.classify(draggedId: "a", target: leaf, position: pos, modifiers: []) == .place(position: pos))
+        #expect(DropOutcome.classify(draggedId: "a", target: leaf, position: pos, modifiers: .forceLink) == .link(targetId: "b"))
+    }
+
+    @Test("a target lights under the drag only where the drop will act on it")
+    func lightsOnlyWhereItActs() {
+        let leaf = CanvasDropTarget(id: "b", kind: .leaf), folder = CanvasDropTarget(id: "c", kind: .container)
+        #expect(!DropOutcome.lightsTarget(leaf, modifiers: []))
+        #expect(DropOutcome.lightsTarget(leaf, modifiers: .forceLink))
+        #expect(DropOutcome.lightsTarget(folder, modifiers: []))
+        #expect(!DropOutcome.lightsTarget(folder, modifiers: .cancel))
+        #expect(!DropOutcome.lightsTarget(nil, modifiers: .forceLink))
     }
 
     @Test("⌥ forces a link even over a container")

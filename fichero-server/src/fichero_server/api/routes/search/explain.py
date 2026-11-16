@@ -16,7 +16,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from fichero_server.api.main import get_library_database
+from fichero_server.api.main import get_library_database, whole_library_reader_only
 from fichero_server.db import Database, _fold_for_search
 from fichero_server.models.knowledge import KnowledgeClaim
 from fichero_server.models import Document
@@ -286,6 +286,7 @@ RAG_MODE_CONFIGS: dict[RAGMode, RAGModeConfig] = {
 @router.post(
     "/explain",
     response_model=SearchExplanation,
+    dependencies=[Depends(whole_library_reader_only)],  # it ranks the whole library: not a caller whose reads differ page by page (#6325 H2)
     summary="Explain a search query",
     description="Returns detailed explanation of why results were matched, with source attribution.",
 )
@@ -355,6 +356,7 @@ async def explain_search(
 @router.get(
     "/explain/{query}",
     response_model=SearchExplanation,
+    dependencies=[Depends(whole_library_reader_only)],
     summary="Explain search by path",
     description="Get search explanation using URL path (GET alternative to POST /explain).",
 )

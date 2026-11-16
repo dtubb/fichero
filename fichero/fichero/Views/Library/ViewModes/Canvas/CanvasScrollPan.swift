@@ -24,6 +24,9 @@ struct CanvasScrollPanView: NSViewRepresentable {
     /// the context menu opens, so the canvas can select the card under it first (#5632). The click
     /// itself is passed on untouched: the menu still opens.
     var onSecondaryClick: ((CGPoint) -> Void)?
+    /// A left mouse-down inside the view, before any gesture sees it (#4601): the board finishes a drag SwiftUI
+    /// cancelled without `onEnded`, so the new press never continues the old one.
+    var onPrimaryPress: (() -> Void)?
     /// Scroll delta in view POINTS, already corrected for scroll direction.
     /// Shaped like a drag translation so the caller can hand it to the same
     /// conversion a drag uses.
@@ -38,6 +41,7 @@ struct CanvasScrollPanView: NSViewRepresentable {
         view.onScroll = onScroll
         view.onZoom = onZoom
         view.onSecondaryClick = onSecondaryClick
+        view.onPrimaryPress = onPrimaryPress
         return view
     }
 
@@ -45,6 +49,7 @@ struct CanvasScrollPanView: NSViewRepresentable {
         (nsView as? CanvasScrollCaptureView)?.onScroll = onScroll
         (nsView as? CanvasScrollCaptureView)?.onZoom = onZoom
         (nsView as? CanvasScrollCaptureView)?.onSecondaryClick = onSecondaryClick
+        (nsView as? CanvasScrollCaptureView)?.onPrimaryPress = onPrimaryPress
     }
 }
 
@@ -53,8 +58,11 @@ final class CanvasScrollCaptureView: NSView {
     /// (deltaY, cursor offset from the view CENTER in points, y-down).
     var onZoom: ((CGFloat, CGPoint) -> Void)?
     var onSecondaryClick: ((CGPoint) -> Void)?
+    var onPrimaryPress: (() -> Void)?
     private var monitor: Any?
     private var clickMonitor: Any?
+    /// Times a left click or drag on the board (`CanvasBoardProfile`); passes every event on.
+    private var pressMonitor: Any?
 
     /// Transparent to every other input: this view exists only to receive
     /// scroll, so clicks, drags and taps must continue to the SwiftUI content
@@ -71,25 +79,50 @@ final class CanvasScrollCaptureView: NSView {
         super.viewDidMoveToWindow()
         if let monitor { NSEvent.removeMonitor(monitor); self.monitor = nil }
         if let clickMonitor { NSEvent.removeMonitor(clickMonitor); self.clickMonitor = nil }
+        if let pressMonitor { NSEvent.removeMonitor(pressMonitor); self.pressMonitor = nil }
         guard window != nil else { return }
-        clickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown, .leftMouseDown]) { [weak self] event in
-            guard let self, let window = self.window, event.window === window, let onSecondaryClick = self.onSecondaryClick,
-                  event.type == .rightMouseDown || event.modifierFlags.contains(.control) else { return event }
-            let inView = self.convert(event.locationInWindow, from: nil)
-            if self.bounds.contains(inView) {
-                onSecondaryClick(CGPoint(x: inView.x, y: self.isFlipped ? inView.y : self.bounds.height - inView.y))
-            }
-            return event
-        }
+        pressMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]
+        ) { [weak self] event in self?.pressed(event) ?? event }
+        clickMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.rightMouseDown, .leftMouseDown]
+        ) { [weak self] event in self?.secondaryClicked(event) ?? event }
         monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
-            guard let self, let window = self.window, event.window === window else { return event }
-            let inView = self.convert(event.locationInWindow, from: nil)
-            if self.bounds.contains(inView) {
-                self.scrollWheel(with: event)
-                return nil  // consumed — the canvas owns this scroll
-            }
-            return event
+            guard let self else { return event }
+            return self.scrolled(event)
         }
+    }
+
+    private func pressed(_ event: NSEvent) -> NSEvent {
+        guard event.window === window else { return event }
+        switch event.type {
+        case .leftMouseDown:
+            if bounds.contains(convert(event.locationInWindow, from: nil)) {
+                CanvasBoardProfile.mouse(.pressed)
+                onPrimaryPress?()
+            }
+        case .leftMouseDragged: CanvasBoardProfile.mouse(.dragged)
+        default: CanvasBoardProfile.mouse(.released)
+        }
+        return event
+    }
+
+    private func secondaryClicked(_ event: NSEvent) -> NSEvent {
+        guard let window, event.window === window, let onSecondaryClick,
+              event.type == .rightMouseDown || event.modifierFlags.contains(.control) else { return event }
+        let inView = convert(event.locationInWindow, from: nil)
+        if bounds.contains(inView) {
+            onSecondaryClick(CGPoint(x: inView.x, y: isFlipped ? inView.y : bounds.height - inView.y))
+        }
+        return event
+    }
+
+    /// nil = consumed: the canvas owns a scroll over it.
+    private func scrolled(_ event: NSEvent) -> NSEvent? {
+        guard let window, event.window === window else { return event }
+        guard bounds.contains(convert(event.locationInWindow, from: nil)) else { return event }
+        scrollWheel(with: event)
+        return nil
     }
 
     // No deinit teardown: `monitor` is non-Sendable, so a nonisolated deinit
@@ -110,7 +143,8 @@ final class CanvasScrollCaptureView: NSView {
 
         guard deltaX != 0 || deltaY != 0 else { return }
         if event.modifierFlags.contains(.command), let onZoom {
-            if deltaY != 0 {
+            // The zoom follows the fingers: the momentum glide after they lift does not zoom (#4601).
+            if deltaY != 0, CanvasScrollZoom.zooms(isMomentum: !event.momentumPhase.isEmpty) {
                 // Cursor offset from the view center, y-DOWN (screen sense) —
                 // the anchor for zoom-into-the-cursor (user, 2026-08-20:
                 // "pinch and ⌘-scroll zoom must zoom INTO THE CURSOR").

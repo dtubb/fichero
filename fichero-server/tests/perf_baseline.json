@@ -16084,21 +16084,6 @@
     "ms": 62.2,
     "note": "first recorded run"
   },
-  "test::tests/unit/workflows/test_apple_vision_rendition_preference.py::test_missing_bytes_and_wrong_role_fall_back": {
-    "commit": "c2e0cb61d",
-    "ms": 72.0,
-    "note": "first recorded run"
-  },
-  "test::tests/unit/workflows/test_apple_vision_rendition_preference.py::test_prefers_frame_true_background_removed": {
-    "commit": "c2e0cb61d",
-    "ms": 74.7,
-    "note": "first recorded run"
-  },
-  "test::tests/unit/workflows/test_apple_vision_rendition_preference.py::test_transformed_rendition_is_refused": {
-    "commit": "c2e0cb61d",
-    "ms": 76.1,
-    "note": "first recorded run"
-  },
   "test::tests/unit/workflows/test_book_index_extract.py::test_book_index_extract_can_read_index_text_from_page_range[asyncio]": {
     "commit": "18917fe1f",
     "ms": 290.5,

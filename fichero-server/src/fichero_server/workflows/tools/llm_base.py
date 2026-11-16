@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from fichero_server.llm import LLMConfig
 
 from fichero_server.media.ocr_geometry import OCRGeometryResult
+from fichero_server.media.current_image import NOT_THE_FIELD_KEYS, PROVENANCE_KEYS
 from fichero_server.workflows.types import PortDef, DataType
 from fichero_server.workflows.tools._doc_lookup import find_document_by_path
 from fichero_server.workflows.tools.llm_prompting import (  # noqa: F401 (re-exported)
@@ -52,6 +53,7 @@ from fichero_server.workflows.tools.llm_prompting import (  # noqa: F401 (re-exp
 )
 
 logger = logging.getLogger(__name__)
+
 
 
 class ArtifactLookupError(Exception):
@@ -429,6 +431,16 @@ def _node_reading_corrected(db: Any, document_id: str, tool_config: LLMToolConfi
     return max(rows, key=lambda r: (r.created_at, r.id)).id if rows else None
 
 
+def _prepare_image_reused(artifact: Any, current_kind: str | None) -> bool:
+    """Whether `artifact` was made from the photograph or a rendition and the current image is one of those too (not an edit)."""
+    from fichero_server.media.current_image import EDITED, IMAGE_KIND, ORIGINAL, RENDITION, read_from
+
+    if current_kind not in (ORIGINAL, RENDITION):
+        return False
+    kind = (getattr(artifact, "data", None) or {}).get(IMAGE_KIND)
+    return (kind or (ORIGINAL if read_from(artifact) == ORIGINAL else EDITED)) in (ORIGINAL, RENDITION)
+
+
 def find_existing_artifact(
     document_id: str | None,
     file_path: str | None,
@@ -437,8 +449,18 @@ def find_existing_artifact(
     *,
     provider: str | None = None,
     model: str | None = None,
+    image: str | None = None,
+    reuse_across_prepare: str | None = None,
 ) -> Any | None:
     """Return the most recent artifact of the given type for a document, or None.
+
+    `reuse_across_prepare` (the current image's kind, `media/current_image`): for a tool that answers about the picture as a whole
+    (describe, caption, tags...), a result made from the photograph or a run's rendition answers for any of those images, so Prepare
+    changing the image does not make it pay again (owner ruling 2026-11-01: same input, same model). A result made from a person's
+    edit answers only that same edit, and when the current image is a person's edit only a result from that edit answers.
+
+    `image` (`media/current_image.PageImage.signature`): only a reading made from that image answers (#6296); an edit or an Undo
+    in Preview is another image and is read again. None: any image's.
 
     The cache key is (document_id, artifact_type, provider, model) when
     provider/model are supplied. Matching on provider/model matters because
@@ -482,6 +504,10 @@ def find_existing_artifact(
             artifacts = [a for a in artifacts if getattr(a, "provider", None) == provider]
         if model is not None:
             artifacts = [a for a in artifacts if getattr(a, "model", None) == model]
+        if image is not None:
+            from fichero_server.media.current_image import read_from
+
+            artifacts = [a for a in artifacts if read_from(a) == image or _prepare_image_reused(a, reuse_across_prepare)]
         if not artifacts:
             return None
 
@@ -960,8 +986,11 @@ def _save_artifact_sync(
         if (final_metadata_field or custom_metadata) and doc is not None:
             if not isinstance(doc.metadata, dict):
                 doc.metadata = {}
-            if final_metadata_field:
-                doc.metadata[final_metadata_field] = data if data else content[:1000]
+            if final_metadata_field and not (NOT_THE_FIELD_KEYS & set(data or {})):
+                # A flagged read or a compare arm writes nothing onto the page (#5522, #6320). What rides on the artifact for the cache and the inspector (the image it was read from, its episode, its
+                # thinking...) is provenance, not the field's value: without more, the field is the text (#6320).
+                shown = {k: v for k, v in (data or {}).items() if k not in PROVENANCE_KEYS}
+                doc.metadata[final_metadata_field] = shown if shown else content[:1000]
             if custom_metadata:
                 doc.metadata.update(custom_metadata)
             doc.updated_at = utc_now()

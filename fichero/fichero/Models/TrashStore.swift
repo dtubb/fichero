@@ -70,10 +70,13 @@ struct EmptyTrashQuestion: Equatable {
     let question: String
     let movedSentences: [String]
     let itemCount: Int
+    /// What else goes with the items, with the counts ("It also removes 3 stored files (4.2 MB) and 2 notes."); empty
+    /// when nothing does (`safety.trash.empty-says-what-will-go`).
+    var detail: String = ""
 
-    /// The alert's message: the moved-items sentences, then that it cannot be undone.
+    /// The alert's message: what else goes, the moved-items sentences, then that it cannot be undone.
     var message: String {
-        (movedSentences + ["This cannot be undone."]).joined(separator: "\n\n")
+        ([detail].filter { !$0.isEmpty } + movedSentences + ["This cannot be undone."]).joined(separator: "\n\n")
     }
 }
 
@@ -183,7 +186,8 @@ final class TrashStore: ChangeEventConsumer {
                 emptyQuestion = EmptyTrashQuestion(
                     question: preview.sentence,
                     movedSentences: (preview.moved ?? []).map(\.sentence),
-                    itemCount: preview.items
+                    itemCount: preview.items,
+                    detail: preview.detail ?? ""
                 )
                 errorMessage = nil
             case .undocumented(let code, _):

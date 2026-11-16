@@ -69,7 +69,7 @@ struct PreviewSelectionDefaultsTests {
     @Test("promoting a marquee focuses the artifact it wrote")
     func promoteFocusesItsArtifact() throws {
         let regions = try appSource(
-            "Views/Preview/ImageViewer/Regions/ZoomableImagePreviewMac+Regions.swift"
+            "Views/Preview/ImageViewer/Regions/Zoomable/ZoomableImagePreviewMac+Regions.swift"
         )
         let focusCalls = regions.components(
             separatedBy: "FocusedArtifact.shared.select("

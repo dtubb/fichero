@@ -194,7 +194,7 @@ extension AISettingsView {
             await Self.applyModelLoad(
                 providerType: providerType,
                 fetch: {
-                    let configured = try await appState.providerService.listProviderModels(providerId: provider.id)
+                    let configured = try await appState.providerService.configuredModels(providerId: provider.id)
                     return Self.configuredModelInfos(from: configured, providerType: providerType)
                 },
                 models: models, selection: selection, loadError: loadError
@@ -261,7 +261,7 @@ extension AISettingsView {
         Task {
             do {
                 let configured = try await appState.providerService
-                    .listProviderModels(providerId: provider.id)
+                    .configuredModels(providerId: provider.id)
                 models.wrappedValue = Self.configuredModelInfos(from: configured, providerType: providerType)
             } catch {
                 settingsLogger.error(

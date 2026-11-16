@@ -80,5 +80,5 @@ def test_while_off_nothing_else_is_allowed_and_not_for_a_paired_device(app_db, m
                    {"user_id": owner.id, "password": "p", "caller": member}):    # not another person's session
         with pytest.raises(HTTPException) as refused:
             _update(app_db, monkeypatch, **kwargs)
-        assert refused.value.status_code == 404
+        assert refused.value.status_code == 409  # `sharing.multiuser-404-is-a-409-in-the-engine`
     assert multiuser.owner_password_gap(app_db), "nothing was recorded"

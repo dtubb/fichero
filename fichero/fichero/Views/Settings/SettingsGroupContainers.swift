@@ -108,5 +108,7 @@ struct SharingSettingsView: View {
         }
         .onAppear(perform: routeToConnect)
         .onChange(of: appState.pendingPairingInvite) { _, _ in routeToConnect() }
+        // The People pane's Open Sharing sets the tab while this view is already up (`sharing.people-pane-off-state`).
+        .onChange(of: appState.selectedSettingsTab) { _, _ in routeToConnect() }
     }
 }

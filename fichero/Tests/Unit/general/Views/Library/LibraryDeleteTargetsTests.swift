@@ -64,4 +64,12 @@ final class LibraryDeleteTargetsTests: XCTestCase {
         )
         XCTAssertTrue(targets.isEmpty)
     }
+
+    /// #6235: a second Delete of a row already in the Trash is the engine's 404; that is "done", not an error alert.
+    /// Any other failure still reports.
+    func testADocumentAlreadyInTheTrashIsDoneNotAnError() {
+        XCTAssertTrue(LibraryView.isAlreadyDeleted(APIError.httpError(statusCode: 404, message: "not found")))
+        XCTAssertFalse(LibraryView.isAlreadyDeleted(APIError.httpError(statusCode: 409, message: "conflict")))
+        XCTAssertFalse(LibraryView.isAlreadyDeleted(APIError.httpError(statusCode: 500, message: "boom")))
+    }
 }

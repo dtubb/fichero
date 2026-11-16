@@ -11,7 +11,10 @@ Provides endpoints for:
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+
+from fichero_server.api.library_header import require_library_path
+from fichero_server.api.main import owner_check
 from pydantic import BaseModel
 
 from fichero_server.integrations.base import get_integration_registry
@@ -296,8 +299,9 @@ async def get_item(app_name: str, external_id: str):
 
 
 @router.post("/{app_name}/import", response_model=ImportResponse)
-async def import_item(app_name: str, request: ImportRequest):
+async def import_item(app_name: str, request: ImportRequest, http: Request = None, library_path: str = Depends(require_library_path)):
     """Import an item from an integrated app."""
+    owner_check(http, library_path)  # it writes to a path the caller chooses, on the owner's Mac (#6320)
     registry = get_integration_registry()
     integration = registry.get(app_name)
 
@@ -324,8 +328,9 @@ async def import_item(app_name: str, request: ImportRequest):
 
 
 @router.post("/{app_name}/export", response_model=ExportResponse)
-async def export_item(app_name: str, request: ExportRequest):
+async def export_item(app_name: str, request: ExportRequest, http: Request = None, library_path: str = Depends(require_library_path)):
     """Export a file to an integrated app."""
+    owner_check(http, library_path)  # it reads a path the caller chooses, on the owner's Mac (#6320)
     registry = get_integration_registry()
     integration = registry.get(app_name)
 

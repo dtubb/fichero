@@ -179,13 +179,14 @@ extension LibraryManager {
     /// Mac, so there is no security-scoped resource to acquire and no
     /// `FileManager.fileExists` gate (which would always fail for a remote path).
     /// The generated client talks to `EngineConfig.host` with `libraryPath` set to
-    /// this path, so a fresh `LibraryReference` is a valid remote library.
+    /// this path, so a fresh `LibraryReference` is a valid remote library. With `pinnedTo` the library dials THAT Mac beside
+    /// the local ones and the app-wide host is left alone (`sharing.guest.library-pinned-to-its-host`, #6360).
     ///
     /// Reuses an already-open library at the same path; otherwise creates one and
     /// makes it current. Setting `currentLibraryId` re-roots the workspace via
     /// `LibraryWorkspaceSelection.activeLibrary`.
     @discardableResult
-    func switchToRemoteLibrary(path: String, displayName: String? = nil) -> LibraryReference? {
+    func switchToRemoteLibrary(path: String, displayName: String? = nil, pinnedTo hostRoot: URL? = nil) -> LibraryReference? {
         let trimmedPath = path.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedPath.isEmpty else { return nil }
         let url = URL(fileURLWithPath: trimmedPath)
@@ -195,10 +196,10 @@ extension LibraryManager {
         // scoped to the host they belong to (a path on the maintainer's Mac must never
         // leak into Ann's-Mac recents). Recorded on every remote open — reuse
         // included — so re-opening bumps it to the top.
-        RemoteLibraryRecents.note(path: trimmedPath, host: EngineConfig.host.absoluteString)
+        RemoteLibraryRecents.note(path: trimmedPath, host: (hostRoot ?? EngineConfig.host).absoluteString)
 
         // Reuse if already open (compare by standardized path, not URL identity).
-        if let existing = openLibraries.first(where: { $0.url.path == url.path }) {
+        if let existing = openLibraries.first(where: { $0.url.path == url.path && (hostRoot == nil || $0.host.url == hostRoot) }) {
             currentLibraryId = existing.id
             return existing
         }
@@ -209,6 +210,8 @@ extension LibraryManager {
             url: url,
             document: FicheroDocument(),
             displayName: (resolvedName?.isEmpty == false ? resolvedName! : defaultName),
+            host: hostRoot.map { BackendHost(url: $0, tokenKind: .remote) } ?? .appDefault,
+            pinnedToHost: hostRoot != nil,  // a shared library dials its own Mac (`sharing.guest.library-pinned-to-its-host`)
             startAccessing: false  // remote path — no local security scope
         )
 
@@ -220,9 +223,18 @@ extension LibraryManager {
         }
 
         currentLibraryId = library.id
+        if hostRoot != nil { saveOpenLibraryPaths() }  // remembered for the next launch (`restorePinnedLibraries`)
         scheduleLoadWhenBackendReady(for: library)
         libraryManagerLogger.info("Switched to remote library: \(url.path, privacy: .public)")
         return library
+    }
+
+    /// A shared library that would not open goes again (when `id` is given) and the saved list says so, so it is not reopened
+    /// at the next launch (`restorePinnedLibraries`); the library that was on screen is on screen again.
+    func dropPinnedLibrary(_ id: UUID?, backTo previous: UUID?) {
+        if let id { openLibraries.removeAll { $0.id == id } }
+        currentLibraryId = previous
+        saveOpenLibraryPaths()
     }
 
     /// Create a project at the location setup's Your project step chose (`NewProjectStore`): the ONE
@@ -323,7 +335,9 @@ extension LibraryManager {
     /// The host turned Sharing off: this guest says one sentence and closes the shared project, so its
     /// windows go back to the Mac's own projects with no error screen (`sharing.off-closes-the-guest`, #5731).
     func hostStoppedSharing(libraryId: UUID, hostName: String) {
-        sharingStoppedNotice = SharingStopped.sentence(host: hostName)
+        sharingFailure = SharingFailurePrompt.make(
+            .hostStopped, context: .init(host: hostName.isEmpty ? "The host" : hostName), offers: [], perform: { _ in },
+            copy: { PlatformPasteboard.writeString($0) })
         if let library = getLibrary(id: libraryId) {
             hostGoneRows.removeAll { $0.id == libraryId }
             hostGoneRows.append(HostGoneRow(id: libraryId, name: library.displayName, host: hostName))

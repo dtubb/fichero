@@ -25,37 +25,42 @@ extension ImageEditorView {
 
             Divider().frame(height: 20)
 
-            // Original ↔ Edited — icon-only segmented control (#1420).
-            Picker("Show image as", selection: editedBinding) {
-                Image(systemName: "photo").tag(false)
-                    .accessibilityLabel("Original — unedited source image")
-                Image(systemName: "wand.and.stars").tag(true)
-                    .accessibilityLabel("Edited — with all applied edits")
-            }
-            .pickerStyle(.segmented)
-            // labelsHidden, or macOS squeezes "Show image as" into a
-            // one-character column beside the segments — Daniel's unreadable
-            // "S h" (2026-08-21). Icons + help + accessibility carry it.
-            .labelsHidden()
-            .frame(width: 64)
-            .help(model.showEdited
-                  ? "Showing edited version — click to compare original"
-                  : "Showing original — click to show with edits applied")
-            .accessibilityIdentifier("imageEditOriginalEditedToggle")
+            // Before: press and hold to see the original, let go for the edited image
+            // (`preview.edit.tool.compare-is-hold-and-wipe`, #4872).
+            Image(systemName: "photo")
+                .padding(4)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { _ in if model.showEdited { model.setShowEdited(false) } }
+                        .onEnded { _ in model.setShowEdited(true) }
+                )
+                .help("Before: hold to see the original")
+                .accessibilityLabel("Before: hold to see the original")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityIdentifier("imageEditBefore")
 
             Divider().frame(height: 20)
 
             // Edit tools — icon-only SF Symbols (#1420 spec).
             Group {
-                toolButton("rotate.left", help: "Rotate left 90°") {
+                toolButton(ImageEditOperation.glyph(for: "rotate_left"), help: "Rotate left 90°") {
                     Task { await model.rotate(by: 90) }
                 }
-                toolButton("rotate.right", help: "Rotate right 90°") {
+                toolButton(ImageEditOperation.glyph(for: "rotate"), help: "Rotate right 90°") {
                     Task { await model.rotate(by: -90) }
                 }
-                toolButton("crop.rotate", help: "Straighten — auto-detect document skew") {
+                toolButton(ImageEditOperation.glyph(for: "straighten"), help: "Straighten — auto-detect document skew") {
                     Task { await model.straighten() }
                 }
+                toolButton(ImageEditOperation.glyph(for: "flip_horizontal"), help: "Flip — mirror the page left to right") {
+                    Task { await model.flipHorizontal() }
+                }
+                .accessibilityIdentifier("imageEditFlip")
+                toolButton(ImageEditOperation.glyph(for: "enhance"), help: "Auto Enhance — the ported cleanup at its defaults") {
+                    Task { await model.autoEnhance() }
+                }
+                .accessibilityIdentifier("imageEditAutoEnhance")
 
                 // Enhance with slider popover
                 Button {
@@ -80,13 +85,13 @@ extension ImageEditorView {
                 .accessibilityLabel("Rotate")
                 .popover(isPresented: $showRotatePopover, arrowEdge: .bottom) { rotatePopover }
 
-                toolButton("person.and.background.dotted", help: "Remove background — AI-powered background removal") {
+                toolButton(ImageEditOperation.glyph(for: "remove_background"), help: "Remove background — AI-powered background removal") {
                     Task { await model.removeBackground() }
                 }
-                toolButton("sparkles", help: "Despeckle — remove noise and speckle artifacts") {
+                toolButton(ImageEditOperation.glyph(for: "fuzzy_clean"), help: "Despeckle — remove noise and speckle artifacts") {
                     Task { await model.fuzzyClean() }
                 }
-                toolButton("square.split.2x1", help: "Segment — detect and label image regions") {
+                toolButton(ImageEditOperation.glyph(for: "segment"), help: "Segment — detect and label image regions") {
                     Task { await model.segment() }
                 }
             }
@@ -128,9 +133,20 @@ extension ImageEditorView {
 
             editsClipboardMenu
 
+            if compareMode == .single, let found = PageCorners(pageRegion: activeDocument.metadata["page_region"]?.value) {
+                let help = pageCorners == nil ? "Show the page corners — drag one, press Return to square" : "Hide the page corners"
+                toolButton(ImageEditOperation.glyph(for: "square"), help: help) {
+                    pageCorners = pageCorners == nil ? found : nil
+                }
+                .accessibilityIdentifier("imageEditPageCorners")
+            }
+
+            applyToFolderButton
+            cleanupToFolderMenu
+
             if marqueeSelection != nil && compareMode == .single {
                 Divider().frame(height: 20)
-                toolButton("crop", help: "Crop to selection") {
+                toolButton(ImageEditOperation.glyph(for: "crop"), help: "Crop to selection") {
                     Task { await cropToSelection() }
                 }
                 .disabled(model.isBusy)
@@ -151,22 +167,15 @@ extension ImageEditorView {
 
             zoomCluster
 
-            // Compare mode — icon-only segmented (#1420 spec).
-            Picker("Compare mode", selection: $compareMode) {
-                Image(systemName: "rectangle")
-                    .tag(CompareMode.single)
-                    .accessibilityLabel("Single — show one view of the image")
+            // Compare: the wipe, on or off (`preview.edit.tool.compare-is-hold-and-wipe`).
+            Toggle(isOn: Binding(get: { compareMode == .wipe }, set: { compareMode = $0 ? .wipe : .single })) {
                 Image(systemName: "rectangle.righthalf.inset.filled.arrow.right")
-                    .tag(CompareMode.wipe)
-                    .accessibilityLabel("Slider — drag to wipe between original and edited")
-                Image(systemName: "rectangle.split.2x1")
-                    .tag(CompareMode.sideBySide)
-                    .accessibilityLabel("Side-by-Side — original and edited in split view")
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()  // same one-character-column squeeze ("C o")
-            .frame(width: 96)
-            .help("Compare mode — Single view, Slider wipe, or Side-by-Side")
+            .toggleStyle(.button)
+            .buttonStyle(.borderless)
+            .help("Compare: drag the slider to wipe between original and edited")
+            .accessibilityLabel("Compare: drag the slider to wipe between original and edited")
+            .accessibilityIdentifier("imageEditCompare")
 
             if model.isBusy {
                 ProgressView().controlSize(.small)
@@ -286,6 +295,19 @@ extension ImageEditorView {
         return 1
     }
 
+    /// Return on the corner handles: square the page from the corrected corners, `who: person`.
+    func squareFromCorners() async {
+        guard let corners = pageCorners else { return }
+        pageCorners = nil
+        guard let actionsService = actionStore?.actionsService else { return }
+        let model = model
+        _ = try? await AuditedAction.run(
+            "image.square", params: ImageSquareRequest(documentId: activeDocument.id, quad: corners.quad, page: model.page),
+            actionName: "Square Page", actionsService: actionsService, steps: windowSteps,
+            afterChange: { await model.reload() }
+        )
+    }
+
     /// Map the marquee (normalized image space) to source pixels and crop.
     private func cropToSelection() async {
         guard let selection = marqueeSelection, let pixelSize = model.preview?.pixelSize else { return }
@@ -378,7 +400,7 @@ extension ImageEditorView {
         done()
     }
 
-    private func toolButton(_ systemImage: String, help: String, action: @escaping () -> Void) -> some View {
+    func toolButton(_ systemImage: String, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
         }

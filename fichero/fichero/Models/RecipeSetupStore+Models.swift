@@ -45,6 +45,9 @@ extension RecipeSetupStore {
         return "Nothing in this plan runs yet: every step is skipped (see why above)."
     }
 
+    /// Ready's sections for the wide Set Up: only what will run, and the skipped with why (`wide.ready.only-what-will-run`).
+    var readyWillRun: ReadyWillRun? { startPlan.map { ReadyWillRun(plan: $0, startReason: startDisabledReason) } }
+
     /// The plan's words for steps that wait for a model already downloading ("... which is downloading (1.2 GB of
     /// 5.6 GB): they run when it lands"), shown in place of a refusal (#5660).
     var waitingForDownloads: [String] { startPlan?.waiting ?? [] }

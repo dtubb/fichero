@@ -115,7 +115,7 @@ registration in `api/main.py`, and `scripts/release-all.sh` with its helpers.
 
 - `scripts/release-all.sh` with no tier flag builds **two disk images**: `Fichero-dev.dmg` (dev
   tier) and `Fichero.dmg` (alpha tier, the public download since 2026-09-04), and archives
-  TestFlight at the dev tier. `--dev` or `--tier <t>` builds one.
+  TestFlight at the dev tier. `--dev` or `--tier <t>` builds one. A one-DMG run names it `Fichero.dmg`; the daily morning release (`--dev`) publishes that DMG on the `dev` channel only (`FICHERO_RELEASE_CHANNEL=dev`), never as the channel-less public item.
 - `scripts/tier_build_map.sh` maps a tier to a scheme and configuration. Each image is built,
   re-signed, notarized and stapled separately.
 - `--github` publishes: the GitHub release, the Sparkle signature, the appcast items (public, and

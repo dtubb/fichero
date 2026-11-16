@@ -73,3 +73,15 @@ extension EmbeddedBackendService {
         )
     }
 }
+
+extension ConnectionPresentation {
+    /// The words for a window still waiting on the engine (#6555): the app starts a server only when it owns one. A phone or
+    /// iPad has none, so it says it is connecting to the Mac it is paired with, never that it is starting a server.
+    static func startingWords(ownership: EngineOwnership, host: String?) -> (title: String, detail: String) {
+        guard ownership != .appManaged else {
+            return ("Starting the Fichero server…", "Your projects run on a local server. This can take a few moments.")
+        }
+        let name = host.flatMap { $0.isEmpty ? nil : $0 }
+        return (name.map { "Connecting to \($0)…" } ?? "Connecting…", "This can take a few moments.")
+    }
+}

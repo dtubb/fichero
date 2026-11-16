@@ -1,10 +1,13 @@
-"""multiuser.owner-session-sets-the-switch (#5908): while Multi-user is off the owner's own key session may choose the owner's
-password and set the switch; the start-up key and another person's session may not. Through the real middleware."""
+"""multiuser.owner-session-sets-the-switch (#5908; owner ruling 2026-11-12): only the Mac's own app, over the engine's Unix socket with its
+start-up credential, sets the switch (no key session needed); any TCP request is refused for it, an owner session included.
+While Multi-user is off the owner's key session may still choose the owner's password. Through the real middleware."""
 from __future__ import annotations
 
 from fichero_server.security import accounts
-from tests.signed_in import signed_in_client
+from tests.signed_in import mac_app_client, signed_in_client, tcp_app_client, uds_client
 from tests.unit.security.test_sharing_probe_2026_10_01 import harness  # noqa: F401
+
+# ruff: noqa: F811  -- pytest fixtures are passed by name; the parameter shadows the imported fixture on purpose
 
 
 def _people(harness, monkeypatch):
@@ -16,25 +19,46 @@ def _people(harness, monkeypatch):
     return owner, ann
 
 
-def test_the_owners_key_session_chooses_the_password_then_turns_multiuser_on(harness, monkeypatch):
+def _app(harness):
+    return mac_app_client(harness)
+
+
+def test_the_mac_app_over_the_socket_sets_the_switch_with_no_key_session(harness, monkeypatch):
     owner, _ann = _people(harness, monkeypatch)
-    who = signed_in_client(harness, owner)
-    client = harness.client()
-    assert client.put("/api/pair/multiuser", json={"enabled": True}, headers=who.headers).status_code == 409, "no password chosen yet"
-    chosen = client.patch(f"/api/users/{owner.id}", json={"password": "a chosen one"}, headers=who.headers)
-    assert chosen.status_code == 200, chosen.text
-    on = client.put("/api/pair/multiuser", json={"enabled": True}, headers=who.headers)
+    app = _app(harness)
+    assert app.put("/api/pair/multiuser", json={"enabled": True}).status_code == 409, "no password chosen yet"
+    assert app.post("/api/auth/owner-password", json={"password": "a chosen one"}).status_code == 200
+    on = app.put("/api/pair/multiuser", json={"enabled": True})
     assert on.status_code == 200, on.text
     assert harness.app_db.get_setting("multiuser.enabled") == "true"
+    off = app.put("/api/pair/multiuser", json={"enabled": False})
+    assert off.status_code == 200, off.text
+    assert harness.app_db.get_setting("multiuser.enabled") == "false"
 
 
 def test_the_start_up_key_is_refused_for_both_steps(harness, monkeypatch):
+    """Over TCP (loopback plus the bootstrap token) the start-up key still sets neither: the owner ruling of 2026-11-12
+    gives the switch to the Mac's own app over its Unix socket only (#6565)."""
     owner, _ann = _people(harness, monkeypatch)
     app = harness.host()  # loopback plus the bootstrap token
     password = app.patch(f"/api/users/{owner.id}", json={"password": "p"})
-    assert (password.status_code, password.json()["detail"]) == (404, "multi-user auth is disabled"), "the guard's own refusal, not a routing 404"
+    assert (password.status_code, password.json()["detail"]) == (409, "multi-user auth is disabled"), "the guard's own refusal, not a routing 404"
     switch = app.put("/api/pair/multiuser", json={"enabled": True})
-    assert (switch.status_code, switch.json()["detail"]) == (403, "sign in as the owner to change Multi-user")
+    assert (switch.status_code, switch.json()["detail"]) == (403, "only this Mac's own app can change Multi-user")
+    assert harness.app_db.get_setting("multiuser.enabled") != "true"
+
+
+def test_a_tcp_caller_is_refused_the_switch_even_as_the_signed_in_owner(harness, monkeypatch):
+    owner, _ann = _people(harness, monkeypatch)
+    harness.app_db.set_password(owner.id, accounts.hash_password("a chosen one"))
+    from fichero_server.security.multiuser import note_owner_password_set
+
+    note_owner_password_set(harness.app_db)
+    who = signed_in_client(harness, owner)
+    over_tcp_session = harness.client().put("/api/pair/multiuser", json={"enabled": True}, headers=who.headers)
+    assert (over_tcp_session.status_code, over_tcp_session.json()["detail"]) == (403, "only this Mac's own app can change Multi-user")
+    over_tcp_app = tcp_app_client(harness).put("/api/pair/multiuser", json={"enabled": True})
+    assert over_tcp_app.status_code == 403
     assert harness.app_db.get_setting("multiuser.enabled") != "true"
 
 
@@ -42,9 +66,9 @@ def test_another_persons_session_is_refused_for_both_steps(harness, monkeypatch)
     owner, ann = _people(harness, monkeypatch)
     theirs = signed_in_client(harness, ann)
     client = harness.client()
-    for refused in (client.patch(f"/api/users/{owner.id}", json={"password": "p"}, headers=theirs.headers),
-                    client.put("/api/pair/multiuser", json={"enabled": True}, headers=theirs.headers)):
-        assert (refused.status_code, refused.json()["detail"]) == (401, "missing or invalid Authorization header")
+    refused = client.patch(f"/api/users/{owner.id}", json={"password": "p"}, headers=theirs.headers)
+    assert (refused.status_code, refused.json()["detail"]) == (401, "missing or invalid Authorization header")
+    assert uds_client(harness).put("/api/pair/multiuser", json={"enabled": True}, headers=theirs.headers).status_code == 401
     assert harness.app_db.get_setting("multiuser.enabled") != "true"
 
 
@@ -69,8 +93,8 @@ def test_choosing_the_password_ends_the_owners_other_sessions_but_not_the_one_th
     other = signed_in_client(harness, owner, name="another device")
     client = harness.client()
     assert client.patch(f"/api/users/{owner.id}", json={"password": "a chosen one"}, headers=mine.headers).status_code == 200
-    assert client.put("/api/pair/multiuser", json={"enabled": True}, headers=mine.headers).status_code == 200, "the same session carries on"
-    assert client.put("/api/pair/multiuser", json={"enabled": False}, headers=other.headers).status_code == 401, "the other one ended"
+    assert client.patch(f"/api/users/{owner.id}", json={"password": "another one"}, headers=mine.headers).status_code == 200, "the same session carries on"
+    assert client.patch(f"/api/users/{owner.id}", json={"password": "another one"}, headers=other.headers).status_code == 401, "the other one ended"
 
 
 def test_an_owner_setting_another_owners_password_ends_all_of_that_persons_sessions(harness, monkeypatch):
@@ -80,8 +104,8 @@ def test_an_owner_setting_another_owners_password_ends_all_of_that_persons_sessi
     theirs = signed_in_client(harness, bo)
     client = harness.client()
     assert client.patch(f"/api/users/{bo.id}", json={"password": "set for them"}, headers=mine.headers).status_code == 200
-    assert client.put("/api/pair/multiuser", json={"enabled": False}, headers=theirs.headers).status_code == 401, "their session ended"
-    assert client.put("/api/pair/multiuser", json={"enabled": False}, headers=mine.headers).status_code != 401, "the admin's own stays"
+    assert client.patch(f"/api/users/{bo.id}", json={"password": "set for them"}, headers=theirs.headers).status_code == 401, "their session ended"
+    assert client.patch(f"/api/users/{bo.id}", json={"password": "set for them"}, headers=mine.headers).status_code != 401, "the admin's own stays"
 
 
 def test_an_app_owner_with_no_role_in_the_library_turns_the_switch_off_again(test_package, app_db, monkeypatch):

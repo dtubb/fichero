@@ -83,6 +83,8 @@ struct ZoomableImagePreview: View {
     }
 
     static let logger = Logger(subsystem: "app.fichero.fichero", category: "ZoomableImagePreview")
+    /// The segment editor's tool keys (Knife, Marker, Order, Brush, Paintbrush, the brushes' `[` `]`).
+    static let segmentToolKeys: Set<KeyEquivalent> = ["k", "m", "o", "b", "p", "[", "]"]
 
     /// Document ids in the +/-`radius` window around `currentId`, excluding `currentId` itself.
     /// Static so it can be called in unit tests without a live view (#2469).
@@ -118,6 +120,8 @@ struct ZoomableImagePreview: View {
     /// for the same reason as `artifactService`: a preview or a host without the
     /// library environment must not trap, it simply draws from the artifact path.
     @Environment(SegmentService.self) var segmentService: SegmentService?
+    /// The page's reading orders, for the Order tool's one call (`segment-editor.order-by-clicking`).
+    @Environment(ReadingOrderService.self) var readingOrderService: ReadingOrderService?
     /// ⌘Z for region edits (`source.editor.system-undo`, #4941). The system undo manager
     /// the window provides, and the action store whose service asks the engine to invert
     /// an audited row. Both optional: a host without them simply offers no undo.
@@ -195,6 +199,9 @@ struct ZoomableImagePreview: View {
     /// Draw each recognised word's text inside its box (2026-08-31). The
     /// display lives in `OCRGeometryOverlay`, which reads the same key.
     @PaneStorage("imagePreview.inlineTextEnabled") var inlineTextEnabled = false
+    /// "Show Order Numbers" (Display menu, #6482): the reading number on each line's box. Off by default.
+    @PaneStorage("imagePreview.showOrderNumbers") var showOrderNumbers = false
+    @PaneStorage("imagePreview.showBoundingBoxes") var showBoundingBoxes = false
     /// The image layer (ruled 2026-09-27, Q2). On by default: a page with its picture hidden
     /// is a deliberate view, never where a person should land by accident.
     /// PER-PANE, like the word boxes: seeded from the remembered default, then from the pane's
@@ -468,7 +475,11 @@ struct ZoomableImagePreview: View {
                 verticalStep(step)
             }
     }
+}
 
+// MARK: - The keyboard layer
+
+extension ZoomableImagePreview {
     /// Layer 3: keyboard grammar (zoom keys, region verbs, arrow navigation).
     private var keyboardLayer: some View {
         observationLayer
@@ -488,6 +499,10 @@ struct ZoomableImagePreview: View {
             // persisted regions; Esc clears every ephemeral region state.
             .onDeleteCommand { handleRegionDeleteKey() }
             .onExitCommand { clearEphemeralRegionState() }
+            .onKeyPress(.return, phases: .down) { _ in finishShapeDrawingFromKey() }
+            // Hold K for the Knife, M for the Marker, one stroke; a tap chooses the tool (`segment-editor.split-knife`,
+            // `segment-editor.marker`).
+            .onKeyPress(keys: Self.segmentToolKeys, phases: [.down, .up]) { press in holdSpringTool(press) }
             // Daniel's ruling (2026-08-10, audit 3c): left/right mean
             // PREVIOUS/NEXT item, up/down pan the current image. ←/→ pan
             // only when the zoomed image can actually travel horizontally;
@@ -511,6 +526,7 @@ struct ZoomableImagePreview: View {
             .onKeyPress(.upArrow, phases: .down) { press in
                 // Edit Segments with a shape point selected: the arrow nudges it (1 px, ⇧ 10).
                 if nudgeSelectedShapePoint(0, -1, fast: press.modifiers.contains(.shift)) { return .handled }
+                if stepSegmentSelection(-1, extend: press.modifiers.contains(.shift)) { return .handled }
                 if canPanVertically { panUp() } else {
                     verticalStep(-1)
                 }
@@ -519,6 +535,7 @@ struct ZoomableImagePreview: View {
             .onKeyPress(.downArrow, phases: .down) { press in
                 // Edit Segments with a shape point selected: the arrow nudges it (1 px, ⇧ 10).
                 if nudgeSelectedShapePoint(0, 1, fast: press.modifiers.contains(.shift)) { return .handled }
+                if stepSegmentSelection(1, extend: press.modifiers.contains(.shift)) { return .handled }
                 if canPanVertically { panDown() } else {
                     verticalStep(1)
                 }

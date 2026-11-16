@@ -5,10 +5,10 @@ import SwiftUI
 extension ShareSettingsView {
     // MARK: - State management
 
+    /// What a NEW code is minted for; the engine's phase is not in it (`sharing.card-keeps-its-code`, `PairingCardRefresh`).
     var refreshKey: String {
-        [hostingEnabled.description, publicBaseURL, spkiPin, engineHost,
-         appState.isBackendRunning.description, didBootstrap.description]
-            .joined(separator: "|")
+        PairingCardRefresh.key(hostingEnabled: hostingEnabled, publicBaseURL: publicBaseURL, spkiPin: spkiPin,
+                               engineHost: engineHost, didBootstrap: didBootstrap)
     }
 
     /// ONE ACTION. Flipping this on derives the address, advertises the Mac, restarts
@@ -54,10 +54,21 @@ extension ShareSettingsView {
             try await MultiuserSwitch.set(
                 enabled, pairing: PairingService(apiRoot: EngineConfig.host), service: nil, steps: nil)
         } catch {
-            shareError = error.localizedDescription
+            showFailure(error, "Couldn't change Multi-user")
         }
         await appState.checkBackendHealth()
         multiuserEnabled = backendMultiuser  // the local copy other views read follows the engine, never the other way round
+    }
+
+    /// A failure while sharing, as the one alert (`sharing.host.dialog-errors-are-alerts`): never raw text on the grey line. Its
+    /// fix, where the engine is not listening, re-applies Sharing, which restarts the engine and its listener; where only the
+    /// owner may share, it signs this app in as the owner by key.
+    func showFailure(_ error: Error, _ title: String) {
+        failurePrompt = SharingFailurePrompt.make(
+            sharing: error, title: title, offers: hostingEnabled ? [.turnSharingOffAndOn, .signInAsOwner] : [.signInAsOwner],
+            perform: { fix in
+                Task { if fix == .signInAsOwner { await appState.ownerSignIn.run() } else { await applySharing() } }
+            }, copy: { PlatformPasteboard.writeString($0) })
     }
 
     func applySharing() async {
@@ -81,6 +92,7 @@ extension ShareSettingsView {
             if hostingEnabled {
                 await refreshDevices()
             }
+            await refreshSharingState()  // the forward follows Sharing: re-read it (review N1)
             return
         }
 
@@ -101,12 +113,42 @@ extension ShareSettingsView {
             loadSPKIPin()
             if hostingEnabled { await refreshDevices() }
         } catch {
-            shareError = error.localizedDescription
+            showFailure(error, hostingEnabled ? "Couldn't turn Sharing on" : "Couldn't turn Sharing off")
+        }
+        // The engine answers `none` until Sharing is on and makes the forward after readiness: re-read, or the row stays stale (review N1).
+        await refreshSharingState()
+        // Sharing on with nothing shared asks which projects (#6366).
+        if hostingEnabled, ShareWhichProjectsModel.opens(sharedCount: sharingState?.sharedLibraryCount) {
+            activeSheet = .whichProjects
         }
     }
 
+    /// The engine process now running, by health's `engine_pid`; nil until health has answered once. Not
+    /// `backendService.backendPID`, which is nil for an adopted engine (Dev Local, an external one): that re-minted on every
+    /// health check (review N3).
+    var currentEnginePID: Int? { healthEnginePID }
+
+    /// Asks health who is running. A failed read keeps the last pid: a health check in flight must not make the card forget
+    /// which engine its code came from.
+    func refreshEnginePID() async {
+        guard let response = try? await appState.ficheroClient.api.healthCheckApiHealthGet(headers: .init()),
+              case .ok(let okResponse) = response, let pid = (try? okResponse.body.json)?.enginePid else { return }
+        healthEnginePID = pid
+    }
+
+    /// Whether the code on the card came from the engine process now running (`PairingCardRefresh.sameEngine`).
+    var codeIsFromThisEngine: Bool {
+        PairingCardRefresh.sameEngine(codePID: codeEnginePID, currentPID: currentEnginePID)
+    }
+
     func refreshPairingCode() async {
+        await refreshEnginePID()
+        // A health check in flight is not a reason to blank the card: the code it holds is still good until it expires,
+        // as long as the SAME engine process holds it (a restart loses the engine's codes).
+        if PairingCardRefresh.keepsCode(whenBlockedBy: pairingBlocker == .engineNotRunning, hasCode: pairingCode != nil,
+                                        sameEngine: codeIsFromThisEngine) { return }
         pairingCode = nil
+        codeEnginePID = nil
         shareError = nil
         guard pairingBlocker == nil else { return }
         isGeneratingCode = true
@@ -115,16 +157,19 @@ extension ShareSettingsView {
             try await Task.sleep(for: .milliseconds(200))
             try Task.checkCancellation()
             pairingCode = try await PairingService(apiRoot: EngineConfig.host).createPairingCode()
+            codeEnginePID = currentEnginePID
         } catch {
-            if !error.isCancellationError { shareError = error.localizedDescription }
+            if !error.isCancellationError { showFailure(error, "Couldn't make a pairing code") }
         }
     }
 
     func refreshSharingState() async {
         guard EngineConfig.engineIsLocal else { return }
         let pairing = PairingService(apiRoot: EngineConfig.host)
-        sharingState = try? await pairing.sharingState()
+        // A failed read keeps the last good state: nil would end the re-read and could read as "ours" (review P2).
+        if let state = try? await pairing.sharingState() { sharingState = state }
         detectedTailnetURL = try? await pairing.detectedTailnetURL()
+        firewallVerdict = await FirewallReader.read()
     }
 
     func refreshDevices() async {
@@ -134,7 +179,7 @@ extension ShareSettingsView {
         do {
             pairedDevices = try await PairingService(apiRoot: EngineConfig.host).listDevices()
         } catch {
-            shareError = error.localizedDescription
+            showFailure(error, "Couldn't list the paired devices")
         }
     }
 
@@ -145,7 +190,7 @@ extension ShareSettingsView {
             try await PairingService(apiRoot: EngineConfig.host).revokeDevice(id: deviceID)
             await refreshDevices()
         } catch {
-            shareError = error.localizedDescription
+            showFailure(error, "Couldn't remove the device")
         }
     }
 
@@ -156,7 +201,7 @@ extension ShareSettingsView {
         do {
             for id in selectedDevices { try await service.revokeDevice(id: id) }
         } catch {
-            shareError = error.localizedDescription
+            showFailure(error, "Couldn't remove the device")
         }
         selectedDevices.removeAll()
         await refreshDevices()

@@ -38,6 +38,7 @@ extension AISettingsView {
     var defaultsTab: some View {
         Form {
             CloudAccessSection()
+            CloudCapsSection()
             languageSection
 
             Section("Text") {
@@ -321,7 +322,6 @@ extension AISettingsView {
     }
 }
 
-
 /// The app-wide cloud switch in Settings (`source.onboard.places-cap-projects`): the same engine setting as Set Up
 /// Fichero's "A cloud AI service" tick (`AppPlacesStore`, `PUT /api/recipes/places`). Off caps every project; on lets
 /// each project's own yes (Set Up) send its pages.
@@ -340,7 +340,7 @@ struct CloudAccessSection: View {
                     Text(message).font(.caption).foregroundStyle(.red)
                 }
             }
-            Text("Off: no project's pages leave this Mac. On: each project still asks in Set Up.")
+            Text("The default for every project. A project can answer for itself, in its Inspector or in Set Up.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

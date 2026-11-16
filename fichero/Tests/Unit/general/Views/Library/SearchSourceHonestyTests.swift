@@ -10,7 +10,7 @@ import Testing
 /// `hybrid_graph` fusion leg ran. The CLIENT invented the label. Every row
 /// reached by the entity or claim leg — semantic searches over the entity and
 /// claim tables, which the shell requests on EVERY search via
-/// `include: [.content, .entities, .claims, .artifacts]` — was tagged `.kg`
+/// `include: [.content, .entities, .claims, .artifacts]` — was tagged `.knowledgeGraph`
 /// and drew the word "graph". A chip that claims a capability the library was
 /// never given is worse than no chip.
 @MainActor
@@ -20,8 +20,8 @@ struct SearchSourceHonestyTests {
 
     @Test("the entity and claim legs are their own sources, not the graph")
     func entityAndClaimAreDistinctFromTheGraph() {
-        #expect(SearchMatchSource.entity != SearchMatchSource.kg)
-        #expect(SearchMatchSource.claim != SearchMatchSource.kg)
+        #expect(SearchMatchSource.entity != SearchMatchSource.knowledgeGraph)
+        #expect(SearchMatchSource.claim != SearchMatchSource.knowledgeGraph)
         #expect(SearchMatchSource.entity.chipLabel == "entity")
         #expect(SearchMatchSource.claim.chipLabel == "claim")
     }
@@ -31,7 +31,7 @@ struct SearchSourceHonestyTests {
     func onlyTheKGLegSaysGraph() {
         let graphLabelled = SearchMatchSource.allCases
             .filter { $0.chipLabel == "graph" }
-        #expect(graphLabelled == [.kg])
+        #expect(graphLabelled == [.knowledgeGraph])
     }
 
     /// Semantic still earns no chip: it is what the % badge already says, and
@@ -59,7 +59,7 @@ struct SearchSourceHonestyTests {
     /// names, and anything unknown is dropped rather than given a chip.
     @Test("the engine's leg names parse, and unknown names are dropped")
     func parseKeepsKnownLegsAndDropsTheRest() {
-        #expect(SearchMatchSource.parse(["kg"]) == [.kg])
+        #expect(SearchMatchSource.parse(["kg"]) == [.knowledgeGraph])
         #expect(SearchMatchSource.parse(["fulltext", "semantic"]) == [.fulltext, .semantic])
         #expect(SearchMatchSource.parse(["entity", "claim"]) == [.entity, .claim])
         #expect(SearchMatchSource.parse(["content-scan", "wormhole"]).isEmpty)
@@ -69,7 +69,7 @@ struct SearchSourceHonestyTests {
 
     /// `ContentView.rowHits` folds entity- and claim-leg hits in as rows the
     /// engine's `match_sources` never described, so it labels them itself.
-    /// It labelled both `.kg`; it must now name them for what they are.
+    /// It labelled both `.knowledgeGraph`; it must now name them for what they are.
     @Test("the shell tags entity and claim leg rows as entity and claim")
     func shellTagsSynthesisedRowsHonestly() throws {
         let source = try String(
@@ -79,6 +79,6 @@ struct SearchSourceHonestyTests {
         )
         #expect(source.contains("matchSources: [.entity]"))
         #expect(source.contains("matchSources: [.claim]"))
-        #expect(!source.contains("matchSources: [.kg]"))
+        #expect(!source.contains("matchSources: [.knowledgeGraph]"))
     }
 }

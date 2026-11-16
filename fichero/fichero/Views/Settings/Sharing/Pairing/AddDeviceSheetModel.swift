@@ -26,9 +26,23 @@ enum AddDeviceSheetModel {
         case .engineIsRemote: return .failed("Sharing is set on the Mac that runs this project")
         case .addressMissing, .addressInsecure, .addressInvalid: return .failed("The address needs fixing under Advanced")
         case .pinNotDerivedOnExternalEngine: return .failed("This engine was started outside Fichero")
+        case .firewallBlocking: return .failed(FirewallCheck.blockedSentence)
         case nil:
             guard hasCode else { return .finishing }
             return hasLink ? .ready : .notReady
+        }
+    }
+
+    /// With Multi-user on, a device signs in with an account at the Mac's Tailscale address (`sharing.multiuser-shares-by-
+    /// address`, #6568): the words under that address, in place of the code and QR.
+    static let signInNote = "On the other device, choose Connect to Another Mac, paste this address and sign in with an account."
+
+    /// The address a device signs in at, when the sheet shows it alone: Multi-user on and a Tailscale line that can work (its
+    /// `.ts.net` host has a public certificate, so no pin is needed). Nil keeps the pinned link, its QR and the code.
+    static func signInAddress(multiuser: Bool, rows: [AddressRow]) -> AddressRow? {
+        guard multiuser else { return nil }
+        return rows.first { row in
+            row.choice == .tailscale && row.isEnabled && (row.url?.host?.lowercased().hasSuffix(".ts.net") ?? false)
         }
     }
 

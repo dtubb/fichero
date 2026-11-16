@@ -11,9 +11,17 @@ struct DiscoveredMacsSection: View {
     /// Which Mac was tapped (#5918): the caller pairs with THAT Mac.
     let onSelectHost: (BonjourHostRecord) -> Void
 
+    @Environment(\.openURL) private var openURL
+
     var body: some View {
         Section {
-            if discovery.hosts.isEmpty {
+            if discovery.localNetworkDenied {
+                // Declined Local Network access: said, with the way to the setting, not an endless "Searching…".
+                Text(LocalNetworkPolicy.sentence).foregroundStyle(.secondary)
+                Button(LocalNetworkPolicy.buttonTitle) {
+                    if let settings = URL(string: PairingFailureActions.settingsURL) { openURL(settings) }
+                }
+            } else if discovery.hosts.isEmpty {
                 HStack(spacing: 10) {
                     ProgressView().controlSize(.small)
                     Text("Searching for Fichero on your network…")

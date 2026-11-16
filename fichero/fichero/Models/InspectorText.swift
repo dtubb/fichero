@@ -36,6 +36,9 @@ struct InspectorText: Equatable {
         /// Still held only in its run's result (not a stored row), and the result it came from.
         var provisional = false
         var derivedFromArtifactId: String?
+        /// The reading of this segment it was made FROM (a modernisation of a transcription, a translation of it):
+        /// where it hangs in the line's versions tree (`source.editor.reader-line-discloses-its-versions`).
+        var derivedFromId: String?
 
         /// "gemini-3-flash-preview via OpenRouter": the model's own name (its last path part) and the provider,
         /// each said once; just the one that is known, nil when neither is.
@@ -93,13 +96,19 @@ struct InspectorText: Equatable {
 
     /// Live readings in the engine's order; a retracted one is history, not a reading, and is left out.
     let readings: [Reading]
+    /// The retracted ones, kept apart for "Show Withdrawn Readings" (the versions tree); never in `readings`.
+    let withdrawn: [Reading]
     /// Per kind: which reading counts and why.
     let counting: [String: Counting]
 
     init(readings: [Reading], retracted: Set<String> = [], counting: [String: Counting]) {
         self.readings = readings.filter { !retracted.contains($0.id) }
+        self.withdrawn = readings.filter { retracted.contains($0.id) }
         self.counting = counting
     }
+
+    /// Live and withdrawn together, for the versions tree.
+    var allReadings: [Reading] { readings + withdrawn }
 
     /// The kinds present, in the order first seen.
     var kinds: [String] {

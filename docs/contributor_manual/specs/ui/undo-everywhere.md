@@ -200,7 +200,7 @@ How a move or copy between projects is recorded and undone is
 `../source/moving-between-projects.md` (`transfer.action.undo-move`, `transfer.action.undo-copy`):
 one transfer, one record in each project under the same id, undone by the engine both sides or
 neither. The app holds the transfer's one id as one step, with the source project as its
-project, and never orchestrates the two sides itself. The menu reads "Undo Move to “Istmina”".
+project, and never orchestrates the two sides itself. The menu reads "Undo Move to “Archive B”".
 When the drag crossed two windows (source in one, target in the other), the step is registered
 in both, and whichever window undoes it first removes it from the other
 (`undo.window.drag-between-windows`), which is how `transfer.app.undo-both-windows` is met.
@@ -255,7 +255,7 @@ in both, and whichever window undoes it first removes it from the other
   Delete 3 Items", "Undo Move 12 Pages". One thing is named by its kind ("Undo Delete Note").
   *Test:* pure Swift, 1, 2 and many. Built (slice 1, app, 2026-10-11): `UndoableChange.named` and the batch's name ("Move 3 Items to Trash", "Delete 3 Notes"); `UndoableChangeTests`::namesCount. *Not built: a name for every action in the build order.*
 - `undo.naming.other-project` — **[GAP]** (#5658) when the window now shows another project
-  than the step's, the title names the step's project ("Undo Move in Marshall Diaries").
+  than the step's, the title names the step's project ("Undo Move in Diaries").
   *Test:* pure Swift with two fake projects.
 
 ### The window
@@ -322,7 +322,7 @@ part is to show that sentence (`undo.refusal`).
   A, and B's row changes.
 - `undo.cross-project` — **[PARTIAL]** (#5658) a step stays tied to its project. If the window has
   switched to another project, Command-Z still reverses the step in the project it was made
-  in (`undo.naming.other-project`). *Test:* pure Swift with two fake projects. Built (slice 1, app, 2026-10-11): a step keeps its project's path and finds that project's live service when taken back, whatever the window shows now. *Not built: `undo.naming.other-project`.*
+  in (`undo.naming.other-project`). *Test:* pure Swift with two fake projects. Built (slice 1, app, 2026-10-11): a step keeps its project's path and finds that project's live service when taken back, whatever the window shows now. *Still a gap: the title naming a step's other project (the naming bullet above).*
 - `undo.steps-end` — **[PARTIAL]** (#5658) a window's steps end with the window, the app, their
   project (closed or returned to a snapshot) and the signed-in person, as "When steps end"
   says; they stay in the history list. *Test:* pure Swift: close project P, and its steps are

@@ -76,7 +76,7 @@ def _check_span(db: Database, params: EditorialRecordParams) -> None:
         raise HTTPException(status_code=422, detail="a span names the reading it is measured on (representation_id)")
     from fichero_server.api.routes.document.segment_readings import readings_of_segment
 
-    reading = next((r for r in readings_of_segment(db, params.segment_id) if r.id == params.representation_id), None)
+    reading = next((r for r in readings_of_segment(db, params.segment_id, with_provisional_twins=True) if r.id == params.representation_id), None)
     if reading is None:
         raise HTTPException(status_code=422, detail=f"reading {params.representation_id} is not one of this segment's")
     end = params.char_end if params.char_end is not None else params.char_start

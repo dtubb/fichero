@@ -11,9 +11,9 @@
 //  fixtures; the delegate must bail exactly like it does for XCTest (#3902).
 //
 
+@testable import Fichero
 import Foundation
 import Testing
-@testable import Fichero
 
 struct PreviewHostGuardTests {
 
@@ -49,5 +49,16 @@ struct PreviewHostGuardTests {
                 "the preview guard must sit between the delegate entry and the engine start"
             )
         }
+    }
+
+    @Test("the project top level the previews draw: Sources is found and ordered first")
+    func projectTopLevelOpensOnSources() {
+        func folder(_ name: String) -> Document {
+            Document(id: name.lowercased(), docType: .folder, fileType: nil, name: name, childCount: 1)
+        }
+        let roots = [folder("Letters 1893"), folder(OpeningSelection.sourcesFolderName)]
+        #expect(OpeningSelection.sourcesFolder(in: roots)?.name == OpeningSelection.sourcesFolderName)
+        #expect(
+            OpeningSelection.selectionId(restoredId: nil, viewModeType: "library", roots: roots) == "doc:sources")
     }
 }

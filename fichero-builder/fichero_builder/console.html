@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Builder Console</title>
+<style>
+:root {
+  --bg:#ffffff; --window:#f5f5f7; --fg:#1d1d1f; --label2:rgba(60,60,67,.6); --sep:rgba(60,60,67,.18); --zebra:#f4f5f5;
+  --accent:#007AFF; --green:#34C759; --orange:#FF9500; --red:#FF3B30; --grey:#8E8E93; --control:#ffffff; --pressed:#e3e3e8;
+  --mono: "SF Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --bg:#1e1e1e; --window:#2a2a2c; --fg:#f5f5f7; --label2:rgba(235,235,245,.6); --sep:rgba(84,84,88,.6); --zebra:#262628;
+  --accent:#0A84FF; --green:#30D158; --orange:#FF9F0A; --red:#FF453A; --grey:#98989D; --control:#3a3a3c; --pressed:#48484a;
+} }
+* { box-sizing:border-box }
+body { margin:0; background:var(--bg); color:var(--fg); font:13px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; -webkit-font-smoothing:antialiased }
+.toolbar { position:sticky; top:0; z-index:2; display:flex; flex-wrap:wrap; gap:10px; align-items:center; padding:10px 16px;
+  background:var(--window); border-bottom:1px solid var(--sep); backdrop-filter:saturate(180%) blur(20px) }
+.toolbar h1 { font-size:13px; font-weight:600; margin:0 8px 0 0 }
+.spacer { flex:1 }
+.seg { display:inline-flex; background:var(--pressed); border-radius:7px; padding:2px }
+.seg button { border:0; background:transparent; padding:3px 12px; border-radius:5px; font:inherit; color:var(--fg); cursor:pointer }
+.seg button[aria-pressed=true] { background:var(--control); box-shadow:0 1px 2px rgba(0,0,0,.15) }
+.btn { display:inline-flex; align-items:center; gap:5px; font:inherit; padding:3px 10px; border:1px solid var(--sep); border-radius:6px;
+  background:var(--control); color:var(--fg); cursor:pointer; box-shadow:0 .5px 1px rgba(0,0,0,.08) }
+.btn:hover { filter:brightness(.97) } .btn:active { background:var(--pressed) } .btn:disabled { opacity:.45; cursor:default }
+.btn.primary { background:var(--accent); border-color:var(--accent); color:#fff }
+.btn svg { width:13px; height:13px }
+main { padding:12px 16px 32px }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:8px; margin-bottom:16px }
+.card { background:var(--window); border:1px solid var(--sep); border-radius:10px; padding:8px 10px }
+.card .k { color:var(--label2); font-size:11px } .card .v { font-size:15px; font-weight:600; margin-top:2px; display:flex; align-items:center; gap:6px }
+.dot { width:8px; height:8px; border-radius:50%; background:var(--grey); flex:none; display:inline-block }
+.dot.green { background:var(--green) } .dot.red { background:var(--red) } .dot.orange { background:var(--orange) } .dot.blue { background:var(--accent) }
+.dot.pulse { animation:pulse 1.6s ease-in-out infinite }
+@keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.3 } }
+h2 { font-size:13px; font-weight:600; margin:16px 0 6px }
+.muted { color:var(--label2) } .mono { font-family:var(--mono); font-size:12px }
+.note { color:var(--orange) } .err { color:var(--red) }
+.wrap { overflow-x:auto; border:1px solid var(--sep); border-radius:8px }
+table { width:100%; border-collapse:collapse }
+th { position:sticky; top:0; background:var(--window); text-align:left; font-weight:500; color:var(--label2); font-size:11px; padding:4px 8px; border-bottom:1px solid var(--sep); white-space:nowrap }
+td { padding:3px 8px; vertical-align:top }
+tbody tr:nth-child(even) td { background:var(--zebra) }
+tr.row:hover td { background:color-mix(in srgb, var(--accent) 8%, transparent) }
+tr.sub td { background:var(--window) !important; font-size:12px }
+.tri { width:14px; color:var(--label2); cursor:pointer; user-select:none }
+.pill { display:inline-flex; align-items:center; gap:5px; padding:1px 8px; border-radius:10px; font-size:11px; white-space:nowrap;
+  background:color-mix(in srgb, var(--grey) 16%, transparent) }
+.pill.green { background:color-mix(in srgb, var(--green) 18%, transparent) } .pill.orange { background:color-mix(in srgb, var(--orange) 20%, transparent) }
+.pill.red { background:color-mix(in srgb, var(--red) 18%, transparent) } .pill.blue { background:color-mix(in srgb, var(--accent) 16%, transparent) }
+.alerts { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:8px }
+.alert { border:1px solid var(--sep); border-left:3px solid var(--red); border-radius:8px; padding:8px 10px; background:var(--window) }
+.alert .what { margin:4px 0 8px; word-break:break-word }
+pre { white-space:pre-wrap; word-break:break-word; margin:4px 0; font:12px var(--mono); max-height:260px; overflow:auto }
+.banner { display:flex; align-items:center; gap:8px; padding:6px 10px; border-radius:8px; margin-bottom:12px;
+  background:color-mix(in srgb, var(--orange) 14%, transparent) }
+.actions { display:flex; gap:4px; justify-content:flex-end }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script type="module">
+import { html, render, useState, useEffect } from "https://unpkg.com/htm@3.1.1/preact/standalone.module.js";
+const TOKEN = "__TOKEN__";
+
+// SF-Symbols-like inline icons
+const I = {
+  play: html`<svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>`,
+  stop: html`<svg viewBox="0 0 16 16" fill="currentColor"><rect x="3.5" y="3.5" width="9" height="9" rx="1.5"/></svg>`,
+  pause: html`<svg viewBox="0 0 16 16" fill="currentColor"><rect x="4" y="3" width="3" height="10" rx="1"/><rect x="9" y="3" width="3" height="10" rx="1"/></svg>`,
+  hammer: html`<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M9 3l4 4M7 5l4 4M8.5 7.5L3 13"/></svg>`,
+  refresh: html`<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M13 8a5 5 0 1 1-1.5-3.5M13 2.5V5h-2.5"/></svg>`,
+  broom: html`<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 2L7.5 8.5M4 9l4 1-1 4-4-1z"/></svg>`,
+};
+
+async function post(path, body) {
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json", "X-Builder-Token": TOKEN }, body: JSON.stringify(body || {}) });
+  const j = await r.json().catch(() => ({ ok: false, error: `HTTP ${r.status}` }));
+  if (!j.ok) showError(j.error);
+  return j;
+}
+const act = (verb, args = {}) => post("/api/action", { verb, args });
+let showError = () => {};
+
+// #6499: what makes a tab fetch again: a tick, a landing, or a console action; never the console row count (capped at 20, so it stops changing)
+const refetchKey = st => (st.heartbeat || "") + ((st.last_land_git || {}).sha || "") + ((st.console[st.console.length - 1] || {}).ts || "");
+function useStatus() {
+  const [st, setSt] = useState(null);
+  useEffect(() => {
+    let timer = null;
+    const load = () => fetch("/api/status").then(r => r.json()).then(setSt).catch(() => {});
+    load();
+    const es = new EventSource("/api/events");
+    es.onmessage = e => { if (e.data.includes('"state": "tick"')) return; clearTimeout(timer); timer = setTimeout(load, 2000); };  // live: a journal row (not a tick) refreshes, 2 s after the last one (#6498)
+    const slow = setInterval(load, 15000);  // times tick while the journal is quiet
+    return () => { es.close(); clearInterval(slow); };
+  }, []);
+  return st;
+}
+
+const parse = ts => ts ? new Date(ts.replace(" ", "T")) : null;
+function rel(ts) {
+  const d = parse(ts); if (!d || isNaN(d)) return "-";
+  const s = (Date.now() - d) / 1000;
+  if (s < 0) { const f = -s; return f < 3600 ? `in ${Math.round(f / 60)} min` : f < 86400 ? `in ${Math.round(f / 3600)} h` : `in ${Math.round(f / 86400)} d`; }
+  return s < 45 ? "just now" : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} d ago`;
+}
+const Ago = ({ ts }) => ts ? html`<span title=${ts}>${rel(ts)}</span>` : html`<span class="muted">-</span>`;
+const dur = s => s == null ? "-" : s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)} min` : `${Math.floor(s / 3600)} h ${Math.floor(s % 3600 / 60)} min`;
+
+const PILL = { working: ["green", true], running: ["green", true], sent: ["green", true], checking: ["blue", true], reviewing: ["blue", true],
+  done: ["blue", false], "done, not landed yet": ["orange", false], landed: ["green", false], queued: ["", false], idle: ["", false], "no-session": ["red", false], blocked: ["red", false], paused: ["orange", false], parked: ["orange", false] };
+function Pill({ state, paused }) {
+  const s = paused && !["landed", "done"].includes(state) ? "paused" : state;
+  const [c, pulse] = PILL[s] || ["", false];
+  return html`<span class=${"pill " + c}><span class=${`dot ${c} ${pulse ? "pulse" : ""}`}></span>${s}</span>`;
+}
+
+const tok = n => n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? Math.round(n / 1e3) + "k" : String(n);
+function Card({ k, v, dot, sub }) {
+  return html`<div class="card"><div class="k">${k}</div><div class="v">${dot && html`<span class=${"dot " + dot}></span>`}${v}</div><div class="k">${sub}</div></div>`;
+}
+
+const LANE_ORDER = { working: 0, running: 0, sent: 0, checking: 0, reviewing: 0, blocked: 1, "no-session": 1, "done, not landed yet": 2, queued: 3, parked: 4, idle: 5, done: 6, landed: 6 };  // what is moving, then what needs you, then the rest
+function Lanes({ lanes: all }) {
+  const lanes = [...all].sort((a, b) => (LANE_ORDER[a.state] ?? 5) - (LANE_ORDER[b.state] ?? 5));
+  const [open, setOpen] = useState({});
+  if (!lanes.length) return html`<p class="muted">No lanes yet. Start one from Milestones.</p>`;
+  return html`<div class="wrap"><table>
+    <thead><tr><th></th><th>Lane</th><th>Step</th><th>State</th><th>Doing now</th><th>Elapsed</th><th>Turns</th><th>USD</th><th></th></tr></thead>
+    <tbody>${lanes.map(l => html`
+      <tr class="row">
+        <td class="tri" onClick=${() => setOpen({ ...open, [l.lane]: !open[l.lane] })}>${open[l.lane] ? "▾" : "▸"}</td>
+        <td><b>${l.lane}</b>${l.kind === "external" ? html` <span class="muted">external${l.waiting != null ? ` · ${l.waiting} commits waiting` : ""}</span>` : ""}</td>
+        <td><span class="mono">${l.step}</span>${l.progress?.n ? html` · step <b>${l.progress.i ?? "?"}</b> of ${l.progress.n} in ${l.progress.milestone}` : ""}${l.landed_n || l.not_landed_n ? html` <span class="muted">· <b>${l.landed_n}</b> landed on integration${l.not_landed_n ? html`, <b>${l.not_landed_n}</b> done, not landed yet` : ""}</span>` : ""}<div class="muted">${l.title}</div></td>
+        <td><${Pill} state=${l.state} paused=${l.paused} />${l.why && !["sent", "running", "working"].includes(l.state) ? html`<div class="muted" style="font-size:11px;max-width:260px" title=${l.why}>${l.why}</div>` : ""}</td>
+        <td>${l.activity ? html`<span class="pill blue"><span class="dot blue pulse"></span>${l.activity.kind}${l.activity.now ? ": " + l.activity.now : ""}</span> <span class="muted">since <${Ago} ts=${l.activity.started} />, ${l.activity.done} rung(s) done</span>${l.activity.base_moved && html` <span class="pill orange">base moved; will rebase</span>`}` : l.doing}${l.live?.line && html`<div class="mono" style="font-size:11px;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title=${l.live.line}>${l.live.line} <span class="muted">· <${Ago} ts=${l.live.ts} /></span></div>`}<div class="muted">${l.last_commit && html`<span class="mono">${l.last_commit.split(" ")[0]}</span> ${l.last_commit.split(" ").slice(1).join(" ").replace(/ \([^)]*\)$/, "")} · <${Ago} ts=${l.commit_ts} />`}</div></td>
+        <td>${dur(l.elapsed_s)}</td><td>${l.turns ?? "-"}</td><td title="today, API-equivalent: transcripts (external lanes) + the workers' cost rows">${l.usd.toFixed(2)}${l.batch_usd != null ? html`<div class="muted">${l.batch_usd.toFixed(2)} this batch</div>` : ""}</td>
+        <td><div class="actions">
+          ${l.paused ? html`<button class="btn" onClick=${() => act("resume", { lane: l.lane })}>${I.play} Resume</button>`
+                     : html`<button class="btn" onClick=${() => act("pause", { lane: l.lane })}>${I.pause} Pause</button>`}
+          <button class="btn" onClick=${() => confirm(`Stop ${l.lane}? The worker commits what is green and its session ends; the tree is kept.`) && act("stop", { lane: l.lane })}>${I.stop} Stop</button>
+          ${!l.paused && ["blocked", "parked", "idle", "queued"].includes(l.state) && html`<button class="btn" title="a blocked step goes again as queued; the loop starts its session" onClick=${() => act("start", { lane: l.lane })}>${I.play} Start</button>`}
+          ${l.kind === "external" && l.head && l.waiting > 0 && !["checking", "reviewing", "landing"].includes(l.state) && html`<button class="btn" title="builder done <lane> <HEAD>: its commits go through the check, review and landing as one batch (#6501)" onClick=${() => confirm(`Land ${l.lane} at ${l.head.slice(0, 9)}? Its ${l.waiting} commit(s) go through the check, the review and the landing as one batch.`) && act("done", { lane: l.lane, sha: l.head })}>Land now</button>`}
+        </div></td>
+      </tr>
+      ${open[l.lane] && html`
+        ${l.steps.map((s, i) => html`<tr class="sub"><td></td><td></td><td><span class="mono">${s.step}</span></td><td><${Pill} state=${s.state} /></td>
+          <td colspan="5">${s.issues.map(n => "#" + n).join(", ")} <span class="muted">${s.why}</span></td>
+          <td><div class="actions">${(l.queued || []).some(q => q.step === s.step) && html`
+            ${["queued", "parked"].includes(s.state) && html`<button class="btn" title="earlier in the queue" onClick=${() => act("queue-move", { lane: l.lane, step: s.step, to: i - 1 })}>↑</button>
+              <button class="btn" title="later in the queue" onClick=${() => act("queue-move", { lane: l.lane, step: s.step, to: i + 1 })}>↓</button>`}
+            ${s.state === "queued" && html`<button class="btn" onClick=${() => act("park", { lane: l.lane, step: s.step })}>Park</button>`}
+            ${s.state === "parked" && html`<button class="btn" onClick=${() => act("unpark", { lane: l.lane, step: s.step })}>Unpark</button>`}`}
+            ${s.state === "blocked" && html`<button class="btn" onClick=${() => act("park", { lane: l.lane, step: s.step })}>Park</button>`}</div></td></tr>`)}
+        <tr class="sub"><td></td><td colspan="9"><span class="muted">Brief</span><pre>${l.brief_text}</pre><span class="muted mono">${l.worktree}</span>
+          <button class="btn" style="margin-left:8px" title="the pinned ladder over this lane's HEAD now; lands nothing" onClick=${() => act("check-lane", { lane: l.lane })}>Run check</button>
+          ${(window.__st?.machines || []).length > 0 && html`<form style="margin-top:6px" onSubmit=${e => { e.preventDefault(); const f = e.target; act("measure", { lane: l.lane, machine: f.machine.value, script: f.script.value }); }}>
+            Measure on <select name="machine">${window.__st.machines.map(m => html`<option>${m}</option>`)}</select>
+            <input name="script" placeholder="scripts/measure_x.py --pages 50" style="width:320px" required /> <button class="btn">Run</button></form>`}</td></tr>`}
+    `)}</tbody></table></div>`;
+}
+
+function DevBuilds() {  // owner 2026-11-05: Install works for the test Macs, not this one; download, show or open the DMG here
+  const [b, setB] = useState(null);
+  useEffect(() => { fetch("/api/builds").then(r => r.json()).then(setB).catch(() => setB({ builds: [] })); }, []);
+  if (!b) return html`<p class="muted">reading the builds ...</p>`;
+  if (!b.builds.length) return html`<p class="muted">no dev DMG is on disk</p>`;
+  return html`<table><tbody>${b.builds.map(x => html`<tr>
+    <td class="mono">${x.name}</td><td>${(x.bytes / 1e9).toFixed(2)} GB</td><td>built <${Ago} ts=${x.built} /></td>
+    <td>${x.dirty ? html`<span class="pill orange">with uncommitted changes</span>` : ""}</td>
+    <td><a class="btn" href=${"/download/" + x.sha} download=${x.name}>Download</a>
+      <button class="btn" onClick=${() => act("reveal-build", { sha: x.sha })}>Show in Finder</button>
+      <button class="btn" onClick=${() => act("open-build", { sha: x.sha })}>Open on this Mac</button></td></tr>`)}</tbody></table>`;
+}
+
+function Alerts({ alerts }) {
+  return html`<div class="alerts">${alerts.map(a => html`<div class="alert">
+    <div><b class="mono">${a.id}</b> <span class="muted"><${Ago} ts=${a.ts} /></span></div>
+    <div class="what">${a.what}</div>
+    <div class="actions" style="justify-content:flex-start">${(a.actions || []).map(x => html`<button class="btn" onClick=${() => act("alert", { id: a.id, action: x })}>${x}</button>`)}
+      ${!(a.actions || []).length && html`<button class="btn" title="leave it: the alert is answered, nothing else changes" onClick=${() => act("alert", { id: a.id, action: "park" })}>park</button>`}
+      <button class="btn" title="answer it without acting: it moves to Resolved; a step still blocked behind it is parked" onClick=${() => act("alert", { id: a.id, action: "dismiss" })}>Dismiss</button></div>
+  </div>`)}</div>`;
+}
+
+function Resolved({ alerts }) {
+  return html`<details><summary class="muted">Resolved (last 7 days): ${alerts.length}</summary>
+    <table><tbody>${alerts.map(a => html`<tr><td class="mono">${a.id}</td><td>${a.what}</td><td class="muted">${a.answer} <${Ago} ts=${a.answered} /></td></tr>`)}</tbody></table></details>`;
+}
+
+const STATUS_DOT = { open: "", "in progress": "blue", "built, waiting to land": "orange", "done, not landed yet": "orange", landed: "green", released: "green" };
+const STATUS_COLOR = { landed: "green", released: "green", "built, waiting to land": "orange", "done, not landed yet": "orange", "in progress": "accent" };
+function Milestones({ st }) {
+  const [data, setData] = useState(null);
+  const [open, setOpen] = useState({});
+  const [pick, setPick] = useState({});
+  const [ord, setOrd] = useState(null);  // the owner's unsaved order: {order, parked}
+  const [iss, setIss] = useState({});  // ticked issues: Start as one lane
+  useEffect(() => { fetch("/api/milestones").then(r => r.json()).then(setData); }, [refetchKey(st)]);
+  if (!data) return html`<p class="muted">Loading…</p>`;
+  const running = st.lanes.filter(l => !l.done).length;
+  const room = Math.max(0, st.loop_lanes - running);
+  const picked = Object.keys(pick).filter(k => pick[k]);
+  const start = names => names.slice(0, room).forEach(n => act("start-milestone", { milestone: n }));
+  const byName = Object.fromEntries(data.milestones.map(m => [m.name, m]));
+  const base = { order: data.milestones.filter(m => m.section !== "Parked").map(m => m.name), parked: data.milestones.filter(m => m.section === "Parked").map(m => m.name) };
+  const cur = ord || base;
+  const order = cur.order, parked = cur.parked;
+  const changed = ord && JSON.stringify(ord) !== JSON.stringify(base);
+  const move = (name, to) => { const o = order.filter(n => n !== name); o.splice(to, 0, name); setOrd({ order: o, parked: parked.filter(n => n !== name) }); };
+  const park = name => setOrd({ order: order.filter(n => n !== name), parked: [...parked, name] });
+  const save = async () => { const r = await post("/api/order", { order, parked: parked.filter(n => !base.parked.includes(n)) }); if (r.ok) setOrd(null); };
+  const row = (m, sec, idx) => html`
+        <tr class="row" draggable=${sec === "In order"} onDragStart=${e => e.dataTransfer.setData("text/plain", m.name)}
+            onDragOver=${e => sec === "In order" && e.preventDefault()} onDrop=${e => { e.preventDefault(); move(e.dataTransfer.getData("text/plain"), idx); }}>
+          <td>${m.startable ? html`<input type="checkbox" checked=${!!pick[m.name]} onChange=${e => setPick({ ...pick, [m.name]: e.target.checked })} />` : ""}</td>
+          <td class="tri" onClick=${() => setOpen({ ...open, [m.name]: !open[m.name] })}>${m.steps.length || m.issues.length ? (open[m.name] ? "▾" : "▸") : ""}</td>
+          <td>${sec === "In order" ? html`<span class="muted" style="cursor:grab">≡ ${idx + 1}.</span> ` : ""}<b>${m.name}</b> ${m.lane && html`<span class="pill green"><span class="dot green pulse"></span>${m.lane}</span>`}</td>
+          <td>${m.open ?? "-"}</td><td>${m.closed ?? "-"}</td>
+          <td>${m.counts ? Object.entries(m.counts).filter(([, n]) => n).map(([k, n]) => html`<span class="pill" style="margin-right:3px"><span class=${"dot " + STATUS_DOT[k]}></span>${n} ${k}</span>`) : ""}</td>
+          <td class="mono">${m.steps.map(s => html`<span title=${`${s.title}: ${s.status || "no issues"}`} style=${`color:var(--${STATUS_COLOR[s.status] || "label2"})`}>${s.step} </span>`)}</td>
+          <td><div class="actions">
+            ${sec === "In order" ? html`${idx > 0 && html`<button class="btn" onClick=${() => move(m.name, 0)}>Move to top</button>`}<button class="btn" onClick=${() => park(m.name)}>Park</button>`
+                                 : html`<button class="btn" onClick=${() => move(m.name, order.length)}>Unpark</button>`}
+            ${m.startable ? html`<button class="btn" disabled=${!room} onClick=${() => start([m.name])}>${I.play} Start lane</button>` : m.held_by ? html`<span class="muted">${m.held_by}</span>` : ""}
+          </div></td>
+        </tr>
+        ${open[m.name] && html`
+          ${m.steps.map(s => html`<tr class="sub"><td></td><td></td><td><span class="mono">${s.step}</span> ${s.title}</td><td colspan="2">${s.state}</td>
+            <td><span class=${"dot " + (STATUS_DOT[s.status] || "")}></span> ${s.status || html`<span class="muted">no issues</span>`}</td><td colspan="2">${s.issues.map(n => "#" + n).join(", ")}</td></tr>`)}
+          ${m.questions.map(q => html`<tr class="sub"><td></td><td></td><td colspan="6" class="note">${q}</td></tr>`)}
+          ${m.issues.map(i => html`<tr class="sub"><td></td><td>${i.status === "open" ? html`<input type="checkbox" checked=${!!iss[i.number]} onChange=${e => setIss({ ...iss, [i.number]: e.target.checked })} />` : ""}</td><td>#${i.number} ${i.title}</td><td colspan="2">${i.step ? "step " + i.step : html`<span class="muted">no step</span>`}</td>
+            <td><span class=${"dot " + (STATUS_DOT[i.status] || "")}></span> ${i.status} <span class="muted mono">${i.where}</span></td><td colspan="2" class="muted">${i.labels.join(", ")}</td></tr>`)}`}`;
+  const table = (names, sec) => html`<div class="wrap"><table>
+      <thead><tr><th></th><th></th><th>Milestone</th><th>Open</th><th>Closed</th><th>Status</th><th>Steps</th><th></th></tr></thead>
+      <tbody>${names.map((n, idx) => row(byName[n] || { name: n, steps: [], issues: [], questions: [] }, sec, idx))}</tbody></table></div>`;
+  return html`
+    <div class="toolbar" style="position:static;background:transparent;border:0;padding:0 0 8px">
+      <button class="btn" onClick=${() => post("/api/refresh")}>${I.refresh} Refresh from GitHub</button>
+      <span class="muted">${data.ts ? html`read <${Ago} ts=${data.ts} />` : "never read: press Refresh"}${data.gh_ok === false ? " (gh failed)" : ""}</span>
+      <span class="spacer"></span>
+      <span class="muted">${st.lanes_note}</span>
+      ${st.order_saving && html`<span class="pill blue"><span class="dot blue pulse"></span>saving the order…</span>`}
+      ${changed && html`<button class="btn" onClick=${() => setOrd(null)}>Discard</button><button class="btn primary" disabled=${st.order_saving} onClick=${save}>Save order</button>`}
+      ${Object.values(iss).some(Boolean) && html`<button class="btn primary" onClick=${() => { const n = prompt("Name of the new lane", "issues-" + Object.keys(iss).filter(k => iss[k])[0]); if (n) { act("start-issues", { lane: n, issues: Object.keys(iss).filter(k => iss[k]) }); setIss({}); } }}>${I.play} Start ${Object.values(iss).filter(Boolean).length} issue(s) as one lane</button>`}
+      ${picked.length > 0 && html`<button class="btn primary" disabled=${!room} onClick=${() => start(picked)}>${I.play} Start ${Math.min(picked.length, room)} lane(s)</button>`}
+    </div>
+    ${order.length > 0 && html`<h2>In order <span class="muted" style="font-weight:400">drag to reorder</span></h2>${table(order, "In order")}`}
+    ${parked.length > 0 && html`<h2>Parked</h2>${table(parked, "Parked")}`}`;
+}
+
+function Worktrees({ st }) {
+  const [data, setData] = useState(null);
+  useEffect(() => { fetch("/api/worktrees").then(r => r.json()).then(setData).catch(() => setData({ trees: [] })); }, [refetchKey(st)]);
+  if (!data) return html`<p class="muted">Loading…</p>`;
+  return html`<div class="wrap"><table>
+    <thead><tr><th>Worktree</th><th>Where</th><th>Branch</th><th>Last commit</th><th>Dirty</th><th>Landed</th><th>Sweep</th><th></th></tr></thead>
+    <tbody>${data.trees.map(t => html`<tr class="row">
+      <td class="mono">${t.path}</td><td>${t.where}</td><td class="mono">${t.branch || html`<span class="muted">detached</span>`}</td>
+      <td><${Ago} ts=${t.commit_ts} /></td>
+      <td>${t.dirty ? html`<span class="pill orange">dirty</span>` : html`<span class="muted">clean</span>`}</td>
+      <td>${t.landed ? html`<span class="pill green">landed</span>` : html`<span class="muted">no</span>`}</td>
+      <td>${t.grace_until ? html`<${Ago} ts=${t.grace_until} />` : html`<span class="muted">-</span>`}</td>
+      <td><div class="actions">${t.can_clean && html`<button class="btn" onClick=${() => confirm(`Clean up ${t.path}? A patch first, then git worktree remove.`) && act("sweep", { worktree: t.path })}>${I.broom} Clean up</button>`}</div></td>
+    </tr>`)}</tbody></table></div>`;
+}
+
+function useApi(path, dep) {
+  const [d, setD] = useState(null);
+  useEffect(() => { fetch(path).then(r => r.json()).then(setD).catch(() => setD({})); }, [dep]);
+  return d;
+}
+const Okpill = ({ ok }) => ok == null ? html`<span class="pill blue"><span class="dot blue pulse"></span>running</span>` : html`<span class=${"pill " + (ok ? "green" : "red")}>${ok ? "ok" : "red"}</span>`;
+
+function Activity({ st }) {
+  const d = useApi("/api/activity", refetchKey(st));
+  if (!d) return html`<p class="muted">Loading…</p>`;
+  const row = a => html`<tr class="row"><td>${a.kind}</td><td class="mono">${a.key}</td><td>${a.lane}</td><td><${Ago} ts=${a.started} /></td>
+    <td><${Okpill} ok=${a.ended ? a.ok : null} /> ${a.failed ? html`<span class="muted">at ${a.failed}</span>` : ""}</td>
+    <td>${a.rungs.map(r => html`<span class=${"pill " + (r.not_run ? "blue" : r.ok ? "green" : "red")} style="margin-right:3px">${r.rung} ${r.not_run ? "not run" : r.seconds != null ? Math.round(r.seconds) + "s" : ""}</span>`)}
+      ${a.now && html`<span class="pill blue"><span class="dot blue pulse"></span>${a.now}</span>${a.usual != null ? html` <span class="muted">usually ${dur(a.usual)}</span>` : ""}`}${a.groups ? html` <span class="muted">${a.groups} group(s)</span>` : ""}</td></tr>`;
+  const table = (items) => html`<div class="wrap"><table><thead><tr><th>Kind</th><th>What</th><th>Lane</th><th>Started</th><th>State</th><th>Rungs</th></tr></thead><tbody>${items.map(row)}</tbody></table></div>`;
+  return html`<h2>Running now</h2>${d.running.length ? table(d.running) : html`<p class="muted">Nothing running.</p>`}<h2>Recently finished</h2>${table(d.recent)}
+    <h2>Usual time per rung</h2><div>${Object.entries(d.medians || {}).sort((x, y) => y[1] - x[1]).map(([k, v]) => html`<span class="pill" style="margin:2px">${k} ${dur(v)}</span>`)}</div>`;
+}
+
+function Hotspots({ st }) {
+  const d = useApi("/api/hotspots", refetchKey(st));
+  const [f, setF] = useState({ workload: "", kind: "", area: "" });
+  if (!d) return html`<p class="muted">Loading…</p>`;
+  if (!d.run) return html`<h2>Hotspots</h2><p class="muted">No hotspot table yet: run <span class="mono">builder perf read</span>.</p>`;
+  const top = d.top || [], opts = k => [...new Set(top.map(r => r[k]))].sort();
+  const shown = top.filter(r => Object.entries(f).every(([k, v]) => !v || r[k] === v));
+  const trend = t => t == null ? "new" : Math.abs(t) <= 6 ? "~" : t > 0 ? "+" + Math.round(t) + "%" : "\u2212" + Math.round(-t) + "%";
+  const sel = k => html`<select value=${f[k]} onChange=${e => setF({ ...f, [k]: e.target.value })}><option value="">all ${k}s</option>${opts(k).map(o => html`<option>${o}</option>`)}</select> `;
+  return html`<h2>Hotspots <span class="mono muted" style="font-weight:400">${d.run}</span></h2>
+    ${(d.notes || []).map(n => html`<div class="banner"><span class="dot orange"></span>${n}: the log gave no rows, so this is not a green.</div>`)}
+    <div>${sel("workload")}${sel("kind")}${sel("area")}</div>
+    <div class="wrap"><table><thead><tr><th>Kind</th><th>Area</th><th>Where</th><th>Value</th><th>Share</th><th>Count</th><th>Trend</th><th>Workload</th><th>Profile</th></tr></thead>
+    <tbody>${shown.map(r => html`<tr class="row"><td>${r.kind}</td><td>${r.area}</td><td class="mono">${r.where}</td><td>${r.value}${r.unit}</td>
+      <td>${r.share == null ? "" : (r.share * 100).toFixed(1) + "%"}</td><td>${r.count}</td><td class=${trend(r.trend_pct) === "~" ? "muted" : ""}>${trend(r.trend_pct)}</td>
+      <td>${r.workload}</td><td class="mono muted">${r.profile || "-"}</td></tr>`)}</tbody></table></div>`;
+}
+
+function Landing({ st }) {
+  const d = useApi("/api/landing", refetchKey(st));
+  if (!d) return html`<p class="muted">Loading…</p>`;
+  return html`<h2>Landing queue <span class="muted" style="font-weight:400">every branch with commits not on integration</span></h2><div class="wrap"><table>
+    <thead><tr><th>Branch</th><th>Head</th><th>Commits</th><th>Files</th><th>Stage</th><th>Closes</th></tr></thead>
+    <tbody>${(d.branches || []).map(b => html`<tr class="row"><td><b>${b.name}</b><div class="muted mono">${b.worktree}</div></td><td class="mono">${b.head}</td><td>${b.commits}</td><td>${b.files}</td>
+      <td><${Pill} state=${{ checking: "checking", reviewing: "reviewing", landed: "landed", question: "blocked", building: "working" }[b.stage] || "queued"} /> <span class="muted">${b.stage} ${b.batch}</span></td>
+      <td>${b.fixes.map(n => "#" + n).join(", ")}</td></tr>`)}</tbody></table></div>`;
+}
+
+function Issues({ st }) {
+  const d = useApi("/api/issues", refetchKey(st));
+  if (!d) return html`<p class="muted">Loading…</p>`;
+  return html`<h2>What the harness did on GitHub today</h2>${(d.issues || []).length ? html`<div class="wrap"><table><tbody>${d.issues.map(i => html`<tr class="row"><td class="muted"><${Ago} ts=${i.ts} /></td>
+    <td>${i.what}</td><td>${i.links.map(l => html`<a href=${l.url} target="_blank" style="margin-right:6px">#${l.n}</a>`)}</td></tr>`)}</tbody></table></div>` : html`<p class="muted">Nothing yet today.</p>`}`;
+}
+
+// #6524: what landed since the last dev build, each issue with a line to try and how it was checked; Copy release notes = the same, grouped by milestone, as markdown
+function releaseNotes(sb) {
+  const groups = {};
+  for (const i of sb.issues) (groups[i.milestone || "No milestone"] ||= []).push(i);
+  const lines = [`# Since build ${sb.build.sha} (${sb.build.ts})`, ""];
+  for (const [m, items] of Object.entries(groups)) { lines.push(`## ${m}`); for (const i of items) lines.push(`- #${i.number} ${i.title}${i.try ? ` — try: ${i.try}` : ""} (${i.checked})`); lines.push(""); }
+  if (sb.worked_on.length) { lines.push("## Worked on, not closed"); for (const i of sb.worked_on) lines.push(`- #${i.number} ${i.title}`); }
+  return lines.join("\n");
+}
+function SinceBuild({ d }) {
+  if (!d) return "";
+  if (!d.build) return html`<h2>Since your last build</h2><p class="muted">No dev build recorded yet.</p>`;
+  const pill = c => html`<span class=${"pill " + (c === "window test" ? "green" : c === "unit tests only" ? "blue" : "orange")}>${c}</span>`;
+  return html`<h2>Since your last build <span class="mono muted" style="font-weight:400">${d.build.sha} · <${Ago} ts=${d.build.ts} /></span>
+      <button class="btn" title="the same list, grouped by milestone, as markdown" onClick=${() => navigator.clipboard.writeText(releaseNotes(d)).then(() => showError("Release notes copied."), () => showError("Could not copy."))}>Copy release notes</button></h2>
+    ${d.issues.length ? html`<div class="wrap"><table><thead><tr><th>Issue</th><th>Try</th><th>Checked</th><th>Milestone</th></tr></thead><tbody>${d.issues.map(i => html`<tr class="row">
+      <td>${i.url ? html`<a href=${i.url} target="_blank">#${i.number}</a>` : `#${i.number}`} ${i.title}</td><td>${i.try || html`<span class="muted">no 'done looks like' line, no spec test</span>`}</td><td>${pill(i.checked)}</td><td class="muted">${i.milestone}</td></tr>`)}</tbody></table></div>`
+      : html`<p class="muted">No issue closed since that build.</p>`}
+    ${d.worked_on.length ? html`<p class="muted">Worked on, not closed: ${d.worked_on.map(i => html`<span style="margin-right:8px">#${i.number} ${i.title}</span>`)}</p>` : ""}`;
+}
+function Release({ st }) {
+  const d = useApi("/api/release", refetchKey(st));
+  if (!d) return html`<p class="muted">Loading…</p>`;
+  return html`<div class="cards">
+      <${Card} k="On integration, not on main" v=${d.ahead ?? "-"} dot=${d.ahead ? "orange" : "green"} sub=${d.ts ? html`read <${Ago} ts=${d.ts} />` : "press Refresh in Milestones"} />
+      <${Card} k="Last release tag" v=${html`<span class="mono">${d.tag || "-"}</span>`} />
+      <${Card} k="Release PR" v=${d.prs?.length ? html`<a href=${d.prs[0].url} target="_blank">#${d.prs[0].number}</a>` : "none open"} dot=${d.prs?.length ? "blue" : ""} />
+    </div>
+    <p class="muted">Make release PR is the owner's to say: the console shows it, never does it.</p>
+    <${SinceBuild} d=${d.since_build} />
+    <h2>Run tests on the integration tip</h2>
+    <form onSubmit=${e => { e.preventDefault(); act("test", { paths: e.target.paths.value.trim().split(/\s+/) }); }}>
+      <input name="paths" placeholder="fichero-server/tests/unit/recipes fichero-builder/tests" style="width:420px" required /> <button class="btn">${I.play} Run tests</button>
+      <span class="muted">the pinned pytest, as the jail user, on [check].remote when set</span></form>
+    ${[...st.console].reverse().filter(r => r.verb === "test").slice(0, 1).map(r => html`<pre>${r.state}${r.rc != null ? " exit " + r.rc : ""} ${r.detail || ""}</pre>`)}
+    <h2>Install the newest dev build on a test machine</h2>
+    <div class="actions" style="justify-content:flex-start">${(st.machines || []).map(m => html`<button class="btn" onClick=${() => confirm(`Install the newest dev DMG on ${m}?`) && act("install", { machine: m })}>Install on ${m}</button>`)}</div>
+    ${[...st.console].reverse().filter(r => r.verb === "install").slice(0, 1).map(r => html`<pre>${r.state} ${r.detail || ""}</pre>`)}
+    <h2>Dev builds on this Mac</h2>
+    <${DevBuilds} />
+    <div class="wrap"><table><tbody>${(d.commits || []).map(c => html`<tr><td class="mono">${c.split(" ")[0]}</td><td>${c.split(" ").slice(1).join(" ")}</td></tr>`)}</tbody></table></div>`;
+}
+
+function App() {
+  const st = useStatus();
+  const [msg, setMsg] = useState("");
+  const [tab, setTab] = useState(location.hash.slice(1) || "lanes");
+  showError = setMsg;
+  window.__st = st;
+  if (!st) return html`<p class="muted" style="padding:16px">Loading…</p>`;
+  const go = t => { setTab(t); location.hash = t; };
+  const build = [...st.console].reverse().find(r => r.verb === "build");
+  const lc = st.last_check, lr = st.last_review, ll = st.last_land;
+  const ready = lr && String(lr.detail).startsWith("READY");
+  return html`
+    <div class="toolbar">
+      <h1>Builder</h1>
+      <div class="seg">${[["lanes", "Lanes"], ["activity", "Activity"], ["landing", "Landing"], ["hotspots", "Hotspots"], ["milestones", "Milestones"], ["issues", "Issues"], ["release", "Release"], ["worktrees", "Worktrees"]].map(([t, n]) =>
+        html`<button aria-pressed=${tab === t} onClick=${() => go(t)}>${n}</button>`)}</div>
+      <span class="spacer"></span>
+      ${st.loop_on && html`<button class="btn" onClick=${() => act("loop-stop")}>${I.stop} Stop loop</button>`}
+      ${build && html`<span class="muted">${build.state === "ended" ? (build.ok ? "Build done" : "Build failed") : "Building…"}</span>`}
+      <button class="btn primary" onClick=${() => act("build")}>${I.hammer} Build</button>
+    </div>
+    <main>
+      ${!st.loop_on && html`<div class="banner"><span class="dot orange"></span>Loop is off: lanes are not fed or landed automatically.
+        <button class="btn" onClick=${() => act("loop-start")}>${I.play} Start loop</button></div>`}
+      ${(st.lock_waits || []).map(w => html`<div class="banner"><span class="dot orange pulse"></span>${w.what || "a step"} is waiting for the ${w.name} lock, held by ${w.holder} (since <${Ago} ts=${w.ts} />)</div>`)}
+      ${msg && html`<div class="banner err">${msg} <button class="btn" onClick=${() => setMsg("")}>Dismiss</button></div>`}
+      <div class="cards">
+        ${st.check_running ? html`<${Card} k="Check running" v=${html`<span>${st.check_running.lane}</span>`} dot="blue" sub=${html`${st.check_running.now || "starting"} · since <${Ago} ts=${st.check_running.started} />`} />`
+          : html`<${Card} k="Last check" v=${lc ? (lc.ok ? "Green" : "Red") : "-"} dot=${lc ? (lc.ok ? "green" : "red") : ""} sub=${html`<${Ago} ts=${lc?.ts} />`} />`}
+        <${Card} k="Last review" v=${lr ? (ready ? "READY" : "NOT READY") : "-"} dot=${lr ? (ready ? "green" : "red") : ""} sub=${html`<${Ago} ts=${lr?.ts} />`} />
+        <${Card} k="Last landing" v=${st.last_land_git ? html`<span class="mono" title=${st.last_land_git.subject}>${st.last_land_git.sha.slice(0, 9)}</span>` : "-"} dot=${st.last_land_git ? "green" : ""} sub=${html`<${Ago} ts=${st.last_land_git?.ts} />`} />
+        <${Card} k="Closed today" v=${(st.closed_today_git || []).length} dot=${(st.closed_today_git || []).length ? "green" : ""} sub="issues, from integration's Fixes lines" />
+        <${Card} k="Spend today (API-equivalent)" v=${"$" + st.spend_today_usd.toFixed(2)} dot="blue" sub=${st.loop_on ? html`loop on · <${Ago} ts=${st.heartbeat} />` : "loop off"} />
+        ${(st.lane_usage || []).length > 0 && html`<div class="card"><div class="k">Lane usage today</div>
+          ${st.lane_usage.map(u => html`<div title=${`in ${u.in} · cache write ${u.cache_write} · cache read ${u.cache_read} · out ${u.out}`}>
+            <b>${u.lane}</b> ${tok(u.tokens_in)} in · ${tok(u.tokens_out)} out · ${u.turns} turns <span class="muted">$${u.usd.toFixed(2)}</span></div>`)}
+          <div class="k muted">API-equivalent $: on Max, not billed</div></div>`}
+      </div>
+      ${(() => { const q = st.lanes.filter(l => l.state === "blocked").length, a = st.open_alerts.length, ns = st.lanes.filter(l => l.state === "no-session");
+        const alertOf = l => st.open_alerts.find(x => x.lane === l.lane && (x.actions || []).includes("dispatch"));  // #6500: the lane's own no-session alert
+        return (q || a || ns.length) ? html`<div class="banner"><span class="dot red"></span><b>Needs you:</b> ${a ? `${a} alert(s)` : ""}${a && q ? ", " : ""}${q ? `${q} lane(s) with a question` : ""}
+          ${ns.map(l => html`<div><b>${l.lane}</b>: nobody is on it since <${Ago} ts=${l.no_session} /> ${alertOf(l) ? html`<button class="btn" title="the loop runs this lane from now on, one managed session per batch" onClick=${() => act("alert", { id: alertOf(l).id, action: "dispatch" })}>${I.play} Dispatch</button> <button class="btn" onClick=${() => act("alert", { id: alertOf(l).id, action: "park" })}>Park</button>` : ""}</div>`)}</div>`
+          : html`<div class="banner"><span class="dot green"></span>Nothing needs you.</div>`; })()}
+      ${st.open_alerts.length > 0 && html`<h2>Alerts <button class="btn" onClick=${() => act("alert", { id: "all", action: "dismiss" })}>Dismiss all</button></h2><${Alerts} alerts=${st.open_alerts} />`}
+      ${(st.resolved_alerts || []).length > 0 && html`<${Resolved} alerts=${st.resolved_alerts} />`}
+      ${{ milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, hotspots: Hotspots, issues: Issues, release: Release }[tab]
+        ? html`<${{ milestones: Milestones, worktrees: Worktrees, activity: Activity, landing: Landing, hotspots: Hotspots, issues: Issues, release: Release }[tab]} st=${st} />`
+        : html`<h2>Lanes</h2><${Lanes} lanes=${st.lanes} />`}
+      ${(st.events || []).length > 0 && html`<h2>Last events</h2>
+      <div class="wrap"><table><tbody>${[...st.events].reverse().map(r => html`<tr><td class="muted"><${Ago} ts=${r.ts} /></td><td>${r.event}</td><td><b>${r.lane || ""}</b> <span class="mono">${r.step || ""}</span></td>
+        <td>${r.state || ""}</td><td class="muted">${r.detail || ""}</td></tr>`)}</tbody></table></div>`}
+      <h2>Console actions</h2>
+      <div class="wrap"><table><tbody>${[...st.console].reverse().map(r => html`<tr>
+        <td class="muted"><${Ago} ts=${r.ts} /></td><td>${r.who}</td><td>${r.verb}</td>
+        <td>${r.state === "ended" ? html`<span class=${"pill " + (r.ok ? "green" : "red")}>${r.ok ? "done" : `exit ${r.rc}`}</span>` : html`<span class=${"pill " + (r.state === "refused" ? "red" : "blue")}>${r.state}</span>`}</td>
+        <td><pre>${r.detail || ""}</pre></td></tr>`)}</tbody></table></div>
+    </main>`;
+}
+render(html`<${App} />`, document.getElementById("app"));
+</script>
+</body>
+</html>

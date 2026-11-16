@@ -13,12 +13,13 @@ from datetime import datetime
 from fichero_server.core.timeutil import utc_now
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field, field_validator
 
 from fichero_server.api.auth import action_context
 from fichero_server.api.change_stream import emit_change
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.library_header import require_library_path
+from fichero_server.api.main import get_library_database, get_library_database_for_named_write, get_library_database_for_write, read_check
 from fichero_server.actions.registry import audit_with_digests, registry
 from fichero_server.api.routes.document.segment_conversion import (
     AnchorBasis,
@@ -261,7 +262,7 @@ def create_annotation_impl(
 @router.post("", response_model=Annotation, summary="Create an annotation")
 async def create_annotation(
     request: AnnotationCreateRequest,
-    db: Database = Depends(get_library_database_for_write),
+    db: Database = Depends(get_library_database_for_named_write),
     ctx: "ActionContext" = Depends(action_context),
 ) -> Annotation:
     result = registry.invoke(
@@ -287,7 +288,9 @@ async def list_annotations(
     min_rating: int | None = Query(default=None, ge=1, le=5),
     db: Database = Depends(get_library_database),
 ) -> AnnotationListResponse:
-    rows = db.query(Annotation)
+    from fichero_server.knowledge.trash_visibility import visible_annotations  # noqa: PLC0415
+
+    rows = visible_annotations(db, db.query(Annotation))  # out of view with a trashed document
     if document_id is not None:
         rows = [
             r
@@ -560,7 +563,11 @@ class EphemeralCropRequest(BaseModel):
 async def crop_ephemeral(
     request: EphemeralCropRequest,
     db: Database = Depends(get_library_database),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
 ):
+    # the document is in the body, which the read dependency never sees (#6320)
+    await read_check(http, library_path, db, [request.document_id])
     ann = Annotation(
         document_id=request.document_id,
         kind=request.kind,

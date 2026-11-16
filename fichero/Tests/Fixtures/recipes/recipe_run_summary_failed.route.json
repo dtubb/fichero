@@ -2,7 +2,7 @@
  "request": null,
  "status": 200,
  "response": {
-  "job_id": "0bbb521e-3a85-4440-bc94-c65b26de90aa",
+  "job_id": "83fab515-7469-46e1-a4f5-d7ab64cec889",
   "state": "failed",
   "finished": true,
   "pages": 2,
@@ -11,6 +11,7 @@
   "lines_seen_blank": 0,
   "lines_vision_could_not_read": 0,
   "pages_read_nothing": 0,
+  "what_to_check": [],
   "next_reader": null,
   "download_failed": [],
   "lines_unread_why": {},
@@ -44,7 +45,8 @@
    "Lines on 2 of 2 pages \u00b7 regions on 0 of 2 pages",
    "Read 2 of 2 pages",
    "Names: 1 People \u00b7 1 Places",
-   "1 page dated \u00b7 1 date named \u00b7 1 statement"
+   "1 page dated \u00b7 1 date named \u00b7 1 statement",
+   "Slowest step: lines and read: 1.3 s"
   ],
   "failed": [
    {
@@ -52,19 +54,19 @@
      "lines",
      "read"
     ],
-    "thread_id": "thread-0e67d40fe39e",
+    "thread_id": "thread-559f79031507",
     "pages_failed": 2,
     "failures": [
      {
       "page": "p0.png",
-      "document_id": "25271afcc16e43709dc613e9d0fc2b37",
-      "reason": "Kraken is not bundled in this build \u2014 this is a packaging problem, not something to install from Settings.",
+      "document_id": "d974ff795d4c4649bfd9d9b1db4a1198",
+      "reason": "the reader could not be loaded",
       "retried": false
      },
      {
       "page": "p1.png",
-      "document_id": "d039270291d14071bccaa86655cfe060",
-      "reason": "Kraken is not bundled in this build \u2014 this is a packaging problem, not something to install from Settings.",
+      "document_id": "b23126a603db454f82c14631aced450f",
+      "reason": "the reader could not be loaded",
       "retried": false
      }
     ],
@@ -95,11 +97,13 @@
      "lines",
      "read"
     ],
+    "title": "lines and read",
     "card": "workflow",
     "job": "read-a-line",
     "state": "failed",
-    "child_id": "thread-0e67d40fe39e",
-    "why": "All parallel branches failed for kraken-htr. First error: Kraken is not bundled in this build \u2014 this is a packaging problem, not something to install from Settings.",
+    "child_id": "thread-559f79031507",
+    "why": "All parallel branches failed for kraken-htr. First error: the reader could not be loaded",
+    "note": "already done on all 2 pages; nothing to run",
     "failed_pages": null,
     "account": {
      "state": "failed",
@@ -107,26 +111,27 @@
      "pages_done": 0,
      "pages_failed": 2,
      "pages_left": 0,
+     "pages_done_in_order": 2,
      "failures": [
       {
        "page": "p0.png",
-       "document_id": "25271afcc16e43709dc613e9d0fc2b37",
-       "reason": "Kraken is not bundled in this build \u2014 this is a packaging problem, not something to install from Settings.",
+       "document_id": "d974ff795d4c4649bfd9d9b1db4a1198",
+       "reason": "the reader could not be loaded",
        "retried": false
       },
       {
        "page": "p1.png",
-       "document_id": "d039270291d14071bccaa86655cfe060",
-       "reason": "Kraken is not bundled in this build \u2014 this is a packaging problem, not something to install from Settings.",
+       "document_id": "b23126a603db454f82c14631aced450f",
+       "reason": "the reader could not be loaded",
        "retried": false
       }
      ],
      "retried": 0,
      "waiting_reason": null,
-     "reason": "All parallel branches failed for kraken-htr. First error: Kraken is not bundled in this build \u2014 this is a packaging problem, not something to install from Settings.",
+     "reason": "All parallel branches failed for kraken-htr. First error: the reader could not be loaded",
      "interrupted": false,
      "estimate_seconds_left": null,
-     "engine_peak_memory_bytes": 2285768328,
+     "engine_peak_memory_bytes": 2177764880,
      "model_server_peak_memory_bytes": null,
      "offer": {
       "action": "read-again",
@@ -140,18 +145,38 @@
     "kinds": null,
     "readers": null,
     "entries": null,
+    "leave_out": null,
     "prepared": null,
-    "regions_found": null
+    "regions_found": null,
+    "timing": {
+     "started_at": "2026-11-02T14:18:01.544471",
+     "ended_at": "2026-11-02T14:18:02.836585",
+     "seconds": 1.3,
+     "pages_done": 0,
+     "seconds_per_page": null,
+     "folder": null,
+     "job_id": null,
+     "cost_usd": null,
+     "batches": []
+    },
+    "batch_jobs": [
+     {
+      "folder": null,
+      "child_id": "thread-559f79031507"
+     }
+    ]
    },
    {
     "steps": [
      "export"
     ],
+    "title": "Export",
     "card": "export",
     "job": "export",
     "state": "not run",
     "child_id": null,
     "why": "it needs line readings or page reading, which no earlier step gave (step lines, read failed)",
+    "note": "cannot tell what is done; runs on every page (2)",
     "failed_pages": null,
     "account": null,
     "blank_versos": null,
@@ -160,14 +185,18 @@
     "kinds": null,
     "readers": null,
     "entries": null,
+    "leave_out": null,
     "prepared": null,
-    "regions_found": null
+    "regions_found": null,
+    "timing": null,
+    "batch_jobs": []
    }
   ],
   "missed": {
    "words": "2 pages not done by lines and read; 2 pages not done by Export",
    "offer": "Run again on what was missed",
-   "folder_id": null
+   "folder_id": null,
+   "documents": null
   }
  }
 }

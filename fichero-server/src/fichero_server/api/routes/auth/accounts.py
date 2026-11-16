@@ -26,6 +26,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
 from fichero_server.security import accounts, launch_secret
+from fichero_server.security.multiuser import MULTIUSER_OFF_DETAIL, MultiuserOff
 from fichero_server.api.auth import _rate_limit_scope_from_request, _use_multiuser_auth, auth_kind_from_request
 from fichero_server.db.app import AppDatabase, get_app_db
 from fichero_server.models import _new_id as new_id
@@ -197,7 +198,7 @@ class UpdateUserRequest(BaseModel):
 
 def _multiuser_disabled() -> None:
     if not _use_multiuser_auth():
-        raise HTTPException(status_code=404, detail="multi-user auth is disabled")
+        raise MultiuserOff()
 
 
 def _to_public_user(user: AccountUser) -> UserResponse:
@@ -386,6 +387,12 @@ def _require_owner_or_bootstrap(request: Request) -> None:
     raise HTTPException(status_code=403, detail="owner access required")
 
 
+def _require_owner_for_writes(request: Request) -> None:
+    """A router-level dependency: a read is anyone's, every other method is the owner's (the Mac's own machinery, #6325 H9)."""
+    if request.method not in ("GET", "HEAD", "OPTIONS"):
+        _require_owner_or_bootstrap(request)
+
+
 def _audit(
     request: Request,
     app_db: AppDatabase,
@@ -520,7 +527,8 @@ def logout(
 
 @auth_router.get("/me", response_model=UserResponse)
 def me(request: Request) -> UserResponse:
-    _multiuser_disabled()
+    if not _use_multiuser_auth():  # stays a 404: the app's gate reads /auth/me 404 as "no accounts, never gate"
+        raise HTTPException(status_code=404, detail=MULTIUSER_OFF_DETAIL)
 
     if getattr(request.state, "bootstrap_auth", False):
         raise HTTPException(status_code=401, detail="session required")
@@ -825,9 +833,9 @@ def update_user(
         # it can be set BEFORE the switch is turned on (`multiuser.turning-on-needs-an-owner-password`, #5908).
         # By the owner's own signed-in session, never the start-up credential (`multiuser.owner-session-sets-the-switch`).
         if getattr(request.state, "session", None) is None or not getattr(request.state.user, "is_owner", False):
-            raise HTTPException(status_code=404, detail="multi-user auth is disabled")
+            raise MultiuserOff()
         if user is None or not user.is_owner or set(body.model_fields_set) - {"password"} or body.password is None:
-            raise HTTPException(status_code=404, detail="multi-user auth is disabled")
+            raise MultiuserOff()
     _require_owner_or_bootstrap(request)
 
     if user is None:
@@ -1101,6 +1109,45 @@ def migrate_owner(
             public_key_pem=body.public_key_pem,
         )
     return FirstRunResponse(user=_to_public_user(owner), client=SignInClient(id=client.id, kind=client.kind, name=client.name))
+
+
+class OwnerPasswordRequest(BaseModel):
+    password: str = Field(min_length=1)
+
+
+@auth_router.post("/owner-password", response_model=StatusResponse)
+def set_owner_password(
+    body: OwnerPasswordRequest,
+    request: Request,
+    app_db: AppDatabase = Depends(get_app_database),
+) -> StatusResponse:
+    """The owner of THIS Mac chooses their password (`multiuser.turning-on-needs-an-owner-password`, #6565).
+
+    First-run gives the owner a key and a random password nobody chose, and an owner who already has a key cannot
+    register another through first-run or migrate-owner, so the app had no way to ask for a password. Local only
+    (the Unix socket), and only the local owner: the app's own start-up credential, or the owner's signed-in session.
+    Works with Multi-user off (the point) or on. The 8-character rule applies; audited before the change."""
+    if request.scope.get("fichero.transport") != "uds":
+        raise HTTPException(status_code=403, detail="this route is local only")
+    session_user = _current_session_user(request)
+    if getattr(request.state, "bootstrap_auth", False):
+        owners = [user for user in app_db.list_users() if user.is_owner and user.active]
+        if not owners:
+            raise HTTPException(status_code=404, detail="this library has no owner yet")
+        if len(owners) > 1:
+            raise HTTPException(status_code=409, detail="this library has several owners; none is chosen for you")
+        owner = owners[0]
+    elif session_user is not None and session_user.is_owner and session_user.active:
+        owner = session_user
+    else:
+        raise HTTPException(status_code=403, detail="owner access required")
+    _require_new_password_length(body.password)
+    _audit(request, app_db, "owner.set_password", owner.id)
+    app_db.set_password(owner.id, accounts.hash_password(body.password))
+    from fichero_server.security.multiuser import note_owner_password_set
+
+    note_owner_password_set(app_db)
+    return StatusResponse(status="ok")
 
 
 # --- Local CLI/MCP clients (multiuser.first-connection-asks-the-person, slice 6a) --------------------------------

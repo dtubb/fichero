@@ -112,7 +112,7 @@ So:
   behind both (`activity.mode.start-stop`).
 - **Memory safety is never lifted**: forced work still never runs two heavy jobs at once while
   memory is tight, and the app manages that, not the person (`activity.throttle.one-heavy-when-memory-tight`).
-- `activity.throttle.hold-when-swapping` — **[PARTIAL]** (#6075, ## 1095; the owner's engine was killed with the Mac at 15 GB of swap) the memory check (`throttle.memory_short`, the one rule the lane and Kraken's guard both ask) also holds new heavy work while this Mac is PAGING NOW under memory pressure at warn or above: pages written out (`vm_stat` Pageouts) or swap in use grew by 64 MB within the last minute (`throttle.paging_now_on_this_mac`, built from the samples each check leaves, one every 2 s at most; the first check after a start has no history and says no), in words. STATIC swap never holds, however large: macOS keeps swap it has written long after the pressure is gone, and a 16 GB Mac sits at warn with swap in use all day (the 2026-09-28 ruling: refusing at warn made Kraken unusable). The same condition limits Kraken to ONE page at a time whoever started the run (`kraken_runtime.pages_at_once`). A caller that supplies its own readings (a test) is not judged on the real Mac's paging. Pinned by `fichero-server/tests/unit/jobs/test_kraken_holds_under_swap_and_pressure_6075.py` (static 15 GB swap does not hold, growing swap or pageouts does, growth older than the window is forgotten) and `tests/unit/jobs/test_engine_memory.py` (throttle and guard agree). *Not built:* the Activity popover showing paging, and a hold on the model servers' own loads beyond `memory_short`.
+- `activity.throttle.hold-when-swapping` — **[PARTIAL]** (#6075, ## 1095; the owner's engine was killed with the Mac at 15 GB of swap) the memory check (`throttle.memory_short`, the one rule the lane and Kraken's guard both ask) also holds new heavy work while this Mac is PAGING NOW under memory pressure at warn or above: pages written out (`vm_stat` Pageouts) or swap in use grew by 64 MB within the last minute (`throttle.paging_now_on_this_mac`, built from the samples each check leaves, one every 2 s at most; the first check after a start has no history and says no), in words. STATIC swap never holds, however large: macOS keeps swap it has written long after the pressure is gone, and a 16 GB Mac sits at warn with swap in use all day (the 2026-09-28 ruling: refusing at warn made Kraken unusable). The same condition limits Kraken to ONE page at a time whoever started the run (`kraken_runtime.pages_at_once`). A caller that supplies its own readings (a test) is not judged on the real Mac's paging. Pinned by `fichero-server/tests/unit/jobs/test_kraken_holds_under_swap_and_pressure_6075.py` (static 15 GB swap does not hold, growing swap or pageouts does, growth older than the window is forgotten) and `tests/unit/jobs/test_engine_memory.py` (throttle and guard agree). The popover's Mac row shows a tinted "Paging" reading only while it happens: `GET /api/activity/jobs` serves `machine.paging` from the same `paging_now_on_this_mac` (`test_the_jobs_route_says_when_the_mac_is_paging_now`; Swift `ActivityTableTests.testActivityPopoverSummary_pagingIsShownOnlyWhileItHappensAndTintedAsAProblem`, unrun). *Not built:* a hold on the model servers' own loads beyond `memory_short`.
 - **The control's words and look** (later the same day): its menu is a choice with a tick beside the
   current mode, *Run Now*, *Run Automatically*, *Pause All*; the toolbar button is an icon only (play
   filled while work runs, play outline while idle, an orange hourglass while work waits, pause while
@@ -188,6 +188,37 @@ build never hold, they slow background work to the lowest class (`decide`, `thro
 for Kraken is half the performance cores (`compute_preferences.apply_to_this_thread`, since #6229; was a
 quarter: one thread on a 4-core Mac), at utility QoS since the 2026-10-20 ruling. What is left is
 `activity.throttle.in-use-slows-to-half` (#6230) and `activity.lane.cores-are-used` (#6229).
+
+### Ruled 2026-11-13 (the owner, after a run failed quietly when a provider's credit ran out; paraphrased)
+
+- **A run never fails silently.** When a run, a step or a job of its own fails for any reason, the
+  person gets an alert that says what went wrong in plain words and what they need to do to fix it.
+  The case: a cloud provider's monthly credit ran out mid-run and the run simply stopped; the only
+  trace was a failed row in a window that was not open (the same event as #5459, a 402 from a
+  provider). Silent failure is bad design. The behaviours are section J (`activity.failure.*`,
+  #6354); the engine classifies, the app only displays; a run that CAN pause instead of failing
+  (no credit, a refused key) pauses and keeps what it finished.
+- **Answers (owner 2026-11-13, to open question 13):** (1) out of credit and a rate limit PAUSE the
+  run at its checkpoint, the finished pages are kept, Resume carries on, and the person is always
+  told by the alert: a pause is never silent either. (2) A provider that is down and a lost network
+  pause too. (3) When the app is frontmost, the alert is a sheet if the person is looking at that
+  project or at Activity, else a banner. (4) "Add credit" depends on the cause, and the engine's
+  kind tells the two apart: a spending cap set IN Fichero (the monthly or weekly limit) is
+  `cap-reached` and its fix is Settings › AI; a provider account with no credit is `out-of-credit`
+  and its fix is the provider's billing page. The manager's defaults, which the owner may change:
+  the same failure alerts again after ten minutes; an unknown kind's report is a file; iPhone and
+  iPad ask for notification permission at the first run start.
+- **Delete works, and nothing comes back by itself (owner 2026-11-13, night; #6583, #6584).** A person
+  can delete any item in Activity: a finished, failed, paused or queued run or job, and a whole group
+  (a kind's row, a run with its steps); what is deleted stays gone. On relaunch only work that was
+  RUNNING when the app quit, and that the person has not cancelled or deleted, carries on. A run
+  that failed stays failed, shown with its reason and a Retry, and is never run again by itself;
+  a pause asked before the quit (by the person, or by the engine for a cause: credit, a cap) is
+  still a pause after it. Found: a recipe run's pause lived only in memory, so the open put its row
+  back to waiting and the lane carried it on; a document whose derivative had failed was queued
+  again at every open. Consistent with `run-failure-alerts.md` decision 2 (a run paused for a cause
+  stays paused, with its alert): the pause now survives the relaunch too. Behaviours:
+  `activity.window.delete-any-row`, `activity.relaunch.only-running-work-resumes`.
 
 ## Prior art (what we build on, and what we do differently)
 
@@ -539,6 +570,8 @@ automatic run asks once and waits (`source.project.automatic-after-first-yes`, #
 the global pause is the only switch a person needs. The workflow bar and Run menu keep running any
 workflow by hand: a hand run is a job like any other.
 
+> Companion (2026-11-08, #6441): `activity-pane.md` holds the delta that makes Activity a PANE KIND (the generic window = the pane + the Inspector; one outline table grouped by run or by file; versions as siblings; history filterable; Run Automatically a setting). The behaviours below stand; where the companion supersedes a clause it says so.
+
 ## Behaviors
 
 ### A. One job model
@@ -730,28 +763,28 @@ Engine tests under `fichero-server/tests/unit/jobs/`; app tests drive the real w
 builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
 
 <!-- The approved one-bar Activity design (#5960; source: the Fable UX review of 2026-10-20). App-side lines first, then what the engine must provide. -->
-- `activity.window.three-groups` — **[PARTIAL]** (#5960, one-bar design approved 2026-10-20; app) the window is ONE list in three groups with no table header: NOW (what runs), UP NEXT (what waits, in the order the lanes will take it), DONE TODAY (collapsed, with its count). A group with nothing in it is not drawn; a window with nothing at all is blank, with no sentence. Replaces the nine-column table as the first thing seen (`activity.window.table` stays as the opened row's Details). Model only so far (no view yet; Swift, needs compile): `ActivityWindowGroups` and `ActivityMonitorRow.oneButton`, test `fichero/Tests/Unit/general/Models/ActivityWindowGroupsTests.swift`. View built (Swift, needs compile; no UI test yet): `ActivityGroupsView` draws the groups in `ActivityMonitorWindow` in place of the table, the live section and the History section; the Group by Project toggle and the two Clear toolbar buttons are gone (Clear is on the DONE TODAY heading); an opened run replaces the list with a back arrow over the existing details. Not yet: the stage bar, the page grid, the new opened-run look.
-- `activity.window.one-row-per-run` — **[PARTIAL]** (#5960, one-bar design approved 2026-10-20; app) a run is ONE row, never a live block and also a table row (today the window draws both). Steps are the segments of its bar and a page's steps are its dots, so neither is a list row. Model only so far (no view yet; Swift, needs compile): `ActivityWindowGroups` and `ActivityMonitorRow.oneButton`, test `fichero/Tests/Unit/general/Models/ActivityWindowGroupsTests.swift`. Gap named: a run seen as a job of its own as well is listed once, as the run (done); a run drawn as a live block AND a row stays until the engine's `activity.summary.one-row-per-run-in-list` lands.
+- `activity.window.three-groups` — **[PARTIAL]** (#5960, one-bar design approved 2026-10-20; app) the window is ONE list in three groups with no table header: NOW (what runs), UP NEXT (what waits, in the order the lanes will take it), DONE TODAY (collapsed, with its count). A group with nothing in it is not drawn; a window with nothing at all is blank, with no sentence. Replaces the nine-column table as the first thing seen (`activity.window.table` stays as the opened row's Details). Model only so far (no view yet; Swift, needs compile): `ActivityWindowGroups` and `ActivityMonitorRow.oneButton`, test `ActivityWindowGroupsTests.swift (deleted with the section rows, #6441)`. View built (Swift, needs compile; no UI test yet): `ActivityGroupsView` draws the groups in `ActivityMonitorWindow` in place of the table, the live section and the History section; the Group by Project toggle and the two Clear toolbar buttons are gone (Clear is on the DONE TODAY heading); an opened run replaces the list with a back arrow over the existing details. Not yet: the stage bar, the page grid, the new opened-run look.
+- `activity.window.one-row-per-run` — **[PARTIAL]** (#5960, one-bar design approved 2026-10-20; app) a run is ONE row, never a live block and also a table row (today the window draws both). Steps are the segments of its bar and a page's steps are its dots, so neither is a list row. Model only so far (no view yet; Swift, needs compile): `ActivityWindowGroups` and `ActivityMonitorRow.oneButton`, test `ActivityWindowGroupsTests.swift (deleted with the section rows, #6441)`. Gap named: a run seen as a job of its own as well is listed once, as the run (done); a run drawn as a live block AND a row stays until the engine's `activity.summary.one-row-per-run-in-list` lands.
 - `activity.window.stage-bar` — **[PARTIAL]** (#5960, #5871, one-bar design approved 2026-10-20; app) a recipe run's row carries one segmented bar, the recipe's stages in Set Up's order. A segment fills by pages done; a FINISHED stage's segment stays full (a stage that has ended is never drawn less than full, even when the run's own count moves, so the row never looks as if it went back, #5871); a red tick in it is a failed page (one tick per failed page, placed along the filled part and at most 5 drawn; a finished stage with failed pages is drawn FULL and HATCHED, partial, never as if unfinished); a hatched segment (striped, not a solid colour) is partial; each segment's VoiceOver label is its stage, its state ("partial" when hatched) and "N failed"; an empty one is waiting. There is no spinner anywhere: running is the filling bar. Clicking a segment filters the opened run's page grid to that stage. Built, unbuilt/unrun until the builder compiles and the M4 runs `fichero/Tests/Unit/general/Models/ActivityStageBarTests.swift`; every project's recipe row has the bar, read from the row's own library store.
-- `activity.window.row-subtitle` — **[GAP]** (#5960, one-bar design approved 2026-10-20; app) under the name, one line: counts, the time left ("about 12 min left", from the engine's own pace), the model and where it runs ("Kraken on this Mac", "Claude in the cloud"). The cost is at the right edge, only when it is more than nothing. Started, Time, Errors and the model ids are not columns: they are in the opened run. Intended test (to write): fichero/Tests/Unit/general/Models/ActivityRowSubtitleTests.swift.
-- `activity.window.one-button` — **[PARTIAL]** (#5960, one-bar design approved 2026-10-20; app) each row has ONE button: Pause while it runs, Resume while it is paused, Retry when it came out partial or failed, Show when it is done. Stop (a run), Show the Pages, Show the Trace and Delete are context-menu items. What does not apply is absent, never disabled. Model only so far (no view yet; Swift, needs compile): `ActivityWindowGroups` and `ActivityMonitorRow.oneButton`, test `fichero/Tests/Unit/general/Models/ActivityWindowGroupsTests.swift`. View built (Swift, needs compile; no UI test yet): `ActivityGroupsView` draws the groups in `ActivityMonitorWindow` in place of the table, the live section and the History section; the Group by Project toggle and the two Clear toolbar buttons are gone (Clear is on the DONE TODAY heading); an opened run replaces the list with a back arrow over the existing details. Not yet: the stage bar, the page grid, the new opened-run look.
+- `activity.window.row-subtitle` — **[PARTIAL]** (#5960, one-bar design approved 2026-10-20; app) under the name, one line: counts, the time left ("about 12 min left", from the engine's own pace), the model and where it runs ("Kraken on this Mac", "Claude in the cloud"). The cost is at the right edge, only when it is more than nothing. Started, Time, Errors and the model ids are not columns: they are in the opened run. Test: `fichero/Tests/Unit/general/Models/ActivityRowSubtitleTests.swift`. Built 2026-11-02 (Swift, not compiled): the live block's counts line carries the time left from the engine's `seconds_left` and the cost at the right edge when it is more than nothing (`ActivityPopoverSummary+Pace.swift`, drawn in `ActivityPopoverBlockView`), beside the model and where it runs. Not built: the same line under a row of the window's table, the background lines' time left, and the kind's median pace.
+- `activity.window.one-button` — **[PARTIAL]** (#5960, one-bar design approved 2026-10-20; app) each row has ONE button: Pause while it runs, Resume while it is paused, Retry when it came out partial or failed, Show when it is done. Stop (a run), Show the Pages, Show the Trace and Delete are context-menu items. What does not apply is absent, never disabled. Model only so far (no view yet; Swift, needs compile): `ActivityWindowGroups` and `ActivityMonitorRow.oneButton`, test `ActivityWindowGroupsTests.swift (deleted with the section rows, #6441)`. View built (Swift, needs compile; no UI test yet): `ActivityGroupsView` draws the groups in `ActivityMonitorWindow` in place of the table, the live section and the History section; the Group by Project toggle and the two Clear toolbar buttons are gone (Clear is on the DONE TODAY heading); an opened run replaces the list with a back arrow over the existing details. Not yet: the stage bar, the page grid, the new opened-run look.
 - `activity.window.project-prefix` — **[PARTIAL]** (#5960, one-bar design approved 2026-10-20; app) with one project's work in the window a row carries no project name; with several, the project leads the name. There is no Group by Project toggle. Built (Swift, needs compile: builder; unrun): `ActivityMonitorRow.displayName(showsProject:)`, drawn by `ActivityGroupsView` (the toggle is gone). Test: `ActivityWindowGroupsTests.projectPrefix`. Not yet: nothing known; the PARTIAL is only that it is unrun.
 - `activity.window.up-next` — **[PARTIAL]** (#5960, one-bar design approved 2026-10-20; app) UP NEXT lists the runs and stages not yet started in the order the lanes will take them (`activity.lane.model-order`, person first), each with what it waits for in grey words ("after Read", "waiting for the model lane: Mosquera box is reading", "waiting: memory is tight"). A waiting row never ticks a timer (`activity.window.waiting-looks-waiting`). (`activity.lane.model-order` is on `m-bugs-efficiency`; the next candidate takes that branch before this one.) Built (Swift, needs compile: builder; unrun): the group is drawn by `ActivityGroupsView` from `ActivityWindowGroups` (`ActivityWindowGroupsTests`), and below its rows the engine's `up_next` items that are not rows (a running run's stages not yet started, "after Read") as grey lines, selectable by no one, each stage line naming its run (and its project when the list is grouped) by the item's `run_id` (`ActivityPopoverSummary.upNextLines`, `ActivityPopoverUpNextTests.windowLines`, two runs). The popover's three lines name their run the same way.
-- `activity.window.done-today` — **[PARTIAL]** (#5960, one-bar design approved 2026-10-20; app) DONE TODAY has one line per run: "Partial: 3 of 203 pages could not be read" with Retry, "Done · 120 People · 40 Places · 14:02, $0.31" with Show, "<the engine's reason as sent> · 89 of 203 pages" ("Stopped by you", "Stopped through an agent (MCP)": the engine records who stopped a run) with Show. Partial is said, never a green check. Clear Failed and Clear Finished are in a Clear menu on this heading, not in the toolbar (`activity.window.clear-finished`, `activity.window.clear-failed` keep their rules). Built (Swift, needs compile: builder; unrun): the group, its collapsible heading with a count and the Clear menu (Clear Failed, Clear Finished…) are drawn by `ActivityGroupsView` from `ActivityWindowGroups` and `ActivityMonitorRow.oneButton`, test `fichero/Tests/Unit/general/Models/ActivityWindowGroupsTests.swift`. Partial is said as the engine words it (`ActivityMonitorRow.partialWords`, never a green check). The lines: "<the engine's reason as sent> · 89 of 203 pages" ("Stopped by you", "Stopped through an agent (MCP)": the engine records who stopped a run) and "Done · 14:02" (`ActivityMonitorRow.endedLine`, `ActivityWindowGroupsTests.endedLines`; the cost stays at the row's right). Not built: what the run made in the Done line ("120 People · 40 Places": the row has no such counts, they come from the run's summary read), and the app never rewrites the engine's words for a stopped run (ruled 2026-10-21, ## 960). DONE TODAY goes by when the run ENDED (the engine's finished time, else the failure time, else start plus duration), so an overnight run that ended today is there; a row whose end is not known is listed, last, rather than lost; a Not run row settled today stays, with its reason. Engine: every ended job in `GET /api/activity/jobs` carries `finished_at` (done, failed, stopped or interrupted; null while waiting, running or paused), so DONE TODAY never guesses a day; a new response field: an OpenAPI regen (held, in the batch). Until the app reads it a row with no known end is NOT in DONE TODAY. Test: `fichero-server/tests/unit/jobs/test_failed_at_on_the_jobs_list.py`. View built (Swift, needs compile; no UI test yet): `ActivityGroupsView` draws the groups in `ActivityMonitorWindow` in place of the table, the live section and the History section; the Group by Project toggle and the two Clear toolbar buttons are gone (Clear is on the DONE TODAY heading); an opened run replaces the list with a back arrow over the existing details. Not yet: the stage bar, the page grid, the new opened-run look. Not built until the regen: a finished JOB of its own (not a run) has no end time the app can read, so it is not in DONE TODAY (a finished run is, from the runs table's `completed_at`, and the window pages older runs in until today is whole). Delete (⌫ or the context menu) acts on the multi-selection; Edit › Delete in the menu bar is not wired to the new list yet.
+- `activity.window.done-today` — **[PARTIAL]** (#5960, one-bar design approved 2026-10-20; app) DONE TODAY has one line per run: "Partial: 3 of 203 pages could not be read" with Retry, "Done · 120 People · 40 Places · 14:02, $0.31" with Show, "<the engine's reason as sent> · 89 of 203 pages" ("Stopped by you", "Stopped through an agent (MCP)": the engine records who stopped a run) with Show. Partial is said, never a green check. Clear Failed and Clear Finished are in a Clear menu on this heading, not in the toolbar (`activity.window.clear-finished`, `activity.window.clear-failed` keep their rules). Built (Swift, needs compile: builder; unrun): the group, its collapsible heading with a count and the Clear menu (Clear Failed, Clear Finished…) are drawn by `ActivityGroupsView` from `ActivityWindowGroups` and `ActivityMonitorRow.oneButton`, test `ActivityWindowGroupsTests.swift (deleted with the section rows, #6441)`. Partial is said as the engine words it (`ActivityMonitorRow.partialWords`, never a green check). The lines: "<the engine's reason as sent> · 89 of 203 pages" ("Stopped by you", "Stopped through an agent (MCP)": the engine records who stopped a run) and "Done · 14:02" (`ActivityMonitorRow.endedLine`, `ActivityWindowGroupsTests.endedLines`; the cost stays at the row's right). Not built: what the run made in the Done line ("120 People · 40 Places": the row has no such counts, they come from the run's summary read), and the app never rewrites the engine's words for a stopped run (ruled 2026-10-21, ## 960). DONE TODAY goes by when the run ENDED (the engine's finished time, else the failure time, else start plus duration), so an overnight run that ended today is there; a row whose end is not known is listed, last, rather than lost; a Not run row settled today stays, with its reason. Engine: every ended job in `GET /api/activity/jobs` carries `finished_at` (done, failed, stopped or interrupted; null while waiting, running or paused), so DONE TODAY never guesses a day; a new response field: an OpenAPI regen (held, in the batch). Until the app reads it a row with no known end is NOT in DONE TODAY. Test: `fichero-server/tests/unit/jobs/test_failed_at_on_the_jobs_list.py`. View built (Swift, needs compile; no UI test yet): `ActivityGroupsView` draws the groups in `ActivityMonitorWindow` in place of the table, the live section and the History section; the Group by Project toggle and the two Clear toolbar buttons are gone (Clear is on the DONE TODAY heading); an opened run replaces the list with a back arrow over the existing details. Not yet: the stage bar, the page grid, the new opened-run look. Not built until the regen: a finished JOB of its own (not a run) has no end time the app can read, so it is not in DONE TODAY (a finished run is, from the runs table's `completed_at`, and the window pages older runs in until today is whole). Delete (⌫ or the context menu) acts on the multi-selection; Edit › Delete in the menu bar is not wired to the new list yet.
 - `activity.window.open-a-run` — **[PARTIAL]** (#5960, one-bar design approved 2026-10-20; app) opening a row (a double-click, or its Show button; a single click selects, so rows multi-select and Delete acts on the selection as in Finder) replaces the list with the run, a back arrow at top left (as Photos' import does): the name and its one button, the stage bar, the subtitle with who started it and when, the PAGE GRID, the pages that could not be read each with ONE reason and a "Read them again" button, and WHAT IT MADE (lines on N pages, read N, People, Places, dates). Details (elapsed, tokens, peak memory) and Log are disclosures, closed by default and remembered. One scroll view; the log is not a list inside another scroll. Built (Swift, needs compile: builder; unrun): the opened run is the existing details view, now with the stage bar after the heading, the page grid (`activity.window.page-grid`), the failed pages with Read Again and what the run made (the run summary), and Details and Log as disclosures closed by default and remembered (`ActivityDetailsDisclosure`), the log no longer a list inside the scroll, and a LIVE run's log follows its newest line while the Log is open and the person has not scrolled up from the end (`ActivityLogFollow`, `ActivityLogFilterTests.follows`; a finished run's stays put); the closed Log says how many problems it has ("3 problems", `ActivityLogFilter.problemCountWords`, from a Problems read); the back arrow and the double-click already open it (`ActivityMonitorWindow`). Test: `fichero/Tests/Unit/general/Models/ActivityOpenedRunTests.swift` (a source pin: layout rules). The subtitle names the project, the model, who started the run and when (`ActivityDetails.startedAtWords`, `ActivityOpenedRunTests.startedAt`). The failed pages are listed with ONE reason each (the engine's) and carry the run's one "Read them again" (`ActivityDetailsFailedPages`; the actions row no longer repeats Read Again while that section shows; `ActivityOpenedRunTests.oneReadThemAgain`, a source pin). The page grid has a stage chooser (All stages, or one of the run's stages that ran; `ActivityStore.pageGridKey`, `ActivityDetailsTests.testPageGrid_aStageAsksForThatStageAndIsKeptApart`). Not built: each stage's own Read Again in the run summary is still there for a run with failed pages in several stages.
 - `activity.window.page-grid` — **[PARTIAL]** (#5960, one-bar design approved 2026-10-20; app) the opened run shows one dot per PAGE for the chosen stage: done, running, waiting, failed. Waiting dots are in lane order. Hovering a failed dot says the page and its reason; clicking a dot opens the page. It replaces the 270 page rows and the list of queued pages. Built (Swift, needs compile: builder; unrun): the dots from `GET /api/activity/jobs/{id}/pages` in the engine's order, a failed or waiting dot's hover with its reason, a click opens the page (`ActivityPageGrid`, `ActivityStore.loadPageGrid`, `ActivityPageGridView`, mounted in the run's details beside the stage cards), test `fichero/Tests/Unit/general/Models/ActivityPageGridTests.swift`. The grid is ONE VoiceOver element with a summary ("92 pages: 80 read, 3 failed, 9 waiting") and an Open action for each page that needs a look, failed first, labelled "p12.jpg, failed", and one "Show the run's pages…" action that selects the pages the grid shows in the project (the run's pages, at most the 2,000 it reads; not every page of the project), so the done ones are reachable without a pointer (at most 50 Open actions; `ActivityPageGrid.actionPages`, `ActivityPageGridTests.accessibleOpen`); a click opens any dot. A stage chooser above the dots (All stages, or one stage that ran) asks the engine for that stage (`ActivityStore.pageGridKey`, `ActivityDetailsTests.testPageGrid_aStageAsksForThatStageAndIsKeptApart`). Not built: the 270 page rows and queued-page list are still there; the opened-run page that this lives on (`activity.window.open-a-run`).
 - `activity.window.no-empty-prose` — **[PARTIAL]** (#5960, one-bar design approved 2026-10-20; app) an empty window, an empty group and an empty details pane say nothing (the "No Runs Yet" and "Nothing running." sentences go). Machine state ("memory pressure warn, thermal fair") is not on a job: a problem is one grey line on the row it holds back, in words. Built (Swift, needs compile: builder; unrun): the window was already blank; "Nothing running." leaves the popover, and the details pane and the details window draw nothing when they have no row. Not yet: the machine-state line on the row it holds back (engine `whyWait` per job). Test: `fichero/Tests/Unit/general/Models/ActivityNoEmptyProseTests.swift` (a source pin: no Activity view says an empty state in words).
 - `activity.popover.now-plus-next` — **[PARTIAL]** (#5960, one-bar design approved 2026-10-20; app) the toolbar popover is the NOW group, one grey line for each of the first three UP NEXT items, the Mac's problem when there is one ("memory is tight"), and the last three failures in words. It reads the same engine summary as the window (`activity.popover.same-summary`, #5852); the import-error, Importing…, BackendWorkPill and CPU% rows go. Built (Swift, needs compile: builder; unrun): the first three `up_next` items as grey lines (`ActivityPopoverSummary.upNext`, the engine's `why` as sent, no wording rebuilt), test `fichero/Tests/Unit/general/Models/ActivityPopoverUpNextTests.swift`. Not built: the import-error, Importing…, BackendWorkPill and CPU% rows still show; the Mac's problem is the existing held-back line; the last three failures are the existing error rows.
 - `activity.log.person-reads-like-a-copy-history` — **[GAP]** (#5960, one-bar design approved 2026-10-20; app) the person's log has one line per stage start and end, one per FAILED page (never per done page), and one per wait longer than a minute; local time with no date (a date only at a day boundary), no level word, no file paths. A filter row reads All · Problems (the default when any exist) · Everything (the developer's raw log, with dates and level words restored, copyable). Engine lines such as "Node 'x' started in 8123ms" and "Batch item 3 started" are in Everything only. Intended test (to write): fichero-server/tests/unit/api/test_person_log_one_line_per_page_5960.py.
-- `activity.summary.stage-counts` — **[GAP]** (#5960, one-bar design approved 2026-10-20; engine) each live block carries `stages: [{stage, state, done, failed, total}]` in Set Up's order (done, partial, running, waiting, skipped, failed), so the bar is drawn from the list read, without opening the run. New field: an OpenAPI regen (held). Intended test (to write): fichero-server/tests/unit/api/test_live_block_stage_counts_5960.py.
-- `activity.summary.eta-basis` — **[GAP]** (#5960, one-bar design approved 2026-10-20; engine) each live block and background line carries `seconds_left` (the run account's own pace, else the kind's median per item) and `eta_basis` ("this run's pace" or "the last 50 of this kind"); the app already has `QueueSummary.seconds_left` and never reads it. Regen. Intended test (to write): fichero-server/tests/unit/api/test_live_block_eta_basis_5960.py.
+- `activity.summary.stage-counts` — **[PARTIAL]** (#5960, one-bar design approved 2026-10-20; engine) each live block carries `stages: [{stage, state, done, failed, total}]` in Set Up's order (done, partial, running, waiting, skipped, failed), so the bar is drawn from the list read, without opening the run. New field: an OpenAPI regen (held). Test: `fichero-server/tests/unit/api/test_live_block_stage_counts_5960.py`. Built 2026-11-02 (engine): `LiveBlock.stages` (`StageCount`: stage, title, state, done, failed, total) in Set Up's order from `recipes/live_stages.stage_counts`; a stage the plan skipped says `skipped`. Contract regenerated.
+- `activity.summary.eta-basis` — **[PARTIAL]** (#5960, one-bar design approved 2026-10-20; engine) each live block and background line carries `seconds_left` (the run account's own pace, else the kind's median per item) and `eta_basis` ("this run's pace" or "the last 50 of this kind"); the app already has `QueueSummary.seconds_left` and never reads it. Regen. Test: `fichero-server/tests/unit/api/test_live_block_stage_counts_5960.py`. Built 2026-11-02 (engine): `LiveBlock.seconds_left` and `eta_basis` ("this run's pace", from the running stage's account). Built 2026-11-02 (engine): the background lines carry `seconds_left` at the kind's median per item (`jobs.seconds_per_item`) with `eta_basis` "the last 50 of this kind" (`test_background_line_eta_basis_5960.py`). Not built: a live block with no pace of its own yet falling back to its kind's median.
 - `activity.summary.where-and-model` — **[PARTIAL]** (#5960, one-bar design approved 2026-10-20; engine) each live block names the model in words and where it runs (this Mac, an own machine, a provider), from the running stage's job rows. Built (engine): `LiveBlock.model` (the model by its own name: a row running now, else the last that names one) and `LiveBlock.where` ("on this Mac", "on your own machine", "in the cloud": the place most of the stage run's calls went to), from the running stage run's job rows through `where_and_model`, read at most once in ten seconds for a run. Test: `fichero-server/tests/unit/api/test_live_block_where_and_model_5960.py` (written, UNRUN until the gate ends). Built (Swift, needs compile: builder; unrun): the live block's subtitle line, the engine's `model` and `where` as sent (`ActivityPopoverSummary.Block.subtitle`, drawn in the popover and the window's live block; `ActivityPopoverUpNextTests.subtitle`). NOT built: an own machine NAMED ("on Maya's Mac") and a provider NAMED ("in Anthropic's cloud"): the rolled-up places count only this_mac, own_machine and provider, with no name; naming them needs the usage entry's server and provider carried up the tree. Regen: the new fields.
 - `activity.summary.up-next` — **[PARTIAL]** (#5960, one-bar design approved 2026-10-20; engine) the summary carries `up_next: [{id, name, stage, after, why, run_id}]`, the not-yet-started work in lane order, each with what it waits for in words. Regen. Built (engine): `up_next` on `ActivitySummary` from the ordered job list (`up_next(jobs, statuses)`): each waiting row with `why` (its reason, else "in the queue") and `stage` (Set Up's stage title for a stage kind), and, under a recipe run that is going, each of its stages not yet started with `after` = the stage before it, read from the run's steps (a field, never parsed out of a sentence). `run_id` is the recipe run's job id for a stage line (null for a waiting row, which is a row of its own), so an app never parses the id. Test: `fichero-server/tests/unit/api/test_summary_up_next_5960.py` (written, UNRUN until the gate ends). Not built: `after` on a waiting row of its own (a waiting run or a queue kind has none); the contract regen.
-- `activity.summary.cost-so-far` — **[GAP]** (#5960, one-bar design approved 2026-10-20; engine) each live block carries `cost_usd` so far (null when unpriced), rolled up from its stages' usage. Regen. Intended test (to write): fichero-server/tests/unit/api/test_live_block_cost_5960.py.
-- `activity.summary.one-row-per-run-in-list` — **[GAP]** (#5960, one-bar design approved 2026-10-20; engine) a run that is a live block is NOT also a `jobs` row; the list's rows are the blocks, the background lines, up-next and history. Intended test (to write): fichero-server/tests/unit/api/test_run_is_not_also_a_jobs_row_5960.py.
+- `activity.summary.cost-so-far` — **[PARTIAL]** (#5960, one-bar design approved 2026-10-20; engine) each live block carries `cost_usd` so far (null when unpriced), rolled up from its stages' usage. Regen. Test: `fichero-server/tests/unit/api/test_live_block_stage_counts_5960.py`. Built 2026-11-02 (engine): `LiveBlock.cost_usd`, the stages' priced calls summed (`live_stages.cost_so_far`), null when unpriced.
+- `activity.summary.one-row-per-run-in-list` — **[PARTIAL]** (#5960, one-bar design approved 2026-10-20; engine) a run that is a live block is NOT also a `jobs` row; the list's rows are the blocks, the background lines, up-next and history. Test: `fichero-server/tests/unit/api/test_run_is_not_also_a_jobs_row_5960.py`, `fichero/Tests/Unit/general/Models/ActivityLiveRunRowsTests.swift`. Built 2026-11-02: the engine's `GET /jobs` no longer lists a working, waiting or paused recipe run (`is_live_recipe_run`; the summary still names it as a live block, built before the drop); the app turns each live block that names a recipe back into the one row (`ActivityJob.withLiveRuns`, applied where the snapshot is read), so the window, popover and details are as before. Swift not compiled. Not built: the window reading blocks directly instead of through that row; CLI/MCP consumers of `jobs` see a live run only in `activity.live`.
 - `activity.run.page-states` — **[PARTIAL]** (#5960, one-bar design approved 2026-10-20; engine) `GET /jobs/{id}/pages?stage=` returns one entry per PAGE (not per step row): document id, name, state per stage, at most one reason; paged. The ORDER is first appearance: the order the lanes first handled the pages, not Finder order (`source.recipe.pages-in-finder-order` is the document list's rule, not this read's); the list is built once for the pages of one read (a 2-second window), and a page two runs of one stage reach keeps the worst state AND that cell's reason. The page grid reads this, never the step tree. New route: regen. Built (engine): `fichero_server/api/routes/system/activity_pages.py` `page_states(tree, stage)` (a page once for every step row the lanes handled; its state in each stage by Set Up's stage id; the worst state wins, failed then running then waiting then done; one reason; the order the lanes first handled them) and the route `GET /api/activity/jobs/{id}/pages?stage=&offset=&limit=` (limit 500, at most 2000), over the job tree the details read. Test: `fichero-server/tests/unit/api/test_run_page_states_5960.py` (6 passed over written-out trees; the route through a real run is not tested). Not built: the Swift page grid; the contract regen.
-- `activity.run.failed-pages-paged` — **[GAP]** (#5960, one-bar design approved 2026-10-20; engine) the run account's `failures` (capped at 10) is complemented by a paged read of every failed page with its one reason, so "and 14 more" is never the only answer. Intended test (to write): fichero-server/tests/unit/api/test_run_failed_pages_paged_5960.py.
-- `activity.log.one-line-per-page` — **[GAP]** (#5960, one-bar design approved 2026-10-20; engine) the log writer keys its lines by (run, stage, page): one line per stage start and end and one per failed page, never a "Done: <file>" per lane row (today a page recurs once per step). Intended test (to write): fichero-server/tests/unit/api/test_person_log_one_line_per_page_5960.py.
+- `activity.run.failed-pages-paged` — **[PARTIAL]** (#5960, one-bar design approved 2026-10-20; engine) the run account's `failures` (capped at 10) is complemented by a paged read of every failed page with its one reason, so "and 14 more" is never the only answer. Test: `fichero-server/tests/unit/api/test_run_failed_pages_paged_5960.py`. Built 2026-11-02 (engine): `GET /api/activity/jobs/{id}/failed-pages?stage=&offset=&limit=` lists every failed page with its one reason (the page-states list, failed only; `activity_pages.failed_only`). Contract regenerated; the app still shows the account's first ten. *Built (app, 2026-11-04, Swift not compiled here): the run details' failed-pages section says "Show the N more" and reads them all (`ActivityStore.loadFailedPages`, `ActivityStore.failedRows`, `ReadyReadsTests.swift`).*
+- `activity.log.one-line-per-page` — **[PARTIAL]** (#5960, one-bar design approved 2026-10-20; engine) the log writer keys its lines by (run, stage, page): one line per stage start and end and one per failed page, never a "Done: <file>" per lane row (today a page recurs once per step). Test: `fichero-server/tests/unit/api/test_person_log_one_line_per_page_5960.py`. Built 2026-11-02 (engine): `_job_rows_log` keys by (stage, page): a stage says its start and end once, a page that finished says nothing, a failed page is one line a stage. Not built: the log of the activity events (`/log` events), which the person's log also merges.
 - `activity.log.problems-first` — **[PARTIAL]** (#5960, one-bar design approved 2026-10-20; engine) `GET /jobs/{id}/log?level=problems` returns warnings and errors only, newest last. New parameter: regen. Built (engine): `level=all|problems` on the log route, `problem_lines` keeps warning, error and critical lines in the log's order; the contract needs the regen. Test: `fichero-server/tests/unit/api/test_log_problems_first_5960.py` (3 passed). Built (Swift, needs compile: builder; unrun): the app's filter row Problems · All · Everything in the details' Log (`ActivityLogFilter`; Problems reads `level=problems`, Everything is the Developer level, the default is Problems while the log has a warning or an error, else All; the old Developer toggle is gone; the choice is per row, so it resets to the default when another row is selected, and Everything, once chosen, is remembered across rows as the toggle was), tests `fichero/Tests/Unit/general/Models/ActivityLogFilterTests.swift` (`effective`) and, for the store's `jobLogHasProblems` update, `ActivityDetailsTests.testActivityDetailsLog_theStoreKnowsWhetherARowsLogHasAProblem`.
 - `activity.window.live-block` — **[PARTIAL]** (#5851, #5839) one live block per project at the top: Recipe › Stage ›
   Workflow, a count (done, failed, left) and the folder(s), opening to the files. Supersedes the flat table of every
@@ -763,7 +796,7 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   folder X"), and the whole list of pages expands under it, each with its state (the list is `activity.window.expands-to-pages`). Supersedes the next-three-rows view in
   `activity.run.says-what-it-reads` and `activity.window.expand` for a recipe run. (Not yet written: a layout test, `ActivityLayoutTests`.)
 - `activity.window.expands-to-pages` — **[PARTIAL]** (#5839) a kind's row (a waiting or paused row of one kind, id `waiting:<kind>` / `paused:<kind>`) opens, in its details, to the pages queued behind it, each a line in the order the lane will pick them, running first, each with its state and why. Engine side built: `GET /api/activity/jobs/kind/{kind}/items` (answers the list envelope `{items, count}`, never a bare array, #6101; `limit`, `offset`; pinned by `fichero-server/tests/unit/jobs/test_queue_summary_and_items_5839.py`). App side written 2026-10-20 (needs compile, unrun): `ActivityService.listQueuedItems` through the generated client, `ActivityStore.loadQueuedItems(rowId:)` into `queuedItems[kind]` (a store read, never a hand URL), and a Pages list in the row's details that reads the first 50 and says "and N more" from the kind row's own count; it is re-read whenever that row's count, state or reason changes (`ActivityStore.queueKey`), so a done page leaves the list (`testQueuedKindRow_aPageThatDrainedLeavesTheList`) (`ActivityDetailsTests.testQueuedKindRow_readsItsPagesThroughTheStoreInTheOrderServed`). Owed: paging past 50 in the list; the view drawn through the environment builder is not tested here (no mounted-view harness in this target), a live check later; the KNOWN_GAPS entry of `check_endpoint_coverage_matrix` is removed in this commit, on the app now calling the endpoint; it stands only if the regenerated client names the operation differently.
-- `activity.window.now-upnext-done-today` — **[GAP]** (#5960; owner ruling 2026-10-20: Fable design approved, `briefs/fable-activity-ux-2026-10-20.md`; built after #5853 and the Activity honesty fixes #5957, #5958, #5959) the window is three sections, NOW, UP NEXT and DONE TODAY, with ONE row per run: a segmented stage bar (one segment per stage, filled as pages finish), page dots under it, and ONE button (Pause, Resume or Retry, whichever applies). Test (to write): Swift view-model tests (`ActivityOneBarTests`): a three-stage run is one row in NOW with three segments; a waiting run is in UP NEXT; a finished run is in DONE TODAY; the row has exactly one button whose label follows the run's state.
+- `activity.window.now-upnext-done-today` — **[PARTIAL]** (#5960; owner ruling 2026-10-20: Fable design approved, `briefs/fable-activity-ux-2026-10-20.md`; built after #5853 and the Activity honesty fixes #5957, #5958, #5959) the window is three sections, NOW, UP NEXT and DONE TODAY, with ONE row per run: a segmented stage bar (one segment per stage, filled as pages finish), page dots under it, and ONE button (Pause, Resume or Retry, whichever applies). Test (to write): Swift view-model tests (`ActivityOneBarTests`): a three-stage run is one row in NOW with three segments; a waiting run is in UP NEXT; a finished run is in DONE TODAY; the row has exactly one button whose label follows the run's state. Built 2026-11-02 (Swift, not compiled): the view-model `ActivityOneBar` (segments from the live block's `stages`, the section, the one button; `ActivityOneBarTests`). Not built: the three sections drawn in the window, the page dots, and the button's action.
 - `activity.window.next-in-run-order` — **[PARTIAL]** (#5839) what comes next is listed in run order; a waiting row has no
   spinner and says what it waits for (`activity.waiting-says-why`). Engine side: `GET /api/activity/jobs` ranks every row
   by its state, a live run first, then the queues beside it, then what has ended, and gives each row `group` ("live" or
@@ -810,6 +843,7 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   app's own record, enabled and not on-device) are read, never every provider type (#4534: a Keychain dialog per unread item)
   (`fichero-server/tests/unit/core/test_keychain_and_child_counts_off_the_loop.py`; the 5-second refusal in `::test_an_absent_key_is_cached_too_and_an_unreadable_one_is_kept_5_seconds_then_asked_again_off_the_thread`).
 - `activity.engine.embedder-model-missing-says-so` — **[PARTIAL]** (P2; tests `fichero-server/tests/unit/db/test_embedder_model_missing_says_so.py`, `.../test_embedder_model_missing_defers_the_job.py`, `.../test_search_model_downloads_in_the_app.py`, `.../test_embedder_cache_names.py`, not yet run on the M4) when the search model is not in the cache and cannot be fetched, the embed job fails with "Search can't index yet: its model isn't downloaded, and fetching it failed. Check the internet connection; it tries again later" as its reason in Activity, never fastembed's "Could not find the model tar.gz". When the embed job defers for the missing model it also queues a `download-model` row for it (`embeddings:<search model>`, one waiting job per model; not again while one runs or within an hour of one that failed offline, so retries leave one row, and not when the files are already cached, where the load failure is said instead) on the in-app models path; the row reads "Downloading X, N s in" (also before the first byte and on each retry), the finished download clears the embedder's 120 s back-off, and a Mac with no connection at all is told "X can't be downloaded: this Mac looks offline. It tries again by itself when the internet is back." A silent server is retried after 20 s, not 60 (#5865; test `fichero-server/tests/unit/db/test_search_model_downloads_in_the_app.py`, `.../llm/test_a_silent_server_is_tried_again_at_once.py`, not yet run on the M4). The Hugging Face model-search routes say "Could not reach Hugging Face: …", never an empty error.
+- `activity.engine.embedder-model-with-symlinked-data-loads` — **[OK]** (#6024) a search model whose weights file sits in the cache as a symlink (the Hugging Face cache layout) loads and the embed job makes its vectors; it is not reported as missing (`fichero-server/tests/unit/db/test_embedder_onnx_data_symlink_6024.py`).
 - `activity.engine.child-counts-off-the-loop` — **[OK]** (owner, 2026-10-19) `GET /documents/{id}/children` counts each child's
   children on a worker thread, not the event loop (`fichero-server/tests/unit/core/test_keychain_and_child_counts_off_the_loop.py::test_get_children_counts_children_off_the_loop` for the helper, `::test_the_children_route_counts_through_the_off_the_loop_helper` for the route).
 - `activity.engine.auth-never-hangs` — **[PARTIAL]** (#5889; owner, 2026-10-19 18:11: the engine stopped answering and was respawned; review 317:
@@ -889,7 +923,10 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   after one confirmation, soft-deletes every ended run (completed, failed, stopped) in every open
   project, the same delete as Delete (`deleteRuns(statuses:)`); runs still going stay. ⌘A then Delete
   already works on the table (`.onDeleteCommand`). Pinned by `ActivityClearFinishedShapeTests`. Not
-  yet seen in the app. Left: the first row drawn under the title bar (needs a screen).
+  yet seen in the app. Left: the first row drawn under the title bar (needs a screen). **Widened (owner 2026-11-13 night,
+  #6583):** Clear Finished… covers every ended row, workflow runs AND jobs of their own, through `job.delete` as well
+  (`activity-pane.md` `activity.pane.automatic-runs-easy-to-delete`); **renamed Archive Finished… the same night** (the review's
+  item 1): archiving hides and keeps, Delete removes (`activity.pane.archive-old-runs`).
 - `activity.jobs-added-columns` — **[OK]** (#5814) A library made by an older release reads its jobs without
   error: the columns later releases added to `jobs` (`target`, `detail`, `parent_id`, `run_after`, `watched`,
   `cleared_at`) are applied when the library opens (on the write connection, `Database._apply_added_jobs_columns`) and once per CONNECTION after that, so a connection that came back after an invalidated one, or a
@@ -916,8 +953,31 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   (`fichero-server/tests/unit/jobs/test_clear_failed_5634.py`); app `ActivityStore.clearFailed`
   (`ActivityTableTests` `testActivityWindowClearFailed_*`). Not yet seen in the app; the Swift is
   not compiled by the worker.
-- `activity.window.started-by` — **[GAP]** (#5354) a row says who or what started
-  it: a person, the recipe, a schedule, a trigger, an assistant.
+- `activity.window.delete-any-row` — **[PARTIAL]** (#6583, owner 2026-11-13) Delete (the context menu, the Delete key, ⌘A then Delete)
+  works on EVERY row the window lists, not only on workflow runs: a finished, failed, paused or queued job of its own (a
+  recipe run, a download, a try), a kind's row (`waiting:<kind>`, `paused:<kind>`: every job of the kind not running), and a
+  run with everything under it. A deleted row is kept in the table and the record (a tree, an audit and a Retry still
+  read it) and is never listed again, in any state: the mark is `cleared_at`, the one Clear Failed uses, on the row and
+  every row under it; a waiting or paused job deleted is cancelled first ("Deleted by you"), so no lane picks it; a job
+  RUNNING now is skipped and the footer says so ("1 run still running — not deleted."), as for runs. Deleted work never
+  comes back: not on the next poll, not after a relaunch (`activity.relaunch.only-running-work-resumes`); a Retry on a
+  deleted failed row (from its tree) lists it again, as after Clear Failed. Workflow runs keep their soft delete
+  (`workflow_run.delete`). Acceptance: a failed recipe run, a paused download, a queued group of thumbnails and a done
+  try selected and deleted: all four leave the list and the engine answers their ids as deleted; the paused and queued
+  rows read `cancelled` in the table; a relaunch lists none of them; a running run in the same selection is answered as
+  skipped and stays. Built (2026-11-13): engine `jobs.delete_jobs`, the audited `job.delete`,
+  `POST /api/activity/jobs/delete` (`fichero-server/tests/unit/jobs/test_delete_any_row_6583.py`); the jobs list hides
+  cleared rows of every state. App: the window's Delete sends its job rows there and its run rows to the runs delete
+  (`ActivityStore.deleteJobs`, `ActivityTableTests` `testActivityWindowDelete_*`). Not yet seen in the app; the Swift
+  is not compiled by the worker. Left: the pane's one table (`activity-pane.md`) inherits this through the same store.
+  **REDEFINED (review 2026-11-13 night, item 1; `activity-pane.md` `activity.pane.archive-old-runs`):** what this bullet built
+  — a mark that hides the row and keeps it — is ARCHIVE; Delete REMOVES the row from every list, Show Archived and Retry lists
+  included (the record kept for the audit, `deleted_at`), with Undo in session. The route and `job.delete` keep their names until
+  the archive routes land; a deleted row never reappears, not after a relaunch, not in a Retry list (owner, 23:30).
+  **Built (2026-11-13 night):** `deleted_at` beside `cleared_at`; Delete marks both, Retry refuses a deleted row, no list shows
+  it; Undo through `job.undelete` (`activity.pane.archive-old-runs`, `test_archive_old_runs_6583.py`).
+- `activity.window.started-by` — **[PARTIAL]** (#5354) a row says who or what started
+  it: a person, the recipe, a schedule, a trigger, an assistant. Built: the engine sends `started_by` on every row and tree node, and the opened run's heading words it (`ActivityDetails.startedByWords`, `ActivityStartedByTests`). Not built: the same words on the window's table row.
 - `activity.window.one-surface` — **[GAP]** (#5354) ingest progress, the conversion
   pill, Settings' download bars and the jobs list are views of the same rows or are retired; no
   surface keeps its own progress list.
@@ -937,7 +997,9 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   `testActivityWindowHonestState_aFailedLoadNamesItsCauseAndClearsOnTheNextSuccess`;
   `fichero/Tests/Unit/general/Models/ActivityWindowTimesAndStateTests.swift`
   `ActivityWindowHonestStateTests`) and by the engine test that the respawned engine's 401 names its
-  branch (`fichero-server/tests/unit/security/test_auth_refusals_say_why.py`). Still to check: the
+  branch (`fichero-server/tests/unit/security/test_auth_refusals_say_why.py`). A refusal that stands is
+  logged once, when its footer line starts or changes, not on every tick of the jobs poll
+  (`testAStandingJobsPollRefusalIsSaidOnce`, #6588). Still to check: the
   spinner half (#4346, #4384).
 - `activity.no-project-label-for-the-always-there-project` — **[PARTIAL]** (#5655) *Built 2026-10-10
   (app), not yet seen:* the always-there project has no name, so a run or job in it carries no
@@ -1134,6 +1196,13 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   `testActivityPopoverSummary_saysThisMacsStateAndHidesAReadingTheEngineCouldNotTake`). Not yet
   seen in the app. Still a gap (#5415): nothing reads the GPU.
   *Superseded by Ruled 2026-10-19 in part:* what the popover shows, and that it reads the window's summary, is `activity.popover.same-summary`.
+- `activity.popover.at-most-five` — **[PARTIAL]** (#5635) (owner 2026-11-13) the popover names at most five pieces of work: the
+  engine's live blocks first, then the runs in hand, then the background kinds, then the running items, in that order,
+  five lines in all; the rest are one line, "N more in Activity", which opens the Activity monitor as Open Activity
+  does. Seen 2026-11-13: every local workflow run was listed and the popover filled up. Up next, waiting, held back,
+  the Mac's state and the errors (already capped at three) are not work lines and keep their places.
+  *Built:* `ActivityPopoverSummary.workShown`, `ActivityPopoverSummary.WorkCap`, the view's cap and its line.
+  *Not built:* a look on screen. *Tests:* `Views/Activity/ActivityPopoverWorkCapTests.swift`.
 - `activity.popover.mac-state-row` — **[PARTIAL]** (#5635, ruled 2026-10-09) the popover shows this
   Mac's state as one compact row of symbols with short values, not a column of text: memory
   (`memorychip`: OK, High, Critical), heat (`thermometer.medium`: OK, Warm, Hot, Critical), power
@@ -1153,7 +1222,7 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
 
 **What was there before #5561 (verified 2026-10-06, read-only; replaced by the one view below, the files named here are deleted).** Double-clicking a row in the Activity
 table, or pressing its ⓘ button (#5560), opens the Activity Details window
-(`Views/Activity/Window/ActivityDetailWindow.swift`), which mounts `ActivityDetailView`
+(`ActivityDetailWindow.swift (deleted, #6441: the details are the Inspector's)`), which mounts `ActivityDetailView`
 (`Views/Activity/Detail/ActivityDetailView.swift`); the same view is mounted in the Preview pane
 of the `.activity` sidebar mode (`ContentView+DetailLayout.swift:285`) and in the compact flow
 (`ContentView+Navigation.swift:374`). It is a stats bar and **five sections**: Overview, Console,
@@ -1606,6 +1675,14 @@ and node, not by job); a retry action for failed pages.
 - `activity.window.every-state-has-its-words` — **[PARTIAL]** (#5957, Fable Activity UX review; Swift, needs compile; test `fichero/Tests/Unit/general/Models/ActivityStateWordsTests.swift`) every state the engine reports has its own words and mark in Activity's list, details and stage cards: `partial` reads "Partial", `interrupted` "Interrupted", `not run` "Not run", `skipped` "Skipped". The transient states `stopping`, `pausing`, `resuming` and `retrying` stay live (with the engine's reason as their words). A state the app does not know reads "unknown state <name>" with a neutral mark, never Done, and counts in its own bucket (`ActivityRunStatus.unknown`), never as running (a green check on a state nobody read is a lie). A row part-way through Stop, Pause, Resume or Retry (engine states stopping, pausing, resuming, retrying) reads "Stopping", "Pausing", "Resuming" or "Retrying" while it stays live, never plain "Running" (## 697; test `transientStatesHaveTheirOwnWords`, Swift, needs compile).
 - `activity.window.waiting-run-reads-waiting` — **[PARTIAL]** (#5958; Swift, needs compile; test `fichero/Tests/Unit/general/Models/ActivityStateWordsTests.swift`) a run the engine reports `waiting` (or `accepted`, `queued`) is drawn waiting, with the engine's reason and no ticking timer, in the table, the details and the run strip; only `running` reads Running.
 - `activity.run.pages-counted-once` — **[PARTIAL]** (#5959, #5871; tests `fichero-server/tests/unit/jobs/test_pages_are_counted_once_5959.py`, `fichero-server/tests/unit/recipes/test_recipe_row_status_5870_5871.py` and `fichero-server/tests/unit/recipes/test_recipe_row_counts_each_page_once_5871.py`, unrun on the full run) a page is one page however many steps read it: a run's tree counts each page (document) once, and a page is done when every step that read it is done AND it has been reached by every step that has not finished (a page missing from a finished step was skipped there by design; from an unfinished step it is not done yet, so a run whose first stage is done and whose other stages have not started reads 0 of N), so a 92-page run over three stages reads "36 of 92" in the table as in the live block, never "184 of 276". A step counts its own pages. A page that failed at any step counts failed.
+- `activity.run.refusal-is-recorded` — **[PARTIAL]** (#6354; a run never fails silently, owner 2026-11-13; engine) a step
+  refused before it ran (the validation of its workflow: a model the project does not allow, a missing reader) has a run
+  row of its own, `failed`, whose `error` and Activity reason are the refusal's words, so Activity and the step's popover
+  never say "No reason was recorded" for a refusal. A chain's refused step is recorded under the chain's row. Built for
+  a chain's steps (`chains._record_step_run_refused`), tested in
+  `fichero-server/tests/unit/api/test_chain_step_project_and_refusal_6354.py`. *Not built: the alert the person sees when
+  a run fails (separate work); a direct `POST /execute` refused by validation still answers 400 with the words and records
+  no row.*
 - `activity.run.row-matches-details` — **[PARTIAL]** (#6125; owner 2026-10-25, Test 17; engine tested, app unchanged) A recipe run's row in the Activity window shows the numbers its Details show for the stage working now: while a workflow stage runs, the row reads that stage's pages done and in all (Read running 20 of 20 reads "20 of 20", never "0 of 23" while Find Lines is done and Read is working), and the one-count-per-page rule above applies when no stage is running (between stages, or a finished run). A workflow a recipe runs for one of its stages (Transcribe HTR for Read) is part of the recipe's row, not a second top-level row: a workflow run whose job is under the recipe run, or that its status names as a stage's run, is left out of the list (`activity._recipe_progress`, `_run_ids_under`; `test_recipe_row_counts_each_page_once_5871.py`). The row names the stage in words with its pages through its reason ("Read each line: 20 of 20 pages", #5685, #6091): while a run runs and nothing waits, the row's reason is the status's (`run_view.with_accounts`), not the stored "Running step 2 of 5" (`activity._recipe_state`; `test_a_running_recipe_row_names_its_stage_and_pages_6125`). *Not reproduced on the owner's run: why the stage's account was missing from the row's status while Details had it; the ownership is now taken from the job tree as well as the status.*
 - `activity.up-next.follow-on-work-is-folded-into-a-live-run` — **[PARTIAL]** (#6126; owner 2026-10-25, Test 17; engine tested) The work a recipe run causes for its own pages (embedding for search, tying text to lines, the NLP draft, the import's derivative queue) is the run's: while ANY recipe run is going (running or paused; one still queued has caused nothing yet; the filter is by kind, not by which run's pages; a page's own owner is not looked up) it is not a top-level Up Next row (they read as if they ran before or beside Read and duplicated the recipe's own Search stage); the run's row and its Details show it under the stage it belongs to. With no recipe going, each waits as its own row and says what it waits for. One owner embeds a page: the Search stage's embed job leaves a page already embedded from its current text alone (`runtime.embed.once-per-text-version`, #5954), so the stage and the background embed never embed a page twice (`activity._FOLLOW_ON_KINDS`; `test_activity_summary_one_source.py`). *Not built: keying the fold to the run's own pages (an import running beside a recipe on other pages folds too); the import's derivative row naming its trigger ("Thumbnails for the 20 pages you added"); the Background group still lists these kinds' totals.*
 - `activity.run.folder-steps-done` — **[PARTIAL]** (#5642; the owner's 100k north star; lane B, ruled 2026-10-28; `compute.recipe.folder-shows-steps-done` points here) each folder a recipe run covers shows which of its steps are done on it: per step, its pages done there of the pages it works on there (a page it leaves out, a blank verso or a recording, is not counted), current while the run goes. The count comes from the done state (`recipes/done.split_done`), taken once as each step starts on a batch (what was already done) and once as it ends (the pages it ran on, as they now stand), a step that notes each page (Names, Leave Out) adding each page as it finishes; it is kept on the run (`runner._count_on_the_folder`, folded as each batch ends, `_fold_the_batch`), so a poll reads it and never the pages, and a resumed batch counts no page twice. A folder counts its own pages, not its folders'; a page in no folder has no folder row; Publish and Catalogue, over the whole run, are not counted. Served on the run status as `folder_steps` (`[{folder_id, steps: [{steps, done, of}]}]`; `done` null: the step cannot tell). Test: `fichero-server/tests/unit/recipes/test_folder_shows_steps_done.py`. The app (Swift, needs compile): the folder's row in the library list and table carries a quiet mark while a run has counted it (a dashed circle, a check once every step is done), its tooltip one line a step ("Find lines and Read each line: 12 of 20 pages", "Find names: done"), read from the same status poll as the run's folders and patched per folder (`RecipeFolderSteps`, `ActivityStore.recipeFolderSteps`, `LibraryRowStatusMark`); test `ProjectRunStripTests.testEachFolder_saysWhichStepsAreDoneOnIt_fromTheRunsStatus`. *Not built:* a folder's count from a run this app session did not poll (the count lives on the run, read while it is the project's run); how a remote stage writes the done state is lane A's (`compute.recipe.done-is-landed`).
@@ -1766,6 +1843,11 @@ and node, not by job); a retry action for failed pages.
   (`fichero-server/tests/unit/jobs/test_person_started_work_goes_first_5820.py`).
 - `activity.throttle.try-ahead-of-bulk` — **[OK]** (#5839) a person's stage try is watched, and so are the model-lane rows its steps hand in (`jobs.person_is_waiting()`: its Kraken pages were `started_by` "workflow", equal to the bulk recipe run's, so they queued behind it in creation order). The pick order is three-ranked: watched, then a person's started work, then background, each oldest first; the waiting rows in Activity are listed in that rank, then oldest first (a library's share, the attached-first rule and the loaded model, which the lane also weighs, aside), not by creation. While a try's page waits for the lane the try's own row says "Waiting: <the page's reason>" and is listed as waiting, reading running only once the page starts (`jobs.person_is_waiting(db, job_id)`). A job already running is never preempted. Pinned by `test_person_started_work_goes_first_5820.py`.
 - `activity.window.waiting-looks-waiting` — **[PARTIAL]** (#5839) **Built 2026-10-19 (app), not yet seen:** a row that has not started looks it: a grey clock and grey "Waiting: <reason>", no progress count and no ticking timer (`ActivityMonitorRow.looksWaiting`: the engine lists the row as waiting; a running job that waits for the lane, Kraken or memory is listed so by its `waiting_on`, set when the wait starts and cleared when it ends, never by the words of its reason). The table's default order is running work first, then waiting work in the engine's list order, which is the lane's pick order (`activity.throttle.try-ahead-of-bulk`), then the rest newest first. Pinned by `ActivityWaitingLooksWaitingTests`.
+- `activity.foreground.open-jumps-the-queue` — **[GAP]** (#6352; owner 2026-11-03) engine and app. What the person has OPEN jumps the engine's queue of background work. "Open" is one of three things, each reported by the app: a page or image shown in the Preview (and, for a folder shown as its canvas, list or table, the pages visible in that pane); a folder open in the browser (its visible rows); and a run whose results the person is looking at in Activity or the Reader (its pages). The app reports the set with one call, `PUT /api/activity/foreground` `{client, items: [{subject, rank}]}`, sent on every selection change after a 300 ms settle and again every 30 s as a heartbeat; the engine marks every WAITING job whose subject is in the set as foreground (the existing `watched` rank of `activity.throttle.watched-first`, with a `foreground_rank` beside it) so each lane picks it before person-started and background work, oldest first within the same rank. Looking at a thing creates no job: foreground reorders what is queued (a thumbnail, the working rendition, the enhancement steps, Find Regions and Find Lines, a reading) and never starts work the person has not asked for. Work already running is never killed or pre-empted; a heavy lane steps aside for a foreground page the way it already does for a person's page (`activity.throttle.person-heavy-first`). Acceptance: with 40 pages' thumbnails and readings queued as a background run, opening page 23 in the Preview makes page 23's waiting thumbnail the next pick on the images lane and its waiting reading the next pick on the model lane, with the running job finishing first; a page with nothing queued gets no job; the call returns 200 within 50 ms and carries no library work. *Decided here:* build on `watched` and the three-ranked pick (`activity.throttle.try-ahead-of-bulk`), not a fourth queue, because the ranks, their QoS and their Activity wording already exist and the gap the watched-first line names is exactly "an opened page".
+- `activity.foreground.order-is-the-views` — **[GAP]** (#6352) engine and app. Within one open thing the jobs run in the order the view needs them: for a page, the thumbnail, then the working rendition, then the enhancement steps in the suite's order, then Find Regions, Find Lines, then the reading (the pipeline order the kinds already declare, `KINDS`); across the pages of a view, the visible pages first in reading order, then the nearby ones (the page before and the five after in the Preview; the next screen of rows in a browser), the app's `rank` saying which. Acceptance: with a folder of 100 pages shown as a table scrolled to rows 30-45, the foreground set carries those rows ranked 0-15 and rows 46-60 after them; the images lane's next picks are the thumbnails of rows 30-45 in order; in the Preview on page 23 with its neighbours' readings queued, page 23's reading runs, then 22, then 24-28. *Decided here:* one page before and five after, because people page forward; a browser sends one screen ahead, because a scroll settles in under 300 ms.
+- `activity.foreground.drops-back-when-moved-on` — **[GAP]** (#6352) engine. When the person moves on, the earlier item's promoted jobs drop back to the rank they had: the next `PUT` from the same client replaces that client's set, and a client that has not reported for 90 s (three missed heartbeats: the window closed, the app quit, the Mac slept) loses its set; a job stays foreground while ANY client still names it, and a job that was watched for another reason (a handed-in page of a person's run, a person's own small change) keeps that. Running work is untouched by a drop-back. Acceptance: open page 23, then page 60: page 23's still-waiting jobs lose the foreground mark and page 60's gain it on the same call; close the window: after 90 s nothing of that client's is foreground; a page named by two windows stays foreground until both move on; a handed-in run page that was also open stays watched after the person moves on.
+- `activity.foreground.background-never-starved` — **[GAP]** (#6352) engine. Foreground work never starves the rest: on every lane, one pick in four goes to the oldest non-foreground job that is runnable while foreground work waits, and a background job that has waited longer than five minutes behind foreground work is taken on the lane's next pick as if foreground, once. The person's own run keeps its place in the person-started rank; a bulk run keeps moving. Acceptance: with a 1,000-page background run queued and the person paging through the Preview continuously, the run advances at least one page per four lane picks on each lane, and no waiting page of it is older than five minutes behind foreground picks; a lane with no foreground work picks as today. *Decided here:* one in four and five minutes, because the owner's rule is "never starved forever" and a page a person opens must still feel instant; both are constants a test pins and a ruling can move.
+- `activity.foreground.shown-in-activity` — **[GAP]** (#6352) app and engine. The Activity window shows the jump: a promoted waiting row's state reads "Next: open in Preview" (or "open in the browser", "its run is open"), the lane's waiting rows are listed in pick rank (`activity.throttle.try-ahead-of-bulk`), the window's queue summary says "N for what you're looking at, M more" while foreground work waits, and a row that dropped back reads as it did before. The Preview's own page shows nothing new: the thumbnail, rendition or reading simply arrives sooner. Acceptance: open page 23 with its reading queued: its row in Activity reads "Next: open in Preview" within one refresh and sits first among the model lane's waiting rows; the summary line counts it; move to page 60 and page 23's row reads "Waiting" again. a11y ids: `activity.row.foreground` (the state text), `activity.summary.foreground`.
 - `activity.lane.no-wait-on-a-job-that-will-not-run` — **[PARTIAL]** (#5845, #6203) heavy work queued after thumbnails waits for them (`activity.lane.thumbnails-first`), so a thumbnail job that will never run must not hold it: on opening a project every thumbnail job waiting or set aside whose thumbnail file already exists ends `done` (`settle_made_thumbnails`), and Stop on a failed or set-aside job ends it `cancelled` (Delete and Stop work on it; a cancelled job offers nothing, `test_a_cancelled_set_aside_job_offers_nothing`). A restart is all it needs. The false "queue stalled" alarm is #5807. `test_stuck_thumbnail_waiters_5845.py`. **PARTIAL (#6203):** a thumbnail job left `running` that no lane thread of this engine runs (a worker that died or hung) no longer holds the gate: the lane scan sets it back to `waiting` after 60 s (`requeue_orphaned_first`; on open `resume` already did). `test_thumbnail_claims_requeued_6203.py`. NOT covered, not reproduced from code: a lane thread that is itself stuck (blocked in the database) still holds its slot and the gate behind it; a lane held for another project ("work in another project is running") is not released; a project release refused for a workflow run whose threads are all terminal; pages with no thumbnail file and no job are not re-queued.
 - `activity.lane.one-model-hold-holds-handed-in-pages` — **[OK]** (#5934, built under #5939: `_next`'s hold applies to the attached rows too) (distinct from activity.lane.one-model-at-a-time: this is the hold for pages a run hands in) The one-model hold holds a page a run hands in, so two background runs on different heavy models do not swap per page; a person's page still goes first. *Test:* `fichero-server/tests/unit/jobs/test_a_run_does_not_juggle_models_5939.py::test_a_handed_in_page_of_another_model_waits_while_the_loaded_models_work_is_queued` (#5934's repro: Kraken loaded, a Kraken page in the gate, one handed-in VLM page waiting: nothing is picked).
 - `activity.window.one-row-per-kind` — **[OK]** (#5839) Activity lists ONE row per kind of queued work per project (a recipe run and a try keep a row each), with the whole queue's total and what is done of it ("Make thumbnails: 12 of 41", `done` since its oldest queued job was queued); the row reads Running only while a job of the kind is really going (not waiting on the lane, Kraken or memory), else Waiting. `test_person_started_work_goes_first_5820.py`.
@@ -1802,6 +1884,10 @@ and node, not by job); a retry action for failed pages.
   (`fichero-server/tests/unit/jobs/test_using_the_mac_means_slower_5819.py`, `test_one_throttle_rule_5819.py`,
   `test_kraken_never_waits_on_use_or_build_5819.py`). Low Power Mode reads as "on battery" (`throttle.battery_or_low_power`, `fichero-server/tests/unit/jobs/test_activity_jobs_get_off_the_loop.py`).
   - *Amended 2026-10-20 (owner ruling).* An import's AUTOMATIC Kraken reading, while the Mac is used or a build runs, goes at the middle priority (utility QoS) and keeps the same few threads, not at the lowest class; the lowest class was far too slow for the one job an import always starts (the old measurement was about 18 times slower for Kraken, `fichero-server/scripts/bench_priority_qos.py` re-measures it). All other automatic work stays at the lowest class. Built (engine): `kraken_runtime.set_page_priority` lifts only a page that would have run at background and was not started by a person, via `compute_preferences.apply_to_this_thread(lift_to_utility=True)`; the page's log line prints the class it really got (pinned by `fichero-server/tests/unit/jobs/test_automatic_kraken_runs_at_utility_5819.py`).
+  - *Note 2026-11-08 (#6384).* An image operation job queued or run with no starter is recorded as a person's (`started_by` "person", no longer "ui"), as the other person literals are, so this one rule decides every `started_by` literal. Test: `fichero-server/tests/unit/api/test_image_operation_job.py::test_a_job_asked_for_with_no_starter_is_a_persons`.
+  - *Note 2026-11-08 (#6446).* The polled queries are cheap on a large library: `/api/stats` counts committed documents instead of hydrating every row, and `/api/stats` and the Start plan (`/api/recipes/project/start`) are kept until the library announces a change (at most 15 s), answer `304` to a caller holding the current `ETag` (the tag also changes every 15 s and with each engine run, so a 304 never outlives the ceiling or a restart), and a poll over 1 s logs a warning naming the library. Tests: `fichero-server/tests/unit/api/test_poll_cache_6446.py`. Left: the app and a paired Mac still send the polls (send `If-None-Match`, no polling from a hidden window, a remote client polling less and batching its startup requests): Swift and the host/remote path (lane-sharing).
+  - *Note 2026-11-09 (#6446).* A window nobody can see does not poll: the jobs read waits at least 30 s while the app is hidden or every window is covered or minimised (`ActivityStore.jobsPollWait`, pinned by `ActivityReconnectTests.aWindowNobodyCanSeeWaitsAtLeastThirtySecondsBetweenJobsReads`). The other pollers, `If-None-Match` from the client and a slower, batched remote client are still open. Seen only through the unit test.
+  - *Note 2026-11-09 (#6446, later).* The app's client sends `If-None-Match` on the tagged pollers (`GET /api/stats`, the recipes Start plan) and a `304` comes back to the caller as the held `200` (`ConditionalGetMiddleware`, keyed by path and library; pinned by `ConditionalGetMiddlewareTests`, run with `swift test` in `fichero-api-client`). Still open: a slower, batched remote client, and the connected-versus-disconnected measurement.
 - `activity.throttle.power-heat-memory` — **[PARTIAL]** (#5358) background lanes slow
   or wait in Low Power Mode, on low battery, under serious thermal state or memory pressure, and
   say so; no setting. Built (2026-10-04): the local-model lane holds a background job while
@@ -1838,6 +1924,26 @@ and node, not by job); a retry action for failed pages.
 
 ### E. Durability
 
+- `activity.relaunch.only-running-work-resumes` — **[OK]** (#6584, owner 2026-11-13) what a library open takes up again
+  (`jobs.resume`) is exactly the work that was RUNNING when the engine stopped and that nobody cancelled or deleted:
+  such a row goes back to waiting ("Interrupted; carries on", set aside after `MAX_ATTEMPTS`, as before). Everything
+  else keeps its state: a failed row stays failed with its reason and offers Retry, and is never run again by itself; a
+  cancelled row stays cancelled; a waiting row waits (it was queued and not withdrawn); a row deleted in Activity
+  (`cleared_at`) that was still waiting, paused or running ends cancelled ("Deleted by you") instead of coming back; a
+  pause asked before the quit is still a pause after it: a recipe run that was pausing at its next step, parked on its
+  paused step run ("Paused with its run") or paused between steps reads `paused` after the open, with its own words
+  (a pausing one now "Paused by you"), and only Resume lets it go. Before: the recipe run's pause was a flag in memory
+  (`execution/cancellation.py`), so the open put the row back to waiting and the lane carried the run on, whether a
+  person or the spend cap had paused it. The open's recovery of stranded pages (`queue_derivatives`, `arrived=False`)
+  no longer queues a document whose derivative already failed (`derivative_error`): it said why, and its Retry runs it;
+  before, it failed again at every launch. Acceptance: rows left running, pausing, parked, paused between steps,
+  failed, cancelled, waiting and deleted at quit; after `resume` only the running one is waiting, the three paused ones
+  are paused, the failed one is failed with its reason, the deleted ones are cancelled and unlisted; a pending document
+  with `derivative_error` gets no job at open while one without does. Test:
+  `fichero-server/tests/unit/jobs/test_relaunch_resumes_only_running_work_6584.py`.
+  **SUPERSEDED the same night (owner 2026-11-13, 22:50):** even the work that was running at quit does not carry on by itself;
+  the open pauses it with "Stopped when Fichero quit" and the launch alert asks (`activity-pane.md`
+  `activity.launch.nothing-starts-one-alert`). The failed, cancelled, deleted and derivative halves of this bullet stand.
 - `activity.durable.reopen-leaves-live-jobs` — **[OK]** (review 278) a job a lane thread is running ends only when the
   engine does. Opening a library again (`resume`) leaves every job a lane thread of this engine is running alone: its
   row stays running, an attached Kraken page is not cancelled and no row is reset to waiting or set aside; only an engine
@@ -1998,7 +2104,7 @@ and node, not by job); a retry action for failed pages.
   stopped page, so the run goes on. Left: a stored page job (not handed in); the run's summary counting those pages
   under that reason with Run again on what was missed. *Test:*
   `fichero-server/tests/unit/jobs/test_trashed_page_leaves_the_run_6232.py`.
-- `activity.run.cloud-batch` — **[GAP]** (#6233, #6234; ruled 2026-10-27, answering the report's decision 5) a recipe
+- `activity.run.cloud-batch` — **[PARTIAL]** (#6233, #6234; ruled 2026-10-27, answering the report's decision 5) a recipe
   step runs in the cloud BY DEFAULT, with a per-step choice of local or cloud on Set Up's stage page, and the cost
   of each step is shown beside its time (`recipes-run.timing.cost-per-step`, #6234). A step a person is not waiting
   for goes to the provider's Batch API where the provider has one (half price, answered within a day), said on the
@@ -2008,6 +2114,14 @@ and node, not by job); a retry action for failed pages.
   cost on the row); a batch-only model is refused (`workflows/validation.py:337`). Where the line is drawn
   (lines local, the text steps to the cloud when the local pace is slow) is answered by the ruling above: cloud by
   default, local by choice per step; the recipe's step kinds that have no cloud form (lines, regions) stay local.
+  The line (owner, 2026-10-27): finding lines stays local (Kraken); Read, Translate, Names, Statements and Catalogue
+  default to cloud. Built (#6233): `recipes/assemble.py` `CLOUD_DEFAULT_JOBS` picks the cheapest adequate cloud model for
+  translate, names, statements and catalogue where the pages may leave and a key is set, even when a local model fits
+  (the reason says so and that choosing another model keeps the pages on this Mac); Correct still prefers a fitting
+  local model; the per-step choice and per-step cost already exist. Parked 2026-11-02 (open question): the Batch API for the text steps (Translate, Names, Statements, Catalogue) is not built. Page reads batch today (`llm/provider_batch.py`'s seam sits in `llm.vision` only). A text step's capture run answers calls with stand-ins and relies on `is_capturing()` guards that exist only in `vision_base` and `observability/episodes`, so capturing a text step would save junk readings unless every text tool's write path is guarded first; its calls go through `chat` / `chat_structured` / `translate_text` (structured outputs need their own stand-ins). Unverified: all of it, and cost and replay against a real provider key. Order when taken up: guard sweep, seam on the text entry points, Translate, then the structured steps, then a real-key run. Left: the provider's Batch API, the network
+  lane's width at the provider's stated limit. Read's default is already the spec's own reader choice
+  (`source.recipe.reader-pick-from-the-material`): handwriting that may leave with a frontier key reads in the cloud; printed
+  and typescript stay on Kraken or the local reader, as that line says.
 - `activity.recipe.declares-automatic` — **[GAP]** (→ #4950) a recipe lists the job kinds that run on
   add; the dependency graph comes from the job kinds' declared inputs, never written twice.
 
@@ -2162,6 +2276,9 @@ code path.
   *Built (engine):* the quit records the reason (`runner.QUIT_PAUSED_ERROR`) and the library's next open resumes the runs that
   carry it, clearing the reason first so a later pause by a person is left for Resume; a resume that fails leaves the run paused
   with why (`activity.resume_quit_paused_runs`; `fichero-server/tests/unit/workflows/test_quit_paused_runs_resume_5357.py`).
+  **SUPERSEDED in part (owner 2026-11-13 night, #6584):** the quit still pauses the runs, but the next launch does NOT resume them:
+  nothing starts by itself at launch; the person is asked once (`activity-pane.md` `activity.launch.nothing-starts-one-alert`).
+  `resume_quit_paused_runs` is retired and its test inverted (they stay paused).
   The quit then waits up to `runner.BOUNDARY_GRACE_SECONDS` (1 s; the app kills the engine soon after) for each asked run to reach
   its boundary and settle `paused`; one that does not is covered by the `paused` record (`test_quit_paused_runs_resume_5357.py`).
   *Not built:* a step that runs longer than the grace is still cut at exit, so its checkpoint is the last one written.
@@ -2303,6 +2420,242 @@ How the list is laid out (a live block per project, a background group, finished
 - `activity.step-click-jumps-to-comparison` — **[GAP]** (#2277) clicking a step opens a comparison of
   what it made. Undecided: comparison is now panes and a diff lens (`modes-to-panes.md`), so whether
   a step opens that is open question 11.
+
+### J. Failure alerts: a run never fails silently (owner 2026-11-13, #6354)
+
+The owner's ruling of 2026-11-13 (above): when a run, a step or a job fails for any reason, the
+person is told what went wrong in plain words and what to do about it, wherever they are. This
+section owns the alert; the row's words (`activity.window.row-shows-lane-state-reason`), the
+popover's recent errors (#5666) and the details view's failed pages (#5561) stay where they are and
+read the same words. `ai/where-models-run.md` owns how a provider error is classified at the call
+(`ai.where.one-retry-policy`, `ai.where.dead-provider-says-why`); this section owns what the run
+records once the call has given up, and what the person sees.
+
+**How a run fails today when a provider is out of credit (verified 2026-11-13, file and line
+read, nothing run).** The call's 402 (or its `insufficient_quota` / "credit balance" words) is
+classed `fatal` and its cause `quota` by `workflows/circuit_breaker.py:159-211`
+(`classify_provider_error`, `fatal_cause`), the breaker opens and every later call for that
+provider raises `ProviderQuotaExhaustedError`, whose words are right ("<Provider> has no credit
+left for this key. Add credit at <Provider>, or choose another model in Settings.",
+`circuit_breaker.py:103-110`). From there the cause is lost as text: `workflows/builder.py:1445-1452`
+(a step) and `:2338-2343` (the fan-out) wrap it in `SystemicErrorDetected("Quota/rate-limit error in
+step '…': <words>")`; `execution/runner.py:2710-2770` catches that, re-reads the TEXT with
+`_classify_provider_error` (`runner.py:502-566`, a table of eleven categories with a message and
+an action each, keyed on words like "402" and "quota") and writes the run `failed` with
+`error = "Provider quota or rate limit reached. Top up account or switch provider/model. Details:
+<words>"` (`_systemic_failure_message`, `runner.py:634-648`); the category, message and action go
+out once on the SSE `systemic_error` event and nowhere else. Any other exception takes
+`runner.py:2775-2800`: `failed`, `error = str(e)`, no category. A recipe run's step reads its
+child run's outcome as a string (`recipes/runner.py:537-546`, `outcome_why`) and ends the recipe
+row `failed` or "Done with failures" with that string as its `reason` (`recipes/runner.py:1869-1877`;
+`execution/jobs.py:1192-1199`, `fail_run_rows`). The contract carries only words:
+`BackgroundJob.state` and `reason: Optional[str]` (`api/routes/system/activity.py:142-160`), and a
+page's one `reason` in `JobTree` (`activity.py:1221`); no row carries a kind. **The app:** the row
+goes to `ActivityStore.failedJobs` (`Models/ActivityStore.swift:370`); the toolbar's error glyph
+lights for a failure of the last hour (`Views/Shell/Toolbar/ActivityStatusToolbarItem.swift:55-61`)
+and the popover lists it once with its words (`:185-191`, `Models/ActivityErrorLedger.swift`); the
+window's State column shows the reason. That is all. A system notification exists but does not
+fire for this: `WorkflowCompletionNotifier` (`Models/WorkflowExecutionStore.swift:470-500`) posts
+"Failed — <raw error>" only for a thread the store streams, which is one the person selected or
+started from the workflow bar (`subscribe`, `:97-105`; a recipe run's child workflows are not
+subscribed), and only on macOS (`#if os(macOS)`): iPhone and iPad get nothing. The SSE
+`systemic_error` event is parsed (`Services/WorkflowStreamService+Parsing.swift:203`) but its
+`error_category`, `error_message` and `error_action` are dropped. So a recipe run whose provider
+ran out of credit ends as a failed row with the right words, in a window that is usually closed,
+with no alert, no notification, no button, and nothing on an iPad; a cap refusal already does
+better (`CloudCapFix`, typed fixes from the engine, #6295, #6349), which is the pattern to extend.
+
+**The fixed table of failure kinds.** One table, in the engine, the only source of a failure's
+kind, words and fix for the app, the command line and MCP (#6354: "one mapping … so the app, CLI
+and MCP all say the same thing"). Each row names the person's fix; a fix is one of a fixed set of
+actions the app knows how to offer (`add-credit`, `open-settings-ai`, `retry`, `resume`,
+`choose-another-model`, `free-disk`, `restart-engine`, `report`, `none`), never free text the app
+has to parse. "Stopped by you" is in the table only to say it is NOT a failure.
+
+| `kind` | When | The words (the row, the popover, the alert) | The fix offered |
+|---|---|---|---|
+| `out-of-credit` | the PROVIDER's account has no credit: 402, `insufficient_quota`, a key limit, "credit balance" (`fatal_cause` = `quota`) | "<Provider> has no credit left for this key. The run is paused; the N pages it finished are kept." | **Add credit at <Provider>** (the provider's billing page from the catalogue), then **Resume**; or **Choose another model** |
+| `cap-reached` | a spending cap set IN Fichero stopped the call: the monthly or weekly limit, the project cap, the run cap (`ai.where.cloud-spend-cap`, `ai.where.run-cap-beside-the-project-cap`; owner 2026-11-13: never confused with the provider's credit) | "Fichero's <monthly/weekly/project> cap of $N is reached. The run is paused; the N pages it finished are kept." | **Open Settings › AI** (raise the cap; the `CloudCapFix` offers: raise to N, allow once, fewer pages), then **Resume** |
+| `rate-limited` | 429 after the retries are spent (`ai.where.one-retry-policy`: a 429 that backs off and answers is never a failure) | "<Provider> is asking us to slow down. The run is paused." | **Resume** (in a few minutes); or **Choose another model** |
+| `key-refused` | 401, an invalid key, a missing key for the chosen model (`fatal_cause` = `key`) | "<Provider> refused the API key." / "No API key for <Provider>." | **Open Settings › AI**, then **Resume** |
+| `provider-down` | 5xx, a dropped connection, a provider timeout after the retries are spent | "<Provider> is not answering. The run is paused." | **Resume** (later); or **Choose another model** |
+| `model-not-found` | 404, `model_not_found`, a model the provider no longer serves; a local model not downloaded | "<Provider> does not have the model <id>." / "The model <name> is not downloaded." | **Choose another model**; **Open Settings › AI** (to download) |
+| `network` | DNS, no route, the Mac offline | "This Mac could not reach the internet. The run is paused." | **Resume** (when back online) |
+| `disk-full` | `ENOSPC`, DuckDB out of space, the derivatives folder unwritable | "The disk is full: <free> left on <volume>." | **Free disk space**, then **Resume** |
+| `engine-crashed` | the engine died or was killed mid-run (`activity.durable.lease-not-fail`: an interrupted run) | "Fichero's engine stopped at HH:MM, before this run finished." | **Resume** |
+| `input-unreadable` | a page file missing, evicted to iCloud, undecodable, a locked PDF (`file_unavailable` today) | "<N> pages could not be read: <first name>, …" | **Retry** (the failed pages only, `activity.details.failed-pages-by-name`) |
+| `refused-by-a-rule` | the egress gate, the images rule (#6349, `ai.where.one-egress-gate`); a spend cap is `cap-reached` above | the rule's own words | the rule's own fixes (allow once, open Settings) |
+| `memory` | `MemoryShortError`, a local model that does not fit (`activity.throttle.hold-when-swapping` holds first; this is a hold that gave up) | "This Mac does not have the memory for <model> now." | **Resume** (later); or **Choose a smaller model** |
+| `unknown` | anything else: an exception in Fichero | "<Step> could not finish: an error in Fichero." (`execution/jobs.py:276`, `failed_reason`) | **Report** (the run id, the log, the app and engine versions; nothing private) and **Retry** |
+| *(not a failure)* `stopped-by-you` | Stop, Pause, or a stopped page (`cancelled`, "Stopped by you", #6005) | "Stopped by you" | nothing; no alert |
+
+A kind with a pause fix (`out-of-credit`, `cap-reached`, `rate-limited`, `key-refused`,
+`provider-down`, `network`, `disk-full`, `memory`; owner 2026-11-13) pauses the run rather than
+failing it (`activity.failure.credit-exhausted-pauses`); the others end it `failed`. A pause for a
+failure is told like a failure: the alert is raised for it too, never a silent pause. The words name the provider by its catalogue name (`circuit_breaker._provider_name`)
+and never the breaker's or the SDK's internals. A kind the engine adds later is unknown to an older
+app, which shows the engine's `words` and the `report` fix, never nothing.
+
+- `activity.failure.never-silent` — **[GAP]** (#6354; owner 2026-11-13; app + engine) every run, step
+  or job of its own that ends `failed`, or pauses because of a failure, raises ONE alert to the person
+  that says what went wrong and what to do. When the app is frontmost it is a sheet if the person
+  is looking at that run's project or at Activity (the row selected behind it), else a banner
+  (owner 2026-11-13); when it is not frontmost, a system notification
+  (`activity.failure.reaches-the-person-off-window`). A run paused by a failure is told the same
+  way as one that failed (owner 2026-11-13: never a silent pause). A page that fails inside a run that goes on is
+  not an alert: it is the row's count and the details view's list (`activity.details.failed-pages-by-name`),
+  and the run's end says "Done with failures" (`activity.run.partial-said-on-a-done-row`). A run the
+  person stopped is not a failure (`activity.failure.cancelled-is-not-a-failure`). *Built:* the row,
+  the toolbar glyph and the popover's recent errors (#5666, `ActivityStatusToolbarItem.swift:55-61`).
+  *Not built:* the alert. *Tests (to write):* a run that ends `out-of-credit` raises one alert whose
+  words are the engine's and whose buttons are the kind's fixes; a run that ends `done` with failed
+  pages raises none; a stopped run raises none (`ActivityFailureAlertTests.swift`).
+- `activity.failure.kind-is-typed-in-the-engine` — **[PARTIAL]** (#6354; #5944 review ## 950; engine)
+  one typed field on the job: `BackgroundJob.failure`, `JobTree.failure` and the run's `RunAccount.failure`
+  carry the same object, `{kind, provider, model, words, fixes: [{action, label, url}], at}`, in the
+  OpenAPI contract (the regenerated client gives the app the enum; nothing is parsed from `reason`).
+  `kind` is one of the table above; `fixes` is the kind's row, in order, with `url` only for
+  `add-credit` (the provider's billing page from `llm/providers.py`); `words` is the sentence the
+  row shows. It is set once, where the run settles (`execution/runner.py:2710` and `:2775`, the
+  recipe runner's step outcome `recipes/runner.py:537`, `execution/jobs.py:276` `failed_reason` and
+  `:1192` `fail_run_rows`), from the exception's TYPE first (`ProviderQuotaExhaustedError`,
+  `ProviderKeyRefusedError`, `ProviderRateLimitedError`, `LocalModelNotInstalledError`,
+  `MemoryShortError`, `OSError(ENOSPC)`, …) and from words only for a wrapper that dropped the type;
+  `SystemicErrorDetected` carries the original exception so the type survives the builder
+  (`builder.py:1445`, `:2338`). `reason` stays and equals `words`, so an older app and the CLI read
+  as before. *Built:* the causes at the call (`circuit_breaker.py:63`, `:75-126`, `:159-211`), the
+  runner's eleven text categories on the SSE event only (`runner.py:502-566`, `:2744-2755`), the
+  recipe's words (`recipes/runner.py:537`). *Not built:* the field, the enum, the typed carry
+  through `SystemicErrorDetected`, the recipe runner setting it from its child run's. *Tests (to
+  write):* `test_failure_kind_is_typed_6354.py` (a 402 from a
+  provider stub ends the run with `failure.kind == "out-of-credit"`, the provider's name, the
+  `add-credit` fix with the catalogue's billing url, and `reason == failure.words`; a 401 is
+  `key-refused`; an `ENOSPC` is `disk-full`; a bare `RuntimeError` is `unknown` with `report`);
+  `test_recipe_run_carries_its_steps_failure_6354.py` (the recipe
+  row's `failure` is its failed step's).
+- `activity.failure.fixed-table` — **[GAP]** (#6354; engine) the table above is ONE module
+  (`failure_kinds.py` under workflows, proposed), the only place a kind, its words and its fixes are
+  written; `runner._classify_provider_error`'s eleven categories (`runner.py:502-566`) and
+  `circuit_breaker`'s three causes map into it and the module replaces the runner's text table
+  (the file-unavailable and iCloud rows become `input-unreadable`, `egress_refused` becomes
+  `refused-by-a-rule`, `server` becomes `provider-down`, `auth` becomes `key-refused`). The CLI and
+  MCP (`fichero_activity`, `fichero_recipes_run_status`) print `words` and the fixes' labels from
+  the same field. A kind is never invented at a call site: an exception no row claims is `unknown`.
+  *Not built:* all of it. *Tests (to write):* `test_failure_kinds_table_6354.py`
+  (every kind has words and at least one fix or is `none`; every exception type the runtimes raise
+  maps to a kind; the MCP status prints the same words the jobs list carries).
+- `activity.failure.app-only-displays` — **[GAP]** (#6354; app) the app never classifies: it
+  switches on `failure.kind` for the alert's icon and on `fixes[].action` for its buttons, shows
+  `words` verbatim, and has no table of its own words (today's `runLoadFailureMessage` is for the
+  app's own load failures, not a run's). A kind it does not know shows `words` and the `report`
+  fix. The same object drives the row's State column, the popover's recent-errors line, the
+  details view's heading and the alert, so the four never disagree
+  (`activity.failure.row-says-the-same`). *Not built.* *Tests (to write):* in
+  `ActivityFailureAlertTests.swift`, an unknown kind still shows the engine's words and Report.
+- `activity.failure.one-alert-per-run` — **[GAP]** (#6354; app) one alert per run, not per page,
+  per step or per poll: the alert is keyed by (run id, `failure.kind`, `failure.at`), kept in the
+  ledger that the popover already keeps (`ActivityErrorLedger`, `activity.popover.seenFailures`),
+  so a failure the person has seen (the alert dismissed, or the row opened) is not raised again on
+  the next poll, after a relaunch, or when the same run fails again the same way within ten
+  minutes (a retry storm: Resume → the same 402 → paused again shows the alert once and then only
+  updates its count). Several runs failing the same way at once (one provider out of credit, three
+  runs on it) raise ONE alert naming the provider and the runs, not three. A run that fails again
+  a different way, or after ten minutes, is a new failure and alerts again. *Not built.* *Tests
+  (to write):* `ActivityFailureAlertTests.swift` (three polls of one failed run → one alert; two
+  runs out of credit on one provider → one alert naming both; the same run failing again the same
+  way inside ten minutes → no second alert; a different kind → a second alert).
+- `activity.failure.alert-names-the-fix` — **[GAP]** (#6354; app) the alert's buttons are the
+  engine's `fixes`, in its order, with its labels: `add-credit` opens the provider's billing page
+  (`url`) and leaves the run paused for Resume, and is offered only for `out-of-credit` (the
+  provider's account); a cap set in Fichero (`cap-reached`) offers `open-settings-ai` instead, so
+  the person is never sent to pay a provider for a limit they set themselves (owner 2026-11-13);
+  `open-settings-ai` opens Settings › AI on that provider's row, or on the cap (the same jump
+  `ProviderKeyRefusedError`'s words promise); `retry` and `resume`
+  are the row's own `POST /api/activity/jobs/{id}/retry` (`activity.retry.one-row`: the run
+  carries on from the failed step over the pages it did not do); `choose-another-model` opens the
+  run's Set Up on the step's model; `free-disk` reveals the volume in Finder; `report` files a
+  bug report with the run id, the person's log for that run (`activity.log.one-line-per-page`), the
+  app and engine versions and nothing private, the way the engine-crash report does; `none` is
+  Close. The last button is always *Show in Activity*, which selects the row. *Built:* the
+  cap refusal's typed fixes (`CloudCapFix.swift`, #6295) and Retry on a row (`activity.retry.one-row`).
+  *Not built:* the alert and every other button. *Tests (to write):* `ActivityFailureAlertTests.swift`
+  (an `out-of-credit` failure offers Add credit, Resume, Choose another model, Show in Activity, in
+  that order; `resume` posts the row's retry; the buttons come from `fixes` and not from the kind).
+- `activity.failure.row-says-the-same` — **[GAP]** (#6354; app) the Activity row, the popover,
+  the details view, the project's run strip and the alert all show `failure.words`; a paused-by-
+  failure row reads "Paused: <words>" and offers the first fix as its one button
+  (`activity.window.one-button`: Resume, or Add credit when that is the fix), a failed row reads
+  "<words>" with Retry. The CLI's `fichero activity` and the MCP status print the same sentence.
+  *Not built.* *Tests:* `fichero/Tests/Unit/general/Models/ActivityTableTests.swift`
+  (a row with `failure` shows its words and its first fix; the strip shows the same words).
+- `activity.failure.reaches-the-person-off-window` — **[GAP]** (#6354; app, Mac and iOS) when the
+  app is not frontmost, or the Activity window is closed, the alert is ALSO a system notification
+  (`UserNotifications`, the one preference `notificationsEnabled` that `WorkflowCompletionNotifier`
+  already honours, default on) whose title is the run's name and whose body is `words`; opening it
+  brings the app forward on the Activity row with the alert up. The notifier posts for EVERY
+  failure the jobs list reports, not only a thread the store streams, so a recipe run's failure
+  reaches the person (today `WorkflowCompletionNotifier` fires only for a subscribed thread,
+  `WorkflowExecutionStore.swift:384-391`, and only on macOS, `:475`). On iPhone and iPad the same
+  notification is posted (the app may be in the background while a paired Mac runs the work,
+  `sharing.remote-run-in-host-activity`) and tapping it opens Activity on the row; the system
+  asks for permission once, the first time a run is started, not at launch. One notification per
+  alert (`activity.failure.one-alert-per-run`), none for a stopped run, none for a page.
+  *Built:* the Mac notifier for a streamed thread, Mac only. *Not built:* posting from the jobs
+  list, the iOS half, the tap that opens the row. *Tests (to write):*
+  `ActivityFailureNotificationTests.swift` (the notification's
+  request is built from the jobs list's failure with the run's name and `words`; a stopped run
+  builds none; the same key twice builds one; the preference off builds none).
+- `activity.failure.cancelled-is-not-a-failure` — **[PARTIAL]** (#6354; #6005, #4402; engine +
+  app) a run, step or page the person stopped ends `cancelled` with "Stopped by you"
+  (`activity.run.stop-reaches-in-flight-calls`), carries no `failure`, lights no glyph, raises no
+  alert and no notification; so does a run paused by the person or by the engine's own shutdown
+  (`activity.run.quit-pauses`). A page a Stop skipped is not counted as failed. *Built:* the
+  `cancelled` state and its words. *Not built:* the rule that an alert never fires for it (there is
+  no alert yet). *Tests (to write):* in `test_failure_kind_is_typed_6354.py`, a stopped run has
+  `failure` null; in `ActivityFailureAlertTests.swift`, it raises nothing.
+- `activity.failure.credit-exhausted-pauses` — **[GAP]** (#6354, the pause half needs an issue of
+  its own under #6354; #5933, `recipes-run.control.pause-and-resume`; engine; owner 2026-11-13) a
+  failure the person can mend, or that mends itself, without losing the run (`out-of-credit`,
+  `cap-reached`, `rate-limited`, `key-refused`, `provider-down`, `network`, `disk-full`, `memory`)
+  PAUSES the run instead of failing it, and the alert is raised for the pause: the step's run settles `paused` at its
+  checkpoint with `failure` set (the same path a review step takes, `activity.run.review-step-pauses`,
+  and the one the engine's shutdown takes), the pages already read are kept and counted
+  (`activity.failure.partial-results-kept`), the recipe run parks on the paused step
+  (`recipes/runner.py` `ParkedOnStepRun`, #5933) and its row reads "Paused: <words>" with Resume,
+  and Resume carries on from the failed step over the pages that were not done, never re-reading a
+  done page (`activity.retry.one-row`, `activity.durable.idempotent`). The breaker stays open for
+  its 30 s, so a Resume pressed before credit is added fails fast again and the alert updates
+  rather than repeats. A failure of the other kinds ends the run `failed` as today, with the
+  partial results kept. The engine, not the app, decides which kinds pause: `pauses: true` on the
+  table's row. *Built:* a quota error is not page-retried (`builder.py:2192-2196`), pause at a
+  checkpoint (#5933), park on a paused step. *Not built:* settling `paused` on a fatal provider
+  error (today `SystemicErrorDetected` → `failed`, `runner.py:2710`), the recipe parking on it,
+  the `failure` on a paused row. *Tests (to write):*
+  `test_out_of_credit_pauses_the_run_6354.py` (a 402 on page 4 of
+  10 leaves the run `paused` with `failure.kind == "out-of-credit"`, three pages done and kept,
+  and Resume after the stub recovers reads pages 4 to 10 only and ends `done`);
+  `test_recipe_parks_on_a_paused_step_6354.py` (the recipe row
+  reads paused with the step's words and takes the step up again on Resume).
+- `activity.failure.partial-results-kept` — **[PARTIAL]** (#6354; #5937, #5758, #4315) whatever a
+  run finished before it failed or paused is kept and shown: the pages read stay read, their
+  entities and claims stay, the run's account counts them, and the row says how many ("The run is
+  paused; the 212 pages it finished are kept"). A failed run reverts only the pages it was in the
+  middle of to pending (`runner.py:2773`, `_finalize_documents("failed")`), never the done ones.
+  *Built:* the account's done count on a failed run (`activity.run.partial-said-on-a-done-row`,
+  `activity.run.step-honest-about-lost-pages`); the revert of in-flight pages (#4315). *Not
+  built:* the count in the words, pinned against a mid-run 402. *Tests:*
+  `fichero-server/tests/unit/jobs/test_partial_is_said_on_a_done_row_5937.py`; to write, in
+  `test_out_of_credit_pauses_the_run_6354.py`, the three done pages are still read after the pause.
+- `activity.failure.unknown-offers-a-report` — **[GAP]** (#6354; app + engine) a failure no row of
+  the table claims is `unknown`: its words say it is an error in Fichero, never the exception's
+  text alone (`execution/jobs.py:276`, `failed_reason`, is the rule), and its fix is `report`: the
+  alert offers to file a bug report with the run id, the person's log for that run, the engine's
+  last 200 lines for that run, the app and engine versions, and nothing private (no page text, no
+  file names outside the project, no keys); the person sees what is sent before it goes. Unknown
+  never falls through to silence. *Built:* the words rule for a job of its own (#6212). *Not
+  built:* `unknown` as a kind, the report bundle route (`GET /api/activity/jobs/{id}/report`,
+  proposed), the button. *Tests (to write):* `test_failure_report_bundle_6354.py`
+  (the bundle has the run id, log, versions; a page's text and a key never appear in it).
 
 ### Migration order
 
@@ -2468,8 +2821,10 @@ is the answer; the grey line says both.
   window's rows are one line and do not get it; the Mac state row stays as it is. *Tests (to write):*
   `fichero/Tests/Unit/general/Views/Activity/ComputeChoiceViewTests.swift` (the label from each state; the core squares
   from P, E and threads in use; the dimmed slot) and `fichero-server/tests/unit/recipes/test_run_status_serves_the_compute_choice_6229.py`.
-- `activity.lane.writer-batched-per-page` — **[GAP]** (#6236, #6212; proposed 2026-10-27, the owner's question on
-  DuckDB's one writer) every write of every page goes through one connection, one lock and one transaction gate per
+- `activity.lane.writer-batched-per-page` — **[PARTIAL]** (#6236, #6212; proposed 2026-10-27, the owner's question on
+  DuckDB's one writer) built (0549999af, `test_names_page_in_one_transaction_6236.py`): the names step writes a page's names in one
+  short transaction under the upsert lane, and each vector is embedded once after it commits; not built: `save_many(new=True)` for fresh
+  rows, and the page record's milliseconds held at the gate. As first written: every write of every page goes through one connection, one lock and one transaction gate per
   library (`db/manager.py`, `db/__init__.py` `transaction()`), so pages read side by side still save one at a time, and
   pages at once cannot help past the point where N × a page's write time nears one page's model time. For Kraken that
   point is far off (writes under 1% of a page, measured 2026-10-20: a few `db.save` calls a page); for the names step
@@ -2594,6 +2949,18 @@ nothing here depends on them except where said.
 - Depends on: 1.10, 1.12
 - Size: M
 
+#### Step 1.14 — Foreground first: what the person opens jumps the queue, in the view's order, and drops back (#6352)
+- Behaviours: `activity.foreground.open-jumps-the-queue`, `activity.foreground.order-is-the-views`, `activity.foreground.drops-back-when-moved-on`, `activity.foreground.background-never-starved`, `activity.foreground.shown-in-activity`
+- Tests: fichero-server/tests/unit/jobs/test_person_started_work_goes_first_5820.py, test_foreground_first.py (not yet written), ForegroundReportTests.swift (not yet written), ActivityForegroundRowTests.swift (not yet written)
+- Depends on: 1.5
+- Size: M
+
+Engine first: the `foreground_rank` on the row, the `PUT /api/activity/foreground` route with its per-client sets and the 90 s expiry, the pick order (foreground, then watched for another reason, then person-started, then background; one in four to the rest; the five-minute age), each with its test red then green; then the app: one `ForegroundReporter` fed by the Preview, the browser and the Activity selection, debounced 300 ms with the 30 s heartbeat, and the Activity row and summary wording. Nothing here creates work; the recipe designer's and the editor's own triggers stay where they are (`source/image-enhancement.md` Stage 5).
+
+- test (to write): `test_foreground_first.py` in fichero-server/tests/unit/jobs/ (the set marks and unmarks; rank order within a page and across pages; the running job is untouched; one in four and the five-minute age; a second client; expiry)
+- test (to write): `ForegroundReportTests.swift` in fichero/Tests/Unit/general/App/ (what each view reports and in what rank; the debounce; the heartbeat; two windows)
+- test (to write): `ActivityForegroundRowTests.swift` in fichero/Tests/Unit/general/Views/Activity/ (the row's "Next: open in Preview" and the summary line)
+
 ### Stage 2 — The summary the window reads (engine)
 
 #### Step 2.1 — Stage counts, pace and cost on the live block (#5960)
@@ -2615,7 +2982,7 @@ nothing here depends on them except where said.
 
 #### Step 3.1 — Three groups, one row, one subtitle, the person's log (#5960, #5839)
 - Behaviours: `activity.window.now-upnext-done-today`, `activity.window.row-subtitle`, `activity.window.acts-on`, `activity.log.person-reads-like-a-copy-history`
-- Tests: fichero/Tests/Unit/general/Models/ActivityWindowGroupsTests.swift, fichero/Tests/Unit/general/Models/ActivityRowSubtitleTests.swift
+- Tests: ActivityWindowGroupsTests.swift (deleted with the section rows, #6441), fichero/Tests/Unit/general/Models/ActivityRowSubtitleTests.swift
 - Depends on: 2.1, 2.2
 - Size: M
 
@@ -2680,7 +3047,7 @@ nothing here depends on them except where said.
 
 #### Step 5.2 — The folded asks (#2277, #5116, #5117)
 - Behaviours: `activity.columns-move-into-activity-view`, `activity.step-click-jumps-to-comparison`, `activity.run-control-is-global`, `activity.simple-for-its-reader`
-- Tests: fichero/Tests/Unit/general/Models/ActivityWindowGroupsTests.swift
+- Tests: ActivityWindowGroupsTests.swift (deleted with the section rows, #6441)
 - Size: S
 
 ### Stage 6 — The PARTIAL lines: finishing what is partly built (placed on approval, 2026-10-27)
@@ -2795,7 +3162,7 @@ already name. Nothing here blocks Stages 1 to 5; a step burns down with its issu
 
 #### Step 6.22 — The rest of #5960
 - Behaviours: `activity.window.one-row-per-run`, `activity.window.stage-bar`, `activity.window.one-button`, `activity.window.project-prefix`, `activity.window.up-next`
-- Tests: fichero/Tests/Unit/general/Models/ActivityStageBarTests.swift, fichero/Tests/Unit/general/Models/ActivityWindowGroupsTests.swift
+- Tests: fichero/Tests/Unit/general/Models/ActivityStageBarTests.swift, ActivityWindowGroupsTests.swift (deleted with the section rows, #6441)
 - Size: S
 
 #### Step 6.23 — The rest of #5960
@@ -2817,6 +3184,54 @@ already name. Nothing here blocks Stages 1 to 5; a step burns down with its issu
 - Behaviours: `engine.run-account-reads-off-the-loop`
 - Tests: fichero-server/tests/unit/workflows/test_run_account_reads_off_the_event_loop_6176.py
 - Size: S
+
+#### Step 6.27 — A refused step records why, #6354
+- Behaviours: `activity.run.refusal-is-recorded`
+- Tests: fichero-server/tests/unit/api/test_chain_step_project_and_refusal_6354.py
+- Size: S
+
+#### Step 6.28 — The rest of #5635: the popover names at most five pieces of work
+- Behaviours: `activity.popover.at-most-five`
+- Tests: fichero/Tests/Unit/general/Views/Activity/ActivityPopoverWorkCapTests.swift
+- Size: S
+
+#### Step 6.29 — Delete on every row, the archive mark beside it (#6583; built 2026-11-13 night, PARTIAL: the app's Undo and Show Archived)
+- Behaviours: `activity.window.delete-any-row`
+- Tests: fichero-server/tests/unit/jobs/test_delete_any_row_6583.py, fichero-server/tests/unit/jobs/test_archive_old_runs_6583.py, fichero/Tests/Unit/general/Models/ActivityDeleteAnyRowTests.swift
+- Depends on: 6.13
+- Size: S
+
+The redefinition (Delete removes, Archive hides) and the rest of the verbs live in `activity-pane.md` (`activity.pane.archive-old-runs`, Stage 2).
+
+### Stage 7 — A run never fails silently (owner 2026-11-13, #6354; section J)
+
+Engine first: the kind and its table are the contract the app displays, so the field lands and
+regenerates the client before any Swift. Then the alert on the Mac, then the notification off-window
+and on iOS, then the pause-and-resume on a mendable failure, which changes how a run settles and is
+tested against a real provider stub on the M4.
+
+#### Step 7.1 — The engine classifies: one typed field, one table (#6354)
+- Behaviours: `activity.failure.kind-is-typed-in-the-engine`, `activity.failure.fixed-table`, `activity.failure.cancelled-is-not-a-failure`
+- Tests: test_failure_kind_is_typed_6354.py, test_failure_kinds_table_6354.py, test_recipe_run_carries_its_steps_failure_6354.py
+- Size: M
+
+#### Step 7.2 — The alert on the Mac: one per run, the engine's words, the engine's fixes (#6354)
+- Behaviours: `activity.failure.never-silent`, `activity.failure.app-only-displays`, `activity.failure.one-alert-per-run`, `activity.failure.alert-names-the-fix`, `activity.failure.row-says-the-same`
+- Tests: ActivityFailureAlertTests.swift, fichero/Tests/Unit/general/Models/ActivityTableTests.swift
+- Depends on: 7.1
+- Size: M
+
+#### Step 7.3 — Off-window and on iPhone and iPad: the notification; the unknown kind's report (#6354)
+- Behaviours: `activity.failure.reaches-the-person-off-window`, `activity.failure.unknown-offers-a-report`
+- Tests: ActivityFailureNotificationTests.swift, test_failure_report_bundle_6354.py
+- Depends on: 7.2
+- Size: M
+
+#### Step 7.4 — Out of credit pauses the run and keeps its pages; Resume carries on (#6354, #5933)
+- Behaviours: `activity.failure.credit-exhausted-pauses`, `activity.failure.partial-results-kept`
+- Tests: test_out_of_credit_pauses_the_run_6354.py, test_recipe_parks_on_a_paused_step_6354.py, fichero-server/tests/unit/jobs/test_partial_is_said_on_a_done_row_5937.py
+- Depends on: 7.1
+- Size: M
 
 ## Test matrix
 
@@ -2906,6 +3321,15 @@ Identifiers: `activity.window` · `activity.table` · `activity.row.<jobId>` · 
     job record, with the log under it; a page's row offers *Open the page*. **What does clicking a
     row open?** (from `ui/activity.md`, #1264, #1559) *Recommended before:* its detail below the
     table (§2); a page's row also offers "Open the page".
+13. **Answered** (owner 2026-11-13; the answers are in "Ruled 2026-11-13" and section J). **Failure
+    alerts (section J, #6354):** (1) out of credit pauses with Resume, the pages kept, the alert
+    raised: *pause*. (2) provider-down and network pause too: *yes*. (3) sheet or banner: *sheet* when
+    the person is looking at that project or at Activity, *banner* otherwise, a notification
+    off-window. (4) the same failure alerts again after *ten minutes* (manager's default, open to
+    the owner). (5) "Add credit": *the provider's billing page* when the provider's account is out
+    (`out-of-credit`); *Settings › AI* when a cap set in Fichero stopped it (`cap-reached`); the
+    engine's kind tells them apart. (6) the unknown kind's report is *a file* (manager's default).
+    (7) iPhone and iPad ask for notification permission at *the first run start* (manager's default).
 
 ## Requests to other specs (for the manager to route)
 
@@ -2958,7 +3382,7 @@ Code read 2026-10-01: `api/routes/system/activity.py`, `importers/derivatives.py
 `api/routes/search/core.py`, `llm/kraken_runtime.py`, `llm/mlx_model_store.py`,
 `llm/local_model_catalog.py`, `api/routes/ai/local_models.py`, `api/routes/ai/local_inference.py`,
 `models/knowledge.py:1719-1900`, `core/background_compute.py`; app: `Models/ActivityStore.swift`,
-`Views/Activity/Window/ActivityMonitorWindow.swift`, `Views/Activity/ActivityJobsView.swift`,
+`Views/Activity/Window/ActivityMonitorWindow.swift`, `ActivityJobsView.swift (deleted, #6441)`,
 `Views/Activity/RunControls.swift`, `Views/Components/LiveUpdatesPausedPill.swift`,
 `App/FicheroApp.swift:646-690`. Specs: `ui/workflows.md`, `ui/automation.md`,
 `safety/run-take-back.md`, `compute/jobs-and-fine-tuning.md`,

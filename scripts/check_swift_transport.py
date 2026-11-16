@@ -16,6 +16,9 @@ Rules:
      must be retained as a class-level stored property. A per-call local that
      is created and then immediately used with .bytes( drops the delegate and
      fails with -9807 (#2605 / #2608).
+  5. A response value interpolated into a string (a "response" or "undocumented..." name inside a backslash-paren) is never
+     shown to a person: use PersonFacingError.message(...) (`sharing.undocumented-never-reaches-the-person`). Log lines are
+     exempt, and so is PersonFacingError itself, which reads the case name to find the status.
 
 Scope: fichero/fichero/**/*.swift, excluding test files and #Preview blocks.
 Comments and preview blocks are stripped before scanning.
@@ -50,6 +53,10 @@ _LINE_COMMENT = re.compile(r"(?<!:)//.*")
 # Raw URLSession construction.
 _URLSESSION_CTOR_RE = re.compile(r"\bURLSession\s*\(")
 _URLSESSION_SHARED_RE = re.compile(r"\bURLSession\s*\.\s*shared\b")
+
+# A response enum printed into a string (rule 5). Anything on a logging line is not shown to a person.
+_RESPONSE_INTERPOLATION_RE = re.compile(r'"[^"\n]*\\\(\s*(?:response|undocumented\w*)\s*\)[^"\n]*"')
+_LOG_LINE_RE = re.compile(r"\b(?:logger|log|os_log|print|debugPrint|NSLog)\b", re.IGNORECASE)
 
 # Pinned session is the only allowed engine-bound constructor.
 _PINNED_SESSION_RE = re.compile(r"\bRemoteCertificatePinning\s*\.\s*configuredSession\s*\(")
@@ -359,6 +366,17 @@ def scan(swift_dir: Path = SWIFT_DIR) -> dict[str, str]:
             ) and not _PINNED_SESSION_RE.search(line):
                 key = _key(rel, line)
                 found[key] = f"raw unpinned URLSession that may be engine-bound (line {idx + 1})"
+                continue
+
+            # A response enum printed into a string a person may read (`sharing.undocumented-never-reaches-the-person`).
+            if (
+                rel != "Services/PersonFacingError.swift"
+                and _RESPONSE_INTERPOLATION_RE.search(line)
+                and not _LOG_LINE_RE.search(line)
+            ):
+                found[_key(rel, line)] = (
+                    f"a response value interpolated into a string: use PersonFacingError.message (line {idx + 1})"
+                )
                 continue
 
             # Plain http:// to an engine host.

@@ -69,6 +69,8 @@ extension ActivityDetails {
         let pagesFailed: Int
         /// Each reader of a stage that reads with several, in the engine's words (#6134); empty for one.
         var readers: [String] = []
+        /// The pages the reader is least sure of, on the Read card; empty elsewhere.
+        var toCheck: [ToCheckRow] = []
 
         var stateWords: String {
             switch state {
@@ -114,7 +116,8 @@ extension ActivityDetails {
                                           offer: failure.offer, threadId: failure.threadId)
                 },
                 pagesFailed: failedStage?.pagesFailed ?? 0,
-                readers: Self.readerLines(of: runs)
+                readers: Self.readerLines(of: runs),
+                toCheck: stage.id == "read" ? Self.toCheckRows(summary?.whatToCheck ?? []) : []
             )
         }
     }

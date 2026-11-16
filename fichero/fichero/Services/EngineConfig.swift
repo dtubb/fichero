@@ -26,6 +26,7 @@ enum EngineConfig {
     static func clearStoredHost() {
         defaults.removeObject(forKey: userDefaultsKey)
         defaults.removeObject(forKey: legacyUserDefaultsKey)
+        defaults.removeObject(forKey: wholeMacHostKey)
     }
 
     /// One-time, in-place key migration: if the canonical key has never been

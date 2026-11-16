@@ -1,0 +1,82 @@
+//
+//  ActivityDefaultColumnsTests.swift — `activity.pane.default-columns` and `activity.pane.cost-per-row-and-totals` (#6441):
+//  the one column table, six on by default, the rest a toggle in the header menu remembered per pane; the cost cell.
+//
+
+@testable import Fichero
+import SwiftUI
+import Testing
+
+struct ActivityDefaultColumnsTests {
+    @Test("a fresh pane has the six default columns; Model, Started By, Started, Kind and the other tabs' columns are off")
+    func defaults() {
+        #expect(ActivityPane.Column.allCases.filter(\.isOnByDefault) == [.source, .name, .state, .trail, .time, .cost])
+        #expect(ActivityPane.Column.allCases.filter { !$0.isOnByDefault }
+            == [.model, .startedBy, .started, .kind, .tokens, .toFinish, .runsOn, .lane])
+    }
+
+    @Test("the columns a person turns on survive a relaunch, per pane")
+    func remembered() throws {
+        var columns = TableColumnCustomization<ActivityMonitorRow>()
+        columns[visibility: ActivityPane.Column.model.rawValue] = .visible
+        let data = ActivityPanePrefs.store(Data(), key: "pane") { $0.columns = columns }
+        #expect(ActivityPanePrefs.load(data, key: "pane").columns[visibility: ActivityPane.Column.model.rawValue] == .visible)
+    }
+
+    @Test("cost: spent and the estimate while running, spent once ended, blank for local work, Free at $0, Not priced")
+    func cost() {
+        var running = ActivityPaneFixture.row("r", .running, costUsd: 0.42)
+        running.costEstimateUsd = 1.1
+        #expect(ActivityPane.costLine(running) == "$0.42 · ~$1.10 more")
+        var ended = running
+        ended.phase = .done
+        #expect(ActivityPane.costLine(ended) == "$0.42")
+        #expect(ActivityPane.costLine(ActivityPaneFixture.row("local", .done)).isEmpty)
+        let unpriced = ActivityPaneFixture.row("u", .done, tokens: 10)
+        #expect(ActivityPane.costLine(unpriced) == "Not priced")
+        #expect(ActivityPane.costLine(ActivityPaneFixture.row("z", .done, costUsd: 0)) == "Free", "a $0 priced call, never $0.00")
+    }
+
+    @Test("the Steps cell counts only work of more than one item: never 0 of 1 or 1 of 1, the state glyph says it")
+    func oneItemHasNoCount() {
+        #expect(ActivityPane.progressLine(ActivityPaneFixture.row("one", .running, done: 0, total: 1)).isEmpty)
+        #expect(ActivityPane.progressLine(ActivityPaneFixture.row("one", .done, done: 1, total: 1)).isEmpty)
+        #expect(ActivityPane.progressLine(ActivityPaneFixture.row("many", .running, done: 2, total: 60)) == "2 of 60")
+    }
+
+    @Test("the row's Time and its Inspector's time are the one number; a file's is its work time and says so")
+    func rowAndInspectorAgree() {
+        func inspectorTime(_ row: ActivityMonitorRow) -> (label: String, value: String)? {
+            let details = ActivityDetails(row: row, node: nil, runRow: nil, projectName: nil, startedBy: nil, machine: nil)
+            return details.resources.first { $0.label == "Elapsed" || $0.label == "Work time" }.map { ($0.label, $0.value) }
+        }
+        // Ended, with a start and an end but no `seconds` from the engine: the row said 48 s, the Inspector nothing.
+        var ended = ActivityPaneFixture.row("e", .done, started: ActivityPaneFixture.day)
+        ended.ended = ActivityPaneFixture.day.addingTimeInterval(48)
+        #expect(ActivityPane.timeLine(ended) == "48 s")
+        #expect(inspectorTime(ended)?.value == "48 s")
+        // A file row: its pages' summed work time, named so in the Inspector.
+        var first = ActivityPaneFixture.page("p1", .done, doc: "d1")
+        first.seconds = 30
+        var second = ActivityPaneFixture.page("p2", .done, doc: "d1")
+        second.seconds = 18
+        let run = ActivityPaneFixture.row("run", .done, kind: .run, children: [
+            ActivityPaneFixture.row("read", .done, kind: .step, children: [first, second])
+        ])
+        let file = ActivityPane.byFile([run]).first { $0.id.hasPrefix("file:") }
+        #expect(file.map(ActivityPane.timeLine) == "48 s", "the pages' summed work time")
+        #expect(file.flatMap(inspectorTime)?.label == "Work time")
+        #expect(file.flatMap(inspectorTime)?.value == "48 s")
+    }
+
+    @Test("a time is one short unit: 48 s, 3 min, 2 h; never secs. or a full stop")
+    func shortTimes() {
+        #expect(ActivityMonitorRow.duration(48) == "48 s")
+        #expect(ActivityMonitorRow.duration(170) == "3 min")
+        #expect(ActivityMonitorRow.duration(3_570) == "1 h")
+        #expect(ActivityMonitorRow.duration(7_300) == "2 h")
+        var ended = ActivityPaneFixture.row("t", .done, started: ActivityPaneFixture.day)
+        ended.ended = ActivityPaneFixture.day.addingTimeInterval(48)
+        #expect(ActivityPane.timeLine(ended) == "48 s")
+    }
+}

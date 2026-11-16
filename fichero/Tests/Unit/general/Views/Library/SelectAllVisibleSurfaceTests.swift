@@ -45,7 +45,7 @@ struct SelectAllVisibleSurfaceTests {
     func oneChordOneOwner() throws {
         // The canvas used to handle ⌘A itself, over every node in scope. Which
         // answer the user got depended on where focus happened to be.
-        let button = try code(at: "App/Menus/FocusedCommands/FocusedCommandButtons+SelectAll.swift")
+        let button = try code(at: "App/Menus/UndoRouting.swift")
         #expect(button.contains("struct SelectAllButton"))
         #expect(button.contains(".keyboardShortcut(\"a\", modifiers: .command)"))
 
@@ -66,7 +66,7 @@ struct SelectAllVisibleSurfaceTests {
         #expect(policy.contains("enum SelectAllRoutingPolicy"))
         #expect(policy.contains("return .none"))
 
-        let button = try code(at: "App/Menus/FocusedCommands/FocusedCommandButtons+SelectAll.swift")
+        let button = try code(at: "App/Menus/UndoRouting.swift")
         #expect(button.contains(".disabled(route == .none)"))
     }
 
@@ -133,7 +133,7 @@ struct SelectAllVisibleSurfaceTests {
         // a library pane is on screen — including while the inspector has
         // focus. Deciding by "who published" would hand every ⌘A to the
         // library forever.
-        let button = try code(at: "App/Menus/FocusedCommands/FocusedCommandButtons+SelectAll.swift")
+        let button = try code(at: "App/Menus/UndoRouting.swift")
         #expect(button.contains("@FocusedValue(\\.focusedPaneKind)"))
         #expect(button.contains("private var focusedSurface: SelectAllSurface?"))
         #expect(button.contains("case .inspector:"))
@@ -147,8 +147,11 @@ struct SelectAllVisibleSurfaceTests {
     func libraryRemainsTheDefault() throws {
         // The widening must not change a plain library window's behaviour: no
         // hint at all still routes to the library.
-        let button = try code(at: "App/Menus/FocusedCommands/FocusedCommandButtons+SelectAll.swift")
-        let tail = try #require(button.components(separatedBy: "private var focusedSurface").last)
+        let button = try code(at: "App/Menus/UndoRouting.swift")
+        // The pane hint's surface is `paneSurface`; `focusedSurface` puts the sidebar's keyboard
+        // focus first (`SelectAllSidebarGuard`, #6364) and otherwise answers with it.
+        #expect(button.contains("paneSurface: paneSurface"))
+        let tail = try #require(button.components(separatedBy: "private var paneSurface").last)
         let body = try #require(tail.components(separatedBy: "\n    }").first)
         #expect(body.contains("default:"))
         #expect(body.contains("librarySelectAll?.isEnabled == true ? .libraryRows : nil"))
@@ -201,7 +204,7 @@ struct SelectAllVisibleSurfaceTests {
         // It routed correctly before only because the library's enablement
         // happened to be false — an accident, not a decision. Now `.reading`
         // returns nil in its own branch, with the reason at the site.
-        let button = try code(at: "App/Menus/FocusedCommands/FocusedCommandButtons+SelectAll.swift")
+        let button = try code(at: "App/Menus/UndoRouting.swift")
         let tail = try #require(button.components(separatedBy: "case .reading:").last)
         let branch = try #require(tail.components(separatedBy: "default:").first)
         #expect(branch.contains("return nil"))
@@ -222,24 +225,20 @@ struct SelectAllVisibleSurfaceTests {
                 "the preview claims ⌘A with no image shown")
     }
 
-    @Test("the sidebar selects the CURRENT library's visible rows, never across libraries")
-    func sidebarSelectsOneLibrary() throws {
-        // Daniel's ruling. Several libraries open at once is the normal state,
-        // and a chord reaching all of them would select things the user cannot
-        // see and did not open.
-        let sections = try code(at: "Views/Sidebar/Sections/SidebarView+UnifiedLibrarySections.swift")
-        #expect(sections.contains("var currentLibraryVisibleDestinations: [SidebarDestination]"))
-        #expect(sections.contains("libraryManager.currentLibraryId"))
-        // VISIBLE has two halves: the group is expanded, and the rows are the
-        // ones the view actually renders.
-        #expect(sections.contains("sidebarState.isLibraryExpanded(libraryId)"))
-        #expect(sections.contains("flattenedLibraryItems(libraryId: libraryId, buckets: buckets)"))
-
+    @Test("the sidebar publishes no select-all and ⌘A over it is taken and ignored (#6364)")
+    func sidebarNeverSelectsItsRows() throws {
+        // The owner's ruling of 2026-11-05 replaces the one of 2026-08-23: Select All must never select the whole sidebar.
+        // The sidebar no longer publishes a select-all action, and the button's sidebar branch holds focus alone as enough
+        // to take the chord, so the key equivalent does not fall through to the system list either.
         let components = try code(at: "Views/Sidebar/Sections/SidebarView+ViewComponents.swift")
-        #expect(components.contains("\\.sidebarSelectAll"))
-        // Through the same commit seam a click uses, so a select-all cannot
-        // bypass the resilience filter and primary derivation.
-        #expect(components.contains("applySidebarSelectionProposal(Set(currentLibraryVisibleDestinations))"))
+        #expect(!components.contains("sidebarSelectAll"))
+        let sections = try code(at: "Views/Sidebar/Sections/SidebarView+UnifiedLibrarySections.swift")
+        #expect(!sections.contains("currentLibraryVisibleDestinations"))
+        let button = try code(at: "App/Menus/UndoRouting.swift")
+        #expect(!button.contains("sidebarSelectAll"))
+        let branch = try #require(button.components(separatedBy: "case .sidebar:").last?.components(separatedBy: "case .preview:").first)
+        #expect(branch.contains("return .sidebar"))
+        #expect(button.contains("case .sidebarIgnored:"))
     }
 
     // MARK: - #4851/#4794: the Entities and Claims tables answer too

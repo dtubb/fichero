@@ -196,6 +196,8 @@ class WorkflowRun:
     # calibration. None means unpriced at estimate time (an unpriceable model)
     # or a legacy run — never a stand-in zero.
     estimated_cost: float | None = None
+    # Why the run failed (`RunFailure.model_dump()`, `llm/failure.py`), written once when it ends failed; None for any other run.
+    failure: dict[str, Any] | None = None
 
 
 @dataclass

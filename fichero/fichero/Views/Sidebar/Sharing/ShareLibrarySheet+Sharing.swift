@@ -28,12 +28,13 @@ extension ShareLibrarySheet {
             // (remote engine / iOS), where the honest fallback card renders instead.
             if !hostingEnabled && canHostFromHere {
                 await enableHostingForShare()
+                await readSharingState()  // the link goes out once: name the address that works now, not the one read at open (review P1)
             }
             loadSPKIPin()
             await mintPairingCodeIfPossible()
             await loadMembers()
         } catch {
-            shareError = error.localizedDescription
+            showFailure(error, "Couldn't share the project")
         }
     }
 
@@ -50,11 +51,18 @@ extension ShareLibrarySheet {
                 username: username, role: role, library: library.url.path, folderId: folder.folderId)
             didFolderShare = true
             await loadMembers()
-        } catch APIError.httpError(_, let message) {
-            shareError = message  // the engine's own words, without the status prefix
         } catch {
-            shareError = error.localizedDescription
+            showFailure(error, "Couldn't share the folder")
         }
+    }
+
+    /// A failure as the one alert: the engine's own words where it gave them (`SharingFailurePrompt.make(sharing:)`); a share only
+    /// the owner may make offers Sign In as Owner, and the sheet stays open with its choices for the second try.
+    func showFailure(_ error: Error, _ title: String) {
+        let ownerSignIn = appState?.ownerSignIn
+        failurePrompt = SharingFailurePrompt.make(
+            sharing: error, title: title, offers: ownerSignIn == nil ? [] : [.signInAsOwner],
+            perform: { _ in Task { await ownerSignIn?.run() } }, copy: { PlatformPasteboard.writeString($0) })
     }
 
     /// Whether this Mac can prepare its own hosting for the share link: the host
@@ -92,7 +100,7 @@ extension ShareLibrarySheet {
             appState.reconfigureGeneratedClientsForCurrentHost()
             libraryManager.reconfigureGeneratedClientsForCurrentHost()
         } catch {
-            shareError = error.localizedDescription
+            showFailure(error, "Couldn't turn Sharing on")
         }
     }
 
@@ -110,10 +118,17 @@ extension ShareLibrarySheet {
     @MainActor
     func mintPairingCodeIfPossible() async {
         guard shareLinkUnavailableReason == nil else { return }
+        // With accounts the link is the project's and the way to reach this Mac, no code: the person signs in with the
+        // username and password they were told (`sharing.people.sign-in-without-a-code`, Step 8.9).
+        if Self.sharesWithPeople(multiuser: EngineConfig.multiuserEnabled, folder: folder != nil) {
+            pairingCode = PairingCodeRecord(code: "", expiresAt: nil)
+            return
+        }
         do {
-            pairingCode = try await PairingService(apiRoot: EngineConfig.host).createPairingCode()
+            pairingCode = try await PairingService(apiRoot: EngineConfig.host)
+                .createPairingCode(library: library.url.path, also: alsoLibraries)
         } catch {
-            shareError = error.localizedDescription
+            showFailure(error, "Couldn't make the link")
         }
     }
 
@@ -121,22 +136,23 @@ extension ShareLibrarySheet {
     /// as the `fichero://` payload iOS's `PairingQRCodePayloadDecoder` already
     /// parses. Identical to the QR and the copyable pairing link — not a second
     /// format, and never the loopback share_url.
+    /// The rows the engine's state allows; the sharing address alone when the state is not loaded.
+    var addressRows: [AddressRow] {
+        AddressChoiceModel.rows(
+            sharingAddress: publicBaseURL, tailnetURL: sharingState?.tailnetURL, tailnetForward: sharingState?.tailnetForward,
+            lanIP: sharingState?.lanIP)
+    }
+
     var pairingLink: String? {
         guard let pairingCode,
-              let reachableURL = try? validatedHostedRemoteURL(from: publicBaseURL)
+              // The saved address is the fallback only when there are no rows at all; rows that are all greyed mean no link,
+              // never a link to the address the engine said cannot work.
+              let reachableURL = AddressChoiceModel.root(for: addressChoice, rows: addressRows)
+                ?? (addressRows.isEmpty ? (try? validatedHostedRemoteURL(from: publicBaseURL)) : nil)
         else { return nil }
-        let advertisedPin: String?
-        switch RemoteClientPairing.invitePin(spkiPin, for: reachableURL) {
-        case .missing: return nil
-        case .notNeeded: advertisedPin = nil  // a publicly-trusted host: no pin in the link (#5891)
-        case .pin(let pin): advertisedPin = pin
-        }
-        let payload = PairingService.buildQRCodePayload(
-            apiRoot: reachableURL,
-            from: pairingCode,
-            spki: advertisedPin,
-            libraryPath: library.url.path
-        )
+        guard let payload = PairingLinkAddresses.payload(
+            chosen: reachableURL, rows: addressRows, code: pairingCode, spkiPin: spkiPin, libraryPath: library.url.path)
+        else { return nil }
         return try? RemoteClientPairing.inviteLinkString(from: payload)
     }
 
@@ -180,7 +196,9 @@ extension ShareLibrarySheet {
     /// "cannot proceed". The link is genuinely valid on a LAN, so it is still
     /// offered; we just say what its reach is and where to widen it.
     var localNetworkOnlyAdvisory: String? {
-        guard RemoteAccessConfig.isLocalNetworkOnly(publicBaseURL) else { return nil }
+        // The address the link carries, not the sharing address: a `.local` sharer's link may name its `.ts.net` row (review Q1).
+        let linked = AddressChoiceModel.root(for: addressChoice, rows: addressRows)?.absoluteString ?? publicBaseURL
+        guard RemoteAccessConfig.isLocalNetworkOnly(linked) else { return nil }
         return "This address only works on the same local network, and some networks "
             + "(many campus and office ones) can't reach it at all. To connect from "
             + "anywhere, set a Tailscale address in Settings → Sharing → Advanced."

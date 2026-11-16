@@ -82,6 +82,19 @@ struct RegionInteractionLayer: View {
     var drawKind: SegmentShapes.DrawKind = .box
     /// Commit a drawn polygon or baseline: (its kind, its points). Nil: the Shape tool drags boxes only.
     var onDrawShapeCommit: ((SegmentShapes.DrawKind, [[Double]]) -> Void)?
+    /// Commit a Knife stroke (K held): its points, in the page's fractions. Nil: no Knife here.
+    var onKnifeCommit: (([[Double]]) -> Void)?
+    /// Commit a Marker stroke (M held or the Marker chosen): its points in the page's fractions, and whether it closed.
+    var onMarkerCommit: (([[Double]], Bool) -> Void)?
+    /// Commit a Paintbrush stroke: its points in the page's fractions and the brush's width in image pixels.
+    var onPaintCommit: (([[Double]], Double) -> Void)?
+    /// Move a cut (`segment-editor.cut-marks-editable`): the two pieces' ids and the new place along their line's baseline.
+    var onMoveCut: ((String, String, Double) -> Void)?
+    /// What letting the selection go at a point (the page's fractions; ⌘ held?) would do (`segment-editor.reassign-by-drag`).
+    /// Nil: a drag always moves.
+    var lineDrop: (([Double], Bool) -> SegmentMover.Drop)?
+    /// Make the selected lines the lines of this region (nil: the page's).
+    var onReassignCommit: ((String?) -> Void)?
 
     /// Sticky-tool + check-cycle seams (Daniel, 2026-08-30). Optional so
     /// headless hosts stay safe.
@@ -96,12 +109,26 @@ struct RegionInteractionLayer: View {
     /// Live move drag: which box, and how far (view points); where it began.
     @State private var moveDrag: (index: Int, translation: CGSize)?
     @State private var moveStart: CGPoint?
+    /// What letting the move drag go here would do: a reassignment lights its region.
+    @State private var moveDrop: SegmentMover.Drop?
     /// Live rubber-band corners (view points).
     @State private var bandStart: CGPoint?
     @State private var bandCurrent: CGPoint?
+    /// ⌘ held as the band or lasso began: it selects regions (`segment-editor.select-marquee-lasso`).
+    @State var bandCommand = false
+    /// A live lasso (⌥-drag on empty page in Select): the loop so far, in the page's fractions.
+    @State var lasso: [[Double]] = []
+    /// ⌥ held as a Brush stroke began: the stroke takes segments out of the selection (`segment-editor.select-brush`).
+    @State var brushSubtracts = false
+    /// A cut mark being dragged (`segment-editor.cut-marks-editable`).
+    @State var cutDrag: CutMarkDrag?
+    /// ⇧ held, for the Brush's extension of the selection (read when the stroke ends).
+    var shiftHeldForBrush: Bool { shiftHeld }
     /// ⇧ held? Tracked via `onModifierKeysChanged` (pure SwiftUI — the §6b
     /// no-AppKit rule) because a tap gesture's value carries no modifiers.
     @State private var shiftHeld = false
+    /// ⌘ held, from the same pointer event.
+    @State private var commandHeld = false
     /// Live Reshape: the box, what is reshaped, the point being dragged, and the points as they are now.
     @State var reshapeDrag: ReshapeDrag?
     /// Live Resize (#5215): the box, the handle pressed, and the box as it is now.
@@ -117,11 +144,20 @@ struct RegionInteractionLayer: View {
                 ZStack(alignment: .topLeading) {
                     if drawsSelection { marqueeRects(in: geo.size) }  // else the document overlay does
                     selectedRegionRects(in: geo.size)
+                    dropTargetRect(in: geo.size)
                     liveReshape(in: geo.size)
                     liveDrawing(in: geo.size)
+                    liveKnife(in: geo.size)
+                    liveLasso(in: geo.size)
+                    liveBrush(in: geo.size)
+                    livePaint(in: geo.size)
+                    liveCutMarks(in: geo.size)
+                    liveOrderNumbers(in: geo.size)
+                    liveSimplify(in: geo.size)
+                    segmentNotice()
                     if let rect = liveBandRect {
-                        RoundedRectangle(cornerRadius: 2).stroke(Color.accentColor, style: StrokeStyle(lineWidth: 1.5, dash: [4]))
-                            .background(Color.accentColor.opacity(0.12))
+                        // The one rubber band (#4601), not a dashed accent box.
+                        RubberBand()
                             .frame(width: rect.width, height: rect.height)
                             // Measured INSIDE the offset, so the frame is where the band is drawn
                             // after the offset and the layer's alignment, not where layout put it.
@@ -142,7 +178,7 @@ struct RegionInteractionLayer: View {
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
             .onChange(of: pointer?.sequence) { _, _ in
                 guard let event = pointer?.latest else { return }
-                handlePointer(event, in: geo.size)
+                PreviewPointerProfile.handling(event.phase) { handlePointer(event, in: geo.size) }
             }
         }
     }
@@ -176,6 +212,19 @@ struct RegionInteractionLayer: View {
                         .offset(x: rect.minX + offset.width, y: rect.minY + offset.height)
                 }
             }
+        }
+    }
+
+    /// The region a drag of lines would reassign them to, lit while the drag is over it.
+    @ViewBuilder
+    private func dropTargetRect(in size: CGSize) -> some View {
+        if case .reassign(let target?) = moveDrop,
+           let box = allBoxes.first(where: { $0.segmentId == target }),
+           let rect = BoundingBoxGeometry.viewRect(normalized: box.bbox, in: size, visible: visible) {
+            RoundedRectangle(cornerRadius: 2)
+                .stroke(Color.accentColor, lineWidth: 3)
+                .frame(width: rect.width, height: rect.height)
+                .offset(x: rect.minX, y: rect.minY)
         }
     }
 
@@ -239,7 +288,9 @@ struct RegionInteractionLayer: View {
         .accessibilityLabel("Name this selection")
         .help("Name this selection and save it as a region")
         .frame(width: side, height: side)
-        .offset(x: max(0, rect.maxX - side), y: max(0, rect.minY))
+        // The popover is attached BEFORE the badge is placed, and the badge is placed with `position` (layout), not
+        // `offset` (a drawing shift the popover cannot see): with `offset` the popover hung off the layer's top left
+        // corner, not off the marquee's pencil.
         .popover(isPresented: namingBinding(for: index)) {
             RegionNameField(request: naming) { name in
                 // Read the target BEFORE clearing: the whole-set request
@@ -249,6 +300,7 @@ struct RegionInteractionLayer: View {
                 onPromote(name, target)
             }
         }
+        .position(x: max(0, rect.maxX - side) + side / 2, y: max(0, rect.minY) + side / 2)
     }
 
     /// Presentation binding for marquee `index`'s naming popover. Dismissal
@@ -273,9 +325,11 @@ struct RegionInteractionLayer: View {
             height: abs(current.y - start.y)
         )
     }
+}
 
-    // MARK: - Gestures
+// MARK: - Gestures
 
+extension RegionInteractionLayer {
     /// Where a normalized image point lands in this layer.
     private func layerPoint(_ normalized: CGPoint, in size: CGSize) -> CGPoint? {
         guard let rect = BoundingBoxGeometry.viewRect(
@@ -290,8 +344,11 @@ struct RegionInteractionLayer: View {
     private func handlePointer(_ event: PreviewPointerEvent, in size: CGSize) {
         guard let point = layerPoint(event.point, in: size) else { return }
         shiftHeld = event.shift
+        commandHeld = event.command
         // Edit Segments on ONE selected shape: Reshape takes the press, the drag and the release.
-        if handleReshape(event, in: size) || handleDrawShape(event, in: size) { return }
+        // An armed Polygon or Baseline tool owns the click first (#6476): a point placed inside a selected region
+        // was taken by Reshape and the region, not the drawing, got it.
+        if handleChosenTool(event, at: point, in: size) { return }
         switch event.phase {
         case .pressed:
             handlePress(at: point, clickCount: event.clickCount, in: size)
@@ -300,14 +357,24 @@ struct RegionInteractionLayer: View {
                 bandCurrent = point
             } else if let drag = moveDrag, let start = moveStart {
                 moveDrag = (drag.index, CGSize(width: point.x - start.x, height: point.y - start.y))
+                moveDrop = lineDrop?([event.point.x, event.point.y], event.command)
             }
         case .released:
             if let start = bandStart {
                 finishBand(from: start, to: point, in: size)
             } else if let drag = moveDrag {
-                finishMove(drag, in: size)
+                finishMove(drag, droppedAt: [event.point.x, event.point.y], command: event.command, in: size)
             }
         }
+    }
+
+    /// A chosen tool takes the pointer before anything else, then Reshape's handles, then the lasso: true when one did.
+    /// The Order tool's clicks come first, then the drawing tools (`segment-editor`'s tools).
+    private func handleChosenTool(_ event: PreviewPointerEvent, at point: CGPoint, in size: CGSize) -> Bool {
+        handleOrderClick(event, at: point, in: size)
+            || handleKnife(event) || handleMarker(event, in: size) || handlePaint(event, in: size)
+            || handleBrush(event, in: size) || handleDrawShape(event, in: size) || handleCutMark(event, in: size)
+            || handleReshape(event, in: size) || handleLasso(event, at: point, in: size)
     }
 
     /// Mouse-down decides the verb: double-click enters, the check tool
@@ -341,7 +408,7 @@ struct RegionInteractionLayer: View {
             return
         }
         if let hit = selectedBoxIndex(at: point, in: size),
-           SegmentEditingMode.pressStartsMove(isEditing: isEditing, onSelectedBox: true) {
+           SegmentEditingMode.pressStartsMove(isEditing: isEditing, onSelectedBox: true, shift: shiftHeld) {
             moveDrag = (hit, .zero)
             moveStart = point
             return
@@ -352,18 +419,19 @@ struct RegionInteractionLayer: View {
         if isBandSelecting, !hitsAnything(at: point, in: size) {
             bandStart = point
             bandCurrent = point
+            bandCommand = commandHeld
             return
         }
         handleTap(at: point, in: size)
     }
 
     /// The select tool armed (the DEFAULT since 2026-09-02)?
-    private var isBandSelecting: Bool {
+    var isBandSelecting: Bool {
         windowState?.activeMarkupTool == .select
     }
 
     /// Anything clickable under the point — a marquee or a displayed box.
-    private func hitsAnything(at location: CGPoint, in size: CGSize) -> Bool {
+    func hitsAnything(at location: CGPoint, in size: CGSize) -> Bool {
         if let marquees, marquees.documentId == documentId,
            RegionHitTesting.pick(
                at: location, boxes: marquees.rects, in: size, visible: visible
@@ -377,7 +445,7 @@ struct RegionInteractionLayer: View {
 
     /// Click = select; ⇧-click = add/toggle; click-away = deselect (regions
     /// AND marquees — the honest reading of "click-away clears").
-    private func handleTap(at location: CGPoint, in size: CGSize) {
+    func handleTap(at location: CGPoint, in size: CGSize) {
         let additive = shiftHeld
         // Marquees first: they are drawn on top and are what the user
         // most recently made.
@@ -470,18 +538,19 @@ struct RegionInteractionLayer: View {
         }
     }
 
-    /// Select (⇧ = extend) every DISPLAYED box the band touches — the select
-    /// tool's sweep, addressed exactly the way a click-select is.
+    /// Select (⇧ = extend) every DISPLAYED box the band holds mostly (over half), at the level being edited —
+    /// lines, or regions with ⌘ (`segment-editor.select-marquee-lasso`) — addressed the way a click-select is.
     private func selectRegions(inBand band: [Double]) {
+        selectRegions(inLoop: SegmentSelectionGestures.loop(ofBand: band))
+    }
+
+    /// Select (⇧ = extend) every DISPLAYED box the loop holds mostly, at the level being edited.
+    func selectRegions(inLoop loop: [[Double]]) {
         guard let artifactId else { return }
-        let bandRect = CGRect(x: band[0], y: band[1], width: band[2], height: band[3])
-        let hits = boxes.filter { entry in
-            let bbox = entry.box.bbox
-            guard bbox.count >= 4 else { return false }
-            return bandRect.intersects(
-                CGRect(x: bbox[0], y: bbox[1], width: bbox[2], height: bbox[3])
-            )
-        }.map(\.index)
+        let shown = boxes.map { SegmentSelectionGestures.Box(index: $0.index, bbox: $0.box.bbox, level: $0.box.level) }
+        let hits = SegmentSelectionGestures.inside(
+            loop, boxes: shown, level: SegmentSelectionGestures.level(of: shown, commandHeld: bandCommand)
+        )
         guard !hits.isEmpty else {
             if !shiftHeld { selection.clear() }
             return
@@ -517,12 +586,20 @@ struct RegionInteractionLayer: View {
     }
 
     /// A SELECTED region was dragged; the bbox commits on mouse-up. A drag
-    /// too small to mean anything leaves the region where it was.
-    private func finishMove(_ drag: (index: Int, translation: CGSize), in size: CGSize) {
-        defer { moveDrag = nil; moveStart = nil }
+    /// too small to mean anything leaves the region where it was. Lines let go
+    /// on another region (or none) are reassigned instead, their shapes left
+    /// where they are (`segment-editor.reassign-by-drag`).
+    private func finishMove(
+        _ drag: (index: Int, translation: CGSize), droppedAt point: [Double], command: Bool, in size: CGSize
+    ) {
+        defer { moveDrag = nil; moveStart = nil; moveDrop = nil }
         guard allBoxes.indices.contains(drag.index),
-              abs(drag.translation.width) >= 2 || abs(drag.translation.height) >= 2,
-              let moved = RegionHitTesting.moved(
+              abs(drag.translation.width) >= 2 || abs(drag.translation.height) >= 2 else { return }
+        if case .reassign(let target) = lineDrop?(point, command) {
+            onReassignCommit?(target)
+            return
+        }
+        guard let moved = RegionHitTesting.moved(
                   bbox: allBoxes[drag.index].bbox, byViewDelta: drag.translation,
                   in: size, visible: visible
               ) else { return }

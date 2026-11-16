@@ -362,6 +362,23 @@ class TestAppendOpActions:
         assert inverse_audit.action_name == "image.set_operations"
         assert inverse_audit.inverse_of == audit.id
 
+    def test_straighten_takes_the_angle_a_person_set_on_the_dial(self, client, db, tmp_path):
+        """`preview.edit.tool.straighten-is-a-dial` (#6190): a typed angle is applied and recorded as the person's; none is Auto."""
+        doc = _make_image_doc(db, tmp_path, size=(80, 50))
+        headers = {"X-Fichero-Library-Path": str(db.path.parent)}
+
+        by_hand = client.post(f"/api/images/{doc.id}/operations/straighten", json={"page": 1, "angle": 3.5}, headers=headers)
+        assert by_hand.status_code == 200, by_hand.text
+        row = _ops(db, doc.id)[0]
+        assert row["params"]["angle"] == 3.5 and row["params"]["method"] == "person"
+
+        too_far = client.post(f"/api/images/{doc.id}/operations/straighten", json={"page": 1, "angle": 90}, headers=headers)
+        assert too_far.status_code == 422  # the dial is a few degrees, not a quarter turn
+
+        auto = client.post(f"/api/images/{doc.id}/operations/straighten", json={"page": 1}, headers=headers)
+        assert auto.status_code == 200
+        assert _ops(db, doc.id)[-1]["params"]["method"] == "auto"
+
     @pytest.mark.parametrize(
         (
             "method",
@@ -609,3 +626,38 @@ class TestImageActionsRegistered:
         for name in undoable:
             assert registry.get(name).undoable is True
         assert registry.get("image.segment").undoable is False
+
+
+class TestSquareAndMarkBlankActions:
+    """`image.square` and `image.mark_blank` are audited, undoable actions (`prep.square.*`, `prep.check.blank-mark-is-a-correction`)."""
+
+    def test_square_is_a_persons_row_and_undo_drops_it(self, db, tmp_path):
+        doc = _make_image_doc(db, tmp_path, size=(120, 90))
+        quad = [[0.05, 0.1], [0.95, 0.05], [0.97, 0.95], [0.03, 0.9]]
+        result = registry.invoke(db, "image.square", {"document_id": doc.id, "quad": quad}, _ctx())
+        assert [(o["op"], o["who"]) for o in _ops(db, doc.id)] == [("square", "person")]
+
+        audit = db.get(ActionAudit, result.audit_id)
+        assert registry.get(audit.action_name).undoable
+        inv_name, inv_params = registry.get(audit.action_name).invert(audit.before, audit.after, _ctx())
+        registry.invoke(db, inv_name, inv_params, _ctx())
+        assert _ops(db, doc.id) == []
+
+    def test_hiding_a_page_is_undone_by_showing_it_and_back(self, db, tmp_path):
+        doc = _make_image_doc(db, tmp_path)
+        hide = registry.invoke(db, "image.mark_blank", {"document_id": doc.id, "blank": True}, _ctx())
+        assert db.get(Document, doc.id).exclude_from_processing is True
+
+        audit = db.get(ActionAudit, hide.audit_id)
+        reg = registry.get(audit.action_name)
+        assert reg.undoable
+        registry.invoke(db, *reg.invert(audit.before, audit.after, _ctx()), _ctx())
+        assert db.get(Document, doc.id).exclude_from_processing is False
+        assert _ops(db, doc.id) == []  # the hide row is gone, not answered by another row
+        assert "blank" not in (db.get(Document, doc.id).metadata or {})
+
+        registry.invoke(db, "image.mark_blank", {"document_id": doc.id, "blank": True}, _ctx())
+        show = registry.invoke(db, "image.mark_blank", {"document_id": doc.id, "blank": False}, _ctx())
+        audit = db.get(ActionAudit, show.audit_id)
+        registry.invoke(db, *reg.invert(audit.before, audit.after, _ctx()), _ctx())
+        assert db.get(Document, doc.id).exclude_from_processing is True

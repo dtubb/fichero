@@ -56,6 +56,9 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
         // The engine's async startup lives in the delegate, not in a scene `.task`: `@main
         // App.init` is synchronous and `.task` is per-scene, so the delegate is the
         // one app-level hook that fires exactly once, independent of any window.
+        if EngineConfig.dropUnchosenPairedHost() {
+            logger.notice("A paired Mac was stored as this Mac's engine without being chosen: using this Mac's own engine (#6418)")
+        }
         Task { await controller.start() }
     }
 
@@ -63,6 +66,7 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
         guard !isRunningXCTests() else { return }
         guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" else { return }
         LaunchProfile.milestone("applicationDidFinishLaunching")
+        ResizeProfile.install()
         // Windows are restored by now; a fresh start skips restoring for that one launch only.
         UserDefaults.standard.removeObject(forKey: StartFresh.ignoreSavedStateKey)
     }
@@ -275,7 +279,7 @@ struct FicheroApp: App {
         //
         // It does NOT pair silently: pairing repoints this Mac at a remote host, so
         // the link prefills the existing pairing field and the user presses Connect.
-        // Accepts both fichero://pair and the https://fichero.app/pair universal
+        // Accepts both fichero://pair and the https://tubb.ca/apps/fichero/pair universal
         // link (#3791) so a tapped invite works even where the scheme isn't
         // registered.
         if RemoteClientPairing.isPairingInviteLink(url) {
@@ -380,6 +384,14 @@ struct FicheroApp: App {
         // place the environment action is readable; the action itself outlives
         // the window that provided it.
         .onAppear { appDelegate.openMainWindow = { openWindow(id: "main") } }
+        .onAppear {
+            SharedLibraryOpener.install(libraryManager: libraryManager)
+            SharingAddressFollower.install(appState: appState, backendService: backendService)
+        }
+        .task { await libraryManager.checkSharedRows() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await libraryManager.checkSharedRows() }
+        }
         .frame(minWidth: 640, minHeight: 700)
         // ★ EVERY FRAME PERFECT (#3615): the semantic surface color is the BASE
         // layer under the whole window, so the BackendConnectionView → LibraryWindow
@@ -392,13 +404,18 @@ struct FicheroApp: App {
     var body: some Scene {
         WindowGroup("Fichero", id: "main") {
             libraryWindowRoot(seed: nil)
+                // A host stopped sharing, or a shared library would not open: one alert (Step 8.8).
+                .background { Color.clear.failureAlert(Bindable(libraryManager).sharingFailure) }
+                // What the quit left unfinished: one alert, nothing runs until the person chooses (#6584).
+                .modifier(StoppedAtQuitAlertModifier(libraryManager: libraryManager))
                 .onOpenURL { url in
                     handleOpenURL(url)
                 }
                 // #2381: Option-at-launch surfaces the remote-host connection
                 // chooser over the main window. A normal launch never sets this,
                 // so the embedded local engine path is unchanged.
-                .sheet(isPresented: $showRemoteConnectionChooser) {
+                .sheet(isPresented: SharedLibraryOpener.connectSheet(
+                    libraryManager, optionLaunch: $showRemoteConnectionChooser)) {
                     RemoteConnectionChooserSheet(
                         appState: appState,
                         backendService: backendService,
@@ -501,6 +518,9 @@ struct FicheroApp: App {
                 FocusedEmptyTrashButton()
 
                 GroupItemsMenuSection()
+
+                // Edit › Segments ▸ (#6413; was Page › Segments).
+                SegmentsEditMenu()
 
                 Divider()
 
@@ -677,19 +697,8 @@ struct FicheroApp: App {
             }
         }
 
-        Window("Activity Detail", id: ActivityWindowSelectionState.detailWindowID) {
-            ActivityDetailWindow()
-                .environment(appState)  // ActivityDetailsView reads it; absent, the window traps (#5811)
-                .environment(libraryManager)
-                .environment(appExecutionObserver)
-        }
-        .defaultSize(width: 840, height: 640)
-        // The detail window shows whatever run the monitor's selection holds —
-        // opened by double-clicking a run, meaningless as a bare menu entry.
-        // `commandsRemoved()` ("Removes all commands defined by the modified
-        // scene", Scene docs) suppresses its automatic Window-menu item so the
-        // menu offers exactly one Activity entry (#4524).
-        .commandsRemoved()
+        // The Activity Detail window is gone (`activity.one-window`, #6441): the one Activity window's Inspector shows the
+        // selected row.
 
         // `Settings` is a SEPARATE Scene: environment objects injected into the
         // main WindowGroup do NOT flow into it. Every object a settings pane

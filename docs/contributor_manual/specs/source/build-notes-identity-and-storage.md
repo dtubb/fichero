@@ -1,6 +1,5 @@
 # Source Model — Build notes: identity and storage (slices 2 to 6)
 
-> Milestone: source-model
 > Manual: TBD — none of its own; engineering notes behind `segments-and-geometry.md`.
 >
 > **Status: DRAFT.** Engineering detail for the engine worker, one section for each slice, in

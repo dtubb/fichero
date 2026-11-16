@@ -27,6 +27,8 @@ struct BonjourHostRecord: Identifiable, Equatable {
 /// moved here (cross-platform NetService discovery logic → Services/Connectivity).
 final class BonjourDiscoveryService: NSObject, ObservableObject {
     @Published private(set) var hosts: [BonjourHostRecord] = []
+    /// True once the browse was refused because Local Network access is off for Fichero (`LocalNetworkPolicy`).
+    @Published private(set) var localNetworkDenied = false
 
     private let browser = NetServiceBrowser()
     private var services: [String: NetService] = [:]
@@ -124,6 +126,11 @@ extension BonjourDiscoveryService: NetServiceBrowserDelegate {
         moreComing: Bool
     ) {
         handleFound(service, moreComing: moreComing)
+    }
+
+    func netServiceBrowser(_ browser: NetServiceBrowser, didNotSearch errorDict: [String: NSNumber]) {
+        let code = errorDict[NetService.errorCode]?.intValue ?? 0
+        if LocalNetworkPolicy.isDenied(errorCode: code) { localNetworkDenied = true }
     }
 
     func netServiceBrowser(

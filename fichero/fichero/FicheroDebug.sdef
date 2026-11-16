@@ -85,7 +85,7 @@
 
         <command name="open project" code="FICHoprj" description="Open a .fichero project in the front window, as File > Open does.">
             <cocoa class="FicheroOpenProjectCommand"/>
-            <direct-parameter description="The .fichero project path." type="text"/>
+            <direct-parameter description="The .fichero project path, or the name of a project Fichero knows." type="text"/>
             <result type="text" description="The project's id."/>
         </command>
 
@@ -246,6 +246,11 @@
             <cocoa class="FicheroSelectSegmentCommand"/>
             <direct-parameter description="The segment id (a merged or split one is followed to its live segment)." type="text"/>
             <result type="boolean" description="Whether the segment resolved and the request was accepted."/>
+        </command>
+
+        <command name="undo step" code="FTSTundo" description="Edit &gt; Undo on the front window's own stack, for a script that cannot make a window key.">
+            <cocoa class="FicheroUndoStepCommand"/>
+            <result type="text" description="The name of the step taken back."/>
         </command>
     </suite>
 </dictionary>

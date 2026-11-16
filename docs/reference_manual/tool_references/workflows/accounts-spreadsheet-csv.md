@@ -4,12 +4,12 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-Use this when: a page (or each page of a document) holds historical accounts — cuentas, tithe books, tribute rolls, expense lists — and you want spreadsheet rows out. Reads amounts as a paleographer (roman numerals, the U thousands mark, maravedís/pesos/reales), keeps the original text, and normalizes amounts to numbers where certain. One CSV artifact per page; open or export from the artifact.
+Use this when: a page (or each page of a document) holds historical accounts — cuentas, tithe books, tribute rolls, expense lists — and you want spreadsheet rows out. Reads amounts as a paleographer (roman numerals, the U thousands mark, maravedís/pesos/reales), keeps the original text, and normalizes amounts to numbers where certain. One CSV artifact per page; open or export from the artifact. A final Check Consistency step flags a figure that disagrees with its words and a name spelled two ways.
 
 | | |
 | --- | --- |
 | Folder | /Extract |
-| Steps | 2 |
+| Steps | 3 |
 | Tags | preset, extract, table, accounts, csv, paleography |
 
 ## Steps, in run order
@@ -61,3 +61,7 @@ a measuring ruler or scale bar laid beside the page, a colour calibration
 chart, a strip of page or folio numbers, a margin, or any other photographic
 furniture that belongs to the act of scanning rather than to the document.
 ```
+
+### 3. Check Consistency
+
+Tool: [Consistency Check](../tools/consistency-check.md) — Flag deterministic numeral, name, and formula inconsistencies.

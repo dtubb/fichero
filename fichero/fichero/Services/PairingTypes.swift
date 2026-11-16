@@ -12,6 +12,9 @@ struct PairingQRCodePayload: Codable {
     /// must not claim it (#5041). Present for an engine serving its own cert.
     let spki: String?
     let libraryPath: String?
+    /// The host's other addresses, in the order to try (`sharing.link-carries-every-address`). Absent in an old link, and an
+    /// old client ignores it; `apiURL` stays the chosen first address.
+    var altURLs: [String]?
 
     enum CodingKeys: String, CodingKey {
         case version = "v"
@@ -20,6 +23,30 @@ struct PairingQRCodePayload: Codable {
         case expiresAt = "expires_at"
         case spki
         case libraryPath = "library_path"
+        case altURLs = "alt_urls"
+    }
+
+    /// The most encoded characters a QR carries and a phone camera still reads at level M (`sharing.ios-qr-payload-size`).
+    static let qrCharacterLimit = 400
+
+    /// The payload as the QR carries it: no library path (the guest asks the host for it), and addresses dropped from the
+    /// end until it fits. The chosen address is never the one dropped.
+    func forQR() -> PairingQRCodePayload {
+        var copy = PairingQRCodePayload(version: version, apiURL: apiURL, pairCode: pairCode, expiresAt: expiresAt,
+                                        spki: spki, libraryPath: nil, altURLs: altURLs)
+        while var alts = copy.altURLs, !alts.isEmpty, copy.encodedLength > Self.qrCharacterLimit {
+            alts.removeLast()
+            copy.altURLs = alts.isEmpty ? nil : alts
+        }
+        return copy
+    }
+
+    /// Length of the base64 of the payload's sorted JSON, the part a QR has to hold.
+    var encodedLength: Int {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = .sortedKeys
+        return ((try? encoder.encode(self))?.base64EncodedString().count) ?? 0
     }
 }
 
@@ -98,11 +125,20 @@ struct PairedDeviceRecord: Codable, Identifiable {
     let revoked: Bool
     /// The paired device that minted this one; revoking that device revokes this one too (#5351).
     var pairedByDeviceId: String?
+    /// The person signed in on this device, by name (#5738); nil from an older engine.
+    var username: String?
+
+    /// How the host's Inspector names it: "<person> on <device>", or just the device name when no person is known.
+    var inspectorLabel: String {
+        guard let username, !username.isEmpty else { return name }
+        return "\(username) on \(name)"
+    }
 
     enum CodingKeys: String, CodingKey {
         case id
         case name
         case pairedByDeviceId = "paired_by_device_id"
+        case username
         case userId = "user_id"
         case createdAt = "created_at"
         case lastSeen = "last_seen"
@@ -155,8 +191,11 @@ final class PairingService {
         }
     }
 
-    func createPairingCode() async throws -> PairingCodeRecord {
-        let response = try await client.api.createPairingCodeApiPairCodePost(.init())
+    /// `library`: the project the link is for, so the redeem gives this device that project
+    /// (`sharing.link-grants-its-project`).
+    func createPairingCode(library: String? = nil, also: [String] = []) async throws -> PairingCodeRecord {
+        let body = library.map { Operations.CreatePairingCodeApiPairCodePost.Input.Body.json(.init(library: $0, libraries: also)) }
+        let response = try await client.api.createPairingCodeApiPairCodePost(.init(body: body))
         switch response {
         case .ok(let okResponse):
             let record = try okResponse.body.json
@@ -183,7 +222,11 @@ final class PairingService {
         case .ok(let okResponse):
             let body = try okResponse.body.json
             return SharingStateRecord(tailnetURL: body.tailnetUrl, tailnetServeCommand: body.tailnetServeCommand,
-                                      auditId: body.auditId)
+                                      auditId: body.auditId, publicBaseURL: body.publicBaseUrl, lanIP: body.lanIp,
+                                      tailnetForward: body.tailnetForward?.rawValue,  // optional in the schema: a default is not `required`
+                                      multiuserBlocker: body.multiuserBlocker,
+                                      tailnetServeConflict: TailnetServeConflict(body.tailnetServeConflict?.additionalProperties),
+                                      sharedLibraryCount: body.sharedLibraryCount)
         case .undocumented(let statusCode, _):
             throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
         }
@@ -234,7 +277,8 @@ final class PairingService {
                     lastSeen: device.lastSeen,
                     expiresAt: device.expiresAt,
                     revoked: device.revoked,
-                    pairedByDeviceId: device.pairedByDeviceId
+                    pairedByDeviceId: device.pairedByDeviceId,
+                    username: device.username
                 )
             }
         case .undocumented(let statusCode, _):
@@ -310,16 +354,13 @@ final class PairingService {
         apiRoot: URL,
         from code: PairingCodeRecord,
         spki: String? = nil,
-        libraryPath: String? = nil
+        libraryPath: String? = nil,
+        alternates: [URL] = []
     ) -> PairingQRCodePayload {
-        PairingQRCodePayload(
-            version: 1,
-            apiURL: apiRoot.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")),
-            pairCode: code.code,
-            expiresAt: code.expiresAt,
-            spki: spki,
-            libraryPath: libraryPath
-        )
+        let root = { (url: URL) in url.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")) }
+        return PairingQRCodePayload(
+            version: 1, apiURL: root(apiRoot), pairCode: code.code, expiresAt: code.expiresAt, spki: spki,
+            libraryPath: libraryPath, altURLs: alternates.isEmpty ? nil : alternates.map(root))
     }
 
     /// The library paths this credential may access on the paired engine,
@@ -339,19 +380,4 @@ final class PairingService {
     static func persistAuthToken(_ token: String, for apiRoot: URL) throws {
         try AuthTokenMiddleware.persistRemoteToken(token, hostString: apiRoot.absoluteString)
     }
-}
-
-/// One connected client surface, as the Sharing pane shows it (2026-08-27).
-struct ConnectedClientRecord: Identifiable, Equatable {
-    var id: String { client }
-    let client: String
-    let lastSeen: String
-    let requests: Int
-    let transport: String
-}
-
-struct SharingStateRecord: Equatable {
-    let tailnetURL: String?
-    let tailnetServeCommand: String?
-    let auditId: String?
 }

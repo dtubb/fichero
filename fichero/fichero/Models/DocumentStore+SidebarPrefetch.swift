@@ -38,7 +38,14 @@ extension DocumentStore {
         // honest and moved the chevron onto it, so the grandchild fetch is now
         // pure redundant cost. Each subfolder loads its own children when the
         // user actually expands it — lazily, one level at a time.
-        if let fresh = await fetchSidebarChildren(of: document),
+        let fetched = await fetchSidebarChildren(of: document)
+        // The expand a chevron click began (`InteractionProfile.Phase.sidebarExpand`): the
+        // rebuild ends it, or here when nothing changed and nothing will be rebuilt.
+        InteractionProfile.lap(.sidebarExpand, "fetch")
+        if fetched == nil || childrenCache[document.id] == fetched {
+            InteractionProfile.end(.sidebarExpand, detail: "\(document.id), no change")
+        }
+        if let fresh = fetched,
            childrenCache[document.id] != fresh {
             childrenCache[document.id] = fresh
             // WAKE THE OBSERVER (#4318 rule, 2026-09-06). `childrenCache` is

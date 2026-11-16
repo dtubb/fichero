@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from fichero_server.core.timeutil import ensure_utc, utc_now
+from fichero_server.core.timeutil import ensure_utc, same_version, utc_now
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
@@ -188,7 +188,9 @@ async def list_notes(
     q: str | None = Query(default=None, description="full-text body search"),
     db: Database = Depends(get_library_database),
 ) -> NoteListResponse:
-    rows = db.query(Note)
+    from fichero_server.knowledge.trash_visibility import visible_notes  # noqa: PLC0415
+
+    rows = visible_notes(db, db.query(Note))  # out of view with a trashed document
     if kind is not None:
         rows = [r for r in rows if r.kind == kind]
     if tag is not None:
@@ -270,7 +272,7 @@ def patch_note_impl(
     before = note.model_dump(mode="json")
     updates = request.model_dump(exclude_unset=True)
     expected = updates.pop("expected_updated_at", None)
-    if expected is not None and ensure_utc(expected) != ensure_utc(note.updated_at):
+    if expected is not None and not same_version(expected, note.updated_at):
         raise HTTPException(status_code=409, detail={
             "reason": "stale",
             "message": ("this note was changed since you opened it; nothing was written. "

@@ -136,7 +136,7 @@ final class ToolbarSearchRoutingTests: XCTestCase {
     }
 
     func testSavedSearchesRunThroughTheTransientPath() throws {
-        let sidebarSource = try Self.appSource("Views/Sidebar/Sections/SidebarView+SelectionHandling.swift")
+        let sidebarSource = try Self.appSource("Views/Sidebar/Sections/Selection/SidebarView+SelectionHandling.swift")
         let resultsSource = try Self.resultsSurface()
 
         // Selecting a saved search must not resurrect a search mode — it

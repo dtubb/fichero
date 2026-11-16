@@ -64,7 +64,9 @@ def _account(client, thread_id):
 
 
 def _listed(client, job_id):
-    return {j["id"]: j for j in client.get("/api/activity/jobs").json()["jobs"]}[job_id]
+    body = client.get("/api/activity/jobs").json()
+    # a live recipe run is listed once, as a live block, not also as a row (`activity.summary.one-row-per-run-in-list`, #5960)
+    return {j["id"]: j for j in [*body["jobs"], *body["activity"]["live"]]}[job_id]
 
 
 def _close_and_open(test_package, every=False):
@@ -141,7 +143,8 @@ def test_compute_run_interrupted_on_close__the_recipe_run_carries_on_when_the_pr
 
     account = _account(client, child)
     assert account["state"] == "interrupted" and account["reason"].startswith(CLOSED)
-    assert jobs.read_job(db, recipe)["state"] in ("waiting", "running"), jobs.read_job(db, recipe)
+    assert jobs.read_job(db, recipe)["state"] == "paused", jobs.read_job(db, recipe)  # for the person (owner 2026-11-13)
+    jobs.continue_after_quit(db, [recipe])  # Continue on the launch alert
 
     lane_held.set()  # the lane frees: the recipe run carries on
     assert _wait_for(lambda: jobs.read_job(db, recipe)["state"] in ("done", "failed", "cancelled"), 120), \

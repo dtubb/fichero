@@ -28,7 +28,7 @@ final class WorkspacePickerService {
             folders = workspaces
                 .filter { $0.docType == .folder }
                 .map(WorkspaceFolderItem.init(document:))
-                .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+                .sorted { $0.name.finderOrder($1.name) }
         } catch {
             self.error = error.localizedDescription
             logger.error("loadWorkspaceFolders failed: \(error.localizedDescription)")

@@ -81,6 +81,8 @@ def test_every_caller_gives_the_same_hold_slow_or_fast_answer(mac, monkeypatch, 
             mac.update(idle=600.0, build=False, battery=False, pressure=1, thermal=0)
 
     monkeypatch.setattr(regions.time, "sleep", sleep_here(sleep))
+    from fichero_server.llm import yolo_runtime
+    monkeypatch.setattr(yolo_runtime, "is_installed", lambda model_id: True)  # the weights are here; this test is the throttle
     db = SimpleNamespace(path=tmp_path / "lib" / "x.duckdb",
                          get=lambda *_a: SimpleNamespace(path=str(tmp_path / "none.jpg"), id="d", name="n", metadata={}))
     regions.find_regions(db, ["a", "b"], "run", "m", provider="yolo", say=lambda _w: None)

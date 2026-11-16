@@ -21,7 +21,7 @@ struct SidebarAccessibilityIDTests {
         let applied: [(String, String)] = [
             ("Views/Sidebar/Sections/SidebarView+ViewComponents.swift", "SidebarAccessibilityID.list"),
             ("Views/Sidebar/Sections/SidebarView+ViewComponents.swift", "SidebarAccessibilityID.projectsHeading"),
-            ("Views/Sidebar/Sections/SidebarTrashRow.swift", "SidebarAccessibilityID.trash(libraryId)"),
+            ("Views/Sidebar/Trash/SidebarTrashRow.swift", "SidebarAccessibilityID.trash(libraryId)"),
             ("Views/Sidebar/Sections/SidebarModelsNode.swift", "SidebarAccessibilityID.models(libraryId)"),
             ("Views/Sidebar/Sections/LibraryHeaderRow.swift", "SidebarAccessibilityID.project(library.id)"),
             ("Views/Sidebar/ItemRow/SidebarItemRow+Presentation+Body.swift", "SidebarAccessibilityID.row(item.id)")

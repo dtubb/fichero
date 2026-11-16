@@ -1,7 +1,8 @@
 # Exporter — Design Spec
 
-> Milestone: export-pipeline (GitHub #316 — deliberately NOT named "exporter"/"Exporter": that
-> collides case-insensitively with legacy milestone #14, "Exporter")
+> Milestone: export-pipeline
+> (GitHub #316 — deliberately NOT named "exporter"/"Exporter": that collides case-insensitively
+> with legacy milestone #14, "Exporter")
 > Manual: TBD — the user manual needs an "Exporting your library" section: what Export as
 > Markdown/Word do per-document from the Reader, what the Eleventy static-site export produces
 > and how to host it, and that JSONL/Parquet/Excel/training exports exist but are reached

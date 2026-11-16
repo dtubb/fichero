@@ -4,6 +4,12 @@ import SwiftUI
 /// Structured logger for sidebar action operations
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "SidebarActions")
 
+/// A duration in milliseconds, for the delete timing lines (#6537).
+private func elapsedMs(_ duration: Duration) -> Double {
+    let parts = duration.components
+    return Double(parts.seconds) * 1000 + Double(parts.attoseconds) / 1e15
+}
+
 /// Raised when a delete reaches the action layer for a type that cannot be
 /// deleted (#4454). Surfaced in the sidebar's Delete Failed alert.
 enum SidebarDeleteError: LocalizedError {
@@ -11,14 +17,6 @@ enum SidebarDeleteError: LocalizedError {
 
     var errorDescription: String? {
         "This item can't be deleted."
-    }
-}
-
-private struct DocumentDeleteActionParams: Encodable {
-    let docId: String
-
-    enum CodingKeys: String, CodingKey {
-        case docId = "doc_id"
     }
 }
 
@@ -187,21 +185,43 @@ extension SidebarView {
         deleteState.inheritedSelectionId = nil
     }
 
+    /// Items dropped on a project's Trash row go there as one undoable step, like a multi-select Delete. Only this project's
+    /// own documents are taken: a row from another project, or one that is not a document, is left where it is.
+    func moveDroppedToTrash(_ droppedIds: [String], libraryId: UUID) {
+        guard let store = libraryManager.getLibrary(id: libraryId)?.documentStore else { return }
+        let known = Dictionary(
+            (store.collections + store.childrenCache.values.joined()).map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first })
+        let roots = sidebarTrashDropRoots(droppedIds, parentOf: { known[$0]?.parentId })
+        let documents = roots.compactMap { known[$0] }
+        guard !documents.isEmpty else {
+            DragDropLog.refused("sidebar-trash", reason: "none of \(droppedIds.count) dropped id(s) is a document of this project")
+            return
+        }
+        Task { await performDeleteBatch(documents, libraryId: libraryId) }
+    }
+
     /// One library's documents as one step named by how many went ("Move 3 Items to Trash").
     private func performDeleteBatch(_ documents: [Document], libraryId: UUID) async {
         guard let library = libraryManager.getLibrary(id: libraryId) else {
             logger.error("Could not find library for deletion")
             return
         }
+        let clock = ContinuousClock()
+        let started = clock.now
+        sidebarRemoveRowsBeforeDelete(documents, from: library.documentStore)  // all go together (#6535)
+        var deleted = 0
         do {
             try await UndoableChange.batch(
                 documents,
                 named: { UndoableChange.named("Move", count: $0, one: "Item to Trash", many: "Items to Trash") },
                 service: library.actionsService, steps: windowState.steps,
-                afterEach: { await library.documentStore.refresh() },
+                afterEach: { await library.documentStore.refresh() },  // after an undo or redo of the step
                 change: { doc in
-                    [try await library.actionsService.invokeAction(
-                        name: "document.delete", params: DocumentDeleteActionParams(docId: doc.id)).auditId]
+                    let auditId = try await library.actionsService.invokeAction(
+                        name: "document.delete", params: DocumentDeleteActionParams(docId: doc.id)).auditId
+                    deleted += 1
+                    return [auditId]
                 }
             )
             logger.info("Delete successful: \(documents.count) items in one step")
@@ -209,8 +229,17 @@ extension SidebarView {
             logger.error("Failed to delete: \(error.localizedDescription)")
             deleteState.showError(message: error.localizedDescription)
         }
-        rebuildCaches(for: libraryId)  // a batch that failed part-way has already moved some rows
+        // #6537: a begin line before each step that can stall; a begin with no "took" names the step that did.
+        let batchMs = elapsedMs(clock.now - started)
+        logger.info("⏱ delete batch: \(documents.count) item(s) took \(batchMs, format: .fixed(precision: 1))ms")
+        rebuildCaches(for: libraryId)
+        // A batch that failed part-way: the rows the engine kept come back.
+        guard sidebarDeleteNeedsRefresh(deleted: deleted, asked: documents.count) else { return }
+        logger.info("⏱ delete batch: \(deleted) of \(documents.count) deleted; refresh begins")
+        let refreshStarted = clock.now
         await library.documentStore.refresh()
+        let refreshMs = elapsedMs(clock.now - refreshStarted)
+        logger.info("⏱ delete batch: refresh took \(refreshMs, format: .fixed(precision: 1))ms")
     }
 
     // Perform the actual deletion
@@ -224,10 +253,20 @@ extension SidebarView {
         // #4805: read the neighbours BEFORE the row leaves the tree.
         let next = selectionAfterDelete(
             deleted: item.id, siblings: siblingIds(of: item, in: library), parent: parentId(of: item))
+        let clock = ContinuousClock()
+        let started = clock.now
         do {
             try await performDeleteAction(item.itemType, library: library)
+            let acted = clock.now
             logger.info("Delete successful")
             rebuildCaches(for: libraryId)
+            // #6537: where a delete spends its time, so a reload that never finishes shows which step stopped.
+            let actionMs = elapsedMs(acted - started)
+            let rebuildMs = elapsedMs(clock.now - acted)
+            logger.info("""
+                ⏱ delete action+refresh \(actionMs, format: .fixed(precision: 1))ms \
+                rebuildCaches \(rebuildMs, format: .fixed(precision: 1))ms
+                """)
             selectedItemId = selectedItemId == item.id ? next : nil
             deleteState.inheritedSelectionId = selectedItemId  // only a place to look until the next click (#6175)
         } catch {
@@ -277,12 +316,22 @@ extension SidebarView {
     /// through the engine, which writes the inverse row, so Redo moves it to the Trash again. The old
     /// closure called `restoreDocument` behind the engine's back and had no redo.
     private func deleteDocumentItem(_ doc: Document, library: LibraryManager.LibraryReference) async throws {
-        try await UndoableChange.invoke(
-            "document.delete", params: DocumentDeleteActionParams(docId: doc.id), named: "Move to Trash",
-            service: library.actionsService, steps: windowState.steps,
-            afterEach: { await library.documentStore.refresh() }
-        )
-        await library.documentStore.refresh()
+        let clock = ContinuousClock()
+        let started = clock.now
+        sidebarRemoveRowsBeforeDelete([doc], from: library.documentStore)  // the row goes at once (#6535)
+        logger.info("⏱ delete: engine call begins")
+        do {
+            try await UndoableChange.invoke(
+                "document.delete", params: DocumentDeleteActionParams(docId: doc.id), named: "Move to Trash",
+                service: library.actionsService, steps: windowState.steps,
+                afterEach: { await library.documentStore.refresh() }  // after an undo or redo of the step
+            )
+        } catch {
+            await library.documentStore.refresh()  // the engine kept it: the row comes back
+            throw error
+        }
+        let invokeMs = elapsedMs(clock.now - started)
+        logger.info("⏱ delete: engine call took \(invokeMs, format: .fixed(precision: 1))ms")
     }
 
     private func deleteSimpleItem(

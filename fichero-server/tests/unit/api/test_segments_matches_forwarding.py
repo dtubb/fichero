@@ -1698,6 +1698,9 @@ from tests.route_inventory import router_routes  # noqa: E402
 _ROUTE_ID_CHECKS: dict[tuple[str, str], list[tuple[str, Any]]] = {
     ("GET", "/segments/document/{doc_id}"): [],  # read-only seam, no provisional refusal here
     ("GET", "/segments/document/{doc_id}/matches"): [],  # read-only list of a page's matches (#5165)
+    ("GET", "/segments/document/{doc_id}/validate"): [],  # read-only: what is wrong before an export
+    ("GET", "/segments/document/{doc_id}/simplify-preview"): [],  # read-only: what Simplify would write, written nowhere
+    ("GET", "/segments/document/{doc_id}/doubtful"): [],  # read-only: the low-confidence lens
     ("GET", "/segments"): [],  # read-only scoped listing: real rows only, no provisional id to refuse
     ("PATCH", "/segments"): [
         ("updates[].segment_id", lambda doc_id, pass_id: (
@@ -1787,6 +1790,24 @@ _ROUTE_ID_CHECKS: dict[tuple[str, str], list[tuple[str, Any]]] = {
                 {"anchor": {"document_id": doc_id, "rect": [0.0, 0.0, 0.1, 0.1]}},
                 {"anchor": {"document_id": doc_id, "rect": [0.5, 0.5, 0.1, 0.1]}},
             ]},
+        )),
+        # The Knife (`segment-editor.split-knife`): the lines under the stroke are named by their versions.
+        ("expected_versions{} (cut_path)", lambda doc_id, pass_id: (
+            "POST", "/api/segments/split",
+            {"cut_path": [[0.5, 0.0], [0.5, 1.0]], "expected_versions": {"legacy:x": 1}},
+        )),
+    ],
+    ("POST", "/segments/regenerate-outline"): [
+        ("segment_ids[]", lambda doc_id, pass_id: (
+            "POST", "/api/segments/regenerate-outline",
+            {"segment_ids": ["legacy:x"], "expected_versions": {"legacy:x": 1}},
+        )),
+    ],
+    ("GET", "/segments/document/{doc_id}/on-rendition/{rendition_id}"): [],  # read-only: a page's segments in a rendition's frame
+    ("POST", "/segments/reparent"): [
+        ("segments[].segment_id", lambda doc_id, pass_id: (
+            "POST", "/api/segments/reparent",
+            {"segments": [{"segment_id": "legacy:x", "expected_version": 1}], "parent_segment_id": None},
         )),
     ],
     ("POST", "/segments/carry"): [],  # match_id is never provisional-shaped

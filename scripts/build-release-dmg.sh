@@ -77,6 +77,10 @@ if [ -n "$EXPECT_VER" ] && [ "$BUILT_VER" != "$EXPECT_VER" ]; then
   exit 1
 fi
 echo "  Version check OK: app is $BUILT_VER"
+if [ "${FICHERO_DMG_STOP_AFTER_APP_BUILD:-}" = 1 ]; then  # builder build --dev: the compile under the machine's heavy lock, the rest outside it
+  echo "  FICHERO_DMG_STOP_AFTER_APP_BUILD=1: app built; packaging runs next with --skip-app-build"
+  exit 0
+fi
 
 # ── 2. Stage DMG contents ───────────────────────────────────────────────────
 echo

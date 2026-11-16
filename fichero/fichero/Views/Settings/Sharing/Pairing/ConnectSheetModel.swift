@@ -6,6 +6,14 @@ enum ConnectSheetModel {
     static let pastePlaceholder = "https://…"
     static let codePlaceholder = "Code"
 
+    /// What follows a connect that succeeded without switching the whole Mac: show the saved hosts, read the host's list at
+    /// once, then close the window that held the section, once (#6432, #6433).
+    @MainActor static func finishConnect(reload: () -> Void, readHostList: () async -> Void, close: () -> Void) async {
+        reload()
+        await readHostList()
+        close()
+    }
+
     /// "Searching…" in grey while the network is looked at and nothing is found yet; an empty list otherwise.
     static func nearbyStatus(searching: Bool, found: Int) -> String? { searching && found == 0 ? "Searching…" : nil }
 

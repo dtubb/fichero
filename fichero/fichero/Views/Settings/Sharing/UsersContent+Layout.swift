@@ -17,10 +17,22 @@ extension UsersContent {
             // The people (you first, with the You mark), grey Invited rows, `+` and `−` (`sharing.settings.three-panes`).
             Section {
                 ForEach(accountRows) { accountRow($0) }
-                if let accountError {
-                    Text(accountError).font(.caption).foregroundStyle(.red)
+                // While Multi-user is off there is nobody to add (the engine answers 404): the line names the switch instead
+                // (`sharing.people-pane-off-state`, #5917).
+                if let off = PeoplePaneOffState.words(multiuserOn: identityStore.multiuserEnabled, isOwner: identityStore.isOwnerAccess) {
+                    HStack(spacing: 8) {
+                        Text(off.line).font(.caption).foregroundStyle(.secondary)
+                            .accessibilityIdentifier("people.multiuserOff")
+                        if let button = off.button {
+                            Button(button) { showTurnOnAccounts = true }
+                                .accessibilityIdentifier("people.turnOnAccounts")
+                        }
+                    }
                 }
-                if identityStore.isOwnerAccess {
+                if let note = AccountsOnSequence.sharingNote(accountsOn: identityStore.multiuserEnabled, sharingOn: sharingIsOn) {
+                    Text(note).font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("people.sharingOffNote")
+                }
+                if PeoplePaneOffState.offersAdd(multiuserOn: identityStore.multiuserEnabled, isOwner: identityStore.isOwnerAccess) {
                     HStack(spacing: 4) {
                         Button { showAddAccount = true } label: { Image(systemName: "plus") }
                             .help("Add Account")
@@ -37,11 +49,23 @@ extension UsersContent {
                 }
             }
 
+            if let matrix = store.accessMatrix {
+                Section("Access across libraries") { AccessMatrixView(matrix: matrix) }
+            }
+
             rolesSection
         }
         .formStyle(.grouped)
         .sheet(isPresented: $showAddAccount) {
             AccountsAddSheet(store: store, multiUserOn: authzSnapshot?.multiuserEnabled == true) { showAddAccount = false }
+        }
+        .task {
+            guard EngineConfig.engineIsLocal else { return }
+            let state = try? await PairingService(apiRoot: EngineConfig.host).sharingState()
+            sharingIsOn = state?.publicBaseURL != nil
+        }
+        .sheet(isPresented: $showTurnOnAccounts) {
+            TurnOnAccountsSheet(store: store, identityStore: identityStore) { showTurnOnAccounts = false }
         }
         .sheet(item: $capturePerson) { target in
             CaptureSettingsView(startingUser: target.id, onClose: { capturePerson = nil })

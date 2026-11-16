@@ -156,6 +156,7 @@ SCOPED_LIBRARY_READ_ROUTES: frozenset[str] = frozenset({
     "fichero_server.api.routes.find_documents:list_find_documents_scores",
     "fichero_server.api.routes.training:preview_training_set",
     "fichero_server.api.routes.citation.rendering:export_bibtex",
+    "fichero_server.api.routes.document.dataset:dataset_query",  # no id in the path: its body names the folder, `read_check` walks it (#6320)
     "fichero_server.api.routes.document.documents:list_documents",
     "fichero_server.api.routes.document.documents:list_roots",
     "fichero_server.api.routes.document.documents:list_workspaces",
@@ -201,6 +202,66 @@ def assert_can_read_every(user: Any, library: str | Path | None, page_ids: Any, 
         return
     for page_id in page_ids:
         assert_can_read(user, library, page_id)
+
+
+def page_walk_needed(user: Any, library: str | Path | None, *, write: bool = False) -> bool:
+    """Whether a check of every page under a named folder can refuse anyone this caller: a per-page answer differs from the
+    answer for the named id only through a per-person override, a restricting rights record, or a folder-scoped or
+    read-only role. An owner, an editor (or a viewer reading) with none of those has nothing to find, so the walk (one
+    lookup per page, 1.6 ms each: 11 s at 5,000 pages) is skipped. Anything unclear: walk."""
+    if not multiuser_enabled():
+        return False
+    resolved = resolve_user(user)
+    library_path = normalize_library_path(library)
+    if resolved is None or library_path is None:
+        return True
+    app_db = get_app_db()
+    role = app_db.get_library_role(resolved.id, library_path)
+    if role is None or role.role not in (ROLE_OWNER, ROLE_EDITOR, ROLE_VIEWER) or (write and role.role == ROLE_VIEWER):
+        return True
+    if app_db.list_library_acl_overrides(resolved.id, library_path):
+        return True
+    try:
+        from fichero_server.db.manager import db_manager
+
+        return any(r.withdrawn_at is None for r in db_manager.get_database(library_path).query(RightsRecord, restricted=True))
+    except Exception:  # fail closed: a lookup error walks
+        return True
+
+
+def is_library_owner(user: Any, library: str | Path | None) -> bool:
+    """The owner of the library with no override of their own: the counts and graph views never turn off for them because someone
+    restricted a page (the page itself stays theirs only if a rights record names them; #6325 review 6 item 6)."""
+    resolved = resolve_user(user)
+    library_path = normalize_library_path(library)
+    if not multiuser_enabled() or resolved is None or library_path is None:
+        return False
+    app_db = get_app_db()
+    role = app_db.get_library_role(resolved.id, library_path)
+    return role is not None and role.role == ROLE_OWNER and not app_db.list_library_acl_overrides(resolved.id, library_path)
+
+
+def reads_every_gated_page(user: Any, library: str | Path | None) -> bool:
+    """Whether this caller's read answer is the same for every page: a project role with no override of their own, and every
+    restricting rights record either names them or sits on a page they may read. The owner and a named reader pass (O1, #6320);
+    a person with a deny, a folder-scoped role or an unnamed restricted page does not. Anything unclear: False."""
+    if not multiuser_enabled():
+        return True
+    resolved = resolve_user(user)
+    library_path = normalize_library_path(library)
+    if resolved is None or library_path is None:
+        return False
+    app_db = get_app_db()
+    role = app_db.get_library_role(resolved.id, library_path)
+    if role is None or role.role not in (ROLE_OWNER, ROLE_EDITOR, ROLE_VIEWER) or app_db.list_library_acl_overrides(resolved.id, library_path):
+        return False
+    try:
+        from fichero_server.db.manager import db_manager
+
+        restricting = [r for r in db_manager.get_database(library_path).query(RightsRecord, restricted=True) if r.withdrawn_at is None]
+    except Exception:  # fail closed
+        return False
+    return all(resolved.id in (r.readers or []) or (r.target_kind != "library" and can_read(user, library, r.target_id)) for r in restricting)
 
 
 def can_read(user: Any, library: str | Path | None, target_id: str | None = None) -> bool:
@@ -377,6 +438,9 @@ def target_ids_from_params(params: Any) -> list[str]:
 #: levels under `update.anchor` on `annotation.update`); past this a structure is not a target.
 _MAX_TARGET_DEPTH = 8
 
+#: Lists of ids whose key does not end in `_ids`: `document.copy_into_project`'s `ids`, `document.transfer`'s `items` (#6325, H7).
+_ID_LIST_KEYS = frozenset({"ids", "items"})
+
 
 def _collect_target_ids(data: dict, target_ids: list[str], *, depth: int) -> None:
     """Every `*_id` / `*_ids` in `data`, at ANY depth: nested objects and lists of objects alike.
@@ -397,8 +461,12 @@ def _collect_target_ids(data: dict, target_ids: list[str], *, depth: int) -> Non
     for key, value in data.items():
         if key == "id" or key.endswith("_id"):
             _append_target_id(target_ids, value)
-        elif key.endswith("_ids"):
-            _append_target_ids(target_ids, value)
+        elif key.endswith("_ids") or key in _ID_LIST_KEYS:
+            _append_target_ids(target_ids, value)  # a list of strings; a list of objects (`items`) is walked below
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, dict):
+                        _collect_target_ids(item, target_ids, depth=depth + 1)
         elif isinstance(value, dict):
             _collect_target_ids(value, target_ids, depth=depth + 1)
         elif isinstance(value, list):
@@ -432,11 +500,27 @@ def target_ids_from_request(request: Any) -> list[str]:
     query_params = getattr(request, "query_params", None)
     pairs = list(path_params.items())
     if query_params is not None:
-        pairs += list(query_params.multi_items()) if hasattr(query_params, "multi_items") else list(query_params.items())
+        declared = _declared_query_names(request)  # a query name the route does not declare is no target: it is a decoy (#6325, H5)
+        pairs += [(k, v) for k, v in (query_params.multi_items() if hasattr(query_params, "multi_items") else query_params.items())
+                  if declared is None or k in declared]
     for key, value in pairs:
         if key == "id" or key.endswith("_id"):
             _append_target_id(target_ids, value)
     return target_ids
+
+
+def _declared_query_names(request: Any) -> set[str] | None:
+    """The query parameters the matched route (and its dependencies) declare; None when no route is matched yet (every name counts)."""
+    dependant = getattr(getattr(request, "scope", {}).get("route"), "dependant", None)
+    if dependant is None:
+        return None
+    names: set[str] = set()
+    stack = [dependant]
+    while stack:
+        node = stack.pop()
+        names.update(q.alias for q in node.query_params)
+        stack.extend(node.dependencies)
+    return names
 
 
 def _append_target_id(target_ids: list[str], value: Any) -> None:

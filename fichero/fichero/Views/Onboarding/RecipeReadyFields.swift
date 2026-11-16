@@ -22,7 +22,14 @@ struct RecipeReadyFields: View {
         // Native grouped sections, as System Settings draws them (#5840): a box per step, then the parts.
         Form {
             if let error = store.errorMessage {
-                Section { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange) }
+                Section {
+                    Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                    // A Start refused while the plan is over a cap offers its fixes here, where the error is (#6295): the plan's
+                    // `cloud_cap.over` decides, not the words of the error.
+                    if let cap = store.startPlan?.cloudCap, CloudCapFix.isOver(cap) {
+                        CloudCapOffers(store: store, line: cap, undo: project?.actionsService, project: project)
+                    }
+                }
             }
             if store.isAssembling {
                 Section { ProgressView() }
@@ -32,6 +39,8 @@ struct RecipeReadyFields: View {
                         .font(.callout).foregroundStyle(.secondary)
                 }
             }
+            RecipeDefaultsWhyView(store: store)
+            RecipeRoutesView(store: store)
             ForEach(sections, id: \.title) { section in
                 Section {
                     sectionContent(section)
@@ -54,6 +63,9 @@ struct RecipeReadyFields: View {
         .task(id: store.recipe) {
             guard store.recipe != nil, await store.save() else { return }
             await store.loadStartPlan()
+            await store.loadChainRisk()
+            await store.loadDefaultsWhy()
+            await store.loadRoutes()
         }
     }
 
@@ -71,6 +83,7 @@ struct RecipeReadyFields: View {
                 RecipeStepsView(store: store, recipe: recipe, onFix: onFix, finder: project, onlyStepId: stepId)
                 if let step = recipe.steps.first(where: { $0.id == stepId }) {
                     RecipeStepRunLine(store: store, step: step)
+                    RecipeStepChainLine(store: store, stepId: step.id)
                 }
             }
         case .runsByItself:
@@ -79,13 +92,15 @@ struct RecipeReadyFields: View {
             RecipeTrainOffersFields(store: store)
         case .start:
             if let recipe = store.recipe {
-                RecipeTakenOutRows(store: store, removed: recipe.removed ?? [])
+                // Wide Set Up: a step taken out is put back on its stage's page (`wide.ready.only-what-will-run`).
+                if !FeatureManager.shared.isWideSetUpEnabled { RecipeTakenOutRows(store: store, removed: recipe.removed ?? []) }
                 RecipeCloudQuestion(store: store)
                 RecipeMoneyAndPlaceFields(store: store)
             }
             RecipeStartFields(store: store, onFix: onFix, project: project)
-            OfferedJobsList(store: store)
+            if !FeatureManager.shared.isWideSetUpEnabled { OfferedJobsList(store: store) }
             StepChoiceMenusView(store: store)
+            if FeatureManager.shared.isWideSetUpEnabled { ReadyWillRunView(store: store) }
             startRow
         case .checkOnYourPages:
             if let bakeoff {
@@ -144,7 +159,7 @@ struct RecipeReadyFields: View {
     static func start(store: RecipeSetupStore, keptExports: KeptExportStore?) async -> Bool {
         if let keptExports, !(await keptExports.keepDrafts()) { return false }
         guard await store.save() else { return false }
-        return await store.start()
+        return await store.start(firstPages: store.runFirstPages)
     }
 }
 

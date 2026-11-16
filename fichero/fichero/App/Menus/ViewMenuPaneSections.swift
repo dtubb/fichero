@@ -64,7 +64,36 @@ struct PaneVisibilitySection: View {
                 shortcut: nil
             )
             ShowMiniToolbarToggle()
+            ShowWithdrawnReadingsToggle()
+            FocusOnPaneButton()
         }
+    }
+}
+
+/// View › Focus on Pane (⌃⌘R, `panes.focus.any-pane-fills-the-screen`): the focused window's one Focus verb, published by
+/// `ContentView` (`FocusMode.step` decides: the page reader on a Preview page, else the pane alone, or leave).
+struct FocusOnPaneButton: View {
+    @FocusedValue(\.focusOnPane) private var focusOnPane
+
+    var body: some View {
+        Button {
+            focusOnPane?.run()
+        } label: {
+            Label(focusOnPane?.target == "leave" ? "Leave Focus" : "Focus on Pane", systemImage: "viewfinder")
+        }
+        .keyboardShortcut("r", modifiers: [.command, .control])
+        .disabled(focusOnPane?.isEnabled != true)
+    }
+}
+
+struct FocusOnPaneKey: FocusedValueKey {
+    typealias Value = FocusedLibraryAction
+}
+
+extension FocusedValues {
+    var focusOnPane: FocusOnPaneKey.Value? {
+        get { self[FocusOnPaneKey.self] }
+        set { self[FocusOnPaneKey.self] = newValue }
     }
 }
 
@@ -150,6 +179,19 @@ struct ShowMiniToolbarToggle: View {
     }
 }
 
+// MARK: - Show Withdrawn Readings
+
+/// The Reader's versions tree also lists the readings that were withdrawn, struck through (`ReaderLinesView`).
+struct ShowWithdrawnReadingsToggle: View {
+    @AppStorage("reader.showWithdrawnReadings") private var shows = false
+
+    var body: some View {
+        Toggle(isOn: $shows) {
+            Label("Show Withdrawn Readings", systemImage: "strikethrough")
+        }
+    }
+}
+
 // MARK: - Go Up
 
 // Walks one level up the folder hierarchy via the focused window's
@@ -205,8 +247,10 @@ struct GoMenuCommands: Commands {
             // Help › Save Logs for Support… (#5656): dev tier only. The tier is
             // a launch constant, so reading it here needs no observation.
             #if os(macOS)
+            Divider()
+            // Help › Send Logs to the Maintainer… is a release feature: every tier (it asks first).
+            SendLogsToMaintainerButton()
             if SupportLogs.isOffered(for: FeatureManager.shared.activeBuildTier) {
-                Divider()
                 SaveLogsForSupportButton()
             }
             #endif

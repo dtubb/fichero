@@ -27,7 +27,9 @@ def test_unset_is_not_answered_and_caps_nothing(client, app_db):
 def test_answering_this_mac_only_caps_every_other_place(client, app_db):
     assert client.put("/api/recipes/places", json={"places": []}).json()["answered"] is True
     assert places.get_places() == ["this-mac"]
-    assert not places.allows("cloud") and not places.may_leave_to({"cloud_allowed": True}, "cloud")
+    assert not places.allows("cloud") and not places.may_leave_to({}, "cloud")  # a project with no answer inherits the app's no
+    assert places.may_leave_to({"cloud_allowed": True}, "cloud")  # the project's own yes wins for the cloud (#6348)
+    assert not places.may_leave_to({"cloud_allowed": True}, "acenet")  # the other places stay capped
 
 
 def test_the_answer_is_audited_in_the_app_and_this_mac_stays(client, app_db):
@@ -84,10 +86,11 @@ def test_reading_the_setup_never_caps_it(app_db, tmp_path):
 def test_pages_go_to_a_place_only_when_the_project_said_yes_and_the_app_allows_that_place(app_db):
     yes, no = {"cloud_allowed": True}, {"cloud_allowed": False}
     places.set_places([])
-    assert not places.may_leave_to(yes, "cloud"), "this Mac only"
+    assert places.may_leave_to(yes, "cloud"), "the project's own yes wins for the cloud (#6348)"
+    assert not places.may_leave_to({}, "cloud"), "a project with no answer inherits the app's no"
     places.set_places(["cloud"])
     assert places.may_leave_to(yes, "cloud")
-    assert not places.may_leave_to(no, "cloud"), "a stricter project is never loosened"
+    assert not places.may_leave_to(no, "cloud"), "a project's own no holds over the app's yes"
     assert not places.may_leave_to(yes, "huggingface") and not places.may_leave_to(yes, "acenet")
 
 
@@ -95,8 +98,9 @@ def test_allowing_only_another_mac_opens_neither_the_cloud_nor_hugging_face_nor_
     places.set_places(["another-mac"])
     yes = {"cloud_allowed": True}
     assert places.allows("another-mac")
-    for place in ("cloud", "huggingface", "acenet"):
+    for place in ("huggingface", "acenet"):  # the cloud is the project's own answer (#6348)
         assert not places.may_leave_to(yes, place), place
+    assert not places.may_leave_to({}, "cloud")
 
 
 def test_copies_stay_on_the_cluster_needs_the_cluster_allowed_even_when_said_true(app_db):

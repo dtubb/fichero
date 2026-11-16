@@ -106,6 +106,41 @@ extension SelectionStyle {
     /// Light: the page under a selection must stay readable.
     static func washAlpha(emphasized: Bool) -> CGFloat { emphasized ? 0.18 : 0.3 }
 
+    /// A selection in its region's hue (#6422): full strength in the pane being worked in with a key window, the hue
+    /// desaturated otherwise (as Finder dims a selection, never replaced by the accent); the accent where the box has no
+    /// region.
+    static func stroke(_ tone: RegionColours.Tone?, emphasized: Bool) -> NSColor {
+        guard let tone else { return stroke(emphasized: emphasized) }
+        return emphasized ? regionHue(tone) : dimmed(regionHue(tone))
+    }
+
+    /// The selection's wash in its region's hue, at the selection's alpha.
+    static func wash(_ tone: RegionColours.Tone?, emphasized: Bool) -> NSColor {
+        guard let tone else {
+            return washBase(emphasized: emphasized).withAlphaComponent(washAlpha(emphasized: emphasized))
+        }
+        let hue = emphasized ? regionHue(tone) : dimmed(regionHue(tone))
+        return hue.withAlphaComponent(washAlpha(emphasized: true))
+    }
+
+    /// A hue half-way to the dimmed selection's grey, resolved when drawn (so it follows Dark Mode).
+    static func dimmed(_ hue: NSColor) -> NSColor {
+        hue.blended(withFraction: 0.5, of: stroke(emphasized: false)) ?? hue
+    }
+
+    /// The hover outline in its region's hue; the accent where the box has no region.
+    static func hover(_ tone: RegionColours.Tone?) -> NSColor {
+        tone.map(regionHue) ?? hoverBase
+    }
+
+    /// A region's hue at full strength: a lit box is never shaded along the order.
+    static func regionHue(_ tone: RegionColours.Tone) -> NSColor {
+        regionPalette[tone.hue % regionPalette.count]
+    }
+
+    /// A region box lit by its hovered or selected line: its outline, in its hue.
+    static let litRegionAlpha: CGFloat = 0.9
+
     /// The hover outline: the accent, fainter than a selection and with no wash.
     static let hoverBase: NSColor = .controlAccentColor
     static let hoverAlpha: CGFloat = 0.55

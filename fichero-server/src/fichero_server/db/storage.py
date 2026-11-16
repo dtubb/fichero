@@ -34,6 +34,7 @@ import os
 import shutil
 import tempfile
 import threading
+import zlib
 from concurrent.futures import ThreadPoolExecutor, Future
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
@@ -417,6 +418,22 @@ def _remove_stale_thumbnail_variants(
             logger.debug("Failed to remove stale thumbnail cache %s: %s", candidate, exc)
 
 
+def _thumbnail_identity(doc: "Document", source_path: Path, chain_ns: int, pdf_page: int | None,
+                        package_path: Path | None) -> tuple[int, bool]:
+    """What the thumbnail is keyed on, and whether the working rendition is its source. Cut from a rendition made for this
+    content and chain, it is keyed like the rendition (a number from the same key), so a file whose modified time moved
+    still hits; otherwise the source's modified time or the chain's version, as before (`image.enhance.working-rendition-once`)."""
+    display = _display_path(doc.id, package_path)
+    key = _display_key(doc, chain_ns, pdf_page)
+    if key is not None and display.exists():
+        try:
+            if _display_key_path(display).read_text() == key:
+                return zlib.crc32(key.encode()), True
+        except OSError:
+            pass
+    return max(_source_mtime_ns(source_path), chain_ns), False
+
+
 def _resolve_thumbnail_cache_candidate(
     doc: "Document",
     package_path: Path | None = None,
@@ -445,13 +462,17 @@ def _resolve_thumbnail_cache_candidate(
     _ops, chain_ns = edit_chain_operations(
         doc, db, page=(pdf_render[1] + 1) if pdf_render else 1
     )
-    source_mtime_ns = max(_source_mtime_ns(source_path), chain_ns)
+    source_mtime_ns, from_display = _thumbnail_identity(
+        doc, source_path, chain_ns, pdf_render[1] if pdf_render else None, package_path
+    )
     cache_path = _thumbnail_cache_path(doc.id, size, source_mtime_ns, package_path)
 
     if cache_path.exists():
         return cache_path, alias_path, source, source_mtime_ns
 
-    if alias_path.exists() and alias_path.stat().st_mtime_ns >= source_mtime_ns:
+    # The alias is adopted only against a modified-time identity: a rendition key is a number, not a time, and an alias made
+    # for the earlier content would pass it.
+    if not from_display and alias_path.exists() and alias_path.stat().st_mtime_ns >= source_mtime_ns:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             os.replace(alias_path, cache_path)
@@ -466,6 +487,24 @@ def _resolve_thumbnail_cache_candidate(
 # =============================================================================
 # Source Resolution
 # =============================================================================
+
+
+def _exists(path: Path) -> bool:
+    """`Path.exists()`, but a path this process may not stat (a folder it holds no grant for) is not there: it raises
+    PermissionError on Python 3.12, and a caller that wants a source answers "not available", not a 500."""
+    try:
+        return path.exists()
+    except OSError:
+        return False
+
+
+def _expanded(value: object) -> Path | None:
+    """`Path(value).expanduser()`, or None for a recorded path that cannot be one: not a path, or `~name` of a user this
+    machine does not have (RuntimeError)."""
+    try:
+        return Path(value).expanduser()  # type: ignore[arg-type]
+    except (TypeError, RuntimeError):
+        return None
 
 
 def resolve_source(
@@ -494,7 +533,7 @@ def resolve_source(
 
     def confined_existing(candidate: Path) -> Path | None:
         """Confine a candidate to the library/storage/derived roots."""
-        if not candidate.exists():
+        if not _exists(candidate):
             return None
         return resolve_under_allowed_roots(candidate, allowed_roots)
 
@@ -513,14 +552,14 @@ def resolve_source(
         because "inside the package" is what relative means — widening it
         would let ``../outside.txt`` and an escaping symlink out.
         """
-        if not candidate.exists():
+        if not _exists(candidate):
             return None
         return resolve_document_source_path(
             candidate, library_root, storage_base=settings.base_path
         )
 
     def library_confined_existing(candidate: Path) -> Path | None:
-        if library_root is None or not candidate.exists():
+        if library_root is None or not _exists(candidate):
             return None
         library_roots = allowed_source_roots(
             library_root,
@@ -532,9 +571,8 @@ def resolve_source(
     def package_candidate(path_value: object) -> Path | None:
         if not path_value or library_root is None:
             return None
-        try:
-            p = Path(path_value).expanduser()
-        except TypeError:
+        p = _expanded(path_value)
+        if p is None:
             return None
         root = Path(library_root).expanduser()
         if not p.is_absolute():
@@ -569,10 +607,7 @@ def resolve_source(
 
     # Fall back to paths
     if doc.path:
-        try:
-            p = Path(doc.path).expanduser()
-        except TypeError:
-            p = None
+        p = _expanded(doc.path)
         if p is not None:
             # A relative path (e.g. "files/nc/<id>_<name>.jpg") is stored for
             # COPY/MOVE ingests so the library bundle can be renamed/moved
@@ -590,9 +625,8 @@ def resolve_source(
     if doc.metadata:
         for key in ["source_path", "full_path", "display_path", "local_path"]:
             if path_str := doc.metadata.get(key):
-                try:
-                    p = Path(path_str).expanduser()
-                except TypeError:
+                p = _expanded(path_str)
+                if p is None:
                     continue
                 if not p.is_absolute() and library_root is not None:
                     p = Path(library_root).expanduser() / p
@@ -790,12 +824,17 @@ def ensure_thumbnail(
         operations, chain_ns = edit_chain_operations(
             doc, db, page=(pdf_render[1] + 1) if pdf_render else 1
         )
-        source_mtime_ns = max(_source_mtime_ns(source_path), chain_ns)
+        source_mtime_ns, made_for_this = _thumbnail_identity(
+            doc, source_path, chain_ns, pdf_render[1] if pdf_render else None, package_path
+        )
         cache_path = _thumbnail_cache_path(doc.id, settings.thumb_size, source_mtime_ns, package_path)
         perf["cache_state"] = "regenerated" if force else "miss"
         perf["source_mtime_ns"] = source_mtime_ns
+        display = _display_path(doc.id, package_path)
 
-        if pdf_render:
+        if made_for_this:
+            result = _generate_image(display, cache_path, settings.thumb_size)
+        elif pdf_render:
             pdf_path, page_index = pdf_render
             result = _generate_pdf_image(
                 pdf_path, page_index, cache_path, settings.thumb_size, operations
@@ -810,13 +849,46 @@ def ensure_thumbnail(
         return result
 
 
+def _display_key_path(display: Path) -> Path:
+    return display.with_suffix(".key")
+
+
+def _display_key(doc: "Document", chain_ns: int, pdf_page: int | None) -> str | None:
+    """What the working rendition was made from: the file's checksum, the side it was cut to, the edit chain's version and,
+    for a PDF, the page. None when the document has no checksum, which is nothing to identify the content by."""
+    if not doc.checksum:
+        return None
+    return f"{doc.checksum}:{max(settings.display_size)}:{chain_ns}:{'' if pdf_page is None else pdf_page}"
+
+
+def made_display(doc: "Document", package_path: Path | None = None, db: "Database | None" = None) -> Path | None:
+    """The working rendition when it has already been made for this content and edit chain, else None. Never renders and never opens
+    the source (`image.enhance.working-rendition-once`, #6200): a reader that wants the reduced page asks here and falls back to
+    the page it holds when there is none."""
+    path = _display_path(doc.id, package_path)
+    pdf_hint = resolve_pdf_render_source(doc, db=db, library_root=package_path)
+    _, chain_ns = edit_chain_operations(doc, db, page=(pdf_hint[1] + 1) if pdf_hint else 1)
+    key = _display_key(doc, chain_ns, pdf_hint[1] if pdf_hint else None)
+    if key is None or not path.exists():
+        return None
+    try:
+        return path if _display_key_path(path).read_text() == key else None
+    except OSError:
+        return None
+
+
 def ensure_display(
     doc: "Document",
     force: bool = False,
     package_path: Path | None = None,
     db: "Database | None" = None,
 ) -> Path | None:
-    """Generate display-size image if needed.
+    """The working rendition: the display-size image, made once for a (content checksum, longest side, edit-chain version) key.
+
+    A display image whose recorded key equals the current one is returned without opening the source (the source may be
+    unmounted) and without a render, whatever the source file's modified time is. With no recorded key (a file made before
+    keys, or a document with no checksum) the picture is re-made when the source is newer than it. With no readable source
+    and a picture already made, that picture is returned; with neither, None.
 
     Args:
         doc: Document to generate display image for
@@ -831,24 +903,32 @@ def ensure_display(
         return None
 
     path = _display_path(doc.id, package_path)
+    pdf_hint = resolve_pdf_render_source(doc, db=db, library_root=package_path)
+    operations, chain_ns = edit_chain_operations(
+        doc, db, page=(pdf_hint[1] + 1) if pdf_hint else 1
+    )
+    key = _display_key(doc, chain_ns, pdf_hint[1] if pdf_hint else None)
+    keyfile = _display_key_path(path)
+    if path.exists() and not force and key is not None:
+        try:
+            if keyfile.read_text() == key:
+                return path
+        except OSError:
+            pass
+
     source = (
         resolve_edited_source(doc, db)
         if db is not None
         else resolve_source(doc, library_root=package_path)
     )
-    pdf_render = resolve_pdf_render_source(
-        doc, db=db, library_root=package_path
-    )
+    pdf_render = pdf_hint
     if not source and not pdf_render:
         source = iiif_page_image(doc, package_path)  # a page imported by reference over IIIF
 
     if not source and not pdf_render:
-        return None
+        return path if path.exists() and not force else None  # unmounted: the picture already made is still the page's
 
-    operations, chain_ns = edit_chain_operations(
-        doc, db, page=(pdf_render[1] + 1) if pdf_render else 1
-    )
-    if path.exists() and not force:
+    if path.exists() and not force and key is None:
         source_mtime = pdf_render[0].stat().st_mtime if pdf_render else source.stat().st_mtime
         # An edit is a newer revision of the page even though the file on disk
         # is untouched; comparing the file alone serves a stale rendition.
@@ -858,11 +938,16 @@ def ensure_display(
 
     if pdf_render:
         pdf_path, page_index = pdf_render
-        return _generate_pdf_image(
+        made = _generate_pdf_image(
             pdf_path, page_index, path, settings.display_size, operations
         )
-
-    return _generate_image(source, path, settings.display_size)
+    else:
+        made = _generate_image(source, path, settings.display_size)
+    if made is not None and key is not None:
+        keyfile.write_text(key)
+    elif keyfile.exists():
+        keyfile.unlink(missing_ok=True)
+    return made
 
 
 def _generate_pdf_image(
@@ -938,6 +1023,29 @@ def _generate_pdf_image(
 _folders_said: set[str] = set()
 
 
+def _seek_reduced_level(img, size: tuple[int, int]) -> None:
+    """Move a pyramidal TIFF to the smallest reduced level still at least as big as the fitted box (#6200).
+
+    Only frames flagged reduced-resolution (NewSubfileType bit 0) count, so the next page of a multi-page scan is
+    never mistaken for a smaller copy. JPEG already decodes reduced through `thumbnail`'s draft.
+    """
+    if getattr(img, "format", None) != "TIFF" or getattr(img, "n_frames", 1) < 2:
+        return
+    w0, h0 = img.size
+    scale = min(size[0] / w0, size[1] / h0)
+    if scale >= 1:
+        return
+    need_w, need_h = w0 * scale, h0 * scale
+    best = 0
+    for i in range(1, img.n_frames):
+        img.seek(i)
+        reduced = bool(img.tag_v2.get(254, 0) & 1)
+        w, h = img.size
+        if reduced and w < w0 and w >= need_w and h >= need_h:
+            best = i
+    img.seek(best)
+
+
 def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | None:
     """Generate a resized image.
 
@@ -987,6 +1095,7 @@ def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | N
             # Shrink first, then turn upright (#6193): `thumbnail` decodes a JPEG reduced (draft) and the EXIF turn
             # then copies the small image, never a second full-resolution one. A quarter turn can leave the small
             # image past the box, so it is fitted once more (cheap at this size; Pillow 12 already turns a TIFF at load).
+            _seek_reduced_level(img, size)
             img.thumbnail(size, Image.Resampling.LANCZOS)
             if ImageOps:
                 img = ImageOps.exif_transpose(img)

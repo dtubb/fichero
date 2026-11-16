@@ -64,6 +64,7 @@ extension LibraryView {
     var body: some View {
         // Opt-in (FICHERO_PRINT_CHANGES=1): names the property that re-evaluated this body (#5228).
         if RenderDiagnostics.printChanges { Self._printChanges() }
+        BodyCount.tick("LibraryView")
         return withKeyboardShortcuts(eventWiredContent)
             // The island's bolt (v1 suggest chip) opens THIS pane's picker —
             // same sheet, same batch path as the bottom bar's bolt. Direct
@@ -133,13 +134,21 @@ extension LibraryView {
             .modifier(libraryPaneDrop)
             // The library's floating head (Daniel, 2026-08-23): view-mode
             // picker + breadcrumb, same grammar and components as the reader.
-            .safeAreaInset(edge: .top, spacing: 0) { libraryPaneHead }
+            .safeAreaInset(edge: .top, spacing: 0) { if showsPaneHead { libraryPaneHead } }
             // No-silent-fallback (F7): if this library's change stream drops, say
             // so with a pill above the content instead of quietly showing stale
             // rows. Reserving real space keeps the first row from peeking
             // through behind the pill.
             .safeAreaInset(edge: .top, spacing: 0) {
                 liveUpdatesPausedInset
+            }
+            // Blank pages the run hid, said in one line that reveals them (`prep.blank-pages-hidden-in-the-item-view`).
+            .safeAreaInset(edge: .top, spacing: 0) {
+                VStack(spacing: 0) {
+                    HiddenPagesLine(documents: documents, store: documentStore)
+                    BlankProposalsLine(documents: documents, store: documentStore)
+                    ShowThroughOnlyLine(documents: documents, store: documentStore)
+                }
             }
             // Originals that moved, said above the rows, and Locate Originals (#5672).
             .modifier(LocateOriginalsPresenter(store: activeLibraryReference?.originalsStore,

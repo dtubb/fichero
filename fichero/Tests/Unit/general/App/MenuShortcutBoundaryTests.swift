@@ -55,7 +55,7 @@ final class MenuShortcutBoundaryTests: XCTestCase {
     /// case (`ChatInspector+Header.swift`'s second ⌘A) was removed
     /// 2026-09-02; the chord has one owner everywhere now.
     func testOnlySelectAllCommandRegistersCommandAInTheMenus() throws {
-        let owner = "App/Menus/FocusedCommands/FocusedCommandButtons+SelectAll.swift"
+        let owner = "App/Menus/UndoRouting.swift"
         var offenders: [String] = []
         for path in try Self.appSwiftFiles()
         where path != owner && path.hasPrefix("App/Menus/") {

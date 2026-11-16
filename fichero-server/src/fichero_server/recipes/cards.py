@@ -119,6 +119,7 @@ def all_seed_cards() -> tuple[Card, ...]:
             short_name=str(row.get("short_name") or ""),
             period=tuple(row["period"]) if row.get("period") else None,
             handwriting_scripts=_set(row.get("handwriting_scripts")),
+            compare_on=frozenset(row.get("compare_on") or ()),
             lines_per_request=int(row["lines_per_request"]) if row.get("lines_per_request") else None,
         ))
     return tuple(cards)

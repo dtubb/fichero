@@ -171,7 +171,7 @@ async def get_document_view(
                     db,
                     rows,
                     level,
-                    children_of=_batched_children_of(db, rows),
+                    children_of=_batched_children_of(db, rows, level),
                 )
                 # AFTER level resolution, same as /children: the tier decides
                 # WHICH rows exist before the ordering decides their order.

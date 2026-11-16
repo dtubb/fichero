@@ -60,4 +60,9 @@ extension BackendConnectionView {
     var failureAccessError: AccessError? {
         appState.backendAccessError ?? (appState.authBroken ? .unauthenticated : nil)
     }
+
+    /// #6418: the failure of a host the person set, on a Mac, also offers this Mac's own engine.
+    var showsOwnEngineOffer: Bool {
+        connectionStatus.isError && ConnectionPresentation.offersOwnEngine(ownership: engineProcessOwnership)
+    }
 }

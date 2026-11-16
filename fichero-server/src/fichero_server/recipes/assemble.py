@@ -9,6 +9,8 @@ in a card earlier, for a person to confirm.
 """
 from __future__ import annotations
 
+import copy
+
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -213,6 +215,9 @@ class Card:
     #: a catalogue text model still to download, a cloud model): the finder gives it no rule rank, so a model the
     #: person already has keeps rank 1 (`source.recipe.local-text-models-are-cards`).
     offered_only: bool = False
+    #: Materials the card is offered for as a candidate to compare beside the rules' choice, where `material` refuses it: never the
+    #: rules' default and given no rank (Apple Vision's lines on handwriting, `wide.faded.segmenter-choices-named`, #6271).
+    compare_on: frozenset[str] = frozenset()
     #: A frontier cloud model counted as multilingual (#5718): not refused a rewrite for a language it does not list.
     multilingual: bool = False
     #: Whether its model is already on this Mac (#5583): True or False for a model a person downloads before
@@ -311,6 +316,11 @@ def needs_permission(card: Card, a: Answers) -> bool:
     """A cloud candidate the project may not use yet: shown greyed, "needs permission", until the person has said
     pages may leave this Mac (`source.onboard.pages-may-leave`, #5768)."""
     return not card.local and card.runs_on.startswith("cloud:") and not a.cloud_allowed
+
+
+def offered_to_compare(card: Card, material: str) -> bool:
+    """True where `material` refuses the card but its `compare_on` offers it as a candidate to compare, never as the default."""
+    return material in card.compare_on and bool(card.material) and material not in card.material
 
 
 def _refusal(job: str, card: Card, a: Answers, material: str) -> tuple[str, str] | None:
@@ -719,7 +729,11 @@ def _frontier_first(job: str, choice: Choice, readers: list[Card] | tuple[Card, 
 
 #: The text steps a cloud model is picked for by itself when pages may leave, a key is set and no local model fits
 #: (`source.recipe.cloud-text-pick`, owner ruling 2026-10-24).
-CLOUD_TEXT_JOBS = ("translate-transliterate-normalise", "describe-for-the-catalogue", "correct")
+#: The steps whose DEFAULT is a cloud model once pages may leave and a key is set, even where a local model fits (`activity.run.cloud-batch`,
+#: #6233, ruled 2026-10-27): Translate, Names, Statements and Catalogue (Read is `_frontier_first`; lines and regions stay local, a segmenter
+#: has no cloud form). The person chooses local or cloud on any step.
+CLOUD_DEFAULT_JOBS = ("translate-transliterate-normalise", "find-names-tag-words", "find-statements", "describe-for-the-catalogue")
+CLOUD_TEXT_JOBS = (*CLOUD_DEFAULT_JOBS, "correct")
 
 
 def _cloud_text_pick(job: str, choice: Choice, pool: list[Card] | tuple[Card, ...], a: Answers) -> Choice:
@@ -732,8 +746,9 @@ def _cloud_text_pick(job: str, choice: Choice, pool: list[Card] | tuple[Card, ..
 
     if job not in CLOUD_TEXT_JOBS or not a.cloud_allowed or not a.cloud_keys:
         return choice
-    if choice.card is not None and (choice.card.local or not choice.card.runs_on.startswith("cloud")):
-        return choice  # a local model fits: it wins
+    local_fits = choice.card is not None and (choice.card.local or not choice.card.runs_on.startswith("cloud"))
+    if local_fits and job not in CLOUD_DEFAULT_JOBS:
+        return choice  # a local model fits: it wins (Correct; the cloud-default steps below take the cloud model instead)
     fits = [c for c in pool
             if c.runs_on.startswith("cloud:") and c.runs_on.split(":", 1)[1] in a.cloud_keys
             and not c.cannot_run_because
@@ -746,7 +761,9 @@ def _cloud_text_pick(job: str, choice: Choice, pool: list[Card] | tuple[Card, ..
     best = ranked[0]
     provider = best.runs_on.split(":", 1)[1]
     price = _page_price(best)
-    reasons = [f"no local model fits, so the rules took the cheapest cloud text model whose provider has a key here: "
+    why = "cloud is this step's default (a local model also fits: choose it here to keep the pages on this Mac)" if local_fits \
+        else "no local model fits"
+    reasons = [f"{why}, so the rules took the cheapest cloud text model whose provider has a key here: "
                f"{best.note or best.id} at {provider}, about ${price:.4f} a page by the price list",
                "its pages leave this Mac (you allowed the cloud); the project's monthly spending cap applies to every call",
                "you can choose another model on this step"]
@@ -754,6 +771,24 @@ def _cloud_text_pick(job: str, choice: Choice, pool: list[Card] | tuple[Card, ..
         reasons[0] = reasons[0].replace("a page by", "a folder by")
     # the fallback chain stays with the chosen provider: a page never goes to a second provider after a failure
     return Choice(job, best, reasons=reasons, chain=[c for c in ranked[1:] if c.runs_on == best.runs_on])
+
+
+def tie_follows_the_line_reader(steps: list[dict[str, Any]]) -> None:
+    """Tie text to lines runs a Kraken reader whose rough read the page text is aligned to, so its default is the project's own
+    line reader: the tie then matches the reading (`wide.picker.tie-text-picker-visible`, #6256). Where the line step's model is
+    not a Kraken reader (a vision model reads those lines) the rules' own Kraken choice stays. The person can change it."""
+    from fichero_server.recipes.start import _kraken_reader_for
+
+    read = next((s for s in steps if s.get("job") == "read-a-line" and s.get("model")), None)
+    tie = next((s for s in steps if s.get("job") == "tie-text-to-lines" and s.get("model")), None)
+    if read is None or tie is None or tie["model"] == read["model"] or _kraken_reader_for(read["model"]) is None:
+        return
+    tie["model"] = dict(read["model"])
+    for key in ("card", "chain"):  # the card goes with the model: the row names it and the picker marks it chosen (`_name_the_model`, `_step_reader`)
+        if key in read:
+            tie[key] = copy.deepcopy(read[key])
+    tie["runs_on"] = read.get("runs_on") or tie.get("runs_on")
+    tie["reasons"] = ["the project's own line reader: the tie matches the reading", *[r for r in tie.get("reasons") or [] if "already on this Mac" not in r]]
 
 
 def _chosen(choice: Choice) -> dict[str, Any]:
@@ -878,10 +913,14 @@ def needed_by(job: str, jobs_in_order: list[str], materials=()) -> list[str]:
 
 
 CORRECT = "correct"
+#: Set Up's Leave Out toggle (`stages.py`, #6070): no, and the step is out of the plan; yes, and it is in (with Find Lines).
+LEAVE_OUT_QUESTION = "leave_out"
 #: Set Up's question under Read that asks for Correct (`recipes/stages.py`).
 CORRECT_QUESTION = "correct_with_a_second_model"
 #: "Add another model to review in turn?" (#6257): a second `correct` step, `correct-2`, after the first.
 ANOTHER_CORRECT_QUESTION = "correct_with_another_model"
+#: How the second reviewer takes the first's work: in-turn (the default), compare, or both (#6257, `tool_context.REVIEW_MODES`).
+SECOND_REVIEW_MODE_QUESTION = "second_review_mode"
 
 
 def correct_available(card: Card | None) -> bool:
@@ -1054,6 +1093,11 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
         jobs.add(PREPARE)
     if "find-lines" in jobs and jobs & READING_JOBS:
         jobs.add("leave-out")  # on by default between the lines and their reading; a person can take it out (#6070)
+    asked_leave_out = a.job_answers.get(LEAVE_OUT_QUESTION)
+    if asked_leave_out is False:  # Set Up's toggle, the person's own word (a ticked stage does not override it)
+        jobs.discard("leave-out")
+    elif asked_leave_out is True and "find-lines" in jobs:
+        jobs.add("leave-out")
     # Find where the readers disagree is optional like Correct: in the plan only when ticked (owner ruling 2026-10-19).
     if "find-where-readers-disagree" not in a.jobs:
         jobs.discard("find-where-readers-disagree")
@@ -1140,12 +1184,16 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
             second_choice = _choose(job, others, a)
             second: dict[str, Any] = {"id": f"{job}-2", "job": job, **_topic(job), **_chosen(second_choice)}
             second["title"] = f"{second.get('title') or job} again"
+            mode = a.job_answers.get(SECOND_REVIEW_MODE_QUESTION)
+            if mode not in (None, "", "in-turn"):  # in turn is what a step with no mode does
+                second["settings"] = {"review_mode": mode}
             second["uses_cloud"] = str(second.get("runs_on") or "").startswith("cloud")
             if second_choice.card is None:
                 notes.append(f"{second['id']}: {second_choice.gap}")
             steps.append(second)
     from fichero_server.recipes.jobs import get_job
 
+    tie_follows_the_line_reader(steps)
     for step in steps:
         known = get_job(step["job"])
         step.setdefault("layer", known.layer if known else step["job"])  # `source.recipe.steps-name-layers`

@@ -46,6 +46,9 @@ enum PaneKind: String, Codable, CaseIterable, Sendable, Hashable {
     case chat
     /// The Segments pane (#4942): a page's segments as a list beside the Preview.
     case segments
+    /// The Activity pane (#6441, `activity.pane.is-a-pane-kind`): the one table of runs and jobs; its scope's
+    /// `libraryId` says whose work it shows (nil: every open project).
+    case activity
 }
 
 /// What a pane is scoped to. All fields optional: a `nil` field means "follow the
@@ -89,6 +92,10 @@ struct PaneConfig: Codable, Sendable, Hashable {
     /// Preview pane — the IMAGE layer on or off (ruled 2026-09-27, Q2: display switches are layers
     /// with good defaults tied to the workspace; overlays without the image is a view wanted).
     var previewImage: Bool?
+    /// Preview pane — how a selected FOLDER is shown: a `PreviewFolderView` rawValue
+    /// ("canvas"/"list"/"table"). nil = never chosen, so the pane opens the default (Table,
+    /// `library.preview.folder-view-defaults`). Per pane, never per window or per folder.
+    var previewFolderView: String?
     /// Preferred FIXED extent (pt) along the parent split's axis — width in a horizontal split,
     /// height in a vertical one. Set on a film-strip pane (the narrow library-icons strip at the
     /// bottom of Transcribe/Compare, ~72pt) so it stays narrow while the content flexes (CD
@@ -122,6 +129,7 @@ struct PaneConfig: Codable, Sendable, Hashable {
         previewLens: String? = nil,
         previewWordBoxes: Bool? = nil,
         previewImage: Bool? = nil,
+        previewFolderView: String? = nil,
         paneExtent: Double? = nil,
         paneFraction: Double? = nil,
         splitExtent: Double? = nil,
@@ -132,6 +140,7 @@ struct PaneConfig: Codable, Sendable, Hashable {
         self.previewLens = previewLens
         self.previewWordBoxes = previewWordBoxes
         self.previewImage = previewImage
+        self.previewFolderView = previewFolderView
         self.paneExtent = paneExtent
         self.paneFraction = paneFraction
         self.splitExtent = splitExtent
@@ -144,7 +153,8 @@ struct PaneConfig: Codable, Sendable, Hashable {
     /// Whether this pane overrides any presentation default.
     var isConfigured: Bool {
         libraryContentKind != nil || libraryLayout != nil || previewLens != nil
-            || previewWordBoxes != nil || previewImage != nil || paneExtent != nil || paneFraction != nil
+            || previewWordBoxes != nil || previewImage != nil || previewFolderView != nil
+            || paneExtent != nil || paneFraction != nil
             || splitExtent != nil || splitFraction != nil
     }
 }
@@ -326,6 +336,22 @@ indirect enum PaneNode: Codable, Sendable, Hashable, Identifiable {
             return .leaf(id: id, kind: kind, scope: scope, config: updated)
         case let .split(id, axis, children):
             return .split(id: id, axis: axis, children: children.map { $0.changingLibraryLayout(target, to: newLayout) })
+        }
+    }
+
+    /// This node with the leaf `id`'s `config.previewFolderView` changed to `newView` — the Preview
+    /// head's "Show folder as" menu writes HERE, to this pane only (`library.preview.folder-view-
+    /// persists-per-pane`). `nil` clears the choice (back to the default). Same one-leaf contract as
+    /// `changingLibraryLayout`.
+    func changingPreviewFolderView(_ target: UUID, to newView: String?) -> PaneNode {
+        switch self {
+        case let .leaf(id, kind, scope, config):
+            guard id == target else { return self }
+            var updated = config
+            updated.previewFolderView = newView
+            return .leaf(id: id, kind: kind, scope: scope, config: updated)
+        case let .split(id, axis, children):
+            return .split(id: id, axis: axis, children: children.map { $0.changingPreviewFolderView(target, to: newView) })
         }
     }
 }

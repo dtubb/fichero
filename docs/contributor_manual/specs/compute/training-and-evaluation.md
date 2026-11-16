@@ -85,7 +85,7 @@ noise; and the person's corrections of the new model's output feed the next trai
   faster, lower carbon, trainable, smaller, card id); kept in `recipe/bakeoffs/<id>.yaml`; `use_this`
   writes an override on the recipe for the project or a folder, with the reason in words, through the
   audited `project.save_setup`. Routes in
-  `fichero-server/src/fichero_server/api/routes/system/recipes.py` (`/api/recipes/project/bakeoffs`,
+  `fichero-server/src/fichero_server/api/routes/system/recipe_cloud_cap.py` (`/api/recipes/project/bakeoffs`,
   list, result, `/use`); CLI and MCP generated (`fichero_recipes_start_bakeoff`,
   `fichero_recipes_use_bakeoff_choice`). Tested in
   `fichero-server/tests/unit/recipes/test_bakeoff_readers.py`. App:
@@ -453,6 +453,7 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
   resident size against the machine's memory before it starts; built for this Mac
   (`compute.memory.too-big-refused-up-front`); naming where it does fit (another Mac, Hugging Face, a
   cluster, a provider) is not built.
+- `training.start.names-the-place-before-any-check` — **[OK]** (#6004) starting a training job names where it will run before it refuses a project or checks that the pages may go there, so a project whose pages may not leave gets the refusal in words, not an `UnboundLocalError` (`fichero-server/tests/unit/training/test_start_names_the_place_before_the_projects_check.py`).
 - `training.fit.restricted-trains-never-released` — **[OK]** (#5539) restricted data trains and the model
   is never publishable wherever it is copied. Built:
   `fichero-server/src/fichero_server/training/project_models.py` `make_global`; tested in

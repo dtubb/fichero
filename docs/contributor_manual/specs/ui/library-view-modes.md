@@ -93,6 +93,7 @@ Surfaces: `ViewDisplayMode` (`App/ViewDisplayMode.swift`), `LibraryView
   substitute. Pinned:
   `LibraryPaneSurfaceGuardTests.oneBottomBarForEveryMode`,
   `LibraryPaneSurfaceGuardTests.showControlIsNotModeSwapped`.
+- `library.chrome.every-mode-menu-matches-the-menu-bar` — **[GAP]** (#6542) every view mode (List, Icon, Table, Columns, Canvas, Space, the dataset views) offers a right-click menu whose commands are the menu bar's: the same names, shortcuts and enabled state, from the one shared builder below. Known: #4585.
 - `library.chrome.one-row-menu-builder` — **[OK]** every browse mode (icon/list/table/
   columns) and both canvases build a row's context menu from the ONE shared builder — the
   canvases add at most one verb of their own and defer the rest — and every dataset renderer
@@ -110,6 +111,13 @@ Surfaces: `ViewDisplayMode` (`App/ViewDisplayMode.swift`), `LibraryView
   `SelectAllVisibleSurfaceTests` (four cases spanning dataset filtering and the 3D board's
   cap), `LibraryMenuParityTests.selectAllHasOneOwner` (`"⌘A has one owner — canvas
   defers to the menu command (M1 resolved)"`).
+- `ui.select-all.never-the-sidebar` — **[PARTIAL]** (#6364; owner, on screen, 2026-11-11: ⌘A in the sidebar still selected every project, folder and workflow. The route knew the sidebar had focus only from a tap, so with no hint, or another pane's hint and nothing there to select, Select All disabled itself and ⌘A fell through to the outline's own select-all. Fixed 2026-11-11: the route now asks AppKit whether the key window's first responder is inside the view carrying `SidebarAccessibilityID.list` (`SidebarKeyboardFocus`) and, if so, takes ⌘A and ignores it (`SelectAllSidebarGuard`); a sidebar rename field still gets ⌘A for its text. *Test:* `SelectAllSidebarGuardTests`. Not checked in the running app: that the List's identifier sits on an ancestor of the outline's responder.) ⌘A never selects the whole sidebar. Over the item list, the reader, the
+  preview and the inspector it works as before (`library.chrome.select-all-follows-the-visible-surface`); with the sidebar
+  focused the chord is taken and does nothing, so it is neither a selection nor left to fall through to the system's own list,
+  which would select every row. Typing in a sidebar rename still gives ⌘A to the caret. This replaces the ruling of 2026-08-23
+  that ⌘A over the sidebar selects the current library's visible rows: the sidebar publishes no select-all any more. Pinned:
+  `fichero/Tests/Unit/general/App/SelectAllRoutingPolicyTests.swift::sidebarIsIgnored`,
+  `fichero/Tests/Unit/general/Views/Library/SelectAllVisibleSurfaceTests.swift::sidebarNeverSelectsItsRows`.
 - `library.input.keyboard-grammar-is-explicit-per-mode` — **[OK]** the row-ordinal keyboard
   grammar (arrows, type-ahead, Return-to-open, Space-to-preview) is serviced by the ordered
   modes (icon/list/table/columns) and deliberately NOT by the spatial modes (canvas/space),
@@ -191,6 +199,77 @@ Surfaces: `ViewDisplayMode` (`App/ViewDisplayMode.swift`), `LibraryView
   `DocumentStoreAndSidebarTypesTests.testEntityLibrarySelectionDoesNotForceDisplayMode` (file
   `fichero/Tests/Unit/general/Models/DocumentStoreAndSidebarTypesTests.swift`, suite
   `DocumentStoreAndSidebarTypesTests`).
+
+- `library.preview.folder-view-per-pane` — **[PARTIAL]** (#6365; owner 2026-11-06; built, not yet compiled or run) each Preview pane
+  chooses how it shows a selected folder: **List**, **Table**, **Icons** or **Canvas** (Icons added for #6562). The choice belongs
+  to the pane, not the window: two Preview panes side by side can show the same folder one as a
+  table and one as its canvas, and choosing in one changes nothing in the other. Acceptance: with
+  two Preview panes split side by side and a folder selected, choosing Table in the left pane
+  leaves the right pane on its own view; the sidebar's selection is the same folder in both.
+  *Decided here:* the three views are the Library's own List and Table modes (`LibraryView`
+  `.list`/`.table`) and the folder canvas (`FolderContentsPreview`), scoped to the folder, so
+  there is one row renderer and one canvas, not a second copy (`library.canvas.one-canvas-
+  everywhere`); Icons is the Library's `.icon` mode, added when the owner asked for it in the one head (#6562).
+- `library.preview.folder-view-one-head` — **[PARTIAL]** (#6562; owner 2026-11-12) a folder in the Source pane shows
+  ONE pane head, the Source pane's own: the embedded List, Table or Icons view draws no head of its own under it
+  (no second ✕, kind, view menu, Documents menu or +), and the view is chosen only in that head's "Show folder as".
+  Seen 2026-11-12: the Source head, then directly under it the embedded Library head, as if two panes were stacked
+  in one. *Built:* `LibraryView.showsPaneHead`, false from `FolderRowsPreview`; the canvas view never drew one.
+  *Not built:* a look on screen. *Tests:* `PreviewFolderViewPerPaneTests.swift`.
+- `library.preview.folder-rows-open-in-place` — **[PARTIAL]** (#4880) (owner 2026-11-13) in a Source pane showing a folder as
+  List, Table or Icons, a double-click (or Return) on an item opens that item in the same Source pane, and on a folder
+  goes into that folder there, and the Reader shows it too (the same open a card double-clicked on a folder's
+  canvas makes, `ContentView.selectDocument(withId:)`). Seen 2026-11-13: in Table a double-click on an item
+  did nothing, because the embedded rows' open wrote a detail document no one read. *Built:* `FolderRowsPreview` hands
+  every open to the pane (`onNavigateToDocument`). *Not built:* a look on screen. *Tests:*
+  `PreviewFolderViewPerPaneTests.swift`.
+- `library.preview.folder-view-picker-in-the-head` — **[PARTIAL]** (#6365; built, not yet compiled or run) the picker sits in the
+  Preview pane head's existing selector menu (`PaneKindSelector`, `ContentView+PreviewPaneHead.swift:61`),
+  as a section titled "Show folder as" under the Preview/Edit lens, with the four views in the
+  order List, Table, Icons, Canvas; it moves with the rest of that menu into the pane menu's View ▸ when
+  `panes.chrome.one-pane-menu` (#5435) lands. Acceptance: the head of a Preview pane showing a
+  folder offers List, Table, Icons and Canvas in one menu and nowhere else on the head; the chosen one
+  is marked; no new control is added to the head. *Decided here:* one existing menu, no new
+  chrome, following the 2026-10-04 ruling that there is too much window chrome
+  (`panes-workspaces.md` §G). a11y ids: `previewHeadFolderView` (the menu),
+  `previewHeadFolderView.list` / `.table` / `.icons` / `.canvas` (its entries).
+- `library.preview.folder-view-defaults` — **[PARTIAL]** (#6365; built, not yet compiled or run) a pane that has never been given a
+  choice opens a folder as a **Table**, the default #6172 ruled (owner 2026-10-26); a file, a page
+  or a multiple selection is shown as today (the document canvas, the PDF, the stack) whatever
+  the pane's folder view is, and the picker is shown dimmed while the selection is not a folder.
+  Acceptance: a fresh install's Read workspace shows a clicked folder as a table in its Preview;
+  clicking a file inside it shows the file; clicking the folder again shows the table again.
+  *Decided here:* Table, not Canvas, because the owner already ruled the first open in #6172 and
+  #6365 asks only that the canvas stop being forced; the canvas's saved layout is untouched by
+  the choice (`library.canvas.a-folder-previews-as-its-canvas`).
+- `library.preview.folder-view-persists-per-pane` — **[PARTIAL]** (#6365; built, not yet compiled or run) the choice is stored on
+  the pane in the pane list (`PaneConfig`, a new `previewFolderView` raw string beside
+  `libraryLayout`, `Models/PaneList.swift:81`) and reaches the pane through an environment key
+  the same way `paneLibraryLayout` does (`ContentView+PaneSpecs.swift:248-252`); so it is
+  remembered with the applied pane list (`workspace.appliedPaneList`) across a relaunch, saved
+  and restored with a saved workspace, kept when the selection moves to a file and back, and a
+  split's new half starts with its parent's choice. A pane created by a built-in workspace
+  (⌘⌥1–5) starts with no choice, so it opens the default. Acceptance: choose List in a pane,
+  quit and relaunch, select a folder: that pane shows the list; a second pane that was on Table
+  still shows the table; apply a saved workspace that held a Canvas pane and it opens as the
+  canvas. *Decided here:* the pane list, not `@SceneStorage` or a per-folder record, because
+  it is the one place every other per-pane choice already lives and is already remembered
+  (`panes-workspaces.md`, `activePaneList` is the only source of pane state).
+- `library.preview.folder-view-cannot-show-says-so` — **[PARTIAL]** (#6365; built, not yet compiled or run) when the pane's chosen
+  view cannot draw the selection it falls back and says so, never a blank pane and never a
+  silently rewritten choice: an empty folder shows the Library's empty-folder state in every
+  view; a folder whose canvas has not loaded shows the canvas's own waiting state
+  (`library.canvas.cards-move-only-when-asked`); a Preview pane whose selection is a knowledge
+  collection (Entities, Claims) shows what it shows today, the choice kept for the next folder.
+  Acceptance: an empty folder in a Canvas pane and in a Table pane shows the same empty-folder
+  sentence; selecting Entities then a folder brings the pane's own view back. *Decided here:*
+  keep the choice through anything it cannot show, because a choice that is lost when the
+  selection wanders is what #6172 complained of.
+  - QUESTION (owner): in List and Table inside a Preview pane, does a single click on a row make
+    that item the Inspector's and Reader's subject while the pane keeps the list (what a canvas
+    card click does today, `onFolderCanvasFocus`, #5305), and a double-click open the item in the
+    pane? The spec assumes yes, the canvas's own grammar; a different answer changes only this
+    bullet.
 
 ### E. Icon mode (legacy milestone "Library View — Icons")
 
@@ -312,6 +391,14 @@ may be why it still reads as broken to whoever tests it next.
 - `library.table.column-customization` — **[GAP]** (#3698) a column picker should choose
   which columns the table view shows (name, dates, type, entity count, size, etc.),
   persisted per view. Not verified as built.
+- `library.table.columns-resize-and-remember` — **[PARTIAL]** (widths app-wide built 2026-11-11, `LibraryTableColumns`: one store every Table shares, saved to the defaults only when the columns really change, read back by every window and the next launch; tested in `LibraryTableColumnsTests`. Not built: the resize cursor over a header edge, which needs the running app to see what hides it) (#6540; owner 2026-11-11) every column's width can be changed by dragging its header edge, the pointer turns into the resize cursor over that edge so it is clear the columns resize, and a width once set is remembered app-wide: every folder, every Table pane and every window, across relaunch. Today the pointer does not change over a column edge, and widths are kept per window (`@SceneStorage("library.tableColumns")`). That same storage ping-pongs with `LibraryView` (26 rounds in one session, #4228), so where it lives is also a speed question.
+- `library.table.disclosure-by-the-icon` — **[GAP]** (#6541) a disclosure chevron in the item table sits beside the row's icon and name at the top of the row, as the top-aligned cells do (#5279); today the system table keeps it at the row's vertical centre, halfway down an 85 pt row.
+- `library.table.every-column-selects` — **[OK]** (#6538) a click anywhere in a table row
+  selects it, the Name column included: a click selects, ⇧-click selects a range, ⌘-click
+  adds or removes one row, and a double-click opens. No cell carries a drag source (a
+  `.draggable` inside an `NSTableView` cell takes the mouse-down, which is how the Name column
+  stopped selecting); the drag is the ROW's, so a row drags out from any column. Pinned:
+  `fichero/Tests/Unit/general/Views/Library/LibraryOutlineRowDragTests.swift`.
 
 The table's **Done** column (one badge per step run on a document) belongs to
 `activity.document.what-has-been-run` in `ui/activity-and-automatic-work.md` (#5434); it is
@@ -413,6 +500,37 @@ homeless until a map-view UI spec exists (#5128).
     has a size, so a zoom moves the camera and no card. Tested in
     `fichero/Tests/Unit/general/Views/Library/CanvasZoomKeepsTheCardsTests.swift` (the real view, store
     and renderer), not yet seen in the app.
+- `library.selection.one-rubber-band` — **[PARTIAL]** (#4601; built 2026-11-11, seen in its preview, not yet in the app;
+  owner: a Finder-style band everywhere, neutral grey, not the accent, which may be yellow) every rubber band is the one
+  `RubberBand`: a translucent grey fill and a thin grey border, semantic colours only, on the 2D and 3D boards, the
+  icon grid, the Preview's region band (no longer a dashed accent box) and the image editor's marquee; the items it
+  crosses light as it sweeps, as before. The table and list keep the system's own band. Tested in
+  `RubberBandEverywhereTests`.
+- `library.canvas.a-drop-links-only-with-option` — **[PARTIAL]** (#4601; built 2026-11-11, tested, not yet seen in the
+  app; owner: "lines appear between cards". Cause: a drop within reach of another card that is not a container linked
+  the two, `DropOutcome.classify` .leaf → .link, so tidying a board drew lines) a card dropped on or beside another card
+  is placed there; a link is made only with ⌥ held (`.forceLink`), and a drop on a folder or a document with pages
+  still moves it in. A card under the drag lights only where the drop will act on it (`DropOutcome.lightsTarget`), on
+  the 2D and 3D boards. Tested in `CanvasDropTests` (`leaf`, `lightsOnlyWhereItActs`) and
+  `CanvasInteractionControllerTests.dropCreatesLink`.
+- `library.canvas.command-scroll-zooms-evenly` — **[PARTIAL]** (#4601; built 2026-11-11, tested, not yet seen in the
+  app; owner: with ⌘ and a Magic Mouse the zoom "goes too fast, then stops, and you can't zoom out". Cause: each event
+  multiplied the scale by `1 + delta × 0.005`; a flick's momentum sends deltas past ±200, so the factor reached zero or
+  below and the scale snapped to its near limit) ⌘ + two-finger scroll zooms into the pointer by an exponential factor
+  of each event's delta, capped at 40 points an event, so zooming in and out go at the same speed and nothing snaps;
+  the momentum glide after the fingers lift does not zoom (`CanvasScrollZoom`), on the 2D and 3D boards. Tested in
+  `CanvasScrollZoomTests`.
+- `library.canvas.a-click-never-continues-the-last-drag` — **[PARTIAL]** (#4601; built 2026-11-11, tested, not yet seen in
+  the app; owner: "a click sometimes moves the previously dragged card and doesn't select") a click on the board selects
+  what is under it and never moves the card dragged before it. Cause: the board kept its drag in `@State`, and SwiftUI
+  never calls `onEnded` on a cancelled drag (a competing recognizer, the window losing focus), so the next press
+  continued the old drag; an entity-targeted card drag also raced the board's own. Now every left mouse-down first
+  finishes what is left (`CanvasLeftoverDrag`, via `CanvasScrollPanView.onPrimaryPress`): one card is saved where it
+  was left and selected as its release would have (`CanvasInteractionController.flushActiveDrag` applies the
+  select-on-drop), a carried selection goes back where it started; the duplicate drag is gone and a drag starts after
+  3 points, not 6. Selecting still waits for the drop (selecting mid-drag hung the drag, 2026-10-09). Tested in
+  `CanvasLeftoverDragTests`, `CanvasInteractionControllerTests.flushSelectsTheGrabbedCard`,
+  `CanvasInteractionPolicyGuardTests.itemDragOwnsThePlainDrag`.
 - `library.canvas.cards-move-only-when-asked` — **[PARTIAL]** (#5629; tested, not yet seen in the app)
   Ruled 2026-10-09: on the Canvas and in Space a card moves only when a person moves it: a drag, an
   Arrange, or a move made in another window (someone's drag too). The board opens with every card
@@ -476,7 +594,9 @@ homeless until a map-view UI spec exists (#5128).
     across zooms).
 - `library.modes.the-view-follows-the-node` — **[PARTIAL]** (#5428; built 33310028f, tested in
   `fichero/Tests/Unit/general/Views/Library/LibraryViewFollowsNodeTests.swift`, not yet seen in the
-  app) Ruled 2026-10-04, Finder-like: clicking a source (an image or a PDF, the same rule) in the
+  app) Ruled 2026-10-04, Finder-like: clicking a source (an image or a PDF, the same rule; since the
+  owner's ruling of 2026-11-11, a PDF with pages is the exception and lists its pages as a folder lists
+  its contents, `read.selecting-a-pdf-shows-its-pages`, #6539) in the
   sidebar shows its parent folder in the Library pane, in that pane's saved view mode (canvas, table,
   …), with the source selected there; the linked Preview shows the source. If the window has no
   Preview pane, one opens. Clicking the folder shows the folder, still in its saved mode. This
@@ -487,9 +607,52 @@ homeless until a map-view UI spec exists (#5128).
   drags it or (twice) zooms it; a press on the empty board draws a rubber band; pressing one card of a
   multiple selection moves the whole selection. Built 572719bca from the canvas's own hit test (the
   entity-targeted gestures stopped reaching the cards); the resize handles are not on it yet.
+- `library.canvas.rubber-band-selects-what-it-touches` — **[PARTIAL]** (#4601) a rubber band on the
+  board selects every card whose drawn rectangle it touches, however little of the card it covers,
+  measured by the same card rectangle a click hits; a card the band does not touch stays out. Until
+  2026-11-11 a card was caught only when the band covered its centre, so a band had to sweep most of
+  a card to take it. *Test:* `Canvas2DMarqueeTouchTests`. PARTIAL until seen in the app.
+- `library.canvas.click-and-drag-are-timed` — **[PARTIAL]** (#5253) a click on the 2D board logs one
+  `⏱ canvas click took N ms` line, from the mouse-down to the frame after the release: how long the
+  button was held, how long from the release to that frame, and how many times the board was
+  resolved and reconciled in between and how long each took altogether. A drag logs one
+  `⏱ canvas drag took N ms` line on release with the same counts, plus its moves and their average
+  and slowest wait for the next frame. A slow click or drag on the board then says whether the time
+  went into resolving the board, reconciling it, or neither. *Test:* `CanvasBoardProfileTests`. The
+  first reading in the real app is owed.
 - `library.canvas.a-board-remembers-its-camera` — **[OK]** (572719bca) a board opens fitted to the pane
   with margin; coming back to a folder returns to the centre and zoom the person left it at (kept per
   Mac, not in the library).
+- `library.canvas.camera-is-saved-when-it-rests` — **[PARTIAL]** (#4601) the camera a board
+  remembers is written to this Mac's preferences once, when a pan or zoom has rested for a moment,
+  never on every scroll tick. Measured 2026-11-11: every two-finger pan event wrote the preferences,
+  and every write re-ran each `@AppStorage` view in the window, so one turn during a board gesture
+  re-evaluated 291 view bodies (210 of them sidebar rows, 8 preference writes) and a move waited
+  1.08 s for its frame. *Test:* `CanvasCameraSaveRestsTests`.
+- `library.canvas.zoom-out-stops-near-fit` — **[PARTIAL]** (built, not yet compiled or run; #6368; owner 2026-11-06, two screenshots) on
+  every 2D canvas pane (the Library's Canvas mode and the folder canvas in a Preview pane, one canvas,
+  `library.canvas.one-canvas-everywhere`) zooming out stops a little past fit-to-content: the minimum
+  zoom is the scale at which every card just fits the pane (the pose `CanvasCameraFit.fit` computes
+  for the board's cards and this pane's size, the same fit the board opens with) times about 0.9, so
+  the content fills most of the pane with a thin rim of empty space and never shrinks to a cluster in
+  the middle; a pinch, ⌘-scroll or Zoom Out past it does nothing (the scale clamps there, the camera
+  stays); the minimum follows the pane, so making the pane smaller or larger, adding or removing a
+  card or arranging the board re-derives it (and a camera already past the new minimum is brought to
+  it, the one case a camera moves unasked, `library.canvas.cards-move-only-when-asked` kept for the
+  cards); zooming IN is unchanged (the floor `setOrthoScale` clamps to today, 0.1). An empty board, or
+  one whose cards' shapes are not yet known, uses a floor of one grid cell filling the pane's height
+  (`CanvasGridPlacement.cellHeight`, the same basis `focusZoom` uses), never today's constant of 200
+  scene units. Today `setOrthoScale` clamps to a fixed 0.1…200 (`CanvasOrtho2DRenderer.swift:261`)
+  and knows nothing of the board or the pane, which is the defect. Acceptance: with a board of 12
+  cards fitted in a 1000×700 pane, zooming out by any amount leaves the ortho scale at the fit pose's
+  scale divided by 0.9 and every card visible; shrinking the pane to 500×350 raises the minimum to that
+  pane's fit and a camera past it moves to it; with no cards the minimum is the one-cell floor and a
+  pinch out does not change it; zooming in from the fit still reaches 0.1. *Decided here:* 0.9 of the
+  fit (about 10 % of empty rim), the owner's own figure; the 3D canvas keeps `CanvasZoomRange` (its
+  far limit is already span × 1.6) and is not changed here. Test (to write):
+  `CanvasZoomFloorTests.swift` in fichero/Tests/Unit/general/Views/Library/ (the pure clamp from a
+  fit pose and a pane size; the empty-board floor; the renderer re-clamps on resize), beside
+  `CanvasZoomKeepsTheCardsTests.swift`.
 - `library.canvas.group-into-one-node` — **[PARTIAL]** (#5303) selecting images and choosing Edit ▸
   Group (no chord yet: ⌥⌘G, Keynote's and Freeform's, is the Preview markup Line tool today) makes ONE group node that holds them in
   order, in the place of the first, as a letter holds its pages; Edit ▸ Ungroup returns each to
@@ -502,7 +665,7 @@ homeless until a map-view UI spec exists (#5128).
 **Groups are containers (2026-10-07, #5570, #5569).** A group is a document made of pages: a letter,
 a judgment, a register entry. It was made by Group as Stack and then drawn as a broken image
 ("Preview unavailable — Source file not available"), hidden from the sidebar, with its pages out of
-sight and its place lost to the name sort. The case that showed it: Istmina Full's '1948 Sentencias',
+sight and its place lost to the name sort. The case that showed it: a real box of 203 loose court pages,
 203 loose pages organised through the engine into 8 judgments of 6 to 62 pages each. The design, in
 one sentence: a group is a folder whose order matters and whose pages read as one document. Every
 surface that decides how a node renders by its type treats `DocType.group` as a container, never as
@@ -519,10 +682,12 @@ a file.
 - `library.group.double-click-opens-its-pages` — **[PARTIAL]** (#5570) double-clicking a group opens
   it as a folder-like scope: the Library pane lists its pages, in their order, in that pane's view
   mode, and the crumbs name the group. In Columns a group opens the next column like a folder.
+- `library.pdf.opens-as-its-pages` — **[PARTIAL]** (#6410; owner dev build 2026-11-08; the prose at "A double-click into a PDF in the Library still browses its pages" had no id and no test) a PDF is a folder-like scope exactly as a group is (`library.group.double-click-opens-its-pages`, the same path: `Document.isNavigableContainer` already answers true for `fileType == .pdf`, and the engine lists its pages as its children, `docType: .page`, in page order): selecting a PDF in the sidebar shows its pages in the Preview's folder view of that pane (Canvas, List or Table, `library.preview.folder-view-per-pane`) in order, the crumbs name the PDF, in Columns the PDF opens the next column like a folder, and the Inspector shows the PDF's own details (not its first page's) while the PDF is the selection. No new route: the children listing and the per-pane folder view are as today; what changes is that the Preview's folder branch takes a PDF where it takes a folder or a group. Acceptance: a 12-page PDF selected in the sidebar shows twelve page rows in order in the Preview's Table, "Box 3 › The deed.pdf" in the crumbs, and the Inspector's title is the PDF's; double-clicking it in the Library pane lists the same twelve pages in that pane. *Test:* `PDFOpensAsItsPagesTests.swift` (the route for a PDF beside a group, the empty PDF, the PDF as a navigable container; no crumb, Columns or pane-view test), the existing `GroupsAreContainersTests.swift` and `MillerColumnModelTests.swift`. *Built (slice 1, #6410):* `EditorView.pdfPreviewRoute`: a PDF that has listed pages previews as its pages (`.folderContents`) like a group, on the group's board; one with no listed pages still shows the file. *Tests:* `PDFOpensAsItsPagesTests.swift`. *Not built:* the PDF's pages in the pane's List or Table view (`usesPaneView` is false for a PDF), Columns opening the next column for a PDF (the five `isFolderLike` sites in `LibraryView+ColumnsView.swift`), the crumb, and the Inspector keeping the PDF's own details; each needs a test that goes red when undone (new issue).
+- `library.contents.double-click-selects-the-item` — **[GAP]** (#6410; owner: double-clicking an item in the Preview's contents view does not move the selection, so the item cannot be seen or read. Today the Preview's folder views keep a selection of their own (`FolderRowsPreview.selection`, `FolderContentsPreview.selectedNodeIds`) and report it; the Library pane's `handleDoubleClick` selects the row in that pane and navigates into a container, through `openDocument`) in EVERY view mode of a contents view, the Library pane or a Preview pane's folder view, a double-click on an item makes that item the WINDOW's selection through the one selection path a sidebar click takes (single source of truth: the sidebar's selected item changes, the linked Preview shows the item, the Inspector follows), and then does what a double-click does today: a container (folder, group, PDF) is entered in the pane that was double-clicked, a page or file is previewed. A double-click never leaves two selections (the pane's local one and the window's) disagreeing: after it, the pane's selection IS the window's. Acceptance: with a folder selected in the sidebar and its Table in the Preview, double-clicking page 4 selects page 4 in the sidebar, the Preview shows page 4 and the Reader reads it; double-clicking a PDF row in that Table selects the PDF in the sidebar and the Preview lists its pages; the same in Canvas and List and in the Library pane's icon, list, table and columns. *Test:* `ContentsDoubleClickSelectsTests.swift` (not yet written; through the real selection store and `SelectionGrammar`, never an injected selection: the window's selection after a double-click in each view mode, the pane's selection equal to it, the container entered in the pane that was clicked), the existing `ContentViewRestoredSelectionTests.swift`. *Not built:* the Preview's List and Table rows do not yet send a double-clicked page or file to the window's selection; it needs a test that goes red without the wiring, which means hosting the real Library view.
 - `library.group.previews-as-its-pages` — **[PARTIAL]** (#5570) a selected group shows in the Preview
   as its pages, on the group's own canvas (the same board as
   `library.canvas.a-folder-previews-as-its-canvas`, one layout per group): its saved layout when it
-  has one (each Istmina group holds an 8-column grid), else the default grid in page order. A click
+  has one (each group in that box holds an 8-column grid), else the default grid in page order. A click
   on a page selects it; a double-click shows that page. Never a missing-file message. Tested by
   `GroupsAreContainersTests.groupPreviewsAsItsCanvas` (the Preview's route).
 - `library.group.cover-is-its-first-page` — **[PARTIAL]** (#5570) the engine answers a group's
@@ -548,6 +713,8 @@ a file.
   saved sort, so groups and pages appear in their order, not alphabetically. Name and the other
   sorts remain; a folder's chosen sort is still remembered. Tested by
   `GroupsAreContainersTests.asFiledOrdersBySortOrder`.
+- `library.sort.names-in-finder-order` — **[PARTIAL]** (#6571; owner 2026-11-13) every list ordered by name uses Finder's order, the same in the engine and the app: case-insensitive, accents folded in the engine and per the locale in the app, numbers compared by value (1, 2, … 9, 10, 11, … 100, 101, never 1, 10, 100, 2), ties broken by the exact name and then the id so the order is stable. This covers the sidebar, the Library list, table and icon views, page and segment lists and the pickers; orders that are not by name (created, sort order, models, users) are left alone. Built: the engine's one key `natural_key` (`core/naturalsort.py`, accent folding and exact-name tie-break added) used by the folder, page and bookmark listings; the app's one comparison `String.finderOrder` (`localizedStandardCompare`) used by the sidebar builders, the Library name sort and the pickers. *Test:* `fichero-server/tests/unit/core/test_naturalsort.py`, `FinderOrderTests`. *Not built:* any name-ordered list not yet moved to the shared helper.
+- `library.names.truncate-in-the-middle` — **[PARTIAL]** (#6571; owner 2026-11-13) app. A name too long for its row loses its middle, never its end, in every Library view (list, icons, columns and the table's Name column), so the number and extension at the end stay readable, as in Finder. *Built:* `.truncationMode(.middle)` on the list, icon and column names and on the table's Name cell (`LibraryView+TableColumns.outlineColumns`). *Test:* none (a modifier on a view; checked on screen).
 - `library.group.dated-by-its-pages` — **[PARTIAL]** (#5569 item 2) a group carries a date: its own
   when one is given to it (a judgment's date), else the range of its pages' dates ("2 March 1948 –
   15 March 1948"), through the ordinary date fields (`date_jdn`, `date_jdn_end`, `date_meta` with
@@ -714,6 +881,47 @@ resolved and moved; the other three's status is corrected below.
   `library-view-modes.md`, or anything else read this pass) squarely owns "is the iOS text
   editor as capable as the Mac one." Left on milestone "Library View" (#117).
 
+## Build order
+
+#### Step 1.1 — each Preview pane chooses its folder view: Canvas, List or Table, remembered per pane (#6365)
+- Behaviours: `library.preview.folder-view-per-pane`, `library.preview.folder-view-picker-in-the-head`, `library.preview.folder-view-one-head`, `library.preview.folder-view-defaults`, `library.preview.folder-view-persists-per-pane`, `library.preview.folder-view-cannot-show-says-so`
+- Tests: PreviewFolderViewPerPaneTests.swift, PreviewFolderViewPerPaneUITests.swift
+- Size: M
+
+Also closes #6172 (`library.preview.folder-opens-as-table-then-last-view`), whose default this step
+keeps and whose "one remembered choice" it replaces with one per pane. Order inside the step, engine
+none (the choice is app state): the `PaneConfig` field and its environment key with the unit tests red
+then green; the Preview's folder branch reading the key (`EditorView.folderPreviewRoute`,
+`FolderContentsPreview` for Canvas, `LibraryView` in `.list`/`.table` scoped to the folder for the
+other two); the head's menu section writing the field on THIS leaf through the pane list, as the kind
+switcher does (`PaneList.changingLeafKind`); then the UI test. Pure rules a unit test pins without the
+app: default = Table when the field is nil; a file selection ignores the field; a split copies the
+parent's field; `WorkspaceLayoutDefaults.rememberedPaneList` round-trips it.
+
+- test: `PreviewFolderViewPerPaneTests.swift` in fichero/Tests/Unit/general/Views/Shell/ (Swift Testing, the pure rules above; no app)
+- test: `PreviewFolderViewPerPaneUITests.swift` in fichero/Tests/UI/general/Shell/ (XCUITest, subclass `FicheroUISessionTests`: split the Preview, pick Table in one pane and Canvas in the other, select a folder, read both panes; relaunch; both keep their view)
+
+#### Step 1.2 — canvas zoom-out stops a little past fit-to-content, per pane, following the pane's size (#6368)
+- Behaviours: `library.canvas.zoom-out-stops-near-fit`
+- Tests: CanvasZoomFloorTests.swift, fichero/Tests/Unit/general/Views/Library/CanvasZoomKeepsTheCardsTests.swift
+- Depends on: 1.1
+- Size: S
+
+Order: the pure rule (minimum ortho scale from a fit pose, a pane size and the 0.9 margin; the one-cell floor) with its test red then green; then `setOrthoScale` clamps to it and the resize and board-change paths re-derive it. Depends on 1.1 only in order (the owner wants both in the next dev build; 1.1 adds the Preview panes this applies to), not in code.
+
+- test: `CanvasZoomFloorTests.swift` in fichero/Tests/Unit/general/Views/Library/
+
+#### Step 1.3 — a PDF opens as its pages like a group; a double-click in any contents view moves the window's selection to the item (#6410)
+- Behaviours: `library.pdf.opens-as-its-pages`, `library.contents.double-click-selects-the-item`
+- Tests: fichero/Tests/Unit/general/Views/Library/GroupsAreContainersTests.swift, fichero/Tests/Unit/general/Views/Library/MillerColumnModelTests.swift, fichero/Tests/Unit/general/Models/BreadcrumbBuilderTests.swift, fichero/Tests/Unit/general/Models/ContentViewRestoredSelectionTests.swift, PDFOpensAsItsPagesTests.swift (not yet written), ContentsDoubleClickSelectsTests.swift (not yet written)
+- Depends on: 1.1
+- Size: M
+
+Engine none: a PDF's pages are already its children in order. Order inside the step: (1) the pure classifier, a PDF routes like a group everywhere a group routes (the Preview's folder branch, the sidebar tree, the thumbnail classifier, the Columns child column, the crumbs), red then green beside `GroupsAreContainersTests`; (2) the Inspector keeps the PDF while the PDF is selected; (3) the double-click: the Preview's folder views stop keeping a selection of their own as the truth and send the double-clicked id through the window's one selection path, the one the sidebar click uses, then enter the container or preview the item in the pane clicked, in every view mode; (4) the tests through the real selection store. Reuses the group scope path and `openDocument`; nothing new in the contract.
+
+- test (to write): `PDFOpensAsItsPagesTests.swift` in fichero/Tests/Unit/general/Views/Library/ (a PDF beside a folder and a group through every classifier a surface renders from; the crumb names the PDF; Columns lists its pages in the next column)
+- test (to write): `ContentsDoubleClickSelectsTests.swift` in fichero/Tests/Unit/general/Views/Library/ (per view mode: the window's selection after the double-click, the pane's selection equal to it, a container entered in the clicked pane, a page previewed)
+
 ## Cross-references — rulings honored, not restated here
 
 - **The Library pane is always the navigator** — `modes-to-panes.md`'s own ruling; this spec
@@ -748,6 +956,8 @@ resolved and moved; the other three's status is corrected below.
 - `library.perf.page-click-never-stalls-main` — **[PARTIAL]** (#4280, #4574) clicking between PDF pages never blocks the main thread over ~1s and a superseded load costs nothing; cancel-superseded and single-flight images landed (31c6756f1, 7a189c2b0) but the latest baseline worst is 1860 ms.
 - `views.space-shares-canvas-position` — **[GAP]** (#2391) the Space (3D) mode zooms in as far as Canvas and shares one xpos/ypos per node with it.
 - `library.chrome.clear-data-for-selection` — **[GAP]** (#4581) a selection of documents offers one audited, undoable Clear Data action that removes extracted text, entity links (orphaned entities deleted), artifacts and dates for those pages, with no per-kind picker (ruled 2026-08-19).
+- `library.drag.move-from-and-to-every-mode` — **[GAP]** (#6543) a drag out of List, Icon, Table, Columns or Canvas carries the whole multi-selection, and a drop onto a folder in any mode or onto a sidebar folder moves it (⌥ copies, ⌘⌥ makes an alias). No `.draggable` or tap gesture sits inside a Table or List cell; the drag belongs to the row (#6538).
+- `library.a-click-or-double-click-opens-at-once` — **[GAP]** (#6544; owner 2026-11-11) a click on an item, and a double-click on a folder to go inside it, answer without a visible wait; today each takes about a second (the item-list half of `read.a-click-shows-its-folder-at-once`, #4228).
 - `library.drag.across-libraries-copies-and-out-to-finder` — **[GAP]** (#4311) dragging items to another library copies them (never moves, through the audited layer under the acting user, respecting permissions), and dragging to the Desktop or Finder exports regular files.
 - `library.drop-and-select-show-feedback-immediately` — **[GAP]** (#4235) dropping a folder or selecting one shows something the same frame (placeholder or selection), then streams data, with no dead interval.
 - `library.list.scroll-is-smooth` — **[GAP]** (#4593) list rows compute nothing per frame (date formatting, thumbnail decode, filters hoisted or cached) so scrolling holds frame rate.
@@ -762,4 +972,10 @@ resolved and moved; the other three's status is corrected below.
 - `library.table.outline-cached-not-per-render` **[GAP]** (#5255): in Table mode the outline rows, the dated and undated groups and the arrow-key row order are rebuilt only when the folder's documents, the expanded set or the sort change, never on a click, so a 100,000-item folder stays as quick to click as a 144-page one.
 - `library.listing.slim-rows-paged-by-cursor` **[GAP]** (#5260): a folder listing in the sidebar, the Library views and the dataset views fetches small rows (name, kind, parent, dates, child count, status, thumbnail), a screen at a time by cursor as it scrolls; a document's metadata, runs and text come only when it is selected. A 100,000-item folder shows its first screen in under 100 ms.
 - `library.canvas.sidebar-click-promotes-the-folder` — **[PARTIAL]** (#5300, owner bug 2026-10-24; cause from reading, not seen on a screen; Swift, uncompiled) A click on a folder (or group) in the sidebar makes that folder the Preview's subject, so its Preview is its canvas, even when an item inside it was open before the click. The load's guard that keeps a focus on or inside the container (a search-hit or claim-source reveal sets the matched page during the load, #1463) now keeps only a focus set AFTER the click (`SidebarContainerSelection.keepsFocus`); a stale one from earlier is replaced. Pinned by `LayoutModeTests`. **[GAP]** (#6094) clicking the folder that is already the sidebar's current one changes neither the selected id nor the view mode, so no handler runs and an open item stays in the Preview; needs a re-click hook in the sidebar (not built).
-- `library.preview.folder-opens-as-table-then-last-view` — **[BROKEN]** (#6172; owner bug 2026-10-26) a folder shown in the Preview (from a click in the time list or the sidebar, `library.canvas.sidebar-click-promotes-the-folder`) opens as a TABLE the first time, not as its canvas. The Preview then remembers the view the person last chose for folders (table, canvas, list, ...) and opens the next folder in it, so changing it once sticks; a person who prefers the canvas keeps it. It is one remembered choice for the Preview's folders, not one per folder (the canvas's saved layout stays per folder, `library.canvas.a-folder-previews-as-its-canvas`). Today it is always the canvas. *Test:* `Tests/Unit/general/Library/FolderPreviewViewModeTests.swift` (no saved choice opens the table; a chosen view is reopened for the next folder; the canvas layout is untouched).
+- `library.preview.folder-opens-as-table-then-last-view` — **[PARTIAL]** (#6172; owner bug 2026-10-26; built in Step 1.1, not yet compiled or run) a folder shown in the Preview (from a click in the time list or the sidebar, `library.canvas.sidebar-click-promotes-the-folder`) opens as a TABLE the first time, not as its canvas. The Preview then remembers the view the person last chose for folders (table, canvas, list, ...) and opens the next folder in it, so changing it once sticks; a person who prefers the canvas keeps it. It is one remembered choice for the Preview's folders, not one per folder (the canvas's saved layout stays per folder, `library.canvas.a-folder-previews-as-its-canvas`). Today it is always the canvas. *Test:* `FolderPreviewViewModeTests.swift` (not yet written; folded into Step 1.1's `PreviewFolderViewPerPaneTests.swift`: no saved choice opens the table; a chosen view is reopened for the next folder; the canvas layout is untouched).
+  - **Note 2026-11-06 (#6365 supersedes the "one remembered choice" sentence):** the owner now
+    wants the choice per Preview PANE, remembered with the pane, so that panes side by side can
+    show one folder as a list, a table and the canvas at once. The first-open default (Table) and
+    the untouched canvas layout stand; the per-pane rule is `library.preview.folder-view-per-pane`
+    and its siblings in section D, built in Step 1.1 below. The test this bullet names is folded
+    into that step's tests.

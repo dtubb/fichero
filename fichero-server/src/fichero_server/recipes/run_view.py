@@ -22,6 +22,7 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
+from fichero_server.llm.failure import RunFailure
 from fichero_server.workflows.run_account import PageFailure, RunAccount
 
 logger = logging.getLogger(__name__)
@@ -87,6 +88,15 @@ class LeftOutPage(BaseModel):
     page_id: str
     page: str = Field(description="the page's name, as Items shows it")
     why: str = Field(description="why it was left out, in words: 'a blank page: its image holds almost no ink'")
+
+
+class PageToCheck(BaseModel):
+    """A page the reader is least sure of (`designer.how.what-to-check`): opened in the Reader by one press."""
+
+    page_id: str
+    certainty: float = Field(description="the mean certainty of the page's read lines, 0 to 1")
+    lines_unsure: int = Field(description="of the page's read lines, those the reader was less than half sure of")
+    lines: int
 
 
 class FailedPage(BaseModel):
@@ -223,6 +233,9 @@ class RecipeRunStep(BaseModel):
         "so a stage that runs on fewer pages than the project has says why (`source.recipe.done-is-not-redone`); null when not counted"))
     failed_pages: Optional[list[FailedPage]] = Field(default=None, description=(
         "a partial step: the pages it lost, each with why (`activity.run.step-honest-about-lost-pages`); null otherwise"))
+    failure: Optional[RunFailure] = Field(default=None, description=(
+        "a failed workflow stage: why its run failed, what to do and the buttons for it, the run's own `failure` with `step` filled "
+        "(`run.fail.run-carries-its-failure`, #6354); `why` keeps its words; null for any other stage"))
     account: Optional[RunAccount] = Field(default=None, description=(
         "a workflow stage's run account (#5555): its pages done, failed and left, the time left and what its "
         "pages wait for; null for a stage that has not started or is not a workflow run"))
@@ -282,6 +295,17 @@ def offer_words(job: str | None, label: str) -> str:
     return f"{verb} {label[len('Read '):]}" if verb and label.startswith("Read ") else label
 
 
+async def _step_failure(db: Any, step: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """A failed workflow stage's run `failure`, named for the stage (`step` filled from the card's title); None for any other stage."""
+    if step.get("state") != "failed" or step.get("card") != "workflow" or not step.get("child_id"):
+        return None
+    from fichero_server.workflows.activity import get_activity_tracker
+
+    run = await get_activity_tracker(str(db.path)).store.get_workflow_run(step["child_id"])
+    failure = getattr(run, "failure", None)
+    return {**failure, "step": step.get("title") or failure.get("step")} if failure else None
+
+
 async def with_accounts(db: Any, status: dict[str, Any]) -> dict[str, Any]:
     """The run's status with each started workflow stage's account, and `waiting_for` and
     `estimate_seconds_left` for the run: what it waits for now, and the running stage's time left."""
@@ -291,6 +315,7 @@ async def with_accounts(db: Any, status: dict[str, Any]) -> dict[str, Any]:
     running = None
     for step in status["steps"]:
         step["account"] = None
+        step["failure"] = await _step_failure(db, step)
         if step.get("child_id") in timings:
             step["timing"] = timings[step["child_id"]]
         if step.get("card") == "workflow" and step.get("child_id"):
@@ -418,6 +443,9 @@ class RecipeRunSummary(BaseModel):
     lines_seen_blank: int = Field(default=0, description="lines the reader looked at and found no writing on, on pages that also have text (#5758)")
     lines_vision_could_not_read: int = Field(default=0, description="lines Apple Vision returned nothing for twice in one run: final, with a reason, not counted as lines the reader found no writing on (#5901)")
     pages_read_nothing: int = Field(default=0, description="pages the reader returned nothing for, line by line: failed reads (#5758)")
+    what_to_check: list[PageToCheck] = Field(default_factory=list, description=(
+        "up to five pages a reading step is least sure of, least sure first (`designer.how.what-to-check`); empty when no step that ran "
+        "gives a certainty"))
     next_reader: Optional[dict[str, Any]] = Field(default=None, description="when the reader left a page empty or mostly blank: the next candidate of the step's chain, with needs_permission for a cloud one (#5758)")
     download_failed: list[DownloadFailed] = Field(default_factory=list, description="steps waiting on a model download that failed, each with Retry (the download's job) and the next candidate of the step's chain (#5352)")
     lines_unread_why: dict[str, int] = Field(default_factory=dict, description="why those lines have none: each reason with its count (#5758)")
@@ -828,6 +856,10 @@ def _tail(db: Any, made: RecipeRunSummary, status: dict[str, Any], pages: list[s
         did = reviewed(db, pages)
         made.pages_reviewed, made.lines_reviewed = did["pages"], did["lines"]
         made.lines_corrected, made.lines_review_unreadable = did["corrected"], did["unreadable"]
+    if "read-a-line" in ran:
+        from fichero_server.recipes import what_to_check
+
+        made.what_to_check = [PageToCheck(**row) for row in what_to_check.least_sure(db, pages)]
     setup = read_project_setup(runner._library(db))
     made.next_reader = next_reader(setup["recipe"], lines_found=counts.lines_found,
                                    lines_blank=counts.lines_seen_blank + counts.lines_vision_could_not_read, pages_read_nothing=made.pages_read_nothing,
@@ -878,7 +910,7 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
         documents_proposed=proposed, documents_accepted=accepted, groups_proposed=groups, entries=entries,
         failed=failed, pages_failed=sum(f.pages_failed for f in failed),
         skipped=[SkippedStep(**s) for s in status.get("skipped", [])],
-        not_run=[RecipeRunStep(**s) for s in status["steps"] if s["state"] in _UNFINISHED],
+        not_run=[RecipeRunStep(**s) for s in status["steps"] if s["state"] in _UNFINISHED and s["state"] != "partial"],  # a partial step ran
     )
     seen: set[str] = set()
     for step in status["steps"]:  # each page once, though both a lining and a reading stage left it out

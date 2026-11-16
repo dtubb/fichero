@@ -220,7 +220,7 @@ def _attach_date_subjects(
             "title": "Document Context",
             "description": (
                 "Corpus framing the text cannot supply, e.g. 'The personal "
-                "diary of N.C. Marshall, an American engineer in Colombia.' "
+                "diary of an American engineer abroad.' "
                 "First-person statements are attributed to the author named "
                 "here. Blank = derived from each document's author metadata "
                 "when present."

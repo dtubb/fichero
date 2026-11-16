@@ -1,6 +1,6 @@
 # Source Model — Segments and geometry — Design Spec (#TBD)
 
-> Milestone: source-model
+> Milestone: segments-and-geometry
 > Manual: docs/contributor_manual/guide/02-the-node-model.md (the researcher-facing section authored in the user manual, tracked by this file: part of the "How Fichero represents a source" section: what a segment is, how segments nest, how they are ordered and linked, and how a page can have several images.)
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
@@ -149,6 +149,8 @@ across an opening belongs to the opening and is resolved onto each page it touch
 - Any level can be missing. Finer levels can be added later.
 - How the ladder is SEEN (a child drawn and listed as its parent's child, in its region's hue) is
   owned by `segment-editor.md`, "Box colour and the segment hierarchy" (ruled 2026-10-04, #5426).
+  How it is EDITED by hand (merge, knife, reassign, redraw from a baseline, word and character cuts)
+  is `../ui/segment-editor.md`.
 - **Physical structure** is the ladder: what is where on the object (codex unit, quire, leaf,
   page, region…). **Logical structure** is what the text is: a letter, a chapter, a diary
   entry, a legal case across several documents. Both are trees over the same segments, and a
@@ -518,7 +520,7 @@ this reaches the app until the whole programme is done.
 
 ### Lines the segmenter missed: a check after Find Lines (added 2026-10-29, #6185; design, not built)
 
-On the Istmina scans Kraken misses lines: a note in the margin, faint ink, writing close to the ruler or
+On the court-archive scans Kraken misses lines: a note in the margin, faint ink, writing close to the ruler or
 the border. It also misses **words inside the reading order**: a line box that stops short of its last
 words, a few words dropped from the middle of a line, a short line between two long ones. The owner's
 direction (2026-10-29, paraphrased, with the second ruling of the same day): after Find Lines, a step
@@ -598,7 +600,7 @@ separate segment search.
 ## Behaviors (every one is **[GAP]**: designed, not built; each cites its issue on milestone `source-model`, 322)
 
 Identity and versions
-- `source.image.page-region` — **[GAP]** (#6187) a page image may carry a `page_region` attribute (outline in fractions of the upright image, frame, method, confidence, settings); every shape measured inside it is still stored in the whole image's fractions, so geometry never changes shape when the region is added or redrawn. Defined in `image-enhancement.md`; test: `tests/unit/media/test_find_page.py`.
+- `source.image.page-region` — **[OK]** (#6187; built 2026-10-29: document metadata `page_region`, `recipes/page_crop.py`) a page image may carry a `page_region` attribute (outline in fractions of the upright image, frame, method, confidence, settings); every shape measured inside it is still stored in the whole image's fractions, so geometry never changes shape when the region is added or redrawn. Defined in `image-enhancement.md`; test: `tests/unit/media/test_find_page.py`.
 - `source.segment.check-lines.asked-in-set-up-per-project` — **[GAP]** (#6185; owner 2026-10-29) the Prepare Images card asks "Check for missed lines and words?" per project and folder, suggested yes when the five-page sample's Find Lines leaves over 3 % ink outside on three of five pages or any sample line reads under 60 % of the page's characters per width, else no; the answer switches the step on in the Start plan (`prep.setup.what-runs-by-itself`).
 - `source.segment.check-lines.runs-where-the-reader-runs` — **[GAP]** (#6185; owner 2026-10-29) the checker is a recipe step with the same placement as every other: its card lists this Mac, a cloud provider, a cluster and Hugging Face Jobs as `where_it_runs` does, the app's and the project's places cap it, the per-step override chooses, and the default is the Read step's place and (when that model is a vision model) its model, else the local vision model; a project capped to this Mac sends nothing out and says so.
 - `source.segment.check-lines.ink-outside-measured-free` — **[GAP]** (#6185) after Find Lines, with no model, each page records the fraction of its ink outside every line box (grown by a margin); pages above the project's threshold (default 3 %) are under-segmented and are the check's default scope; the count is shown in Set Up and the figure sorts the Check lens.
@@ -908,12 +910,12 @@ Passes, orders, links
   UNreachable both ways too, or a withdrawal leaves half a link behind.
 
 Maps
-- `source.geo.control-points` — **[GAP]** (#4933, → #5122) a point on an image can be tied to a coordinate on the earth,
+- `source.geo.control-points` — **[PARTIAL]** (#4933, → #5122) a point on an image can be tied to a coordinate on the earth,
   with author and certainty. Umbrella: refined as `source.geo.gcp-is-a-segment` in
   `maps-and-georeference.md`.
-- `source.geo.segment-to-world` — **[GAP]** (#4933, → #5122) on a georeferenced image, any segment can give its place in
+- `source.geo.segment-to-world` — **[PARTIAL]** (#4933, → #5122) on a georeferenced image, any segment can give its place in
   the world. Umbrella: refined as `source.geo.world-shape` in `maps-and-georeference.md`.
-- `source.geo.names-a-place` — **[GAP]** (#4933, → #5123) a label on a map can be linked to the place entity it names.
+- `source.geo.names-a-place` — **[PARTIAL]** (#4933, → #5123) a label on a map can be linked to the place entity it names.
   Umbrella: refined as `source.geo.place-segment-names-entity` in `maps-and-georeference.md`, which
   needs `source.link.end-is-entity` below.
 
@@ -1158,7 +1160,7 @@ Converting a whole project (ruled 2026-09-20; built after readings are on segmen
   **A close or shutdown before the conversion has begun is a stop, not a start** (→ #5562): a
   stop that arrives during the open-time steps (box origins, line readings) takes no snapshot and
   writes nothing; the next open starts it. It used to fall through to the snapshot anyway, so
-  Marshall's refusal was logged at engine SHUTDOWN, snapshotting a project whose jobs were being
+  The refusal of one diary project was logged at engine SHUTDOWN, snapshotting a project whose jobs were being
   stopped and whose connection was about to close. It still runs at open (20 s after, in the
   background); a run that has reached `convert_project` stops at a page boundary as before.
   Pinned by `test_conversion_snapshot_reads_back.py::test_closing_during_the_open_time_steps_takes_no_snapshot`.
@@ -1189,7 +1191,7 @@ Converting a whole project (ruled 2026-09-20; built after readings are on segmen
   rows are counted under the same locks as the copy, once before its checkpoint and once after,
   and the copy is retried (bounded, then refused as busy) when a connection outside the engine's
   locks -- the activity store, the workflow checkpointer -- committed in between. Before #5562 the
-  project was counted after the snapshot's exports and vector copy, and on clones of Marshall the
+  project was counted after the snapshot's exports and vector copy, and on clones of that diary project the
   rows written meanwhile (one dates artifact per page, live job, run and activity rows) read as a
   snapshot that "does not read back": no project in use could convert. The check is exactly as
   strict -- every table, exact counts -- and a copy missing rows the project had at the copy is

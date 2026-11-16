@@ -285,9 +285,31 @@ def _stage_plan(db: Any, stage: Any, setup: dict[str, Any], page_count: int) -> 
     answers = setup["answers"] or {}
     steps = {s.get("id") for s in recipe.get("steps") or [] if s.get("job") in stage.jobs}
     plan = plan_start(recipe, stays_local=not places.may_leave_to(answers, "cloud"), only=steps,
-                      job_answers=answers.get("job_answers"), db=db)
+                      job_answers=answers.get("job_answers"),
+                      job_answers_by_folder=answers.get("job_answers_by_folder"), db=db)
     plan["estimate"] = estimate(plan["workflows"], page_count)
     return plan
+
+
+def _runnable_candidates(db: Any, stage: Any, recipe: dict[str, Any], setup: dict[str, Any], ids: list[str],
+                         candidates: list[str] | None) -> tuple:
+    """What a try would run: the stage's main step, what the candidate limit left out, each candidate with its plan, and the
+    ones that can run. ValueError, in words, for a stage with nothing to read, an unknown model or nothing runnable."""
+    if "read" in stage.needs and not _any_reading(db, ids):
+        raise ValueError(f"These pages have no reading yet: {stage.title} needs Read. Try Read on them, or Start, "
+                         "first.")
+    step = _main_step(recipe, stage)
+    left_out: list[Any] = []
+    cards = _cards_for(setup, step, candidates, left_out) if step is not None else []
+    if candidates and len(cards) < len(set(candidates)):
+        known = {c.id for c in cards}
+        raise ValueError("Fichero does not know the model " + ", ".join(c for c in candidates if c not in known))
+    tried = [(card, _stage_plan(db, stage, _with_card(setup, step, card), len(ids))) for card in cards] \
+        or [(None, _stage_plan(db, stage, setup, len(ids)))]
+    runnable = [(card, plan) for card, plan in tried if not plan["refusals"]]
+    if not runnable:
+        raise ValueError(f"{stage.title} cannot run yet: " + "; ".join(tried[0][1]["refusals"]))
+    return step, left_out, tried, runnable
 
 
 def start_try(db: Any, stage_id: str, setup: dict[str, Any], *, page_ids: list[str] | None, cost_ok: bool,
@@ -316,7 +338,10 @@ def start_try(db: Any, stage_id: str, setup: dict[str, Any], *, page_ids: list[s
     if not ids:
         raise ValueError("This project has no pages to try it on yet")
     now = utc_now_iso(timespec="seconds")
-    result: dict[str, Any] = {"stage": stage_id, "pages": ids, "tried_at": now, "state": "waiting"}
+    from fichero_server.recipes.stages import answers_revision
+
+    result: dict[str, Any] = {"stage": stage_id, "pages": ids, "tried_at": now, "state": "waiting",
+                              "answers_revision": answers_revision(stage, setup.get("answers"), recipe)}
     if stage_id in TRIED_BY_THE_BAKEOFF and not candidates and _bakeoff_ready(db, ids):
         from fichero_server.recipes.discovery import known_cards
         from fichero_server.recipes.start import count_pages
@@ -331,20 +356,7 @@ def start_try(db: Any, stage_id: str, setup: dict[str, Any], *, page_ids: list[s
         result.update(bakeoff=record["id"], job_id=record["job_id"], how="the comparison of candidates on these pages")
         _write(library, stage_id, result)
         return result
-    if "read" in stage.needs and not _any_reading(db, ids):
-        raise ValueError(f"These pages have no reading yet: {stage.title} needs Read. Try Read on them, or Start, "
-                         "first.")
-    step = _main_step(recipe, stage)
-    left_out: list[Any] = []
-    cards = _cards_for(setup, step, candidates, left_out) if step is not None else []
-    if candidates and len(cards) < len(set(candidates)):
-        known = {c.id for c in cards}
-        raise ValueError("Fichero does not know the model " + ", ".join(c for c in candidates if c not in known))
-    tried = [(card, _stage_plan(db, stage, _with_card(setup, step, card), len(ids))) for card in cards] \
-        or [(None, _stage_plan(db, stage, setup, len(ids)))]
-    runnable = [(card, plan) for card, plan in tried if not plan["refusals"]]
-    if not runnable:
-        raise ValueError(f"{stage.title} cannot run yet: " + "; ".join(tried[0][1]["refusals"]))
+    step, left_out, tried, runnable = _runnable_candidates(db, stage, recipe, setup, ids, candidates)
     clouded = [plan for _, plan in runnable if not _local(plan)]
     if clouded and not cost_ok:
         costs = [plan["estimate"]["total_cost_usd"] for plan in clouded]
@@ -399,20 +411,32 @@ def _sentence(text: str | None) -> str | None:
     return re.sub(r"^(?:[A-Za-z_][\w.]*(?:Error|Exception|Unavailable|Missing)): ", "", text.strip())
 
 
-def _await_downloads(db: Any, plan: dict[str, Any], *, every: float = 2.0) -> str | None:
-    """Wait for the models this candidate's plan needs to land; why not, in words, when one cannot."""
+#: ponytail: how long a try waits for one model download to MOVE (its progress words change); a job nothing is running never ends
+#: (#6320). A slow download that keeps reporting progress is waited for as long as it takes.
+DOWNLOAD_WAIT_SECONDS = 30 * 60.0
+
+
+def _await_downloads(db: Any, plan: dict[str, Any], *, every: float = 2.0, limit: float | None = None) -> str | None:
+    """Wait for the models this candidate's plan needs to land; why not, in words, when one cannot or has not in `limit`."""
     from fichero_server.execution import jobs
 
+    limit = DOWNLOAD_WAIT_SECONDS if limit is None else limit  # read at the call, so a test can shorten it
     try_id, last = jobs.current_job_id(), None
 
     for download in plan.get("downloads") or []:
         name = download.get("name") or download.get("model")
         if not download.get("job_id"):
             return f"it needs {name} downloaded first, and its download did not start"
+        deadline, moved = time.monotonic() + limit, object()
         while True:
             row = jobs.read_job(db, download["job_id"]) or {}
             if row.get("state") == "done":
                 break
+            if row.get("reason") != moved:  # it said something new: it is moving
+                moved, deadline = row.get("reason"), time.monotonic() + limit
+            if time.monotonic() > deadline:
+                return (f"{name} has not moved for {max(int(limit // 60), 1)} minutes while downloading, so it may be stuck. "
+                        "Stop it in Activity if it is still listed, then try again here")
             if row.get("state") in ("failed", "cancelled", None):
                 return f"{name} could not be downloaded: {_sentence(row.get('reason')) or 'the download stopped'}"
             if try_id and row.get("reason") != last:  # say what it waits for, with the download's own progress
@@ -508,7 +532,7 @@ def _cards_for(setup: dict[str, Any], step: dict[str, Any], wanted: list[str] | 
     """The cards compared for the step: `wanted` in its order, else the step's own and the per-step finder's next
     ones runnable here (`source.find.candidates-fit-the-step`), up to `COMPARED`."""
     from fichero_server.api.routes.system.recipes import _answers
-    from fichero_server.recipes.assemble import _rank_key, _refusal
+    from fichero_server.recipes.assemble import _rank_key, _refusal, offered_to_compare
     from fichero_server.recipes.discovery import discover, known_cards, step_candidates
 
     job = str(step.get("job"))
@@ -541,6 +565,12 @@ def _cards_for(setup: dict[str, Any], step: dict[str, Any], wanted: list[str] | 
                and job in ("read-a-line", "read-a-page") else None)
     chosen, left = choose_try_candidates(own_card, [c for c in fits if c.id != own], frontier, limit=COMPARED,
                                          variant_a=variant)
+    # A card offered to compare on this material (Apple's lines on handwriting) joins when there is room, after the rules' own
+    # choices: the person sees what it finds beside Kraken's and adopts it only then (`wide.faded.segmenter-choices-named`).
+    offered = [c for c in found if job in c.jobs and c.runs_here and offered_to_compare(c, a.material)
+               and (_refusal(job, c, a, a.material) or ("no-reader-for-material",))[0] == "no-reader-for-material"
+               and c.id not in {x.id for x in chosen}]
+    chosen = [*chosen, *offered[:max(0, COMPARED - len(chosen))]]
     if left_out is not None:
         left_out.extend(left)
     return chosen
@@ -774,8 +804,11 @@ def _run_try_watched(db: Any, subject: str) -> dict[str, Any]:
     from fichero_server.recipes.project import read_project_setup
     from fichero_server.recipes.stages import get_stage
 
+    from fichero_server.recipes import adopt
+
     stage_id = subject.split(":", 1)[0]
     library = Path(db.path).parent
+    adopt.sweep(_folder(library), keep_days=adopt.settings(library)["keep_days"], stage=stage_id)  # the new try replaces this stage's kept copies
     job_id = jobs.current_job_id() or jobs.job_id_for(db, TRY_KIND, subject)
     result = json.loads(_result_path(library, stage_id).read_text(encoding="utf-8"))
     stage = get_stage(stage_id)
@@ -802,6 +835,8 @@ def _run_try_watched(db: Any, subject: str) -> dict[str, Any]:
         runs.append(one)
     own = runs[0]
     result.update(state=own["state"], ran=own["ran"], **own["made"])
+    if own.get("adoption"):
+        result["adoption"] = own["adoption"]  # what the try ran per page, for Start to adopt from (`recipes/adopt.py`)
     if own.get("error"):
         result["error"] = own["error"]
     by_card = {card.id: run for card, run in zip(cards, runs)}
@@ -812,23 +847,32 @@ def _run_try_watched(db: Any, subject: str) -> dict[str, Any]:
                       state=run["state"], seconds=run["seconds"], per_page=run["made"]["per_page"],
                       names=run["made"]["names"], measures=measures, agreement=measures["agreement"],
                       cer=measures["cer"], why=run.get("error"),
+                      **({"tie": run["made"]["tie"]} if "tie" in run["made"] else {}),  # the tie's figures, per candidate
                       cost_usd=cost_figure(by_card_cards[column["card"]], column["cost_usd"]["value"], column["local"],
                                            run.get("spent")))
     result["candidates"] = columns
-    result["recommendation"] = _recommend(db, library, columns, total)
+    if stage_id == "find-lines" and own["state"] == "done":
+        try:
+            result["line_counts"] = line_counts_on_both(db, result["pages"], job_id, _lines_the_try_found(columns))
+        except Exception as exc:  # noqa: BLE001 -- the counts are a courtesy; the try's own answer stands, and says they are missing
+            logger.warning("the try's line counts on both images could not be made: %s", exc, exc_info=True)
+            result["line_counts"] = {"pages": {}, "not_clarified": [], "error": f"the two counts could not be made: {exc}"}
+    from fichero_server.recipes.start import count_pages
+
+    # The whole project's page count is kept with the result, so a read of it never walks the project (the compare view).
+    result["project_pages"] = count_pages(db) or total
+    result["recommendation"] = _recommend(library, columns, total, result["project_pages"])
     result["progress"] = finished_progress(own["state"], own["made"]["per_page"], total, stage_id)
     _write(library, stage_id, result)
     return result
 
 
-def _recommend(db: Any, library: Path, columns: list[dict[str, Any]], pages: int) -> dict[str, Any] | None:
+def _recommend(library: Path, columns: list[dict[str, Any]], pages: int, volume: int) -> dict[str, Any] | None:
     """What Set Up recommends from the finished columns, ranked by what each really cost (`bakeoff.recommend`, #5922
     slice 4): only columns that read to the end with a measured error are weighed; None when none."""
     from fichero_server.recipes import bakeoff
     from fichero_server.recipes.project import read_noise_band
-    from fichero_server.recipes.start import count_pages
 
-    volume = count_pages(db) or pages
     return bakeoff.recommend(recommendation_rows(columns, pages=pages, volume=volume), volume=volume,
                              noise_band=read_noise_band(library)["value"])
 
@@ -944,6 +988,12 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
                              person=True)  # a try is one a person presses and watches
                 ran.append({"steps": card["steps"], "state": "done", "why": None})
                 continue
+            if card.get("card") == "check" and card.get("check") == "tie-text-to-lines":
+                _say_on_row(db, job_id, stage_id, f"Trying {stage.title}: tying the page text to its lines")
+                tied, state, why = _tie_on(copy, card, pages, back, job_id)
+                extra["tie"] = tied
+                ran.append({"steps": card["steps"], "state": state, "why": why})
+                continue
             if card.get("card") != "workflow":
                 ran.append({"steps": card.get("steps"), "state": "skipped", "why": "not tried on samples yet"})
                 continue
@@ -970,6 +1020,14 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
         failed = [_sentence(r["why"]) or "the run stopped before it finished" for r in ran if r["state"] == "failed"]
         if failed:
             out["error"] = "; ".join(failed)  # a failure always says why in words, never a blank
+        if out["state"] == "done":  # kept for Start to adopt from (`wide.try.start-reuses-a-matching-try`); see `recipes/adopt.py`
+            from fichero_server.recipes import adopt
+
+            hash_ = adopt.settings_hash(cards)
+            out["adoption"] = {"stage": stage_id, "before": {k: sorted(v) for k, v in before.items() if k in ("Artifact", "ContentRepresentation")},
+                               "pages": [
+                adopt.page_record(db, library, old, plan.id_map[old], card_ids=[str(c.get("card")) for c in cards], hash_=hash_)
+                for old in page_ids if old in plan.id_map]}
     except Exception as exc:  # noqa: BLE001 -- the try says why, in words; the project is untouched either way
         out.update(state="failed", error=_sentence(str(exc)) or "the run stopped")
     finally:
@@ -978,7 +1036,12 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
             if watcher is not None:
                 watcher.join()
         db_manager.close_database(scratch)
-        shutil.rmtree(scratch, ignore_errors=True)
+        if out.get("adoption"):
+            from fichero_server.recipes import adopt
+
+            adopt.keep(scratch, out["adoption"])  # a done try's copy stays until it expires or the stage is tried again
+        else:
+            shutil.rmtree(scratch, ignore_errors=True)
         real_project.close()
     return out
 
@@ -1008,6 +1071,81 @@ def _spent(copy: Any, threads: list[str]) -> dict[str, Any] | None:
         logger.warning("the try's cost could not be measured from its runs' usage: %s", exc, exc_info=True)
         return {"not_measured": f"cost not measured: {exc}"}
     return {"model_calls": calls, "total_tokens": tokens, "cost_usd": cost} if calls else None
+
+
+#: Lines found by the segmenter, by (the image's bytes, the page's direction): the same input and the same model is never asked
+#: twice (owner rule, #6127), so a second try does not segment the photograph again.
+_LINE_COUNTS: dict[tuple[str, str | None], int] = {}
+
+
+def _count_lines(db: Any, doc: Any, path: str, run_id: str) -> int:
+    """How many lines Kraken's segmenter finds on one image file, through the model lane like every Kraken page. An image already
+    counted (same bytes, same direction) answers from `_LINE_COUNTS`."""
+    import hashlib
+
+    from fichero_server.execution import jobs
+    from fichero_server.llm.kraken_runtime import geometry_from_segmentation, segment_lines
+    from fichero_server.media.ocr_geometry import OCRGeometryLevel
+    from fichero_server.workflows.tools.vision_base import page_direction
+
+    library = str(Path(db.path).parent)
+    direction = page_direction(library, doc.id)
+    digest = hashlib.sha256(Path(path).read_bytes()).hexdigest() if Path(path).is_file() else None
+    key = (digest, direction.get("direction")) if digest else None
+    if key is not None and key in _LINE_COUNTS:
+        return _LINE_COUNTS[key]
+    segmented = jobs.run_on_lane_blocking(library, "find-regions", doc.id, model="kraken:blla", parent_id=run_id, run_id=run_id,
+                                          fn=lambda: segment_lines(path, **direction))
+    found = geometry_from_segmentation(segmented, source_name=doc.name, direction=direction.get("direction"))
+    count = sum(1 for b in found.boxes if b.level is OCRGeometryLevel.LINE)
+    if key is not None:
+        _LINE_COUNTS[key] = count
+    return count
+
+
+def _lines_the_try_found(columns: list[dict[str, Any]]) -> dict[str, int]:
+    """The lines per page that the try's own Kraken (blla) candidate found on each page's current image, so the clarified count
+    is taken from it and not asked of the segmenter again."""
+    for column in columns:
+        if "blla" in str(column.get("card", "")) and column.get("state") == "done":
+            return {p["id"]: p["segments"]["line"] for p in column.get("per_page") or [] if (p.get("segments") or {}).get("line")}
+    return {}
+
+
+def line_counts_on_both(db: Any, pages: list[str], run_id: str, known: dict[str, int] | None = None) -> dict[str, Any]:
+    """Find Lines' two counts for the pages whose current image is a clarified copy (Prepare Images' `prepared` rendition): the
+    lines the segmenter finds on the photograph and on the copy (`wide.faded.line-counts-before-and-after`, #6271). `not_clarified`
+    names the pages that have no such copy, so the app can say Clarity is off for them. Read from the project's own pages: nothing is
+    copied or written. `known` is the lines per page the try's own blla candidate found on the current image."""
+    from fichero_server.media.current_image import RENDITION, current_page_image
+    from fichero_server.models import Document
+
+    counted: dict[str, dict[str, int]] = {}
+    without: list[str] = []
+    for page in pages:
+        doc = db.get(Document, page)
+        current = current_page_image(db, doc, library_root=Path(db.path).parent) if doc is not None else None
+        if current is None or current.kind != RENDITION or "(prepared)" not in (current.why or ""):
+            without.append(page)
+            continue
+        counted[page] = {"photograph": _count_lines(db, doc, current.photograph, run_id),
+                         "clarified": known[page] if page in (known or {}) else _count_lines(db, doc, current.path, run_id)}
+    return {"pages": counted, "not_clarified": without}
+
+
+def _tie_on(copy: Any, card: dict[str, Any], pages: list[str], back: dict[str, str],
+            parent: str) -> tuple[dict[str, Any], str, str | None]:
+    """The tie (`tie-text-to-lines`) on the copy, after Read: its counts, in all and per page, keyed by the project's own
+    page ids (`wide.nomodel.tie-figures-on-his-pages`, #5721). The tie is a check job, not a workflow, so the try runs it here."""
+    import json
+
+    from fichero_server.execution import jobs
+    from fichero_server.recipes import runner
+
+    child, state, why = runner._run_check(copy, card, pages, parent, "try")
+    result = json.loads((jobs.read_job(copy, child) or {}).get("detail") or "{}").get("result") or {} if child else {}
+    per_page = {back.get(page, page): figures for page, figures in (result.get("per_page") or {}).items()}
+    return {"counts": result.get("counts") or {}, "pages": per_page}, state, why
 
 
 def _organise(copy: Any, card: dict[str, Any], pages: list[str],
@@ -1156,3 +1294,32 @@ def publish_progress(library: Path, stage_id: str, card_id: str | None, progress
 def finished_progress(state: str, made: list[dict[str, Any]], total: int, stage_id: str) -> dict[str, Any]:
     """A run's last progress: how it ended and how many pages have a result."""
     return progress_of(made, total, stage_id, state)
+
+
+def try_price(db: Any, stage_id: str, setup: dict[str, Any], page_ids: list[str] | None = None) -> dict[str, Any]:
+    """What a Try of the stage on its samples would cost, before it is pressed (`wide.try.paid-with-the-price-on-the-button`, #5806):
+    `{pages, cloud, cost_usd}`. `cloud` is whether a candidate leaves this Mac (the try then asks for a yes); `cost_usd` is the sum of
+    their estimates, None when one is not known. Reads and writes nothing; a stage that cannot be tried, or that the comparison of
+    candidates tries, says no cloud (it asks no cost)."""
+    from fichero_server.recipes.stages import TRIED_BY_THE_BAKEOFF, get_stage, sampleable
+
+    stage = get_stage(stage_id)
+    if stage is None:
+        raise LookupError(f"Set Up has no stage {stage_id!r}")
+    ids = page_ids or [p["id"] for p in chosen(db, stage_id)["pages"]]
+    free = {"pages": len(ids), "cloud": False, "cost_usd": None}
+    recipe = setup["recipe"] or {}
+    if not ids or not sampleable(stage) or not {str(s.get("job")) for s in recipe.get("steps") or []} & set(stage.jobs):
+        return free
+    if stage_id in TRIED_BY_THE_BAKEOFF and _bakeoff_ready(db, ids):
+        return free
+    try:
+        _step, _left, _tried, runnable = _runnable_candidates(db, stage, recipe, setup, ids, None)
+    except ValueError:
+        return free
+    clouded = [plan for _, plan in runnable if not _local(plan)]
+    if not clouded:
+        return free
+    costs = [plan["estimate"]["total_cost_usd"] for plan in clouded]
+    return {"pages": len(ids), "cloud": True,
+            "cost_usd": sum(costs) if all(isinstance(c, (int, float)) for c in costs) else None}

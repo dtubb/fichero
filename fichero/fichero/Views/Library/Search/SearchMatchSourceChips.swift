@@ -33,7 +33,7 @@ enum SearchMatchSource: String, CaseIterable, Sendable {
     case fulltext
     case entity
     case claim
-    case kg
+    case knowledgeGraph = "kg"
 
     /// The chip's word, or `nil` for the leg the badge already covers.
     var chipLabel: String? {
@@ -42,7 +42,7 @@ enum SearchMatchSource: String, CaseIterable, Sendable {
         case .fulltext: return "exact"
         case .entity: return "entity"
         case .claim: return "claim"
-        case .kg: return "graph"
+        case .knowledgeGraph: return "graph"
         }
     }
 
@@ -52,7 +52,7 @@ enum SearchMatchSource: String, CaseIterable, Sendable {
         case .fulltext: return "Contains the words you typed"
         case .entity: return "Matched the name of an entity in this project"
         case .claim: return "Matched a claim recorded about this document"
-        case .kg: return "Reached through the knowledge graph"
+        case .knowledgeGraph: return "Reached through the knowledge graph"
         }
     }
 

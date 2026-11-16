@@ -87,3 +87,36 @@ def test_the_volume_is_counted_from_the_project_when_not_given(client, db):
     r = client.get("/api/recipes/routes", params={"teacher": GEMINI, "local_reader": KRAKEN})
     assert r.status_code == 200, r.text
     assert r.json()["pages"] == 3  # two PDF pages and one photo; folder, deleted file, workflow are not pages
+
+
+def test_the_route_serves_the_three_routes_over_http_and_refuses_a_bad_volume(client, db):
+    """`GET /api/recipes/routes`: the same three routes through the API, the project's own page count when none is given."""
+    _finished(db, KRAKEN, [25], 5)
+    ok = client.get("/api/recipes/routes", params={"teacher": GEMINI, "local_reader": KRAKEN, "pages": 1000, "sample_pages": 300})
+    assert ok.status_code == 200, ok.text
+    assert [r["id"] for r in ok.json()["routes"]] == ["cloud", "this-mac", "distil"] and ok.json()["pages"] == 1000
+    assert ok.json()["routes"][0]["cost_usd"]["basis"] == "estimate"
+    own = client.get("/api/recipes/routes", params={"teacher": GEMINI, "local_reader": KRAKEN})
+    assert own.status_code == 200 and own.json()["pages"] >= 0
+    assert client.get("/api/recipes/routes", params={"teacher": GEMINI, "local_reader": KRAKEN, "pages": -1}).status_code == 422
+
+
+def test_the_models_default_to_the_ones_the_plan_reads_with():
+    from fichero_server.recipes.routes import default_models
+
+    plan = {"runs": [
+        {"steps": ["find-lines"], "runs_on": "this-mac", "model_override": "kraken:other"},
+        {"steps": ["read-a-line"], "runs_on": "this-mac", "model_override": KRAKEN},
+        {"steps": ["read-a-page"], "runs_on": "cloud:openrouter", "model_override": "google/gemini-3-flash-preview"}]}
+    assert default_models(plan) == ("openrouter/google/gemini-3-flash-preview", KRAKEN)
+    assert default_models({"runs": [{"steps": ["read-a-line"], "runs_on": "this-mac", "model_override": KRAKEN}]}) == ("", KRAKEN)
+    assert default_models({}) == ("", "")
+
+
+def test_routes_with_no_model_given_or_planned_say_their_figures_are_unknown(client, db):
+    """No saved recipe and no model named: the routes still answer, naming no model and guessing none."""
+    got = client.get("/api/recipes/routes", params={"pages": 100})
+    assert got.status_code == 200, got.text
+    cloud, mac, distil = got.json()["routes"]
+    assert cloud["cost_usd"]["basis"] == "unknown" and cloud["title"] == "Read it all with a cloud model"
+    assert mac["time_seconds"]["basis"] == "unknown" and "a reader on this Mac" in mac["title"]

@@ -17,6 +17,7 @@ nonisolated struct OwnerKeyStore: OwnerKeyProviding {
     /// Test seam: a different service name keeps a test run away from the real key.
     var serviceName: String = OwnerKeyStore.service
 
+    /// The synchronised item, in the shared access group. Needs the `keychain-access-groups` entitlement.
     private var baseQuery: [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
@@ -26,14 +27,36 @@ nonisolated struct OwnerKeyStore: OwnerKeyProviding {
         ]
     }
 
+    /// The this-Mac-only item (#6374): no access group and no iCloud sync, so it needs no entitlement. A build signed
+    /// without `keychain-access-groups` (the DMG's Alpha and Beta) gets -34018 on the synchronised item; this keeps
+    /// the owner signed in on that Mac instead of failing.
+    var localQuery: [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: serviceName,
+            kSecAttrAccount as String: Self.account
+        ]
+    }
+
+    /// True for the status a build without the keychain entitlement gets.
+    static func needsLocalFallback(_ status: OSStatus) -> Bool { status == errSecMissingEntitlement }
+
     func loadOrCreate() throws -> P256.Signing.PrivateKey {
-        if let existing = try load() { return existing }
+        if let existing = try load(baseQuery) ?? load(localQuery) { return existing }
         let key = P256.Signing.PrivateKey()
         var add = baseQuery
         add[kSecValueData as String] = key.rawRepresentation
         add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        let status = SecItemAdd(add as CFDictionary, nil)
-        if status == errSecDuplicateItem, let raced = try load() { return raced }  // another device or process won
+        var status = SecItemAdd(add as CFDictionary, nil)
+        if status == errSecDuplicateItem, let raced = try load(baseQuery) { return raced }  // another device or process won
+        if Self.needsLocalFallback(status) {
+            Self.logger.warning("No keychain entitlement (OSStatus \(status)): the owner key is kept on this Mac only, not synced")
+            add = localQuery
+            add[kSecValueData as String] = key.rawRepresentation
+            add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            status = SecItemAdd(add as CFDictionary, nil)
+            if status == errSecDuplicateItem, let raced = try load(localQuery) { return raced }
+        }
         guard status == errSecSuccess else {
             Self.logger.error("Could not store the owner key: OSStatus \(status)")
             throw KeychainError.status(status)
@@ -41,8 +64,10 @@ nonisolated struct OwnerKeyStore: OwnerKeyProviding {
         return key
     }
 
-    private func load() throws -> P256.Signing.PrivateKey? {
-        var query = baseQuery
+    /// nil when nothing is stored there, or when this build may not read that item (-34018): the caller tries the
+    /// this-Mac-only item next.
+    private func load(_ base: [String: Any]) throws -> P256.Signing.PrivateKey? {
+        var query = base
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var item: CFTypeRef?
@@ -52,6 +77,8 @@ nonisolated struct OwnerKeyStore: OwnerKeyProviding {
             guard let data = item as? Data else { throw KeychainError.unreadable }
             return try P256.Signing.PrivateKey(rawRepresentation: data)
         case errSecItemNotFound:
+            return nil
+        case _ where Self.needsLocalFallback(status):
             return nil
         default:
             // A key we own and cannot read is loud: never silently make a second one over it.

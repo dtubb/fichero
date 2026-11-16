@@ -1064,7 +1064,7 @@ class TestLoadPresetFiles:
         )
 
     def test_translate_review_preset_wiring(self):
-        """Multi-step Translate + Double-Check preset (#926):
+        """The one Translate preset double-checks by default (#926, #3907):
         files → transcribe → text_translate → text_translate_review.
 
         The reviewer takes the draft via the single graph edge (so it fires
@@ -1072,10 +1072,11 @@ class TestLoadPresetFiles:
         and pulls the ORIGINAL source via a static input path to transcribe.
         """
         presets = {p["name"]: p for p in _load_preset_files()}
-        assert "Translate + Double-Check" in presets, (
-            "Translate + Double-Check preset must ship"
+        assert "Translate" in presets, "Translate preset must ship"
+        assert "Translate + Double-Check" not in presets and "Translate (DeepL)" not in presets, (
+            "one Translate preset, not three (#3907)"
         )
-        preset = presets["Translate + Double-Check"]
+        preset = presets["Translate"]
 
         assert preset.get("is_template") is True
         assert preset.get("is_system") is True
@@ -1122,7 +1123,7 @@ class TestLoadPresetFiles:
         """Both LLM passes use the $small alias; transcribe stays on the
         vision default (no provider alias) so Apple Vision OCR isn't broken."""
         presets = {p["name"]: p for p in _load_preset_files()}
-        preset = presets["Translate + Double-Check"]
+        preset = presets["Translate"]
 
         for tool in ("text_translate", "text_translate_review"):
             node = next(n for n in preset["nodes"] if n["tool"] == tool)
@@ -1134,23 +1135,6 @@ class TestLoadPresetFiles:
             n for n in preset["nodes"] if n["tool"] == "transcribe"
         )
         assert "provider_name" not in transcribe_node.get("config", {})
-
-    def test_translate_deepl_preset_wiring(self):
-        """Provider-driven translation preset uses the `translate` tool with
-        explicit DeepL provider defaults for Dutch→English workflows (#1332)."""
-        presets = {p["name"]: p for p in _load_preset_files()}
-        assert "Translate (DeepL)" in presets, "Translate (DeepL) preset must ship"
-        preset = presets["Translate (DeepL)"]
-
-        node_tools = {n["tool"] for n in preset["nodes"]}
-        for tool in ("files", "transcribe", "translate"):
-            assert tool in node_tools, f"preset missing {tool!r} node"
-
-        translate_node = next(n for n in preset["nodes"] if n["tool"] == "translate")
-        assert translate_node["config"].get("provider_name") == "deepl"
-        assert translate_node["config"].get("source_lang") == "nl"
-        assert translate_node["config"].get("target_lang") == "en"
-
 
     def test_detect_regions_kraken_preset_routes_to_kraken(self):
         """The Kraken baseline segmenter ships as a runnable preset (blla is
@@ -1638,9 +1622,6 @@ _PRESET_NAMES = sorted(p["name"] for p in _load_preset_files())
 # expects a clear preflight refusal keyless, NOT a pass. Text-generative presets
 # still pass on Apple Intelligence. DeepL still fails keyless (explicit cloud).
 _KEYLESS_EXPECTED_REFUSALS = {
-    # explicit cloud with no key: the gate below makes every machine keyless (a DeepL key in a
-    # developer's shell made this pass there and fail on the M4, 2026-10-10)
-    "Translate (DeepL)",
     # generative-vision (needs a vision LLM Apple can't provide)
     "Accounts → Spreadsheet (CSV)",
     "AI Convert to HTML",

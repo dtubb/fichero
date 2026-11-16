@@ -13,6 +13,15 @@
 > recipe file holds and never holds, starting from one, following a published one).
 > **Status: APPROVED 2026-10-24 (rulings below).** Create
 > `recipe-designer` on approval and point its description here.
+> **Added 2026-10-30, DRAFT until the maintainer rules (nothing is built until then):** the condition questions in
+> section 3, the "How do you want to run this?" questions and the risks in section 4, the defaults table in
+> section 4b, Budget in section 11b, and Stage 18 of the build order (`designer.material.condition-*`,
+> `designer.how.*`, `designer.defaults.*`, `designer.budget.*`). The maintainer's request of 2026-10-30, from
+> #6295 (no budget control in Set Up) and #6294 (the estimate under-prices a cloud line read). Those lines are
+> tagged **[GAP]** meaning nothing is built, as the maintainer asked; each names the test file that would pin it.
+> **Ruled 2026-10-30 (the maintainer):** open questions 5, 7, 8 and 9 of the 2026-10-30 additions (page order, the two
+> caps, no margin on the estimate, fewer pages as a Start), recorded under "Rulings (the maintainer, 2026-10-30)";
+> question 6 (the defaults table's rows) stays open.
 > Replaces: `recipe-ranking-and-compare.md` (the 2026-10-24 first draft on this branch, `git mv`'d here).
 > Sources: two design briefs of 2026-10-24 (local working notes, not in the repository; their facts are
 > inlined in the appendix "Screens review facts") and the owner's directions of 2026-10-24, paraphrased.
@@ -193,13 +202,57 @@ facts, including the bundled font for a script macOS lacks, come from `recipes/d
   (Canadian Syllabics, U+1400…) have no font here and show as boxes until one is added", naming the
   fallback family. The Reader uses the same answer.
 
+**Improves — the condition of the material (the maintainer, 2026-10-30; DRAFT).** Today About the Material asks
+what the material is (handwriting, print, typescript, text: `answers.materials`, `recipes/answers.py`) and the
+engine measures faded pages from a sample by itself (`source.onboard.auto.prepare-damaged-images` (P),
+`recipes/prepare.py`); nothing asks about damage, and the Prepare Images questions are two with fixed defaults
+(`recipes/stages.py`; `prep.setup.three-questions-suggested-from-a-sample` (G)).
+- `designer.material.condition-asked` [PARTIAL] (#6052, #6295; engine built: `recipes/condition.py`, `answers.condition`, `GET /api/recipes/questions`; the app's tick boxes are built behind `wideSetUp`, `RecipeConditionFields`, not yet seen in a build) — About the Material
+  asks, under the kind of material, "What condition are the pages in?": tick boxes, none ticked by default,
+  from one engine list (`GET /api/recipes/questions`): faded ink · torn or missing parts · stains · show-through
+  from the other side · water damage · tight binding (text curves into the gutter) · ruled or printed lines
+  under the writing · poor black-and-white photocopy (a copy of a copy: speckle, broken strokes, text blown out or filled in, dark edges; #6486); with one line of help each, in plain words, saying what Fichero does about it. Saved as
+  `answers.condition` (a list, refused in words for an unknown id, kept as a list of none). *Test:*
+  `test_condition_answers.py` (the list is the engine's; an unknown id is
+  refused; none ticked saves an empty list, never a default).
+- `designer.material.condition-suggested-from-a-sample` [PARTIAL] (#6052; engine half built: `prepare_suggest.suggest` answers `condition.faded`, `condition.show-through`, `condition.ruled-lines` with "from N of M sample pages"; tight binding waits for the gutter-curve measure; the app does not show them yet) — the engine ticks a condition
+  beforehand only when its sample measure says so (faded from `recipes/prepare.py`'s grey spread; show-through
+  from the mirrored-verso match and tight binding from the gutter curve of
+  `prep.setup.three-questions-suggested-from-a-sample`, once built), each suggested tick labelled "from 3 of 5
+  sample pages"; a condition no measure can see (torn, stains, water damage) is never pre-ticked. The person
+  changes any tick. *Test:* `test_condition_suggested_from_a_sample.py`.
+- `designer.material.condition-feeds-the-defaults` [PARTIAL] (#6052; engine half built in `recipes/defaults.py`; not yet applied by `assemble.py`) — the condition answers and the kind of
+  material are rows of the defaults table (section 4b): they choose the preparation steps (contrast for faded,
+  show-through suppression, flattening for a tight binding, ruling removal), the reader kind (a CTC reader on
+  clean print; a vision-language reader offered for damaged handwriting), and whether a Review pass is on by
+  default; each chosen default says which answer chose it. *Test:*
+  `test_defaults_from_condition.py`.
+
+- `designer.material.condition-photocopy` [GAP] (#6486, owner 2026-11-10: poor black-and-white photocopies are common and hard to read) — "poor
+  black-and-white photocopy" is one id in the engine's condition list. Its help line says what Fichero does: levels the
+  contrast, removes speckle and dark borders, and offers a reader that copes with broken strokes. It is the same
+  photocopy whether the page is handwriting or print. Ticking it adds the photocopy preparation to the defaults table (section 4b):
+  despeckle, adaptive threshold or contrast levelling, border removal, each a step the person can untick; the
+  original image is kept and the prepared one is a new rendition (role `prepared`, as `recipes/prepare.py`). It
+  also moves a vision-language reader up for the pages it applies to. *Test:* `test_condition_answers.py` (the id
+  is in the list; saved as asked), `test_defaults_from_condition.py` (photocopy chooses the steps and says it did).
+- `designer.material.photocopy-suggested-from-a-sample` [GAP] (#6486) — the engine ticks it beforehand only when its
+  sample measure says so: a near-bimodal grey histogram (most pixels at the two extremes, few mid-greys) with a high
+  count of isolated specks and a dark border band, from 3 or more of the sample pages, labelled "from 3 of 5
+  sample pages". A clean modern black-and-white scan is bimodal too, so the speck and border measures must also
+  fire, or it is not suggested. The person changes the tick. *Test:* `test_photocopy_suggested_from_a_sample.py`
+  (a speckled bilevel fixture is suggested, a clean bilevel scan and a grey scan are not; not yet written).
+
 - `designer.onboarding.metadata-language` [MISSING] (#6180) — onboarding (About the Material) offers the METADATA
   LANGUAGE: the language of the catalogue's field labels and descriptions, which is not necessarily the language
   of the records. It defaults to the project's primary language and the person can choose another separately; the
   choice is saved with the project's answers and read by the Catalogue stage (`catalogue.folder-description-fields`,
   cataloguing.md), which writes labels and descriptions in it. Changing it never re-runs a folder already described.
 
-### 4. How do you want to work? (new page, after About the Material, before Choose the Stages)
+### 4. How do you want to run this? (new page, after About the Material, before Choose the Stages)
+
+*Page order is ruled (the maintainer's ruling, 2026-10-30): How comes after About the Material and before Choose
+the Stages, so the material's facts are known before the models are narrowed.*
 
 **Exists.** The routes: `GET /api/recipes/routes` (`recipes/routes.py`) returns the cloud, this-Mac and
 distil routes for the volume with whole-project cost, time and accuracy, each figure marked measured or
@@ -218,6 +271,97 @@ the cluster offer, with no live start until the key and sign-in land (#5238;
 `compute.job.recipe-is-a-slurm-chain` (G)); Hugging Face as a place (`ai.where.hf-endpoint-is-a-place` (G));
 training offered from 5,000 pages, teacher-and-student above 100,000 pages or the cost limit
 (`source.recipe.volume-rule` (P)).
+
+**Improves — the questions first (the maintainer, 2026-10-30; DRAFT).** The page opens with four short
+questions, before the route cards and before Choose the Stages, so the defaults the later pages follow fit the
+person; the cards (below) become the engine's answer to them, not a choice made cold. What the person has is
+derived, never asked twice (`source.onboard.derives-not-asks` (P): `recipes/derived.py` already reports this
+Mac's chip and memory, the providers with a key and the places work can run).
+- `designer.how.where` [PARTIAL] (#6052; engine built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is built behind `wideSetUp` (`RecipeHowFields`, the How step), not yet seen in a build) — "Where should the work run?": this Mac · another machine of mine
+  · a cluster · the cloud, each a tick with one sentence of consequence (pages stay here / leave to your own
+  machine / to the cluster's administrators / to a company), limited to the places Set Up Fichero allows
+  (`source.onboard.places-cap-projects` (P)); a place the app does not allow is shown greyed with the engine's
+  reason and a link, never hidden. Saved as `answers.how.places` (a list). *Test:*
+  `test_how_questions.py` (the offered places are the app's allowed ones; a
+  disallowed place is listed with its reason, not dropped).
+- `designer.how.model-kind` [PARTIAL] (#6052; engine built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is built behind `wideSetUp` (`RecipeHowFields`, the How step), not yet seen in a build) — "Which kind of model?": small local models (Kraken, Apple's
+  recognition, small MLX models: read only what is on the line, free, slower, may misread a word) · large
+  vision-language models (Claude, Gemini, GPT, or a large local one: read fluently, cost per page, may invent or
+  regularise text) · let Fichero compare and choose (the default: the compare of section 8 decides on the
+  person's pages). Saved as `answers.how.model_kind`. *Test:* same file (the three options, the default, and
+  that the large-model option is greyed with its reason when the cloud is not allowed and this Mac cannot run one).
+- `designer.how.cloud-asked-before-any-default` [GAP] (#6489, owner 2026-11-10: the cloud choice came late in the flow; the owner had not chosen cloud, so the PP-OCR default was right for cloud off) —
+  whether pages may leave this Mac is asked BEFORE any model is proposed: in the How step's "Where" question (built behind
+  `wideSetUp`, not yet in the flow the owner sees; the shown flow asks it late), above "What matters most?", so no default is made
+  without it. If it changes later (here or in the plan), every default is worked out again from the new answer and the plan says
+  what changed and why ("Read is now Gemini 2.5 Pro: you allowed cloud models and have a Google key"). A saved "no" stays no; an
+  unanswered question reads as the app's setting (`places.project_says_cloud`). *Test:* `test_defaults_recomputed_on_cloud_change.py`
+  (the same answers give a local Read with cloud off and a keyed frontier Read with it on; the change is named in the plan; not yet written).
+- `designer.how.quality-with-cloud-is-a-frontier-reader` [GAP] (#6489, owner 2026-11-10: Gemini is a good default Read when cloud is allowed and we have access; with cloud off PP-OCR was the
+  right pick) — "quality" with cloud allowed and a Gemini or Claude key chooses a frontier vision model for Read on any
+  material (Gemini Pro first, `discovery.frontier_rank`), not only handwriting (`assemble._frontier_first` stops at anything else
+  today); without cloud or a key it chooses the best local reader and the plan says what a key would add. PP-OCR is never the headline
+  reader unless it is the best local card for the script. *Test:* `test_read_default_table.py` (one row per material x cloud x key;
+  not yet written).
+- `designer.setup.close-on-the-left-saves` [GAP] (#6490, owner 2026-11-10: "all screens close on the left; this closes and saves") —
+  every Set Up page has Close at the leading edge of its bar (`ToolbarItem(placement: .cancellationAction)`; Esc on the Mac; on
+  iPhone and iPad the sheet's leading button, and a swipe down does the same). It saves every answer so far as the project's draft,
+  closes, and marks the project "setup not finished"; opening Set Up again returns to the page it was on, and nothing is asked
+  again. It never needs the last page. Close is not Cancel: nothing entered is thrown away. *Test:* `SetupCloseSavesTests` (Close
+  writes the answers and the page; reopening restores both; not yet written); the button's place is XCUITest #5763.
+- `designer.how.pick-the-default-models` [GAP] (#6491, owner 2026-11-10: the How screen should let me choose a default there) — below the three
+  questions the How step shows "Starting models": one row per step the recipe will run, Read first, each with the model the
+  rules propose, the reason in one line, and a standard pop-up menu to change it, listing only what that step can take
+  (the step's candidate list, the one catalog). A cloud model is greyed with its reason when cloud is off or no key is set. A
+  pick is saved as `answers.how.defaults` (job -> card id), marks the step person-chosen, and is not proposed over again
+  (`designer.how.person-chosen-is-kept`); the next pages show it as chosen. Changing Where or What matters recomputes only the rows
+  not picked by hand. Mac and iOS use the same rows (a Menu on touch). *Test:* `test_how_defaults.py` (a picked default is saved and
+  survives a recompute; an unpicked row follows the answers; a refused card is not offered), `RecipeHowDefaultsTests`; not yet written.
+- `designer.how.what-matters` [PARTIAL] (#6052; engine built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is built behind `wideSetUp` (`RecipeHowFields`, the How step), not yet seen in a build; extends `designer.path.what-matters-most`) — "What matters
+  most?": speed · cost · quality · privacy, one choice, pre-filled from the places answer (privacy when only
+  this Mac is ticked). Privacy means nothing leaves this Mac and the cloud question of
+  `designer.path.cloud-question-on-the-page` stays unanswered; the other three break ties inside the noise band
+  as section 7 says (`designer.path.what-matters-most` keeps predictability as the compare's label). Saved as
+  `answers.how.matters`. *Test:* same file (privacy never writes `cloud_allowed`).
+- `designer.how.access-derived-and-confirmed` [PARTIAL] (#6052; engine built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is built behind `wideSetUp` (`RecipeHowFields`, the How step), not yet seen in a build) — "What you have" is shown, not asked: this
+  Mac's memory in one sentence (the route's own), the providers with a key saved, the Hugging Face token, each
+  cluster signed in, each from `recipes/derived.py` and the places route, with Add a Key…, Add a Token…, Sign
+  In… beside what is missing (the existing sheets). The person confirms with Continue; nothing on this line is
+  stored in the project. *Test:* `test_how_access_is_derived.py` (the line is
+  the derived route's; a saved key changes it; nothing is written to the answers).
+- `designer.how.answers-pick-the-card` [PARTIAL] (#6052; engine built in `recipes/how.py` and `GET /api/recipes/questions`; the app's page is built behind `wideSetUp` (`RecipeHowFields`, the How step), not yet seen in a build) — the four answers choose which route card is
+  proposed (`designer.path.choosing-is-a-default`): this Mac + privacy → (d); cloud + quality → (c); a cluster
+  or Hugging Face + cost → (b); cloud allowed + a large archive (the volume rule) → (a). The chosen card says
+  "proposed from your answers; change here"; the other cards stay. Changing an answer re-proposes; a card the
+  person chose by hand is never re-proposed over. *Test:* `test_how_answers_pick_the_card.py`.
+- `designer.how.teach-as-you-go` [GAP] (#6407, #6406, #5692; owner scenario 2026-11-08: the first 100 pages with Gemini, fine-tune a model on Hugging Face from those readings, then the rest with Kraken and MLX models on Hugging Face; manager rulings 2026-11-08) — How offers one more card beside the four questions' routes: **Teach as you go**, a staged plan across MANY pages, the distil route of `routes.py` made a plan with its gate: (a) N pages read with model A, the teacher (the How answers' cloud model); the person chooses PER RUN a covering sample or the first N in order, default covering, N editable, 100 proposed (`distill.collect.first-n-or-covering-sample` in `compute/distillation.md`); (b) fine-tune from those readings on the target the How "where" answer and the app's allowances give, this Mac or Hugging Face Jobs (`designer.teach.asks-whether-and-where-at-the-offer`, Step 16.3's place rule; provisional, owner to confirm: a transformers base on Hugging Face with an MLX copy for this Mac, `distill.student.transformers-base-on-hf-mlx-copy-local`); (c) a gate before the switch: the student's CER AND WER (`source.train.wer-beside-cer`, #6395) on held-out checked pages against the person's corrections as truth (Step 3.1, `designer.check.corrections-become-the-reference`) within the project's noise band (Step 6.1, `designer.teach.switch-within-band`); (d) the remaining pages read with the student on its place; never a model pass rerun (`activity.read.page-read-once`: the N teacher-read pages are not read again). The card shows the four stages with their figures from the route (`sample_pages` × the teacher's per-page price; the target's price per hour; zero for the rest on this Mac) and the gate's bar, and says the risk in plain words (Step 18.7). Everything happens in the app: no hand-built sets or files; the set is `training/kraken_set.py`'s, the start is `train_offers.start_when_ready`'s, the spend is under the project's Hugging Face cap (`spend_this_month`). No new route: the plan is the recipe's steps with places and a gate step, run by the recipe runner. Acceptance: choosing Teach as you go with "first 100" on a 1,000-page project shows the four stages priced; Start reads pages 1–100 with the teacher and no other page, trains, measures, and either switches (the switch recorded, `designer.run.switch-recorded`) and reads 101–1,000 with the student, or stops at the gate saying which measure fell short and offers to read on with the teacher at its cost. *Test:* `test_teach_as_you_go_end_to_end.py` (not yet written, one test with `compute/distillation.md` Stage 1), `test_how_offers_teach_as_you_go.py` (not yet written).
+- `designer.how.teach-as-you-go-gate-says-both-measures` [GAP] (#6407, #6395) — the gate's verdict names CER and WER side by side with the bar ("3.1% characters, 9.8% words; the bar is the current reader's 4.0% ± 0.6"), passes only when CER clears the band (WER shown, as `source.train.wer-beside-cer` rules), and a fall-short says which and offers the two ways on: more labelled pages (another N with the teacher, priced) or the teacher for the rest (priced). *Test:* `test_teach_as_you_go_end_to_end.py` (not yet written).
+
+**Improves — the risks in plain words (the maintainer, 2026-10-30; DRAFT).** `designer.rank.predictability-in-words`
+says a model's trade-off on its row; these say the same once, where the choice is made, and on the plan.
+- `designer.how.risks-in-plain-words` [PARTIAL] (#6052; engine half built: the `how-risks` topic in `topics.yaml`, served by `GET /api/topics`; the page's block is not) — the page carries one short block, the engine's
+  text (`recipes/seed/topics.yaml`, as `prep.setup.how-it-works-is-the-engines-sentence` does), with "Learn more"
+  → manual "Reading the numbers": *"Some steps are deterministic tools: given the same page they do the same thing
+  every time, and when they are wrong they are wrong in plain sight (a line missed, a word misread). Models that
+  read fluently can also invent: a word that is not on the page, a spelling 'corrected', a line skipped without
+  a gap. Fichero measures this as the insertion rate and shows it beside accuracy. Steps feed each other: a
+  line the layout step missed is never read, a name the reader got wrong is the name the Names step finds, so
+  an early error carries through the chain. Check the earliest steps first."* Shown on every project, not only
+  when a large model is chosen. *Test:* `test_risks_text_is_the_engines.py`
+  (the text is served by the engine; the app has no copy).
+- `designer.how.chain-risk-on-ready` [PARTIAL] (#6052; engine half built in `recipes/chain_risk.py`, `GET /api/recipes/chain-risk`; Ready shows it, 2026-11-04) — Ready says, in one line per model step, what feeds *Built (app, 2026-11-04, Swift not compiled here): Ready reads `GET /api/recipes/chain-risk` for the plan's steps (`RecipeSetupStore.loadChainRisk`, `RecipeStepChainLine`) and shows the engine's line under each step, with "Check first" where it says so.*
+  it and what it feeds ("Read takes the lines Find Lines found; Names, Dates and Statements take what Read
+  wrote"), and marks the steps whose errors carry furthest (the earliest model steps) with "check first". The
+  line is the engine's, from the job registry's reads and writes (`source.recipe.steps-work-alone-in-order`).
+  *Test:* `test_chain_risk_on_ready.py`.
+- `designer.how.what-to-check` [PARTIAL] (#6052; issue to file on approval) — the run's summary (`recipes-run.journey.finish-summary`)
+  gains one block, "What to check": for each model step that ran, the pages the engine is least sure of (lowest
+  certainty for a CTC reader; highest insertion rate against Kraken's reading, or the lines the order check
+  re-asked, for a vision-language reader), at most five, opened in the Reader by one press; a deterministic step
+  lists its proposals instead (`prep.check.worklist-of-proposals-and-a-sample` (G)). *Test:*
+  `test_what_to_check_after_a_run.py`. Built 2026-11-02 (engine): `recipes/what_to_check.least_sure` names up to five pages by the lowest mean
+  certainty of their read lines, in the run summary's `what_to_check`, when Read ran; a vision-language reader's pages (insertion rate, order check)
+  and a deterministic step's proposals have no figure yet and are not listed. The app (Swift, not compiled): the Read card lists them as buttons that open the page (`ActivityDetails+ToCheck.swift`, `ToCheckRowsTests.swift`). Left: the other readers' figures.
 
 **Improves.**
 - `designer.path.cards-are-the-routes` [MISSING] (#6052) — the page shows the routes from `routes.py`
@@ -270,6 +414,50 @@ training offered from 5,000 pages, teacher-and-student above 100,000 pages or th
     this Mac. Predictability: highest; a Kraken reader reads only what is on the line, though it may
     misread a word. Next: Compare the shipped readers, then Start; you can teach a better local model
     on your corrections later."*
+
+### 4b. The defaults table: from the answers to the recipe's steps, models and caps (the maintainer, 2026-10-30; DRAFT)
+
+**Exists.** Setup's rules choose a card per step from the material (`source.recipe.reader-pick-from-the-material` (P),
+`assemble._rank_key`/`_choose`), the volume rule places training (`source.recipe.volume-rule` (P)), faded pages add
+the preparation step (`source.onboard.auto.prepare-damaged-images` (P)), and a path sets teaching defaults
+(`designer.path.sets-teaching-defaults`). The rules are spread over `assemble.py`, `prepare.py`, `start.py` and
+`routes.py`, and none says on screen *why* a default was chosen.
+
+**Improves.**
+- `designer.defaults.table` [PARTIAL] (#6052; engine half built in `recipes/defaults.py`, `GET /api/recipes/defaults`; not yet applied by `assemble.py`; Ready shows the reasons (app, 2026-11-04), the stage pages do not yet) — one vendored table, `recipes/seed/defaults-by-answers.yaml`, *Built (app, 2026-11-04, Swift not compiled here): Ready reads `GET /api/recipes/defaults` (`RecipeSetupStore.loadDefaultsWhy`) and lists each default's reason and the answers that chose it under "Chosen because" (`DefaultWhy`, `ReadyReadsTests.swift`); the stage pages do not show it yet, and nothing is applied or written.*
+  maps the answers (kind of material, condition, where, model kind, what matters, the volume) to the recipe's
+  defaults: which stages are ticked, each step's default candidate kind (CTC reader, vision-language reader,
+  Apple's recognition, a cloud or local place), whether Review is on, the preparation steps, and the proposed caps.
+  Each row has a `why` sentence. The engine applies it in one place (`assemble.py`), after the filters and before
+  the rank, so `source.recipe.reader-pick-from-the-material` and the prepare-step rule become rows of it. The
+  first rows (to be checked against the maintainer's judgement, open question 6):
+
+  | Answers | Default steps | Default model kind | Cap proposed | Why (as shown) |
+  |---|---|---|---|---|
+  | print or typescript, clean, this Mac | Find the layout, Read, Search | Apple's recognition or a shipped Kraken print reader; no Review | none (free) | "clean print reads well with a free reader that never invents text" |
+  | handwriting, clean, this Mac, privacy | Find the layout, Read, Review (unsure lines only), Search | Kraken reader for the script and period; Review by a local model if one fits | none (free) | "nothing leaves this Mac; the unsure lines are checked again" |
+  | handwriting, faded or stained | + Prepare Images (contrast, stain flattening) | as above | as above | "faded ink reads better after contrast; the original is kept" |
+  | handwriting, show-through | + Prepare Images (show-through suppression) | as above | as above | "writing from the other side is dimmed before reading" |
+  | handwriting, tight binding | + Prepare Images (flatten toward the gutter) | as above | as above | "text that curves into the gutter is flattened first" |
+  | handwriting, torn or water damage | + Leave Out (damaged areas), Review on | vision-language reader offered beside the CTC one, compared | the route's estimate | "a damaged page needs a reader that uses context, and a check for what it invents" |
+  | cloud allowed, quality | Read by a large cloud model; Review off | large vision-language model | the route's estimate, rounded up to the dollar | "a large model reads a hard hand best; the cap is Fichero's best estimate of the cost, and it learns from what your project has booked" |
+  | cloud allowed, cost, large archive | path (a): cloud first pages, then Teach | as the path | the first pages' estimate | "the cloud reads the first pages, your corrections teach a free model for the rest" |
+  | a cluster or Hugging Face, cost | path (b) | the person's readers there | the Hugging Face cap at the route's estimate | "long runs go where your allocation is" |
+
+  *Test:* `test_defaults_table.py` (every row loads; every answer combination
+  the questions can produce hits exactly one row or the fallback row; the chosen defaults match the table for
+  each row above).
+- `designer.defaults.says-why` [PARTIAL] (#6052; engine half built in `recipes/defaults.py`, `GET /api/recipes/defaults`; not yet applied by `assemble.py`; Ready shows the reasons (app, 2026-11-04), the stage pages do not yet) — every default a stage page or Ready shows carries the
+  table row's `why` in grey under it ("chosen because: faded ink, this Mac only"), served by the engine with
+  the plan; a default with no row says "Fichero's usual default". *Test:*
+  `test_defaults_say_why.py`. Built (app, 2026-11-04, Swift not compiled here): Ready lists each default's reason and the answers that chose it under "Chosen because" (`RecipeDefaultsWhyView`, `DefaultWhy`, `ReadyReadsTests.swift`); the stage pages do not show it yet.
+- `designer.defaults.person-wins` [PARTIAL] (#6052; engine half built in `recipes/defaults.py`, `GET /api/recipes/defaults`; not yet applied by `assemble.py` or shown in the app) — a choice the person made on a stage page, in the
+  finder or on Ready is never replaced by the table when an answer changes; the changed default is offered
+  beside it ("your answers now suggest X; keep Y?"), as `source.onboard.step-choice-overrides-the-pick` keeps a
+  choice over the rules. *Test:* `test_defaults_never_override_a_choice.py`.
+- `designer.defaults.caps-proposed-from-the-table` [PARTIAL] (#6052; engine half built in `recipes/defaults.py`, `GET /api/recipes/defaults`; not yet applied by `assemble.py` or shown in the app) — the table's cap column is what
+  `designer.path.caps-proposed-not-written` proposes; it is written only on the person's confirmation of the
+  typed figure (section 11b). *Test:* in `test_defaults_table.py` (a proposal writes nothing).
 
 ### 5. Choose the Stages
 
@@ -325,6 +513,20 @@ are a candidate list (`source.recipe.line-finders-are-a-candidate-list` (P),
 - `designer.layout.region-model-row` [MISSING] (#6052) — Find Regions gets one row, "Blocks found by":
   Kraken (one pass, default), the YOLO layout model already selectable as a card, or a cloud vision
   model with its cost per page.
+- `designer.layout.vlm-finds-regions-and-lines` [GAP] (#6487, #6403, owner 2026-11-10: choose a vision-language model for Find
+  Regions and Find Lines) — each step has its OWN model list, drawn from the one catalog (#4307), with the cloud permission and spend
+  rules and a cost per page: Find Regions offers Kraken, YOLO layout models and vision-language models; Find Lines offers Kraken,
+  Apple's finder where it applies and vision-language models. "Find models" lists the vision-language ones for both,
+  each said in plain words ("a large model finds the lines; it may miss faint ones; US$ per page"). The picked model is
+  recorded on the regions and lines it made. *Test:* `test_layout_models_per_step.py` (each step's list holds only what it can take;
+  a cloud model is offered only when cloud is allowed; not yet written).
+- `designer.layout.vlm-corrects-regions-and-lines` [GAP] (#6487, #6284) — two optional steps after Find Lines, Correct Regions and
+  Correct Lines, each with its own model list as above. A free measure comes first (ink outside the boxes, overlaps, a
+  line crossing a region edge); a vision-language model is asked only about the pages the measure flags. It PROPOSES edits (add,
+  remove, merge, split, move) shown in the Preview as a pending set the person accepts or rejects as a whole or one at a time;
+  nothing is changed silently, an accepted edit is one audited, undoable change, and the model is recorded. A page with no
+  flag costs nothing. *Test:* `test_layout_corrections_are_proposals.py` (a proposal changes nothing until accepted; one undo
+  reverts it; an unflagged page makes no model call; not yet written).
 - `designer.layout.lines-per-block` [MISSING] (#6052, #6014) — with a YOLO or cloud region model, each
   block is cropped and Kraken's line finder runs per block; lines keep their block; reading order is
   blocks in the model's order then lines top-down, blocks right to left for right-to-left scripts.
@@ -462,7 +664,10 @@ from a step (`source.find.choose-a-model-opens-the-finder` (P), `source.onboard.
   opens for a step that has a search (as integration builds it, 1c008843d, d9a1cd231) and says what it
   found; the press is "Search again"; a job with no search disables the press with the reason.
 
-- `designer.model.every-model-step-chooses` [MISSING] (#6168, #6167, #6173) — the shared "Which model does it"
+- `designer.model.every-model-step-chooses` [PARTIAL] (#6168, #6167, #6173; #6254, #6258) — built (41ad5eec9, 575cdb87b): every step whose job
+  `needs_a_model` offers Choose a Model… (engine test `test_every_model_step_says_it_needs_a_model_and_the_finder_lists_more_than_one`; the Swift
+  test is written but not yet run). Not built: the chooser showing each way's cost, time and place for Statements, Entities and Leave out, and the
+  walk-the-registry test. Full text: the shared "Which model does it"
   chooser is offered for EVERY stage that runs a model, none left out (Statements, Entities and Leave out
   included): the ways to do the stage, each with its cost, its time and where it runs (this Mac with Apple or
   MLX, Kraken, a local model, a cloud model, Hugging Face Jobs, a cluster), the default marked, the choice
@@ -639,6 +844,93 @@ itself and what will not run (`source.onboard.ready-speaks-plainly` (P), `source
 - `designer.ready.totals-against-the-route` [MISSING] (#6052) — Ready's total predicted cost and hours
   is the sum of the stages' predictions, shown against the route's figure in one line ("your path
   estimated US$120; measured on your pages, US$96").
+
+### 11b. Budget (the maintainer, 2026-10-30, #6295, #6294; DRAFT)
+
+**Exists.** Every project has a cloud spend cap, US$10 a month unless set (`ai.where.cloud-spend-cap` (P), #5943,
+`answers.cloud_spend_cap_usd`, booked in `recipe/cloud-spend.json`); a cap below $0 is refused by
+`answers.normalise`; the Start plan carries `cloud_cap` (`CloudCapLine`: cap, spent, remaining, estimate, `over`,
+the unpriced models) and Start is refused while the estimate is over what the cap leaves, with one sentence,
+"Raise the cap in Set Up, or choose a cheaper model" (`_cap_refusals`, `api/routes/system/recipes.py`); the app's
+`RecipeCloudCapRow` on Ready holds the cap field and the words (uncompiled, 2026-10-28); the Hugging Face cap is
+a second field (`source.onboard.spend-cap` (P)); the cap is saved through `project.save_setup` (audited,
+undoable); the estimate prices a cloud line read at assumed tokens (`start.LINE_TOKENS_IN/OUT`, the page image
+per provider `source.onboard.estimate-counts-the-image` (P), #6265) and nothing reads what the project has
+already booked for the same model and job; a run at the cap is asked to pause and the person resumes
+(`ai.where.cloud-spend-cap`, `designer.run.cap-stops-and-says`). **Found 2026-10-29 (#6295):** the refusal
+reaches the last screen with no control that fixes it; the cap is changed outside the app. **Found 2026-10-28
+(#6294):** a 16-page folder estimated $0.33 booked about 2.5× that, so a cap set at the estimate paused the run
+at 9 of 16 pages.
+
+**Ruled (the maintainer's ruling, 2026-10-30).** A Start may be blocked by either of two caps, the project cap or
+the monthly cap, and the experience must let a person update **both** in place: in the Budget block on Ready, and
+on the refusal and the paused-at-cap screens. Today a Start is blocked with no way to change either cap in the app.
+There is **no margin multiplier**: the estimate says what Fichero thinks the run will cost, its best estimate with
+its basis, and it learns from the project's booked costs (`designer.budget.estimate-from-booked-usage`).
+
+**Improves.**
+- `designer.budget.beside-the-estimate` [PARTIAL] (#6295) — Ready has one Budget block, above Start: the estimate
+  for this run (`estimate.total_cost_usd`), Fichero's best estimate, with its basis, the project's cap for the month with what is spent
+  and what is left (the `CloudCapLine` figures), and two editable fields, both changeable in place, so that
+  whichever cap would block Start can be updated from the block: **this run, at most** and **this
+  project a month, at most**. The Hugging Face cap joins the block as a third line when a Hugging Face place is
+  in the plan. One block, not a field under a question. *Test:* `BudgetBlockTests.swift`
+  (pure: the block's lines from a served plan; the fields hold the served caps; a cap below 0 cannot be typed),
+  `test_budget_in_the_plan.py` (the plan carries both caps and the basis). Found partly built 2026-11-02 (#6295): the plan's `cloud_cap` line carries the monthly cap, spent, remaining, the project cap and its remaining, and the caps are changeable in place (`CloudCapLine`, `changeCloudCaps`). Built 2026-11-02 (engine): the cloud line also serves `proposed_run_cap_usd` (the estimate, no margin) beside `StartRequest.run_cap_usd` (`test_budget_in_the_plan.py`). Built 2026-11-02 (app, uncompiled): the cap row on Ready carries "This run, at most" (`RecipeRunCapField`, `RecipeSetupStore.runCapUsd` sent with Start, the engine's proposal as the prompt with "Use $N") and names the dearest step beside the refusal (`BudgetBlock`; `BudgetBlockTests.swift`). Built (app, 2026-11-04, Swift not compiled here): the block is one view above Start (`RecipeCloudCapRow`): both cap fields, "This run, at most", the words for what the caps leave, the basis rows, the fixes and "Change the model for <step>". Left: the Hugging Face line (the plan carries no Hugging Face cap yet; its field sits beside it in `RecipeMoneyAndPlaceFields`).
+- `designer.budget.basis-per-step` [PARTIAL] (#6295) — the estimate is shown per step and per page, each with its
+  basis in words: "Read: 16 pages × $0.021 a page, measured on 9 pages of this project" or "… assumed: one call
+  a page of about 16 line pictures at Claude's listed rate"; the sum is the run's estimate. The basis is a
+  field of the served estimate (`measured` · `assumed` · `unpriced`), never worked out in the app. *Test:*
+  `test_estimate_basis_per_step.py`. Built 2026-11-02 (engine): each `StartEstimateRun` carries `basis_kind` (measured · assumed · free · unpriced), `basis_words`, `cost_per_page_usd` and `measured_pages` (`start._basis_words`; `test_estimate_basis_per_step.py`); the app words nothing. Built (app, 2026-11-04, Swift not compiled here): the per-step basis rows are in the Budget block (`CloudCapFix.basisLines`, shown by `RecipeCloudCapRow`).
+
+- `designer.budget.estimate-from-booked-usage` [PARTIAL] (#6294) — once the project has booked calls for the same
+  model and job (the usage rows `_record_usage` keeps, with their `place`), the per-page figure is the median
+  booked cost a page over those calls, labelled measured with the page count; until then the token assumption,
+  labelled assumed. A run's own booked cost replaces the assumption for its remaining pages, so a cap set at
+  the estimate lets a run finish (#6294's case: after the first pages the estimate reads the booked figure). No
+  margin is applied on top (the maintainer's ruling, 2026-10-30): the figure shown is Fichero's best estimate, its
+  basis beside it, and the booked costs are how it improves.
+  *Test:* `test_estimate_learns_from_booked_usage_6294.py` (fake usage rows
+  at 2.5× the assumption: the estimate reads the measured figure, says "measured on N pages", and a cap set at
+  the new estimate is not refused). Built 2026-11-02 (engine): `recipes/booked_cost.per_page` takes the median booked cost a page over the pages whose job rows booked priced calls of the same model and job; the estimate uses it (`measured`, with the page count) before the token assumption (`test_estimate_learns_from_booked_usage_6294.py`). Left: a run's own booked cost replacing the assumption for its remaining pages, mid-run.
+
+- `designer.budget.run-cap` [PARTIAL] (#6295) — Start takes a cap for this run (`StartRequest.run_cap_usd`, kept on
+  the run's row); the run's cloud calls are held against **both** the run cap and the project cap, the lower
+  deciding, through the one spend hold (`llm/spend.py`); a run with no run cap is held by the project cap alone.
+  The run cap is proposed at the estimate (the defaults table's cap column: the best estimate, assumed or
+  measured, with no margin multiplier, the maintainer's ruling, 2026-10-30) and written only when the person confirms the typed figure
+  (`designer.path.caps-proposed-not-written`). *Test:*
+  `test_run_cap_holds_with_the_project_cap.py` (a run cap below the project's
+  remaining refuses at the run cap; the project cap still refuses first when lower). Built (engine, 2026-11-04): `StartRequest.run_cap_usd` is kept on the run's row; the cap is held from the moment `_run` starts the run (not while it waits in the queue, so a run cancelled before it starts leaves none) and cleared at its end, or by Stop on its waiting row, unless it is deferred, which keeps the cap as changed and its baseline: `test_run_cap_is_held_from_the_run_start.py`, and that Start carries it from the request to the row: `test_start_carries_the_run_cap_6295.py`.
+- `designer.budget.refusal-offers-the-fix` [PARTIAL] (#6295) — a Start refused for the cap says, in plain words,
+  which cap refused (the project cap or the monthly cap), what the estimate is, what that cap leaves, and which step costs most; and the refusal carries typed fixes
+  the app shows as buttons in the Budget block, each one press, with **both** cap fields editable in place on the
+  same screen (the maintainer's ruling, 2026-10-30): **Raise the cap to $N** (N = the estimate, rounded up to the
+  dollar, with no margin; the cap that is refusing, project or monthly);
+  **Change the model for <step>** (opens the one finder on that step, `designer.rank.finder-for-every-model-step`,
+  the cheaper candidates first with their cost a page); **Run fewer pages** (the number of pages that fit what
+  the cap leaves, sent as a Start of the first N pages in Finder order, the maintainer's ruling, 2026-10-30: the
+  pages are named as `documents` in the existing Start request, `source.recipe.folder-scoped-start`, with no new
+  request field; offering "the folders that fit" is a later slice). The engine
+  serves the fixes (`refusal.fixes[]`: `kind`, `step`, `raise_to_usd`, `pages_that_fit`); the app computes none.
+  *Test:* `test_cap_refusal_offers_the_fix_6295.py` (each fix is served with
+  its figure; the refusal names which cap refused; raising to N clears the refusal; the fewer-pages count fits what is left,
+  and the Start it makes names the first N pages in Finder order as `documents`, nothing more),
+  `BudgetRefusalFixTests.swift` (the three buttons from a served refusal). Built (engine, 2026-11-04): the refusal carries typed `fixes[]` (`CapFix`: kind, step, `raise_to_usd`, `pages_that_fit`) and the dearest step: `test_cap_refusal_offers_the_fix_6295.py`. Found partly built 2026-11-02 (#6295): the cap line serves `needed_cap_usd`, `needed_project_cap_usd`, `fewer_pages` and the refusal's own sentence naming which cap refused. Built since (engine, 2026-11-04): the typed `refusal.fixes[]` and the dearest step. Built (app, 2026-11-04, Swift not compiled here): the raise amounts and the first pages that fit are read from `fixes[]` (an engine that serves none is read from the line's figures), and "Change the model for <step>" opens that step's model finder (`CloudCapOffers`, `BudgetRefusalFixTests.swift`).
+- `designer.budget.change-is-audited-and-undoable` [PARTIAL] (#6295) — raising or lowering either cap, from the
+  field or from a fix button, is one audited action, `project.set_budget` (project, which cap, from, to, who,
+  when), undoable through Edit › Undo, the same write permission as any change to the project; it reuses
+  `project.save_setup`'s audit and invert, so a cap change never writes any other answer. A cap raised during a
+  paused run (`designer.budget.fix-during-the-run`) is the same action. *Test:*
+  `test_set_budget_is_audited_and_undoable.py` (the audit row names the cap and
+  both figures; undo restores the old cap and nothing else; MCP and the command line reach it through the regen). Found built 2026-11-02 (#6295): `PUT /api/recipes/project/cloud-cap` is one `project.save_setup` writing only the caps, audited, one Undo puts both back (`test_raise_the_cap_in_place_6295.py::test_changing_the_caps_is_audited_keeps_the_rest_and_one_undo_puts_both_back`; the app: `RecipeSetupStore+CloudCaps.changeCloudCaps`). Left: an action of its own named `project.set_budget` (the audit row names `project.save_setup`), and the run cap.
+- `designer.budget.fix-during-the-run` [PARTIAL] (#6295; extends `designer.run.cap-stops-and-says`) — when a run is
+  paused at the cap, the run's Activity row and the project's run strip show the same three fixes, and both cap
+  fields editable in place (the maintainer's ruling, 2026-10-30) (raise to $N,
+  change the step's model for the remaining pages, stop here and keep what is done), with the booked figure so
+  far; pressing raise sets the cap and resumes the run (the run's own Resume, #5932/#5933), never silently.
+  *Test:* `test_run_cap_fix_in_place.py` (a paused run resumes after the cap is
+  raised through the action; a stop keeps the finished pages). Built 2026-11-02 (engine, one path): the cap hold pauses the step's run and the recipe parks on it (`spend._STOPPED_AT_CAP`, which now records the caps it stopped under); a raised cap resumes it by the one Resume (`runner.resume_capped_runs` → `pause_recipe`, called after the cap route writes), from the run's own checkpoint, no page read again; a lowered or unchanged cap never does (`spend.raised_cap_stops`; `test_run_pauses_at_the_cap_6295.py`). Left: the Activity row and run strip fixes with the booked figure, Stop here is the run's own Stop (a run paused at the cap waits off the lane, so Stop ends it now with its finished pages kept; `test_stop_here_ends_a_run_paused_at_the_cap_and_keeps_what_is_done`).
 
 ### 12. Start, and the run
 
@@ -826,7 +1118,10 @@ screenshots (`docs/assets/recipe-designer/`).
 | Review, layout | `designer.review.kind` · `designer.layout.region-model` |
 | Workflow | `designer.step.open-in-editor.<job>` · `designer.step.adjust-in-editor.<job>` |
 | Teach | `designer.teach.offer` · `designer.teach.candidate.<distil|fine-tune>` · `designer.teach.where` · `designer.teach.learn-more` |
-| Ready | `designer.ready.step.<job>` · `designer.ready.change.<job>` · `designer.ready.totals` |
+| Ready | `designer.ready.step.<job>` · `designer.ready.change.<job>` · `designer.ready.totals` · `designer.ready.chain.<job>` |
+| How (2026-10-30) | `designer.how.where.<place>` · `designer.how.model-kind.<kind>` · `designer.how.matters.<speed|cost|quality|privacy>` · `designer.how.access` · `designer.how.risks` · `designer.how.learn-more` |
+| Condition | `designer.material.condition.<id>` |
+| Budget | `designer.budget.run-cap` · `designer.budget.project-cap` · `designer.budget.step.<job>` · `designer.budget.fix.<raise|change-model|fewer-pages>` |
 | Material | `designer.material.imported-truth` · `designer.material.script-display` |
 | Sharing | `designer.share.export` · `designer.share.import` |
 
@@ -846,6 +1141,13 @@ screenshots (`docs/assets/recipe-designer/`).
 | `designer.teach.offer` | Teach a model… | Train a smaller model on your checked lines; offered, never started by itself | `designer.teach.offer` | [MISSING] |
 | `designer.ready.change.<job>` | Change… | Choose another model for this step | `designer.ready.change` | [MISSING] |
 | `designer.material.imported-truth` | Use as the measure | Your imported transcriptions become the reference every comparison is measured against | `designer.material.imported-truth` | [MISSING] |
+| `designer.material.condition.<id>` | the condition's name | What Fichero does about it, in one line (the engine's) | `designer.material.condition` | [GAP] |
+| `designer.how.where.<place>` | the place's name | Where this project's work may run; pages leave this Mac only for a place you tick | `designer.how.where` | [GAP] |
+| `designer.how.model-kind.<kind>` | the kind's name | Small local models read only what is on the line; large models read fluently and may invent | `designer.how.model-kind` | [GAP] |
+| `designer.how.matters.<x>` | What matters most | Picks the defaults and breaks ties between models that read equally well | `designer.how.matters` | [GAP] |
+| `designer.budget.run-cap` | This run, at most | Cloud spending this run may reach; the run pauses at it and asks | `designer.budget.run-cap` | [GAP] |
+| `designer.budget.project-cap` | This project a month, at most | Cloud spending this project may reach in a month; audited and undoable | `designer.budget.project-cap` | [GAP] |
+| `designer.budget.fix.<kind>` | Raise the cap to $N · Change the model… · Run fewer pages | The fix in place for a Start the cap refused | `designer.budget.fix` | [GAP] |
 
 All strings through the String Catalog; no `Text(verbatim:)`. Presence scans are not behavioural tests;
 every row is [MISSING] until a spec-pinned test or `performAccessibilityAudit()` covers it.
@@ -897,10 +1199,33 @@ only. Questions 1–3 and 5–9 are ruled as follows; question 4 stays open.
 Set Up screens items 5, 9 and 13 (appendix): one "Choose a model…" on every model step; Ready as one
 line per step with Change…; the duplicate grey example line removed (one is kept).
 
+## Rulings (the maintainer, 2026-10-30)
+
+On the open questions of the 2026-10-30 additions; question 6 (the defaults table's rows) stays open.
+
+5. **Page order.** How do you want to run this? comes after About the Material and before Choose the Stages
+   (section 4, as drafted).
+7. **Caps.** A Start may be blocked by either the project cap or the monthly cap, and the experience lets a person
+   update both in place: in the Budget block on Ready and on the refusal and the paused-at-cap screens
+   (`designer.budget.beside-the-estimate`, `designer.budget.refusal-offers-the-fix`,
+   `designer.budget.fix-during-the-run`). Today a Start is blocked with no way to change either cap in the app.
+8. **Margin.** There is no margin multiplier. The estimate says what Fichero thinks it will cost, its best
+   estimate with its basis, and it learns from the project's booked costs
+   (`designer.budget.estimate-from-booked-usage`).
+9. **Fewer pages.** The "Run fewer pages" fix starts the first N pages, in Finder order
+   (`designer.budget.refusal-offers-the-fix`).
+
 ## Open question for the creative director
 
 4. The dictionary-word rule for "lines changed beyond the CER" (needs a word list per language; none
    for Latin abbreviations); until ruled it stays [PROPOSED] and the insertion rate is the one number.
+
+## Open question for the maintainer (the 2026-10-30 additions; a recommendation)
+
+6. **The defaults table's rows.** The nine rows in section 4b are a first draft from the specs' own rules;
+   the maintainer's judgement on each cell (which reader for damaged handwriting; whether Review defaults on
+   for a large cloud model) is what makes the table right. *Recommend:* rule row by row on approval; the
+   table is data, so a changed row is a one-line change and a test.
 
 ## Appendix: screens review facts (2026-10-24, read from the code; inlined so nothing cites a local note)
 
@@ -927,60 +1252,110 @@ line per step with Change…; the duplicate grey example line removed (one is ke
 
 ### Stage 1 — Screens-review fixes (app and engine)
 
-#### Step 1.1 — One selection, one cloud line, nothing-found from the engine, one finder
+#### Step 1.1 — One selection, one cloud line, nothing-found from the engine, one finder (#6053)
 - Behaviours: `designer.rank.one-visible-selection`, `designer.rank.cloud-permission-said-once`, `designer.rank.nothing-found-from-the-engine`, `designer.rank.finder-for-every-model-step`, `designer.rank.searches-on-open`
-- Tests: fichero/ficheroTests/RecipeFinderTests.swift, fichero-server/tests/unit/recipes/test_finder_nothing_found.py
+- Tests: fichero-server/tests/unit/recipes/test_cloud_text_pick_and_every_step_chooses_6088.py, RecipeFinderTests.swift (not yet written), test_finder_nothing_found.py (not yet written)
 - Size: M
 
-#### Step 1.2 — Plain wording on Read and Ready
+Written for the builder 2026-11-07 (spec-writer, from the code at origin/integration). **Built:** every step that needs a model can choose one in the engine (`source.find.every-step-lists-models`, #6088, `test_cloud_text_pick_and_every_step_chooses_6088.py`); the steps page offers "Choose a Model…" beside a non-reading step and "Find a Reader…" beside a reading one (`RecipeStepsView.swift:60`); the engine has one nothing-found sentence, `discovery.nothing_found_words(languages)`, sent as a row's `detail`. **Left:** the two button names become one, "Choose a model…", and the download / choose-cloud / choose-model fix buttons (`RecipeStepsView.swift:246-250`) collapse into that one press (fact 1, 4, 5); the finder's chosen row keeps its tier with a leading radio mark and a tinted row (fact 6); the "Allow Cloud Models" line is drawn once above the cloud tier (fact 7); the app's own nothing-found strings go and every job's sentence is the engine's `detail`, Find Regions included (fact 8); the finder searches online by itself when it opens for a step that has a search, says what it found, the press reads "Search again", and a job with no search shows the press disabled with the engine's reason. **Acceptance (app, by test):** opening the finder for Find Regions and for Correct shows the same list the engine returns for that job and no second list; choosing a row leaves it in its tier with the radio mark; a sheet with three cloud cards shows the permission line once; with the engine answering no candidates for Regions the sheet shows the engine's sentence verbatim and no app string; opening the finder for a step with a search sends one search request before any press, and "Search again" sends another; for a step with no search the press is disabled with the reason. **Acceptance (engine):** `nothing_found_words` is served for every job in the finder's answer (`detail`), Regions and Correct included, and a test asserts no job answers with an empty list and no detail.
+
+- test (to write): `RecipeFinderTests.swift` in fichero/Tests/Unit/general/Models/ (beside `RecipeSetupStoreTests.swift`: one button name; the radio mark and tier kept; the permission line once; the engine's sentence shown verbatim; search on open, Search again, disabled with reason)
+- test (to write): `test_finder_nothing_found.py` in fichero-server/tests/unit/recipes/ (every job's empty answer carries `detail` from `nothing_found_words`; Regions' sentence names regions, not readers)
+
+#### Step 1.2 — Plain wording on Read and Ready (#6053)
 - Behaviours: `designer.measure.says-what-it-cannot-measure`, `designer.ready.one-line-per-step-with-change`, `designer.read.certainty-question-stays-here`
-- Tests: fichero/ficheroTests/RecipeReadyTests.swift, fichero-server/tests/unit/recipes/test_cannot_measure_wording.py
+- Tests: RecipeReadyTests.swift (not yet written), test_cannot_measure_wording.py (not yet written)
 - Size: S
+
+Written for the builder 2026-11-07 (spec-writer). **Built:** the bake-off's readiness check counts corrected lines on the sample pages and says what it needs ("Needs N corrected lines on at least 2 pages; this project has …", `recipes/bakeoff.py:354-366`); Ready has one line per step. **Left:** (engine, slice 1) when the project has NOTHING read yet the sentence is "Compare measures against lines you have checked. Read a few pages first, then check about 100 lines on two pages" and no count of corrected lines is shown (fact 11); the same wording reaches every stage that cannot measure, through one function. (App, slice 2) Ready's `StepChoiceMenusView` (fact 9, `RecipeReadyFields.swift:102`) goes; each step's one line carries the chosen model, its place, its measured figure with provenance, its predictability words, the predicted cost and time, and Change…, which opens the one finder of Step 1.1; the "a cloud model corrects the unsure lines" choice leaves Read's menu and is offered once on the Review page (fact 5; the Review stage itself is Step 10.1, so until it lands the choice stays where the certainty bar is, said once). **Acceptance (engine):** a project with zero pages read answers the cannot-measure sentence above and `corrected_lines` is absent; a project with pages read but under the threshold keeps today's "Needs N corrected lines" sentence; the same function serves Read, Correct and Find Lines. **Acceptance (app):** the Ready page mounts no `StepChoiceMenusView`; each step row shows the six parts and a Change… button whose identifier is `recipe.ready.change.<job>`; pressing it opens `ModelFinderSheet` for that job; Read's menu has no unsure-lines item.
+
+- test (to write): `test_cannot_measure_wording.py` in fichero-server/tests/unit/recipes/ (zero read → the sentence and no count; under threshold → the count sentence; one function for three stages)
+- test (to write): `RecipeReadyTests.swift` in fichero/Tests/Unit/general/Models/ (no step menus on Ready; the six parts per row; Change… opens the finder for the row's job; Read's menu without the unsure-lines item)
 
 ### Stage 2 — Material, imported truth and one Kraken pass
 
-#### Step 2.1 — One Kraken pass
+#### Step 2.1 — One Kraken pass (#6054)
 - Behaviours: `designer.layout.one-kraken-pass`
-- Tests: fichero-server/tests/unit/recipes/test_one_kraken_pass.py
+- Tests: fichero-server/tests/unit/recipes/test_regions_one_pass_5689.py, test_one_kraken_pass.py (not yet written)
 - Size: S
 
-#### Step 2.2 — Imported transcriptions detected, asked once, measured at once
+Written for the builder 2026-11-07 (spec-writer, from the code at origin/integration). **Built (#5689):** one `blla` call returns regions and lines and each line keeps its region (`kraken_runtime._segment_raw`, `geometry_from_segmentation`); Find Regions stores both (`recipes/regions.py:283`) and Read reads the stored lines instead of segmenting again (`test_regions_one_pass_5689.py`). **Left:** the two re-calls the bullet names: (1) the bake-off's `find_lines_with("kraken", photo)` (`recipes/bakeoff.py:771-777`) calls `kraken_runtime.segment_to_geometry(photo)` for every sample page even when Find Regions has stored that page's lines; it reads the stored geometry first and segments only a page with none; (2) the runner's Find Lines step, when Find Regions ran Kraken on the page in the same plan, takes the stored lines and makes no call (today the `find-lines` job may segment again where the finder is Kraken and the regions pass already holds the lines). The one seam stays `segment_lines`, as the 5689 test stubs it. **Acceptance (engine):** with Find Regions and Find Lines both Kraken on a 3-page fixture, a counting stub on the segmenter sees exactly 3 calls across Find Regions, Find Lines, Read and a bake-off over those pages (today 6 or 9); a page whose stored lines were deleted is segmented once more and no other page is; with Find Regions on Apple Vision and Find Lines on Kraken the count is unchanged from today (the lines are Kraken's own pass); the bake-off's figures on the fixture are identical before and after (the same lines read).
+
+- test (to write): `test_one_kraken_pass.py` in fichero-server/tests/unit/recipes/ (the counting stub across the four callers; the deleted-lines page segmented once; the mixed-finder case unchanged; identical bake-off figures)
+
+#### Step 2.2 — Imported transcriptions detected, asked once, measured at once (#6055)
 - Behaviours: `designer.material.imported-transcriptions-detected`, `designer.material.imported-truth-asked-once`, `designer.material.imported-truth-measures-at-once`
-- Tests: fichero-server/tests/unit/recipes/test_imported_truth.py, fichero/ficheroTests/AddMaterialImportedTruthTests.swift
+- Tests: fichero-server/tests/unit/recipes/test_import_ground_truth.py, test_imported_truth.py (not yet written), AddMaterialImportedTruthTests.swift (not yet written)
 - Size: M
 
-#### Step 2.3 — Glyph inventory, display check, questions name their stage
+Written for the builder 2026-11-07 (spec-writer, from the code at origin/integration). **Built (#5513):** corrected transcriptions given at setup come in through the one import path as person-made passes marked ground truth, and the bake-off counts them (`bakeoff.ground_truth`, `made_by_a_person`, `test_import_ground_truth.py`); the readiness sentence names the pages that hold imported transcriptions nobody has marked (`bakeoff.unmarked_import_pages`); the importers pair interchange files with their images (`importers/interchange_pairing.py`). **Left:** (1) engine: Add Material's answer counts the pages that arrived with a transcription and names the tool, per format (PAGE, ALTO, hOCR, TEI, plain text named after its image, Tesseract `.box`), read from the paired files' producer fields (PAGE's `Creator`, ALTO's `processingSoftware`, hOCR's `ocr-system`, TEI's `<application>`) with "a text file" when none says; (2) engine: ONE question on the material page, default yes, with the count and the tool ("212 pages arrive with a transcription from Transkribus. Use them as the measure every model is compared against? You can correct them later; your corrections win."); yes marks the passes ground truth through the existing route (`PUT` on the pass's `ground_truth`, one code path), a plain text file named after its image counting as page truth; asked once per project and remembered in `setup.yaml`; (3) engine: with imported truth the bake-off's readiness passes without checked lines, every measurement says "measured on N of your imported pages; ground truth from the files", and a person's later correction on a line replaces the file's reading as that line's reference (the existing rule, `made_by_a_person` outranks the import); (4) app: the sentence and the one question on Add Material, the measurement label on Compare and Ready. **Acceptance (engine):** a fixture folder with 212 images, 212 PAGE files from Transkribus and 3 `.box` files answers "212 pages arrive with a transcription from Transkribus; 3 from Tesseract"; the question appears once and `setup.yaml` records the answer; yes marks every imported pass `ground_truth` and the bake-off's readiness is true with zero checked lines, its label the sentence above; a correction on one line makes that line's reference the person's and the label "measured on N of your imported pages and 1 corrected line"; no marks the passes nothing and the readiness sentence names the unmarked pages as today. **Acceptance (app, by test):** Add Material shows the count sentence and the yes/no once; Compare's rows carry the imported-truth label.
+
+- test (to write): `test_imported_truth.py` in fichero-server/tests/unit/recipes/ (the per-format count and tool; the one question and its memory; yes marks through the one route; readiness true with imported truth; the correction wins; no leaves the unmarked sentence)
+- test (to write): `AddMaterialImportedTruthTests.swift` in fichero/Tests/Unit/general/Models/ (the sentence and question once; the label on Compare and Ready)
+
+#### Step 2.3 — Glyph inventory, display check, questions name their stage (#6055)
 - Behaviours: `designer.material.glyph-inventory`, `designer.material.script-displays-check`, `designer.material.question-names-its-stage`
-- Tests: fichero-server/tests/unit/recipes/test_glyph_inventory.py, fichero-server/tests/unit/recipes/test_derived_display_check.py, fichero-server/tests/unit/recipes/test_questions_stage_map.py
+- Tests: fichero-server/tests/unit/recipes/test_transcription_font_from_script_and_period.py, test_glyph_inventory.py (not yet written), test_derived_display_check.py (not yet written), test_questions_stage_map.py (not yet written), ScriptDisplaysCheckTests.swift (not yet written)
+- Depends on: 2.2
 - Size: M
+
+Written for the builder 2026-11-07 (spec-writer). **Built (#5438):** `derived.py` answers the font a transcription is drawn in from the script and period, remembered per library (`test_transcription_font_from_script_and_period.py`); the stage questions exist and are open-ended (#5805). **Left:** (1) engine: the project's glyph inventory, `recipes/glyphs.py`: the set of characters its ground truth uses (`.box` characters, TEI `<g>` and MUFI code points, the text of passes marked ground truth or made by a person), rebuilt when a pass changes and stored in the project folder (`recipe/glyphs.json`, counts per code point), read by the coverage filter (Step 4.1), the display check and the compare's character row; (2) engine: `derived.py` extends its font answer with a per-character check of the inventory (or, before any truth, the script's exemplars from `seed/iso15924.txt`'s ranges) against the bundled fonts' cmaps, answering the count that displays and the list that does not with their block names; (3) app: adds this device's system fonts to the check and shows the result for the device the person looks at ("all 418 of your characters display", or "14 characters (Canadian Syllabics, U+1400…) have no font here and show as boxes until one is added", naming the fallback family), on Add Material and in the Reader's font menu; (4) engine: `GET /api/recipes/questions` serves, with each question, the stages it feeds; a question no stage reads is not served; the app shows the stage under the question ("the period narrows the readers"). **Acceptance (engine):** a fixture with 40 `.box` characters, a TEI file with two MUFI glyphs and one person-made pass yields an inventory of exactly their code points with counts; the check against the bundled fonts reports the two MUFI glyphs as not displayed with the block named and everything else displayed; before any truth the check runs on the script's exemplars; every served question names at least one stage and a question that feeds none is absent. **Acceptance (app, by test):** the device's fonts change the answer shown (a stubbed font list with Junicode displays the MUFI glyphs; without it the sentence names them); each question shows its stage words.
+
+- test (to write): `test_glyph_inventory.py` in fichero-server/tests/unit/recipes/ (the inventory's code points and counts from the three sources; rebuilt on a pass change)
+- test (to write): `test_derived_display_check.py` in fichero-server/tests/unit/recipes/ (the per-character check against bundled cmaps; the exemplars before truth; the two sentences)
+- test (to write): `test_questions_stage_map.py` in fichero-server/tests/unit/recipes/ (every question names a stage; a stage-less question is not served)
+- test (to write): `ScriptDisplaysCheckTests.swift` in fichero/Tests/Unit/general/Models/ (the device fonts added; the sentence per case; the stage words under a question)
 
 ### Stage 3 — Checking lines
 
-#### Step 3.1 — Progress in words; corrections become the reference
+#### Step 3.1 — Progress in words; corrections become the reference (#6056)
 - Behaviours: `designer.check.progress-in-words`, `designer.check.corrections-become-the-reference`
-- Tests: fichero-server/tests/unit/recipes/test_check_progress.py, fichero-server/tests/unit/recipes/test_corrections_replace_reference.py
+- Tests: fichero-server/tests/unit/recipes/test_import_ground_truth.py, test_check_progress.py (not yet written), test_corrections_replace_reference.py (not yet written), CheckProgressLineTests.swift (not yet written)
 - Depends on: 2.2
 - Size: S
 
+Written for the builder 2026-11-07 (spec-writer, from the code at origin/integration). **Built:** the thresholds and the counts exist in the engine: the bake-off needs `MIN_LINES = 100` checked lines on `MIN_PAGES = 2` pages (`bakeoff.py:52-53`, `bakeoff.readiness`, its sentence "Needs N corrected lines on at least 2 pages; this project has …"), Teach a model has its own count and threshold (`train_offers.py:178-184`, regions on pages; the lines threshold per job from `at_least`); a person-made pass already outranks an imported or model reading as the reference (`bakeoff.ground_truth`, `made_by_a_person`; `test_import_ground_truth.py`); the pages to check are proposed least-sure first (`what_to_check.least_sure`). **Left:** (1) engine: one progress line per threshold, served with the readiness (`GET /api/recipes/project/start` and the bake-off's readiness answer): "62 of 100 lines checked on 1 of 2 pages; Compare can measure at 100" and "62 of 500 for Teach a model…", the numbers the engine's own counts and thresholds, the words from one function so Read, Train and Ready cannot differ; (2) engine: a checked line replaces the reference at once: the next compare and every candidate row's slot 1 (Step 8.2) read it without a re-import or a restart, and the measurement label says "on N checked lines" when the reference holds any; (3) app: the Read and Train pages and Ready show the engine's line verbatim under their heading, and nothing else counts lines in the app. **Acceptance (engine):** with 62 person-checked lines on one page the readiness answer carries exactly "62 of 100 lines checked on 1 of 2 pages; Compare can measure at 100" and the Teach line "62 of 500 for Teach a model…"; with 100 lines on two pages the Compare line reads "Compare can measure now"; checking one more line on a page with an imported reading changes that line's reference to the person's in the very next bake-off run, with no other call. **Acceptance (app, by test):** Read, Train and Ready each mount the engine's line and hold no counting of their own.
+
+- test (to write): `test_check_progress.py` in fichero-server/tests/unit/recipes/ (the two lines from fixtures at 62/1, 100/2 and 0/0; one function; the Teach line's threshold from `at_least`)
+- test (to write): `test_corrections_replace_reference.py` in fichero-server/tests/unit/recipes/ (a check replaces the reference at once; the label names checked lines)
+- test (to write): `CheckProgressLineTests.swift` in fichero/Tests/Unit/general/Models/ (the three pages mount the engine's line; no app-side count)
+
 ### Stage 4 — Filters
 
-#### Step 4.1 — Fit first, coverage band, refusal, ruling B
+#### Step 4.1 — Fit first, coverage band, refusal, ruling B (#6057)
 - Behaviours: `designer.filter.fit-first`, `designer.filter.coverage-band`, `designer.filter.refuses-unwritable-characters`, `designer.filter.ruling-b-every-local-page-reader`
-- Tests: fichero-server/tests/unit/recipes/test_filters_fit_first.py, fichero-server/tests/unit/recipes/test_coverage_band.py, fichero-server/tests/unit/recipes/test_refuses_unwritable.py
+- Tests: fichero-server/tests/unit/recipes/test_candidates_filtered_then_ranked_4950.py, fichero-server/tests/unit/recipes/test_unrunnable_reader_refused_5800.py, test_filters_fit_first.py (not yet written), test_coverage_band.py (not yet written), test_refuses_unwritable.py (not yet written)
 - Depends on: 2.3
 - Size: M
 
+Written for the builder 2026-11-07 (spec-writer, from the code at origin/integration). **Built:** the filters run before the rank in `assemble._refusal` (`assemble.py:326`): job, script (Fraktur and Gaelic as Latin, Han variants apart), language, material, licence, each with a code and a plain reason (`test_candidates_filtered_then_ranked_4950.py`, `test_unrunnable_reader_refused_5800.py`); a period is never a refusal, only a lower rank (ruled 2026-10-17, `_period_rank`); `does_the_step` names the jobs a card does. **Left:** (1) fit first: a candidate of another period is listed under "Other periods" and never ranked among the fits, and a benchmark row (Step 8.1) never lifts a candidate past any filter: the filters run first and the rank sees only what passed; (2) `Card.coverage` as a band (covered, unknown, poor) set at discovery: a text or vision-language model's Loove coverage for the project's languages and scripts, a Kraken reader's codec against the project's glyph inventory (Step 2.3), and the heuristic coverage "unknown"; the band is a rank slot (3) and a row word, never a refusal by itself; (3) the refusal of unwritable characters: a candidate whose codec (Kraken) or declared alphabet (a text model's card) can never output a character the ground truth uses (MUFI private-use, Newa outside the BMP, polytonic combining marks) is refused by `_refusal` with a new code `cannot-write-characters` and the count in the reason ("cannot write 14 of your characters"), before any paid call; (4) ruling B: every page reader on this Mac (Apple's recognition, the MLX vision model, Tesseract where its card names only the page job) is listed, compared and benchmarked on the page-reading step only and never on `read-a-line`, with `does_the_step` the one rule the list, the compare and the benchmark table all read. **Acceptance (engine):** a Kraken reader made for another period is returned under `other_periods` and absent from the ranked list even with the best benchmark row; a card with Loove coverage for the project's language gets `coverage: covered`, one with none `unknown`, a Kraken codec missing three inventory characters `poor`; a candidate whose codec lacks 14 of the inventory's characters is refused with `cannot-write-characters` and "cannot write 14 of your characters", and no call is made for it; Apple's recognition appears for `read-a-page` and never for `read-a-line` in the candidates, the compare's set and the benchmark's rows alike, one function deciding. **Acceptance (app, by test):** the finder shows "Other periods" as its own tier below the fits, and a refused row's reason verbatim.
+
+- test (to write): `test_filters_fit_first.py` in fichero-server/tests/unit/recipes/ (other period under its tier, never lifted by a row; the filter before the rank)
+- test (to write): `test_coverage_band.py` in fichero-server/tests/unit/recipes/ (the three bands from Loove, a codec and the heuristic; the band as a slot, not a refusal)
+- test (to write): `test_refuses_unwritable.py` in fichero-server/tests/unit/recipes/ (the code and the count; no call made; ruling B across the list, the compare and the table)
+
 ### Stage 5 — The path page
 
-#### Step 5.1 — Route cards, cloud question, greyed cards, card text
+#### Step 5.1 — Route cards, cloud question, greyed cards, card text (#6058)
 - Behaviours: `designer.path.cards-are-the-routes`, `designer.path.cloud-question-on-the-page`, `designer.path.card-live-only-where-allowed`, `designer.app.places-say-their-consequence`, `designer.path.card-text`
-- Tests: fichero-server/tests/unit/recipes/test_path_cards.py, fichero/ficheroTests/PathPageTests.swift
+- Tests: fichero-server/tests/unit/recipes/test_routes_for_the_volume.py, fichero-server/tests/unit/recipes/test_places_cap_the_routes_5831.py, test_path_cards.py (not yet written), PathPageTests.swift (not yet written)
 - Size: M
 
-#### Step 5.2 — Choosing a path: defaults, proposed caps, teaching defaults, what matters most
+Written for the builder 2026-11-07 (spec-writer, from the code at origin/integration). **Built:** the routes exist with their figures and each figure's basis (`recipes/routes.py` `routes_for_volume`, cost, time and accuracy marked measured, estimate or unknown; `test_routes_for_the_volume.py`); a route that would send pages asks the app's places and refuses in words when a place is off (`test_places_cap_the_routes_5831.py`); the How step (`RecipeHowFields`, behind `wideSetUp`) holds the "what matters" and "what you have" questions (`recipes/how.py`); the places page exists (`WhatFicheroRunsFields`) with one body sentence per place. **Left:** (1) engine: `GET /api/recipes/project/paths` answers the path page: the routes of `routes_for_volume` extended to the four paths of the card text (a: large model then a small one; b: Hugging Face then cluster; c: cloud throughout; d: local only), each carrying the routes' own figures and marks, "not measured for this language yet" where the routes cannot give one, the pages-may-leave question UNANSWERED on the page's own answer (a path never answers it), and per card `live: true` or `greyed_because: <the engine's reason>` with `fix: places | settings` when the app does not allow a place or it is not set up (no cluster key and sign-in, Hugging Face at a $0 cap, no provider key); a project is never made looser than the app; (2) engine: each place on What Fichero runs gains one consequence sentence for a recipe, served with the places ("the cloud: large cloud models become candidates, and pages leave this Mac only when a project allows it"; "ACENET: long runs and training can be sent to the cluster, nothing until you say"); (3) app: the path page draws the cards side by side from the one answer, with the card text of the bullet (String Catalog) above the figures and "Learn more" to the manual's "Ways of working"; the cloud question sits on the page and a card that needs pages to leave stays incomplete ("answer above to use this path") until the person says yes; a greyed card shows the engine's reason and a link to What Fichero runs or Settings. **Acceptance (engine):** for 2,000 pages with a cloud key and no cluster, the answer holds four cards, (b) greyed with "no cluster key and sign-in" and `fix: settings`, (a) and (c) incomplete until the cloud question is yes, (d) live; every figure carries its basis or the not-measured sentence; the cloud question is present and unanswered; the places answer carries one consequence sentence per place. **Acceptance (app, by test):** the page mounts four cards from the answer, the question above them, a greyed card's reason and link, the incomplete sentence until yes; the card text comes from the catalogue, not the engine.
+
+- test (to write): `test_path_cards.py` in fichero-server/tests/unit/recipes/ (the four cards from the routes; the unanswered question; greyed with reason and fix; the not-measured sentence; the consequence sentences)
+- test (to write): `PathPageTests.swift` in fichero/Tests/Unit/general/Models/ (cards from the answer; the question on the page; incomplete until yes; greyed reason and link; Learn more)
+
+#### Step 5.2 — Choosing a path: defaults, proposed caps, teaching defaults, what matters most (#6058)
 - Behaviours: `designer.path.choosing-is-a-default`, `designer.path.caps-proposed-not-written`, `designer.path.sets-teaching-defaults`, `designer.path.what-matters-most`
-- Tests: fichero-server/tests/unit/recipes/test_path_defaults.py, fichero/ficheroTests/PathChoiceTests.swift
+- Tests: fichero-server/tests/unit/recipes/test_how_questions.py, test_path_defaults.py (not yet written), PathChoiceTests.swift (not yet written)
+- Depends on: 5.1
 - Size: M
+
+Written for the builder 2026-11-07 (spec-writer). **Built:** "What matters most?" exists as a How question in the engine (`recipes/how.py`, `GET /api/recipes/questions`, saved as `answers.how.matters`, `test_how_questions.py`), pre-filled from the places answer; the caps exist (the project cloud cap `PUT /api/recipes/project/cloud-cap`, the Hugging Face cap, `cloud_cap.py` with `fixes_for` and `cap_refusals`). **Left:** (1) engine: `POST /api/recipes/project/path` records the chosen card as the recipe's default path: it sets the steps' defaults (the stage set and each step's model slot the path implies), proposes a spend figure beside the estimate and WRITES NO CAP (the Hugging Face cap stays $0 and the project cloud cap untouched until the person confirms a typed figure through the existing cap routes), sets the teaching defaults without asking (whether, after how many checked lines, where: paths (a) and (d) teach, (b) and (c) do not; shown and asked only at the offer, Step 11.1), and pre-fills "what matters most" from the path (speed, cost, quality, predictability) while keeping it one choice the person may change; a card the person chose by hand is never re-proposed over when an answer changes (`test_how_answers_pick_the_card.py` is the pick rule's test, named by `designer.how.what-matters`). (2) app: choosing a card marks it "proposed from your answers; change here", keeps the other cards, shows the proposed spend with a field that writes the cap only on confirm, and shows the pre-filled "what matters most". **Acceptance (engine):** choosing (a) on a project with a cloud key sets the stages and slots of (a), answers `proposed_spend` and leaves both caps as they were; confirming a typed figure writes the cap through the cap route; the teaching defaults read teach-yes for (a) and (d) and teach-no for (b) and (c); `answers.how.matters` is pre-filled per path and a later hand choice is kept across a re-proposal; changing the places answer re-proposes a card only when none was chosen by hand. **Acceptance (app, by test):** the chosen card's sentence, the other cards still shown, the spend field writing nothing until confirm, the pre-filled choice editable.
+
+- test (to write): `test_path_defaults.py` in fichero-server/tests/unit/recipes/ (the defaults per path; no cap written until confirm; the teaching defaults; what matters pre-filled and the hand choice kept)
+- test (to write): `PathChoiceTests.swift` in fichero/Tests/Unit/general/Models/ (the sentence; the spend field; the choice editable)
 
 ### Stage 6 — Measures
 
@@ -994,110 +1369,194 @@ line per step with Change…; the duplicate grey example line removed (one is ke
 
 Needs the project and app cloud caps (`training.cost.app-and-project-caps`, #5440) built first.
 
-#### Step 7.1 — The compare runs by itself, capped, local only without truth
+#### Step 7.1 — The compare runs by itself, capped, local only without truth (#6060)
 - Behaviours: `designer.compare.runs-by-itself`, `designer.compare.local-only-until-truth`, `designer.compare.capped`, `designer.compare.without-truth-shows-readings-only`, `designer.compare.re-runs-when-answers-change`
-- Tests: fichero-server/tests/unit/recipes/test_compare_auto_run.py, fichero-server/tests/unit/recipes/test_compare_capped.py
+- Tests: test_compare_runs_by_itself.py (not yet written), fichero-server/tests/unit/recipes/test_stage_compares_candidates_5668.py, fichero-server/tests/unit/recipes/test_bakeoff_offered_on_start_plan.py
 - Size: M
 
-#### Step 7.2 — Labels, row sentence, predicted cost and time, Use This One
+Written for the builder 2026-11-07 (spec-writer, from the code at origin/integration). **Built:** a stage's try compares two or three candidates side by side (#5668, `test_stage_compares_candidates_5668.py`); Compare in Set Up works end to end on a scratch project with corrected lines, priced first (`bakeoff.next_run`), and Use This sets the winner (#5727, `test_compare_in_setup_works_5727.py`); the Start plan OFFERS the comparison and never runs it by itself (#5660 item 7, `test_bakeoff_offered_on_start_plan.py`); cloud models are compared for reading (#5718); asking granularity is measured (#5722). **Left:** (1) engine: when a stage page opens with two or more listed candidates (not under Other) the engine starts that stage's try ONCE by itself on the first three sample pages with three candidates (`COMPARED` unchanged) and the press becomes "Compare again…"; this replaces the offer-only rule for the stage page (the Start plan keeps offering); (2) with no ground truth on the pages the automatic run includes local candidates only; a cloud candidate runs on the person's press with its cost said first; (3) the compare spends from the project cloud cap with no cap of its own (Step 18.2): the automatic run leaves out and names the dearest cloud candidate that would pass what is left, and a pressed Compare that would pass it asks first; (4) without truth the result is the readings side by side, measured cost and time and the predictability words, no best label, no agreement figure, and the line "Not measured against your reading yet; check lines to compare"; (5) a change to the material answers re-runs the compare once the person leaves the page, against the same caps. **Acceptance (engine):** opening a Read page with three listed candidates and no truth starts one try with the local ones only and `auto: true`; a cloud candidate is in the answer as "press to run, $0.06"; with truth and a cap of $0.10 left, a cloud candidate priced at $0.12 is left out by name; the result without truth has no `best` and carries the not-measured line; changing the material answers and leaving the page runs one more try and no more; the Start plan's offer is unchanged (`test_bakeoff_offered_on_start_plan.py` stays green).
+
+- test (to write): `test_compare_runs_by_itself.py` in fichero-server/tests/unit/recipes/ (once on open; local only without truth; the cloud press priced first; the dearest left out by name; readings-only result; the re-run on leaving)
+
+#### Step 7.2 — Labels, row sentence, predicted cost and time, Use This One (#6060)
 - Behaviours: `designer.compare.person-chooses`, `designer.compare.predicts-cost-and-time`, `designer.compare.row-sentence`, `designer.compare.labels-where-measured`, `designer.rank.labels-from-the-engine`
-- Tests: fichero-server/tests/unit/recipes/test_compare_labels.py, fichero-server/tests/unit/recipes/test_compare_row_sentence.py, fichero-server/tests/unit/recipes/test_compare_predicts_cost.py
+- Tests: fichero-server/tests/unit/recipes/test_compare_in_setup_works_5727.py, test_compare_labels.py (not yet written), test_compare_row_sentence.py (not yet written), test_compare_predicts_cost.py (not yet written), CompareLabelsTests.swift (not yet written)
 - Size: M
 
-#### Step 7.3 — Text beside the page; which pages to check
+Written for the builder 2026-11-07 (spec-writer). **Built:** `bakeoff.recommend` labels best and cheapest; Use This One per column (`use-candidate`); whole-project cost and hours from measured per-page figures in part (`routes.py` `_figure` carries a basis). **Left:** (1) engine: the served candidate list carries `labels` (best: lowest CER beyond the band; cheapest; fastest; most predictable: lowest insertion rate), set only where measured against a person's reading, with the path's what-matters-most as the lead label; the app renders them and computes none; (2) engine: each row's sentence, one string with every figure's basis: "CER 4.2% on your 3 pages · inserts 0.1% · $0.02/page · 6 s/page · whole project $18, 2 h"; (3) engine: the whole-project cost and hours as the measured per-page figures times the project's pages, basis said ("measured on 3 pages"), local candidates predicting time from measured pages an hour, replacing the routes' estimate where a measure exists; (4) app: the compare table shows the labels and the row sentence verbatim and Use This One per column. **Acceptance (engine):** with truth, the list's labels name one best, one cheapest, one fastest and one most predictable and no label where nothing is measured against a person's reading; the row sentence of a fixture candidate is exactly the string above with its numbers; the whole-project figures equal per-page × pages with the basis; the lead label follows `answers.how.matters`. **Acceptance (app, by test):** the table renders the labels and sentences from the answer and holds no CER or cost arithmetic of its own.
+
+- test (to write): `test_compare_labels.py`, `test_compare_row_sentence.py`, `test_compare_predicts_cost.py` in fichero-server/tests/unit/recipes/ (the four labels only where measured; the lead label; the exact row sentence; the whole-project arithmetic with its basis)
+- test (to write): `CompareLabelsTests.swift` in fichero/Tests/Unit/general/Models/ (beside `CompareViewTests.swift`: labels and sentences rendered from the answer, no arithmetic in the app)
+
+#### Step 7.3 — Text beside the page; which pages to check (#6060)
 - Behaviours: `designer.compare.side-by-side-text`, `designer.check.which-pages`
-- Tests: fichero/ficheroTests/CompareSideBySideTests.swift, fichero-server/tests/unit/recipes/test_check_which_pages.py
+- Tests: fichero/Tests/Unit/general/Models/CompareViewTests.swift, CompareSideBySideTests.swift (not yet written), test_check_which_pages.py (not yet written)
 - Depends on: 7.1
 - Size: S
+
+Written for the builder 2026-11-07 (spec-writer). **Built:** `StageCompareWindow` shows the compare; results today are caption rows of counts, and the side-by-side view is reached only when every candidate has a showcase (appendix, fact 10). **Left:** (1) app: the page image beside one column per candidate, the text aligned to Kraken's lines, the lines that differ from the best highlighted and inserted words marked where there is truth; for the layout stages the blocks and lines drawn over the page; the caption lines of counts go; (2) engine: the compare answer carries, per candidate and page, the lines in reading order with their line ids so the columns align, and per line `differs_from_best` and `inserted` where there is truth; (3) engine and app: the sample pages the compare ran on are proposed first for checking ("check these 3 pages: every candidate has read them"), served with the result and opened in the Reader from the stage page. **Acceptance (engine):** the result for a page carries each candidate's lines keyed by the same line ids, and with truth the per-line marks; `check_first` names the three sample pages. **Acceptance (app, by test):** the side-by-side view mounts for every result, image beside columns, aligned by line id, with the marks drawn and no caption rows; "check these 3 pages" opens the first in the Reader.
+
+- test (to write): `test_check_which_pages.py` in fichero-server/tests/unit/recipes/ (lines keyed by id per candidate; the per-line marks with truth; `check_first`)
+- test (to write): `CompareSideBySideTests.swift` in fichero/Tests/Unit/general/Models/ (the view for every result; alignment by line id; marks; no caption rows; the Reader open)
 
 ### Stage 8 — Benchmark table and the one rank rule
 
-#### Step 8.1 — Benchmark harness and the first four rows
+#### Step 8.1 — Benchmark harness and the first four rows (#6061)
 - Behaviours: `designer.measure.benchmark-table`, `designer.measure.benchmark-provenance`, `designer.measure.benchmark-licence-gate`, `designer.measure.benchmark-built-by-script`, `designer.rank.run-to-run-agreement`
-- Tests: fichero-server/tests/unit/recipes/test_measured_defaults_table.py, fichero-server/tests/unit/recipes/test_benchmark_licence_gate.py, fichero-server/tests/unit/recipes/test_benchmark_script.py
+- Tests: fichero-server/tests/unit/recipes/test_candidates_filtered_then_ranked_4950.py, test_measured_defaults_table.py (not yet written), test_benchmark_licence_gate.py (not yet written), test_benchmark_script.py (not yet written)
 - Depends on: 6.1
 - Size: M
 
-#### Step 8.2 — Rank by the table; fallback; reasons and predictability in words
+Written for the builder 2026-11-07 (spec-writer, from the code at origin/integration). **Built:** nothing of the table: `recipes/seed/` holds `cards.yaml`, `defaults-by-answers.yaml` and the language and script lists, no `measured-defaults.yaml`; `Card` has no `cer_benchmark`; the only bench script, `fichero-server/scripts/bench_reading.py`, measures speed (seconds a page), not CER; the licence words exist (`cards.is_open_licence`, `OPEN_LICENCES`) and the noise band and insertion rate are Step 6.1's (`designer.measure.noise-band`, `designer.rank.insertion-rate`), which this step depends on and does not redo. **Left, in order:** (1) the file `recipes/seed/measured-defaults.yaml` and its loader onto `Card.cer_benchmark`: one row per (language, script, period, material) of the Test Corpus × candidate, with CER headline and diplomatic, WER, insertion rate, run-to-run agreement, seconds a page, measured spend, and the provenance fields (set, page count, licence, policy, model id and version, date, price-list version, `checked_by`); (2) the licence gate as data and a guard: a set's licence is one of the vendorable classes (CC-BY, CC-BY-SA, Apache-2.0, MIT) or the row is marked `local-only` and its images are never fetched by the script for a cloud candidate; a NonCommercial or NoDerivatives set is never vendored (the guard fails the tree); (3) the script `fichero-server/scripts/bench_measured_defaults.py` that rebuilds the table through the CLI and MCP tools against a scratch engine, one family or the whole table, printing its spend and refusing to run against a library's real engine (`FICHERO_BASE_PATH` must be a scratch path); (4) the first four rows: Old French BnF fr. 412 (CC-BY-4.0), Medieval Spanish BnF Esp. 33 (CC-BY-4.0), NZZ Fraktur (Zenodo 3333627, CC-BY-4.0), Arabic Maghrebi RASAM/BULAC (Apache-2.0), measured for the shipped Kraken readers that fit and the newest model of each keyed large-cloud family, run-to-run agreement included; (5) the run-to-run column computed by reading the same lines twice, as a table column only. **Acceptance (engine):** the loader rejects a row missing any provenance field or `checked_by`, naming it; a candidate with a row for the project's language, script, period and material gets `cer_benchmark` and a candidate without gets none; a NonCommercial set in the seed fails `scripts/check_benchmark_licences.py`; the script with `--family kraken` on a scratch engine writes rows only for that family and prints the spend; the script refuses a non-scratch base path; a row with run-to-run agreement reads "agrees with itself on 99% of lines" in the row sentence; the four rows' values are present with their dates. *Decided here:* the benchmark set list beyond the first four is the open-corpora inventory the memory holds (AMSMB, HTRomance, IRHAS, FoNDUE, iForal, BADAM, Syriac, CHI-KNOW-PO, GT4HistCommentLayout; the NonCommercial Girona and Castilian sets local-only), added one family refresh at a time, never all at once; the spend figures in the bullet (US$15-30 a table) are the ceiling the script prints before it runs.
+
+- test (to write): `test_measured_defaults_table.py` in fichero-server/tests/unit/recipes/ (the loader's shape and provenance checks; `cer_benchmark` on a matching card and none otherwise; run-to-run sentence)
+- test (to write): `test_benchmark_licence_gate.py` in fichero-server/tests/unit/recipes/ (a NonCommercial row fails the guard; a local-only row never fetches images for a cloud candidate)
+- test (to write): `test_benchmark_script.py` in fichero-server/tests/unit/recipes/ (a fake engine: one family writes only its rows; the spend line; the refusal of a non-scratch base path)
+
+#### Step 8.2 — Rank by the table; fallback; reasons and predictability in words (#6062; the labels the engine serves are `designer.rank.labels-from-the-engine`, Step 7.2, which this rank feeds)
 - Behaviours: `designer.rank.one-rule-every-stage`, `designer.rank.frontier-order-is-the-fallback`, `designer.rank.reasons-in-words`, `designer.rank.predictability-in-words`
-- Tests: fichero-server/tests/unit/recipes/test_rank_one_rule.py, fichero-server/tests/unit/recipes/test_rank_reasons.py
+- Tests: fichero-server/tests/unit/recipes/test_candidates_filtered_then_ranked_4950.py, fichero-server/tests/unit/recipes/test_period_ranks_readers_5683.py, test_rank_one_rule.py (not yet written), test_rank_reasons.py (not yet written)
 - Depends on: 8.1, 6.1
 - Size: M
 
+Written for the builder 2026-11-07 (spec-writer; the harness filed this step as #6062, "step 9", and the benchmark table before it as #6061). **Built:** the rank is `assemble._rank_key(card, material, answers)` (`assemble.py:584`), filtered then ranked (`test_candidates_filtered_then_ranked_4950.py`), with period ranking readers (`test_period_ranks_readers_5683.py`); the hand order of cloud families is `discovery.frontier_rank` (`discovery.py:478`); rows carry a reason today in part (coverage, period). **Left:** `_rank_key` takes the five slots in the order the bullet states, slot 1 the measure on the person's pages (Step 6.1's table), slot 2 `Card.cer_benchmark` from Step 8.1, then coverage band, tier, what matters most, then cost and speed; `frontier_rank` is consulted only when a candidate has neither slot 1 nor slot 2; every row's reason is one sentence with its provenance, built by the engine from the slot that placed it ("CER 4.2% on your 3 pages · inserts 0.1%", "CER 6.1% on BnF fr. 412, a different manuscript in the same language; not yet measured on your pages", "coverage good, from Loove", "made for Gothic cursiva, 15th c."); every row states its predictability in words from its kind, and "not measured for predictability" when unmeasured; the app shows both sentences and writes none of its own. **Acceptance (engine):** two candidates where one has a measure on the person's pages and the other a better benchmark row rank the measured one first; two with benchmark rows only rank by the row; two with neither rank by `frontier_rank`; the reason sentence of each of the four cases is the one quoted above, with the page count or the set named; a CTC reader's row says "reads only what is on the line; may misread a word", a vision-language model's "reads fluently; may insert or regularise text", an unmeasured one "not measured for predictability"; inside the noise band (Step 6.1) two rows say "as good as each other" and what matters most decides, in words. **Acceptance (app, by test):** the candidate row shows the engine's reason and predictability sentences verbatim and holds no string of its own for either.
+
+- test (to write): `test_rank_one_rule.py` in fichero-server/tests/unit/recipes/ (the five slots in order on fixtures; the fallback only with neither measure nor row; the band tie)
+- test (to write): `test_rank_reasons.py` in fichero-server/tests/unit/recipes/ (the four reason sentences with provenance; the three predictability sentences)
+
 ### Stage 9 — Review stage
 
-#### Step 9.1 — Review as its own stage, first slice
+#### Step 9.1 — Review as its own stage, first slice (#6063)
 - Behaviours: `designer.review.own-stage`, `designer.review.one-shipped-kind`, `designer.review.proposals-are-a-separate-pass`, `designer.review.measure-is-gain`
-- Tests: fichero-server/tests/unit/recipes/test_review_stage.py, fichero-server/tests/unit/recipes/test_review_proposals_pass.py
+- Tests: fichero-server/tests/unit/recipes/test_review_preset_runs_every_lens_5723.py, fichero-server/tests/unit/recipes/test_review_follows_script_language_and_date_6128.py, test_review_stage.py (not yet written), test_review_proposals_pass.py (not yet written), ReviewProposalRowTests.swift (not yet written)
 - Depends on: 6.1
 - Size: M
+
+Written for the builder 2026-11-07 (spec-writer, from the code at origin/integration). **Built since the spec was approved (#5723, #6128):** the palaeographer's review exists as data and nodes: profiles in `recipes/seed/review-profiles/` (`generic`, `latin`, `es-colonial`, `es-moderna`, `de-kurrent`, `en-secretary`, `aramaic`, `zh`, the shared `_frame`), each with lenses (abbreviations, orthography, names and dates); `review_profiles.choose(answers)` picks the profile by the reader-card rules and says when it fell back to the generic one; the preset `transcribe_paleography_review` runs one pass per lens (`review_passes`), its instructions are editable per project (`with_instructions`), lenses turn on and off, and the review is priced by its passes; the Reader has `ReviewAcceptAllButton`. So `designer.review.one-shipped-kind` is largely built as the profile set, and what the bullet calls "chosen by `review_profiles.choose`" is in. **Left:** (1) Review as a stage of its own in `recipes/stages.py` with the job `review-lines`, after Read and before Translate; `correct` and the unsure-lines variant become that stage's two settings (the certainty bar stays Read's one question, `designer.read.certainty-question-stays-here`, Step 1.2); spelling regularisation stays Translate's; (2) the review's output as a SEPARATE pass per line: `provenance_kind=model`, `transformation="review:<profile>"`, holding the proposed text, a reason in a few words, a confidence and the unsure spans; the person's reading is never overwritten (today the review node writes into the reading's own passes); (3) the Inspector shows the proposal beside the reading with Accept per line (`ReviewAcceptAllButton` stays as the page-level act); (4) the stage's measures: the CER gain of the reading with every proposal accepted against the reading alone, and the proposals' precision (accepted ÷ proposed), both on the checked lines, with the noise band from Step 6.1 deciding whether the gain is real (`training/reasons_ab.py:170` already computes a gain against a band for the reasons A/B: the same arithmetic, reused). **Acceptance (engine):** a plan for a project with reading and a cloud key lists `review-lines` as its own stage between Read and Translate, with the chosen profile named and "generic, no profile fits yet" when so; running it on a page writes one pass with `transformation` `review:es-colonial` whose lines each carry text, reason, confidence and spans, and the reading's passes are byte-for-byte unchanged; the stage's measure on a fixture with 100 checked lines reports gain in CER points and precision, and says "within the noise band" when the gain is under it; `correct` no longer appears as a Read job. **Acceptance (app, by test):** the Inspector's line row shows the proposal beside the reading with an Accept button per line (`inspector.review.accept.<lineId>`) that runs the existing accept action for that line only; Accept All stays.
+
+- test (to write): `test_review_stage.py` in fichero-server/tests/unit/recipes/ (the stage in the plan between Read and Translate; the profile named or generic said; `correct` folded in; the gain and precision measure with the band)
+- test (to write): `test_review_proposals_pass.py` in fichero-server/tests/unit/recipes/ (the separate pass's shape per line; the reading unchanged byte for byte)
+- test (to write): `ReviewProposalRowTests.swift` in fichero/Tests/Unit/general/Views/Inspector/ (the proposal beside the reading; Accept per line acts on one line; Accept All kept)
 
 ### Stage 10 — Layout stages
 
-#### Step 10.1 — Region-model row, lines per block, segmenter search, layout measures
+#### Step 10.1 — Region-model row, lines per block, segmenter search, layout measures (#6064)
 - Behaviours: `designer.layout.region-model-row`, `designer.layout.lines-per-block`, `designer.layout.segmenters-searched`, `designer.layout.measures`
-- Tests: fichero-server/tests/unit/recipes/test_region_model_row.py, fichero-server/tests/unit/recipes/test_lines_per_block.py, fichero-server/tests/unit/recipes/test_bakeoff_contenders_5660.py
+- Tests: fichero-server/tests/unit/recipes/test_bakeoff_contenders_5660.py, fichero-server/tests/unit/recipes/test_regions_one_pass_5689.py, test_region_model_row.py (not yet written), test_lines_per_block.py (not yet written)
 - Depends on: 2.1
 - Size: M
 
-#### Step 10.2 — Find the layout as one page
+Written for the builder 2026-11-07 (spec-writer, from the code at origin/integration). **Built:** Find Regions runs Kraken's segmenter by default or a YOLO layout model chosen as a card (`recipes/regions.py`, `prep.regions.open-default`, `prep.yolo.regions-card`, #5525), and the bake-off has contenders per stage (`test_bakeoff_contenders_5660.py`); one Kraken pass keeps lines with regions (Step 2.1). **Left:** (1) engine: Find Regions gets one row "Blocks found by" with three choices: Kraken (one pass, default), the YOLO layout model already a card, a cloud vision model with its cost per page; (2) with a YOLO or cloud region model each block's lines still come from Kraken's line finder inside the block (`lines-per-block`), so a region model never changes which lines are read, only how they are grouped; (3) the finder searches segmenters online as it does readers (the Hub's `image-segmentation` and layout cards that name regions), so Find Regions can gain a candidate (appendix, fact 3); (4) the layout stage's measures: line recall and region IoU against a person's regions on the sample pages, in the stage's measure table with the same band words as Read's. **Acceptance (engine):** the Find Regions candidates answer holds the three kinds with the cloud one priced; a plan with YOLO regions and Kraken lines segments lines per block and the line set equals Kraken's own on the same page within the blocks; a finder search for `find-regions` returns a Hub layout model as a listable row, not "cannot run"; the measure table for the stage reports line recall and region IoU on a fixture with hand-drawn regions. **Acceptance (app, by test):** the row shows the three choices and the stage page the two measures with their basis.
+
+- test (to write): `test_region_model_row.py` in fichero-server/tests/unit/recipes/ (the three kinds priced; the finder search lists a layout model)
+- test (to write): `test_lines_per_block.py` in fichero-server/tests/unit/recipes/ (lines per block equal Kraken's within the blocks; the two measures on the fixture)
+
+#### Step 10.2 — Find the layout as one page (#6064)
 - Behaviours: `designer.layout.one-page`
-- Tests: fichero/ficheroTests/FindLayoutPageTests.swift
+- Tests: FindLayoutPageTests.swift (not yet written)
 - Size: S
 
-#### Step 10.3 — Leave out non-text segments; damaged mark
+Written for the builder 2026-11-07 (spec-writer). **Built:** Find Regions and Find Lines are two stage pages, each with its own try and result. **Left:** one page, "Find the layout", holding the region-model row (10.1), the line finder's row and ONE drawn result (blocks and lines over the sample page, Step 7.3's drawing); the two jobs stay two jobs in the recipe (`find-regions`, `find-lines`), so a recipe file is unchanged; the page's try runs both and draws once. **Acceptance (app, by test):** the stage list shows "Find the layout" once where it showed two pages; the page mounts the two rows and one drawing; the recipe written holds both jobs as before.
+
+- test (to write): `FindLayoutPageTests.swift` in fichero/Tests/Unit/general/Models/ (one page, two rows, one drawing; the recipe's two jobs unchanged)
+
+#### Step 10.3 — Leave out non-text segments; damaged mark (#6064)
 - Behaviours: `designer.clean.leaves-out-non-text`, `designer.clean.damaged-mark`
-- Tests: test_leave_out.py, fichero-server/tests/unit/recipes/test_damaged_mark.py
+- Tests: fichero-server/tests/unit/recipes/test_leave_out.py, test_damaged_mark.py (not yet written)
 - Depends on: 6.1
 - Size: S
 
+Written for the builder 2026-11-07 (spec-writer). **Built (#6070, first slice):** the Leave Out stage between Find Lines and Read, on by default in a plan that finds and reads lines, free and on this Mac, with the rules too small, off the page and likely bleed-through (`recipes/leave_out.py`, `test_leave_out.py`), each mark saying why in `left_out` and setting `is_furniture`; the page-box, ruler and colour-card reasons (`source/image-enhancement.md` Step 3.1); the Inspector's Certainty and Damage. **Left:** (1) engine: the non-text rules the bullet still owes (a drawing or seal, a stamp, a printed form line) as reasons in the same vocabulary, each off by default until the bake-off shows it helps; (2) engine: a page or a region can carry a `damaged` mark (a person's, or a model's as a proposal), stored as the segment's or page's metadata, read by the Inspector's Certainty and Damage and by Leave Out (a damaged region's lines are left out with the reason "damaged"); (3) app: the mark in the editor's Mark tool (`preview.edit.tool.mark-ruler-card-blank`'s set gains Damaged) and the Inspector row. **Acceptance (engine):** a fixture with a seal region leaves its lines out with reason "seal" when the rule is on and keeps them when off; marking a region damaged leaves its lines out with "damaged" and the Inspector's Damage reads it; the mark is undoable. **Acceptance (app, by test):** Mark offers Damaged; the Inspector shows it.
+
+- test (to write): `test_damaged_mark.py` in fichero-server/tests/unit/recipes/ (the mark stored and read; Leave Out's "damaged"; undo; the new non-text reasons on and off)
+
 ### Stage 11 — Teach a model
 
-#### Step 11.1 — The offer: when, whether and where, explained
+#### Step 11.1 — The offer: when, whether and where, explained (#6065)
 - Behaviours: `designer.teach.offer-when-ready`, `designer.teach.asks-whether-and-where-at-the-offer`, `designer.teach.explained`
-- Tests: fichero-server/tests/unit/recipes/test_teach_offer.py, fichero/ficheroTests/TeachOfferTests.swift
+- Tests: fichero-server/tests/unit/training/test_adopt_past_the_noise_band_5700.py, test_teach_offer.py (not yet written), TeachOfferTests.swift (not yet written)
 - Depends on: 6.1, 5.2
 - Size: M
 
-#### Step 11.2 — Measurement, the switch, costs, the recorded switch
+Written for the builder 2026-11-07 (spec-writer, from the code at origin/integration). **Built:** the Train page exists and the offers are computed in the engine (`recipes/train_offers.py`: readiness per job from `at_least`, the regions threshold `MIN_PAGES`, the teacher as the model that read the most pages; distillation from a teacher's passes, `training/kraken_set.py`; where it runs, local or Hugging Face, `compute/jobs-and-fine-tuning.md`). **Left:** (1) engine: the offer appears when the path's threshold is reached (default 500 checked lines for a Kraken fine-tune, the lines of 200 pages for a LoRA, or the volume rule's 5,000 pages, whichever first), served on the Train page's answer and as one line on the stage page ("Teach a model… 512 of 500 lines"); the path's teaching default (Step 5.2) decides whether it is offered pre-ticked; (2) engine: whether and where are asked AT the offer and nowhere earlier: the places the app allows, each with its time and cost from the routes, the Hugging Face cap shown; (3) app: the offer explained in plain words with "Learn more" to the manual's "Teaching a model as you go", the whether and where as one question each. **Acceptance (engine):** with 512 checked lines on a path that teaches, the Train answer carries the offer with the threshold sentence and the places; with 300 it carries the progress line (Step 3.1) and no offer; on a path that does not teach the offer is present and unticked; the places listed are only those the app allows. **Acceptance (app, by test):** the stage page's line and the Train page's offer read from the answer; the two questions appear only at the offer.
+
+- test (to write): `test_teach_offer.py` in fichero-server/tests/unit/recipes/ (the three thresholds, whichever first; the path's default; the places from the app's allowance)
+- test (to write): `TeachOfferTests.swift` in fichero/Tests/Unit/general/Models/ (the line and the offer from the answer; the two questions at the offer only)
+
+#### Step 11.2 — Measurement, the switch, costs, the recorded switch (#6065)
 - Behaviours: `designer.teach.measured-against-current-and-shipped`, `designer.teach.switch-within-band`, `designer.teach.costs-before-and-after`, `designer.run.switch-recorded`
-- Tests: fichero-server/tests/unit/recipes/test_teach_measure_and_switch.py, fichero-server/tests/unit/recipes/test_switch_recorded.py
+- Tests: fichero-server/tests/unit/training/test_adopt_past_the_noise_band_5700.py, fichero-server/tests/unit/training/test_noise_band_per_project_5692.py, test_teach_measure_and_switch.py (not yet written), test_switch_recorded.py (not yet written)
 - Size: M
+
+Written for the builder 2026-11-07 (spec-writer). **Built:** a taught model is adopted only when it beats the current one past the project's noise band on held-out pages (`test_adopt_past_the_noise_band_5700.py`, `test_noise_band_per_project_5692.py`); the reasons A/B measures a student against the answer-only one with a gain and a band (`training/reasons_ab.py`). **Left:** (1) engine: the taught model is measured on held-out checked pages against the current pick, the cloud teacher and the shipped readers with the same scorer, band and insertion rate as Step 6.1, in one table; (2) the switch happens only within the band's rule (better past the band, or as good and cheaper when cost matters most), and the run records it (`designer.run.switch-recorded`: which step, from which model to which, on what figures, when; shown in Activity and on Ready's step line); (3) costs before and after the switch, predicted then measured, on the Train page. **Acceptance (engine):** a taught model at CER 4.0 against a current 4.4 with a band of 0.5 is not switched; at 3.8 it is, the switch row recorded with both figures; the table holds the current pick, the teacher and the shipped readers with insertion rate; the cost line shows before and after. **Acceptance (app, by test):** the Train page renders the table and the cost line from the answer; Ready's step line shows "switched from … on …".
+
+- test (to write): `test_teach_measure_and_switch.py` in fichero-server/tests/unit/recipes/ (the table against the three; the band rule both ways; costs before and after)
+- test (to write): `test_switch_recorded.py` in fichero-server/tests/unit/recipes/ (the switch row's fields; shown on the run and the step)
 
 ### Stage 12 — Ready and the run
 
-#### Step 12.1 — Totals against the route; predicted then measured; cap stops; path moves as offers
+#### Step 12.1 — Totals against the route; predicted then measured; cap stops; path moves as offers (#6065)
 - Behaviours: `designer.ready.totals-against-the-route`, `designer.run.predicted-then-measured`, `designer.run.cap-stops-and-says`, `designer.run.path-moves-are-offers`
-- Tests: fichero-server/tests/unit/recipes/test_ready_totals.py, fichero-server/tests/unit/recipes/test_run_predicted_measured.py, fichero-server/tests/unit/recipes/test_run_cap_stops.py
+- Tests: fichero-server/tests/unit/recipes/test_routes_for_the_volume.py, fichero-server/tests/unit/recipes/test_cap_refusal_offers_the_fix_6295.py, test_ready_totals.py (not yet written), test_run_predicted_measured.py (not yet written), test_run_cap_stops.py (not yet written)
 - Depends on: 7.2, 11.2
 - Size: M
 
+Written for the builder 2026-11-07 (spec-writer). **Built:** the routes' figures with their basis (`routes.py`), the plan's estimate and the cap refusal with fixes (Step 18.2), the run's summary with pace and cost (`activity-and-automatic-work.md` Step 2.1). **Left:** (1) engine: Ready's total predicted cost and hours as the sum of the stages' predictions (Step 7.2), shown against the route's figure in one line ("your path estimated US$120; measured on your pages, US$96"); (2) the run carries predicted then measured per stage, the summary saying both; (3) a cap that stops a run says so in the run's words with the fix (18.2's) and the pages done; (4) a path move during a run (a Teach switch, a cheaper step) is an offer on the run, clicked, never applied by itself. **Acceptance (engine):** the Ready answer's total equals the sum of the stage predictions and names the route's figure; a run's summary carries predicted and measured per stage; a run stopped by the cap says the cap, the pages done and the fixes; a switch during the run appears as an offer row and changes nothing until taken. **Acceptance (app, by test):** Ready shows the one line; Activity's row shows the offer.
+
+- test (to write): `test_ready_totals.py`, `test_run_predicted_measured.py`, `test_run_cap_stops.py` in fichero-server/tests/unit/recipes/ (the sum against the route; predicted then measured; the stop's words; the offer row)
+
 ### Stage 13 — Workflows
 
-#### Step 13.1 — Workflow line, Open in the editor, own workflow as a candidate, Adjust in the editor
+#### Step 13.1 — Workflow line, Open in the editor, own workflow as a candidate, Adjust in the editor (#6066)
 - Behaviours: `designer.step.names-its-workflow`, `designer.step.adjust-in-the-editor`, `designer.step.own-workflow-as-a-candidate`
-- Tests: fichero-server/tests/unit/recipes/test_step_workflow_fit.py, fichero/ficheroTests/StepWorkflowTests.swift
+- Tests: fichero-server/tests/unit/recipes/test_recipe_execution_to_spec.py, test_step_workflow_fit.py (not yet written), StepWorkflowTests.swift (not yet written)
 - Depends on: 7.1
 - Size: M
 
+Written for the builder 2026-11-07 (spec-writer, from the code at origin/integration). **Built:** every recipe step runs as a workflow (a shipped preset by name or a person's own, `recipes/recipe.py` `source.recipe.steps-are-jobs`, `test_recipe_execution_to_spec.py`); the review preset is one (`REVIEW_PRESET`); the workflow editor exists (`WorkflowEditor`) and node configs hold the model and settings. **Left:** (1) engine: the stage's answer names the workflow that carries the step (`workflow: {id, kind: preset | own, name}`) and whether its node config agrees with the page's model and settings (`agrees: true` or the differing fields named); (2) engine: a person's own workflow that fits the step (its ports and its job) is listed as a candidate on the stage page with the reason "your workflow Read with notes", ranked by the same rule once it has a measure and under the fits otherwise; (3) app: one grey line on each stage page ("runs as the shipped workflow Read lines with Kraken") with "Open in the editor" (read-only for a preset), the node's config showing the same model and settings as the page, and "Adjust in the editor" on a person's own workflow writing back through the one route (`PUT /api/recipes/project`), never a second config. **Acceptance (engine):** a plan's stage answer names its preset and `agrees: true`; after a person's edit of their own workflow's model the answer names the field that differs; a person's workflow with the step's ports appears in the candidates with the reason sentence and the fit; one without the ports does not. **Acceptance (app, by test):** the grey line and Open in the editor on every stage page; a preset opens read-only; Adjust writes through the one route and the page shows the change.
+
+- test (to write): `test_step_workflow_fit.py` in fichero-server/tests/unit/recipes/ (the named workflow and `agrees`; the differing field; the own-workflow candidate by ports)
+- test (to write): `StepWorkflowTests.swift` in fichero/Tests/Unit/general/Models/ (the grey line; read-only preset; Adjust through the one route)
+
 ### Stage 14 — Sharing recipes
 
-#### Step 14.1 — Share Recipe… and Use a Recipe…
+#### Step 14.1 — Share Recipe… and Use a Recipe… (#6067)
 - Behaviours: `designer.share.export-is-the-whole-plan`, `designer.share.export-holds-nothing-private`, `designer.share.import-checks-at-the-door`, `designer.share.imported-measures-are-the-authors`
-- Tests: fichero-server/tests/unit/recipes/test_recipe_export.py, fichero-server/tests/unit/recipes/test_recipe_export_private_fields.py, fichero-server/tests/unit/recipes/test_recipe_import.py
+- Tests: fichero-server/tests/unit/recipes/test_check_names_every_fault_5364.py, test_recipe_export.py (not yet written), test_recipe_export_private_fields.py (not yet written), test_recipe_import.py (not yet written), ShareAndUseRecipeTests.swift (not yet written)
 - Size: M
 
-#### Step 14.2 — Built-in recipes and Start from a recipe
+Written for the builder 2026-11-07 (spec-writer, from the code and the contract at origin/integration). **Built:** the recipe IS already a shareable file: a project holds `recipe/recipe.yaml` and `recipe/setup.yaml` (`recipes/project.py`), read by a loader that cannot run code (`recipes/recipe.py`, `SCHEMA_VERSION = 1`, `PLACES` never a person's own cluster account), checked at every door by `check_recipe` (`POST /api/recipes/check`, `test_check_names_every_fault_5364.py`), served and saved by `GET`/`PUT /api/recipes/project`; `assemble()` produces recipe.yaml data with each step's reasons. **Left:** (1) engine: `GET /api/recipes/project/export` returns the one file: the material answers, the path and what matters most, the stages and each step's job, workflow (a shipped preset by name, a person's own workflow embedded), model by provider and model id, place kind, settings and instructions, and the measured results with provenance, with a header saying what it holds and the schema version; a strip pass removes every private field (keys, pages, the person's paths and names, endpoint addresses, account names, the embedded workflow's endpoints and accounts) and a guardrail test over a recipe seeded with every such field asserts none survive; (2) engine: `POST /api/recipes/project/import` takes the file, runs `check_recipe`, and answers the check's sentences plus, per step, what this Mac does about a model not here (offer to download; or the same rank slot's candidate proposed), a cloud model with no key listed "needs a key" and never swapped, and imported measurements marked `measured_by: author`; the project's recipe is written only when the person confirms; (3) app: Project › Share Recipe… shows the prompts and instructions about to leave before writing the file (a sheet, then a save panel); Project › Use a Recipe… opens a file, shows the check's sentences and the per-step offers, and confirms; imported figures read "measured by the recipe's author on their pages" until the compare re-measures here, after which this project's figures outrank them in the rank (Step 8.2's slot 1). **Acceptance (engine):** the export of a fixture project holds every section named above and no key, path, name, endpoint or account (the guardrail's seeded recipe comes back clean); the import of that file into an empty project lists one "needs a key" step for a cloud model with no key here, one download offer for a Kraken model not installed, and writes nothing until confirmed; after confirmation `GET /api/recipes/project` returns the imported recipe with `measured_by: author` on its figures. **Acceptance (app, by test):** Share Recipe… shows the prompts before the save panel; Use a Recipe… shows the check sentences and offers; the Ready page labels an imported figure as the author's and a re-measured one by its page count.
+
+- Build note (manager 2026-11-07, on approving 14.1): the export and the import REUSE the existing `GET`/`PUT /api/recipes/project` path where it fits (a query or a body field on it), and a new route is added only where none fits; the step text above names new routes as the shape of the answer, not as a licence to add an API.
+- test (to write): `test_recipe_export.py` in fichero-server/tests/unit/recipes/ (every section present; the header; the schema version)
+- test (to write): `test_recipe_export_private_fields.py` in fichero-server/tests/unit/recipes/ (a recipe seeded with every private field exports clean)
+- test (to write): `test_recipe_import.py` in fichero-server/tests/unit/recipes/ (the check at the door; download offer; needs-a-key never swapped; `measured_by: author`; nothing written before confirm)
+- test (to write): `ShareAndUseRecipeTests.swift` in fichero/Tests/Unit/general/Models/ (the prompts shown before the save; the check sentences and offers shown; the author's label and the re-measured label)
+
+#### Step 14.2 — Built-in recipes and Start from a recipe (#6067)
 - Behaviours: `designer.share.built-in-recipes`, `designer.share.start-from-a-recipe`
-- Tests: fichero-server/tests/unit/recipes/test_builtin_recipes.py, fichero/ficheroTests/StartFromRecipeTests.swift
+- Tests: test_builtin_recipes.py (not yet written), StartFromRecipeTests.swift (not yet written)
+- Depends on: 14.1
 - Size: M
+
+Written for the builder 2026-11-07 (spec-writer). **Built:** nothing: `recipes/seed/` has no `recipes/` folder, and the path page offers the route cards only. **Left:** (1) engine: `recipes/seed/recipes/*.yaml`, the first five (a medieval Latin manuscript, an early modern Spanish notarial register, a 19th-century English logbook, a Fraktur newspaper, an Arabic manuscript), each made from a PUBLIC Test Corpus set (Step 8.1's licence gate applies: its licence and benchmark provenance in the file; the guard fails a built-in whose set is not in the vendorable list, so no private corpus ever becomes a built-in); `GET /api/recipes/builtin` lists them with set and CER ("Medieval Latin manuscript · CER 5.8% on Clm 13027"), read-only; a built-in changed by a later release is shown as an offer on a project that took it, never applied; (2) engine: `POST /api/recipes/project/start-from` takes a built-in id, a file, or another project's id on this Mac, and answers the pre-fill: the material answers, the path and the stages, each field marked `from_recipe: true`, with the fields that do not fit the new material listed as "left unticked: <why>" and not applied; (3) app: "Start from a recipe" beside the route cards offers the three sources, pre-fills About the Material, the path and the stages with each field marked "from the recipe" and editable, and says what was left unticked. **Acceptance (engine):** the five seed files load and pass `check_recipe`; a seed naming a NonCommercial set fails the guard; `start-from` with the Fraktur recipe on a project whose material answer is "manuscript" leaves the newspaper-only stage unticked and says why; another project's recipe on this Mac pre-fills the same way. **Acceptance (app, by test):** the path page shows "Start from a recipe" with built-in, file and another-project choices; after choosing, each pre-filled field carries the "from the recipe" mark and stays editable; the unticked list is shown in words.
+
+- test (to write): `test_builtin_recipes.py` in fichero-server/tests/unit/recipes/ (the five load and check clean; the licence guard; the list's sentence; the release-change offer; `start-from` for the three sources with the unticked list)
+- test (to write): `StartFromRecipeTests.swift` in fichero/Tests/Unit/general/Models/ (the three choices; the marks; editable; the unticked words)
 
 ### Stage 15 — Later milestone: recipe search and publishing
 
-#### Step 15.1 — Recipe search (catalogue first), results with their source, publish and follow
+#### Step 15.1 — Recipe search (catalogue first), results with their source, publish and follow (#6068)
 - Behaviours: `designer.share.recipe-search`, `designer.share.search-results-say-their-source`, `designer.share.publish-is-an-offer`
-- Tests: fichero-server/tests/unit/recipes/test_find_recipes_job.py, fichero-server/tests/unit/recipes/test_recipe_publish.py
+- Tests: fichero-server/tests/unit/recipes/test_check_names_every_fault_5364.py, test_find_recipes_job.py (not yet written), test_recipe_publish.py (not yet written), RecipeSearchResultsTests.swift (not yet written)
+- Depends on: 14.2
 - Size: M
+
+Written for the builder 2026-11-07 (spec-writer). A later milestone (the spec's own words); specified so Stage 14 leaves room, and not for the Monday build. **Built:** nothing of it; the model finder's online search is the pattern to copy (`source.find.online-search-is-a-job`, the `find-models` job and its cache). **Left, in order:** (1) the community catalogue `fichero-recipes` does not exist (open question 9): this step builds the client side against its agreed shape (one GitHub repository, one folder per recipe holding `recipe.yaml`, `README.md` with the licence line and the public name, and `provenance.yaml`; every submission checked for schema, resolving pins, prompts and workflows present, licence) and a fixture catalogue in the tests, so the first real catalogue needs no engine change; (2) engine: a background `find-recipes` job, gated by Fichero's own-fetches list (a metadata fetch, never pages), reading the catalogue first and then recipes published by convention (`*.fichero-recipe.yaml`, the `fichero-recipe` GitHub topic) marked "not checked by the catalogue"; results cached beside the finder's, ranked by fit to the material answers with the fit in words, each naming its source, author, licence and the measurements it claims ("measured by the author on their pages"); taking one goes through Step 14.1's import door and runs nothing; with no network the built-in recipes are there and the job says it could not search; (3) engine: publish is Step 14.1's export plus a licence line and a public name, written as a pull request to the catalogue repository (through the person's own GitHub account, never Fichero's), and nothing else; following a published recipe records its catalogue id and version, and a later version is shown as an offer on the project, clicked, never applied (the same offer shape as a changed built-in, Step 14.2); (4) app: "Start from a recipe" gains the search's results below the built-ins with their source, author, licence and claimed figures, and a Publish… item in Project › Share Recipe… **Acceptance (engine):** against the fixture catalogue the `find-recipes` job returns rows ranked by fit with the fit sentence, each with source, author, licence and `measured_by: author`; a convention-found recipe is marked "not checked by the catalogue"; taking a row calls the import door and starts no run; with the network off the job answers "could not search; the built-in recipes are here" and the built-ins list is unchanged; publish produces the export plus the licence line and name, and a follow records id and version; a newer version is an offer row, not a change. **Acceptance (app, by test):** results show below the built-ins with the four facts each; Publish… is offered only after an export passes the private-fields guard.
+
+- test (to write): `test_find_recipes_job.py` in fichero-server/tests/unit/recipes/ (the fixture catalogue; the rank and fit words; the source marks; the import door; offline)
+- test (to write): `test_recipe_publish.py` in fichero-server/tests/unit/recipes/ (export plus licence and name; follow records id and version; a newer version is an offer)
+- test (to write): `RecipeSearchResultsTests.swift` in fichero/Tests/Unit/general/Models/ (results below the built-ins with their four facts; Publish… gated by the guard)
 
 ### Stage 16 — A model chooser for every model-run stage (owner, 2026-10-26)
 
@@ -1124,3 +1583,75 @@ Needs the project and app cloud caps (`training.cost.app-and-project-caps`, #544
 - Behaviours: `designer.onboarding.metadata-language`
 - Tests: fichero-server/tests/unit/recipes/test_metadata_language_answer.py, fichero/Tests/Unit/general/Recipes/MetadataLanguageTests.swift
 - Size: S
+
+### Stage 18 — Set Up asks how, asks about the condition, and has a Budget (the maintainer, 2026-10-30; DRAFT until ruled)
+
+Engine before app in every step; the Budget steps first because #6295 and #6294 stop runs today.
+
+#### Step 18.1 — The estimate's basis per step; the estimate learns from booked usage (#6294)
+- Behaviours: `designer.budget.basis-per-step`, `designer.budget.estimate-from-booked-usage`
+- Tests: fichero-server/tests/unit/recipes/test_estimate_basis_per_step.py, fichero-server/tests/unit/recipes/test_estimate_learns_from_booked_usage_6294.py
+- Size: M
+
+#### Step 18.2 — The run cap, the audited cap action, the refusal's fixes (#6295, #6059)
+- Behaviours: `designer.budget.run-cap`, `designer.budget.change-is-audited-and-undoable`, `designer.budget.refusal-offers-the-fix`
+- Tests: fichero-server/tests/unit/recipes/test_run_cap_holds_with_the_project_cap.py, fichero-server/tests/unit/recipes/test_set_budget_is_audited_and_undoable.py, fichero-server/tests/unit/recipes/test_cap_refusal_offers_the_fix_6295.py, fichero-server/tests/unit/recipes/test_daily_cap_paths_6347.py, fichero-server/tests/unit/recipes/test_places_cap_projects_5828.py
+- Depends on: 18.1
+- Size: M
+
+#6059 ("Recipe Designer step 6: the project and app cloud caps before any automatic spend") is this step and 18.3, not a step of its own: the harness filed it from the build order's "step 6" of the owner's summary, and the caps' behaviours live here. Written for the builder 2026-11-07 (spec-writer, from the code at origin/integration). **Built:** a Start refused for a cloud spend cap names which cap (the monthly one, the project's total one, the daily one) and the amount it needs, and offers the fixes as typed buttons (raise the cap to the dollar, change the dearest step's model, run the first N pages that fit in Finder order), the engine serving them (`cloud_cap.cap_refusals`, `fixes_for`, `first_pages_that_fit`; `test_cap_refusal_offers_the_fix_6295.py`, `test_raise_the_cap_in_place_6295.py`); both caps are changed by one audited, undoable action; the daily cap exists on every path the monthly one has (`test_daily_cap_paths_6347.py`); the app's places cap every project at use (`test_places_cap_projects_5828.py`); a raise resumes a paused run. **Left for #6059's acceptance:** (1) engine: the refusal is checked before ANY automatic spend, not only a Start: the automatic compare (Step 7.1), a re-run after an answer change, a Teach offer's measurement and a scheduled run each ask `cap_refusals` first and refuse with the same sentence and fixes; (2) engine: the plan and the run's summary carry `spent` against both caps (`spent_month`, `spent_project`, each with its cap and what this run would add), one answer the Budget block (18.3) and Activity read; (3) app (18.3): the Budget block on Ready shows spent against both caps and the refusal's fixes in place. **Acceptance (engine):** an automatic compare whose priced cloud candidate would pass what is left of the project cap is refused before it starts with the cap named, the spent figure, the run's addition and the three fixes, and the local candidates still run; the same for a Teach measurement; the plan's answer carries both `spent_*` figures with their caps; a run that fits spends and the figures move. Nothing of this reaches a second estimator: the figures are `bakeoff.next_run`'s and `cloud_cap.estimate_on`'s.
+
+- test (to write): `test_caps_before_any_automatic_spend.py` in fichero-server/tests/unit/recipes/ (the automatic compare, a re-run, a Teach measurement and a scheduled run each refused before start with the same sentence and fixes; the two spent figures in the plan and the summary; local candidates still run)
+
+#### Step 18.3 — The Budget block on Ready; the fix in place during a run (#6295)
+- Behaviours: `designer.budget.beside-the-estimate`, `designer.budget.fix-during-the-run`
+- Tests: fichero/Tests/Unit/general/Models/BudgetBlockTests.swift, fichero/Tests/Unit/general/Models/BudgetRefusalFixTests.swift, fichero-server/tests/unit/recipes/test_budget_in_the_plan.py, fichero-server/tests/unit/recipes/test_run_cap_fix_in_place.py
+- Depends on: 18.2
+- Size: M
+
+#### Step 18.4 — The condition of the material: asked, suggested from a sample
+- Behaviours: `designer.material.condition-asked`, `designer.material.condition-suggested-from-a-sample`
+- Tests: fichero-server/tests/unit/recipes/test_condition_answers.py, fichero-server/tests/unit/recipes/test_condition_suggested_from_a_sample.py
+- Size: S
+
+#### Step 18.5 — How do you want to run this: the four questions, and the card they pick
+- Behaviours: `designer.how.where`, `designer.how.model-kind`, `designer.how.what-matters`, `designer.how.access-derived-and-confirmed`, `designer.how.answers-pick-the-card`
+- Tests: fichero-server/tests/unit/recipes/test_how_questions.py, fichero-server/tests/unit/recipes/test_how_access_is_derived.py, fichero-server/tests/unit/recipes/test_how_answers_pick_the_card.py
+- Depends on: 5.2
+- Size: M
+
+#### Step 18.6 — The defaults table, saying why, the person wins
+- Behaviours: `designer.defaults.table`, `designer.defaults.says-why`, `designer.defaults.person-wins`, `designer.defaults.caps-proposed-from-the-table`, `designer.material.condition-feeds-the-defaults`
+- Tests: fichero-server/tests/unit/recipes/test_defaults_table.py, fichero-server/tests/unit/recipes/test_defaults_say_why.py, fichero-server/tests/unit/recipes/test_defaults_never_override_a_choice.py, fichero-server/tests/unit/recipes/test_defaults_from_condition.py
+- Depends on: 18.4, 18.5
+- Size: M
+
+#### Step 18.7 — The risks in plain words: on the page, on Ready, after the run
+- Behaviours: `designer.how.risks-in-plain-words`, `designer.how.chain-risk-on-ready`, `designer.how.what-to-check`
+- Tests: fichero-server/tests/unit/recipes/test_risks_text_is_the_engines.py, fichero-server/tests/unit/recipes/test_chain_risk_on_ready.py, fichero-server/tests/unit/recipes/test_what_to_check_after_a_run.py
+- Depends on: 18.5
+- Size: M
+
+### Stage 19 — Teach as you go: the staged plan across many pages (owner scenario 2026-11-08; #6407, #6406)
+
+One answer for the owner's scenario and the Hugging Face story: the How card of `designer.how.teach-as-you-go`, built on what exists (Stage 11's offer and switch, `train_offers.py`, the distil route's `sample_pages`, `compute/distillation.md` Steps 1.1–1.3, Step 16.3's place, Step 6.1's band, Step 3.1's truth). The MLX-on-Hugging-Face line is provisional until the owner confirms.
+
+#### Step 19.1 — The card in How: the four stages priced, the per-run sample choice, the place (#6407)
+- Behaviours: `designer.how.teach-as-you-go`
+- Tests: fichero-server/tests/unit/recipes/test_how_answers_pick_the_card.py, fichero-server/tests/unit/recipes/test_routes_for_the_volume.py, fichero-server/tests/unit/recipes/test_train_offers_5660.py, test_how_offers_teach_as_you_go.py (not yet written), test_teach_as_you_go_end_to_end.py (not yet written)
+- Depends on: 18.5, 16.3
+- Size: M
+
+Engine: the distil route becomes a plan (steps with places and a gate step) the recipe runner takes; the sample choice (`first-n` with N, or `covering`) is a setting on the plan read by `distill.collect.first-n-or-covering-sample`; the target from the How "where" answer and the allowances. Swift: the card beside the route cards, its four stages and figures from the engine's route, the N field, the sample choice. Nothing hand-built, no new API.
+
+- test (to write): `test_how_offers_teach_as_you_go.py` in fichero-server/tests/unit/recipes/ (the card appears with a teacher and a trainable step; its four figures and their bases; first-n and covering reach the plan; the place follows the answer and the allowances)
+
+#### Step 19.2 — The gate with both measures, the switch, the rest on the student, never a pass rerun (#6407, #6395)
+- Behaviours: `designer.how.teach-as-you-go-gate-says-both-measures`
+- Tests: fichero-server/tests/unit/remote_read/test_reading_at_scale.py, fichero-server/tests/unit/training/test_noise_band_per_project_5692.py, fichero-server/tests/unit/training/test_adopt_past_the_noise_band_5700.py, test_teach_as_you_go_end_to_end.py (not yet written)
+- Depends on: 19.1
+- Size: M
+
+The gate step measures CER and WER on the held-out checked pages (the measure of `training/evaluation.py`), decides by the band, records the switch, and the runner reads the remaining pages with the student on its place, skipping every page a model pass already read. The one end-to-end test lives in fichero-server/tests/unit/training/ and is named on `compute/distillation.md` Steps 1.1–1.3 as well.
+
+- test (to write): `test_teach_as_you_go_end_to_end.py` in fichero-server/tests/unit/training/ (a fake Gemini labels the first 100 of 1,000 pages, and a covering sample in a second case; a fake Job returns a student; CER and WER on the held-out pages; the switch recorded; the 900 remaining run on the student on a fake Hugging Face target; a counting fake sees zero repeated passes)

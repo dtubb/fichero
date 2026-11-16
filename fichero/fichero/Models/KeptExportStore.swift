@@ -24,10 +24,16 @@ final class KeptExportStore {
         var folder: URL?
         var format: Format = .word {
             // A page format is one file per page only (the engine refuses per document).
-            didSet { if !KeptExportStore.allowsPerDocument(format) { per = .page } }
+            didSet {
+                if !KeptExportStore.allowsPerDocument(format) { per = .page }
+                if !KeptExportStore.allowsPerPage(format) { per = .document }
+            }
         }
         var per: Per = .document {
-            didSet { if per == .document, !KeptExportStore.allowsPerDocument(format) { per = .page } }
+            didSet {
+                if per == .document, !KeptExportStore.allowsPerDocument(format) { per = .page }
+                if per == .page, !KeptExportStore.allowsPerPage(format) { per = .document }
+            }
         }
     }
 
@@ -42,14 +48,28 @@ final class KeptExportStore {
 
     private let client: FicheroClient
 
+    /// A preview's store reads no engine: its exports are given (`preview(_:)`).
+    private var readsEngine = true
+
     init(client: FicheroClient) {
         self.client = client
+    }
+
+    /// A store holding fixed exports, for a #Preview: it never reads the engine, so the preview shows its rows, not a refusal.
+    static func preview(_ exports: [Components.Schemas.KeptExport], client: FicheroClient) -> KeptExportStore {
+        let store = KeptExportStore(client: client)
+        store.exports = exports
+        store.hasLoaded = true
+        store.readsEngine = false
+        return store
     }
 
     // MARK: Formats
 
     /// The formats offered, in the spec's order (section 7b, screen 3).
-    static let formats: [Format] = [.word, .markdown, .plainText, .alto, .pagexml, .tei, .hocr]
+    static let formats: [Format] = [
+        .word, .markdown, .plainText, .alto, .pagexml, .tei, .hocr, .catalogueWorkbook, .wordTranscript
+    ]
 
     static func title(of format: Format) -> String {
         switch format {
@@ -60,6 +80,8 @@ final class KeptExportStore {
         case .pagexml: "PAGE XML"
         case .tei: "TEI"
         case .hocr: "hOCR"
+        case .catalogueWorkbook: "Catalogue workbook (Excel)"
+        case .wordTranscript: "Word transcript (one per folder)"
         }
     }
 
@@ -67,9 +89,15 @@ final class KeptExportStore {
     /// engine rules (`kept_export.PAGE_FORMATS`).
     nonisolated static func allowsPerDocument(_ format: Format) -> Bool {
         switch format {
-        case .word, .markdown, .plainText: true
+        case .word, .markdown, .plainText, .catalogueWorkbook, .wordTranscript: true
         case .alto, .pagexml, .tei, .hocr: false
         }
+    }
+
+    /// The catalogue workbook is one file for the whole project and the Word transcript one file per folder,
+    /// page by page: neither is ever one per page (`kept_export.WHOLE_FORMATS`, `FOLDER_FORMATS`).
+    nonisolated static func allowsPerPage(_ format: Format) -> Bool {
+        format != .catalogueWorkbook && format != .wordTranscript
     }
 
     /// A kept export's format, as the list names it.
@@ -85,6 +113,7 @@ final class KeptExportStore {
 
     /// Read the project's kept exports; the one place the list is replaced whole.
     func load() async {
+        guard readsEngine else { return }
         do {
             exports = try await client.api.listKeptExportsApiExportKeptGet().ok.body.json.exports
             hasLoaded = true
@@ -128,7 +157,7 @@ final class KeptExportStore {
         let didStartAccess = folder.startAccessingSecurityScopedResource()
         try? await FolderAccessManager.shared.grantAccessForImport(folder)
         if didStartAccess { folder.stopAccessingSecurityScopedResource() }
-        let per = Self.allowsPerDocument(format) ? per : .page
+        let per = Self.allowsPerDocument(format) ? (Self.allowsPerPage(format) ? per : .document) : .page
         do {
             switch try await client.api.keepExportApiExportKeptPost(
                 body: .json(.init(folder: folder.path, format: format, per: per))
@@ -176,6 +205,45 @@ final class KeptExportStore {
         } catch {
             if error.isCancellationError { return false }
             errorMessage = "Could not remove this export: \(error.localizedDescription)"
+        }
+        return false
+    }
+
+    /// Choose Folder… (`PATCH /api/export/kept/{id}`, `activity.kept-export.one-row-per-export`): the export writes there
+    /// from now on, and a row its gone folder paused writes there. The folder is granted to the engine first, as at keep.
+    @discardableResult
+    func chooseFolder(_ exportId: String, folder: URL) async -> Bool {
+        let didStartAccess = folder.startAccessingSecurityScopedResource()
+        try? await FolderAccessManager.shared.grantAccessForImport(folder)
+        if didStartAccess { folder.stopAccessingSecurityScopedResource() }
+        return await update(exportId, .init(folder: folder.path), failing: "keep this export in \(folder.lastPathComponent)")
+    }
+
+    /// Keep up to date (on by default): off, an edit queues no rewrite; Write Now still writes.
+    @discardableResult
+    func setKeepUpToDate(_ exportId: String, _ isOn: Bool) async -> Bool {
+        await update(exportId, .init(keepUpToDate: isOn),
+                     failing: isOn ? "keep this export up to date" : "stop keeping this export up to date")
+    }
+
+    private func update(_ exportId: String, _ body: Components.Schemas.KeptExportUpdate, failing what: String) async -> Bool {
+        errorMessage = nil
+        do {
+            switch try await client.api.updateKeptExportApiExportKeptExportIdPatch(
+                path: .init(exportId: exportId), body: .json(body)
+            ) {
+            case .ok(let success):
+                let kept = try success.body.json
+                if let index = exports.firstIndex(where: { $0.id == kept.id }) { exports[index] = kept }
+                return true
+            case .unprocessableContent:
+                errorMessage = "The engine would not \(what)."
+            case .undocumented(let code, let body):
+                errorMessage = await EngineErrorDetail.message(from: body) ?? "Could not \(what) (HTTP \(code))"
+            }
+        } catch {
+            if error.isCancellationError { return false }
+            errorMessage = await Self.engineWords(error) ?? "Could not \(what): \(error.localizedDescription)"
         }
         return false
     }

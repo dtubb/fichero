@@ -165,6 +165,7 @@ enum SegmentDisplay {
         // chosen -- `ReadingOrderStore` is per pane and the Preview holds none. Reading a chosen order here
         // needs the pane's order id beside the document; until then a reordered named order does not reshade.
         let tones = RegionColours.tones(of: segments)
+        let numbers = RegionColours.orderNumbers(of: segments)
         let boxes: [OCRGeometryBox] = segments
             .sorted { ($0.boxIndex ?? 0) < ($1.boxIndex ?? 0) }
             .map { segment in
@@ -201,7 +202,8 @@ enum SegmentDisplay {
                     noReading: SegmentsPane.lacksReading(segment),
                     segmentId: segment.id,
                     parentSegmentId: segment.parentSegmentId,
-                    tone: tones[segment.id]
+                    tone: tones[segment.id],
+                    orderNumber: numbers[segment.id]
                 )
             }
         return OCRGeometry(

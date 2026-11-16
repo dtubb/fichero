@@ -83,8 +83,7 @@ final class IconGridNarrowPaneTests: XCTestCase {
 /// #4966: the header's `PaneKindSelector` ladder and the footer's `AdaptiveMiniToolbarRow` ladder
 /// already share one primitive — `ViewThatFits(in: .horizontal)` — each measuring its OWN
 /// candidates against the SAME pane width, rather than a shared numeric breakpoint the two would
-/// have to keep in sync by hand. `LibraryContentKindControl`'s fix (this file's second half) joins
-/// that same primitive instead of adding a third. No mounted render exists in this target (checked
+/// have to keep in sync by hand. No mounted render exists in this target (checked
 /// before writing this), so these are structural checks: they prove there is ONE mechanism in the
 /// source, not that it visually collapses correctly at a given width — that needs a screen check.
 final class LibraryHeaderFooterCollapseAgreementTests: XCTestCase {
@@ -93,24 +92,38 @@ final class LibraryHeaderFooterCollapseAgreementTests: XCTestCase {
         try AppSource.code(relativePath)
     }
 
-    func testContentKindControlUsesViewThatFitsNotAFixedTruncation() throws {
-        let source = try source("Views/Library/ViewModes/Table/LibraryContentKindControl.swift")
-        XCTAssertTrue(
-            source.contains("ViewThatFits(in: .horizontal)"),
-            "the content-kind chip must collapse through the SAME ladder primitive the rest of the "
-                + "chrome uses, not truncate under .fixedSize()"
-        )
-        // Both rungs exist. (Not a ternary: the two label styles are two types and do not compile as one.)
-        XCTAssertTrue(source.contains(".labelStyle(.iconOnly)"))
-        XCTAssertTrue(source.contains(".labelStyle(.titleAndIcon)"))
+    func testKgFilterIsTheSharedFilterFieldInTheFooter() throws {
+        // owner 2026-11-13 (`panes.chrome.one-filter-pattern`): the Claims/Entities filter is the one shared field in
+        // the footer's right-hand cluster, which every rung of the ladder draws; no separate KG controls or popover.
+        let mini = try source("Views/Library/LibraryView+MiniToolbar.swift")
+        XCTAssertTrue(mini.contains("kgContentFilterField"))
+        let bar = try source("Views/Library/LibraryView+BottomActionBar.swift")
+        XCTAssertFalse(bar.contains("kgContentFilterPopoverButton"))
+        XCTAssertTrue(bar.contains("libraryMiniToolbar(condensed: true)"))
+    }
+}
+
+/// #6086: arrow-key Up/Down in the Icon filmstrip (one row) step one tile, not the pane-width column count.
+final class IconFilmstripArrowStepTests: XCTestCase {
+    func testAGridStepsARowOfColumns() {
+        XCTAssertEqual(LibraryView.verticalStep(isIcon: true, columns: 5, filmstrip: false), 5)
     }
 
-    func testKgFilterHasACondensedAndAnOverflowCoatInTheSharedFooter() throws {
-        let source = try source("Views/Library/LibraryView+BottomActionBar.swift")
-        // The filter is no longer essential-tier-only (#4966: a 220pt TextField cannot shrink) —
-        // it must appear in the secondary, condensed, and overflow rungs, the same three rungs
-        // `entityFilterMenu` already rides for list mode.
-        XCTAssertTrue(source.contains("kgContentFilterControls"))
-        XCTAssertTrue(source.contains("kgContentFilterPopoverButton"))
+    func testAFilmstripStepsOneTile() {
+        XCTAssertEqual(LibraryView.verticalStep(isIcon: true, columns: 5, filmstrip: true), 1)
+    }
+
+    func testAListStepsOneRowWhateverTheColumns() {
+        XCTAssertEqual(LibraryView.verticalStep(isIcon: false, columns: 5, filmstrip: false), 1)
+    }
+
+    func testAZeroColumnCountNeverStepsZero() {
+        XCTAssertEqual(LibraryView.verticalStep(isIcon: true, columns: 0, filmstrip: false), 1)
+    }
+
+    func testAShortPaneIsTheFilmstripTheArrowsFollow() {
+        // The same height rule `iconsView` feeds into `gridIsFilmstrip`.
+        XCTAssertTrue(LibraryView.iconIsFilmstrip(paneHeight: 180, scale: 1.0))
+        XCTAssertFalse(LibraryView.iconIsFilmstrip(paneHeight: 900, scale: 1.0))
     }
 }

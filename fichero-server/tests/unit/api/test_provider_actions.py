@@ -34,7 +34,7 @@ from fichero_server.models import ActionAudit, Model, Provider, ProviderRef, Pro
 
 
 def _ctx() -> ActionContext:
-    return ActionContext(actor="ui", library_path="/lib/test.fichero")
+    return ActionContext(actor="ui", library_path="/lib/test.fichero", is_bootstrap=True)
 
 
 def _make_provider(

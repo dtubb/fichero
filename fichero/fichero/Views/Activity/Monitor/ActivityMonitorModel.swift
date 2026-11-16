@@ -41,38 +41,57 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     }
 
     /// Unique across levels and projects.
-    let id: String
+    var id: String
     let kind: Kind
-    let libraryId: UUID?
+    var libraryId: UUID?
     /// The owning run's row id (`ActivityRun.id`): what Delete and the detail
     /// window act on from any row of its tree.
-    let runRowID: String?
+    var runRowID: String?
     /// The owning run's thread id: the key of its tree in `ActivityStore`.
-    let runThreadId: String?
+    var runThreadId: String?
     /// The job Pause and Stop act on (`/api/activity/jobs/{id}/…`); `nil` for
     /// a row with no job behind it, which shows no controls.
     let jobId: String?
-    let name: String
+    var name: String
     /// The project, shown before a run's name when rows are not grouped.
     let projectName: String?
-    let phase: Phase
+    var phase: Phase
     /// Why it failed, or what it is waiting for, in the engine's words.
-    let reason: String?
+    var reason: String?
     /// What a running row is working on now.
     let workingOn: String?
     let done: Int
     let total: Int
-    let started: Date?
+    var started: Date?
     /// How long it took, start to finish (or until the last read, while it runs).
-    let seconds: Double?
+    var seconds: Double?
     let costUsd: Double?
     let tokens: Int
     let errors: Int
-    let model: String?
+    var model: String?
     /// Live from this window's own executions: its time ticks as a timer.
     let isLive: Bool
     /// `nil` = a leaf (no disclosure triangle).
     var children: [ActivityMonitorRow]?
+    /// An archived row shown by Show Archived (`activity.pane.archive-old-runs`): greyed, Put Back instead of Archive.
+    var isArchived = false
+    /// The page's document, on a page row of a run's tree: what a FILE row groups by (`activity.pane.one-outline-table`).
+    var documentId: String?
+    /// The engine's estimate of what is left to spend, while it runs (`activity.pane.cost-per-row-and-totals`).
+    var costEstimateUsd: Double?
+    /// Where it runs and its lane, the engine's words for the Where tab (#6588).
+    var runsOn: String?
+    var lane: String?
+    /// What it ran over, in words ("14 pages"), from the engine's `ran_on` (`activity.pane.row-says-what-ran-on-what`).
+    var ranOnText: String?
+    /// A version whose results count, in Group by File and the Inspector's versions (`activity.pane.versions-are-siblings`).
+    var counts = false
+    /// The one progress line of a recipe run (`activity.pane.row-says-what-ran-on-what`): "Read ✓ → Names ▶ 3/12"; empty
+    /// for a row with no stages.
+    var trail = ""
+    /// What went wrong and what to do (`activity.pane.failure-with-its-fix-in-the-row`): shown in the row, its first action
+    /// the row's one button.
+    var failure: ActivityJob.Failure?
     /// A run's account (#5555): what its row says beyond the counts. `nil`
     /// on steps, pages, other jobs and runs the engine has no account for.
     var account: ActivityRunAccount?
@@ -94,6 +113,16 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     /// When it ended: the engine's finished time if it sent one, else the failure time, else start plus duration; nil
     /// when none is known (DONE TODAY then lists it rather than lose it; `activity.window.done-today`).
     var ended: Date?
+    /// Who started the run, as the engine said it ("maya on Maya's Mac"); only a run another Mac's person started names
+    /// them in the list (`sharing.sync.remote-run-live-in-activity`, #5732).
+    var startedBy: String?
+
+    /// The starter for the row's second line: a person on a device or a client for a person; nothing for the host's
+    /// own runs, a schedule, a trigger or an automatic start (those read in the details).
+    var remoteStarter: String? {
+        guard let startedBy, startedBy.contains(" on ") || startedBy.contains(" for ") else { return nil }
+        return "Started by \(startedBy)"
+    }
 
     // MARK: - Waiting looks like waiting (#5839)
 
@@ -179,7 +208,9 @@ struct ActivityMonitorRow: Identifiable, Equatable {
         }
         if phase == .done, let partial = partialWords(reason) { return partial }
         if phase == .unknown { return "unknown state \(unknownState ?? "")".trimmingCharacters(in: .whitespaces) }
-        if let reason, !reason.isEmpty, phase == .partial || phase == .interrupted || phase == .notRun {
+        // A stopped run keeps the engine's words too ("Stopped by you", "Stopped through an agent (MCP)"): the app never
+        // rewrites who stopped a run (ruled 2026-10-21, ## 960; `activity.window.done-today`).
+        if let reason, !reason.isEmpty, phase == .partial || phase == .interrupted || phase == .notRun || phase == .cancelled {
             return reason.lowercased().hasPrefix(phase.word.lowercased()) ? reason : "\(phase.word): \(reason)"
         }
         return phase.word
@@ -261,7 +292,16 @@ struct ActivityMonitorRow: Identifiable, Equatable {
         return tokens > 0 ? "Not priced" : ""
     }
 
-    var secondsText: String { looksWaiting ? "" : (seconds.map(Self.duration) ?? "") }
+    /// The row's one time, read by its Time cell, its sort and its Inspector alike (`activity.pane.row-and-inspector-agree`):
+    /// the engine's seconds (a file's, its pages' summed work time), else from its start to its end; none while it waits.
+    var elapsedSeconds: Double? {
+        if looksWaiting { return nil }
+        if let seconds { return seconds }
+        guard let started, let ended, ended > started else { return nil }
+        return ended.timeIntervalSince(started)
+    }
+
+    var secondsText: String { elapsedSeconds.map(Self.duration) ?? "" }
 
     var errorsText: String { errors > 0 ? "\(errors)" : "" }
 
@@ -294,7 +334,7 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     var queueKey: Int { queuePosition ?? Int.max }
     var waitingStartedKey: Date { looksWaiting ? (started ?? .distantFuture) : .distantPast }
     var startedKey: Date { started ?? .distantPast }
-    var secondsKey: Double { seconds ?? -1 }
+    var secondsKey: Double { elapsedSeconds ?? -1 }
     var costKey: Double { costUsd ?? -1 }
     var progressKey: Double { total > 0 ? Double(done) / Double(total) : -1 }
     var modelKey: String { model ?? "" }
@@ -319,9 +359,12 @@ struct ActivityMonitorRow: Identifiable, Equatable {
         }
     }
 
+    /// A time as the table writes it (`activity.pane.row-and-inspector-agree`): ONE rounded unit, "48 s", "3 min", "2 h";
+    /// never "48 secs." (the system's abbreviated style, with its full stop) and never two units in a cell.
     static func duration(_ seconds: Double) -> String {
-        Duration.seconds(seconds.rounded()).formatted(
-            .units(allowed: [.hours, .minutes, .seconds], width: .abbreviated, maximumUnitCount: 2)
-        )
+        let seconds = max(0, seconds.rounded())
+        if seconds < 60 { return "\(Int(seconds)) s" }
+        if (seconds / 60).rounded() < 60 { return "\(Int((seconds / 60).rounded())) min" }
+        return "\(Int((seconds / 3600).rounded())) h"
     }
 }

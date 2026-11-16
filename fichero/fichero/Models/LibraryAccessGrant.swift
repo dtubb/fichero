@@ -25,6 +25,13 @@ struct LibraryAccessGrant {
             prompt = "Grant Access"
         }
 
+        /// A saved library that is not where it was (`MissingLibraryNotice`): the panel opens at its folder to find it.
+        init(missingLibraryURL: URL) {
+            directoryURL = missingLibraryURL.deletingLastPathComponent()
+            message = "Choose \u{201C}\(missingLibraryURL.deletingPathExtension().lastPathComponent)\u{201D} where it is now."
+            prompt = "Locate"
+        }
+
         init(libraryURL: URL) {
             directoryURL = libraryURL
             message = "Fichero may not open \u{201C}\(libraryURL.deletingPathExtension().lastPathComponent)\u{201D}: it is "

@@ -72,4 +72,5 @@ def test_scaffold_is_ignored(tmp_path, monkeypatch):
 def test_real_specs_pass_offline(monkeypatch):
     # The real specs dir, offline, must be green (grandfathered + declared).
     monkeypatch.setattr(_mod, "_live_milestones", lambda: None)
+    monkeypatch.chdir(Path(__file__).resolve().parents[4])  # the guard reads specs from the repo root; pytest may run from fichero-server/
     assert _mod.main() == 0

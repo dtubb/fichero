@@ -179,9 +179,11 @@ class AutomationService {
             throw AutomationServiceError.unexpectedResponse
         }
     }
+}
 
-    // MARK: - Trigger Operations
+// MARK: - Trigger Operations
 
+@MainActor extension AutomationService {
     /// Create a new file trigger
     func createTrigger(request: CreateTriggerRequest) async throws -> TriggerInfo {
         let response = try await apiClient.api.createTriggerApiTriggersPost(

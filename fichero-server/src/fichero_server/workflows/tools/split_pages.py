@@ -16,6 +16,7 @@ from typing import Any
 
 from fichero_server.llm import LLMConfig
 from fichero_server.media import page_split
+from fichero_server.media.enhance import node_config, split as split_step
 from fichero_server.workflows.registry import register_tool
 from fichero_server.workflows.tools.image_edit_chains import describe_no_effect, persist_workflow_child_regions
 from fichero_server.workflows.tools.run_scratch import run_scratch_dir
@@ -30,24 +31,8 @@ from fichero_server.workflows.types import DataType, PortDef, State
 logger = logging.getLogger(__name__)
 
 SPLIT_PAGES_CONFIG = {
-    "direction": {
-        "type": "string",
-        "enum": ["ltr", "rtl"],
-        "default": "ltr",
-        "description": "Reading direction: the order the pages of a spread come out in.",
-    },
-    "use_apple_vision": {
-        "type": "boolean",
-        "default": True,
-        "description": "Find the document with Apple Vision's outline; off, the whole image is the document.",
-    },
-    "min_confidence": {
-        "type": "number",
-        "default": page_split.MIN_GUTTER_CONFIDENCE,
-        "minimum": 0.0,
-        "maximum": 1.0,
-        "description": "Below this gutter confidence a spread is proposed for review, not cut.",
-    },
+    # direction, use_apple_vision and min_confidence are `media.enhance.split.Params`: the node config is built from that model
+    **node_config(split_step.Params),
     "output_format": {
         "type": "string",
         "enum": ["jpg", "png", "tiff", "webp"],
@@ -72,7 +57,6 @@ def split_pages_file(file_path: str | Path, output_dir: str | Path, *, direction
         if source.suffix.lower() not in _IMAGE_SUFFIXES:
             raise ValueError(f"Unsupported input file type: {source.suffix}")
         from PIL import Image
-        import numpy as np
 
         with Image.open(source) as opened:
             image = opened.copy()
@@ -82,8 +66,9 @@ def split_pages_file(file_path: str | Path, output_dir: str | Path, *, direction
             # The engine-wide Apple Vision gate and deadline (#5392), as `split_pages` uses.
             outline = _apple_vision_call_sync(page_split.detect_document_outline, str(source))
         outline = outline or page_split.whole_frame(image.width, image.height)
-        plan = page_split.split_plan_for_image(np.asarray(image.convert("L")), outline,
-                                               direction=direction, min_confidence=min_confidence)
+        _, account = split_step.run(image, split_step.Params(direction=direction, use_apple_vision=False,
+                                                              min_confidence=min_confidence), outline)
+        plan = {k: v for k, v in account.items() if k != "step"}  # every page's box is in the account; run's own image is the first
         fmt = output_format or _same_format_as(source)
         ext = _extension_for_format(fmt)
         output_root.mkdir(parents=True, exist_ok=True)

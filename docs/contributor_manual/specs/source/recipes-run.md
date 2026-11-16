@@ -102,10 +102,11 @@ the engine done, the app not seen in a build); a started recipe does not redo wh
   Start: Set Up's (`FirstRunWindow.showStartedRun`), the Project menu's and Run the Recipe on This Folder…
   (`FocusedCommandButtons+Recipe.swift`), each through `FirstRunWindow.startedRunSelection`. Test:
   fichero/Tests/Unit/general/Models/RecipeRunVisibleTests.swift (`testStart_landsOnTheRecipeRunItQueued`).
-- `recipes-run.journey.cloud-by-default-per-step` — **[GAP]** (#6234, #6233) per the owner's ruling (2026-10-27), a
+- `recipes-run.journey.cloud-by-default-per-step` — **[PARTIAL]** (#6233) per the owner's ruling (2026-10-27), a
   recipe step's model is a cloud one by default where the person has a provider, and the person can choose local or
   cloud for any step; Start's plan shows each step's cost, and a provider with a Batch API is sent its pages as a
-  batch. A Mac with no provider key (the M4 test machine) runs every step locally.
+  batch. Built: each step's cost beside its seconds (#6234, closed; `recipes-run.timing.cost-per-step`) and the
+  batch path. Built 2026-11-02 (#6233): the cloud default (`assemble.CLOUD_DEFAULT_JOBS`: Translate, Names, Statements, Catalogue; Read by the reader choice; lines stay local), see `activity.run.cloud-batch`. Open: the Batch API path and the lane width at the provider's limit. Parked 2026-11-02 (open question): the Batch API for the text steps (Translate, Names, Statements, Catalogue) is not built. Page reads batch today (`llm/provider_batch.py`'s seam sits in `llm.vision` only). A text step's capture run answers calls with stand-ins and relies on `is_capturing()` guards that exist only in `vision_base` and `observability/episodes`, so capturing a text step would save junk readings unless every text tool's write path is guarded first; its calls go through `chat` / `chat_structured` / `translate_text` (structured outputs need their own stand-ins). Unverified: all of it, and cost and replay against a real provider key. Order when taken up: guard sweep, seam on the text entry points, Translate, then the structured steps, then a real-key run. A Mac with no provider key (the M4 test machine) runs every step locally.
 
 ### 3. The run: batches, order, progress
 
@@ -288,6 +289,16 @@ replaces the Kraken figure before #6212 is coded.
   queued run and for a RUNNING one (its step's child, the step run's record and log, its failed pages' names, what its
   page waits for, the queue rows, the timings and the list's parents read committed too; review b20). Left: the
   M4 run sampling `/api/health` within 1 s. Test: fichero-server/tests/unit/core/test_loop_lag_activity_polls.py.
+- `recipes-run.engine.embedder-child-knows-its-model` — **[OK]** the search model's child registers a custom model
+  (bge-m3) itself before loading it, since the seed it forks from never saw the engine's registration. A model this
+  build cannot load (fastembed does not know it, onnxruntime says its file is missing or broken) is said once at error;
+  the embed job waits with that sentence as its reason and comes back after an hour, and the load is not tried again
+  sooner unless a download finishes. Any other load failure (out of memory, a lock, a child that died) backs off 120 s
+  and the embed job comes back. Was: the Air logged 31,385 "not supported" lines in 3 h.
+  Test: `fichero-server/tests/unit/db/test_embedder_child_knows_bge_m3.py`.
+- `recipes-run.engine.poll-shared-within-one-loop` — **[OK]** the UDS and sharing servers run on separate event loops,
+  so a poll shares an in-flight answer only with polls on its own loop. Was: 8 run-status polls answered 500 ("attached
+  to a different loop"). Test: `fichero-server/tests/unit/core/test_single_flight_per_loop.py`.
 - `recipes-run.engine.embedder-child-never-downloads` — **[PARTIAL]** (#6218) the search model's forked child never
   fetches the model: a model not in the cache is refused before any fork ("The search model is not downloaded yet"),
   the embed job (the import's, or Search's make-a-vector) waits and comes back while the app's download job fetches it
@@ -330,12 +341,18 @@ replaces the Kraken figure before #6212 is coded.
   local model stopped answering is read once more before it fails, with the model's output in the log;
   the run carries on past it.
 
-- `recipes-run.engine.failure-in-words` — **[PARTIAL]** (#6212) a failing page or job says why in words, never the
+- `recipes-run.engine.failure-in-words` — **[SUPERSEDED]** by `recipes-run.engine.failure-in-words-no-raw-text` — **[PARTIAL]** (#6212) a failing page or job says why in words, never the
   exception's text: a step whose body raises KeyError('x') reads "<kind> could not finish: ...". Built: a failed
   job's reason (`execution/jobs.failed_reason`) names a slip in Fichero's own code (KeyError, TypeError,
   AttributeError and the like) as "<kind in words> could not finish: an error in Fichero (KeyError: 'x')", keeps a
   failure's own words, and is never blank (`core/failure_text`); the names step's time limit and stalled-page lines
   above. Left: a workflow node's failure on its page row still carries the tool's own text.
+  Test: fichero-server/tests/unit/execution/test_failure_in_words_6212.py.
+- `recipes-run.engine.failure-in-words-no-raw-text` — **[PARTIAL]** (#6212, #6597) a failing page or job says why in
+  words, and its row shows none of the exception's text: a slip in Fichero's own code (KeyError, TypeError and the like)
+  reads as the same plain words whatever its message, at most eight words with no full stop, and its type and message are
+  the row's detail for Copy Details (`activity.failure.no-raw-text-ever`); a failure's own words are kept, and the reason
+  is never blank. Left: a workflow node's failure on its page row still carries the tool's own text.
   Test: fichero-server/tests/unit/execution/test_failure_in_words_6212.py.
 
 ### 7. Memory is bounded
@@ -356,13 +373,40 @@ replaces the Kraken figure before #6212 is coded.
   18 GB in 25 minutes) is pinned at its seam by `fichero-server/tests/unit/jobs/test_engine_memory.py`;
   the whole-run assertion is written in the load leg and not yet run on the M4. Test: fichero-server/tests/perf/test_recipe_run_100_pages.py.
 - `recipes-run.memory.duckdb-cap-applies` — **[OK]** (#6177) every open DuckDB instance runs under its
-  share of the budget (about 10% of physical memory split across the open instances, a 256 MiB floor,
+  share of the budget (10% of physical memory, never under 1 GiB; the engine's own app and global databases take a
+  slice, 5% of the budget or twice their file, in 32 MiB steps, 64 MiB at least and an equal share at most; the
+  libraries split the rest, 256 MiB at least; below 12 GB of memory each instance runs 2 threads,
   `fichero-server/tests/unit/core/test_duckdb_memory_budget.py`); a refused spill-directory switch
   ("Cannot switch temporary directory after the current one has been used") is logged once and never
   skips the cap. Was: `apply_memory_limit` set the spill directory first, the instance that had already
   spilled refused, the exception skipped the cap, and the instance ran at DuckDB's default of 80% of RAM
   (Ann's log: the warning 6,671 times); fixed in ef6ffa17e, the refusal now said at debug. Test:
   `fichero-server/tests/unit/core/test_duckdb_memory_budget.py::test_a_refused_spill_directory_does_not_stop_the_cap_from_applying`.
+- `recipes-run.memory.fits-a-small-mac-at-scale` — **[OK]** on an 8 GB Mac with four instances open, a library of about
+  70,000 documents answers the document view, the Trash, the Start plan and a recipe's writes at once, with no
+  out-of-memory and a median view under the test's bound. Those reads ask for the columns they use: the Trash reads the
+  deleted rows and the folders above them, and the plan names its columns, so it reads no line boxes, with every step
+  option on (a certainty bar, cloud over its cap) as well as without. The legacy canvas fields are copied once per library
+  (a settings-row marker), so an open no longer parses every row's metadata; a row changed later shows through the canvas
+  read's fallback. One press of Start reads the library's pages once and outside the writer gate, so the views go on; the
+  setup, the jobs, the caps and the spending are read again inside the transaction just before the run is queued, so
+  the spending check and the queuing stay one step. The pages and lines in that press's figures may be as old as the first
+  plan plus any wait for the gate; a page arriving in that window is in the next plan's count. Two callers of the plan at once share one plan. The answer aims to arrive inside
+  the app's 60 s request deadline: measured, not held by a test, 31 s for the whole library and 21 s for a box on a loaded
+  M1 Pro. The tests bound memory and what is read, not time. Was: the Air (2026-10-30) at 256 MiB per instance and 8
+  threads: 55 document views and two recipe starts answered 500, one page was lost. Unverified on the Air until a build
+  with this runs there. Tests: `fichero-server/tests/unit/db/test_air_scale_memory.py`,
+  `fichero-server/tests/unit/db/test_db_migrations_schema.py`,
+  `fichero-server/tests/unit/recipes/test_start_plan_does_not_grow_with_pages.py`,
+  `fichero-server/tests/unit/recipes/test_catalogue_reads_no_line_boxes.py`,
+  `fichero-server/tests/unit/api/test_trash.py::test_a_trash_poll_reads_the_trash_and_the_folders_above_it_not_the_library`.
+- `recipes-run.memory.no-onnx-telemetry-thread` — **[OK]** a process that starts with the engine has no onnxruntime
+  telemetry thread: `fichero_server/__init__.py` sets `ORT_DISABLE_TELEMETRY` before anything can import onnxruntime,
+  because `disable_telemetry_events()` leaves the worker running. Test:
+  `fichero-server/tests/unit/core/test_onnx_telemetry_off.py`.
+- `recipes-run.memory.out-of-memory-says-so` — **[OK]** a request DuckDB cannot fit in its share answers 503 with
+  `Retry-After: 5` and a sentence, never a 500 and a stack trace; the log says it once per route. Test:
+  `fichero-server/tests/unit/api/test_out_of_memory_answers_503.py`.
 - `recipes-run.memory.one-heavy-model` — **[OK]** (#6000, #6167; `activity.lane.small-mac-one-heavy-model` (B)
   and `designer.model.one-resident-local-model` (G) own it) on a Mac of 16 GB or less the model lane never
   keeps two heavy models loaded: before a Kraken load it stops the served MLX model and before a served
@@ -378,7 +422,7 @@ replaces the Kraken figure before #6212 is coded.
   owns it) new heavy work is held, and Kraken reads one page at a time, while this Mac is paging NOW under
   memory pressure at warn or above (pageouts or swap grown by 64 MB within the last minute); static swap
   never holds. Built and pinned by `fichero-server/tests/unit/jobs/test_kraken_holds_under_swap_and_pressure_6075.py`;
-  left: the owner's check that the Test 13 run finishes on the 16 GB Mac, and the popover's paging line.
+  the popover's paging line is built (Swift unrun); left: the owner's check that the Test 13 run finishes on the 16 GB Mac.
 - `recipes-run.memory.pages-at-once-bounded` — **[PARTIAL]** (#5931, #5929) the pages a step reads at once
   are the Mac's performance cores held down by memory, never below 1, gated at 2 until the exit-time MPS
   crash (#5929) closes; one for every automatic run and one whoever asked while the Mac is paging
@@ -420,6 +464,10 @@ replaces the Kraken figure before #6212 is coded.
   Built: the reopen puts every claim no live thread runs back to waiting, and a running thumbnail row no thread runs is
   requeued by the next scan (`requeue_orphaned_first`), so the hold lifts. Left: the real kill-and-restart run on the M4
   that shows `Make thumbnails` reaching N of N. Test: fichero-server/tests/unit/jobs/test_thumbnail_claims_requeued_after_crash.py.
+  **SUPERSEDED in part (owner 2026-11-13 night, #6584):** the claims a dead process left go back to PAUSED ("Stopped when Fichero
+  quit"), not to waiting, and run when the person says so in the launch alert (`ui/activity-pane.md`
+  `activity.launch.nothing-starts-one-alert`, open question 3 on exempting the automatic kinds); the file-exists half and
+  `requeue_orphaned_first` for a LIVE engine's orphaned claim stand.
 - `recipes-run.restart.releases-lanes` — **[OK]** (#6213; `activity.durable.reopen-leaves-live-jobs` is
   the live half) a lane holder is a RUNNING row with a live worker thread of this engine; a row left
   running by a dead process holds no lane after the restart, so the next job of that kind in any project
@@ -600,31 +648,31 @@ Not changed: the batch loop and its checkpoints (`source.recipe.batch-at-archive
 - Size: S
 
 #### Step 1.3 — The engine answers while a run goes (#6178)
-- Behaviours: `recipes-run.engine.answers-while-a-run-goes`
-- Tests: fichero-server/tests/unit/core/test_loop_lag_activity_polls.py
+- Behaviours: `recipes-run.engine.answers-while-a-run-goes`, `recipes-run.engine.poll-shared-within-one-loop`
+- Tests: fichero-server/tests/unit/core/test_loop_lag_activity_polls.py, fichero-server/tests/unit/core/test_single_flight_per_loop.py
 - Size: S
 
 ### Stage 2 — Memory bounded
 
 #### Step 2.1 — The DuckDB cap applies (#6177)
-- Behaviours: `recipes-run.memory.duckdb-cap-applies`
-- Tests: fichero-server/tests/unit/core/test_duckdb_memory_budget.py
+- Behaviours: `recipes-run.memory.duckdb-cap-applies`, `recipes-run.memory.fits-a-small-mac-at-scale`, `recipes-run.memory.out-of-memory-says-so`
+- Tests: fichero-server/tests/unit/core/test_duckdb_memory_budget.py, fichero-server/tests/unit/db/test_air_scale_memory.py, fichero-server/tests/unit/api/test_out_of_memory_answers_503.py
 - Size: S
 
 #### Step 2.2 — One heavy model on a small Mac; the fan-out decodes only admitted pages (#6000, #6167, #5846)
-- Behaviours: `recipes-run.memory.one-heavy-model`, `recipes-run.memory.fan-out-does-not-decode-ahead`, `recipes-run.memory.hold-when-paging`, `recipes-run.memory.pages-at-once-bounded`
+- Behaviours: `recipes-run.memory.one-heavy-model`, `recipes-run.memory.fan-out-does-not-decode-ahead`, `recipes-run.memory.hold-when-paging`, `recipes-run.memory.pages-at-once-bounded`, `recipes-run.memory.threads-fill-the-cores`
 - Tests: fichero-server/tests/unit/jobs/test_one_heavy_when_memory_tight.py, fichero-server/tests/unit/workflows/test_fan_out_decodes_only_admitted_pages_5846.py, fichero-server/tests/unit/jobs/test_kraken_holds_under_swap_and_pressure_6075.py, fichero-server/tests/unit/jobs/test_kraken_page_gate_two_at_once.py
 - Size: M
 
 #### Step 2.3 — Measure, then the ceiling and the load leg (#6076, #6212)
-- Behaviours: `recipes-run.memory.peak-ceiling-per-model-kind`, `recipes-run.memory.flat-over-pages`, `recipes-run.reliability.hundred-pages-finish`, `recipes-run.reliability.a-page-never-spins-silently`
+- Behaviours: `recipes-run.memory.peak-ceiling-per-model-kind`, `recipes-run.memory.flat-over-pages`, `recipes-run.reliability.hundred-pages-finish`, `recipes-run.reliability.a-page-never-spins-silently`, `recipes-run.engine.failure-in-words`
 - Tests: fichero-server/tests/perf/test_recipe_run_100_pages.py, fichero-server/tests/unit/workflows/test_names_page_never_spins_silently_6236.py, fichero-server/tests/unit/workflows/test_names_upsert_stays_flat_6236.py
 - Depends on: 1.1, 2.1, 2.2
 - Size: M
 
 #### Step 2.4 — The search model never downloads in its child; a fresh library opens lean (#6218, #6221)
-- Behaviours: `recipes-run.engine.embedder-child-never-downloads`, `recipes-run.engine.fresh-library-opens-lean`
-- Tests: fichero-server/tests/unit/search/test_embedder_child_downloads_before_fork.py, fichero-server/tests/unit/db/test_fresh_library_open_statements_6221.py
+- Behaviours: `recipes-run.engine.embedder-child-never-downloads`, `recipes-run.engine.embedder-child-knows-its-model`, `recipes-run.engine.fresh-library-opens-lean`
+- Tests: fichero-server/tests/unit/search/test_embedder_child_downloads_before_fork.py, fichero-server/tests/unit/db/test_embedder_child_knows_bge_m3.py, fichero-server/tests/unit/db/test_fresh_library_open_statements_6221.py
 - Size: S
 
 ### Stage 3 — Order, once-at-the-end, timings
@@ -635,14 +683,14 @@ Not changed: the batch loop and its checkpoints (`source.recipe.batch-at-archive
 - Size: M
 
 #### Step 3.2 — Per-step timings on the run; cheap thumbnails (#6215, #6193)
-- Behaviours: `recipes-run.timing.per-step-recorded`, `recipes-run.engine.thumbnails-cheap-and-off-the-lane`
+- Behaviours: `recipes-run.timing.per-step-recorded`, `recipes-run.engine.thumbnails-cheap-and-off-the-lane`, `recipes-run.timing.slow-path-logged`
 - Tests: fichero-server/tests/unit/recipes/test_step_timings_recorded.py, fichero-server/tests/unit/importers/test_thumbnail_cost_bounded_6193.py
 - Size: M
 
 ### Stage 4 — The journey's ends
 
 #### Step 4.1 — Start opens the run; the summary at the end (#5576, #5577)
-- Behaviours: `recipes-run.journey.start-opens-the-run`, `recipes-run.journey.finish-summary`, `recipes-run.journey.progress-in-words`
+- Behaviours: `recipes-run.journey.start-opens-the-run`, `recipes-run.journey.finish-summary`, `recipes-run.journey.progress-in-words`, `recipes-run.journey.cloud-by-default-per-step`
 - Tests: fichero-server/tests/unit/recipes/test_run_summary_counts_6001.py, fichero/Tests/Unit/general/Models/ActivityOpenedRunTests.swift
 - Size: M
 

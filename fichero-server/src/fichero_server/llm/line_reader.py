@@ -14,10 +14,12 @@ import asyncio
 import base64
 import dataclasses
 import io
+import json
 import difflib
 import logging
 import re
 import unicodedata
+from typing import Any
 
 from PIL import Image
 
@@ -86,10 +88,36 @@ def answers_follow_order(answers: list[str | None], references: list[str | None]
     return all(own >= other for shift in range(1 - n, n) if shift and (other := _alike(answers, references, shift)) is not None)
 
 
-def prompt_for(n: int, language: str | None = None, page_context: bool = False) -> str:
+def judge_batch_answer(raw: str, n: int) -> tuple[list[str | None] | None, str, int | None]:
+    """`parse_answer` with the reason: (answer, why, returned). `answer` is None when the reply is rejected, `why` naming the
+    check that failed (counts only, never the text). Nothing of a rejected reply is kept: a wrong length, a non-text element or
+    a cut-off reply may have shifted every later line, and index alignment cannot be proved (#6304, the full re-ask stays)."""
+    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", (raw or "").strip())
+    try:
+        answer = json.loads(text)
+    except ValueError:
+        return None, "the reply is not JSON", None
+    if not isinstance(answer, list):
+        return None, "the reply is not an array", None
+    if len(answer) != n:
+        return None, "the array has the wrong length", len(answer)
+    if not all(a is None or isinstance(a, str) for a in answer):
+        return None, "an element is neither text nor null", n
+    return parse_answer(raw, n), "", n
+
+
+#: Added when a batch is asked again because its reply ended in null (#6305). A different prompt is a different call: the same one
+#: would be answered from `llm`'s content cache (or a provider batch's stored answer) and never reach the model.
+REASK_NOTE = (" Your previous reply to these images ended in an empty answer, which can mean a line was skipped. Check that answer number "
+              "k is for image number k, count again, and reply with exactly {n} entries. A line with no writing is still null; do not invent text for it.")
+
+
+def prompt_for(n: int, language: str | None = None, page_context: bool = False, reask: bool = False,
+               fragments: str = "") -> str:
     """The instruction for n line pictures, with the language when it is known, and the page's place when it rides."""
     hint = f" (in {language})" if language and language not in ("und", "unknown") else ""
-    return (PAGE_CONTEXT.format(n=n) if page_context else "") + PROMPT.format(n=n, language=hint)
+    return ((PAGE_CONTEXT.format(n=n) if page_context else "") + PROMPT.format(n=n, language=hint)
+            + (REASK_NOTE.format(n=n) if reask else "") + (f" {fragments}" if fragments else ""))
 
 
 def _page_context_uri(page: Image.Image) -> str:
@@ -106,10 +134,6 @@ def _crop_data_uri(page: Image.Image, polygon_px: list) -> str:
     buf = io.BytesIO()
     crop_line(page, polygon_px).save(buf, format="JPEG", quality=90)
     return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
-
-
-def _crop(page: Image.Image, box: OCRGeometryBox) -> str:
-    return _crop_data_uri(page, box.metadata["polygon_px"])
 
 
 def lines_per_call(config) -> int:
@@ -168,36 +192,52 @@ def _request_groups(found: list[OCRGeometryBox], granularity: str | None, per_ca
 
 async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, language: str | None = None,
                      apple: bool = False, granularity: str | None = None,
-                     page_context: bool | None = None) -> OCRGeometryResult:
+                     page_context: bool | None = None, page_image: Any = None,
+                     fragments: str = "", working_image: str | None = None) -> OCRGeometryResult:
     """Kraken's lines (`segment_to_geometry`) with each one's text read by `config`'s vision model, or, with
     `apple`, by Apple Vision on each line's own picture (one line a call: its answer IS the reading, not a JSON
-    array, and it is not checked for loops, as only a generative model loops)."""
+    array, and it is not checked for loops, as only a generative model loops).
+
+    `page_image` (`media/current_image.PageImage`): the lines are measured on the page's photograph and `image_path` is the page's
+    current image (edits applied); each line's outline is carried onto it before it is cut, so the crop is the line as edited.
+
+    `working_image` (the page's stored working rendition, `db/storage.ensure_display`): when given, the page picture that rides
+    beside a batch (`page_context`) is cut from it and the full page is not resized again (`image.enhance.working-rendition-once`)."""
     from fichero_server.llm import LLMConfig, vision
 
     if apple:
         config = LLMConfig(provider="apple", model="apple-vision")
 
-    page = open_in_frame(image_path, frame_of(lines.metadata, *(b.metadata for b in lines.boxes[:1])))
+    lines_frame = frame_of(lines.metadata, *(b.metadata for b in lines.boxes[:1]))
+    carried = page_image.lines_map(lines_frame) if page_image is not None else None
+    page = open_in_frame(image_path, None if carried is not None else lines_frame)
     found = [b for b in lines.boxes if b.metadata.get("polygon_px") and b.level == OCRGeometryLevel.LINE]
     # Kraken's regions are kept, first, as the lines' parents (#5487); a line names its region by position.
     kept = [(i, b) for i, b in enumerate(lines.boxes) if b.level != OCRGeometryLevel.LINE]
     regions = [b for _i, b in kept]
     moved = {i: n for n, (i, _b) in enumerate(kept)}
-    crops = [_crop(page, b) for b in found]
+    crops = [_crop_data_uri(page, carried.carry_pixels(b.metadata["polygon_px"]) if carried is not None
+                            else b.metadata["polygon_px"]) for b in found]
     # Variant B (`source.recipe.kraken-lines-cloud-reads`): a generative model gets the page ONCE per request, reduced,
     # beside the batch of lines; never once a line, and never for a reader trained on one picture or Apple's.
     # A reader that runs on this Mac (any local provider) reads a line as trained: the page costs its memory, not money.
     # Off unless asked (2026-10-24, measured): the page beside the lines made a batch answer out of order and cost twice as much
     # (one line a call), and the lines were read as well without it (`source.recipe.cloud-reads-lines-per-page`).
     context = False if page_context is None else (page_context and not apple)
-    page_uri = _page_context_uri(page) if context and crops else None
+    page_uri = None
+    if context and crops:
+        if working_image:
+            with Image.open(working_image) as working:
+                page_uri = _page_context_uri(working)
+        else:
+            page_uri = _page_context_uri(page)
     gate = asyncio.Semaphore(CONCURRENT_CALLS)
 
-    async def ask(indices: list[int], with_page: bool = True) -> list[str | None] | None:
+    async def ask(indices: list[int], with_page: bool = True, reask: bool = False) -> list[str | None] | None:
         rides = bool(page_uri) and with_page  # a retry of one line is a single picture: the page is not sent again
         async with gate:
             raw = await vision(images=([page_uri] if rides else []) + [crops[i] for i in indices],
-                               prompt=prompt_for(len(indices), language, page_context=rides),
+                               prompt=prompt_for(len(indices), language, page_context=rides, reask=reask, fragments=fragments),
                                config=line_call_config(config, len(indices)),
                                **({"language": language, "recognition_only_ok": True} if apple else {}))
         if apple:
@@ -207,6 +247,12 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
                 vision_empty.add(indices[0])
                 return None
             return [text]
+        if len(indices) > 1:
+            answer, why, returned = judge_batch_answer(raw, len(indices))
+            if answer is None:
+                logger.warning("line reader %s: batch reply rejected on %s (%s): %d lines asked, %s returned; asked line by line",
+                               config.model, image_path, why, len(indices), "n/a" if returned is None else returned)
+            return answer
         answer = parse_answer(raw, len(indices))
         if answer is None and len(indices) == 1 and is_truncation(finish_reason_of(raw)):
             return [cut_short_reading(raw)]
@@ -239,11 +285,20 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
                 refs[k] = single[0] if single else None
         return answers_follow_order(answer, refs)
 
+    trailing: list[int] = []  # the size of each batch whose reply ended in null or an empty string and was asked once more (#6305)
+
     async def batch(indices: list[int]) -> list[str | None]:
         answer = await ask(indices)
+        if answer is not None and len(indices) > 1 and answer[-1] is None:
+            # A dropped line padded at the end shifts every answer one line early at the right length, and a plain null is also
+            # a real answer (#6305): ask the batch once more; a reply that still ends so is believed, a rejected one goes line by line.
+            logger.warning("line reader %s: a batch of %d lines on %s ended in null or empty; asked once more",
+                           config.model, len(indices), image_path)
+            trailing.append(len(indices))
+            answer = await ask(indices, reask=True)
         if answer is not None and page_uri and len(indices) > 1 and not await in_order(indices, answer):
-            logger.info("line reader %s: a batch of %d lines answered out of order on %s; asked line by line",
-                        config.model, len(indices), image_path)
+            logger.warning("line reader %s: a batch of %d lines answered out of order on %s (answers do not follow the lines asked); "
+                           "nothing kept, asked line by line", config.model, len(indices), image_path)
             reasked.append(len(indices))
             answer = None
         if answer is None and len(indices) > 1:  # re-ask line by line rather than misplace a reading
@@ -317,6 +372,7 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
     page_metadata = {**lines.metadata, "lines_unanswered": unanswered, "lines_found_by": "kraken", "lines_found": len(found),
                      "lines_without_writing": len(found) - read, "lines_flagged": len(flagged),
                      "batches_reasked_by_order": len(reasked), "lines_reasked_by_order": sum(reasked),
+                     "batches_reasked_by_trailing_null": len(trailing),
                      NO_WRITING_KEY: no_writing}
     if flagged:
         # The page's reading is as trusted as its worst line: it lands marked, not as the page's text.

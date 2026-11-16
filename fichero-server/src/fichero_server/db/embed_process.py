@@ -25,11 +25,6 @@ from typing import Any, NamedTuple, NoReturn
 
 logger = logging.getLogger(__name__)
 
-# onnxruntime's telemetry starts a Network.framework path monitor when it is imported, and that crashes (SIGSEGV in
-# nw_path_monitor_start) in a forked child (#6286). Set before anything imports onnxruntime: the seed, every worker forked
-# from it and the kreuzberg fork worker inherit it. Assigned, not defaulted: an inherited value cannot turn it back on.
-os.environ["ORT_DISABLE_TELEMETRY"] = "1"
-
 #: How long the child may take to load the model before it is killed and the embed job fails.
 INIT_TIMEOUT_SECONDS = 300.0
 #: How long one batch of texts may take.
@@ -52,7 +47,22 @@ def load_failure_words(payload: str, cached: bool) -> str:
     if missing and not cached:
         return ("Search can't index yet: its model isn't downloaded, and fetching it failed. Check the internet "
                 "connection; it tries again later and nothing already indexed is lost.")
-    return f"The search model could not be loaded: {text}"
+    if any(mark in text.lower() for mark in _WILL_NEVER_LOAD):
+        return f"{WILL_NOT_LOAD} {text}"
+    return f"The search model could not be loaded this time; it tries again in a few minutes: {text}"
+
+
+#: How a load failure that this build will never get past begins: fastembed does not know the model (the Air's bge-m3,
+#: 2026-10-30), or onnxruntime says the model file is missing or broken. Waiting for memory will not mend it, so the embed
+#: lane says so once and holds (`embeddings.DEFECT_BACKOFF_SECONDS`) instead of trying every page. Only these exact
+#: words: anything else -- out of memory, a lock, some other file not there for a moment -- is this moment's, and backs off.
+WILL_NOT_LOAD = "Search indexing is off: the search model could not be loaded."
+_WILL_NEVER_LOAD = ("is not supported in textembedding", "no_suchfile", "invalid_protobuf", "protobuf parsing failed")
+
+
+def is_a_load_defect(words: str) -> bool:
+    """Whether `words` (an `EmbedderUnavailable`'s) say this build cannot load the model, as against not yet, or not now."""
+    return words.startswith(WILL_NOT_LOAD)
 
 
 def in_process() -> bool:
@@ -71,6 +81,53 @@ def _model_files(fastembed_name: str) -> list[str]:
     return ["config.json", "tokenizer.json", "model.onnx"]
 
 
+#: A file in a model's one folder that says its last load raised: the model's files are there but it does not load.
+BROKEN_MARKER = ".fichero-load-failed"
+#: What fastembed reads beside the model when it loads one (its own `allow_patterns`).
+_SIDE_FILES = ["tokenizer_config.json", "special_tokens_map.json", "preprocessor_config.json"]
+
+
+def _source_name(model_name: str) -> str:
+    """The Hub-side name a model's one folder is named after (the pinned e5's fastembed alias is its source)."""
+    from fichero_server.db.embeddings import SUPPORTED_EMBEDDING_SPACES
+
+    space = SUPPORTED_EMBEDDING_SPACES.get(model_name.lower())
+    return space.source_model_name if space else model_name
+
+
+def one_folder_path(cache_dir: str | os.PathLike, model_name: str) -> str:
+    """Where a model's files live as plain files in ONE real folder (#6591): the Hub's sharded blob store puts
+    `model.onnx` and `model.onnx_data` in different real folders, and onnxruntime refuses that."""
+    return os.path.join(os.fspath(cache_dir), _source_name(model_name).replace("/", "--"))
+
+
+def one_folder_files(model_name: str) -> list[str]:
+    """What to fetch into the one folder: the model's files and the tokenizer's."""
+    return [*_model_files(_fastembed_name(model_name)), *_SIDE_FILES]
+
+
+def one_folder_ready(cache_dir: str | os.PathLike, model_name: str) -> bool:
+    """Whether the model's one folder has every file as a real, non-empty file (not a link), and no load failed."""
+    folder = one_folder_path(cache_dir, model_name)
+    if not os.path.isdir(folder) or os.path.lexists(os.path.join(folder, BROKEN_MARKER)):
+        return False
+    try:
+        required = _model_files(_fastembed_name(model_name))
+    except ImportError:
+        return False
+    return all(os.path.isfile(p) and not os.path.islink(p) and os.path.getsize(p)
+               for p in (os.path.join(folder, f) for f in required))
+
+
+def _fastembed_name(model_name: str) -> str:
+    from fichero_server.db.embeddings import SUPPORTED_EMBEDDING_SPACES, _register_fastembed_model_for_space
+
+    space = SUPPORTED_EMBEDDING_SPACES.get(model_name.lower())
+    if space is not None:
+        _register_fastembed_model_for_space(space)
+    return space.fastembed_model_name if space else model_name
+
+
 def _cached(model_name: str, cache_dir: str) -> bool:
     """Whether every file of the model is in the cache, so loading needs no Hub call. A folder is not enough: a download
     that died leaves a partial one, and the child then fails to load it offline (#6218, the M4 rerun)."""
@@ -84,6 +141,8 @@ def _cached(model_name: str, cache_dir: str) -> bool:
     source = space.source_model_name if space else model_name
     folder = "models--" + (_fastembed_source_repo(source) or source).replace("/", "--")
     try:
+        if one_folder_ready(cache_dir, model_name):
+            return True
         if space is not None:
             _register_fastembed_model_for_space(space)
         files = _model_files(space.fastembed_model_name if space else model_name)
@@ -147,10 +206,27 @@ def materialise_model_links(cache_dir: str) -> None:
                     os.unlink(tmp)
 
 
+def register_custom_model(model_name: str) -> None:
+    """Tell THIS process's fastembed about `model_name` when it is one of ours that fastembed's catalogue lacks (bge-m3).
+
+    The engine registers it when it checks the cache (`_cached`), but the model loads in a child the SEED forked at
+    engine start, before any registration ran, so the child's fastembed had never heard of it: every embed on the Air
+    failed with "Model BAAI/bge-m3 is not supported in TextEmbedding", 31,385 times in a morning (2026-10-30)."""
+    from fichero_server.db.embeddings import SUPPORTED_EMBEDDING_SPACES, _register_fastembed_model_for_space
+
+    space = SUPPORTED_EMBEDDING_SPACES.get(model_name.lower())
+    if space is not None:
+        _register_fastembed_model_for_space(space)
+
+
 def load_text_embedding(model_name: str, cache_dir: str, threads: int) -> Any:
     """fastembed's `TextEmbedding`, retried once with the cache's links made real if the load escapes the model folder (#6024)."""
     from fastembed import TextEmbedding
 
+    register_custom_model(model_name)
+    if one_folder_ready(cache_dir, model_name):  # the model fetched as plain files in one folder (#6591)
+        return TextEmbedding(model_name=model_name, cache_dir=cache_dir, threads=threads,
+                             specific_model_path=one_folder_path(cache_dir, model_name))
     try:  # only a load that fails this way touches the cache: a model that loads is never rewritten
         return TextEmbedding(model_name=model_name, cache_dir=cache_dir, threads=threads)
     except Exception as exc:  # noqa: BLE001 -- the cache's files are links into blobs/
@@ -198,16 +274,6 @@ def _serve(conn: Any, model_name: str, cache_dir: str, threads: int, env: dict[s
     _stop_lancedbs_loop()
     _let_go_of_the_engines_files(conn.fileno())
     try:
-        # A fake model imports no onnxruntime: a test's process is not launched with OBJC_DISABLE_INITIALIZE_FORK_SAFETY, as
-        # the app launches the engine (EmbeddedBackendService+Spawn.swift), and an ObjC class first set up in a fork crashes.
-        try:  # the engine asks nothing of Microsoft's servers (#5847: a telemetry thread sat in NetworkInformation)
-            if not os.environ.get("FICHERO_EMBED_FAKE_INIT_SECONDS"):
-                import onnxruntime
-
-                onnxruntime.disable_telemetry_events()
-        except Exception as exc:  # noqa: BLE001 -- an older onnxruntime has no such switch
-            os.environ["FICHERO_EMBED_TELEMETRY_SWITCH"] = f"missing: {type(exc).__name__}"  # the child's own note
-            logger.warning("embedder child: onnxruntime telemetry switch unavailable: %s", exc)
         if os.environ.get("FICHERO_EMBED_FAKE_INIT_SECONDS"):  # tests: a slow, fake model load
             import time
 

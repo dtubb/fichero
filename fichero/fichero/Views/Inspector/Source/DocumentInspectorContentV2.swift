@@ -390,7 +390,8 @@ func persistPageContent(
     // (NSURLError -999, #2466). `refreshLocalContent` happens inside the store
     // task once the save lands.
     let id = document.id
+    let seen = document.updatedAt
     return await documentStore.savePageContent(documentId: id) {
-        try await documentService.updateDocument(id, pageContent: content)
+        try await documentStore.updateText(id, content: content, seen: seen, service: documentService)
     }
 }

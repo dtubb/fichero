@@ -24,6 +24,8 @@ struct ImageWithCursorTracking: UIViewRepresentable {
     @Binding var loupeMagnification: CGFloat
     @Binding var loupeSize: CGFloat
     @Binding var coordinator: Coordinator?
+    /// A horizontal swipe on the fitted page: -1 for the previous page, +1 for the next (#6559). Nil: no pages to turn.
+    var onPageStep: ((Int) -> Void)?
 
     func makeUIView(context: Context) -> UIScrollView {
         let scrollView = makeScrollView(delegate: context.coordinator)
@@ -32,6 +34,7 @@ struct ImageWithCursorTracking: UIViewRepresentable {
         scrollView.addSubview(imageView)
         context.coordinator.scrollView = scrollView
         context.coordinator.imageView = imageView
+        context.coordinator.installPageSwipe(on: scrollView)
 
         // Override images are already decoded; a URL is decoded OFF-main (#3864).
         context.coordinator.currentOverrideImage = overrideImage
@@ -77,7 +80,11 @@ struct ImageWithCursorTracking: UIViewRepresentable {
             hasImage: hasImage
         )
 
+        // Only a zoom the person chose (pinch, Zoom In/Out, Actual Size) is pushed from the binding. While the
+        // automatic fit owns the zoom, the binding is a turn behind: after a page turn it still held the last page's
+        // fit, which zoomed the new page past its own, turned scrolling on and let the next swipe pan it (#6559).
         if autoAppliedScale == nil,
+           context.coordinator.userHasZoomedManually,
            !context.coordinator.isUserMagnifying,
            abs(scrollView.zoomScale - scale) > 0.01 {
             scrollView.zoomScale = scale
@@ -148,6 +155,16 @@ struct ImageWithCursorTracking: UIViewRepresentable {
     }
 }
 
+/// A scroll view that says when it lays out, so the first fit doesn't wait for a SwiftUI update (#6559).
+final class LayoutReportingScrollView: UIScrollView {
+    var onLayout: (() -> Void)?
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        onLayout?()
+    }
+}
+
 // MARK: - Automatic Fit (#4279)
 // In an extension so the representable's own body stays within the
 // type-body-length budget, mirroring the macOS file.
@@ -156,7 +173,10 @@ extension ImageWithCursorTracking {
     /// The scroll view's own configuration — zoom limits and the initial
     /// hidden state that prevents a flash before the first centring pass.
     private func makeScrollView(delegate: Coordinator) -> UIScrollView {
-        let scrollView = UIScrollView()
+        let scrollView = LayoutReportingScrollView()
+        // The scroll view opens hidden until its first fit, and a SwiftUI update may come before it has a size (a
+        // full-screen cover sliding in): fitting on its own layout pass shows the page as soon as it can (#6559).
+        scrollView.onLayout = { [weak delegate] in delegate?.layoutDidChange() }
         scrollView.backgroundColor = UIColor(white: 0.88, alpha: 1)
         scrollView.delegate = delegate
         scrollView.minimumZoomScale = minScale
@@ -270,7 +290,7 @@ extension ImageWithCursorTracking {
     /// (and reveal), or a re-fit because the pane resized/rotated while the user
     /// hadn't taken manual control (#4279). Returns the scale applied, or `nil`
     /// when the zoom was left alone.
-    private func applyAutomaticFit(
+    func applyAutomaticFit(
         scrollView: UIScrollView,
         coordinator: Coordinator,
         hasImage: Bool

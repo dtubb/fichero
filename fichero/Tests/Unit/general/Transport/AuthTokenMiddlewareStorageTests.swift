@@ -153,6 +153,7 @@ struct AuthTokenMiddlewareStorageTests {
         // but its sub-paths require the engine bearer token.
         #expect(AuthTokenMiddleware.isUnauthenticatedPath("/api/pair"))
         #expect(AuthTokenMiddleware.isUnauthenticatedPath("/api/pair/code") == false)
+        #expect(AuthTokenMiddleware.isUnauthenticatedPath("/api/pair/sign-in"))
         #expect(AuthTokenMiddleware.isUnauthenticatedPath("/api/pair/devices") == false)
         #expect(AuthTokenMiddleware.isUnauthenticatedPath("/api/pair/devices/abc/revoke") == false)
 

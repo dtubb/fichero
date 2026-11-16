@@ -169,9 +169,11 @@ struct DocumentInspectorInfoTab: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+}
 
-    // MARK: - Sections
+// MARK: - Sections
 
+extension DocumentInspectorInfoTab {
     @ViewBuilder
     private var statusSection: some View {
         attributeSection("Status", attributes: [.state]) {
@@ -204,6 +206,12 @@ struct DocumentInspectorInfoTab: View {
             ) {
                 Text(document.updatedAt, format: .dateTime)
                     .foregroundStyle(.secondary)
+                if let editor = documentStore.remoteEditors[document.id] {
+                    Text(editor.words)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("inspector.editedBy")
+                }
             }
         }
     }

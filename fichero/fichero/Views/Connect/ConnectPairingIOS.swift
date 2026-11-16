@@ -28,12 +28,27 @@ struct RemoteConnectionSetupView: View {
     @State private var showingManualEntry = false
     @State private var isPairing = false
     @State private var errorMessage: String?
+    /// A failed pairing, as the one alert (`sharing.alerts.one-alert-per-failure`).
+    @State private var failurePrompt: FailureAlertPrompt?
+    /// The host that asked who this device is (Step 8.9), and the link to pair again with the person.
+    @State private var signInHost: String?
+    @State private var signInFields: RemoteClientPairingFields?
+    /// A typed address's key at first contact, waiting for the person to trust it (`hostTrustAlert`).
+    @State private var trustAsk: HostKeyFingerprint.Ask?
+    @Environment(\.openURL) private var openURL
     @State private var pickerSource: CaptureSource?
     @State private var showingDocumentScanner = false
     @State private var captureError: String?
 
     var body: some View {
-        connectView
+        connectView.failureAlert($failurePrompt)
+        .personSignInAlert(host: $signInHost) { person in
+            guard let fields = signInFields else { return }
+            Task {
+                do { try await finishPairing(with: fields, person: person) } catch { show(error) }
+            }
+        }
+        .hostTrustAlert($trustAsk) { askSignIn(HostKeyProbe.signInFields($0.url, pin: $0.pin)) }
         // #2347: on iPhone/iPad the pairing screen opens STRAIGHT into QR
         // scanning — the whole point is to scan the host Mac's code. Present the
         // scanner once on first appearance; after a Cancel the landing card's
@@ -243,7 +258,8 @@ struct RemoteConnectionSetupView: View {
             errorMessage = nil
             Task { await pair(with: payload) }
         } catch {
-            errorMessage = error.localizedDescription
+            // A QR that is not a pairing payload is the table's "This isn't a pairing link" alert, never the decoder's words.
+            show(PairingFailureError(failure: .invalidLink, context: .init(host: pickedHost?.name ?? "your Mac")))
         }
     }
 
@@ -251,11 +267,13 @@ struct RemoteConnectionSetupView: View {
         do {
             try await finishPairing(with: RemoteClientPairing.pairingFields(from: payload))
         } catch {
-            errorMessage = error.localizedDescription
+            show(error)
         }
     }
+}
 
-    private func handleCapturedImage(_ image: UIImage, source: CaptureSource) {
+private extension RemoteConnectionSetupView {
+    func handleCapturedImage(_ image: UIImage, source: CaptureSource) {
         pickerSource = nil
         let jpegData = image.jpegData(compressionQuality: 0.9)
         guard let data = jpegData ?? image.pngData() else {
@@ -275,7 +293,7 @@ struct RemoteConnectionSetupView: View {
         }
     }
 
-    private func handleScannedDocumentImages(_ images: [UIImage]) {
+    func handleScannedDocumentImages(_ images: [UIImage]) {
         #if canImport(VisionKit) && !os(visionOS)
         showingDocumentScanner = false
         #endif
@@ -300,9 +318,7 @@ struct RemoteConnectionSetupView: View {
             }
         }
     }
-}
 
-private extension RemoteConnectionSetupView {
     /// Manual fallback/debug path (#2350): pair from a pasted invite link or raw
     /// QR payload text. This is the ONLY pairing route on visionOS (no camera
     /// scanner) and the fallback on iPhone/iPad when the camera is unavailable.
@@ -312,17 +328,51 @@ private extension RemoteConnectionSetupView {
         showingManualEntry = false
         Task {
             do {
+                // A typed address (Step 8.9): trust its key at first contact, then sign the person in; no code, no link.
+                if let address = HostKeyProbe.typedAddress(trimmed) {
+                    if let ask = try await HostKeyProbe.firstContact(address) { trustAsk = ask } else {
+                        askSignIn(HostKeyProbe.signInFields(address, pin: nil))
+                    }
+                    return
+                }
                 try await finishPairing(with: RemoteClientPairing.pairingFields(fromInviteOrPayload: trimmed))
             } catch {
-                errorMessage = error.localizedDescription
+                show(error)
             }
         }
     }
 
-    func finishPairing(with fields: RemoteClientPairingFields) async throws {
+    /// The failure as the one alert: the step's title and sentence, its fix where this screen can do it, Copy Details.
+    func show(_ error: Error) {
+        if SharingFailurePrompt.asksForPerson(error), let fields = signInFields {
+            signInHost = pickedHost?.name ?? URL(string: fields.remoteURL)?.host ?? "your Mac"
+            return
+        }
+        failurePrompt = SharingFailurePrompt.make(
+            pairing: error, host: pickedHost?.name ?? "your Mac", offers: SharingFailurePrompt.phoneOffers,
+            perform: { fix in
+                if let url = SharingFailurePrompt.url(for: fix) {
+                    openURL(url)
+                } else if fix == .pasteLinkAgain {
+                    showingManualEntry = true
+                } else {
+                    showingScanner = supportsCameraScanner
+                }
+            },
+            copy: { PlatformPasteboard.writeString($0) })
+    }
+
+    /// The host is reached and trusted; ask who this device is, then pair with these fields.
+    func askSignIn(_ fields: RemoteClientPairingFields) {
+        signInFields = fields
+        signInHost = URL(string: fields.remoteURL)?.host ?? "your Mac"
+    }
+
+    func finishPairing(with fields: RemoteClientPairingFields, person: PairingPerson? = nil) async throws {
         if let pickedHost, let refusal = HostChoices.refusal(forInviteAt: fields.remoteURL, picked: pickedHost) {
             throw APIError.badRequest(refusal)
         }
+        signInFields = fields
         isPairing = true
         errorMessage = nil
         defer { isPairing = false }
@@ -331,7 +381,9 @@ private extension RemoteConnectionSetupView {
             pairCode: fields.pairCode,
             deviceName: RemoteClientPairing.defaultDeviceName(),
             expectedSPKIPin: fields.spkiPin,
-            libraryPath: fields.libraryPath
+            libraryPath: fields.libraryPath,
+            person: person,
+            altURLs: fields.altURLs
         )
         // Repoint the app-level client at the freshly-paired host; adopt +
         // reload fire once in the ready transition (#3113), not here.

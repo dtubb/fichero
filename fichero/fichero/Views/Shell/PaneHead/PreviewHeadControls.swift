@@ -12,7 +12,7 @@ import SwiftUI
 /// The identity-capsule content: the Preview ∨ / Edit selector, then the
 /// paging cluster (up-to-parent · ‹ ›) left of the breadcrumb.
 struct PreviewHeadSelectorGroup: View {
-    let selector: PaneKindSelector<PreviewLens>
+    let selector: PaneKindSelector<PreviewWorkMode>
     let chrome: PreviewPaneChrome
     /// Non-nil when the shown document HAS a visual parent (Daniel,
     /// 2026-08-29: a region/page-part needs an obvious one-click way BACK UP
@@ -32,7 +32,7 @@ struct PreviewHeadSelectorGroup: View {
                 Image(systemName: "arrow.turn.left.up")
                     .font(.callout)
             }
-            .buttonStyle(.borderless)
+            .paneBarButtonStyle()
             // No key binding for the three nav controls here: ⌘[ / ⌘] belong
             // to `CanvasMenuCommands` and ⌘⌥[ / ⌘⌥] to the magnifier's zoom
             // in `ImagePreviewMenuCommands`. A second view binding the same
@@ -59,7 +59,7 @@ struct PreviewHeadSelectorGroup: View {
         } label: {
             Image(systemName: "chevron.left").font(.callout)
         }
-        .buttonStyle(.borderless)
+        .paneBarButtonStyle()
         .disabled(nav.map { !$0.canGoPrevious } ?? false)
         .help("Previous page in this document")
         .accessibilityLabel("Previous page")
@@ -79,7 +79,7 @@ struct PreviewHeadSelectorGroup: View {
         } label: {
             Image(systemName: "chevron.right").font(.callout)
         }
-        .buttonStyle(.borderless)
+        .paneBarButtonStyle()
         .disabled(nav.map { !$0.canGoNext } ?? false)
         .help("Next page in this document")
         .accessibilityLabel("Next page")
@@ -91,41 +91,35 @@ struct PreviewHeadSelectorGroup: View {
 /// menu.
 struct PreviewHeadLensControls: View {
     let chrome: PreviewPaneChrome
-    /// The window's Edit Segments mode -- the SAME state the What-to-show toggle writes, so
-    /// the two switches can never disagree (`WindowState.isEditingSegments`).
-    @Environment(WindowState.self) private var windowState: WindowState?
+    /// Opens the shown page or image full screen (`preview.full-screen-page`, #6560); nil hides the button.
+    var onEnterFullScreen: (() -> Void)?
 
     /// Whether the floating magnification cluster (mini-map / zoom pill /
     /// loupe + magnifier toggles) is showing over the canvas.
     @PaneStorage("imagePreview.zoomControlsVisible") private var zoomControlsVisible = true
 
     var body: some View {
-        editSegmentsToggle
         zoomControlsToggle
+        fullScreenButton
         renditionSteppers
         renditionsMenu
     }
 
-    /// Edit Segments in the HEAD (ruled 2026-09-27, Q3): the mode was reachable only inside the
-    /// What-to-show menu, which is a place to look for display options, not for "can I change
-    /// this page". Both switches write one state; the menu entry stays.
+    /// The page full screen, as the iPad's viewfinder button opens it: the full-window reader ⌃⌘R opens, ← → for the
+    /// pages, Esc to leave. Mac only: the iPad has its own on the image's bar (`ZoomableImagePreviewIOS`).
     @ViewBuilder
-    private var editSegmentsToggle: some View {
-        if chrome.canEditSegments, let windowState {
-            let isEditing = windowState.isEditingSegments
-            Button {
-                windowState.isEditingSegments.toggle()
-            } label: {
-                Image(systemName: "rectangle.and.pencil.and.ellipsis")
+    private var fullScreenButton: some View {
+        #if os(macOS)
+        if let onEnterFullScreen {
+            Button(action: onEnterFullScreen) {
+                Image(systemName: "viewfinder")
             }
-            .buttonStyle(.borderless)
-            .foregroundStyle(isEditing ? Color.accentColor : Color.secondary)
-            .help(isEditing ? "Stop editing segments -- the page is for reading"
-                     : "Edit Segments -- draw, move, join and delete segments on this page")
-            .accessibilityLabel("Edit Segments")
-            .accessibilityValue(isEditing ? "On" : "Off")
-            .accessibilityIdentifier("previewHeadEditSegments")
+            .paneBarButtonStyle()
+            .help("View Full Screen (⌃⌘R)")
+            .accessibilityLabel("View full screen")
+            .accessibilityIdentifier("previewHeadFullScreen")
         }
+        #endif
     }
 
     /// ▲▼ rendition stepping RIGHT of the breadcrumb (Daniel, 2026-09-02:
@@ -141,7 +135,7 @@ struct PreviewHeadLensControls: View {
             } label: {
                 Image(systemName: "chevron.up").font(.callout)
             }
-            .buttonStyle(.borderless)
+            .paneBarButtonStyle()
             .disabled(chrome.renditionIndex <= 0)
             .help("Previous rendition of this page (swipe up)")
             .accessibilityLabel("Previous rendition")
@@ -152,7 +146,7 @@ struct PreviewHeadLensControls: View {
             } label: {
                 Image(systemName: "chevron.down").font(.callout)
             }
-            .buttonStyle(.borderless)
+            .paneBarButtonStyle()
             .disabled(chrome.renditionIndex >= chrome.renditionNames.count - 1)
             .help("Next rendition of this page (swipe down)")
             .accessibilityLabel("Next rendition")
@@ -178,7 +172,7 @@ struct PreviewHeadLensControls: View {
             // tint says whether the cluster is on.
             Image(systemName: "plus.magnifyingglass")
         }
-        .buttonStyle(.borderless)
+        .paneBarButtonStyle()
         .foregroundStyle(zoomControlsVisible ? Color.accentColor : Color.secondary)
         // Not ⌘⌥Z: any "z" key equivalent outside the Edit menu trips the
         // ⌘Z single-owner guard (#4354).
@@ -210,7 +204,7 @@ struct PreviewHeadLensControls: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            .menuStyle(.borderlessButton)
+            .paneBarMenuStyle()
             .fixedSize()
             .help("Which rendition of this page is showing — original, enhanced, deskewed…")
             .accessibilityLabel("Renditions")

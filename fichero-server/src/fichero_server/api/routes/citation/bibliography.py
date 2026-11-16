@@ -6,14 +6,14 @@ import logging
 from fichero_server.core.timeutil import utc_now
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
 from fichero_server.actions.registry import ActionContext, audit_with_digests, registry
 from fichero_server.api.auth import action_context
 from fichero_server.api.library_header import require_library_path
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.main import get_library_database, get_library_database_for_write, read_check
 from fichero_server.db import Database
 from fichero_server.models import Document
 
@@ -197,8 +197,12 @@ class ExportRequest(BaseModel):
 async def export_bibtex(
     request: ExportRequest,
     db: Database = Depends(get_library_database),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
 ):
     from fichero_server.bibliography.importers import write_bibtex
+
+    await read_check(http, library_path, db, request.document_ids, deep=False)  # their source metadata comes back (#6320)
 
     entries: list[dict[str, Any]] = []
     for doc_id in request.document_ids:

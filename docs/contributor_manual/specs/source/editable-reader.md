@@ -72,7 +72,7 @@ Lives in: the WebKit Reader (`fichero-server/src/fichero_server/api/templates/do
   and their readings are not changed. Once a person has a reading on a line, the page reads the
   line from that reading and skips its words (#5224, commit `61d332e63`; the matching behavior
   `source.textedit.an-edited-line-reads-from-itself` is still tagged GAP in `segment-editor.md`).
-- **Retiring a word whose text left the line is ruled (2026-09-28, #5190) and not built.**
+- **Retiring a word whose text left the line is ruled (2026-09-28, #5190); the engine half is built** (`models/word_spans.py`, `segment_readings.py`; pinned by `tests/unit/models/test_word_spans.py` and `tests/unit/api/test_a_word_left_out_of_its_line_is_retired.py`). The Reader's own use of it is not seen in the app.
 - **The only geometry ever worked out from text is the split's cut:** one rectangle cut in two at
   `offset / length`, both halves marked `metadata.cut = "estimated"` (`segments.py`,
   `estimated_cut`). The app does not read that mark.
@@ -98,6 +98,21 @@ Tags: [OK] built · [PARTIAL] partly built · [MISSING] not built.
   line map is still editable. The edit is one page-level reading by the person that corrects the
   text shown, through `representation.create` with no segment. The page has no boxes before and
   none after.
+- `reader.content.a-page-shows-its-own-reading` [OK] (#6470) — a page with no text from its lines
+  but a reading stored on the page itself (no segment) shows that reading in the Content view, not
+  "No transcription yet". Of the page's own readings the one as written comes first, then the
+  shipped levels in order; a person's over a machine's; the newest. The page says which level it
+  shows (`reading_level`), and a page shown this way has no line map, since no line carries it.
+  A page with text from its lines is never replaced. Test: `fichero-server/tests/unit/api/test_routes_views.py`.
+- `reader.content.a-page-reads-its-own-lines` [OK] (#6579; owner 2026-11-13) — the Content view of
+  a page shows that page's text in its reading order, built from its working lines' counting
+  readings: the text the segment list and the Inspector's Order tab show. A page whose stored text
+  is empty while its lines have readings has its text derived from those lines when it is shown,
+  and shows it with its line map. A page's crops and its regions are not its pages: a hand-drawn
+  crop is never a section of the Reader, and a page's regions are its sections only when one of
+  them has text of its own; otherwise the page reads as itself, never as a list of empty "Page N
+  … crop — No transcription yet" sections. A request for one region still lists that region's
+  cohort. Test: `fichero-server/tests/unit/api/test_reader_content_reads_the_lines.py`.
 - `reader.edit.no-second-writer` [MISSING] (#5289) — the native page pane's Edit saves through
   the same runner as the Reader. Nothing writes a page's text to the document directly.
   (`source.lineeditor.one-path`, #5209, says the same of every home.)

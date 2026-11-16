@@ -46,7 +46,7 @@ struct RecipeStepsView: View {
             ForEach(recipe.steps.filter { (onlyJobs?.contains($0.job) ?? true) && (onlyStepId == nil || $0.id == onlyStepId) },
                     id: \.id) { step in
                 let fit = CandidateFit.ofStep(card: step.card?.id, in: candidatesOf?(step.id) ?? [])
-                RecipeStepRow(lines: Self.lines(for: step, store: store, inSetup: onFix != nil, fit: fit),
+                RecipeStepRowView(lines: Self.lines(for: step, store: store, inSetup: onFix != nil, fit: fit),
                               explanation: onFix == nil ? store.explanation(ofJob: step.job) : nil,
                               onFix: fixHandler(for: step),
                               useSmaller: useSmaller(for: step))
@@ -54,6 +54,8 @@ struct RecipeStepsView: View {
                     Label(words, systemImage: "arrow.clockwise").font(.callout).foregroundStyle(.secondary)
                 }
                 if onFix != nil { planEditControls(for: step) }  // Ready only: take a step out (#5627)
+                // The second Review model's mode sits with its model picker (#6257).
+                if onFix != nil, step.id == RecipeSetupStore.secondReviewStepId { SecondReviewModePicker(store: store) }
                 if onFix != nil, finder != nil, store.offersFinder(step.job) {
                     Button(store.readsMaterial(step.job) ? "Find a Reader…" : "Choose a Model…") {
                         findingFor = FinderStep(id: step.id, job: step.job)
@@ -153,8 +155,8 @@ extension RecipeStepsView {
             lines.append(.place(step.needs ?? (step.reasons ?? []).first.map { "Built in · \($0)" } ?? "Built in", cloud: false))
         } else if let problem = step.problem {
             lines.append(.problem(problem.sentence))
-            lines.append(inSetup ? .fix(title: RecipeStepRow.fixTitle(problem.fix), fix: problem.fix) : .detail(problem.detail))
-        } else if let place = RecipeStepRow.whereItRuns(step) {
+            lines.append(inSetup ? .fix(title: RecipeStepRowView.fixTitle(problem.fix), fix: problem.fix) : .detail(problem.detail))
+        } else if let place = RecipeStepRowView.whereItRuns(step) {
             lines.append(.place(place, cloud: step.usesCloud == true))
         }
         // The engine names the Normalise step's runs (`run_titles`, #5795); the app keeps no list of its own.
@@ -179,7 +181,7 @@ extension RecipeStepsView {
     }
 }
 
-struct RecipeStepRow: View {
+struct RecipeStepRowView: View {
     let lines: [RecipeStepsView.StepLine]
     /// The topic's paragraph and example: the Inspector only (setup keeps one sentence).
     let explanation: Components.Schemas.TopicInfo?

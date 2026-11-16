@@ -9,7 +9,7 @@ import simd
 enum CanvasTargetKind: Equatable {
     /// Folder / document-with-pages / workspace — a thing that CONTAINS items.
     case container
-    /// Page / note / quote / text / entity — a leaf; dropping links to it.
+    /// Page / note / quote / text / entity — a leaf; a drop places beside it, ⌥-drop links to it.
     case leaf
 }
 
@@ -46,7 +46,7 @@ extension DropOutcome {
     ///   • Esc (`.cancel`) → `.cancel` (wins over everything).
     ///   • no target, or the target is the dragged item itself → `.place`.
     ///   • ⌥ (`.forceLink`) → `.link`, even over a container.
-    ///   • container → `.moveInto`; leaf → `.link`.
+    ///   • container → `.moveInto`; leaf → `.place` (a link only with ⌥).
     static func classify(
         draggedId: String,
         target: CanvasDropTarget?,
@@ -66,7 +66,16 @@ extension DropOutcome {
         case .container:
             return .moveInto(containerId: target.id)
         case .leaf:
-            return .link(targetId: target.id)
+            // A plain drop beside or over another card PLACES it (#4601, owner 2026-11-11: lines kept appearing
+            // between cards). Linking is deliberate: ⌥, above.
+            return .place(position: position)
         }
+    }
+
+    /// Whether a target under the drag lights up: only where the drop will act on it (into a container, or a link
+    /// with ⌥), so a card passed over on the way never looks like it will take the drop.
+    static func lightsTarget(_ target: CanvasDropTarget?, modifiers: CanvasDropModifiers) -> Bool {
+        guard let target, !modifiers.contains(.cancel) else { return false }
+        return target.kind == .container || modifiers.contains(.forceLink)
     }
 }

@@ -59,3 +59,14 @@ def test_list_endpoint_helper_uses_natural_order():
 
     docs = [doc("page10"), doc("page2")]
     assert [d.name for d in _ordered_by_sort_order(docs)] == ["page2", "page10"]
+
+
+def test_finder_order_numbers_by_value_accents_and_ties():
+    nums = ["101", "2", "100", "10", "1", "9", "11"]
+    assert sorted(nums, key=natural_key) == ["1", "2", "9", "10", "11", "100", "101"]
+    assert sorted(["Hoja 10", "Hoja 2"], key=natural_key) == ["Hoja 2", "Hoja 10"]
+    assert sorted(["11_Hoja_958", "1_Hoja_958", "2_Hoja_1"], key=natural_key) == [
+        "1_Hoja_958", "2_Hoja_1", "11_Hoja_958"]
+    assert sorted(["zeta", "Éa", "eb"], key=natural_key) == ["Éa", "eb", "zeta"]
+    assert sorted(["b", "B", "é", "e"], key=natural_key) == sorted(["B", "e", "b", "é"], key=natural_key)
+    assert natural_key("é") != natural_key("e")

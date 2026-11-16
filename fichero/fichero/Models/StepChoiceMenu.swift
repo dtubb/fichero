@@ -11,7 +11,6 @@ struct StepChoiceMenu: Equatable, Identifiable {
     enum ChosenBy: Equatable { case setup, person }
 
     struct Need: Equatable {
-        enum Kind: Equatable { case permission, key, download, price, other }  // other: a kind this app does not know; its words still show
         let kind: Kind
         let words: String
     }
@@ -123,4 +122,8 @@ struct StepChoiceMenu: Equatable, Identifiable {
     var certaintyBarText: String? {
         certaintyBar.map { "Lines the reader is under \(Int(($0 * 100).rounded()))% sure of are corrected" }
     }
+}
+
+extension StepChoiceMenu.Need {
+    enum Kind: Equatable { case permission, key, download, price, other }  // other: a kind this app does not know; its words still show
 }

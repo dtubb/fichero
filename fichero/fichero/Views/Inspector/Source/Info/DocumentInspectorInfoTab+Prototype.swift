@@ -21,6 +21,8 @@ struct DocumentPrototypePicker: View {
     @State private var prototypes: [Components.Schemas.ClassificationValue] = []
     @State private var isAssigning = false
     @State private var showTypeEditor = false
+    /// The kind the engine resolved when this node has none of its own (inherited by level).
+    @State private var inheritedKind: (key: String, words: String)?
 
     var body: some View {
         LabeledContent("Prototype") {
@@ -65,6 +67,14 @@ struct DocumentPrototypePicker: View {
                         if let key = selectedKey,
                            let proto = prototypes.first(where: { $0.key == key }) {
                             PrototypeBadge(proto: proto)
+                        } else if let inheritedKind,
+                                  let proto = prototypes.first(where: { $0.key == inheritedKind.key }) {
+                            Text(proto.label)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(inheritedKind.words)
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
                         } else {
                             Text("None")
                                 .font(.caption)
@@ -82,11 +92,15 @@ struct DocumentPrototypePicker: View {
         .task {
             selectedKey = initialKey
             await reloadPrototypes()
+            await reloadInheritedKind()
         }
         // The node read again (an accepted proposed kind, #5600): its kind, and a prototype made for it.
         .onChange(of: initialKey) { _, key in
             selectedKey = key
-            Task { await reloadPrototypes() }
+            Task {
+                await reloadPrototypes()
+                await reloadInheritedKind()
+            }
         }
         .sheet(isPresented: $showTypeEditor) {
             PrototypeEditorSheet(entityService: entityService) {
@@ -101,6 +115,18 @@ struct DocumentPrototypePicker: View {
         }
     }
 
+    /// A node with no kind of its own may still have one by level ("from Caja 12’s kind"); shown greyed,
+    /// and "None" in the menu clears only the node's own kind.
+    private func reloadInheritedKind() async {
+        inheritedKind = nil
+        guard let svc = entityService, selectedKey == nil,
+              let found = try? await svc.effectiveAttributes(documentId: documentId),
+              let key = found.effectivePrototypeKey,
+              let words = OriginWords.kindWords(rule: found.kindRule, from: found.kindFrom,
+                                                ancestorNames: found.ancestorNames) else { return }
+        inheritedKind = (key, words)
+    }
+
     private func assign(_ key: String?) async {
         guard let svc = entityService else { return }
         isAssigning = true
@@ -110,6 +136,7 @@ struct DocumentPrototypePicker: View {
             // the UI while the engine kept the old prototype.
             try await svc.assignDocumentPrototype(documentId: documentId, prototypeKey: key)
             selectedKey = key
+            await reloadInheritedKind()
         } catch {
             // Keep the UI honest: the selection only moves when the engine
             // accepted it.

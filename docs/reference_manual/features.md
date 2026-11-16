@@ -57,8 +57,10 @@ Build-tier visibility uses a maturity floor:
 | Spatial mode | `dev` | `fichero.features.spatial_mode` | - | Clients | Spatial library presentation mode. |
 | Workspace mode | `dev` | `fichero.features.workspace_mode` | - | Clients | Alternate workspace-oriented shell mode. |
 | IIIF | `dev` | - | `/api/iiif` | Core | IIIF image and annotation server interoperability. |
+| Wide Set Up | `dev` | - | - | Core | The wide Set Up (pager, operation switches, Compare); off in release until ratified. |
 | Agents | `dev` | `fichero.features.agents` | - | Knowledge | In-app agent surface still in the rawest stage. |
 | Chat | `dev` | `fichero.features.chat` | `/api/chat` | Knowledge | RAG conversation over the active library. |
+| Dev workers | `dev` | - | `/api/workers` | Knowledge | Engine-run dev worker processes (the dev harness, |
 | Research | `dev` | `fichero.features.research` | `/api/research` | Knowledge | KG-backed research workflows and answer surface. |
 | Automation | `dev` | `fichero.features.automation` | `/api/schedules`, `/api/triggers` | Processing | Schedules, triggers, and automated flows. |
 | Workflow tools agents | `dev` | `fichero.features.workflow_tools_agents` | - | Processing | Agent-backed workflow tools still under review. |

@@ -13,6 +13,11 @@ extension ContentView {
     /// ContentView+RootLayout.swift — `private` is file-scoped.
     @ToolbarContentBuilder
     var detailToolbarContent: some ToolbarContent {
+        // Back/Forward, and the Sidebar/Chat pair while the sidebar is hidden: the Mac draws these from the split
+        // view's own toolbar, which an iPad's bars ignore (#6563).
+        #if os(iOS)
+        leadingToolbarContent
+        #endif
         contentPaneToolbarContent
         // Compact inspector toggle in the content section. .automatic on the
         // detail column view lands in the content-column toolbar section
@@ -61,7 +66,8 @@ extension ContentView {
                 // toggle remains visible even when the inspector is closed
                 // — same mechanism as the sidebar-section buttons (#2309).
                 .toolbar {
-                    if showInspectorToggle {
+                    // The Mac's place for it; iOS draws it in the content's bar (#6561, `InspectorToggleHome`).
+                    if showInspectorToggle && inspectorToggleHome == .inspectorColumn {
                         ToolbarItem(id: ContentToolbarID.inspectorToggle, placement: .primaryAction) {
                             inspectorToggleButton
                         }
@@ -72,16 +78,10 @@ extension ContentView {
                     // options in its magnifier menu. iOS keeps the system
                     // item with the options loupe beside it (UIKit has no
                     // magnifier menu). See ContentView+ToolbarSearch.swift.
+                    // iOS draws its search item in the content's bar, far right (#6563): this column has no bar there.
                     #if os(macOS)
                     ToolbarItem(id: ContentToolbarID.search, placement: .primaryAction) {
                         toolbarSearchItem
-                    }
-                    #else
-                    DefaultToolbarItem(kind: .search, placement: .primaryAction)
-                    ToolbarItem(
-                        id: ContentToolbarID.searchOptions, placement: .primaryAction
-                    ) {
-                        searchOptionsToolbarButton
                     }
                     #endif
                 }

@@ -1,6 +1,7 @@
 import Darwin
 import FicheroAPIClient
 import Foundation
+import SystemConfiguration
 
 enum RemoteAccessConfig {
     /// Reads and writes go through this seam so tests can point the type at a
@@ -22,9 +23,15 @@ enum RemoteAccessConfig {
         defaults.bool(forKey: bonjourEnabledKey)
     }
 
-    /// The `.local` address the engine listens on while Sharing is on (`sharing.listener`).
+    /// The network address the engine listens on while Sharing is on (`sharing.listener`): a `.local` name, or an IPv4
+    /// address such as the Thunderbolt bridge's 10.10.10.1. Naming only `.local` left a saved IP with a loopback-only
+    /// engine that refused every pairing code. Never a `.ts.net` name (Tailscale serves the loopback port) or loopback.
     static func lanListenerHost(publicHost: String?) -> String? {
-        guard let publicHost, publicHost.hasSuffix(".local") else { return nil }
+        guard let publicHost else { return nil }
+        if publicHost.hasSuffix(".local") { return publicHost }
+        var address = in_addr()
+        guard publicHost.withCString({ inet_pton(AF_INET, $0, &address) }) == 1,
+              !publicHost.hasPrefix("127.") else { return nil }
         return publicHost
     }
 
@@ -61,8 +68,20 @@ enum RemoteAccessConfig {
     /// The ONE home for the automatic address (#5042): the Share sheet and the
     /// Sharing settings pane both forward here, so they cannot drift apart.
     /// Port mirrors `EngineConfig.defaultHostString` so both stay in sync.
+    ///
+    /// The name is the Mac's LocalHostName, which is what mDNS publishes (`sharing.host-name-is-the-bonjour-name`), never
+    /// `ProcessInfo.hostName`, the DNS/directory name that no other Mac resolves. It is a seam so a test names the Mac.
+    nonisolated(unsafe) static var localHostName: () -> String? = {
+        #if os(macOS)
+        SCDynamicStoreCopyLocalHostName(nil) as String?
+        #else
+        nil  // iOS has no SCDynamicStore; a phone never hosts, so it falls back to ProcessInfo's name
+        #endif
+    }
+
     static var autoLocalBaseURL: String {
-        var host = ProcessInfo.processInfo.hostName.lowercased()
+        let bonjour = (localHostName() ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        var host = (bonjour.isEmpty ? ProcessInfo.processInfo.hostName : bonjour).lowercased()
         if !host.hasSuffix(".local") {
             host = (host.components(separatedBy: ".").first ?? host) + ".local"
         }
@@ -210,11 +229,20 @@ func validatedRemoteURL(
     components.path = ""
     components.query = nil
     components.fragment = nil
+    components.port = components.port ?? enginePortIfOwnAddress(normalizedHost)
 
     guard let url = components.url else {
         throw RemoteURLValidationError.invalid
     }
     return url
+}
+
+/// A Mac's own address (an IP, a .local name) answers only on the engine's port: a link, a typed host or a saved server
+/// without one (`https://10.10.10.1`, #6383) gets 8765, never 443 where nothing listens. A .ts.net or public name keeps
+/// what it says (a `tailscale serve` or a proxy may well be on 443); loopback keeps what it says.
+private func enginePortIfOwnAddress(_ host: String) -> Int? {
+    guard !EngineConfig.isLoopbackHostLiteral(host), host.hasSuffix(".local") || isIPAddressLiteral(host) else { return nil }
+    return 8765  // the shipped engine port (`bind_host.SHIPPED_PORT`, `EngineConfig.defaultHostString`)
 }
 
 func validatedHostedRemoteURL(from raw: String) throws -> URL {

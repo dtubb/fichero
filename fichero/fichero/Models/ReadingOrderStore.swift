@@ -42,8 +42,16 @@ final class ReadingOrderStore {
         }
     }
 
+    /// A segment edit made anywhere (a delete, its ⌘Z) changes which rows the order holds; the level shown is
+    /// read again on `SegmentEditRunner.didChange` for THIS page (#6423: a deleted segment stayed listed).
+    @ObservationIgnored private var changes: SegmentChangeObserver?
+
     init(transport: ReadingOrderTransport) {
         self.transport = transport
+        changes = SegmentChangeObserver { [weak self] pageId in
+            guard let self, pageId == nil || pageId == self.documentId else { return }
+            await self.reloadEntries()
+        }
     }
 
     /// The page's working pass when its orders were read (`SegmentStore.workingPass`), so the list can
@@ -70,16 +78,18 @@ final class ReadingOrderStore {
 
     /// Load a document's orders and show `preferred` (the file's own order, by default) or the first.
     func load(documentId: String, preferred name: String = "as-written") async throws {
+        // Read everything first, assign after: a read that fails or is cancelled (the page changed under it) must not
+        // leave this store believing it holds `documentId`, or `loadFollowing` skips every retry and the list stays empty.
+        let loaded = try await transport.orders(documentId: documentId)
+        let chosen = (loaded.first { $0.name == name } ?? loaded.first)?.id
+        var top: [ReadingOrderMove.Entry] = []
+        if let chosen { top = try await transport.entries(orderId: chosen, parentEntryId: nil) }
         self.documentId = documentId
-        orders = try await transport.orders(documentId: documentId)
-        orderId = (orders.first { $0.name == name } ?? orders.first)?.id
+        orders = loaded
+        orderId = chosen
         levels = [:]
         shownLevel = .top
-        if let orderId {
-            entries = try await transport.entries(orderId: orderId, parentEntryId: nil)
-        } else {
-            entries = []
-        }
+        entries = top
     }
 
     /// Show another of the page's orders (the picker, #5160): its top level, from the engine.

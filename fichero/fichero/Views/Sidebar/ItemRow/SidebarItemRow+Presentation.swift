@@ -162,11 +162,21 @@ extension SidebarItemRow {
             // the same invokeAction path document.delete uses. Locked mirror
             // rows get the engine's 403 on the banner.
             guard let library else { return nil }
+            // A right-click inside a multi-selection duplicates every selected document (#6528); outside it, this row.
+            let selected = sidebarContextTargetIds(clicked: item.id, selection: resolvedSelectionItems.map(\.id))
+            let docs: [Document] = selected.count > 1
+                ? resolvedSelectionItems.filter { selected.contains($0.id) }.compactMap {
+                    if case .document(let selectedDoc) = $0.itemType { return selectedDoc }
+                    return nil
+                }
+                : [doc]
             return duplicateTask {
-                try await UndoableChange.invoke(
-                    "document.duplicate", params: DocumentDuplicateActionParams(docId: doc.id, parentId: nil),
-                    named: "Duplicate", service: library.actionsService, steps: windowState.steps
-                )
+                for target in docs {
+                    try await UndoableChange.invoke(
+                        "document.duplicate", params: DocumentDuplicateActionParams(docId: target.id, parentId: nil),
+                        named: "Duplicate", service: library.actionsService, steps: windowState.steps
+                    )
+                }
                 await library.documentStore.refresh()
             }
         case .workflow(let workflow):

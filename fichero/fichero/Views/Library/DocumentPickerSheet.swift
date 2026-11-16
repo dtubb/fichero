@@ -209,11 +209,11 @@ private enum BatchProcessingOrder: CaseIterable {
         switch self {
         case .alphabeticalAsc:
             return documents.sorted {
-                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+                $0.name.finderOrder($1.name)
             }
         case .alphabeticalDesc:
             return documents.sorted {
-                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedDescending
+                $1.name.finderOrder($0.name)
             }
         case .createdOldestFirst:
             return documents.sorted { $0.createdAt < $1.createdAt }

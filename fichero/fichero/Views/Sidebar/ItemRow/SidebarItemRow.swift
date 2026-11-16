@@ -55,6 +55,8 @@ struct SidebarItemRow: View {
     @Bindable var sidebarState: SidebarState
     @Bindable var libraryManager: LibraryManager
     var onOpenChatWithCurrentScope: (() -> Void)?
+    /// Writes a whole selection through the sidebar's one commit seam; a nested row's fallback tap uses it (#6534).
+    var onSelectionProposal: ((Set<SidebarDestination>) -> Void)?
 
     @Environment(WorkflowExecutionObserver.self) var executionObserver
     @Environment(WindowState.self) var windowState
@@ -100,6 +102,9 @@ struct SidebarItemRow: View {
 
     /// An automation verb changed a schedule, trigger or batch: the sidebar reads them again (#5712).
     var onAutomationChanged: (() -> Void)?
+    /// The click fallback for this row's own name while it is expanded (`sidebarExpandedLabelTapActs`); the code that
+    /// builds the row supplies it, since only it knows the siblings a ⇧-click ranges over.
+    var onExpandedLabelTap: (() -> Void)?
 
     /// This row's automation verbs (#5712): the engine's own actions, the same items Project › Workflows ▸ renders;
     /// nil for a row that is not a schedule, trigger or batch.
@@ -257,6 +262,7 @@ struct SidebarItemRow: View {
                     // Idempotent + cheap when everything is cached:
                     // cacheSidebarChildren returns the cache hit and
                     // containersNeedingChildren comes back empty.
+                    InteractionProfile.begin(.sidebarExpand, detail: document.id)
                     Task { await store.loadSidebarChildren(of: document) }
                 } else {
                     expandedItems.remove(item.id)

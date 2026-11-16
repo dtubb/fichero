@@ -26,7 +26,9 @@ better reader measured on this project, then the newest; so a rough re-read afte
 displace a better tied stretch, and an older machine reading stays as history.
 
 The tie runs by itself after a page reading is saved (`after_page_reading`, #5558): one waiting job per
-page with lines, on the local model lane; no recipe step needs to name it.
+page with lines, on the local model lane; no recipe step needs to name it. It runs whichever comes first,
+the reading or the lines: lines saved on a page that already has an eligible reading queue the same job
+(`after_lines`, from `convert_new_results`), so a page read whole and then segmented is tied too.
 
 The page's reading is ranked (`page_reading`): a person's, then a checked model reading, then the newest
 model transcription; never a flagged read, and never a reading that is the lines' own text (a reader's
@@ -39,6 +41,7 @@ from __future__ import annotations
 import json
 import unicodedata
 import uuid
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -184,6 +187,36 @@ WAIT_FOR_KRAKEN_SECONDS = 15
 MOST_WAITS_FOR_KRAKEN = 60
 
 
+#: Kraken's reads of given lines, by (image bytes, model, frame, line shapes): each candidate of a try runs the tie on its own copy
+#: of the project, and the same input with the same model is never read twice (owner rule, #6127).
+#: Bounded: a candidate's copy is read right after the one before it, so only the latest pages matter; a 100k-page run must not
+#: keep every page's lines in memory.
+_READS: OrderedDict[tuple[Any, ...], list[Any]] = OrderedDict()
+_MOST_READS_KEPT = 32
+
+
+def _read_once(path: Any, model_path: str, lines: list[dict[str, Any]], frame: str | None) -> list[Any]:
+    """`read_given_lines`, answered from `_READS` when this image, reader and lines were already read (ids left out of the key:
+    a copy's lines carry their own ids, the reads come back in the order given)."""
+    import hashlib
+
+    from fichero_server.llm import kraken_runtime
+
+    key = None
+    if Path(path).is_file():
+        shapes = json.dumps([[ln.get("polygon"), ln.get("baseline")] for ln in lines], sort_keys=True)
+        key = (hashlib.sha256(Path(path).read_bytes()).hexdigest(), model_path, frame, shapes)
+        if key in _READS:
+            _READS.move_to_end(key)
+            return list(_READS[key])
+    reads = kraken_runtime.read_given_lines(path, model_path, lines, frame=frame)
+    if key is not None:
+        _READS[key] = list(reads)
+        while len(_READS) > _MOST_READS_KEPT:
+            _READS.popitem(last=False)
+    return reads
+
+
 def kraken_is_reading(db: Any, doc_id: str) -> bool:
     """Whether a live run of the shipped Transcribe (Kraken) workflow in this project is reading this page. Read runs
     it beside the cloud reader (#6127); the tie waits for its reads rather than read the lines a second time, which also
@@ -209,6 +242,19 @@ def tie_lines(page_text: str, reads: list[str]) -> list[dict[str, Any]]:
 def page_is_draft(scored: list[dict[str, Any]]) -> bool:
     """Whether too few of a page's lines tied for the alignment to be written: the page then stays a draft, never half-aligned."""
     return bool(scored) and sum(1 for s in scored if not s["tied"]) / len(scored) > DRAFT_ABOVE
+
+
+def remainder(page_text: str, scored: list[dict[str, Any]], segment_ids: list[str], *, draft: bool) -> list[dict[str, Any]]:
+    """The page text the tie did not tie to a line, kept and named so nothing the page reader wrote is lost
+    (`wide.nomodel.untied-remainder-kept`): a draft page's whole text (no line took any of it), else each stretch below the tie threshold
+    (written on its line as a doubtful reading, and listed here too) and any stretch no line was given. Each: `{segment_id, text, why}`."""
+    if draft:
+        return [{"segment_id": None, "text": page_text, "why": DRAFT}] if page_text.strip() else []
+    out = []
+    for segment_id, row in zip(segment_ids, scored):
+        if row["text"] and not row["tied"]:
+            out.append({"segment_id": segment_id, "text": row["text"], "why": DOUBTFUL})
+    return out
 
 
 def start(db: Any, request: CheckRunRequest, *, started_by: str) -> dict[str, str]:
@@ -264,14 +310,35 @@ def after_page_reading(db: Any, artifact: Any) -> str | None:
         return None
     if working_lines(db, artifact.document_id) is None:
         return None
+    return _queue(db, artifact.document_id)
+
+
+def _queue(db: Any, document_id: str) -> str | None:
+    """The one waiting tie job for a page, whichever of its two triggers came first (`after_page_reading`,
+    `after_lines`): the same subject, so a page with both a reading and lines new makes one job."""
     reader = rough_reader(db)
     if reader is None:
         return None
     register_job_kinds()
-    request = CheckRunRequest(layer="readings", scope_ids=[artifact.document_id], provider="kraken", model=reader,
-                              check=KIND)
-    return jobs.enqueue(db, KIND, f"{KIND}:after-reading:{artifact.document_id}", started_by=AUTOMATIC,
+    request = CheckRunRequest(layer="readings", scope_ids=[document_id], provider="kraken", model=reader, check=KIND)
+    return jobs.enqueue(db, KIND, f"{KIND}:after-reading:{document_id}", started_by=AUTOMATIC,
                         detail=json.dumps({"request": request.model_dump()}))
+
+
+def after_lines(db: Any, document_id: str) -> str | None:
+    """Queue the tie for a page whose lines were just saved (Detect Segments / Find Lines, any producer of
+    lines): the other order of `after_page_reading` (#5558, reading first and lines second). Only when the page
+    already has a reading eligible under `page_reading` (not flagged, not the lines' own text) that is a
+    reading of the whole page, with no lines of its own; the same one-per-page job, so both triggers make one.
+    Returns the job id, or None when nothing is queued."""
+    from fichero_server.llm.working_lines import working_lines
+
+    reading = page_reading(db, document_id)
+    if reading is None or (reading.ocr_geometry is not None and reading.ocr_geometry.boxes):  # raw-geometry-ok: has it lines?
+        return None
+    if working_lines(db, document_id) is None:
+        return None
+    return _queue(db, document_id)
 
 
 def _read_from_lines(artifact: Any) -> bool:
@@ -311,19 +378,31 @@ def _already_tied(db: Any, lines: list[Any], artifact_id: str) -> bool:
     return any(r.derived_from_artifact_id == artifact_id for row in lines for r in readings_of_segment(db, row.id))
 
 
-def _find_lines(db: Any, doc: Any, photo: Path, job_id: str) -> None:
-    """The page has no lines: Kraken finds them (its regions kept as the lines' parents) and they become the
-    page's pass at once, through the same save and conversion as a Find Lines run (#5487)."""
+def _current_image(db: Any, doc: Any) -> Any:
+    """The page's current image for a step that cuts or stores lines (`media/current_image.py`, #6296); None for a page with no
+    file of its own here."""
+    from fichero_server.media.current_image import current_page_image
+
+    current = current_page_image(db, doc, library_root=Path(db.path).parent)
+    return current.for_geometry() if current is not None else None
+
+
+def _find_lines(db: Any, doc: Any, photo: Path, job_id: str, current: Any = None) -> None:
+    """The page has no lines: Kraken finds them on the page's current image (its regions kept as the lines' parents) and they
+    become the page's pass at once, through the same save and conversion as a Find Lines run (#5487); stored on the photograph."""
     from fichero_server.llm import kraken_runtime
     from fichero_server.maintenance.project_conversion import convert_new_results
     from fichero_server.models import Artifact
 
-    geometry = kraken_runtime.segment_to_geometry(photo)
+    seen = current if current is not None and not current.is_original else None
+    geometry = kraken_runtime.segment_to_geometry(seen.path if seen is not None else photo)
+    if seen is not None:
+        geometry = seen.geometry_to_photograph(geometry)
     if not geometry.boxes:
         return
     db.save(Artifact(document_id=doc.id, source_document_id=doc.id, artifact_type="regions", content="",
                      ocr_geometry=geometry, provider=geometry.provider, model=geometry.model, run_id=job_id))
-    convert_new_results(db, doc.id, run_id=job_id)
+    convert_new_results(db, doc.id, run_id=job_id, tie=False)  # this job is the tie
 
 
 def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dict[str, Any]:
@@ -341,6 +420,7 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
     counts = dict.fromkeys(COUNTS, 0)
     flagged: list[dict[str, Any]] = []
     missing: list[dict[str, str]] = []
+    per_page: dict[str, dict[str, Any]] = {}  # each page's own figures, for the Read try (`wide.nomodel.tie-figures-on-his-pages`)
     stopped = False
     for doc in _descendants(db, request.scope_ids):
         if getattr(doc.doc_type, "value", doc.doc_type) not in ("file", "page"):
@@ -360,8 +440,9 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
         if photo is None or not photo.is_file():
             missing.append({"document_id": doc.id, "why": "its photograph is not on this Mac"})
             continue
+        current = _current_image(db, doc)
         if found is None and request.pass_model is None:
-            _find_lines(db, doc, photo, job_id)
+            _find_lines(db, doc, photo, job_id, current)
             found = working_lines(db, doc.id)
             counts["lines_found"] += found is not None
         if found is None:
@@ -379,25 +460,38 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
                 jobs.save_detail(db, job_id, json.dumps({**detail, "waited_for_kraken": detail.get("waited_for_kraken", 0) + 1}))
                 jobs.come_back_after(db, job_id, WAIT_FOR_KRAKEN_SECONDS)
                 raise jobs.JobDeferred("Waiting for Kraken's reads of the lines")
-            reads = kraken_runtime.read_given_lines(photo, model_path, lines, frame=found.frame)
+            if current is None or current.is_original:
+                reads = _read_once(photo, model_path, lines, found.frame)
+            else:
+                moved, opened_in = current.carry_lines(lines, found.frame)
+                reads = _read_once(current.path, model_path, moved, opened_in)
         aligned = tie_lines(reading.content, reads)
         if page_is_draft(aligned):
             counts["drafts"] += 1
+            per_page[doc.id] = {"tied": 0, "doubtful": 0, "untied": 0, "draft": True,
+                                "remainder": remainder(reading.content, aligned, [r.id for r in found.lines], draft=True)}
             flagged.append({"document_id": doc.id, "flag": DRAFT,
                             "score": round(sum(s["score"] for s in aligned) / len(aligned), 3)})
             continue
+        here = per_page[doc.id] = {"tied": 0, "doubtful": 0, "untied": 0, "draft": False,
+                                   "remainder": remainder(reading.content, aligned, [r.id for r in found.lines], draft=False)}
         for row, scored in zip(found.lines, aligned):
             if not scored["text"]:
                 counts["untied"] += 1
+                here["untied"] += 1
                 continue
             made = registry.invoke(db, "representation.create", {
                 "document_id": doc.id, "segment_id": row.id, "kind": request.kind, "content": scored["text"],
                 "derived_from_artifact_id": reading.id,
                 # How well the page text matched this line (`source.align.confidence-per-line`, #5217), so the person sees
                 # which lines to check; the line's certainty as a reading, for everything that reads machine_confidence.
-                "machine_confidence": scored["score"]}, ctx).result
+                "machine_confidence": scored["score"],
+                # Who made it: the page reader's model, by the tie (`source.editor.a-reading-records-who-made-it`).
+                "producer_model": f"{reading.provider}/{reading.model}" if reading.provider and reading.model else reading.model,
+                "producer_tool": KIND}, ctx).result
             if scored["tied"]:
                 counts["tied"] += 1
+                here["tied"] += 1
                 continue
             reasons = (f"{DOUBTFUL}: agrees {scored['score']:.2f} with Kraken's rough read of the line, "
                        f"below {THRESHOLD:.2f} (rough read: {scored['rough_read']!r})")
@@ -405,10 +499,11 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
                 "layer": "readings", "target_id": made["id"], "verdict": "reject", "reasons": reasons,
                 "checker_model": request.model, "segment_id": row.id}, ctx)
             counts["doubtful"] += 1
+            here["doubtful"] += 1
             flagged.append({"document_id": doc.id, "segment_id": row.id, "reading_id": made["id"],
                             "flag": DOUBTFUL, "score": scored["score"]})
         counts["pages_tied"] += 1
-    return {"counts": counts, "flagged": flagged, "missing": missing, "stopped": stopped,
+    return {"counts": counts, "flagged": flagged, "missing": missing, "stopped": stopped, "per_page": per_page,
             "thresholds": {"tie": THRESHOLD, "policy": "accent-blind"}}
 
 

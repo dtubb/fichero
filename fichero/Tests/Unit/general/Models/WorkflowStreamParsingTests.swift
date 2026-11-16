@@ -6,10 +6,10 @@
 //  This is pure-function testing: JSON string in → WorkflowStreamEvent out.
 //
 
+@testable import Fichero
 import FicheroAPIClient
 import Foundation
 import Testing
-@testable import Fichero
 
 @MainActor
 struct WorkflowStreamParsingTests {
@@ -380,6 +380,27 @@ struct WorkflowStreamParsingTests {
         } else {
             Issue.record("Expected .systemicError event, got \(String(describing: result))")
         }
+    }
+
+    // MARK: - Refused (a run paused at a cloud spend cap, `ai.cloud.hand-run-refused-before-it-starts`)
+
+    @Test("Parse refused event into the typed refusal")
+    func parseRefused() {
+        let service = makeService()
+        let input = json(
+            event: "refused",
+            data: ["kind": "cap-monthly", "scope": "app", "words": "Capped.",
+                   "fixes": [["kind": "over-cap-once"]]]
+        )
+
+        if case .refused(let threadId, let refusal)? = service.parseEvent(input) {
+            #expect(threadId == "thread-123")
+            #expect(refusal.kind == .capMonthly && refusal.words == "Capped.")
+            #expect(refusal.fixes?.first?.kind == .overCapOnce)
+        } else {
+            Issue.record("Expected .refused event")
+        }
+        #expect(service.parseEvent(json(event: "refused", data: ["words": "no kind"])) == nil)
     }
 
     // MARK: - Log

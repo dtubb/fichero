@@ -627,15 +627,66 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("continue-all")
+    def activity_continue_all_post(
+        ctx: typer.Context,
+    ) -> None:
+        """Continue All (POST /api/activity/continue-all)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/continue-all"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-history")
+    def activity_get_history_get(
+        ctx: typer.Context,
+        minutes: Optional[int] = typer.Option(None, '--minutes', help='the window, in minutes ending now.'),
+    ) -> None:
+        """Get Activity History (GET /api/activity/history)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/history"
+            params = {
+                "minutes": minutes,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("list-background-jobs")
     def activity_list_background_jobs_get(
         ctx: typer.Context,
+        archived: Optional[bool] = typer.Option(None, '--archived/--no-archived', help='the ARCHIVED rows instead (Show Archived, `activity.pane.archive-old-runs`)'),
     ) -> None:
         """List Background Jobs (GET /api/activity/jobs)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/activity/jobs"
-            params = None
+            params = {
+                "archived": archived,
+            }
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("archive-jobs")
+    def activity_archive_jobs_post(
+        ctx: typer.Context,
+        ids: Optional[list[str]] = typer.Option(None, '--ids', help='ended rows to archive. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        older_than_days: Optional[int] = typer.Option(None, '--older-than-days', help='with `states`: only rows that ended more than this many days ago.'),
+        states: Optional[list[str]] = typer.Option(None, '--states', help='also every top-level ended job of its own in these states. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Archive Jobs (POST /api/activity/jobs/archive)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/jobs/archive"
+            params = None
+            payload = _build_json_payload({
+                "ids": ids,
+                "older_than_days": older_than_days,
+                "states": states,
+            }, {
+                "ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Ids', 'description': 'ended rows to archive', 'x-cli-required': False},
+                "older_than_days": {'type': 'integer', 'minimum': 0.0, 'nullable': True, 'title': 'Older Than Days', 'description': 'with `states`: only rows that ended more than this many days ago', 'x-cli-required': False},
+                "states": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'States', 'description': 'also every top-level ended job of its own in these states', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("clear-failed-jobs")
@@ -647,6 +698,29 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/activity/jobs/clear-failed"
             params = None
             return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("bulk-delete-jobs")
+    def activity_bulk_delete_jobs_post(
+        ctx: typer.Context,
+        ids: Optional[list[str]] = typer.Option(None, '--ids', help="job ids, or a kind's row (`waiting:<kind>`, `paused:<kind>`) A list: repeat the flag, or give the values comma-separated, or as JSON."),
+        states: Optional[list[str]] = typer.Option(None, '--states', help='also every top-level job of its own in these states (Clear Finished…: done, failed, cancelled) A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        stop_running: Optional[bool] = typer.Option(None, '--stop-running/--no-stop-running', help='Stop then Delete (the person confirmed): a running row is asked to stop and deleted at once instead of skipped. Default: false.'),
+    ) -> None:
+        """Bulk Delete Jobs (POST /api/activity/jobs/delete)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/jobs/delete"
+            params = None
+            payload = _build_json_payload({
+                "ids": ids,
+                "states": states,
+                "stop_running": stop_running,
+            }, {
+                "ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Ids', 'description': "job ids, or a kind's row (`waiting:<kind>`, `paused:<kind>`)", 'x-cli-required': False},
+                "states": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'States', 'description': 'also every top-level job of its own in these states (Clear Finished…: done, failed, cancelled)', 'x-cli-required': False},
+                "stop_running": {'type': 'boolean', 'title': 'Stop Running', 'description': 'Stop then Delete (the person confirmed): a running row is asked to stop and deleted at once instead of skipped', 'default': False, 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-queued-items")
@@ -700,6 +774,40 @@ def register_generated_openapi_commands(
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("unarchive-jobs")
+    def activity_unarchive_jobs_post(
+        ctx: typer.Context,
+        ids: list[str] = typer.Option(..., '--ids', help='Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Unarchive Jobs (POST /api/activity/jobs/unarchive)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/jobs/unarchive"
+            params = None
+            payload = _build_json_payload({
+                "ids": ids,
+            }, {
+                "ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Ids', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("undelete-jobs")
+    def activity_undelete_jobs_post(
+        ctx: typer.Context,
+        ids: list[str] = typer.Option(..., '--ids', help='Ids. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Undelete Jobs (POST /api/activity/jobs/undelete)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/jobs/undelete"
+            params = None
+            payload = _build_json_payload({
+                "ids": ids,
+            }, {
+                "ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Ids', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("get-job-tree")
     def activity_get_job_tree_get(
         ctx: typer.Context,
@@ -715,6 +823,18 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("post-job-bug-report")
+    def activity_post_job_bug_report_post(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help='Job Id'),
+    ) -> None:
+        """Post Job Bug Report (POST /api/activity/jobs/{job_id}/bug-report)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/activity/jobs/{job_id}/bug-report"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("cancel-job")
     def activity_cancel_job_post(
         ctx: typer.Context,
@@ -725,6 +845,25 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/activity/jobs/{job_id}/cancel"
             params = None
             return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-run-failed-pages")
+    def activity_get_run_failed_pages_get(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help='Job Id'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
+        stage: Optional[str] = typer.Option(None, '--stage', help='a Set Up stage id; omitted: a page that failed in any stage.'),
+    ) -> None:
+        """Get Run Failed Pages (GET /api/activity/jobs/{job_id}/failed-pages)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/activity/jobs/{job_id}/failed-pages"
+            params = {
+                "limit": limit,
+                "offset": offset,
+                "stage": stage,
+            }
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-job-log")
@@ -807,6 +946,28 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("models")
+    def activity_models_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Activity Models (GET /api/activity/models)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/models"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("pause-all")
+    def activity_pause_all_post(
+        ctx: typer.Context,
+    ) -> None:
+        """Pause All (POST /api/activity/pause-all)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/pause-all"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-recent-activities")
     def activity_get_recent_activities_get(
         ctx: typer.Context,
@@ -817,6 +978,20 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/activity/recent"
             params = {
                 "limit": limit,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("recipes")
+    def activity_recipes_get(
+        ctx: typer.Context,
+        days: Optional[int] = typer.Option(None, '--days', help='Days.'),
+    ) -> None:
+        """Activity Recipes (GET /api/activity/recipes)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/recipes"
+            params = {
+                "days": days,
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -833,6 +1008,48 @@ def register_generated_openapi_commands(
                 "hours": hours,
             }
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("stop-all")
+    def activity_stop_all_post(
+        ctx: typer.Context,
+    ) -> None:
+        """Stop All (POST /api/activity/stop-all)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/stop-all"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-stopped-at-quit")
+    def activity_list_stopped_at_quit_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Stopped At Quit (GET /api/activity/stopped-at-quit)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/stopped-at-quit"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("continue-after-quit")
+    def activity_continue_after_quit_post(
+        ctx: typer.Context,
+        all: Optional[bool] = typer.Option(None, '--all/--no-all', help='All. Default: false.'),
+        ids: Optional[list[str]] = typer.Option(None, '--ids', help='the rows to continue; None with `all` for every one. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Continue After Quit (POST /api/activity/stopped-at-quit/continue)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/stopped-at-quit/continue"
+            params = None
+            payload = _build_json_payload({
+                "all": all,
+                "ids": ids,
+            }, {
+                "all": {'type': 'boolean', 'title': 'All', 'default': False, 'x-cli-required': False},
+                "ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Ids', 'description': 'the rows to continue; None with `all` for every one', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("get-workflow")
@@ -1101,6 +1318,43 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/agents/write/audit/{record_id}"
             params = None
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    target_app = existing_apps.get('ai')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for ai endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='ai')
+        existing_apps['ai'] = target_app
+
+    @target_app.command("get-cloud-caps")
+    def ai_get_cloud_caps_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Get Cloud Caps (GET /api/ai/cloud-caps)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/ai/cloud-caps"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("put-cloud-cap")
+    def ai_put_cloud_cap_put(
+        ctx: typer.Context,
+        cap_usd: Optional[float] = typer.Option(None, '--cap-usd', help='the cap in US$ (0 is a cap: nothing is sent); null clears it (monthly returns to 10, daily to none)'),
+        which: str = typer.Option(..., '--which', help='which app-wide cap. One of: monthly, daily.'),
+    ) -> None:
+        """Put Cloud Cap (PUT /api/ai/cloud-caps)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/ai/cloud-caps"
+            params = None
+            payload = _build_json_payload({
+                "cap_usd": cap_usd,
+                "which": which,
+            }, {
+                "cap_usd": {'type': 'number', 'minimum': 0.0, 'nullable': True, 'title': 'Cap Usd', 'description': 'the cap in US$ (0 is a cap: nothing is sent); null clears it (monthly returns to 10, daily to none)', 'x-cli-required': False},
+                "which": {'type': 'string', 'enum': ['monthly', 'daily'], 'title': 'Which', 'description': 'which app-wide cap', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('annotations')
@@ -1954,6 +2208,23 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("set-owner-password")
+    def auth_set_owner_password_post(
+        ctx: typer.Context,
+        password: str = typer.Option(..., '--password', help='Password.'),
+    ) -> None:
+        """Set Owner Password (POST /api/auth/owner-password)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/owner-password"
+            params = None
+            payload = _build_json_payload({
+                "password": password,
+            }, {
+                "password": {'type': 'string', 'minLength': 1, 'title': 'Password', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list-sessions")
     def auth_list_sessions_get(
         ctx: typer.Context,
@@ -2005,6 +2276,17 @@ def register_generated_openapi_commands(
         target_app = typer.Typer(help='Generated OpenAPI commands for authz endpoints.', no_args_is_help=True)
         root_app.add_typer(target_app, name='authz')
         existing_apps['authz'] = target_app
+
+    @target_app.command("access-matrix")
+    def authz_access_matrix_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Access Matrix (GET /api/authz/access-matrix)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/authz/access-matrix"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
 
     @target_app.command("list-accessible-libraries")
     def authz_list_accessible_libraries_get(
@@ -4399,6 +4681,8 @@ def register_generated_openapi_commands(
     @target_app.command("create-route")
     def content_representations_create_route_post(
         ctx: typer.Context,
+        char_confidences: Optional[list[str]] = typer.Option(None, '--char-confidences', help='Char Confidences. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        char_positions: Optional[list[str]] = typer.Option(None, '--char-positions', help='Char Positions. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
         content: str = typer.Option(..., '--content', help='Content.'),
         corrects_representation_id: Optional[str] = typer.Option(None, '--corrects-representation-id', help='Corrects Representation Id.'),
         derived_from_artifact_id: Optional[str] = typer.Option(None, '--derived-from-artifact-id', help='Derived From Artifact Id.'),
@@ -4411,6 +4695,8 @@ def register_generated_openapi_commands(
         language_meta: Optional[str] = typer.Option(None, '--language-meta', help='Language Meta. JSON.'),
         level: Optional[str] = typer.Option(None, '--level', help='Level.'),
         machine_confidence: Optional[float] = typer.Option(None, '--machine-confidence', help='Machine Confidence.'),
+        producer_model: Optional[str] = typer.Option(None, '--producer-model', help='Producer Model.'),
+        producer_tool: Optional[str] = typer.Option(None, '--producer-tool', help='Producer Tool.'),
         read_from_rendition_id: Optional[str] = typer.Option(None, '--read-from-rendition-id', help='Read From Rendition Id.'),
         script: Optional[str] = typer.Option(None, '--script', help='Script.'),
         script_meta: Optional[str] = typer.Option(None, '--script-meta', help='Script Meta. JSON.'),
@@ -4422,6 +4708,8 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/content-representations"
             params = None
             payload = _build_json_payload({
+                "char_confidences": char_confidences,
+                "char_positions": char_positions,
                 "content": content,
                 "corrects_representation_id": corrects_representation_id,
                 "derived_from_artifact_id": derived_from_artifact_id,
@@ -4434,12 +4722,16 @@ def register_generated_openapi_commands(
                 "language_meta": language_meta,
                 "level": level,
                 "machine_confidence": machine_confidence,
+                "producer_model": producer_model,
+                "producer_tool": producer_tool,
                 "read_from_rendition_id": read_from_rendition_id,
                 "script": script,
                 "script_meta": script_meta,
                 "segment_id": segment_id,
                 "source_anchor": source_anchor,
             }, {
+                "char_confidences": {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Char Confidences', 'x-cli-required': False},
+                "char_positions": {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Char Positions', 'x-cli-required': False},
                 "content": {'type': 'string', 'title': 'Content', 'x-cli-required': True},
                 "corrects_representation_id": {'type': 'string', 'nullable': True, 'title': 'Corrects Representation Id', 'x-cli-required': False},
                 "derived_from_artifact_id": {'type': 'string', 'nullable': True, 'title': 'Derived From Artifact Id', 'x-cli-required': False},
@@ -4452,6 +4744,8 @@ def register_generated_openapi_commands(
                 "language_meta": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Language Meta', 'x-cli-required': False},
                 "level": {'type': 'string', 'nullable': True, 'title': 'Level', 'x-cli-required': False},
                 "machine_confidence": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Machine Confidence', 'x-cli-required': False},
+                "producer_model": {'type': 'string', 'nullable': True, 'title': 'Producer Model', 'x-cli-required': False},
+                "producer_tool": {'type': 'string', 'nullable': True, 'title': 'Producer Tool', 'x-cli-required': False},
                 "read_from_rendition_id": {'type': 'string', 'nullable': True, 'title': 'Read From Rendition Id', 'x-cli-required': False},
                 "script": {'type': 'string', 'nullable': True, 'title': 'Script', 'x-cli-required': False},
                 "script_meta": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Script Meta', 'x-cli-required': False},
@@ -4489,6 +4783,18 @@ def register_generated_openapi_commands(
         """List Representations (GET /api/content-representations/document/{document_id})."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/content-representations/document/{document_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("review-waiting")
+    def content_representations_review_waiting_get(
+        ctx: typer.Context,
+        document_id: str = typer.Argument(..., help='Document Id'),
+    ) -> None:
+        """Review Waiting (GET /api/content-representations/document/{document_id}/review-waiting)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/content-representations/document/{document_id}/review-waiting"
             params = None
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -5311,6 +5617,42 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("clear-column-choice")
+    def documents_clear_column_choice_delete(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+    ) -> None:
+        """Clear Column Choice (DELETE /api/documents/{doc_id}/column-choice)."""
+        if not yes:
+            typer.confirm("Delete documents?", abort=True)
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/{doc_id}/column-choice"
+            params = None
+            return client.request("DELETE", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("put-column-choice")
+    def documents_put_column_choice_put(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        hide: Optional[list[str]] = typer.Option(None, '--hide', help='Column keys left out of the table and the export. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        only_kind: Optional[str] = typer.Option(None, '--only-kind', help="Show this prototype's columns only."),
+    ) -> None:
+        """Put Column Choice (PUT /api/documents/{doc_id}/column-choice)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/{doc_id}/column-choice"
+            params = None
+            payload = _build_json_payload({
+                "hide": hide,
+                "only_kind": only_kind,
+            }, {
+                "hide": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Hide', 'description': 'Column keys left out of the table and the export.', 'x-cli-required': False},
+                "only_kind": {'type': 'string', 'nullable': True, 'title': 'Only Kind', 'description': "Show this prototype's columns only.", 'x-cli-required': False},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("duplicate")
     def documents_duplicate_post(
         ctx: typer.Context,
@@ -5605,6 +5947,18 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/documents/{doc_id}/restore"
             params = None
             return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-scope-template")
+    def documents_get_scope_template_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+    ) -> None:
+        """Get Scope Template (GET /api/documents/{doc_id}/template)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/{doc_id}/template"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-view")
@@ -6392,6 +6746,36 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='export')
         existing_apps['export'] = target_app
 
+    @target_app.command("the-catalogue-workbook-of-a-folder-or-project-in-its-archive-s-template", hidden=True)
+    @target_app.command("catalogue-workbook-route")
+    def export_catalogue_workbook_route_post(
+        ctx: typer.Context,
+        format: Optional[str] = typer.Option(None, '--format', help='xlsx: one workbook; csv: a zip of one file per sheet. One of: xlsx, csv. Default: "xlsx".'),
+        kept_export_id: Optional[str] = typer.Option(None, '--kept-export-id', help="Write into this kept export's folder (queued) instead of returning the file."),
+        proposals: Optional[str] = typer.Option(None, '--proposals', help='A machine\'s unanswered proposals are marked, or left out of a delivered sheet. One of: marked, omitted. Default: "marked".'),
+        prototype_key: Optional[str] = typer.Option(None, '--prototype-key', help="Write this prototype's columns instead of the rows' own."),
+        target_id: Optional[str] = typer.Option(None, '--target-id', help='A folder or project id; omitted writes the whole library.'),
+    ) -> None:
+        """The catalogue workbook of a folder or project, in its archive's template (POST /api/export/catalogue-workbook)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/export/catalogue-workbook"
+            params = None
+            payload = _build_json_payload({
+                "format": format,
+                "kept_export_id": kept_export_id,
+                "proposals": proposals,
+                "prototype_key": prototype_key,
+                "target_id": target_id,
+            }, {
+                "format": {'type': 'string', 'enum': ['xlsx', 'csv'], 'title': 'Format', 'description': 'xlsx: one workbook; csv: a zip of one file per sheet', 'default': 'xlsx', 'x-cli-required': False},
+                "kept_export_id": {'type': 'string', 'nullable': True, 'title': 'Kept Export Id', 'description': "Write into this kept export's folder (queued) instead of returning the file", 'x-cli-required': False},
+                "proposals": {'type': 'string', 'enum': ['marked', 'omitted'], 'title': 'Proposals', 'description': "A machine's unanswered proposals are marked, or left out of a delivered sheet", 'default': 'marked', 'x-cli-required': False},
+                "prototype_key": {'type': 'string', 'nullable': True, 'title': 'Prototype Key', 'description': "Write this prototype's columns instead of the rows' own", 'x-cli-required': False},
+                "target_id": {'type': 'string', 'nullable': True, 'title': 'Target Id', 'description': 'A folder or project id; omitted writes the whole library', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("eleventy-site-route")
     def export_eleventy_site_route_post(
         ctx: typer.Context,
@@ -6490,7 +6874,7 @@ def register_generated_openapi_commands(
     def export_keep_post(
         ctx: typer.Context,
         folder: str = typer.Option(..., '--folder', help="A full path to a folder on the engine's disk, outside the project."),
-        format: str = typer.Option(..., '--format', help='What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR. One of: word, markdown, plain-text, alto, pagexml, tei, hocr.'),
+        format: str = typer.Option(..., '--format', help='What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR. One of: word, markdown, plain-text, alto, pagexml, tei, hocr, catalogue-workbook, word-transcript.'),
         per: str = typer.Option(..., '--per', help='One file per page, or one per document (the page formats are one per page) One of: page, document.'),
     ) -> None:
         """Keep an export in a folder, written again as the work changes (POST /api/export/kept)."""
@@ -6503,7 +6887,7 @@ def register_generated_openapi_commands(
                 "per": per,
             }, {
                 "folder": {'type': 'string', 'title': 'Folder', 'description': "A full path to a folder on the engine's disk, outside the project", 'x-cli-required': True},
-                "format": {'type': 'string', 'enum': ['word', 'markdown', 'plain-text', 'alto', 'pagexml', 'tei', 'hocr'], 'title': 'Format', 'description': 'What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR', 'x-cli-required': True},
+                "format": {'type': 'string', 'enum': ['word', 'markdown', 'plain-text', 'alto', 'pagexml', 'tei', 'hocr', 'catalogue-workbook', 'word-transcript'], 'title': 'Format', 'description': 'What each file is: Word, Markdown, plain text, ALTO XML, PAGE XML, TEI or hOCR', 'x-cli-required': True},
                 "per": {'type': 'string', 'enum': ['page', 'document'], 'title': 'Per', 'description': 'One file per page, or one per document (the page formats are one per page)', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
@@ -6523,6 +6907,28 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/export/kept/{export_id}"
             params = None
             return client.request("DELETE", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("choose-a-kept-s-folder-again-or-switch-keep-up-to-date", hidden=True)
+    @target_app.command("update-kept")
+    def export_update_kept_patch(
+        ctx: typer.Context,
+        export_id: str = typer.Argument(..., help='Export Id'),
+        folder: Optional[str] = typer.Option(None, '--folder', help='Choose Folder…: a full path to the folder the export writes to from now on, outside the project.'),
+        keep_up_to_date: Optional[bool] = typer.Option(None, '--keep-up-to-date/--no-keep-up-to-date', help='Keep up to date: off, an edit queues no rewrite.'),
+    ) -> None:
+        """Choose a kept export's folder again, or switch Keep up to date (PATCH /api/export/kept/{export_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/export/kept/{export_id}"
+            params = None
+            payload = _build_json_payload({
+                "folder": folder,
+                "keep_up_to_date": keep_up_to_date,
+            }, {
+                "folder": {'type': 'string', 'nullable': True, 'title': 'Folder', 'description': 'Choose Folder…: a full path to the folder the export writes to from now on, outside the project', 'x-cli-required': False},
+                "keep_up_to_date": {'type': 'boolean', 'nullable': True, 'title': 'Keep Up To Date', 'description': 'Keep up to date: off, an edit queues no rewrite', 'x-cli-required': False},
+            }, required=True)
+            return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("write-a-kept-now-as-a-background-job", hidden=True)
@@ -6622,10 +7028,13 @@ def register_generated_openapi_commands(
     @target_app.command("word-route")
     def export_word_route_post(
         ctx: typer.Context,
-        include_images: Optional[bool] = typer.Option(None, '--include-images/--no-include-images', help="Embed each page's scan; false prints no image and no note, and never opens the scan files. Default: true."),
+        blank_pages_listed_once: Optional[bool] = typer.Option(None, '--blank-pages-listed-once/--no-blank-pages-listed-once', help='Print no body for a page sorted blank; end the folder with one line listing them as image ranges. Default: false.'),
+        include_images: Optional[bool] = typer.Option(None, '--include-images/--no-include-images', help="Off prints neither the image nor the 'image not included' note: a page is its heading and text. Default: true."),
         include_knowledge_graph: Optional[bool] = typer.Option(None, '--include-knowledge-graph/--no-include-knowledge-graph', help='Append relevant knowledge graph entities and claims. Default: true.'),
         output_path: str = typer.Option(..., '--output-path', help='Destination .docx path.'),
         overwrite: Optional[bool] = typer.Option(None, '--overwrite/--no-overwrite', help='Overwrite existing .docx. Default: false.'),
+        page_break_per_page: Optional[bool] = typer.Option(None, '--page-break-per-page/--no-page-break-per-page', help='Start each page on a new Word page. Default: false.'),
+        per: Optional[str] = typer.Option(None, '--per', help='\'folder\' writes a .zip of one transcript .docx per folder of the scope (page by page, no images, a page break per page, blank pages listed once): the options above are fixed for it. One of: document, folder. Default: "document".'),
         recursive: Optional[bool] = typer.Option(None, '--recursive/--no-recursive', help='Include descendants of folders. Default: true.'),
         target_id: Optional[str] = typer.Option(None, '--target-id', help='Optional document/folder id to export; omitted exports library.'),
     ) -> None:
@@ -6634,17 +7043,23 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/export/word"
             params = None
             payload = _build_json_payload({
+                "blank_pages_listed_once": blank_pages_listed_once,
                 "include_images": include_images,
                 "include_knowledge_graph": include_knowledge_graph,
                 "output_path": output_path,
                 "overwrite": overwrite,
+                "page_break_per_page": page_break_per_page,
+                "per": per,
                 "recursive": recursive,
                 "target_id": target_id,
             }, {
-                "include_images": {'type': 'boolean', 'title': 'Include Images', 'description': "Embed each page's scan; false prints no image and no note, and never opens the scan files", 'default': True, 'x-cli-required': False},
+                "blank_pages_listed_once": {'type': 'boolean', 'title': 'Blank Pages Listed Once', 'description': 'Print no body for a page sorted blank; end the folder with one line listing them as image ranges', 'default': False, 'x-cli-required': False},
+                "include_images": {'type': 'boolean', 'title': 'Include Images', 'description': "Off prints neither the image nor the 'image not included' note: a page is its heading and text", 'default': True, 'x-cli-required': False},
                 "include_knowledge_graph": {'type': 'boolean', 'title': 'Include Knowledge Graph', 'description': 'Append relevant knowledge graph entities and claims', 'default': True, 'x-cli-required': False},
                 "output_path": {'type': 'string', 'title': 'Output Path', 'description': 'Destination .docx path', 'x-cli-required': True},
                 "overwrite": {'type': 'boolean', 'title': 'Overwrite', 'description': 'Overwrite existing .docx', 'default': False, 'x-cli-required': False},
+                "page_break_per_page": {'type': 'boolean', 'title': 'Page Break Per Page', 'description': 'Start each page on a new Word page', 'default': False, 'x-cli-required': False},
+                "per": {'type': 'string', 'enum': ['document', 'folder'], 'title': 'Per', 'description': "'folder' writes a .zip of one transcript .docx per folder of the scope (page by page, no images, a page break per page, blank pages listed once): the options above are fixed for it", 'default': 'document', 'x-cli-required': False},
                 "recursive": {'type': 'boolean', 'title': 'Recursive', 'description': 'Include descendants of folders', 'default': True, 'x-cli-required': False},
                 "target_id": {'type': 'string', 'nullable': True, 'title': 'Target Id', 'description': 'Optional document/folder id to export; omitted exports library', 'x-cli-required': False},
             }, required=True)
@@ -8146,25 +8561,31 @@ def register_generated_openapi_commands(
     @target_app.command("batch-apply-operation")
     def images_batch_apply_operation_post(
         ctx: typer.Context,
+        preview: Optional[int] = typer.Option(None, '--preview', help='3: show three sample pages before and after; nothing is written.'),
         bbox: Optional[str] = typer.Option(None, '--bbox', help='Bbox. JSON.'),
         bboxes: Optional[str] = typer.Option(None, '--bboxes', help='Bboxes. JSON.'),
         folder_id: str = typer.Option(..., '--folder-id', help='Folder Id.'),
-        operation: str = typer.Option(..., '--operation', help='Operation. One of: crop, split.'),
+        operation: str = typer.Option(..., '--operation', help='Operation. One of: crop, split, rotate, straighten, flip_horizontal, flip_vertical, brightness, contrast, sharpen, auto_levels, enhance, fuzzy_clean, denoise, adaptive_binarize, binarise, grayscale, remove_background, auto_crop_border, square.'),
+        params: Optional[str] = typer.Option(None, '--params', help="the step's settings, for an operation that adds a chain step. JSON."),
     ) -> None:
         """Batch Apply Image Operation (POST /api/images/batch-apply)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/images/batch-apply"
-            params = None
+            params = {
+                "preview": preview,
+            }
             payload = _build_json_payload({
                 "bbox": bbox,
                 "bboxes": bboxes,
                 "folder_id": folder_id,
                 "operation": operation,
+                "params": params,
             }, {
                 "bbox": {'prefixItems': [{'type': 'integer'}, {'type': 'integer'}, {'type': 'integer'}, {'type': 'integer'}], 'type': 'array', 'maxItems': 4, 'minItems': 4, 'nullable': True, 'title': 'Bbox', 'x-cli-required': False},
                 "bboxes": {'items': {'prefixItems': [{'type': 'integer'}, {'type': 'integer'}, {'type': 'integer'}, {'type': 'integer'}], 'type': 'array', 'maxItems': 4, 'minItems': 4}, 'type': 'array', 'nullable': True, 'title': 'Bboxes', 'x-cli-required': False},
                 "folder_id": {'type': 'string', 'title': 'Folder Id', 'x-cli-required': True},
-                "operation": {'type': 'string', 'enum': ['crop', 'split'], 'title': 'Operation', 'x-cli-required': True},
+                "operation": {'type': 'string', 'enum': ['crop', 'split', 'rotate', 'straighten', 'flip_horizontal', 'flip_vertical', 'brightness', 'contrast', 'sharpen', 'auto_levels', 'enhance', 'fuzzy_clean', 'denoise', 'adaptive_binarize', 'binarise', 'grayscale', 'remove_background', 'auto_crop_border', 'square'], 'title': 'Operation', 'x-cli-required': True},
+                "params": {'additionalProperties': True, 'type': 'object', 'title': 'Params', 'description': "the step's settings, for an operation that adds a chain step", 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -8179,6 +8600,29 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/images/batch-apply/{batch_id}/undo"
             params = None
             return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("batch-prepare-preview")
+    def images_batch_prepare_preview_post(
+        ctx: typer.Context,
+        folder_id: str = typer.Option(..., '--folder-id', help='Folder Id.'),
+        operation: str = typer.Option(..., '--operation', help="The correction to copy, in fractions of the upright frame (a square's four corners) or degrees (a turn). JSON."),
+        source_document_id: Optional[str] = typer.Option(None, '--source-document-id', help='the page the correction was made on: it already has it, so it is left out.'),
+    ) -> None:
+        """Batch Prepare Preview (POST /api/images/batch-prepare/preview)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/images/batch-prepare/preview"
+            params = None
+            payload = _build_json_payload({
+                "folder_id": folder_id,
+                "operation": operation,
+                "source_document_id": source_document_id,
+            }, {
+                "folder_id": {'type': 'string', 'title': 'Folder Id', 'x-cli-required': True},
+                "operation": {'properties': {'op': {'type': 'string', 'enum': ['square', 'rotate'], 'title': 'Op'}, 'quad': {'items': {'items': {'type': 'number'}, 'type': 'array', 'maxItems': 2, 'minItems': 2}, 'type': 'array', 'nullable': True, 'title': 'Quad'}, 'angle': {'type': 'number', 'maximum': 360.0, 'minimum': -360.0, 'nullable': True, 'title': 'Angle'}}, 'type': 'object', 'required': ['op'], 'title': 'BatchPrepareOperation', 'description': "The correction to copy, in fractions of the upright frame (a square's four corners) or degrees (a turn).", 'x-cli-required': True},
+                "source_document_id": {'type': 'string', 'nullable': True, 'title': 'Source Document Id', 'description': 'the page the correction was made on: it already has it, so it is left out', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("batch-crop")
@@ -8294,6 +8738,27 @@ def register_generated_openapi_commands(
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("queue-operation-job")
+    def images_queue_operation_job_post(
+        ctx: typer.Context,
+        document_id: str = typer.Argument(..., help='Document Id'),
+        action: str = typer.Option(..., '--action', help='An `image.<op>` action that takes a `document_id`, e.g. `image.remove_background`.'),
+        params: Optional[str] = typer.Option(None, '--params', help="The action's settings; the page comes from the path. JSON."),
+    ) -> None:
+        """Queue Image Operation Job (POST /api/images/{document_id}/jobs)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/images/{document_id}/jobs"
+            params = None
+            payload = _build_json_payload({
+                "action": action,
+                "params": params,
+            }, {
+                "action": {'type': 'string', 'title': 'Action', 'description': 'An `image.<op>` action that takes a `document_id`, e.g. `image.remove_background`.', 'x-cli-required': True},
+                "params": {'additionalProperties': True, 'type': 'object', 'title': 'Params', 'description': "The action's settings; the page comes from the path.", 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("crop")
     def images_crop_post(
         ctx: typer.Context,
@@ -8333,9 +8798,15 @@ def register_generated_openapi_commands(
         document_id: str = typer.Argument(..., help='Document Id'),
         auto_levels: Optional[bool] = typer.Option(None, '--auto-levels/--no-auto-levels', help='Auto Levels. Default: false.'),
         brightness: Optional[float] = typer.Option(None, '--brightness', help='Brightness. Default: 1.0.'),
+        clip: Optional[float] = typer.Option(None, '--clip', help="clahe: contrast limit; empty is the profile's."),
         contrast: Optional[float] = typer.Option(None, '--contrast', help='Contrast. Default: 1.0.'),
+        gain: Optional[float] = typer.Option(None, '--gain', help="clahe: lightness multiplier; empty is the profile's."),
+        lift: Optional[float] = typer.Option(None, '--lift', help="clahe: lightness offset; empty is the profile's."),
+        method: Optional[str] = typer.Option(None, '--method', help='clahe runs local contrast, the yellow cast, then the unsharp mask. Default: "pil".'),
         page: Optional[int] = typer.Option(None, '--page', help='Page. Default: 1.'),
+        profile: Optional[str] = typer.Option(None, '--profile', help='The CLAHE settings for the kind of writing. Default: "handwritten".'),
         sharpen: Optional[float] = typer.Option(None, '--sharpen', help='Sharpen. Default: 1.0.'),
+        tile: Optional[int] = typer.Option(None, '--tile', help="clahe: tiles per side; empty is the profile's."),
     ) -> None:
         """Enhance Image (POST /api/images/{document_id}/operations/enhance)."""
         def op_call(client: FicheroClient) -> Any:
@@ -8344,15 +8815,27 @@ def register_generated_openapi_commands(
             payload = _build_json_payload({
                 "auto_levels": auto_levels,
                 "brightness": brightness,
+                "clip": clip,
                 "contrast": contrast,
+                "gain": gain,
+                "lift": lift,
+                "method": method,
                 "page": page,
+                "profile": profile,
                 "sharpen": sharpen,
+                "tile": tile,
             }, {
                 "auto_levels": {'type': 'boolean', 'title': 'Auto Levels', 'default': False, 'x-cli-required': False},
                 "brightness": {'type': 'number', 'minimum': 0.0, 'title': 'Brightness', 'default': 1.0, 'x-cli-required': False},
+                "clip": {'type': 'number', 'maximum': 4.0, 'minimum': 1.0, 'nullable': True, 'title': 'Clip', 'description': "clahe: contrast limit; empty is the profile's.", 'x-cli-required': False},
                 "contrast": {'type': 'number', 'minimum': 0.0, 'title': 'Contrast', 'default': 1.0, 'x-cli-required': False},
+                "gain": {'type': 'number', 'maximum': 1.4, 'minimum': 0.8, 'nullable': True, 'title': 'Gain', 'description': "clahe: lightness multiplier; empty is the profile's.", 'x-cli-required': False},
+                "lift": {'type': 'number', 'maximum': 20.0, 'minimum': -20.0, 'nullable': True, 'title': 'Lift', 'description': "clahe: lightness offset; empty is the profile's.", 'x-cli-required': False},
+                "method": {'type': 'string', 'pattern': '^(pil|clahe)$', 'title': 'Method', 'description': 'clahe runs local contrast, the yellow cast, then the unsharp mask.', 'default': 'pil', 'x-cli-required': False},
                 "page": {'type': 'integer', 'minimum': 1.0, 'title': 'Page', 'default': 1, 'x-cli-required': False},
+                "profile": {'type': 'string', 'pattern': '^(handwritten|typescript)$', 'title': 'Profile', 'description': 'The CLAHE settings for the kind of writing.', 'default': 'handwritten', 'x-cli-required': False},
                 "sharpen": {'type': 'number', 'minimum': 0.0, 'title': 'Sharpen', 'default': 1.0, 'x-cli-required': False},
+                "tile": {'type': 'integer', 'maximum': 16.0, 'minimum': 4.0, 'nullable': True, 'title': 'Tile', 'description': "clahe: tiles per side; empty is the profile's.", 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -8439,6 +8922,7 @@ def register_generated_openapi_commands(
     def images_straighten_post(
         ctx: typer.Context,
         document_id: str = typer.Argument(..., help='Document Id'),
+        angle: Optional[float] = typer.Option(None, '--angle', help='The angle a person set on the Straighten dial, in degrees; absent, the page is measured and turned by what it finds (Auto).'),
         page: Optional[int] = typer.Option(None, '--page', help='Page. Default: 1.'),
     ) -> None:
         """Straighten Image (POST /api/images/{document_id}/operations/straighten)."""
@@ -8446,8 +8930,10 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/images/{document_id}/operations/straighten"
             params = None
             payload = _build_json_payload({
+                "angle": angle,
                 "page": page,
             }, {
+                "angle": {'type': 'number', 'maximum': 45.0, 'minimum': -45.0, 'nullable': True, 'title': 'Angle', 'description': 'The angle a person set on the Straighten dial, in degrees; absent, the page is measured and turned by what it finds (Auto).', 'x-cli-required': False},
                 "page": {'type': 'integer', 'minimum': 1.0, 'title': 'Page', 'default': 1, 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
@@ -12362,6 +12848,24 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('pages')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for pages endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='pages')
+        existing_apps['pages'] = target_app
+
+    @target_app.command("get-image-chain")
+    def pages_get_image_chain_get(
+        ctx: typer.Context,
+        page_id: str = typer.Argument(..., help='Page Id'),
+    ) -> None:
+        """Get Image Chain (GET /api/pages/{page_id}/image-chain)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/pages/{page_id}/image-chain"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('pair')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for pair endpoints.', no_args_is_help=True)
@@ -12397,12 +12901,24 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("addresses")
+    def pair_addresses_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Pair Addresses (GET /api/pair/addresses)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/pair/addresses"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("create-pairing-code")
     def pair_create_pairing_code_post(
         ctx: typer.Context,
         display_name: Optional[str] = typer.Option(None, '--display-name', help='Display Name.'),
         expires_in_days: Optional[int] = typer.Option(None, '--expires-in-days', help='default 7.'),
         folder_id: Optional[str] = typer.Option(None, '--folder-id', help='share one folder of that project instead of the whole project: the person reaches that folder and what is under it, nothing beside it (`sharing.share-sheet-chooses-what`)'),
+        libraries: Optional[list[str]] = typer.Option(None, '--libraries', help="more projects a plain link (no person) gives the paired device, beside `library`: the which-projects dialog's ONE link for a set (#6366); a path that is no project on this Mac is left out. A list: repeat the flag, or give the values comma-separated, or as JSON."),
         library: Optional[str] = typer.Option(None, '--library', help='the library the role is granted on, for a new person.'),
         never_expires: Optional[bool] = typer.Option(None, '--never-expires/--no-never-expires', help='Never Expires. Default: false.'),
         role: Optional[str] = typer.Option(None, '--role', help='Role. One of: viewer, editor. Default: "viewer".'),
@@ -12416,6 +12932,7 @@ def register_generated_openapi_commands(
                 "display_name": display_name,
                 "expires_in_days": expires_in_days,
                 "folder_id": folder_id,
+                "libraries": libraries,
                 "library": library,
                 "never_expires": never_expires,
                 "role": role,
@@ -12424,6 +12941,7 @@ def register_generated_openapi_commands(
                 "display_name": {'type': 'string', 'nullable': True, 'title': 'Display Name', 'x-cli-required': False},
                 "expires_in_days": {'type': 'integer', 'maximum': 3650.0, 'minimum': 1.0, 'nullable': True, 'title': 'Expires In Days', 'description': 'default 7', 'x-cli-required': False},
                 "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'description': 'share one folder of that project instead of the whole project: the person reaches that folder and what is under it, nothing beside it (`sharing.share-sheet-chooses-what`)', 'x-cli-required': False},
+                "libraries": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Libraries', 'description': "more projects a plain link (no person) gives the paired device, beside `library`: the which-projects dialog's ONE link for a set (#6366); a path that is no project on this Mac is left out", 'x-cli-required': False},
                 "library": {'type': 'string', 'nullable': True, 'title': 'Library', 'description': 'the library the role is granted on, for a new person', 'x-cli-required': False},
                 "never_expires": {'type': 'boolean', 'title': 'Never Expires', 'default': False, 'x-cli-required': False},
                 "role": {'type': 'string', 'enum': ['viewer', 'editor'], 'title': 'Role', 'default': 'viewer', 'x-cli-required': False},
@@ -12549,6 +13067,29 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/pair/sharing"
             params = None
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("sign-in-device")
+    def pair_sign_in_device_post(
+        ctx: typer.Context,
+        device_name: str = typer.Option(..., '--device-name', help='Device Name.'),
+        password: str = typer.Option(..., '--password', help='Password.'),
+        username: str = typer.Option(..., '--username', help='Username.'),
+    ) -> None:
+        """Sign In Device (POST /api/pair/sign-in)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/pair/sign-in"
+            params = None
+            payload = _build_json_payload({
+                "device_name": device_name,
+                "password": password,
+                "username": username,
+            }, {
+                "device_name": {'type': 'string', 'minLength': 1, 'title': 'Device Name', 'x-cli-required': True},
+                "password": {'type': 'string', 'title': 'Password', 'x-cli-required': True},
+                "username": {'type': 'string', 'minLength': 1, 'title': 'Username', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("detected-tailnet")
@@ -13585,6 +14126,20 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("chain-risk")
+    def recipes_chain_risk_get(
+        ctx: typer.Context,
+        jobs: str = typer.Option(..., '--jobs', help='Jobs.'),
+    ) -> None:
+        """Chain Risk (GET /api/recipes/chain-risk)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/chain-risk"
+            params = {
+                "jobs": jobs,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("check")
     def recipes_check_post(
         ctx: typer.Context,
@@ -13623,6 +14178,28 @@ def register_generated_openapi_commands(
                 "withdraw": {'type': 'boolean', 'title': 'Withdraw', 'description': 'take the yes back: calls to it are refused again', 'default': False, 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("defaults")
+    def recipes_defaults_get(
+        ctx: typer.Context,
+        condition: Optional[str] = typer.Option(None, '--condition', help='Condition.'),
+        materials: Optional[str] = typer.Option(None, '--materials', help='Materials.'),
+        matters: Optional[str] = typer.Option(None, '--matters', help='Matters.'),
+        pages: Optional[int] = typer.Option(None, '--pages', help='Pages.'),
+        places: Optional[str] = typer.Option(None, '--places', help='Places.'),
+    ) -> None:
+        """Recipe Defaults (GET /api/recipes/defaults)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/defaults"
+            params = {
+                "condition": condition,
+                "materials": materials,
+                "matters": matters,
+                "pages": pages,
+                "places": places,
+            }
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("derived-facts")
@@ -13750,6 +14327,28 @@ def register_generated_openapi_commands(
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("prepare-images-check")
+    def recipes_prepare_images_check_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Prepare Images Check (GET /api/recipes/prepare-images/check)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/prepare-images/check"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("prepare-images-facts")
+    def recipes_prepare_images_facts_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Prepare Images Facts (GET /api/recipes/prepare-images/facts)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/prepare-images/facts"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-project-setup")
     def recipes_get_project_setup_get(
         ctx: typer.Context,
@@ -13784,12 +14383,18 @@ def register_generated_openapi_commands(
     @target_app.command("allow-cloud")
     def recipes_allow_cloud_post(
         ctx: typer.Context,
+        allowed: Optional[bool] = typer.Option(None, '--allowed/--no-allowed', help="yes (the default) or no to pages going to a cloud model, for this project, over the app's switch. Default: true."),
     ) -> None:
         """Allow Cloud (POST /api/recipes/project/allow-cloud)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/recipes/project/allow-cloud"
             params = None
-            return client.request("POST", endpoint_path, params=params)
+            payload = _build_json_payload({
+                "allowed": allowed,
+            }, {
+                "allowed": {'type': 'boolean', 'title': 'Allowed', 'description': "yes (the default) or no to pages going to a cloud model, for this project, over the app's switch", 'default': True, 'x-cli-required': False},
+            }, required=False)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("what-runs-by-itself")
@@ -13879,6 +14484,38 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("change-cloud-cap")
+    def recipes_change_cloud_cap_put(
+        ctx: typer.Context,
+        cap_usd: Optional[float] = typer.Option(None, '--cap-usd', help="the most the project's cloud calls may cost a month, in US$ (0 is a cap); left out: unchanged."),
+        clear_daily_cap: Optional[bool] = typer.Option(None, '--clear-daily-cap/--no-clear-daily-cap', help="remove the project's own daily cap (the app's, if any, applies) Default: false."),
+        clear_project_cap: Optional[bool] = typer.Option(None, '--clear-project-cap/--no-clear-project-cap', help="remove the project's total cap (no such limit) Default: false."),
+        daily_cap_usd: Optional[float] = typer.Option(None, '--daily-cap-usd', help="the most the project's cloud calls may cost in a (UTC) day, in US$ (0 is a cap; `answers.cloud_daily_cap_usd`); left out: unchanged."),
+        project_cap_usd: Optional[float] = typer.Option(None, '--project-cap-usd', help='the most the project may spend on cloud calls in all, across months (`answers.cloud_project_cap_usd`); left out: unchanged.'),
+        run_cap_usd: Optional[float] = typer.Option(None, '--run-cap-usd', help='the cap of the run under way (`StartRequest.run_cap_usd`), changed in place: a run paused at it carries on when this is higher (`designer.budget.fix-during-the-run`); refused when no run holds a cap; left out: unchanged.'),
+    ) -> None:
+        """Change Cloud Cap (PUT /api/recipes/project/cloud-cap)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/project/cloud-cap"
+            params = None
+            payload = _build_json_payload({
+                "cap_usd": cap_usd,
+                "clear_daily_cap": clear_daily_cap,
+                "clear_project_cap": clear_project_cap,
+                "daily_cap_usd": daily_cap_usd,
+                "project_cap_usd": project_cap_usd,
+                "run_cap_usd": run_cap_usd,
+            }, {
+                "cap_usd": {'type': 'number', 'minimum': 0.0, 'nullable': True, 'title': 'Cap Usd', 'description': "the most the project's cloud calls may cost a month, in US$ (0 is a cap); left out: unchanged", 'x-cli-required': False},
+                "clear_daily_cap": {'type': 'boolean', 'title': 'Clear Daily Cap', 'description': "remove the project's own daily cap (the app's, if any, applies)", 'default': False, 'x-cli-required': False},
+                "clear_project_cap": {'type': 'boolean', 'title': 'Clear Project Cap', 'description': "remove the project's total cap (no such limit)", 'default': False, 'x-cli-required': False},
+                "daily_cap_usd": {'type': 'number', 'minimum': 0.0, 'nullable': True, 'title': 'Daily Cap Usd', 'description': "the most the project's cloud calls may cost in a (UTC) day, in US$ (0 is a cap; `answers.cloud_daily_cap_usd`); left out: unchanged", 'x-cli-required': False},
+                "project_cap_usd": {'type': 'number', 'minimum': 0.0, 'nullable': True, 'title': 'Project Cap Usd', 'description': 'the most the project may spend on cloud calls in all, across months (`answers.cloud_project_cap_usd`); left out: unchanged', 'x-cli-required': False},
+                "run_cap_usd": {'type': 'number', 'minimum': 0.0, 'nullable': True, 'title': 'Run Cap Usd', 'description': 'the cap of the run under way (`StartRequest.run_cap_usd`), changed in place: a run paused at it carries on when this is higher (`designer.budget.fix-during-the-run`); refused when no run holds a cap; left out: unchanged', 'x-cli-required': False},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("change-project-layers")
     def recipes_change_project_layers_post(
         ctx: typer.Context,
@@ -13951,14 +14588,18 @@ def register_generated_openapi_commands(
     @target_app.command("get-start-plan")
     def recipes_get_start_plan_get(
         ctx: typer.Context,
+        first_pages: Optional[int] = typer.Option(None, '--first-pages', help='plan Start on the first N pages of the project in Finder order ("run fewer pages", #6295); never with `folder_id`.'),
         folder_id: Optional[str] = typer.Option(None, '--folder-id', help='plan Start on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); omit for the whole project.'),
+        steps: Optional[str] = typer.Option(None, '--steps', help="plan Start on these steps alone (comma-separated step ids), over the whole project: one stage's Run this step (`wide.output.run-this-step`); 422 for an id the recipe does not have."),
         summary: Optional[bool] = typer.Option(None, '--summary/--no-summary', help="a lean answer for an agent: each step's candidates are its picked and recommended ones (else its first), not the whole menu, which grows with the models this Mac has; the whole plan is this GET without it (openapi.mcp.answers-fit-an-agent)"),
     ) -> None:
         """Get Start Plan (GET /api/recipes/project/start)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/recipes/project/start"
             params = {
+                "first_pages": first_pages,
                 "folder_id": folder_id,
+                "steps": steps,
                 "summary": summary,
             }
             return client.request("GET", endpoint_path, params=params)
@@ -13968,9 +14609,14 @@ def register_generated_openapi_commands(
     def recipes_start_project_post(
         ctx: typer.Context,
         accept_unpriced: Optional[list[str]] = typer.Option(None, '--accept-unpriced', help="cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`) A list: repeat the flag, or give the values comma-separated, or as JSON."),
+        allow_cloud_once: Optional[bool] = typer.Option(None, '--allow-cloud-once/--no-allow-cloud-once', help="let THIS run's calls go to a cloud model although the project keeps its pages on this Mac; kept on the run, written to no setting, ended with the run (`ai.cloud.one-run-overrides`) Default: false."),
         documents: Optional[list[str]] = typer.Option(None, '--documents', help="run the recipe on these pages alone, as a finished run's `missed.documents` names them (source.recipe.run-again-on-what-was-missed, #6170); never with `folder_id`. A list: repeat the flag, or give the values comma-separated, or as JSON."),
+        first_pages: Optional[int] = typer.Option(None, '--first-pages', help='run the recipe on the first N pages of the project in Finder order alone ("run fewer pages", #6295); never with `folder_id` or `documents`.'),
         folder_id: Optional[str] = typer.Option(None, '--folder-id', help='run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project.'),
+        over_cap_once: Optional[bool] = typer.Option(None, '--over-cap-once/--no-over-cap-once', help="let THIS run's calls go past a cloud spend cap; the spend is still booked (`ai.cloud.one-run-overrides`) Default: false."),
         redo: Optional[list[str]] = typer.Option(None, '--redo', help='step ids to run again on pages that already have their output; the others run only on pages that do not. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        run_cap_usd: Optional[float] = typer.Option(None, '--run-cap-usd', help="the most this run's cloud calls may cost, held beside the project's caps, the lowest deciding (`designer.budget.run-cap`, #6295); kept on the run's row; null: the project's caps alone."),
+        steps: Optional[list[str]] = typer.Option(None, '--steps', help="run these steps alone over the whole project (one stage's Run this step, `wide.output.run-this-step`); empty: the whole recipe. A list: repeat the flag, or give the values comma-separated, or as JSON."),
     ) -> None:
         """Start Project (POST /api/recipes/project/start)."""
         def op_call(client: FicheroClient) -> Any:
@@ -13978,14 +14624,24 @@ def register_generated_openapi_commands(
             params = None
             payload = _build_json_payload({
                 "accept_unpriced": accept_unpriced,
+                "allow_cloud_once": allow_cloud_once,
                 "documents": documents,
+                "first_pages": first_pages,
                 "folder_id": folder_id,
+                "over_cap_once": over_cap_once,
                 "redo": redo,
+                "run_cap_usd": run_cap_usd,
+                "steps": steps,
             }, {
                 "accept_unpriced": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Accept Unpriced', 'description': "cloud models with no listed price, as `provider/model` (the plan's `cloud_cap.unpriced_models`) the person accepts running: counted at an assumed price and listed apart, and recorded in the project by the one accept action (`ai.where.accept-unpriced-cloud-model`)", 'x-cli-required': False},
+                "allow_cloud_once": {'type': 'boolean', 'title': 'Allow Cloud Once', 'description': "let THIS run's calls go to a cloud model although the project keeps its pages on this Mac; kept on the run, written to no setting, ended with the run (`ai.cloud.one-run-overrides`)", 'default': False, 'x-cli-required': False},
                 "documents": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Documents', 'description': "run the recipe on these pages alone, as a finished run's `missed.documents` names them (source.recipe.run-again-on-what-was-missed, #6170); never with `folder_id`", 'x-cli-required': False},
+                "first_pages": {'type': 'integer', 'minimum': 1.0, 'nullable': True, 'title': 'First Pages', 'description': 'run the recipe on the first N pages of the project in Finder order alone ("run fewer pages", #6295); never with `folder_id` or `documents`', 'x-cli-required': False},
                 "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'description': 'run the whole recipe on this folder alone: its live pages, its folders inside it included (source.recipe.folder-scoped-start); null: the whole project', 'x-cli-required': False},
+                "over_cap_once": {'type': 'boolean', 'title': 'Over Cap Once', 'description': "let THIS run's calls go past a cloud spend cap; the spend is still booked (`ai.cloud.one-run-overrides`)", 'default': False, 'x-cli-required': False},
                 "redo": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Redo', 'description': 'step ids to run again on pages that already have their output; the others run only on pages that do not', 'x-cli-required': False},
+                "run_cap_usd": {'type': 'number', 'minimum': 0.0, 'nullable': True, 'title': 'Run Cap Usd', 'description': "the most this run's cloud calls may cost, held beside the project's caps, the lowest deciding (`designer.budget.run-cap`, #6295); kept on the run's row; null: the project's caps alone", 'x-cli-required': False},
+                "steps": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Steps', 'description': "run these steps alone over the whole project (one stage's Run this step, `wide.output.run-this-step`); empty: the whole recipe", 'x-cli-required': False},
             }, required=False)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -14101,13 +14757,31 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("questions")
+    def recipes_questions_get(
+        ctx: typer.Context,
+        matters: Optional[str] = typer.Option(None, '--matters', help='Matters.'),
+        pages: Optional[int] = typer.Option(None, '--pages', help='Pages.'),
+        places: Optional[str] = typer.Option(None, '--places', help='Places.'),
+    ) -> None:
+        """Questions (GET /api/recipes/questions)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/questions"
+            params = {
+                "matters": matters,
+                "pages": pages,
+                "places": places,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("routes-for-volume")
     def recipes_routes_for_volume_get(
         ctx: typer.Context,
-        local_reader: str = typer.Option(..., '--local-reader', help='Local Reader.'),
+        local_reader: Optional[str] = typer.Option(None, '--local-reader', help='Local Reader.'),
         pages: Optional[int] = typer.Option(None, '--pages', help='Pages.'),
         sample_pages: Optional[int] = typer.Option(None, '--sample-pages', help='Sample Pages.'),
-        teacher: str = typer.Option(..., '--teacher', help='Teacher.'),
+        teacher: Optional[str] = typer.Option(None, '--teacher', help='Teacher.'),
     ) -> None:
         """Routes For Volume (GET /api/recipes/routes)."""
         def op_call(client: FicheroClient) -> Any:
@@ -14213,6 +14887,41 @@ def register_generated_openapi_commands(
                 "page_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Page Ids', 'description': 'the pages to try it on; empty: the samples', 'x-cli-required': False},
             }, required=False)
             return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("stage-try-price")
+    def recipes_stage_try_price_get(
+        ctx: typer.Context,
+        stage: str = typer.Argument(..., help='Stage'),
+    ) -> None:
+        """Stage Try Price (GET /api/recipes/stages/{stage}/try-price)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/recipes/stages/{stage}/try-price"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("suggestions")
+    def recipes_suggestions_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Suggestions (GET /api/recipes/suggestions)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/suggestions"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("tries-on-page")
+    def recipes_tries_on_page_get(
+        ctx: typer.Context,
+        page_id: str = typer.Argument(..., help='Page Id'),
+    ) -> None:
+        """Tries On Page (GET /api/recipes/tries/page/{page_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/recipes/tries/page/{page_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('references')
@@ -16182,11 +16891,15 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         anchor: str = typer.Option(..., '--anchor', help='Where a record points on a page — the one anchor type. Used by annotations, OCR geometry, entity mentions, claim evidence and content representations. One type means one overlay renderer, one hit tester, one "scroll to this", and one place to get the coordinate maths right. ``rendition_id`` is the field whose absence caused the original defect: a box carried four numbers and never said which pixel frame they were fractions OF, so geometry computed on an enhanced or split rendition was drawn over the original spread. It is optional only so existing rows stay readable — new writes must set it whenever the frame is not the node\'s own. JSON.'),
         baseline: Optional[str] = typer.Option(None, '--baseline', help="The line's baseline as [[x, y], ...] points in page coordinates. JSON."),
+        brush_stroke: Optional[str] = typer.Option(None, '--brush-stroke', help='A Paintbrush stroke, [x, y, width] per point (width in image pixels): its painted area is the outline, its path the baseline. JSON.'),
         document_id: str = typer.Option(..., '--document-id', help='The document (page) the segment is on.'),
         kind: str = typer.Option(..., '--kind', help="The segment's kind: region, line, word, ..."),
         kind_raw: Optional[str] = typer.Option(None, '--kind-raw', help='The kind as the source format named it (e.g. a PAGE XML region type).'),
+        outline_from_baseline: Optional[bool] = typer.Option(None, '--outline-from-baseline/--no-outline-from-baseline', help="Draw the line's outline from its baseline and the page's ink. Default: false."),
         parent_segment_id: Optional[str] = typer.Option(None, '--parent-segment-id', help="The segment this one sits inside (a line's region)."),
         pass_id: str = typer.Option(..., '--pass-id', help='The pass (layer) the segment joins.'),
+        place_in_region: Optional[bool] = typer.Option(None, '--place-in-region/--no-place-in-region', help='With no parent given, put the segment in the region holding most of it (the smaller on a tie). Default: false.'),
+        smoothing: Optional[float] = typer.Option(None, '--smoothing', help='Simplify the outline and baseline as drawn by hand: 0 keeps nearly every bend, 1 the fewest points.'),
     ) -> None:
         """Create Segment (POST /api/segments)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16195,19 +16908,27 @@ def register_generated_openapi_commands(
             payload = _build_json_payload({
                 "anchor": anchor,
                 "baseline": baseline,
+                "brush_stroke": brush_stroke,
                 "document_id": document_id,
                 "kind": kind,
                 "kind_raw": kind_raw,
+                "outline_from_baseline": outline_from_baseline,
                 "parent_segment_id": parent_segment_id,
                 "pass_id": pass_id,
+                "place_in_region": place_in_region,
+                "smoothing": smoothing,
             }, {
                 "anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'shapes': {'items': {'$ref': '#/components/schemas/AnchorShape'}, 'type': 'array', 'nullable': True, 'title': 'Shapes'}, 'media_ref': {'type': 'string', 'nullable': True, 'title': 'Media Ref'}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}, 'segment_id': {'type': 'string', 'nullable': True, 'title': 'Segment Id'}, 'representation_id': {'type': 'string', 'nullable': True, 'title': 'Representation Id'}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': True},
                 "baseline": {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Baseline', 'description': "The line's baseline as [[x, y], ...] points in page coordinates.", 'x-cli-required': False},
+                "brush_stroke": {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Brush Stroke', 'description': 'A Paintbrush stroke, [x, y, width] per point (width in image pixels): its painted area is the outline, its path the baseline.', 'x-cli-required': False},
                 "document_id": {'type': 'string', 'title': 'Document Id', 'description': 'The document (page) the segment is on.', 'x-cli-required': True},
                 "kind": {'type': 'string', 'title': 'Kind', 'description': "The segment's kind: region, line, word, ...", 'x-cli-required': True},
                 "kind_raw": {'type': 'string', 'nullable': True, 'title': 'Kind Raw', 'description': 'The kind as the source format named it (e.g. a PAGE XML region type).', 'x-cli-required': False},
+                "outline_from_baseline": {'type': 'boolean', 'title': 'Outline From Baseline', 'description': "Draw the line's outline from its baseline and the page's ink.", 'default': False, 'x-cli-required': False},
                 "parent_segment_id": {'type': 'string', 'nullable': True, 'title': 'Parent Segment Id', 'description': "The segment this one sits inside (a line's region).", 'x-cli-required': False},
                 "pass_id": {'type': 'string', 'title': 'Pass Id', 'description': 'The pass (layer) the segment joins.', 'x-cli-required': True},
+                "place_in_region": {'type': 'boolean', 'title': 'Place In Region', 'description': 'With no parent given, put the segment in the region holding most of it (the smaller on a tie).', 'default': False, 'x-cli-required': False},
+                "smoothing": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Smoothing', 'description': 'Simplify the outline and baseline as drawn by hand: 0 keeps nearly every bend, 1 the fewest points.', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -16302,6 +17023,18 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("doubtful-lines")
+    def segments_doubtful_lines_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+    ) -> None:
+        """Doubtful Lines (GET /api/segments/document/{doc_id}/doubtful)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/document/{doc_id}/doubtful"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("list-document-matches")
     def segments_list_document_matches_get(
         ctx: typer.Context,
@@ -16314,6 +17047,48 @@ def register_generated_openapi_commands(
             params = {
                 "state": state,
             }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("on-a-rendition")
+    def segments_on_a_rendition_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        rendition_id: str = typer.Argument(..., help='Rendition Id'),
+    ) -> None:
+        """Segments On A Rendition (GET /api/segments/document/{doc_id}/on-rendition/{rendition_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/document/{doc_id}/on-rendition/{rendition_id}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("preview-simplify")
+    def segments_preview_simplify_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+        segment_ids: list[str] = typer.Option(..., '--segment-ids', help='The segments the slider simplifies. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        tolerance: float = typer.Option(..., '--tolerance', help='How far, in image pixels, the simpler shape may stray.'),
+    ) -> None:
+        """Preview Simplify Segments (GET /api/segments/document/{doc_id}/simplify-preview)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/document/{doc_id}/simplify-preview"
+            params = {
+                "segment_ids": _list_values(segment_ids),
+                "tolerance": tolerance,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("validate-document")
+    def segments_validate_document_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+    ) -> None:
+        """Validate Document Segments (GET /api/segments/document/{doc_id}/validate)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/document/{doc_id}/validate"
+            params = None
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
@@ -16392,7 +17167,10 @@ def register_generated_openapi_commands(
     def segments_merge_post(
         ctx: typer.Context,
         expected_versions: str = typer.Option(..., '--expected-versions', help="Each segment's version as last read, {segment_id: version}; a changed segment is refused. JSON."),
+        join_geometry: Optional[bool] = typer.Option(None, '--join-geometry/--no-join-geometry', help='Join the outlines and baselines onto the kept segment, in reading order. Default: false.'),
         keep_id: str = typer.Option(..., '--keep-id', help='The segment that survives the merge.'),
+        keep_shapes: Optional[bool] = typer.Option(None, '--keep-shapes/--no-keep-shapes', help="Keep every member's outline as a shape of the kept segment, in the order given. Default: false."),
+        move_into_region: Optional[bool] = typer.Option(None, '--move-into-region/--no-move-into-region', help="Move members in other regions into the kept segment's region rather than refusing. Default: false."),
         segment_ids: list[str] = typer.Option(..., '--segment-ids', help='The segments to merge. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Merge Segments (POST /api/segments/merge)."""
@@ -16401,11 +17179,17 @@ def register_generated_openapi_commands(
             params = None
             payload = _build_json_payload({
                 "expected_versions": expected_versions,
+                "join_geometry": join_geometry,
                 "keep_id": keep_id,
+                "keep_shapes": keep_shapes,
+                "move_into_region": move_into_region,
                 "segment_ids": segment_ids,
             }, {
                 "expected_versions": {'additionalProperties': {'type': 'integer'}, 'type': 'object', 'title': 'Expected Versions', 'description': "Each segment's version as last read, {segment_id: version}; a changed segment is refused.", 'x-cli-required': True},
+                "join_geometry": {'type': 'boolean', 'title': 'Join Geometry', 'description': 'Join the outlines and baselines onto the kept segment, in reading order.', 'default': False, 'x-cli-required': False},
                 "keep_id": {'type': 'string', 'title': 'Keep Id', 'description': 'The segment that survives the merge.', 'x-cli-required': True},
+                "keep_shapes": {'type': 'boolean', 'title': 'Keep Shapes', 'description': "Keep every member's outline as a shape of the kept segment, in the order given.", 'default': False, 'x-cli-required': False},
+                "move_into_region": {'type': 'boolean', 'title': 'Move Into Region', 'description': "Move members in other regions into the kept segment's region rather than refusing.", 'default': False, 'x-cli-required': False},
                 "segment_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Segment Ids', 'description': 'The segments to merge.', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
@@ -16482,13 +17266,58 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("regenerate-outline")
+    def segments_regenerate_outline_post(
+        ctx: typer.Context,
+        expected_versions: str = typer.Option(..., '--expected-versions', help="Each segment's version as last read, {segment_id: version}; a changed segment is refused. JSON."),
+        fixed_height: Optional[float] = typer.Option(None, '--fixed-height', help='A band this many image pixels tall over the baseline, for a line with no ink to measure.'),
+        segment_ids: list[str] = typer.Option(..., '--segment-ids', help='The lines whose outlines are drawn again from their baselines. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Regenerate Outline (POST /api/segments/regenerate-outline)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments/regenerate-outline"
+            params = None
+            payload = _build_json_payload({
+                "expected_versions": expected_versions,
+                "fixed_height": fixed_height,
+                "segment_ids": segment_ids,
+            }, {
+                "expected_versions": {'additionalProperties': {'type': 'integer'}, 'type': 'object', 'title': 'Expected Versions', 'description': "Each segment's version as last read, {segment_id: version}; a changed segment is refused.", 'x-cli-required': True},
+                "fixed_height": {'type': 'number', 'exclusiveMinimum': True, 'nullable': True, 'title': 'Fixed Height', 'description': 'A band this many image pixels tall over the baseline, for a line with no ink to measure.', 'minimum': 0.0, 'x-cli-required': False},
+                "segment_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Segment Ids', 'description': 'The lines whose outlines are drawn again from their baselines.', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("reparent")
+    def segments_reparent_post(
+        ctx: typer.Context,
+        parent_segment_id: Optional[str] = typer.Option(None, '--parent-segment-id', help='The segment they now sit inside (a line into a region); none lifts them out to the page.'),
+        segments: str = typer.Option(..., '--segments', help='The segments to move, each with the version the caller saw. JSON.'),
+    ) -> None:
+        """Reparent Segments (POST /api/segments/reparent)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/segments/reparent"
+            params = None
+            payload = _build_json_payload({
+                "parent_segment_id": parent_segment_id,
+                "segments": segments,
+            }, {
+                "parent_segment_id": {'type': 'string', 'nullable': True, 'title': 'Parent Segment Id', 'description': 'The segment they now sit inside (a line into a region); none lifts them out to the page.', 'x-cli-required': False},
+                "segments": {'items': {'$ref': '#/components/schemas/SegmentReparentItem'}, 'type': 'array', 'minItems': 1, 'title': 'Segments', 'description': 'The segments to move, each with the version the caller saw.', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("split")
     def segments_split_post(
         ctx: typer.Context,
         at_offset: Optional[int] = typer.Option(None, '--at-offset', help="Split at this character of the line's reading instead of giving parts."),
-        expected_version: int = typer.Option(..., '--expected-version', help="The segment's version as last read; a changed segment is refused."),
+        cut_path: Optional[str] = typer.Option(None, '--cut-path', help='A knife stroke: split every named line whose baseline it crosses, at the crossings. JSON.'),
+        expected_version: Optional[int] = typer.Option(None, '--expected-version', help="The segment's version as last read; a changed segment is refused (not with cut_path)."),
+        expected_versions: Optional[str] = typer.Option(None, '--expected-versions', help='With cut_path: the lines the stroke may cross, {segment_id: version as last read}. Default: {}. JSON.'),
         parts: Optional[str] = typer.Option(None, '--parts', help='The parts to split it into, each with its own anchor (or give at_offset). Default: []. JSON.'),
-        segment_id: str = typer.Option(..., '--segment-id', help='The segment to split.'),
+        segment_id: Optional[str] = typer.Option(None, '--segment-id', help='The segment to split (not with cut_path).'),
     ) -> None:
         """Split Segment (POST /api/segments/split)."""
         def op_call(client: FicheroClient) -> Any:
@@ -16496,14 +17325,18 @@ def register_generated_openapi_commands(
             params = None
             payload = _build_json_payload({
                 "at_offset": at_offset,
+                "cut_path": cut_path,
                 "expected_version": expected_version,
+                "expected_versions": expected_versions,
                 "parts": parts,
                 "segment_id": segment_id,
             }, {
                 "at_offset": {'type': 'integer', 'nullable': True, 'title': 'At Offset', 'description': "Split at this character of the line's reading instead of giving parts.", 'x-cli-required': False},
-                "expected_version": {'type': 'integer', 'title': 'Expected Version', 'description': "The segment's version as last read; a changed segment is refused.", 'x-cli-required': True},
+                "cut_path": {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Cut Path', 'description': 'A knife stroke: split every named line whose baseline it crosses, at the crossings.', 'x-cli-required': False},
+                "expected_version": {'type': 'integer', 'nullable': True, 'title': 'Expected Version', 'description': "The segment's version as last read; a changed segment is refused (not with cut_path).", 'x-cli-required': False},
+                "expected_versions": {'additionalProperties': {'type': 'integer'}, 'type': 'object', 'title': 'Expected Versions', 'description': 'With cut_path: the lines the stroke may cross, {segment_id: version as last read}.', 'default': {}, 'x-cli-required': False},
                 "parts": {'items': {'$ref': '#/components/schemas/SegmentSplitPart'}, 'type': 'array', 'title': 'Parts', 'description': 'The parts to split it into, each with its own anchor (or give at_offset).', 'default': [], 'x-cli-required': False},
-                "segment_id": {'type': 'string', 'title': 'Segment Id', 'description': 'The segment to split.', 'x-cli-required': True},
+                "segment_id": {'type': 'string', 'nullable': True, 'title': 'Segment Id', 'description': 'The segment to split (not with cut_path).', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -16601,6 +17434,7 @@ def register_generated_openapi_commands(
     def segments_correct_line_post(
         ctx: typer.Context,
         segment_id: str = typer.Argument(..., help='Segment Id'),
+        corrects_representation_id: Optional[str] = typer.Option(None, '--corrects-representation-id', help='The reading of this line to correct, at ITS level and kind (a compared reading, `source.editor.compare-two-to-four-readings-with-the-line-picture-and-edit-in-line`). Unset: the one that counts now.'),
         expected_counting_id: Optional[str] = typer.Option(None, '--expected-counting-id', help='The reading that counted when you read the line. When another counts now, the correction is refused (409, naming it) and nothing is written. Unset: the one that counts now.'),
         kind: Optional[str] = typer.Option(None, '--kind', help='The kind of reading corrected. Default: "transcription".'),
         text: str = typer.Option(..., '--text', help="The line's corrected text."),
@@ -16610,10 +17444,12 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/segments/{segment_id}/correct"
             params = None
             payload = _build_json_payload({
+                "corrects_representation_id": corrects_representation_id,
                 "expected_counting_id": expected_counting_id,
                 "kind": kind,
                 "text": text,
             }, {
+                "corrects_representation_id": {'type': 'string', 'nullable': True, 'title': 'Corrects Representation Id', 'description': 'The reading of this line to correct, at ITS level and kind (a compared reading, `source.editor.compare-two-to-four-readings-with-the-line-picture-and-edit-in-line`). Unset: the one that counts now.', 'x-cli-required': False},
                 "expected_counting_id": {'type': 'string', 'nullable': True, 'title': 'Expected Counting Id', 'description': 'The reading that counted when you read the line. When another counts now, the correction is refused (409, naming it) and nothing is written. Unset: the one that counts now.', 'x-cli-required': False},
                 "kind": {'type': 'string', 'title': 'Kind', 'description': 'The kind of reading corrected.', 'default': 'transcription', 'x-cli-required': False},
                 "text": {'type': 'string', 'minLength': 1, 'title': 'Text', 'description': "The line's corrected text.", 'x-cli-required': True},
@@ -18616,6 +19452,88 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    target_app = existing_apps.get('workers')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for workers endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='workers')
+        existing_apps['workers'] = target_app
+
+    @target_app.command("start-a-dev-process-recorded-as-a-job-row", hidden=True)
+    @target_app.command("start")
+    def workers_start_post(
+        ctx: typer.Context,
+        brief: str = typer.Option(..., '--brief', help='Brief.'),
+        kind: str = typer.Option(..., '--kind', help='Kind.'),
+        model: Optional[str] = typer.Option(None, '--model', help='Model. Default: "sonnet".'),
+        scenario: Optional[str] = typer.Option(None, '--scenario', help='Scenario. JSON.'),
+        task: Optional[str] = typer.Option(None, '--task', help='Task. Default: "".'),
+        timeout_s: float = typer.Option(..., '--timeout-s', help='Timeout S.'),
+        tmux_session: Optional[str] = typer.Option(None, '--tmux-session', help='Tmux Session. Default: "".'),
+        workdir: str = typer.Option(..., '--workdir', help='Workdir.'),
+    ) -> None:
+        """Start a dev worker process, recorded as a job row (POST /api/workers)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/workers"
+            params = None
+            payload = _build_json_payload({
+                "brief": brief,
+                "kind": kind,
+                "model": model,
+                "scenario": scenario,
+                "task": task,
+                "timeout_s": timeout_s,
+                "tmux_session": tmux_session,
+                "workdir": workdir,
+            }, {
+                "brief": {'type': 'string', 'title': 'Brief', 'x-cli-required': True},
+                "kind": {'type': 'string', 'title': 'Kind', 'x-cli-required': True},
+                "model": {'type': 'string', 'title': 'Model', 'default': 'sonnet', 'x-cli-required': False},
+                "scenario": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Scenario', 'x-cli-required': False},
+                "task": {'type': 'string', 'title': 'Task', 'default': '', 'x-cli-required': False},
+                "timeout_s": {'type': 'number', 'title': 'Timeout S', 'x-cli-required': True},
+                "tmux_session": {'type': 'string', 'title': 'Tmux Session', 'default': '', 'x-cli-required': False},
+                "workdir": {'type': 'string', 'title': 'Workdir', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("type-a-message-into-a-task-s-current-refused-for-a-stale-generation", hidden=True)
+    @target_app.command("tell")
+    def workers_tell_post(
+        ctx: typer.Context,
+        generation: int = typer.Option(..., '--generation', help='Generation.'),
+        task: str = typer.Option(..., '--task', help='Task.'),
+        text: str = typer.Option(..., '--text', help='Text.'),
+    ) -> None:
+        """Type a message into a task's current worker; refused for a stale generation (POST /api/workers/tell)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/workers/tell"
+            params = None
+            payload = _build_json_payload({
+                "generation": generation,
+                "task": task,
+                "text": text,
+            }, {
+                "generation": {'type': 'integer', 'title': 'Generation', 'x-cli-required': True},
+                "task": {'type': 'string', 'title': 'Task', 'x-cli-required': True},
+                "text": {'type': 'string', 'title': 'Text', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("stop-a-its-whole-process-group", hidden=True)
+    @target_app.command("stop")
+    def workers_stop_post(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help='Job Id'),
+    ) -> None:
+        """Stop a worker: its whole process group (POST /api/workers/{job_id}/stop)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/workers/{job_id}/stop"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('workflow-execution')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for workflow-execution endpoints.', no_args_is_help=True)
@@ -18663,9 +19581,10 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("execute")
-    def workflow_execution_execute_post(
+    @target_app.command("dry-run")
+    def workflow_execution_dry_run_post(
         ctx: typer.Context,
+        allow_cloud_once: Optional[bool] = typer.Option(None, '--allow-cloud-once/--no-allow-cloud-once', help="Let THIS run's calls go to a cloud model although the project keeps its pages on this Mac; written to no setting, ended with the run (`ai.cloud.one-run-overrides`) Default: false."),
         checkpoint_ns: Optional[str] = typer.Option(None, '--checkpoint-ns', help='Checkpoint namespace, for a sub-workflow. Default: "".'),
         force_new: Optional[bool] = typer.Option(None, '--force-new/--no-force-new', help='Force New. Default: false.'),
         force_recompute: Optional[bool] = typer.Option(None, '--force-recompute/--no-force-recompute', help='Run it again for real: bypass every cache. Default: false.'),
@@ -18673,6 +19592,63 @@ def register_generated_openapi_commands(
         interrupt_after: Optional[list[str]] = typer.Option(None, '--interrupt-after', help='Interrupt After. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
         interrupt_before: Optional[list[str]] = typer.Option(None, '--interrupt-before', help='Interrupt Before. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
         model_override: Optional[str] = typer.Option(None, '--model-override', help='Run every step with this model.'),
+        over_cap_once: Optional[bool] = typer.Option(None, '--over-cap-once/--no-over-cap-once', help="Let THIS run's calls go past a cloud spend cap; the spend is still booked, so the next refusal counts it; written to no setting, ended with the run (`ai.cloud.one-run-overrides`) Default: false."),
+        provider_override: Optional[str] = typer.Option(None, '--provider-override', help='Run every step on this provider.'),
+        selection: Optional[str] = typer.Option(None, '--selection', help='The declared scope of a run. Validation is the whole point: this is the first place in the system that can say "that request does not describe a coherent selection" and refuse, rather than running and discovering the scope was wrong from its effects on real archival data. JSON.'),
+        skip_cache: Optional[bool] = typer.Option(None, '--skip-cache/--no-skip-cache', help='Skip Cache. Default: false.'),
+        thread_id: Optional[str] = typer.Option(None, '--thread-id', help="Continue this run's thread; made up when not given."),
+        workflow_id: str = typer.Option(..., '--workflow-id', help='The workflow to run.'),
+    ) -> None:
+        """Dry Run Workflow (POST /api/workflow-execution/dry-run)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/workflow-execution/dry-run"
+            params = None
+            payload = _build_json_payload({
+                "allow_cloud_once": allow_cloud_once,
+                "checkpoint_ns": checkpoint_ns,
+                "force_new": force_new,
+                "force_recompute": force_recompute,
+                "inputs": inputs,
+                "interrupt_after": interrupt_after,
+                "interrupt_before": interrupt_before,
+                "model_override": model_override,
+                "over_cap_once": over_cap_once,
+                "provider_override": provider_override,
+                "selection": selection,
+                "skip_cache": skip_cache,
+                "thread_id": thread_id,
+                "workflow_id": workflow_id,
+            }, {
+                "allow_cloud_once": {'type': 'boolean', 'title': 'Allow Cloud Once', 'description': "Let THIS run's calls go to a cloud model although the project keeps its pages on this Mac; written to no setting, ended with the run (`ai.cloud.one-run-overrides`)", 'default': False, 'x-cli-required': False},
+                "checkpoint_ns": {'type': 'string', 'title': 'Checkpoint Ns', 'description': 'Checkpoint namespace, for a sub-workflow.', 'default': '', 'x-cli-required': False},
+                "force_new": {'type': 'boolean', 'title': 'Force New', 'default': False, 'x-cli-required': False},
+                "force_recompute": {'type': 'boolean', 'title': 'Force Recompute', 'description': 'Run it again for real: bypass every cache.', 'default': False, 'x-cli-required': False},
+                "inputs": {'additionalProperties': True, 'type': 'object', 'title': 'Inputs', 'description': "The workflow's inputs, a JSON object.", 'x-cli-required': False},
+                "interrupt_after": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Interrupt After', 'x-cli-required': False},
+                "interrupt_before": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Interrupt Before', 'x-cli-required': False},
+                "model_override": {'type': 'string', 'nullable': True, 'title': 'Model Override', 'description': 'Run every step with this model.', 'x-cli-required': False},
+                "over_cap_once": {'type': 'boolean', 'title': 'Over Cap Once', 'description': "Let THIS run's calls go past a cloud spend cap; the spend is still booked, so the next refusal counts it; written to no setting, ended with the run (`ai.cloud.one-run-overrides`)", 'default': False, 'x-cli-required': False},
+                "provider_override": {'type': 'string', 'nullable': True, 'title': 'Provider Override', 'description': 'Run every step on this provider.', 'x-cli-required': False},
+                "selection": {'properties': {'kind': {'$ref': '#/components/schemas/SelectionKind'}, 'ids': {'items': {'type': 'string'}, 'type': 'array', 'title': 'Ids'}}, 'type': 'object', 'required': ['kind'], 'title': 'WorkflowSelection', 'description': 'The declared scope of a run.\n\nValidation is the whole point: this is the first place in the system that\ncan say "that request does not describe a coherent selection" and refuse,\nrather than running and discovering the scope was wrong from its effects\non real archival data.', 'x-cli-required': False},
+                "skip_cache": {'type': 'boolean', 'title': 'Skip Cache', 'default': False, 'x-cli-required': False},
+                "thread_id": {'type': 'string', 'nullable': True, 'title': 'Thread Id', 'description': "Continue this run's thread; made up when not given.", 'x-cli-required': False},
+                "workflow_id": {'type': 'string', 'title': 'Workflow Id', 'description': 'The workflow to run.', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("execute")
+    def workflow_execution_execute_post(
+        ctx: typer.Context,
+        allow_cloud_once: Optional[bool] = typer.Option(None, '--allow-cloud-once/--no-allow-cloud-once', help="Let THIS run's calls go to a cloud model although the project keeps its pages on this Mac; written to no setting, ended with the run (`ai.cloud.one-run-overrides`) Default: false."),
+        checkpoint_ns: Optional[str] = typer.Option(None, '--checkpoint-ns', help='Checkpoint namespace, for a sub-workflow. Default: "".'),
+        force_new: Optional[bool] = typer.Option(None, '--force-new/--no-force-new', help='Force New. Default: false.'),
+        force_recompute: Optional[bool] = typer.Option(None, '--force-recompute/--no-force-recompute', help='Run it again for real: bypass every cache. Default: false.'),
+        inputs: Optional[str] = typer.Option(None, '--inputs', help="The workflow's inputs, a JSON object. JSON."),
+        interrupt_after: Optional[list[str]] = typer.Option(None, '--interrupt-after', help='Interrupt After. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        interrupt_before: Optional[list[str]] = typer.Option(None, '--interrupt-before', help='Interrupt Before. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        model_override: Optional[str] = typer.Option(None, '--model-override', help='Run every step with this model.'),
+        over_cap_once: Optional[bool] = typer.Option(None, '--over-cap-once/--no-over-cap-once', help="Let THIS run's calls go past a cloud spend cap; the spend is still booked, so the next refusal counts it; written to no setting, ended with the run (`ai.cloud.one-run-overrides`) Default: false."),
         provider_override: Optional[str] = typer.Option(None, '--provider-override', help='Run every step on this provider.'),
         selection: Optional[str] = typer.Option(None, '--selection', help='The declared scope of a run. Validation is the whole point: this is the first place in the system that can say "that request does not describe a coherent selection" and refuse, rather than running and discovering the scope was wrong from its effects on real archival data. JSON.'),
         skip_cache: Optional[bool] = typer.Option(None, '--skip-cache/--no-skip-cache', help='Skip Cache. Default: false.'),
@@ -18684,6 +19660,7 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/workflow-execution/execute"
             params = None
             payload = _build_json_payload({
+                "allow_cloud_once": allow_cloud_once,
                 "checkpoint_ns": checkpoint_ns,
                 "force_new": force_new,
                 "force_recompute": force_recompute,
@@ -18691,12 +19668,14 @@ def register_generated_openapi_commands(
                 "interrupt_after": interrupt_after,
                 "interrupt_before": interrupt_before,
                 "model_override": model_override,
+                "over_cap_once": over_cap_once,
                 "provider_override": provider_override,
                 "selection": selection,
                 "skip_cache": skip_cache,
                 "thread_id": thread_id,
                 "workflow_id": workflow_id,
             }, {
+                "allow_cloud_once": {'type': 'boolean', 'title': 'Allow Cloud Once', 'description': "Let THIS run's calls go to a cloud model although the project keeps its pages on this Mac; written to no setting, ended with the run (`ai.cloud.one-run-overrides`)", 'default': False, 'x-cli-required': False},
                 "checkpoint_ns": {'type': 'string', 'title': 'Checkpoint Ns', 'description': 'Checkpoint namespace, for a sub-workflow.', 'default': '', 'x-cli-required': False},
                 "force_new": {'type': 'boolean', 'title': 'Force New', 'default': False, 'x-cli-required': False},
                 "force_recompute": {'type': 'boolean', 'title': 'Force Recompute', 'description': 'Run it again for real: bypass every cache.', 'default': False, 'x-cli-required': False},
@@ -18704,6 +19683,7 @@ def register_generated_openapi_commands(
                 "interrupt_after": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Interrupt After', 'x-cli-required': False},
                 "interrupt_before": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Interrupt Before', 'x-cli-required': False},
                 "model_override": {'type': 'string', 'nullable': True, 'title': 'Model Override', 'description': 'Run every step with this model.', 'x-cli-required': False},
+                "over_cap_once": {'type': 'boolean', 'title': 'Over Cap Once', 'description': "Let THIS run's calls go past a cloud spend cap; the spend is still booked, so the next refusal counts it; written to no setting, ended with the run (`ai.cloud.one-run-overrides`)", 'default': False, 'x-cli-required': False},
                 "provider_override": {'type': 'string', 'nullable': True, 'title': 'Provider Override', 'description': 'Run every step on this provider.', 'x-cli-required': False},
                 "selection": {'properties': {'kind': {'$ref': '#/components/schemas/SelectionKind'}, 'ids': {'items': {'type': 'string'}, 'type': 'array', 'title': 'Ids'}}, 'type': 'object', 'required': ['kind'], 'title': 'WorkflowSelection', 'description': 'The declared scope of a run.\n\nValidation is the whole point: this is the first place in the system that\ncan say "that request does not describe a coherent selection" and refuse,\nrather than running and discovering the scope was wrong from its effects\non real archival data.', 'x-cli-required': False},
                 "skip_cache": {'type': 'boolean', 'title': 'Skip Cache', 'default': False, 'x-cli-required': False},
@@ -18716,6 +19696,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-runs-route")
     def workflow_execution_list_runs_route_get(
         ctx: typer.Context,
+        archived: Optional[bool] = typer.Option(None, '--archived/--no-archived', help='the ARCHIVED runs instead (Show Archived, `activity.pane.archive-old-runs`)'),
         limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
         offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
         status: Optional[list[str]] = typer.Option(None, '--status', help='Filter to these statuses (e.g. ?status=failed). Omit for every non-deleted run, newest first. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
@@ -18724,11 +19705,29 @@ def register_generated_openapi_commands(
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/workflow-execution/runs"
             params = {
+                "archived": archived,
                 "limit": limit,
                 "offset": offset,
                 "status": _list_values(status),
             }
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("archive-runs-route")
+    def workflow_execution_archive_runs_route_post(
+        ctx: typer.Context,
+        thread_ids: list[str] = typer.Option(..., '--thread-ids', help='ended runs to archive. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Archive Workflow Runs Route (POST /api/workflow-execution/runs/archive)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/workflow-execution/runs/archive"
+            params = None
+            payload = _build_json_payload({
+                "thread_ids": thread_ids,
+            }, {
+                "thread_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Thread Ids', 'description': 'ended runs to archive', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("delete-runs-route")
@@ -18874,19 +19873,25 @@ def register_generated_openapi_commands(
     def workflow_execution_resume_post(
         ctx: typer.Context,
         thread_id: str = typer.Argument(..., help='Thread Id'),
+        allow_cloud_once: Optional[bool] = typer.Option(None, '--allow-cloud-once/--no-allow-cloud-once', help="Let this resumed run's calls go to a cloud model once (`ai.cloud.one-run-overrides`). Default: false."),
         answer: Optional[str] = typer.Option(None, '--answer', help='The answer to the question the run paused on.'),
         inputs: Optional[str] = typer.Option(None, '--inputs', help='New inputs for the paused run. JSON.'),
+        over_cap_once: Optional[bool] = typer.Option(None, '--over-cap-once/--no-over-cap-once', help="Let this resumed run's calls go past a cloud spend cap once (`ai.cloud.one-run-overrides`). Default: false."),
     ) -> None:
         """Resume Workflow (POST /api/workflow-execution/threads/{thread_id}/resume)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/workflow-execution/threads/{thread_id}/resume"
             params = None
             payload = _build_json_payload({
+                "allow_cloud_once": allow_cloud_once,
                 "answer": answer,
                 "inputs": inputs,
+                "over_cap_once": over_cap_once,
             }, {
+                "allow_cloud_once": {'type': 'boolean', 'title': 'Allow Cloud Once', 'description': "Let this resumed run's calls go to a cloud model once (`ai.cloud.one-run-overrides`).", 'default': False, 'x-cli-required': False},
                 "answer": {'nullable': True, 'title': 'Answer', 'description': 'The answer to the question the run paused on.', 'x-cli-required': False},
                 "inputs": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Inputs', 'description': 'New inputs for the paused run.', 'x-cli-required': False},
+                "over_cap_once": {'type': 'boolean', 'title': 'Over Cap Once', 'description': "Let this resumed run's calls go past a cloud spend cap once (`ai.cloud.one-run-overrides`).", 'default': False, 'x-cli-required': False},
             }, required=False)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)

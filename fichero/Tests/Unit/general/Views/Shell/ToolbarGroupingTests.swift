@@ -112,7 +112,7 @@ struct ToolbarGroupingTests {
         #expect(!source.contains("libraryFilterToggleButton"))
         let mini = try Self.appSource("Views/Library/LibraryView+MiniToolbar.swift")
         #expect(mini.contains("librarySortMenu"))
-        #expect(mini.contains("libraryFilterToggleButton"))
+        #expect(mini.contains("PaneFilterField("))  // the inline field (owner 2026-11-13), not the old toggle
     }
 
     /// The per-item identifiers the toggles used to carry are gone: leaving
@@ -145,6 +145,8 @@ struct ToolbarGroupingTests {
             .replacingOccurrences(of: "EngineStatusToolbarItem(", with: "")
             .replacingOccurrences(of: "ActivityStatusToolbarItem(", with: "")
             .replacingOccurrences(of: "ModelChipToolbarItem(", with: "")
+            // The system search item (iOS) carries the system's own identity (com.apple.SwiftUI.search, #3163).
+            .replacingOccurrences(of: "DefaultToolbarItem(", with: "")
         let itemDeclarations = source.components(separatedBy: "ToolbarItem(").count - 1
         let identifiedItems = source.components(separatedBy: "ToolbarItem(id: ").count - 1
         #expect(itemDeclarations > 0, "no ToolbarItem declarations found — wrong file?")
@@ -187,14 +189,13 @@ struct ToolbarGroupingTests {
         let source = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
         let principalItems = source.components(separatedBy: "placement: .principal").count - 1
         let spacers = source.components(separatedBy: "ToolbarSpacer(.fixed, placement: .principal)").count - 1
-        #expect(principalItems - spacers == 4, Comment(rawValue: "\(principalItems - spacers) items claim .principal (\(spacers) spacers)"))
+        // #6563: the breadcrumb names `.principal` itself; its three neighbours take `islandNeighbourPlacement`, which is
+        // `.principal` on the Mac and a secondary action on iOS, whose bar draws only one centre item.
+        #expect(principalItems - spacers == 1, Comment(rawValue: "\(principalItems - spacers) items name .principal (\(spacers) spacers)"))
         #expect(spacers == 3, Comment(rawValue: "\(spacers) fixed spacers — one between each adjacent pair"))
-        for id in [
-            "ContentToolbarID.modelChip",
-            "ContentToolbarID.breadcrumb", "ContentToolbarID.workflowSuggest",
-            "ContentToolbarID.engineStatus"
-        ] {
-            #expect(source.contains("ToolbarItem(id: \(id), placement: .principal)"))
+        #expect(source.contains("ToolbarItem(id: ContentToolbarID.breadcrumb, placement: .principal)"))
+        for id in ["ContentToolbarID.modelChip", "ContentToolbarID.workflowSuggest", "ContentToolbarID.engineStatus"] {
+            #expect(source.contains("ToolbarItem(id: \(id), placement: Self.islandNeighbourPlacement)"))
         }
         // Server + activity share the engineStatus item (2026-08-30).
         #expect(!source.contains("ToolbarItem(id: ContentToolbarID.activityStatus"))

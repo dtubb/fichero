@@ -86,7 +86,7 @@ cd fichero
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -e 'fichero-server[dev]'
-pip install pytest ruff
+pip install 'pytest==9.1.1' 'pytest-asyncio==1.4.0' ruff  # not 9.2.0: test_perf_disk_reclaim fails there
 ```
 
 The last line is not optional. `pytest` and `ruff` are neither runtime dependencies nor

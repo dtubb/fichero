@@ -1,0 +1,178 @@
+"""Delete works on every row Activity lists, and deleted work stays gone (#6583).
+
+Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md, `activity.window.delete-any-row`.
+WHY (owner 2026-11-13): Delete in the window acted only on workflow runs; a job of its own (a failed recipe run, a
+paused download, a queued group of thumbnails) could not be deleted at all, and Clear Failed only hid failures.
+Through the route and the real jobs table; nothing runs (background work is paused for the test).
+"""
+from __future__ import annotations
+
+import pytest
+
+from fichero_server.execution import jobs
+
+KIND = "t-delete"
+GROUP_KIND = "t-delete-thumbs"
+
+
+@pytest.fixture
+def held(db, monkeypatch):
+    monkeypatch.setitem(jobs.KINDS, KIND, jobs.Kind(run=lambda db, subject: None, model=None, name="Try a stage"))
+    monkeypatch.setitem(jobs.KINDS, GROUP_KIND, jobs.Kind(run=lambda db, subject: None, model=None, name="Make thumbnails"))
+    monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())
+    jobs.set_paused(True)
+    yield db
+    jobs.set_paused(False)
+
+
+def _row(db, kind, subject, state, reason=None):
+    job_id = jobs.enqueue(db, kind, subject)
+    db.execute("UPDATE jobs SET state = ?, reason = ?, finished_at = CASE WHEN ? IN ('done', 'failed', 'cancelled') "
+               "THEN now() ELSE NULL END WHERE id = ?", [state, reason, state, job_id])
+    return job_id
+
+
+def _listed(client):
+    return {j["id"]: j["state"] for j in client.get("/api/activity/jobs").json()["jobs"]}
+
+
+def _state(db, job_id):
+    return db.execute_fetchone("SELECT state, reason, cleared_at IS NOT NULL FROM jobs WHERE id = ?", [job_id])
+
+
+def test_delete_takes_a_failed_a_paused_a_done_row_and_a_whole_group__and_skips_what_runs(held, client):
+    failed = _row(held, KIND, "d:failed", "failed", "Anthropic has no credit left")
+    paused = _row(held, KIND, "d:paused", "paused", jobs.PAUSED_REASON)
+    done = _row(held, KIND, "d:done", "done")
+    running = _row(held, KIND, "d:running", "running")
+    thumbs = [_row(held, GROUP_KIND, f"g:{i}", "waiting") for i in range(3)]
+    listed = _listed(client)
+    assert failed in listed and paused in listed and f"waiting:{GROUP_KIND}" in listed
+
+    jobs._scheduler.running_ids = lambda: [running]  # the lane runs this one now
+    r = client.post("/api/activity/jobs/delete",
+                    json={"ids": [failed, paused, done, running, f"waiting:{GROUP_KIND}"]})
+
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert sorted(body["deleted_ids"]) == sorted([failed, paused, done, *thumbs])
+    assert body["skipped_ids"] == [running], "a job running now is skipped, and said so"
+    listed = _listed(client)
+    for job_id in (failed, paused, done, *thumbs):
+        assert job_id not in listed, f"{job_id} is still listed"
+    assert f"waiting:{GROUP_KIND}" not in listed, "the group's row is gone with its jobs"
+    assert running in listed
+    # Kept, not destroyed; what waited or was paused is cancelled so no lane picks it; the failure keeps its reason.
+    assert _state(held, failed) == ("failed", "Anthropic has no credit left", True)
+    assert _state(held, paused) == ("cancelled", "Deleted by you", True)
+    assert _state(held, done)[0] == "done" and _state(held, done)[2]
+    assert all(_state(held, t) == ("cancelled", "Deleted by you", True) for t in thumbs)
+    # A cleared FAILED row is hidden (the list does list failures; a done row it never listed, so that is no proof).
+    assert failed not in {j["id"] for j in client.get("/api/activity/jobs").json()["jobs"]}
+
+
+def test_deleted_work_stays_gone_after_a_relaunch_and_refuses_retry(held, client):
+    # Owner 23:30: a deleted row is gone, including from Retry lists; Undo is the way back (`activity.pane.archive-old-runs`).
+    failed = _row(held, KIND, "d:failed2", "failed", "the model is not downloaded")
+    waiting = _row(held, KIND, "d:waiting2", "waiting")
+    assert client.post("/api/activity/jobs/delete", json={"ids": [failed, waiting]}).json()["deleted_ids"]
+
+    jobs.resume(held)  # the next open
+
+    listed = _listed(client)
+    assert failed not in listed and waiting not in listed
+    assert _state(held, waiting)[0] == "cancelled", "a deleted waiting job never comes back to run"
+    assert client.post(f"/api/activity/jobs/{failed}/retry").status_code != 200, "a deleted row is in no Retry list"
+    assert failed not in _listed(client)
+
+
+def test_delete_takes_a_run_with_everything_under_it(held, client):
+    run = _row(held, KIND, "d:run", "failed", "2 of 3 pages were not read")
+    page = _row(held, KIND, "d:run:page", "failed", "timed out")
+    held.execute("UPDATE jobs SET parent_id = ? WHERE id = ?", [run, page])
+
+    r = client.post("/api/activity/jobs/delete", json={"ids": [run]})
+
+    assert r.json()["deleted_ids"] == [run]
+    assert _state(held, page)[2], "the row under the run is marked with it"
+    assert run not in _listed(client) and page not in _listed(client)
+
+
+def test_clear_finished_takes_every_ended_job_of_its_own_and_leaves_the_rest(held, client):
+    done = [_row(held, GROUP_KIND, f"cf:{i}", "done") for i in range(3)]
+    failed = _row(held, KIND, "cf:failed", "failed", "no model")
+    stopped = _row(held, KIND, "cf:stopped", "cancelled", "Stopped by you")
+    waiting = _row(held, KIND, "cf:waiting", "waiting")
+
+    r = client.post("/api/activity/jobs/delete", json={"states": ["done", "failed", "cancelled"]})
+
+    assert r.status_code == 200, r.text
+    assert sorted(r.json()["deleted_ids"]) == sorted([*done, failed, stopped])
+    assert _state(held, waiting)[0] == "waiting" and not _state(held, waiting)[2], "work still to do is left"
+    assert all(_state(held, d)[2] for d in done)
+    assert client.post("/api/activity/jobs/delete", json={"states": ["done"]}).json()["count"] == 0, "nothing left"
+
+
+def test_a_group_member_that_started_meanwhile_is_skipped_and_named(held, client):
+    """Review 2026-11-13: the state is judged at receipt; a job of the group a lane thread took is skipped, not dropped."""
+    waiting = _row(held, GROUP_KIND, "g:w", "waiting")
+    taken = _row(held, GROUP_KIND, "g:r", "waiting")
+    jobs._scheduler.running_ids = lambda: [taken]
+    held.execute("UPDATE jobs SET state = 'running' WHERE id = ?", [taken])  # the lane took it as the click landed
+
+    body = client.post("/api/activity/jobs/delete", json={"ids": [f"waiting:{GROUP_KIND}"]}).json()
+
+    assert body["deleted_ids"] == [waiting]
+    assert body["skipped_ids"] == [taken], "named as skipped, never dropped in silence"
+    assert _state(held, taken)[0] == "running"
+
+
+def test_a_row_a_lane_took_before_its_thread_is_listed_is_skipped_or_stopped_never_cancelled_under_it(held, client, monkeypatch):
+    """Review 2026-11-14: Delete read `running_ids()` once; a row a lane thread took after that read was running but not
+    in it, so it was cancelled under its thread without its Stop. The row's state is the truth."""
+    stopped: list[str] = []
+    monkeypatch.setitem(jobs.KINDS, "t-stoppable", jobs.Kind(run=lambda db, subject: None, model=None, name="A long job",
+                                                              cancel=lambda db, job_id: stopped.append(job_id) or "stopping"))
+    taken = jobs.enqueue(held, "t-stoppable", "race:1")
+    jobs._scheduler.running_ids = lambda: []  # the lane's thread has the row but is not listed yet
+    held.execute("UPDATE jobs SET state = 'running' WHERE id = ?", [taken])
+
+    plain = client.post("/api/activity/jobs/delete", json={"ids": [taken]}).json()
+    assert plain["skipped_ids"] == [taken] and _state(held, taken) == ("running", None, False), "skipped, untouched"
+    assert stopped == []
+
+    confirmed = client.post("/api/activity/jobs/delete", json={"ids": [taken], "stop_running": True}).json()
+    assert confirmed["deleted_ids"] == [taken] and stopped == [taken], "Stop then Delete goes through its kind's own Stop"
+
+
+def test_stop_then_delete_on_a_running_row_asks_it_to_stop_and_hides_it_at_once(held, client, monkeypatch):
+    """`activity.pane.row-actions-on-the-table`: Delete on a running row is Stop then Delete after the person's one confirmation
+    (`stop_running`); the row leaves every list now and ends under the mark when its lane thread returns."""
+    stopped: list[str] = []
+    monkeypatch.setitem(jobs.KINDS, "t-stoppable", jobs.Kind(run=lambda db, subject: None, model=None, name="A long job",
+                                                              cancel=lambda db, job_id: stopped.append(job_id) or "stopping"))
+    running = jobs.enqueue(held, "t-stoppable", "sd:1")
+    held.execute("UPDATE jobs SET state = 'running' WHERE id = ?", [running])
+    jobs._scheduler.running_ids = lambda: [running]
+
+    plain = client.post("/api/activity/jobs/delete", json={"ids": [running]}).json()
+    assert plain["skipped_ids"] == [running], "without the confirmation a running row is skipped and named"
+
+    confirmed = client.post("/api/activity/jobs/delete", json={"ids": [running], "stop_running": True}).json()
+
+    assert confirmed["deleted_ids"] == [running] and stopped == [running], "asked to stop through its kind's own Stop"
+    assert running not in {j["id"] for j in client.get("/api/activity/jobs").json()["jobs"]}, "gone from the list at once"
+    held.execute("UPDATE jobs SET state = 'cancelled', finished_at = now() WHERE id = ?", [running])  # the lane's end
+    assert running not in {j["id"] for j in client.get("/api/activity/jobs", params={"archived": True}).json()["jobs"]}
+
+
+def test_an_unknown_id_is_skipped_not_an_error(held, client):
+    r = client.post("/api/activity/jobs/delete", json={"ids": ["no-such-job"]})
+    assert r.status_code == 200, r.text
+    assert r.json() == {"deleted_ids": [], "skipped_ids": ["no-such-job"], "count": 0}
+
+
+def test_delete_is_an_audited_action(held):
+    from fichero_server.actions.registry import registry
+
+    assert "job.delete" in registry.names()

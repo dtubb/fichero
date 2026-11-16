@@ -53,6 +53,10 @@ struct DocumentRendition: Identifiable, Hashable, Sendable {
 
     /// Roles whose label is an acronym, not a title-cased word.
     static let acronymRoleNames: [String: String] = ["svg": "SVG"]
+
+    /// A way the whole page looks, not one segment's own picture (the engine's `SEGMENT_PICTURE_ROLE`,
+    /// `media/segment_pictures.py`). Only these join the page's renditions menu and up/down flip (#6482).
+    var isWholePage: Bool { role != "segment-picture" }
 }
 
 /// Fetches a document's renditions through the generated OpenAPI client.
@@ -96,12 +100,9 @@ final class RenditionService {
     }
 
     convenience init(apiClient: APIClient) {
-        let ficheroClient = FicheroClient(
-            baseURL: EngineConfig.host,
-            libraryPath: apiClient.currentLibraryPath ?? "",
-            transportMode: EngineConfig.transportMode
-        )
-        self.init(ficheroClient: ficheroClient)
+        // Share the library's own client (a reference type), never a new one on the app-wide host: a library pinned to
+        // a paired Mac keeps dialling that Mac (`sharing.guest.library-pinned-to-its-host`, #6360).
+        self.init(ficheroClient: apiClient.client)
     }
 
     /// This document's renditions, in engine order.

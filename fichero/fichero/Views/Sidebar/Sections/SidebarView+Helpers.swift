@@ -160,6 +160,7 @@ extension SidebarView {
             }
         }
         cachedItemIndex = sidebarItemIndex(cachedLibraryHeaders)
+        lastTreeRebuildAt = Date()  // the window in which a dropped row is a rebuild gap (`sidebar.deselect-always-works`)
 
         // Drop derived state for libraries that are no longer open. Without
         // this, closing a library leaves its buckets and — since the index
@@ -175,8 +176,12 @@ extension SidebarView {
     /// only reaches the builder's entry log, so a burst of rebuilds in the console says why.
     func rebuildCaches(for libraryId: UUID, reason: String = "direct") {
         guard let library = libraryManager.getLibrary(id: libraryId) else { return }
+        // An open expand (`InteractionProfile.Phase.sidebarExpand`) is split here: the wait for
+        // the observer, the build, the reindex, then the render.
+        InteractionProfile.lap(.sidebarExpand, "wake")
         let header = buildLibraryHeader(for: library, reason: reason)
         cacheLibraryDerivedState(header: header, library: library)
+        InteractionProfile.lap(.sidebarExpand, "build")
         // Same no-animation rule as the full rebuild above.
         var stillTree = Transaction()
         stillTree.disablesAnimations = true
@@ -187,6 +192,9 @@ extension SidebarView {
         // just rebuilt anyway; a per-library index would have to be merged on
         // every lookup, which is the cost we are removing.
         cachedItemIndex = sidebarItemIndex(cachedLibraryHeaders)
+        lastTreeRebuildAt = Date()  // the window in which a dropped row is a rebuild gap (`sidebar.deselect-always-works`)
+        InteractionProfile.lap(.sidebarExpand, "index")
+        InteractionProfile.endAfterNextRender(.sidebarExpand, detail: "rebuilt for \(reason)")
     }
 
     /// Recompute and store the per-library derived state that used to be redone

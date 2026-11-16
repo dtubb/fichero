@@ -1,12 +1,16 @@
 # Source Model — The segment editor — Design Spec (#TBD)
 
-> Milestone: source-model
+> Milestone: segment-editor
 > Manual: docs/contributor_manual/manual-facts/2026-10-05.md (the researcher-facing section authored in the user manual, tracked by this file: an "Editing the layout of a page" section: selecting, drawing, reshaping, merging and splitting segments on the image; setting their order, direction and type; drawing links; working with the Apple Pencil.)
 >
 > Design-led (Testing Constitution). The creative director owns this intent; tests enforce it;
 > code makes them pass. **Status: APPROVED 2026-10-26 by the maintainer.** A slice of the source model: read `source-model.md`
 > first. Evidence in `source-survey.md`. Every behaviour below is tagged **[GAP]** with its issue; everything
 > is design unless stated under "What exists today".
+> **The tools slice is `../ui/segment-editor.md`** (DRAFT 2026-11-13): merge, the knife, reassignment by
+> drag, lasso and brush selection, the marker and paintbrush, outlines regenerated from baselines, order by
+> clicking, word and character cuts from the recogniser's positions, the helpers, the full key and gesture
+> map, and the build order. This file stays the umbrella; that one refines its `source.editor.*` verbs.
 
 ## Intent
 
@@ -1363,8 +1367,11 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   setting carries workspace defaults.
 - `source.editor.draw-shapes` — **[PARTIAL]** (#4941) box, polygon, point, line and baseline can be drawn.
   **Built 2026-09-28 (image pages, segment passes), in the ONE Shape tool:** its kind menu, shown in Edit
-  Segments, picks Box (a drag, as before), Polygon (click points; a click on the first point, or a
-  double-click, closes it) or Baseline (click points; a double-click finishes). A finished polygon is
+  Segments, picks Box (a drag, as before), Polygon (click points; a click on the first point, a
+  double-click or Return closes it; while drawing, the closing edge is shown, the first point is drawn larger in
+  the accent colour and a hint reads "Click here, double-click or press Return to close"; Return with fewer than
+  the minimum points is ignored, `ZoomableImagePreviewMac.finishShapeDrawingFromKey`, #6481; test for Return: not yet
+  written, the function reads the view's window state) or Baseline (click points; a double-click finishes). A finished polygon is
   `segment.create` of a REGION anchored by its outline and the rect it bounds; a finished baseline is a
   LINE whose anchor is the baseline as an open path -- no outline invented -- with that baseline; both on
   the shown pass, naming its picture, ⌘Z by audit id. A drawn line with a flat baseline is drawn and
@@ -1817,24 +1824,24 @@ a parent's outline visible under its children. This design keeps the nesting and
 from the region instead of the role.
 
 - `source.editor.colour.region-hue` — **[PARTIAL]** (#5426) every region on a page is drawn in its own
-  palette hue, assigned in the working pass's region order; its lines, words and letters take that
+  palette hue, a fixed hash of the region's id (owner 2026-11-08), so deleting or adding another region
+  never recolours it; two regions can share a hue (the palette has 12); its lines, words and letters take that
   hue; a region's set colour replaces it. The Segments list's swatches and the Reader's region rules take
   the same tone (2026-10-05). Built and pinned by `RegionColoursTests` and
   `BoxColourThroughTheStoreTests` (through `SegmentStore` and `SegmentDisplay.selected`); not yet seen in
   the app, and the set colour is not built.
 - `source.editor.colour.reading-order-gradient` — **[PARTIAL]** (#5426) inside a region, lines are shaded
-  from the hue's full strength to a lighter strength along the working pass's reading order (the
+  from a lighter strength (the first line) to the hue's full strength (the last), light to dark (owner 2026-11-10), along the working pass's reading order (the
   pane's chosen order, else as written); moving a line in the order changes its shade. Replaces the
   two-tint alternation. Built on the as-written order and pinned by `RegionColoursTests` (a reordered
   order moves the shade); not yet seen in the app, and the Preview does not yet read the pane's chosen order.
-- `source.editor.colour.never-random` — **[PARTIAL]** (#5463) no box's colour comes from a hash of its
-  own id: the same page draws in the same colours every time, and no line is coloured apart from its
-  region. Built (the hash is deleted) and pinned by `RegionColoursTests` (renaming every id changes no
-  colour) and `BoxColourThroughTheStoreTests` (the Inspector's row is the Preview box's colour); not yet
+- `source.editor.colour.never-random` — **[PARTIAL]** (#5463) no colour is random: the same page draws in
+  the same colours every time, across launches, and no line is coloured apart from its region. Only a
+  REGION's hue comes from its id (a fixed hash, `colour.region-hue`); a line or word takes its region's.
+  Built and pinned by `RegionColoursTests` (renaming a region re-hashes that region only) and `BoxColourThroughTheStoreTests` (the Inspector's row is the Preview box's colour); not yet
   seen in the app.
 - `source.editor.colour.regionless-lines-are-one-region` — **[PARTIAL]** (#5463) lines with no region
-  ancestor are one implicit region of the page: one hue, placed in the region order where their first
-  line falls, with the gradient along their reading order. Built and pinned by `RegionColoursTests` and
+  ancestor are one implicit region of the page: one hue, always the palette's first (hue 0), with the gradient along their reading order. Built and pinned by `RegionColoursTests` and
   `BoxColourThroughTheStoreTests`; not yet seen in the app.
 - `source.editor.hierarchy.children-drawn-as-children` — **[PARTIAL]** (#5426) a child draws inside its
   parent, in its parent's colour, lighter than it; showing words or letters never hides the lines
@@ -1863,6 +1870,9 @@ Easy editing in the Preview (owner, 2026-10-26: the Preview has no create, delet
 - `source.editor.preview-crud` — **[MISSING]** (#6181) in the Preview's Edit Segments mode (#5114) a person creates a segment, deletes the selected one and edits its shape and its text; each is one audited, undoable action through the engine's segment actions, and the page does not reload as a whole. Test (planned): fichero/Tests/Unit/general/Views/Source/PreviewSegmentCrudTests.swift.
 - `source.editor.join-is-easy` — **[MISSING]** (#6182) with two or more neighbouring segments selected, one press (a button and a keyboard shortcut) joins them in reading order, with no need to group them first; across different regions it refuses in words and changes nothing; one undo takes it back (builds on `source.editor.join-group`). Test (planned): fichero/Tests/Unit/general/Views/Source/SegmentJoinTests.swift.
 - `source.editor.make-new-in-the-preview` — **[MISSING]** (#6183) in the Preview one gesture (drag a box, or click along a baseline) makes a new segment of the kind last used, selects it and leaves it ready for text; no mode or dialog first; Escape cancels; one undo removes it (builds on `source.editor.draw-shapes`). Test (planned): fichero/Tests/Unit/general/Views/Source/PreviewMakeNewSegmentTests.swift.
+- `segment-editor.tie-page-text-to-lines` — **[GAP]** (#5558; owner 2026-11-13; app, the engine tie is built: `source.job.tie-text-to-lines`) a "Tie Page Text to Lines" command in the segment editor, in the Source pane and in the page's context menu runs the same tie for the page or pages shown, now, for when a person wants it at once or the automatic tie was skipped (a page read whole and then segmented is tied by itself, but only when a rough reader was installed and a reading was eligible). One press queues the one tie job per page (the same job subject as the automatic one, so a page already waiting is not tied twice); the whole press is one undo (every line's tied stretch is an undoable action under one run); the result shows its counts, tied, doubtful and untied (`GET /api/check/runs/{id}`), and a page with no page reading or no lines says so in words and changes nothing. Test (planned): a Swift test of the command, not written yet.
+- The CRUD, select-all, mode-gate and marquee-grain behaviours for #6413 and #6412 (owner 2026-11-08) are specified in `source/segment-editor-crud.md` (DRAFT, with its Build order); they build on `source.editor.preview-crud`, `source.editor.make-new-in-the-preview`, `source.editor.draw-shapes` and `source.editor.selection-shared` here and change none of them.
+
 
 
 ## Test matrix
@@ -1949,3 +1959,8 @@ the page's working pass, so the page can show one pass's boxes beside another pa
 
 ## Triaged from the backlog (2026-10-04)
 - `source.editor.multi-selection-moves-together` **[GAP]** (#5236): with several boxes selected, each shows its marquee without handles, and dragging inside any of them moves the whole set together as one ⌘Z. (Handles only on a single selection landed in 18d1c3b8b.)
+
+- `source.editor.preview-delete-removes-segment` — **[PARTIAL]** (#6419; pinned by `fichero/Tests/Unit/general/Views/Preview/PreviewRegionDeleteTests.swift`) Delete in the Preview on boxes that are all versioned segments is the audited `segment.delete` batch through `SegmentDeleter`, one Cmd-Z, even on a page that also has a result artifact; the artifact-route delete re-reads the segments afterwards so none stays behind. Lines is the only Reader surface with segment rows. Swift not compiled here
+- `source.editor.order-list-follows-segment-edits` — **[PARTIAL]** (#6423, #6419; pinned by `aDeletedSegmentLeavesTheList`) a segment edit made on a page (delete, undo of the delete) makes the reading order list read its level again, so a deleted segment leaves the Order and Segments lists and comes back on undo. Swift not compiled by tests.
+- `source.editor.patch-keeps-box-position` — **[PARTIAL]** (#6424; pinned by `testAPatchWithoutABoxIndexKeepsTheHeldRowsPosition`) a segment re-read that carries no `box_index` keeps the held row's place in the pass, so the Preview still draws every box.
+- `source.editor.add-region-on-segment-pass` — **[PARTIAL]** (#6426; pinned by `PreviewRegionDeleteTests.marqueesOnASegmentPass` and `marqueeCorners`) Add Region from marquees on a page shown from a segment pass draws one polygon segment per marquee on that pass (`segment.create`, one Cmd-Z) instead of making a regions artifact, which ranked below the working pass and lost the box on the next load. Promoting one marquee on its own keeps the artifact route. Swift not compiled by tests.

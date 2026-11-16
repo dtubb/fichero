@@ -40,3 +40,34 @@ struct MoneyAndPlaceAnswersTests {
         #expect(RecipeCloudCapRow.words(line(estimate: nil, over: false)) == "\(month) This run's cloud cost is not known yet.")
     }
 }
+
+/// `ai.cloud.set-up-shows-the-defaults` (#6346, #6347): Set Up's daily field and the app's figures, said until the project answers.
+struct CloudDailyCapSetUpTests {
+    private func line(daily: Double?) -> Components.Schemas.CloudCapLine {
+        .init(capUsd: 10, spentUsd: 0, remainingUsd: 10, over: false, dailyCapUsd: daily, unpriced: false)
+    }
+
+    @Test func theDailyCapIsSavedUnderTheEnginesKeyAndLeftOutUnanswered() throws {
+        let set = try JSONSerialization.jsonObject(with: JSONEncoder().encode(
+            RecipeSetupAnswers(cloudDailyCapUsd: 3))) as? [String: Any]
+        #expect(set?["cloud_daily_cap_usd"] as? Double == 3)
+        let unset = try JSONSerialization.jsonObject(with: JSONEncoder().encode(RecipeSetupAnswers())) as? [String: Any]
+        #expect(unset?["cloud_daily_cap_usd"] == nil)
+    }
+
+    @Test func aMovedDailyFieldIsSentAndAnEmptiedOneClearsTheProjectsOwn() {
+        let held = line(daily: 3)
+        #expect(CloudCapFields.change(monthly: 10, project: nil, line: held, daily: 3, heldDaily: 3).daily == nil)
+        #expect(CloudCapFields.change(monthly: 10, project: nil, line: held, daily: 5, heldDaily: 3).daily == 5)
+        let cleared = CloudCapFields.change(monthly: 10, project: nil, line: held, daily: nil, heldDaily: 3)
+        #expect(cleared.clearDaily && cleared.daily == nil)
+        #expect(CloudCapFields.change(monthly: 10, project: nil, line: held, daily: nil, heldDaily: nil).clearDaily == false)
+    }
+
+    @Test func theAppsFiguresAreSaidUntilTheProjectAnswers() {
+        let words = CloudCapFields.defaultWords(ownMonthly: nil, ownDaily: nil, line: line(daily: nil))
+        #expect(words?.contains("a day, as Settings: no limit") == true && words?.contains("a month, as Settings:") == true)
+        #expect(CloudCapFields.defaultWords(ownMonthly: 20, ownDaily: 2, line: line(daily: 2)) == nil)
+        #expect(CloudCapFields.dailyPrompt(line(daily: nil)) == "No limit")
+    }
+}

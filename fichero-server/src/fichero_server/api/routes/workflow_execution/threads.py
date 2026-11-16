@@ -7,7 +7,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field, model_validator
 from starlette.concurrency import run_in_threadpool
@@ -15,7 +15,8 @@ from starlette.concurrency import run_in_threadpool
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.auth import action_context
 from fichero_server.db import Database
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.library_header import require_library_path
+from fichero_server.api.main import document_reader, get_library_database, get_library_database_for_write, run_check
 from fichero_server.models import Artifact, Document
 from fichero_server.workflows.workflow_store import WorkflowStore
 from fichero_server.workflows.activity import get_activity_tracker
@@ -233,6 +234,12 @@ class WorkflowRunStepResponse(BaseModel):
     # Reached a terminal state having produced no artifact. Stated, not
     # inferred from an empty list.
     produced_nothing: bool = False
+    # What the step spent, present only when it called a model (`workflows.run.cost-tracking-per-node`, #4343). `cost_usd`
+    # is null when nothing could be priced: a client must not draw that as $0.00.
+    model_calls: int | None = None
+    total_tokens: int | None = None
+    cost_usd: float | None = None
+    cost_priced: bool | None = None
     artifacts: list[WorkflowRunArtifactResponse] = Field(default_factory=list)
 
 
@@ -800,6 +807,7 @@ async def list_workflow_runs_route(
     ),
     limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    archived: bool = Query(default=False, description="the ARCHIVED runs instead (Show Archived, `activity.pane.archive-old-runs`)"),
 ) -> WorkflowRunListResponse:
     """List workflow runs from the runs table (#4960).
 
@@ -815,7 +823,7 @@ async def list_workflow_runs_route(
     """
     tracker = get_activity_tracker(str(db.path))
     runs = await tracker.store.list_workflow_runs(
-        limit=limit, offset=offset, statuses=status
+        limit=limit, offset=offset, statuses=status, archived=archived
     )
     items = [_run_to_summary(r) for r in runs]
     return WorkflowRunListResponse(items=items, count=len(items))
@@ -867,7 +875,10 @@ class WorkflowRunDeleteResult(BaseModel):
     "workflow_run.delete",
     WorkflowRunDeleteParams,
     domains=["workflow_execution"],
-    undoable=False,
+    undoable=True,
+    # Undo puts the deleted runs back as they were (#6599): one person's Delete of runs and jobs is one step.
+    invert=lambda before, after, ctx: ("workflow_run.undelete",
+                                       {"thread_ids": list((after or {}).get("deleted_ids") or [])}),
 )
 def _action_delete_workflow_runs(
     db: Database, params: WorkflowRunDeleteParams, ctx: ActionContext
@@ -921,18 +932,81 @@ def _action_delete_workflow_runs(
     return result, spec
 
 
+class WorkflowRunUndeleteParams(BaseModel):
+    """``workflow_run.undelete``: deleted runs put back as they were (Undo of a Delete, #6599)."""
+
+    thread_ids: list[str] = Field(description="The runs to put back")
+
+
+@action("workflow_run.undelete", WorkflowRunUndeleteParams, domains=["workflow_execution"], undoable=True,
+        invert=lambda before, after, ctx: ("workflow_run.delete",
+                                           {"thread_ids": list((after or {}).get("undeleted_ids") or [])}))
+def _action_undelete_workflow_runs(db: Database, params: WorkflowRunUndeleteParams, ctx: ActionContext
+                                   ) -> tuple[dict, ChangeSpec]:
+    """The inverse of ``workflow_run.delete``: each deleted run gets its status from before the Delete back; a run not
+    deleted, or unknown, is left alone."""
+    from fichero_server.db import activity_records
+
+    undeleted = activity_records.undelete_runs(db, list(dict.fromkeys(params.thread_ids)))
+    result = {"undeleted_ids": undeleted, "count": len(undeleted)}
+    return result, ChangeSpec(domains=["workflow_execution"], target_ids=undeleted, before=params.model_dump(),
+                              after=result, emit_type="workflow_run.undeleted")
+
+
 @router.post("/runs/delete", response_model=WorkflowRunDeleteResult)
 async def delete_workflow_runs_route(
     request: WorkflowRunDeleteParams,
+    http: Request,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
+    library_path: str = Depends(require_library_path),
 ) -> WorkflowRunDeleteResult:
     """Bulk-delete workflow runs, or "Clear Failed" via a status filter —
     the SAME audited action either way (#4960). Checkpoints are untouched;
     delete one thread's checkpoint too via ``DELETE /threads/{thread_id}``.
     """
+    if request.statuses and document_reader(http, library_path) is not None:  # "every failed run" cannot be cut to the caller's pages
+        raise HTTPException(status_code=403, detail="Delete runs by name: this removes every run in those states")
+    await run_check(http, library_path, db, request.thread_ids or [], write=True)
     result = registry.invoke(db, "workflow_run.delete", request.model_dump(), ctx)
     return WorkflowRunDeleteResult.model_validate(result.result)
+
+
+class WorkflowRunArchiveParams(BaseModel):
+    thread_ids: list[str] = Field(description="ended runs to archive")
+
+
+class WorkflowRunArchiveResult(BaseModel):
+    archived_ids: list[str]
+    skipped_ids: list[str] = Field(description="runs not archived: still going, deleted, or unknown")
+    count: int
+
+
+@action("workflow_run.archive", WorkflowRunArchiveParams, domains=["workflow_execution", "activity"], undoable=True,
+        invert=lambda before, after, ctx: ("job.unarchive", {"ids": list((after or {}).get("archived_ids") or [])}))
+def _action_archive_workflow_runs(db: Database, params: WorkflowRunArchiveParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    """Archive a run (`activity.pane.archive-old-runs`, #6441): an ended run leaves the runs list and keeps everything.
+    Undo and Put Back are `job.unarchive` of the same ids (a run's id is its row's id in `jobs`)."""
+    from fichero_server.execution import jobs as job_queue
+
+    archived, skipped = job_queue.archive_runs(db, params.thread_ids)
+    result = {"archived_ids": archived, "skipped_ids": skipped, "count": len(archived)}
+    return result, ChangeSpec(domains=["workflow_execution", "activity"], target_ids=archived,
+                              before=params.model_dump(), after=result, emit_type="workflow_run.archived")
+
+
+@router.post("/runs/archive", response_model=WorkflowRunArchiveResult)
+async def archive_workflow_runs_route(
+    request: WorkflowRunArchiveParams,
+    http: Request,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+    library_path: str = Depends(require_library_path),
+) -> WorkflowRunArchiveResult:
+    """Archive ended runs; `GET /runs?archived=true` lists them, `POST /api/activity/jobs/unarchive` puts them back."""
+    await run_check(http, library_path, db, request.thread_ids, write=True)
+    result = registry.invoke(db, "workflow_run.archive", request.model_dump(), ctx)
+    return WorkflowRunArchiveResult.model_validate(result.result)
 
 
 @router.get("/threads/{thread_id}/episodes")

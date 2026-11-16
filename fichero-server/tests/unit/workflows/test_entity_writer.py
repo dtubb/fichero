@@ -397,9 +397,16 @@ class TestEmbeddingMatch:
     the fuzzy-match fallback. Catches semantic divergence in noun
     phrases that pure SequenceMatcher misses.
 
-    These tests need the fastembed model downloaded (~220MB) on the
-    first run. Subsequent runs are cache hits.
+    These tests need the fastembed model in the cache: tests never fetch
+    one (#5188, HF_HUB_OFFLINE), so a machine without it skips the class.
     """
+
+    @pytest.fixture(autouse=True)
+    def _model_cached(self, db):
+        try:
+            db._embed_text("probe", role="passage")
+        except Exception as exc:  # noqa: BLE001 -- any load failure means the model is not here
+            pytest.skip(f"the embedding model is not cached here (#5188: tests never fetch): {exc}")
 
     def test_new_entity_gets_indexed_in_lancedb(self, db):
         from fichero_server.knowledge import entity_vectors
@@ -1175,7 +1182,7 @@ class TestWriterGateRules:
         `merged_aliases`, no alias), so that is what is asserted. The previous version of this test saved
         a `merge_into` rule by hand; it proved the writer honours a rule and could not fail if
         no verb ever wrote one. That test lives on, honestly named, right below."""
-        import fichero_server.api.routes.kg_entity_curation  # noqa: F401  (registers entity.merge)
+        import fichero_server.api.routes.kg.entity_curation  # noqa: F401  (registers entity.merge)
         from fichero_server.actions.registry import ActionContext, registry
         from fichero_server.workflows.tools.extractors import _write_kg_rows
 
@@ -1214,7 +1221,7 @@ class TestWriterGateRules:
         """The claim half of the round trip above (#5079): the ENTITY list held (one live entity)
         while the claim the re-import wrote pointed at the tombstone, invisible on the survivor's
         page. `upsert_entity` now resolves every match to the live entity."""
-        import fichero_server.api.routes.kg_entity_curation  # noqa: F401
+        import fichero_server.api.routes.kg.entity_curation  # noqa: F401
         from fichero_server.actions.registry import ActionContext, registry
         from fichero_server.workflows.tools.extractors import _write_kg_rows
 
@@ -1971,7 +1978,7 @@ class TestFollowMergeChain:
     def test_two_real_merges_deep_a_reimport_lands_on_the_final_survivor(self, db):
         """A merged into B, then B into C, both through the real verb: the old spelling of A
         resolves to C, and the claim it writes names C."""
-        import fichero_server.api.routes.kg_entity_curation  # noqa: F401
+        import fichero_server.api.routes.kg.entity_curation  # noqa: F401
         from fichero_server.actions.registry import ActionContext, registry
         from fichero_server.workflows.tools.extractors import _write_kg_rows
 

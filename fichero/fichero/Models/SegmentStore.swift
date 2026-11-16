@@ -229,7 +229,9 @@ final class SegmentStore {
         for (documentId, rows) in segmentsByDocument {
             guard let index = rows.firstIndex(where: { $0.id == segmentId }) else { continue }
             var updated = rows
-            if let replacement {
+            if var replacement {
+                // The per-segment read has no `box_index`; the held row's place in the pass stays (#6424).
+                if replacement.boxIndex == nil { replacement.boxIndex = rows[index].boxIndex }
                 updated[index] = replacement
             } else {
                 updated.remove(at: index)

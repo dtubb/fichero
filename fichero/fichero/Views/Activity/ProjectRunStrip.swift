@@ -26,6 +26,14 @@ struct ProjectRunStrip: Equatable {
     var missed: ActivityDetails.MissedOffer?
     /// The state the strip goes by (`effectiveState`); the preview seam's live strip runs.
     var state = "running"
+    /// Set when a step of the run was paused at a cloud spend cap, as the engine says it (`stopped_at_cap`, #6295): the strip offers
+    /// the caps' change by it, says its words in place of the run's own line, and the popover offers the caps it names.
+    var stoppedAtCap: CloudCapFix.Stop?
+    /// What the run was given for this run alone, in the engine's words (`once_words`): said beside the run's line.
+    var onceWords: String?
+
+    /// The line under the title: the run's own, then what it was given for this run alone.
+    var shownDetail: String { [detail, onceWords].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ") }
     /// A spinner only while the run works now: a paused, waiting or stalled run is live but still
     /// (`activity.spinner-reflects-process-liveness`, #4346).
     var spins: Bool { isLive && state == "running" }
@@ -37,6 +45,8 @@ struct ProjectRunStrip: Equatable {
         self.init(jobId: jobId, node: store.runTrees[jobId],
                   job: store.backgroundJobs.first { $0.id == jobId },
                   folders: store.recipeRunFolders[jobId], pagesAtOnce: store.recipeRunPagesAtOnce[jobId])
+        stoppedAtCap = store.recipeRunStoppedAtCap[jobId]
+        onceWords = store.recipeRunOnceWords[jobId]
     }
 
     /// Preview seam: the words given.
@@ -159,7 +169,7 @@ struct RecipeFolderSteps: Equatable {
         let name: String
         /// nil: the step cannot tell which pages it has done.
         let done: Int?
-        let of: Int
+        let total: Int
     }
 
     let steps: [Step]
@@ -170,19 +180,20 @@ struct RecipeFolderSteps: Equatable {
         for folder in status.folderSteps ?? [] {
             out[folder.folderId] = RecipeFolderSteps(steps: folder.steps.map { counted in
                 let stage = status.steps.first { $0.steps == counted.steps }
-                return Step(name: stage?.title ?? counted.steps.joined(separator: ", "), done: counted.done, of: counted.of)
+                return Step(name: stage?.title ?? counted.steps.joined(separator: ", "), done: counted.done, total: counted.of)
             })
         }
         return out
     }
 
-    var allDone: Bool { steps.allSatisfy { ($0.done ?? -1) >= $0.of } }
+    var allDone: Bool { steps.allSatisfy { ($0.done ?? -1) >= $0.total } }
 
     /// One line a step: "Find lines and Read each line: 12 of 20 pages", "Find names: done".
     var words: String {
         steps.map { step in
             guard let done = step.done else { return "\(step.name): cannot tell" }
-            return done >= step.of ? "\(step.name): done" : "\(step.name): \(done) of \(step.of) \(step.of == 1 ? "page" : "pages")"
+            if done >= step.total { return "\(step.name): done" }
+            return "\(step.name): \(done) of \(step.total) \(step.total == 1 ? "page" : "pages")"
         }.joined(separator: "\n")
     }
 }
@@ -216,129 +227,4 @@ struct RecipeRunPagesAtOnce: Equatable {
         let oneAtATime = ["one page at a time", each].compactMap { $0 }.joined(separator: " on ")
         return [oneAtATime, reason].compactMap { $0 }.joined(separator: ": ")
     }
-}
-
-/// The strip itself: one row along the bottom of the content column, beneath
-/// the library's own bottom bar (`ContentView.detailColumn`'s bottom inset).
-/// Shown only while the project has a recipe run to show.
-struct ProjectRunStripView: View {
-    let libraryId: UUID
-    @Environment(ActivityStore.self) private var store
-    @Environment(\.openWindow) private var openWindow
-    @State private var failure: String?
-
-    var body: some View {
-        if let strip = ProjectRunStrip(store: store) {
-            ProjectRunStripRow(
-                strip: strip,
-                failure: failure,
-                readAgain: { threadId, offer in
-                    .stage(threadId: threadId, offer: offer, store: store, report: { failure = $0 })
-                },
-                runAgain: { missed in
-                    Task {
-                        failure = await LibraryManager.shared.runAgainOnMissed(
-                            for: libraryId, folderId: missed.folderId, documents: missed.documents)
-                    }
-                },
-                onShowDetails: { showDetails(strip.jobId) },
-                onClose: { store.putAwayProjectRun() }
-            )
-        }
-    }
-
-    /// The run's Activity details: the one view of a run (#5561).
-    private func showDetails(_ jobId: String) {
-        ActivityWindowSelectionState.shared.select(ActivitySelection(jobId: jobId, libraryId: libraryId))
-        openWindow(id: ActivityWindowSelectionState.detailWindowID)
-    }
-}
-
-/// One strip, drawn from its words.
-struct ProjectRunStripRow: View {
-    let strip: ProjectRunStrip
-    let failure: String?
-    /// A stage's Read Again target (`ActivityRunMenuTarget.stage`): the shared item Activity renders (#5652).
-    let readAgain: (_ threadId: String, _ offer: String) -> ActivityRunMenuTarget
-    /// What the run missed, run again on its folder (nil, the project): plain Start (#6170).
-    var runAgain: (_ missed: ActivityDetails.MissedOffer) -> Void = { _ in }
-    let onShowDetails: () -> Void
-    let onClose: () -> Void
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            if strip.spins {
-                ProgressView().controlSize(.small)
-            } else if strip.isLive {
-                Image(systemName: strip.state == "paused" ? "pause.circle" : strip.state == "stalled" ? "exclamationmark.circle" : "clock")
-                    .foregroundStyle(.secondary)
-            } else {
-                Image(systemName: strip.failed.isEmpty ? "checkmark.circle" : "exclamationmark.triangle")
-                    .foregroundStyle(strip.failed.isEmpty ? Color.secondary : Color.orange)
-            }
-            Text(strip.title).font(.callout.weight(.semibold))
-            Text(failure ?? strip.detail)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .help(failure ?? strip.detail)
-            Spacer(minLength: 8)
-            ForEach(strip.failed) { stage in
-                if let offer = stage.offer {
-                    ActivityReadAgainMenuItem(target: readAgain(stage.threadId, offer))
-                        .labelStyle(.titleOnly)
-                        .controlSize(.small)
-                        .help(stage.text)
-                        .accessibilityIdentifier("project.runStrip.readAgain")
-                }
-            }
-            if let missed = strip.missed, let offer = missed.offer {
-                Button(offer) { runAgain(missed) }
-                    .controlSize(.small)
-                    .help(missed.words)
-                    .accessibilityIdentifier("project.runStrip.runAgainOnMissed")
-            }
-            Button("Show Details", action: onShowDetails)
-                .controlSize(.small)
-                .accessibilityIdentifier("project.runStrip.details")
-            if !strip.isLive {
-                Button("Close", systemImage: "xmark", action: onClose)
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.borderless)
-                    .controlSize(.small)
-                    .accessibilityIdentifier("project.runStrip.close")
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(.bar)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("project.runStrip")
-    }
-}
-
-#Preview("Running") {
-    ProjectRunStripRow(
-        strip: ProjectRunStrip(
-            jobId: "run-1", isLive: true, title: "Transcribe (Kraken) · stage 1 of 3",
-            detail: "40 done · 2 failed · 158 left · 12 min left · Waiting: memory is tight"),
-        failure: nil, readAgain: { .stage(threadId: $0, offer: $1, store: nil, report: { _ in }) },
-        onShowDetails: {}, onClose: {}
-    )
-    .frame(width: 720)
-}
-
-#Preview("Ended with failed pages") {
-    ProjectRunStripRow(
-        strip: ProjectRunStrip(
-            jobId: "run-1", isLive: false, title: "Recipe run failed",
-            detail: "Read 198 of 203 pages · Names: 120 People · 40 Places · 35 dates · 80 statements",
-            failed: [ActivityDetails.Summary.Failed(
-                id: "thread-1", text: "Transcribe (Kraken): 5 pages failed",
-                offer: "Read the 5 pages that failed", threadId: "thread-1")]),
-        failure: nil, readAgain: { .stage(threadId: $0, offer: $1, store: nil, report: { _ in }) },
-        onShowDetails: {}, onClose: {}
-    )
-    .frame(width: 720)
 }

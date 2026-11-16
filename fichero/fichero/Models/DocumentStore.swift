@@ -220,6 +220,8 @@ final class DocumentStore {
     /// wholesale-reloaded on a single event.
     @ObservationIgnored
     var pendingPatchIds: Set<String> = []
+    /// Who last changed each document from another Mac, from the change stream's `person` and `device` (#5735).
+    var remoteEditors: [String: RemoteEditor] = [:]
 
     /// In-flight page-content saves, keyed by document id. These are
     /// STORE-OWNED unstructured tasks so a view re-render / blur that cancels
@@ -229,6 +231,12 @@ final class DocumentStore {
     /// reach it.
     @ObservationIgnored
     var pageContentSaveTasks: [String: Task<String?, Never>] = [:]
+    /// The `updatedAt` each document's text save last saw (#5348): sent as `expectedUpdatedAt`, so a save over another
+    /// Mac's newer text is refused. Absent until the first save (then the editor's copy).
+    var pageContentVersions: [String: Date] = [:]
+    /// Documents whose last text save was refused as stale (#5348): the next save is the person's choice to replace
+    /// the other Mac's text, so it sends no version.
+    var pageContentReplacing: Set<String> = []
 
     /// Document ids this device just wrote, with the time of the write. Used to
     /// drop the change-stream ECHO of our own save so a self-echoed
@@ -473,7 +481,6 @@ final class DocumentStore {
         // caused by main-thread work apart from one caused by the engine —
         // the distinction both of those issues asked for and could not make.
         InteractionProfile.begin(.contentDataLoad, detail: document.id)
-        defer { InteractionProfile.end(.contentDataLoad, detail: document.id) }
 
         let libraryPath = self.api.currentLibraryPath ?? "nil"
         logger.info("loadChildren called for document: \(document.id), library path: \(libraryPath)")
@@ -491,10 +498,14 @@ final class DocumentStore {
                     )
                 }
             )
+            InteractionProfile.lap(.contentDataLoad, "fetch")  // engine + transport + decode
             self.childrenCache[document.id] = children
             self.currentDocuments = children
+            InteractionProfile.lap(.contentDataLoad, "splice")
+            InteractionProfile.endAfterNextRender(.contentDataLoad, detail: "\(document.id), \(children.count) rows")
             logger.info("loadChildren succeeded, got \(children.count) children")
         } catch {
+            InteractionProfile.end(.contentDataLoad, detail: "\(document.id), \(error.isCancellationError ? "cancelled" : "failed")")
             // Superseded/cancelled load is not a failure — keep current documents
             // and skip the error state, but still clear `isLoadingChildren` below.
             if !error.isCancellationError {
@@ -505,7 +516,7 @@ final class DocumentStore {
                 // forever). A missing parent is not a dead engine: fall back
                 // to the ROOT SET so the window always shows something real,
                 // and clear the phantom selection so re-clicks route fresh.
-                if error.isNotFoundError {
+                if error.isNotFoundError || (error as? DocumentServiceError)?.isNotFound == true {
                     logger.warning(
                         "loadChildren 404 for \(document.id) — restored selection is stale; falling back to the root set"
                     )
@@ -544,7 +555,11 @@ final class DocumentStore {
             await self?.refreshPendingStatusesOnly(in: parentId)
         }
     }
+}
 
+// MARK: - Status refresh and child lookups
+
+@MainActor extension DocumentStore {
     @MainActor
     func refreshPendingStatusesOnly(in parentId: String) async {
         // Snapshot pending row ids before the fetch — we only care about

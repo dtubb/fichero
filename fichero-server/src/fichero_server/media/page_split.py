@@ -38,6 +38,11 @@ GUTTER_BAND = (0.35, 0.65)
 MIN_OUTLINE_CONFIDENCE = 0.5
 #: Column profiles are taken every STEP pixels (the gutter is ~100 px wide at 3000 px).
 PROFILE_STEP = 4
+#: The legacy neighbour test: the gutter column must be darker than this and this much darker than the columns beside it
+#: (taken NEIGHBOUR_NEAR..NEIGHBOUR_FAR px away on each side), else the spread is proposed, not cut.
+GUTTER_MAX_BRIGHTNESS = 180
+GUTTER_NEIGHBOUR_GAP = 15
+NEIGHBOUR_NEAR, NEIGHBOUR_FAR = 60, 140
 
 
 @dataclass(frozen=True)
@@ -88,6 +93,10 @@ def find_gutter(profile: np.ndarray, step: int = PROFILE_STEP,
     i = int(np.argmin(window))
     median = float(np.median(window))
     depth = (median - float(window[i])) / median if median > 0 else 0.0
+    here, lo_n, hi_n = lo + i, NEIGHBOUR_NEAR // step, NEIGHBOUR_FAR // step
+    beside = np.concatenate([smooth[max(0, here - hi_n):max(0, here - lo_n)], smooth[here + lo_n:here + hi_n]])
+    if float(window[i]) >= GUTTER_MAX_BRIGHTNESS or (beside.size and float(beside.mean()) - float(window[i]) < GUTTER_NEIGHBOUR_GAP):
+        depth = 0.0  # too pale, or no darker than the paper beside it: a shadow or a page edge, not a gutter
     return (lo + i) * step, max(0.0, min(1.0, depth))
 
 

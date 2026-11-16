@@ -5,7 +5,9 @@ Spec: `docs/contributor_manual/specs/source/models-chains-and-projects.md`, sect
 **one file per page or per document**. Writing goes through the one export path: the page formats
 (ALTO, PAGE XML, TEI, hOCR) through `page_export.export_page`, Word through
 `export_service.export_word_docx`, Markdown through `export_service.render_markdown_text`, plain
-text as the page's derived text (`document_text`, reading order, furniture left out). The page
+text as the page's derived text (`document_text`, reading order, furniture left out). Two formats are
+written for more than a page: `catalogue-workbook` (one Catálogo.xlsx for the project) and `word-transcript` (one
+.docx per folder, page by page, no images, blank pages listed once; #6287). The page
 formats are one file per page only: their files describe one image.
 
 A document is the node a page sits in (a multi-page file, a group or a folder); pages at the top
@@ -19,17 +21,21 @@ person is told so when the export is set up), and a file already in the folder t
 did not write is left alone and listed (`in_the_way`). Nothing is ever deleted. A folder inside
 the project's package, a system folder, or one that is not there is refused in one sentence.
 
-Each write is one job (kind `write-kept-export`, the background `database` lane), so it is
-throttled, paused and shown in Activity like all background work. "Write now" queues the whole
-export. The work changing queues a rewrite of the pages it touched, after a quiet period, from two
-places: every audited action that touches a page (`sync_folder.queue_rewrites`, the synced
+Each export has ONE job at a time (kind `write-kept-export`, subject the export's id, the background `database` lane),
+so it is throttled, paused and shown in Activity like all background work, as one row: "Update kept export · Letters ·
+12 pages" (`activity.kept-export.one-row-per-export`). "Write now" asks it for the whole export. The work changing asks it
+to rewrite the pages it touched, after a quiet period; while it waits, more changes join it (its detail gathers them) and
+push the quiet period later. A folder that is gone PAUSES the row ("The export folder is gone"): the edits meanwhile join
+it, and Continue writes them once the folder is back. The work changing asks from two places: every audited action that touches a page (`sync_folder.queue_rewrites`, the synced
 folder's hook, which calls `queue_rewrites` here) and the end of each workflow step of a recipe
 run (`recipes.runner.run`), for the pages that step worked on. No file watcher.
 """
 from __future__ import annotations
 
 import hashlib
+import json
 import os
+import shutil
 import tempfile
 import uuid
 from dataclasses import dataclass, field
@@ -42,18 +48,41 @@ from fichero_server.execution import jobs
 
 KIND = "write-kept-export"
 #: How long a page must stay unchanged before its files are rewritten.
-QUIET_SECONDS = 5.0
+QUIET_SECONDS = 60.0
+#: Less free space than this on the export's folder or the scratch folder and a write is refused in words, not attempted (#6417):
+#: a Word export renders in a scratch folder first, and a disk that fills mid-write breaks every other job.
+MIN_FREE_BYTES = 2 * 1024**3
+#: The formats whose file is a function of the pages' text and names alone, so an unchanged input makes an unchanged file.
+_TEXT_FORMATS = ("word", "markdown", "plain-text", "word-transcript")
+#: (export id, unit key) -> hash of the input last written. In memory: a restart costs one re-render, never a wrong skip.
+# ponytail: process-local; a column on kept_export_files if a restart's re-render ever matters.
+_WRITTEN_INPUT: dict[tuple[str, str], str] = {}
 #: The page interchange formats, written one file per page by the exporter.
 PAGE_FORMATS = ("alto", "pagexml", "tei", "hocr")
-FORMATS = ("word", "markdown", "plain-text", *PAGE_FORMATS)
+#: Written for the whole project, one file (the catalogue workbook, `catalogue-export.md`): per document only.
+WHOLE_FORMATS = ("catalogue-workbook",)
+#: One file per folder, page by page (#6287): per document only, a page alone is no transcript.
+FOLDER_FORMATS = ("word-transcript",)
+FORMATS = ("word", "markdown", "plain-text", *PAGE_FORMATS, *WHOLE_FORMATS, *FOLDER_FORMATS)
 PER = ("page", "document")
-_EXTENSIONS = {"word": ".docx", "markdown": ".md", "plain-text": ".txt"}
+_EXTENSIONS = {"word": ".docx", "markdown": ".md", "plain-text": ".txt", "catalogue-workbook": ".xlsx",
+               "word-transcript": ".docx"}
+WORKBOOK_NAME = "Catálogo"
 #: The unit key of the pages at the top of the project (no parent): one document, the project's.
 _TOP = "top"
 
 
+#: A kept export's waiting or paused row when the export is removed.
+REMOVED_REASON = "The export was removed"
+
+
 class KeptExportRefused(ValueError):
     """An export that cannot be kept, or written, said in one sentence."""
+
+
+class ExportFolderGone(KeptExportRefused):
+    """The folder a kept export writes to is not there (an unplugged drive, a moved folder): its row says "The export folder is
+    gone"; the folder's path stays in the message, for Copy Details only (`activity.failure.no-raw-text-ever`)."""
 
 
 @dataclass
@@ -75,9 +104,10 @@ def _package(db: Any) -> Path:
 
 
 def _exports(db: Any) -> list[dict[str, Any]]:
-    rows = db.execute_fetchall("SELECT id, folder, format, per, created_at FROM kept_exports "
+    rows = db.execute_fetchall("SELECT id, folder, format, per, created_at, COALESCE(keep_up_to_date, TRUE) FROM kept_exports "
                                "WHERE removed_at IS NULL ORDER BY created_at")
-    return [{"id": r[0], "folder": r[1], "format": r[2], "per": r[3], "created_at": r[4]} for r in rows]
+    return [{"id": r[0], "folder": r[1], "format": r[2], "per": r[3], "created_at": r[4], "keep_up_to_date": bool(r[5])}
+            for r in rows]
 
 
 def _export(db: Any, export_id: str) -> dict[str, Any] | None:
@@ -108,20 +138,42 @@ def keep(db: Any, folder: str, fmt: str, per: str) -> str:
         raise KeptExportRefused(f"An export is one file per page or per document; not {per!r}.")
     if fmt in PAGE_FORMATS and per != "page":
         raise KeptExportRefused(f"{fmt} describes one image, so it is written one file per page.")
+    if fmt in (*WHOLE_FORMATS, *FOLDER_FORMATS) and per != "document":
+        raise KeptExportRefused(f"{fmt} is one file for the project or the folder, not one per page.")
     resolved = _refuse_folder(db, folder)
     register_job_kinds()
     export_id = uuid.uuid4().hex
     db.execute("INSERT INTO kept_exports (id, folder, format, per, created_at) VALUES (?, ?, ?, ?, ?)",
                [export_id, resolved, fmt, per, utc_now()])
-    jobs.enqueue(db, KIND, export_id, started_by="kept export")
+    _ask(db, export_id, everything=True)
     return export_id
 
 
 def remove(db: Any, export_id: str) -> None:
-    """Stop keeping the export; the files it wrote stay in the folder."""
+    """Stop keeping the export; the files it wrote stay in the folder, and its row waiting or paused ends ("The export
+    was removed"), so Activity lists nothing for an export no longer kept."""
     if _export(db, export_id) is None:
         raise KeyError(export_id)
     db.execute("UPDATE kept_exports SET removed_at = ? WHERE id = ? AND removed_at IS NULL", [utc_now(), export_id])
+    for (job_id,) in db.execute_fetchall("SELECT id FROM jobs WHERE kind = ? AND subject LIKE ? AND state IN ('waiting', "
+                                         "'paused')", [KIND, export_id + "%"]):
+        jobs.end_cancelled(db, job_id, REMOVED_REASON)
+
+
+def update(db: Any, export_id: str, *, folder: str | None = None, keep_up_to_date: bool | None = None) -> None:
+    """Choose the export's folder again, or switch its automatic rewrite (`activity.kept-export.one-row-per-export`,
+    #6588). A new folder is checked as at keep and lets a row the gone folder paused write there; a folder that cannot
+    be kept is refused in one sentence, nothing changed. Off, an edit queues no rewrite; Write Now still writes."""
+    if _export(db, export_id) is None:
+        raise KeyError(export_id)
+    if folder is not None:
+        resolved = _refuse_folder(db, folder)
+        db.execute("UPDATE kept_exports SET folder = ? WHERE id = ?", [resolved, export_id])
+        for (job_id,) in db.execute_fetchall("SELECT id FROM jobs WHERE kind = ? AND subject LIKE ? AND state = 'paused' "
+                                             "AND reason = ?", [KIND, export_id + "%", jobs.PAUSED_EXPORT_FOLDER_GONE]):
+            jobs.pause_job(db, job_id, False)
+    if keep_up_to_date is not None:
+        db.execute("UPDATE kept_exports SET keep_up_to_date = ? WHERE id = ?", [keep_up_to_date, export_id])
 
 
 def write_now(db: Any, export_id: str) -> str:
@@ -129,7 +181,35 @@ def write_now(db: Any, export_id: str) -> str:
     if _export(db, export_id) is None:
         raise KeyError(export_id)
     register_job_kinds()
-    return jobs.enqueue(db, KIND, export_id, started_by="kept export", watched=True)
+    job_id = _ask(db, export_id, everything=True, watched=True)
+    db.execute("UPDATE jobs SET run_after = NULL WHERE id = ?", [job_id])  # a person waits: no quiet period
+    jobs.wake_lane(db)  # the lane may have read the quiet period already and slept until it ends
+    return job_id
+
+
+def _ask(db: Any, export_id: str, *, pages: list[str] | tuple[str, ...] = (), keys: list[str] | tuple[str, ...] = (), everything: bool = False,
+         run_after: Any = None, watched: bool = False) -> str:
+    """Queue the export's one job, or join the one waiting or paused: its detail gathers the `pages` changed and the
+    `keys` (pages or documents) to rewrite, or `everything` (its first write, Write Now). Returns the job id."""
+    job_id = jobs.enqueue(db, KIND, export_id, started_by="kept export", run_after=run_after, watched=watched)
+    row = db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id])
+    detail = json.loads(row[0]) if row and row[0] else {}
+    detail["everything"] = bool(detail.get("everything")) or everything
+    detail["pages"] = list(dict.fromkeys([*detail.get("pages", []), *pages]))
+    detail["keys"] = list(dict.fromkeys([*detail.get("keys", []), *keys]))
+    db.execute("UPDATE jobs SET detail = ? WHERE id = ?", [json.dumps(detail), job_id])
+    return job_id
+
+
+def name_row(db: Any, subject: str, detail: dict[str, Any]) -> str | None:
+    """The row's words: "Update kept export · Letters · 12 pages", the folder by its name, never its path."""
+    export_id = subject.partition(":")[0]
+    row = db.execute_fetchone("SELECT folder FROM kept_exports WHERE id = ?", [export_id])
+    if row is None:
+        return None
+    count = len(detail.get("pages") or [])
+    what = "every page" if detail.get("everything") or not count else f"{count:,} page{'s' if count != 1 else ''}"
+    return f"{jobs.kind_name(KIND)} · {Path(row[0]).name} · {what}"
 
 
 def queue_rewrites(db: Any, document_ids: list[str], *, watched: bool = False) -> None:
@@ -137,7 +217,7 @@ def queue_rewrites(db: Any, document_ids: list[str], *, watched: bool = False) -
     period, in the change's own transaction. Cheap when nothing is kept."""
     if not document_ids:
         return
-    exports = _exports(db)
+    exports = [e for e in _exports(db) if e["keep_up_to_date"]]  # one switched off queues nothing (#6588)
     if not exports:
         return
     register_job_kinds()
@@ -149,9 +229,8 @@ def queue_rewrites(db: Any, document_ids: list[str], *, watched: bool = False) -
     after = utc_now() + timedelta(seconds=QUIET_SECONDS)
     for export in exports:
         keys = ids if export["per"] == "page" else [parents.get(i) or _TOP for i in ids if i in parents]
-        for key in dict.fromkeys(keys):
-            jobs.enqueue(db, KIND, f"{export['id']}:{key}", started_by="kept export", run_after=after,
-                         watched=watched)
+        if keys:
+            _ask(db, export["id"], pages=ids, keys=list(dict.fromkeys(keys)), run_after=after, watched=watched)
 
 
 def _stem(name: str | None, fallback: str) -> str:
@@ -173,6 +252,8 @@ def _units(db: Any, export: dict[str, Any]) -> list[_Unit]:
     from fichero_server.export_service import _collect_documents
     from fichero_server.models import DocType, Document
 
+    if export["format"] in WHOLE_FORMATS:
+        return [_Unit(_TOP, WORKBOOK_NAME, WORKBOOK_NAME, filename=f"{WORKBOOK_NAME}{_extension(export['format'])}")]
     _root, documents = _collect_documents(db, target_id=None, recursive=True)
     pages = [d for d in documents if d.doc_type in (DocType.file, DocType.page)]
     units: dict[str, _Unit] = {}
@@ -213,6 +294,17 @@ def _text(db: Any, page_id: str) -> str | None:
 def _render(db: Any, export: dict[str, Any], unit: _Unit, left_out: list[tuple[str, str]] | None = None) -> bytes | None:
     """The unit's file, or None when it has nothing to write (no page of it is read)."""
     fmt = export["format"]
+    if fmt == "catalogue-workbook":
+        from fichero_server.export_service import export_catalogue_xlsx
+
+        from fichero_server import catalogue_sheet
+
+        rows, bare = catalogue_sheet.undescribed_count(db, None)
+        with tempfile.TemporaryDirectory(prefix="fichero-kept-export-") as scratch:
+            out = Path(scratch) / "out.xlsx"
+            export_catalogue_xlsx(db, out, overwrite=True)
+            jobs.note_done(f"{WORKBOOK_NAME}.xlsx: {rows} filas, {bare} sin describir")
+            return out.read_bytes()
     if fmt in PAGE_FORMATS:
         from fichero_server.formats import FormatCannotWrite
         from fichero_server.page_export import ExportRefused, export_page
@@ -225,6 +317,8 @@ def _render(db: Any, export: dict[str, Any], unit: _Unit, left_out: list[tuple[s
     read = [page for page in unit.pages if texts[page.id]]
     if not read:
         return None
+    if fmt == "word-transcript":
+        return _transcript(db, unit, texts)
     single = export["per"] == "page"
     if fmt == "plain-text":
         return ("\n\n".join(texts[p.id] for p in read) + "\n").encode("utf-8")
@@ -241,6 +335,21 @@ def _render(db: Any, export: dict[str, Any], unit: _Unit, left_out: list[tuple[s
         export_word_docx(db, out, overwrite=True, package_path=_package(db), include_knowledge_graph=False,
                          documents=read, title=read[0].name if single else unit.name,
                          text_for=lambda doc: texts[doc.id] or "", skipped=left_out)
+        return out.read_bytes()
+
+
+def _transcript(db: Any, unit: _Unit, texts: dict[str, str | None]) -> bytes:
+    """The folder's transcript: page by page, no images, a page break per page, blank pages listed once at the end."""
+    from fichero_server import catalogue_sheet
+    from fichero_server.export_service import export_word_docx
+
+    blank = {p.id for p in catalogue_sheet.blank_pages(unit.pages)}
+    pages = [p for p in unit.pages if texts[p.id] or p.id in blank]
+    with tempfile.TemporaryDirectory(prefix="fichero-kept-export-") as scratch:
+        out = Path(scratch) / "out.docx"
+        export_word_docx(db, out, overwrite=True, include_knowledge_graph=False, documents=pages, title=unit.name,
+                         text_for=lambda doc: texts[doc.id] or "", include_images=False, page_break_per_page=True,
+                         blank_pages_listed_once=True)
         return out.read_bytes()
 
 
@@ -273,22 +382,65 @@ def _put(db: Any, export: dict[str, Any], rel: str, data: bytes) -> None:
     _record(db, export["id"], rel, _sha(data), "written")
 
 
-def write(db: Any, subject: str) -> None:
-    """The job: write the export (subject `<id>`), or one of its files (`<id>:<page or document>`)."""
+def _refuse_low_space(folder: Path) -> None:
+    """Say so in words, with the number, instead of starting a write the disk cannot finish (#6417)."""
+    for where, what in ((folder, "the export's folder"), (Path(tempfile.gettempdir()), "the scratch space")):
+        free = shutil.disk_usage(where).free
+        if free < MIN_FREE_BYTES:
+            raise KeptExportRefused(
+                f"Not writing: only {free / 1024**3:.1f} GB is free on the disk holding {what}, and a write needs "
+                f"{MIN_FREE_BYTES / 1024**3:.0f} GB. Free some space (Settings shows what uses it) and it writes again.")
+
+
+def _input_hash(db: Any, export: dict[str, Any], unit: _Unit) -> str | None:
+    """A hash of what the unit's file is made from, or None for a format that depends on more than text."""
+    if export["format"] not in _TEXT_FORMATS:
+        return None
+    parts = [export["format"], export["per"], unit.name, unit.filename]
+    for page in unit.pages:
+        parts += [page.id, page.name or "", page.path or "", _text(db, page.id) or ""]
+    return _sha("\0".join(parts).encode("utf-8"))
+
+
+def _asked_keys(db: Any, subject: str) -> set[str] | None:
+    """The pages or documents this job rewrites, or None for the whole export: an older row's `<id>:<key>` subject, or
+    the one row's detail (`_ask`); a write with no job (a test, the route's own) writes the whole export."""
     export_id, _, key = subject.partition(":")
+    if key:
+        return {key}
+    job_id = jobs.current_job_id()
+    row = db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id]) if job_id else None
+    detail = json.loads(row[0]) if row and row[0] else {}
+    if not isinstance(detail, dict) or detail.get("everything") or not detail.get("keys"):
+        return None
+    return set(detail["keys"])
+
+
+def write(db: Any, subject: str) -> None:
+    """The job: write the export (subject `<id>`), the whole of it or the pages its detail asks for (`_ask`); an older
+    row's subject `<id>:<page or document>` writes that one."""
+    export_id = subject.partition(":")[0]
+    keys = _asked_keys(db, subject)
     export = _export(db, export_id)
     if export is None:
         return  # removed meanwhile
     folder = Path(export["folder"])
     left_out: list[tuple[str, str]] = []
     if not folder.is_dir():
-        raise KeptExportRefused(f"{folder} is not there any more; choose the export's folder again.")
+        raise ExportFolderGone(f"{folder} is not there any more; choose the export's folder again.")
+    _refuse_low_space(folder)
     for unit in _units(db, export):
-        if key and unit.key != key:
+        if keys is not None and unit.key not in keys and export["format"] not in WHOLE_FORMATS:
+            continue  # (the workbook is one file: any page's change rewrites it)
+        seen, now = (export["id"], unit.key), _input_hash(db, export, unit)
+        # a rewrite after a change skips a file whose input is the same and which is still there; "write now" always writes
+        if keys is not None and now is not None and _WRITTEN_INPUT.get(seen) == now and (folder / unit.filename).exists():
             continue
         data = _render(db, export, unit, left_out)
         if data is not None:
             _put(db, export, unit.filename, data)
+            if now is not None:
+                _WRITTEN_INPUT[seen] = now
     if left_out:  # the job finishes done and Activity says what it left out (#5966)
         jobs.note_done(f"Partial: {len(left_out)} image(s) left out")
 
@@ -303,6 +455,7 @@ def status(db: Any) -> list[dict[str, Any]]:
         written = [r[2] for r in rows if r[2] is not None]
         out.append({
             "id": export["id"], "folder": export["folder"], "format": export["format"], "per": export["per"],
+            "keep_up_to_date": export["keep_up_to_date"],
             "files": [r[0] for r in rows if r[1] == "written"],
             "in_the_way": [r[0] for r in rows if r[1] == "in-the-way"],
             "pending": jobs.count_jobs(db, KIND, subject_prefix=export["id"]),
@@ -314,4 +467,4 @@ def status(db: Any) -> list[dict[str, Any]]:
 def register_job_kinds() -> None:
     """Called by the scheduler before its first scan (`execution.jobs._KIND_MODULES`)."""
     if KIND not in jobs.KINDS:
-        jobs.register_kind(KIND, write, model=None, lane="database", name="Write a kept export")
+        jobs.register_kind(KIND, write, model=None, lane="database", name="Update kept export", names=name_row)

@@ -10,6 +10,8 @@ struct StageCompareWindow: View {
     let name: String
     let candidates: [StageCandidate]
     var useThis: ((StageCandidate) -> Void)?
+    /// The wide Set Up's compare view on this page (`CompareReadersView`), shown under the candidates; nil off the flag.
+    var readers: CompareReadersStore?
     @Environment(\.dismiss) private var dismiss
     /// nil: every model beside the others; a card: that model alone.
     @State private var only: String?
@@ -31,9 +33,10 @@ struct StageCompareWindow: View {
                 Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
             }
             StageCompareColumns(pageId: pageId, candidates: shown, useThis: useThis.map { use in { use($0); dismiss() } })
+            if let readers { Divider(); CompareReadersView(store: readers) }
         }
         .padding()
-        .frame(minWidth: 560, minHeight: 520)
+        .frame(minWidth: 560, idealWidth: 960, maxWidth: .infinity, minHeight: 520, idealHeight: 720, maxHeight: .infinity)
     }
 }
 
@@ -46,29 +49,49 @@ struct StageCompareColumns: View {
     var useThis: ((StageCandidate) -> Void)?
     var pictureWidth: ClosedRange<CGFloat> = 240...420
 
+    /// The caption of counts under a model's name goes in the wide Set Up: the picture and the model's own lines say it
+    /// (`wide.compare.replaces-the-captions-and-the-animation`).
+    nonisolated static func showsCountCaption(wide: Bool) -> Bool { !wide }
+
+    /// The column's width as laid out; the pictures share it, or the strip says it scrolls (`output-visible-without-hunting`, #6402).
+    @State private var columnWidth: CGFloat = 0
+
+    private var fit: StageStripFit {
+        columnWidth > 0 ? .layout(columnWidth: columnWidth, count: candidates.count, minimum: pictureWidth.lowerBound)
+                        : .fits(pictureWidth: pictureWidth.upperBound)
+    }
+
     var body: some View {
-        ScrollView(.horizontal) {
-            HStack(alignment: .top, spacing: 12) {
-                ForEach(candidates, id: \.card) { candidate in column(candidate) }
+        let fit = fit
+        VStack(alignment: .leading, spacing: 4) {
+            if let cue = fit.cueWords {
+                Text(cue).font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("setup.stage.stripCue")
+            }
+            ScrollView(.horizontal) {
+                HStack(alignment: .top, spacing: 12) {
+                    ForEach(candidates, id: \.card) { candidate in column(candidate, width: fit.pictureWidth) }
+                }
             }
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { columnWidth = $0 }
     }
 
     @ViewBuilder
-    private func column(_ candidate: StageCandidate) -> some View {
+    private func column(_ candidate: StageCandidate, width: CGFloat) -> some View {
         let page = candidate.perPage?.first { $0.id == pageId }
         VStack(alignment: .leading, spacing: 6) {
             Text(candidate.title).font(.callout.weight(.medium))
-            if let counts = page.flatMap({ SetupStageTryResult.countWords($0.segments ?? [:]) }) {
+            if Self.showsCountCaption(wide: FeatureManager.shared.isWideSetUpEnabled),
+               let counts = page.flatMap({ SetupStageTryResult.countWords($0.segments ?? [:]) }) {
                 Text(counts).font(.caption).foregroundStyle(.secondary)
             }
             LibraryImageView(documentId: pageId, imageType: .display)
                 .aspectRatio(contentMode: .fit)
                 .overlay { ShapesOverlay(shapes: page?.shapes ?? []) }
-                .frame(minWidth: pictureWidth.lowerBound, maxWidth: pictureWidth.upperBound)
+                .frame(width: width)
             if let reading = page?.readings?.first?.text, !reading.isEmpty {
                 Text(reading).font(.callout).lineLimit(8).textSelection(.enabled)
-                    .frame(maxWidth: pictureWidth.upperBound, alignment: .leading)
+                    .frame(maxWidth: width, alignment: .leading)
             }
             if let useThis {
                 Button("Use This One") { useThis(candidate) }

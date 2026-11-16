@@ -14,7 +14,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from fichero_server.recipes import prepare_operations
+from fichero_server.recipes.prepare_run import PAPER_STEPS
 from fichero_server.recipes.assemble import APPLE_LINES_PIN
+from fichero_server.recipes.folder_answers import prepare_how, with_folder_answers
+from fichero_server.recipes.folder_overrides import with_folder_overrides
 from fichero_server.workflows.validation import KRAKEN_READER_PROVIDER
 
 #: job -> the shipped workflow that carries it out, by its stable key: the file the preset ships in, which a
@@ -144,7 +148,8 @@ JOB_ANSWER_SETTINGS = {"find-names-tag-words": ("entity_kinds", "kinds"),
                        "translate-transliterate-normalise": ("normalise_how_far", "target"),
                        "correct": ("review_lenses", "lenses"),
                        "work-out-dates": ("calendars", "calendars"),
-                       "find-regions": ("layout", "layout")}
+                       "find-regions": ("layout", "layout"),
+                       "prepare-the-image": ("the_paper", "paper")}
 #: Setup's answer to "send the second model only the lines Kraken is unsure of?": "whole-page" or the bar, 0 to 1.
 CERTAINTY_BAR_ANSWER, WHOLE_PAGE = "review_certainty_bar", "whole-page"
 #: Job answers whose empty list says "none of them", never "not answered".
@@ -176,6 +181,11 @@ _TOKENS_IN, _TOKENS_OUT = 1200, 300
 #: ponytail: per provider, not per model; a project's own past `LLM usage` for the model would refine it.
 PAGE_READ_TOKENS_IN, PAGE_READ_TOKENS_OUT = 56_000, 400
 ANTHROPIC_PAGE_READ_TOKENS_IN = 2 * 1_600 + 400
+#: A Claude LINE read (#6294) sends a crop a line, not the page: the cut is at most 1,600 px wide (`line_cut.crop_line`) and about
+#: 130 px tall, so w*h/750 is about 280 tokens a crop; a short prompt a call; the answer is a JSON string a line, about 28 tokens.
+#: Booked on a 16-page folder this came to 2.5x the page-image figure above. ASSUMED_LINES_PER_PAGE lines go in one call (under
+#: `line_reader.MAX_LINES_PER_CALL`, the plan's `page` granularity). ponytail: the crop's real size, or the project's past `LLM usage`, would refine it.
+LINE_CROP_TOKENS_IN, LINE_ANSWER_TOKENS_OUT, LINE_READ_PROMPT_TOKENS = 280, 28, 150
 PAGE_READ_JOBS = frozenset({"read-a-line", "read-a-page"})
 #: One folder's description: its pages' readings (`catalogue_step.TOTAL_CHARS`, a quarter of that in tokens) and about 500 words out.
 CATALOGUE_TOKENS_IN, CATALOGUE_TOKENS_OUT = 6500, 800
@@ -350,6 +360,61 @@ def provider_without_key(step: dict) -> str | None:
     return info.name
 
 
+def _pin_provider(step: dict) -> str | None:
+    """The provider type (lower case, as the retry layer marks it) of a step's cloud pin, or None."""
+    pin = step.get("model") or {}
+    if "cloud" not in pin:
+        return None
+    from fichero_server.llm.providers import get_provider_info
+
+    info = get_provider_info(str(pin["cloud"]).strip().lower())
+    return info.type.value.lower() if info is not None else str(pin["cloud"]).strip().lower()
+
+
+def dead_provider(step: dict) -> str | None:
+    """Why a step's cloud provider cannot answer now, in the words of the cause it died of, or None (`ai.cloud.plan-knows-a-dead-key`,
+    #6097): no credit or a refused key skip the step at plan time; a rate limit only ranks the provider down, never out."""
+    provider = _pin_provider(step)
+    if provider is None:
+        return None
+    from fichero_server.llm.retry import dead_marks
+    from fichero_server.workflows.circuit_breaker import provider_stopped_error
+
+    mark = dead_marks().get(provider)
+    return str(provider_stopped_error(provider, mark[0])) if mark and mark[0] in ("quota", "key") else None
+
+
+def capability_gap(step: dict, job: str) -> str | None:
+    """Why the model a step's cloud pin names cannot do what its job needs (it reads the page image, or text alone), or None when it
+    can or the engine does not know (`ai.cloud.plan-checks-the-capability`, #6098)."""
+    pin = step.get("model") or {}
+    provider, model = _pin_provider(step), str(pin.get("model") or "")
+    if provider is None or not model:
+        return None
+    from fichero_server.llm import _model_has_capability
+
+    needed = "text" if job in _TEXT_ONLY_JOBS else "vision"
+    if _model_has_capability(provider, model, needed) is False:
+        return f"{model} cannot {'read page images' if needed == 'vision' else 'work on text'}, which this step needs; choose another model"
+    return None
+
+
+def keyed_provider_without_row() -> list[str]:
+    """Providers a key is set for in this Mac's keychain or environment but Settings > AI > Providers has no row for
+    (`ai.cloud.no-model-names-the-missing-row`, #6099), by name."""
+    from fichero_server.llm import get_api_key
+    from fichero_server.llm.providers import get_cloud_providers
+
+    try:
+        from fichero_server.db.app import get_app_db
+
+        rows = {str(getattr(getattr(r, "provider_type", ""), "value", getattr(r, "provider_type", ""))).lower()
+                for r in get_app_db().list_providers()}
+    except Exception:  # noqa: BLE001 -- no list to compare: say nothing rather than guess
+        return []
+    return [p.name for p in get_cloud_providers() if p.api_key_env and p.type.value.lower() not in rows and get_api_key(p.type.value)]
+
+
 def _automatic_skip(step: dict, automatic: dict | None) -> tuple[str, str] | None:
     """(why, fix) when What runs by itself (`answers.automatic`) leaves this step to a run by hand (#5478)."""
     if not isinstance(automatic, dict):
@@ -367,7 +432,7 @@ def _automatic_skip(step: dict, automatic: dict | None) -> tuple[str, str] | Non
 
 def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None = None,
                automatic: dict | None = None, job_answers: dict | None = None,
-               db: Any = None) -> dict[str, Any]:
+               job_answers_by_folder: dict | None = None, db: Any = None) -> dict[str, Any]:
     """What Start would run, in order, what it skips and why, and what refuses it outright.
 
     Returns `{"runs": [...], "workflows": [...], "skipped": [...], "offered": [...], "refusals": [...]}`.
@@ -383,7 +448,9 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     (`answers.automatic`), given for a run new material starts by itself (an import after Start), never for Start:
     with Nothing runs automatically every step is skipped, else every step not ticked (#5478). `job_answers` are
     setup's answers under a purpose (`answers.job_answers`): each reaches the step it configures as its setting
-    (`JOB_ANSWER_SETTINGS`) where the recipe does not already set it (#5478). With the project's `db`, a model
+    (`JOB_ANSWER_SETTINGS`) where the recipe does not already set it (#5478). `job_answers_by_folder` is a folder's own
+    answers to Prepare Images' questions, `{folder id: {question: answer}}`: the folder's pages run the step with them
+    (`recipes.folder_answers`). With the project's `db`, a model
     already downloading does not refuse Start: its download is marked `downloading` (with its progress), `waiting`
     says so in words, and the run's steps on it wait for it to land (#5660, #5583).
     """
@@ -442,6 +509,9 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             # Said as setup says it: the problem's sentence, naming the nearest readers, never the refused
             # cards' ids (`source.onboard.nothing-fits-names-nearest`, #5593).
             said = (step.get("problem") or {}).get("sentence") or step.get("gap") or "none is named"
+            if unrowed := keyed_provider_without_row():  # a key is set but no row carries its models (#6099)
+                said += (f"; a key is set for {', '.join(unrowed)} but Settings > AI > Providers has no row for "
+                         f"{'it' if len(unrowed) == 1 else 'them'}; add the row")
             skip(sid, f"{label} has no model: {said}", "choose-model")
             needs_a_model.append(step)
             continue
@@ -451,6 +521,12 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         if _uses_cloud(step) and (gone := _retired_pick(step)):
             # A saved pick of a model its provider no longer serves (#6096) says so here, never fails every page.
             skip(sid, f"{label}: {gone}", "choose-model")
+            continue
+        if _uses_cloud(step) and (dead := dead_provider(step)):
+            skip(sid, f"{label}: {dead}", "choose-model")  # no credit or a refused key: the plan says so before any page is sent (#6097)
+            continue
+        if _uses_cloud(step) and (gap := capability_gap(step, job)):
+            skip(sid, f"{label}: {gap}", "choose-model")  # the model lacks what the job needs (#6098)
             continue
         if (keyless := provider_without_key(step)) is not None:
             # The next LOCAL candidate in the step's chain takes its place, and the plan says so
@@ -490,11 +566,25 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         settings = dict(step.get("settings") or {})
         answer, setting = JOB_ANSWER_SETTINGS.get(job, (None, None))
         given = (job_answers or {}).get(answer) if answer else None
+        if answer == "normalise_how_far":  # the language chosen under Translate is one of the levels asked (#6452)
+            from fichero_server.recipes.answers import with_translation
+
+            given = with_translation(job_answers)
         # An empty list is an answer where it turns things off (every review lens off, #5723); elsewhere it is none.
         if (answer and setting not in settings and given not in (None, "")
                 and (given != [] or answer in _EMPTY_IS_AN_ANSWER)):
             settings[setting] = given
+        if job == "find-regions" and (job_answers or {}).get("beside_the_page") in ("ruler", "colour-card"):
+            settings.setdefault("measure_whole", True)  # a ruler or a card beside the page: the run measures what the page box saves
         bar = (job_answers or {}).get(CERTAINTY_BAR_ANSWER) if job == "correct" else None
+        has_bar = bar not in (None, "", WHOLE_PAGE) or settings.get("only_below_confidence") not in (None, "")
+        if has_bar and settings.get("review_mode") not in (None, "", "in-turn"):
+            # The unsure-lines path asks the model about each line's current reading, so compare and both would be ignored.
+            skip(sid, f"{label}: it reviews {settings['review_mode']}, which needs the whole page, and this step sends the "
+                      "second model only the lines Kraken is unsure of",
+                 "answer \"Send the second model only the lines Kraken is unsure of?\" No, or review in turn, in the "
+                 "project's setup; or take the step's own certainty bar out")
+            continue
         if bar not in (None, "", WHOLE_PAGE) and "only_below_confidence" not in settings:
             try:
                 number = float(bar)
@@ -522,6 +612,21 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             continue
         if job in OTHER_CARDS:
             entry: dict[str, Any] = {"steps": [sid], "job": job, "card": OTHER_CARDS[job], "runs_on": runs_on}
+            if job == "find-regions" and settings.get("measure_whole"):
+                entry["measure_whole"] = True  # the run measures what the page box saves, on the sample pages
+            if job == "prepare-the-image":  # the optional operations the paper answer switches on
+                entry["paper"] = list(settings.get("paper") or [])
+                entry["how"] = prepare_how(entry["paper"])
+                entry["paper_steps"] = [PAPER_STEPS[a] for a in PAPER_STEPS if a in entry["paper"]]  # what the paper answers run
+                # The operations to run (`wide.prepare.plan-runs-only-chosen-operations`): the hand's choice, else the questions'.
+                entry["operations"] = prepare_operations.to_run(job_answers, entry["paper"])
+                named = [o.title for o in prepare_operations.OPERATIONS if o.id in entry["operations"] and o.id in prepare_operations.EXTRA]
+                if named:
+                    entry["how"] = f"{entry['how']} It also runs {', '.join(named)}.".strip()
+                if not entry["operations"]:
+                    skip(sid, f"{label}: every operation is switched off, so no page is prepared",
+                         "switch an operation on in Prepare Images")
+                    continue
             if job == "tie-text-to-lines":
                 reader = _kraken_reader_for(pin)
                 if reader is None:
@@ -624,6 +729,11 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             if job == "read-a-line" and measured in ("lines", "region", "page"):
                 # How the bake-off measured this reader is how it reads (#5722).
                 entry["tool_config"] = {"transcribe": {"read_granularity": measured}}
+            if job == "read-a-line" and step.get("prompt_fragments"):
+                # The fragments the step names ride to the read node (`image.enhance.reader-prompt-fragment`).
+                entry.setdefault("tool_config", {}).setdefault("transcribe", {})["prompt_fragments"] = list(step["prompt_fragments"])
+                entry["prompt_fragments"] = [dict(zip(("id", "version"), (n.partition("@")[0], int(n.partition("@")[2] or 0))))
+                                             for n in step["prompt_fragments"]]  # ids and versions the run record keeps
             if step.get("readers"):
                 # One reader per kind of page (#5578). A kind whose reader cannot run here, or would send pages
                 # off a Mac that keeps them, is read by the step's own reader.
@@ -648,19 +758,21 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
 
             asked, _ = normalise_levels(settings.get("target") or ["regularised"])
             for target in asked:
+                run = entry
                 if target.startswith(TRANSLATION_PREFIX):
                     from fichero_server.recipes.names import language_name
 
                     language = target[len(TRANSLATION_PREFIX):]
                     config = {"reading_kind": "translation", "reading_level": None,
                               "prompt": f"Translate this page into {language_name(language)}." + _LEVEL_TAIL}
+                    run = {**entry, "translation": language}  # the run belongs to the Translate stage, not Normalise (#6452)
                 elif target in LEVEL_PROMPTS:
                     config = {"reading_kind": "transcription", "reading_level": target,
                               "prompt": LEVEL_PROMPTS[target] + _LEVEL_TAIL}
                 else:
                     skip(sid, f"{label}: Fichero has no level {target!r} to write", None)
                     continue
-                runs.append({**entry, "tool_config": {"analyze": config}})
+                runs.append({**run, "tool_config": {"analyze": config}})
             continue
         if job == "find-names-tag-words" and [str(k).casefold() for k in settings.get("kinds") or []] == [NO_KINDS]:
             # Every tick box taken off: Names is off for this run, said in the plan (## 1110). An empty answer is an
@@ -696,10 +808,16 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             # Kraken reads, the model re-reads only the lines Kraken was under this sure of (variant A).
             entry["tool_config"] = {**entry.get("tool_config", {}), "transcribe_review": {
                 "only_below_confidence": float(settings["only_below_confidence"])}}
+        if job == "correct" and settings.get("review_mode") not in (None, "in-turn"):
+            # The second reviewer's way with the first's work (#6257): compare, or both; in turn is what it does unasked.
+            entry["tool_config"] = {**entry.get("tool_config", {}),
+                                    "transcribe_review": {**(entry.get("tool_config") or {}).get("transcribe_review", {}),
+                                                          "review_mode": settings["review_mode"]}}
         runs.append(entry)
     for item in recipe.get("by_hand") or []:
         if only is None or item.get("job") in only:
             skip(item.get("job", "?"), item.get("why", ""), item.get("fix", ""))
+    runs = with_folder_answers(runs, job_answers, job_answers_by_folder, skip, names)
     # Each card declares what it takes and gives, so a run knows which steps a failure stops (#5498).
     jobs_of = {s.get("id"): s.get("job", "") for s in recipe.get("steps") or []}
     for run in runs:
@@ -708,7 +826,7 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     # waits for it (`source.onboard.no-model-step-kept`, #5668): Organise's Split into entries with no text model on
     # this Mac no longer refuses Read and Names.
     runs = _without_what_waits(runs, needs_a_model, recipe, skip, names)
-    runs, folder_skipped, folder_refusals = _with_folder_overrides(
+    runs, folder_skipped, folder_refusals = with_folder_overrides(
         recipe, runs, only=only, stays_local=stays_local, automatic=automatic, job_answers=job_answers, db=db)
     skipped += folder_skipped
     kept_ids = {s.get("id") for s in needs_a_model}
@@ -743,62 +861,6 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     return {"runs": runs, "workflows": [r for r in runs if r["card"] == "workflow"], "skipped": skipped,
             "built_in": built_in, "offered": offered, "refusals": refusals, "downloads": downloads, "elsewhere": elsewhere,
             "waiting": waiting, "start_downloads": start_downloads(downloads), "fallbacks": fallbacks}
-
-
-def _with_folder_overrides(recipe: dict, runs: list[dict[str, Any]], **plan_args: Any
-                           ) -> tuple[list[dict[str, Any]], list[dict[str, str | None]], list[str]]:
-    """A reader chosen for one folder runs on that folder's pages (`source.try.use-this-scope`, #6135): for each folder
-    override, the step is planned again with the override as its choice and that plan's runs are added, tagged
-    `folder_id`; every run of the step leaves the other override folders' pages out (`exclude_folders`, applied by
-    the runner, nested folders to the innermost). Returns (the runs, what the folder's plan skipped, what it refuses).
-    A folder whose reader cannot be planned keeps the project's reader and says why."""
-    from fichero_server.recipes.bakeoff import apply_project_overrides
-
-    overrides = [o for o in recipe.get("overrides") or [] if o.get("scope") == "folder" and o.get("folder_id")]
-    if not overrides:
-        return runs, [], []
-    out, skipped, refusals = list(runs), [], []
-    names = step_names(recipe)
-    db = plan_args.get("db")
-    if db is not None:  # an override outlives its folder when the folder is trashed: it is skipped, with the why
-        from fichero_server.recipes.runner import folder_scope
-
-        live = []
-        for o in overrides:
-            try:
-                folder_scope(db, o["folder_id"])
-                live.append(o)
-            except LookupError:
-                skipped.append({"step": o.get("step"), "fix": None, "why": (
-                    f"For the folder {o['folder_id']}: it is no longer in this project, so its own reader is not used "
-                    "and its pages keep the project's")})
-        overrides = live
-    for sid in dict.fromkeys(o.get("step") for o in overrides):
-        base = [r for r in out if sid in r["steps"]]
-        mine = [o for o in overrides if o.get("step") == sid]
-        folders = list(dict.fromkeys(o["folder_id"] for o in mine))
-        if not base:
-            continue
-        for run in base:
-            run["exclude_folders"] = list(folders)
-        for o in mine:
-            as_project = apply_project_overrides({**recipe, "overrides": [{**o, "scope": "project"}]}, [])
-            plan = plan_start({**as_project, "overrides": []}, **plan_args)  # the whole recipe: the run keeps the steps it chains
-            own = [r for r in plan["runs"] if sid in r["steps"]]
-            skipped += [{**s, "why": f"For the folder {o['folder_id']}: {s['why']}"} for s in plan["skipped"]
-                        if s.get("step") == sid]
-            # only this step's own refusals: the whole recipe is planned again, and another step's repeats nothing new
-            refusals += [f"For the folder {o['folder_id']}: {r}" for r in plan["refusals"]
-                         if sid in r or names.get(sid, sid) in r]
-            if not own:  # nothing runs for the folder's reader: its pages stay with the project's
-                for run in base:
-                    run["exclude_folders"] = [f for f in run["exclude_folders"] if f != o["folder_id"]]
-                continue
-            for run in own:
-                run["folder_id"] = o["folder_id"]
-                run["exclude_folders"] = [f for f in folders if f != o["folder_id"]]
-            out += own
-    return out, skipped, refusals
 
 
 #: A step's `place` when the person put it on Hugging Face Jobs (`source.recipe.step-runs-on-huggingface`): its own key,
@@ -1513,12 +1575,14 @@ def lines_to_send(bar: float, pages: int, known: dict[str, Any] | None) -> tuple
 
 
 def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str, Any] | None = None,
-             catalogue: list[dict[str, Any]] = (), folders: int = 0, todo: dict[str, int] | None = None) -> dict[str, Any]:
+             catalogue: list[dict[str, Any]] = (), folders: int = 0, todo: dict[str, int] | None = None,
+             booked: dict[tuple[str, str, str], tuple[float, int]] | None = None) -> dict[str, Any]:
     """What Start would cost, before anything runs (`source.onboard.estimate-before-start`). `todo`: per job, the pages
     still to do (`done.todo_counts`, by step id); a run is priced on those, not on pages it has already done.
 
     Local runs cost nothing; a cloud run is priced with the workflow estimate's per-page token
-    assumptions. An unpriced model is `None`, never a stand-in zero, and makes the total `None`.
+    assumptions. An unpriced model is `None`, never a stand-in zero, and makes the total `None`. `booked`: the median dollars a page this
+    project has booked for a `(job, provider, model)` (`booked_cost.for_workflows`), which replaces the token assumption (#6294).
     """
     from fichero_server.recipes.review_profiles import lens_ids, review_passes
 
@@ -1544,12 +1608,20 @@ def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str,
             cost = batch_cost_usd(w["provider_override"], w["model_override"] or "", pages * calls * tokens_in,
                                   pages * calls * tokens_out)  # a page read sends the picture, batch or not (#6265)
             basis = "unpriced" if cost is None else "the batch price, answered within a day"
+        measured = None
+        if (booked and to_send is None and cost is not None and runs_on.startswith("cloud") and basis == "the model's listed rate"
+                and (w.get("job"), w.get("provider_override"), w.get("model_override")) in booked):
+            per, measured = booked[(w.get("job"), w.get("provider_override"), w.get("model_override"))]
+            cost = round(per * pages, 6)  # the booked a-page figure already holds a page's every call
+        kind, words = _basis_words(w.get("job"), basis, cost, pages, calls, measured)
         # ponytail: a lens a pass, as the paleographer review runs them; each lens's page costs one call.
         per_lens = _priced(w, 1) if review and calls is not None else None
         lenses = [{"lens": lens, "on": w.get("lenses") is None or lens in w["lenses"], "cost_per_page_usd": per_lens}
                   for lens in lens_ids()] if review else []
         rows.append({"workflow": w["workflow"], "steps": w["steps"], "where": w["runs_on"],
                      "pages": pages, "cost_usd": cost, "basis": basis, "memory": _local_memory(w),
+                     "basis_kind": kind, "basis_words": words, "cost_per_page_usd": round(cost / pages, 6) if cost and pages else None,
+                     "measured_pages": measured,
                      "calls_per_page": calls, "lenses": lenses, "certainty_bar": bar, "lines_to_send": to_send,
                      "lines_to_send_kind": send_kind, "lines_basis": send_basis})
         total = None if total is None or cost is None else total + cost
@@ -1568,11 +1640,29 @@ def estimate(workflows: list[dict[str, Any]], pages: int, lines_known: dict[str,
     return {"pages": all_pages, "runs": rows, "total_cost_usd": total}
 
 
+def _basis_words(job: str | None, basis: str, cost: float | None, pages: int, calls: int | None,
+                 measured: int | None) -> tuple[str, str]:
+    """(`measured` | `assumed` | `free` | `unpriced`, the basis in words) of one run's figure: never worked out in the app
+    (`designer.budget.basis-per-step`, #6295). A measured figure says how many pages it rests on; an assumed one says what it assumes."""
+    if cost is None or basis == "unpriced":
+        return "unpriced", "no price is listed for this model, so no figure is given"
+    if basis == "free on this Mac":
+        return "free", "free on this Mac"
+    per = f"${cost / pages:.3f}" if pages else "$0"
+    if measured:
+        return "measured", f"{pages} pages × {per} a page, measured on {measured} pages of this project"
+    what = "the batch price, answered within a day" if basis != "the model's listed rate" else f"{calls or 1} call(s) a page at the model's listed rate"
+    return "assumed", f"{pages} pages × {per} a page, assumed: {what}"
+
+
 def _page_read_tokens(run: dict[str, Any]) -> tuple[int, int]:
     """(in, out) tokens of one page read by this cloud run: Claude's capped image, else the measured figure."""
     named = f"{run.get('provider_override') or ''}/{run.get('model_override') or ''}".lower()
-    return (ANTHROPIC_PAGE_READ_TOKENS_IN if "anthropic" in named or "claude" in named else PAGE_READ_TOKENS_IN,
-            PAGE_READ_TOKENS_OUT)
+    claude = "anthropic" in named or "claude" in named
+    if claude and run.get("job") == "read-a-line":  # the crops of the lines, one call a page (#6294)
+        return (LINE_READ_PROMPT_TOKENS + ASSUMED_LINES_PER_PAGE * LINE_CROP_TOKENS_IN,
+                ASSUMED_LINES_PER_PAGE * LINE_ANSWER_TOKENS_OUT)
+    return (ANTHROPIC_PAGE_READ_TOKENS_IN if claude else PAGE_READ_TOKENS_IN, PAGE_READ_TOKENS_OUT)
 
 
 def _priced(run: dict[str, Any], calls: int, tokens_in: int = _TOKENS_IN, tokens_out: int = _TOKENS_OUT) -> float | None:

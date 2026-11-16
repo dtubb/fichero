@@ -35,6 +35,8 @@ from typing import Iterable
 
 from pydantic import BaseModel, Field
 
+from fichero_server.db.library_paths import canonical_library_key
+
 logger = logging.getLogger(__name__)
 
 _SUBSCRIBER_QUEUE_MAXSIZE = 1000
@@ -184,6 +186,20 @@ class _Subscription:
 # =============================================================================
 
 
+#: How many (emit key, live keys) pairs the drift throttle remembers (#6309).
+_DRIFT_PAIR_CAP = 256
+
+
+def _could_be_same_library(a: str, b: str) -> bool:
+    """True when two hub keys might name one library: equal once case-folded, or the same file on disk."""
+    if a.casefold() == b.casefold():
+        return True
+    try:
+        return os.path.samefile(a, b)
+    except OSError:
+        return False
+
+
 class _ChangeHub:
     """Process-global registry of subscriber queues keyed by library path.
 
@@ -215,7 +231,10 @@ class _ChangeHub:
         self._subscriber_by_queue: dict[asyncio.Queue, _Subscriber] = {}
         self._replay_buffers: OrderedDict[str, deque[ChangeEvent]] = OrderedDict()
         self._next_event_ids: dict[str, int] = {}
+        self._generations: dict[str, int] = {}  # one tick per emit, never reset: the polled-result cache key (#6446)
         self._lock = threading.Lock()
+        # (emit key, live key) pairs already warned about, with how many emits each has dropped (#6309).
+        self._drift_counts: OrderedDict[tuple[str, tuple[str, ...]], int] = OrderedDict()
 
     @staticmethod
     @lru_cache(maxsize=512)
@@ -233,7 +252,7 @@ class _ChangeHub:
         resolves the symlinked prefix without requiring the leaf to exist, and
         the ``lru_cache`` keeps the per-emit filesystem walk off the hot path.
         """
-        return os.path.realpath(library_path) if library_path else library_path
+        return canonical_library_key(library_path) if library_path else library_path
 
     def subscribe(self, library_path: str) -> asyncio.Queue:
         """Register a new subscriber queue for ``library_path`` and return it."""
@@ -294,6 +313,7 @@ class _ChangeHub:
         """
         library_path = self._canonical_key(library_path)
         with self._lock:
+            self._generations[library_path] = self._generations.get(library_path, 0) + 1
             self._assign_event_id_locked(library_path, event)
             self._replay_buffer_locked(library_path).append(event)
             subs = list(self._subscribers.get(library_path, ()))
@@ -312,19 +332,32 @@ class _ChangeHub:
             except Exception as exc:  # pragma: no cover - defensive
                 logger.debug("change-hub: drop event for one queue: %s", exc)
         if delivered == 0 and other_live_keys:
-            # Emitted into the void while OTHER libraries have subscribers — the
-            # emit key and a subscribe key have drifted apart. No-silent-fallback:
-            # make it a WARNING with both sides so the drift is debuggable.
-            logger.warning(
-                "change-hub: %s emit to key %r reached 0 subscribers, but "
-                "%d subscriber(s) are live under different key(s): %r — "
-                "library_path key drift? (#2518)",
-                event.type,
-                library_path,
-                len(other_live_keys),
-                other_live_keys,
-            )
+            # Zero subscribers while other libraries are live. Usually that is a library no window
+            # has open (a worker, an import): normal, debug only. It is drift only when a live key
+            # could be the SAME library under another spelling, and then it is a WARNING (#2518, #6309).
+            lookalikes = [k for k in other_live_keys if _could_be_same_library(library_path, k)]
+            pair = (library_path, tuple(sorted(other_live_keys)))
+            with self._lock:
+                count = self._drift_counts.pop(pair, 0) + 1
+                self._drift_counts[pair] = count  # most recent last; the oldest pairs go past the cap
+                while len(self._drift_counts) > _DRIFT_PAIR_CAP:
+                    self._drift_counts.popitem(last=False)
+            if count in (1, 10, 100, 1000, 10000, 100000):
+                logger.log(
+                    logging.WARNING if lookalikes else logging.DEBUG,
+                    "change-hub: %s emit to key %r reached 0 subscribers; live keys %r%s; "
+                    "%d emit(s) dropped for this pair so far (#2518, #6309)",
+                    event.type,
+                    library_path,
+                    other_live_keys,
+                    f", which may be the same library under another spelling: {lookalikes!r}" if lookalikes else "",
+                    count,
+                )
         return delivered
+
+    def generation(self, library_path: str) -> int:
+        with self._lock:
+            return self._generations.get(self._canonical_key(library_path), 0)
 
     def revoke_devices(self, device_ids: list[str]) -> int:
         """End the streams these paired devices hold: each gets a last `sharing.revoked` frame (#5913). Others are untouched."""
@@ -514,6 +547,11 @@ _change_hub = _ChangeHub()
 from fichero_server.security import revocation as _revocation  # noqa: E402
 
 _revocation.on_revoked(_change_hub.revoke_devices)  # a revoked device's open streams end (#5913)
+
+
+def library_generation(library_path: str) -> int:
+    """How many changes this process has announced for the library: a polled result is current while it holds (#6446)."""
+    return _change_hub.generation(library_path)
 
 
 def emit_change(

@@ -16,10 +16,21 @@ struct StageShowcaseSection: View {
     var body: some View {
         let columns = StageCandidate.columns(result?.candidates)
         if columns.count >= 2 {
-            StageComparisonView(stageId: stageId, columns: columns, useThis: useThis)
+            if FeatureManager.shared.isWideSetUpEnabled, let pageId = Self.firstPage(of: columns) {
+                // The real result, side by side: each model's own lines on the page (`wide.compare.replaces-the-captions...`).
+                StageCompareColumns(pageId: pageId, candidates: columns, useThis: useThis, pictureWidth: 120...200)
+                    .accessibilityIdentifier("setup.stage.comparison")
+            } else {
+                StageComparisonView(stageId: stageId, columns: columns, useThis: useThis)
+            }
         } else if let showcase = Self.showcase(result: result, single: columns.first) {
             StageShowcaseView(stageId: stageId, showcase: showcase)
         }
+    }
+
+    /// The first page the candidates were compared on, in the first column that has one; nil before any model read a page.
+    static func firstPage(of columns: [StageCandidate]) -> String? {
+        columns.compactMap { $0.perPage?.first?.id }.first
     }
 
     /// One picture's page: the one candidate's result, else the try's, else the example.

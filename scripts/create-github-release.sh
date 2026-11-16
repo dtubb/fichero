@@ -154,6 +154,15 @@ else
 fi
 TAG="v${VERSION}"
 
+# The channel comes from the BUILT artifact, not from how this publish was started: release-all.sh writes
+# <dmg>.tier beside each DMG it builds. A dev-tier Fichero.dmg is never a channel-less public item, even on
+# the two-step hand route (release-all.sh --dev, then publish-release.sh). No tier file: the env var decides.
+if [ -f "$DMG_PATH.tier" ] && [ "$(tr -d '[:space:]' < "$DMG_PATH.tier")" = "dev" ]; then
+  export FICHERO_RELEASE_CHANNEL=dev
+fi
+# A dev-channel release ships its one DMG only: drop a stray Fichero-dev.dmg BEFORE any upload.
+if [ "${FICHERO_RELEASE_CHANNEL:-}" = "dev" ]; then HAVE_DEV_DMG=false; fi
+
 # ── Sparkle update pre-publish readiness (#4901) ─────────────────────────────
 # Fails the release (set -e) before signing/publishing anything if the new
 # build can't actually reach a user: not strictly greater than the live
@@ -285,9 +294,16 @@ if [ "$DRY_RUN" = false ] \
   exit 1
 fi
 
+# The text follows the tier that was built: the daily one-DMG dev run (FICHERO_RELEASE_CHANNEL=dev)
+# ships the dev build as Fichero.dmg; the two-DMG hand run keeps the alpha/dev wording.
+if [ "${FICHERO_RELEASE_CHANNEL:-}" = "dev" ]; then
+  DOWNLOAD_LINE="Download \`Fichero.dmg\` below (the dev build, with every feature on — expect rough edges)"
+else
+  DOWNLOAD_LINE="Download \`Fichero.dmg\` below (\`Fichero-dev.dmg\` is the internal build with ALL features on — expect rough edges)"
+fi
 RELEASE_BODY="## Installation
 
-1. Download \`Fichero.dmg\` below (\`Fichero-dev.dmg\` is the internal build with ALL features on — expect rough edges)
+1. $DOWNLOAD_LINE
 2. Open the DMG and drag Fichero to Applications
 3. Launch Fichero
 
@@ -348,6 +364,16 @@ else
   echo "[DRY RUN] would run: gh release create $TAG --repo $RELEASE_REPO --target $RELEASE_TARGET --title \"Fichero $VERSION\" $DRAFT_FLAG $PRERELEASE_FLAG"
 fi
 
+# FICHERO_RELEASE_CHANNEL=dev: the one DMG is dev-tier (the daily --dev release), so its item goes on the
+# dev channel and no channel-less public item is written; a stray Fichero-dev.dmg is not shipped beside it
+# (HAVE_DEV_DMG is cleared above, before the upload).
+MAIN_ITEM_ARGS=()
+MAIN_TITLE_SUFFIX=""
+if [ "${FICHERO_RELEASE_CHANNEL:-}" = "dev" ]; then
+  MAIN_ITEM_ARGS=(--channel dev)
+  MAIN_TITLE_SUFFIX=" (dev)"
+  HAVE_DEV_DMG=false
+fi
 RELEASE_URL="https://github.com/$RELEASE_REPO/releases/download/${TAG}/Fichero.dmg"
 DEV_RELEASE_URL="https://github.com/$RELEASE_REPO/releases/download/${TAG}/Fichero-dev.dmg"
 PUB_DATE=$(date -R)
@@ -389,13 +415,14 @@ APPCAST
   # NOTES_HTML is read from the environment inside appcast_upsert.py (already
   # exported above): multi-line HTML has no clean CLI-arg form.
   "$ROOT_DIR/scripts/appcast_upsert.py" "$APPCAST_PATH" \
-    --title "Fichero $VERSION" \
+    --title "Fichero $VERSION$MAIN_TITLE_SUFFIX" \
     --pub-date "$PUB_DATE" \
     --version "$BUILD" \
     --short-version "$VERSION" \
     --enclosure-url "$RELEASE_URL" \
     --enclosure-length "$DMG_SIZE" \
-    --ed-signature "$ED_SIGNATURE"
+    --ed-signature "$ED_SIGNATURE" \
+    ${MAIN_ITEM_ARGS[@]+"${MAIN_ITEM_ARGS[@]}"}
   if [ "$HAVE_DEV_DMG" = true ]; then
     "$ROOT_DIR/scripts/appcast_upsert.py" "$APPCAST_PATH" \
       --title "Fichero $VERSION (dev)" \

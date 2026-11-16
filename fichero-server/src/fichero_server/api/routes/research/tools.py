@@ -38,14 +38,15 @@ from fichero_server.core.timeutil import utc_now
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urljoin, urlparse
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 if TYPE_CHECKING:
     # Type-only: httpx is imported lazily in the tool handlers (#3985); the
     # helper's "httpx.AsyncClient"/"httpx.Response" annotations still need it.
     import httpx
 
-from fichero_server.api.main import get_library_database_for_write
+from fichero_server.api.library_header import require_library_path
+from fichero_server.api.main import editor_or_owner_only, get_library_database_for_write, write_check
 from fichero_server.db import Database
 from fichero_server.models import DocType, Document
 from fichero_server.models.research import (
@@ -239,7 +240,7 @@ async def _safe_http_get(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-@router.post("/tools/web-search", response_model=WebSearchResponse)
+@router.post("/tools/web-search", response_model=WebSearchResponse, dependencies=[Depends(editor_or_owner_only)])
 async def execute_web_search(
     request: WebSearchRequest,
 ) -> WebSearchResponse:
@@ -327,7 +328,7 @@ async def execute_web_search(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-@router.post("/tools/browser-navigate", response_model=BrowserNavigateResponse)
+@router.post("/tools/browser-navigate", response_model=BrowserNavigateResponse, dependencies=[Depends(editor_or_owner_only)])
 async def execute_browser_navigate(
     request: BrowserNavigateRequest,
 ) -> BrowserNavigateResponse:
@@ -419,8 +420,12 @@ async def execute_browser_navigate(
 async def execute_document_fetch(
     request: DocumentFetchRequest,
     db: Database = Depends(get_library_database_for_write),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
 ) -> DocumentFetchResponse:
     """Fetch a document URL and optionally save as Layer 1 Source (sandboxed)."""
+    # It saves a new top-level document: the person must be able to write at the project's top level (#6320).
+    await write_check(http, library_path, db, [None], deep=False)
     from fichero_server.core.egress import check_egress  # noqa: PLC0415
     check_egress("cloud", what="the agent's request", to="the web")
     import httpx  # lazy (#3985): keep off the engine boot path
@@ -562,8 +567,12 @@ def _ext_from_content_type(content_type: str | None, url: str) -> str:
 async def browser_save(
     request: BrowserSaveRequest,
     db: Database = Depends(get_library_database_for_write),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
 ) -> BrowserSaveResponse:
     """Download a URL as raw bytes and import it into the library as a real Document."""
+    # It writes a new document into the folder the BODY names (or the project's top level): the caller must write there (#6320).
+    await write_check(http, library_path, db, [request.parent_folder_id], deep=False)
     from fichero_server.core.egress import check_egress  # noqa: PLC0415
     check_egress("cloud", what="the agent's request", to="the web")
     import httpx  # lazy (#3985): keep off the engine boot path

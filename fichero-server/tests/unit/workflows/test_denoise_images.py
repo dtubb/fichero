@@ -17,7 +17,7 @@ def test_denoise_clamps_radius_and_forwards_page(monkeypatch):
     result = asyncio.run(tool.denoise_images({"radius": 9, "page": "2"}, {}, object()))
 
     assert result["image_edit_operations"] == [
-        {"op": "denoise", "page": 2, "params": {"radius": 5}}
+        {"op": "denoise", "page": 2, "params": {"radius": 5, "speck": 5}}
     ]
     assert result["output_files"] == []
 

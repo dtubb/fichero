@@ -116,6 +116,35 @@ def test_canvas_layout_backfills_positioned_children_once_only():
     ).fetchall() == [("folder::child", "folder", "child", 1.5, 2.5, 3, 40.0, "sticky")]
 
 
+def test_the_canvas_backfill_runs_once_per_library():
+    """It read every row's metadata on every open (review M1). A row written after the marker is left to the canvas read's
+    fallback, `_legacy_canvas_documents`."""
+    conn = duckdb.connect(":memory:")
+    conn.execute("CREATE TABLE librarysettings (id VARCHAR PRIMARY KEY, value VARCHAR, updated_at TIMESTAMP)")
+    conn.execute(
+        """CREATE TABLE documents (id VARCHAR, parent_id VARCHAR, position_x DOUBLE, position_y DOUBLE, position_z DOUBLE,
+           rotation_z DOUBLE, z_index INTEGER, metadata JSON, updated_at TIMESTAMP)"""
+    )
+    row = "INSERT INTO documents VALUES (?, 'folder', NULL, NULL, NULL, NULL, 0, '{\"canvas_w\": 40}', CURRENT_TIMESTAMP)"
+    conn.execute(row, ["first"])
+    migrate_canvas_layout_table(conn)
+    conn.execute(row, ["later"])
+    migrate_canvas_layout_table(conn)
+    assert conn.execute("SELECT item_id, w FROM canvas_layout").fetchall() == [("first", 40.0)]
+
+
+def test_a_nested_canvas_key_alone_does_not_make_a_layout_row():
+    """The `contains` guard only spares the JSON parse: the rule stays the top-level keys."""
+    conn = duckdb.connect(":memory:")
+    conn.execute(
+        """CREATE TABLE documents (id VARCHAR, parent_id VARCHAR, position_x DOUBLE, position_y DOUBLE, position_z DOUBLE,
+           rotation_z DOUBLE, z_index INTEGER, metadata JSON, updated_at TIMESTAMP)"""
+    )
+    conn.execute("""INSERT INTO documents VALUES ('d', 'folder', NULL, NULL, NULL, NULL, 0, '{"x": {"canvas_w": 1}}', CURRENT_TIMESTAMP)""")
+    migrate_canvas_layout_table(conn)
+    assert conn.execute("SELECT count(*) FROM canvas_layout").fetchone()[0] == 0
+
+
 # ---------------------------------------------------------------------------
 # #4983 phase 1: atomic + loud + recorded
 # ---------------------------------------------------------------------------

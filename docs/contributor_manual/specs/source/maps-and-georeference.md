@@ -1,6 +1,6 @@
 # Source Model — Maps and georeference — Design Spec (#5120)
 
-> Milestone: source-model
+> Milestone: maps-and-georeference
 > Manual: TBD — part of the "How Fichero represents a source" section: how a scanned map is tied
 > to the earth by control points, how a place named on any page is tied to a gazetteer, and what
 > leaves Fichero for Allmaps, QGIS or a web map.

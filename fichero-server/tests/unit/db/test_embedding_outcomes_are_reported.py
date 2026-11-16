@@ -106,6 +106,31 @@ class TestEmbedRecordsWhyItDidNotEmbed:
             db.close()
 
 
+    def test_a_failing_loop_writes_the_warning_a_few_times_not_every_time(
+        self, tmp_path, monkeypatch, caplog
+    ):
+        """`engine.repeated-log-line-collapses`: one machine wrote this warning 380,611 times."""
+        from fichero_server.core import log_throttle
+        from fichero_server.models import Document
+
+        db = self._db(tmp_path)
+        monkeypatch.setattr(log_throttle, "_DEFAULT", log_throttle.RepeatCollapser(limit=5, window_s=60))
+        try:
+            monkeypatch.setattr(type(db), "_embedding_text_for_document", lambda *_a, **_k: "text")
+
+            def _explode(*_a, **_k):
+                raise RuntimeError("embedding model could not be loaded")
+
+            monkeypatch.setattr(type(db), "save_passage_embeddings", _explode)
+            with caplog.at_level("WARNING"):
+                for n in range(50):
+                    assert db.embed(Document(name=f"page{n}.txt")).embedded is False
+            written = [r for r in caplog.records if "Failed to create embedding" in r.getMessage()]
+            assert len(written) == 5
+        finally:
+            db.close()
+
+
 class TestTheImportReportsCountsByReason:
     """One warning per document is thousands of unread lines. One line
     naming the causes is what answers 'are embeddings working?'."""

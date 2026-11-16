@@ -49,6 +49,11 @@ set_key() {
 set_key FicheroEmbeddedEngineVersion "$EMBEDDED_VERSION"
 set_key FicheroExpectedEngineVersion "$EXPECTED_VERSION"
 
+# FicheroBuildSHA -- the commit this build came from, so About and the support header name which build ran
+# (#6474: a build could not be told from another). "unknown" outside a git checkout; never fails the build.
+BUILD_SHA="$(git -C "$ROOT_DIR" rev-parse --short=10 HEAD 2>/dev/null || echo unknown)"
+set_key FicheroBuildSHA "$BUILD_SHA"
+
 echo "  Embedded engine stamp: embedded=$EMBEDDED_VERSION expected=$EXPECTED_VERSION"
 if [ "$EMBEDDED_VERSION" != "$EXPECTED_VERSION" ]; then
   echo "  warning: the staged engine ($EMBEDDED_VERSION) is not the checkout's version ($EXPECTED_VERSION) — restage it" >&2

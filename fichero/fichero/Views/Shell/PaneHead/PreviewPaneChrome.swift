@@ -67,9 +67,8 @@ struct SegmentVerbs: OptionSet, Equatable {
     /// The head controls offered, by accessibility identifier, in the row's order: the one rule the
     /// markup row draws from and its test reads.
     static func offered(_ verbs: SegmentVerbs, isEditing: Bool, selectionCount: Int) -> [String] {
-        guard isEditing else { return [] }
         var out: [String] = []
-        if verbs.contains(.draw) { out.append("previewMarkupShapeKind") }
+        if isEditing, verbs.contains(.draw) { out.append("previewMarkupShapeKind") }
         if selectionCount > 0, verbs.contains(.delete) { out.append("previewMarkupDelete") }
         if selectionCount >= 2, verbs.contains(.join) { out.append("previewMarkupCombine") }
         return out

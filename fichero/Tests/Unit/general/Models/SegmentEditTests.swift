@@ -100,4 +100,26 @@ struct SegmentEditTests {
         #expect(SegmentEdit.set(.kind("line"), on: []) == .failure(.tooFew))
         #expect(SegmentEdit.set(.furniture(true), on: [segment("p", version: nil, rect: [0, 0, 1, 1])]) == .failure(.versionUnknown))
     }
+
+    @Test("a move into a region sends segment.reparent with each line's version and the new parent; one call")
+    func reparentCarriesVersionsAndParent() throws {
+        let one = segment("l1", version: 2, rect: [0.1, 0.1, 0.5, 0.05])
+        let two = segment("l2", version: 5, rect: [0.1, 0.2, 0.5, 0.05])
+        let call = try SegmentEdit.reparent([one, two], into: "r2").get()
+        #expect(call.action == "segment.reparent")
+        let params = try json(call)
+        #expect(params["parent_segment_id"] as? String == "r2")
+        let items = try #require(params["segments"] as? [[String: Any]])
+        #expect(items.compactMap { $0["segment_id"] as? String } == ["l1", "l2"])
+        #expect(items.compactMap { $0["expected_version"] as? Int } == [2, 5])
+    }
+
+    @Test("lifting out sends no parent; an unsaved line or nothing selected is refused, not sent")
+    func reparentLiftAndRefusals() throws {
+        let line = segment("l1", version: 2, rect: [0.1, 0.1, 0.5, 0.05])
+        let lift = try SegmentEdit.reparent([line], into: nil).get()
+        #expect(try json(lift)["parent_segment_id"] == nil)
+        #expect(SegmentEdit.reparent([], into: "r1") == .failure(.tooFew))
+        #expect(SegmentEdit.reparent([segment("p", version: nil, rect: [0, 0, 1, 1])], into: "r1") == .failure(.versionUnknown))
+    }
 }

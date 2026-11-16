@@ -11,7 +11,7 @@ import SwiftUI
 /// Pure formatting for the About window (#2557), factored out of the view so it
 /// is unit-testable without a bundle.
 enum AboutInfo {
-    private static func displayValue(_ value: String?) -> String {
+    static func displayValue(_ value: String?) -> String {
         guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
               !trimmed.isEmpty else {
             return "—"
@@ -230,6 +230,8 @@ struct AboutView: View {
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
                 .accessibilityIdentifier("about.version")
+
+            AboutBuildShaLine()
 
             if let engineVersionLine {
                 Text(engineVersionLine)

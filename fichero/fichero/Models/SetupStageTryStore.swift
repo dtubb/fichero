@@ -18,6 +18,8 @@ final class SetupStageTryStore {
     private(set) var result: SetupStageTryResult?
     /// A try that would use the cloud says its cost first, in the engine's words; the person's yes runs it.
     private(set) var costQuestion: String?
+    /// What a try would cost, read before the button is pressed (`SetupStageTryStore+Price.swift`); nil until read.
+    var price: Components.Schemas.TryPrice?
     /// A try the engine refused, in its words.
     private(set) var refusal: String?
     private(set) var isTrying = false
@@ -137,6 +139,12 @@ final class SetupStageTryStore {
         try JSONDecoder().decode(SetupStageTryResult.self, from: try JSONEncoder().encode(body))
     }
 
+    /// The output column's state (`wide.output.four-states`): `currentRevision` is the stage listing's `answers_revision` now.
+    func outputState(currentRevision: String?, estimate: String?) -> StepOutputState {
+        StepOutputState.of(StepOutputInputs(result: result, refusal: refusal, costQuestion: costQuestion, isTrying: isTrying,
+                                            currentRevision: currentRevision, pages: samples.count, estimate: estimate))
+    }
+
     /// A sample page's name, by id.
     func name(of pageId: String) -> String { samples.first { $0.id == pageId }?.name ?? pageId }
 }
@@ -199,6 +207,15 @@ struct SetupStageTryResult: Decodable, Equatable {
     let jobId: String?
     /// Where a try with no compared candidates is, on the result itself (`try-progress-in-place`).
     let progress: StageCandidate.Progress?
+    /// The stage's answers and models the try ran with (`wide.output.stale-says-so`): compared with the listing's current one.
+    let answersRevision: String?
+    /// Read's tie figures from the try (`wide.nomodel.tie-figures-on-his-pages`), when the stage ties text to lines.
+    let tie: Tie?
+    /// Find Lines' two counts, on the photograph and on the clarified copy (`wide.faded.line-counts-before-and-after`).
+    let lineCounts: LineCounts?
+
+    typealias Tie = SetupStageTie
+    typealias LineCounts = SetupStageLineCounts
 
     struct Comparison: Decodable, Equatable {
         let state: String?
@@ -206,7 +223,9 @@ struct SetupStageTryResult: Decodable, Equatable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case state, error, how, names, bakeoff, documents, entries, pages, candidates, comparison, progress
+        case state, error, how, names, bakeoff, documents, entries, pages, candidates, comparison, progress, tie
+        case answersRevision = "answers_revision"
+        case lineCounts = "line_counts"
         case perPage = "per_page"
         case waitingFor = "waiting_for"
         case jobId = "job_id"
@@ -217,6 +236,9 @@ struct SetupStageTryResult: Decodable, Equatable {
         let sure = document.confidence.map { $0.formatted(.percent.precision(.fractionLength(0))) + " sure" }
         return [document.kind, sure].compactMap { $0 }.joined(separator: " · ")
     }
+
+    /// The tie's figures in words (`wide.nomodel.tie-figures-on-his-pages`), nil when the try tied nothing.
+    var tieWords: String? { StepRowWords.tieFigures(tie?.counts) }
 
     var isUnderWay: Bool { Self.underWay.contains(comparison?.state ?? state) }
 

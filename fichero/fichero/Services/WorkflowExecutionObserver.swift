@@ -36,6 +36,9 @@ class WorkflowExecutionObserver {
     /// remain populated after a run finishes. Keyed by threadId.
     var completedExecutions: [String: WorkflowExecution] = [:]
 
+    /// The cloud refusal a hand run is waiting on the person to answer (`ai.cloud.alert-on-hand-run-paths`); the alert reads it.
+    var cloudRefusal: CloudRefusalPrompt?
+
     /// Cancel handlers for each execution key (not observable - internal use)
     private var cancelHandlers: [String: () -> Void] = [:]
 

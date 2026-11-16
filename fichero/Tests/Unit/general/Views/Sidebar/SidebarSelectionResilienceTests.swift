@@ -148,4 +148,41 @@ final class SidebarSelectionResilienceTests: XCTestCase {
             )
         )
     }
+
+    // MARK: - sidebar.deselect-always-works (owner 2026-11-13)
+
+    /// Outside a rebuild, an unresolvable row the List drops is the person's deselect: it drops out. Before, a
+    /// lazily loaded folder the index could not resolve was restored on every deselect, so it never deselected.
+    func testOutsideARebuildAnUnresolvableRowDeselects() {
+        XCTAssertFalse(
+            SidebarView.droppedRowIsMomentarilyMissing(
+                folderRow, cachedItemMissing: true, wasRecentlyDeleted: false, rebuiltRecently: false
+            )
+        )
+        let result = SidebarView.sidebarResilientSelection(
+            current: [folderRow], proposed: [],
+            isMomentarilyMissing: {
+                SidebarView.droppedRowIsMomentarilyMissing(
+                    $0, cachedItemMissing: true, wasRecentlyDeleted: false, rebuiltRecently: false)
+            }
+        )
+        XCTAssertEqual(result, [], "the deselect takes")
+    }
+
+    /// Just after a rebuild the #4297 guard still holds.
+    func testJustAfterARebuildTheGuardStillHolds() {
+        XCTAssertTrue(
+            SidebarView.droppedRowIsMomentarilyMissing(
+                folderRow, cachedItemMissing: true, wasRecentlyDeleted: false, rebuiltRecently: true
+            )
+        )
+    }
+
+    /// The window is about a second from the index rebuild.
+    func testRebuiltRecentlyIsAboutASecond() {
+        let rebuilt = Date(timeIntervalSince1970: 1_000)
+        XCTAssertTrue(SidebarView.rebuiltRecently(at: rebuilt, now: rebuilt.addingTimeInterval(0.3)))
+        XCTAssertFalse(SidebarView.rebuiltRecently(at: rebuilt, now: rebuilt.addingTimeInterval(1.5)))
+        XCTAssertFalse(SidebarView.rebuiltRecently(at: .distantPast))
+    }
 }

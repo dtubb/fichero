@@ -41,7 +41,7 @@ async def test_translate_text_routes_to_deepl(monkeypatch):
 async def test_translate_text_refuses_deepl_when_local_only_enabled(monkeypatch):
     from fichero_server.llm import LocalOnlyViolationError
 
-    monkeypatch.setattr("fichero_server.llm.is_local_only", lambda: True)
+    monkeypatch.setattr("fichero_server.llm.is_local_only", lambda **kw: True)
 
     with pytest.raises(LocalOnlyViolationError, match="translation call to remote provider deepl"):
         await translate_text(

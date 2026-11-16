@@ -57,6 +57,13 @@ PROTOCOL_REQUIREMENTS = frozenset({
 
 # Current candidate-dead backlog. Drop entries as files are removed or wired.
 KNOWN_VIOLATIONS: dict[str, str] = {
+    "Views/Workflow/Library/WorkflowChainListView.swift": "2026-08-10 — candidate dead file: orphaned when the legacy WorkflowLibraryView list was removed (workflow clicks route straight to the node editor). Daniel is leaning 'chains fold into workflows'; delete this (and its Parts/) or rewire once he rules. Do not let this entry outlive the decision.",
+    "Views/Preview/ImageViewer/ScrollWheelZoom.swift": "#1945 — candidate dead file: scroll-wheel zoom bridge types",
+    "Views/Workflow/Editor/SimpleWorkflowView.swift": "#1945 — candidate dead file: SimpleWorkflowView, SimpleWorkflow",
+    "Views/Workflow/Execution/WorkflowExecutionView.swift": "#1945 — candidate dead file: workflow execution helper types",
+    "Views/Preview/PDFViewer/PageImageGrid.swift": "#1945 — candidate dead file: page image grid helper types",
+    "Models/DragDropModel.swift": "#1945 — candidate dead file: DragDropModel",
+    "Intents/FicheroShortcuts.swift": "#2017 — App Intents/Shortcuts entry point helper",
     "Views/Settings/AI/AISettingsView+Tabs.swift": (
         "#6022 — false positive, NOT dead: this file's only own type, CloudAccessSection, is used "
         "by AISettingsView.defaultsTab in this same file (an extension of AISettingsView); the scanner "
@@ -72,19 +79,10 @@ KNOWN_VIOLATIONS: dict[str, str] = {
         "type-name-reference heuristic can't see through that indirection."
     ),
     "Views/Preview/EntrySourcePreview.swift": "#4235-class — extension-heavy view file; LadderLevel is the private containment-ladder rung enum used only by this view's own step logic (2026-08-23)",
-    "Views/Workflow/Library/WorkflowChainListView.swift": "2026-08-10 — candidate dead file: orphaned when the legacy WorkflowLibraryView list was removed (workflow clicks route straight to the node editor). Daniel is leaning 'chains fold into workflows'; delete this (and its Parts/) or rewire once he rules. Do not let this entry outlive the decision.",
-    "Models/CacheModel.swift": "#1945 — candidate dead file: CacheModel, CacheWrapper",
-    "Models/DragDropModel.swift": "#1945 — candidate dead file: DragDropModel",
     "Views/Chat/Inspector/ChatInspector+ScopedDocuments.swift": "#2955 — helper row used only by same-file ChatInspector scoped-documents view builder",
     "Views/Library/ViewModes/Graph/Ontology/Entity/EntityDetailView+Biography.swift": "#1945 — candidate dead file: MentionSummary",
-    "Intents/FicheroShortcuts.swift": "#2017 — App Intents/Shortcuts entry point helper",
     "Views/Library/ViewModes/LibraryView+EntityFiltering.swift": "#1945 — candidate dead file: KgKindMapping (moved here from LibraryView+DisplayModes when that file was split by file_length; used only by the same-file entity-filter extension)",
-    "Views/Preview/ImageViewer/ScrollWheelZoom.swift": "#1945 — candidate dead file: scroll-wheel zoom bridge types",
-    "Views/Preview/PDFViewer/PageImageGrid.swift": "#1945 — candidate dead file: page image grid helper types",
-    "Views/Settings/MCP/MCPServersSheet.swift": "#3366 — settings routing keeps legacy sheet compiled for transition/back-compat",
     "Views/Sidebar/State/ActivityDataProcessing.swift": "#1945 — candidate dead file: ActivityWorkflowGroup",
-    "Views/Workflow/Editor/SimpleWorkflowView.swift": "#1945 — candidate dead file: SimpleWorkflowView, SimpleWorkflow",
-    "Views/Workflow/Execution/WorkflowExecutionView.swift": "#1945 — candidate dead file: workflow execution helper types",
     # (WorkflowSuggestionPolicy now referenced directly — entry dropped 2026-08-31)
     # "Models/WorkflowSuggestionPolicy.swift": "2026-08-30 — suggestion glyphs left the toolbar (Daniel's ruling) so the policy is momentarily unreferenced; the suggestions-row-INSIDE-the-bar lane is APPROVED and rewires it. Do not let this entry outlive that lane.",
     "Views/Library/ViewModes/List/LibraryView+ListView.swift": "2026-09-01 — ListRowChrome is the per-pass row-settings carrier threaded into the same-file documentRow/mailRow builders (list-scroll perf); scanner misses same-file wiring",

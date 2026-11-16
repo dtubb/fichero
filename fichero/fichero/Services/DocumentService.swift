@@ -330,6 +330,9 @@ extension DocumentService {
             let docs = try okResponse.body.json
             logger.info("Found \(docs.count) children")
             return try docs.items.map { try convertToDocument($0) }
+        case .undocumented(404, _):
+            // The spec does not declare this 404 yet (#6477); a missing parent is "not found", never "unexpected".
+            throw DocumentServiceError.notFound(parentId)
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
@@ -556,7 +559,8 @@ extension DocumentService {
         name: String? = nil,
         metadata: [String: String]? = nil,
         metadataPayload: [String: any Sendable]? = nil,
-        pageContent: String? = nil
+        pageContent: String? = nil,
+        expectedUpdatedAt: Date? = nil
     ) async throws -> Document {
         isProcessing = true
         defer { isProcessing = false }
@@ -586,7 +590,8 @@ extension DocumentService {
         let request = Components.Schemas.DocumentUpdate(
             name: name,
             pageContent: pageContent,
-            metadata: metadataPayloadValue
+            metadata: metadataPayloadValue,
+            expectedUpdatedAt: expectedUpdatedAt
         )
 
         let response = try await client.api.updateDocumentApiDocumentsDocIdPut(.init(
@@ -602,6 +607,9 @@ extension DocumentService {
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(409, _) where expectedUpdatedAt != nil:
+            // #5348: another Mac saved since this editor read the text; nothing was written.
+            throw DocumentServiceError.stale
         case .undocumented(let statusCode, _):
             // #4286: never surface the generic "unexpected response" for a
             // SAVE — name the operation and the status so a 409 (concurrent
@@ -821,6 +829,14 @@ enum DocumentServiceError: Error, LocalizedError {
     /// WHAT failed and WHY-shaped ("save failed — HTTP 409"), per the #4269
     /// error-surface rules — never the bare "unexpected response" string.
     case httpStatus(operation: String, code: Int)
+    /// #5348: the engine refused a save because the text changed on another Mac since it was read here.
+    case stale
+
+    /// A document the engine does not have: what a restored selection of a deleted library meets (#6477, #6479).
+    var isNotFound: Bool {
+        if case .notFound = self { return true }
+        return false
+    }
 
     var errorDescription: String? {
         switch self {
@@ -830,6 +846,8 @@ enum DocumentServiceError: Error, LocalizedError {
             return "Document not found: \(id)"
         case .serverError(let message):
             return "Server error: \(message)"
+        case .stale:
+            return "This text was changed on another Mac. Your edit is copied to the clipboard; save again to replace theirs."
         case .httpStatus(let operation, let code):
             let hint = code == 409
                 ? " (another writer got there first — retrying keeps your edit)"

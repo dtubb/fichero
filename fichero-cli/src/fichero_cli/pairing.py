@@ -9,16 +9,20 @@ from __future__ import annotations
 
 import base64
 import binascii
+import contextlib
 import getpass
 import hashlib
 import json
 import os
 import socket
 import ssl
+import stat
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
-from urllib.parse import parse_qs, urlparse
+from pathlib import Path
+from typing import Any
+from urllib.parse import parse_qs, quote, urlparse
 
 import httpx
 
@@ -28,7 +32,8 @@ DEVICES_PATH = _TOKEN_PATH.with_name("paired-devices.json")
 PAIR_NEXT_HEADER = "x-fichero-pair-next"  # what the host asks the person for next (api/routes/auth/pairing.py)
 NEXT_PERSON = "person-required"
 NEXT_NEW_PASSWORD = "choose-password"
-_PAIR_HOSTS = {"fichero.app"}  # the https universal link the app also accepts
+_PAIR_HOST = "tubb.ca"  # the https universal link the app also accepts (moved from fichero.app, owner ruling 2026-11-02)
+_PAIR_PATH = "/apps/fichero/pair"
 
 
 @dataclass(frozen=True)
@@ -36,6 +41,7 @@ class PairLink:
     api_url: str
     code: str
     spki: str | None
+    alt_urls: tuple[str, ...] = ()  # the host's other addresses, in order (`sharing.link-carries-every-address`); old links have none
 
 
 def parse_link(text: str) -> PairLink:
@@ -43,7 +49,7 @@ def parse_link(text: str) -> PairLink:
     raw = "".join((text or "").split())
     url = urlparse(raw)
     is_link = (url.scheme == "fichero" and url.netloc == "pair") or (
-        url.scheme == "https" and url.hostname in _PAIR_HOSTS and url.path.rstrip("/") == "/pair"
+        url.scheme == "https" and url.hostname == _PAIR_HOST and url.path.rstrip("/") == _PAIR_PATH
     )
     payload = (parse_qs(url.query).get("payload") or [""])[0]
     if not is_link or not payload:
@@ -54,7 +60,79 @@ def parse_link(text: str) -> PairLink:
     except (ValueError, KeyError, TypeError, binascii.Error) as exc:
         raise FicheroError("The pairing link is damaged: ask the host for a new one.") from exc
     spki = data.get("spki") or None
-    return PairLink(api_url=api_url.rstrip("/"), code=code, spki=str(spki) if spki else None)
+    alts = data.get("alt_urls")
+    alt_urls = tuple(str(u).rstrip("/") for u in alts if isinstance(u, str) and u.strip()) if isinstance(alts, list) else ()
+    return PairLink(api_url=api_url.rstrip("/"), code=code, spki=str(spki) if spki else None, alt_urls=alt_urls)
+
+
+def _payload_of(text: str) -> bytes:
+    """The link's decoded JSON payload bytes (the parser's own reading)."""
+    url = urlparse("".join((text or "").split()))
+    payload = (parse_qs(url.query).get("payload") or [""])[0]
+    return base64.b64decode(payload + "=" * (-len(payload) % 4), altchars=b"-_")
+
+
+MAX_LINK_ADDRESSES = 3  # ponytail: three is what the 5-second-each try budget allows (a dead link fails in <= 15 s)
+QR_PAYLOAD_LIMIT = 400  # characters of encoded payload a phone camera reads reliably at QR level M (`sharing.ios-qr-payload-size`)
+
+
+def alt_urls_from(rows: list[dict], *, chosen: str, sharing_address: str | None) -> list[str]:
+    """The addresses to carry beside the chosen one, from the engine's own list (`GET /api/pair/addresses`), in its order:
+    only rows with nothing against them, never loopback, none twice, at most `MAX_LINK_ADDRESSES` in all. A tailnet row is the
+    origin the engine reports, so it takes the sharing port (`tailnet_link_url`)."""
+    chosen = chosen.rstrip("/")
+    out: list[str] = []
+    for row in rows or []:
+        url = str(row.get("url") or "").strip().rstrip("/")
+        host = (urlparse(url).hostname or "").lower()
+        if not url or row.get("reason") or not row.get("listening", True) or host in ("localhost", "::1") or host.startswith("127."):
+            continue
+        if row.get("kind") == "tailnet":
+            url = tailnet_link_url(url, sharing_address)
+        if url != chosen and url not in out:
+            out.append(url)
+    return out[: MAX_LINK_ADDRESSES - 1]
+
+
+def invite_link(*, api_url: str, code: str, spki: str | None, expires_at: str | None, library_path: str | None,
+                alt_urls: list[str] | tuple[str, ...] = (), for_qr: bool = False) -> str:
+    """The pairing link the app, the phone and `devices pair` all redeem (`sharing.cli-mints-a-link`): the app's own shape
+    (`RemoteClientPairing.inviteLinkString`: `fichero://pair?payload=<base64 JSON>`), keys sorted so the same link reads
+    the same from every machine. The pin rides only with an address that serves its own certificate; a `.ts.net` name
+    is system trust and carries none (`_is_public_ca`). Absent values leave their key out, as the app's encoder does."""
+    payload: dict[str, object] = {"v": 1, "api_url": api_url.rstrip("/"), "pair_code": code}
+    if expires_at:
+        payload["expires_at"] = expires_at
+    alts = [u.rstrip("/") for u in alt_urls if u and u.rstrip("/") != api_url.rstrip("/")]
+    # The one pin is the engine's key, whatever the name; a `.ts.net` address is system trust and needs none, so the pin rides
+    # only when some carried address serves the engine's own certificate.
+    if spki and not all(_is_public_ca(urlparse(u).hostname or "") for u in [api_url, *alts]):
+        payload["spki"] = spki
+    if library_path and not for_qr:  # the QR leaves it out: the guest asks the host for it (`sharing.ios-qr-payload-size`)
+        payload["library_path"] = library_path
+
+    def encode() -> str:
+        return base64.b64encode(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).decode()
+
+    if alts:
+        payload["alt_urls"] = alts
+    while for_qr and alts and len(encode()) > QR_PAYLOAD_LIMIT:
+        alts.pop()  # the chosen address is never the one dropped; `payload` holds this same list
+        if not alts:
+            del payload["alt_urls"]
+    encoded = encode()
+    # Percent-encode as the app does: an unquoted `+` in the query reads back as a space and the link is "damaged".
+    return f"fichero://pair?payload={quote(encoded, safe='')}"
+
+
+def tailnet_link_url(tailnet_url: str, sharing_address: str | None, default_port: int = 8765) -> str:
+    """The tailnet address a LINK carries: the engine reports the origin (`https://<name>.ts.net`, no port) while the
+    forward is `--https=<sharing port>`; a link without the port names 443 and never connects (review 2026-10-31, H3)."""
+    tail = urlparse(tailnet_url.strip())
+    if tail.port:
+        return tailnet_url.strip().rstrip("/")
+    port = urlparse(sharing_address or "").port or default_port
+    return f"https://{tail.hostname}:{port}"
 
 
 def _is_public_ca(host: str) -> bool:
@@ -93,6 +171,8 @@ def check_trust(api_url: str, spki: str | None, *, fetch_der: Callable[[str, int
         )
     if _is_public_ca(url.hostname):
         return
+    if url.hostname.startswith("100."):  # Tailscale's certificate names the MagicDNS name only, never the number
+        raise FicheroError("Tailscale addresses work by name, not by number. Ask for a new link.")
     if not spki:
         raise FicheroError(
             f"The link carries no certificate pin for {url.hostname}, and that host serves its own certificate. "
@@ -130,6 +210,38 @@ def _write_store(store: dict) -> None:
         handle.write(json.dumps(store))
     os.chmod(tmp, 0o600)  # a stale tmp keeps its mode through O_CREAT
     os.replace(tmp, DEVICES_PATH)  # atomic: a crash leaves the old file, never half a token
+
+
+def write_owner_only(path: Path, text: str) -> None:
+    """Write `text` to `path` readable by this user only (a pairing link is a one-time secret while it lives).
+
+    The bytes never touch a file anyone else can read: a fresh temp file beside the target is created
+    O_CREAT|O_EXCL|O_NOFOLLOW at mode 0600 (never a mode fixed up after the write), then moved over the target. The
+    target may only be replaced when it does not exist or is the caller's own regular file; a symlink, a directory or
+    another user's file is refused in words (review 2026-10-31: a shared /tmp path could be pre-created by someone else)."""
+    path = Path(path)
+    try:
+        existing = os.lstat(path)
+    except FileNotFoundError:
+        existing = None
+    if existing is not None:
+        if stat.S_ISLNK(existing.st_mode):
+            raise FicheroError(f"{path} is a symlink; refusing to write the link through it. Name a new file.")
+        if not stat.S_ISREG(existing.st_mode):
+            raise FicheroError(f"{path} is not a regular file; name a new file for the link.")
+        if existing.st_uid != os.getuid():
+            raise FicheroError(f"{path} belongs to another user; name a file of your own for the link.")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
 
 
 def device_token(engine: str | None) -> str | None:
@@ -208,6 +320,57 @@ def _ask_new_password() -> str:
     return first
 
 
+ATTEMPT_SECONDS = 5.0  # per address: lookup + connect + TLS + the first byte of an unauthenticated health call
+
+
+def _label(api_url: str) -> str:
+    host = urlparse(api_url).hostname or api_url
+    return f"Tailscale ({host})" if _is_public_ca(host) else host
+
+
+def _health_probe(api_url: str, spki: str | None) -> str | None:
+    """None when the host answered `GET /api/health` within the budget (any HTTP answer counts: the Mac is there), else why not."""
+    try:
+        with _open_client(api_url, None, spki) as http:
+            http.get("/api/health", timeout=ATTEMPT_SECONDS)
+        return None
+    except httpx.TimeoutException:
+        if _is_public_ca(urlparse(api_url).hostname or ""):
+            return "no answer in 5 s: is Tailscale on this Mac?"
+        return "no answer in 5 s: the network may keep devices apart"
+    except httpx.ConnectError as exc:
+        text = f"{exc} {exc.__cause__ or ''}".lower()
+        if "certificate" in text or "ssl" in text:
+            return "its certificate was refused: ask the host for a new link"
+        if "nodename" in text or "name or service" in text or "name resolution" in text or "getaddrinfo" in text:
+            return "this Mac cannot find that name on this network"
+        return "Fichero isn't listening there: turn Sharing off and on on the host"
+    except httpx.HTTPError as exc:
+        return f"it could not be reached ({type(exc).__name__})"
+
+
+def reach(link: PairLink, *, probe: Callable[[str, str | None], str | None],
+          fetch_der: Callable[[str, int], bytes]) -> tuple[str, list[str]]:
+    """Try the link's addresses in its order, one after another (a race hides which failed and why), and stop at the first that
+    passes the trust check and answers (`sharing.client-tries-every-address`). Returns that address and the sentences to show;
+    raises with every attempt named when none answers. The code is sent only after this, to the address that answered."""
+    failed: list[tuple[str, str]] = []
+    for url in [link.api_url, *link.alt_urls][:MAX_LINK_ADDRESSES]:
+        try:
+            check_trust(url, link.spki, fetch_der=fetch_der)
+            why = probe(url, None if _is_public_ca(urlparse(url).hostname or "") else link.spki)
+        except FicheroError as exc:
+            why = str(exc)
+        if why is None:
+            notes = [f"Connected through {_label(url)}."]
+            notes += [f"The {_label(bad)} address did not answer: {reason}." for bad, reason in failed]
+            return url, notes
+        failed.append((url, why.rstrip(".")))
+    first = urlparse(link.api_url).hostname or link.api_url
+    tried = " · ".join(f"{_label(bad)}: {reason}" for bad, reason in failed)
+    raise FicheroError(f"Could not reach {first}. Tried {tried}.")
+
+
 def pair(
     link_text: str,
     *,
@@ -216,10 +379,17 @@ def pair(
     fetch_der: Callable[[str, int], bytes] | None = None,
     ask_person: Callable[[], tuple[str, str]] = _ask_person,
     ask_new_password: Callable[[], str] = _ask_new_password,
-) -> dict[str, str]:
-    """Redeem the link and store the device token. Returns the device id, name and host only, never the token."""
+    probe: Callable[[str, str | None], str | None] | None = None,
+) -> dict[str, Any]:
+    """Redeem the link and store the device token. Returns the device id, name, host and (for a link with several addresses)
+    the notes on which address answered; never the token."""
     link = parse_link(link_text)
-    check_trust(link.api_url, link.spki, fetch_der=fetch_der or served_spki_der)
+    notes: list[str] = []
+    if link.alt_urls and not uds:  # a link with several addresses: try them in turn, 5 s each, and pair at the first that answers
+        chosen, notes = reach(link, probe=probe or _health_probe, fetch_der=fetch_der or served_spki_der)
+        link = PairLink(api_url=chosen, code=link.code, spki=link.spki)
+    else:
+        check_trust(link.api_url, link.spki, fetch_der=fetch_der or served_spki_der)
     host = urlparse(link.api_url).hostname or link.api_url
     name = (device_name or f"{socket.gethostname()} (fichero CLI)").strip()
     pin = None if _is_public_ca(host) else link.spki
@@ -258,4 +428,7 @@ def pair(
         "spki": pin,
     }
     _write_store(store)
-    return {"device_id": data["device_id"], "name": name, "host": host}
+    done: dict[str, Any] = {"device_id": data["device_id"], "name": name, "host": host}
+    if notes:  # only a link with several addresses has any: which answered and why the others did not
+        done["notes"] = notes
+    return done

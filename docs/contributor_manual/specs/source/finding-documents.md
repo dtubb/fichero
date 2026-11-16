@@ -45,7 +45,7 @@ teacher only where it is unsure.
   `classify` uses), and cases are always proposed, never accepted by the run. This applies the 2026-10-08
   ruling that a kind is proposed, never assigned.
 - **The auto-accept is off until a scored box.** The 95% is a hand-set score today, never checked against a
-  box a person broke down. Until a real box (Istmina first) is scored against a person's breakdown and shows
+  box a person broke down. Until a real box (a regional court archive first) is scored against a person's breakdown and shows
   boundaries at least 99% right at that level, Find the Documents proposes and accepts nothing by itself;
   then it switches on at the measured level. **Built 2026-10-10 (engine):** the measurement
   (`finddocs.scored`): a folder is scored against the documents a person accepted or adjusted, the score is
@@ -63,7 +63,7 @@ teacher only where it is unsure.
 
 | Signal | From | Says |
 |---|---|---|
-| Opening and closing cues | the page's text (any reading) | a caption ("JUZGADO DEL TRABAJO DEL CIRCUITO DE ISTMINA"), a heading ("Sentencia", "Demanda"), a place and date line, a salutation, a signature block, "Notifíquese", a seal mention — a document starts or ends here |
+| Opening and closing cues | the page's text (any reading) | a caption ("JUZGADO DEL TRABAJO DEL CIRCUITO", the court's name), a heading ("Sentencia", "Demanda"), a place and date line, a salutation, a signature block, "Notifíquese", a seal mention — a document starts or ends here |
 | Continuity across the break | the last lines of page *n* and the first lines of *n+1* | a sentence, list or table runs over the break (scored by a language model's surprise at the join) — same document |
 | Page furniture | text and layout | folio numbers, "página 2 de 3", catchwords, running heads; numbering restarting means a new document |
 | Look of the page | the image | stamp paper (papel sellado) and its revenue stamps, letterhead, typed vs handwritten, the typewriter, the hand, margins, paper — changes suggest a boundary, sameness suggests one document; measured by an image embedding of the page and of its layout |
@@ -71,10 +71,10 @@ teacher only where it is unsure.
 | Reply and reference | the text | "en contestación a su oficio de …", "visto el memorial de …" — links one document to an earlier one |
 | Meaning | text embeddings and topic models | how alike two documents are (latent semantic analysis, as Layfield & Fagin Davis used for the Voynich leaves) |
 
-## What the first real box taught (Istmina Full, '1948 Sentencias', 2026-10-07)
+## What the first real box taught (a real box of 203 loose court pages, 2026-10-07)
 
 A visual pass over all 203 images found 8 judgments from 8 cases, in date order, from one court
-(Juzgado del Trabajo de Istmina, judge Constantino Salazar Ruiz): most likely the court's 1948 register
+(a labour court, one judge): most likely the court's 1948 register
 of judgments. The folder's name came from the first case and was misleading; only 4 of the 8 cases
 involve the company it names. Lessons the tool must carry:
 - **Recto and verso.** Every leaf was photographed front then back, and the backs were blank: 203
@@ -90,7 +90,7 @@ involve the company it names. Lessons the tool must carry:
 - **Fair copies and originals.** Typed "(fdo)" signatures mark copies for the court's book; real
   handwritten signatures mark originals. Worth an attribute.
 - **No case numbers.** Cases are told apart by parties, subject and dates alone.
-- **Boundaries were clear in this box** (a new judgment opens with "JUZGADO DEL TRABAJO / Istmina,
+- **Boundaries were clear in this box** (a new judgment opens with "JUZGADO DEL TRABAJO / (town),
   <date> / VISTOS" right after the previous "FALLA … Cópiese" and signatures), so this box is a good
   first scored test with a known answer.
 
@@ -121,7 +121,7 @@ involve the company it names. Lessons the tool must carry:
   documents come out exactly right), kind accuracy, group agreement — against a person's breakdown.
 - **Known-answer tests** before any real box: the Voynich manuscript's conjugate leaves (which pages
   were once one sheet) and a public page-stream-segmentation set; then a real box broken down by a
-  person (Istmina Full, '1948 Sentencias', 203 pages).
+  person (a real box of 203 loose court pages).
 
 ## Surfaces
 
@@ -357,7 +357,7 @@ involve the company it names. Lessons the tool must carry:
 - `finddocs.known-answer-first` — **[PARTIAL]** (#5548, #5550) the method is checked on the Voynich
   conjugate leaves and one public page-stream set before it is offered on a real box. **Built
   2026-10-07:** two synthetic boxes with a known answer and no real text
-  (`fichero-server/tests/unit/finddocs/boxes.py`): the Istmina '1948 Sentencias' structure (eight
+  (`fichero-server/tests/unit/finddocs/boxes.py`): the structure of that real box of 1948 judgments (eight
   judgments, blank versos, two leaves shot twice, four cases against one company) scores precision 1.0,
   recall 1.0, 8 of 8 documents exact; a bundle of letters, cables and a receipt in Spanish and English
   scores 1.0 and 1.0, 7 of 7, with both correspondences grouped. Pinned by
@@ -381,8 +381,8 @@ involve the company it names. Lessons the tool must carry:
 
 ## Open questions
 
-1. Prototypes per project or shared across a collection (the Istmina boxes share Sentencia,
+1. Prototypes per project or shared across a collection (the boxes of one court share Sentencia,
    Demanda …)? Proposal: per project, promotable to the collection, like models (#5539).
 2. Which thinking model is the default teacher, and the cost ceiling per box before asking.
 3. The base for the student: a layout model (text + boxes + image) or a small vision-language model
-   — to be decided by the first bake-off on the Istmina box.
+   — to be decided by the first bake-off on that court box.

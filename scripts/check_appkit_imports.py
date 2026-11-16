@@ -85,7 +85,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Models/WorkflowExporter.swift": "NSOpenPanel/NSSavePanel for workflow import/export, #if canImport(AppKit) (#2101)",
     "Services/ImageEditingService.swift": "NSImage/UIImage conversion for Core Image output, #if canImport (#2101)",
     "Services/EngineConfig+Launch.swift": "#2381 — macOS launch-mode bridge reads Option-key state via NSEvent; #2101 (split out of EngineConfig.swift)",
-    "Services/RemoteClientPairing.swift": "imports UIKit behind #if canImport but names no UIKit symbol — the import looks removable; confirm with the iOS build, then drop this entry (#2101)",
     # Split from RemoteClientPairing.swift for file_length (#5113). The UIKit use moved WITH
     # the pairing flow — three references, so the import is real and not a leftover of the
     # split. Same reason as its parent above, inherited rather than invented.

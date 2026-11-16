@@ -12,6 +12,7 @@ import unicodedata
 from pathlib import Path
 from typing import Any
 
+from fichero_server.core.naturalsort import natural_key
 from fichero_server.llm.catalogue_lint import FOLDER_DESCRIPTION_MAX_WORDS, MAX_WORDS, cut_to_cap
 
 logger = logging.getLogger(__name__)
@@ -25,15 +26,16 @@ def _is_folder(doc: Any) -> bool:
     return getattr(doc.doc_type, "value", doc.doc_type) == "folder"
 
 
-def folders_covering(db: Any, page_ids: list[str]) -> list[Any]:
+def folders_covering(db: Any, page_ids: list[str], memo: dict | None = None) -> list[Any]:
     """The folders above these pages (all the way up), deepest first; each once. Reads the pages and then each level of
-    their parents, a read a level, not the library (#6268)."""
+    their parents, a read a level, not the library (#6268), and only the tree's columns: a whole box's 35k pages read
+    whole raised the engine's peak by 2 GiB."""
     from fichero_server.models import Document
 
-    nodes: dict[str, Any] = {}
-    todo = set(page_ids)
+    nodes: dict[str, Any] = {} if memo is None else memo.setdefault("catalogue_nodes", {})
+    todo = set(page_ids) - nodes.keys()
     while todo:
-        for doc in db.query_in(Document, "id", todo):
+        for doc in db.query_fields_in(Document, ("id", "name", "parent_id", "doc_type", "deleted_at"), "id", todo):
             nodes[doc.id] = doc
         todo = {d.parent_id for d in nodes.values() if d.parent_id and d.parent_id not in nodes} - todo
     seen: dict[str, Any] = {}
@@ -51,14 +53,20 @@ def folders_covering(db: Any, page_ids: list[str]) -> list[Any]:
             depth[doc.id] = 0 if parent is None else 1 + level(parent)
         return depth[doc.id]
 
-    return sorted(seen.values(), key=lambda d: (-level(d), d.name))
+    return sorted(seen.values(), key=lambda d: (-level(d), natural_key(d.name)))
+
+
+#: What `_below`'s readers use of a node. Never `metadata`: a read page's line boxes are most of its row, and reading them
+#: for every page under a folder on each plan was the third query to fail at the Air's cap (2026-10-30).
+_BELOW_FIELDS = ("id", "name", "doc_type", "deleted_at", "sequence", "page_content")
 
 
 def _below(db: Any, folder_id: str) -> tuple[list[Any], list[Any]]:
-    """(direct child folders, every non-folder node under the folder at any depth), live ones only."""
+    """(direct child folders, every non-folder node under the folder at any depth), live ones only, `_BELOW_FIELDS` of each."""
     from fichero_server.models import Document
 
-    children = [c for c in db.query(Document, parent_id=folder_id) or [] if not c.deleted_at]
+    # ponytail: holds the subtree's text in Python (170 MB for a whole 69k box); sha1(page_content) in SQL if a plan shows up in RSS
+    children = [c for c in db.query_fields(Document, _BELOW_FIELDS, parent_id=folder_id) if not c.deleted_at]
     folders = [c for c in children if _is_folder(c)]
     leaves = [c for c in children if not _is_folder(c)]
     for sub in folders:
@@ -93,7 +101,7 @@ def _latest(db: Any, folder_id: str) -> Any | None:
 
 def _material(db: Any, folder: Any, child_folders: list[Any], leaves: list[Any]) -> str:
     """What the model is given: the facts, the subfolders' own descriptions, then the pages' readings (cut)."""
-    texts = [(d.name, (d.page_content or "").strip()) for d in sorted(leaves, key=lambda d: (d.sequence or 0, d.name))]
+    texts = [(d.name, (d.page_content or "").strip()) for d in sorted(leaves, key=lambda d: (d.sequence or 0, natural_key(d.name)))]
     with_text = [(n, t) for n, t in texts if t]
     parts = [f"Folder name: {folder.name}", f"Pages and files under it: {len(leaves)}; with a reading: {len(with_text)}"]
     if child_folders:
@@ -118,7 +126,7 @@ async def _write(material: str, config: Any, language: str, max_words: int, flag
     from fichero_server.llm.catalogue_lint import enforce
     from fichero_server.llm.prompts import get_prompt
 
-    system = get_prompt("catalogue", "folder_description", version=3).render(output_language=language, max_words=max_words)
+    system = get_prompt("catalogue", "folder_description", version=4).render(output_language=language, max_words=max_words)
 
     async def call(note: str = "") -> str:
         return (await chat_with_fallback(material, config=config, system=system + ("\n\n" + note if note else ""),
@@ -155,18 +163,71 @@ def unread_pages(db: Any, leaves: list[Any], run_pages: list[str], failed_ids: A
             and (d.id in failed or (d.id in with_a_line and not (d.page_content or "").strip()))]
 
 
-def folders_to_describe(db: Any, page_ids: list[str]) -> tuple[list[Any], int]:
+def folders_to_describe(db: Any, page_ids: list[str], memo: dict | None = None) -> tuple[list[Any], int]:
     """(the folders above these pages a run would describe, how many are already described): `describe_folders`'s own rule,
-    read without running it. A folder with no reading under it is neither."""
+    read without running it. A folder with no reading under it is neither. Each level of the tree is read once for all the
+    folders on it, and each page's digest is taken once, so a box's pages are not read again for each folder above them;
+    `memo`, one plan's, keeps that across the estimate and the notes."""
+    memo = {} if memo is None else memo
+    folders = folders_covering(db, page_ids, memo)
+    state = memo.setdefault("catalogue_state", {})
+    _read_the_trees(db, [f.id for f in folders if f.id not in state], memo)
     todo, current = [], 0
-    for folder in folders_covering(db, page_ids):
-        leaves = _below(db, folder.id)[1]
-        old = _latest(db, folder.id)
-        if old is not None and (old.data or {}).get("covers") == coverage(leaves):
-            current += 1
-        elif any((d.page_content or "").strip() for d in leaves):
+    for folder in folders:
+        if folder.id not in state:
+            state[folder.id] = _folder_state(db, folder.id, memo)
+        current += state[folder.id] == "current"
+        if state[folder.id] == "todo":
             todo.append(folder)
     return todo, current
+
+
+def _read_the_trees(db: Any, folder_ids: list[str], memo: dict) -> None:
+    """Under these folders, each level once: `memo["catalogue_under"]` is a folder's (child folder ids, its pages' (id, digest
+    of the reading, has a reading)). The text is hashed and let go, and a saved description is read only for these folders."""
+    from fichero_server.models import Artifact, Document
+
+    under = memo.setdefault("catalogue_under", {})
+    level = [f for f in folder_ids if f not in under]
+    while level:
+        for f in level:
+            under[f] = ([], [])
+        for start in range(0, len(level), 500):
+            for c in db.query_fields_in(Document, _BELOW_FIELDS + ("parent_id",), "parent_id", level[start : start + 500]):
+                if c.deleted_at or c.parent_id not in under:
+                    continue
+                if _is_folder(c):
+                    under[c.parent_id][0].append(c.id)
+                else:
+                    text = c.page_content or ""
+                    under[c.parent_id][1].append((c.id, hashlib.sha1(text.encode()).digest(), bool(text.strip())))
+        level = [c for f in level for c in under[f][0] if c not in under]
+    described = memo.setdefault("catalogue_described", {})
+    wanted = [f for f in under if f not in described]
+    for f in wanted:
+        described[f] = None
+    for start in range(0, len(wanted), 500):
+        for a in db.query_fields_in(Artifact, ("document_id", "artifact_type", "version", "created_at", "data"), "document_id", wanted[start : start + 500]):
+            if a.artifact_type == ARTIFACT_TYPE and (described[a.document_id] is None or (a.version, a.created_at) > described[a.document_id][:2]):
+                described[a.document_id] = (a.version, a.created_at, (a.data or {}).get("covers"))
+
+
+def _folder_state(db: Any, folder_id: str, memo: dict) -> str | None:
+    """"current" (its saved description covers what is under it now), "todo", or None (no reading under it)."""
+    under, stack, pages = memo["catalogue_under"], [folder_id], []
+    while stack:
+        subs, own = under[stack.pop()]
+        stack += subs
+        pages += own
+    old = memo["catalogue_described"][folder_id]
+    if old is not None:
+        h = hashlib.sha1()
+        for page, digest, _ in sorted(pages):
+            h.update(page.encode())
+            h.update(digest)
+        if old[2] == h.hexdigest():
+            return "current"
+    return "todo" if any(has_text for *_, has_text in pages) else None
 
 
 #: `Document.metadata` key marking a folder's content as the Catalogue stage's description (the artifact it came from),
@@ -210,6 +271,9 @@ ATTRIBUTE_FIELDS = {
     "Condition": ("catalogue_condition", False), "Access points": ("catalogue_access_points", True),
     "Scope and content": ("catalogue_scope_content", False), "Arrangement": ("catalogue_arrangement", False),
 }
+#: Labels that end the field before them but are no attribute of their own: the prose, and the model's EDTF reading of the
+#: Dates (`catalogue.export.dates-prompt-returns-edtf`), which `check_date` weighs against the parser's.
+_BOUNDARY_LABELS = ("Description", "Dates EDTF")
 _YEAR = re.compile(r"(?<!\d)(1\d{3}|20\d{2})(?!\d)")
 # "1913 - 19 de febrero": a number followed by "de <month>" is a day, not a short end year
 # ... and a short end year is read only when nothing follows it but punctuation or a joining word: "1910 - 12 hojas" is not 1912
@@ -310,21 +374,62 @@ def _date_range(dates: str) -> tuple[str, str] | None:
     return (min(years), max(years)) if years else None
 
 
+def _fold(text: str) -> str:
+    """Lower case without accents, the same length as `text` (so a match here is a place in the original)."""
+    return "".join(unicodedata.normalize("NFD", c)[0] for c in text).lower()
+
+
+_DAYS = {w: n for w, n in _ONES.items() if n <= 31}
+_DAYS.update({"primero": 1, "primer": 1, "un": 1, "una": 1, "veintiun": 21, "veintiuna": 21,
+              "treinta y uno": 31, "treinta y un": 31, "treinta y una": 31})
+_DAYS.update({f"veinte y {w}": 20 + n for w, n in list(_ONES.items())[:9]})  # "veinte y cinco" beside "veinticinco"
+_BY_LENGTH = lambda words: "|".join(sorted(map(re.escape, words), key=len, reverse=True))  # noqa: E731
+_SPOKEN_YEAR = re.compile(r"\b(?:dos\s+)?mil(?:(?:\s+y)?\s+(?:" + _BY_LENGTH(_ONES) + r")\b)+")
+_SPOKEN_DAY = re.compile(r"\b(?:a\s+los\s+)?(" + _BY_LENGTH(_DAYS) + r"|\d{1,2})(?:\s+dias)?\s+(?:del\s+mes\s+de|de)\s+(?=(?:"
+                         + _MONTHS_ES + r")\b)")
+_APPROX = re.compile(r"\b(?:a\s+)?(?:mediados|principios|comienzos|fines|finales)\s+de\s+")
+
+
+def _digits_for_words(text: str) -> str:
+    """A date's year and day written in Spanish words as digits, for histdate: "a los ocho días del mes de mayo de mil
+    novecientos nueve" is "8 de mayo de 1909"; "primero de enero de mil ochocientos noventa" is "1 de enero de 1890"."""
+    def year(m: re.Match) -> str:
+        words = _fold(m.group(0)).split()
+        total = 2000 if words[0] == "dos" else 1000
+        total += sum(_ONES.get(w, 0) for w in words[words.index("mil") + 1:])
+        return str(total) if 1000 <= total <= 2099 else m.group(0)
+
+    def swap(pattern: re.Pattern, replace: Any, text: str) -> str:
+        folded, out, at = _fold(text), [], 0
+        for m in pattern.finditer(folded):
+            out += [text[at:m.start()], replace(m)]
+            at = m.end()
+        return "".join(out) + text[at:]
+
+    text = swap(_SPOKEN_YEAR, year, text)
+    return swap(_SPOKEN_DAY, lambda m: f"{_DAYS.get(m.group(1)) or int(m.group(1))} de ", text)
+
+
 def _edtf_side(side: str, fallback: str) -> str:
     """One side of a Dates field as EDTF at the precision the text supports, read by histdate (#1470's parser; Spanish months
-    included); a side it cannot read is the year the span found. `?` marks an uncertain date, `~` an approximate one, `%` both."""
+    included; days, months and years in words are put in digits first). A side it cannot read is the year the span found.
+    `?` marks an uncertain date, `~` an approximate one ("circa", "a mediados de"), `%` both."""
     from fichero_server.histdate import parse_historical_date
 
     unsure = bool(re.search(r"\?|incierto|uncertain", side, re.I))
+    approx = bool(_APPROX.search(_fold(side)))
     text = re.sub(r"\?|\[?(?:incierto|uncertain)\]?", "", _dedot(side)).strip(" .,;")
+    text = re.sub(r"(?<=\d)\s*[\u00b0\u00ba]\.?", "", _APPROX.sub("", _digits_for_words(text)))  # "1° de mayo": the ordinal sign
+    text = re.sub(r"^(?:el|en|a|de)\s+(?=\d)", "", text.strip(), flags=re.I)  # "el 1 de mayo de 1910": histdate reads the date alone
     text = re.sub(r"([^\W\d]+\s+\d{1,2})\s+de\s+(\d{4})", r"\1 \2", text)  # "Mayo 8 de 1906": month first, as histdate reads it
     read = parse_historical_date(text)
+    mark = lambda circa: ("%" if unsure else "~") if circa or approx else ("?" if unsure else "")  # noqa: E731
     if read is None:
-        return fallback + ("?" if unsure else "")
+        return fallback + mark(False)
     precision, iso = read.meta.get("precision"), str(read.meta.get("converted_gregorian_iso"))
     if precision == "circa":
-        return iso[:4] + ("%" if unsure else "~")
-    return iso[:{"year": 4, "month": 7}.get(str(precision), 10)] + ("?" if unsure else "")
+        return iso[:4] + mark(True)
+    return iso[:{"year": 4, "month": 7}.get(str(precision), 10)] + mark(False)
 
 
 def _plain(edtf: str) -> str:
@@ -340,6 +445,10 @@ def _pair(part: str) -> tuple[str, str] | None:
     sides = _sides(part)
     first, last = (sides[0], sides[1]) if len(sides) == 2 else (part, part)
     start, end = _edtf_side(first, low), _edtf_side(last, high)
+    if len(sides) == 2 and _plain(start) == low and _plain(end) != high and end[:4] == low:
+        start = end  # the first side is only the year the span found (unread, as a dotted year is): the date the other side reads stands
+    elif len(sides) == 2 and _plain(end) == high and _plain(start) != low and start[:4] == high:
+        end = start
     if len(sides) == 2 and _plain(start) > _plain(end):
         start, end = end, start  # "1918 - 1906" is the interval 1906/1918
     return (start, end) if (start[:4], end[:4]) == (low, high) else (low, high)  # a side that disagrees: the years found
@@ -357,11 +466,11 @@ def _date_normalised(dates: str, span: tuple[str, str]) -> str:
     return start if start == end else f"{start}/{end}"
 
 
-_MULTI_WORD = [label for label in (*ATTRIBUTE_FIELDS, "Description") if " " in label]
+_MULTI_WORD = [label for label in (*ATTRIBUTE_FIELDS, *_BOUNDARY_LABELS) if " " in label]
 # A label starts a field on its own line or after a sentence's end or closing mark ("... [uncertain] Condition:" too); a
 # label of several words ("Access points") is specific enough to start one after any space.
 _LABEL = re.compile(
-    r"(?:(?:^|(?<=[.;!?\]\)\"\u201d]\s)|(?<=\n))\s*(?P<a>" + "|".join(map(re.escape, [*ATTRIBUTE_FIELDS, "Description"]))
+    r"(?:(?:^|(?<=[.;!?\]\)\"\u201d]\s)|(?<=\n))\s*(?P<a>" + "|".join(map(re.escape, [*ATTRIBUTE_FIELDS, *_BOUNDARY_LABELS]))
     + r")|(?<=\s)(?P<b>" + "|".join(map(re.escape, _MULTI_WORD)) + r"))\s*:", re.M)
 #: The markers the readings carry in English, in the language of a description written in Spanish.
 _SPANISH_MARKERS = {"[uncertain]": "[incierto]", "[illegible]": "[ilegible]"}
@@ -391,7 +500,7 @@ def parse_fields(text: str, language: str | None = None) -> dict[str, Any]:
     for mark, after in zip(marks, [*marks[1:], None]):
         label = mark.group("a") or mark.group("b")
         if label not in ATTRIBUTE_FIELDS:
-            continue  # Description is prose: it stays in the content, but ends the field before it
+            continue  # Description is prose and Dates EDTF the model's reading: each ends the field before it
         key, is_list = ATTRIBUTE_FIELDS[label]
         value = " ".join(_one_field(text[mark.end():after.start() if after else len(text)]).split())
         value = value.rstrip(".") if is_list else value
@@ -407,6 +516,77 @@ def parse_fields(text: str, language: str | None = None) -> dict[str, Any]:
     return found
 
 
+_EDTF = re.compile(r"-?\d{4}(?:-\d{2}(?:-\d{2})?)?[?~%]?(?:/-?\d{4}(?:-\d{2}(?:-\d{2})?)?[?~%]?)?")
+DATE_KEY = "catalogue_date_normalised"
+#: How the parser's and the model's readings of the Dates stood against each other, kept on the value's source.
+AGREE, PARSER_ONLY, MODEL_ONLY, DISAGREE = "agree", "parser-only", "model-only", "disagree"
+
+
+def model_date(text: str) -> tuple[str, str] | None:
+    """(EDTF, the words it was read from) in the description's `Dates EDTF:` field (prompt v4), or None when the model gave
+    none or something that is no EDTF date: a model's guess in another shape is not a reading."""
+    mark = next((m for m in re.finditer(r"(?m)^[ \t]*Dates EDTF[ \t]*:[ \t]*(.*)$", text)), None)
+    if mark is None:
+        return None
+    value, _, rest = mark.group(1).strip().partition(" ")
+    if not _EDTF.fullmatch(value):
+        return None
+    return value, rest.strip(" []\"\u201c\u201d\u00ab\u00bb.")
+
+
+def check_date(parser: str | None, model: tuple[str, str] | None) -> tuple[str | None, str | None]:
+    """(the value to write, how the two stood): agree writes the model's EDTF, checked; only one reading stands as read; two
+    that differ (after the `?~%` marks) write nothing and leave both to a person. (None, None) when neither read a date."""
+    if parser and model:
+        if _plain(parser) == _plain(model[0]):
+            return model[0], AGREE
+        return None, DISAGREE
+    if model:
+        return model[0], MODEL_ONLY
+    return (parser, PARSER_ONLY) if parser else (None, None)
+
+
+def date_problems(doc: Any) -> list[str]:
+    """The date clauses of Problemas for a folder, read from what it holds and never stored (`catalogue.export.problems-column`)."""
+    from fichero_server.workflows import attribute_sources as sources
+
+    attrs = doc.attributes if isinstance(doc.attributes, dict) else {}
+    source = sources.sources(doc).get(DATE_KEY) or {}
+    seen = source.get("date_check") or {}
+    value, out = attrs.get(DATE_KEY), []
+    if seen.get("verdict") == DISAGREE and sources.pending(doc, DATE_KEY):
+        out.append(f"fecha: el analizador leyó {seen.get('parser')}, el modelo {seen.get('model')}")
+    elif seen.get("verdict") == MODEL_ONLY and value:
+        out.append("fecha: leída por el modelo, sin comprobar")
+    elif not value and attrs.get("catalogue_dates"):
+        out.append(f"fecha sin normalizar: \u00ab{attrs['catalogue_dates']}\u00bb")
+    if value and re.search(r"[?~%]", str(value)):
+        out.append("fecha incierta")
+    return out
+
+
+def asked_fields(db: Any, folder: Any) -> set[str] | None:
+    """The attribute keys the Catalogue stage fills on this folder: the declared fields of its EFFECTIVE prototype
+    (its own, else the one a box above gives it, `proto.runs.read-the-effective-prototype`), never only its own key; None
+    when it declares none of the stage's own keys, which is today's fixed set (a prototype that is silent on the catalogue
+    still gets its folders described). The working keys the declared ones rest on stay: the Dates text and
+    the years beside a declared date, and the access points the typed lists are made from."""
+    from fichero_server.models.node_prototypes import PrototypeResolutionError, resolve_node_prototype, resolve_prototype_attributes
+    from fichero_server.models.prototype_schema import attribute_declarations
+
+    key = resolve_node_prototype(db, folder).key
+    if not key:
+        return None
+    try:
+        declared = {k for k, d in attribute_declarations(resolve_prototype_attributes(db, key)).items() if not d.source}
+    except PrototypeResolutionError:
+        return None
+    if not declared & ({key for key, _ in ATTRIBUTE_FIELDS.values()} | set(DATE_KEYS)):
+        return None
+    # ponytail: the stage's own keys stay a fixed list; a prototype's own extra fields are asked once the prompt can name them
+    return declared | {"catalogue_access_points"} | (set(DATE_KEYS) if DATE_KEY in declared else set())
+
+
 def put_in_attributes(db: Any, folder_id: str, text: str, artifact_id: str, *, run_id: str | None, provider: str,
                       model: str, language: str | None = None) -> list[str]:
     """The description's fields as the folder's attributes, through the one attribute path (#6141): each value cites this run
@@ -418,12 +598,46 @@ def put_in_attributes(db: Any, folder_id: str, text: str, artifact_id: str, *, r
     doc = db.get(Document, folder_id)
     if doc is None:
         return []
-    values = parse_fields(text, language)
-    every = [key for key, _ in ATTRIBUTE_FIELDS.values()] + ["catalogue_date_start", "catalogue_date_end", "catalogue_date_normalised"]
+    asked = asked_fields(db, doc)
+    asking = (lambda key: True) if asked is None else (lambda key: key in asked)
+    values = {k: v for k, v in parse_fields(text, language).items() if asking(k)}
+    every = [k for k in [key for key, _ in ATTRIBUTE_FIELDS.values()] + ["catalogue_date_start", "catalogue_date_end", DATE_KEY]
+             if asking(k)]
     gone = {k: None for k in every if k not in values and sources.sources(doc).get(k, {}).get("by") == sources.BY_MACHINE}
     source = sources.machine_source(tool="catalogue", step="catalogue", run_id=run_id, artifact_id=artifact_id,
                                     provider=provider, model=model, said=text)
-    return sources.write_answers_from_run(db, doc, {k: (v, source) for k, v in {**values, **gone}.items()})
+    answers = {k: (v, source) for k, v in {**values, **gone}.items()}
+    if asking(DATE_KEY):
+        answers.update(_date_answer(doc, values.get(DATE_KEY), model_date(text), source))
+    return sources.write_answers_from_run(db, doc, answers)
+
+
+def _date_answer(doc: Any, parser: str | None, model: tuple[str, str] | None, source: dict) -> dict[str, tuple[Any, dict]]:
+    """The normalised date's answer after the parser and the model are weighed (`check_date`): the value, with the check on its
+    source; a disagreement writes none (the cell stays empty) and keeps the model's reading as a pending proposal. A date
+    a person set is not touched (`write_answers_from_run` leaves it) and no proposal is made over it."""
+    from fichero_server.workflows import attribute_sources as sources
+
+    value, verdict = check_date(parser, model)
+    if verdict is None:
+        return {}
+    seen = {"verdict": verdict, "parser": parser, "model": model[0] if model else None}
+    if model:
+        seen["words"] = model[1]
+    cited = {**source, "date_check": seen, "cites": {"kind": "words", "words": model[1]} if model and model[1] else None}
+    if sources.machine_may_set(doc, DATE_KEY):  # a person's date keeps the field: no proposal over it, none cleared
+        meta = dict(doc.metadata) if isinstance(doc.metadata, dict) else {}
+        waiting = {k: v for k, v in sources.proposals(doc).items() if k != DATE_KEY}
+        if verdict == DISAGREE and model:
+            from fichero_server.core.timeutil import utc_now
+
+            before = sources.pending(doc, DATE_KEY) or {}
+            same = (before.get("value"), before.get("parser")) == (model[0], parser)  # the same disagreement again: unchanged
+            waiting[DATE_KEY] = {"value": model[0], "state": sources.PROPOSED_STATE, "source": cited, "parser": parser,
+                                 "proposed_at": before["proposed_at"] if same else utc_now().isoformat()}
+        meta.pop(sources.PROPOSED, None)
+        doc.metadata = {**meta, **({sources.PROPOSED: waiting} if waiting else {})}
+    return {DATE_KEY: (value, cited)}
 
 
 def promote_folder(db: Any, folder: Any) -> dict[str, Any] | None:

@@ -47,6 +47,8 @@ class LibraryManager {
     var backendIsReady = false
     var loadedLibraryIds: Set<UUID> = []
     var loadingLibraryIds: Set<UUID> = []
+    /// The order the open libraries load at launch, the front one first (`LibraryOpeningProgress`, #6430).
+    var launchOpenOrder: [UUID] = []
 
     /// Failed-load retry counter per library (`scheduleLoadRetry`). A load
     /// left "unloaded for retry" (#3986-B) previously had no retryer — the
@@ -68,10 +70,30 @@ class LibraryManager {
     /// populates on iPhone even when its .task fires before loadCollections() (#2472).
     var librariesLoadVersion: Int = 0
 
-    /// One sentence shown after a host stopped sharing a library this Mac had open (#5731); cleared by the view.
-    var sharingStoppedNotice: String?
+    /// The alert after a host stopped sharing a library this Mac had open (#5731), or a shared library that would not open
+    /// (Step 8.8): the app's root shows it, and closing it clears it.
+    var sharingFailure: FailureAlertPrompt?
     /// Shared projects whose host turned Sharing off: greyed in the sidebar until Forgotten (#5739).
-    var hostGoneRows: [HostGoneRow] = []
+    /// Kept across a relaunch by `HostGoneRowStore`.
+    var hostGoneRows: [HostGoneRow] = HostGoneRowStore.load() {
+        didSet { HostGoneRowStore.save(hostGoneRows) }
+    }
+
+    /// The Macs this device has paired with (`sharing.guest.machines-group`, #6360); kept by `PairedMachineStore`.
+    var pairedMachines: [PairedMachine] = PairedMachineStore.load()
+    /// Shared Libraries rows whose host answered and no longer lists the library (`SharedRowAvailability.key`); asked again at
+    /// launch and focus, never kept across a relaunch. `hostRowsLastAsked` is the throttle.
+    var greyedSharedRows: Set<String> = []
+    @ObservationIgnored var hostRowsLastAsked: [String: Date] = [:]
+    /// What each paired Mac's last answer said, for the connection popover's rows (#6434): answered, or did not.
+    var hostStates: [String: ConnectionRows.State] = [:]
+    var hostLastAnswered: [String: Date] = [:]
+    /// Per paired Mac, the libraries it has open now, once it has answered (#6556): its sidebar section lists only those.
+    var hostOpenLibraries: [String: Set<String>] = [:]
+    /// File ▸ Connect to Library… and the machine rows set this; the app's window shows the connect sheet.
+    var connectToLibraryRequested = false
+    /// Set by the app's window: opens a shared library by switching to its host (`SharedLibraryOpener`).
+    var openSharedLibrary: (@MainActor (PairedMachine, String) async -> Void)?
 
     /// The project `createProject(at:)` made last. The sidebar selects its row when this changes
     /// (`create.project.appears-and-is-selected`, #5430).
@@ -121,6 +143,9 @@ class LibraryManager {
         /// hold several backends at once. Drives the clients' baseURL, the TLS
         /// pin, and the sidebar location badge.
         let host: BackendHost
+        /// True for a library that dials its own paired Mac (`sharing.guest.library-pinned-to-its-host`, #6360, #2866):
+        /// the app-wide host switch and an engine restart never repoint it, and it is always dialled over HTTPS.
+        let pinnedToHost: Bool
         var displayName: String  // Display name for window title (e.g., "Untitled 2", "MyResearch")
         var document: FicheroDocument
 
@@ -268,7 +293,7 @@ class LibraryManager {
         @ObservationIgnored lazy var trashStore = TrashStore(client: ficheroClient)
 
         /// Per-library activity store (#2448). Wraps `activityService`, owns the
-        /// run-browser list, and signals `ActivityBrowserView` to refresh on
+        /// Activity pane's run list, and signals `ActivityPaneView` to refresh on
         /// `workflow.*` SSE events (best-effort until the backend emits dedicated
         /// `activity.*` events).
         @ObservationIgnored lazy var activityStore: ActivityStore = ActivityStore(service: activityService, library: self)
@@ -475,6 +500,7 @@ class LibraryManager {
             displayName: String,
             id: UUID? = nil,
             host: BackendHost = .appDefault,
+            pinnedToHost: Bool = false,
             apiClient: APIClient? = nil,
             documentStore: DocumentStore? = nil,
             searchService: SearchService? = nil,
@@ -489,6 +515,7 @@ class LibraryManager {
             self.id = id ?? UUID()
             self.url = url
             self.host = host
+            self.pinnedToHost = pinnedToHost
             // The always-there project has no name, whatever name reached here (a saved "Local").
             self.displayName = AlwaysThereProject.displayName(forPath: url.path, given: displayName)
             self.document = document
@@ -510,6 +537,7 @@ class LibraryManager {
                 self.apiClient = APIClient(client: FicheroClient(baseURL: host.url, libraryPath: url.path, session: session))
             } else {
                 self.apiClient = APIClient(baseURL: host.url)
+                if pinnedToHost { self.apiClient.reconfigure(baseURL: host.url, transportMode: .https) }
             }
 
             // Set the library path on the API client immediately
@@ -527,7 +555,7 @@ class LibraryManager {
                 ?? FicheroClient(
                     baseURL: host.url,
                     libraryPath: url.path,
-                    transportMode: EngineConfig.transportMode
+                    transportMode: pinnedToHost ? .https : EngineConfig.transportMode
                 )
 
             // Initialize all services with the library's APIClient
@@ -606,21 +634,20 @@ class LibraryManager {
         /// restarted: the clients built at the first connect keep dialling what they were given
         /// (`activity.reconnects-after-engine-restart`).
         func reresolveEndpoint() {
-            ficheroClient.reconfigure(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)
-            apiClient.reconfigure(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)
+            let (baseURL, transport) = currentEndpoint
+            ficheroClient.reconfigure(baseURL: baseURL, transportMode: transport)
+            apiClient.reconfigure(baseURL: baseURL, transportMode: transport)
         }
 
         func reconfigureBackendHost() {
-            // Every library is currently created on the app-default host, so it
-            // follows the Settings engine-host switch (unchanged behavior). When
-            // a library is pinned to a SPECIFIC remote host (#2866 follow-up),
-            // this will branch on that; today there are no such libraries.
-            ficheroClient.reconfigure(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)
+            // A library follows the Settings engine-host switch unless it is pinned to its own host.
+            let (baseURL, transport) = currentEndpoint
+            ficheroClient.reconfigure(baseURL: baseURL, transportMode: transport)
             // Also rebind the legacy APIClient's separate FicheroClient (#2349):
             // DocumentStore + ChainService are built on `apiClient`, not the shared
             // `ficheroClient`, so without this they kept the old (localhost) host
             // after pairing while every generated service had already rebound.
-            apiClient.reconfigure(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)
+            apiClient.reconfigure(baseURL: baseURL, transportMode: transport)
             storageService.clearAll()
         }
     }

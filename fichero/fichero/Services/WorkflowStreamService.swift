@@ -91,6 +91,9 @@ class WorkflowStreamService {
         /// Forwarded verbatim; see `executeAccepted` for why `inputs` still
         /// carries the ids too.
         selection: Components.Schemas.WorkflowSelection? = nil,
+        /// This run only (`ai.cloud.one-run-overrides`): the refusal alert's "Allow this once" and "Run past the cap this once".
+        allowCloudOnce: Bool = false,
+        overCapOnce: Bool = false,
         onAccepted: ((ExecuteAcceptedResponse) -> Void)? = nil,
         onEvent: ((WorkflowStreamEvent) -> Void)? = nil,
         // #4457: `subscribe()` has always forwarded this to `startStream`;
@@ -122,7 +125,9 @@ class WorkflowStreamService {
             inputs: inputs,
             providerOverride: providerOverride,
             modelOverride: modelOverride,
-            selection: selection
+            selection: selection,
+            allowCloudOnce: allowCloudOnce,
+            overCapOnce: overCapOnce
         )
 
         currentThreadId = acceptedResponse.threadId
@@ -364,13 +369,17 @@ class WorkflowStreamService {
 
     /// Resume a paused workflow
     /// - Parameter threadId: The thread ID to resume
-    func resumeWorkflow(threadId: String, onEvent: ((WorkflowStreamEvent) -> Void)? = nil) async throws {
+    func resumeWorkflow(
+        threadId: String, allowCloudOnce: Bool = false, overCapOnce: Bool = false,
+        onEvent: ((WorkflowStreamEvent) -> Void)? = nil
+    ) async throws {
         logger.info("Resuming workflow thread: \(threadId)")
 
         // Discard the returned ExecutionThread snapshot: only the side effect
         // (backend resumes the run) matters here — the stream resubscription
         // below drives live state. Failures still propagate via `try` (#3978).
-        _ = try await executionService.resumeWorkflow(threadId: threadId)
+        _ = try await executionService.resumeWorkflow(
+            threadId: threadId, allowCloudOnce: allowCloudOnce, overCapOnce: overCapOnce)
 
         // Resubscribe to the stream
         isStreaming = true

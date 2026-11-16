@@ -20,10 +20,14 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 SLOW_MS = 200
+WARN_MS = 1000  # a poll this slow is a warning naming the library (#6446)
 
 
 def _key(route: str, kwargs: dict[str, Any]) -> tuple[Any, ...]:
-    parts: list[Any] = [route]
+    # The engine runs two uvicorn servers (UDS, and TCP for sharing), each with its own loop. A Future belongs to the
+    # loop that made it: a poll arriving on the other loop while one is in flight got "got Future attached to a
+    # different loop" -- eight 500s on the run-status poll on the Air (2026-10-30). One flight per loop.
+    parts: list[Any] = [route, id(asyncio.get_running_loop())]
     for name in sorted(kwargs):
         value = kwargs[name]
         path = getattr(value, "path", None)
@@ -54,7 +58,10 @@ def single_flight(fn: Callable[..., Any]) -> Callable[..., Any]:
         finally:
             flights.pop(key, None)
         ms = (time.monotonic() - started) * 1000
-        if ms > SLOW_MS:
+        if ms > WARN_MS:
+            db = kwargs.get("db")
+            logger.warning("slow poll %s took %d ms on library %s", route, ms, getattr(db, "path", None))
+        elif ms > SLOW_MS:
             logger.info("poll %s took %d ms (%s rows); %d callers were served from a running query so far",
                         route, ms, _rows(result), stats["served"])
         return result

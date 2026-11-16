@@ -27,6 +27,7 @@ from typing import Any
 from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused, cancellation_requested
 from fichero_server.workflows.types import State, WorkflowDef, NodeDef
 from fichero_server.workflows.node_context import set_current_node
+from fichero_server.workflows.document_refs import REF_AWARE_TOOLS, hydrate_documents, slim_documents
 from fichero_server.workflows.registry import get_tool, get_tool_def
 from fichero_server.workflows.resolver import resolve_inputs, evaluate_condition
 from fichero_server.workflows.cache import (
@@ -1038,7 +1039,8 @@ def _make_node_function(
 
         # Stamp node identity for artifact provenance (#4313): save_artifact
         # reads it via workflows.node_context to fill step_name/workflow_id.
-        set_current_node(node_id, node_label, workflow_id, run_id=state.get("task_id") or "", step=step_name)
+        set_current_node(node_id, node_label, workflow_id, run_id=state.get("task_id") or "", step=step_name,
+                         tool=node_def.tool)
 
         # Episode-ledger attribution (2026-08-12): every model call made
         # under this node records with the run's identity. ContextVars flow
@@ -1058,6 +1060,22 @@ def _make_node_function(
         if node_id in completed_nodes:
             logger.info("Skipping already-completed node: %s", node_id)
             return {}
+
+        # A node's start is a boundary too (`workflows.stop-cancels-at-every-boundary`, #4402): a serial node with no
+        # per-item loop reports no progress, so a Stop or Pause pressed while the node before it ran must land here, not
+        # after this node's single long call. Stop is checked first: a run both paused and stopped is stopped.
+        from fichero_server.execution.cancellation import (  # noqa: PLC0415
+            WorkflowCancelled,
+            WorkflowPaused,
+            cancellation_requested,
+            pause_requested,
+        )
+
+        entry_run_id = state.get("task_id", "")
+        if cancellation_requested(entry_run_id):
+            raise WorkflowCancelled(entry_run_id)
+        if pause_requested(entry_run_id):
+            raise WorkflowPaused(entry_run_id)
 
         if incoming_edges:
             outputs = state.get("outputs", {}) or {}
@@ -1246,10 +1264,19 @@ def _make_node_function(
                             cache_err,
                         )
 
+            # #4390: references become full documents for this one call only (not stored back in state).
+            call_state = state
+            if node_def.tool not in REF_AWARE_TOOLS:
+                lib = state.get("library_path")
+                if isinstance(tool_kwargs.get("documents"), list):
+                    tool_kwargs["documents"] = hydrate_documents(tool_kwargs["documents"], lib)
+                if isinstance(state.get("documents"), list):
+                    call_state = {**state, "documents": hydrate_documents(state["documents"], lib)}
+
             # Call the tool with resolved inputs
             result = await tool_fn(
                 inputs=tool_kwargs,
-                state=state,
+                state=call_state,
                 llm_config=node_llm_config,
             )
 
@@ -1272,7 +1299,9 @@ def _make_node_function(
                 print(f"[STEP]   Error: {error_msg}")
                 logger.error(f"Node {node_id} tool returned error: {error_msg}")
                 raise SystemicErrorDetected(
-                    message=f"Step '{node_label}' failed: {error_msg}",
+                    message=(f"Step '{node_label}' has no text to work on: the page has not been read yet. "
+                             "Read it first (Set Up, Read), then run this again."
+                             if error_msg == "No text provided" else f"Step '{node_label}' failed: {error_msg}"),
                     error_count=1,
                     total_count=1,
                     errors=[{"node": node_id, "error": error_msg}],
@@ -1362,6 +1391,15 @@ def _make_node_function(
                     logger.warning(
                         "Sequential cache write failed for %s: %s", node_label, cache_err
                     )
+
+            # #4390: a source's output carries references, not page text; `documents_as: "full"` keeps the dump.
+            if (
+                node_def.tool in SOURCE_TOOLS
+                and isinstance(result, dict)
+                and isinstance(result.get("documents"), list)
+                and (node_def.config or {}).get("documents_as") != "full"
+            ):
+                result = {**result, "documents": slim_documents(result["documents"])}
 
             # Update outputs
             outputs = dict(state.get("outputs", {}))
@@ -1793,7 +1831,7 @@ def _make_parallel_node_function(
         # in its own asyncio task (own context copy), so parallel branches
         # can't clobber each other.
         set_current_node(node_id, node_def.label or node_def.tool, workflow_id,
-                         run_id=state.get("task_id") or "", step=step_name)
+                         run_id=state.get("task_id") or "", step=step_name, tool=node_def.tool)
 
         # Get single file info from state (set by Send)
         file_path = state.get("parallel_file", "")
@@ -2095,7 +2133,10 @@ def _make_parallel_node_function(
             # Build inputs for single file
             tool_inputs = {
                 "files": [file_path],  # Single file as list
-                "documents": [document] if document else [],
+                "documents": (
+                    [document] if node_def.tool in REF_AWARE_TOOLS
+                    else hydrate_documents([document], state.get("library_path"))
+                ) if document else [],
                 **node_def.config,  # Static config
             }
             # The elementwise fan-out builds its inputs here rather than through

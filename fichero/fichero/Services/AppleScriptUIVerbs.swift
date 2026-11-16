@@ -38,14 +38,15 @@ private extension NSScriptCommand {
     }
 }
 
-/// `open project "<path>"`: File ▸ Open in the front window. Answers the project's id.
+/// `open project "<path or name>"`: File ▸ Open in the front window. Answers the project's id.
 @objc(FicheroOpenProjectCommand)
 class FicheroOpenProjectCommand: NSScriptCommand {
     override func performDefaultImplementation() -> Any? {
-        guard let path = requiredText("Project path") else { return nil }
-        return runVerb("open project \(path)") {
+        guard let text = requiredText("Project path or name") else { return nil }
+        return runVerb("open project \(text)") {
+            let url = try UIVerbs.projectURL(for: text, knownPaths: UIVerbs.knownProjectPaths())
             NSApplication.shared.activate()
-            return UIVerbs.openProject(at: URL(fileURLWithPath: (path as NSString).expandingTildeInPath)).uuidString
+            return UIVerbs.openProject(at: url).uuidString
         }
     }
 }

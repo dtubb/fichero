@@ -30,24 +30,24 @@ struct RegionColoursTests {
         ]
     }
 
-    @Test("source.editor.colour.region-hue: each region its own hue, in reading order; its lines and words take it")
+    @Test("source.editor.colour.region-hue: each region its hue, a fixed hash of its id; its lines and words take it")
     func regionHue() throws {
         let tones = RegionColours.tones(of: page)
         let first = try #require(tones["r1"]), second = try #require(tones["r2"])
-        #expect(first.hue != second.hue, "two regions on a page never share a hue")
-        #expect([first.hue, second.hue] == [0, 1], "hues follow the order the regions are read in")
+        #expect([first.hue, second.hue] == [RegionColours.hue(ofRegion: "r1"), RegionColours.hue(ofRegion: "r2")],
+                "a region's hue is a fixed hash of its id, not its place (a collision in the 12 slots is accepted)")
         #expect(["l1", "w1", "l2", "l3"].allSatisfy { tones[$0]?.hue == first.hue }, "a region's lines and words are its hue")
         #expect(tones["l4"]?.hue == second.hue)
         #expect(tones["w1"] == tones["l1"], "a word takes its line's shade")
     }
 
-    @Test("source.editor.colour.reading-order-gradient: lines shade from full to light in reading order; reordering moves the shade")
+    @Test("source.editor.colour.reading-order-gradient: lines shade from light to dark in reading order; reordering moves the shade")
     func gradientFollowsTheOrder() {
         let asWritten = RegionColours.tones(of: page)
         let shades = ["l1", "l2", "l3"].compactMap { asWritten[$0]?.strength }
-        let expected = [1, (1 + RegionColours.lightestStrength) / 2, RegionColours.lightestStrength]
+        let expected = [RegionColours.lightestStrength, (1 + RegionColours.lightestStrength) / 2, 1]
         #expect(zip(shades, expected).allSatisfy { abs($0 - $1) < 1e-9 } && shades.count == 3,
-                "evenly spaced from full strength to the lightest, first line darkest")
+                "evenly spaced from the lightest to full strength, first line lightest, last darkest")
         #expect(asWritten["l4"]?.strength == 1, "a region with one line draws it at full strength")
 
         // The pane's chosen order puts l3 first: the shades follow the order, not the box order.
@@ -56,10 +56,27 @@ struct RegionColoursTests {
         #expect(reordered["r1"]?.hue == asWritten["r1"]?.hue, "the hue is the region's, not the line's place")
     }
 
-    @Test("source.editor.colour.never-random + regionless-lines-are-one-region: region-less lines share the page's one hue")
+    @Test("source.editor.display-menu-has-order-switches: each line's reading number runs down the page, regions and words have none")
+    func orderNumbers() {
+        let asWritten = RegionColours.orderNumbers(of: page)
+        #expect(asWritten == ["l1": 1, "l2": 2, "l3": 3, "l4": 4])
+        let reordered = RegionColours.orderNumbers(of: page, readingOrder: ["r1", "l3", "l1", "l2", "r2", "l4"])
+        #expect(reordered["l3"] == 1 && reordered["l1"] == 2 && reordered["l2"] == 3 && reordered["l4"] == 4,
+                "the numbers follow the chosen order")
+    }
+
+    @Test("source.editor.colour.shade-is-a-display-option: with the shade off every line is full strength and the hue stays")
+    func shadeCanBeOff() {
+        let shaded = RegionColours.tones(of: page, shadeByOrder: true)
+        let off = RegionColours.tones(of: page, shadeByOrder: false)
+        #expect(["l1", "l2", "l3"].compactMap { off[$0]?.strength } == [1, 1, 1], "no gradient")
+        #expect(off["l2"]?.hue == shaded["l2"]?.hue, "the region's hue is unchanged")
+    }
+
+    @Test("source.editor.colour.region-hue + regionless-lines-are-one-region: region-less lines share the page's one hue")
     func regionlessLinesAreOneRegion() throws {
-        // A page whose lines have no region, after a region: the implicit region takes the next hue, at the
-        // place its first line falls, and its lines grade along their order.
+        // A page whose lines have no region, after a region: the implicit region has its own fixed hue (0), and
+        // its lines grade along their order.
         let loose = [
             segment("r1", kind: "region", at: 0),
             segment("l1", kind: "line", parent: "r1", at: 1),
@@ -69,19 +86,20 @@ struct RegionColoursTests {
         ]
         let tones = RegionColours.tones(of: loose)
         let hues = Set(["a", "b", "c"].compactMap { tones[$0]?.hue })
-        #expect(hues == [1], "every region-less line is one hue: the page's implicit region, next after r1")
+        #expect(hues == [0], "every region-less line is one hue: the page's implicit region, always hue 0")
         let shades = ["a", "b", "c"].compactMap { tones[$0]?.strength }
-        #expect(shades == shades.sorted(by: >) && Set(shades).count == 3, "graded along the reading order")
+        #expect(shades == shades.sorted(by: <) && Set(shades).count == 3, "graded along the reading order, light to dark")
         #expect(RegionColours.tones(of: Array(loose.reversed())) == tones, "the same page draws the same every time")
-        // The ids that used to pick colours by hash pick nothing now: renaming them changes no colour.
+        // Renaming a region re-hashes only that region; the implicit region's hue is fixed.
         let renamed = loose.map { (segment: Segment) -> Segment in
             var copy = segment
-            copy.id = "x-" + segment.id
-            copy.parentSegmentId = segment.parentSegmentId.map { "x-" + $0 }
+            if copy.id == "r1" { copy.id = "x-r1" }
+            if copy.parentSegmentId == "r1" { copy.parentSegmentId = "x-r1" }
             return copy
         }
         let renamedTones = RegionColours.tones(of: renamed)
-        #expect(["a", "b", "c", "r1", "l1"].map { tones[$0] } == ["a", "b", "c", "r1", "l1"].map { renamedTones["x-" + $0] })
+        #expect(["a", "b", "c"].map { tones[$0] } == ["a", "b", "c"].map { renamedTones[$0] }, "region-less lines keep their colour")
+        #expect(renamedTones["x-r1"]?.hue == RegionColours.hue(ofRegion: "x-r1"), "a renamed region takes the hash of its new id")
     }
 
     @Test("a page of one-line regions (Kraken's) steps through the hues in order, not a scatter")
@@ -91,7 +109,16 @@ struct RegionColoursTests {
              segment("l\(index)", kind: "line", parent: "r\(index)", at: index * 2 + 1)]
         }
         let tones = RegionColours.tones(of: kraken)
-        #expect((0..<3).map { tones["l\($0)"]?.hue } == [0, 1, 2])
+        #expect((0..<3).map { tones["l\($0)"]?.hue } == (0..<3).map { RegionColours.hue(ofRegion: "r\($0)") })
+    }
+
+    @Test("source.editor.colour.region-hue: deleting a region does not recolour the others")
+    func deletingARegionKeepsTheOthersColours() throws {
+        let before = RegionColours.tones(of: page)
+        let withoutFirst = page.filter { !["r1", "l1", "w1", "l2", "l3"].contains($0.id) }
+        let after = RegionColours.tones(of: withoutFirst)
+        #expect(after["r2"]?.hue == before["r2"]?.hue, "r2 keeps its colour when r1 goes")
+        #expect(after["l4"]?.hue == before["l4"]?.hue)
     }
 
     @Test("the palette is as long as the hue range, and a box with no tone is the plain accent")

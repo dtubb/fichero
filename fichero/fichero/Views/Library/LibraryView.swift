@@ -55,6 +55,9 @@ struct LibraryView: View {
     /// Pin to current view (Daniel, 2026-08-23): the host freezes/thaws the
     /// browsed set. nil hides the pin row.
     var isPanePinned: Binding<Bool>?
+    /// False where another pane head already holds this view's choice: a folder in the Source pane is chosen in the Source
+    /// head's "Show folder as" (`library.preview.folder-view-one-head`, #6562), so its rows draw no second head under it.
+    var showsPaneHead = true
 
     let folderId: String?  // Current folder ID for per-folder sort persistence
     var onRequestFocus: () -> Void = {}  // Called on tap to pull keyboard focus into content area
@@ -199,7 +202,6 @@ struct LibraryView: View {
     /// #4966: true while the narrow-pane filter popover is open — the shared
     /// footer's condensed/overflow rungs both open the SAME popover (a live
     /// `TextField` has no icon-only or menu-row coat to collapse into).
-    @State var showingKgFilterPopover = false
 
     /// Document pending presentation in the Add-to-Workspace picker (#1494).
     /// Non-nil drives the `.sheet(item:)` below.
@@ -257,12 +259,12 @@ struct LibraryView: View {
 
     /// Mac-native column customization for the table view (right-click on
     /// any column header → show/hide menu, drag to reorder, drag-resize).
-    /// Backed by SwiftUI's TableColumnCustomization API. Persisted via
-    /// @SceneStorage (the follow-up the old @State comment promised, #519/
-    /// #4160): resize/reorder/show-hide now survive relaunch, per window —
-    /// matching how sort already persists.
-    @SceneStorage("library.tableColumns")
-    var tableColumnCustomization: TableColumnCustomization<LibraryOutlineNode> = .init()
+    /// Backed by SwiftUI's TableColumnCustomization API, remembered APP-WIDE
+    /// (#6540; was per window, #519/#4160): every folder, Table pane and window,
+    /// across relaunch, through the one `LibraryTableColumns` store.
+    var tableColumnCustomization: Binding<TableColumnCustomization<LibraryOutlineNode>> {
+        LibraryTableColumns.shared.binding
+    }
 
     /// Drives the expandable outline Table (#2258). Lazily created on
     /// first appear (needs the library's entity service from the
@@ -282,6 +284,8 @@ struct LibraryView: View {
     // translated through `canvasSelectedNodeIds` (#4192, widened by #4409).
     @State var cachedLibraryProjection = SpatialLibraryProjection(nodes: [], links: [])
     @State var cachedLibraryFaces: [String: CanvasCardFace] = [:]
+    /// Bumped when the bar's Sort is used on the Canvas or the Space: the board arranges itself once.
+    @State var canvasSortArrangeToken = 0
 
     @State var isLoadingEntities = false
     @State var entityLoadErrorMessage: String?
@@ -386,6 +390,9 @@ struct LibraryView: View {
 
     // Grid column count for arrow key navigation (updated by GeometryReader in iconsView)
     @State var gridColumnCount: Int = 4
+    /// True while the Icon view is a one-row filmstrip (a short pane): Up and Down then step one tile, not a row of columns
+    /// (`source.items.icon-filmstrip-when-short`, #6086). Set from the pane's height by `iconsView`.
+    @State var gridIsFilmstrip = false
 
     // Zoom scale for the icon view (persisted per-app)
     @AppStorage("library.iconViewScale") var iconViewScale: Double = 1.0

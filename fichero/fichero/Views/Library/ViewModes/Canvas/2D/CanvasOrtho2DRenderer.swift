@@ -172,7 +172,13 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     /// narrow pane (the Preview) framed the board by its height and cut the columns off.
     var viewportSize: CGSize = .zero {
         // A board fitted before the pane had a size was fitted to a square: fit again once the shape is known.
-        didSet { if oldValue == .zero, viewportSize != .zero, cameraIsAutoFit { fit() } }
+        didSet {
+            if oldValue == .zero, viewportSize != .zero, cameraIsAutoFit {
+                fit()
+            } else if oldValue != viewportSize, viewportSize != .zero {
+                reclampZoomOut()
+            }
+        }
     }
 
     /// True while several selected cards move together (see `setGroupDragging`).
@@ -191,6 +197,8 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
 
     /// Called after every camera move with the new pose; the host remembers it per folder.
     var onCameraChange: (((position: SIMD3<Float>, scale: Float)) -> Void)?
+    /// The camera save waiting for the camera to rest (`cameraDidChange`).
+    var pendingCameraSave: DispatchWorkItem?
 
     /// Reconcile the live scene to `newState` via the minimal diff against the
     /// last applied state — the view calls this whenever the resolved scene
@@ -216,6 +224,8 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
                 fit()
             }
         }
+        // A card added or removed, or the board arranged, moves the furthest zoom-out.
+        reclampZoomOut()
     }
 
     /// Drag-onto-item target picking lands in #3086 (needs a scene raycast); tap
@@ -258,7 +268,9 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     /// zoom-constant mesh and the remembered camera are redone once, when the pinch ends
     /// (`settleZoom`): rebuilding them on every pinch event made zooming jagged (2026-10-09).
     func setOrthoScale(_ scale: Float, live: Bool = false) {
-        orthoScale = min(max(scale, 0.1), 200)  // 0.5→0.1 (2026-08-22): zoom close enough to read
+        // 0.5→0.1 (2026-08-22): zoom close enough to read. Zoom OUT stops a little past fit-to-content
+        // (`library.canvas.zoom-out-stops-near-fit`), following this pane's size and the board.
+        orthoScale = min(max(scale, Self.minOrthoScale), farthestOrthoScale())
         // The tier follows the zoom here for the same reason as 3D: this is a
         // plain class, so a pinch that only moves the scale republishes
         // nothing and a SwiftUI update pass may never re-read it.
@@ -266,6 +278,24 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         applyOrthoScale()
         guard !live else { return }
         settleZoom()
+    }
+
+    static let minOrthoScale: Float = 0.1
+    static let maxOrthoScaleCeiling: Float = 200
+
+    /// The furthest zoom-out for the board and pane as they are now. A pane with no size yet has no
+    /// fit to follow, so only the renderer's own ceiling applies until it has one.
+    func farthestOrthoScale() -> Float {
+        guard viewportSize != .zero else { return Self.maxOrthoScaleCeiling }
+        return CanvasCameraFit.maxOrthoScale(
+            cameraCards(), viewport: viewportSize, margin: Float(CanvasGridPlacement.cellWidth) / 2,
+            emptyBoardScale: Float(CanvasGridPlacement.cellHeight) * 0.7, ceiling: Self.maxOrthoScaleCeiling
+        )
+    }
+
+    /// The pane or the board changed: a camera already past the new furthest zoom-out is brought to it.
+    func reclampZoomOut() {
+        if orthoScale > farthestOrthoScale() { setOrthoScale(orthoScale) }
     }
 
     /// The zoom's follow-ups: zoom-constant selection chrome (#4601) and the remembered camera.
@@ -361,25 +391,6 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         if let id { placeablesRoot.findEntity(named: id)?.scale = SIMD3<Float>(repeating: 1.12) }
     }
 
-    /// The placeables whose projected screen point falls inside `rect` — the
-    /// marquee hit-test. Uses the SAME `worldPerPoint` calibration as pan/drag,
-    /// so tuning one tunes all three.
-    func placeableIds(inScreenRect rect: CGRect, viewSize: CGSize) -> Set<String> {
-        var result: Set<String> = []
-        for (id, placeable) in placeablesById {
-            let scene = Canvas2DProjection.scenePosition(placeable.position)
-            let point = Canvas2DProjection.screenPoint(
-                scene: scene,
-                cameraX: camera.position.x,
-                cameraY: camera.position.y,
-                orthoScale: orthoScale,
-                viewSize: viewSize
-            )
-            if rect.contains(point) { result.insert(id) }
-        }
-        return result
-    }
-
     private func applyOrthoScale() {
         var ortho = OrthographicCameraComponent()
         ortho.scale = orthoScale
@@ -461,9 +472,11 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         case .link: .systemGray
         }
     }
+}
 
-    // MARK: - Edges (rebuilt wholesale — few and cheap, per the contract)
+// MARK: - Edges (rebuilt wholesale — few and cheap, per the contract)
 
+@MainActor extension CanvasOrtho2DRenderer {
     // Internal, not private: the op-application extension (+Ops.swift) needs
     // it and Swift's `private` is FILE-scoped — the same trade documented on
     // CanvasSceneView's split state.

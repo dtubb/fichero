@@ -1,0 +1,14 @@
+2026-11-15 10:00:00,001 INFO fichero_server.core.perf: PERF import.page doc_id=abc duration_ms=100.00 pages=3
+2026-11-15 10:00:01,001 INFO fichero_server.core.perf: PERF import.page doc_id=def duration_ms=200.00 pages=3
+2026-11-15 10:00:02,001 INFO fichero_server.core.perf: PERF import.page doc_id=ghi duration_ms=300.00 pages=3
+2026-11-15 10:00:03,001 INFO fichero_server.core.perf: PERF search.query duration_ms=4.00
+2026-11-15 10:00:03,101 INFO fichero_server.core.perf: PERF search.query duration_ms=4.00
+2026-11-15 10:00:03,201 INFO fichero_server.core.perf: PERF search.query duration_ms=4.00
+2026-11-15 10:00:03,301 INFO fichero_server.core.perf: PERF search.query duration_ms=4.00
+2026-11-15 10:00:04,001 INFO fichero_server.core.perf: PERF kg.entity_list provider=local duration_ms=50.00
+2026-11-15 10:00:05,001 INFO fichero_server.core.perf: PERF kg.entity_list provider=cloud duration_ms=70.00
+2026-11-15 10:00:06,000 INFO fichero_server.core.perf: model-lane: loaded kraken in 12.0 s (load 1 in this engine)
+2026-11-15 10:00:36,000 INFO fichero_server.core.perf: model-lane: loaded kraken in 11.0 s (load 2 in this engine)
+2026-11-15 10:00:36,001 WARNING fichero_server.core.perf: model loaded again: kraken, 30 s after its last load (load 2 in this engine, 11.0 s): something let it go mid-run
+2026-11-15 10:00:40,000 INFO fichero_server.core.perf: model-lane: loaded spacy in 2.0 s (load 1 in this engine)
+2026-11-15 10:00:41,000 INFO uvicorn: GET /health 200

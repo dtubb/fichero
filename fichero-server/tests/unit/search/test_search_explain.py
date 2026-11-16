@@ -10,7 +10,7 @@ Tests cover:
 
 import pytest
 
-from fichero_server.api.routes.search_explain import (
+from fichero_server.api.routes.search.explain import (
     RAGMode,
     SearchType,
     RAG_MODE_CONFIGS,

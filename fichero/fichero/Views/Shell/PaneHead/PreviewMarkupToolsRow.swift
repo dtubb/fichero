@@ -16,10 +16,9 @@ import SwiftUI
 struct PreviewMarkupToolsRow: View {
     /// Sticky tool state (Daniel, 2026-08-30: "leave it selected") — the
     /// armed MODE lives per-window; optional so headless hosts stay safe.
-    @Environment(WindowState.self) private var windowState: WindowState?
+    @Environment(WindowState.self) var windowState: WindowState?
 
-    @AppStorage(PreviewHighlightStyle.storageKey) private var highlightStyleRaw
-        = PreviewHighlightStyle.yellow.rawValue
+    @AppStorage(PreviewHighlightStyle.storageKey) private var highlightStyleRaw = PreviewHighlightStyle.yellow.rawValue
 
     private var highlightStyle: PreviewHighlightStyle {
         PreviewHighlightStyle(rawValue: highlightStyleRaw) ?? .yellow
@@ -42,120 +41,140 @@ struct PreviewMarkupToolsRow: View {
     // edit verbs. Selecting comes before marking because you pick what you
     // are about to mark.
     var body: some View {
-        toolButton(
-            icon: PreviewMarkupTool.textSelect.icon,
-            label: PreviewMarkupTool.textSelect.label,
-            identifier: "previewMarkupTextSelect",
-            // Menu audit 2026-09-17: ⌘⌥T is the system Show/Hide Toolbar chord
-            // (AppKit's own `.toolbar` group is present in this app), so the
-            // old ⌘⌥T here raced it. "u" is free (MenuShortcutUniquenessTests'
-            // denylist).
-            key: "u",
-            help: "Select Text — drag over recognised text to select it (⌘⌥U)",
-            mode: .textSelect
-        ) {
-            NotificationCenter.default.post(
-                name: .previewAnnotateTool, object: PreviewMarkupTool.textSelect.rawValue
-            )
+        if shows("previewMarkupTextSelect") {
+            toolButton(
+                icon: PreviewMarkupTool.textSelect.icon,
+                label: PreviewMarkupTool.textSelect.label,
+                identifier: "previewMarkupTextSelect",
+                // Menu audit 2026-09-17: ⌘⌥T is the system Show/Hide Toolbar chord
+                // (AppKit's own `.toolbar` group is present in this app), so the
+                // old ⌘⌥T here raced it. "u" is free (MenuShortcutUniquenessTests'
+                // denylist).
+                key: "u",
+                help: "Select Text — drag over recognised text to select it (⌘⌥U)",
+                mode: .textSelect
+            ) {
+                NotificationCenter.default.post(
+                    name: .previewAnnotateTool, object: PreviewMarkupTool.textSelect.rawValue
+                )
+            }
         }
 
-        toolButton(
-            icon: PreviewMarkupTool.select.icon,
-            label: PreviewMarkupTool.select.label,
-            identifier: "previewMarkupSelect",
-            key: "v",
-            help: "Select — click or ⇧-click regions to select, drag to move them (⌘⌥V)",
-            mode: .select
-        ) {
-            NotificationCenter.default.post(
-                name: .previewRegionVerb, object: PreviewRegionVerb.select.rawValue
-            )
+        if shows("previewMarkupSelect") {
+            toolButton(
+                icon: PreviewMarkupTool.select.icon,
+                label: PreviewMarkupTool.select.label,
+                identifier: "previewMarkupSelect",
+                key: "v",
+                help: "Select — click or ⇧-click regions to select, drag to move them (⌘⌥V)",
+                mode: .select
+            ) {
+                NotificationCenter.default.post(
+                    name: .previewRegionVerb, object: PreviewRegionVerb.select.rawValue
+                )
+            }
         }
 
-        toolButton(
-            icon: PreviewMarkupTool.wordSelect.icon,
-            label: PreviewMarkupTool.wordSelect.label,
-            identifier: "previewMarkupWordSelect",
-            key: "w",
-            // Daniel, 2026-08-31: "select words is really rectangular
-            // selection…" — it IS a marquee, but what it comes away holding
-            // is WORDS, so the tooltip says so rather than leaving the two
-            // rectangular tools indistinguishable.
-            help: "Select Words — marquee a rectangle; the recognised WORD boxes it touches "
-                + "become the selection, which Highlight and Check then act on (⌘⌥W)",
-            mode: .wordSelect
-        ) {
-            // Sticky mode only — the canvas selects word boxes while armed.
+        if shows("previewMarkupWordSelect") {
+            toolButton(
+                icon: PreviewMarkupTool.wordSelect.icon,
+                label: PreviewMarkupTool.wordSelect.label,
+                identifier: "previewMarkupWordSelect",
+                key: "w",
+                // Daniel, 2026-08-31: "select words is really rectangular
+                // selection…" — it IS a marquee, but what it comes away holding
+                // is WORDS, so the tooltip says so rather than leaving the two
+                // rectangular tools indistinguishable.
+                help: "Select Words — marquee a rectangle; the recognised WORD boxes it touches "
+                    + "become the selection, which Highlight and Check then act on (⌘⌥W)",
+                mode: .wordSelect
+            ) {
+                // Sticky mode only — the canvas selects word boxes while armed.
+            }
         }
 
-        toolButton(
-            icon: PreviewMarkupTool.drawRegion.icon,
-            label: PreviewMarkupTool.drawRegion.label,
-            identifier: "previewMarkupDrawRegion",
-            key: "r",
-            help: "Shape — drag a box: a new segment while editing segments, "
-                + "a selection to read or run on otherwise (⌘⌥R)",
-            mode: .drawRegion
-        ) {
-            NotificationCenter.default.post(
-                name: .previewRegionVerb, object: PreviewRegionVerb.draw.rawValue
-            )
+        // Where the canvas draws segments the one Shape button gives way to Region, Polygon and Line (below).
+        if shows("previewMarkupDrawRegion"), !offered.contains("previewMarkupShapeKind") {
+            toolButton(
+                icon: PreviewMarkupTool.drawRegion.icon,
+                label: PreviewMarkupTool.drawRegion.label,
+                identifier: "previewMarkupDrawRegion",
+                key: "r",
+                help: "Shape — drag a box: a new segment while editing segments, "
+                    + "a selection to read or run on otherwise (⌘⌥R)",
+                mode: .drawRegion
+            ) {
+                NotificationCenter.default.post(
+                    name: .previewRegionVerb, object: PreviewRegionVerb.draw.rawValue
+                )
+            }
         }
-        if offered.contains("previewMarkupShapeKind") { shapeKindMenu }
+        if shows("previewMarkupDrawRegion"), offered.contains("previewMarkupShapeKind") { shapeButtons }
 
-        toolButton(
-            icon: PreviewMarkupTool.line.icon,
-            label: PreviewMarkupTool.line.label,
-            identifier: "previewMarkupLine",
-            // Was ⌘⌥D ("draw a line"), chosen only to avoid ⌘⌥L (the Loupe
-            // toggle on this same surface). Menu audit 2026-09-17: ⌘⌥D is
-            // ITSELF a macOS system default ("Turn Dock Hiding On/Off"), a
-            // second collision nobody had caught. "g" avoids both (still not
-            // ⌘⌥L; see MenuShortcutUniquenessTests' denylist).
-            key: "g",
-            help: "Line — drag to draw a line on the page (⌘⌥G)",
-            mode: .line
-        ) {
-            NotificationCenter.default.post(
-                name: .previewAnnotateTool, object: PreviewMarkupTool.line.rawValue
-            )
-        }
-
-        labeled(PreviewMarkupTool.highlight.label) { highlightSplitButton }
-
-        noteButton
-
-        toolButton(
-            icon: PreviewMarkupTool.star.icon,
-            label: PreviewMarkupTool.star.label,
-            identifier: "previewMarkupStar",
-            key: "s",
-            help: "Star — drag a box to star that place on the page (⌘⌥S)"
-        ) {
-            NotificationCenter.default.post(
-                name: .previewAnnotateTool, object: PreviewMarkupTool.star.rawValue
-            )
+        if shows("previewMarkupLine") {
+            toolButton(
+                icon: PreviewMarkupTool.line.icon,
+                label: PreviewMarkupTool.line.label,
+                identifier: "previewMarkupLine",
+                // Was ⌘⌥D ("draw a line"), chosen only to avoid ⌘⌥L (the Loupe
+                // toggle on this same surface). Menu audit 2026-09-17: ⌘⌥D is
+                // ITSELF a macOS system default ("Turn Dock Hiding On/Off"), a
+                // second collision nobody had caught. "g" avoids both (still not
+                // ⌘⌥L; see MenuShortcutUniquenessTests' denylist).
+                key: "g",
+                help: "Line — drag to draw a line on the page (⌘⌥G)",
+                mode: .line
+            ) {
+                NotificationCenter.default.post(
+                    name: .previewAnnotateTool, object: PreviewMarkupTool.line.rawValue
+                )
+            }
         }
 
-        toolButton(
-            icon: PreviewMarkupTool.check.icon,
-            label: PreviewMarkupTool.check.label,
-            identifier: "previewMarkupCheck",
-            key: "k",
-            help: "Check — with words selected, checks THEM; otherwise click by a line to mark "
-                + "it with one check, again for two, again for three, again to clear (⌘⌥K)",
-            mode: .check
-        ) {
-            // Ruling 4 (Daniel, 2026-08-31): a check should land on the text
-            // you already picked. The canvas answers this by checking the
-            // selection when there is one, and staying armed for a click
-            // when there is not — so the button posts either way.
-            NotificationCenter.default.post(
-                name: .previewAnnotateTool, object: PreviewMarkupTool.check.rawValue
-            )
+        if shows("previewMarkupHighlight") { labeled(PreviewMarkupTool.highlight.label) { highlightSplitButton } }
+
+        if shows("previewMarkupNote") { noteButton }
+
+        if shows("previewMarkupStar") {
+            toolButton(
+                icon: PreviewMarkupTool.star.icon,
+                label: PreviewMarkupTool.star.label,
+                identifier: "previewMarkupStar",
+                key: "s",
+                help: "Star — drag a box to star that place on the page (⌘⌥S)"
+            ) {
+                NotificationCenter.default.post(
+                    name: .previewAnnotateTool, object: PreviewMarkupTool.star.rawValue
+                )
+            }
+        }
+
+        if shows("previewMarkupCheck") {
+            toolButton(
+                icon: PreviewMarkupTool.check.icon,
+                label: PreviewMarkupTool.check.label,
+                identifier: "previewMarkupCheck",
+                key: "k",
+                help: "Check — with words selected, checks THEM; otherwise click by a line to mark "
+                    + "it with one check, again for two, again for three, again to clear (⌘⌥K)",
+                mode: .check
+            ) {
+                // Ruling 4 (Daniel, 2026-08-31): a check should land on the text
+                // you already picked. The canvas answers this by checking the
+                // selection when there is one, and staying armed for a click
+                // when there is not — so the button posts either way.
+                NotificationCenter.default.post(
+                    name: .previewAnnotateTool, object: PreviewMarkupTool.check.rawValue
+                )
+            }
         }
 
         editVerbs
+    }
+
+    /// Whether the window's Preview mode (Read, Segments, Image) puts this tool on the row (`PreviewWorkMode.offers`).
+    private func shows(_ identifier: String) -> Bool {
+        (windowState?.previewMode ?? .read).offers(identifier)
     }
 
     /// The segment controls this row offers now: only verbs the canvas acts on (`SegmentVerbs.offered`).
@@ -177,7 +196,9 @@ struct PreviewMarkupToolsRow: View {
         let selection = windowState?.focusedRegionSelection ?? RegionSelection()
         // Delete and Combine write segments, so they appear only in the segment-editing
         // mode (#5114); reading a page, a selection is for reading.
-        if offered.contains("previewMarkupDelete") {
+        // Visible whenever the mode offers them and the canvas can act, GREY until they can apply (owner 2026-11-10:
+        // for discovery; this bar only, a menu still leaves an inapplicable verb out).
+        if shows("previewMarkupDelete"), segmentVerbs.contains(.delete) {
             Divider().frame(height: PaneHeadMetrics.dividerHeight)
 
             // No ⌘⌥ binding: Delete already answers to the ⌫ key path the
@@ -193,10 +214,11 @@ struct PreviewMarkupToolsRow: View {
                     name: .previewRegionVerb, object: PreviewRegionVerb.delete.rawValue
                 )
             }
+            .disabled(!offered.contains("previewMarkupDelete"))
 
             // Join needs two boxes to have anything to merge. JOIN, not Combine (ruled 2026-09-27,
             // Q4): one word on the page, the Inspector and the menu.
-            if offered.contains("previewMarkupCombine") {
+            if shows("previewMarkupCombine"), segmentVerbs.contains(.join) {
                 toolButton(
                     icon: "arrow.triangle.merge",
                     label: "Join \(selection.count)",
@@ -208,6 +230,7 @@ struct PreviewMarkupToolsRow: View {
                         name: .previewRegionVerb, object: PreviewRegionVerb.combine.rawValue
                     )
                 }
+                .disabled(!offered.contains("previewMarkupCombine"))
             }
         }
     }
@@ -235,7 +258,7 @@ struct PreviewMarkupToolsRow: View {
 
     /// Caption under any control when labels are on (the workflow-bar idiom).
     @ViewBuilder
-    private func labeled(_ text: String, @ViewBuilder content: () -> some View) -> some View {
+    func labeled(_ text: String, @ViewBuilder content: () -> some View) -> some View {
         if showsLabels {
             VStack(spacing: 2) {
                 content()
@@ -339,49 +362,7 @@ struct PreviewMarkupToolsRow: View {
     }
 }
 
-// The Shape tool's kind menu, apart so the row's body stays under its length limit.
-extension PreviewMarkupToolsRow {
-    /// What the ONE Shape tool draws while editing segments (`source.editor.draw-shapes`): Box (drag),
-    /// Polygon (click points; click the first, or double-click, to close), Baseline (click points;
-    /// double-click to finish). Choosing one arms the tool.
-    var shapeKindMenu: some View {
-        Menu {
-            ForEach(SegmentShapes.DrawKind.allCases) { kind in
-                Button {
-                    windowState?.shapeKind = kind
-                    windowState?.activeMarkupTool = .drawRegion
-                    NotificationCenter.default.post(name: .previewRegionVerb, object: PreviewRegionVerb.draw.rawValue)
-                } label: {
-                    if windowState?.shapeKind == kind {
-                        Label(kind.title, systemImage: "checkmark")
-                    } else {
-                        Text(kind.title)
-                    }
-                }
-            }
-        } label: {
-            Image(systemName: "chevron.down")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .help("Shape kind — Box: drag. Polygon: click points, then the first point or a double-click closes it. "
-            + "Baseline: click points, double-click to finish.")
-        .accessibilityLabel("Shape kind")
-        .accessibilityIdentifier("previewMarkupShapeKind")
-    }
-}
-
-// Both label modes, as `AnnotationBar` shows them. No `WindowState` is injected: the row reads
-// it optionally, so this is its no-window default (select tool, standard highlight style).
-#Preview("Markup tools — icons") {
-    PreviewMarkupToolsRow()
-        .padding()
-}
-
-#Preview("Markup tools — with labels") {
-    PreviewMarkupToolsRow(showsLabels: true)
+#Preview("Markup row — no window") {
+    PreviewMarkupToolsRow(segmentVerbs: .all)
         .padding()
 }

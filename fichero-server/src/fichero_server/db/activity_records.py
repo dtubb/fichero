@@ -26,13 +26,13 @@ _SWEEPABLE_SQL = ", ".join(f"'{s}'" for s in SWEEPABLE_STATUSES)
 #: Every column of a run, in the order `run_row` reads them.
 RUN_COLUMNS = ("id", "workflow_id", "workflow_name", "python_code", "execution_log", "status", "started_at",
                "completed_at", "duration_ms", "error", "workflow_snapshot", "node_name_map", "progress_timeline",
-               "diagram_mermaid", "resolved_scope", "run_usage", "estimated_cost")
+               "diagram_mermaid", "resolved_scope", "run_usage", "estimated_cost", "failure")
 #: A run as a list shows it (#5645): no code, log, snapshot, node map or diagram, whose size grows with the run, so a
 #: poll of 50 runs every few seconds reads 50 small rows whatever the logs weigh. Its progress timeline stays: the run
 #: account (Activity's progress) reads it.
 LIST_COLUMNS = ("id", "workflow_id", "workflow_name", "NULL", "NULL", "status", "started_at", "completed_at",
                 "duration_ms", "error", "NULL", "NULL", "progress_timeline", "NULL", "resolved_scope", "run_usage",
-                "estimated_cost")
+                "estimated_cost", "failure")
 EVENT_COLUMNS = ("id", "type", "level", "timestamp", "message", "workflow_id", "batch_id", "thread_id", "node_id",
                  "metadata", "duration_ms", "error")
 
@@ -133,8 +133,14 @@ def upsert_run(db: Any, *, thread_id: str, workflow_id: str, workflow_name: str,
 def update_run(db: Any, thread_id: str, fields: dict[str, Any]) -> None:
     """Set the given columns of one run (a None value is not given, as before); a log given replaces its lines."""
     log = fields.get("execution_log")
-    given = {k: (json.dumps(v) if k in ("progress_timeline", "run_usage") else v)
-             for k, v in fields.items() if v is not None and k != "execution_log"}
+    given: dict[str, Any] = {}
+    for k, v in fields.items():
+        if v is None or k == "execution_log":
+            continue
+        if k == "failure":  # an empty one clears it: a run that goes on (a retry) is not failed any more
+            given[k] = json.dumps(v) if v else None
+        else:
+            given[k] = json.dumps(v) if k in ("progress_timeline", "run_usage") else v
     if given:
         db.execute(f"UPDATE {RUNS} SET {', '.join(f'{k} = ?' for k in given)} WHERE id = ?",
                    [*given.values(), thread_id])
@@ -242,9 +248,15 @@ def get_run_scope(db: Any, thread_id: str) -> Optional[tuple]:
 
 
 def list_runs(db: Any, *, workflow_id: Optional[str], statuses: Optional[list[str]], exclude_deleted: bool,
-              limit: int, offset: int) -> list[tuple]:
-    """Runs newest first, paged in SQL, each in the light projection (`LIST_COLUMNS`)."""
+              limit: int, offset: int, archived: bool = False) -> list[tuple]:
+    """Runs newest first, paged in SQL, each in the light projection (`LIST_COLUMNS`). An archived run (its row in
+    `jobs` has the archive mark, `jobs.archive_runs`) is left out, or with `archived` it is the only kind listed."""
     where, params = [], []
+    if db.execute_fetchone("SELECT 1 FROM information_schema.columns WHERE table_name = 'jobs' "
+                           "AND column_name = 'cleared_at'", committed=True):
+        where.append(f"id {'' if archived else 'NOT '}IN (SELECT id FROM jobs WHERE cleared_at IS NOT NULL)")
+    elif archived:
+        return []
     if workflow_id:
         where.append("workflow_id = ?")
         params.append(workflow_id)
@@ -265,8 +277,8 @@ def soft_delete_runs(db: Any, thread_ids: list[str], *, skip_running: bool) -> l
         return []
     running = " AND status != 'running'" if skip_running else ""
     rows = db.execute_fetchall(
-        f"UPDATE {RUNS} SET status = 'deleted', completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP) "
-        f"WHERE id IN ({', '.join('?' for _ in thread_ids)}){running} RETURNING id", list(thread_ids))
+        f"UPDATE {RUNS} SET deleted_from = status, status = 'deleted', completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP) "
+        f"WHERE id IN ({', '.join('?' for _ in thread_ids)}) AND status != 'deleted'{running} RETURNING id", list(thread_ids))
     deleted = [row[0] for row in rows if row and row[0]]
     if deleted:  # the log says so, a line of its own after its last (#5711)
         with db.transaction():
@@ -275,6 +287,17 @@ def soft_delete_runs(db: Any, thread_ids: list[str], *, skip_running: bool) -> l
                        f"COALESCE((SELECT max(seq) FROM {LINES} WHERE run_id = r), 0) + 1, 'Run history deleted' "
                        "FROM (SELECT unnest(?::VARCHAR[]) AS r)", [deleted])
     return deleted
+
+
+def undelete_runs(db: Any, thread_ids: list[str]) -> list[str]:
+    """Put deleted runs back as they were (the inverse of `soft_delete_runs`, #6599): the status before the Delete, its
+    events shown again (they were only hidden). A run not deleted, or unknown, is left alone. Their ids."""
+    if not thread_ids:
+        return []
+    rows = db.execute_fetchall(
+        f"UPDATE {RUNS} SET status = COALESCE(deleted_from, 'completed'), deleted_from = NULL "
+        f"WHERE id IN ({', '.join('?' for _ in thread_ids)}) AND status = 'deleted' RETURNING id", list(thread_ids))
+    return [row[0] for row in rows if row and row[0]]
 
 
 def run_ids_by_status(db: Any, statuses: list[str]) -> list[str]:
@@ -291,9 +314,11 @@ def unfinished_runs(db: Any) -> list[tuple[str, Any]]:
         f"SELECT id, started_at FROM {RUNS} WHERE status IN ({_SWEEPABLE_SQL})")]
 
 
-def mark_run_failed(db: Any, thread_id: str, reason: str) -> None:
-    db.execute(f"UPDATE {RUNS} SET status = 'failed', error = ?, completed_at = COALESCE(completed_at, "
-               "CURRENT_TIMESTAMP) WHERE id = ?", [reason, thread_id])
+def mark_run_failed(db: Any, thread_id: str, reason: str, ended_at: Any = None) -> None:
+    """A run's record ends failed with `reason`; `ended_at` when it stopped (an interrupted run's close or last work,
+    #6588), else now."""
+    db.execute(f"UPDATE {RUNS} SET status = 'failed', error = ?, completed_at = COALESCE(completed_at, ?, "
+               "CURRENT_TIMESTAMP) WHERE id = ?", [reason, ended_at, thread_id])
 
 
 def recover_stale(db: Any, *, error: str, started_before: Optional[datetime],
@@ -325,3 +350,10 @@ def progress_timelines(db: Any, run_ids: list[str]) -> dict[str, Any]:
     rows = db.execute_fetchall(f"SELECT id, progress_timeline FROM {RUNS} "
                                f"WHERE id IN ({', '.join('?' * len(run_ids))})", run_ids, committed=True)
     return {r[0]: r[1] for r in rows}
+
+
+def runs_started_since(db: Any, since: datetime, limit: int) -> list[tuple]:
+    """(id, workflow_id, workflow_name, status, started_at, completed_at) of the newest `limit` runs started since `since`."""
+    return db.execute_fetchall(
+        f"SELECT id, workflow_id, workflow_name, status, started_at, completed_at FROM {RUNS} "
+        "WHERE started_at >= ? ORDER BY started_at DESC LIMIT ?", [since, limit])

@@ -30,8 +30,12 @@ from fichero_server.execution.chaining import (
 from fichero_server.workflows.types import WorkflowDef
 from fichero_server.workflows.workflow_store import WorkflowStore
 from fichero_server.db import db_manager
-from fichero_server.api.library_header import require_library_path
-from fichero_server.api.main import assert_library_read_authorized
+from fichero_server.api.library_header import optional_library_path, require_library_path
+from fichero_server.api.routes.auth.accounts import _require_owner_for_writes
+from fichero_server.api.main import (
+    assert_library_read_authorized, get_library_database_for_write, input_document_ids, recipe_check, write_check,
+)
+from fichero_server.db import Database
 
 logger = logging.getLogger(__name__)
 
@@ -492,9 +496,30 @@ def _build_paleography_chain(
 # =============================================================================
 
 
+async def _check_chain(http_request: Request, library_path: str, db: Database, *inputs: dict | None, steps: list | tuple = ()) -> None:
+    """Making, changing, deleting or running a chain is a write the project's top level allows (a person shared one folder may not),
+    and every run reads and writes the documents the inputs name (#6320)."""
+    named = [d for one in inputs for d in input_document_ids(one)]
+    await write_check(http_request, library_path, db, [None], deep=False)
+    for step in steps:  # every step starts a run of its recipe: the same check as /execute (#6325)
+        await recipe_check(http_request, library_path, db, step.workflow_id)
+    if named:
+        await write_check(http_request, library_path, db, list(dict.fromkeys(named)))
+
+
+def _chain_db(http_request: Request, library_path: str | None) -> Database | None:
+    """The open library's database, read-authorised; None when the caller names no library (the process's own chains)."""
+    if not library_path:
+        return None
+    assert_library_read_authorized(http_request, library_path)
+    return db_manager.get_database(library_path)
+
+
 @router.post("", response_model=ChainResponse)
-async def create_chain(request: CreateChainRequest) -> ChainResponse:
+async def create_chain(request: CreateChainRequest, http_request: Request, x_fichero_library_path: str = Depends(require_library_path),
+                       db: Database = Depends(get_library_database_for_write)) -> ChainResponse:
     """Create a new workflow chain."""
+    await _check_chain(http_request, x_fichero_library_path, db, *(s.static_inputs for s in request.steps))
     # Convert request to domain model
     steps = []
     for step_req in request.steps:
@@ -536,33 +561,39 @@ async def create_chain(request: CreateChainRequest) -> ChainResponse:
         initial_inputs=request.initial_inputs,
     )
 
-    saved = chain_store.save(chain)
+    saved = chain_store.save(chain, db)
     return _chain_to_response(saved)
 
 
 @router.get("", response_model=ChainListResponse)
-async def list_chains(limit: int = 50, offset: int = 0) -> ChainListResponse:
-    """List all workflow chains."""
-    chains = chain_store.list(limit=limit, offset=offset)
+async def list_chains(http_request: Request, limit: int = 50, offset: int = 0,
+                      library_path: str | None = Depends(optional_library_path)) -> ChainListResponse:
+    """List the workflow chains of the open library (the process's own when no library is named)."""
+    db = _chain_db(http_request, library_path)
+    chains = chain_store.list(limit=limit, offset=offset, db=db)
     return ChainListResponse(
         chains=[_chain_to_response(c) for c in chains],
-        total=len(chain_store._chains),
+        total=chain_store.count(db),
     )
 
 
 @router.get("/{chain_id}", response_model=ChainResponse)
-async def get_chain(chain_id: str) -> ChainResponse:
+async def get_chain(chain_id: str, http_request: Request,
+                    library_path: str | None = Depends(optional_library_path)) -> ChainResponse:
     """Get a workflow chain by ID."""
-    chain = chain_store.get(chain_id)
+    chain = chain_store.get(chain_id, _chain_db(http_request, library_path))
     if not chain:
         raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")
     return _chain_to_response(chain)
 
 
 @router.put("/{chain_id}", response_model=ChainResponse)
-async def update_chain(chain_id: str, request: UpdateChainRequest) -> ChainResponse:
+async def update_chain(chain_id: str, request: UpdateChainRequest, http_request: Request,
+                       x_fichero_library_path: str = Depends(require_library_path),
+                       db: Database = Depends(get_library_database_for_write)) -> ChainResponse:
     """Update an existing workflow chain."""
-    chain = chain_store.get(chain_id)
+    await _check_chain(http_request, x_fichero_library_path, db, *(s.static_inputs for s in request.steps or []))
+    chain = chain_store.get(chain_id, db)
     if not chain:
         raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")
 
@@ -609,14 +640,16 @@ async def update_chain(chain_id: str, request: UpdateChainRequest) -> ChainRespo
             )
         chain.steps = steps
 
-    saved = chain_store.save(chain)
+    saved = chain_store.save(chain, db)
     return _chain_to_response(saved)
 
 
 @router.delete("/{chain_id}")
-async def delete_chain(chain_id: str) -> ChainDeletedResponse:
+async def delete_chain(chain_id: str, http_request: Request, x_fichero_library_path: str = Depends(require_library_path),
+                       db: Database = Depends(get_library_database_for_write)) -> ChainDeletedResponse:
     """Delete a workflow chain."""
-    if not chain_store.delete(chain_id):
+    await _check_chain(http_request, x_fichero_library_path, db)
+    if not chain_store.delete(chain_id, db):
         raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")
     return ChainDeletedResponse(deleted=True, id=chain_id)
 
@@ -638,7 +671,7 @@ async def paleography_preset_preview(
     )
 
 
-@router.post("/presets/paleography", response_model=PaleographyPresetResponse)
+@router.post("/presets/paleography", response_model=PaleographyPresetResponse, dependencies=[Depends(_require_owner_for_writes)])
 async def paleography_preset_create(
     request: Request,
     x_fichero_library_path: str = Depends(require_library_path),
@@ -649,7 +682,7 @@ async def paleography_preset_create(
     chain, matched = _build_paleography_chain(
         _chain_candidate_workflows(db, x_fichero_library_path)
     )
-    saved = chain_store.save(chain)
+    saved = chain_store.save(chain, db)
     return PaleographyPresetResponse(
         chain=_chain_to_response(saved),
         matched_workflows=matched,
@@ -667,6 +700,7 @@ async def execute_chain(
     request: ExecuteChainRequest,
     http_request: Request,
     x_fichero_library_path: str = Depends(require_library_path),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ChainExecutionResponse:
     """Execute a workflow chain.
 
@@ -675,12 +709,14 @@ async def execute_chain(
 
     Requires X-Fichero-Library-Path header to identify the library.
     """
-    chain = chain_store.get(chain_id)
+    chain = chain_store.get(chain_id, db)
     if not chain:
         raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")
     assert_library_read_authorized(http_request, x_fichero_library_path)
     if not chain.steps:
         raise HTTPException(status_code=400, detail="Chain has no steps to run")
+    # Every step is a run on the documents the inputs AND the step's own static_inputs name (they win on a collision).
+    await _check_chain(http_request, x_fichero_library_path, db, request.inputs, *(st.static_inputs for st in chain.steps), steps=chain.steps)
 
     # One way to run (`activity.run.one-way-to-run`): the chain's steps are real runs of the one runner, in list order,
     # under a chain row in Activity that Stop reaches; the same path as /execute-steps. The chain's conditions,
@@ -878,6 +914,29 @@ async def _record_step_run_accepted(db, thread_id: str, workflow, request) -> No
     )
 
 
+async def _record_step_run_refused(db, thread_id: str, step, workflow, request, error: str) -> bool:
+    """The run row of a step that was refused before it started: failed, with the refusal as its error (and so as its
+    Activity row's reason). Never raises: the chain's own row carries the reason too. False when the row could not be
+    written."""
+    from fichero_server.core.timeutil import utc_now  # noqa: PLC0415
+    from fichero_server.workflows.activity import get_activity_tracker  # noqa: PLC0415
+
+    try:
+        store = get_activity_tracker(str(db.path)).store
+        await store.save_workflow_run(
+            thread_id=thread_id,
+            workflow_id=step.workflow_id,
+            workflow_name=(getattr(workflow, "name", None) or step.name or step.workflow_id),
+            status="failed",
+            workflow_snapshot={"inputs": request.inputs if request is not None else {}},
+        )
+        await store.update_workflow_run(thread_id, status="failed", error=error, completed_at=utc_now())
+        return True
+    except Exception:  # noqa: BLE001 -- the reason is also on the chain's row and the step's result
+        logger.warning("could not record why step %s was refused", thread_id, exc_info=True)
+        return False
+
+
 async def _run_step_workflow(*, thread_id: str, workflow, request, db) -> None:
     """Passthrough to the REAL background runner — SSE events, pause/cancel,
     caches, document finalization — exactly as a direct run gets."""
@@ -953,6 +1012,27 @@ async def _run_chain_steps(
     library_path: str,
     canceller: _ChainStepsCanceller,
 ) -> None:
+    """Run the chain's steps under the project they were started in. The chain runs on its own thread and loop, which
+    holds none of the request's context, so the project every step's check and call is judged by (the cloud-consent gate,
+    `ai.where.one-egress-gate`, #5368) is bound here: a later step of a chain on a project's page is judged by that
+    project, not by "no project is open" (owner 2026-11-13)."""
+    from fichero_server.observability.episodes import _episode_library_path, set_library  # noqa: PLC0415
+
+    token = set_library(library_path)
+    try:
+        await _run_chain_steps_bound(execution_id, chain, step_threads, inputs, library_path, canceller)
+    finally:
+        _episode_library_path.reset(token)
+
+
+async def _run_chain_steps_bound(
+    execution_id: str,
+    chain: WorkflowChain,
+    step_threads: list[tuple[ChainStep, str]],
+    inputs: dict[str, Any],
+    library_path: str,
+    canceller: _ChainStepsCanceller,
+) -> None:
     """Run the chain's steps sequentially through the real workflow runner."""
     from fichero_server.api.routes.workflow_execution.schemas import (  # noqa: PLC0415
         ExecuteWorkflowRequest,
@@ -1004,6 +1084,11 @@ async def _run_chain_steps(
                 error = str(exc.detail)
             except Exception as exc:  # pragma: no cover - defensive
                 error = str(exc)
+        if error is not None:
+            # A step refused before it ran still has its run row, with the refusal's words as its reason, so Activity and the
+            # step's popover never say "No reason was recorded" (`activity.run.never-fails-silently`, #6354).
+            await _record_step_run_refused(db, thread_id, step, workflow, exec_request, error)
+            _note_chain(db, "set_parent", thread_id, execution_id)
 
         if error is None:
             _set_step_result(result, index, step, ChainStepStatus.RUNNING)
@@ -1196,6 +1281,7 @@ async def execute_chain_steps(
     request: ExecuteChainStepsRequest,
     http_request: Request,
     x_fichero_library_path: str = Depends(require_library_path),
+    db: Database = Depends(get_library_database_for_write),
 ) -> ChainStepsAcceptedResponse:
     """Run a chain's steps as real, sequential workflow runs (workflow bar).
 
@@ -1203,7 +1289,12 @@ async def execute_chain_steps(
     GET /chains/executions/{execution_id} for per-step statuses, or attach to
     any step's SSE stream_url as it runs.
     """
-    chain = chain_store.get(chain_id)
+    # Every step is a run that reads and writes the documents the inputs AND the step's own static_inputs name (they win).
+    if (stored := chain_store.get(chain_id, db)) is None:
+        await _check_chain(http_request, x_fichero_library_path, db, request.inputs)
+    else:
+        await _check_chain(http_request, x_fichero_library_path, db, request.inputs, *(st.static_inputs for st in stored.steps), steps=stored.steps)
+    chain = chain_store.get(chain_id, db)
     if not chain:
         raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")
     if not chain.steps:

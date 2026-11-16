@@ -36,7 +36,7 @@ struct PairedDevicesSectionView: View {
                 ForEach(devices) { device in
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(device.name)
+                            Text(device.inspectorLabel)
                             Text(device.lastSeen, style: .relative)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)

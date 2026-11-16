@@ -30,4 +30,19 @@ struct SharingOffGreysRowTests {
         #expect(manager.hostGoneRows == [kept])
         manager.hostGoneRows = []
     }
+
+    @Test func greyedRowsSurviveARelaunch() throws {
+        let defaults = try #require(UserDefaults(suiteName: "SharingOffGreysRowTests.\(UUID().uuidString)"))
+        let rows = [HostGoneRow(id: UUID(), name: "Marshall", host: "studio.local")]
+        HostGoneRowStore.save(rows, to: defaults)
+        #expect(HostGoneRowStore.load(from: defaults) == rows, "a fresh launch reads what the last one saved")
+        HostGoneRowStore.save([], to: defaults)
+        #expect(HostGoneRowStore.load(from: defaults).isEmpty, "Forget leaves nothing to come back")
+    }
+
+    @Test func anUnreadableRecordIsNoRowsNotACrash() throws {
+        let defaults = try #require(UserDefaults(suiteName: "SharingOffGreysRowTests.\(UUID().uuidString)"))
+        defaults.set(Data("not json".utf8), forKey: HostGoneRowStore.key)
+        #expect(HostGoneRowStore.load(from: defaults).isEmpty)
+    }
 }

@@ -1,14 +1,15 @@
 # Workflows — Design Spec (#4705 sibling; workflow surface)
 
 > Milestone: workflows
-> Manual: TBD — a section explaining: a workflow is a saved recipe of steps a user
+> Manual: docs/contributor_manual/guide/08-workflows-activity-and-curation.md (the contributor page; the user-manual section is still
+> to write — a section explaining: a workflow is a saved recipe of steps a user
 > can run over selected files/folders/search results; the built-in ("Default
 > Workflows") ones are locked and Duplicate-to-Edit makes an editable copy; the
 > workflow bar lets a user build and run a short chain of verbs without opening the
-> canvas at all; every run has a live output log and a history of past runs.
+> canvas at all; every run has a live output log and a history of past runs).
 
 > Design-led (Testing Constitution). The creative director owns the intent below;
-> tests enforce it; code makes them pass. **Status: DRAFT.**
+> tests enforce it; code makes them pass. **Status: APPROVED 2026-11-02 by the manager (owner-delegated); build order as written.**
 >
 > Grounded in code, read/grepped this session (paths relative to
 > `fichero/fichero/` unless stated otherwise; server paths relative to
@@ -165,8 +166,8 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   #4797) duplicating a locked preset makes an editable copy in a personal
   folder and opens it for editing (`WorkflowToolbar.swift:27-52`,
   `WorkflowEditor.swift:217-224`).
-- `workflows.text-reflow.ai-refinement-works` — **[BROKEN]** (#5921, found 2026-10-20 by the M4 run of the pause tests) the Text Reflow step's optional AI refinement (`use_ai_refinement`) has never worked: it imports `call_llm_with_cache` from `fichero_server.llm`, which defines no such function, so every run raised ImportError, swallowed into "return the heuristic text". Rule: an option that is on either refines or says why it could not; a broken import is not a provider failure. Today: a page with the option on keeps its reflowed text and the run says once, as an Activity warning, "AI refinement isn't available yet (#5921)" (not one per page, and no raw import error); fixing or removing the option is a separate owner decision. Pinned by `fichero-server/tests/unit/jobs/test_a_paused_page_is_paused_not_failed_5919.py` (the tripwire test, delete when #5921 is closed).
-- `workflows.canvas.edge-legality-matches-engine` — **[BROKEN]** the canvas's
+- `workflows.text-reflow.ai-refinement-works` — **[OK]** (**Owner ruling 2026-11-02, #5921: REMOVE the option.** Step 1.5: `use_ai_refinement`, `_refine_with_llm` and its Activity note are deleted from `workflows/tools/text_reflow.py`, the tool no longer claims a model, and a stored workflow that still names the key is accepted and ignored with no error; no preset or app setting named it. Pinned by `fichero-server/tests/unit/workflows/test_text_reflow_has_no_ai_option_5921.py`.) Was: (#5921, found 2026-10-20 by the M4 run of the pause tests) the Text Reflow step's optional AI refinement (`use_ai_refinement`) has never worked: it imports `call_llm_with_cache` from `fichero_server.llm`, which defines no such function, so every run raised ImportError, swallowed into "return the heuristic text". Rule: an option that is on either refines or says why it could not; a broken import is not a provider failure. Today: a page with the option on keeps its reflowed text and the run says once, as an Activity warning, "AI refinement isn't available yet (#5921)" (not one per page, and no raw import error); fixing or removing the option is a separate owner decision. Pinned by `fichero-server/tests/unit/jobs/test_a_paused_page_is_paused_not_failed_5919.py` (the tripwire test, delete when #5921 is closed).
+- `workflows.canvas.edge-legality-matches-engine` — **[OK]** (fixed: 76595815b6 made the engine's table the one owner and decided the six conversions, #4478; 12632c83b7 made the canvas derive `canConnect` from the served table, #4477; verified 2026-11-02: `PortConnectionRules.canConnect` has no table of its own.) Was: the canvas's
   `canConnect` allows five conversions the engine's `validate_port_connection`
   rejects (`json→text`, `array→json`, `array→text`, `image→file`,
   `image→files`), so the canvas lets a user draw and save an edge the engine
@@ -187,7 +188,7 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
 - `workflows.canvas.hidden-tools-in-palette` — **[GAP]** not every tool the
   engine can run appears in the canvas's node palette. ISSUE: #2440 ("Show the
   hidden tools").
-- `workflows.canvas.16-palette-tools-cannot-execute` — **[BROKEN]** ~16
+- `workflows.canvas.16-palette-tools-cannot-execute` — **[OK]** (fixed: 18c5b3cc68 "honest palette", #4322; verified 2026-11-02: `GET /api/workflows/tools` serves `list_executable_tools()` only, 128 of 144 registered, the 16 unimplemented ones are not offered.) Was: ~16
   palette-visible node kinds (`if`, `switch`, `loop`, `filter`, `merge`, the
   five export nodes, `custom_llm`, …) are declared in
   `registry_builtins.py` with no `@register_tool` implementation and served
@@ -204,8 +205,9 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   #4340.
 - `workflows.canvas.version-history` — **[GAP]** no snapshot/diff history of a
   workflow's definition changes over time. ISSUE: #4342.
-- `workflows.canvas.dry-run` — **[GAP]** no "Test / Dry Run" affordance to
+- `workflows.canvas.dry-run` — **[PARTIAL]** (Step 2.3, #4370) `POST /api/workflow-execution/dry-run` asks the same checks `/execute` makes (`_execution_problems`, one function) and answers `ok`, every problem in words, the steps and which call a model, the declared scope; it starts no run, calls no model and writes nothing. Pinned by `fichero-server/tests/unit/workflows/test_dry_run_to_spec.py`. The editor's Test button is Swift, not yet built. Was: no "Test / Dry Run" affordance to
   validate a workflow before spending a real run. ISSUE: #4370.
+- `workflows.canvas.dry-run-button` — **[GAP]** (#4370, Step 4.6) the editor has a Test button that calls the dry run and shows its problems in words, the steps that call a model and the scope sentence, before any run is spent.
 - `workflows.canvas.cost-estimate-up-front` — **[GAP]** no shown cost/call
   estimate before running from the editor. ISSUE: #1818. The estimate itself (time,
   cost and greenhouse gas, each measured, estimated or unknown) is owned by
@@ -258,16 +260,16 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   covers the "empty selection on a `.collection`-input workflow" case this
   behavior named, and the dispatched run uses the CONFIRMED scope rather than
   re-resolving it. Pinned: `WorkflowEditorRunGateTests`.
-- `workflows.run.provenance-run-id-on-artifacts` — **[GAP]** artifacts carry
+- `workflows.run.provenance-run-id-on-artifacts` — **[OK]** (built: 428c4ee77f, #4313 — `workflows/node_context.py` stamps run_id, step_name, workflow_id and a per-run sequence on the live path; pinned by `fichero-server/tests/unit/workflows/test_run_artifact_provenance.py`, 5 pass 2026-11-02, incl. a stubbed run whose artifacts link to it.) Was: artifacts carry
   `run_id`/`step_name` fields but the live execution path never populates them
   (2026-07-29 review F1 — carried as design evidence; the "Runs on N documents"
   provenance ruling from the workflows-done-right mandate depends on this).
   ISSUE: #4312 (EPIC: "Every run tells you what it did — provenance, trace, and
   honest controls").
-- `workflows.run.pause-is-dead-end` — **[GAP]** a paused run cannot be
+- `workflows.run.pause-is-dead-end` — **[OK]** (built: 393600d9ee, #4316 — a paused run is cancelled directly (`_cancel_settled_run`), deleted, and resumes from its checkpoint; pinned by `tests/unit/workflows/test_run_lifecycle_vocabulary.py` (cancel and delete a paused run) and `test_pause_inside_a_long_node.py`, 45 pass with the next line's tests, 2026-11-02.) Was: a paused run cannot be
   cancelled, deleted, or reliably resumed (2026-07-29 review F3). Folded into
   #4312.
-- `workflows.run.stuck-processing-on-cancel-fail` — **[GAP]** a
+- `workflows.run.stuck-processing-on-cancel-fail` — **[OK]** (built: d16c75f879, #4315 — every terminal path calls `finalize_run_documents`, so processing documents return to pending; pinned by `tests/unit/workflows/test_finalize_run_documents.py` (cancelled and failed runs) and `tests/unit/api/test_workflow_cancel.py`.) Was: a
   cancelled/failed run can leave its documents at `processing` forever, never
   calling the completion path that flips status back (2026-07-29 review F2).
   Folded into #4312.
@@ -290,16 +292,17 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   nothing) is untouched, and coverage of a single long call with no per-item
   loop, or a purely serial non-looping node boundary, was not independently
   re-verified.
-- `workflows.run.trace-view` — **[GAP]** no read-only "what actually happened"
+- `workflows.run.trace-view-in-the-app` — **[GAP]** (#4312, Step 4.4) the app shows a run's trace read-only: each planned step with its status (including `not_run`), its artifacts and how long it took, from `GET /api/workflow-execution/threads/{id}/run` (`steps`, `progress_timeline`, `diagram_svg_url`).
+- `workflows.run.trace-view` — **[PARTIAL]** (engine built, #4284: `GET /api/workflow-execution/threads/{id}/run` serves one record per planned step, `not_run` explicit, joining snapshot, timeline and artifacts, with the diagram and usage; pinned by `fichero-server/tests/unit/workflows/test_run_steps.py` and `test_run_step_failure_legibility.py`, 23 pass 2026-11-02; the app's view is `workflows.run.trace-view-in-the-app`, Step 4.4.) Was: no read-only "what actually happened"
   per-run trace view exists yet, though the review found most of the needed
   data (checkpoints, `progress_timeline`, Mermaid diagrams) already persisted
   — three leaks to plug, not new architecture (2026-07-29 review §3.3). ISSUE:
   #4312 (trace is one leg of the EPIC).
-- `workflows.run.scoreboard-quality-and-cost` — **[GAP]** no per-workflow
+- `workflows.run.scoreboard-quality-and-cost` — **[PROPOSED]** (DEFERRED, manager ruling 2026-11-02: no definition of "quality" yet; the issue stays open; see Deferred under Build order) no per-workflow
   scoreboard tracking quality/cost over time. ISSUE: #4344.
-- `workflows.run.cost-tracking-per-node` — **[GAP]** no per-node/per-workflow
+- `workflows.run.cost-tracking-per-node` — **[PARTIAL]** (Step 2.2, #4343) each step record of `GET /api/workflow-execution/threads/{id}/run` carries `model_calls`, `total_tokens`, `cost_usd` and `cost_priced` from its timeline entry, present only when the step called a model, `cost_usd` null (never 0) when nothing could be priced; the run's own total is `run_usage` beside it. Pinned by `fichero-server/tests/unit/workflows/test_cost_per_node_to_spec.py`. The app's trace shows them in Step 4.4. Was: no per-node/per-workflow
   spend visibility. ISSUE: #4343.
-- `workflows.run.comparison-node` — **[GAP]** (#4797) **RESHAPED (creative-director ruling, 2026-09-18, same as
+- `workflows.run.comparison-node` — **[PROPOSED]** (DEFERRED, manager ruling 2026-11-02: creative-director triage undecided; the issues stay open; see Deferred under Build order) (#4797) **RESHAPED (creative-director ruling, 2026-09-18, same as
   `research.md`'s `research.compare-folds-into-chat`):** the RESULT side of this design is
   retired — there is no persisted comparison node, view or window; a comparison's result is two
   sibling artifacts shown in two Reader panes with a diff lens. The PRODUCING side survives: a
@@ -396,10 +399,13 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   legacy preset folder can open the custom workflow view instead of the
   expected folder browse, and legacy preset folders can be stuck at the tree
   root with no lock applied. ISSUE: #4186.
-- `workflows.defaults.duplication-regrown` — **[GAP]** the shipped preset set
+- `workflows.defaults.duplication-regrown` — **[PARTIAL]** the shipped preset set
   has regrown near-duplicate presets (e.g. multiple topologically-identical
   transcription presets; Catalogue exists in three shapes) — a pruning pass is
-  design work, not a bug fix (2026-07-29 review F15). (#4738).
+  design work, not a bug fix (2026-07-29 review F15). Today no two presets are the
+  same graph with the same settings, and the five groups that share a topology are
+  pinned in `test_preset_family_to_spec.py` so the set cannot grow unnoticed; which
+  members to prune waits on a ruling. (#4738).
 - `workflows.defaults.transcribe-family-consistent-ensemble-pattern` — **[GAP]** the
   transcribe preset family should share one pattern where the input is hard: cross-model
   ensemble → critical review surfacing disagreement → resolve only the disputed spans →
@@ -414,18 +420,23 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   paleographer-verified page, a real dispute-rate measurement on a harder (blotted/
   procesal-encadenada) page, and a cheap-tier ($vision_small local model) calibration
   measurement — with the numbers written into the workflow's own notes. ISSUE: #3905.
-- `workflows.defaults.chains-not-persisted` — **[GAP]** workflow chains
+- `workflows.defaults.chains-not-persisted` — **[PARTIAL]** workflow chains
   assembled interactively are in-memory only — lost on restart, and can leak
-  across libraries/users. ISSUE: #3181.
-- `workflows.defaults.scope-contract-undeclared` — **[GAP]** a workflow has no
+  across libraries/users. Step 3.4: a chain made with a library named is stored in that
+  library (`ChainStore`, a `LibrarySetting` row), survives a restart and is not seen from
+  another library; pinned by `test_defaults_resolution_to_spec.py`. Left: a caller that
+  names no library still gets the process's in-memory chains, and per-user scoping inside
+  one library is not done. ISSUE: #3181.
+- `workflows.defaults.scope-contract-undeclared` — **[PARTIAL]** a workflow has no
   declared contract for its source kind, fan-out, or where its output attaches
   — needed so scope-widening bugs (the class the confirm/cancel gate patched
   point-fashion, `workflows.run.scope-widening-confirmed`) get closed
   structurally rather than one at a time. ISSUE: #4397.
+  **Engine built (Step 1.1): `workflow_scope` in `workflows/validation.py` — `config.scope` when declared, else folder-level when a node's tool is in `FOLDER_LEVEL_TOOLS` (`catalogue`), else per file — served as `scope` and `scope_sentence` on every workflow; the run menu (Step 4.1) is the Swift half.**
   **Ruled 2026-10-04 (#4397):** each workflow declares its scope, per file or once per folder; a
   folder-level run's output is attached to the folder; the run menu says which before the person
   runs it (`workflows.defaults.declared-scope`).
-- `workflows.defaults.declared-scope` — **[GAP]** (#4397) every workflow declares whether it runs
+- `workflows.defaults.declared-scope` — **[PARTIAL]** (#4397) every workflow declares whether it runs
   per file or once per folder. A once-per-folder run attaches its output to the folder, not to a
   file in it, and the run menu names the scope ("Runs on each of N files" or "Runs once on this
   folder") before anything runs. (Ruled 2026-10-04.)
@@ -460,6 +471,165 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
 Pure-policy tests first: `WorkflowSavePolicy.canAutoSave` and `WorkflowBarPolicy`
 are both already designed to be tested without a window (no SwiftUI in either) —
 the highest-leverage, cheapest tests to land first, ahead of any XCUITest.
+
+## Build order
+
+Steps a long-running builder can take from the heading, engine before Swift, one commit per step. A step flips its behaviours' tags only with its test green; `Depends on` defaults to the step before. Open question 4 (hide non-executable tools) is already met by #4322, and `workflows.canvas.16-palette-tools-cannot-execute` and `workflows.canvas.edge-legality-matches-engine` are [OK] (above). The step that needs the owner is 1.5.
+
+### Stage 1 — engine: declared scope, honest runs, provenance
+
+Engine only, one pytest per step. Each step flips its tags only with its test green. Tests are `fichero-server/tests/unit/workflows/test_*_to_spec.py`, each named for the step's behaviours and written first (red).
+
+#### Step 1.1 — Declared scope on every workflow (#4397)
+- Behaviours: `workflows.defaults.scope-contract-undeclared`, `workflows.defaults.declared-scope`
+- Tests: fichero-server/tests/unit/workflows/test_declared_scope_to_spec.py (exists)
+- Size: S
+
+#### Step 1.2 — A run's id and step name reach its artifacts (#4312)
+- Behaviours: `workflows.run.provenance-run-id-on-artifacts`
+- Tests: fichero-server/tests/unit/workflows/test_run_artifact_provenance.py
+- Size: M
+
+#### Step 1.3 — A paused run can be cancelled, deleted and resumed; a failed run frees its documents (#4312)
+- Behaviours: `workflows.run.pause-is-dead-end`, `workflows.run.stuck-processing-on-cancel-fail`
+- Tests: fichero-server/tests/unit/workflows/test_run_lifecycle_vocabulary.py, fichero-server/tests/unit/workflows/test_finalize_run_documents.py
+- Size: M
+
+#### Step 1.4 — Stop reaches every boundary, including a serial node with no per-item loop (#4402)
+- Behaviours: `workflows.stop-cancels-at-every-boundary`
+- Tests: fichero-server/tests/unit/workflows/test_stop_at_every_boundary_to_spec.py
+- Size: M
+
+#### Step 1.5 — Text Reflow's AI refinement refines or says why; remove the option (owner ruling 2026-11-02, #5921)
+- Behaviours: `workflows.text-reflow.ai-refinement-works`
+- Tests: fichero-server/tests/unit/workflows/test_text_reflow_has_no_ai_option_5921.py
+- Size: S
+
+#### Step 1.6 — The served requires_vision is true, false or unknown, with the OpenAPI and Swift regeneration for Stage 1 (#4506)
+- Behaviours: `workflows.requires-vision-unknown`
+- Tests: fichero-server/tests/unit/workflows/test_served_contract_to_spec.py, fichero-server/tests/unit/workflows/test_requires_vision_unknown_4506.py
+- Size: S
+
+### Stage 2 — engine: trace, cost, dry run
+
+Engine only; the served shapes land with one OpenAPI regeneration at the end of the stage.
+
+#### Step 2.1 — A read-only trace of what a run did (#4312)
+- Behaviours: `workflows.run.trace-view`, `workflows.run.output-log-live`
+- Tests: fichero-server/tests/unit/workflows/test_run_steps.py, fichero-server/tests/unit/workflows/test_run_step_failure_legibility.py
+- Size: M
+
+#### Step 2.2 — Cost per node and per workflow, and the estimate up front (#4343, #1818)
+- Behaviours: `workflows.run.cost-tracking-per-node`, `workflows.canvas.cost-estimate-up-front`, `workflows.canvas.cost-chip-counts-vision-and-unpriced`
+- Tests: fichero-server/tests/unit/workflows/test_cost_per_node_to_spec.py
+- Size: M
+
+#### Step 2.3 — Test / Dry Run (#4370)
+- Behaviours: `workflows.canvas.dry-run`
+- Tests: fichero-server/tests/unit/workflows/test_dry_run_to_spec.py
+- Size: M
+
+#### Step 2.5 — Measure the source node's memory before changing it (#4390)
+- Behaviours: `workflows.source-node-memory-measured`
+- Tests: fichero-server/scripts/measure_source_node_memory.py
+- Size: S
+
+`fichero-server/scripts/measure_source_node_memory.py` builds a temporary library (never the app's database) and prints peak RSS; proven at 50 pages on the Pro (2.0 MB of page text held in state, 3.4 MB RSS growth, linear in pages). The 500-page baseline is run on the M4 iMac, not the Pro (command in the handoff); the result (500 pages x 40 KB: 20,480,000 B of page text in state, +44.7 MB peak RSS) is in `docs/contributor_manual/design/workflow-source-node-memory.md`. (Step 2.4, the scoreboard and the comparison node, is deferred: see Deferred.)
+
+#### Step 2.6 — The source node emits ids and hydrates documents per batch (#4390)
+- Behaviours: `workflows.source-node-hydrates-lazily`
+- Tests: fichero-server/tests/unit/workflows/test_source_node_hydrates_lazily_to_spec.py
+- Depends on: 2.5
+- Size: M
+
+### Stage 3 — engine: presets and defaults
+
+Engine only.
+
+#### Step 3.1 — Every shipped preset proven on both axes; (Untested) only until then (#4369, #4501)
+- Behaviours: `workflows.defaults.every-preset-proven-on-both-axes`, `workflows.preset-validated`
+- Tests: fichero-server/tests/unit/workflows/test_presets_proven_to_spec.py
+- Size: M
+
+#### Step 3.2 — Near-duplicate presets pruned and the transcribe family follows one ensemble pattern (#4738)
+- Behaviours: `workflows.defaults.duplication-regrown`, `workflows.defaults.transcribe-family-consistent-ensemble-pattern`, `workflows.defaults.ensemble-workflow-validated-end-to-end`
+- Tests: fichero-server/tests/unit/workflows/test_preset_family_to_spec.py
+- Size: M
+
+#### Step 3.3 — Translate double-checks by default; extraction has a consistency pass (#3907, #3909)
+- Behaviours: `workflows.defaults.translate-crosschecks-by-default`, `workflows.defaults.extraction-has-consistency-pass`, `workflows.translate-from-artifact-menu-runs`
+- Tests: fichero-server/tests/unit/workflows/test_translate_and_extraction_checks_to_spec.py
+- Size: M
+
+#### Step 3.4 — Defaults resolve from the app; user definitions are user-level; chains persist (#4450, #4277, #3181)
+- Behaviours: `workflows.defaults-resolve-from-the-app-not-the-library`, `workflows.defaults.recipes-user-level-runs-library-pinned`, `workflows.defaults.chains-not-persisted`
+- Tests: fichero-server/tests/unit/workflows/test_defaults_resolution_to_spec.py
+- Size: M
+
+#### Step 3.5 — The bar's Catalogue item runs; folder order and empty states are served (#3387, #4387)
+- Behaviours: `workflows.bar.catalogue-menu-item-runs`, `workflows.bar.folder-order-and-icons-served`, `workflows.folders.route-ordered-not-alphabetical`, `workflows.folders.unknown-folder-still-visible`, `workflows.folders.empty-states-suggest-a-workflow`
+- Tests: fichero-server/tests/unit/workflows/test_bar_and_folders_served_to_spec.py (not yet written)
+- Size: M
+
+### Stage 4 — Swift: the run surface
+
+Swift, after the Stage 1-3 regeneration. Pure types are verified with a standalone `swiftc` script; the landing check builds the rest.
+
+#### Step 4.1 — The run menu names the scope before anything runs (#4397)
+- Behaviours: `workflows.bar.scope-uses-the-real-primary-selection`, `workflows.bar.click-appends-not-runs`
+- Tests: fichero/Tests/Unit/general/Models/WorkflowRunScopeTests.swift (exists)
+- Size: S
+
+#### Step 4.2 — Pause, Resume and Stop show their state at once (#4402)
+- Behaviours: `workflows.run.controls-are-fire-and-forget`, `workflows.bar.step-popover-run-glance`, `workflows.bar.labels-toggle-persists`, `workflows.run.source-tools-excluded-from-file-columns`
+- Tests: fichero/Tests/Unit/general/Workflow/WorkflowRunControlsTests.swift (not yet written)
+- Size: S
+
+#### Step 4.3 — Selecting a workflow opens its editor; switching never blocks on a stale one (#4882, #4893)
+- Behaviours: `workflows.selection.library-row-opens-editor`, `workflows.canvas.switching-workflow-blocks-the-stale-editor`, `workflows.defaults.folder-click-opens-custom-view`
+- Tests: fichero/Tests/Unit/general/Workflow/WorkflowSelectionTests.swift (not yet written)
+- Size: M
+
+#### Step 4.4 — The app shows a run's trace, read-only (#4312)
+- Behaviours: `workflows.run.trace-view-in-the-app`
+- Tests: fichero/Tests/Unit/general/Workflow/WorkflowRunTraceTests.swift (not yet written)
+- Size: M
+
+#### Step 4.6 — The editor's Test button shows what a dry run found (#4370)
+- Behaviours: `workflows.canvas.dry-run-button`
+- Tests: fichero/Tests/Unit/general/Workflow/WorkflowDryRunTests.swift (not yet written)
+- Depends on: 2.3
+- Size: S
+
+### Stage 5 — Swift: the canvas
+
+Swift.
+
+#### Step 5.1 — The canvas draws ports from the registry only, shows every executable tool, and renders nodes and edges as designed (#4736, #2440, #4797)
+- Behaviours: `workflows.canvas.renders-nodes-edges-ports`, `workflows.canvas.hidden-tools-in-palette`, `workflows.canvas.every-node-editable-tool`, `workflows.canvas.ports-come-from-registry`
+- Tests: fichero/Tests/Unit/general/Workflow/WorkflowCanvasPortsTests.swift (not yet written)
+- Size: M
+
+#### Step 5.2 — Fan-out is editable; edges are selectable and deletable; a node says what it reads and writes (#2442, #2524, #1660)
+- Behaviours: `workflows.canvas.fan-out-editable`, `workflows.canvas.edges-selectable-and-deletable`, `workflows.canvas.node-shows-reads-and-writes`
+- Tests: fichero/Tests/Unit/general/Workflow/WorkflowCanvasEdgesTests.swift (not yet written)
+- Size: M
+
+#### Step 5.3 — Arrange and resize; version history; duplicate to edit pinned (#4340, #4342)
+- Behaviours: `workflows.canvas.arrange-and-resize`, `workflows.canvas.version-history`, `workflows.canvas.duplicate-to-edit`
+- Tests: fichero/Tests/Unit/general/Workflow/WorkflowCanvasHistoryTests.swift (not yet written)
+- Size: M
+
+#### Step 5.4 — One icon for a workflow node, protected folders look protected (#4516, #4514)
+- Behaviours: `workflows.nodes-have-one-icon-in-sidebar-and-library`, `workflows.default-folders-visibly-protected`
+- Tests: fichero/Tests/Unit/general/Workflow/WorkflowNodeIconTests.swift, fichero/Tests/Unit/general/Workflow/WorkflowSavePolicyTests.swift (not yet written)
+- Size: S
+
+
+### Deferred (manager ruling 2026-11-02; not dropped, the issues stay open)
+
+- #4344, `workflows.run.scoreboard-quality-and-cost`: there is no definition of "quality" yet, so there is nothing to build a scoreboard from.
+- #4328, `workflows.run.comparison-node`: the creative director's triage of what survives the 2026-09-18 reshaping is undecided.
 
 ## Rulings
 
@@ -516,6 +686,10 @@ the highest-leverage, cheapest tests to land first, ahead of any XCUITest.
    ("kraken_model")` into `vision_base.py`'s own parameter of that (different) name — both
    names genuinely exist in the codebase today, confirmed by grep, not a hypothetical. See also
    `workflow-node-config.md`, which owns the node-popover half of this surface.
+
+8. **Ruled** (manager, owner-delegated, 2026-11-02): **Which near-duplicate presets are pruned (#4738)?** None. Presets that differ only in config are real choices for people; they stay and are pinned by `test_preset_family_to_spec.py`. **Proposal for the owner, not acted on:** the three `analyze` presets (Modernización, Regesto, Translate to English) and the four `detect_regions` presets differ only in prompt or engine, so they look like one preset with a choice, not four; if the owner agrees, that is a UI change (a chooser) and not a deletion. No preset is removed.
+9. **Ruled** (same): **What is the one ensemble pattern for the transcribe family (#3906)?** N transcribe nodes (different readers) feeding one critical-review node that compares them, feeding one resolve node that touches only the disputed spans, using existing nodes and no new node types. It is specified here and not yet shipped as a preset; `workflows.defaults.transcribe-family-consistent-ensemble-pattern` stays [GAP] until a preset has that shape.
+10. **Ruled** (same): **Is `workflows.defaults.ensemble-workflow-validated-end-to-end` (#3905) claimed?** No. Its CER, dispute-rate and cheap-tier numbers need a run against a real model; nothing here has made one. The issue stays open.
 
 ## Sources folded in
 
@@ -647,7 +821,7 @@ are out of scope for this table — see that spec's own behaviors, all already c
 | #1660 | Workflow node editor: make each node clear about what it consumes + produces | — | **UNCOVERED**, below-threshold pair with #2524 — node-editor structural clarity (2 issues, not clustered) |
 | #2524 | Workflow node editor: clickable/editable edges, editable fan-out, graph = actual execution | — | **UNCOVERED**, below-threshold pair with #1660 |
 | #257 | Resolve remaining blockers on the coherent AI layer | — | **UNCOVERED** — too vague/broad to be workflows-specific; recommend the manager re-scope or re-home |
-| #1594 | Real-data processing: Jesuit Mapping + Marshall Diaries — local CLI pipeline | — | **UNCOVERED** — a specific research project's data pipeline, not a general workflows behavior; recommend re-homing off this milestone |
+| #1594 | Real-data processing: Jesuit Mapping + a multi-volume diary — local CLI pipeline | — | **UNCOVERED** — a specific research project's data pipeline, not a general workflows behavior; recommend re-homing off this milestone |
 | #2094 | EPIC: All models managed in Settings → Models | — | **UNCOVERED** — a Settings/Models surface epic, not workflows; recommend re-homing |
 | #2591 | node-model: fold workspaces/tasks/issues/aliases/bookmarks/saved-searches into node types | — | **UNCOVERED** — the cross-cutting node-model EPIC (modes-to-panes/node-model territory); recommend re-homing, not a workflows sub-spec |
 | #4330 | Rendition model and two-axis navigation in Preview | — | **UNCOVERED** — reads as `panes-workspaces`/Preview rendition work; recommend re-homing |
@@ -724,14 +898,15 @@ cluster with ≥4 issues; PROPOSAL ONLY, not written, no milestone created):
 - `workflows.canvas.node-shows-reads-and-writes` — **[GAP]** (#1660) each node in the editor states what it consumes and what it produces and persists (artifact, KG rows, none)
 - `workflows.canvas.edges-selectable-and-deletable` — **[GAP]** (#2524) an edge can be clicked, inspected, deleted and rewired, and the graph shows per-page vs all-together execution (fan-out part already `workflows.canvas.fan-out-editable`)
 - `workflows.bar.catalogue-menu-item-runs` — **[GAP]** (#3387) choosing Workflow > Catalogue runs Catalogue after the earlier steps, and the earlier steps' results are visible on the document first
-- `workflows.defaults.translate-crosschecks-by-default` — **[GAP]** (#3907) Translate and Translate (DeepL) include the double-check pass; Translate / DeepL / Double-Check are consolidated to one preset
-- `workflows.defaults.extraction-has-consistency-pass` — **[GAP]** (#3909) Catalogue/Extract workflows run a verify pass (repeated-name spelling, sum checks) and report disagreements
+- `workflows.defaults.translate-crosschecks-by-default` — **[PARTIAL]** (#3907) Translate and Translate (DeepL) include the double-check pass; Translate / DeepL / Double-Check are consolidated to one preset. Done (manager ruling 2026-11-02): one Translate preset runs transcribe, translate, then the double-check; "Translate + Double-Check" and "Translate (DeepL)" are retired and their ids, names and file keys resolve to Translate. Left: DeepL is no longer a shipped choice (the `translate` tool still takes it), which the owner may want back as a provider choice on the Translate node.
+- `workflows.defaults.extraction-has-consistency-pass` — **[PARTIAL]** (#3909) Catalogue/Extract workflows run a verify pass (repeated-name spelling, sum checks) and report disagreements. Extract Table and Accounts → Spreadsheet now end in the no-model Consistency Check; the Catalogue stages do not yet.
 - `workflows.defaults.routed-workflow-survives-round-trip` — **[OK]** (#3949) a workflow with route_map edges saved and read back keeps route_map/route_key, and the store lists it with no validation error. Pinned: `fichero-server/tests/unit/workflows/test_routed_workflow_round_trip_3949.py` (3 passed 2026-10-17, through the real store and the shipped `transcribe_auto_detect`). The launch-time log was from rows written before `route_map` was persisted; whether any such stale row survives on a real library is not checked here.
-- `workflows.defaults.recipes-user-level-runs-library-pinned` — **[GAP]** (#4277) workflow definitions are user-level and offered in every open library; a run is pinned to the target library's engine; raw files are imported then run
-- `workflows.defaults.every-preset-proven-on-both-axes` — **[GAP]** (#4369) every shipped preset has a test of the model call and of the graph structure, and redundant presets are pruned
-- `workflows.preset-validated` — **[GAP]** (#4501) each shipped preset is validated and only then loses its (Untested) label; the 14 deterministic presets are done (f236db745), the rest are not.
-- `workflows.requires-vision-unknown` — **[PARTIAL]** (#4506) when a sub-workflow cannot be resolved the engine can say "could not determine" rather than False: `workflow_requires_vision_or_unknown` returns None (pinned: `fichero-server/tests/unit/workflows/test_requires_vision_unknown_4506.py`, written, run after gate3). Still owed: the served `requires_vision` field is a plain bool, so the route still spends unknown as False; making it tri-state changes the OpenAPI and the Swift client, and what the UI does with unknown is a ruling.
-- `workflows.source-node-hydrates-lazily` — **[GAP]** (#4390) the workflow source node emits ids and hydrates documents per batch, so peak memory stays bounded instead of holding every selected document's page_content.
+- `workflows.defaults.recipes-user-level-runs-library-pinned` — **[GAP]** (#4277) workflow definitions are user-level and offered in every open library; a run is pinned to the target library's engine; raw files are imported then run **Not built in Step 3.4:** this is a design change (where a user's own definitions live, and how a run pins to a library's engine), so it waits on a design; the step built the other two behaviours.
+- `workflows.defaults.every-preset-proven-on-both-axes` — **[PARTIAL]** (Step 3.1: the STRUCTURE axis is proven for all 61 shipped presets, no model call: a sound graph, legal connections, only executable tools, a valid scope; `fichero-server/tests/unit/workflows/test_presets_proven_to_spec.py`, 185 pass 2026-11-02. The MODEL axis needs real calls and real output, so it is not claimed: 47 presets stay labelled "(Untested)".) (#4369) every shipped preset has a test of the model call and of the graph structure, and redundant presets are pruned
+- `workflows.preset-validated` — **[PARTIAL]** (Step 3.1: the label rule is pinned: the served `untested` is exactly `not config.tested`, for every preset; 14 of 61 are validated) (#4501) each shipped preset is validated and only then loses its (Untested) label; the 14 deterministic presets are done (f236db745), the rest are not.
+- `workflows.requires-vision-unknown` — **[PARTIAL]** (#4506) when a sub-workflow cannot be resolved the engine says "could not determine" rather than False: `workflow_requires_vision_or_unknown` returns None (pinned: `fichero-server/tests/unit/workflows/test_requires_vision_unknown_4506.py`), and the served `requires_vision` is now true, false or null (`tests/unit/workflows/test_served_contract_to_spec.py`; OpenAPI and the Swift contract regenerated, Step 1.6). The app treats unknown as "may need a vision model" and shows the model picker (manager ruling 2026-11-02): `WorkflowResponse.visionIsUnknown`, `WorkflowSidebarItem.visionIsUnknown` (carried by every `WorkflowStore` path) and a "May need vision" badge in the step popover (`SidebarSearchTypesTests`, `RunWorkflowSubmenuOverrideTests`; Swift written, not run here). The rule differs by path on purpose. On the service path (the live list) a missing or null `requires_vision` means unknown, because the generated client drops a null when it encodes, so the two cannot be told apart there; an app and its engine always share a contract identity, so an older engine that never sent the key does not reach that path (`SidebarSearchTypesTests.testTheServiceReadsAMissingOrNullVisionRequirementAsUnknown`). The decoders keep a missing key as false (fail open, no badge) only so a persisted sidebar cache written before the field existed still opens (`testWorkflowSidebarItemReadsAnUnknownVisionRequirement`).
+- `workflows.source-node-memory-measured` — **[PARTIAL]** (#4390, manager ruling 2026-11-02) the source node's peak RSS on a 500-page folder is measured (+44.7 MB, 20.5 MB of page text in state) and written in a short design note; the script is `fichero-server/scripts/measure_source_node_memory.py`.
+- `workflows.source-node-hydrates-lazily` — **[PARTIAL]** (#4390) the workflow source node emits ids and a tool's call hydrates the documents it reads, so state no longer holds every selected document's page_content; hydration is per node call, not yet per batch inside a tool. Built: (2026-11-04, the 06:00 verify-all reds) a library path with no library leaves the references as they are (tests `fichero-server/tests/unit/workflows/test_document_refs_hydration.py::test_references_stay_when_the_library_path_has_no_library`, `fichero-server/tests/unit/workflows/test_no_token_execution_paths.py`), and a segment's work unit (it carries `segment_target`) is never slimmed, so a line, word or sign read still lands on its segment (tests `fichero-server/tests/unit/workflows/test_document_refs_hydration.py::test_a_segments_work_unit_is_kept_whole_and_a_page_is_slimmed`, `fichero-server/tests/unit/workflows/test_run_on_any_level_5604.py`).
 - `workflows.run.scope-is-never-a-workflow` **[BROKEN]** (#4961): pressing Run while a workflow row is selected never sends the workflow or its folder as the run's scope; the run uses the documents the person was looking at, or refuses in the bar before starting, saying there is nothing to run on.
 - `workflows.bar.no-model-override-without-a-model-step` **[BROKEN]** (#4963): the workflow bar sends no model choice to a workflow that has no language or vision step (Detect Segments with Kraken), and its model control shows, disabled with the reason, that it does not apply there.
 - `workflows.run.apple-vision-takes-the-cascade-language` **[BROKEN]** (#5018): an Apple Vision step with no language asked for takes the page's language from the cascade, or records it as unknown, instead of failing on 'auto'; a model the provider serves only in batch is never offered for a live run, and a run never fails at its end because a step returned more than the state cap. (Item 1 is #5019, item 3 #5021.)
@@ -739,9 +914,9 @@ cluster with ≥4 issues; PROPOSAL ONLY, not written, no milestone created):
 - `workflows.run.runner-adds-little-per-page` **[GAP]** (#5264): a run's time is mostly the model's own: the runner adds only a few milliseconds per page around each call, and nothing blocks the engine's event loop while a run goes. (Hosted pages run twelve at a time, 7b5a4dc1e, and embedding left the save, 2e63da0db; ~60-80 ms per page of runner time remains.)
 
 ## Triaged from the August handoffs and the flight handoff (2026-10-17)
-- `workflows.defaults-resolve-from-the-app-not-the-library` — **[PARTIAL]** (#4450) a default workflow is part of the app and exists in every library on every host; seeding it per library lets it drift. A workflow the person built stays per library. Test: a new test_default_workflows_resolve_from_app.py in `fichero-server/tests/unit/workflows/` (to write).
+- `workflows.defaults-resolve-from-the-app-not-the-library` — **[PARTIAL]** (#4450) a default workflow is part of the app and exists in every library on every host; seeding it per library lets it drift. A workflow the person built stays per library. Resolution pinned by `fichero-server/tests/unit/workflows/test_defaults_resolution_to_spec.py` (Step 3.4: a default resolves in a library that holds no copy; a person's own global workflow never reaches another library). Left: the seeder still copies each preset into every library, which is the drift.
 - `workflows.nodes-have-one-icon-in-sidebar-and-library` — **[PARTIAL]** (#4516) a workflow node shows the same SF Symbol in the sidebar and the library views, distinct from a document and a folder. Test: a new WorkflowNodeIconTests.swift in `fichero/Tests/Unit/` (to write).
 - `workflows.default-folders-visibly-protected` — **[PARTIAL]** (#4514, `WorkflowSavePolicy.swift`) default workflow folders look protected in library views as in the bar. Test: a new WorkflowSavePolicyTests.swift in `fichero/Tests/Unit/` (to write).
-- `workflows.translate-from-artifact-menu-runs` — **[PARTIAL]** (#4306) Translate from an artifact's context menu starts the run instead of failing with an error. Test: a new test_translate_from_artifact_context.py in `fichero-server/tests/unit/workflows/` (to write).
-- `workflows.stop-cancels-at-every-boundary` — **[PARTIAL]** (#4402) see `workflows.run.controls-are-fire-and-forget` above for what is built; a serial node with no per-item loop is still unproved. Test: a new test_cancellation_boundaries.py in `fichero-server/tests/unit/workflows/` (to write).
+- `workflows.translate-from-artifact-menu-runs` — **[PARTIAL]** (#4306) Translate from an artifact's context menu starts the run instead of failing with an error. Engine half pinned by `fichero-server/tests/unit/workflows/test_translate_and_extraction_checks_to_spec.py` (the action runs against the project db it is handed; an unknown document is a 404); the app half is `DocumentScopeGuardTests`.
+- `workflows.stop-cancels-at-every-boundary` — **[OK]** (Step 1.4: a node's start is checked too, so a serial node with no per-item loop stops or pauses before its one call; `_make_node_function` in `workflows/builder.py`; pinned by `fichero-server/tests/unit/workflows/test_stop_at_every_boundary_to_spec.py`. A single call already running is not interrupted: that is a provider call's own length.) Was **[PARTIAL]** (#4402) see `workflows.run.controls-are-fire-and-forget` above for what is built; a serial node with no per-item loop is still unproved. Test: a new test_cancellation_boundaries.py in `fichero-server/tests/unit/workflows/` (to write).
 - `workflows.canvas.cost-chip-counts-vision-and-unpriced` — **[PARTIAL]** (#5742) the cost chip adds image (vision) tokens to text tokens and shows "unknown" for a model with no price entry (gemini-3-flash-preview), never a low or zero figure. Test: a new test_workflow_cost_estimate_vision.py in `fichero-server/tests/unit/core/` (to write).

@@ -164,7 +164,8 @@ struct MailStyleRow: View {
     static let entityBlockHeight: CGFloat = 40
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        BodyCount.tick("MailStyleRow")
+        return HStack(alignment: .top, spacing: 12) {
             // Thumbnail to the left — same source as the icon view's
             // DocumentThumbnailView, sized down to fit a list row.
             // Apple Mail / Photos / NetNewsWire convention. (#519 follow-up)

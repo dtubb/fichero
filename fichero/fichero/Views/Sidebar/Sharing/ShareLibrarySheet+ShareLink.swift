@@ -3,8 +3,18 @@ import SwiftUI
 extension ShareLibrarySheet {
     /// Every note shown under the share link. The link goes to ANOTHER person, so it never carries the Settings card's
     /// own-Mac hint (a link minted on the owner's host would pair that Mac as the owner, ## 534); a test reads this list.
-    static func linkNotes(person: String) -> [String] {
-        ["This link lets \(person) connect to your project — it carries a single-use code that expires. Share only with them."]
+    /// `signsIn`: the link has no code and the person signs in with their own name and password (Step 8.9).
+    /// `atAddress`: Multi-user on and a Tailscale address that works: no link at all, the address and an account (#6568).
+    static func linkNotes(person: String, signsIn: Bool = false, atAddress: Bool = false) -> [String] {
+        if atAddress {
+            return ["\(person) chooses Connect to Another Mac, pastes this address and signs in with their username and "
+                    + "password. Tell them those yourself."]
+        }
+        if signsIn {
+            return ["This link takes \(person) to your project; they sign in with their username and password. "
+                    + "Tell them those yourself: the link carries neither."]
+        }
+        return ["This link lets \(person) connect to your project — it carries a single-use code that expires. Share only with them."]
     }
 
     /// The link the person you just shared with actually opens.
@@ -20,57 +30,89 @@ extension ShareLibrarySheet {
     @ViewBuilder
     var shareLinkSection: some View {
         Section("Share Link") {
-            if let pairingLink {
-                LabeledContent("Link") {
-                    Text(pairingLink)
-                        .textSelection(.enabled)
-                        .font(.caption.monospaced())
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                HStack {
-                    Button(copied ? "Copied" : "Copy Link") { copyPairingLink() }
-                    if let url = URL(string: pairingLink) {
-                        ShareLink(item: url) {
-                            Label("Send…", systemImage: "square.and.arrow.up")
-                        }
-                    }
-                }
-                ForEach(Self.linkNotes(person: sharedPersonName), id: \.self) { note in
-                    Text(note)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                if let localNetworkOnlyAdvisory {
-                    // Advisory, not a blocker: the link above is real and works on
-                    // this network. Same shape as the unavailable-reason card so it
-                    // reads as part of the same vocabulary, without pretending the
-                    // link is broken (#5042).
-                    Label {
-                        Text(localNetworkOnlyAdvisory)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } icon: {
-                        Image(systemName: "wifi.exclamationmark")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            } else if let reason = shareLinkUnavailableReason {
-                // Honest fallback only — the common "sharing is off" case is now
-                // handled by Share itself (it turns hosting on), so this renders for
-                // the genuine cannot-proceed cases (remote engine / iOS) or the brief
-                // certificate-minting window. reason.detail explains each honestly; no
-                // stale "go to Settings, then reopen" breadcrumb (#3811).
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(reason.headline)
-                        .font(.headline)
-                    Text(reason.detail)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+            // Which address the link carries (`sharing.share-sheet-offers-both-addresses`): Tailscale when it can work. The
+            // same lines as Add Device, shown with one usable address too, so a greyed Tailscale line says why (#6554).
+            let rows = addressRows
+            if let signIn = AddDeviceSheetModel.signInAddress(multiuser: EngineConfig.multiuserEnabled, rows: rows) {
+                // As Add Device (#6568): with Multi-user on, the Tailscale address and an account, no link or code.
+                signInAddressRows(signIn)
             } else {
-                ProgressView("Preparing link…")
+                if AddressLines.shows(rows) {
+                    AddressLines(rows: rows, chosen: AddressChoiceModel.shownChoice(addressChoice, rows: rows),
+                                 onChoose: { addressChoice = $0 }, serveCommand: sharingState?.tailnetServeCommand)
+                }
+                pairingLinkRows
             }
+        }
+    }
+
+    /// Multi-user on with a working Tailscale address: that address, its Copy and Send…, and how the person gets in.
+    @ViewBuilder
+    private func signInAddressRows(_ row: AddressRow) -> some View {
+        AddressLines(rows: [row], chosen: row.choice, onChoose: { _ in }, onCopy: { _ in
+            if let url = row.url?.absoluteString { PlatformPasteboard.writeString(url) }
+        })
+        if let url = row.url {
+            ShareLink(item: url) { Label("Send…", systemImage: "square.and.arrow.up") }
+        }
+        ForEach(Self.linkNotes(person: sharedPersonName, atAddress: true), id: \.self) { note in
+            Text(note).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    /// The pinned link (Multi-user off, or no Tailscale address that works): the link, Copy Link and Send…, its notes.
+    @ViewBuilder
+    private var pairingLinkRows: some View {
+        if let pairingLink {
+            LabeledContent("Link") {
+                Text(pairingLink)
+                    .textSelection(.enabled)
+                    .font(.caption.monospaced())
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            HStack {
+                Button(copied ? "Copied" : "Copy Link") { copyPairingLink() }
+                if let url = URL(string: pairingLink) {
+                    ShareLink(item: url) {
+                        Label("Send…", systemImage: "square.and.arrow.up")
+                    }
+                }
+            }
+            ForEach(Self.linkNotes(person: sharedPersonName, signsIn: pairingCode?.code.isEmpty == true), id: \.self) { note in
+                Text(note)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if let localNetworkOnlyAdvisory {
+                // Advisory, not a blocker: the link above is real and works on
+                // this network. Same shape as the unavailable-reason card so it
+                // reads as part of the same vocabulary, without pretending the
+                // link is broken (#5042).
+                Label {
+                    Text(localNetworkOnlyAdvisory)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } icon: {
+                    Image(systemName: "wifi.exclamationmark")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } else if let reason = shareLinkUnavailableReason {
+            // Honest fallback only — the common "sharing is off" case is now
+            // handled by Share itself (it turns hosting on), so this renders for
+            // the genuine cannot-proceed cases (remote engine / iOS) or the brief
+            // certificate-minting window. reason.detail explains each honestly; no
+            // stale "go to Settings, then reopen" breadcrumb (#3811).
+            VStack(alignment: .leading, spacing: 6) {
+                Text(reason.headline)
+                    .font(.headline)
+                Text(reason.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } else {
+            ProgressView("Preparing link…")
         }
     }
 }

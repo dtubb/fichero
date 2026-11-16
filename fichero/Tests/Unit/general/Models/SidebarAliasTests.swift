@@ -45,7 +45,7 @@ final class SidebarAliasTests: XCTestCase {
     }
 
     func testSelectionResolvesAliasesViaBackendFetch() throws {
-        let routing = try appSource("Views/Sidebar/Sections/SidebarView+SelectionHandling.swift")
+        let routing = try appSource("Views/Sidebar/Sections/Selection/SidebarView+SelectionHandling.swift")
         // Aliases route through the resolver (backend fetch — lazy caches
         // can't prove danglingness), and dangling surfaces the alert. The
         // branch lives inside the consolidated routeDocumentSelection seam

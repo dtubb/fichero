@@ -2,6 +2,8 @@
 ever chosen starts with Multi-user OFF, says why through health, and never exits. Red before `gate_env_at_start` existed."""
 from __future__ import annotations
 
+import time
+
 from fastapi.testclient import TestClient
 
 from fichero_server import startup_warnings
@@ -81,6 +83,11 @@ def test_the_lifespan_runs_the_gate_at_start_up_and_health_says_why(app_db, monk
     try:
         with TestClient(api_main.app) as client:
             body = client.get("/api/health").json()
+            for _ in range(200):  # the gate runs with the app database after the lifespan yields; health says starting until it is done
+                if not body.get("starting"):
+                    break
+                time.sleep(0.05)
+                body = client.get("/api/health").json()
         assert body["dependencies"].get("multiuser") == multiuser.ENV_OFF_WORDS, body
         assert multiuser.multiuser_enabled() is False
     finally:

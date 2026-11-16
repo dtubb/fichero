@@ -23,6 +23,25 @@ struct SegmentsPaneView: View {
     @State private var pendingSelect: (documentId: String, segmentId: String)?
     /// How many matches on this page wait for review; the head offers them when there are any (#5165).
     @State private var proposedMatches = 0
+    /// The bar under the list (`source.editor.segments-list-has-a-filter-bar`, #6476); cleared with the page.
+    @State private var filter = SegmentsFilter()
+    /// Which facts a row shows after its words, per window ("Show in Rows", #6482); every one by default.
+    @SceneStorage("segments.rowFacts") private var rowFactsRaw = "all"
+    /// The page's readers and their words, from its one compare answer (#6492); nil until it arrives.
+    @State private var otherReadings: SegmentOtherReadings?
+    /// The readers whose words show under each row, by label, per window ("Other Readings", #6492); none by default.
+    @SceneStorage("segments.otherReaders") private var otherReadersRaw = ""
+
+    /// What the filter leaves, nil while it is off: the same rows in every lens.
+    private var filtered: SegmentsFilter.Result? {
+        guard filter.isActive else { return nil }
+        var flagged: Set<String> = []
+        if let document, let segmentService,
+           let flags = FlaggedLineStore.shared(for: segmentService).flagsByDocument[document.id] {
+            flagged = Set(flags.keys)
+        }
+        return filter.apply(to: segments, flagged: flagged)
+    }
 
     /// The page's segments the pane lists: the working pass's only (`SegmentStore.workingSegments`, #5467).
     private var segments: [Segment] {
@@ -44,8 +63,10 @@ struct SegmentsPaneView: View {
                 SegmentsGatheredList(gather: gather, open: open)
             } else if let document, lens != .list {
                 SegmentsPictureGrid(
-                    // With no named order, the pictures come as written, as the list does (#5204).
-                    segmentIds: SegmentsPane.shownOrAsWritten(orders?.shown.map(\.segmentId), segments, under: parentId),
+                    // With no named order, the pictures come as written, as the list does (#5204); the filter keeps
+                    // the same rows the list keeps.
+                    segmentIds: SegmentsPane.shownOrAsWritten(orders?.shown.map(\.segmentId), segments, under: parentId)
+                        .filter { filtered?.shown.contains($0) ?? true },
                     segments: Dictionary(segments.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }),
                     isStrip: lens == .strip, selected: picked,
                     pick: { id in pick(id, on: document.id) },
@@ -56,20 +77,34 @@ struct SegmentsPaneView: View {
             } else {
                 listHalf
             }
+            if document != nil, windowState?.segmentsGather == nil {
+                Divider()
+                let result = filtered
+                SegmentsFilterBar(
+                    filter: $filter, options: SegmentsFilter.options(in: segments),
+                    count: result.map { ($0.matched.count, segments.count) }
+                )
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: "\(document?.id ?? "")/\(parentId ?? "")/\(workingPassId ?? "")") { await showLevel() }
         .task(id: document?.id) {
             parentId = nil
+            filter = SegmentsFilter()
             guard let document, let segmentService else { return }
             let store = SegmentStore.shared(for: segmentService)
             await store.load(documentId: document.id)
             proposedMatches = (try? await segmentService.proposedMatches(documentId: document.id).count) ?? 0
             // The teacher-line check's flags (#5446), for the strip and grid as well as the list.
             await FlaggedLineStore.shared(for: segmentService).load(documentId: document.id)
+            // The page's other readings (#6492): one compare answer per page, for the menu and the rows.
+            otherReadings = nil
+            let compare = CompareReadersStore(client: segmentService.client, pageId: document.id, platform: .mac)
+            await compare.load()
+            if !Task.isCancelled, let answer = compare.answer { otherReadings = SegmentOtherReadings(answer: answer) }
             // A gathered row's page has arrived: select its segment in the focused Source view.
             if let pending = pendingSelect, pending.documentId == document.id,
-               let selection = windowState?.focusedRegionSelection {
+               let selection = windowState?.sharedRegionSelection {
                 InspectorPath.select(segmentIds: [pending.segmentId], into: selection, documentId: document.id, store: store)
                 pendingSelect = nil
             }
@@ -84,21 +119,30 @@ struct SegmentsPaneView: View {
         ) {
         case .list:
             if let document, let orders {
+                if let row = SegmentsPane.pageRow(name: document.name, segments: segments, parentId: parentId) {
+                    SegmentsPageRow(row: row, selected: pageIsSelected(document.id)) { selectPage() }
+                    Divider()
+                }
                 // Only once the ONE store exists: the list keeps the store it is first given, so handing
                 // it nil would make it build a second one the strip and grid would not see.
                 ReadingOrderList(
                     documentId: document.id, parentSegmentId: parentId, store: orders,
                     onOpen: { parentId = $0 }, opens: { SegmentsPane.hasChildren($0, in: segments) },
                     rowLabel: { id, index in
-                        SegmentsPane.rowLabel(
-                            segments.first { $0.id == id }, at: index,
+                        let found = segments.first { $0.id == id }
+                        return SegmentsPane.rowLabel(
+                            SegmentsPane.showing(otherReadings?.shown(id), on: found),
+                            at: SegmentsPane.numberingPlace(of: found, at: index, among: segments),
                             direction: segmentService.flatMap {
                                 SegmentStore.shared(for: $0).direction(of: id, documentId: document.id)
                             }
                         )
                     },
                     // Lines under their region's row with its swatch, words disclosed under their line (#5426).
-                    nests: true
+                    nests: true,
+                    filter: filtered,
+                    rowAccessory: rowFacts,
+                    rowFooter: SegmentsOtherReadingsMenu.lines(otherReadings, raw: otherReadersRaw)
                 )
             }
         case .loading:
@@ -126,10 +170,24 @@ struct SegmentsPaneView: View {
         await orders?.show(childrenOf: parentId)
     }
 
+    /// The page row is lit while nothing on the page is selected: the Inspector is showing the page.
+    private func pageIsSelected(_ documentId: String) -> Bool {
+        guard let selection = windowState?.sharedRegionSelection, let segmentService else { return true }
+        return InspectorPath.selectedSegmentIds(
+            selection: selection, documentId: documentId, store: SegmentStore.shared(for: segmentService)
+        ).isEmpty
+    }
+
+    /// The page row clicked: nothing on the page stays selected, so the Inspector shows the page (#6415).
+    private func selectPage() {
+        picked = nil
+        windowState?.sharedRegionSelection.clear()
+    }
+
     /// A picture picked: the focused Source view's selection, as a list row's is (#5155).
     private func pick(_ segmentId: String, on documentId: String) {
         picked = segmentId
-        guard let selection = windowState?.focusedRegionSelection, let segmentService else { return }
+        guard let selection = windowState?.sharedRegionSelection, let segmentService else { return }
         InspectorPath.select(
             segmentIds: [segmentId], into: selection, documentId: documentId, store: SegmentStore.shared(for: segmentService)
         )
@@ -171,8 +229,39 @@ struct SegmentsPaneView: View {
             currentKind: .segments, lenses: SegmentsPane.Lens.allCases,
             lensTitle: { (lens: SegmentsPane.Lens) in lens.title },
             lensIcon: { (lens: SegmentsPane.Lens) in lens.icon },
+            extraLensMenu: { AnyView(Group { showInRowsMenu; SegmentsOtherReadingsMenu(readings: otherReadings, raw: $otherReadersRaw) }) },
             lens: $lens
         )
+    }
+
+    /// The pane's view menu picks which facts a row shows (#6482), saved per window.
+    private var showInRowsMenu: some View {
+        Menu("Show in Rows") {
+            ForEach(SegmentRowFacts.Shown.allCases) { fact in
+                Toggle(fact.title, isOn: Binding(
+                    get: { SegmentRowFacts.Shown.decode(rowFactsRaw).contains(fact) },
+                    set: { isOn in
+                        var shown = SegmentRowFacts.Shown.decode(rowFactsRaw)
+                        if isOn { shown.insert(fact) } else { shown.remove(fact) }
+                        rowFactsRaw = SegmentRowFacts.Shown.encode(shown)
+                    }
+                ))
+            }
+        }
+    }
+
+    /// The row facts, made once per list from the page's segments (`SegmentRowFacts.all`), not per row.
+    private var rowFacts: ((String) -> AnyView)? {
+        let shown = SegmentRowFacts.Shown.decode(rowFactsRaw)
+        guard !shown.isEmpty else { return nil }
+        let all = SegmentRowFacts.all(in: segments)
+        let byId = Dictionary(segments.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return { id in
+            guard let facts = all[id] else { return AnyView(EmptyView()) }
+            return AnyView(SegmentRowFactsView(facts: facts, shown: shown, source: { from in
+                byId[from].map { "its \($0.kind)" } ?? "a parent segment"
+            }))
+        }
     }
 
     private var pageHead: some View {
@@ -183,8 +272,9 @@ struct SegmentsPaneView: View {
                 parentId = steps.first { $0.id == crumb.id }?.segmentId
             },
             selector: { kindSelector },
-            controls: { EmptyView() },
-            tools: {
+            // The flag and match counts sit in the head itself (#6482): a ⋯ row holding only them opened an
+            // empty bar whenever both were zero, and the ⋯ never said what it held. Absent at zero.
+            controls: {
                 if flaggedOnPage > 0 {
                     Label("\(flaggedOnPage) Flagged", systemImage: "flag.fill")
                         .font(.caption)
@@ -197,7 +287,8 @@ struct SegmentsPaneView: View {
                     }
                     .help("Review the matches proposed on this page: accept or reject each")
                 }
-            }
+            },
+            tools: { EmptyView() }
         )
     }
 }

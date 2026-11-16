@@ -67,6 +67,7 @@ CLASSIFICATION: dict[str, tuple[str, str]] = {
     "Rendition.document_id": (MAPPED, "the page's renditions travel"),
     "Rendition.derived_from_rendition_id": (MAPPED, "a rendition derived from another of the same page"),
     "Rendition.producer_run_id": (NOT_DOCUMENT_SCOPED, _RUN),
+    "Rendition.producer_batch_id": (NOT_DOCUMENT_SCOPED, _RUN),
     "AgentNoteSourceAnchor.document_id": (MAPPED, "an agent's note anchored on the page travels with it"),
     "AgentNoteSourceAnchor.page_id": (MAPPED, "an agent's note anchored on the page travels with it"),
     "AgentNoteActor.actor_id": (NOT_DOCUMENT_SCOPED, _PERSON),

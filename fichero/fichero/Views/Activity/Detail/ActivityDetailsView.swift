@@ -65,6 +65,7 @@ struct ActivityDetailsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 ActivityDetailsHeading(details: details)
+                ActivityDetailsCapStop(jobId: details.jobId, libraryId: selection.libraryId)
                 let bar = ActivityStageBar.segments(of: details.stageCards)
                 if !bar.isEmpty { ActivityStageBar(segments: bar) }
                 if let counts = details.counts {
@@ -73,7 +74,7 @@ struct ActivityDetailsView: View {
                 stagesSection(details)
                 pageGridSection(details)
                 if !details.failedPages.isEmpty {
-                    ActivityDetailsFailedPages(details: details, readAgain: runTarget(details))
+                    ActivityDetailsFailedPages(details: details, readAgain: runTarget(details), store: store)
                 }
                 // The failed-pages section carries Read Again when it has the button; the actions row says it otherwise.
                 ActivityDetailsActions(
@@ -151,15 +152,8 @@ struct ActivityDetailsView: View {
     /// Background mode, a failed action, the remote run, the queued pages, then the Details and Log disclosures.
     @ViewBuilder
     private func footerSections(_ details: ActivityDetails) -> some View {
-        if details.isLive {
-            // The Start / Stop control (ruled 2026-10-09): go ahead although the Mac is in use, or
-            // pause all work; beside the row's own Pause and Stop (#5623).
-            HStack(spacing: 6) {
-                Text("Background work:").font(.callout).foregroundStyle(.secondary)
-                ActivityModeButton(store: store)
-            }
-            .controlSize(.small)
-        }
+        // The background-mode control left this view (`activity.automatic.one-place`, owner 2026-11-13): Run Automatically is
+        // the setting in Settings › General; the row's own Pause and Stop stay (#5623).
         if let actionFailure {
             Label(actionFailure, systemImage: "exclamationmark.triangle.fill")
                 .font(.callout)
@@ -179,7 +173,8 @@ struct ActivityDetailsView: View {
         }
         ActivityDetailsDisclosure("Log", detail: ActivityLogFilter.problemCountWords(store.jobLogProblemCount[details.jobId] ?? 0),
                                   key: "activity.opened.log") {
-            ActivityDetailsLog(jobId: details.jobId, isLive: details.isLive, refreshKey: details.logKey, titled: false)
+            ActivityDetailsLog(jobId: details.jobId, isLive: details.isLive, hasStarted: details.hasStarted,
+                               refreshKey: details.logKey, titled: false)
         }
     }
 

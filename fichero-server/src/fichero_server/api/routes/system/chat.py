@@ -10,19 +10,22 @@ import logging
 import os
 from fichero_server.core.timeutil import utc_now
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any, Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.actions import mcp_chat  # noqa: F401  (registers mcp.call_tool)
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
-from fichero_server.api.auth import action_context
+from fichero_server.api.auth import action_context, actor_from_request
 from fichero_server.api.change_stream import emit_change
 from fichero_server.api.routes.claim.claims import _descendant_doc_ids
 from fichero_server.db import Database
-from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.library_header import require_library_path
+from fichero_server.api.library_header import optional_library_path
+from fichero_server.api.main import document_reader, get_library_database, get_library_database_for_write, read_check
 from fichero_server.db.app import get_app_db, AppDatabase
 from fichero_server.models import (
     Conversation,
@@ -625,6 +628,7 @@ async def _run_chat_tools_loop(
     db: Database,
     ctx: ActionContext,
     config: Any = None,
+    may_read: Any = None,
 ) -> tuple[str, list[ToolCall]]:
     """Run the bounded chat-tools agent loop (read parity + selected writes).
 
@@ -770,6 +774,7 @@ async def _run_chat_tools_loop(
                     origin_window=ctx.origin_window,
                     run_id=ctx.run_id,
                     library_path=ctx.library_path,
+                    may_read=may_read,
                 )
                 tool_calls.append(
                     ToolCall(
@@ -815,6 +820,8 @@ async def chat(
     request: ChatRequest,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
 ) -> ChatResponse:
     """
     Send a message and get a response with RAG.
@@ -826,12 +833,21 @@ async def chat(
     """
     from fichero_server.recipes.places import bound_project  # noqa: PLC0415
 
+    # The scope the turn will retrieve over is read into the prompt: the caller must read every document in it. It is the one
+    # `_effective_scope` settles (the body's `document_ids`, its `scope_document_id`, or the conversation's own), not only the
+    # first of them. No scope = the whole project, so the retrieval and the agent's search are cut to what the caller may read.
+    stored = db.get(Conversation, request.conversation_id) if request.conversation_id else None
+    ids, scope_id = _effective_scope(db, request, stored or Conversation(title="", messages=[]))
+    if named := ([scope_id] if scope_id else list(ids or [])):
+        await read_check(http, library_path, db, named)
+    may_read = document_reader(http, library_path)
+
     # Every model call below is made for this project: the gate reads its own rule (`ai.where.egress-at-every-call`, #5368).
     with bound_project(ctx.library_path):
-        return await _chat(request, db, ctx)
+        return await _chat(request, db, ctx, may_read)
 
 
-async def _chat(request: ChatRequest, db: Database, ctx: ActionContext) -> ChatResponse:
+async def _chat(request: ChatRequest, db: Database, ctx: ActionContext, may_read=None) -> ChatResponse:
     if not request.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
 
@@ -841,6 +857,7 @@ async def _chat(request: ChatRequest, db: Database, ctx: ActionContext) -> ChatR
         conv = db.get(Conversation, request.conversation_id)
         if not conv:
             raise HTTPException(status_code=404, detail="Conversation not found")
+        _refuse_unseen(conv, _ctx_visible(ctx))  # its history goes into the prompt (#6325 H3)
     else:
         # Create new conversation
         conv = Conversation(
@@ -853,6 +870,7 @@ async def _chat(request: ChatRequest, db: Database, ctx: ActionContext) -> ChatR
             document_ids=request.document_ids or [],
             folder_path="/",
             sort_order=0,
+            metadata={"author": ctx.actor},
         )
 
     effective_document_ids, scope_document_id = _effective_scope(db, request, conv)
@@ -884,6 +902,7 @@ async def _chat(request: ChatRequest, db: Database, ctx: ActionContext) -> ChatR
             document_ids=effective_document_ids,
             graph_hops=request.graph_hops,
             max_kg_claims=request.max_kg_claims,
+            may_read=may_read,
         )
         context_docs = retrieval.context_docs
         sources = [DocumentSource(**row) for row in retrieval.sources]
@@ -950,7 +969,7 @@ async def _chat(request: ChatRequest, db: Database, ctx: ActionContext) -> ChatR
     tool_calls: list[ToolCall] = []
     if _chat_tools_enabled():
         response_text, tool_calls = await _run_chat_tools_loop(
-            llm, messages, db=db, ctx=ctx, config=config
+            llm, messages, db=db, ctx=ctx, config=config, may_read=may_read
         )
     else:
         response = await _ask(llm, messages, config=config, ctx=ctx)
@@ -987,14 +1006,49 @@ async def _chat(request: ChatRequest, db: Database, ctx: ActionContext) -> ChatR
     )
 
 
+def conversation_visible(conv: Conversation, may_read: Callable[[str], bool] | None, actor: str | None) -> bool:
+    """Whether a caller whose per-page reads are `may_read` (None: they read every page) may see `conv` (#6320, #6325 H3/H4).
+
+    One scoped to, or answered from, a page they may not read is withheld. One with no scope has no page to test and its text
+    cannot be told from a denied page's, so it is its author's alone: a caller whose reads differ page by page sees only the
+    unscoped conversations they started (`metadata["author"]`); one with no author on record is withheld from them."""
+    if may_read is None:
+        return True
+    if pages := [d for d in [conv.scope_document_id, *conv.document_ids] if d]:
+        return all(may_read(d) for d in pages)
+    return (conv.metadata or {}).get("author") == actor
+
+
+def _visible_to(http: Request) -> Callable[[Conversation], bool]:
+    """`conversation_visible` for the caller of this request, the reader worked out once."""
+    may_read = document_reader(http, optional_library_path(http))
+    actor = actor_from_request(http)
+    return lambda conv: conversation_visible(conv, may_read, actor)
+
+
+def _conversation_readable(http: Request, conv: Conversation) -> bool:
+    return _visible_to(http)(conv)
+
+
+def _ctx_visible(ctx: ActionContext) -> Callable[[Conversation], bool]:
+    return lambda conv: conversation_visible(conv, ctx.may_read, ctx.actor)
+
+
+def _refuse_unseen(conv: Conversation, visible: Callable[[Conversation], bool] | None) -> None:
+    if visible is not None and not visible(conv):
+        raise HTTPException(status_code=403, detail="You may not read a page this conversation rests on")
+
+
 @router.get("/conversations", response_model=ChatConversationListResponse)
 async def list_conversations(
+    http: Request,
     folder_path: str = "/",
     db: Database = Depends(get_library_database),
 ) -> ChatConversationListResponse:
     """List all conversations, optionally filtered by folder."""
     # Query conversations from database
-    convs = db.query(Conversation, folder_path=folder_path)
+    visible = _visible_to(http)
+    convs = [c for c in db.query(Conversation, folder_path=folder_path) if visible(c)]
 
     result = []
     for conv in convs:
@@ -1070,6 +1124,7 @@ async def create_conversation(
 async def save_conversation_as_workspace(
     conversation_id: str,
     request: AgentWorkspaceSaveRequest,
+    http: Request,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> AgentWorkspace:
@@ -1077,6 +1132,7 @@ async def save_conversation_as_workspace(
     conversation = db.get(Conversation, conversation_id)
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    _refuse_unseen(conversation, _visible_to(http))
     if not conversation.messages:
         raise HTTPException(status_code=422, detail="Cannot save an empty conversation")
 
@@ -1184,12 +1240,14 @@ async def delete_agent_workspace(
 @router.get("/conversations/{conversation_id}")
 async def get_conversation(
     conversation_id: str,
+    http: Request,
     db: Database = Depends(get_library_database),
 ) -> ConversationHistory:
     """Get a specific conversation with full history."""
     conv = db.get(Conversation, conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    _refuse_unseen(conv, _visible_to(http))
 
     return ConversationHistory(
         id=conv.id,
@@ -1212,7 +1270,7 @@ class ConversationUpdate(BaseModel):
 
 
 def update_conversation_impl(
-    db: Database, conversation_id: str, request: ConversationUpdate
+    db: Database, conversation_id: str, request: ConversationUpdate, visible: Callable[[Conversation], bool] | None = None
 ) -> Conversation:
     """Apply title/folder_path edits to a conversation and persist it.
 
@@ -1224,6 +1282,7 @@ def update_conversation_impl(
     conv = db.get(Conversation, conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    _refuse_unseen(conv, visible)
 
     # Update fields
     if request.title is not None:
@@ -1240,10 +1299,11 @@ def update_conversation_impl(
 async def update_conversation(
     conversation_id: str,
     request: ConversationUpdate,
+    http: Request,
     db: Database = Depends(get_library_database_for_write),
 ) -> ConversationHistory:
     """Update conversation title and/or folder_path."""
-    conv = update_conversation_impl(db, conversation_id, request)
+    conv = update_conversation_impl(db, conversation_id, request, _visible_to(http))
 
     return ConversationHistory(
         id=conv.id,
@@ -1256,7 +1316,9 @@ async def update_conversation(
     )
 
 
-def duplicate_conversation_impl(db: Database, conversation_id: str) -> Conversation:
+def duplicate_conversation_impl(
+    db: Database, conversation_id: str, visible: Callable[[Conversation], bool] | None = None, actor: str | None = None
+) -> Conversation:
     """Create and persist a copy of a conversation under a new id.
 
     Extracted from the ``POST /conversations/{id}/duplicate`` route so BOTH the
@@ -1267,6 +1329,7 @@ def duplicate_conversation_impl(db: Database, conversation_id: str) -> Conversat
     original = db.get(Conversation, conversation_id)
     if not original:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    _refuse_unseen(original, visible)
 
     # Create new conversation with copied properties
     new_conv = Conversation(
@@ -1278,6 +1341,7 @@ def duplicate_conversation_impl(db: Database, conversation_id: str) -> Conversat
         scope_document_id=original.scope_document_id,
         folder_path=original.folder_path,
         sort_order=original.sort_order,
+        metadata={"author": actor} if actor else {},  # the copy is the copier's
     )
 
     db.save(new_conv)
@@ -1287,10 +1351,11 @@ def duplicate_conversation_impl(db: Database, conversation_id: str) -> Conversat
 @router.post("/conversations/{conversation_id}/duplicate")
 async def duplicate_conversation(
     conversation_id: str,
+    http: Request,
     db: Database = Depends(get_library_database_for_write),
 ) -> ConversationSummary:
     """Duplicate a conversation with a new ID."""
-    new_conv = duplicate_conversation_impl(db, conversation_id)
+    new_conv = duplicate_conversation_impl(db, conversation_id, _visible_to(http), actor_from_request(http))
 
     return ConversationSummary(
         id=new_conv.id,
@@ -1303,7 +1368,9 @@ async def duplicate_conversation(
     )
 
 
-def delete_conversation_impl(db: Database, conversation_id: str) -> Conversation:
+def delete_conversation_impl(
+    db: Database, conversation_id: str, visible: Callable[[Conversation], bool] | None = None
+) -> Conversation:
     """Delete a conversation, returning the row that was removed.
 
     Extracted from the ``DELETE /conversations/{id}`` route so BOTH the route
@@ -1314,6 +1381,7 @@ def delete_conversation_impl(db: Database, conversation_id: str) -> Conversation
     conv = db.get(Conversation, conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    _refuse_unseen(conv, visible)
 
     db.delete(conv)
     return conv
@@ -1322,16 +1390,18 @@ def delete_conversation_impl(db: Database, conversation_id: str) -> Conversation
 @router.delete("/conversations/{conversation_id}")
 async def delete_conversation(
     conversation_id: str,
+    http: Request,
     db: Database = Depends(get_library_database_for_write),
 ) -> ConversationDeletedResponse:
     """Delete a conversation."""
-    delete_conversation_impl(db, conversation_id)
+    delete_conversation_impl(db, conversation_id, _visible_to(http))
     return ConversationDeletedResponse(status="deleted")
 
 
 @router.post("/conversations/reorder")
 async def reorder_conversations(
     conversation_ids: list[str],
+    http: Request,
     folder_path: str = "/",
     db: Database = Depends(get_library_database_for_write),
 ) -> ConversationReorderResponse:
@@ -1342,6 +1412,7 @@ async def reorder_conversations(
             raise HTTPException(
                 status_code=404, detail=f"Conversation not found: {conversation_id}"
             )
+        _refuse_unseen(conv, _visible_to(http))
 
         conv.sort_order = index
         conv.updated_at = utc_now()
@@ -1549,6 +1620,8 @@ class ExtractTextResponse(BaseModel):
 def extract_text(
     request: ExtractTextRequest,
     db: Database = Depends(get_library_database_for_write),
+    http: Request = None,
+    library_path: str = Depends(require_library_path),
 ) -> ExtractTextResponse:
     """
     Extract text content from documents.
@@ -1557,6 +1630,12 @@ def extract_text(
     Can be used to re-extract text for documents imported before text extraction was working.
     """
     from fichero_server.importers.ingest import _extract_text_content
+
+    if http is not None:  # it writes the text of the documents the BODY names (none named: every one) (#6320)
+        from fichero_server.api.main import assert_library_writes_every, documents_under  # noqa: PLC0415
+
+        named = list(request.document_ids or []) or [None]
+        assert_library_writes_every(http, library_path, named, lambda: [d for i in named for d in documents_under(db, i)])
 
     extracted = 0
     skipped = 0
@@ -1730,6 +1809,7 @@ def _action_create_conversation(
         document_ids=[],
         folder_path=params.folder_path,
         sort_order=0,
+        metadata={"author": ctx.actor},
     )
     db.save(conv)
     after = _snap_conversation(conv)
@@ -1758,11 +1838,12 @@ def _action_update_conversation(
         raise HTTPException(
             status_code=404, detail="Conversation not found"
         )
+    _refuse_unseen(existing, _ctx_visible(ctx))
     before = _snap_conversation(existing)
     request = ConversationUpdate(
         title=params.title, folder_path=params.folder_path
     )
-    conv = update_conversation_impl(db, params.conversation_id, request)
+    conv = update_conversation_impl(db, params.conversation_id, request, _ctx_visible(ctx))
     after = _snap_conversation(conv)
     spec = ChangeSpec(
         domains=["conversation"],
@@ -1784,7 +1865,7 @@ def _action_update_conversation(
 def _action_duplicate_conversation(
     db: Database, params: ConversationIdParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    new_conv = duplicate_conversation_impl(db, params.conversation_id)
+    new_conv = duplicate_conversation_impl(db, params.conversation_id, _ctx_visible(ctx), ctx.actor)
     after = _snap_conversation(new_conv)
     spec = ChangeSpec(
         domains=["conversation"],
@@ -1806,7 +1887,7 @@ def _action_duplicate_conversation(
 def _action_delete_conversation(
     db: Database, params: ConversationIdParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    deleted = delete_conversation_impl(db, params.conversation_id)
+    deleted = delete_conversation_impl(db, params.conversation_id, _ctx_visible(ctx))
     before = _snap_conversation(deleted)
     spec = ChangeSpec(
         domains=["conversation"],
@@ -1833,6 +1914,8 @@ def _action_restore_conversation(
     (edit)."""
     cid = params.snapshot.get("id")
     existing = db.get(Conversation, cid) if cid else None
+    if existing is not None:
+        _refuse_unseen(existing, _ctx_visible(ctx))
     before = _snap_conversation(existing) if existing else None
     conv = Conversation(**params.snapshot)
     db.save(conv)

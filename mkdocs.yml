@@ -187,8 +187,6 @@ nav:
               - Transcribe Paleography (Economy): reference_manual/tool_references/workflows/transcribe-paleography-economy.md
               - Transcribe Typescript: reference_manual/tool_references/workflows/transcribe-typescript.md
               - Translate: reference_manual/tool_references/workflows/translate.md
-              - Translate (DeepL): reference_manual/tool_references/workflows/translate-deepl.md
-              - Translate + Double-Check: reference_manual/tool_references/workflows/translate-double-check.md
               - Translate the Reviewed Transcription: reference_manual/tool_references/workflows/translate-the-reviewed-transcription.md
               - Translate to English (Historical): reference_manual/tool_references/workflows/translate-to-english-historical.md
               - Work Out Dates: reference_manual/tool_references/workflows/work-out-dates.md
@@ -205,6 +203,8 @@ nav:
               - Artifacts Source: reference_manual/tool_references/tools/artifacts_source.md
               - Auto Crop Scan Borders: reference_manual/tool_references/tools/auto_crop_border_images.md
               - Auto Deskew Images: reference_manual/tool_references/tools/deskew_images.md
+              - Auto Levels: reference_manual/tool_references/tools/auto_levels_images.md
+              - Binarise: reference_manual/tool_references/tools/binarise_images.md
               - Book Structure: reference_manual/tool_references/tools/book_structure.md
               - Browser Navigate: reference_manual/tool_references/tools/research_browser_navigate.md
               - CLI Agent: reference_manual/tool_references/tools/cli_agent.md
@@ -229,6 +229,7 @@ nav:
               - Colors: reference_manual/tool_references/tools/colors.md
               - Compare: reference_manual/tool_references/tools/compare.md
               - Consistency Check: reference_manual/tool_references/tools/consistency-check.md
+              - Contrast Images: reference_manual/tool_references/tools/contrast_images.md
               - Denoise Images: reference_manual/tool_references/tools/denoise_images.md
               - Describe: reference_manual/tool_references/tools/describe.md
               - Describe Video: reference_manual/tool_references/tools/video_describe.md
@@ -264,8 +265,11 @@ nav:
               - Extract SVO Claims: reference_manual/tool_references/tools/extract_svo_only.md
               - Faces: reference_manual/tool_references/tools/faces.md
               - Files: reference_manual/tool_references/tools/files.md
+              - Flatten Stains: reference_manual/tool_references/tools/stain_flatten_images.md
+              - Flip: reference_manual/tool_references/tools/flip_images.md
               - Folder: reference_manual/tool_references/tools/folder.md
               - Fuzzy Clean Images: reference_manual/tool_references/tools/fuzzy_clean_images.md
+              - Grayscale: reference_manual/tool_references/tools/grayscale_images.md
               - Handwriting: reference_manual/tool_references/tools/handwriting.md
               - Import Artifacts: reference_manual/tool_references/tools/import_artifacts.md
               - Interpret: reference_manual/tool_references/tools/interpret.md
@@ -284,9 +288,11 @@ nav:
               - Prepare Images: reference_manual/tool_references/tools/prepare_images.md
               - Quality: reference_manual/tool_references/tools/quality.md
               - Questions: reference_manual/tool_references/tools/questions.md
+              - Quiet Ruled Lines: reference_manual/tool_references/tools/ruled_lines_images.md
               - ReAct Agent: reference_manual/tool_references/tools/react_agent.md
               - Recombine Segments: reference_manual/tool_references/tools/recombine_segments.md
               - Remove Background Images: reference_manual/tool_references/tools/remove_background_images.md
+              - Remove Yellowing: reference_manual/tool_references/tools/yellowing_images.md
               - Rewrite: reference_manual/tool_references/tools/rewrite.md
               - Rotate / Auto-Orient Images: reference_manual/tool_references/tools/rotate_images.md
               - Safety: reference_manual/tool_references/tools/safety.md
@@ -295,6 +301,7 @@ nav:
               - Segment Images: reference_manual/tool_references/tools/segment_images.md
               - Selection: reference_manual/tool_references/tools/selection.md
               - Sentiment: reference_manual/tool_references/tools/sentiment.md
+              - Sharpen: reference_manual/tool_references/tools/sharpen_images.md
               - Similarity: reference_manual/tool_references/tools/similarity.md
               - Split Chapters: reference_manual/tool_references/tools/split_chapters.md
               - Split Diary Entries: reference_manual/tool_references/tools/diary_entries.md
@@ -307,6 +314,7 @@ nav:
               - Summarize File: reference_manual/tool_references/tools/summarize_file.md
               - Summarize Folder: reference_manual/tool_references/tools/summarize_folder.md
               - Supervisor Agent: reference_manual/tool_references/tools/supervisor_agent.md
+              - Suppress Show-Through: reference_manual/tool_references/tools/bleed_through_images.md
               - Swarm Agent: reference_manual/tool_references/tools/swarm_agent.md
               - Table: reference_manual/tool_references/tools/table_extract.md
               - Tags: reference_manual/tool_references/tools/tags.md
@@ -342,6 +350,7 @@ nav:
       - Test Template: contributor_manual/TEST-TEMPLATE.md
       - Writing the Guides: contributor_manual/writing-the-guides.md
       - Manual Facts (2026-10-05): contributor_manual/manual-facts/2026-10-05.md
+      - Manual Facts (2026-11-02, sharing): contributor_manual/manual-facts/2026-11-02-sharing.md
       - Doc Template: contributor_manual/DOC-TEMPLATE.md
       - CLI Test Harness (legacy): contributor_manual/cli-test-harness.md
       - Feature Tiers (legacy): contributor_manual/feature-tiers.md
@@ -383,11 +392,14 @@ nav:
           - Spec Plan (which spec covers what): contributor_manual/specs/SPEC-PLAN.md
           - Open Questions Digest: contributor_manual/specs/OPEN-QUESTIONS.md
           - Spec Template: contributor_manual/specs/_TEMPLATE.md
+          - Build Order: contributor_manual/specs/build-order.md
           - Milestone template: contributor_manual/specs/_MILESTONE_TEMPLATE.md
           - AI:
               - Settings, AI (providers, keys, runtimes, targets, downloads): contributor_manual/specs/ai/ai-settings.md
               - Local Runtimes & Providers: contributor_manual/specs/ai/local-runtimes.md
               - Where Models Run (model + place): contributor_manual/specs/ai/where-models-run.md
+              - Cloud Permission and Spend: contributor_manual/specs/ai/cloud-permission-and-spend.md
+              - Run Failure Alerts: contributor_manual/specs/ai/run-failure-alerts.md
           - Compute:
               - Remote Compute (foundation): contributor_manual/specs/compute/remote-compute.md
               - The Linux Server Image: contributor_manual/specs/compute/linux-server-image.md
@@ -402,7 +414,8 @@ nav:
               - Docs Citations & Bibliography: contributor_manual/specs/docs/docs-citations-bibliography.md
           - Export:
               - Exporter: contributor_manual/specs/export/exporter.md
-              - A Public Research Site (Istmina): contributor_manual/specs/export/public-site.md
+              - A Public Research Site (a regional archive): contributor_manual/specs/export/public-site.md
+              - The Fichero Profile of Open Standards (draft): contributor_manual/specs/export/open-standards-profile.md
           - Importer:
               - Importer: contributor_manual/specs/importer/importer.md
           - Explore:
@@ -419,6 +432,12 @@ nav:
               - Dev Orchestration Harness: contributor_manual/specs/harness/dev-orchestration-harness.md
               - Dev Pipeline: contributor_manual/specs/harness/deterministic-conductor.md
               - Dev Workflows (proposed): contributor_manual/specs/harness/dev-workflows.md
+              - Agent Profiles (proposed): contributor_manual/specs/harness/agent-profiles.md
+              - Builder Console (proposed): contributor_manual/specs/harness/builder-console.md
+              - Performance Sweep (draft): contributor_manual/specs/harness/performance-sweep.md
+              - Performance Sweep review: contributor_manual/specs/harness/performance-sweep-REVIEW.md
+              - Builder as a Mac App (draft): contributor_manual/specs/harness/builder-mac-app.md
+              - Issues, Milestones & Labels (proposed): contributor_manual/specs/harness/issues-and-labels.md
               - Engine Startup & Shutdown Lifecycle: contributor_manual/specs/harness/engine-startup-lifecycle.md
               - Observable Data Layer: contributor_manual/specs/harness/observable-data-layer.md
               - Surfaces from OpenAPI: contributor_manual/specs/harness/surfaces-from-openapi.md
@@ -426,6 +445,7 @@ nav:
               - Git / Worktree / GitHub Workflow: contributor_manual/specs/harness/git-worktree-workflow.md
               - Release & Versioning: contributor_manual/specs/harness/release-and-versioning.md
               - Version & Contract Integrity: contributor_manual/specs/harness/version-and-contract-integrity.md
+              - Code Organisation (draft): contributor_manual/specs/harness/code-organization.md
               - Release Channels & Feature Tiers (draft): contributor_manual/specs/harness/release-channels-and-feature-tiers.md
           - KG:
               - KG Overview — Names, Statements, Review, Graph (draft): contributor_manual/specs/kg/kg-entities-and-statements.md
@@ -443,19 +463,26 @@ nav:
               - Readings & Apparatus: contributor_manual/specs/source/readings-and-apparatus.md
               - Languages, Scripts & Signs: contributor_manual/specs/source/languages-scripts-signs.md
               - Segment Editor: contributor_manual/specs/source/segment-editor.md
+              - Segment Editor CRUD (draft): contributor_manual/specs/source/segment-editor-crud.md
+              - Segment Editor Tools (Source pane & lines): contributor_manual/specs/ui/segment-editor.md
               - Editable Reader (draft): contributor_manual/specs/source/editable-reader.md
+              - Panes (draft): contributor_manual/specs/source/panes.md
               - Line Editor: contributor_manual/specs/source/line-editor.md
               - Formats & Training: contributor_manual/specs/source/formats-and-training.md
               - Maps & Georeference: contributor_manual/specs/source/maps-and-georeference.md
               - Models, Chains & Projects: contributor_manual/specs/source/models-chains-and-projects.md
               - Recipe Designer: contributor_manual/specs/source/recipe-designer.md
               - Checking a Layer's Proposals: contributor_manual/specs/source/checking.md
+              - Panes (what each pane shows): contributor_manual/specs/source/panes.md
               - IIIF: contributor_manual/specs/source/iiif.md
               - Cataloguing & Metadata: contributor_manual/specs/source/cataloguing.md
               - Attributes & Prototypes (foundation): contributor_manual/specs/source/attributes-and-prototypes.md
               - Catalogue Workbook Export: contributor_manual/specs/source/catalogue-export.md
+              - Engine Silent Failures: contributor_manual/specs/source/engine-silent-failures.md
+              - Sharing a Library Between Macs: contributor_manual/specs/source/sharing-two-macs.md
               - Image Preparation: contributor_manual/specs/source/image-preparation.md
               - Image Enhancement: contributor_manual/specs/source/image-enhancement.md
+              - Wide Onboarding (Set Up as a pager): contributor_manual/specs/source/wide-onboarding.md
               - Recipes Run: contributor_manual/specs/source/recipes-run.md
               - Undeciphered Scripts: contributor_manual/specs/source/undeciphered-scripts.md
               - Finding the Documents: contributor_manual/specs/source/finding-documents.md
@@ -492,9 +519,11 @@ nav:
               - "Engine Transport: HTTPS / UDS / In-Memory": contributor_manual/specs/transport/transport-http-uds.md
               - Library Sharing: contributor_manual/specs/transport/library-sharing.md
               - Multi-user always on: contributor_manual/specs/transport/multiuser-always-on.md
+              - iPhone and iPad sign-in: contributor_manual/specs/transport/ios-sign-in.md
           - UI:
               - About: contributor_manual/specs/ui/about.md
               - Activity & Automatic Work: contributor_manual/specs/ui/activity-and-automatic-work.md
+              - Activity as a Pane (draft): contributor_manual/specs/ui/activity-pane.md
               - Automation: contributor_manual/specs/ui/automation.md
               - Catalogue Table: contributor_manual/specs/ui/catalogue-table.md
               - Library View Modes: contributor_manual/specs/ui/library-view-modes.md
@@ -555,6 +584,7 @@ nav:
           - Embedded Local Models Plan: contributor_manual/design/embedded-local-models-plan.md
           - iOS / iPad Engine Embedding Feasibility: contributor_manual/design/ios-ipad-embedding-plan.md
           - SwiftUI App Structure & Naming (Reorg Plan): contributor_manual/design/swiftui-app-reorg.md
+          - Workflow Source Node Memory: contributor_manual/design/workflow-source-node-memory.md
       - Release:
           - Release Lane Runbook: contributor_manual/release/release-lane.md
           - Sparkle Release Setup: contributor_manual/release/sparkle-release.md

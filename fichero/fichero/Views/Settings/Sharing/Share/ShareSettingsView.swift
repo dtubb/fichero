@@ -35,7 +35,10 @@ struct ShareSettingsView: View {
     @State var pairingCode: PairingCodeRecord?
     @State var pairedDevices: [PairedDeviceRecord] = []
     @State var spkiPin = ""
+    /// A note for the grey line (the Multi-user migration's, a renewal's): words of ours, never an error's text.
     @State var shareError: String?
+    /// A failure while sharing, as the one alert.
+    @State var failurePrompt: FailureAlertPrompt?
     @State var isApplyingChange = false
     @State var isGeneratingCode = false
     @State var isLoadingDevices = false
@@ -45,14 +48,26 @@ struct ShareSettingsView: View {
     @State var addressDraft = ""
     @State var sharingState: SharingStateRecord?
     @State var detectedTailnetURL: String?
+    @State var firewallVerdict = FirewallCheck.Verdict.unknown
     @State var selectedDevices = Set<String>()
     @State var confirmRemoveSelected = false
     /// The one sheet this pane presents: two `.sheet(isPresented:)` on the same view race, and only one shows reliably.
-    enum ActiveSheet: Identifiable {
-        case addDevice, connect
+    enum ActiveSheet: Identifiable, Hashable {
+        case addDevice, connect, whichProjects
+        /// A project's Share sheet; `also`: the other projects its one link gives (the which-projects dialog's set, #6366).
+        case project(UUID, also: [String] = [])
         var id: Self { self }
     }
     @State var activeSheet: ActiveSheet?
+    /// The QR, drawn once per link and kept (`sharing.qr-drawn-once-per-payload`): a computed image was rebuilt on every
+    /// body evaluation (the Devices poll every 10 s), which the person saw as the picture flashing.
+    @State var qrImage: PlatformImage?
+    /// The engine process (health's pid) that minted the code on the card: a code outlives a health check, never a restart.
+    @State var codeEnginePID: Int?
+    /// The engine process health last named (`refreshEnginePID`); what `codeEnginePID` is compared with.
+    @State var healthEnginePID: Int?
+    /// Which address the QR and Copy Link carry (`sharing.share-sheet-offers-both-addresses`); nil = the model's default.
+    @State var addressChoice: AddressChoice?
     var showAddDevice: Bool {
         get { activeSheet == .addDevice }
         nonmutating set { activeSheet = newValue ? .addDevice : (activeSheet == .addDevice ? nil : activeSheet) }
@@ -81,6 +96,9 @@ struct ShareSettingsView: View {
                         .foregroundStyle(shareError == nil ? Color.secondary : Color.red)
                 }
             }
+            .failureAlert($failurePrompt)
+
+            nothingSharedSection
 
             if SharingPaneText.showsDevices(isOn: hostingEnabled, engineIsLocal: EngineConfig.engineIsLocal) {
                 devicesSection
@@ -103,6 +121,13 @@ struct ShareSettingsView: View {
             switch sheet {
             case .addDevice: addDeviceSheet
             case .connect: connectSheet
+            case .whichProjects: whichProjectsSheet
+            case .project(let id, let also):
+                Group {
+                    if let library = libraryManager.getLibrary(id: id) {
+                        ShareLibrarySheet(library: library, usersStore: appState.usersStore, alsoLibraries: also)
+                    }
+                }
             }
         }
         // A tapped invite link opens the Connect sheet with the link filled in (`sharing.settings.connect-sheet`).
@@ -132,13 +157,32 @@ struct ShareSettingsView: View {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(10))
                 if Task.isCancelled { return }
-                if didBootstrap, appState.isBackendRunning { await refreshDevices() }
+                if didBootstrap, appState.isBackendRunning {
+                    await refreshDevices()
+                    // The forward is made just after the engine is ready: while it reads `none`, ask again (review N1).
+                    if PairingCardRefresh.readsForwardAgain(stateLoaded: sharingState != nil, forward: sharingState?.tailnetForward) {
+                        await refreshSharingState()
+                    }
+                }
             }
         }
         .task(id: refreshKey) {
             guard didBootstrap else { return }
             await refreshPairingCode()
         }
+        // The engine coming back mints when the card has nothing to show, or shows a code another engine process minted
+        // (a restart loses the engine's codes); its going away never clears the card.
+        .onChange(of: appState.isBackendRunning) { _, running in
+            guard didBootstrap else { return }
+            Task {
+                if running { await refreshEnginePID() }  // the pid health names now, to compare with the code's
+                guard PairingCardRefresh.mintsWhenEngineChanges(isRunning: running, hasCode: pairingCode != nil,
+                                                                blocked: pairingBlocker != nil, sameEngine: codeIsFromThisEngine)
+                else { return }
+                await refreshPairingCode()
+            }
+        }
+        .task(id: inviteLinkString) { qrImage = makeQRCodeImage() }
         // A code is replaced when it expires, not left on screen past the time it names (#5915). The task is keyed on
         // the code, so a new code (or none) cancels the wait; a failed mint leaves no code and so no retry loop.
         .task(id: pairingCode?.code) {
@@ -151,7 +195,7 @@ struct ShareSettingsView: View {
             // and cancel the renewal itself (review 597).
             switch await PairingCodeRenewal.renew(mint: { try await PairingService(apiRoot: EngineConfig.host).createPairingCode() }) {
             case .fresh(let code): pairingCode = code
-            case .failed(let message): pairingCode = nil; shareError = message
+            case .failed(let error): pairingCode = nil; showFailure(error, "Couldn't make a pairing code")
             case .cancelled: break
             }
         }
@@ -159,118 +203,6 @@ struct ShareSettingsView: View {
             loadSPKIPin()
             addressDraft = newValue
         }
-    }
-
-    /// The Devices list: name and when last seen, `+ Add Device…` and `−` (multi-select Remove). Blank when empty, no Refresh.
-    @ViewBuilder
-    private var devicesSection: some View {
-        let devices = activePairedDevices(from: pairedDevices)
-        Section("Devices") {
-            List(devices, selection: $selectedDevices) { device in
-                HStack {
-                    Text(device.name)
-                    Spacer()
-                    Text(device.lastSeen, style: .relative)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .tag(device.id)
-            }
-            .frame(minHeight: devices.isEmpty ? 0 : 80)
-            HStack {
-                Button(SharingPaneText.addDevice) { showAddDevice = true }
-                Button("−") { confirmRemoveSelected = true }
-                    .help("Remove the selected devices")
-                    .disabled(!SharingPaneText.canRemove(selected: selectedDevices.count, engineIsLocal: EngineConfig.engineIsLocal))
-            }
-        }
-        .confirmationDialog(
-            SharingPaneText.removeQuestion(
-                count: selectedDevices.count, firstName: devices.first { selectedDevices.contains($0.id) }?.name),
-            isPresented: $confirmRemoveSelected,
-            titleVisibility: .visible
-        ) {
-            Button("Remove", role: .destructive) { Task { await revokeSelected() } }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            let also = selectedDevices.flatMap { devicesRevokedWith($0, in: pairedDevices) }
-                .filter { !selectedDevices.contains($0.id) }
-            Text(also.isEmpty ? "They will no longer be able to connect."
-                 : """
-                   They will no longer be able to connect. They paired \(Set(also.map(\.name)).sorted().formatted()), \
-                   which will be removed too.
-                   """)
-        }
-    }
-
-    /// Add Device: asks for nothing: the QR, the code, when it expires, Copy Link and Done (`sharing.settings.add-device-sheet`).
-    @ViewBuilder
-    private var addDeviceSheet: some View {
-        let phase = AddDeviceSheetModel.phase(
-            blocker: pairingBlocker, hasCode: pairingCode != nil, hasLink: inviteLinkString != nil,
-            isWorking: isApplyingChange || isGeneratingCode)
-        VStack(spacing: 12) {
-            switch phase {
-            case .finishing:
-                ProgressView("Finishing setup…")
-            case .ready, .notReady:
-                if let image = qrCodeImage {
-                    Image(platformImage: image)
-                        .interpolation(.none)
-                        .resizable()
-                        .frame(width: 220, height: 220)
-                        .accessibilityLabel("Pairing QR code")
-                }
-                if let code = pairingCode {
-                    Text(AddDeviceSheetModel.codeText(code.code))
-                        .font(.title2.monospacedDigit())
-                    Text(AddDeviceSheetModel.expiresText(expiresAt: code.expiresAt))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                if phase == .notReady {
-                    Text("Not ready yet").font(.caption).foregroundStyle(.secondary)
-                }
-            case .finishSetup:
-                Button("Finish Setup") { if let blocker = pairingBlocker { Task { await resolve(blocker) } } }
-                    .buttonStyle(.borderedProminent)
-            case .start:
-                Button("Start") { if let blocker = pairingBlocker { Task { await resolve(blocker) } } }
-                    .buttonStyle(.borderedProminent)
-            case .failed(let line):
-                Text(line).foregroundStyle(.secondary)
-            }
-            if let note = copyNote {
-                Text(note).font(.caption).foregroundStyle(.red)
-            }
-            HStack {
-                Button(copiedInvite ? "Link Copied" : "Copy Link", action: copyInvite)
-                    .disabled(phase != .ready)
-                Spacer()
-                Button("Done") { showAddDevice = false; Task { await refreshDevices() } }
-                    .keyboardShortcut(.defaultAction)
-            }
-        }
-        .padding()
-        .frame(minWidth: 320)
-        .onChange(of: inviteLinkString) { _, _ in copyNote = nil }
-    }
-
-    /// Connect to Another Mac: hosts the existing client pairing section on a sheet (`sharing.settings.connect-sheet`).
-    private var connectSheet: some View {
-        VStack(spacing: 12) {
-            Form {
-                MacRemoteClientPairingSection(
-                    appState: appState, backendService: backendService, libraryManager: libraryManager)
-            }
-            .formStyle(.grouped)
-            HStack {
-                Spacer()
-                Button("Cancel") { showConnect = false }.keyboardShortcut(.cancelAction)
-            }
-        }
-        .padding()
-        .frame(minWidth: 460, minHeight: 360)
     }
 }
 #endif

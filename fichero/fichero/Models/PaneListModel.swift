@@ -88,6 +88,12 @@ struct PaneList: Codable, Sendable, Hashable {
         PaneList(nodes.map { $0.changingLibraryLayout(id, to: layout) })
     }
 
+    /// Change the leaf `id`'s Preview folder view (`library.preview.folder-view-persists-per-pane`).
+    /// `nil` clears it. Every other pane is untouched.
+    func changingLeafPreviewFolderView(_ id: UUID, to view: String?) -> PaneList {
+        PaneList(nodes.map { $0.changingPreviewFolderView(id, to: view) })
+    }
+
     /// The `PaneConfig` of the leaf with `id`, nested splits included — `nil` if no leaf has that
     /// id. Slice E (#4965): the View menu reads a focused leaf's CURRENT `libraryLayout` through
     /// this, so its checkmark reflects the pane's own explicit choice, not the window default.
@@ -102,6 +108,21 @@ struct PaneList: Codable, Sendable, Hashable {
         }
         nodes.forEach(walk)
         return found
+    }
+
+    /// The list as Focus shows it (`panes.focus.any-pane-fills-the-screen`): the leaf `id` alone, wherever it sits; the list
+    /// itself when no leaf has that id. A view of the list, never stored: leaving Focus shows the stored list unchanged.
+    func focusing(_ id: UUID) -> PaneList {
+        var found: PaneNode?
+        func walk(_ node: PaneNode) {
+            guard found == nil else { return }
+            switch node {
+            case let .leaf(leafId, _, _, _): if leafId == id { found = node }
+            case let .split(_, _, children): children.forEach(walk)
+            }
+        }
+        nodes.forEach(walk)
+        return found.map { PaneList([$0]) } ?? self
     }
 
     /// Every leaf id of `kind`, nested splits included (leading→trailing order).
