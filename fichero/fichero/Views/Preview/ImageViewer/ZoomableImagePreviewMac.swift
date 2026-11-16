@@ -381,7 +381,7 @@ struct ZoomableImagePreview: View {
             publishHeadChrome()
             windowState?.offerRegionSelection(regionSelection)
             // The workspace's layer defaults, per pane (Q2). Nil fields leave the remembered value.
-            imageVisible = PreviewLayerDefaults.start(workspace: panePreviewLayers?.image, remembered: imageVisible)
+            adoptSourceImageVisibility()
             if let wordBoxes = panePreviewLayers?.wordBoxes { ocrBoxesEnabled = wordBoxes }
         }
         .onChange(of: renditionIndex) { _, _ in publishHeadChrome() }
@@ -442,11 +442,9 @@ struct ZoomableImagePreview: View {
             .onChange(of: regionSelection.revealCount) { _, _ in
                 if let rect = regionSelection.revealRect { imageCoordinator?.zoomToNormalizedRegion(rect) }
             }
-            .onChange(of: imageVisible) { _, visible in
-                if PreviewLayerDefaults.shouldRemember(visible, workspace: panePreviewLayers?.image) {
-                    EngineConfig.defaults.set(visible, forKey: ImageLayer.defaultsKey)
-                }
-            }
+            // Show Image is the SOURCE's own setting (#6657): read when the source changes, written only by the
+            // person's toggle (`imageVisibleBinding`), never by arriving here.
+            .onChange(of: documentId) { _, _ in adoptSourceImageVisibility() }
             // Sticky markup tool (Daniel, 2026-08-30): arming highlight/note
             // in the bar arms the draw layer; disarming (or switching to a
             // non-drawing tool) stands it down. Cursor follows.

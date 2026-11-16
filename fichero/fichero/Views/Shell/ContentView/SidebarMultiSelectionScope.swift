@@ -77,6 +77,26 @@ struct SidebarSourceOpen: Equatable {
         return SidebarSourceOpen(folderId: parentId, selection: [doc.id], opensPreview: !previewShowing)
     }
 
+    /// One selection change a sidebar click on a source makes (#6657).
+    enum Change: Equatable {
+        /// The list already shows the folder: only its selection moves; nothing reloads.
+        case select(Set<String>)
+        /// The list shows another folder: it loads once, already selected on the source.
+        case openFolder(String?, selecting: Set<String>)
+    }
+
+    /// Exactly one change per click, never the folder first and the source after (#6657).
+    static func changes(for open: SidebarSourceOpen, viewMode: AppViewMode) -> [Change] {
+        if case .library(let shown) = viewMode, shown?.id == open.folderId { return [.select(open.selection)] }
+        return [.openFolder(open.folderId, selecting: open.selection)]
+    }
+
+    /// The Library pane's selection a click on `doc` writes in the same change as the click: the source,
+    /// not an empty set first (#6657). Empty for anything that is not a source.
+    static func selectionOnClick(_ doc: Document?) -> Set<String> {
+        doc.flatMap { plan(for: $0, previewShowing: true)?.selection } ?? []
+    }
+
     /// A PDF the Library pane opens onto, page by page, rather than showing selected in its folder.
     static func listsItsPages(_ doc: Document) -> Bool {
         doc.fileType == .pdf && doc.childCount > 0
