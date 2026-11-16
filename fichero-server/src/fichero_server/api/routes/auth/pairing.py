@@ -1040,6 +1040,29 @@ def renew_device_token(
     return _to_pair_response(renewed, raw_token)
 
 
+@router.post("/devices/revoke-self", response_model=StatusResponse)
+def revoke_own_device(
+    request: Request,
+    app_db: AppDatabase = Depends(get_app_database),
+) -> StatusResponse:
+    """A paired device revokes its OWN pairing, authenticated by its own token (`m2p.ios.forget-revokes-on-the-mac`, #6133):
+    the Mac stops listing it and the token stops working. The device is the caller's, never named in the request, so a
+    device cannot revoke another. Audited like renew."""
+    current = _current_paired_device(request)
+    revoked = app_db.revoke_device(current.id)
+    if revoked is None:
+        raise HTTPException(status_code=401, detail="missing or invalid Authorization header")
+    _record_device_audit(
+        action_name="device.revoke_self",
+        actor=actor_from_request(request),
+        params={"device_id": current.id},
+        device_id=current.id,
+        before=_to_public_device(current).model_dump(mode="json"),
+        after=_to_public_device(revoked).model_dump(mode="json"),
+    )
+    return StatusResponse(status="ok")
+
+
 @router.post("/devices/{device_id}/revoke", response_model=StatusResponse)
 def revoke_device(
     request: Request,

@@ -810,7 +810,11 @@ def _disagree_step(steps: list[dict[str, Any]]) -> dict[str, Any]:
     from fichero_server.recipes.start import line_reader_pin
 
     readers = [s for s in steps if s["job"] in {"read-a-line", "read-a-page", "correct"} and s.get("model")]
-    names = [(s.get("card") or {}).get("note") or (s.get("card") or {}).get("id") or s["job"] for s in readers]
+    names = []
+    for s in readers:  # one model reading two steps (a page reader and Correct) is one reader to compare (#6121)
+        if any(s["model"] == r["model"] for r in readers[:readers.index(s)]):
+            continue
+        names.append((s.get("card") or {}).get("note") or (s.get("card") or {}).get("id") or s["job"])
     step: dict[str, Any] = {"id": "find-where-readers-disagree", "job": "find-where-readers-disagree",
                             **_topic("find-where-readers-disagree"), "model": {"builtin": "reader-comparison"},
                             "built_in": True, "runs_on": "this-mac", "uses_cloud": False,

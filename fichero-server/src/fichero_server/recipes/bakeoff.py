@@ -660,6 +660,13 @@ def apply_project_overrides(recipe: dict[str, Any], cards: list[Card]) -> dict[s
         step, card = steps.get(override.get("step")), by_id.get(override.get("card"))
         if override.get("scope") != "project" or step is None:
             continue
+        if override.get("kind") == "readers":  # the readers Find where the readers disagree compares: the person's set replaces any other
+            pins = [r["model"] for r in override.get("readers") or [] if isinstance(r.get("model"), dict) and r["model"]]
+            step["settings"] = {**(step.get("settings") or {}), "readers": pins}
+            for stale in ("needs", "compares"):
+                step.pop(stale, None)
+            step["compares"] = [reader_name(by_id[r["card"]]) if r.get("card") in by_id else str(r.get("card")) for r in override["readers"]]
+            continue
         if card is None:
             if not isinstance(override.get("model"), dict) or not override["model"]:
                 continue
