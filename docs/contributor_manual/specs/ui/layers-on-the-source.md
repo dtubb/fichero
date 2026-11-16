@@ -313,6 +313,7 @@ a box and how sure it is stay as its stroke (`layers.state.drawn`), not its colo
   same storage. The word boxes are per pane only (`@PaneOnlyStorage`, image and PDF): a pane
   with no saved choice starts ON and never reads or writes the app-wide key. Until #5504 they
   started from that key, which a removed toggle had left off, so every new Preview drew a bare page.
+- `layers.toggle.image-remembered-on-the-source` — **[PARTIAL]** (#6657; owner 2026-11-16, build 25: Show Image kept turning itself off) Show Image is stored on the SOURCE (its metadata key `view.show_image`, `SourceViewSettings`) and survives any navigation: toggled on for an image, a click on another image and back leaves it on. Selecting a source never writes a view setting; only the person's own toggle does. A source that never had a choice starts from its workspace's value, else on. Built, not yet compiled or run by the manager. *Test:* `SidebarSourceClickTests` (`showImageSurvivesNavigation`, `toggleKeepsOtherKeys`). Not built: the source's other view settings (the same dictionary takes them), a server-side merge of metadata (the toggle sends the whole dictionary).
 - `layers.toggle.empty-layer-says-so` — **[GAP]** (#4941) a layer with nothing on this page stays
   in the menu, dimmed, with "None on this page" as its help, so turning it on is never a silent
   no-op. (This follows the rule of #5413, where the sidebar's knowledge rows appear only when they
