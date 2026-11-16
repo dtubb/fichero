@@ -421,11 +421,11 @@ Smallest first; each step is one lane batch unless marked. Steps 1–2 produce v
 
 ## Changes to dev-workflows
 
-- `quality.perf-rung-engine`: py-spy is allowed when `[machines].<m>.sudo` names it, and the owner ruled 2026-11-15 that this is the M4 only; pyinstrument stays the default.
+- dev-workflows' `quality.perf-rung-engine`: py-spy is allowed when `[machines].<m>.sudo` names it, and the owner ruled 2026-11-15 that this is the M4 only; pyinstrument stays the default.
   The "not run" alert becomes the `not-run` state above.
-- `quality.perf-rung-app`: the nightly xctrace form gains `File Activity` and `App Launch`; the SwiftUI template's body
+- dev-workflows' `quality.perf-rung-app`: the nightly xctrace form gains `File Activity` and `App Launch`; the SwiftUI template's body
   table is the cross-check it already names.
-- `quality.perf-security-sweep` (Step 2.32): the "profile inputs handed to the reviewer" are this spec's `hotspots.json`
+- dev-workflows' `quality.perf-security-sweep` (Step 2.32): the "profile inputs handed to the reviewer" are this spec's `hotspots.json`
   rows and profile paths; the filer's buckets and caps are shared; the module rotation stays.
 - Step 2.20: the compiler-warning count moves here (`perf-sweep.warnings.*`); the SwiftLint and ruff ratchets stay there.
 
