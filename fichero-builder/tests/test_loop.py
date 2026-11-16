@@ -1621,3 +1621,18 @@ def test_an_unmerged_lane_branch_is_kept(state, tmp_path):
     queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
     assert land.exists(), "its head is not on origin/integration: not landed, nothing removed"
     assert wt.exists() and "w1" in g(repo, "branch", "--format=%(refname:short)").split()
+
+
+def test_a_snapshot_a_later_batch_is_using_is_not_removed(state, tmp_path):
+    fake, wt, land, repo, g = _cleanup_world(state, tmp_path, steps_left=True)
+    lanes = queue.load()
+    lanes[0]["steps"][1].update(state="done", head=g(wt, "rev-parse", "HEAD"), land_tree=str(land))
+    queue.save(lanes)
+    queue.clean_up(queue.load()[0], "origin/integration")
+    assert land.exists(), "batch 2 shares land-w1 and is not landed"
+    lanes = queue.load()
+    lanes[0]["steps"][1].update(state="landed")
+    lanes[0]["steps"][0]["head"] = lanes[0]["steps"][1]["head"] = "0" * 40
+    queue.save(lanes)
+    queue.clean_up(queue.load()[0], "origin/integration")
+    assert land.exists(), "the tree no longer holds this step's head"

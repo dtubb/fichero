@@ -1262,6 +1262,10 @@ def clean_up(lane: dict, ref: str) -> None:
         tree = s.get("land_tree") or ""
         if s["state"] != "landed" or not s.get("head") or not tree or not os.path.isdir(tree):
             continue
+        if any(o is not s and o.get("land_tree") == tree and o["state"] != "landed" for o in lane["steps"]):
+            continue  # a later batch is using this same snapshot
+        if _cg(tree, "rev-parse", "HEAD").stdout.strip() != s["head"]:
+            continue  # the tree was reset to a newer sha: it is not this step's snapshot any more
         if _cg(tree, "merge-base", "--is-ancestor", s["head"], ref).returncode == 0:
             _remove_tree(lane, s["step"], tree, _cg(tree, "rev-parse", "--path-format=absolute", "--git-common-dir").stdout.strip() or lane["worktree"])
     wt = lane["worktree"]
