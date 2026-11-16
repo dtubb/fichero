@@ -259,8 +259,23 @@ def test_add_merges_steps_into_a_lane_and_keeps_their_state_and_the_verb_refuses
     assert [s["state"] for s in queue.load()[0]["steps"]] == ["landed", "queued"] and len(queue.load()) == 1
     assert cli.main(["queue", "add", "--lane", "m1", "--state", str(state / "s")]) == 1
     assert "needs" in capsys.readouterr().out
-    assert cli.main(["queue", "add", "--lane", "m9", "--worktree", "/w", "--step", "1.1", "--brief", "/b", "--issues", "3", "--state", str(state / "s")]) == 0
+    loose = state / "loose-brief.txt"
+    loose.write_text("the brief")
+    assert cli.main(["queue", "add", "--lane", "m9", "--worktree", "/w", "--step", "1.1", "--brief", str(loose), "--issues", "3", "--state", str(state / "s")]) == 0
     assert queue.load()[1]["steps"][0]["issues"] == [3]
+
+
+def test_add_copies_the_brief_into_state_manager_briefs_and_stores_the_copys_path(state, capsys):
+    """#6589 item 21: a lane never depends on a loose file; a missing brief is refused."""
+    loose = state / "loose-brief.txt"
+    loose.write_text("the brief")
+    assert cli.main(["queue", "add", "--lane", "m7", "--worktree", "/w", "--step", "1.1", "--brief", str(loose), "--state", str(state / "s")]) == 0
+    stored = Path(queue.load()[-1]["steps"][0]["brief"])
+    assert stored == state / "s" / "manager" / "briefs" / "m7-1.1.txt" and stored.read_text() == "the brief"
+    loose.unlink()
+    assert stored.read_text() == "the brief", "the lane still has its brief when the loose file is gone"
+    assert cli.main(["queue", "add", "--lane", "m7", "--worktree", "/w", "--step", "1.2", "--brief", str(loose), "--state", str(state / "s")]) == 1
+    assert "is not a file" in capsys.readouterr().out
 
 
 def test_the_bare_verb_shows_each_step(state, capsys):

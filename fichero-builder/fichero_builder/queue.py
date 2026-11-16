@@ -19,6 +19,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import signal
 import subprocess
 import sys
@@ -2089,7 +2090,16 @@ def main(a) -> int:
         if not (a.lane and a.worktree and a.step and a.brief):
             print("REFUSED: queue add needs --lane, --worktree, --step and --brief")
             return 1
-        add(a.lane, a.worktree, a.step, a.brief, a.issues, kind=getattr(a, "kind", "worker"), hold=True if getattr(a, "hold", False) else None,
+        src = Path(a.brief).expanduser()
+        if not src.is_file():
+            print(f"REFUSED: the brief {a.brief} is not a file")
+            return 1
+        kept = journal.STATE / "manager" / "briefs"  # a lane never depends on a loose file (#6589 item 21)
+        dest = kept / f"{a.lane}-{a.step}.txt"
+        if src.resolve() != dest.resolve():
+            kept.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src, dest)
+        add(a.lane, a.worktree, a.step, str(dest), a.issues, kind=getattr(a, "kind", "worker"), hold=True if getattr(a, "hold", False) else None,
             pane=getattr(a, "pane", ""), maintainer=True if getattr(a, "maintainer", False) else None)
         print(f"queued {a.lane} {a.step}")
         return 0
