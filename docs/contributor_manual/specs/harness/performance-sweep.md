@@ -296,7 +296,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   Info.plist key`, `linker`). Acceptance (fixture JSON and a fixture log): a build-results JSON with 12 warnings yields 12
   normalised rows and the right kind counts; the owner's example line yields kind `script phase without outputs` with
   the phase named; two deprecations of different symbols are one kind with count 2; a named bundle or log that is missing or unreadable is BLIND (exit 2); a run that names neither (the guards rung runs every `check_*.py` bare, before any build) prints `skipped: no build to read` and exits 0: it read nothing, so it claims nothing.
-  Test (to write): the new test_check_xcode_warning_ratchet file in fichero-server/tests/unit/scripts, case test_warnings_are_read_from_the_bundle_normalised_to_kinds_and_blind_without_input. Built: `scripts/check_xcode_warning_ratchet.py` reads and normalises, tested in fichero-server/tests/unit/scripts/test_check_xcode_warning_ratchet.py and fichero-builder/tests/test_perf_sweep.py.
+  Test: the new test_check_xcode_warning_ratchet file in fichero-server/tests/unit/scripts, case test_warnings_are_read_from_the_bundle_normalised_to_kinds_and_blind_without_input. Built: `scripts/check_xcode_warning_ratchet.py` reads and normalises, tested in fichero-server/tests/unit/scripts/test_check_xcode_warning_ratchet.py and fichero-builder/tests/test_perf_sweep.py.
 - `perf-sweep.warnings.ratchet` [OK] (#6610) — the new check_xcode_warning_ratchet file in scripts, shaped exactly like
   `check_swiftlint_warning_ratchet.py` (exit 0 held, 1 grew, 2 BLIND; `--update-baseline`; `--since <base>` for one
   item), holds `scripts/xcode_warning_baseline.json` = `{platform: {kind: count}}` EXACTLY: a batch that adds a warning
@@ -307,7 +307,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   that moves file is not new (counts are per kind, not per file, the SwiftLint ratchet's netting rule). Acceptance: a
   bundle with one more `Sendable` warning than the baseline is red naming it; one fewer is green and prints the lower
   count; a baseline edit that raises a count is refused; `--since` over a fixture pair reports only the item's own new
-  lines. Test (to write): test_check_xcode_warning_ratchet (a new test file), case test_the_count_per_kind_and_platform_may_only_fall_and_since_names_the_item_s_lines. Built: the ratchet and the remote build rung's hold, tested in fichero-server/tests/unit/scripts/test_check_xcode_warning_ratchet.py and fichero-builder/tests/test_perf_sweep.py.
+  lines. Test: test_check_xcode_warning_ratchet (a new test file), case test_the_count_per_kind_and_platform_may_only_fall_and_since_names_the_item_s_lines. Built: the ratchet and the remote build rung's hold, tested in fichero-server/tests/unit/scripts/test_check_xcode_warning_ratchet.py and fichero-builder/tests/test_perf_sweep.py.
 - `perf-sweep.warnings.ranked-list-and-issues` [OK] (#6610) — one list for all three warning sources: the xcode ratchet's
   kinds, `check_swiftlint_warning_ratchet.py`'s per-rule counts (`TOP_N_RULES` already computed there; the script gains
   `--json <out>` and nothing else) and ruff's per-rule counts where the quality stream holds them, written to
@@ -320,7 +320,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   on every build; the fix is a declared output file per phase (or `alwaysOutOfDate = 1` where the phase must run), which
   also shortens every incremental build and is itself a build-time hotspot. Acceptance (fixture rows, fake `gh`): the
   list ranks three sources together; one issue per kind with the key; a repeat run files nothing new; a kind at zero
-  closes; the Validate phase in a fixture pbxproj is listed as `script phase without outputs`. Test (to write):
+  closes; the Validate phase in a fixture pbxproj is listed as `script phase without outputs`. Test:
   test_perf_sweep (a new test file), case test_warning_kinds_rank_across_sources_file_one_issue_each_and_close_at_zero. Built: `fichero_builder/perf_warnings.py` and the console Warnings table, tested in fichero-builder/tests/test_perf_sweep.py.
 
 ## Rung states — a measurement that did not happen is not green
