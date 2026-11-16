@@ -418,8 +418,8 @@ def test_the_build_rung_and_every_daily_build_pass_a_result_bundle_path():
     assert check_tool.with_result_bundle(["py", "x"], "/r/x.xcresult") == ["py", "x"]
     rules = tomllib.loads((Path(__file__).resolve().parents[2] / "harness.toml").read_text())
     daily = rules["check"]["daily_builds"]
-    assert {"ios-sim", "tests", "ipad-sim"} <= set(daily)
-    assert "generic/platform=iOS Simulator" in daily["ipad-sim"]
+    assert {"ios-sim", "tests"} <= set(daily) and "ipad-sim" not in daily  # no scheme carries the iPad plan yet: a copy of ios-sim would count the same build twice
+    assert set(check_tool.WARNING_PLATFORMS.values()) == {"mac", "ios"}
 
 
 def _warn_bundle(*messages):

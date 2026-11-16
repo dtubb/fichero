@@ -917,7 +917,8 @@ SOURCE_ERROR = re.compile(r"\.swift:\d+:\d+: error: ")
 BUILD_RETRY_WAIT_S = 30  # ponytail: one fixed wait; the other build's end is not watched
 
 
-WARNING_PLATFORMS = {"build": "mac", "ios-sim": "ios", "ipad-sim": "ipad"}  # the build rung holds the mac count; the daily builds hold iOS and iPad (the Swift test target holds none)
+WARNING_PLATFORMS = {"build": "mac", "ios-sim": "ios"}  # the remote build rung holds the mac count, the iOS daily build the iOS count (the Swift test target holds none; iPad waits for a scheme that carries the iPad plan)
+RATCHET_SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "check_xcode_warning_ratchet.py"  # the harness's own copy judges: a batch's own script never runs, jailed or not
 
 
 def _warning_ratchet(tree: Path, host: str, bundle: str, name: str, r: dict) -> None:
@@ -925,18 +926,20 @@ def _warning_ratchet(tree: Path, host: str, bundle: str, name: str, r: dict) -> 
     `scripts/xcode_warning_baseline.json` by `scripts/check_xcode_warning_ratchet.py --hold-only`. Exit 1 turns the row red with the ratchet's
     lines (it is the code's, never the runner's); exit 2 (BLIND: no baseline yet, an unreadable bundle) is a journal note, never a red and
     never a silent green. Only a build the rung ran: the rung's own tree is read, nothing is written."""
-    script = Path(tree) / "scripts" / "check_xcode_warning_ratchet.py"
-    if not script.is_file():
+    if not RATCHET_SCRIPT.is_file():
         return
     got = _ssh(host, f"xcrun xcresulttool get build-results --path {shlex.quote(bundle)}", 300)
-    out = journal.STATE / "build-logs" / f"{name}-{time.strftime('%Y%m%d-%H%M%S')}.warnings.json"
     if got.returncode or not got.stdout:
         journal.append("check", state="warnings-blind", rung=name, detail=got.stderr.decode(errors="replace")[-200:] or "no build results")
         return
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_bytes(got.stdout)
-    p = subprocess.run([sys.executable, str(script), "--platform", WARNING_PLATFORMS[name], "--bundle", str(out), "--hold-only",
-                        "--baseline", str(Path(tree) / "scripts" / "xcode_warning_baseline.json")], capture_output=True, text=True, timeout=120)
+    fd, tmp = tempfile.mkstemp(prefix=f"{name}-", suffix=".warnings.json")  # removed below: nothing accumulates in build-logs
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(got.stdout)
+        p = subprocess.run([sys.executable, str(RATCHET_SCRIPT), "--platform", WARNING_PLATFORMS[name], "--bundle", tmp, "--hold-only",
+                            "--baseline", str(Path(tree) / "scripts" / "xcode_warning_baseline.json")], capture_output=True, text=True, timeout=120)
+    finally:
+        Path(tmp).unlink(missing_ok=True)
     if p.returncode == 1:
         r["ok"] = False
         r["warnings_grew"] = True
@@ -1100,18 +1103,17 @@ def _build_locked(root, changed: list[str], cfg: Config) -> dict:
             return {"ok": True, "skipped": False, "results": [{"name": "build", "ok": True, "exit_code": 0, "timed_out": False, "seconds": 0,
                                                                "stdout_tail": f"reused: the same build key built green at {hit.get('head', '?')[:9]}", "stderr_tail": "", "reused": key}]}
         log = journal.STATE / "build-logs" / f"build-{time.strftime('%Y%m%d-%H%M%S')}-{time.time_ns() % 10**9:09d}.log"  # only a red build writes it; ponytail: never rotated, prune by age if the dir grows
-        bundle = log.with_suffix(".xcresult")  # beside the kept log; each run gets its own name, so none exists yet
-        r = _run("build", with_result_bundle(cfg.build, bundle), src, cfg.build_timeout_s, cfg, log=log)
+        r = _run("build", cfg.build, src, cfg.build_timeout_s, cfg, log=log)
         if not r["ok"] and BUILD_DB_LOCKED.search((r.get("stdout_tail") or "") + (r.get("stderr_tail") or "") + (r.get("errors") or "")):
             journal.append("check", state="retry", rung="build", detail="XCBuildData build.db was locked by another build in the same derived dir: re-run once")
             time.sleep(BUILD_RETRY_WAIT_S)
-            r = {**_run("build", with_result_bundle(cfg.build, log.with_suffix(".retry.xcresult")), src, cfg.build_timeout_s, cfg, log=log.with_suffix(".retry.log")), "retried": True}
+            r = {**_run("build", cfg.build, src, cfg.build_timeout_s, cfg, log=log.with_suffix(".retry.log")), "retried": True}
         if not r["ok"] and not r.get("timed_out") and cfg.build_tree and (dd := _derived_dir(cfg)) and not SOURCE_ERROR.search(r.get("errors") or ""):
             # an incremental red can be stale build state, not the code (memory: a stale incremental build): once more from a
             # clean derived dir, and the second result stands (manager 2026-11-03)
             journal.append("check", state="retry", rung="build", detail=f"an incremental build was red: {dd} cleared, built once more from clean")
             _clear_dir(dd)
-            r = {**_run("build", with_result_bundle(cfg.build, log.with_suffix(".clean.xcresult")), src, cfg.build_timeout_s, cfg, log=log.with_suffix(".clean.log")), "retried": "clean"}
+            r = {**_run("build", cfg.build, src, cfg.build_timeout_s, cfg, log=log.with_suffix(".clean.log")), "retried": "clean"}
         if r["ok"] and key:
             _build_result_put(key, (_lines(src, "rev-parse", "HEAD") or [""])[0])
     finally:
