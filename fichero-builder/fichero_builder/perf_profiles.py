@@ -171,18 +171,27 @@ def _child_pid(pid: int) -> int | None:
     return None  # never attach root to a pid that is not the workload's (it may have exited and been reused)
 
 
+def _kill_group(proc) -> None:
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    proc.communicate()
+
+
 def real_runner(argv: list[str], *, timeout, env=None, cwd=None, attach: list[str] | None = None) -> tuple[int, str, str]:
     """Run an argument LIST (never a shell string). With `attach` (the `sudo -n py-spy record ...` prefix), the workload starts as this
     user and root is used only to attach to its pid, so the workload never runs as root."""
     if not isinstance(argv, list):
         raise TypeError("a command is an argument list, never a shell string")
+    proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env, cwd=cwd, start_new_session=True)
     if attach is None:
         try:
-            p = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, env=env, cwd=cwd)
-            return p.returncode, p.stdout, p.stderr
-        except subprocess.TimeoutExpired:
+            out, err = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:  # kill the whole group: /usr/bin/time's child and anything pytest started
+            _kill_group(proc)
             return 124, "", f"timed out after {timeout} s"
-    proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env, cwd=cwd, start_new_session=True)
+        return proc.returncode, out, err
     child = _child_pid(proc.pid)
     if child is None:
         os.killpg(proc.pid, signal.SIGKILL)

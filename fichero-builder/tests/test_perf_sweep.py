@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shlex
+import time
 from pathlib import Path
 
 import pytest
@@ -386,3 +387,19 @@ def test_after_nightly_perf_state_holds_nothing_but_the_shared_models(tmp_path, 
     gate = tmp_path / "Dev Disk" / "gate"
     assert [p.name for p in (gate / "perf-state").iterdir() if p.name != "models"] == []
     assert not (gate / "perf-state" / "library").exists()
+
+
+def test_a_timed_out_workload_takes_its_whole_process_group_with_it(tmp_path):
+    pidfile = tmp_path / "grandchild.pid"
+    rc, _o, err = perf_profiles.real_runner(["sh", "-c", f"sleep 30 & echo $! > '{pidfile}'; wait"], timeout=1)
+    assert rc == 124 and "timed out" in err
+    pid = int(pidfile.read_text())
+    for _ in range(40):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            break
+        time.sleep(0.1)
+    else:
+        os.kill(pid, 9)
+        raise AssertionError("the grandchild of a timed-out workload is still running")
