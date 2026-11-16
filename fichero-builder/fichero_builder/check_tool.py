@@ -905,8 +905,8 @@ def build(root, changed: list[str], cfg: Config) -> dict:
     BEFORE the heavy lock (2026-11-06: a docs-only or harness batch waited hours on the owner's Xcode hold just to learn it builds nothing)."""
     if not cfg.build or not any(f.startswith(cfg.build_paths) for f in changed):
         return {"ok": True, "skipped": True, "results": []}
-    if cfg.build_remote and (r := _remote_build(root, cfg)) is not None:
-        return r
+    if cfg.build_remote and (r := _remote_build(root, cfg)) is not None and not r.get("remote_env_red"):
+        return r  # an env-red there (not the code's) builds here, as before
     return _build_locked(root, changed, cfg)  # ponytail: the remote down under the owner's hold waits here, holding its slot
 
 
@@ -963,11 +963,11 @@ def _remote_build_locked(root, cfg: Config, host: str, rbase: str, cmd: tuple = 
     if not r["ok"] and not r.get("timed_out") and name == "perf":
         # a perf run that exits non-zero crashed over there: its stderr is the row, never "unreachable"
         journal.append("check", state="build-remote-crash", rung=name, runner=host, detail=(r.get("stderr_tail") or "")[-200:])
-        return {"ok": False, "skipped": False, "crashed": True, "remote": host, "results": [r]}
+        return {"ok": False, "skipped": False, "crashed": True, "remote_env_red": True, "remote": host, "results": [r]}
     if not r["ok"] and name != "perf" and not SOURCE_ERROR.search((r.get("errors") or "") + (r.get("stdout_tail") or "")):
         # a red that names no Swift source error is that Mac's (a missing component, a package fetch, a timeout), never the code's
         journal.append("check", state="build-remote-env-red", rung=name, runner=host, detail=(r.get("stderr_tail") or "")[-200:])
-        return None
+        return {"ok": False, "skipped": False, "remote_env_red": True, "remote": host, "results": [r]}  # the row stays: its stderr says why
     r["remote"] = host
     journal.append("check", state="build-remote", rung=name, runner=host, ok=r["ok"], seconds=r.get("seconds"))
     if r["ok"] and key:
@@ -983,7 +983,11 @@ def daily_builds(root, cfg: Config) -> list[tuple[str, dict | None]]:
     Never on this Mac (the owner's): no remote = nothing runs."""
     if not cfg.build_remote:
         return []
-    return [(name, _remote_build(root, cfg, tuple(argv), name)) for name, argv in cfg.daily_builds.items()]
+    out = []
+    for name, argv in cfg.daily_builds.items():
+        r = _remote_build(root, cfg, tuple(argv), name)
+        out.append((name, None if r and r.get("remote_env_red") else r))  # could not run there: as before
+    return out
 
 @_heavy("xcodebuild (the build rung)")
 def _build_locked(root, changed: list[str], cfg: Config) -> dict:
@@ -1434,6 +1438,7 @@ def _load() -> float | None:
 # ---- the perf and security rungs (#6600, Step 2.30): readers and judges are perf_rung.py and security_rung.py, the figures and
 # findings are the tools', the decision rule is scripts/perf_trial.py's. REPORT-ONLY until real batches have measured the budget
 # (`[check.perf].enforce` / `[check.security].enforce` = false): a red is shown, journalled as an alert, and the rung stays green.
+PERF_MISSING = re.compile(r"No such file or directory: '?((?:\./)?(?:scripts/perf_baseline\.json|(?:fichero-server/)?tests/perf[^\s':]*))")
 PERF_LINE = re.compile(r"^PERF-RESULT (\{.*\})\s*$", re.M)
 SECURITY_LINE = re.compile(r"^SECURITY-RESULT (\{.*\})\s*$", re.M)
 # the scanned directories are the project's: `[check.security].dirs` in harness.toml
@@ -1459,7 +1464,7 @@ def _report_only(name: str, cfg_table: dict, ok: bool, lines: list[str], extra: 
     enforce = bool(cfg_table.get("enforce", False))
     if not ok and not enforce:
         _rung_alert(name, f"{name} (report-only) would be red: " + "; ".join(lines))
-    refused = any(x.startswith(("REFUSED", "not run")) for x in lines)  # a refused rung measured nothing: "not run", never green
+    refused = any(x.startswith(("REFUSED", "not run", "not-run")) for x in lines)  # a refused rung measured nothing: "not run", never green
     return {"ok": ok or not enforce, "skipped": False, "enforced": enforce, "stdout_tail": "\n".join(lines)[-3500:], "stderr_tail": "",
             "results": [], **({"not_run": True} if refused else {}), **(extra or {})}
 
@@ -1470,6 +1475,15 @@ def _timed_out_row(name: str, r: dict) -> dict | None:
         _rung_alert(name, f"{name} timed out after {r.get('seconds')} s: over twice its budget, not a red")
         return {"ok": True, "skipped": False, "stdout_tail": f"alert: the {name} rung timed out ({r.get('seconds')} s)", "stderr_tail": "", "results": [r]}
     return None
+
+
+def _not_run(name: str, cfg_table: dict, reason: str, detail: str = "", extra: dict | None = None) -> dict:
+    """A rung that measured nothing: `not-run: <reason>` with the remote stderr, a journal row (state not-run, an id) and never green
+    (`perf-sweep.rung.not-run-is-visible`); the ladder still passes while `enforce` is off."""
+    detail = (detail or "").strip()[-300:]
+    rid = f"{name}-not-run-{time.strftime('%Y%m%d%H%M%S')}-{sum(1 for x in journal.read() if x.get('state') == 'not-run') + 1}"
+    journal.append("check", state="not-run", rung=name, id=rid, reason=reason, detail=detail)
+    return {**_report_only(name, cfg_table, False, [f"not-run: {reason}", *([detail] if detail else [])], extra), "not_run": True, "not_run_id": rid}
 
 
 def perf(root, since: str, changed: list[str], cfg: Config) -> dict:
@@ -1487,13 +1501,15 @@ def perf(root, since: str, changed: list[str], cfg: Config) -> dict:
     argv = (py, "scripts/perf_engine_run.py", "--baseline", perf_rung.BASELINE, *cfg.perf.get("args", ()))
     r = _remote_build(root, cfg, argv, "perf", reuse=False)
     if r is None:
-        _rung_alert("perf", "the build runner is unreachable: the engine perf rung did not run (never run here)")
-        return {"ok": True, "skipped": True, "not_run": True, "stdout_tail": "not run: the build runner is unreachable", "stderr_tail": "", "results": []}
+        return _not_run("perf", cfg.perf, "runner down", "the build runner is unreachable: the engine perf rung did not run (never run here)")
     row = r["results"][0]
-    if r.get("crashed"):
+    if r.get("crashed") or r.get("remote_env_red"):
         tail = (row.get("stderr_tail") or row.get("stdout_tail") or "")[-300:]
-        return {**_report_only("perf", cfg.perf, False, [f"not run: the perf run crashed on {r.get('remote')} (exit {row.get('exit_code')}): {tail}"], {"results": [row]}),
-                "not_run": True}
+        if (m := PERF_MISSING.search(tail)) and "No module named" not in tail:
+            reason = f"{m.group(1)} missing on the runner"
+        else:
+            reason = "perf tool refused"
+        return _not_run("perf", cfg.perf, reason, f"{r.get('remote')} exit {row.get('exit_code')}: {tail}", {"results": [row]})
     if (t := _timed_out_row("perf", row)) is not None:
         return t
     m = PERF_LINE.search(row.get("stdout_tail") or "")
@@ -1591,10 +1607,12 @@ def security(root, since: str, head: str, changed: list[str], cfg: Config) -> di
     m = SECURITY_LINE.search(r.get("stdout_tail") or "")
     refused, rows, rows_table = [], [], "none"
     if not m:
-        refused = ["REFUSED: the scan printed no SECURITY-RESULT line (a gate that cannot read its input fails)", (r.get("stderr_tail") or "")[-300:]]
-    else:
-        res = json.loads(m.group(1))
-        refused, rows, rows_table = res.get("refused", []), res.get("rows", []), res.get("table", "none")
+        return _not_run("security", cfg.security, "scan refused", "the scan printed no SECURITY-RESULT line: " + (r.get("stderr_tail") or r.get("stdout_tail") or "")[-300:], {"results": [r]})
+    res = json.loads(m.group(1))
+    refused, rows, rows_table = res.get("refused", []), res.get("rows", []), res.get("table", "none")
+    if refused:  # REFUSED: <tool> ... : the scanner is missing, unpinned or at another version, so nothing was scanned
+        tool = (re.match(r"REFUSED: (\S+)", refused[0]) or [None, "a scanner"])[1]
+        return _not_run("security", cfg.security, f"{tool} refused", "\n".join(refused), {"results": [r], "table": rows_table})
     reds = [x for x in rows if x.get("red")]
     lines = [*problems, *refused, *[f"{x['scanner']} {x['rule']} {x['where']}" for x in reds]]
     return _report_only("security", cfg.security, not (problems or refused or reds), lines or ["no new finding"], {"results": [r], "table": rows_table})

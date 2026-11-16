@@ -133,3 +133,38 @@ def test_a_perf_timeout_is_an_alert_row_never_a_crash_or_a_red(tmp_path, monkeyp
     res = check_tool.perf(tmp_path, "a", ["fichero-server/src/x.py"], _perf_cfg())
     assert res["ok"] and "timed out" in res["stdout_tail"] and not res.get("not_run")
     assert [x for x in journal.read() if x["event"] == "alert" and x.get("rung") == "perf"]
+
+
+def _remote(monkeypatch, tmp_path, name, exit_code, stderr=""):
+    """`_remote_build_locked` over a fake ssh and a fake run_command: the remote command exits `exit_code` printing `stderr`."""
+    from fichero_builder import check_tool, journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    r = {"ok": exit_code == 0, "exit_code": exit_code, "timed_out": False, "seconds": 1, "stdout_tail": "", "stderr_tail": stderr, "errors": ""}
+    monkeypatch.setattr(check_tool, "run_command", lambda n, *a, **k: {"ok": True} if n == "build-sync" else dict(r))
+    monkeypatch.setattr(check_tool, "_stable_build_tree", lambda root, cfg: str(root))
+    return check_tool._remote_build_locked(tmp_path, _perf_cfg(), "m4", "/gate", ("py", "x"), name, False)
+
+
+def test_a_rung_that_did_not_measure_is_not_run_never_green_and_names_why(tmp_path, monkeypatch):
+    from fichero_builder import check_tool, journal
+    eng = ["fichero-server/src/x.py"]
+    # _remote_build: a 255 is a runner it could not reach (None); any other env-red keeps its row, for every build name
+    assert _remote(monkeypatch, tmp_path, "perf", 255, "ssh: connect refused") is None
+    for name in ("perf", "build"):
+        row = _remote(monkeypatch, tmp_path, name, 1, "No module named pytest_benchmark")
+        assert row is not None and not row["ok"] and row["remote_env_red"] and "pytest_benchmark" in row["results"][0]["stderr_tail"]
+    # perf(): None is "runner down"; a refused tool and a missing file are named, each with the remote stderr, never "unreachable"
+    monkeypatch.setattr(check_tool, "_remote_build", lambda *a, **k: None)
+    r = check_tool.perf(tmp_path, "a", eng, _perf_cfg())
+    assert r["ok"] and r["not_run"] and "not-run: runner down" in r["stdout_tail"]
+    env_red = lambda err: {"ok": False, "skipped": False, "remote_env_red": True, "remote": "m4", "results": [{"exit_code": 1, "stderr_tail": err, "stdout_tail": ""}]}
+    monkeypatch.setattr(check_tool, "_remote_build", lambda *a, **k: env_red("ModuleNotFoundError: No module named pytest_benchmark"))
+    r = check_tool.perf(tmp_path, "a", eng, _perf_cfg())
+    assert r["ok"] and r["not_run"] and "not-run: perf tool refused" in r["stdout_tail"] and "pytest_benchmark" in r["stdout_tail"]
+    assert "unreachable" not in r["stdout_tail"]
+    monkeypatch.setattr(check_tool, "_remote_build", lambda *a, **k: env_red("FileNotFoundError: [Errno 2] No such file or directory: 'scripts/perf_baseline.json'"))
+    r = check_tool.perf(tmp_path, "a", eng, _perf_cfg())
+    assert r["ok"] and r["not_run"] and "not-run: scripts/perf_baseline.json missing on the runner" in r["stdout_tail"]
+    # every one is a journal row with state not-run and an id
+    rows = [x for x in journal.read() if x.get("state") == "not-run" and x.get("rung") == "perf"]
+    assert len(rows) == 3 and all(x.get("id") for x in rows) and len({x["id"] for x in rows}) == 3

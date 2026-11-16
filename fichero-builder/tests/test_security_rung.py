@@ -138,3 +138,19 @@ def test_the_rung_skips_unconfigured_and_unrequired_batches_and_stays_green_whil
     assert [r for r in journal.read() if r["event"] == "alert" and r.get("rung") == "security"]
     assert not check_tool._report_only("security", {"enforce": True}, False, ["x"])["ok"]
     assert check_tool._timed_out_row("security", {"timed_out": True, "seconds": 9})["ok"]
+
+
+def test_a_rung_that_did_not_measure_is_not_run_never_green_and_names_why(repo, tmp_path, monkeypatch):
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    cfg = check_tool.Config(security={"enforce": False, "dirs": ["scripts"], "pins": {}})
+    refused = ["REFUSED: bandit has no pinned version in harness.toml [check.security]"]
+    out = "SECURITY-RESULT " + json.dumps({"rows": [], "refused": refused, "table": "none"})
+    monkeypatch.setattr(check_tool, "_run", lambda *a, **k: {"ok": False, "exit_code": 1, "timed_out": False, "stdout_tail": out, "stderr_tail": "x"})
+    r = check_tool.security(repo, "a", "b", ["scripts/x.py"], cfg)
+    assert r["ok"] and r["not_run"] and "not-run: bandit refused" in r["stdout_tail"]
+    rows = [x for x in journal.read() if x.get("state") == "not-run" and x.get("rung") == "security"]
+    assert rows and rows[0].get("id") and "bandit" in rows[0]["reason"]
+    # no SECURITY-RESULT line at all: the scan did not run, with the scanner's stderr kept
+    monkeypatch.setattr(check_tool, "_run", lambda *a, **k: {"ok": False, "exit_code": 1, "timed_out": False, "stdout_tail": "", "stderr_tail": "no module named x"})
+    r = check_tool.security(repo, "a", "b", ["scripts/x.py"], cfg)
+    assert r["not_run"] and "no module named x" in r["stdout_tail"]
