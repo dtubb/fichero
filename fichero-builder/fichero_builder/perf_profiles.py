@@ -11,7 +11,9 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -22,6 +24,8 @@ TOP_FRAMES = 15
 TOP_ALLOCS = 10
 DIRS = ("library", "cache", "log", "models")  # the `du` pairs of perf-rung-engine
 MIN_FREE_GB = 5
+KEEP_RUNS = 7  # run folders kept under the gate dir
+ENV_KEEP = ("PATH", "HOME", "LANG", "LC_ALL", "VIRTUAL_ENV")  # all a profiled driver inherits
 
 
 def _own(path: str) -> bool:
@@ -157,20 +161,48 @@ def choose_profiler(rules: dict, machine: str, sudo_ok) -> tuple[str, str | None
 
 # --- the nightly driver ---------------------------------------------------------------------------------------------------------------
 
-def real_runner(cmd: str, *, timeout, env=None, cwd=None) -> tuple[int, str, str]:
+def _child_pid(pid: int) -> int:
+    """The workload under `/usr/bin/time` (time forks it), so py-spy attaches to python and not to time."""
+    for _ in range(40):
+        got = subprocess.run(["pgrep", "-P", str(pid)], capture_output=True, text=True).stdout.split()
+        if got:
+            return int(got[0])
+        time.sleep(0.25)
+    return pid
+
+
+def real_runner(argv: list[str], *, timeout, env=None, cwd=None, attach: list[str] | None = None) -> tuple[int, str, str]:
+    """Run an argument LIST (never a shell string). With `attach` (the `sudo -n py-spy record ...` prefix), the workload starts as this
+    user and root is used only to attach to its pid, so the workload never runs as root."""
+    if not isinstance(argv, list):
+        raise TypeError("a command is an argument list, never a shell string")
+    if attach is None:
+        try:
+            p = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, env=env, cwd=cwd)
+            return p.returncode, p.stdout, p.stderr
+        except subprocess.TimeoutExpired:
+            return 124, "", f"timed out after {timeout} s"
+    proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env, cwd=cwd, start_new_session=True)
+    spy = subprocess.Popen([*attach, "--pid", str(_child_pid(proc.pid))], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
     try:
-        p = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout, env=env, cwd=cwd)
-        return p.returncode, p.stdout, p.stderr
+        out, err = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGKILL)
+        proc.communicate()
+        spy.kill()
+        spy.communicate()
         return 124, "", f"timed out after {timeout} s"
+    try:
+        _o, spy_err = spy.communicate(timeout=120)
+    except subprocess.TimeoutExpired:
+        spy.kill()
+        _o, spy_err = spy.communicate()
+    rc = proc.returncode or (spy.returncode if spy.returncode else 0)
+    return rc, out, err + (f"\npy-spy: {spy_err.strip()}" if spy_err.strip() else "")
 
 
 def real_free_gb(path) -> float:
     return shutil.disk_usage(path).free / 1e9
-
-
-def _q(*parts) -> str:
-    return " ".join(shlex.quote(str(p)) for p in parts)
 
 
 def _python_argv(driver: str) -> list[str]:
@@ -190,11 +222,13 @@ def _not_run(w, reason, **base) -> dict:
 
 
 def nightly(rules: dict, manifest: dict, *, gate, state, run: str, machine: str, machine_model: str, runner=real_runner,
-            free_gb=real_free_gb, only=None, cwd=None, sudo_ok=None, py_spy: str = "py-spy") -> dict:
+            free_gb=real_free_gb, only=None, cwd=None, sudo_ok=None, py_spy: str = "py-spy", keep: int = KEEP_RUNS) -> dict:
     """Profile the engine workloads one at a time, w2 last, each behind the heavy lock and inside its own `budget_s`. A workload that
     fails or times out is a `not-run` row and the next one still runs; a disk under the machine's `min_free_gb` refuses before any
-    run. Every path is quoted; profiles and temp live under the gate dir's `perf` folder for this run."""
+    run. Commands are argument lists, never shell strings. Profiles and temp live under the gate dir's `perf` folder for this run;
+    the memray `.bin` and the temp folder go once their reports are written, and only the newest `keep` run folders stay."""
     gate = Path(gate)
+    py_spy = shutil.which(py_spy) or py_spy  # the sudoers line names the full path
     table = [w for w in perf_workloads.load(rules, manifest) if w["side"] == "engine" and (not only or w["name"] in only)]
     table.sort(key=lambda w: w["name"] == "w2")
     base = dict(run=run, machine_model=machine_model)
@@ -206,7 +240,7 @@ def nightly(rules: dict, manifest: dict, *, gate, state, run: str, machine: str,
         reason = f"only {free:.1f} GB free under the gate dir, {min_free} GB needed: refused before running"
         return perf_sweep.write_rows([_not_run("engine", reason, **base)], run=run, machine_model=machine_model, state=state,
                                      notes=[f"not-run: {reason}"])
-    sudo_ok = sudo_ok or (lambda: runner(_q("sudo", "-n", "-l", py_spy), timeout=30)[0] == 0)
+    sudo_ok = sudo_ok or (lambda: runner(["sudo", "-n", "-l", py_spy], timeout=30)[0] == 0)
     profiler, why = choose_profiler(rules, machine, sudo_ok)
     notes.append(f"profiler: {profiler}")
     if why:
@@ -214,7 +248,13 @@ def nightly(rules: dict, manifest: dict, *, gate, state, run: str, machine: str,
         rows.append(_not_run("engine", why, **base))
     run_dir = gate / "perf" / run
     (run_dir / "tmp").mkdir(parents=True, exist_ok=True)
-    env = {**os.environ, "TMPDIR": str(run_dir / "tmp")}
+    state_dir = gate / "perf-state"
+    # The engine is pointed at the folders `du` measures, so the disk rows read what the run really wrote.
+    where = {"library": state_dir / "library", "cache": state_dir / "base", "log": state_dir / "log",
+             "models": Path(os.environ.get("FICHERO_MODEL_STORE_ROOT") or state_dir / "base" / "models")}
+    env = {k: os.environ[k] for k in ENV_KEEP if k in os.environ}
+    env.update(TMPDIR=str(run_dir / "tmp"), FICHERO_BASE_PATH=str(where["cache"]), FICHERO_LIBRARY_PATH=str(where["library"]),
+               FICHERO_ENGINE_LOG_PATH=str(where["log"] / "engine.log"), FICHERO_MODEL_STORE_ROOT=str(where["models"]))
     for w in table:
         n = w["name"]
         free = free_gb(gate)
@@ -223,36 +263,39 @@ def nightly(rules: dict, manifest: dict, *, gate, state, run: str, machine: str,
             notes.append(f"not-run: {reason}")
             rows.insert(0, _not_run(n, reason, **base))
             break
-        dirs = {d: gate / "perf-state" / d for d in DIRS if d in w["outputs"]}
-        for p in dirs.values():
+        for p in where.values():
             p.mkdir(parents=True, exist_ok=True)
-        du = "du -sk " + " ".join(shlex.quote(str(p)) for p in dirs.values())
+        dirs = [str(where[d]) for d in DIRS if d in w["outputs"]]
+        du = ["du", "-sk", *dirs] if dirs else None  # no declared folder: no `du` at all (a bare `du -sk` reads the current folder)
         drv = _python_argv(w["drivers"][0])
         out = {k: run_dir / f"{n}.{k}" for k in ("pyinstrument.json", "html", "speedscope", "bin", "memray.json", "memray.html")}
         timed = ["/usr/bin/time", "-l"]
         with journal.heavy(f"perf profile {n}"):
-            before = runner(du, timeout=120)[1]
+            before = runner(du, timeout=120)[1] if du else ""
             if profiler == "py-spy":
-                cmd = _q("sudo", "-n", py_spy, "record", "--format", "speedscope", "-o", out["speedscope"], "--subprocesses", "--",
-                         *timed, *drv)
+                # the workload starts as this user; root only attaches to its pid (`--pid` is added by the runner)
+                cmd, attach = [*timed, *drv], ["sudo", "-n", py_spy, "record", "--format", "speedscope", "-o", str(out["speedscope"]),
+                                               "--subprocesses"]
+                rc, _o, err = runner(cmd, timeout=w["budget_s"], env=env, cwd=cwd, attach=attach)
             else:
-                cmd = _q(*timed, "pyinstrument", "-r", "json", "-o", out["pyinstrument.json"], "-r", "html", "-o", out["html"],
-                         *_target(drv))
-            rc, _o, err = runner(cmd, timeout=w["budget_s"], env=env, cwd=cwd)
+                cmd = [*timed, "pyinstrument", "-r", "json", "-o", str(out["pyinstrument.json"]), "-r", "html", "-o", str(out["html"]),
+                       *_target(drv)]
+                rc, _o, err = runner(cmd, timeout=w["budget_s"], env=env, cwd=cwd)
             if rc != 0:
                 notes.append(f"{n}: not-run (exit {rc})")
                 rows.append(_not_run(n, f"the profiled run exited {rc}: {err.strip()[-300:]}", **base))
                 continue
-            mrc, _o, merr = runner(_q("memray", "run", "--native", "--follow-fork", "-f", "-o", out["bin"], *_target(drv)),
+            mrc, _o, merr = runner(["memray", "run", "--native", "--follow-fork", "-f", "-o", str(out["bin"]), *_target(drv)],
                                    timeout=w["budget_s"], env=env, cwd=cwd)
             memray_text = None
             if mrc == 0:
-                runner(_q("memray", "stats", "--json", "-f", "-o", out["memray.json"], out["bin"]), timeout=300)
-                runner(_q("memray", "flamegraph", "-f", "-o", out["memray.html"], out["bin"]), timeout=300)
+                runner(["memray", "stats", "--json", "-f", "-o", str(out["memray.json"]), str(out["bin"])], timeout=300)
+                runner(["memray", "flamegraph", "-f", "-o", str(out["memray.html"]), str(out["bin"])], timeout=300)
                 memray_text = _read(out["memray.json"])
             else:
                 rows.append(_not_run(n, f"memray run exited {mrc}: {merr.strip()[-300:]}", **base))
-            after = runner(du, timeout=120)[1]
+            out["bin"].unlink(missing_ok=True)  # hundreds of MB to GB: the stats and the flamegraph are what is kept
+            after = runner(du, timeout=120)[1] if du else ""
         frames = _read(out["speedscope"] if profiler == "py-spy" else out["pyinstrument.json"])
         try:
             deltas = disk_deltas(before, after)
@@ -266,7 +309,17 @@ def nightly(rules: dict, manifest: dict, *, gate, state, run: str, machine: str,
                 rows += rows_for(n, *args, **base, profiler=profiler, profile=prof)
             except (ValueError, KeyError, json.JSONDecodeError) as e:
                 rows.append(_not_run(n, f"the {part} output was unreadable: {e}", **base))
+    shutil.rmtree(run_dir / "tmp", ignore_errors=True)
+    _prune(gate / "perf", keep, current=run)
     return perf_sweep.write_rows(rows, run=run, machine_model=machine_model, state=state, notes=notes)
+
+
+def _prune(perf_dir: Path, keep: int, current: str) -> None:
+    """Keep the newest `keep` run folders (the current one always); remove only plain child folders of the gate's perf dir."""
+    runs = sorted((d for d in perf_dir.iterdir() if d.is_dir() and not d.is_symlink() and d.name != current), key=lambda d: d.stat().st_mtime,
+                  reverse=True)
+    for d in runs[max(0, keep - 1):]:
+        shutil.rmtree(d, ignore_errors=True)
 
 
 def _read(p: Path) -> str | None:

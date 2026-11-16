@@ -1,6 +1,7 @@
 """The performance sweep's row shape, area map and ranked hotspot table (#6600, Step 2):
 `perf-sweep.output.row` and `perf-sweep.output.table`."""
 import json
+import os
 import re
 import shlex
 from pathlib import Path
@@ -244,21 +245,23 @@ class _Runner:
         self.calls, self.fail, self.sudo_ok = [], fail or {}, sudo_ok
         self.du = 100
 
-    def __call__(self, cmd, *, timeout, env=None, cwd=None):
-        self.calls.append({"cmd": cmd, "timeout": timeout, "env": env})
-        if cmd.startswith("du -sk"):
+    def __call__(self, argv, *, timeout, env=None, cwd=None, attach=None):
+        assert isinstance(argv, list) and (attach is None or isinstance(attach, list)), "an argument list, never a shell string"
+        cmd = shlex.join(argv) if attach is None else shlex.join(attach) + " -- " + shlex.join(argv)
+        self.calls.append({"cmd": cmd, "argv": argv, "timeout": timeout, "env": env, "attach": attach})
+        if argv[:2] == ["du", "-sk"]:
             self.du += 10
-            return 0, "".join(f"{self.du}\t{p}\n" for p in shlex.split(cmd)[2:]), ""
-        if cmd.startswith("sudo -n -l"):
+            return 0, "".join(f"{self.du}\t{p}\n" for p in argv[2:]), ""
+        if argv[:4] == ["sudo", "-n", "-l", argv[3]] and len(argv) == 4:
             return (0 if self.sudo_ok else 1), "", ""
         for w, rc in self.fail.items():
             if f"/{w}." in cmd or f"-{w}-" in cmd:
                 return rc, "", "boom"
         for out in re.findall(r"-o ('[^']+'|\S+)", cmd):
-            p = Path(out.strip("'"))
+            p = Path(shlex.split(out)[0])
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(PYI if p.suffix == ".json" and "pyinstrument" in p.name else MEMRAY if p.name.endswith("memray.json") else "x")
-        return 0, "", TIME_L if "time -l" in cmd else ""
+        return 0, "", TIME_L if "/usr/bin/time" in argv else ""
 
 
 def _nightly(tmp_path, runner, rules=None, free_gb=500, **kw):
@@ -315,3 +318,36 @@ def test_a_machine_without_sudo_py_spy_never_spawns_it_and_a_missing_sudoers_lin
     _nightly(tmp_path, runner)
     spy = [c["cmd"] for c in runner.calls if "py-spy record" in c["cmd"]]
     assert len(spy) == 5 and all(c.startswith("sudo -n ") and "--subprocesses" in c and "--format speedscope" in c for c in spy)
+
+
+def test_no_shell_no_root_workload_a_minimal_env_the_engine_pointed_at_the_measured_folders_and_the_run_cleaned_up(tmp_path):
+    runner = _Runner()
+    gate = tmp_path / "Dev Disk" / "gate"
+    for old in ("old1", "old2", "old3"):  # earlier runs: only the newest few stay
+        (gate / "perf" / old).mkdir(parents=True)
+        (gate / "perf" / old / "x.bin").write_text("x")
+        os.utime(gate / "perf" / old, (1, int(old[-1])))
+    out = _nightly(tmp_path, runner, keep=2)
+    assert sorted(p.name for p in (gate / "perf").iterdir()) == ["n1", "old3"]
+    assert not list((gate / "perf" / "n1").glob("*.bin")) and not (gate / "perf" / "n1" / "tmp").exists()
+    assert (gate / "perf" / "n1" / "w1.memray.json").is_file()
+    spy = [c for c in runner.calls if c["attach"]]
+    assert len(spy) == 5 and all(c["argv"][:2] == ["/usr/bin/time", "-l"] and c["attach"][:3] == ["sudo", "-n", "py-spy"] for c in spy)
+    assert not any(c["argv"][0] == "sudo" for c in runner.calls if c["attach"])  # the workload itself never runs under sudo
+    for c in runner.calls:
+        if c["env"]:
+            assert set(c["env"]) <= {"PATH", "HOME", "LANG", "LC_ALL", "VIRTUAL_ENV", "TMPDIR", "FICHERO_BASE_PATH", "FICHERO_LIBRARY_PATH",
+                                     "FICHERO_ENGINE_LOG_PATH", "FICHERO_MODEL_STORE_ROOT"}
+            assert c["env"]["FICHERO_LIBRARY_PATH"].startswith(str(gate / "perf-state"))
+    # the folders `du` reads are the ones the engine is pointed at
+    du = [c for c in runner.calls if c["argv"][:2] == ["du", "-sk"]][0]["argv"][2:]
+    env = next(c["env"] for c in runner.calls if c["env"])
+    assert env["FICHERO_LIBRARY_PATH"] in du and env["FICHERO_BASE_PATH"] in du
+    assert all(len(c["argv"]) > 2 for c in runner.calls if c["argv"][:2] == ["du", "-sk"])  # never a bare `du -sk`
+    assert any(r["kind"] == "disk" for r in out["rows"])
+
+
+def test_the_real_runner_takes_an_argument_list_and_never_a_shell():
+    assert perf_profiles.real_runner(["echo", "a b; echo c"], timeout=10) == (0, "a b; echo c\n", "")
+    with pytest.raises(TypeError):
+        perf_profiles.real_runner("echo hi", timeout=10)

@@ -89,7 +89,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   the root's time; a memray stats JSON yields allocator rows by peak bytes; a `time -l` text yields RSS, user and sys;
   `du` pairs yield deltas; a machine without `sudo = ["py-spy"]` never spawns py-spy and the run says
   `profiler: pyinstrument`. Test: fichero-builder/tests/test_perf_sweep.py, case test_engine_profile_readers_rank_own_frames_allocators_disk_and_cpu_efficiency.
-  Built (#6614): the readers and `builder perf profile --gate <dir>` (`perf_profiles.py`); py-spy only when declared and its sudoers line is on the machine (else a row says so). Not built: the nightly schedule entry and a real run on the M4.
+  Built (#6614): the readers and `builder perf profile --gate <dir>` (`perf_profiles.py`); commands are argument lists, never a shell; py-spy only when declared and its sudoers line is on the machine (else a row says so), and then the workload starts as the gate user and root only attaches with `--pid`; the driver gets a minimal env and FICHERO_BASE_PATH, FICHERO_LIBRARY_PATH, FICHERO_ENGINE_LOG_PATH and FICHERO_MODEL_STORE_ROOT point at the folders `du` reads; the memray `.bin` and the temp folder are removed after each workload and the newest 7 run folders stay. Not built: the nightly schedule entry and a real run on the M4.
 - `perf-sweep.source.app-profiles` [GAP] (#6600) — fresh app profiles over the app workloads (W6–W10), nightly, on the
   M4's GUI session, the Dev Local build from the daily `tests` build's derived data (`build-for-testing` output). The
   recorder is `xcrun xctrace record --template '<T>' --time-limit <s>s --launch -- <app> --env
