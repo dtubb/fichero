@@ -33,7 +33,7 @@ struct DrawTargetTests {
     func refused() {
         for target in [
             DrawTarget.resolve(kind: .baseline, points: stroke, passId: "legacy:a", artifactId: "a", passIsProvisional: true),
-            DrawTarget.resolve(kind: .polygon, points: square, passId: nil, artifactId: nil, passIsProvisional: false),
+            DrawTarget.resolve(kind: .polygon, points: square, passId: nil, artifactId: nil, passIsProvisional: false)
         ] {
             guard case .refused = target else { Issue.record("expected a refusal, got \(target)"); continue }
         }
