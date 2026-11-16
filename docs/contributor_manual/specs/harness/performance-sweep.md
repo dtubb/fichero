@@ -51,8 +51,9 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   `app-log.jsonl` and a fixture signpost export, no Mac): 40 `sidebar expand` intervals give one row with count 40 and the
   right p50/p95; the launch milestones become ordered gaps whose sum is the last milestone's elapsed; a run with the
   stderr timeline only still yields the launch rows; the signpost export and the log for the same run agree within 5 ms or
-  the row is marked `disagree` (never silently averaged). Test (built; the signpost-export cross-check and `disagree` are open until Step 8):
+  the row is marked `disagree` (never silently averaged). Test (to write):
   the new test_perf_log_readers file in fichero-server/tests/unit/scripts, case test_launch_and_interaction_lines_become_phase_rows_with_p50_p95_count.
+  Built: the log and stderr readers. Not built: the signpost-export cross-check and the `disagree` mark (Step 8).
 - `perf-sweep.source.engine-perf-lines` [PARTIAL] (#6600) — `core/perf.py::perf_span` logs `PERF <name> <k=v …>
   duration_ms=<n>` and `model_load` logs `model-lane: loaded <model> in <s> s (load <n> in this engine)` plus the
   WARNING `model loaded again`. The reader takes an engine log (the run's, or the app's embedded-engine log from a smoke
@@ -206,7 +207,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   the same path-to-area map the review lenses use (`fichero_builder/review_lenses.py`; `recipes/` → recipes,
   `Views/Sidebar/` → sidebar, and so on) so a hotspot and a reviewer finding land in the same bucket. Acceptance: a row
   missing `where`, `value` or `source` is refused; `area` for `fichero/fichero/Views/Sidebar/SidebarView.swift` is
-  `sidebar`. Test (to write): test_perf_sweep (a new test file), case test_rows_have_one_shape_and_an_area_from_the_lens_map.
+  `sidebar`. Test: fichero-builder/tests/test_perf_sweep.py, case test_rows_have_one_shape_and_an_area_from_the_lens_map.
 - `perf-sweep.output.table` [PARTIAL] (#6600) — a run writes `<state>/perf/<run-id>/hotspots.json` (all rows) and
   `<state>/perf/latest.json` (a pointer plus the ranked top 50), where `<state>` is the builder's state dir
   (`journal.STATE`), and the profiles sit beside them for 30 days (the M4's Dev Disk; the manager's Mac holds the JSON
