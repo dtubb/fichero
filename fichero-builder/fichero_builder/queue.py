@@ -1258,13 +1258,14 @@ def _remove_tree(lane: dict, step: str, tree: str, repo: str) -> bool:
 def clean_up(lane: dict, ref: str) -> None:
     """#6589 item 16 (dev-workflows.run.loop-cleanup): a landed step whose head is an ancestor of `ref` loses its land-<lane> snapshot; a
     worker lane with no step left also loses its tree wt-<lane> and, when merged into `ref`, its branch. Never --force; one row each."""
+    heads: dict = {}
     for s in lane["steps"]:
         tree = s.get("land_tree") or ""
         if s["state"] != "landed" or not s.get("head") or not tree or not os.path.isdir(tree):
             continue
         if any(o is not s and o.get("land_tree") == tree and o["state"] != "landed" for o in lane["steps"]):
             continue  # a later batch is using this same snapshot
-        if _cg(tree, "rev-parse", "HEAD").stdout.strip() != s["head"]:
+        if heads.setdefault(tree, _cg(tree, "rev-parse", "HEAD").stdout.strip()) != s["head"]:
             continue  # the tree was reset to a newer sha: it is not this step's snapshot any more
         if _cg(tree, "merge-base", "--is-ancestor", s["head"], ref).returncode == 0:
             _remove_tree(lane, s["step"], tree, _cg(tree, "rev-parse", "--path-format=absolute", "--git-common-dir").stdout.strip() or lane["worktree"])
@@ -1275,6 +1276,10 @@ def clean_up(lane: dict, ref: str) -> None:
     branch = _cg(wt, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
     common = _cg(wt, "rev-parse", "--path-format=absolute", "--git-common-dir").stdout.strip()
     if not branch or branch == "HEAD" or not common:
+        why = f"{wt} kept: its branch or git dir could not be read from this user"
+        if CLEAN_KEPT.get((lane["id"], wt)) != why:
+            CLEAN_KEPT[(lane["id"], wt)] = why
+            _cleanup_row(lane, "", wt, "kept", why)
         return
     if _cg(wt, "merge-base", "--is-ancestor", branch, ref).returncode != 0:
         why = f"{wt} kept: its branch {branch} is not merged into {ref}"
@@ -1295,7 +1300,10 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
                 lane = next(x for x in load() if x["id"] == lane["id"])
             busy = tick_lane(lane, procs, handles, workers_n, push, out, chains) or busy
             if procs.cleanup_ref:
-                clean_up(next((x for x in load() if x["id"] == lane["id"]), lane), procs.cleanup_ref)
+                with journal.Lock("queue"):  # a concurrent `builder done` resets land-<lane>; re-read the lane inside the lock, so HEAD is checked against the current queue
+                    cur = next((x for x in load() if x["id"] == lane["id"]), None)
+                    if cur is not None:
+                        clean_up(cur, procs.cleanup_ref)
         except Exception:  # noqa: BLE001 - the same for the tick's own work on a lane: a row, and the other lanes still tick
             journal.append("loop", state="lane-error", lane=lane["id"], detail=traceback.format_exc()[-1500:])
             out(f"{lane['id']}: lane error (journal row lane-error); the loop goes on")
