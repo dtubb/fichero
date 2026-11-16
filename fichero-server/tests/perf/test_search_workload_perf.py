@@ -23,7 +23,7 @@ def test_two_hundred_text_queries(client, db):
     assert len(QUERIES) == 200
     start = time.perf_counter()
     for q in QUERIES:
-        r = client.post("/api/search", json={"query": q, "limit": 10, "include": ["content"]})
+        r = client.post("/api/search", json={"query": q, "limit": 10, "include": ["content"], "search_type": "fulltext"})
         assert r.status_code == 200, (q, r.status_code, r.text[:200])
     elapsed = time.perf_counter() - start
     print(f"\n[perf] 200 text searches over {N_DOCS} docs: {elapsed * 1000:.0f} ms")

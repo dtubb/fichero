@@ -34,6 +34,10 @@ def load(doc: dict) -> list[dict]:
     seen = set()
     for e in entries:
         n = e.get("name", "<unnamed>")
+        for k in ("name", "file"):
+            v = e.get(k)
+            if isinstance(v, str) and (Path(v).name != v or v in (".", "..")):
+                raise ValueError(f"corpus {n}: {k} is a bare file name, not a path")
         if extra := sorted(set(e) - FIELDS):
             raise ValueError(f"corpus {n}: field(s) {extra} are not allowed (a corpus has no archive, box or place field)")
         for k in REQUIRED:
@@ -54,7 +58,8 @@ def load(doc: dict) -> list[dict]:
 
 
 def _sha(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    with open(path, "rb") as f:
+        return hashlib.file_digest(f, "sha256").hexdigest()
 
 
 def held_dir(e: dict, dest) -> Path:
@@ -91,7 +96,8 @@ def install(entries: list[dict], root, dest, fetch=None) -> dict[str, Path]:
             if (got := _sha(made)) != e["sha256"]:
                 raise CorpusMismatch(f"corpus {e['name']}: sha256 is {got[:12]}, the manifest pins {e['sha256'][:12]}")
             target = held_dir(e, dest)
-            shutil.rmtree(target, ignore_errors=True)
+            for old in Path(dest).glob(e["name"] + "-*"):  # an earlier hash's folder is not kept
+                shutil.rmtree(old, ignore_errors=True)
             target.mkdir(parents=True)
             shutil.move(str(made), str(target / e["file"]))
         held[e["name"]] = target
