@@ -66,7 +66,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   durations give three rows with exact p50/p95/total; a model loaded twice 30 s apart yields `reload: true`; a line that
   is not `PERF` or `model-lane` is ignored; an empty log gives zero rows and the run is marked `no-engine-log`, not
   green. Test (to write): test_perf_log_readers (a new test file), case test_perf_spans_group_by_name_with_count_total_and_model_reloads.
-- `perf-sweep.source.engine-profiles` [GAP] (#6600) — fresh engine profiles over the engine workloads (W1–W5 below),
+- `perf-sweep.source.engine-profiles` [PARTIAL] (#6600, #6614) — fresh engine profiles over the engine workloads (W1–W5 below),
   nightly, on the M4's gate venv, one workload at a time behind the heavy lock. **Time:** `pyinstrument -r json -o
   <run>/<w>.pyinstrument.json -r html -o <run>/<w>.html -- <driver>` is the batch and nightly default (in-process, no
   root). `py-spy record --format speedscope -o <run>/<w>.speedscope --subprocesses -- <driver>` is used when the runner's
@@ -88,7 +88,8 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   outputs, no engine): a pyinstrument JSON yields our frames only, ranked by self time with the share computed against
   the root's time; a memray stats JSON yields allocator rows by peak bytes; a `time -l` text yields RSS, user and sys;
   `du` pairs yield deltas; a machine without `sudo = ["py-spy"]` never spawns py-spy and the run says
-  `profiler: pyinstrument`. Test (to write): the new test_perf_sweep file in fichero-builder/tests, case test_engine_profile_readers_rank_own_frames_allocators_disk_and_cpu_efficiency.
+  `profiler: pyinstrument`. Test: fichero-builder/tests/test_perf_sweep.py, case test_engine_profile_readers_rank_own_frames_allocators_disk_and_cpu_efficiency.
+  Built (#6614): the readers and `builder perf profile --gate <dir>` (`perf_profiles.py`); py-spy only when declared and its sudoers line is on the machine (else a row says so). Not built: the nightly schedule entry and a real run on the M4.
 - `perf-sweep.source.app-profiles` [GAP] (#6600) — fresh app profiles over the app workloads (W6–W10), nightly, on the
   M4's GUI session, the Dev Local build from the daily `tests` build's derived data (`build-for-testing` output). The
   recorder is `xcrun xctrace record --template '<T>' --time-limit <s>s --launch -- <app> --env

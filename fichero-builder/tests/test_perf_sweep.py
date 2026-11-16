@@ -2,6 +2,7 @@
 `perf-sweep.output.row` and `perf-sweep.output.table`."""
 import json
 import re
+import shlex
 from pathlib import Path
 
 import pytest
@@ -247,7 +248,7 @@ class _Runner:
         self.calls.append({"cmd": cmd, "timeout": timeout, "env": env})
         if cmd.startswith("du -sk"):
             self.du += 10
-            return 0, "".join(f"{self.du}\t{p}\n" for p in re.findall(r"'?(/\S+?)'?(?: |$)", cmd[len("du -sk "):])), ""
+            return 0, "".join(f"{self.du}\t{p}\n" for p in shlex.split(cmd)[2:]), ""
         if cmd.startswith("sudo -n -l"):
             return (0 if self.sudo_ok else 1), "", ""
         for w, rc in self.fail.items():

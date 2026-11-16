@@ -106,11 +106,17 @@ def _previous(perf: Path) -> dict:
 def sweep(*, run, machine_model, state, workload, app_log=None, engine_log=None, group_by=(), profile="") -> dict:
     """Read the logs, rank, write hotspots.json and latest.json. A log that gave nothing is a note (`no-app-log`, `no-engine-log`),
     never a silent green."""
-    perf = Path(state) / "perf"
     app = perf_log_readers.read_app_log(app_log) if app_log is not None else None
     eng = perf_log_readers.read_engine_log(engine_log, group_by) if engine_log is not None else None
     notes = [x["status"] for x in (app, eng) if x and x["status"] != "ok"]
     rows = rows_from_logs(app, eng, run=run, machine_model=machine_model, workload=workload, profile=profile)
+    return write_rows(rows, run=run, machine_model=machine_model, state=state, notes=notes)
+
+
+def write_rows(rows: list[dict], *, run, machine_model, state, notes=()) -> dict:
+    """Trend against the previous run, then write hotspots.json and latest.json (shared by the log reader and the profile driver)."""
+    perf = Path(state) / "perf"
+    notes = list(notes)
     before = _previous(perf)
     for r in rows:
         p = before.get(_key(r))
@@ -197,6 +203,13 @@ def main(a) -> int:
             print("usage: builder perf diff <run-a> <run-b>")
             return 2
         return diff(state, *a.args)
+    if a.action == "profile":
+        from fichero_builder import perf_profiles
+
+        if not a.gate:
+            print("usage: builder perf profile --gate <gate dir on the Dev Disk> [--workload w1,w3] [--machine m4air]")
+            return 2
+        return perf_profiles.main(a)
     run = a.run or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")  # read: logs in, a hotspot table out
     if not re.fullmatch(r"[\w.-]+", run):
         print("a run id is letters, digits, dots, dashes and underscores")
