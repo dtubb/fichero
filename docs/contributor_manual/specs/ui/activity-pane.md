@@ -818,7 +818,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
 - `activity.pane.row-controls` — **[OK]** (#6588; decision 31) the selected or hovered row's trailing cell shows its own
   Play/Pause (by its state, `ActivityPaneVerb.pause` / `.resume`) and Stop, small, borderless, through the one verb list;
   nothing for a row neither allows. The toolbar holds no selection verbs; the context menu and Project › Activity keep them.
-  *Built 2026-11-15:* `ActivityMonitorRow.rowControls` (Pause or Continue by state, Stop; never what the worded button offers) drawn as small borderless icons in the State cell of the selected or hovered row. *Test:* `ActivityRowControlsTests.swift`.
+  *Built 2026-11-15:* `ActivityMonitorRow.rowControls` (Pause or Continue by state, Stop; never what the worded button offers) drawn as small borderless icons in the State cell of the selected or hovered row. *Test:* `fichero/Tests/Unit/general/Views/Activity/Pane/ActivityRowControlsTests.swift`.
 - `activity.window.sidebar` — **[PARTIAL]** (#6588; decision 32; supersedes `activity.window.toolbar-tabs`) the Activity window
   is a `NavigationSplitView`: a source list (Runs, Files, Recipes, Cost; Models, a section of its own,
   `activity.window.models-tree`; Archived), the table, the Inspector. Each item is a grouping plus a column set over the
@@ -849,7 +849,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
 - `activity.log.like-xcode` — **[OK]** (#6588; decision 36; extends `activity.log.raw-always-rendered`) the Inspector's log is
   a list, one engine line per row (time, level glyph, text, monospaced, long lines wrapped); a click selects a line, shift
   and command select many; ⌘C and Copy copy the selected lines (all when none); the log's find field highlights each match
-  and steps through them; the level filter stays. Not editable. *Built 2026-11-15:* `ActivityLogLinesView` (number, level glyph, time, text; click, shift, command; ⌘C; the find bar with "2 of 5" and up/down) over `ActivityLogList`'s rules; Copy Log becomes Copy Lines while lines are selected (`docs/assets/activity-pane/inspector-log.png`). *Test:* `ActivityLogListTests.swift`.
+  and steps through them; the level filter stays. Not editable. *Built 2026-11-15:* `ActivityLogLinesView` (number, level glyph, time, text; click, shift, command; ⌘C; the find bar with "2 of 5" and up/down) over `ActivityLogList`'s rules; Copy Log becomes Copy Lines while lines are selected (`docs/assets/activity-pane/inspector-log.png`). *Test:* `fichero/Tests/Unit/general/Models/ActivityLogListTests.swift`.
 - `activity.window.recipes` — **[PARTIAL]** (#6588; decision 37; an exception to `activity.pane.children-are-what-it-works-on`'s
   two levels) the Recipes item lists each recipe (name and version) with its runs under it and each run's steps under
   that. A recipe row: runs, pages done and failed, failed %, seconds a page (median), cost a page, last run. A run row: its

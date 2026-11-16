@@ -217,6 +217,7 @@ extension ActivityPaneView {
                     Button { perform(verb, on: [row]) } label: { Label(verb.title, systemImage: verb.symbol) }
                         .labelStyle(.iconOnly).buttonStyle(.borderless).controlSize(.small)
                         .help("\(verb.title) \(row.name)")
+                        .accessibilityLabel("\(verb.title) \(row.name)")
                         .accessibilityIdentifier("activity.row.\(row.jobId ?? row.id).control.\(verb.rawValue)")
                 }
             }
