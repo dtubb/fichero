@@ -43,15 +43,27 @@ extension DocumentInspector {
             // is too narrow they're cut off"): full labels when they fit,
             // otherwise Xcode's degrade-to-icons — never clipped text. The
             // icon variant keeps the labels reachable via per-segment .help.
-            ViewThatFits(in: .horizontal) {
-                facetSegments(facets, iconOnly: false)
-                facetSegments(facets, iconOnly: true)
-            }
+            //
+            // In an OVERLAY on fixed-height clear space (#6447, second repro): a ViewThatFits answers a different size as the
+            // inspector is dragged, and as the column's content that moved the hosting view's min/max size INSIDE its own
+            // constraints pass (SplitViewChildController.hostingView(_:didUpdateMinSize:maxSize:), SIGABRT). An overlay is
+            // sized by its base, so the choice still follows the width but no longer reports a size to the split view.
+            Color.clear
+                .frame(height: Self.facetPickerHeight)
+                .overlay {
+                    ViewThatFits(in: .horizontal) {
+                        facetSegments(facets, iconOnly: false)
+                        facetSegments(facets, iconOnly: true)
+                    }
+                }
             .padding(.horizontal, 8)
             .padding(.bottom, 6)
             .accessibilityIdentifier("inspectorFacetPicker")
         }
     }
+
+    /// The facet picker's own height: its segmented control's, so the clear space it sits in neither clips nor pads it.
+    static let facetPickerHeight: CGFloat = 24
 
     /// One segmented facet picker, in label or icon form. Icons come from the
     /// same InspectorTab.icon ladder the section bar reads.
