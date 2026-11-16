@@ -13,7 +13,7 @@
 > handoff, `[models]` by config, `run.local-parity`, `node.worker`, the ledger's sources `ledger.*`); this spec owns
 > **what a worker is told, how each harness is driven, the MCP servers, the project profile and the declared workflow,
 > the small-worker rule, the run record and the console's comparison pages, the Swift test rungs, the commit trailer,
-> the cleanup step and the bake-off**. Where a bullet here changes a dev-workflows bullet, the change is named under
+> the cleanup step, the bake-off and worker isolation**. Where a bullet here changes a dev-workflows bullet, the change is named under
 > "Changes to dev-workflows". The prompt review of 2026-11-16 (kept untracked with the manager's briefs as `REVIEW.md`
 > and `prompts/*.md`) is the inventory this spec starts from: worker instructions live in nine places, no system prompt
 > is passed, the generated MCP config is empty, and the trailer rule was stated four ways.
@@ -70,8 +70,7 @@ harnesses over time and a bake-off is just runs that share a brief.
   author `Claude <noreply@anthropic.com>`. Files that must change (Step 1.1): `harness.toml` (`required_trailers`,
   `trailer_one_of`, the trailer sentence in `[brief].rules`), `fichero_builder/policy_hook.py`,
   `docs/contributor_manual/review-checklist.md` item 10, `AGENTS.md` "Commit Format",
-  `scripts/check_agent_commits_authored_as_claude.py` (`AGENT_TRAILER`), `scripts/harness_review.py`'s prompt. Test (to
-  write): fichero-builder/tests/test_trailer.py.
+  `scripts/check_agent_commits_authored_as_claude.py` (`AGENT_TRAILER`), `scripts/harness_review.py`'s prompt. Test (to write): fichero-builder/tests/test_trailer (new).
 
 ### B. Profiles: one folder, one common prompt, roles, a thin project layer
 
@@ -82,8 +81,7 @@ harnesses over time and a bake-off is just runs that share a brief.
   `agents/skills/` at the repo root (pre-builder) are deleted in the same step with a line in `AGENTS.md` saying where
   they went. No prompt names a task id, sha, date, worker name, person, home path or archive; a guard greps the folder
   for the `[land].boundary` patterns and the people list and fails on a hit. Acceptance: the folder holds exactly
-  common, roles, projects, adapters; the root `agents/` is gone; the guard refuses a prompt with a home path. Test (to
-  write): fichero-builder/tests/test_profiles.py, case test_the_folder_and_no_private_text.
+  common, roles, projects, adapters; the root `agents/` is gone; the guard refuses a prompt with a home path. Test (to write): fichero-builder/tests/test_profiles (new), case test_the_folder_and_no_private_text.
 - `agent-profiles.prompt.common` [PARTIAL] (#6623) (the review's draft `common.md` exists untracked) — one common
   prompt every worker gets, under 120 lines and project-free: who it is (a headless worker as a separate user in one
   worktree, no screen, no GitHub token, no person watching); one step and nothing outside it (§ E); where it may read
@@ -136,7 +134,7 @@ harnesses over time and a bake-off is just runs that share a brief.
   the shape `parse_session` returns. `builder run --harness <name>` picks the adapter; an unknown name refuses; a
   harness with (6) or (2) `Unsupported` cannot take a lane (no cost cap, or no index: § D). Acceptance: a fake
   adapter answering `Unsupported` for (6) or (2) refuses with the reason; one answering `Unsupported` for (5) starts
-  and journals `policy: none (OS jail only)`. Test (to write): fichero-builder/tests/test_adapters.py,
+  and journals `policy: none (OS jail only)`. Test (to write): fichero-builder/tests/test_adapters (new),
   case test_six_answers_and_unsupported_is_said.
 - `agent-profiles.adapter.claude-code` [PARTIAL] (#6623) (`start_tool.prepare`: settings, empty strict MCP, commit-msg
   hook) — adds `--append-system-prompt <text>`, `--setting-sources` naming only the generated settings, the two MCP
@@ -177,30 +175,28 @@ harnesses over time and a bake-off is just runs that share a brief.
   Acceptance: every adapter's generated config names the two required servers with commands the worker user can
   run; a fake adapter whose MCP answer is `Unsupported` refuses; a failed index build refuses; a frontend worker's
   config has the Xcode set and no engine server, a backend worker's the reverse; a server the project lacks yields a
-  row; the assembled prompt names exactly the delivered servers. Test (to write):
-  fichero-builder/tests/test_mcp_servers.py.
+  row; the assembled prompt names exactly the delivered servers. Test (to write): fichero-builder/tests/test_mcp_servers (new).
 - `agent-profiles.project.profile` [GAP] (#6627) — a project is its `harness.toml`: a `[project]` table (name, kind
   `code` or `text`, languages, tools by name and path, the checks it owns, the paths each rung applies to, the
   integration branch) beside the existing `[check]`, `[policy]`, `[jail]`, `[land]`, `[models]` tables; the builder's
   code names no project (`dev-workflows.project.neutral` already guards strings). A second code project set up the
   same way (a Swift front end, a Python back end) runs a step from its file alone; a text project declares no build,
   no test rungs and its own guards. Acceptance: Fichero's profile loads; a fixture profile for a second code project
-  and one for a text project load; a profile missing `kind` or naming a rung with no tool path refuses. Test (to
-  write): fichero-builder/tests/test_project_profile.py.
+  and one for a text project load; a profile missing `kind` or naming a rung with no tool path refuses. Test (to write): fichero-builder/tests/test_project_profile (new).
 - `agent-profiles.workflow.declared` [GAP] (#6627) — the steps a worktree moves through are a `[workflow]` list in
   the project's file, each with a name, the role that does it, what starts it and what ends it: `brief` (the brief
   tool), `work` (a worker), the rungs (each a `[check]` rung by name, in order), `review`, `land`, `cleanup`; the
   builder runs the list, never a hard-wired order, and refuses a file whose list lacks a rung it would otherwise
   assume. Fichero's code workflow is one instance; a text project's list has `work`, its guards, `review`, `land`,
   `cleanup`. Acceptance: Fichero's list reproduces today's order; a list with `land` before `review` refuses; a text
-  list with no build rung runs in the dry run. Test (to write): fichero-builder/tests/test_workflow.py.
+  list with no build rung runs in the dry run. Test (to write): fichero-builder/tests/test_workflow (new).
 - `agent-profiles.workflow.text-project` [GAP] (#6640) (owner 2026-11-16: a book, or a research project inside
   Fichero) — the proof that the builder is generic: a text project in its own repository with kind `text`, roles
   writing, editing, sourcing, reviewing, a step that is one chapter section or one source task, guards that are
   prose lints (length, citations present, no private names), review by a reviewer role, land as a fast-forward,
   cleanup; a research project uses the Researcher's tools through the same brief shape. Acceptance: a two-step text
   workflow lands on a scratch remote from its file alone, with both MCP servers (jdocmunch over the text) and the
-  run rows of § G. Test (to write): fichero-builder/tests/test_text_project.py.
+  run rows of § G. Test (to write): fichero-builder/tests/test_text_project (new).
 
 ### E. Small, circumscribed workers
 
@@ -210,7 +206,7 @@ harnesses over time and a bake-off is just runs that share a brief.
   counts the bound and the worker is told once then parked with a question; a step whose named files exceed the
   bound is split by `builder steps` before any brief. Acceptance: a two-step brief refuses; a 121-line brief refuses;
   a diff past the bound yields one tell and then a park row; a brief with no named test is refused for a code
-  project. Test (to write): fichero-builder/tests/test_small_worker.py.
+  project. Test (to write): fichero-builder/tests/test_small_worker (new).
 
 ### F. Swift rungs and the UI smoke
 
@@ -224,8 +220,7 @@ harnesses over time and a bake-off is just runs that share a brief.
   rung needs that user's name in `[machines]`, a live login session for it, and the test runner started inside that
   session; with none of the three it is `not-run` with the reason, never green and never skipped. Acceptance
   (fixtures, no Mac): the argv for a diff touching one view names that suite on base and head shas; green on both is a
-  question; a missing GUI user or session yields a `not-run` row naming which. Test (to write):
-  fichero-builder/tests/test_swift_rungs.py.
+  question; a missing GUI user or session yields a `not-run` row naming which. Test (to write): fichero-builder/tests/test_swift_rungs (new).
 - `agent-profiles.ladder.ui-smoke` [GAP] (#6626) (`Fichero.sdef` and `FicheroDebug.sdef` carry `open project`,
   `screenshot`, `select nodes`, `show pane`, `undo step`, `describe window`; `scripts/ux_smoke.py` drives some) — a
   frontend worker asks in its DONE message for the UI smoke by name: the ladder launches the Dev Local build in the
@@ -243,17 +238,17 @@ harnesses over time and a bake-off is just runs that share a brief.
   landed (head on the integration branch, by `builder landed`) or not, and the end reason. A bake-off is runs sharing
   a brief id. The TSV of the ratchet is written from these rows. Acceptance (fake journal): a run through check,
   two review rounds and land yields one row with every column; two runs on one brief id are one bake-off group;
-  a row with no price source is marked `cost: unknown`, never 0. Test (to write): fichero-builder/tests/test_run_record.py.
+  a row with no price source is marked `cost: unknown`, never 0. Test (to write): fichero-builder/tests/test_run_record (new).
 - `agent-profiles.console.runs` [GAP] (#6629) (`console.py` serves the status page at 127.0.0.1:8766) — the console
   shows the run rows and compares them: a **Runs** list (filters by project, role, model, harness, date), a **Compare**
   view per role (one row per model × harness: runs, landing rate, median rounds, median wall, cost per landed step,
   over a window and by week) and a **Bake-offs** view (the runs of one brief id side by side, the reference pair
   marked), all read from `/api/runs` (the rows of `run.record`, paged); no page changes `[models]`. The page design
   (layout, what sits beside Status, the website's other pages) is owned by the sibling spec
-  `harness/builder-website.md`, being written from a separate review of the builder's website; this bullet owns only
+  `harness/builder-console.md`, being drafted from a separate review of the builder's website (it also carries the product's name, Fichero Harness, its one API for HTML and Swift front ends and its host-agnostic work store); this bullet owns only
   the three views' columns and their one data source, and is reconciled with that spec when it lands. Acceptance
   (fixture rows): Runs filters; Compare for `backend` ranks pairs by landing rate then cost; a Bake-offs view shows
-  both runs of one brief id; each renders with zero rows. Test (to write): fichero-builder/tests/test_console_runs.py.
+  both runs of one brief id; each renders with zero rows. Test (to write): fichero-builder/tests/test_console_runs (new).
 - `agent-profiles.cleanup.after-land` [PARTIAL] (#6630) —
   `cleanup` is the last step of every workflow: once a step's head is on the integration branch its land snapshot is
   removed, and once the lane is finished its worker tree and branch are removed; a tree whose head is not on origin
@@ -271,8 +266,7 @@ harnesses over time and a bake-off is just runs that share a brief.
   question with its proposed answer. It never lands, pushes, edits `harness.toml`, closes an issue or spends past a
   cap; every action is a row naming the rule. Prompt `roles/manager.md`; model `[models].manager`. Acceptance (dry
   run, fake journal): a parked-at-cap row yields a successor; a NOT_READY row a brief file; a report-only alert a
-  dismiss row; a question with no rule a question row and no action; a push attempt is refused. Test (to write):
-  fichero-builder/tests/test_manager_role.py.
+  dismiss row; a question with no rule a question row and no action; a push attempt is refused. Test (to write): fichero-builder/tests/test_manager_role (new).
 
 ### I. The bake-off
 
@@ -285,8 +279,46 @@ harnesses over time and a bake-off is just runs that share a brief.
   table, the ruling cited in the file's comment. An earlier open-model trial (2026-10-18) did not match the Claude
   baseline; this replaces that judgement with rows. First run: the backend role, Claude on Claude Code against
   Qwen3-Coder-Next on Pi, then on opencode. Acceptance (dry run): two fake pairs over two briefs yield four rows with
-  one brief id each pair; the table ranks by landing rate then cost; `[models]` is unchanged. Test (to write):
-  fichero-builder/tests/test_bakeoff.py.
+  one brief id each pair; the table ranks by landing rate then cost; `[models]` is unchanged. Test (to write): fichero-builder/tests/test_bakeoff (new).
+
+### J. Worker isolation (owner 2026-11-16: a long step of its own, after the adapters)
+
+- `agent-profiles.isolation.baseline` [PARTIAL] (#6641) — today's wall stays the floor under every option below: a
+  worker runs as the second macOS user (`fichero_builder/jail.py`, `[jail]`, `sudo -u`), outside `staff`, the owner's
+  home `700`, no GitHub credential, no ssh key, no Keychain item, the policy hook and the commit-msg hook, the
+  once-per-set-up probe. Nothing in this section weakens it; an option is layered on top and a start still refuses when
+  the user or its probe is missing. Acceptance: the probe's five refusals hold with any option on. Test (to write): fichero-builder/tests/test_jail (new), one case per option over the probe's refusals.
+- `agent-profiles.isolation.research-and-choice` [GAP] (#6641) — a research step that ends in a **written choice**
+  and a **measured trial**, not in code: for each option, one page under `docs/contributor_manual/architecture/` with
+  what it gives, what it costs and what it cannot do, then one trial per option that runs the same small step (a Python
+  test, a git commit, one guard) inside it as the worker user and records wall time, set-up time, what broke, and
+  whether the four behaviours below hold. The options: **`sandbox-exec` profiles per worker** (deprecated but
+  present; a maintained profile under `adapters/`'s `isolation/`; already probed to have no hostname rules); **macOS
+  virtual machines** on the Virtualization framework (`tart`, `lume`): a VM per lane from a base image with Xcode
+  installed, so Swift work builds inside it, at the cost of a large image, a copy of Xcode per image, the two-VM
+  limit per host and no GPU for MLX; **Apple's `container`** for Linux-only Python work (engine tests with no MLX, no
+  Xcode); **Docker** for engine-only lanes the same way; **network egress limits** (a per-worker allow-list of hosts,
+  by the packet filter for a user, by the VM's network, or by the container's) and **per-worker credentials** (a
+  scoped token per lane, if any, issued by the land side and expiring with the lane; never an owner key in the
+  worker's reach). The page for each says plainly what it costs **for Xcode work**: `sandbox-exec` lets `xcodebuild`
+  run but the profile must allow the derived-data and toolchain paths; a macOS VM builds but carries Xcode in its
+  image and its own signing state; `container` and Docker cannot build or test Swift at all, so they serve engine
+  lanes only. The choice names one option per lane kind (Swift, engine, text) and is a ruling by the owner on the
+  trial's rows. Acceptance: one page and one trial row per option; a trial that did not run is `not-run` with its
+  reason, never a judgement; the written choice names the option per lane kind, what it gives up, and the four
+  behaviours' results in a table. Test (to write): fichero-builder/tests/test_isolation_trial (new) (the trial runner's
+  rows from fixture outputs; the live trials skip only by name).
+- `agent-profiles.isolation.implemented` [GAP] (#6642) — the chosen option behind the one wrapper
+  `dev-workflows` Step 3.2 already names, so adapters, hooks and scripts do not change when the mechanism does; the
+  start path refuses when the option's own check fails (a missing profile, image or token), never falling back to
+  the bare user. Four behaviours, each with its failing probe run at every start: (1) a worker **cannot read the
+  owner's home, keys or another lane's tree** (a read of each is refused); (2) it **cannot push** (`git push --dry-run`
+  by URL fails, and no credential helper answers); (3) it **reaches only its declared hosts** (`[isolation].hosts` per
+  project, the model endpoint and the package index at most; a connect to any other host fails); (4) **Swift and
+  Xcode work still builds** for the Swift lane's option (the build rung runs inside it on the build Mac). Acceptance:
+  each probe's failing case is a test; an option whose probe (3) cannot be enforced is admitted only for lanes with
+  no secrets in reach and the journal row says `egress: open`; the Swift lane's option builds the app once in the
+  trial. Test (to write): fichero-builder/tests/test_isolation (new).
 
 ## Rulings (owner 2026-11-16, paraphrased)
 
@@ -300,6 +332,8 @@ harnesses over time and a bake-off is just runs that share a brief.
   are per role and per project: a role lists only its tools.
 - Workers are small: one step, a short brief, named files and tests, a diff bound.
 - The builder is generic: project profile and declared workflow per project; text projects too.
+- Worker isolation: the second user stays the baseline; a stronger, still practical option is chosen by a written
+  comparison and a measured trial, then implemented behind the one wrapper; late in the order, after the adapters.
 
 ## Open questions for the owner
 
@@ -317,7 +351,7 @@ Smallest first; each step is one lane batch unless marked; `Depends on` defaults
 
 #### Step 1.1 — the trailer: one line, one rule, every file
 - Behaviours: `agent-profiles.trailer.one-line`
-- Tests: fichero-builder/tests/test_trailer.py
+- Tests: fichero-builder/tests/test_trailer (new)
 - Size: S
 - Order: (a) the test with the four refused shapes and the one accepted; (b) `policy_hook.py` compares one exact shape
   built from MODEL and HARNESS; (c) `harness.toml`; (d) `review-checklist.md` 10, `AGENTS.md`, `harness_review.py`,
@@ -325,23 +359,23 @@ Smallest first; each step is one lane batch unless marked; `Depends on` defaults
 
 #### Step 1.2 — the folder, the common prompt, assembly, the adapter interface, the Claude Code adapter
 - Behaviours: `agent-profiles.folder.one-place`, `agent-profiles.prompt.common`, `agent-profiles.prompt.assembly`, `agent-profiles.adapter.interface`, `agent-profiles.adapter.claude-code`
-- Tests: fichero-builder/tests/test_profiles.py, fichero-builder/tests/test_adapters.py
+- Tests: fichero-builder/tests/test_profiles (new), fichero-builder/tests/test_adapters (new)
 - Size: M
 
 #### Step 1.3 — jcodemunch and jdocmunch required for every worker; tool sets per role and per project
 - Behaviours: `agent-profiles.mcp.required`
-- Tests: fichero-builder/tests/test_mcp_servers.py
+- Tests: fichero-builder/tests/test_mcp_servers (new)
 - Size: S
 
 #### Step 1.4 — the small-worker rule: one step, a short brief, named files and tests, a diff bound
 - Behaviours: `agent-profiles.worker.small`
-- Tests: fichero-builder/tests/test_small_worker.py
+- Tests: fichero-builder/tests/test_small_worker (new)
 - Depends on: 1.2
 - Size: S
 
 #### Step 1.5 — Swift unit and UI test rungs in the dedicated GUI user; the UI smoke on request
 - Behaviours: `agent-profiles.ladder.swift-tests`, `agent-profiles.ladder.ui-smoke`
-- Tests: fichero-builder/tests/test_swift_rungs.py
+- Tests: fichero-builder/tests/test_swift_rungs (new)
 - Depends on: 1.2
 - Size: M
 
@@ -349,25 +383,25 @@ Smallest first; each step is one lane batch unless marked; `Depends on` defaults
 
 #### Step 2.1 — the project profile, the declared workflow, the thin project prompt layer
 - Behaviours: `agent-profiles.project.profile`, `agent-profiles.workflow.declared`, `agent-profiles.prompt.project-layer`
-- Tests: fichero-builder/tests/test_project_profile.py, fichero-builder/tests/test_workflow.py, fichero-builder/tests/test_profiles.py
+- Tests: fichero-builder/tests/test_project_profile (new), fichero-builder/tests/test_workflow (new), fichero-builder/tests/test_profiles (new)
 - Depends on: 1.4
 - Size: M
 
 #### Step 2.2 — the run record
 - Behaviours: `agent-profiles.run.record`
-- Tests: fichero-builder/tests/test_run_record.py
+- Tests: fichero-builder/tests/test_run_record (new)
 - Depends on: 2.1
 - Size: S
 
-#### Step 2.3 — the console's Runs, Compare and Bake-offs views (reconciled with `builder-website.md`)
+#### Step 2.3 — the console's Runs, Compare and Bake-offs views (reconciled with `builder-console.md`)
 - Behaviours: `agent-profiles.console.runs`
-- Tests: fichero-builder/tests/test_console_runs.py
+- Tests: fichero-builder/tests/test_console_runs (new)
 - Depends on: 2.2
 - Size: M
 
 #### Step 2.4 — cleanup as the workflow's last step (#6589 item 16)
 - Behaviours: `agent-profiles.cleanup.after-land`
-- Tests: fichero-builder/tests/test_workflow.py
+- Tests: fichero-builder/tests/test_workflow (new)
 - Depends on: 2.1
 - Size: S
 
@@ -381,31 +415,31 @@ Smallest first; each step is one lane batch unless marked; `Depends on` defaults
 
 #### Step 3.2 — the opencode adapter
 - Behaviours: `agent-profiles.adapter.opencode`
-- Tests: fichero-builder/tests/test_adapters.py
+- Tests: fichero-builder/tests/test_adapters (new)
 - Depends on: 3.1
 - Size: M
 
 #### Step 3.3 — the Qwen Code adapter
 - Behaviours: `agent-profiles.adapter.qwen-code`
-- Tests: fichero-builder/tests/test_adapters.py
+- Tests: fichero-builder/tests/test_adapters (new)
 - Depends on: 3.1
 - Size: S
 
 #### Step 3.4 — the Codex CLI adapter
 - Behaviours: `agent-profiles.adapter.codex-cli`
-- Tests: fichero-builder/tests/test_adapters.py
+- Tests: fichero-builder/tests/test_adapters (new)
 - Depends on: 3.1
 - Size: S
 
 #### Step 3.5 — the Gemini CLI / Antigravity adapter
 - Behaviours: `agent-profiles.adapter.gemini-cli`
-- Tests: fichero-builder/tests/test_adapters.py
+- Tests: fichero-builder/tests/test_adapters (new)
 - Depends on: 3.1
 - Size: S
 
 #### Step 3.6 — the goose adapter
 - Behaviours: `agent-profiles.adapter.goose`
-- Tests: fichero-builder/tests/test_adapters.py
+- Tests: fichero-builder/tests/test_adapters (new)
 - Depends on: 3.1
 - Size: S
 
@@ -413,7 +447,7 @@ Smallest first; each step is one lane batch unless marked; `Depends on` defaults
 
 #### Step 4.1 — the role profiles
 - Behaviours: `agent-profiles.prompt.roles`
-- Tests: fichero-builder/tests/test_profiles.py
+- Tests: fichero-builder/tests/test_profiles (new)
 - Depends on: 2.1
 - Size: M
 - Order: frontend and backend first (one real step each), then code-review (the reviewer script reads its file),
@@ -422,20 +456,37 @@ Smallest first; each step is one lane batch unless marked; `Depends on` defaults
 
 #### Step 4.2 — the built-in manager role
 - Behaviours: `agent-profiles.role.manager`
-- Tests: fichero-builder/tests/test_manager_role.py
+- Tests: fichero-builder/tests/test_manager_role (new)
 - Depends on: 4.1
 - Size: M
 
 #### Step 4.3 — the bake-off
 - Behaviours: `agent-profiles.bakeoff.measured`
-- Tests: fichero-builder/tests/test_bakeoff.py
+- Tests: fichero-builder/tests/test_bakeoff (new)
 - Depends on: 2.3, 3.2, 4.1
 - Size: M
 
 #### Step 4.4 — a text project runs the generic workflow
 - Behaviours: `agent-profiles.workflow.text-project`
-- Tests: fichero-builder/tests/test_text_project.py
+- Tests: fichero-builder/tests/test_text_project (new)
 - Depends on: 4.1
+- Size: M
+
+### Stage 5 — worker isolation (the longest steps: several trials each; after the adapters)
+
+#### Step 5.1 — isolation research: one page and one measured trial per option, a written choice per lane kind
+- Behaviours: `agent-profiles.isolation.baseline`, `agent-profiles.isolation.research-and-choice`
+- Tests: fichero-builder/tests/test_isolation_trial (new), fichero-builder/tests/test_jail (new)
+- Depends on: 3.6
+- Size: M
+- Order: (a) the trial runner and its row shape with fixtures; (b) `sandbox-exec`; (c) a macOS VM (`tart`, then `lume`
+  if `tart` fails the Xcode build); (d) `container` and Docker for an engine lane; (e) egress and per-worker
+  credentials on each; (f) the pages and the choice table go to the owner as a question.
+
+#### Step 5.2 — the chosen isolation behind the wrapper, with the four probes at every start
+- Behaviours: `agent-profiles.isolation.implemented`
+- Tests: fichero-builder/tests/test_isolation (new)
+- Depends on: 5.1
 - Size: M
 
 ## Behaviour tests
@@ -456,6 +507,8 @@ Smallest first; each step is one lane batch unless marked; `Depends on` defaults
 | `agent-profiles.role.manager` | 4.2 |
 | `agent-profiles.bakeoff.measured` | 4.3 |
 | `agent-profiles.workflow.text-project` | 4.4 |
+| `agent-profiles.isolation.baseline` · `isolation.research-and-choice` | 5.1 |
+| `agent-profiles.isolation.implemented` | 5.2 |
 
 ## Changes to dev-workflows
 
@@ -473,6 +526,8 @@ Each bullet names a `dev-workflows.*` behaviour by its last two parts.
   steps comes from `[workflow]`.
 - In `ledger.comparison-view`: the console's Compare page is the same numbers per role × model × harness; the CLI
   view stays.
+- In Step 3.2 (the sandbox chosen by test): its three candidates become the option list of § J, the choice is a
+  written one per lane kind, and it moves to this spec's Stage 5 after the adapters.
 - In `project.neutral`: the second project is declared by `[project]` and `[workflow]`, and a text project is the
   third.
 
@@ -481,6 +536,6 @@ Each bullet names a `dev-workflows.*` behaviour by its last two parts.
 | Doc | Says |
 |---|---|
 | `docs/contributor_manual/how-fichero-is-built.md` | a worker is model × harness × profile on a declared workflow; where prompts live; tool sets per role; the bake-off rule |
-| `harness/builder-website.md` (sibling, to be written) | the website's pages; the Runs, Compare and Bake-offs views take their columns from here |
+| `harness/builder-console.md` (sibling, being drafted) | the website's pages; the Runs, Compare and Bake-offs views take their columns from here |
 | `AGENTS.md` | the one trailer line; the root `agents/` folder is gone; prompts live in the builder |
 | `docs/contributor_manual/review-checklist.md` | item 10 is the one trailer line |
