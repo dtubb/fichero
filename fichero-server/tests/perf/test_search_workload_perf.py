@@ -17,9 +17,7 @@ N_DOCS = 200
 TOTAL_BUDGET_S = 60.0
 
 
-def test_two_hundred_text_queries(client, db, tmp_path, monkeypatch):
-    # a gate box roots pytest's tmp outside every default allowed location: allow this test's own dir, as the engine's server deployments do
-    monkeypatch.setenv("FICHERO_LIBRARY_ALLOWED_ROOTS", str(tmp_path))
+def test_two_hundred_text_queries(client, db):
     words = "ledger harbour letter garden river market bell church field mill".split()
     assert db.save_many([Document(name=f"{words[i % len(words)]} {i:04d}.jpg", doc_type=DocType.file) for i in range(N_DOCS)]) == N_DOCS
     assert len(QUERIES) == 200
