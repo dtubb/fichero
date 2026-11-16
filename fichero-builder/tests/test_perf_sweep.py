@@ -115,10 +115,11 @@ def test_the_workload_table_loads_and_refuses_an_undeclared_corpus_or_budget():
         assert w["corpus"] and w["budget_s"] > 0 and w["outputs"]
     # an engine workload is a pytest driver or a script that exists; an app workload is a FICHERO_PERF_WORKLOAD scenario
     for w in table[:5]:
-        assert (REPO / w["driver"].split("::")[0].split()[-1]).is_file(), w["name"]
-    assert [w["driver"] for w in table[5:]] == [f"FICHERO_PERF_WORKLOAD=w{i}" for i in range(6, 11)]
+        files = [t.split("::")[0] for d in w["drivers"] for t in d.split() if t.endswith(".py") or ".py::" in t]
+        assert files and all((REPO / f).is_file() for f in files), w["name"]
+    assert [w["drivers"] for w in table[5:]] == [[f"FICHERO_PERF_WORKLOAD=w{i}"] for i in range(6, 11)]
     # the seven perf tests are regrouped, none dropped, none run twice
-    drivers = " ".join(w["driver"] for w in table[:5])
+    drivers = " ".join(d for w in table[:5] for d in w["drivers"])
     for f in sorted((REPO / "fichero-server" / "tests" / "perf").glob("test_*.py")):
         assert drivers.count(f.name) == 1, f.name
 
@@ -182,5 +183,5 @@ def test_install_corpus_is_a_builder_verb_that_refuses_a_mismatch(tmp_path, caps
     assert (held / f"tiny-{good['sha256'][:12]}" / "src.txt").read_text() == "one page\n"
     src.write_text("another page\n")
     manifest.write_text(json.dumps({"corpora": [good]}))
-    rc = cli.main(argv + ["--force"])
+    rc = cli.main(argv)
     assert rc != 0 and "tiny" in capsys.readouterr().out

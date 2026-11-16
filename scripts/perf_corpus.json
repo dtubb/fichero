@@ -1,0 +1,23 @@
+{
+  "corpora": [
+    {
+      "name": "perf-trial-page",
+      "kind": "generated",
+      "licence": "AGPL-3.0-only",
+      "source": "scripts/perf_fixture.py",
+      "args": ["write", 20000],
+      "file": "perf-trial-page.page.xml",
+      "pages": 1,
+      "sha256": "96a15fd86544c2864049bc223dfab7f0a3d94ea061b7b02ea951653d604cf709"
+    },
+    {
+      "name": "perf-trial-samples",
+      "kind": "repo",
+      "licence": "AGPL-3.0-only",
+      "source": "scripts/perf_trial_fixture.json",
+      "file": "perf_trial_fixture.json",
+      "pages": 1,
+      "sha256": "818853b2604e4fa503a17d45dadc21ae7612cd32681ba9dc02c6498d1e0d9610"
+    }
+  ]
+}

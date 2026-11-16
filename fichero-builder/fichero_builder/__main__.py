@@ -187,7 +187,9 @@ def main(argv=None) -> int:
     mc = sub.add_parser("machines", help="test machines: `sync <name>` installs the test plugins at the jail venv's exact pins into the machine's gate venv")
     mc.add_argument("action", choices=["sync"]), mc.add_argument("machine"), mc.add_argument("--root", default=str(Path.cwd())), mc.add_argument("--state")
     ins = sub.add_parser("install", help="copy the newest dev DMG to a [machines] test machine over ssh, install it in ~/Applications there, open it and say whether the app and its engine run")
-    ins.add_argument("machine"), ins.add_argument("dmg", nargs="?", default=""), ins.add_argument("--root", default=str(Path.cwd())), ins.add_argument("--state")
+    ins.add_argument("machine", nargs="?", default=""), ins.add_argument("dmg", nargs="?", default=""), ins.add_argument("--root", default=str(Path.cwd())), ins.add_argument("--state")
+    ins.add_argument("--corpus", action="store_true", help="instead of a DMG: make every corpus in the manifest, hash-verified, under --dest (refused on a mismatch)")
+    ins.add_argument("--manifest", default=""), ins.add_argument("--dest", default="")
     tl = sub.add_parser("tell", help="a message into a Claude Code pane, submitted; over 400 characters it goes to a file and the pane reads it")
     tl.add_argument("pane"), tl.add_argument("message", nargs="+"), tl.add_argument("--state")
     ts = sub.add_parser("test", help="the pinned pytest over test paths on the land branch's tip (or --head) in a scratch tree, as the jail user, local or [check].remote; one test row")
@@ -427,7 +429,24 @@ def main(argv=None) -> int:
         rc, out = measure.sync(a.root, a.machine)
         print(out)
         return rc
+    if a.cmd == "install" and a.corpus:
+        from fichero_builder import perf_corpus
+
+        if not a.dest:
+            print("install --corpus: --dest is the runner's corpus folder")
+            return 2
+        manifest = Path(a.manifest or Path(a.root) / "scripts" / "perf_corpus.json")
+        try:
+            held = perf_corpus.install(perf_corpus.load(json.loads(manifest.read_text())), a.root, a.dest)
+        except ValueError as e:  # CorpusMismatch is one
+            print(f"corpus refused: {e}")
+            return 1
+        print("\n".join(f"{n}: {p}" for n, p in held.items()))
+        return 0
     if a.cmd == "install":
+        if not a.machine:
+            print("install: a machine name, or --corpus")
+            return 2
         from fichero_builder import measure
 
         journal.STATE = Path(a.state) if a.state else journal.STATE

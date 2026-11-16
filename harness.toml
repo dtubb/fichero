@@ -522,3 +522,30 @@ sharing = "spec:sharing-two-macs"
 performance = "type:bug"
 security = "type:bug"
 needs-design = "needs-spec"
+
+[perf.workloads]
+# #6600 Step 3 (perf-sweep.workload.set): the ten fixed workloads of the performance sweep. side, driver (a pytest or script command from the
+# repo root, or FICHERO_PERF_WORKLOAD=<w> for an app scenario in the Dev Local build), corpus (a name in scripts/perf_corpus.json), outputs
+# (the directories the workload writes, which the disk reader subtracts) and budget_s. A workload missing one is refused by name.
+w1 = { side = "engine", corpus = "perf-trial-samples", budget_s = 900, outputs = ["library", "cache", "log"], driver = [
+  "pytest fichero-server/tests/perf/test_document_pipeline_perf.py fichero-server/tests/perf/test_engine_cold_start_perf.py fichero-server/tests/perf/test_recipe_run_100_pages.py"] }
+w2 = { side = "engine", corpus = "perf-trial-page", budget_s = 1800, outputs = ["library", "cache", "log", "models"], driver = [
+  "pytest fichero-server/tests/perf/test_dense_page_whole_read_perf.py fichero-server/tests/perf/test_segment_edit_undo_perf.py",
+  "python fichero-server/scripts/bench_reading.py --pages 20"] }
+w3 = { side = "engine", corpus = "perf-trial-samples", budget_s = 300, outputs = ["library", "log"], driver = [
+  "pytest fichero-server/tests/perf/test_search_workload_perf.py"] }
+w4 = { side = "engine", corpus = "perf-trial-samples", budget_s = 3600, outputs = ["library", "log"], driver = [
+  "pytest fichero-server/tests/perf/test_entity_list_perf.py fichero-server/tests/perf/test_entity_detail_perf.py"] }
+w5 = { side = "engine", corpus = "perf-trial-samples", budget_s = 300, outputs = ["library", "log"], driver = [
+  "python scripts/perf_activity_store_5645.py"] }
+w6 = { side = "app", corpus = "perf-trial-samples", budget_s = 120, outputs = ["library", "log", "trace"], driver = "FICHERO_PERF_WORKLOAD=w6" }
+w7 = { side = "app", corpus = "perf-trial-samples", budget_s = 120, outputs = ["library", "log", "trace"], driver = "FICHERO_PERF_WORKLOAD=w7" }
+w8 = { side = "app", corpus = "perf-trial-page", budget_s = 180, outputs = ["library", "log", "trace"], driver = "FICHERO_PERF_WORKLOAD=w8" }
+w9 = { side = "app", corpus = "perf-trial-samples", budget_s = 120, outputs = ["library", "log", "trace"], driver = "FICHERO_PERF_WORKLOAD=w9" }
+w10 = { side = "app", corpus = "perf-trial-samples", budget_s = 120, outputs = ["library", "log", "trace"], driver = "FICHERO_PERF_WORKLOAD=w10" }
+
+[perf.machines.m4air]
+# #6600 Step 3 (perf-sweep.source.machines): where each source runs is declared, never probed. `profile` = may be profiled on, `gui` = has a
+# GUI session for xctrace. sudo lists the tools the owner allowed without a password through one narrow sudoers line (py-spy, the M4 only).
+tags = ["pytest", "guards", "swift-build", "xcode-tests", "gui", "profile"]
+sudo = ["py-spy"]

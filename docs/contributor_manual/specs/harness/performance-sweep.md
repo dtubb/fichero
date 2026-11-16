@@ -155,7 +155,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   the top own frame; a disk-write exception yields a row with bytes; a payload with no responsiveness metrics yields no
   hang row and the run notes the missing field; a field issue list of three yields three rows tagged `organizer`. Test
   (to write): test_perf_sweep (a new test file), case test_metrickit_payloads_and_organizer_issues_become_field_rows.
-- `perf-sweep.source.machines` [GAP] (#6600; `pool.machines-declare-capabilities`) — where each source runs is declared,
+- `perf-sweep.source.machines` [OK] (#6600; `pool.machines-declare-capabilities`) — where each source runs is declared,
   not discovered: `[machines].m4air` gains `tags = ["pytest", "guards", "swift-build", "xcode-tests", "gui", "profile"]`
   and the optional `sudo = ["py-spy"]`; the sweep refuses to profile on a machine without `profile`, refuses an app
   profile without `gui`, and never places anything on the manager's Mac (`pool.hold-holds-one-machine`). The nightly
@@ -163,11 +163,11 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   xctrace recordings and the engine profiles, each under the heavy lock. Acceptance: a rules file whose only `profile`
   machine lacks `gui` runs the engine profiles and marks the app profiles `not-run: no GUI machine`; a sweep configured
   with no `profile` machine refuses at load naming the tag. Test (to write):
-  test_perf_sweep (a new test file), case test_profiles_place_only_on_declared_machines_and_say_not_run_otherwise.
+  test_perf_sweep (a new test file), case test_profiles_place_only_on_declared_machines_and_say_not_run_otherwise. Built: tags and sudo are declared in `harness.toml [perf.machines.<name>]` (not in `[machines]`, whose line stays as it was), read by `fichero_builder/perf_workloads.py`.
 
 ## Workloads — the fixed, reproducible set
 
-- `perf-sweep.workload.set` [GAP] (#6600) — ten workloads, each a named scripted scenario with a fixed corpus, declared
+- `perf-sweep.workload.set` [PARTIAL] (#6600) — ten workloads, each a named scripted scenario with a fixed corpus, declared
   in `harness.toml [perf.workloads]` (name, side, driver, corpus, declared outputs, budget seconds). Engine (pytest
   drivers under `fichero-server/tests/perf/`, run one test per workload against a uvicorn engine, never `main()`):
   **W1 import** (the generated 200-page library: `scripts/perf_fixture.py` pages plus the pdf and image fixtures already
@@ -184,8 +184,8 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   and iPad simulators for CPU, memory and body counts (simulator timings are recorded but never ratcheted: a simulator
   is not a device). Acceptance: the table loads with ten workloads; one missing a corpus or a budget is refused by name;
   a workload's declared outputs are what the disk reader subtracts. Test (to write):
-  test_perf_sweep (a new test file), case test_the_workload_table_loads_and_refuses_an_undeclared_corpus_or_budget.
-- `perf-sweep.workload.corpus` [GAP] (#6600; `ruling-2026-11-13-no-archive-names-in-specs`) — every corpus is synthetic
+  test_perf_sweep (a new test file), case test_the_workload_table_loads_and_refuses_an_undeclared_corpus_or_budget. Built: the `[perf.workloads]` table (W1–W5 pytest and script drivers, W3 is `test_search_workload_perf.py` over `scripts/perf_search_queries.txt`, text queries only) and the `PerfWorkload` selector for W6–W10. Not built: the scripted scenario steps in the view layer, and the simulator runs.
+- `perf-sweep.workload.corpus` [PARTIAL] (#6600; `ruling-2026-11-13-no-archive-names-in-specs`) — every corpus is synthetic
   or openly licensed, and none is the owner's archive material: the generated perf fixture (`scripts/perf_fixture.py`,
   deterministic by seed), the repo's own test fixtures, and at most one open HTR test set from the vetted list the project
   keeps (PAGE/ALTO with a licence that permits redistribution), pinned in `scripts/perf_corpus.json` by name, licence,
@@ -195,7 +195,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   public-boundary grep that guards landings covers `scripts/perf_corpus.json` and the workload table. Acceptance: a
   manifest entry without a licence or a hash is refused; a mismatched hash on the runner refuses the run naming the
   corpus; the boundary grep over a fixture manifest carrying an archive name is red. Test (to write):
-  the new test_perf_corpus file in fichero-server/tests/unit/scripts, case test_the_corpus_manifest_is_open_hashed_and_names_no_archive.
+  the new test_perf_corpus file in fichero-server/tests/unit/scripts, case test_the_corpus_manifest_is_open_hashed_and_names_no_archive. Built: `scripts/perf_corpus.json` (two generated or in-repo corpora) and `builder install --corpus`. Not built: the one open HTR download entry, which needs a vetted set and a hash taken by the manager.
 
 ## Output — the ranked hotspot table and the filing rule
 

@@ -100,7 +100,7 @@ def load(root) -> Config:
     c = doc.get("check", {})
     if unknown := sorted(set(c) - {x.name for x in fields(Config)} - {"test_env"}):  # fail closed (review 3, spec item 2)
         raise ValueError(f"harness.toml [check]: unknown keys {unknown}")
-    if unknown := sorted(set(doc) - {"check", "jail", "policy", "land", "brief", "spend", "models", "triage", "queue", "loop", "machines"}):
+    if unknown := sorted(set(doc) - {"check", "jail", "policy", "land", "brief", "spend", "models", "triage", "queue", "loop", "machines", "perf"}):
         # forward compatible (manager 2026-11-02: a [machines] table stopped the running loop): the loop and the rules file can
         # differ by a batch, so a NEW table is ignored here and named once by `rules_warnings`; a table that is a near-miss of
         # a known one is a misspelling and still refuses, as an unknown key in [check] does
@@ -161,7 +161,7 @@ def _auto_rules(names) -> tuple:
     return tuple(names)
 
 
-KNOWN_TABLES = {"check", "jail", "policy", "land", "brief", "spend", "models", "triage", "queue", "loop", "machines"}
+KNOWN_TABLES = {"check", "jail", "policy", "land", "brief", "spend", "models", "triage", "queue", "loop", "machines", "perf"}
 
 
 def rules_warnings(root) -> list[str]:

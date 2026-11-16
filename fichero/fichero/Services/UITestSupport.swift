@@ -103,6 +103,10 @@ func openUITestLibraryOverrideIfNeeded() {
     if let openId = uiTestOpenDocumentId() {
         LibraryManager.shared.pendingOpenDocumentId = openId
     }
+    // The performance sweep's app workload (W6-W10), named on the launch timeline so a recording says which scenario it holds.
+    if let workload = PerfWorkload.selected() {
+        LaunchProfile.milestone("perf workload", detail: workload.rawValue)
+    }
 }
 
 /// Optional seeded-document id an XCUITest wants opened straight into the
