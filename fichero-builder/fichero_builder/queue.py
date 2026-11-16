@@ -1245,12 +1245,24 @@ DRAIN_SINCE: list = [0.0]
 BUILDS: list = []  # the post-landing dev builds' threads: a re-exec waits for them
 
 
+PER_TICK_KEYS = ("rounds", "only", "dispatch", "blocked_hours", "approved_pinned")  # the `[loop]` keys `apply_loop_cfg` re-reads at every tick
+
+
 def code_mark(root="") -> tuple:
-    """What the running loop's code is: each fichero_builder source's name, size and mtime. #6589: the rules file is not in it: it is
-    read at every tick (`reload_rules`), so only a landing that changes `fichero-builder/` makes the loop re-exec. `root` is kept for callers."""
+    """What the running loop's code is: each fichero_builder source's name, size and mtime, and (#6466) the rules the loop reads once, at
+    its start: harness.toml minus the `[loop]` keys of PER_TICK_KEYS (#6589: those are read at every tick, so editing them restarts
+    nothing). An edit to any other rule (`check.*`, `jail.*`, `loop.tell`, `intake_*`, `lanes`, ...) re-execs the loop at a quiet tick."""
     pkg = Path(__file__).resolve().parent
-    files = list(pkg.glob("*.py"))
-    return tuple(sorted((f.name, f.stat().st_size, f.stat().st_mtime_ns) for f in files))
+    mark = [(f.name, f.stat().st_size, f.stat().st_mtime_ns) for f in pkg.glob("*.py")]
+    f = Path(root) / "harness.toml" if root else None
+    if f is not None and f.is_file():
+        try:
+            cfg = tomllib.loads(f.read_text())
+            cfg["loop"] = {k: v for k, v in cfg.get("loop", {}).items() if k not in PER_TICK_KEYS}
+            mark.append(("harness.toml", hashlib.sha256(json.dumps(cfg, sort_keys=True, default=str).encode()).hexdigest(), 0))
+        except (OSError, tomllib.TOMLDecodeError):
+            mark.append(("harness.toml", "unreadable", 0))
+    return tuple(sorted(mark))
 
 
 def reload_rules(root) -> None:

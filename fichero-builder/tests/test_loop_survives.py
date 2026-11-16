@@ -132,11 +132,22 @@ def test_the_loop_records_its_own_checkout_as_the_live_root_when_it_starts(state
     assert (journal.STATE / "live-root").read_text().strip() == str(state.resolve())
 
 
-def test_a_rules_edit_leaves_the_code_mark_alone_because_the_rules_are_read_every_tick(state):
-    """#6589 (supersedes #6466's rules-edit re-exec): harness.toml is read at every tick, so an edit restarts nothing."""
-    (state / "harness.toml").write_text("[loop]\nonly = []\n")
+def test_a_rules_edit_changes_the_code_mark_so_the_loop_re_execs(state):
+    """#6466, narrowed by #6589: a rule the loop reads once (here `[check]`) is in the mark, so its edit re-execs the loop."""
+    (state / "harness.toml").write_text("[check]\nauto = false\n")
     before = queue.code_mark(state)
     assert before == queue.code_mark(state), "a stable mark between ticks"
-    (state / "harness.toml").write_text("[loop]\nonly = ['x']\n")
-    assert queue.code_mark(state) == before
+    (state / "harness.toml").write_text("[check]\nauto = true\n")
+    assert queue.code_mark(state) != before
     assert queue.code_mark() == queue.code_mark(), "no root: the package alone, as before"
+
+
+def test_an_edit_to_the_per_tick_loop_keys_leaves_the_code_mark_alone(state):
+    """#6589: `only`, `dispatch`, `rounds`, `blocked_hours`, `approved_pinned` are read at every tick, so editing them restarts nothing;
+    `[loop].tell` is read once, so it still does."""
+    (state / "harness.toml").write_text("[loop]\nonly = []\ntell = 'a'\n")
+    before = queue.code_mark(state)
+    (state / "harness.toml").write_text("[loop]\nonly = ['x']\ndispatch = ['y']\ntell = 'a'\n")
+    assert queue.code_mark(state) == before
+    (state / "harness.toml").write_text("[loop]\nonly = ['x']\ntell = 'b'\n")
+    assert queue.code_mark(state) != before
