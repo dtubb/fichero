@@ -270,6 +270,8 @@ daily_tests = [
 [check.daily_builds]
 ios-sim = ["xcodebuild", "-project", "fichero/fichero.xcodeproj", "-scheme", "Fichero (Dev Local)", "-destination", "generic/platform=iOS Simulator",
            "-derivedDataPath", "derived", "-jobs", "4", "-skipPackagePluginValidation", "CODE_SIGNING_ALLOWED=NO", "build"]
+ipad-sim = ["xcodebuild", "-project", "fichero/fichero.xcodeproj", "-scheme", "Fichero (Dev Local)", "-destination", "generic/platform=iOS Simulator",
+            "-derivedDataPath", "derived", "-jobs", "4", "-skipPackagePluginValidation", "CODE_SIGNING_ALLOWED=NO", "build"]  # #6610: the iPad's own warning count; no scheme carries the iPad plan yet
 tests = ["xcodebuild", "-project", "fichero/fichero.xcodeproj", "-scheme", "Fichero (Dev Local)", "-destination", "platform=macOS",
          "-derivedDataPath", "derived", "-jobs", "4", "-skipPackagePluginValidation", "CODE_SIGNING_ALLOWED=NO", "build-for-testing"]
 

@@ -403,3 +403,20 @@ def test_a_timed_out_workload_takes_its_whole_process_group_with_it(tmp_path):
     else:
         os.kill(pid, 9)
         raise AssertionError("the grandchild of a timed-out workload is still running")
+
+
+# ---- Step 6 (#6610): the warnings ratchet and list. Own section; Step 4 extends this file on lane perf-sweep-3 ----
+
+def test_the_build_rung_and_every_daily_build_pass_a_result_bundle_path():
+    from fichero_builder import check_tool
+    argv = ["xcodebuild", "-scheme", "S", "build"]
+    out = check_tool.with_result_bundle(argv, "/r/build.xcresult")
+    assert out[-3:-1] == ["-resultBundlePath", "/r/build.xcresult"] and out[-1] == "build" and argv == ["xcodebuild", "-scheme", "S", "build"]
+    # a path already there is replaced, never doubled; a non-xcode argv is left alone
+    again = check_tool.with_result_bundle(out, "/r/other.xcresult")
+    assert again.count("-resultBundlePath") == 1 and "/r/other.xcresult" in again and "/r/build.xcresult" not in again
+    assert check_tool.with_result_bundle(["py", "x"], "/r/x.xcresult") == ["py", "x"]
+    rules = tomllib.loads((Path(__file__).resolve().parents[2] / "harness.toml").read_text())
+    daily = rules["check"]["daily_builds"]
+    assert {"ios-sim", "tests", "ipad-sim"} <= set(daily)
+    assert "generic/platform=iOS Simulator" in daily["ipad-sim"]

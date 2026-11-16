@@ -917,6 +917,18 @@ SOURCE_ERROR = re.compile(r"\.swift:\d+:\d+: error: ")
 BUILD_RETRY_WAIT_S = 30  # ponytail: one fixed wait; the other build's end is not watched
 
 
+def with_result_bundle(argv, path) -> list[str]:
+    """#6610 `perf-sweep.warnings.from-the-result-bundle`: the Xcode command with `-resultBundlePath <path>` before its action, so the
+    warnings are read from the bundle and never a regex over the log alone. A path already there is replaced; any other command is left alone."""
+    b = list(argv)
+    if not b or Path(b[0]).name != "xcodebuild":
+        return b
+    if "-resultBundlePath" in b[:-1]:
+        b[b.index("-resultBundlePath") + 1] = str(path)
+        return b
+    return [*b[:-1], "-resultBundlePath", str(path), b[-1]]
+
+
 def build(root, changed: list[str], cfg: Config) -> dict:
     """The project's build-only compile, only when the diff touches its build paths; one at a time under the lock
     (owner 2026-11-01: a Swift change nobody compiled reached the land gate; builds stay serial on this machine). The skip is decided
@@ -1002,7 +1014,10 @@ def _remote_build_synced(root, cfg: Config, host: str, rbase: str, cmd: tuple, n
     if "-derivedDataPath" in b[:-1]:
         b[b.index("-derivedDataPath") + 1] = derived
     b = [a for a in b if a != "-disableAutomaticPackageResolution"]  # its first build there resolves the packages into its own derived data
-    script = _remote_heavy(f"{rbase}/venv/bin/python", f"{rbase}/heavy.lock", f"cd {shlex.quote(tree)} && {shlex.join(b)}")
+    bundle = f"{rbase}/results/{name}.xcresult"  # a build only: Xcode refuses a bundle path that exists, so it is removed first
+    b = with_result_bundle(b, bundle)
+    pre = f"rm -rf {shlex.quote(bundle)} && mkdir -p {shlex.quote(rbase + '/results')} && " if "-resultBundlePath" in b else ""
+    script = _remote_heavy(f"{rbase}/venv/bin/python", f"{rbase}/heavy.lock", f"{pre}cd {shlex.quote(tree)} && {shlex.join(b)}")
     log = journal.STATE / "build-logs" / f"{name}-{time.strftime('%Y%m%d-%H%M%S')}-{host}.log"
     r = run_command(name, ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host, script], src, timeout_s or cfg.build_timeout_s, None,
                     as_jail=False, log=log)
@@ -1055,17 +1070,18 @@ def _build_locked(root, changed: list[str], cfg: Config) -> dict:
             return {"ok": True, "skipped": False, "results": [{"name": "build", "ok": True, "exit_code": 0, "timed_out": False, "seconds": 0,
                                                                "stdout_tail": f"reused: the same build key built green at {hit.get('head', '?')[:9]}", "stderr_tail": "", "reused": key}]}
         log = journal.STATE / "build-logs" / f"build-{time.strftime('%Y%m%d-%H%M%S')}-{time.time_ns() % 10**9:09d}.log"  # only a red build writes it; ponytail: never rotated, prune by age if the dir grows
-        r = _run("build", list(cfg.build), src, cfg.build_timeout_s, cfg, log=log)
+        bundle = log.with_suffix(".xcresult")  # beside the kept log; each run gets its own name, so none exists yet
+        r = _run("build", with_result_bundle(cfg.build, bundle), src, cfg.build_timeout_s, cfg, log=log)
         if not r["ok"] and BUILD_DB_LOCKED.search((r.get("stdout_tail") or "") + (r.get("stderr_tail") or "") + (r.get("errors") or "")):
             journal.append("check", state="retry", rung="build", detail="XCBuildData build.db was locked by another build in the same derived dir: re-run once")
             time.sleep(BUILD_RETRY_WAIT_S)
-            r = {**_run("build", list(cfg.build), src, cfg.build_timeout_s, cfg, log=log.with_suffix(".retry.log")), "retried": True}
+            r = {**_run("build", with_result_bundle(cfg.build, log.with_suffix(".retry.xcresult")), src, cfg.build_timeout_s, cfg, log=log.with_suffix(".retry.log")), "retried": True}
         if not r["ok"] and not r.get("timed_out") and cfg.build_tree and (dd := _derived_dir(cfg)) and not SOURCE_ERROR.search(r.get("errors") or ""):
             # an incremental red can be stale build state, not the code (memory: a stale incremental build): once more from a
             # clean derived dir, and the second result stands (manager 2026-11-03)
             journal.append("check", state="retry", rung="build", detail=f"an incremental build was red: {dd} cleared, built once more from clean")
             _clear_dir(dd)
-            r = {**_run("build", list(cfg.build), src, cfg.build_timeout_s, cfg, log=log.with_suffix(".clean.log")), "retried": "clean"}
+            r = {**_run("build", with_result_bundle(cfg.build, log.with_suffix(".clean.xcresult")), src, cfg.build_timeout_s, cfg, log=log.with_suffix(".clean.log")), "retried": "clean"}
         if r["ok"] and key:
             _build_result_put(key, (_lines(src, "rev-parse", "HEAD") or [""])[0])
     finally:
