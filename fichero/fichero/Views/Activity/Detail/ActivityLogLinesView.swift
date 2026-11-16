@@ -1,8 +1,5 @@
 import FicheroAPIClient
 import SwiftUI
-#if os(macOS)
-import AppKit
-#endif
 
 /// The log's lines as Xcode draws them (`activity.log.like-xcode`, decision 36, #6588): a find bar, then one row per line
 /// with its number, level glyph, time and text, monospaced. A click selects a line, shift extends, command adds or removes;
@@ -82,18 +79,13 @@ struct ActivityLogLinesView: View {
         .background(selected ? AnyShapeStyle(Color.accentColor.opacity(0.22))
                     : isCurrent ? AnyShapeStyle(Color.yellow.opacity(0.18)) : AnyShapeStyle(Color.clear))
         .contentShape(Rectangle())
-        .onTapGesture { click(line.id) }
+        .gesture(
+            TapGesture().modifiers(.command).onEnded { selection.click(line.id, shift: false, command: true) }
+                .exclusively(before: TapGesture().modifiers(.shift).onEnded { selection.click(line.id, shift: true, command: false) })
+                .exclusively(before: TapGesture().onEnded { selection.click(line.id, shift: false, command: false) })
+        )
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(selected ? .isSelected : [])
-    }
-
-    private func click(_ id: Int) {
-        #if os(macOS)
-        let flags = NSEvent.modifierFlags
-        selection.click(id, shift: flags.contains(.shift), command: flags.contains(.command))
-        #else
-        selection.click(id, shift: false, command: false)
-        #endif
     }
 
     private func scroll(_ proxy: ScrollViewProxy, to index: Int) {
