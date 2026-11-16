@@ -253,7 +253,7 @@ def nightly(rules: dict, manifest: dict, *, gate, state, run: str, machine: str,
     run_dir = gate / "perf" / run
     run_dir.mkdir(parents=True, exist_ok=True)
     models = Path(os.environ.get("FICHERO_MODEL_STORE_ROOT") or gate / "perf-state" / "models")  # the one shared folder
-    env = {k: os.environ[k] for k in ENV_KEEP if k in os.environ}
+    inherited = {k: os.environ[k] for k in ENV_KEEP if k in os.environ}
     for w in table:
         n = w["name"]
         free = free_gb(gate)
@@ -268,7 +268,8 @@ def nightly(rules: dict, manifest: dict, *, gate, state, run: str, machine: str,
             # holds an older run's data; only the model store is shared
             st = run_dir / "state" / n
             where = {"library": st / "library", "cache": st / "base", "log": st / "log", "models": models}
-            env.update(TMPDIR=str(run_dir / "tmp"), FICHERO_BASE_PATH=str(where["cache"]), FICHERO_LIBRARY_PATH=str(where["library"]),
+            env = {**inherited, "TMPDIR": str(run_dir / "tmp")}
+            env.update(FICHERO_BASE_PATH=str(where["cache"]), FICHERO_LIBRARY_PATH=str(where["library"]),
                        FICHERO_ENGINE_LOG_PATH=str(where["log"] / "engine.log"), FICHERO_MODEL_STORE_ROOT=str(models))
             for p in where.values():
                 p.mkdir(parents=True, exist_ok=True)
