@@ -1,2 +1,0 @@
-"""Book-structure helpers."""
-
