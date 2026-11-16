@@ -246,6 +246,9 @@ extension SidebarView {
 
     /// Show a source's folder in the Library pane: from the store when it is known, else fetched.
     private func routeToFolder(_ folderId: String?, of doc: Document, libraryId: UUID?) {
+        // The list already shows this folder: the click only moves the selection, so nothing is
+        // written here and nothing reloads (#6657).
+        if case .library(let shown) = viewMode, shown?.id == folderId { return }
         guard let folderId else {
             viewMode = .library(nil)
             return

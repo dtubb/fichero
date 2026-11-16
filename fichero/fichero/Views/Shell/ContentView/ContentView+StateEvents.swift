@@ -63,7 +63,12 @@ extension ContentView {
         // pick left over from before cannot stand in for it. This retires
         // #4299's carve-out, which kept that pick when the row only re-rooted
         // the listing.
-        browserSelection.removeAll()
+        // A click on a source selects it in this one write; clearing first made two changes (#6657).
+        let clickedId = newFolderId.flatMap { $0.hasPrefix("doc:") ? String($0.dropFirst(4)) : nil }
+        let clicked = clickedId.flatMap { id in
+            documentStore.currentDocuments.first(where: { $0.id == id })
+        }
+        browserSelection = SidebarSourceOpen.selectionOnClick(clicked)
         // #4523: a NEW library container is a new browse context, so the
         // remembered run selection is stale scope — drop it. Navigation to
         // workflow/chain/section rows does NOT reach this branch, which is
