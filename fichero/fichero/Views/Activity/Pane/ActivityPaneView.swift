@@ -132,11 +132,17 @@ struct ActivityPaneView: View {
             NavigationSplitView {
                 sidebar
             } detail: {
+                // Every column's size range is the fixed one of `ActivityPaneView+WindowLayout.swift`, never its
+                // content's (#6661): sizes that did not fit the window together looped its constraints passes.
                 content
+                    .frame(minWidth: Self.centreMinWidth, maxWidth: .infinity,
+                           minHeight: Self.centreMinHeight, maxHeight: .infinity)
                     .toolbar { ToolbarItem(placement: .navigation) { ActivityRunControlsBar() } }
                     .inspector(isPresented: $showsInspector) {
                         windowInspector?()
-                            .inspectorColumnWidth(min: 280, ideal: 380, max: 640)
+                            .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+                            .inspectorColumnWidth(min: Self.inspectorWidths.lowerBound, ideal: Self.inspectorIdealWidth,
+                                                  max: Self.inspectorWidths.upperBound)
                             // The Inspector column's own toolbar, at the window's trailing edge: More, then the toggle.
                             .toolbar {
                                 ToolbarItem(placement: .primaryAction) { moreMenu }
@@ -165,8 +171,9 @@ struct ActivityPaneView: View {
                 rowsView(shown)
             } else if prefs.tab == .recipes && !graphsFull {
                 // Recipes (decision 37): recipe › run › step with the rates that compare them, over the graphs.
-                PlatformVSplitView {
-                    ActivityRecipesView(libraries: libraries).frame(minHeight: 140)
+                ActivityGraphsSplitStack {
+                    ActivityRecipesView(libraries: libraries)
+                } graphs: {
                     graphs
                 }
             } else if graphsFull {
@@ -175,8 +182,9 @@ struct ActivityPaneView: View {
             } else {
                 // The window's centre: the rows over the graphs, the divider the person's to drag (decisions 34, 41); a main
                 // window's pane keeps one status line instead.
-                PlatformVSplitView {
-                    rowsView(shown).frame(minHeight: 140)
+                ActivityGraphsSplitStack {
+                    rowsView(shown)
+                } graphs: {
                     graphs
                 }
             }

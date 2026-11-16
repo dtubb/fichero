@@ -671,7 +671,8 @@ struct FicheroApp: App {
                 .environment(libraryManager)
                 .environment(appExecutionObserver)
         }
-        .defaultSize(width: 480, height: 640)
+        // Above the content's minimum, so a first open is not pinned to it (#6661).
+        .defaultSize(width: ActivityPaneView.windowMinWidth + 60, height: ActivityPaneView.windowMinHeight + 80)
         // The Window menu's automatic "Activity" item is this scene's own
         // command (#4524); the shortcut rides it — documented: "A scene's
         // keyboard shortcut is bound to the command it adds for … bringing a
