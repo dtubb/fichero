@@ -18,8 +18,21 @@ enum SourceViewSettings {
 
     /// The whole metadata to send with a toggle: the update replaces the dictionary, so every other key rides along.
     static func metadata(settingShowImage visible: Bool, in metadata: [String: AnyCodable]) -> [String: any Sendable] {
-        var payload: [String: any Sendable] = metadata.mapValues { $0.value as any Sendable }
+        var payload: [String: any Sendable] = metadata.compactMapValues { sendable($0.value) }
         payload[showImageKey] = visible
         return payload
+    }
+
+    /// A stored JSON value as a Sendable one, by its concrete type; a kind the metadata cannot hold is dropped.
+    private static func sendable(_ value: Any) -> (any Sendable)? {
+        switch value {
+        case let bool as Bool: return bool
+        case let int as Int: return int
+        case let double as Double: return double
+        case let string as String: return string
+        case let array as [Any]: return array.compactMap { sendable($0) }
+        case let dict as [String: Any]: return dict.compactMapValues { sendable($0) }
+        default: return nil
+        }
     }
 }
