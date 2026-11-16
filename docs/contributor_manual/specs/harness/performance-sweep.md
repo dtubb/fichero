@@ -53,7 +53,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   stderr timeline only still yields the launch rows; the signpost export and the log for the same run agree within 5 ms or
   the row is marked `disagree` (never silently averaged). Test (to write):
   the new test_perf_log_readers file in fichero-server/tests/unit/scripts, case test_launch_and_interaction_lines_become_phase_rows_with_p50_p95_count.
-- `perf-sweep.source.engine-perf-lines` [GAP] (#6600) — perf (a new test file), case perf_span logs `PERF <name> <k=v …>
+- `perf-sweep.source.engine-perf-lines` [GAP] (#6600) — `core/perf.py::perf_span` logs `PERF <name> <k=v …>
   duration_ms=<n>` and `model_load` logs `model-lane: loaded <model> in <s> s (load <n> in this engine)` plus the
   WARNING `model loaded again`. The reader takes an engine log (the run's, or the app's embedded-engine log from a smoke
   run) and emits one row per span name with count, p50, p95, max, total (count × p50, the "how often" figure the owner
@@ -78,7 +78,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   `/usr/bin/time -l` wraps every driver for the zero-overhead peak RSS (`maximum resident set size`) that the rung holds.
   **Disk:** `du -sk` of the scratch library, the engine cache dir, its log dir and the models dir before and after
   (`perf-rung-engine`'s pairs, unchanged), the delta per directory held exactly; DuckDB spill and old-row-version MiB
-  from busy_evidence (a new test file)'s lines. **CPU and energy:** CPU seconds from `/usr/bin/time -l` (`user` + `sys`) and the
+  from `db/busy_evidence.py`'s lines. **CPU and energy:** CPU seconds from `/usr/bin/time -l` (`user` + `sys`) and the
   ratio CPU/wall (parallel efficiency; a workload at 0.9 on an 8-core run is serial work waiting to be found); energy on
   the Mac is CPU time (no per-process energy counter is available without root; `powermetrics` is NOT used). Rows: the
   top 15 self-time frames that are ours (`fichero_server/`, `fichero_cli/`, `fichero_mcp/`), each with self ms, total ms,
@@ -203,7 +203,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   phase or file:line), value, unit, count, share (of the workload's total for the kind, when it exists), source (the
   tool), trend_pct (vs the previous run on the same machine model and workload, null on the first), runs_seen,
   profile (the run-relative path of the trace, flamegraph or JSON the row came from)}`. `area` is derived from `where` by
-  the same path-to-area map the review lenses use (review_lenses (a new test file); `recipes/` → recipes,
+  the same path-to-area map the review lenses use (`fichero_builder/review_lenses.py`; `recipes/` → recipes,
   `Views/Sidebar/` → sidebar, and so on) so a hotspot and a reviewer finding land in the same bucket. Acceptance: a row
   missing `where`, `value` or `source` is refused; `area` for `fichero/fichero/Views/Sidebar/SidebarView.swift` is
   `sidebar`. Test (to write): test_perf_sweep (a new test file), case test_rows_have_one_shape_and_an_area_from_the_lens_map.
