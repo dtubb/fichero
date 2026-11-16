@@ -221,6 +221,8 @@ struct ZoomableImagePreview: View {
     /// when it has no artifact (an imported page, #5152). Selecting and highlighting use this; the
     /// edit verbs keep the real artifact id above.
     @State var ocrGeometrySelectionScope: String?
+    /// The pass the shown boxes came from, with or without an artifact: where a drawing is sent (#6412).
+    @State var ocrGeometryPassId: String?
     /// Rubber-band add mode: drags draw EPHEMERAL marquees (per-window seam
     /// `WindowState.previewMarquees`) — nothing persists until the user
     /// promotes them to regions or runs a workflow scoped to the crops.
