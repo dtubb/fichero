@@ -8,6 +8,7 @@ passes."""
 from __future__ import annotations
 
 import hashlib
+import re
 import shutil
 import subprocess
 import sys
@@ -43,6 +44,8 @@ def load(doc: dict) -> list[dict]:
         for k in REQUIRED:
             if e.get(k) in (None, "", 0):
                 raise ValueError(f"corpus {n}: {k} is required")
+        if isinstance(e.get("name"), str) and not re.fullmatch(r"[a-z0-9-]+", e["name"]):
+            raise ValueError(f"corpus {n}: name is lowercase letters, digits and hyphens only")
         if n in seen:
             raise ValueError(f"corpus {n}: declared twice")
         seen.add(n)
@@ -96,8 +99,10 @@ def install(entries: list[dict], root, dest, fetch=None) -> dict[str, Path]:
             if (got := _sha(made)) != e["sha256"]:
                 raise CorpusMismatch(f"corpus {e['name']}: sha256 is {got[:12]}, the manifest pins {e['sha256'][:12]}")
             target = held_dir(e, dest)
-            for old in Path(dest).glob(e["name"] + "-*"):  # an earlier hash's folder is not kept
-                shutil.rmtree(old, ignore_errors=True)
+            own = re.compile(re.escape(e["name"]) + r"-[0-9a-f]{12}")
+            for old in Path(dest).iterdir():  # an earlier hash's folder of this corpus is not kept; no other folder is touched
+                if old.is_dir() and own.fullmatch(old.name):
+                    shutil.rmtree(old, ignore_errors=True)
             target.mkdir(parents=True)
             shutil.move(str(made), str(target / e["file"]))
         held[e["name"]] = target

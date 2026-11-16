@@ -103,3 +103,17 @@ def test_a_name_or_file_that_is_a_path_is_refused_and_an_old_hash_folder_is_repl
     e2 = dict(e1, sha256=hashlib.sha256(b"v2").hexdigest())
     corpus.install([e2], root, tmp_path / "held")
     assert [d.name for d in (tmp_path / "held").iterdir()] == [f"tiny-{e2['sha256'][:12]}"]
+
+
+def test_an_install_removes_only_its_own_old_hash_folders_and_refuses_glob_names(tmp_path):
+    for bad in ("*", "a?", "[a]", "A"):
+        with pytest.raises(ValueError, match="lowercase"):
+            corpus.load({"corpora": [_entry(name=bad)]})
+    root = tmp_path / "root"
+    root.mkdir()
+    (root / "p.txt").write_bytes(b"v1")
+    held = tmp_path / "held"
+    other = held / ("tiny-page-" + "a" * 12)
+    other.mkdir(parents=True)
+    corpus.install([_entry(source="p.txt", file="p.txt", sha256=hashlib.sha256(b"v1").hexdigest())], root, held)
+    assert other.is_dir()
