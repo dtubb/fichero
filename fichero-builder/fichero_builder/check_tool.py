@@ -1065,7 +1065,7 @@ def _remote_build_synced(root, cfg: Config, host: str, rbase: str, cmd: tuple, n
         return {"ok": False, "skipped": False, "remote_env_red": True, "remote": host, "results": [r]}  # the row stays: its stderr says why
     r["remote"] = host
     if r["ok"] and name in WARNING_PLATFORMS and not keep_git:
-        _warning_ratchet(root if keep_git else Path(src), host, bundle, name, r)
+        _warning_ratchet(Path(src), host, bundle, name, r)
     journal.append("check", state="build-remote", rung=name, runner=host, ok=r["ok"], seconds=r.get("seconds"))
     if r["ok"] and key:
         _build_result_put(key, (_lines(src, "rev-parse", "HEAD") or [""])[0])

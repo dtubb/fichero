@@ -302,8 +302,10 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   item), holds `scripts/xcode_warning_baseline.json` = `{platform: {kind: count}}` EXACTLY: a batch that adds a warning
   of any kind on any platform is red naming the platform, the kind, the file and line, and both counts; a batch that
   removes one lowers the baseline in the same batch or the land step lowers it (`baseline-falls-every-batch`); a raised
-  baseline in a diff is refused. The rung runs it over the mac build's bundle on every batch that touches `fichero/`;
-  the iOS and iPad counts are held by the daily builds (red there is an alert plus the ratchet's red lines). A warning
+  baseline in a diff is refused (`--check-baseline` exists as a command-line flag; no rung or guard calls it yet, so
+  the refusal is [GAP]). The rung runs it over the mac build's bundle on every batch that touches `fichero/`;
+  the iOS count is held by the daily build (red there is an alert plus the ratchet's red lines); the iPad count waits
+  for an iPad scheme (`ipad-sim` was removed). A warning
   that moves file is not new (counts are per kind, not per file, the SwiftLint ratchet's netting rule). Acceptance: a
   bundle with one more `Sendable` warning than the baseline is red naming it; one fewer is green and prints the lower
   count; a baseline edit that raises a count is refused; `--since` over a fixture pair reports only the item's own new
@@ -312,7 +314,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   kinds, `check_swiftlint_warning_ratchet.py`'s per-rule counts (`TOP_N_RULES` already computed there; the script gains
   `--json <out>` and nothing else) and ruff's per-rule counts where the quality stream holds them, written to
   `<state>/perf/<run-id>/warnings.json` as rows `{source (xcode|swiftlint|ruff), platform, kind, count, trend, example
-  file:line}`, ranked by count, shown in the console beside Hotspots and in the digest's top 10. **One issue per kind,**
+  file:line}`, ranked by count, shown in the console beside Hotspots (the digest's top 10 is [GAP]: nothing writes warnings to the digest yet). **One issue per kind,**
   `Build warnings - <source>: <kind> (<count>)`, with the dedupe key `warn:<source>:<platform>:<kind>` in the body, the
   example lines (up to 20) and the way to clear it; the same filer and caps as hotspots; a kind whose count reaches zero
   closes its issue with the run id. The **first issue** is already known and is filed by hand in Step 6: the `Validate
