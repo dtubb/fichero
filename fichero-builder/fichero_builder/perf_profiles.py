@@ -161,14 +161,14 @@ def choose_profiler(rules: dict, machine: str, sudo_ok) -> tuple[str, str | None
 
 # --- the nightly driver ---------------------------------------------------------------------------------------------------------------
 
-def _child_pid(pid: int) -> int:
+def _child_pid(pid: int) -> int | None:
     """The workload under `/usr/bin/time` (time forks it), so py-spy attaches to python and not to time."""
     for _ in range(40):
         got = subprocess.run(["pgrep", "-P", str(pid)], capture_output=True, text=True).stdout.split()
         if got:
             return int(got[0])
         time.sleep(0.25)
-    return pid
+    return None  # never attach root to a pid that is not the workload's (it may have exited and been reused)
 
 
 def real_runner(argv: list[str], *, timeout, env=None, cwd=None, attach: list[str] | None = None) -> tuple[int, str, str]:
@@ -183,7 +183,12 @@ def real_runner(argv: list[str], *, timeout, env=None, cwd=None, attach: list[st
         except subprocess.TimeoutExpired:
             return 124, "", f"timed out after {timeout} s"
     proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env, cwd=cwd, start_new_session=True)
-    spy = subprocess.Popen([*attach, "--pid", str(_child_pid(proc.pid))], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    child = _child_pid(proc.pid)
+    if child is None:
+        os.killpg(proc.pid, signal.SIGKILL)
+        proc.communicate()
+        return 125, "", "py-spy: the workload's process was not found, so nothing was attached"
+    spy = subprocess.Popen([*attach, "--pid", str(child)], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
     try:
         out, err = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -228,7 +233,6 @@ def nightly(rules: dict, manifest: dict, *, gate, state, run: str, machine: str,
     run. Commands are argument lists, never shell strings. Profiles and temp live under the gate dir's `perf` folder for this run;
     the memray `.bin` and the temp folder go once their reports are written, and only the newest `keep` run folders stay."""
     gate = Path(gate)
-    py_spy = shutil.which(py_spy) or py_spy  # the sudoers line names the full path
     table = [w for w in perf_workloads.load(rules, manifest) if w["side"] == "engine" and (not only or w["name"] in only)]
     table.sort(key=lambda w: w["name"] == "w2")
     base = dict(run=run, machine_model=machine_model)
@@ -247,7 +251,7 @@ def nightly(rules: dict, manifest: dict, *, gate, state, run: str, machine: str,
         notes.append(why)
         rows.append(_not_run("engine", why, **base))
     run_dir = gate / "perf" / run
-    (run_dir / "tmp").mkdir(parents=True, exist_ok=True)
+    run_dir.mkdir(parents=True, exist_ok=True)
     state_dir = gate / "perf-state"
     # The engine is pointed at the folders `du` measures, so the disk rows read what the run really wrote.
     where = {"library": state_dir / "library", "cache": state_dir / "base", "log": state_dir / "log",
@@ -263,53 +267,56 @@ def nightly(rules: dict, manifest: dict, *, gate, state, run: str, machine: str,
             notes.append(f"not-run: {reason}")
             rows.insert(0, _not_run(n, reason, **base))
             break
-        for p in where.values():
-            p.mkdir(parents=True, exist_ok=True)
-        dirs = [str(where[d]) for d in DIRS if d in w["outputs"]]
-        du = ["du", "-sk", *dirs] if dirs else None  # no declared folder: no `du` at all (a bare `du -sk` reads the current folder)
-        drv = _python_argv(w["drivers"][0])
-        out = {k: run_dir / f"{n}.{k}" for k in ("pyinstrument.json", "html", "speedscope", "bin", "memray.json", "memray.html")}
-        timed = ["/usr/bin/time", "-l"]
-        with journal.heavy(f"perf profile {n}"):
-            before = runner(du, timeout=120)[1] if du else ""
-            if profiler == "py-spy":
-                # the workload starts as this user; root only attaches to its pid (`--pid` is added by the runner)
-                cmd, attach = [*timed, *drv], ["sudo", "-n", py_spy, "record", "--format", "speedscope", "-o", str(out["speedscope"]),
-                                               "--subprocesses"]
-                rc, _o, err = runner(cmd, timeout=w["budget_s"], env=env, cwd=cwd, attach=attach)
-            else:
-                cmd = [*timed, "pyinstrument", "-r", "json", "-o", str(out["pyinstrument.json"]), "-r", "html", "-o", str(out["html"]),
-                       *_target(drv)]
-                rc, _o, err = runner(cmd, timeout=w["budget_s"], env=env, cwd=cwd)
-            if rc != 0:
-                notes.append(f"{n}: not-run (exit {rc})")
-                rows.append(_not_run(n, f"the profiled run exited {rc}: {err.strip()[-300:]}", **base))
-                continue
-            mrc, _o, merr = runner(["memray", "run", "--native", "--follow-fork", "-f", "-o", str(out["bin"]), *_target(drv)],
-                                   timeout=w["budget_s"], env=env, cwd=cwd)
-            memray_text = None
-            if mrc == 0:
-                runner(["memray", "stats", "--json", "-f", "-o", str(out["memray.json"]), str(out["bin"])], timeout=300)
-                runner(["memray", "flamegraph", "-f", "-o", str(out["memray.html"]), str(out["bin"])], timeout=300)
-                memray_text = _read(out["memray.json"])
-            else:
-                rows.append(_not_run(n, f"memray run exited {mrc}: {merr.strip()[-300:]}", **base))
-            out["bin"].unlink(missing_ok=True)  # hundreds of MB to GB: the stats and the flamegraph are what is kept
-            after = runner(du, timeout=120)[1] if du else ""
-        frames = _read(out["speedscope"] if profiler == "py-spy" else out["pyinstrument.json"])
+        (run_dir / "tmp").mkdir(parents=True, exist_ok=True)
         try:
-            deltas = disk_deltas(before, after)
-        except ValueError as e:
-            deltas = {}
-            rows.append(_not_run(n, f"disk: {e}", **base))
-        prof = str(out["speedscope"] if profiler == "py-spy" else out["html"])
-        for part, args in (("time", (frames, None, None, {})), ("ram", (None, memray_text, None, {})), ("disk", (None, None, None, deltas)),
-                           ("cpu", (None, None, err, {}))):
+            for p in where.values():
+                p.mkdir(parents=True, exist_ok=True)
+            dirs = [str(where[d]) for d in DIRS if d in w["outputs"]]
+            du = ["du", "-sk", *dirs] if dirs else None  # no declared folder: no `du` at all (a bare `du -sk` reads the current folder)
+            drv = _python_argv(w["drivers"][0])
+            out = {k: run_dir / f"{n}.{k}" for k in ("pyinstrument.json", "html", "speedscope", "bin", "memray.json", "memray.html")}
+            timed = ["/usr/bin/time", "-l"]
+            with journal.heavy(f"perf profile {n}"):
+                before = runner(du, timeout=120)[1] if du else ""
+                if profiler == "py-spy":
+                    # the workload starts as this user; root only attaches to its pid (`--pid` is added by the runner)
+                    cmd, attach = [*timed, *drv], ["sudo", "-n", py_spy, "record", "--format", "speedscope", "-o", str(out["speedscope"]),
+                                                   "--subprocesses"]
+                    rc, _o, err = runner(cmd, timeout=w["budget_s"], env=env, cwd=cwd, attach=attach)
+                else:
+                    cmd = [*timed, "pyinstrument", "-r", "json", "-o", str(out["pyinstrument.json"]), "-r", "html", "-o", str(out["html"]),
+                           *_target(drv)]
+                    rc, _o, err = runner(cmd, timeout=w["budget_s"], env=env, cwd=cwd)
+                if rc != 0:
+                    notes.append(f"{n}: not-run (exit {rc})")
+                    rows.append(_not_run(n, f"the profiled run exited {rc}: {err.strip()[-300:]}", **base))
+                    continue
+                mrc, _o, merr = runner(["memray", "run", "--native", "--follow-fork", "-f", "-o", str(out["bin"]), *_target(drv)],
+                                       timeout=w["budget_s"], env=env, cwd=cwd)
+                memray_text = None
+                if mrc == 0:
+                    runner(["memray", "stats", "--json", "-f", "-o", str(out["memray.json"]), str(out["bin"])], timeout=300)
+                    runner(["memray", "flamegraph", "-f", "-o", str(out["memray.html"]), str(out["bin"])], timeout=300)
+                    memray_text = _read(out["memray.json"])
+                else:
+                    rows.append(_not_run(n, f"memray run exited {mrc}: {merr.strip()[-300:]}", **base))
+                out["bin"].unlink(missing_ok=True)  # hundreds of MB to GB: the stats and the flamegraph are what is kept
+                after = runner(du, timeout=120)[1] if du else ""
+            frames = _read(out["speedscope"] if profiler == "py-spy" else out["pyinstrument.json"])
             try:
-                rows += rows_for(n, *args, **base, profiler=profiler, profile=prof)
-            except (ValueError, KeyError, json.JSONDecodeError) as e:
-                rows.append(_not_run(n, f"the {part} output was unreadable: {e}", **base))
-    shutil.rmtree(run_dir / "tmp", ignore_errors=True)
+                deltas = disk_deltas(before, after)
+            except ValueError as e:
+                deltas = {}
+                rows.append(_not_run(n, f"disk: {e}", **base))
+            prof = str(out["speedscope"] if profiler == "py-spy" else out["html"])
+            for part, args in (("time", (frames, None, None, {})), ("ram", (None, memray_text, None, {})), ("disk", (None, None, None, deltas)),
+                               ("cpu", (None, None, err, {}))):
+                try:
+                    rows += rows_for(n, *args, **base, profiler=profiler, profile=prof)
+                except (ValueError, KeyError, json.JSONDecodeError) as e:
+                    rows.append(_not_run(n, f"the {part} output was unreadable: {e}", **base))
+        finally:
+            shutil.rmtree(run_dir / "tmp", ignore_errors=True)  # after EVERY workload, a crash included
     _prune(gate / "perf", keep, current=run)
     return perf_sweep.write_rows(rows, run=run, machine_model=machine_model, state=state, notes=notes)
 
@@ -348,6 +355,6 @@ def main(a) -> int:
     run = a.run or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     only = a.workload.split(",") if a.workload not in ("", "logs") else None
     out = nightly(rules, manifest, gate=a.gate, state=state, run=run, machine=machine, machine_model=a.machine_model or perf_sweep._model(),
-                  only=only, cwd=root)
+                  only=only, cwd=root, py_spy=shutil.which("py-spy") or "py-spy")  # the sudoers line names the full path
     print(f"run {run}: {len(out['rows'])} rows; " + "; ".join(out["notes"]))
     return 1 if any(r["where"].startswith("not-run") for r in out["rows"]) else 0

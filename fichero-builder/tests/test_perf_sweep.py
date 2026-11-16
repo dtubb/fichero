@@ -351,3 +351,24 @@ def test_the_real_runner_takes_an_argument_list_and_never_a_shell():
     assert perf_profiles.real_runner(["echo", "a b; echo c"], timeout=10) == (0, "a b; echo c\n", "")
     with pytest.raises(TypeError):
         perf_profiles.real_runner("echo hi", timeout=10)
+
+
+def test_the_temp_folder_goes_after_every_workload_and_a_missing_child_pid_is_never_attached(tmp_path, monkeypatch):
+    seen = []
+
+    class Leaky(_Runner):
+        def __call__(self, argv, **kw):
+            if kw.get("env"):
+                tmp = Path(kw["env"]["TMPDIR"])
+                seen.append(sorted(p.name for p in tmp.iterdir()))  # what an earlier workload left behind
+                (tmp / f"leak-{len(seen)}").write_text("x")
+            return super().__call__(argv, **kw)
+
+    _nightly(tmp_path, Leaky())
+    # two env-carrying calls a workload (the profiled run, then memray): the first of each finds the temp folder empty
+    assert len(seen) == 10 and all(names == [] for names in seen[0::2])
+    assert not (tmp_path / "Dev Disk" / "gate" / "perf" / "n1" / "tmp").exists()
+
+    monkeypatch.setattr(perf_profiles, "_child_pid", lambda pid: None)
+    rc, _o, err = perf_profiles.real_runner(["sleep", "5"], timeout=10, attach=["true"])
+    assert rc == 125 and "not found" in err
