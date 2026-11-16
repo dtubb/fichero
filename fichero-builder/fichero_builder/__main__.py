@@ -191,6 +191,11 @@ def main(argv=None) -> int:
     ins.add_argument("machine", nargs="?", default=""), ins.add_argument("dmg", nargs="?", default=""), ins.add_argument("--root", default=str(Path.cwd())), ins.add_argument("--state")
     ins.add_argument("--corpus", action="store_true", help="instead of a DMG: make every corpus in the manifest, hash-verified, under --dest (refused on a mismatch)")
     ins.add_argument("--manifest", default=""), ins.add_argument("--dest", default="")
+    pw = sub.add_parser("perf-warnings", help="the ranked warnings list (#6610): xcode kinds, SwiftLint and ruff rules in one list; --file files one issue per kind, closing a kind at zero")
+    pw.add_argument("--run", default=""), pw.add_argument("--state"), pw.add_argument("--gh", default="gh")
+    pw.add_argument("--xcode", action="append", default=[], metavar="PLATFORM=PATH", help="a result bundle (or its build-results JSON) per platform: mac, ios, ipad")
+    pw.add_argument("--swiftlint", help="check_swiftlint_warning_ratchet.py --json output"), pw.add_argument("--ruff", help="a JSON object {rule: count}")
+    pw.add_argument("--pbxproj", help="a project.pbxproj: phases with no outputs are listed"), pw.add_argument("--file", action="store_true", help="file and close the issues")
     tl = sub.add_parser("tell", help="a message into a Claude Code pane, submitted; over 400 characters it goes to a file and the pane reads it")
     tl.add_argument("pane"), tl.add_argument("message", nargs="+"), tl.add_argument("--state")
     ts = sub.add_parser("test", help="the pinned pytest over test paths on the land branch's tip (or --head) in a scratch tree, as the jail user, local or [check].remote; one test row")
@@ -423,6 +428,11 @@ def main(argv=None) -> int:
 
         journal.STATE = Path(a.state) if a.state else journal.STATE
         return rung_stats.main(a)
+    if a.cmd == "perf-warnings":
+        from fichero_builder import perf_warnings
+
+        journal.STATE = Path(a.state) if a.state else journal.STATE
+        return perf_warnings.main(a)
     if a.cmd == "machines":
         from fichero_builder import measure
 

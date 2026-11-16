@@ -137,8 +137,10 @@ def _print_top_rules(top_rules: list[tuple[str, int]]) -> None:
         print(f"    {count:4d}  {rule_id}")
 
 
-def run(baseline_path: Path, update_baseline: bool) -> int:
+def run(baseline_path: Path, update_baseline: bool, json_out: Path | None = None) -> int:
     count, top_rules = measure()
+    if json_out is not None:  # #6610: the ranked warnings list reads the per-rule counts
+        json_out.write_text(json.dumps({"count": count, "rules": [{"rule": r, "count": c} for r, c in top_rules]}, indent=1), encoding="utf-8")
     baseline = _load_baseline(baseline_path)  # raises Blind
 
     if update_baseline:
@@ -295,6 +297,7 @@ def main(argv: list[str] | None = None) -> int:
         "--since", metavar="BASE", default=None,
         help="Fail only if this item, measured from its merge-base with BASE, adds warnings of any rule",
     )
+    parser.add_argument("--json", type=Path, default=None, metavar="OUT", help="also write the count and the top rules as JSON to OUT")
     args = parser.parse_args(argv)
 
     if args.since is not None:
@@ -321,7 +324,7 @@ def main(argv: list[str] | None = None) -> int:
         return BLIND_EXIT_CODE
 
     try:
-        return run(baseline_path, args.update_baseline)
+        return run(baseline_path, args.update_baseline, args.json)
     except Blind as exc:
         print(f"check_swiftlint_warning_ratchet: BLIND — {exc}", file=sys.stderr)
         return BLIND_EXIT_CODE

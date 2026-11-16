@@ -387,3 +387,13 @@ class TestTheRealBinaryIntegration:
             raise
         assert count >= 0
         assert isinstance(top_rules, list)
+
+
+def test_json_writes_the_count_and_per_rule_counts_for_the_warnings_list(tmp_path, monkeypatch):
+    """#6610: `--json <out>` and nothing else: the ranked warnings list reads the per-rule counts."""
+    module = _import_script()
+    monkeypatch.setattr(module, "_run_swiftlint", lambda: _violations("todo", "todo", "line_length"))
+    baseline, out = tmp_path / "baseline.json", tmp_path / "out.json"
+    _seed_baseline(baseline, count=3)
+    assert module.main(["--baseline", str(baseline), "--json", str(out)]) == 0
+    assert json.loads(out.read_text()) == {"count": 3, "rules": [{"rule": "todo", "count": 2}, {"rule": "line_length", "count": 1}]}

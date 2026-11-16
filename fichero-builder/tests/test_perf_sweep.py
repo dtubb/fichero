@@ -476,3 +476,124 @@ def test_the_build_rung_holds_the_mac_warning_ratchet_and_a_missing_baseline_is_
     assert not out["ok"]
     out, seen, _ = _ratchet_run(tmp_path, monkeypatch, "tests", _warn_bundle(sendable, sendable), base)
     assert out["ok"] and not any("xcresulttool" in s for s in seen)
+
+
+PBXPROJ = """/* Begin PBXShellScriptBuildPhase section */
+\t\tAAA111 /* Validate App Store Bundle */ = {
+\t\t\tisa = PBXShellScriptBuildPhase;
+\t\t\tbuildActionMask = 2147483647;
+\t\t\tfiles = (
+\t\t\t);
+\t\t\tname = "Validate App Store Bundle";
+\t\t\toutputPaths = (
+\t\t\t);
+\t\t\trunOnlyForDeploymentPostprocessing = 0;
+\t\t\tshellScript = "true";
+\t\t};
+\t\tBBB222 /* Declared */ = {
+\t\t\tisa = PBXShellScriptBuildPhase;
+\t\t\tname = Declared;
+\t\t\toutputPaths = (
+\t\t\t\t"$(DERIVED_FILE_DIR)/ok.stamp",
+\t\t\t);
+\t\t\tshellScript = "true";
+\t\t};
+\t\tCCC333 /* Always */ = {
+\t\t\tisa = PBXShellScriptBuildPhase;
+\t\t\talwaysOutOfDate = 1;
+\t\t\tname = Always;
+\t\t\tshellScript = "true";
+\t\t};
+/* End PBXShellScriptBuildPhase section */
+"""
+
+
+class _FakeGh:
+    """An in-memory `gh issue …`: list, create, edit, close; labels exist already."""
+    def __init__(self):
+        self.issues, self.calls = [], []
+
+    def __call__(self, *a):
+        self.calls.append(a)
+        if a[:2] == ("issue", "list"):
+            return json.dumps(self.issues)
+        if a[:2] == ("issue", "create"):
+            args = list(a)
+            self.issues.append({"number": 100 + len(self.issues), "title": args[args.index("--title") + 1], "body": args[args.index("--body") + 1],
+                                "state": "OPEN", "milestone": args[args.index("--milestone") + 1] if "--milestone" in args else ""})
+            return f"https://github.com/o/r/issues/{99 + len(self.issues)}\n"
+        if a[:2] == ("issue", "edit"):
+            i = next(x for x in self.issues if str(x["number"]) == a[2])
+            if "--title" in a:
+                i["title"] = a[a.index("--title") + 1]
+            return ""
+        if a[:2] == ("issue", "close"):
+            next(x for x in self.issues if str(x["number"]) == a[2])["state"] = "CLOSED"
+            self.closed_with = a[a.index("--comment") + 1]
+            return ""
+        if a[:2] == ("label", "list"):
+            return json.dumps([{"name": "Build warnings"}])
+        return ""
+
+
+def test_warning_kinds_rank_across_sources_file_one_issue_each_and_close_at_zero(tmp_path):
+    from fichero_builder import perf_warnings as pw
+    xcode = {"mac": [{"kind": "Sendable: capture", "file": "fichero/A.swift", "line": 3, "message": "m"},
+                     {"kind": "Sendable: capture", "file": "fichero/B.swift", "line": 4, "message": "m"},
+                     {"kind": "deprecated: _", "file": "fichero/C.swift", "line": 9, "message": "m"}]}
+    swiftlint = {"count": 7, "rules": [{"rule": "line_length", "count": 5}, {"rule": "todo", "count": 2}]}
+    ruff = {"E501": 3}
+    rows = pw.build_rows(xcode=xcode, swiftlint=swiftlint, ruff=ruff, pbxproj=PBXPROJ)
+    # the Validate phase (and only it: declared outputs and alwaysOutOfDate are fine) is listed as its own xcode kind
+    phase = [r for r in rows if r["kind"].startswith("script phase without outputs")]
+    assert [r["kind"] for r in phase] == ["script phase without outputs: 'Validate App Store Bundle'"] and phase[0]["source"] == "xcode"
+    ranked = pw.rank(rows)
+    assert [(r["source"], r["kind"], r["count"]) for r in ranked[:4]] == [
+        ("swiftlint", "line_length", 5), ("ruff", "E501", 3), ("swiftlint", "todo", 2), ("xcode", "Sendable: capture", 2)]
+    assert set(ranked[0]) >= {"source", "platform", "kind", "count", "trend", "example"} and ranked[3]["example"] == "fichero/A.swift:3"
+    assert ranked[0]["platform"] == "mac" or ranked[0]["platform"] == "-"
+
+    # the list is written under perf/<run>/warnings.json, with a trend against the run before
+    state = tmp_path / "state"
+    pw.write_list(state, "r1", rows)
+    first = json.loads((state / "perf" / "r1" / "warnings.json").read_text())
+    assert len(first["rows"]) == len(rows) and all(r["trend"] is None for r in first["rows"])
+    worse = [{**r, "count": r["count"] + 1} if r["kind"] == "todo" else r for r in rows]
+    pw.write_list(state, "r2", worse)
+    second = {r["kind"]: r for r in json.loads((state / "perf" / "r2" / "warnings.json").read_text())["rows"]}
+    assert second["todo"]["trend"] == 1 and second["E501"]["trend"] == 0
+    assert json.loads((state / "perf" / "warnings-latest.json").read_text())["run"] == "r2"
+
+    # one issue per kind with the key, the example lines and the way to clear it; a repeat run files nothing new
+    gh = _FakeGh()
+    measured = {("xcode", "mac"), ("swiftlint", "-"), ("ruff", "-")}
+    made = pw.file_issues(rows, measured, "r1", gh)
+    assert len(gh.issues) == len(rows) == len(made)
+    sendable = next(i for i in gh.issues if "Sendable" in i["title"])
+    assert sendable["title"] == "Build warnings - xcode: Sendable: capture (2)"
+    assert "warn:xcode:mac:Sendable: capture" in sendable["body"] and "fichero/A.swift:3" in sendable["body"] and "fichero/B.swift:4" in sendable["body"]
+    assert sendable["milestone"] == "performance-sweep"
+    n = len(gh.calls)
+    assert pw.file_issues(rows, measured, "r2", gh) == [] and not [c for c in gh.calls[n:] if c[:2] in (("issue", "create"), ("issue", "edit"), ("issue", "close"))]
+    # a count that moved retitles the same issue, never a second one
+    pw.file_issues([{**r, "count": 9} if r["kind"] == "todo" else r for r in rows], measured, "r3", gh)
+    assert len(gh.issues) == len(rows) and any(i["title"].endswith("todo (9)") for i in gh.issues)
+    # a kind at zero closes its issue with the run id; a source that was not measured this run closes nothing
+    pw.file_issues([r for r in rows if r["kind"] != "todo"], {("xcode", "mac")}, "r4", gh)
+    assert all(i["state"] == "OPEN" for i in gh.issues)
+    pw.file_issues([r for r in rows if r["kind"] != "todo"], measured, "r5", gh)
+    closed = [i for i in gh.issues if i["state"] == "CLOSED"]
+    assert [i["title"].split(": ")[1].split(" (")[0] for i in closed] == ["todo"] and "r5" in gh.closed_with
+    # a closed kind that comes back reopens nothing silently: it is filed again under its key
+    pw.file_issues(rows, measured, "r6", gh)
+    assert [i["state"] for i in gh.issues if "todo" in i["title"]].count("OPEN") == 1
+
+
+def test_the_console_serves_the_warnings_list(tmp_path, monkeypatch):
+    from fichero_builder import console, perf_warnings as pw
+    monkeypatch.setattr(journal, "STATE", tmp_path)
+    pw.write_list(tmp_path, "r1", pw.build_rows(ruff={"E501": 3}))
+    assert pw.latest(tmp_path)["rows"][0]["kind"] == "E501"
+    assert pw.latest(tmp_path / "none") == {"run": None, "rows": []}
+    assert "/api/warnings" in Path(console.__file__).read_text()
+    assert "Warnings" in (Path(console.__file__).parent / "console.html").read_text()

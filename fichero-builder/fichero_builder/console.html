@@ -288,11 +288,22 @@ function Activity({ st }) {
     <h2>Usual time per rung</h2><div>${Object.entries(d.medians || {}).sort((x, y) => y[1] - x[1]).map(([k, v]) => html`<span class="pill" style="margin:2px">${k} ${dur(v)}</span>`)}</div>`;
 }
 
+function Warnings({ st }) {
+  const d = useApi("/api/warnings", refetchKey(st));
+  if (!d) return null;
+  if (!d.run) return html`<h2>Warnings</h2><p class="muted">No warnings list yet: run <span class="mono">builder perf warnings</span>.</p>`;
+  const trend = t => t == null ? "new" : t === 0 ? "~" : t > 0 ? "+" + t : "−" + (-t);
+  return html`<h2>Warnings <span class="mono muted" style="font-weight:400">${d.run}</span></h2>
+    <div class="wrap"><table><thead><tr><th>Source</th><th>Platform</th><th>Kind</th><th>Count</th><th>Trend</th><th>Example</th></tr></thead>
+    <tbody>${(d.rows || []).slice(0, 50).map(r => html`<tr class="row"><td>${r.source}</td><td>${r.platform}</td><td class="mono">${r.kind}</td><td>${r.count}</td>
+      <td class=${trend(r.trend) === "~" ? "muted" : ""}>${trend(r.trend)}</td><td class="mono muted">${r.example || "-"}</td></tr>`)}</tbody></table></div>`;
+}
+
 function Hotspots({ st }) {
   const d = useApi("/api/hotspots", refetchKey(st));
   const [f, setF] = useState({ workload: "", kind: "", area: "" });
   if (!d) return html`<p class="muted">Loading…</p>`;
-  if (!d.run) return html`<h2>Hotspots</h2><p class="muted">No hotspot table yet: run <span class="mono">builder perf read</span>.</p>`;
+  if (!d.run) return html`<h2>Hotspots</h2><p class="muted">No hotspot table yet: run <span class="mono">builder perf read</span>.</p><${Warnings} st=${st} />`;
   const top = d.top || [], opts = k => [...new Set(top.map(r => r[k]))].sort();
   const shown = top.filter(r => Object.entries(f).every(([k, v]) => !v || r[k] === v));
   const trend = t => t == null ? "new" : Math.abs(t) <= 6 ? "~" : t > 0 ? "+" + Math.round(t) + "%" : "\u2212" + Math.round(-t) + "%";
@@ -303,7 +314,7 @@ function Hotspots({ st }) {
     <div class="wrap"><table><thead><tr><th>Kind</th><th>Area</th><th>Where</th><th>Value</th><th>Share</th><th>Count</th><th>Trend</th><th>Workload</th><th>Profile</th></tr></thead>
     <tbody>${shown.map(r => html`<tr class="row"><td>${r.kind}</td><td>${r.area}</td><td class="mono">${r.where}</td><td>${r.value}${r.unit}</td>
       <td>${r.share == null ? "" : (r.share * 100).toFixed(1) + "%"}</td><td>${r.count}</td><td class=${trend(r.trend_pct) === "~" ? "muted" : ""}>${trend(r.trend_pct)}</td>
-      <td>${r.workload}</td><td class="mono muted">${r.profile || "-"}</td></tr>`)}</tbody></table></div>`;
+      <td>${r.workload}</td><td class="mono muted">${r.profile || "-"}</td></tr>`)}</tbody></table></div><${Warnings} st=${st} />`;
 }
 
 function Landing({ st }) {
