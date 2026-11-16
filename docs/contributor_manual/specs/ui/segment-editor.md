@@ -265,6 +265,7 @@ targets are at least 44 pt.
   *Not built:* the head's word while dragging.
   *Tests:* `fichero-server/tests/unit/api/test_segment_reassign_by_drag.py`;
   `fichero/Tests/Unit/general/Views/Source/ReassignDragTests.swift`.
+  *Built note (#6577):* the drag landed 2026-11-14, after the report of 2026-11-13; the engine tests pass on base (`test_segment_reassign_by_drag.py`, `test_segment_reparent.py`: 12 passed). The Swift test was not run by the lane (no build in the jail). Status stays PARTIAL until the app run.
 
 ### Selecting and moving
 
