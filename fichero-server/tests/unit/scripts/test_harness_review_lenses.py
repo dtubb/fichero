@@ -10,8 +10,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 SCRIPT = Path(__file__).resolve().parents[4] / "scripts" / "harness_review.py"
 MODELS = '[models]\nproviders = ["claude-code"]\nreviewer = { provider = "claude-code", model = "opus", context = 200000 }\n'
+
+
+@pytest.fixture(autouse=True)
+def _state_dir(tmp_path, monkeypatch):
+    monkeypatch.setenv("FICHERO_BUILDER_STATE", str(tmp_path / "state"))
 
 
 def _prompt(tmp_path, files: dict[str, str], ladder: Path | None = None) -> str:
@@ -30,8 +37,7 @@ def _prompt(tmp_path, files: dict[str, str], ladder: Path | None = None) -> str:
     g("add", "."), g("commit", "-q", "-m", "change")
     pinned = tmp_path / "pinned"
     pinned.mkdir()
-    (tmp_path / "wr").mkdir()
-    (pinned / "harness.toml").write_text(f'[land]\nbranch = "landbr"\n[jail]\nworkroot = "{tmp_path / "wr"}"\n' + MODELS)
+    (pinned / "harness.toml").write_text('[land]\nbranch = "landbr"\n' + MODELS)
     r = subprocess.run([sys.executable, str(SCRIPT), str(repo), "HEAD", "--pinned", str(pinned), "--verdicts", str(tmp_path / "v.json"), "--print",
                         *(["--ladder", str(ladder)] if ladder else [])],
                        capture_output=True, text=True)
