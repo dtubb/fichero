@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-13
+
+- Sharing: listener on IPv4 for a bare-IP address (#5897); one line per address in Add Device and Share Library, Tailscale from the known tailnet name (#6554); with Multi-user on, share by Tailscale address and account (#6568); sharing pane work (#6458).
+- Multi-user: the switch and the owner password only over this Mac's own socket (#6565).
+- iPad: Inspector button and bars in the navigation bar (#6561, #6563); shared library row symbol (#6557).
+- Mac: Preview View Full Screen (#6560); one pane head for a folder (#6562); sidebar pill room (#6558).
+
 ## 2026-11-12
 
 - iPad and iPhone: launch crash fixed, a view type too deep for the iOS stack (#6553); a device paired to a Mac opens that Mac's library and stops asking for its own (#6555); the iOS build compiles again.

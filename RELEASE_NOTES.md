@@ -2,6 +2,14 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.11.13
+What changed since 2026.11.12.
+
+- Sharing: Settings › Sharing switches on again on a Mac whose address is a plain IP; Add Device and Share Library show each address on one line, a greyed Tailscale line included; with Multi-user on, a Mac is shared by its Tailscale address and an account.
+- Multi-user: only this Mac's own app turns it on and sets the owner's password, so Turn On Accounts no longer loops.
+- iPad: the Inspector button and the Sidebar/Chat pair, Back/Forward and search are in the navigation bar; a shared Mac's library row has its symbol.
+- Mac: View Full Screen in the Preview head; a folder in the Source pane has one pane head; the sidebar pill has room for its buttons.
+
 ## 2026.11.12
 What changed since 2026.10.30.
 
