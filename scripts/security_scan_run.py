@@ -21,7 +21,7 @@ from fichero_builder import security_rung as sr  # noqa: E402
 
 PY_DIRS = ["fichero-server/src", "fichero-cli/src", "fichero-mcp/src", "fichero-builder", "scripts"]
 VERSION_CMD = {"bandit": ["bandit", "--version"], "semgrep": ["semgrep", "--version"], "gitleaks": ["gitleaks", "version"], "osv-scanner": ["osv-scanner", "--version"]}
-MAX_ROWS = 25  # keeps the result line well under check_tool.SECURITY_RESULT_MAX, which tail() keeps whole
+MAX_ROWS = 25  # the rung reads the last 4000 characters of this line's stream
 
 
 def version(name: str) -> str | None:
