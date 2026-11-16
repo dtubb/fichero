@@ -3,14 +3,11 @@
 //  Fichero
 //
 //  Mounts the launch alert of `activity.launch.nothing-starts-one-alert` (#6584) over the main window: asked once per
-//  project as it opens; Leave Paused is the default. On the Mac the alert is an `NSAlert` sheet, because SwiftUI's
-//  alert there keeps three buttons and drops the fourth (Delete All was never shown).
+//  project as it opens; Leave Paused is the default. On the Mac the alert is `presentPlatformAlert`'s sheet, because
+//  SwiftUI's alert there keeps three buttons and drops the fourth (Delete All was never shown).
 //
 
 import SwiftUI
-#if os(macOS)
-import AppKit
-#endif
 
 struct StoppedAtQuitAlertModifier: ViewModifier {
     @Environment(\.openWindow) private var openWindow
@@ -49,24 +46,12 @@ struct StoppedAtQuitAlertModifier: ViewModifier {
     }
 
     #if os(macOS)
-    /// The four answers as one AppKit alert, a sheet on the front window (app-modal when there is none).
+    /// The four answers as one sheet alert (the platform bridge's, which holds every button).
     private func presentSheet() {
-        let sheet = NSAlert()
-        sheet.messageText = alert.title
-        sheet.informativeText = alert.message
         let choices = StoppedAtQuitAlert.Choice.allCases
-        for choice in choices {
-            let button = sheet.addButton(withTitle: choice.title)
-            button.hasDestructiveAction = choice.isDestructive
-        }
-        let finish: (NSApplication.ModalResponse) -> Void = { response in
-            let index = response.rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
+        presentPlatformAlert(title: alert.title, message: alert.message,
+                             buttons: choices.map { ($0.title, $0.isDestructive) }) { index in
             answer(choices.indices.contains(index) ? choices[index] : .leavePaused)
-        }
-        if let window = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first(where: \.isVisible) {
-            sheet.beginSheetModal(for: window, completionHandler: finish)
-        } else {
-            finish(sheet.runModal())
         }
     }
     #endif
