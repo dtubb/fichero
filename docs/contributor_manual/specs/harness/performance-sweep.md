@@ -156,7 +156,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   hang row and the run notes the missing field; a field issue list of three yields three rows tagged `organizer`. Test
   (to write): test_perf_sweep (a new test file), case test_metrickit_payloads_and_organizer_issues_become_field_rows.
 - `perf-sweep.source.machines` [PARTIAL] (#6600; `pool.machines-declare-capabilities`) — where each source runs is declared,
-  not discovered: the M4's entry gains `tags = ["pytest", "guards", "swift-build", "xcode-tests", "gui", "profile"]`
+  not discovered: `[machines].m4air` gains `tags = ["pytest", "guards", "swift-build", "xcode-tests", "gui", "profile"]`
   and the optional `sudo = ["py-spy"]`; the sweep refuses to profile on a machine without `profile`, refuses an app
   profile without `gui`, and never places anything on the manager's Mac (`pool.hold-holds-one-machine`). The nightly
   order on the M4 is fixed so profiles never overlap a build: daily builds, the diagnostics plan, the perf plan, then the
