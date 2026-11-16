@@ -127,30 +127,39 @@ extension ActivityService {
     /// this project, each the engine's audited action. Returns the ids it acted on.
     func runControl(_ control: ActivityRunControl) async throws -> [String] {
         switch control {
-        case .pauseAll:
-            switch try await client.api.pauseAllApiActivityPauseAllPost() {
-            case .ok(let ok): return try ok.body.json.ids
-            case .unprocessableContent(let error):
-                throw ActivityServiceError.validationError((try? error.body.json)?.detail?.description ?? "Validation error")
-            case .undocumented(let statusCode, let payload):
-                throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
-            }
-        case .continueAll:
-            switch try await client.api.continueAllApiActivityContinueAllPost() {
-            case .ok(let ok): return try ok.body.json.ids
-            case .unprocessableContent(let error):
-                throw ActivityServiceError.validationError((try? error.body.json)?.detail?.description ?? "Validation error")
-            case .undocumented(let statusCode, let payload):
-                throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
-            }
-        case .stopAll:
-            switch try await client.api.stopAllApiActivityStopAllPost() {
-            case .ok(let ok): return try ok.body.json.ids
-            case .unprocessableContent(let error):
-                throw ActivityServiceError.validationError((try? error.body.json)?.detail?.description ?? "Validation error")
-            case .undocumented(let statusCode, let payload):
-                throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
-            }
+        case .pauseAll: return try await pauseAll()
+        case .continueAll: return try await continueAll()
+        case .stopAll: return try await stopAll()
+        }
+    }
+
+    private func pauseAll() async throws -> [String] {
+        switch try await client.api.pauseAllApiActivityPauseAllPost() {
+        case .ok(let okResponse): return try okResponse.body.json.ids
+        case .unprocessableContent(let error):
+            throw ActivityServiceError.validationError((try? error.body.json)?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, let payload):
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
+        }
+    }
+
+    private func continueAll() async throws -> [String] {
+        switch try await client.api.continueAllApiActivityContinueAllPost() {
+        case .ok(let okResponse): return try okResponse.body.json.ids
+        case .unprocessableContent(let error):
+            throw ActivityServiceError.validationError((try? error.body.json)?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, let payload):
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
+        }
+    }
+
+    private func stopAll() async throws -> [String] {
+        switch try await client.api.stopAllApiActivityStopAllPost() {
+        case .ok(let okResponse): return try okResponse.body.json.ids
+        case .unprocessableContent(let error):
+            throw ActivityServiceError.validationError((try? error.body.json)?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, let payload):
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }
     }
 
