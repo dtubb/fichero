@@ -129,7 +129,7 @@ extension ZoomableImagePreview {
         let stored = documentId.flatMap { documentStore?.resolveDocument($0) }
             .flatMap { SourceViewSettings.showImage(in: $0.metadata) }
         imageVisible = SourceViewSettings.startValue(
-            stored: stored, workspace: panePreviewLayers?.image, fallback: imageVisible
+            stored: stored, workspace: panePreviewLayers?.image, fallback: true
         )
     }
 

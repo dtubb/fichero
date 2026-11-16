@@ -2,7 +2,7 @@ import Foundation
 
 /// The view settings a source remembers about itself (#6657): stored in the source's own metadata, so they
 /// travel with it and survive any navigation. Selecting a source never writes them; only the person's own
-/// toggle does. Show Image is the first (`preview-surface`, `layers.toggle.remembered-per-source`).
+/// toggle does. Show Image is the first (`preview-surface`, `layers.toggle.image-remembered-on-the-source`).
 enum SourceViewSettings {
     static let showImageKey = "view.show_image"
 
@@ -30,6 +30,7 @@ enum SourceViewSettings {
         case let int as Int: return int
         case let double as Double: return double
         case let string as String: return string
+        case is NSNull: return NSNull()
         case let array as [Any]: return array.compactMap { sendable($0) }
         case let dict as [String: Any]: return dict.compactMapValues { sendable($0) }
         default: return nil

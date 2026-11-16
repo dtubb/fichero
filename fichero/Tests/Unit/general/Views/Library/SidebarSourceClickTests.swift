@@ -55,4 +55,24 @@ struct SidebarSourceClickTests {
         #expect(payload["note"] as? String == "x")
         #expect(payload[SourceViewSettings.showImageKey] as? Bool == false)
     }
+
+    // WHY: the owner's off came back from a stale app-wide value. If this fails, a source with no choice starts
+    // from something other than the workspace's value, else on.
+    @Test("a source with no choice starts from the workspace, else on")
+    func startValueFallsBackToOn() {
+        #expect(SourceViewSettings.startValue(stored: nil, workspace: nil, fallback: true))
+        #expect(!SourceViewSettings.startValue(stored: nil, workspace: false, fallback: true))
+        #expect(SourceViewSettings.startValue(stored: true, workspace: false, fallback: true))
+    }
+
+    @Test("the toggle keeps nested and null values of the metadata")
+    func toggleKeepsNestedAndNull() {
+        let meta: [String: AnyCodable] = [
+            "tags": AnyCodable(["a", "b"]), "nested": AnyCodable(["k": 1]), "gone": AnyCodable(NSNull()),
+        ]
+        let payload = SourceViewSettings.metadata(settingShowImage: true, in: meta)
+        #expect((payload["tags"] as? [any Sendable])?.count == 2)
+        #expect((payload["nested"] as? [String: any Sendable])?["k"] as? Int == 1)
+        #expect(payload["gone"] is NSNull)
+    }
 }
