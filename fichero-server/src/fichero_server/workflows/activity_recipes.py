@@ -105,9 +105,50 @@ def run_row(run: dict[str, Any], tree: Optional[dict[str, Any]]) -> dict[str, An
             "steps": steps, "_pages": pages}
 
 
+def _iso(value: Any) -> Optional[str]:
+    return ensure_utc(value).isoformat() if value else None
+
+
+def run_as_step(run: dict[str, Any], name: str) -> dict[str, Any]:
+    """A workflow run that is one step of a recipe run, as a step row: its workflow's name, the model and place of its
+    first step that has one, and its own pages, time, tokens and cost."""
+    steps = run["steps"]
+    return {"id": run["id"], "name": name, "model": next((s["model"] for s in steps if s["model"]), None),
+            "place": next((s["place"] for s in steps if s["place"]), None), "state": run["status"],
+            "pages_done": run["pages_done"], "pages_failed": run["pages_failed"], "seconds": run["seconds"],
+            "seconds_per_page": run["seconds_per_page"], "tokens": sum(s["tokens"] for s in steps),
+            "cost_usd": run["cost_usd"], "cost_per_page": run["cost_per_page"], "_started": run["started_at"]}
+
+
+def _recipe_run(db: "Database", job_id: str) -> dict[str, Any]:
+    """A recipe run's own row, from its job: its state and times; its steps are filled in by `recipes`."""
+    row = db.execute_fetchone("SELECT state, created_at, started_at, finished_at FROM jobs WHERE id = ?", [job_id])
+    state, created, started, finished = row if row else ("done", None, None, None)
+    return {"id": job_id, "status": state, "started_at": _iso(started or created), "ended_at": _iso(finished),
+            "scope": None, "steps": [], "_pages": []}
+
+
+def _close_recipe_run(run: dict[str, Any]) -> dict[str, Any]:
+    """A recipe run's rates over its steps, the steps in the order they ran."""
+    run["steps"].sort(key=lambda s: s.pop("_started") or "")
+    done = sum(s["pages_done"] for s in run["steps"])
+    failed = sum(s["pages_failed"] for s in run["steps"])
+    costs = [s["cost_usd"] for s in run["steps"] if s["cost_usd"] is not None]
+    seconds = [s["seconds"] for s in run["steps"] if s["seconds"] is not None]
+    run.update({"pages_done": done, "pages_failed": failed, "failed_pct": _rate(100.0 * failed, done + failed),
+                "seconds": round(sum(seconds), 1) if seconds else None, "seconds_per_page": _median(run["_pages"]),
+                "cost_usd": round(sum(costs), 4) if costs else None,
+                "cost_per_page": _rate(sum(costs), done) if costs else None})
+    return run
+
+
 def recipes(db: "Database", *, days: int = 30) -> list[dict[str, Any]]:
     """Every recipe run in the last `days`, by recipe (newest run first), each with its runs and their steps, and the
-    recipe's rates over its runs. A recipe with runs of no pages still lists them (a run that failed before any page)."""
+    recipe's rates over its runs. A recipe with runs of no pages still lists them (a run that failed before any page).
+
+    A recipe run's step runs are its steps (owner 2026-11-16: "they're steps and should be in order; the recipe is the
+    project"): each workflow run whose job hangs under a `run-a-recipe` job is one step row of that recipe run, in the
+    order they ran, and the recipe runs list under the project's recipe. A workflow run on its own is its own recipe."""
     from fichero_server.db import activity_records as records
     from fichero_server.execution import jobs as job_queue
 
@@ -118,13 +159,27 @@ def recipes(db: "Database", *, days: int = 30) -> list[dict[str, Any]]:
     except Exception:  # noqa: BLE001 -- a project with no run records yet lists none
         return []
     by_recipe: dict[str, dict[str, Any]] = {}
+    recipe_runs: dict[str, dict[str, Any]] = {}
     for thread_id, workflow_id, name, status, started, completed in rows:
-        run = {"id": thread_id, "status": status, "started_at": ensure_utc(started).isoformat() if started else None,
-               "completed_at": ensure_utc(completed).isoformat() if completed else None}
+        run = {"id": thread_id, "status": status, "started_at": _iso(started), "completed_at": _iso(completed)}
         tree = job_queue.tree(db, thread_id)
+        parent = db.execute_fetchone("SELECT p.id, p.kind FROM jobs c JOIN jobs p ON p.id = c.parent_id WHERE c.id = ?",
+                                     [thread_id])
+        if parent and parent[1] == RECIPE_RUN_KIND:
+            key = project_recipe_name(db)
+            recipe = by_recipe.setdefault(key, {"id": f"recipe:{key}", "name": key, "runs": []})
+            if parent[0] not in recipe_runs:
+                recipe_runs[parent[0]] = _recipe_run(db, parent[0])
+                recipe["runs"].append(recipe_runs[parent[0]])
+            as_run = run_row(run, tree)
+            recipe_runs[parent[0]]["_pages"] += as_run.pop("_pages")
+            recipe_runs[parent[0]]["steps"].append(run_as_step(as_run, name or workflow_id or "Step"))
+            continue
         key = name or workflow_id or "Workflow"
         recipe = by_recipe.setdefault(key, {"id": workflow_id or key, "name": key, "runs": []})
         recipe["runs"].append(run_row(run, tree))
+    for run in recipe_runs.values():
+        _close_recipe_run(run)
     out = []
     for recipe in by_recipe.values():
         runs = recipe["runs"]
