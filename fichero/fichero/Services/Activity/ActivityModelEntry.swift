@@ -76,13 +76,45 @@ struct ActivityModelEntry: Equatable, Identifiable, Sendable {
         return order.compactMap { byId[$0] }
     }
 
-    /// The tree: place › provider › its models, places in their order, empty places left out.
-    static func tree(_ models: [ActivityModelEntry]) -> [(place: Place, providers: [(name: String, models: [ActivityModelEntry])])] {
+    /// A place work can run, set up whether used or not (owner 2026-11-16): its node under the place, as a
+    /// model's provider.
+    struct SetUp: Equatable, Hashable, Sendable {
+        let place: Place
+        let provider: String
+
+        init(place: Place, provider: String) { self.place = place; self.provider = provider }
+
+        init(_ place: Components.Schemas.ActivityPlace) {
+            self.init(place: Place(rawValue: place.place.rawValue) ?? .thisMac, provider: place.provider)
+        }
+    }
+
+    /// The tree: place › provider › its models, places in their order. Every place set up is in it with its
+    /// providers, used or not (This Mac always); a place nothing is set up at and nothing ran on is left out. A
+    /// place's own name is not a provider under it.
+    static func tree(_ models: [ActivityModelEntry], places: [SetUp] = [])
+        -> [(place: Place, providers: [(name: String, models: [ActivityModelEntry])])] {
         Place.allCases.compactMap { place in
             let here = models.filter { $0.place == place }
-            guard !here.isEmpty else { return nil }
-            let names = here.map(\.provider).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
+            let setUp = places.filter { $0.place == place }
+            guard !here.isEmpty || !setUp.isEmpty else { return nil }
+            let names = (here.map(\.provider) + setUp.map(\.provider).filter { $0 != place.title })
+                .reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
             return (place, names.map { name in (name, here.filter { $0.provider == name }) })
         }
+    }
+}
+
+/// The engine's Models answer: the models, and every place set up (`GET /api/activity/models`).
+struct ActivityModelsAnswer: Equatable, Sendable {
+    var models: [ActivityModelEntry] = []
+    var places: [ActivityModelEntry.SetUp] = []
+
+    /// Several projects' answers as one: the models merged, the places once each in the order first seen.
+    static func merged(_ answers: [ActivityModelsAnswer]) -> ActivityModelsAnswer {
+        let places = answers.flatMap(\.places).reduce(into: [ActivityModelEntry.SetUp]()) {
+            if !$0.contains($1) { $0.append($1) }
+        }
+        return ActivityModelsAnswer(models: ActivityModelEntry.merged(answers.map(\.models)), places: places)
     }
 }

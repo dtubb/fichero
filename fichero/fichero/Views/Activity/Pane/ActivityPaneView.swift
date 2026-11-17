@@ -34,7 +34,9 @@ struct ActivityPaneView: View {
     var windowInspector: (() -> AnyView)?
     @State var showsInspector = true
     /// The models of the sidebar's Models section (`activity.window.models-tree`), and what the sidebar has picked.
-    @State var models: [ActivityModelEntry] = []
+    @State var models = ActivityModelsAnswer()
+    /// Where's places shown under it in the sidebar.
+    @State var whereExpanded = true
     @State var sidebarPick: String?
     /// The graphs fill the centre (decision 41); kept per window.
     @SceneStorage("activity.graphs.full") var graphsFull = false

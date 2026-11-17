@@ -430,7 +430,7 @@ def fichero_activity_get_metrics_summary(
 
 def fichero_activity_models(
 ) -> Any:
-    "Activity Models\n\nThe Models tree (`activity.window.models-tree`, `activity.resources.everything-measured`, #6588): every model this\nproject used today or the engine holds now, by place (this Mac, remote, cloud) and provider, loaded or not, active or\nnot, its memory where measured, today's pages, calls and seconds.\n\nRoute: GET /api/activity/models (toolset `activity`; reads)."
+    "Activity Models\n\nThe Models tree (`activity.window.models-tree`, `activity.resources.everything-measured`, #6588): every model this\nproject used today, the engine holds now or this Mac has installed, by place (this Mac, remote, cloud) and provider,\nloaded or not, active or not, its memory where measured, today's pages, calls and seconds; and every place set up.\n\nRoute: GET /api/activity/models (toolset `activity`; reads)."
     return _rt.call("GET", "/api/activity/models")
 
 

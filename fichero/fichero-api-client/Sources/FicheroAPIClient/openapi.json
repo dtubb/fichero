@@ -1060,7 +1060,7 @@
           "activity"
         ],
         "summary": "Activity Models",
-        "description": "The Models tree (`activity.window.models-tree`, `activity.resources.everything-measured`, #6588): every model this\nproject used today or the engine holds now, by place (this Mac, remote, cloud) and provider, loaded or not, active or\nnot, its memory where measured, today's pages, calls and seconds.",
+        "description": "The Models tree (`activity.window.models-tree`, `activity.resources.everything-measured`, #6588): every model this\nproject used today, the engine holds now or this Mac has installed, by place (this Mac, remote, cloud) and provider,\nloaded or not, active or not, its memory where measured, today's pages, calls and seconds; and every place set up.",
         "operationId": "activity_models_api_activity_models_get",
         "responses": {
           "200": {
@@ -52672,10 +52672,42 @@
             },
             "type": "array",
             "title": "Models"
+          },
+          "places": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityPlace"
+            },
+            "type": "array",
+            "title": "Places",
+            "description": "every place set up, used or not"
           }
         },
         "type": "object",
         "title": "ActivityModelsResponse"
+      },
+      "ActivityPlace": {
+        "properties": {
+          "place": {
+            "type": "string",
+            "enum": [
+              "this-mac",
+              "remote",
+              "cloud"
+            ],
+            "title": "Place"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          }
+        },
+        "type": "object",
+        "required": [
+          "place",
+          "provider"
+        ],
+        "title": "ActivityPlace",
+        "description": "A place work can run, set up whether used or not (owner 2026-11-16): this Mac, another Mac by its address, a\ncluster by its name, a cloud provider. `provider` is its node under the place, as a model's provider is."
       },
       "ActivityRecipesResponse": {
         "properties": {

@@ -21,7 +21,7 @@ def _job(db, job_id, *, kind, model, state, detail=None, target=None, minutes_ag
                 None if state == "running" else started + timedelta(seconds=30), detail, target])
 
 
-def test_each_model_is_placed_loaded_active_and_measured(db):
+def test_each_model_is_placed_loaded_active_and_measured(db, app_db):
     jobs._ensure(db)
     _job(db, "k1", kind="kraken-lines", model="kraken:blla", state="running")
     _job(db, "k0", kind="kraken-lines", model="kraken:blla", state="done", minutes_ago=10)
@@ -30,7 +30,7 @@ def test_each_model_is_placed_loaded_active_and_measured(db):
     _job(db, "r1", kind="read-at-scale", model="trocr", state="done", target="acenet")
     held = [{"name": "nomic-embed", "kind": "search embedder", "memory_bytes": 312_000_000}]
 
-    found = {(m["place"], m["provider"], m["name"]): m for m in activity_models.models(db, held=held)}
+    found = {(m["place"], m["provider"], m["name"]): m for m in activity_models.models(db, held=held, installed=[])}
 
     kraken = found[("this-mac", "Kraken", "blla")]
     assert kraken["active"] and kraken["running"] == 1 and kraken["pages_today"] == 1
@@ -48,9 +48,50 @@ def test_the_tree_is_this_mac_then_remote_then_cloud():
     assert activity_models.place_and_provider("apple-vision")[:2] == ("this-mac", "Apple")
 
 
-def test_the_route_answers_the_list(client, db):
+def test_a_model_installed_and_not_held_is_listed_not_loaded(db):
+    """WHY (owner 2026-11-16): the tree showed only what ran today, so a quiet project showed no models at all; every model
+    installed on this Mac is listed, hollow until it is held, and one held is one row, loaded."""
+    jobs._ensure(db)
+    held = [{"name": "Kraken: blla", "kind": "Kraken", "memory_bytes": 1}]
+    installed = [("Kraken", "blla"), ("Kraken", "catmus"), ("MLX", "Chandra-OCR")]
+
+    found = {(m["place"], m["provider"], m["name"]): m
+             for m in activity_models.models(db, held=held, installed=installed)}
+
+    assert found[("this-mac", "Kraken", "blla")]["loaded"], "held and installed: one row, loaded"
+    assert not found[("this-mac", "Kraken", "catmus")]["loaded"]
+    assert not found[("this-mac", "MLX", "Chandra-OCR")]["loaded"]
+    assert sum(1 for key in found if key[1] == "Kraken" and key[2] == "blla") == 1
+
+
+def test_every_place_set_up_is_listed_used_or_not(app_db):
+    """WHY (owner 2026-11-16): the places work can run (this Mac, another Mac, a cluster, the cloud) are in the tree
+    before anything ran there: another Mac by its address, a cluster by its name, each cloud provider set up."""
+    from fichero_server.models import Provider, ProviderType
+
+    app_db.save_provider(Provider(id="p-remote", name="Studio", provider_type=ProviderType("ollama"),
+                                  api_base="http://studio.example:11434"))
+    app_db.save_provider(Provider(id="p-here", name="Here", provider_type=ProviderType("lmstudio"),
+                                  api_base="http://127.0.0.1:1234"))
+    app_db.save_provider(Provider(id="p-cloud", name="Claude", provider_type=ProviderType("anthropic")))
+    app_db.set_setting("hpc.clusters", json.dumps({"acenet": {"cluster_id": "acenet", "name": "ACENET"}}))
+
+    listed = [(p["place"], p["provider"]) for p in activity_models.places()]
+
+    assert listed[0] == ("this-mac", "This Mac"), "this Mac first, always"
+    assert ("remote", "studio.example") in listed, "another Mac by its address"
+    assert ("remote", "ACENET") in listed, "a cluster by its name"
+    assert ("cloud", "Anthropic") in listed
+    assert not any(provider == "127.0.0.1" for _place, provider in listed), "a server on this Mac is not another Mac"
+    order = [place for place, _provider in listed]
+    assert order == sorted(order, key=activity_models.PLACES.index)
+
+
+def test_the_route_answers_the_list(client, db, monkeypatch):
+    monkeypatch.setattr(activity_models, "installed_on_this_mac", lambda: [])  # never what this Mac has installed
     jobs._ensure(db)
     _job(db, "k1", kind="kraken-lines", model="kraken:blla", state="running")
     answer = client.get("/api/activity/models")
     assert answer.status_code == 200, answer.text
     assert any(m["provider"] == "Kraken" for m in answer.json()["models"])
+    assert answer.json()["places"][0] == {"place": "this-mac", "provider": "This Mac"}
