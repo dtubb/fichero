@@ -143,8 +143,9 @@ extension ZoomableImagePreview {
                       let doc = store.resolveDocument(id) else { return }
                 let payload = SourceViewSettings.metadata(settingShowImage: visible, in: doc.metadata)
                 Task { @MainActor in
+                    // A metadata-only change: every cached copy takes it, the outline's included (#6657).
                     if let saved = try? await store.documentService.updateDocument(id, metadataPayload: payload) {
-                        store.updateLocal(saved)
+                        store.refreshLocalContent(saved)
                     }
                 }
             }
