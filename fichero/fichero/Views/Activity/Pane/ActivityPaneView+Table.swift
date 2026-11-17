@@ -215,6 +215,12 @@ extension ActivityPaneView {
             }
             .help(row.reason.map { "\(glyph.word): \($0)" } ?? glyph.word)
             .accessibilityLabel(glyph.word)
+            // The page in view goes next (`activity.foreground.one-glyph-not-words`, #6442): one glyph, the words only
+            // in its tooltip and for VoiceOver.
+            if ActivityPane.isNextForThePageInView(row) {
+                Image(systemName: "eye.fill").foregroundStyle(.secondary)
+                    .help(ActivityPane.inViewWord).accessibilityLabel(ActivityPane.inViewWord)
+            }
             if !line.isEmpty {
                 Text(line).font(.caption).foregroundStyle(glyph.isFailure ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
                     .lineLimit(1)

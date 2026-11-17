@@ -210,6 +210,8 @@ class BackgroundJob(BaseModel):
     # download) or a typed need ("model:embeddings:<id>") when no job supplies it. A blocked row is never picked by the lane;
     # the app draws it under its blocker. Null for any row that is not blocked.
     blocked_by: Optional[str] = None
+    # Its waiting jobs ranked for the page in view (`activity.foreground.one-glyph-not-words`, #6442); 0 for none.
+    in_view: int = 0
 
 
 class RanOn(BaseModel):
@@ -1095,7 +1097,7 @@ async def list_background_jobs(
                 failed_at=_utc(row.get("failed_at")) if state == "failed" else None,
                 finished_at=_utc(row.get("finished_at")),
                 started_by=row.get("started_by"),
-                blocked_by=row.get("blocked_by"),
+                blocked_by=row.get("blocked_by"), in_view=row.get("in_view", 0),
                 remote=(remote := await asyncio.to_thread(_remote_row, db, row)),  # a database read
                 ran_on=ran_on, stages=stages, model=model, cost_usd=cost, cost_estimate_usd=estimate,
                 runs_on=_runs_on(row["kind"], remote, cost), lane=_lane_of(row["kind"]),
@@ -1801,6 +1803,33 @@ async def activity_recipes(days: int = 30, db: Database = Depends(get_library_da
 
     found = await asyncio.to_thread(recipes, db, days=max(1, min(days, 365)))
     return ActivityRecipesResponse(recipes=[RecipeRow(**r) for r in found])
+
+
+class ForegroundItem(BaseModel):
+    subject: str = Field(description="a page or document the person has in view")
+    rank: int = Field(0, ge=0, description="its place in the view: 0 the page shown, then its neighbours")
+
+
+class ForegroundRequest(BaseModel):
+    client: str = Field(description="the window or pane reporting; its next report replaces this one")
+    items: list[ForegroundItem] = Field(default_factory=list, description="empty: this client has nothing in view")
+
+
+class ForegroundResponse(BaseModel):
+    ranked: int = Field(description="waiting jobs now ranked for the page in view, in this project")
+
+
+@router.put("/foreground", response_model=ForegroundResponse)
+async def put_foreground(request: ForegroundRequest,
+                         db: Database = Depends(get_library_database_for_write)) -> ForegroundResponse:
+    """The page in view first (`activity.foreground.rank-on-the-row-and-the-pick`, #6442; Step 1.14): the client's set of
+    what is in view replaces its last one, and the waiting jobs of those pages are ranked first in step order; the rest go
+    back to 0. A set not reported again within 90 s lapses. It starts nothing and re-runs nothing."""
+    from fichero_server.execution import jobs as job_queue
+
+    ranked = await asyncio.to_thread(job_queue.set_foreground, db, request.client,
+                                     [(item.subject, item.rank) for item in request.items])
+    return ForegroundResponse(ranked=ranked)
 
 
 class JobPauseRequest(BaseModel):
