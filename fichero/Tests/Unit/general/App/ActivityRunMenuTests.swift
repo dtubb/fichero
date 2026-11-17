@@ -1,6 +1,6 @@
+@testable import Fichero
 import FicheroAPIClient
 import Foundation
-@testable import Fichero
 import Testing
 
 /// The engine for these tests: only the transport is stubbed; the store, the service and the generated client are
