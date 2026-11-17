@@ -1,4 +1,7 @@
+import OSLog
 import SwiftUI
+
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "SegmentsGatheredList")
 
 /// A gathered set in the Segments pane (#4942): everything in one hand, every instance of a sign,
 /// across pages. Each row opens its page in the Preview with the segment selected; what the engine
@@ -61,10 +64,14 @@ struct SegmentsGatheredList: View {
     /// Accept or reject one proposed match, then re-read the set (a reviewed match leaves it).
     private func review(_ action: String, _ matchId: String, _ actionName: String) async {
         guard let actionsService = actionStore?.actionsService else { return }
-        try? await AuditedAction.run(
-            action, params: SegmentMatchIdRequest(matchId: matchId), actionName: actionName,
-            actionsService: actionsService, steps: windowSteps, afterChange: { await reload() }
-        )
+        do {
+            try await AuditedAction.run(
+                action, params: SegmentMatchIdRequest(matchId: matchId), actionName: actionName,
+                actionsService: actionsService, steps: windowSteps, afterChange: { await reload() }
+            )
+        } catch {
+            logger.error("Reviewing a proposed match failed: \(String(describing: error))")
+        }
     }
 
     /// The set, with each segment read so its row can say what it is and which page opens.
