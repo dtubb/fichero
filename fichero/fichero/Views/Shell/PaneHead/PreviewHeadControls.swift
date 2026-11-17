@@ -91,6 +91,8 @@ struct PreviewHeadSelectorGroup: View {
 /// menu.
 struct PreviewHeadLensControls: View {
     let chrome: PreviewPaneChrome
+    /// The page shown, for its Pass menu (#6670); nil hides the menu.
+    var documentId: String?
     /// Opens the shown page or image full screen (`preview.full-screen-page`, #6560); nil hides the button.
     var onEnterFullScreen: (() -> Void)?
 
@@ -103,6 +105,7 @@ struct PreviewHeadLensControls: View {
         fullScreenButton
         renditionSteppers
         renditionsMenu
+        PassPickerMenu(documentId: documentId)
     }
 
     /// The page full screen, as the iPad's viewfinder button opens it: the full-window reader ⌃⌘R opens, ← → for the

@@ -152,7 +152,12 @@ extension ContentView {
                     }
                 )
             },
-            controls: { PreviewHeadLensControls(chrome: self.previewChrome, onEnterFullScreen: previewFullScreenAction(shown)) },
+            controls: {
+                PreviewHeadLensControls(
+                    chrome: self.previewChrome, documentId: browserSelection.count > 1 ? nil : shown?.id,
+                    onEnterFullScreen: previewFullScreenAction(shown)
+                )
+            },
             tools: { EmptyView() },
             canSplit: previewPaneCanSplit,
             switchableRoots: PaneCrumb.otherLibraries(than: windowState.libraryId)

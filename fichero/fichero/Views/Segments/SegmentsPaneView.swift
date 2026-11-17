@@ -49,10 +49,11 @@ struct SegmentsPaneView: View {
         return SegmentStore.shared(for: segmentService).workingSegments(documentId: document.id)
     }
 
-    /// The page's working pass as the engine names it: the list follows it live (#5465).
+    /// The page's shown pass, the working pass as the engine names it or the one picked (#6670): the list follows it
+    /// live (#5465).
     private var workingPassId: String? {
         guard let document, let segmentService else { return nil }
-        return SegmentStore.shared(for: segmentService).workingPass(documentId: document.id)?.id
+        return SegmentStore.shared(for: segmentService).shownPass(documentId: document.id)?.id
     }
 
     var body: some View {

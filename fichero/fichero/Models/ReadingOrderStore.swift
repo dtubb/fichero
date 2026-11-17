@@ -81,7 +81,9 @@ final class ReadingOrderStore {
         // Read everything first, assign after: a read that fails or is cancelled (the page changed under it) must not
         // leave this store believing it holds `documentId`, or `loadFollowing` skips every retry and the list stays empty.
         let loaded = try await transport.orders(documentId: documentId)
-        let chosen = (loaded.first { $0.name == name } ?? loaded.first)?.id
+        // The shown pass's own order first (#6670: a pass picked to show is not the one the engine lists first).
+        let chosen = (loaded.first { $0.name == name && $0.passId != nil && $0.passId == workingPassId }
+            ?? loaded.first { $0.name == name } ?? loaded.first)?.id
         var top: [ReadingOrderMove.Entry] = []
         if let chosen { top = try await transport.entries(orderId: chosen, parentEntryId: nil) }
         self.documentId = documentId

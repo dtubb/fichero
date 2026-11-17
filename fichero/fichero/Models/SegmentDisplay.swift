@@ -24,7 +24,8 @@ enum SegmentDisplay {
         return drawn(
             passes: store.passes(documentId: documentId),
             segments: store.segments(documentId: documentId),
-            focusedArtifactId: focus.documentId == documentId ? focus.id : nil
+            focusedArtifactId: focus.documentId == documentId ? focus.id : nil,
+            pickedPassId: store.pickedPassByDocument[documentId]
         )
     }
 
@@ -49,10 +50,13 @@ enum SegmentDisplay {
     /// boxes. A pass whose `boxIndex` values are not exactly `0..<count` is refused by
     /// `geometry(from:...)` and passed over, never guessed at.
     nonisolated static func drawn(
-        passes: [SegmentPassValue], segments: [Segment], focusedArtifactId: String? = nil
+        passes: [SegmentPassValue], segments: [Segment], focusedArtifactId: String? = nil, pickedPassId: String? = nil
     ) -> Selected? {
         let segmentsByPass = Dictionary(grouping: segments, by: \.passId)
-        for pass in drawingOrder(passes, segments: segments, focusedArtifactId: focusedArtifactId) {
+        let order = drawingOrder(
+            passes, segments: segments, focusedArtifactId: focusedArtifactId, pickedPassId: pickedPassId
+        )
+        for pass in order {
             guard let passSegments = segmentsByPass[pass.id], !passSegments.isEmpty,
                   let geometry = geometry(
                       from: passSegments,
@@ -69,6 +73,7 @@ enum SegmentDisplay {
 
     /// The ONE order the Preview tries a page's passes in (#5467). The app ranks nothing itself:
     ///
+    /// 0. **the pass a person picked** in the Pass menu (#6670), when it has a shape to draw: a reorder too.
     /// 1. **the inspector's focused artifact**, when this page has a pass from it with a shape to draw
     ///    (ruled 2026-08-27: clicking a result in the Inspector shows its boxes). A REORDER, never a
     ///    filter: a focused pass with nothing usable falls through to the rest.
@@ -81,13 +86,14 @@ enum SegmentDisplay {
     ///
     /// A georeferencing pass holds control points, not the page's text (#5122): never drawn.
     nonisolated static func drawingOrder(
-        _ passes: [SegmentPassValue], segments: [Segment], focusedArtifactId: String? = nil
+        _ passes: [SegmentPassValue], segments: [Segment], focusedArtifactId: String? = nil, pickedPassId: String? = nil
     ) -> [SegmentPassValue] {
         let text = passes.filter { !$0.isGeoreferencing }
         let shapedPassIds = Set(segments.filter(hasShape).map(\.passId))
-        let focused = focusedArtifactId.map { id in
-            text.filter { $0.sourceArtifactId == id && shapedPassIds.contains($0.id) }
-        } ?? []
+        let picked = pickedPassId.map { id in text.filter { $0.id == id && shapedPassIds.contains(id) } } ?? []
+        let focused = picked + (focusedArtifactId.map { id in
+            text.filter { $0.sourceArtifactId == id && shapedPassIds.contains($0.id) && $0.id != pickedPassId }
+        } ?? [])
         let rest = text.enumerated().sorted { lhs, rhs in
             if lhs.element.drawn != rhs.element.drawn { return lhs.element.drawn }
             switch (lhs.element.rank, rhs.element.rank) {
