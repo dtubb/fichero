@@ -8,6 +8,8 @@ struct KeptExportsInspectorSection: View {
     let store: KeptExportStore
     /// The export whose Choose Folder… panel is up.
     @State private var choosingFolderFor: String?
+    /// The system folder panel is up; apart from the export, which the panel's dismissal would clear before its completion.
+    @State private var isChoosingFolder = false
 
     var body: some View {
         Section("Kept Exported") {
@@ -36,7 +38,7 @@ struct KeptExportsInspectorSection: View {
                             .font(.caption)
                             .help("Off: an edit writes nothing here; Write Now still writes")
                         Spacer()
-                        Button("Choose Folder…") { choosingFolderFor = export.id }
+                        Button("Choose Folder…") { choosingFolderFor = export.id; isChoosingFolder = true }
                             .controlSize(.small)
                             .help("Write this export to another folder from now on")
                     }
@@ -47,8 +49,7 @@ struct KeptExportsInspectorSection: View {
             }
         }
         .task { await store.load() }
-        .fileImporter(isPresented: Binding(get: { choosingFolderFor != nil }, set: { if !$0 { choosingFolderFor = nil } }),
-                      allowedContentTypes: [.folder]) { result in
+        .fileImporter(isPresented: $isChoosingFolder, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result, let exportId = choosingFolderFor {
                 Task { await store.chooseFolder(exportId, folder: url) }
             }
