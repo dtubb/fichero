@@ -93,8 +93,9 @@ extension ContentView {
         let applyDoc: (Document) -> Void = { doc in
             applySidebarSelectedDocument(doc)
         }
-        let inHand = documentStore.currentDocuments.first(where: { $0.id == docId })
-            ?? documentStore.collections.first(where: { $0.id == docId })
+        // Every cache the store holds, not only the listing shown: a source in another folder is in the sidebar's
+        // children cache, and clearing the detail to fetch it was a step between the folder and the source (#6657).
+        let inHand = documentStore.resolveDocument(docId)
         switch SidebarFolderDetail.plan(currentDetailId: detailDocument?.id, folderId: docId, inHand: inHand != nil) {
         case .keep:
             // Still fed through, for the run selection (#4523); the detail write is equal, so nothing changes.
