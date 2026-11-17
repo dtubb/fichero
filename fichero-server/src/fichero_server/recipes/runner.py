@@ -1674,7 +1674,43 @@ def _step_pages(db: Any, card: dict[str, Any], step: dict[str, Any], batch: dict
             gone = {e["page_id"] for e in uncertain}
             documents = [d for d in documents if d not in gone]
             scratch["left_out"] = [*(scratch.get("left_out") or []), *uncertain]
+    if documents and card["card"] not in _WHOLE_RUN_CARDS:
+        index = detail["steps"].index(step)
+        documents, waiting = _held_for_inputs(detail["runs"], detail["steps"], index, documents)
+        if waiting:
+            scratch["waiting_on"] = waiting
     return documents, scratch, kinds
+
+
+#: The cards that work over the whole run, not page by page: they are not held back for a page.
+_WHOLE_RUN_CARDS = frozenset({"catalogue", "publish", "export", "embed"})
+
+
+def _held_for_inputs(cards: list[dict[str, Any]], steps: list[dict[str, Any]], index: int, documents: list[str]
+                     ) -> tuple[list[str], dict[str, str]]:
+    """(the pages whose inputs are there, {page: the step it waits for}) (`recipes-run.steps.a-page-waits-for-its-inputs`):
+    a page that an earlier step this one takes from failed on, or is itself waiting on, is held back, named for the step
+    that failed it. A card queued before cards declared their inputs takes from every card before it."""
+    card = cards[index]
+    kinds = {k for take in card["takes"] for k in take.split("|")} if "takes" in card else None
+    waiting: dict[str, str] = {}
+    for c, s in zip(cards[:index], steps[:index]):
+        if kinds is not None and not kinds.intersection(c.get("gives") or ()):
+            continue
+        for page in s.get("failed_ids") or []:
+            waiting.setdefault(page, ", ".join(c["steps"]))
+        for page, cause in (s.get("waiting_on") or {}).items():
+            waiting.setdefault(page, cause)
+    held = {d: waiting[d] for d in documents if d in waiting}
+    return [d for d in documents if d not in held], held
+
+
+def _step_counts(step: dict[str, Any]) -> dict[str, int]:
+    """A step's pages: done, waiting for an earlier step, failed (`recipes-run.steps.no-empty-done`). A step that did not
+    run through (cancelled, not run) has no done pages counted."""
+    failed = len(step.get("failed_ids") or [])
+    done = max(0, step.get("pages_tried", 0) - step.get("pages_lost", 0)) if step.get("state") in ("done", "partial") else 0
+    return {"done": done, "waiting": len(step.get("waiting_on") or {}), "failed": failed}
 
 
 def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, Any], tree: _Tree,
@@ -1746,6 +1782,14 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
                 problems.append(why)
                 jobs.save_detail(db, job_id, json.dumps(detail))
                 continue
+        if not documents and scratch.get("waiting_on"):
+            # Every page it would work on is waiting for an earlier step: nothing ran, so nothing is done (#6673).
+            _add(step, scratch)
+            causes = sorted(set(step["waiting_on"].values()))
+            here[index]["state"] = states[index] = "waiting"
+            step["why"] = f"waiting for {'; '.join(causes)}"
+            jobs.save_detail(db, job_id, json.dumps(detail))
+            continue
         if not documents:
             _add(step, scratch)
             here[index]["state"] = states[index] = "done"
@@ -2060,6 +2104,7 @@ def _status(db: Any, job_id: str) -> dict[str, Any]:
         step["job"] = card.get("job")  # what the stage does, by its last job (a reading, names, dates)
         step["doing"] = doing_words(card)
         step["note"] = card.get("note")  # Start's count of what was already done, kept on the run (#6091)
+        step["counts"] = _step_counts(step)  # done / waiting / failed pages (#6673)
     for step in steps:
         if (step["state"] == "running" and not step.get("child_id") and row["state"] == "running"
                 and step.get("card") in _CARDS_WITH_A_JOB):
@@ -2077,7 +2122,7 @@ def _status(db: Any, job_id: str) -> dict[str, Any]:
         # "running" under a failed run (the engine stopped mid-step, and the run was set aside).
         ended = row["reason"] or row["state"]
         for step in steps:
-            if step["state"] == "waiting":
+            if step["state"] == "waiting" and not step.get("waiting_on"):  # held pages: its why says what it waits for
                 step.update(state="not run", why=f"the run ended before this step: {ended}")
             elif step["state"] == "running":
                 step.update(state="not run", why=f"stopped when the run ended, before this step finished: {ended}")

@@ -638,14 +638,14 @@ The behaviours:
   not end the run (`source.recipe.download-failure-waits`: other steps run): the steps that need that model wait,
   each page "waiting for <model> to download", with Retry on the download; never a step failing on every page with
   "not on this Mac yet".
-- `recipes-run.steps.a-page-waits-for-its-inputs` — **[GAP]** (#6673) a step runs on a page only when every
+- `recipes-run.steps.a-page-waits-for-its-inputs` — **[OK]** (#6673; test `fichero-server/tests/unit/recipes/test_a_page_waits_for_its_inputs_6673.py`) a step runs on a page only when every
   step it needs has finished on THAT page. A page whose earlier step failed is held, not passed on: the later
   steps report it as "waiting for <step>" (never done, never failed for a cause that is not theirs).
   Pages that have their inputs go on: one page's failure never stops the others.
 - `recipes-run.steps.retry-flows-through` — **[GAP]** (#6673) Retry on the run redoes only the failed pages
   of the earliest failed step, and each page that then succeeds flows on through every later step it was
   waiting for, in order; pages already done are not redone (`recipes-run.journey.run-again-on-what-was-missed`).
-- `recipes-run.steps.no-empty-done` — **[GAP]** (#6673) a step that had nothing to work on for a page (no
+- `recipes-run.steps.no-empty-done` — **[OK]** (#6673; test `fichero-server/tests/unit/recipes/test_a_page_waits_for_its_inputs_6673.py`) a step that had nothing to work on for a page (no
   lines to tie, no reading to correct) never counts the page as done; the summary gives each step's done,
   waiting and failed pages with the cause of each failure in words.
 - `recipes-run.kraken.no-silent-line-loss` — **[GAP]** (#6673) a line whose polygon Kraken cannot build keeps
