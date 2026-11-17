@@ -1051,6 +1051,10 @@ def _await_downloads(db: Any, job_id: str, detail: dict[str, Any], card: dict[st
     for entry in detail.get("awaited") or []:
         if entry.get("landed") or not set(entry["steps"]) & set(card["steps"]):
             continue
+        if entry.get("cannot"):  # never queued: the steps on it wait, with the reason
+            failed = _DownloadFailed(f"Model download failed: {entry['cannot']}")
+            failed.model = entry["name"]
+            return failed
         said = False
         while True:
             _closed_stops_the_recipe(db, parent=job_id)
@@ -1428,8 +1432,8 @@ def _run_the_plan(db: Any, job_id: str) -> dict[str, Any]:
 
 def _fetch_models_first(db: Any, job_id: str, detail: dict[str, Any], started_by: str) -> None:
     """The run's first stage (`recipes-run.steps.models-fetched-before-the-step`): every model its steps name that is not on
-    this Mac is fetched, and waited for, before the first step; one already downloading is waited for. A fetch that fails ends
-    the run's steps on it wait (see below). The plan's downloads are in `awaited` already; the run asks again, so a model
+    this Mac is fetched, and waited for, before the first step; one already downloading is waited for. A fetch that fails, or a model that cannot be fetched at all,
+    does not end the run: the steps on it wait (see below). The plan's downloads are in `awaited` already; the run asks again, so a model
     the plan did not name (or one deleted since) is fetched too."""
     from fichero_server.llm.local_models import enqueue_download
     from fichero_server.recipes import start
@@ -1443,10 +1447,11 @@ def _fetch_models_first(db: Any, job_id: str, detail: dict[str, Any], started_by
             try:
                 download.update(downloading=True, job_id=enqueue_download(db, download["runtime"], download["model"],
                                                                          started_by=started_by))
-            except ValueError as exc:
-                words = f"{download.get('name') or download['model']} cannot be downloaded: {exc}. The run ended before any step."
-                jobs.save_detail(db, job_id, json.dumps(detail), reason=words)
-                raise RunEnded(words) from exc
+            except ValueError as exc:  # nothing to fetch, or this Mac cannot run it: its steps wait, the others run
+                name = download.get("name") or download["model"]
+                awaited.append({"steps": download["steps"], "job_id": None, "name": name,
+                                "cannot": f"{name} cannot be downloaded: {exc}"})
+                continue
         if all(e["job_id"] != download["job_id"] for e in awaited):
             awaited.append({"steps": download["steps"], "job_id": download["job_id"],
                             "name": download.get("name") or download["model"]})

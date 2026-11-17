@@ -867,7 +867,7 @@ def _tail(db: Any, made: RecipeRunSummary, status: dict[str, Any], pages: list[s
     from fichero_server.execution import jobs
 
     awaited = status.get("awaited") or []
-    made.download_failed = download_failures(awaited, {e["job_id"]: jobs.read_job(db, e["job_id"]) for e in awaited},
+    made.download_failed = download_failures(awaited, {e["job_id"]: jobs.read_job(db, e["job_id"]) for e in awaited if e["job_id"]},
                                              setup["recipe"], cloud_allowed=places.may_leave_to(setup["answers"], "cloud"))
     return ran
 

@@ -9,6 +9,8 @@ from fichero_server.execution import jobs
 from fichero_server.llm import local_models
 from fichero_server.recipes import runner, start
 
+REAL_AWAIT = runner._await_downloads
+
 READ = {"card": "workflow", "job": "read-a-line", "steps": ["read"], "model_override": "kraken-mccatmus",
         "provider_override": "kraken"}
 MODEL = {"runtime": "kraken", "model": "kraken-mccatmus", "name": "the Kraken reader McCATMuS", "steps": ["read"]}
@@ -94,12 +96,16 @@ def test_the_steps_on_a_model_that_did_not_download_wait_and_the_step_after_them
     assert any("McCATMuS did not download" in p for p in problems)
 
 
-def test_a_model_that_cannot_be_fetched_at_all_ends_the_run_naming_it(monkeypatch, seams):
+def test_a_model_that_cannot_be_fetched_at_all_makes_its_steps_wait_naming_it(monkeypatch, seams):
     monkeypatch.setattr(start, "missing_models", lambda runs: [dict(MODEL)])
 
     def refuse(db, runtime, model, started_by):
         raise ValueError("no such reader")
 
     monkeypatch.setattr(local_models, "enqueue_download", refuse)
-    with pytest.raises(runner.RunEnded, match=r"McCATMuS cannot be downloaded: no such reader"):
-        runner._fetch_models_first(None, "job", {"runs": [READ]}, "owner")
+    detail = {"runs": [READ]}
+    runner._fetch_models_first(None, "job", detail, "owner")  # no RunEnded
+    failed = REAL_AWAIT(None, "job", detail, {"steps": READ["steps"]})
+    assert isinstance(failed, runner._DownloadFailed)
+    assert "McCATMuS cannot be downloaded: no such reader" in failed and failed.model == "the Kraken reader McCATMuS"
+    assert REAL_AWAIT(None, "job", detail, {"steps": ["other"]}) is None  # a step on no such model runs
