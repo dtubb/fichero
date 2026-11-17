@@ -13,9 +13,9 @@ extension EnvironmentValues {
     /// Where a folder's canvas in the Preview reports the ONE card selected on it (nil for none or
     /// several), so the Inspector and the Reader show that item while the Preview keeps the board
     /// (2026-09-30, #5305). Set by ContentView on the Preview pane.
-    @Entry var onFolderCanvasFocus: ((Document?) -> Void)?
+    @Entry var onFolderCanvasFocus: FolderCanvasAction<Document?>?
     /// Every card selected on that canvas, so Group (⌥⌘G) can gather them (#5303).
-    @Entry var onFolderCanvasSelection: (([Document]) -> Void)?
+    @Entry var onFolderCanvasSelection: FolderCanvasAction<[Document]>?
 }
 
 struct FolderContentsPreview: View {
