@@ -10,7 +10,7 @@ import SwiftUI
 /// — e.g. `31a6d4d2…519710`. The extractor occasionally leaves a raw
 /// source-annotation id in subject/object; we never want to render that as
 /// an SVO chip. (#1864)
-private func isOpaqueIdentifier(_ value: String) -> Bool {
+nonisolated private func isOpaqueIdentifier(_ value: String) -> Bool {
     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
     guard trimmed.count >= 16 else { return false }
     let hexAndDashes = CharacterSet(charactersIn: "0123456789abcdefABCDEF-")
@@ -96,7 +96,7 @@ struct ClaimSummaryCard: View {
     /// When absent, render a "no claim text — regenerate KG" notice
     /// (the maintainer's directive: "if KG is absent, we generate it"; don't
     /// fall back to `claim.text`).
-    static func svoTriple(
+    nonisolated static func svoTriple(
         for claim: Components.Schemas.KnowledgeClaim
     ) -> SVOTriple? {
         // Prefer the typed top-level fields (#984). Fall back to
