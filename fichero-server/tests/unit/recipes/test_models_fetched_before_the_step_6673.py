@@ -49,7 +49,9 @@ def test_a_model_already_here_queues_nothing(monkeypatch, seams):
 def test_a_failed_fetch_does_not_end_the_run(monkeypatch, seams):
     monkeypatch.setattr(start, "missing_models", lambda runs: [dict(MODEL)])
     seams["ends"] = lambda *a: "Model download failed: the Kraken reader McCATMuS did not download (no network)"
-    runner._fetch_models_first(None, "job", {"runs": [READ]}, "owner")  # no RunEnded
+    detail = {"runs": [READ]}
+    runner._fetch_models_first(None, "job", detail, "owner")  # no RunEnded
+    assert detail["runs"] == [READ]  # the plan is untouched: the steps on the model wait, the run goes on
 
 
 def _failed(model="the Kraken reader McCATMuS"):
