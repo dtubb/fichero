@@ -431,15 +431,17 @@ def test_docs_download_links_name_fichero_dmg_and_the_one_dmg_text_calls_it_the_
     assert "still runs it last" not in (_ROOT / "docs/contributor_manual/specs/harness/release-and-versioning.md").read_text()
 
 
-def test_release_all_is_a_dev_prerelease_unless_public_is_asked_for():
-    """release-channels-and-feature-tiers: no flag = one dev DMG, a GitHub pre-release on the dev
-    channel with no site deploy; only --public builds the alpha DMG too (owner 2026-11-17)."""
-    r = _script("release-all.sh")
-    tiers = r[r.index("# DMG tiers for this run."):]
+def test_release_all_builds_only_the_dev_dmg_and_public_only_changes_how_it_is_published():
+    """release-channels-and-feature-tiers (owner 2026-11-17): one dev DMG is built; no flag publishes it as a dev-channel
+    pre-release with no site; --public publishes the same DMG as the public item (Latest, appcast, site)."""
+    r, c, p = _script("release-all.sh"), _script("create-github-release.sh"), _script("publish-release.sh")
+    tiers = r[r.index("# DMG tiers for this run"):]
     tiers = tiers[:tiers.index("\nfi\n")]
-    assert 'elif [ "${PUBLIC_RELEASE:-false}" = true ]; then\n  DMG_TIERS=(dev alpha)' in tiers
-    assert tiers.rstrip().endswith("DMG_TIERS=(dev)\n  FICHERO_RELEASE_TIER=dev"), "the default is dev only"
+    assert "DMG_TIERS=(dev alpha)" not in r and "DMG_TIERS=(dev)\n  FICHERO_RELEASE_TIER=dev" in tiers
     assert "--public) PUBLIC_RELEASE=true ;;" in r
     publish = r[r.index("publish_part() {"):]
-    assert 'export FICHERO_RELEASE_CHANNEL=dev FICHERO_SKIP_SITE=1' in publish
-    assert 'GITHUB_ARGS+=("--prerelease")' in publish
+    public, dev = publish.split("  else\n", 1)
+    assert "export FICHERO_RELEASE_PUBLIC=1" in public and "unset FICHERO_RELEASE_CHANNEL" in public
+    assert "export FICHERO_RELEASE_CHANNEL=dev FICHERO_SKIP_SITE=1" in dev and 'GITHUB_ARGS+=("--prerelease")' in dev
+    assert '"${FICHERO_RELEASE_PUBLIC:-0}" != 1 ] && [ -f "$DMG_PATH.tier" ]' in c, "a public run keeps the dev DMG public"
+    assert "--github \"$@\"" in p, "publish-release.sh passes --public on"

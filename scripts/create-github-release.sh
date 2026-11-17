@@ -157,7 +157,8 @@ TAG="v${VERSION}"
 # The channel comes from the BUILT artifact, not from how this publish was started: release-all.sh writes
 # <dmg>.tier beside each DMG it builds. A dev-tier Fichero.dmg is never a channel-less public item, even on
 # the two-step hand route (release-all.sh --dev, then publish-release.sh). No tier file: the env var decides.
-if [ -f "$DMG_PATH.tier" ] && [ "$(tr -d '[:space:]' < "$DMG_PATH.tier")" = "dev" ]; then
+# FICHERO_RELEASE_PUBLIC=1 (release-all.sh --public): the dev DMG IS the public download (owner 2026-11-17).
+if [ "${FICHERO_RELEASE_PUBLIC:-0}" != 1 ] && [ -f "$DMG_PATH.tier" ] && [ "$(tr -d '[:space:]' < "$DMG_PATH.tier")" = "dev" ]; then
   export FICHERO_RELEASE_CHANNEL=dev
 fi
 # A dev-channel release ships its one DMG only: drop a stray Fichero-dev.dmg BEFORE any upload.

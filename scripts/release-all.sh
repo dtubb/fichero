@@ -13,9 +13,9 @@ set -euo pipefail
 #                          [--dev | --public | --tier <release|beta|alpha|dev>]
 # Default (no flag) = --dev (owner 2026-11-17: "only push --dev by default"): one dev DMG
 # (ALL features), published as a GitHub PRE-RELEASE on the Sparkle dev channel, no site deploy.
-# --public is the old two-DMG release: Fichero.dmg (alpha, the public download) and
-# Fichero-dev.dmg, GitHub Latest, the public appcast item and the site. Only when the owner
-# says public: the alpha/release code path has gone untested for months.
+# --public publishes that SAME dev DMG as the public download: GitHub Latest, the public appcast
+# item and the site. Only when the owner asks. No alpha DMG is ever built by default: there is
+# no public non-dev DMG (owner 2026-11-17); the alpha code path has gone untested for months.
 # --tier narrows to one tier. TestFlight archives the dev surface (internal-only, #3365).
 # A single-tier run always names its one DMG Fichero.dmg.
 #
@@ -218,17 +218,12 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-# DMG tiers for this run. Default: the dev DMG only (owner 2026-11-17: "only push --dev by
-# default"). --public: BOTH DMGs — dev first, alpha LAST so dmg-stage/ and Fichero.dmg hold
-# the public artifacts for the size ratchet and the GitHub step's staged-app checks.
-# PUBLIC TIER = ALPHA (Daniel, 2026-09-04: "it's a public alpha after all").
-# An explicit --tier builds only that tier.
+# DMG tiers for this run: the dev DMG only (owner 2026-11-17: "there is no public non-dev DMG, it's
+# all the dev DMG"; the alpha tier has gone untested for months). --public changes how that one DMG
+# is PUBLISHED (Latest, the public appcast item, the site), never what is built. An explicit --tier
+# builds only that tier.
 if [ -n "${FICHERO_RELEASE_TIER:-}" ]; then
   DMG_TIERS=("$FICHERO_RELEASE_TIER")
-elif [ "${PUBLIC_RELEASE:-false}" = true ]; then
-  DMG_TIERS=(dev alpha)
-  # TestFlight is internal-only, so in dual mode it archives the dev surface.
-  FICHERO_RELEASE_TIER=dev
 else
   DMG_TIERS=(dev)
   FICHERO_RELEASE_TIER=dev
@@ -864,9 +859,13 @@ publish_part() {
         || fail_part "smoke failed for $(basename "$SMOKE_DMG")"
     fi
   done
-  # A one-DMG dev run publishes on the dev channel only (never the channel-less public item).
-  # It is a GitHub pre-release (never Latest) and leaves the site alone: the site follows public releases only.
-  if [ "${#DMG_TIERS[@]}" -eq 1 ] && [ "${DMG_TIERS[0]}" = dev ]; then
+  # Default: the dev DMG on the dev channel only (never the channel-less public item), a GitHub
+  # pre-release (never Latest), no site. --public: the same dev DMG as the public item, Latest, and the
+  # site (FICHERO_RELEASE_PUBLIC tells create-github-release.sh to ignore the dev .tier file).
+  if [ "${PUBLIC_RELEASE:-false}" = true ]; then
+    export FICHERO_RELEASE_PUBLIC=1
+    unset FICHERO_RELEASE_CHANNEL
+  else
     export FICHERO_RELEASE_CHANNEL=dev FICHERO_SKIP_SITE=1
     case " ${GITHUB_ARGS[*]-} " in *" --prerelease "*) ;; *) GITHUB_ARGS+=("--prerelease") ;; esac
   fi

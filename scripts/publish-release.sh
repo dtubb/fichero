@@ -49,5 +49,6 @@ fi
 git push origin "HEAD:$BRANCH"
 
 # The version is pinned so release-all does not stamp a new one over the built DMGs.
-FICHERO_RELEASE_VERSION="$VERSION" scripts/release-all.sh --skip-dmg --skip-notarize --skip-testflight --github
-echo "Published Fichero $VERSION (build $BUILD): GitHub release, appcast and site."
+# Extra arguments go to release-all.sh: none = a dev pre-release; --public = Latest, public appcast and site.
+FICHERO_RELEASE_VERSION="$VERSION" scripts/release-all.sh --skip-dmg --skip-notarize --skip-testflight --github "$@"
+echo "Published Fichero $VERSION (build $BUILD)."
