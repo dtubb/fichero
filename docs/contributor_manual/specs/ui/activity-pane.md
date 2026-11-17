@@ -340,6 +340,7 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   before). *Tests:*
   `fichero-server/tests/unit/llm/test_rate_limit_backs_off_then_pauses_6584.py`; the existing
   `fichero-server/tests/unit/workflows/test_paused_at_cap_event_6349.py`.
+  **In-flight budget (#6671):** an OpenRouter 402 whose reason is `in_flight_budget_exhausted` is a slow-down like a 429: (1) it is retried after the in-flight calls settle and never opens the breaker; (2) it halves the in-flight cap for that provider (floor 1) and the cap rises by one per 4 answers back to its start; (3) when the retries are spent the run PAUSES with the `rate-limited` words and its Continue, the page is read again on Continue, no page is recorded failed and the systemic-error rule counts none; (4) a 402 with no such reason (no credit at all) stays fatal. Test: `fichero-server/tests/unit/workflows/test_in_flight_budget_6671.py`.
 - `activity.limits.load-a-model-once` — **[PARTIAL]** (#6584, decision 17; built in part: `local_inference` keeps the engine's model
   server's one loaded model and the lane's `loaded_model`/`loaded_used_at` (`activity.lane.group-by-model`); to verify for Kraken:
   `kraken_runtime.py` loads per call) one loaded instance per model per engine, shared by every job that needs it: pages are fed
