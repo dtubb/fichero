@@ -90,6 +90,7 @@ def history(db: Database, minutes: int, now: datetime | None = None) -> Activity
     recipes: dict[str, HistorySeries] = {}
     models: dict[str, HistorySeries] = {}
     run_recipes: dict[str, str] = {}
+    hosts = activity_models.provider_hosts()
 
     def series(table: dict[str, HistorySeries], key: str) -> HistorySeries:
         calls = [0] * minutes if table is models else []  # a recipe's calls are its models'
@@ -123,7 +124,7 @@ def history(db: Database, minutes: int, now: datetime | None = None) -> Activity
             except Exception:  # noqa: BLE001 -- counted above as unreadable
                 calls = []
             for call in calls:
-                series(models, activity_models.model_id(*activity_models.call_key(call))).calls[index] += 1
+                series(models, activity_models.model_id(*activity_models.call_key(call, hosts))).calls[index] += 1
             bucket.spend_usd += sum(c.cost_usd for c in spend)
             bucket.tokens += sum(c.total_tokens for c in usage)
         if at >= midnight:

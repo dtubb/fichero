@@ -127,3 +127,19 @@ def test_this_mac_is_measured_or_says_it_is_not(client, db, monkeypatch):
     answer = client.get("/api/activity/models")
     assert answer.status_code == 200, answer.text
     assert answer.json()["this_mac"]["lanes"], "the lanes and their widths are always known"
+
+
+def test_a_request_with_many_remote_calls_reads_the_provider_list_once(db, app_db, monkeypatch):
+    """`call_key` is handed the provider hosts; a listing never reads the provider list per remote call (#6588)."""
+    jobs._ensure(db)
+    call = {"provider": "ollama", "model": "llama", "place": "own_machine", "input_tokens": 1, "output_tokens": 1}
+    for i in range(5):
+        _job(db, f"rc{i}", kind="describe", model="ollama:llama", state="done", detail=json.dumps({"usage": [call, call]}))
+    reads = []
+    original = app_db.list_providers
+    monkeypatch.setattr(app_db, "list_providers", lambda: reads.append(1) or original())
+
+    found = activity_models.models(db, held=[], installed=[])
+
+    assert sum(m["calls_today"] for m in found if m["place"] == "remote") == 10
+    assert len(reads) == 1

@@ -170,13 +170,14 @@ def place_and_provider(model: str) -> tuple[str, str, str]:
     return THIS_MAC, "This Mac", model
 
 
-def call_key(call: dict[str, Any]) -> tuple[str, str, str]:
-    """(place, provider, model) of one recorded call, as the tree places it; another Mac by its address."""
+def call_key(call: dict[str, Any], hosts: dict[str, str]) -> tuple[str, str, str]:
+    """(place, provider, model) of one recorded call, as the tree places it; another Mac by its address (`hosts`, from
+    `provider_hosts`, read once per request)."""
     provider = str(call.get("provider") or "")
     place = _CALL_PLACE.get(call.get("place") or "", None)
     if place is None:
         place = THIS_MAC if provider.lower() in _LOCAL_PROVIDERS else CLOUD
-    word = (_host(_row_url(provider)) if place == REMOTE else None) or _provider_word(provider)
+    word = (hosts.get(provider.strip().lower()) if place == REMOTE else None) or _provider_word(provider)
     return place, word, str(call["model"])
 
 
@@ -199,13 +200,24 @@ def _usage(detail: str | None) -> list[dict[str, Any]]:
     return [c for c in calls if isinstance(c, dict) and c.get("model")]
 
 
-def _row_url(provider: str) -> str | None:
-    from fichero_server.llm.places import row_server_url
+def provider_hosts() -> dict[str, str]:
+    """Provider type -> the host of its first provider row that has a Server URL. One read of the provider list; a request
+    makes it once and hands it to every `call_key`."""
+    from fichero_server.llm.places import _norm
 
     try:
-        return row_server_url(provider)
-    except Exception:  # noqa: BLE001 -- no row: the provider's own word
-        return None
+        from fichero_server.db.app import get_app_db
+
+        rows = get_app_db().list_providers()
+    except Exception:  # noqa: BLE001 -- no app database (a bare test): every provider reads under its own word
+        return {}
+    hosts: dict[str, str] = {}
+    for row in rows:
+        kind = _norm(getattr(getattr(row, "provider_type", None), "value", None))
+        host = _host(getattr(row, "api_base", None))
+        if kind and host:
+            hosts.setdefault(kind, host)
+    return hosts
 
 
 def models(db: "Database", *, held: list[dict[str, Any]] | None = None,
@@ -220,6 +232,7 @@ def models(db: "Database", *, held: list[dict[str, Any]] | None = None,
     since = (now - timedelta(hours=now.hour, minutes=now.minute, seconds=now.second)).replace(tzinfo=None)
     rows: dict[str, dict[str, Any]] = {}
     clusters: dict[str, str] | None = None
+    hosts = provider_hosts()
 
     def row(place: str, provider: str, name: str) -> dict[str, Any]:
         return rows.setdefault(model_id(place, provider, name), _new(place, provider, name))
@@ -237,7 +250,7 @@ def models(db: "Database", *, held: list[dict[str, Any]] | None = None,
                         model or "Read at scale")
         elif calls:
             for call in calls:
-                one = row(*call_key(call))  # another Mac by its address, as the places list names it
+                one = row(*call_key(call, hosts))  # another Mac by its address, as the places list names it
                 one["calls_today"] += 1
                 if state == "running":
                     one["active"] = True
