@@ -1,5 +1,8 @@
 import FicheroAPIClient
+import OSLog
 import SwiftUI
+
+private let logger = Logger(subsystem: "app.fichero.fichero", category: "EntitiesLibraryContent")
 
 // MARK: - Entities library content (folder-scoped entities as a table)
 
@@ -354,7 +357,11 @@ struct EntitiesLibraryContent: View {
             setType: { entities, rawType in
                 Task {
                     for id in entities.compactMap(\.id) {
-                        try? await store.reclassify(entityId: id, to: rawType)
+                        do {
+                            try await store.reclassify(entityId: id, to: rawType)
+                        } catch {
+                            logger.error("Retyping entity failed: \(String(describing: error))")
+                        }
                     }
                 }
             },
