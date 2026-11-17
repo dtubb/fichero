@@ -136,8 +136,8 @@ harnesses over time and a bake-off is just runs that share a brief.
   test_profiles.py, case test_role_times_stack_composes_commands_tools_and_rules.
 - `agent-profiles.prompt.assembly` [PARTIAL] (#6623) — `start_tool.prepare` and the Pi start take `role`, `harness` and
   `project`, assemble common + role + stack + project plus the few run facts (worktree, scratch, the trailer words) and hand
-  the text to the adapter; the brief stays the first user message. The worktree's own `CLAUDE.md`, `.claude/`,
-  `AGENTS.md`, `.gemini/`, `.codex/`, `opencode.json` and the like are **never** a worker's rules (a worker can edit
+  the text to the adapter; the brief stays the first user message. The worktree's own instruction files (`CLAUDE.md`,
+  `AGENTS.md`, `opencode.json` and each harness's own hidden settings folder) are **never** a worker's rules (a worker can edit
   them): each adapter passes the setting that disables project and user instruction files where the harness has one
   and says in `capabilities.md` when it has none. Acceptance: the dry run shows the assembled text in the adapter's argv
   or file; a planted `CLAUDE.md` saying "push to main" changes nothing the worker is told. Test:
