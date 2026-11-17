@@ -38,6 +38,12 @@ struct DrawTargetTests {
         ) else { Issue.record("a line on a legacy: pass must be refused"); return }
     }
 
+    @Test("once the region is added and the store reloaded, the converted pass takes the next drawing as segment.create")
+    func afterTheReloadTheNextDrawingIsARow() {
+        #expect(DrawTarget.resolve(kind: .polygon, points: square, passId: "converted-pass", artifactId: "a", passIsProvisional: false)
+            == .createOnPass("converted-pass"))
+    }
+
     @Test("a line on an unconverted artifact, or with no pass shown, is refused, not dropped")
     func refused() {
         for target in [

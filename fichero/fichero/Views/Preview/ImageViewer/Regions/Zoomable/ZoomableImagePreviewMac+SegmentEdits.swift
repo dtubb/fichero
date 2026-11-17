@@ -156,7 +156,7 @@ extension ZoomableImagePreview {
             Task {
                 do {
                     _ = try await artifactService.addRegion(artifactId: artifactId, documentId: documentId, bbox: bbox)
-                    await loadOCRGeometry()
+                    await reloadSegmentsAfterRegionEdit()  // forces the store, so the drawn region is shown (#6412)
                 } catch {
                     Self.logger.error("Draw region failed: \(String(describing: error), privacy: .public)")
                 }
@@ -183,7 +183,7 @@ extension ZoomableImagePreview {
             return
         }
         let onThePass = store.segments(documentId: documentId).filter { $0.passId == passId }
-        if onThePass.contains(where: { $0.provisional }) {
+        if passId.hasPrefix("legacy:") || onThePass.contains(where: { $0.provisional }) {
             Self.logger.error("Marker stroke not sent: the page's boxes are not saved as segments yet")
             return
         }
