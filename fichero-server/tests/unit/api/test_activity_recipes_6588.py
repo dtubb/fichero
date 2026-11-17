@@ -54,3 +54,39 @@ def test_the_route_answers_the_view(client, db, monkeypatch):
     answer = client.get("/api/activity/recipes?days=7")
     assert answer.status_code == 200, answer.text
     assert answer.json()["recipes"][0]["runs"][0]["steps"][0]["pages_failed"] == 1
+
+
+def test_a_recipe_runs_steps_are_its_steps_in_order_under_the_project(client, db, monkeypatch):
+    """WHY (owner 2026-11-16): Detect Segments, Read Lines and Transcribe listed as three recipes when they were the steps
+    of one recipe run. A workflow run whose job hangs under a `run-a-recipe` job is a STEP of that recipe run, in the
+    order they ran, and the recipe runs list under the project's recipe; a workflow run on its own stays its own recipe."""
+    from fichero_server.workflows import activity_recipes
+
+    monkeypatch.setitem(jobs.KINDS, "t-read-page", jobs.Kind(run=lambda db, subject: None, model=None, name="Read a page"))
+    jobs._ensure(db)
+    t0 = (utc_now() - timedelta(minutes=30)).replace(tzinfo=None)
+    db.execute("INSERT INTO jobs (id, kind, subject, state, attempts, started_by, created_at, started_at) "
+               "VALUES ('recipe-1', 'run-a-recipe', 'all', 'done', 0, 'person', ?, ?)", [t0, t0])
+    for order, (thread_id, name) in enumerate([("s-segments", "Detect Segments"), ("s-lines", "Read Lines"),
+                                               ("s-htr", "Transcribe HTR")]):
+        _run(db, thread_id, model="kraken:blla", failed=order, minutes_ago=30 - order)
+        db.execute(f"UPDATE {records.RUNS} SET workflow_name = ? WHERE id = ?", [name, thread_id])
+        db.execute("UPDATE jobs SET parent_id = 'recipe-1' WHERE id = ?", [thread_id])
+    _run(db, "solo", model="ollama:qwen2-vl", failed=0, minutes_ago=5)
+
+    found = {r["name"]: r for r in activity_recipes.recipes(db)}
+
+    project = found[activity_recipes.project_recipe_name(db)]
+    (recipe_run,) = project["runs"]
+    assert recipe_run["id"] == "recipe-1"
+    assert [s["name"] for s in recipe_run["steps"]] == ["Detect Segments", "Read Lines", "Transcribe HTR"]
+    assert [s["pages_failed"] for s in recipe_run["steps"]] == [0, 1, 2]
+    assert recipe_run["steps"][0]["model"] == "kraken:blla"
+    assert recipe_run["pages_failed"] == 3 and recipe_run["pages_done"] == 57
+    assert "Detect Segments" not in found and "Read Lines" not in found, "a step is never a recipe of its own"
+    assert found["Read the letters"]["run_count"] == 1, "a workflow run on its own stays its own recipe"
+    answer = client.get("/api/activity/recipes?days=7")
+    assert answer.status_code == 200, answer.text
+    listed = {r["name"]: r for r in answer.json()["recipes"]}
+    assert [s["name"] for s in listed[project["name"]]["runs"][0]["steps"]] == [
+        "Detect Segments", "Read Lines", "Transcribe HTR"]
