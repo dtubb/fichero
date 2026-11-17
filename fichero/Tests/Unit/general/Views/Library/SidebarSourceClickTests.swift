@@ -105,4 +105,22 @@ struct SidebarSourceClickTests {
         #expect((payload["nested"] as? [String: any Sendable])?["k"] as? Int == 1)
         #expect(payload["gone"] is NSNull)
     }
+
+    // WHY: Show Image toggled on a source read back as it was before the toggle once the source was found through
+    // the sidebar's outline cache, which the save never updated (#6657). If this fails, resolveDocument hands the
+    // preview a stale copy of the source's metadata.
+    @MainActor
+    @Test("a saved Show Image reaches every cached copy of the source, the outline's included")
+    func savedShowImageReachesTheOutline() {
+        let store = DocumentStore(apiClient: APIClient())
+        store.outlineCache["fold"] = DocumentOutline(ancestors: [], document: folder, children: [image, image2])
+        var saved = image
+        saved.metadata = [SourceViewSettings.showImageKey: AnyCodable(false)]
+
+        store.refreshLocalContent(saved)
+
+        let read = store.resolveDocument(image.id).flatMap { SourceViewSettings.showImage(in: $0.metadata) }
+        #expect(read == false)
+        #expect(store.outlineCache["fold"]?.children.map(\.id) == [image.id, image2.id], "nothing else moves")
+    }
 }

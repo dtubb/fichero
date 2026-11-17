@@ -75,6 +75,18 @@ extension DocumentStore {
                 childrenCache[parentId]?[index] = document
             }
         }
+        // The outline cache too: `resolveDocument` reads it last, and a copy left there gave back the old metadata,
+        // so a source's Show Image read back as it was before the toggle (#6657).
+        // (`Document`'s `==` compares ids, so a copy is replaced wherever the id appears, never compared.)
+        let holds: (Document) -> Bool = { $0.id == document.id }
+        for (key, entry) in outlineCache
+        where holds(entry.document) || entry.ancestors.contains(where: holds) || entry.children.contains(where: holds) {
+            let replace: (Document) -> Document = { holds($0) ? document : $0 }
+            outlineCache[key] = DocumentOutline(
+                ancestors: entry.ancestors.map(replace), document: replace(entry.document),
+                children: entry.children.map(replace)
+            )
+        }
         if selectedDocument?.id == document.id {
             selectedDocument = document
         }
