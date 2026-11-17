@@ -87,7 +87,7 @@ nonisolated enum StaleEngineSweep {
         guard rest.count >= argc else { return nil }
         let prefix = Array("FICHERO_PARENT_PID=".utf8)
         for entry in rest.dropFirst(argc) where entry.starts(with: prefix) {
-            return Int32(String(decoding: entry.dropFirst(prefix.count), as: UTF8.self))
+            return String(bytes: entry.dropFirst(prefix.count), encoding: .utf8).flatMap { Int32($0) }
         }
         return nil
     }

@@ -25,6 +25,9 @@ struct ActivityPaneView: View {
     var revealFiles: [String]?
     /// Rows to select together once listed (the launch alert's Choose…).
     var revealAll: [ActivitySelection]?
+    /// The Activity Graphs pane (`activity.window.views-are-panes`, decisions 40-41): the graphs alone, as a pane of
+    /// their own, read and drawn as the window draws them.
+    var graphsOnly = false
     /// The selected row, for the Inspector beside the pane; nil with none or several selected.
     var onSelect: (ActivityPaneSelection?) -> Void = { _ in }
     /// A Show in Activity was answered (its row selected): the asker clears it, so a later refresh does not select it again.
@@ -34,7 +37,9 @@ struct ActivityPaneView: View {
     var windowInspector: (() -> AnyView)?
     @State var showsInspector = true
     /// The models of the sidebar's Models section (`activity.window.models-tree`), and what the sidebar has picked.
-    @State var models: [ActivityModelEntry] = []
+    @State var models = ActivityModelsAnswer()
+    /// Where's places shown under it in the sidebar.
+    @State var whereExpanded = true
     @State var sidebarPick: String?
     /// The graphs fill the centre (decision 41); kept per window.
     @SceneStorage("activity.graphs.full") var graphsFull = false
@@ -51,8 +56,11 @@ struct ActivityPaneView: View {
     /// Delete on running rows asks once: Stop then Delete.
     @State var confirmingDelete: [ActivityMonitorRow]?
     @State var showArchived = false
-    /// The kept export a row's Choose Folder… is choosing a folder for: the system panel is up while it is set.
+    /// The kept export a row's Choose Folder… is choosing a folder for. Kept apart from the panel's own flag: the panel
+    /// clears its binding before its completion runs, which would lose the export the chosen folder is for.
     @State var choosingFolder: ActivityFolderChoice?
+    /// The system folder panel is up.
+    @State var isChoosingFolder = false
     /// The open projects' history summed, for the window's bottom panel (`activity.window.bottom-panel`).
     @State var history = ActivityHistoryFigures()
     @AppStorage("activity.pane.prefs") var prefsData = Data()
@@ -91,7 +99,9 @@ struct ActivityPaneView: View {
         let runJobs = Set(rows.filter { $0.kind == .run }.compactMap(\.jobId))
         // The Archived item lists the archived rows and only those (`activity.window.sidebar`).
         if prefs.tab == .archived { return archivedRows }
-        return rows.filter { $0.kind == .run || !runJobs.contains($0.jobId ?? "") } + archivedRows
+        // Blocked work is listed under what blocks it (`activity.pane.blocked-under-its-blocker`).
+        return ActivityPane.underBlockers(rows.filter { $0.kind == .run || !runJobs.contains($0.jobId ?? "") })
+            + archivedRows
     }
 
     /// Archived rows are read while Show Archived is on or the Archived item is chosen.
@@ -132,11 +142,17 @@ struct ActivityPaneView: View {
             NavigationSplitView {
                 sidebar
             } detail: {
+                // Every column's size range is the fixed one of `ActivityPaneView+WindowLayout.swift`, never its
+                // content's (#6661): sizes that did not fit the window together looped its constraints passes.
                 content
+                    .frame(minWidth: Self.centreMinWidth, maxWidth: .infinity,
+                           minHeight: Self.centreMinHeight, maxHeight: .infinity)
                     .toolbar { ToolbarItem(placement: .navigation) { ActivityRunControlsBar() } }
                     .inspector(isPresented: $showsInspector) {
                         windowInspector?()
-                            .inspectorColumnWidth(min: 280, ideal: 380, max: 640)
+                            .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+                            .inspectorColumnWidth(min: Self.inspectorWidths.lowerBound, ideal: Self.inspectorIdealWidth,
+                                                  max: Self.inspectorWidths.upperBound)
                             // The Inspector column's own toolbar, at the window's trailing edge: More, then the toggle.
                             .toolbar {
                                 ToolbarItem(placement: .primaryAction) { moreMenu }
@@ -161,26 +177,27 @@ struct ActivityPaneView: View {
         let shown = shownRows
         return VStack(spacing: 0) {
             if showsHead { head; Divider() }
-            if showsHead {
+            if graphsOnly {
+                graphs
+            } else if showsHead {
                 rowsView(shown)
-            } else if prefs.tab == .recipes && !graphsFull {
-                // Recipes (decision 37): recipe › run › step with the rates that compare them, over the graphs.
-                PlatformVSplitView {
-                    ActivityRecipesView(libraries: libraries).frame(minHeight: 140)
-                    graphs
+            } else if ActivityCentreView.offered(for: prefs.tab).count > 1 && !graphsFull {
+                // The centre's view of the item (`activity.window.centre-views`): Table as before, Graph full size,
+                // Visual the work drawn.
+                centreViewPicker
+                Divider()
+                switch prefs.centreView(for: prefs.tab) {
+                case .table: tableCentre(shown)
+                case .graph: graphs
+                case .visual: ActivityTimelineView(rows: shown)
                 }
             } else if graphsFull {
                 // The graphs made full size (`activity.graphs.own-pane`, decision 41): they fill the centre.
                 graphs
             } else {
-                // The window's centre: the rows over the graphs, the divider the person's to drag (decisions 34, 41); a main
-                // window's pane keeps one status line instead.
-                PlatformVSplitView {
-                    rowsView(shown).frame(minHeight: 140)
-                    graphs
-                }
+                tableCentre(shown)
             }
-            bottomBar
+            if !graphsOnly { bottomBar }  // the graphs pane has no rows to filter
         }
         .accessibilityIdentifier("activity.pane")
         .onChange(of: selection) { _, _ in onSelect(selectedPick) }
@@ -192,8 +209,7 @@ struct ActivityPaneView: View {
         .task(id: listsArchived) { await readArchivedIfShown() }
         .task(id: refreshKey) { await refreshAll() }
         .task(id: libraries.map(\.id)) { await readHistoryEachMinute() }
-        .fileImporter(isPresented: Binding(get: { choosingFolder != nil }, set: { if !$0 { choosingFolder = nil } }),
-                      allowedContentTypes: [.folder]) { result in
+        .fileImporter(isPresented: $isChoosingFolder, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result, let choice = choosingFolder { chose(url, for: choice) }
             choosingFolder = nil
         }
@@ -232,7 +248,7 @@ struct ActivityPaneView: View {
 
     /// The graphs pane: the sidebar item's graph and figures, full size or under the rows.
     var graphs: some View {
-        ActivityBottomPanel(tab: prefs.tab, history: history, rows: allRows, isFull: graphsFull,
+        ActivityBottomPanel(tab: prefs.tab, history: history, pick: sidebarPick, rows: allRows, isFull: graphsFull,
                             toggleFull: { graphsFull.toggle() })
     }
 

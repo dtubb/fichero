@@ -187,8 +187,8 @@ struct ActivityDetailsView: View {
             if case .readAgain(let label) = action { offer = label }
         }
         return .make(
-            rowId: row.id, rowName: row.name, canStop: row.controls.contains(.stop),
-            jobId: row.jobId, runThreadId: details.runThreadId, readAgainLabel: offer,
+            .init(rowId: row.id, rowName: row.name, canStop: row.controls.contains(.stop),
+                  jobId: row.jobId, runThreadId: details.runThreadId, readAgainLabel: offer),
             store: store, report: { actionFailure = $0 }
         )
     }

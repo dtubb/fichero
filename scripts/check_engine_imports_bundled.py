@@ -8,7 +8,8 @@ app. Run by `preflight-embedded-engine.sh` after the bundle steps, against the r
 
     python scripts/check_engine_imports_bundled.py <path-to-app_packages>
 
-Exit 1 names each missing module and the files that import it.
+Exit 1 names each missing module and the files that import it. A path that is not a directory (no staged
+bundle on this machine) prints a `not run:` row and exits 0; no argument at all is a usage error (2).
 """
 
 from __future__ import annotations
@@ -73,7 +74,11 @@ def main(argv: list[str]) -> int:
     if len(argv) != 2:
         print(__doc__, file=sys.stderr)
         return 2
-    have = bundled_modules(Path(argv[1]))
+    app_packages = Path(argv[1])
+    if not app_packages.is_dir():
+        print(f"not run: check_engine_imports_bundled: no staged bundle at {app_packages}")
+        return 0
+    have = bundled_modules(app_packages)
     missing = {name: files for name, files in engine_imports().items()
                if name not in have and name not in NOT_BUNDLED}
     if missing:

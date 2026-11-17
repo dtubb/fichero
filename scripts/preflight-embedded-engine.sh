@@ -228,6 +228,8 @@ KRAKEN_INSTALL_PY="$("$ROOT_DIR/scripts/find_project_python.sh" "$ROOT_DIR")"
 
 # Every module the engine imports is in the bundle (2026-10-09): nothing the app runs may depend on a
 # Python package, Homebrew tool or provisioning step outside it.
+# The checker prints "not run:" and exits 0 for an absent bundle, which is right on a machine with none and wrong here.
+[ -d "$ENGINE_APP/Contents/Resources/app_packages" ] || { echo "error: no staged bundle at $ENGINE_APP/Contents/Resources/app_packages" >&2; exit 1; }
 "$KRAKEN_INSTALL_PY" "$ROOT_DIR/scripts/check_engine_imports_bundled.py" \
   "$ENGINE_APP/Contents/Resources/app_packages" || exit 1
 

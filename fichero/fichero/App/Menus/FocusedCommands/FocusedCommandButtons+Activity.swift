@@ -20,13 +20,21 @@ struct ActivityRunMenuTarget: Equatable {
         lhs.rowId == rhs.rowId && lhs.canStop == rhs.canStop && lhs.readAgainLabel == rhs.readAgainLabel
     }
 
+    /// The row's fields a target is made from.
+    struct Row {
+        let rowId: String
+        let rowName: String
+        let canStop: Bool
+        let jobId: String?
+        let runThreadId: String?
+        let readAgainLabel: String?
+    }
+
     /// A row's target. `report` gets the failure in words, or nil when the engine took it.
-    static func make(
-        rowId: String, rowName: String, canStop: Bool, jobId: String?, runThreadId: String?,
-        readAgainLabel: String?, store: ActivityStore?, report: @escaping @MainActor (String?) -> Void
-    ) -> Self {
-        Self(
-            rowId: rowId, rowName: rowName, canStop: canStop, readAgainLabel: readAgainLabel,
+    static func make(_ row: Row, store: ActivityStore?, report: @escaping @MainActor (String?) -> Void) -> Self {
+        let (jobId, runThreadId, rowName) = (row.jobId, row.runThreadId, row.rowName)
+        return Self(
+            rowId: row.rowId, rowName: rowName, canStop: row.canStop, readAgainLabel: row.readAgainLabel,
             stop: {
                 guard let store, let jobId else { return }
                 Task {
@@ -54,8 +62,8 @@ struct ActivityRunMenuTarget: Equatable {
     static func stage(
         threadId: String, offer: String, store: ActivityStore?, report: @escaping @MainActor (String?) -> Void
     ) -> Self {
-        make(rowId: threadId, rowName: offer, canStop: false, jobId: nil, runThreadId: threadId,
-             readAgainLabel: offer, store: store, report: report)
+        make(Row(rowId: threadId, rowName: offer, canStop: false, jobId: nil, runThreadId: threadId,
+                 readAgainLabel: offer), store: store, report: report)
     }
 }
 

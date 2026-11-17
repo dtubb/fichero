@@ -48,6 +48,33 @@ extension ShareSettingsView {
         }
     }
 
+    /// The Macs this Mac has joined, each with Forget… (#6662): the other direction from Devices. Nothing when none.
+    @ViewBuilder
+    var connectedMacsSection: some View {
+        if !libraryManager.pairedMachines.isEmpty {
+            Section("Connected Macs") {
+                ForEach(libraryManager.pairedMachines) { machine in
+                    HStack {
+                        Text(machine.shownName)
+                        Spacer()
+                        Button("Forget…") { machineToForget = ForgetMachinePrompt(machine: machine) }
+                    }
+                }
+            }
+            .confirmationDialog(
+                machineToForget?.question ?? "",
+                isPresented: Binding(get: { machineToForget != nil }, set: { if !$0 { machineToForget = nil } }),
+                titleVisibility: .visible,
+                presenting: machineToForget
+            ) { prompt in
+                Button("Forget", role: .destructive) { prompt.confirm(in: libraryManager) }
+                Button("Cancel", role: .cancel) {}
+            } message: { _ in
+                Text(ForgetMachinePrompt.message)
+            }
+        }
+    }
+
     /// Add Device: asks for nothing: the QR, the code, when it expires, Copy Link and Done (`sharing.settings.add-device-sheet`).
     /// With Multi-user on and a Tailscale address that can work, the address and how to sign in, alone (#6568).
     @ViewBuilder

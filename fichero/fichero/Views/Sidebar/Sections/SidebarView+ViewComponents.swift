@@ -99,21 +99,26 @@ extension SidebarView {
                                 machine: "", library: path,
                                 unavailableSentence: libraryManager.greyedSharedRows
                                     .contains(SharedRowAvailability.key(host: machine.id, library: path))
-                                    ? "Not available: \(machine.shownName) no longer shares this" : nil
-                            ) {
-                                guard let open = libraryManager.openSharedLibrary else {
-                                    libraryManager.connectToLibraryRequested = true
-                                    return
+                                    ? "Not available: \(machine.shownName) no longer shares this" : nil,
+                                onForget: { machineToForget = ForgetMachinePrompt(machine: machine) },
+                                onOpen: {
+                                    guard let open = libraryManager.openSharedLibrary else {
+                                        libraryManager.connectToLibraryRequested = true
+                                        return
+                                    }
+                                    Task { await open(machine, path) }
                                 }
-                                Task { await open(machine, path) }
-                            }
+                            )
                         case .nothingShared(let sentence):
                             Text(sentence).foregroundStyle(.secondary)
                         }
                     }
                 } header: {
                     // The person's name for this Mac, with Rename… (#6556).
-                    SharedMachineHeader(machine: machine) { libraryManager.renamePairedMachine(machine.id, to: $0) }
+                    SharedMachineHeader(
+                        machine: machine,
+                        onRename: { libraryManager.renamePairedMachine(machine.id, to: $0) },
+                        onForget: { machineToForget = ForgetMachinePrompt(machine: machine) })
                 }
             }
             // No "Shared Libraries" section until a Mac is paired (`sharing.guest.no-section-until-paired`);
@@ -124,6 +129,17 @@ extension SidebarView {
         }
         .listStyle(.sidebar)
         .accessibilityIdentifier(SidebarAccessibilityID.list)
+        .confirmationDialog(
+            machineToForget?.question ?? "",
+            isPresented: Binding(get: { machineToForget != nil }, set: { if !$0 { machineToForget = nil } }),
+            titleVisibility: .visible,
+            presenting: machineToForget
+        ) { prompt in
+            Button("Forget", role: .destructive) { prompt.confirm(in: libraryManager) }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text(ForgetMachinePrompt.message)
+        }
         // A right-click on no row offers the always-there project's menu (New Folder, Import
         // Files…, Edit Document Types…, Show in Finder): it lost its header row, which held them
         // (`sidebar.top-section.empty-area-menu`). Rows keep their own `.contextMenu`; for a

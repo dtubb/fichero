@@ -9,6 +9,8 @@ struct SharedLibraryRowView: View {
     let library: String
     /// Set when the host answered and no longer lists this library: the row is greyed with one sentence and does not open.
     var unavailableSentence: String?
+    /// Forget This Mac… in the row's context menu; nil for a row with no Mac behind it (the phone's chooser).
+    var onForget: (() -> Void)?
     let onOpen: () -> Void
 
     var body: some View {
@@ -33,6 +35,9 @@ struct SharedLibraryRowView: View {
         .disabled(unavailableSentence != nil)
         .opacity(unavailableSentence == nil ? 1 : 0.5)
         .accessibilityElement(children: .combine)
+        .contextMenu {
+            if let onForget { Button(ForgetMachinePrompt.menuTitle, role: .destructive, action: onForget) }
+        }
     }
 }
 
@@ -41,6 +46,7 @@ struct SharedLibraryRowView: View {
 struct SharedMachineHeader: View {
     let machine: PairedMachine
     let onRename: (String) -> Void
+    let onForget: () -> Void
     @State private var renaming = false
     @State private var draft = ""
 
@@ -54,6 +60,7 @@ struct SharedMachineHeader: View {
                     draft = machine.customName ?? ""
                     renaming = true
                 }
+                Button(ForgetMachinePrompt.menuTitle, role: .destructive, action: onForget)
             }
             .alert("Rename \(machine.shownName)", isPresented: $renaming) {
                 TextField(machine.name, text: $draft)

@@ -31,7 +31,10 @@ extension ActivityPane {
         if let transient = row.transientState { return Glyph(symbol: nil, word: transient, isFailure: false) }
         switch row.phase {
         case .running: return Glyph(symbol: nil, word: "Running", isFailure: false)
-        case .waiting: return Glyph(symbol: "circle", word: "Waiting", isFailure: false)
+        // Blocked, not waiting: the lock, the blocker named in the tooltip only (`activity.pane.blocked-under-its-blocker`).
+        case .waiting:
+            return row.blockedBy != nil ? Glyph(symbol: "lock.circle", word: "Blocked", isFailure: false)
+                : Glyph(symbol: "circle", word: "Waiting", isFailure: false)
         case .paused, .interrupted: return Glyph(symbol: "pause.circle", word: "Paused", isFailure: false)
         case .cancelled: return Glyph(symbol: "stop.circle", word: "Stopped", isFailure: false)
         case .done: return Glyph(symbol: "checkmark.circle.fill", word: "Done", isFailure: false, isSuccess: true)
@@ -39,6 +42,69 @@ extension ActivityPane {
         case .failed: return Glyph(symbol: "xmark.circle.fill", word: "Failed", isFailure: true)
         case .notRun: return Glyph(symbol: "minus", word: "Skipped", isFailure: false)
         case .unknown: return Glyph(symbol: "questionmark.circle", word: row.stateText, isFailure: false)
+        }
+    }
+
+    // MARK: - The page in view
+
+    /// The tooltip and VoiceOver words of the eye (#6442); the row itself says nothing more.
+    static let inViewWord = "Next: the page in view"
+
+    /// A waiting row whose jobs go next because the person has their page open.
+    static func isNextForThePageInView(_ row: ActivityMonitorRow) -> Bool {
+        row.inView > 0 && row.phase == .waiting
+    }
+
+    /// The status bar's figures for it: "3 for the page in view · 212 more"; nil when nothing is in view.
+    static func inViewFigures(_ rows: [ActivityMonitorRow]) -> String? {
+        let waiting = rows.filter { $0.phase == .waiting && $0.blockedBy == nil }
+        let inView = waiting.reduce(0) { $0 + $1.inView }
+        guard inView > 0 else { return nil }
+        let more = waiting.reduce(0) { $0 + max($1.total, 1) } - inView
+        return more > 0 ? "\(inView) for the page in view · \(more) more" : "\(inView) for the page in view"
+    }
+
+    // MARK: - Blocked under its blocker
+
+    /// The rows with blocked work listed UNDER what blocks it (`activity.pane.blocked-under-its-blocker`, #6593): under
+    /// the row of the job that blocks it, else under one row for the need ("Search model bge-m3") when no listed job
+    /// supplies it. The blocker's words are said once, on the blocker; a blocked row is never a top-level row of its
+    /// own.
+    static func underBlockers(_ rows: [ActivityMonitorRow]) -> [ActivityMonitorRow] {
+        let blocked = rows.filter { $0.blockedBy != nil && $0.phase == .waiting }
+        guard !blocked.isEmpty else { return rows }
+        var out = rows.filter { !($0.blockedBy != nil && $0.phase == .waiting) }
+        var needs: [String: Int] = [:]
+        for row in blocked {
+            let blocker = row.blockedBy ?? ""
+            if let index = out.firstIndex(where: { ($0.ownJobId ?? $0.jobId) == blocker }) {
+                out[index].children = (out[index].children ?? []) + [row]
+            } else if let index = needs[blocker] {
+                out[index].children?.append(row)
+            } else {
+                var need = ActivityMonitorRow(
+                    id: "\(row.libraryId?.uuidString ?? "")|need:\(blocker)", kind: .job, libraryId: row.libraryId,
+                    runRowID: nil, runThreadId: nil, jobId: nil, name: needName(blocker), projectName: row.projectName,
+                    phase: .waiting, reason: row.reason, workingOn: nil, done: 0, total: 0, started: nil, seconds: nil,
+                    costUsd: nil, tokens: 0, errors: 0, model: nil, isLive: false, children: [row])
+                need.engineKind = "need"
+                needs[blocker] = out.count
+                out.append(need)
+            }
+        }
+        return out
+    }
+
+    /// A typed need in words: "model:embeddings:bge-m3" is "Search model bge-m3", another runtime's model "Model
+    /// <name>", a key "Key for <provider>", a folder "Folder <name>"; anything else as it is.
+    static func needName(_ blocker: String) -> String {
+        let parts = blocker.split(separator: ":", maxSplits: 2).map(String.init)
+        switch (parts.first, parts.count) {
+        case ("model", 3): return parts[1] == "embeddings" ? "Search model \(parts[2])" : "Model \(parts[2])"
+        case ("model", 2): return "Model \(parts[1])"
+        case ("key", 2): return "Key for \(parts[1])"
+        case ("folder", 2): return "Folder \((parts[1] as NSString).lastPathComponent)"
+        default: return blocker
         }
     }
 

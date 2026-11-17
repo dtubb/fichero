@@ -8,6 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 SCRIPT = Path(__file__).resolve().parents[4] / "scripts" / "harness_review.py"
 MODELS = '[models]\nproviders = ["claude-code"]\nreviewer = {{ provider = "claude-code", model = "{model}", context = {ctx} }}\n'
 
@@ -53,13 +55,29 @@ def test_anything_but_a_final_ready_writes_nothing(tmp_path):
     assert r.returncode == 1 and not store.exists()
 
 
-def test_the_reviewer_is_restricted_without_mcp_and_runs_in_a_fresh_dir_under_home(tmp_path):  # review 4 B2
+@pytest.fixture(autouse=True)
+def _state_dir(tmp_path, monkeypatch):
+    monkeypatch.setenv("FICHERO_BUILDER_STATE", str(tmp_path / "state"))
+
+
+def test_the_reviewer_is_restricted_without_mcp_and_runs_in_a_fresh_dir_under_the_state_dir(tmp_path, monkeypatch):  # review 4 B2, #6589 item 20
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
     r, _ = _run(tmp_path, "READY")
     cwd, _, flags = (tmp_path / "seen").read_text().partition(" ")
     for want in ("--restricted", "--strict-mcp-config", "--tools Read,Grep,Glob"):
         assert want in flags
-    assert os.path.realpath(cwd).startswith(os.path.realpath(Path.home())) and "/r" not in cwd[-3:]
-    assert str(tmp_path) not in cwd and not Path(cwd).exists()  # never the repo or workroot; removed after
+    scratch = Path(os.path.realpath(tmp_path / "state" / "review-scratch"))
+    tree = next(x for x in (tmp_path / "prompt").read_text().splitlines() if x.startswith("TREE: ")).split(" ")[1]
+    assert Path(os.path.realpath(cwd)).parent == scratch and Path(cwd).name.startswith("review-")
+    assert Path(os.path.realpath(tree)).parent == scratch and Path(tree).name.startswith("review-tree-")
+    assert scratch.stat().st_mode & 0o777 == 0o700 and scratch.stat().st_uid == os.getuid()
+    for anc in [scratch, *scratch.parents]:  # claude obeys a CLAUDE.md in the cwd and every ancestor: none may be open to another user
+        if anc.stat().st_uid != 0:
+            assert anc.stat().st_mode & 0o022 == 0 or anc.stat().st_mode & 0o1000, f"{anc} is writable by another user"
+    assert not Path(cwd).exists()  # removed after
+    assert list(scratch.iterdir()) == [] and list(home.iterdir()) == [], "a review leaves nothing in the scratch dir or in $HOME"
 
 
 def test_a_diff_over_the_cap_is_refused_not_truncated(tmp_path):  # review 4 B4

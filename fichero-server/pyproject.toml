@@ -499,6 +499,12 @@ dev = [
     # scripts/install_security_tools.sh
     "pytest-benchmark==5.3.1",
     "pyinstrument==5.1.3",
+    # #6658 #6659: the suite uses these (async tests, @pytest.mark.timeout, property tests, XML interchange);
+    # pinned to what the check machines run, so a clean `.[dev]` install collects and runs it.
+    "hypothesis==6.168.5",
+    "lxml==6.1.3",
+    "pytest-asyncio==1.4.0",
+    "pytest-timeout==2.4.0",
 ]
 
 # #4227: console entry points moved with their code — `fichero` is declared by

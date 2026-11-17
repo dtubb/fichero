@@ -63,6 +63,10 @@ ALLOWLIST: frozenset[str] = frozenset(
         # opened its own connections), behind typed functions on the managed Database -- the persistence entry
         # point the rule asks for. Ordered, paged and one-column SQL that `Database.save`/`query` cannot express.
         "db/activity_records.py",
+        # The Activity pane's reads of the jobs, runs and checkpoints tables (#6588): the SQL moved here FROM
+        # importers/derivatives.py, workflows/activity_models.py, activity_recipes.py and run_account.py, behind typed
+        # functions -- the persistence entry point the rule asks for.
+        "db/activity_queries.py",
         # The recipe runner's whole-project tree reads (2026-10-10): the SQL moved here FROM
         # recipes/runner.py, behind typed functions — the persistence entry point the rule asks for.
         "db/document_tree.py",

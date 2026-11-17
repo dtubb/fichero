@@ -127,7 +127,7 @@ enum StageShowcaseCatalogue {
     }
 
     @ViewBuilder
-    private static func knowledgePicture(for stageId: String, showcase: StageShowcase, progress: Double) -> some View {
+    @MainActor private static func knowledgePicture(for stageId: String, showcase: StageShowcase, progress: Double) -> some View {
         switch stageId {
         case "names": NamesPicture(showcase: showcase, progress: progress)
         case "statements": StatementsPicture(showcase: showcase, progress: progress)

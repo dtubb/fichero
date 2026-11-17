@@ -262,6 +262,11 @@ struct ActivityJob: Identifiable, Equatable {
     /// the stage's model; and the cost (`activity.pane.cost-per-row-and-totals`). Empty or nil on an engine before these.
     var stages: [Stage] = []
     var ranOn: RanOver?
+    /// What blocks this work (`activity.pane.blocked-under-its-blocker`, #6593): another job's id or a typed need
+    /// ("model:embeddings:bge-m3"); nil when nothing does.
+    var blockedBy: String?
+    /// Its waiting jobs ranked for the page in view (`activity.foreground.one-glyph-not-words`, #6442).
+    var inView = 0
     var model: String?
     var costUsd: Double?
     var costEstimateUsd: Double?
@@ -303,8 +308,13 @@ struct ActivityJob: Identifiable, Equatable {
             Remote(target: $0.target ?? "", farState: $0.farState, shards: $0.shards, pagesLanded: $0.pagesLanded ?? 0)
         }
         self.isEarlier = job.group?.rawValue == "earlier"
-        self.stages = (job.stages ?? []).map { Stage(title: $0.title, state: $0.state, done: $0.done ?? 0, total: $0.total ?? 0) }
+        self.stages = (job.stages ?? []).map {
+            Stage(title: $0.title, state: $0.state, done: $0.done ?? 0, total: $0.total ?? 0,
+                  inFlight: $0.inFlight ?? [])
+        }
         self.ranOn = job.ranOn.map { RanOver(kind: $0.kind, count: $0.count ?? 0, name: $0.name) }
+        self.blockedBy = job.blockedBy
+        self.inView = job.inView ?? 0
         self.model = job.model
         self.costUsd = job.costUsd
         self.costEstimateUsd = job.costEstimateUsd
@@ -380,21 +390,4 @@ struct BackgroundJobsSnapshot: Equatable {
     /// The engine's one summary of the live blocks, the background group and History
     /// (`activity.popover.same-summary`, #5852): the window and the popover both read it.
     var activity: Components.Schemas.ActivitySummary?
-}
-
-/// How background work runs on this Mac (`activity.mode.start-stop`, #5621):
-/// the engine's `mode`, set by the one Start / Stop control in the main
-/// toolbar and the Activity window (`PUT /api/activity/jobs/mode`).
-enum ActivityMode: String, Equatable, CaseIterable {
-    /// Heavy work waits while the person uses the Mac or it is on battery.
-    case automatic
-    /// Start: it goes ahead anyway (memory and heat still hold it) until set back.
-    case started
-    /// Stop: Pause Background Work.
-    case paused
-
-    /// The engine's word; an unknown one reads as automatic (the engine's own default).
-    init(engine raw: String?) {
-        self = raw.flatMap(ActivityMode.init(rawValue:)) ?? .automatic
-    }
 }

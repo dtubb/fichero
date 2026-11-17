@@ -14,9 +14,8 @@ var textEditingHasKeyboard: Bool {
 }
 
 enum PaneFocus: Hashable {
-    case sidebar, content, preview, reading, chat, inspector
-    /// The Segments (#4942) and Activity (#6441) panes: a click in either claims command focus, so Split / Close act on it.
-    case segments, activity
+    /// Segments (#4942), Activity (#6441) and Activity Graphs: a click in any claims command focus, so Split / Close act on it.
+    case sidebar, content, preview, reading, chat, inspector, segments, activity, activityGraphs
 
     /// Where focus starts when a window opens (#5824): the sidebar, never a text field such as the reader's find field.
     static let launchDefault: PaneFocus = .sidebar
@@ -36,6 +35,7 @@ enum PaneFocus: Hashable {
         case .inspector: return "Inspector"
         case .segments: return "Segments"
         case .activity: return "Activity"
+        case .activityGraphs: return "Activity Graphs"
         }
     }
 
@@ -49,13 +49,13 @@ enum PaneFocus: Hashable {
         case .chat: .chat
         case .segments: .segments
         case .activity: .activity
+        case .activityGraphs: .activityGraphs
         case .sidebar, .inspector: nil
         }
     }
 }
 
-// Main content view with three-column navigation
-// Switches between Library, Search, and Workflow views based on sidebar selection
+// Main content view: three-column navigation that switches between Library, Search, and Workflow by sidebar selection
 //
 // Architecture: This view has been refactored into multiple extensions for maintainability:
 // - ContentView+State: Computed properties and state helpers

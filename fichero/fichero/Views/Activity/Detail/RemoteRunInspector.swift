@@ -19,6 +19,16 @@ struct RemoteRunInspector: View {
         .task { await service.load(jobId: jobId) }
     }
 
+    @ViewBuilder
+    private func timingLines(_ run: RemoteRunService.Run) -> some View {
+        if run.estimateGpuHours != nil || run.actualSecondsPerShard != nil {
+            Text(estimateWords(run)).font(.callout).foregroundStyle(.secondary)
+        }
+        if let times = run.timesWords {
+            Text(times).font(.callout).monospacedDigit().foregroundStyle(.secondary)
+        }
+    }
+
     private func card(_ run: RemoteRunService.Run) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
@@ -39,9 +49,7 @@ struct RemoteRunInspector: View {
                 .tint(run.farState == "failed" ? .red : .accentColor)
             }
             Text("\(run.pagesLanded) pages landed").font(.callout)
-            if run.estimateGpuHours != nil || run.actualSecondsPerShard != nil {
-                Text(estimateWords(run)).font(.callout).foregroundStyle(.secondary)
-            }
+            timingLines(run)
             ForEach(run.shards.filter { $0.why != nil }) { shard in
                 Label("Shard \(shard.id): \(shard.why ?? "")", systemImage: "exclamationmark.triangle")
                     .font(.callout)

@@ -309,7 +309,7 @@ def background_jobs_snapshot(library: str | None = None) -> list[dict[str, objec
                 # stages in this project (the request names the project; a path would not fit a URL).
                 "id": "derivatives",
                 "task_type": "derivatives",
-                "name": "Processing imported pages",
+                "name": queue_name(library, total),
                 "library": library,
                 "current": done,
                 "total": total,
@@ -318,6 +318,63 @@ def background_jobs_snapshot(library: str | None = None) -> list[dict[str, objec
             }
         )
     return jobs
+
+
+#: The import's stages in the order they run, for the row's children (`activity.pane.names-what-it-works-on`).
+STAGE_KINDS = (THUMBNAIL_KIND, NLP_KIND, EMBED_KIND)
+#: At most this many files named under a running stage: the ones in flight, never the whole folder.
+IN_FLIGHT_NAMED = 8
+
+
+def queue_since(library: str) -> Any:
+    """When this project's import queue began (its first page queued), or None when none is active."""
+    with _progress_lock:
+        state = _progress.get(_key(library))
+        return state.get("since") if state else None
+
+
+def queue_stages(db: Any, since: Any) -> list[dict[str, Any]]:
+    """The import's stages since its queue began (`activity.pane.names-what-it-works-on`, #6588): each derivative kind with
+    its own counts, and the files it is on now by name (at most `IN_FLIGHT_NAMED`), so "which files" is one disclosure
+    away. A kind with nothing queued since is left out."""
+    from fichero_server.core.timeutil import ensure_utc
+    from fichero_server.db import activity_queries
+    from fichero_server.execution import jobs as job_queue
+    from fichero_server.models import Document
+
+    job_queue._ensure(db)
+    begun = ensure_utc(since).replace(tzinfo=None) if since is not None else None
+    rows = activity_queries.stage_rows(db, STAGE_KINDS, begun)
+    stages: list[dict[str, Any]] = []
+    for kind in STAGE_KINDS:
+        mine = [(state, subject) for k, state, subject in rows if k == kind]
+        if not mine:
+            continue
+        running = [subject for state, subject in mine if state == "running"]
+        done = sum(1 for state, _ in mine if state == "done")
+        failed = sum(1 for state, _ in mine if state == "failed")
+        state = "running" if running else ("done" if done + failed == len(mine) else "waiting")
+        names = []
+        for subject in running[:IN_FLIGHT_NAMED]:
+            doc = db.get(Document, str(subject).split(":", 1)[0])
+            names.append(getattr(doc, "name", None) or str(subject))
+        stages.append({"stage": kind, "title": job_queue.kind_name(kind), "state": state, "done": done,
+                       "failed": failed, "total": len(mine), "in_flight": names})
+    return stages
+
+
+def stages_now(db: Any, library: str) -> list[dict[str, Any]]:
+    """The import's stages since its queue began, read off the event loop by the jobs route (#5860)."""
+    return queue_stages(db, queue_since(library))
+
+
+def queue_name(library: str, total: int) -> str:
+    """The import's row names what it works on: "Prepare pages · Letters · 2,618" (the project and the count), never only
+    its kind (`activity.pane.names-what-it-works-on`)."""
+    from pathlib import Path
+
+    project = Path(str(library)).stem or "this project"
+    return f"Prepare pages · {project} · {total:,}"
 
 
 def _emit_queue_progress(

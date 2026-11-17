@@ -85,9 +85,8 @@ enum EngineConfig {
     @TaskLocal static var isolatedTestDefaults: IsolatedTestDefaults?
 
     /// Run `body` with a fresh, empty preference suite of its own as `defaults`, removed afterwards. Tests only.
-    static func withIsolatedTestDefaults<T>(
-        _ body: () async throws -> T,
-        isolation: isolated (any Actor)? = #isolation
+    nonisolated(nonsending) static func withIsolatedTestDefaults<T>(
+        _ body: nonisolated(nonsending) () async throws -> T
     ) async rethrows -> T {
         let name = "\(testSuiteName).\(UUID().uuidString)"
         guard let store = UserDefaults(suiteName: name) else {
@@ -95,7 +94,7 @@ enum EngineConfig {
         }
         defer { store.removePersistentDomain(forName: name) }
         return try await $isolatedTestDefaults.withValue(
-            IsolatedTestDefaults(store), operation: body, isolation: isolation
+            IsolatedTestDefaults(store), operation: body
         )
     }
 

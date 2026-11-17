@@ -638,6 +638,26 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("put-foreground")
+    def activity_put_foreground_put(
+        ctx: typer.Context,
+        client: str = typer.Option(..., '--client', help='the window or pane reporting; its next report replaces this one.'),
+        items: Optional[str] = typer.Option(None, '--items', help='empty: this client has nothing in view. JSON.'),
+    ) -> None:
+        """Put Foreground (PUT /api/activity/foreground)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/foreground"
+            params = None
+            payload = _build_json_payload({
+                "client": client,
+                "items": items,
+            }, {
+                "client": {'type': 'string', 'title': 'Client', 'description': 'the window or pane reporting; its next report replaces this one', 'x-cli-required': True},
+                "items": {'items': {'$ref': '#/components/schemas/ForegroundItem'}, 'type': 'array', 'title': 'Items', 'description': 'empty: this client has nothing in view', 'x-cli-required': False},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("get-history")
     def activity_get_history_get(
         ctx: typer.Context,

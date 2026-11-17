@@ -278,13 +278,16 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
 
 ## Warnings — compiler, build-system and SwiftLint, listed and ratcheted the same way (#6610)
 
-- `perf-sweep.warnings.from-the-result-bundle` [GAP] (#6610) — the build rung and the daily builds (`[check].build`,
-  `[check.daily_builds].ios-sim`, `.tests`, and a new `.ipad-sim` with `-destination 'generic/platform=iOS Simulator'
-  and the iPad test plan's scheme) each pass `-resultBundlePath <run>/<name>.xcresult`, and the warnings are read with
+- `perf-sweep.warnings.from-the-result-bundle` [OK] (#6610) — the remote build rung and the daily builds (`[check].build`,
+  `[check.daily_builds].ios-sim`, `.tests`) each pass `-resultBundlePath <run>/<name>.xcresult` (the local build rung does not: it
+  never reads the bundle, and an unread bundle is tens of MB left on disk; the bundle lives beside the build on the runner, and the
+  warnings JSON read from it is a temp file removed after the ratchet runs). The iPad count (a new `.ipad-sim` daily build with the
+  iPad test plan's scheme) waits for a scheme that carries that plan: until then no `ipad-sim` entry exists, since a copy of `ios-sim`
+  would count the same build twice, and the warnings are read with
   the platform's reader, `xcrun xcresulttool get build-results --path <x>` (JSON: every warning with its message, file,
   line and the issue type), never a regex over the log alone; the kept log (`build-logs/<name>-…log`) is the fallback
   when the bundle is missing (`^(.+?):(\d+):(\d+): warning: (.*)$` for compiler lines, `^warning: (.*)$` for
-  build-system lines) and a read that gets neither is BLIND (exit 2, `check_swiftlint_warning_ratchet.py`'s meaning),
+  build-system lines) and a read that is asked for a bundle or log and gets neither is BLIND (exit 2, `check_swiftlint_warning_ratchet.py`'s meaning),
   never green. Each warning is normalised to `(platform, kind, file, message)` where `kind` is: for Swift, the message
   with quoted identifiers and numbers replaced by `_` (so `'foo' is deprecated` and `'bar' is deprecated` are one kind,
   `deprecated: _`), prefixed by its family when the compiler gives one (`Sendable`, `concurrency`, `unused`,
@@ -292,24 +295,27 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   (`script phase without outputs: 'Validate App Store Bundle'`, `duplicate output file`, `deployment target`, `missing
   Info.plist key`, `linker`). Acceptance (fixture JSON and a fixture log): a build-results JSON with 12 warnings yields 12
   normalised rows and the right kind counts; the owner's example line yields kind `script phase without outputs` with
-  the phase named; two deprecations of different symbols are one kind with count 2; no bundle and no log is BLIND.
-  Test (to write): the new test_check_xcode_warning_ratchet file in fichero-server/tests/unit/scripts, case test_warnings_are_read_from_the_bundle_normalised_to_kinds_and_blind_without_input.
-- `perf-sweep.warnings.ratchet` [GAP] (#6610) — the new check_xcode_warning_ratchet file in scripts, shaped exactly like
+  the phase named; two deprecations of different symbols are one kind with count 2; a named bundle or log that is missing or unreadable is BLIND (exit 2); a run that names neither (the guards rung runs every `check_*.py` bare, before any build) prints `skipped: no build to read` and exits 0: it read nothing, so it claims nothing.
+  Test: the new test_check_xcode_warning_ratchet file in fichero-server/tests/unit/scripts, case test_warnings_are_read_from_the_bundle_normalised_to_kinds_and_blind_without_input. Built: `scripts/check_xcode_warning_ratchet.py` reads and normalises, tested in fichero-server/tests/unit/scripts/test_check_xcode_warning_ratchet.py and fichero-builder/tests/test_perf_sweep.py.
+- `perf-sweep.warnings.ratchet` [OK] (#6610) — the new check_xcode_warning_ratchet file in scripts, shaped exactly like
   `check_swiftlint_warning_ratchet.py` (exit 0 held, 1 grew, 2 BLIND; `--update-baseline`; `--since <base>` for one
   item), holds `scripts/xcode_warning_baseline.json` = `{platform: {kind: count}}` EXACTLY: a batch that adds a warning
   of any kind on any platform is red naming the platform, the kind, the file and line, and both counts; a batch that
   removes one lowers the baseline in the same batch or the land step lowers it (`baseline-falls-every-batch`); a raised
-  baseline in a diff is refused. The rung runs it over the mac build's bundle on every batch that touches `fichero/`;
-  the iOS and iPad counts are held by the daily builds (red there is an alert plus the ratchet's red lines). A warning
+  baseline in a diff is refused (`--check-baseline` exists as a command-line flag; no rung or guard calls it yet, so
+  the refusal is [GAP]). The rung runs it over the mac build's bundle on every batch that touches `fichero/`;
+  the iOS count is held by the daily build (red there is an alert plus the ratchet's red lines); the iPad count waits
+  for an iPad scheme (`ipad-sim` was removed). A warning
   that moves file is not new (counts are per kind, not per file, the SwiftLint ratchet's netting rule). Acceptance: a
   bundle with one more `Sendable` warning than the baseline is red naming it; one fewer is green and prints the lower
   count; a baseline edit that raises a count is refused; `--since` over a fixture pair reports only the item's own new
-  lines. Test (to write): test_check_xcode_warning_ratchet (a new test file), case test_the_count_per_kind_and_platform_may_only_fall_and_since_names_the_item_s_lines.
-- `perf-sweep.warnings.ranked-list-and-issues` [GAP] (#6610) — one list for all three warning sources: the xcode ratchet's
+  lines. Test: test_check_xcode_warning_ratchet (a new test file), case test_the_count_per_kind_and_platform_may_only_fall_and_since_names_the_item_s_lines. Built: the ratchet and the remote build rung's hold, tested in fichero-server/tests/unit/scripts/test_check_xcode_warning_ratchet.py and fichero-builder/tests/test_perf_sweep.py.
+  Baseline: `scripts/xcode_warning_baseline.json` holds no kind for `mac` and `ios` (#6610: the existing warnings were fixed in source, so any warning on either platform refuses a land); the first build after this batch confirms it.
+- `perf-sweep.warnings.ranked-list-and-issues` [OK] (#6610) — one list for all three warning sources: the xcode ratchet's
   kinds, `check_swiftlint_warning_ratchet.py`'s per-rule counts (`TOP_N_RULES` already computed there; the script gains
   `--json <out>` and nothing else) and ruff's per-rule counts where the quality stream holds them, written to
   `<state>/perf/<run-id>/warnings.json` as rows `{source (xcode|swiftlint|ruff), platform, kind, count, trend, example
-  file:line}`, ranked by count, shown in the console beside Hotspots and in the digest's top 10. **One issue per kind,**
+  file:line}`, ranked by count, shown in the console beside Hotspots (the digest's top 10 is [GAP]: nothing writes warnings to the digest yet). **One issue per kind,**
   `Build warnings - <source>: <kind> (<count>)`, with the dedupe key `warn:<source>:<platform>:<kind>` in the body, the
   example lines (up to 20) and the way to clear it; the same filer and caps as hotspots; a kind whose count reaches zero
   closes its issue with the run id. The **first issue** is already known and is filed by hand in Step 6: the `Validate
@@ -317,8 +323,8 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   on every build; the fix is a declared output file per phase (or `alwaysOutOfDate = 1` where the phase must run), which
   also shortens every incremental build and is itself a build-time hotspot. Acceptance (fixture rows, fake `gh`): the
   list ranks three sources together; one issue per kind with the key; a repeat run files nothing new; a kind at zero
-  closes; the Validate phase in a fixture pbxproj is listed as `script phase without outputs`. Test (to write):
-  test_perf_sweep (a new test file), case test_warning_kinds_rank_across_sources_file_one_issue_each_and_close_at_zero.
+  closes; the Validate phase in a fixture pbxproj is listed as `script phase without outputs`. Test:
+  test_perf_sweep (a new test file), case test_warning_kinds_rank_across_sources_file_one_issue_each_and_close_at_zero. Built: `fichero_builder/perf_warnings.py` and the console Warnings table, tested in fichero-builder/tests/test_perf_sweep.py.
 
 ## Rung states — a measurement that did not happen is not green
 
@@ -397,7 +403,7 @@ Smallest first; each step is one lane batch unless marked. Steps 1–2 produce v
 - Tests: fichero-server/tests/unit/scripts/test_check_xcode_warning_ratchet (new), fichero-builder/tests/test_perf_sweep (new)
 - Depends on: 1 (the kept build logs and result bundles)
 - Size: M
-- Order: `-resultBundlePath` on the build rung and the daily builds plus the `ipad-sim` daily build; the reader and the
+- Order: `-resultBundlePath` on the build rung and the daily builds (the `ipad-sim` daily build waits for an iPad scheme); the reader and the
   normaliser over fixtures; the baseline written from the next green mac, iOS and iPad builds (its own commit); the
   ratchet in the build rung for `fichero/` batches; the SwiftLint `--json`; the ranked list, the console panel and one
   issue per kind, the script-phase issue filed first and fixed in its own small batch (a pbxproj edit: owner or manager,

@@ -212,6 +212,12 @@ _ADDED_COLUMNS = (
     # Held by the window's Pause All (`activity.window.run-controls`, #6588): Play (Continue All) resumes exactly these rows,
     # never one a person paused by hand.
     "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS held_by TEXT",
+    # The page in view first (`activity.foreground.rank-on-the-row-and-the-pick`, #6442): above 0 a waiting row of the page
+    # the person has open, higher first, in the pipeline's step order; the lane picks by it. Back to 0 when they move on.
+    "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS foreground_rank INTEGER DEFAULT 0",
+    # The view that set a rank lives in the engine's memory and ends with it: a rank left on a row by an engine that closed
+    # or restarted is stale, so every connection's first read puts them all back to 0.
+    "UPDATE jobs SET foreground_rank = 0 WHERE foreground_rank <> 0",
 )
 
 
@@ -1324,6 +1330,16 @@ def fail_run_rows(db: "Database", run_id: str, reason: str) -> None:
     )
 
 
+def pause_run_rows(db: "Database", run_id: str, reason: str) -> None:
+    """A run its project's close paused (#6596): its row and its unfinished steps' rows are paused with `reason`."""
+    _ensure(db)
+    db.execute(
+        "UPDATE jobs SET state = 'paused', reason = ? WHERE (id = ? OR id LIKE ?) "
+        "AND kind IN ('workflow', 'workflow-step') AND state NOT IN ('done', 'failed', 'cancelled')",
+        [reason, run_id, f"{run_id}:%"],
+    )
+
+
 def _key(db: "Database") -> str:
     from fichero_server.db.manager import DatabaseManager
 
@@ -1609,11 +1625,11 @@ def document_names(db: "Database", ids: list[str]) -> dict[str, str]:
 
 
 def finished_page_jobs_since(db: "Database", since: Any, run_kinds: Any) -> list[tuple]:
-    """Each finished page job (a job under a run's step, not a run or step row) since `since`: its end, state, detail and
-    target, committed (the Activity history, #6588)."""
+    """Each finished page job (a job under a run's step, not a run or step row) since `since`: its end, state, detail,
+    target, model and parent, committed (the Activity history, #6588)."""
     kinds = list(run_kinds)
     return db.execute_fetchall(
-        "SELECT finished_at, state, detail, target FROM jobs WHERE parent_id IS NOT NULL "
+        "SELECT finished_at, state, detail, target, model, parent_id FROM jobs WHERE parent_id IS NOT NULL "
         f"AND kind NOT IN ({', '.join('?' * len(kinds))}) AND state IN ('done', 'failed') AND finished_at >= ?",
         [*kinds, since], committed=True)
 
@@ -1804,6 +1820,101 @@ def say_pausing(db: "Database", job_id: str) -> None:
         "UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'",
         [PAUSING, job_id],
     )
+
+
+#: The page in view first (`activity.foreground.rank-on-the-row-and-the-pick`, #6442; Step 1.14 of the activity spec).
+#: A client that has not reported for this long loses its set (three missed 30 s heartbeats).
+FOREGROUND_EXPIRES_SECONDS = 90.0
+#: Foreground picks in a row on a lane before one goes to the oldest job that is not foreground.
+FOREGROUND_PICKS_BEFORE_ONE_OTHER = 3
+#: A job waiting this long behind foreground picks goes next, once (`activity.foreground.background-never-starved`).
+FOREGROUND_AGE_SECONDS = 300.0
+#: Each project's clients' sets: library key -> client -> (when it lapses, monotonic; [(subject, view rank)]).
+_FOREGROUND: dict[str, dict[str, tuple[float, list[tuple[str, int]]]]] = {}
+_FOREGROUND_LOCK = threading.Lock()
+
+
+def _step_order(kind: str) -> int:
+    """A kind's place in the pipeline (`KINDS`' order: the thumbnail and working rendition, Find Regions, Find Lines,
+    the Reader), so a page's waiting jobs run in sequence."""
+    order = list(KINDS)
+    return min(order.index(kind), 99) if kind in order else 99
+
+
+def set_foreground(db: "Database", client: str, items: list[tuple[str, int]]) -> int:
+    """The page (or pages) a client has in view: its set REPLACES the client's last one and lapses after
+    `FOREGROUND_EXPIRES_SECONDS` without a report. Every WAITING job of a subject in any live set is ranked above 0, the
+    view's first item highest and, within a page, in step order; every other waiting row goes back to 0. Never a new row,
+    never a done job re-run. Returns how many rows are ranked."""
+    with _FOREGROUND_LOCK:
+        sets = _FOREGROUND.setdefault(_key(db), {})
+        if items:
+            sets[client] = (time.monotonic() + FOREGROUND_EXPIRES_SECONDS, list(items))
+        else:
+            sets.pop(client, None)
+    return _apply_foreground(db)
+
+
+def _live_foreground(key: str) -> tuple[dict[str, int], bool]:
+    """The live sets of a project as one: subject -> its best (lowest) view rank; and whether a set lapsed just now."""
+    now = time.monotonic()
+    with _FOREGROUND_LOCK:
+        sets = _FOREGROUND.get(key, {})
+        lapsed = [client for client, (until, _items) in sets.items() if until <= now]
+        for client in lapsed:
+            del sets[client]
+        best: dict[str, int] = {}
+        for _until, items in sets.values():
+            for subject, rank in items:
+                best[subject] = min(rank, best.get(subject, rank))
+    return best, bool(lapsed)
+
+
+def _apply_foreground(db: "Database") -> int:
+    _ensure(db)
+    if not _has_column(db, "foreground_rank"):
+        return 0
+    best, _lapsed = _live_foreground(_key(db))
+    ranks: dict[str, int] = {}
+    if best:
+        marks = ", ".join("?" for _ in best)
+        rows = db.execute_fetchall(
+            f"SELECT id, kind, subject FROM jobs WHERE state = 'waiting' AND deleted_at IS NULL "
+            f"AND split_part(subject, ':', 1) IN ({marks})", list(best))
+        for job_id, kind, subject in rows:
+            view = best.get(subject, best.get(str(subject).split(":", 1)[0], 99))
+            ranks[job_id] = 10_000 - min(view, 99) * 100 - _step_order(kind)
+    # The ranks this connection last wrote: a heartbeat that finds the same ranks rewrites nothing.
+    if getattr(db, "_foreground_applied", None) == (db.conn, ranks):
+        return len(ranks)
+    db.execute("UPDATE jobs SET foreground_rank = 0 WHERE state = 'waiting' AND COALESCE(foreground_rank, 0) > 0")
+    if ranks:
+        values = ", ".join("(?, ?)" for _ in ranks)
+        db.execute(f"UPDATE jobs SET foreground_rank = v.r FROM (VALUES {values}) v(id, r) WHERE jobs.id = v.id",
+                   [x for pair in ranks.items() for x in pair])
+        _scheduler.wake(_key(db))
+    db._foreground_applied = (db.conn, ranks)
+    return len(ranks)
+
+
+def expire_foreground(db: "Database") -> None:
+    """A client that stopped reporting loses its set; its rows go back to 0 (called as a lane looks at a project)."""
+    _best, lapsed = _live_foreground(_key(db))
+    if lapsed:
+        _apply_foreground(db)
+
+
+def _aged_behind_foreground(db: "Database", lane: Any, where: str, params: list[Any], now: Any) -> bool:
+    """A job that is not foreground has waited `FOREGROUND_AGE_SECONDS` behind foreground picks: it goes next, once
+    in that time (`activity.foreground.background-never-starved`)."""
+    if time.monotonic() - lane.aged_pick_at < FOREGROUND_AGE_SECONDS:
+        return False
+    from datetime import timedelta
+
+    oldest = db.execute_fetchone(
+        f"SELECT 1 FROM jobs WHERE state = 'waiting' AND COALESCE(foreground_rank, 0) = 0 AND {where} "
+        "AND created_at <= ? LIMIT 1", [*params, now - timedelta(seconds=FOREGROUND_AGE_SECONDS)])
+    return oldest is not None
 
 
 def wake_lane(db: "Database") -> None:
@@ -3578,6 +3689,8 @@ def snapshot(db: "Database", *, failed_limit: int = 20, archived: bool = False) 
     # kind's queue row (which the lane is working through).
     has_blocked = _has_column(db, "blocked_by")
     blocked_col = "blocked_by" if has_blocked else "NULL AS blocked_by"
+    # The page in view first (#6442): its rank orders the waiting rows as the lane picks them.
+    in_view_sql = "COALESCE(foreground_rank, 0)" if _has_column(db, "foreground_rank") else "0"
     in_queue = "(state = 'running' OR (state = 'waiting' AND blocked_by IS NULL))" if has_blocked else "state IN ('running', 'waiting')"
     blocked_case = "WHEN state = 'waiting' AND blocked_by IS NOT NULL THEN 'blocked:' || blocked_by " if has_blocked else ""
     counts = {
@@ -3598,6 +3711,7 @@ def snapshot(db: "Database", *, failed_limit: int = 20, archived: bool = False) 
             parts.append(
                 f"(SELECT * FROM jobs WHERE kind = ? AND {queued} AND {in_queue}{cleared_filter} "
                 f"ORDER BY CASE state WHEN 'running' THEN 0 ELSE 1 END, "
+                f"CASE WHEN state = 'waiting' THEN -{in_view_sql} ELSE 0 END, "
                 f"CASE WHEN state = 'waiting' THEN -{_PERSON_RANK_SQL} ELSE 0 END, epoch_ms(created_at), rowid LIMIT 1)"
             )
             parts.append(
@@ -3632,7 +3746,8 @@ def snapshot(db: "Database", *, failed_limit: int = 20, archived: bool = False) 
         "SELECT id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at, "
         f"started_by, {waiting_on_col}, {blocked_col} FROM (" + " UNION ALL ".join(parts) + ") "
         "ORDER BY CASE state WHEN 'running' THEN 0 WHEN 'waiting' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END, "
-        # waiting rows in the order the lane will pick them (#5839): a person's first, then oldest
+        # waiting rows in the order the lane will pick them (#5839): the page in view (#6442), a person's, then oldest
+        f"CASE WHEN state = 'waiting' THEN -{in_view_sql} ELSE 0 END, "
         f"CASE WHEN state = 'waiting' THEN -{_PERSON_RANK_SQL} ELSE 0 END, "
         "CASE WHEN state = 'failed' THEN -epoch_ms(finished_at) ELSE epoch_ms(created_at) END, id",  # finished: newest first
         params,
@@ -3723,6 +3838,14 @@ def snapshot(db: "Database", *, failed_limit: int = 20, archived: bool = False) 
                     f"paused:{kind}" if group[0] == "paused" else f"waiting:{kind}"
                 )  # `queue_of` reads this id
         out.append(row)
+    # How many of each row's waiting jobs are for the page in view (`activity.foreground.one-glyph-not-words`, #6442).
+    if in_view_sql != "0" and not archived:
+        in_view = dict(db.execute_fetchall(
+            "SELECT kind, count(*) FROM jobs WHERE state = 'waiting' AND COALESCE(foreground_rank, 0) > 0 "
+            "AND deleted_at IS NULL GROUP BY kind", committed=True))
+        for (group_kind, name), rep in reps.items():
+            if group_kind in ("queue", "waiting") and in_view.get(name):
+                rep["in_view"] = in_view[name]
     # How many of this kind's work are already done (since its oldest job still queued was queued), so a row reads
     # "12 of 41" (#5839). Only for the rows that stand for a whole kind.
     for (group_kind, name), rep in reps.items():
@@ -4729,6 +4852,10 @@ class _Lane:
         #: switch that is waiting for the quiet spell.
         self.loaded_used_at = 0.0
         self.look_again_at: float | None = None
+        #: Foreground picks in a row, and when a background job last went first by its age
+        #: (`activity.foreground.background-never-starved`).
+        self.foreground_streak = 0
+        self.aged_pick_at = 0.0
         #: A claim found the lane held by memory: the next claim frees the models the engine holds idle BEFORE it takes any lock
         #: (closing a process and a collect under `_heavy_pick` stalled every heavy lane, #6129). None: not asked; else the
         #: families of the jobs that were held, kept (freeing a held job's own model would only load it again). Set and taken
@@ -5494,17 +5621,36 @@ class _Scheduler:
                 idle.append(key)
                 continue
             now = utc_now()
+            expire_foreground(db)  # a client gone quiet for 90 s: its page in view goes back to 0 (#6442)
             # A row blocked on something (`blocked_by`, #6593) is never picked, never re-deferred, never held or re-worded here.
             unblocked = " AND blocked_by IS NULL" if _has_column(db, "blocked_by") else ""
+            # The page in view first (#6442), but never starving the rest: after three foreground picks, or once a
+            # background job has waited five minutes behind them, this pick takes the oldest job that is not foreground.
+            fg_sql, fg_only = "0", ""
+            if _has_column(db, "foreground_rank"):
+                fg_sql = "COALESCE(foreground_rank, 0)"
+                if lane.foreground_streak and (
+                    lane.foreground_streak >= FOREGROUND_PICKS_BEFORE_ONE_OTHER
+                    or _aged_behind_foreground(db, lane, where, params, now)
+                ):
+                    fg_sql, fg_only = "0", " AND COALESCE(foreground_rank, 0) = 0"
 
             def first(clause: str, extra: list[Any]) -> tuple | None:
                 return db.execute_fetchone(
-                    f"SELECT id, kind, subject, model, created_at, {_PERSON_WAITS_SQL}, {_PERSON_RANK_SQL} FROM jobs "
+                    f"SELECT id, kind, subject, model, created_at, {_PERSON_WAITS_SQL}, {_PERSON_RANK_SQL}, {fg_sql} FROM jobs "
+                    f"WHERE state = 'waiting' AND (run_after IS NULL OR run_after <= ?) AND {where}{clause}{unblocked}{fg_only} "
+                    # Never "ORDER BY 0": a bare integer there is a column's position, not a value.
+                    f"ORDER BY {attached_first}{fg_sql + ' DESC, ' if fg_sql != '0' else ''}"
+                    f"{_PERSON_RANK_SQL} DESC, (model IS NOT DISTINCT FROM ?) DESC, "
+                    f"{_model_rank_sql()}, created_at, rowid LIMIT 1",
+                    [now, *params, *extra, *attached, lane.loaded_model],
+                ) or (db.execute_fetchone(
+                    f"SELECT id, kind, subject, model, created_at, {_PERSON_WAITS_SQL}, {_PERSON_RANK_SQL}, 0 FROM jobs "
                     f"WHERE state = 'waiting' AND (run_after IS NULL OR run_after <= ?) AND {where}{clause}{unblocked} "
                     f"ORDER BY {attached_first}{_PERSON_RANK_SQL} DESC, (model IS NOT DISTINCT FROM ?) DESC, "
                     f"{_model_rank_sql()}, created_at, rowid LIMIT 1",
                     [now, *params, *extra, *attached, lane.loaded_model],
-                )
+                ) if fg_only else None)
 
             # Asked BEFORE the pick, never after (#5585): a thumbnail finishing between the two would
             # otherwise leave the work it held neither picked (still held at the pick) nor held (done
@@ -5584,13 +5730,22 @@ class _Scheduler:
             key=lambda c: (
                 c[3],
                 c[2][0] not in attached,
+                -c[2][7],  # the page in view (#6442)
                 -c[2][6],
                 c[2][3] != lane.loaded_model,
                 _model_rank(c[2][3]),
                 c[2][4],
             )
         )
-        return candidates[0][:3]
+        chosen = candidates[0]
+        # The streak the one-in-four counts: a foreground pick adds one, any other ends it (#6442).
+        if chosen[2][7]:
+            lane.foreground_streak += 1
+        else:
+            if lane.foreground_streak:
+                lane.aged_pick_at = time.monotonic()
+            lane.foreground_streak = 0
+        return chosen[:3]
 
     def _work(
         self, db: "Database", job_id: str, kind: "Kind", subject: str, handed_in: Any

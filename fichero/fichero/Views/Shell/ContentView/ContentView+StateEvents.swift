@@ -63,7 +63,10 @@ extension ContentView {
         // pick left over from before cannot stand in for it. This retires
         // #4299's carve-out, which kept that pick when the row only re-rooted
         // the listing.
-        browserSelection.removeAll()
+        // A click on a source selects it in this one write; clearing first made two changes (#6657).
+        let clickedId = newFolderId.flatMap { $0.hasPrefix("doc:") ? String($0.dropFirst(4)) : nil }
+        let clicked = clickedId.flatMap { documentStore.resolveDocument($0) }
+        browserSelection = SidebarSourceOpen.selectionOnClick(clicked)
         // #4523: a NEW library container is a new browse context, so the
         // remembered run selection is stale scope — drop it. Navigation to
         // workflow/chain/section rows does NOT reach this branch, which is
@@ -90,8 +93,9 @@ extension ContentView {
         let applyDoc: (Document) -> Void = { doc in
             applySidebarSelectedDocument(doc)
         }
-        let inHand = documentStore.currentDocuments.first(where: { $0.id == docId })
-            ?? documentStore.collections.first(where: { $0.id == docId })
+        // Every cache the store holds, not only the listing shown: a source in another folder is in the sidebar's
+        // children cache, and clearing the detail to fetch it was a step between the folder and the source (#6657).
+        let inHand = documentStore.resolveDocument(docId)
         switch SidebarFolderDetail.plan(currentDetailId: detailDocument?.id, folderId: docId, inHand: inHand != nil) {
         case .keep:
             // Still fed through, for the run selection (#4523); the detail write is equal, so nothing changes.

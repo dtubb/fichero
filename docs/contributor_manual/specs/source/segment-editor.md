@@ -1391,6 +1391,7 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   (`test_imported_page_draws_its_boxes.py::test_a_line_drawn_inside_a_region_is_that_region_s_line_in_its_order_and_one_undo_takes_both`,
   Syriac; `ImportedPageDrawsItsBoxesTests.testALineDrawnInsideARegionIsCreatedAsThatRegionsLine`).
   **Not yet:** a point and an open line; pages whose boxes come from an artifact.
+  *Built note (#6412):* on a page drawn from an artifact (`DrawTarget`), a polygon on a page whose boxes are not segment rows yet (a `legacy:` pass) goes to the regions route (`artifactService.addRegion`); a line there, or any draw with no pass shown, is refused with a logged reason, never dropped (`DrawTargetTests.swift`).
 - `source.editor.reshape` — **[PARTIAL]** (#4941) points can be dragged, added and removed; shapes moved and nudged.
   **Built 2026-09-28 (image pages, segment passes):** the overlay draws a segment AS its shapes -- the
   outline its file drew, an open path, a point, the baseline under the ink -- not its box

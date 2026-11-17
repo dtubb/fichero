@@ -210,6 +210,8 @@ class BackgroundJob(BaseModel):
     # download) or a typed need ("model:embeddings:<id>") when no job supplies it. A blocked row is never picked by the lane;
     # the app draws it under its blocker. Null for any row that is not blocked.
     blocked_by: Optional[str] = None
+    # Its waiting jobs ranked for the page in view (`activity.foreground.one-glyph-not-words`, #6442); 0 for none.
+    in_view: int = 0
 
 
 class RanOn(BaseModel):
@@ -385,6 +387,7 @@ class StageCount(BaseModel):
     done: int = 0
     failed: int = 0
     total: int = 0
+    in_flight: list[str] = Field(default_factory=list, description="the files it is on now, by name (an import's stage)")
 
 
 BackgroundJob.model_rebuild()  # `stages` names StageCount, defined here
@@ -965,6 +968,10 @@ async def list_background_jobs(
         if held:
             for job in jobs:
                 job.state, job.reason = "waiting", held
+        # Its children are the stages it holds, each with its count and the files it is on now (#6588).
+        stages = await asyncio.to_thread(derivatives.stages_now, db, library)
+        for job in jobs:
+            job.stages = [StageCount(**stage) for stage in stages]
 
     # Workflow runs that are running, paused or recently failed. A completed run is not a
     # "job" the user needs to watch; a running, paused or failed one is.
@@ -972,6 +979,7 @@ async def list_background_jobs(
         tracker = get_activity_tracker(str(db.path))
         runs = await tracker.store.list_workflow_runs(limit=50)
         from fichero_server.workflows.run_account import run_account
+        from fichero_server.execution.jobs import paused_failure
 
         # A failed run whose pages were read again by a newer run (Retry, or Read Again) is that run's now: one
         # row, not two (`activity.retry.one-row`).
@@ -1008,12 +1016,16 @@ async def list_background_jobs(
                     total=total,
                     percent=round(percent, 1),
                     state=status,
-                    reason=(run.error or None) if status == "failed" else (account.waiting_reason if account else None),
+                    # A run paused by a cause, not a person (its project closed, #6596; the app quit), says which.
+                    reason=(run.error or None) if status == "failed" or (status == "paused" and run.error)
+                    else (account.waiting_reason if account else None),
                     account=account,
                     # A run without its end time still lists, with its reason: never vanish over a timestamp.
                     failed_at=_utc(getattr(run, "completed_at", None)) if status == "failed" else None,
                     finished_at=_run_finished_at(status, getattr(run, "completed_at", None)),
-                    failure=_run_failure(run) if status == "failed" else None,
+                    failure=_run_failure(run) if status == "failed" else (
+                        await asyncio.to_thread(paused_failure, db, run.thread_id, run.error)
+                        if status == "paused" else None),
                     runs_on=await asyncio.to_thread(_run_runs_on, db, run.thread_id),
                 )
             )
@@ -1085,7 +1097,7 @@ async def list_background_jobs(
                 failed_at=_utc(row.get("failed_at")) if state == "failed" else None,
                 finished_at=_utc(row.get("finished_at")),
                 started_by=row.get("started_by"),
-                blocked_by=row.get("blocked_by"),
+                blocked_by=row.get("blocked_by"), in_view=row.get("in_view", 0),
                 remote=(remote := await asyncio.to_thread(_remote_row, db, row)),  # a database read
                 ran_on=ran_on, stages=stages, model=model, cost_usd=cost, cost_estimate_usd=estimate,
                 runs_on=_runs_on(row["kind"], remote, cost), lane=_lane_of(row["kind"]),
@@ -1692,19 +1704,46 @@ class ActivityModel(BaseModel):
     seconds_today: float = 0.0
 
 
+class ActivityPlace(BaseModel):
+    """A place work can run, set up whether used or not (owner 2026-11-16): this Mac, another Mac by its address, a
+    cluster by its name, a cloud provider. `provider` is its node under the place, as a model's provider is."""
+
+    place: Literal["this-mac", "remote", "cloud"]
+    provider: str
+
+
+class LaneLoad(BaseModel):
+    lane: str
+    busy: int = Field(description="this project's jobs running in it now")
+    width: int = Field(description="how many it runs at once")
+
+
+class ThisMac(BaseModel):
+    """This Mac, measured (`activity.resources.everything-measured`): null where nothing measures it, never 0."""
+
+    memory_used_bytes: Optional[int] = None
+    memory_total_bytes: Optional[int] = None
+    processor_percent: Optional[float] = Field(default=None, description="the last minute's load over its cores, %")
+    lanes: list[LaneLoad] = Field(default_factory=list)
+
+
 class ActivityModelsResponse(BaseModel):
     models: list[ActivityModel] = Field(default_factory=list)
+    places: list[ActivityPlace] = Field(default_factory=list, description="every place set up, used or not")
+    this_mac: Optional[ThisMac] = None
 
 
 @router.get("/models", response_model=ActivityModelsResponse)
 async def activity_models(db: Database = Depends(get_library_database)) -> ActivityModelsResponse:
     """The Models tree (`activity.window.models-tree`, `activity.resources.everything-measured`, #6588): every model this
-    project used today or the engine holds now, by place (this Mac, remote, cloud) and provider, loaded or not, active or
-    not, its memory where measured, today's pages, calls and seconds."""
-    from fichero_server.workflows.activity_models import models
+    project used today, the engine holds now or this Mac has installed, by place (this Mac, remote, cloud) and provider,
+    loaded or not, active or not, its memory where measured, today's pages, calls and seconds; and every place set up."""
+    from fichero_server.workflows.activity_models import models, places, this_mac
 
     found = await asyncio.to_thread(models, db)
-    return ActivityModelsResponse(models=[ActivityModel(**m) for m in found])
+    return ActivityModelsResponse(models=[ActivityModel(**m) for m in found],
+                                  places=[ActivityPlace(**p) for p in await asyncio.to_thread(places)],
+                                  this_mac=ThisMac(**await asyncio.to_thread(this_mac, db)))
 
 
 class RecipeStepRow(BaseModel):
@@ -1764,6 +1803,33 @@ async def activity_recipes(days: int = 30, db: Database = Depends(get_library_da
 
     found = await asyncio.to_thread(recipes, db, days=max(1, min(days, 365)))
     return ActivityRecipesResponse(recipes=[RecipeRow(**r) for r in found])
+
+
+class ForegroundItem(BaseModel):
+    subject: str = Field(description="a page or document the person has in view")
+    rank: int = Field(0, ge=0, description="its place in the view: 0 the page shown, then its neighbours")
+
+
+class ForegroundRequest(BaseModel):
+    client: str = Field(description="the window or pane reporting; its next report replaces this one")
+    items: list[ForegroundItem] = Field(default_factory=list, description="empty: this client has nothing in view")
+
+
+class ForegroundResponse(BaseModel):
+    ranked: int = Field(description="waiting jobs now ranked for the page in view, in this project")
+
+
+@router.put("/foreground", response_model=ForegroundResponse)
+async def put_foreground(request: ForegroundRequest,
+                         db: Database = Depends(get_library_database_for_write)) -> ForegroundResponse:
+    """The page in view first (`activity.foreground.rank-on-the-row-and-the-pick`, #6442; Step 1.14): the client's set of
+    what is in view replaces its last one, and the waiting jobs of those pages are ranked first in step order; the rest go
+    back to 0. A set not reported again within 90 s lapses. It starts nothing and re-runs nothing."""
+    from fichero_server.execution import jobs as job_queue
+
+    ranked = await asyncio.to_thread(job_queue.set_foreground, db, request.client,
+                                     [(item.subject, item.rank) for item in request.items])
+    return ForegroundResponse(ranked=ranked)
 
 
 class JobPauseRequest(BaseModel):

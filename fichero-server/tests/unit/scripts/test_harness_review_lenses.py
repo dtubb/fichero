@@ -10,8 +10,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 SCRIPT = Path(__file__).resolve().parents[4] / "scripts" / "harness_review.py"
 MODELS = '[models]\nproviders = ["claude-code"]\nreviewer = { provider = "claude-code", model = "opus", context = 200000 }\n'
+
+
+@pytest.fixture(autouse=True)
+def _state_dir(tmp_path, monkeypatch):
+    monkeypatch.setenv("FICHERO_BUILDER_STATE", str(tmp_path / "state"))
 
 
 def _prompt(tmp_path, files: dict[str, str], ladder: Path | None = None) -> str:

@@ -19,6 +19,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import signal
 import subprocess
 import sys
@@ -153,6 +154,7 @@ class Procs:
     tell: Callable[[dict, str], str] = lambda lane, text: ""  # (lane, text) -> '' or why: into an external lane's registered pane
     after_land: Callable[[dict, dict, str], None] = lambda lane, step, head: None  # an external lane's batch landed: sweep its land tree
     intake: Callable[[dict], str] = lambda lane: ""  # an external lane -> the sha to take now by itself (thresholds), or ''
+    cleanup_ref: str = ""  # origin/<land branch>: what a landing leaves behind is removed once its head is on it; "" = off (#6589 item 16)
     trees: Callable[[list], dict] = lambda paths: {}  # paths -> {path: "HEAD status-hash"}: what a step must leave unmoved (run.loop-machine-checked)
     jail_root: str = ""
     blob: Callable[[dict, dict, str], str] = lambda lane, step, path: ""  # (lane, step, path) -> the blob sha of path at the checked head, '' if none
@@ -1225,6 +1227,72 @@ def _green_first(lane: dict) -> int:
     return 0 if s and s["state"] == "done" and not s.get("retry_of") else 1
 
 
+CLEAN_KEPT: dict = {}  # (lane, path) -> the reason last written, so a kept tree is one row, not one a tick
+
+
+def _cg(cwd, *a) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", "-C", str(cwd), *a], capture_output=True, text=True)
+
+
+def _cleanup_row(lane: dict, step: str, path: str, state: str, detail: str) -> None:
+    journal.append("cleanup", lane=lane["id"], step=step, path=path, state=state, detail=detail)
+
+
+def _remove_tree(lane: dict, step: str, tree: str, repo: str) -> bool:
+    """`git worktree remove` (never --force) of `tree`, run from `repo`; a dirty tree stays and one row says why. True when removed."""
+    key = (lane["id"], tree)
+    if _cg(tree, "status", "--porcelain").stdout.strip():
+        why = f"{tree} kept: it has uncommitted changes"
+    else:
+        r = _cg(repo, "worktree", "remove", tree)
+        if r.returncode == 0:
+            CLEAN_KEPT.pop(key, None)
+            _cleanup_row(lane, step, tree, "removed", f"{tree} removed")
+            return True
+        why = f"{tree} kept: {(r.stderr or r.stdout).strip()[-200:]}"
+    if CLEAN_KEPT.get(key) != why:
+        CLEAN_KEPT[key] = why
+        _cleanup_row(lane, step, tree, "kept", why)
+    return False
+
+
+def clean_up(lane: dict, ref: str) -> None:
+    """#6589 item 16 (dev-workflows.run.loop-cleanup): a landed step whose head is an ancestor of `ref` loses its land-<lane> snapshot; a
+    worker lane with no step left also loses its tree wt-<lane> and, when merged into `ref`, its branch. Never --force; one row each."""
+    heads: dict = {}
+    for s in lane["steps"]:
+        tree = s.get("land_tree") or ""
+        if s["state"] != "landed" or not s.get("head") or not tree or not os.path.isdir(tree):
+            continue
+        if any(o is not s and o.get("land_tree") == tree and o["state"] != "landed" for o in lane["steps"]):
+            continue  # a later batch is using this same snapshot
+        if heads.setdefault(tree, _cg(tree, "rev-parse", "HEAD").stdout.strip()) != s["head"]:
+            continue  # the tree was reset to a newer sha: it is not this step's snapshot any more
+        if _cg(tree, "merge-base", "--is-ancestor", s["head"], ref).returncode == 0:
+            _remove_tree(lane, s["step"], tree, _cg(tree, "rev-parse", "--path-format=absolute", "--git-common-dir").stdout.strip() or lane["worktree"])
+    wt = lane["worktree"]
+    if (lane.get("kind") == "external" or not lane["steps"] or lane["cursor"] < len(lane["steps"]) or any(s["state"] != "landed" for s in lane["steps"])
+            or os.path.basename(wt) != f"wt-{lane['id']}" or not os.path.isdir(wt)):
+        return
+    branch = _cg(wt, "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+    common = _cg(wt, "rev-parse", "--path-format=absolute", "--git-common-dir").stdout.strip()
+    if not branch or branch == "HEAD" or not common:
+        why = f"{wt} kept: its branch or git dir could not be read from this user"
+        if CLEAN_KEPT.get((lane["id"], wt)) != why:
+            CLEAN_KEPT[(lane["id"], wt)] = why
+            _cleanup_row(lane, "", wt, "kept", why)
+        return
+    if _cg(wt, "merge-base", "--is-ancestor", branch, ref).returncode != 0:
+        why = f"{wt} kept: its branch {branch} is not merged into {ref}"
+        if CLEAN_KEPT.get((lane["id"], wt)) != why:
+            CLEAN_KEPT[(lane["id"], wt)] = why
+            _cleanup_row(lane, "", wt, "kept", why)
+        return
+    if _remove_tree(lane, "", wt, common):
+        r = subprocess.run(["git", "--git-dir", common, "branch", "-D", branch], capture_output=True, text=True)
+        _cleanup_row(lane, "", wt, "removed" if r.returncode == 0 else "kept", f"branch {branch} " + ("removed" if r.returncode == 0 else f"kept: {r.stderr.strip()[-200:]}"))
+
+
 def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, chains: dict | None = None) -> bool:
     busy = False
     for lane in sorted(filter(_ours, load()), key=_green_first):
@@ -1232,6 +1300,11 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
             if manage(lane, procs):
                 lane = next(x for x in load() if x["id"] == lane["id"])
             busy = tick_lane(lane, procs, handles, workers_n, push, out, chains) or busy
+            if procs.cleanup_ref:
+                with journal.Lock("queue"):  # a concurrent `builder done` resets land-<lane>; re-read the lane inside the lock, so HEAD is checked against the current queue
+                    cur = next((x for x in load() if x["id"] == lane["id"]), None)
+                    if cur is not None:
+                        clean_up(cur, procs.cleanup_ref)
         except Exception:  # noqa: BLE001 - the same for the tick's own work on a lane: a row, and the other lanes still tick
             journal.append("loop", state="lane-error", lane=lane["id"], detail=traceback.format_exc()[-1500:])
             out(f"{lane['id']}: lane error (journal row lane-error); the loop goes on")
@@ -1811,7 +1884,7 @@ def real_procs(root) -> Procs:
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0, adopt=lambda lane: adopt_session(jail.load(root), lane),
                  landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
-                 next_milestone=lambda taken: next_in_order(root, taken), build=build, verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake,
+                 next_milestone=lambda taken: next_in_order(root, taken), build=build, verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "",
                  workroot=str(rules.get("jail", {}).get("workroot", "")), blob=blob, root=str(root), jail_gh=bool(rules.get("jail", {}).get("gh")),
                  inline_paths=tuple(rules.get("jail", {}).get("inline_paths", brief_tool.INLINE_DEFAULT)))
@@ -2017,7 +2090,16 @@ def main(a) -> int:
         if not (a.lane and a.worktree and a.step and a.brief):
             print("REFUSED: queue add needs --lane, --worktree, --step and --brief")
             return 1
-        add(a.lane, a.worktree, a.step, a.brief, a.issues, kind=getattr(a, "kind", "worker"), hold=True if getattr(a, "hold", False) else None,
+        src = Path(a.brief).expanduser()
+        if not src.is_file():
+            print(f"REFUSED: the brief {a.brief} is not a file")
+            return 1
+        kept = journal.STATE / "manager" / "briefs"  # a lane never depends on a loose file (#6589 item 21)
+        dest = kept / f"{slug(a.lane)}-{slug(a.step)}.txt"
+        if src.resolve() != dest.resolve():
+            kept.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src, dest)
+        add(a.lane, a.worktree, a.step, str(dest), a.issues, kind=getattr(a, "kind", "worker"), hold=True if getattr(a, "hold", False) else None,
             pane=getattr(a, "pane", ""), maintainer=True if getattr(a, "maintainer", False) else None)
         print(f"queued {a.lane} {a.step}")
         return 0

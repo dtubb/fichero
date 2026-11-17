@@ -498,6 +498,12 @@ extension ContentView {
                 syncFocusedDocumentSelection(newDoc)
                 handleDetailDocumentChange(from: oldDoc, to: newDoc)
             }
+            // The page in view goes first in the engine's queue (#6442): the Preview's page and its neighbours.
+            .modifier(PageInViewReporter(
+                service: libraryManager.openLibraries
+                    .first { $0.id == libraryManager.currentLibraryId }?.activityService,
+                items: PageInView.items(shown: previewDocument?.id, in: documentStore.currentDocuments.map(\.id))
+            ))
             // #4518: the ONE teardown for "this window now shows a different
             // library" — closing a library falls back to Global, and nothing
             // else clears the per-document snapshots, so Preview/Reader/

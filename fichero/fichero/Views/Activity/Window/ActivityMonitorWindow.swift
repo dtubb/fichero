@@ -20,7 +20,8 @@ struct ActivityMonitorWindow: View {
             .focusedSceneValue(\.windowSteps, steps)
             .overlay(alignment: .bottom) { UndoRefusalNotice(steps: steps) }
             .navigationTitle("Activity")
-            .frame(minWidth: 980, minHeight: 560)
+            // The columns' sizes fit in this minimum (`ActivityPaneView+WindowLayout.swift`, #6661).
+            .frame(minWidth: ActivityPaneView.windowMinWidth, minHeight: ActivityPaneView.windowMinHeight)
             .accessibilityIdentifier("activity.window")
     }
 }

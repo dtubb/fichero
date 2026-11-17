@@ -484,14 +484,15 @@ RULES (earlier clusters were sent back for these):
 """
 
 [spend]
-# Caps the watcher enforces (dev-workflows.run.watch-tick): 8 USD per worker session, 60 USD per day (owner ruling
+# Caps the watcher enforces (dev-workflows.run.watch-tick): 8 USD per worker session, 250 USD per day (owner 2026-11-16 evening,
+# raised from 60 after the day cap parked every lane; earlier: owner ruling
 # 2026-11-01 evening, raised from 5/20 after the day cap parked the product worker; notional under the Max login, not a
 # bill). A worker whose model has no price here does not start.
 window = 200000   # plain sonnet's window (owner 2026-11-02: every turn stays under 200k; handoffs often, cheap and reliable)
 handoff_at = 0.85
 handoff_tokens = 175000   # owner 2026-11-02: hand off here, an absolute count (a lane used 17M tokens for three steps on a 1M window)
 session_usd = 8
-day_usd = 60
+day_usd = 250   # owner 2026-11-16 evening: Max plan, more than 120 a day is fine
 silent_s = 1800
 prices = { sonnet = [3, 15], opus = [15, 75], haiku = [1, 5] }
 

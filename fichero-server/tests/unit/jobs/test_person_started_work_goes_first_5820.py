@@ -100,7 +100,9 @@ def test_activity_lists_the_waiting_rows_in_the_order_they_will_run(db, lane):
     assert [r["kind"] for r in jobs.snapshot(db)] == [WATCHED, PERSON, BACKGROUND]
 
 
-def test_a_model_lane_row_made_while_a_person_waits_is_watched(db):
+def test_a_model_lane_row_made_while_a_person_waits_is_watched(db, monkeypatch):
+    # the lane thread looks the row's kind up when it picks the row; an unregistered kind kills the thread for later tests
+    monkeypatch.setitem(jobs.KINDS, "read-page", jobs.Kind(run=lambda db, subject: None, model="m", lane="recipes", name="Read a page"))
     with jobs.person_is_waiting():
         future = jobs.submit(db, "read-page", "p1", model="m", fn=lambda: None, lane="recipes")
     other = jobs.submit(db, "read-page", "p2", model="m", fn=lambda: None, lane="recipes")

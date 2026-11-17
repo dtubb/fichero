@@ -262,6 +262,15 @@ def fichero_activity_continue_all(
     return _rt.call("POST", "/api/activity/continue-all")
 
 
+def fichero_activity_put_foreground(
+    *,
+    client: Annotated[str, Field(description='the window or pane reporting; its next report replaces this one.')],
+    items: Annotated[Optional[list[Any]], Field(description='empty: this client has nothing in view.')] = None,
+) -> Any:
+    "Put Foreground\n\nThe page in view first (`activity.foreground.rank-on-the-row-and-the-pick`, #6442; Step 1.14): the client's set of\nwhat is in view replaces its last one, and the waiting jobs of those pages are ranked first in step order; the rest go\nback to 0. A set not reported again within 90 s lapses. It starts nothing and re-runs nothing.\n\nRoute: PUT /api/activity/foreground (toolset `activity`; changes data, as the agent account when one exists)."
+    return _rt.call("PUT", "/api/activity/foreground", json=_rt.body({"client": client, "items": items}))
+
+
 def fichero_activity_get_history(
     *,
     minutes: Annotated[Optional[int], Field(description='the window, in minutes ending now')] = None,
@@ -430,7 +439,7 @@ def fichero_activity_get_metrics_summary(
 
 def fichero_activity_models(
 ) -> Any:
-    "Activity Models\n\nThe Models tree (`activity.window.models-tree`, `activity.resources.everything-measured`, #6588): every model this\nproject used today or the engine holds now, by place (this Mac, remote, cloud) and provider, loaded or not, active or\nnot, its memory where measured, today's pages, calls and seconds.\n\nRoute: GET /api/activity/models (toolset `activity`; reads)."
+    "Activity Models\n\nThe Models tree (`activity.window.models-tree`, `activity.resources.everything-measured`, #6588): every model this\nproject used today, the engine holds now or this Mac has installed, by place (this Mac, remote, cloud) and provider,\nloaded or not, active or not, its memory where measured, today's pages, calls and seconds; and every place set up.\n\nRoute: GET /api/activity/models (toolset `activity`; reads)."
     return _rt.call("GET", "/api/activity/models")
 
 
@@ -9699,6 +9708,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_activity_get_batch", "activity", "GET", "/api/activity/batch/{batch_id}", fichero_activity_get_batch),
     GeneratedTool("fichero_activity_cleanup_old_activities", "activity", "DELETE", "/api/activity/cleanup", fichero_activity_cleanup_old_activities),
     GeneratedTool("fichero_activity_continue_all", "activity", "POST", "/api/activity/continue-all", fichero_activity_continue_all),
+    GeneratedTool("fichero_activity_put_foreground", "activity", "PUT", "/api/activity/foreground", fichero_activity_put_foreground),
     GeneratedTool("fichero_activity_get_history", "activity", "GET", "/api/activity/history", fichero_activity_get_history),
     GeneratedTool("fichero_activity_list_background_jobs", "activity", "GET", "/api/activity/jobs", fichero_activity_list_background_jobs),
     GeneratedTool("fichero_activity_archive_jobs", "activity", "POST", "/api/activity/jobs/archive", fichero_activity_archive_jobs),

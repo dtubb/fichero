@@ -403,3 +403,197 @@ def test_a_timed_out_workload_takes_its_whole_process_group_with_it(tmp_path):
     else:
         os.kill(pid, 9)
         raise AssertionError("the grandchild of a timed-out workload is still running")
+
+
+# ---- Step 6 (#6610): the warnings ratchet and list. Own section; Step 4 extends this file on lane perf-sweep-3 ----
+
+def test_the_build_rung_and_every_daily_build_pass_a_result_bundle_path():
+    from fichero_builder import check_tool
+    argv = ["xcodebuild", "-scheme", "S", "build"]
+    out = check_tool.with_result_bundle(argv, "/r/build.xcresult")
+    assert out[-3:-1] == ["-resultBundlePath", "/r/build.xcresult"] and out[-1] == "build" and argv == ["xcodebuild", "-scheme", "S", "build"]
+    # a path already there is replaced, never doubled; a non-xcode argv is left alone
+    again = check_tool.with_result_bundle(out, "/r/other.xcresult")
+    assert again.count("-resultBundlePath") == 1 and "/r/other.xcresult" in again and "/r/build.xcresult" not in again
+    assert check_tool.with_result_bundle(["py", "x"], "/r/x.xcresult") == ["py", "x"]
+    rules = tomllib.loads((Path(__file__).resolve().parents[2] / "harness.toml").read_text())
+    daily = rules["check"]["daily_builds"]
+    assert {"ios-sim", "tests"} <= set(daily) and "ipad-sim" not in daily  # no scheme carries the iPad plan yet: a copy of ios-sim would count the same build twice
+    assert set(check_tool.WARNING_PLATFORMS.values()) == {"mac", "ios"}
+
+
+def _warn_bundle(*messages):
+    return json.dumps({"warnings": [{"issueType": "Swift Compiler Warning", "message": m, "targetName": "fichero",
+                                     "sourceURL": f"file:///w/fichero/fichero/F{i}.swift#StartingLineNumber={i + 1}"} for i, m in enumerate(messages)]})
+
+
+def _ratchet_run(tmp_path, monkeypatch, name, bundle_json, baseline):
+    """`_remote_build_locked` over a fake ssh (the bundle read prints `bundle_json`) and a fake run_command (the build is green)."""
+    import shutil
+    from fichero_builder import check_tool
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    root = tmp_path / "tree"
+    (root / "scripts").mkdir(parents=True, exist_ok=True)
+    shutil.copy(Path(__file__).resolve().parents[2] / "scripts" / "check_xcode_warning_ratchet.py", root / "scripts")
+    (root / "scripts" / "xcode_warning_baseline.json").unlink(missing_ok=True)
+    if baseline is not None:
+        (root / "scripts" / "xcode_warning_baseline.json").write_text(json.dumps(baseline))
+    ok = {"ok": True, "exit_code": 0, "timed_out": False, "seconds": 1, "stdout_tail": "", "stderr_tail": "", "errors": ""}
+    monkeypatch.setattr(check_tool, "run_command", lambda n, *a, **k: {"ok": True} if n == "build-sync" else dict(ok))
+    monkeypatch.setattr(check_tool, "_stable_build_tree", lambda r, cfg: str(r))
+    seen = []
+
+    def ssh(host, script, *a, **k):
+        seen.append(script)
+        return type("P", (), {"returncode": 0, "stdout": bundle_json.encode(), "stderr": b""})()
+    monkeypatch.setattr(check_tool, "_ssh", ssh)
+    cfg = check_tool.Config(build=("xcodebuild", "-scheme", "S", "build"), build_remote="m4:~/fichero-gate")
+    return check_tool._remote_build_locked(root, cfg, "m4", "/gate", (), name, False), seen, root
+
+
+def test_the_build_rung_holds_the_mac_warning_ratchet_and_a_missing_baseline_is_not_a_red(tmp_path, monkeypatch):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("xr", Path(__file__).resolve().parents[2] / "scripts" / "check_xcode_warning_ratchet.py")
+    xr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(xr)
+    sendable = "capture of 'a' with non-sendable type 'X' in a `@Sendable` closure"
+    kind = xr.normalise_kind(sendable)
+    base = {"mac": {kind: 1}}
+    out, seen, _ = _ratchet_run(tmp_path, monkeypatch, "build", _warn_bundle(sendable), base)
+    assert out["ok"] and any("xcresulttool get build-results" in s and "build.xcresult" in s for s in seen)
+    out, _, _ = _ratchet_run(tmp_path, monkeypatch, "build", _warn_bundle(sendable, sendable), base)
+    tail = out["results"][0]["stdout_tail"]
+    assert not out["ok"] and not out.get("remote_env_red") and "Sendable" in tail and "F1.swift:2" in tail
+    # no baseline written yet: the ratchet is BLIND, a journal note and never a red; the rung only holds, it never writes the baseline
+    out, _, root = _ratchet_run(tmp_path, monkeypatch, "build", _warn_bundle(sendable), None)
+    assert out["ok"] and [r for r in journal.read() if r.get("state") == "warnings-blind"]
+    assert not (root / "scripts" / "xcode_warning_baseline.json").exists()
+    # a lower count is green and does not touch the baseline file in the batch's tree
+    out, _, root = _ratchet_run(tmp_path, monkeypatch, "build", _warn_bundle(), base)
+    assert out["ok"] and json.loads((root / "scripts" / "xcode_warning_baseline.json").read_text()) == base
+    # a daily build holds its own platform: ios-sim reads `ios`; the Swift test target holds none
+    out, seen, _ = _ratchet_run(tmp_path, monkeypatch, "ios-sim", _warn_bundle(sendable, sendable), {"ios": base["mac"]})
+    assert not out["ok"]
+    out, seen, _ = _ratchet_run(tmp_path, monkeypatch, "tests", _warn_bundle(sendable, sendable), base)
+    assert out["ok"] and not any("xcresulttool" in s for s in seen)
+
+
+PBXPROJ = """/* Begin PBXShellScriptBuildPhase section */
+\t\tAAA111 /* Validate App Store Bundle */ = {
+\t\t\tisa = PBXShellScriptBuildPhase;
+\t\t\tbuildActionMask = 2147483647;
+\t\t\tfiles = (
+\t\t\t);
+\t\t\tname = "Validate App Store Bundle";
+\t\t\toutputPaths = (
+\t\t\t);
+\t\t\trunOnlyForDeploymentPostprocessing = 0;
+\t\t\tshellScript = "true";
+\t\t};
+\t\tBBB222 /* Declared */ = {
+\t\t\tisa = PBXShellScriptBuildPhase;
+\t\t\tname = Declared;
+\t\t\toutputPaths = (
+\t\t\t\t"$(DERIVED_FILE_DIR)/ok.stamp",
+\t\t\t);
+\t\t\tshellScript = "true";
+\t\t};
+\t\tCCC333 /* Always */ = {
+\t\t\tisa = PBXShellScriptBuildPhase;
+\t\t\talwaysOutOfDate = 1;
+\t\t\tname = Always;
+\t\t\tshellScript = "true";
+\t\t};
+/* End PBXShellScriptBuildPhase section */
+"""
+
+
+class _FakeGh:
+    """An in-memory `gh issue …`: list, create, edit, close; labels exist already."""
+    def __init__(self):
+        self.issues, self.calls = [], []
+
+    def __call__(self, *a):
+        self.calls.append(a)
+        if a[:2] == ("issue", "list"):
+            return json.dumps(self.issues)
+        if a[:2] == ("issue", "create"):
+            args = list(a)
+            self.issues.append({"number": 100 + len(self.issues), "title": args[args.index("--title") + 1], "body": args[args.index("--body") + 1],
+                                "state": "OPEN", "milestone": args[args.index("--milestone") + 1] if "--milestone" in args else ""})
+            return f"https://github.com/o/r/issues/{99 + len(self.issues)}\n"
+        if a[:2] == ("issue", "edit"):
+            i = next(x for x in self.issues if str(x["number"]) == a[2])
+            if "--title" in a:
+                i["title"] = a[a.index("--title") + 1]
+            return ""
+        if a[:2] == ("issue", "close"):
+            next(x for x in self.issues if str(x["number"]) == a[2])["state"] = "CLOSED"
+            self.closed_with = a[a.index("--comment") + 1]
+            return ""
+        if a[:2] == ("label", "list"):
+            return json.dumps([{"name": "Build warnings"}])
+        return ""
+
+
+def test_warning_kinds_rank_across_sources_file_one_issue_each_and_close_at_zero(tmp_path):
+    from fichero_builder import perf_warnings as pw
+    xcode = {"mac": [{"kind": "Sendable: capture", "file": "fichero/A.swift", "line": 3, "message": "m"},
+                     {"kind": "Sendable: capture", "file": "fichero/B.swift", "line": 4, "message": "m"},
+                     {"kind": "deprecated: _", "file": "fichero/C.swift", "line": 9, "message": "m"}]}
+    swiftlint = {"count": 7, "rules": [{"rule": "line_length", "count": 5}, {"rule": "todo", "count": 2}]}
+    ruff = {"E501": 3}
+    rows = pw.build_rows(xcode=xcode, swiftlint=swiftlint, ruff=ruff, pbxproj=PBXPROJ)
+    # the Validate phase (and only it: declared outputs and alwaysOutOfDate are fine) is listed as its own xcode kind
+    phase = [r for r in rows if r["kind"].startswith("script phase without outputs")]
+    assert [r["kind"] for r in phase] == ["script phase without outputs: 'Validate App Store Bundle'"] and phase[0]["source"] == "xcode"
+    ranked = pw.rank(rows)
+    assert [(r["source"], r["kind"], r["count"]) for r in ranked[:4]] == [
+        ("swiftlint", "line_length", 5), ("ruff", "E501", 3), ("swiftlint", "todo", 2), ("xcode", "Sendable: capture", 2)]
+    assert set(ranked[0]) >= {"source", "platform", "kind", "count", "trend", "example"} and ranked[3]["example"] == "fichero/A.swift:3"
+    assert ranked[0]["platform"] == "mac" or ranked[0]["platform"] == "-"
+
+    # the list is written under perf/<run>/warnings.json, with a trend against the run before
+    state = tmp_path / "state"
+    pw.write_list(state, "r1", rows)
+    first = json.loads((state / "perf" / "r1" / "warnings.json").read_text())
+    assert len(first["rows"]) == len(rows) and all(r["trend"] is None for r in first["rows"])
+    worse = [{**r, "count": r["count"] + 1} if r["kind"] == "todo" else r for r in rows]
+    pw.write_list(state, "r2", worse)
+    second = {r["kind"]: r for r in json.loads((state / "perf" / "r2" / "warnings.json").read_text())["rows"]}
+    assert second["todo"]["trend"] == 1 and second["E501"]["trend"] == 0
+    assert json.loads((state / "perf" / "warnings-latest.json").read_text())["run"] == "r2"
+
+    # one issue per kind with the key, the example lines and the way to clear it; a repeat run files nothing new
+    gh = _FakeGh()
+    measured = {("xcode", "mac"), ("swiftlint", "-"), ("ruff", "-")}
+    made = pw.file_issues(rows, measured, "r1", gh)
+    assert len(gh.issues) == len(rows) == len(made)
+    sendable = next(i for i in gh.issues if "Sendable" in i["title"])
+    assert sendable["title"] == "Build warnings - xcode: Sendable: capture (2)"
+    assert "warn:xcode:mac:Sendable: capture" in sendable["body"] and "fichero/A.swift:3" in sendable["body"] and "fichero/B.swift:4" in sendable["body"]
+    assert sendable["milestone"] == "performance-sweep"
+    n = len(gh.calls)
+    assert pw.file_issues(rows, measured, "r2", gh) == [] and not [c for c in gh.calls[n:] if c[:2] in (("issue", "create"), ("issue", "edit"), ("issue", "close"))]
+    # a count that moved retitles the same issue, never a second one
+    pw.file_issues([{**r, "count": 9} if r["kind"] == "todo" else r for r in rows], measured, "r3", gh)
+    assert len(gh.issues) == len(rows) and any(i["title"].endswith("todo (9)") for i in gh.issues)
+    # a kind at zero closes its issue with the run id; a source that was not measured this run closes nothing
+    pw.file_issues([r for r in rows if r["kind"] != "todo"], {("xcode", "mac")}, "r4", gh)
+    assert all(i["state"] == "OPEN" for i in gh.issues)
+    pw.file_issues([r for r in rows if r["kind"] != "todo"], measured, "r5", gh)
+    closed = [i for i in gh.issues if i["state"] == "CLOSED"]
+    assert [i["title"].split(": ")[1].split(" (")[0] for i in closed] == ["todo"] and "r5" in gh.closed_with
+    # a closed kind that comes back reopens nothing silently: it is filed again under its key
+    pw.file_issues(rows, measured, "r6", gh)
+    assert [i["state"] for i in gh.issues if "todo" in i["title"]].count("OPEN") == 1
+
+
+def test_the_console_serves_the_warnings_list(tmp_path, monkeypatch):
+    from fichero_builder import console, perf_warnings as pw
+    monkeypatch.setattr(journal, "STATE", tmp_path)
+    pw.write_list(tmp_path, "r1", pw.build_rows(ruff={"E501": 3}))
+    assert pw.latest(tmp_path)["rows"][0]["kind"] == "E501"
+    assert pw.latest(tmp_path / "none") == {"run": None, "rows": []}
+    assert "/api/warnings" in Path(console.__file__).read_text()
+    assert "Warnings" in (Path(console.__file__).parent / "console.html").read_text()

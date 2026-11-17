@@ -29,7 +29,17 @@ struct ActivityHistoryFigures: Equatable {
         var id: Date { start }
     }
 
+    /// One recipe's or one model's own counts, minute by minute, aligned with `minutes`
+    /// (`activity.window.graph-on-every-view`); a model's key is its id in the Models tree.
+    struct Series: Equatable {
+        let key: String
+        var pages: [Int]
+        var calls: [Int] = []
+    }
+
     var minutes: [Minute] = []
+    var byRecipe: [Series] = []
+    var byModel: [Series] = []
     /// Pages done in the window by where they ran: "this-mac", "other-mac", "cloud", "cluster".
     var byRuntime: [String: Int] = [:]
     var todaySpendUsd = 0.0
@@ -51,15 +61,21 @@ struct ActivityHistoryFigures: Equatable {
         byRuntime = answer.byRuntime?.additionalProperties ?? [:]
         todaySpendUsd = answer.todaySpendUsd ?? 0
         todaySpendByProvider = answer.todaySpendByProvider?.additionalProperties ?? [:]
+        byRecipe = (answer.byRecipe ?? []).map { Series(key: $0.key, pages: $0.pages, calls: $0.calls ?? []) }
+        byModel = (answer.byModel ?? []).map { Series(key: $0.key, pages: $0.pages, calls: $0.calls ?? []) }
     }
 }
 
 extension ActivityService {
-    /// The Models tree (`GET /api/activity/models`, `activity.window.models-tree`, #6588): every model used today or held now.
-    func models() async throws -> [ActivityModelEntry] {
+    /// The Models tree (`GET /api/activity/models`, `activity.window.models-tree`, #6588): every model used
+    /// today, held now or installed on this Mac, and every place set up.
+    func models() async throws -> ActivityModelsAnswer {
         switch try await client.api.activityModelsApiActivityModelsGet() {
         case .ok(let okResponse):
-            return try okResponse.body.json.models?.map(ActivityModelEntry.init) ?? []
+            let body = try okResponse.body.json
+            return ActivityModelsAnswer(models: body.models?.map(ActivityModelEntry.init) ?? [],
+                                        places: body.places?.map(ActivityModelEntry.SetUp.init) ?? [],
+                                        thisMac: body.thisMac.map(ActivityThisMac.init))
         case .undocumented(let statusCode, let payload):
             throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }
@@ -74,6 +90,25 @@ extension ActivityService {
             return try okResponse.body.json.recipes ?? []
         case .unprocessableContent(let error):
             throw ActivityServiceError.validationError((try? error.body.json)?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, let payload):
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
+        }
+    }
+}
+
+extension ActivityService {
+    /// The page in view (`PUT /api/activity/foreground`, `activity.foreground.rank-on-the-row-and-the-pick`, #6442):
+    /// this window's set replaces its last one; its pages' waiting jobs go first. Returns how many the engine ranked.
+    @discardableResult
+    func setForeground(client clientId: String, items: [PageInView.Item]) async throws -> Int {
+        let body = Components.Schemas.ForegroundRequest(
+            client: clientId, items: items.map { .init(subject: $0.subject, rank: $0.rank) })
+        switch try await client.api.putForegroundApiActivityForegroundPut(body: .json(body)) {
+        case .ok(let okResponse):
+            return try okResponse.body.json.ranked
+        case .unprocessableContent(let error):
+            throw ActivityServiceError.validationError(
+                (try? error.body.json)?.detail?.description ?? "Validation error")
         case .undocumented(let statusCode, let payload):
             throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }

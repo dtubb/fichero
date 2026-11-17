@@ -98,6 +98,8 @@ struct SidebarView: View {
     @State var pendingLibraryName = ""
     // Library the "Share Library…" header context-menu entry is presenting (#3149).
     @State var libraryToShare: LibraryManager.LibraryReference?
+    /// The Mac a right-click asked to forget; the dialog names it (#6662).
+    @State var machineToForget: ForgetMachinePrompt?
     // The always-there project whose document types the empty-area menu is editing
     // (`sidebar.top-section.empty-area-menu`; it has no header row to hold the sheet).
     @State var alwaysThereTypeEditorLibrary: LibraryManager.LibraryReference?

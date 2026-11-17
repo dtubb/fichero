@@ -20,14 +20,20 @@ worker who left a stash could otherwise just run it and go green. Raising the ce
 maintainer decision made by hand-editing `scripts/stash_ceiling.json` with a reason, never
 this script's job.
 
+The stack is per machine, so the ceiling is too: `stash_ceiling.json` records the `host_id` (a hash
+of the hostname, never the name) of the machine that set it, and any other machine (or a ceiling that names none yet) prints a `not run:` row and exits 0
+instead of judging a stack it never owned. `--update-ceiling` on the owning machine stamps the host.
+
 Run:
     python scripts/check_no_orphan_stashes.py
     python scripts/check_no_orphan_stashes.py --update-ceiling
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import pathlib
+import socket
 import subprocess
 import sys
 
@@ -59,7 +65,12 @@ def _git_stash_list_named() -> str:
     return proc.stdout
 
 
-def _load_ceiling() -> int:
+def _host() -> str:
+    """An id for this machine that is safe to commit: a hash, never the hostname (often a person's name)."""
+    return hashlib.sha256(f"fichero-stash-ceiling:{socket.gethostname()}".encode()).hexdigest()[:12]
+
+
+def _load_ceiling_data() -> dict:
     if not CEILING_PATH.exists():
         print(f"FAIL check_no_orphan_stashes: {CEILING_PATH} does not exist — "
               f"run --update-ceiling once to seed it.", file=sys.stderr)
@@ -70,24 +81,34 @@ def _load_ceiling() -> int:
         print(f"FAIL check_no_orphan_stashes: {CEILING_PATH} is malformed JSON: {exc}",
               file=sys.stderr)
         sys.exit(2)
-    ceiling = data.get("ceiling")
-    if not isinstance(ceiling, int):
+    if not isinstance(data.get("ceiling"), int):
         print(f"FAIL check_no_orphan_stashes: {CEILING_PATH} has no integer `ceiling` field",
               file=sys.stderr)
         sys.exit(2)
-    return ceiling
+    return data
+
+
+def _load_ceiling() -> int:
+    return _load_ceiling_data()["ceiling"]
 
 
 def _write_ceiling(count: int, reason: str) -> None:
     CEILING_PATH.write_text(
-        json.dumps({"ceiling": count, "reason": reason}, indent=2) + "\n", encoding="utf-8"
+        json.dumps({"ceiling": count, "host_id": _host(), "reason": reason}, indent=2) + "\n", encoding="utf-8"
     )
 
 
 def check() -> int:
+    data = _load_ceiling_data()
+    owner = data.get("host_id")
+    if owner != _host():
+        print(f"not run: check_no_orphan_stashes: the ceiling in {CEILING_PATH} was set by "
+              f"{owner or 'no recorded machine'}, this is {_host()}; the stash stack is per machine "
+              f"(run --update-ceiling on the owning machine to stamp it).")
+        return 0
     entries = _git_stash_list()
     count = len(entries)
-    ceiling = _load_ceiling()
+    ceiling = data["ceiling"]
 
     if count > ceiling:
         print(
@@ -120,7 +141,8 @@ def update_ceiling() -> int:
         _write_ceiling(count, "current count of the maintainer's long-lived stash entries")
         print(f"OK check_no_orphan_stashes --update-ceiling: seeded {count} to {CEILING_PATH}.")
         return 0
-    current_ceiling = _load_ceiling()
+    data = _load_ceiling_data()
+    current_ceiling = data["ceiling"]
     if count > current_ceiling:
         print(
             f"FAIL check_no_orphan_stashes --update-ceiling: current count ({count}) is ABOVE "
@@ -131,6 +153,11 @@ def update_ceiling() -> int:
         )
         return 2
     if count == current_ceiling:
+        if data.get("host_id") != _host():
+            _write_ceiling(count, data.get("reason", "stamped the owning machine"))
+            print(f"OK check_no_orphan_stashes --update-ceiling: stamped host id {_host()} on the "
+                  f"ceiling of {count} in {CEILING_PATH}.")
+            return 0
         print(f"OK check_no_orphan_stashes --update-ceiling: count ({count}) already matches "
               f"the ceiling — no-op.")
         return 0

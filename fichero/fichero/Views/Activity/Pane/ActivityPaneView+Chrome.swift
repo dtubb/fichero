@@ -10,25 +10,8 @@ extension ActivityPaneView {
                 ForEach(ActivityPane.Tab.sidebarWork) { tab in sidebarRow(tab) }
             }
             Section("Resources") {
-                ForEach(ActivityPane.Tab.sidebarResources) { tab in sidebarRow(tab) }
-            }
-            // Models by where they run (decision 33): place › provider › model, each model's icon filled while loaded, a green
-            // dot while it works, its memory beside it.
-            if !models.isEmpty {
-                Section("Models") {
-                    ForEach(ActivityModelEntry.tree(models), id: \.place) { place in
-                        DisclosureGroup {
-                            ForEach(place.providers, id: \.name) { provider in
-                                DisclosureGroup {
-                                    ForEach(provider.models) { model in modelRow(model) }
-                                } label: {
-                                    Label(provider.name, systemImage: "building.2").tag("provider:\(provider.name)")
-                                }
-                            }
-                        } label: {
-                            Label(place.place.title, systemImage: place.place.icon)
-                        }
-                    }
+                ForEach(ActivityPane.Tab.sidebarResources) { tab in
+                    if tab == .place { whereTree } else { sidebarRow(tab) }
                 }
             }
             Section {
@@ -36,9 +19,83 @@ extension ActivityPaneView {
             }
         }
         .listStyle(.sidebar)
-        .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
+        // The column's range is its width below, never its rows' (#6661, `ActivityPaneView+WindowLayout.swift`).
+        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+        .navigationSplitViewColumnWidth(min: Self.sidebarWidths.lowerBound, ideal: Self.sidebarIdealWidth,
+                                        max: Self.sidebarWidths.upperBound)
         .accessibilityIdentifier("activity.sidebar")
         .task(id: libraries.map(\.id)) { await readModelsOften() }
+    }
+
+    /// Where, with the places under it (decision 33, owner 2026-11-16): place › provider › model, every place
+    /// set up listed used or not, each model installed or used, its icon filled while loaded, a green dot while
+    /// it works, its memory beside it. Where itself lists the rows by place.
+    var whereTree: some View {
+        DisclosureGroup(isExpanded: $whereExpanded) {
+            ForEach(ActivityModelEntry.tree(models.models, places: models.places), id: \.place) { place in
+                DisclosureGroup {
+                    ForEach(place.providers, id: \.name) { provider in
+                        if provider.models.isEmpty {
+                            Label(provider.name, systemImage: "building.2").tag("provider:\(provider.name)")
+                        } else {
+                            DisclosureGroup {
+                                ForEach(provider.models) { model in modelRow(model) }
+                            } label: {
+                                Label(provider.name, systemImage: "building.2").tag("provider:\(provider.name)")
+                            }
+                        }
+                    }
+                } label: {
+                    placeLabel(place.place).tag("place:\(place.place.rawValue)")
+                }
+                .accessibilityIdentifier("activity.sidebar.place.\(place.place.rawValue)")
+            }
+        } label: {
+            sidebarRow(.place)
+        }
+    }
+
+    /// The Table view of the window's centre: the rows (Recipes: recipe › run › step) over the graphs,
+    /// the divider the person's to drag (decisions 34, 37, 41).
+    @ViewBuilder
+    func tableCentre(_ shown: [ActivityMonitorRow]) -> some View {
+        if prefs.tab == .recipes {
+            ActivityGraphsSplitStack { ActivityRecipesView(libraries: libraries) } graphs: { graphs }
+        } else {
+            ActivityGraphsSplitStack { rowsView(shown) } graphs: { graphs }
+        }
+    }
+
+    /// The centre's view picker (`activity.window.centre-views`): the item's offered views, the choice kept per item.
+    var centreViewPicker: some View {
+        Picker("View", selection: Binding(
+            get: { prefs.centreView(for: prefs.tab) },
+            set: { view in update { $0.centreViews[prefs.tab.rawValue] = view } }
+        )) {
+            ForEach(ActivityCentreView.offered(for: prefs.tab)) { view in
+                Label(view.title, systemImage: view.symbol).tag(view)
+            }
+        }
+        .pickerStyle(.segmented).labelsHidden().fixedSize()
+        .padding(.horizontal, 12).padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityIdentifier("activity.centre.views")
+    }
+
+    /// A place's row: This Mac with its memory used of its total and its processor's load, its lanes in the help
+    /// (`activity.resources.everything-measured`).
+    @ViewBuilder
+    func placeLabel(_ place: ActivityModelEntry.Place) -> some View {
+        if place == .thisMac, let mac = models.thisMac {
+            HStack(spacing: 6) {
+                Label(place.title, systemImage: place.icon)
+                Spacer(minLength: 4)
+                Text(mac.words).font(.caption).foregroundStyle(.secondary).monospacedDigit()
+            }
+            .help("Memory used of this Mac's, and its processor's load · \(mac.lanesWords)")
+        } else {
+            Label(place.title, systemImage: place.icon)
+        }
     }
 
     func modelRow(_ model: ActivityModelEntry) -> some View {
@@ -67,23 +124,26 @@ extension ActivityPaneView {
         if pick.hasPrefix("tab:"), let tab = ActivityPane.Tab(rawValue: String(pick.dropFirst(4))) {
             show(tab)
             update { $0.filter = "" }
-        } else if pick.hasPrefix("model:"), let model = models.first(where: { "model:\($0.id)" == pick }) {
+        } else if pick.hasPrefix("model:"), let model = models.models.first(where: { "model:\($0.id)" == pick }) {
             show(.runs)
             update { $0.filter = "model: \(model.name)" }
         } else if pick.hasPrefix("provider:") {
             show(.runs)
             update { $0.filter = "model: \(pick.dropFirst(9))" }
+        } else if pick.hasPrefix("place:") {
+            show(.place)  // a place lists the rows by place, as Where does
+            update { $0.filter = "" }
         }
     }
 
     /// The models of the open projects, read every ten seconds while the window shows: loaded and working change often.
     func readModelsOften() async {
         while !Task.isCancelled {
-            var lists: [[ActivityModelEntry]] = []
+            var answers: [ActivityModelsAnswer] = []
             for library in libraries {
-                if let one = try? await library.activityService.models() { lists.append(one) }
+                if let one = try? await library.activityService.models() { answers.append(one) }
             }
-            models = ActivityModelEntry.merged(lists)
+            models = ActivityModelsAnswer.merged(answers)
             try? await Task.sleep(for: .seconds(10))
         }
     }
@@ -116,13 +176,16 @@ extension ActivityPaneView {
 
     // MARK: - Head, filter, status bar
 
+    /// The pane's head: the Activity table's, or the Activity Graphs pane's (its kind its own, its lens the item whose
+    /// graphs it draws).
     var head: some View {
-        PaneHead(
-            crumbs: [PaneCrumb(id: "activity", title: "Activity", icon: PaneSpec.Kind.activity.icon)],
+        let kind: PaneSpec.Kind = graphsOnly ? .activityGraphs : .activity
+        return PaneHead(
+            crumbs: [PaneCrumb(id: kind.rawValue, title: kind.title, icon: kind.icon)],
             selector: {
                 PaneKindSelector(
-                    kindTitle: PaneSpec.Kind.activity.title, kindIcon: PaneSpec.Kind.activity.icon,
-                    currentKind: .activity, lenses: ActivityPane.Tab.allCases,
+                    kindTitle: kind.title, kindIcon: kind.icon,
+                    currentKind: kind, lenses: ActivityPane.Tab.allCases,
                     lensTitle: { (tab: ActivityPane.Tab) in tab.title },
                     lensIcon: { (tab: ActivityPane.Tab) in tab.icon },
                     lens: Binding(get: { prefs.tab }, set: show)
@@ -135,7 +198,7 @@ extension ActivityPaneView {
 
     /// The window's history, read now and once a minute while the window shows (`GET /api/activity/history`).
     func readHistoryEachMinute() async {
-        guard !showsHead else { return }
+        guard !showsHead || graphsOnly else { return }  // a main window's table pane keeps its one status line
         while !Task.isCancelled {
             var read: [ActivityHistoryFigures] = []
             for library in libraries {
@@ -192,6 +255,7 @@ extension ActivityPaneView {
                                              waiting: rows.filter { $0.phase == .waiting }.count,
                                              spentTodayUsd: spent > 0 ? spent : nil)
         let paused = libraries.contains { $0.activityStore.backgroundMode == .paused }
-        return paused ? counts + " · Automatic work paused" : counts
+        let line = [counts, ActivityPane.inViewFigures(rows)].compactMap { $0 }.joined(separator: " · ")
+        return paused ? line + " · Automatic work paused" : line
     }
 }

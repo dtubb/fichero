@@ -187,7 +187,9 @@ extension EmbeddedBackendService {
         guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, infoSize) == infoSize else { return nil }
         var path = [CChar](repeating: 0, count: 4096)
         guard proc_pidpath(pid, &path, UInt32(path.count)) > 0 else { return nil }
-        let executablePath = String(cString: path)
+        guard let executablePath = String(
+            bytes: path.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, encoding: .utf8
+        ) else { return nil }
         return StaleEngineSweep.ProcessFact(
             pid: pid, parentPID: Int32(info.pbi_ppid), uid: info.pbi_uid, executablePath: executablePath,
             recordedParentPID: StaleEngineSweep.isFicheroServerHelper(executablePath: executablePath)

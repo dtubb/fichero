@@ -73,6 +73,17 @@ struct StaleEngineSweepTests {
         #expect(StaleEngineSweep.recordedParentPID(procArgs: [1, 0]) == nil)
     }
 
+    @Test("a FICHERO_PARENT_PID that is not a number, or not UTF-8, reads as absent")
+    func unreadableRecordedParentIsNil() {
+        for value: [UInt8] in [Array("abc".utf8), [0xFF, 0xFE]] {
+            var buffer: [UInt8] = [1, 0, 0, 0]
+            for part in [Array(Self.helper.utf8), [], Array("Fichero Server".utf8), Array("FICHERO_PARENT_PID=".utf8) + value] {
+                buffer += part + [0]
+            }
+            #expect(StaleEngineSweep.recordedParentPID(procArgs: buffer) == nil)
+        }
+    }
+
     @Test("a later launch step that ends nothing keeps the line already showing")
     func laterRespawnKeepsTheNotice() {
         let line = "Ended 1 leftover Fichero Server from an earlier run."

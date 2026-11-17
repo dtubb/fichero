@@ -6,7 +6,7 @@ The base is [land].branch of the pinned harness.toml, resolved in repo. The cap 
 [models].reviewer context (default 200000 tokens); a range over it is reviewed in consecutive commit groups that each fit
 (land_tool.review_groups; one commit over the cap or binary is refused, never truncated). Per group it builds the prompt
 (checklist, the ladder's JSON, the group's WHOLE diff) and runs `claude -p --restricted --strict-mcp-config
---tools Read,Grep,Glob` in a fresh owner-only empty directory under ~ (never the repo or workroot: a CLAUDE.md or hook
+--tools Read,Grep,Glob` in a fresh owner-only empty directory under the state dir's review scratch folder (mode 700, owner-owned; never ~, never the repo or workroot: a CLAUDE.md or hook
 there would be obeyed as the owner), and only if the final line is exactly READY writes ONE verdict for the whole
 range (ordered patch-ids + messages), only when every group's is, into FILE, an owner-owned file outside the workroot. `--print` shows the prompt.
 Delta review: each group's range and verdict (and a blocking reply's text) go into FILE.groups under the base. When the last
@@ -27,7 +27,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "fichero-builder"))
-from fichero_builder import land_tool, models, review_lenses  # noqa: E402
+from fichero_builder import land_tool, models, review_lenses, scratch  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument("repo"), ap.add_argument("head")
@@ -45,6 +45,10 @@ branch = rules.get("land", {}).get("branch")
 cap = land_tool.review_cap(int((rules.get("models", {}).get("reviewer") or {}).get("context", models.Model.context)))
 if not branch:
     sys.exit("REFUSED: [land].branch is not declared in the pinned harness.toml")
+try:
+    scratch_dir = scratch.review_dir()  # owner-only, under the state dir; leftovers are swept by `builder sweep-scratch`
+except RuntimeError as e:
+    sys.exit(str(e))
 try:
     a.model = a.model or models.for_role(rules.get("models", {}), "reviewer").model
 except models.Question as e:
@@ -134,10 +138,10 @@ def security_scan(path) -> str:
     return str(row.get("table") or "none")
 
 
-# A detached checkout of the head under the owner's home (mode 700), named in the prompt and removed after: the reviewer
+# A detached checkout of the head under the state dir's review scratch folder (mkdtemp makes it mode 700), named in the prompt and removed after: the reviewer
 # verifies that cited tests and spec bullets exist. Its cwd stays the EMPTY dir, so a CLAUDE.md or settings in the tree are
 # never obeyed (claude reads instructions from the cwd and its ancestors, not from a path it is pointed at).
-tree = tempfile.mkdtemp(prefix="review-tree-", dir=Path.home())
+tree = tempfile.mkdtemp(prefix="review-tree-", dir=scratch_dir)
 if (w := subprocess.run([land_tool.GIT, "-C", a.repo, "-c", "core.hooksPath=/dev/null", "worktree", "add", "--detach", "-q", tree, a.head],
                         capture_output=True, text=True)).returncode:  # no repo hook runs as the owner here
     shutil.rmtree(tree, ignore_errors=True)
@@ -186,7 +190,7 @@ results: list[dict] = []
 try:
     blocked = False
     for i, (gbase, gtip) in enumerate(groups, 1):  # every group runs, so all findings go back at once; READY = every group READY
-        cwd = tempfile.mkdtemp(prefix="review-", dir=Path.home())  # fresh, empty, mode 700, owner's ~: no CLAUDE.md or settings to obey
+        cwd = tempfile.mkdtemp(prefix="review-", dir=scratch_dir)  # fresh, empty, mode 700, never under ~: no CLAUDE.md or settings to obey
         try:
             r = subprocess.run(argv, input=prompt_for(i, gbase, gtip), capture_output=True, text=True, cwd=cwd)
         finally:

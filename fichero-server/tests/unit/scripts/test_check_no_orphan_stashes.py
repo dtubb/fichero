@@ -24,11 +24,12 @@ def _fake_stash(monkeypatch, n: int) -> None:
     monkeypatch.setattr(_mod, "_git_stash_list_named", lambda: "\n".join(entries[:5]))
 
 
-def _seed_ceiling(tmp_path, monkeypatch, ceiling) -> None:
+def _seed_ceiling(tmp_path, monkeypatch, ceiling, host="this-mac") -> None:
     path = tmp_path / "stash_ceiling.json"
     monkeypatch.setattr(_mod, "CEILING_PATH", path)
+    monkeypatch.setattr(_mod, "_host", lambda: "this-mac")
     if ceiling is not None:
-        path.write_text(json.dumps(ceiling), encoding="utf-8")
+        path.write_text(json.dumps({**ceiling, **({"host_id": host} if host else {})}), encoding="utf-8")
 
 
 def test_count_equal_to_ceiling_passes(tmp_path, monkeypatch):
@@ -149,3 +150,35 @@ def test_never_calls_a_mutating_git_command(monkeypatch):
     for cmd in calls:
         assert cmd[:3] == ["git", "stash", "list"], f"unexpected git command: {cmd}"
         assert "pop" not in cmd and "drop" not in cmd and "clear" not in cmd
+
+
+# --- #6658: a ceiling is judged only on the machine that set it -------------------------
+
+def test_a_ceiling_set_on_another_machine_is_not_run_here(tmp_path, monkeypatch, capsys):
+    _fake_stash(monkeypatch, 25)  # would fail on the owner
+    _seed_ceiling(tmp_path, monkeypatch, {"ceiling": 19, "reason": "x"}, host="other-mac")
+    assert _mod.check() == 0
+    out = capsys.readouterr().out
+    assert out.startswith("not run: check_no_orphan_stashes") and "other-mac" in out
+
+
+def test_a_ceiling_naming_no_machine_is_not_run(tmp_path, monkeypatch, capsys):
+    _fake_stash(monkeypatch, 25)
+    _seed_ceiling(tmp_path, monkeypatch, {"ceiling": 19, "reason": "x"}, host=None)
+    assert _mod.check() == 0
+    assert "not run:" in capsys.readouterr().out
+
+
+def test_update_ceiling_stamps_the_host_on_an_unstamped_ceiling(tmp_path, monkeypatch):
+    _seed_ceiling(tmp_path, monkeypatch, {"ceiling": 19, "reason": "x"}, host=None)
+    _fake_stash(monkeypatch, 19)
+    assert _mod.update_ceiling() == 0
+    data = json.loads(_mod.CEILING_PATH.read_text(encoding="utf-8"))
+    assert data["ceiling"] == 19 and data["host_id"] == "this-mac"
+
+
+def test_the_host_id_is_a_hash_not_the_hostname(monkeypatch):
+    import socket
+    monkeypatch.setattr(socket, "gethostname", lambda: "Jane-Smiths-MacBook")
+    host_id = _mod._host()
+    assert "jane" not in host_id.lower() and len(host_id) == 12 and host_id == _mod._host()

@@ -1548,3 +1548,91 @@ def test_a_fix_brief_built_from_findings_never_inlines_an_owner_file_even_under_
         bt.for_worker = real
     assert "owner crash text" not in fix.read_text() and "not readable by workers" in fix.read_text()
     assert fake.starts == [("m1", "1.1", 1)]
+
+
+def _cleanup_world(state, tmp_path, merged=True, steps_left=False):
+    """#6589 item 16: an origin, a repo, the worker tree wt-w1 on branch w1 with a commit (on origin/integration when `merged`), the
+    snapshot land-w1 at the same head, and lane w1 with its one step landed (or one more queued)."""
+    import subprocess
+
+    def g(cwd, *a):
+        return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=str(cwd), check=True, capture_output=True, text=True).stdout.strip()
+    seed = tmp_path / "seed"
+    seed.mkdir()
+    g(seed, "init", "-q", "-b", "integration"), (seed / "a").write_text("a"), g(seed, "add", "."), g(seed, "commit", "-qm", "base")
+    g(tmp_path, "clone", "-q", "--bare", str(seed), "origin.git")
+    repo = tmp_path / "repo"
+    g(tmp_path, "clone", "-q", str(tmp_path / "origin.git"), str(repo))
+    wt, land = tmp_path / "wt-w1", tmp_path / "land-w1"
+    g(repo, "worktree", "add", "-q", "-b", "w1", str(wt))
+    (wt / "f").write_text("f"), g(wt, "add", "."), g(wt, "commit", "-qm", "feat: f (Step 1.1)")
+    head = g(wt, "rev-parse", "HEAD")
+    g(repo, "worktree", "add", "-q", "-b", "land-w1", str(land), head)
+    if merged:
+        g(wt, "push", "-q", str(tmp_path / "origin.git"), "HEAD:integration")
+    g(repo, "fetch", "-q", "origin")
+    queue.add("w1", str(wt), "1.1", str(state / "b1.1"), [])
+    if steps_left:
+        queue.add("w1", str(wt), "1.2", str(state / "b1.2"), [])
+    lanes = queue.load()
+    lanes[0]["steps"][0].update(state="landed", head=head, land_tree=str(land))
+    lanes[0]["cursor"] = 1
+    queue.save(lanes)
+    fake = Fake()
+    fake.procs.cleanup_ref = "origin/integration"
+    return fake, wt, land, repo, g
+
+
+def _cleanup_rows():
+    return [r for r in journal.read() if r.get("event") == "cleanup"]
+
+
+def test_a_landed_lanes_snapshot_and_a_finished_worker_lanes_tree_and_merged_branch_are_removed_each_a_row(state, tmp_path):
+    """dev-workflows.run.loop-cleanup: the loop removes what a landing leaves behind."""
+    fake, wt, land, repo, g = _cleanup_world(state, tmp_path)
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    assert not land.exists() and not wt.exists()
+    assert "w1" not in g(repo, "branch", "--format=%(refname:short)").split(), "the merged lane branch goes with its tree"
+    rows = _cleanup_rows()
+    assert any(str(land) in r.get("detail", "") + r.get("path", "") for r in rows) and any(str(wt) in r.get("detail", "") + r.get("path", "") for r in rows)
+
+
+def test_a_dirty_snapshot_stays_with_a_row_that_says_why(state, tmp_path):
+    fake, wt, land, repo, g = _cleanup_world(state, tmp_path, steps_left=True)
+    (land / "scratch").write_text("not committed")
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    assert land.exists() and (land / "scratch").exists()
+    rows = _cleanup_rows()
+    assert rows and rows[-1]["state"] == "kept" and "uncommitted" in rows[-1]["detail"] and str(land) in rows[-1]["detail"]
+    n = len(rows)
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    assert len(_cleanup_rows()) == n, "the same reason is not a row every tick"
+
+
+def test_a_lane_with_steps_left_keeps_its_tree_and_branch(state, tmp_path):
+    fake, wt, land, repo, g = _cleanup_world(state, tmp_path, steps_left=True)
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    assert not land.exists(), "the landed step's snapshot goes"
+    assert wt.exists() and "w1" in g(repo, "branch", "--format=%(refname:short)").split()
+
+
+def test_an_unmerged_lane_branch_is_kept(state, tmp_path):
+    fake, wt, land, repo, g = _cleanup_world(state, tmp_path, merged=False)
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    assert land.exists(), "its head is not on origin/integration: not landed, nothing removed"
+    assert wt.exists() and "w1" in g(repo, "branch", "--format=%(refname:short)").split()
+
+
+def test_a_snapshot_a_later_batch_is_using_is_not_removed(state, tmp_path):
+    fake, wt, land, repo, g = _cleanup_world(state, tmp_path, steps_left=True)
+    lanes = queue.load()
+    lanes[0]["steps"][1].update(state="done", head=g(wt, "rev-parse", "HEAD"), land_tree=str(land))
+    queue.save(lanes)
+    queue.clean_up(queue.load()[0], "origin/integration")
+    assert land.exists(), "batch 2 shares land-w1 and is not landed"
+    lanes = queue.load()
+    lanes[0]["steps"][1].update(state="landed")
+    lanes[0]["steps"][0]["head"] = lanes[0]["steps"][1]["head"] = "0" * 40
+    queue.save(lanes)
+    queue.clean_up(queue.load()[0], "origin/integration")
+    assert land.exists(), "the tree no longer holds this step's head"

@@ -51,6 +51,7 @@ struct ShareSettingsView: View {
     @State var firewallVerdict = FirewallCheck.Verdict.unknown
     @State var selectedDevices = Set<String>()
     @State var confirmRemoveSelected = false
+    @State var machineToForget: ForgetMachinePrompt?
     /// The one sheet this pane presents: two `.sheet(isPresented:)` on the same view race, and only one shows reliably.
     enum ActiveSheet: Identifiable, Hashable {
         case addDevice, connect, whichProjects
@@ -103,6 +104,8 @@ struct ShareSettingsView: View {
             if SharingPaneText.showsDevices(isOn: hostingEnabled, engineIsLocal: EngineConfig.engineIsLocal) {
                 devicesSection
             }
+
+            connectedMacsSection
 
             if multiuserEnabled {
                 PendingInvitesSection()

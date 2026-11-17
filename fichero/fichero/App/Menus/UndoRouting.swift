@@ -270,7 +270,7 @@ struct SelectAllButton: View {
             // default branch, because "the reader works" was previously an
             // accident of the library's enablement rather than a decision.
             return nil
-        case .segments, .activity:
+        case .segments, .activity, .activityGraphs:
             // DELIBERATELY nil: the Segments pane's List and the Activity pane's Table answer ⌘A with their own
             // selection; the library must not take it just because it is the default owner (#4942).
             return nil

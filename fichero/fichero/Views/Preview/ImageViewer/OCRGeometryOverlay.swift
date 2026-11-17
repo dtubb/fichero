@@ -331,6 +331,7 @@ extension ZoomableImagePreview {
         ocrGeometry = nil
         ocrGeometryArtifactId = nil
         ocrGeometrySelectionScope = nil
+        ocrGeometryPassId = nil
         // Loads regardless of the boxes TOGGLE (2026-08-23): the reader's
         // word-selection linking needs the geometry even when the full box
         // layer is off — the toggle gates drawing that layer, not knowing.
@@ -347,6 +348,7 @@ extension ZoomableImagePreview {
         // The artifact the DRAWN pass came from, so the curation verbs address the rows whose boxes
         // are on screen (2026-08-29) -- from the same answer as the geometry, never looked up again.
         ocrGeometryArtifactId = selected.artifactId
+        ocrGeometryPassId = selected.passId
         // What a click selects in: the artifact, or the pass itself when it has none (#5152).
         ocrGeometrySelectionScope = SegmentDisplay.selectionScope(
             artifactId: selected.artifactId, passId: selected.passId

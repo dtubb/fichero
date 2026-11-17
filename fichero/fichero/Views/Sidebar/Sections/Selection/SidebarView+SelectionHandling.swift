@@ -238,14 +238,18 @@ extension SidebarView {
         // opened this node itself (a double-click into a PDF), which the highlight just follows.
         let alreadyOpen = if case .library(let shown) = viewMode { shown?.id == doc.id } else { false }
         if let open = SidebarSourceOpen.plan(for: doc, previewShowing: true), !alreadyOpen {
-            routeToFolder(open.folderId, of: doc, libraryId: libraryId)
+            routeToFolder(open, of: doc, libraryId: libraryId)
             return
         }
         viewMode = .library(doc)
     }
 
     /// Show a source's folder in the Library pane: from the store when it is known, else fetched.
-    private func routeToFolder(_ folderId: String?, of doc: Document, libraryId: UUID?) {
+    private func routeToFolder(_ open: SidebarSourceOpen, of doc: Document, libraryId: UUID?) {
+        let folderId = open.folderId
+        // The list already shows this folder: the click only moves the selection, so nothing is
+        // written here and nothing reloads (#6657, `SidebarSourceOpen.changes`).
+        if SidebarSourceOpen.changes(for: open, viewMode: viewMode) == [.select(open.selection)] { return }
         guard let folderId else {
             viewMode = .library(nil)
             return

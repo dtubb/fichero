@@ -1060,7 +1060,7 @@
           "activity"
         ],
         "summary": "Activity Models",
-        "description": "The Models tree (`activity.window.models-tree`, `activity.resources.everything-measured`, #6588): every model this\nproject used today or the engine holds now, by place (this Mac, remote, cloud) and provider, loaded or not, active or\nnot, its memory where measured, today's pages, calls and seconds.",
+        "description": "The Models tree (`activity.window.models-tree`, `activity.resources.everything-measured`, #6588): every model this\nproject used today, the engine holds now or this Mac has installed, by place (this Mac, remote, cloud) and provider,\nloaded or not, active or not, its memory where measured, today's pages, calls and seconds; and every place set up.",
         "operationId": "activity_models_api_activity_models_get",
         "responses": {
           "200": {
@@ -1104,6 +1104,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ActivityRecipesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/activity/foreground": {
+      "put": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Put Foreground",
+        "description": "The page in view first (`activity.foreground.rank-on-the-row-and-the-pick`, #6442; Step 1.14): the client's set of\nwhat is in view replaces its last one, and the waiting jobs of those pages are ranked first in step order; the rest go\nback to 0. A set not reported again within 90 s lapses. It starts nothing and re-runs nothing.",
+        "operationId": "put_foreground_api_activity_foreground_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForegroundRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForegroundResponse"
                 }
               }
             }
@@ -52465,6 +52508,22 @@
             "title": "Buckets",
             "description": "one per minute, oldest first, the last the current minute"
           },
+          "by_recipe": {
+            "items": {
+              "$ref": "#/components/schemas/HistorySeries"
+            },
+            "type": "array",
+            "title": "By Recipe",
+            "description": "pages per minute by the recipe they ran under"
+          },
+          "by_model": {
+            "items": {
+              "$ref": "#/components/schemas/HistorySeries"
+            },
+            "type": "array",
+            "title": "By Model",
+            "description": "pages and calls per minute by model"
+          },
           "by_runtime": {
             "additionalProperties": {
               "type": "integer"
@@ -52672,10 +52731,46 @@
             },
             "type": "array",
             "title": "Models"
+          },
+          "places": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityPlace"
+            },
+            "type": "array",
+            "title": "Places",
+            "description": "every place set up, used or not"
+          },
+          "this_mac": {
+            "$ref": "#/components/schemas/ThisMac",
+            "nullable": true
           }
         },
         "type": "object",
         "title": "ActivityModelsResponse"
+      },
+      "ActivityPlace": {
+        "properties": {
+          "place": {
+            "type": "string",
+            "enum": [
+              "this-mac",
+              "remote",
+              "cloud"
+            ],
+            "title": "Place"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          }
+        },
+        "type": "object",
+        "required": [
+          "place",
+          "provider"
+        ],
+        "title": "ActivityPlace",
+        "description": "A place work can run, set up whether used or not (owner 2026-11-16): this Mac, another Mac by its address, a\ncluster by its name, a cloud provider. `provider` is its node under the place, as a model's provider is."
       },
       "ActivityRecipesResponse": {
         "properties": {
@@ -56354,6 +56449,11 @@
             "type": "string",
             "nullable": true,
             "title": "Blocked By"
+          },
+          "in_view": {
+            "type": "integer",
+            "title": "In View",
+            "default": 0
           }
         },
         "type": "object",
@@ -72912,6 +73012,63 @@
         ],
         "title": "FontChoice"
       },
+      "ForegroundItem": {
+        "properties": {
+          "subject": {
+            "type": "string",
+            "title": "Subject",
+            "description": "a page or document the person has in view"
+          },
+          "rank": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Rank",
+            "description": "its place in the view: 0 the page shown, then its neighbours",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "subject"
+        ],
+        "title": "ForegroundItem"
+      },
+      "ForegroundRequest": {
+        "properties": {
+          "client": {
+            "type": "string",
+            "title": "Client",
+            "description": "the window or pane reporting; its next report replaces this one"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ForegroundItem"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "empty: this client has nothing in view"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client"
+        ],
+        "title": "ForegroundRequest"
+      },
+      "ForegroundResponse": {
+        "properties": {
+          "ranked": {
+            "type": "integer",
+            "title": "Ranked",
+            "description": "waiting jobs now ranked for the page in view, in this project"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ranked"
+        ],
+        "title": "ForegroundResponse"
+      },
       "FormatInfo": {
         "properties": {
           "name": {
@@ -74137,6 +74294,38 @@
           "start"
         ],
         "title": "HistoryBucket"
+      },
+      "HistorySeries": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "the recipe's name, or the model's id in the Models tree (place|provider|name)"
+          },
+          "pages": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Pages",
+            "description": "pages done in each minute"
+          },
+          "calls": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Calls",
+            "description": "a model's calls in each minute; empty for a recipe"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "pages"
+        ],
+        "title": "HistorySeries",
+        "description": "One recipe's or one model's own counts, minute by minute, aligned with `buckets` (`activity.window.graph-on-every-view`)."
       },
       "HowOption": {
         "properties": {
@@ -78624,6 +78813,31 @@
           "available"
         ],
         "title": "KrakenRuntimeStatusResponse"
+      },
+      "LaneLoad": {
+        "properties": {
+          "lane": {
+            "type": "string",
+            "title": "Lane"
+          },
+          "busy": {
+            "type": "integer",
+            "title": "Busy",
+            "description": "this project's jobs running in it now"
+          },
+          "width": {
+            "type": "integer",
+            "title": "Width",
+            "description": "how many it runs at once"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lane",
+          "busy",
+          "width"
+        ],
+        "title": "LaneLoad"
       },
       "LanguageCoverageRecord": {
         "properties": {
@@ -89826,6 +90040,10 @@
           "hf_spend": {
             "$ref": "#/components/schemas/HfSpend",
             "nullable": true
+          },
+          "times": {
+            "$ref": "#/components/schemas/RemoteTimes",
+            "nullable": true
           }
         },
         "type": "object",
@@ -92661,6 +92879,33 @@
           "shards"
         ],
         "title": "RemoteRunRow"
+      },
+      "RemoteTimes": {
+        "properties": {
+          "queued_seconds": {
+            "type": "number",
+            "nullable": true,
+            "title": "Queued Seconds"
+          },
+          "run_seconds": {
+            "type": "number",
+            "nullable": true,
+            "title": "Run Seconds"
+          },
+          "node_hours": {
+            "type": "number",
+            "nullable": true,
+            "title": "Node Hours"
+          },
+          "cost_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cost Usd"
+          }
+        },
+        "type": "object",
+        "title": "RemoteTimes",
+        "description": "A remote read's measured times (#6588): null where nothing measured it, never 0."
       },
       "RemoveBackgroundOperationRequest": {
         "properties": {
@@ -100729,6 +100974,14 @@
             "type": "integer",
             "title": "Total",
             "default": 0
+          },
+          "in_flight": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "In Flight",
+            "description": "the files it is on now, by name (an import's stage)"
           }
         },
         "type": "object",
@@ -103852,6 +104105,36 @@
         ],
         "title": "TextRegionSpan",
         "description": "One char span to resolve, with the search hit's weight for heat-map\nshading (Daniel's ruling, #4604 Q6: hotter for stronger matches)."
+      },
+      "ThisMac": {
+        "properties": {
+          "memory_used_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Memory Used Bytes"
+          },
+          "memory_total_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Memory Total Bytes"
+          },
+          "processor_percent": {
+            "type": "number",
+            "nullable": true,
+            "title": "Processor Percent",
+            "description": "the last minute's load over its cores, %"
+          },
+          "lanes": {
+            "items": {
+              "$ref": "#/components/schemas/LaneLoad"
+            },
+            "type": "array",
+            "title": "Lanes"
+          }
+        },
+        "type": "object",
+        "title": "ThisMac",
+        "description": "This Mac, measured (`activity.resources.everything-measured`): null where nothing measures it, never 0."
       },
       "ThreadDeletedResponse": {
         "properties": {

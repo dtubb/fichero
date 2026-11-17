@@ -4,6 +4,7 @@ never one a running process names. LIST and DELETE are separate steps (hard rule
 whole dir): `--list` writes the list to a file, `--delete FILE` removes exactly the dirs that file names, re-checking each first."""
 from __future__ import annotations
 
+import os
 import subprocess
 import time
 import tomllib
@@ -12,7 +13,20 @@ from pathlib import Path
 from fichero_builder import journal
 
 PREFIXES = ("check-tree-", "check-base-tree-", "check-base-", "check-home-")  # what check_tool._mkdtemp makes; nothing else is touched
-RETAIN_H = 6.0  # a ladder runs at most a few hours (build 3600 s); anything this old is no live ladder's
+REVIEW_PREFIXES = ("review-tree-", "review-")  # scripts/harness_review.py's tree and cwd, in review_dir() (#6589 item 20), never the workroot
+RETAIN_H = 6.0  # a ladder (build 3600 s) or a review runs at most a few hours; anything this old is no live one's
+
+
+def review_dir() -> Path:
+    """The owner-only dir for the review's tree and cwd, review-scratch under the state dir. Not the workroot: the reviewer runs as
+    the owner and claude obeys a CLAUDE.md in its cwd and every ancestor, and a worker can write the workroot. Made mode 700;
+    refused when it is a symlink, not the owner's, or open to group or others."""
+    d = journal.STATE / "review-scratch"
+    d.mkdir(mode=0o700, parents=True, exist_ok=True)
+    st = d.lstat()
+    if d.is_symlink() or st.st_uid != os.getuid() or st.st_mode & 0o077:
+        raise RuntimeError(f"REFUSED: {d} must be a real directory owned by the owner with mode 700")
+    return d
 
 
 def _rules(root) -> dict:
@@ -30,12 +44,12 @@ def _kb(p: Path) -> int:
     return int(r.stdout.split()[0]) if r.returncode == 0 and r.stdout.split() else 0
 
 
-def candidates(workroot, retain_h: float = RETAIN_H, now: float | None = None, held: str | None = None) -> list[Path]:
-    """The ladders' scratch dirs directly under `workroot`, older than `retain_h` hours, named by no running process."""
+def candidates(workroot, retain_h: float = RETAIN_H, now: float | None = None, held: str | None = None, prefixes: tuple = PREFIXES) -> list[Path]:
+    """The scratch dirs named by `prefixes` directly under `workroot`, older than `retain_h` hours, named by no running process."""
     now, held = now or time.time(), _held() if held is None else held
     out = []
     for p in sorted(Path(workroot).iterdir()) if Path(workroot).is_dir() else []:
-        if not p.name.startswith(PREFIXES) or p.is_symlink() or not p.is_dir():
+        if not p.name.startswith(prefixes) or p.is_symlink() or not p.is_dir():
             continue
         if now - p.lstat().st_mtime < retain_h * 3600 or str(p) in held:
             continue
@@ -47,6 +61,7 @@ def list_step(root, retain_h: float = RETAIN_H) -> tuple[Path, int, int]:
     """Step 1: the list, written to `<state>/scratch-sweep-<ts>.txt` (one path a line); (file, count, KiB). Deletes nothing."""
     workroot = _rules(root).get("jail", {}).get("workroot", "")
     paths = candidates(workroot, retain_h) if workroot else []
+    paths += candidates(journal.STATE / "review-scratch", retain_h, prefixes=REVIEW_PREFIXES)
     kb = sum(_kb(p) for p in paths)
     journal.STATE.mkdir(parents=True, exist_ok=True)
     f = journal.STATE / f"scratch-sweep-{time.strftime('%Y%m%d-%H%M%S')}.txt"
@@ -69,8 +84,11 @@ def delete_step(root, listed, retain_h: float = RETAIN_H) -> tuple[int, int, lis
     removed, freed, left = 0, 0, []
     for line in Path(listed).read_text().splitlines():
         p = Path(line.strip())
-        if not line.strip() or p.is_symlink() or p.resolve().parent != workroot or not p.name.startswith(PREFIXES):
-            left.append(f"{line.strip()}: not a scratch dir directly under the workroot")
+        parent = p.resolve().parent
+        ok = (parent == workroot and p.name.startswith(PREFIXES)) or (
+            parent == (journal.STATE / "review-scratch").resolve() and p.name.startswith(REVIEW_PREFIXES))
+        if not line.strip() or p.is_symlink() or not ok:
+            left.append(f"{line.strip()}: not a scratch dir directly under the workroot or the review scratch dir")
             continue
         if not p.exists():
             continue

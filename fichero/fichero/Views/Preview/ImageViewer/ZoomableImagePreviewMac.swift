@@ -204,9 +204,9 @@ struct ZoomableImagePreview: View {
     @PaneStorage("imagePreview.showBoundingBoxes") var showBoundingBoxes = false
     /// The image layer (ruled 2026-09-27, Q2). On by default: a page with its picture hidden
     /// is a deliberate view, never where a person should land by accident.
-    /// PER-PANE, like the word boxes: seeded from the remembered default, then from the pane's
-    /// workspace (`panePreviewLayers`) when it states one.
-    @State var imageVisible = EngineConfig.defaults.object(forKey: ImageLayer.defaultsKey) as? Bool ?? true
+    /// The SOURCE's own setting (#6657, `SourceViewSettings`), else the pane's workspace
+    /// (`panePreviewLayers`), else on. The old app-wide key is not read: it kept a stale off.
+    @State var imageVisible = true
     @Environment(\.panePreviewLayers) var panePreviewLayers
     @State var ocrGeometry: OCRGeometry?
     /// THIS pane's region selection (#5020): never another pane's. The window's focus points at it
@@ -221,6 +221,8 @@ struct ZoomableImagePreview: View {
     /// when it has no artifact (an imported page, #5152). Selecting and highlighting use this; the
     /// edit verbs keep the real artifact id above.
     @State var ocrGeometrySelectionScope: String?
+    /// The pass the shown boxes came from, with or without an artifact: where a drawing is sent (#6412).
+    @State var ocrGeometryPassId: String?
     /// Rubber-band add mode: drags draw EPHEMERAL marquees (per-window seam
     /// `WindowState.previewMarquees`) — nothing persists until the user
     /// promotes them to regions or runs a workflow scoped to the crops.
@@ -381,7 +383,7 @@ struct ZoomableImagePreview: View {
             publishHeadChrome()
             windowState?.offerRegionSelection(regionSelection)
             // The workspace's layer defaults, per pane (Q2). Nil fields leave the remembered value.
-            imageVisible = PreviewLayerDefaults.start(workspace: panePreviewLayers?.image, remembered: imageVisible)
+            adoptSourceImageVisibility()
             if let wordBoxes = panePreviewLayers?.wordBoxes { ocrBoxesEnabled = wordBoxes }
         }
         .onChange(of: renditionIndex) { _, _ in publishHeadChrome() }
@@ -442,11 +444,9 @@ struct ZoomableImagePreview: View {
             .onChange(of: regionSelection.revealCount) { _, _ in
                 if let rect = regionSelection.revealRect { imageCoordinator?.zoomToNormalizedRegion(rect) }
             }
-            .onChange(of: imageVisible) { _, visible in
-                if PreviewLayerDefaults.shouldRemember(visible, workspace: panePreviewLayers?.image) {
-                    EngineConfig.defaults.set(visible, forKey: ImageLayer.defaultsKey)
-                }
-            }
+            // Show Image is the SOURCE's own setting (#6657): read when the source changes, written only by the
+            // person's toggle (`imageVisibleBinding`), never by arriving here.
+            .onChange(of: documentId) { _, _ in adoptSourceImageVisibility() }
             // Sticky markup tool (Daniel, 2026-08-30): arming highlight/note
             // in the bar arms the draw layer; disarming (or switching to a
             // non-drawing tool) stands it down. Cursor follows.

@@ -124,6 +124,34 @@ extension ZoomableImagePreview {
     // in the floating cluster beside the mini-map. This bar keeps only the
     // regions toggle — the ⓘ went too (2026-08-30: it only toggled the
     // inspector, which has its own affordances).
+    /// The source's stored Show Image, else the workspace's, else what the pane had (#6657). Writes nothing.
+    func adoptSourceImageVisibility() {
+        let stored = documentId.flatMap { documentStore?.resolveDocument($0) }
+            .flatMap { SourceViewSettings.showImage(in: $0.metadata) }
+        imageVisible = SourceViewSettings.startValue(
+            stored: stored, workspace: panePreviewLayers?.image, fallback: true
+        )
+    }
+
+    /// The What-to-show toggle: the one place Show Image is written, onto the source (#6657).
+    var imageVisibleBinding: Binding<Bool> {
+        Binding(
+            get: { imageVisible },
+            set: { visible in
+                imageVisible = visible
+                guard let id = documentId, let store = documentStore,
+                      let doc = store.resolveDocument(id) else { return }
+                let payload = SourceViewSettings.metadata(settingShowImage: visible, in: doc.metadata)
+                Task { @MainActor in
+                    // A metadata-only change: every cached copy takes it, the outline's included (#6657).
+                    if let saved = try? await store.documentService.updateDocument(id, metadataPayload: payload) {
+                        store.refreshLocalContent(saved)
+                    }
+                }
+            }
+        )
+    }
+
     var readerToolbar: some View {
         ReaderToolbar(
             style: .quiet,
@@ -136,7 +164,7 @@ extension ZoomableImagePreview {
             fitToWindow: fitToWindow,
             actualSize: actualSize,
             textBoxesEnabled: $ocrBoxesEnabled,
-            imageEnabled: $imageVisible,
+            imageEnabled: imageVisibleBinding,
             annotationsEnabled: $annotationsEnabled,
             regionsEnabled: $regionsEnabled,
             inlineTextEnabled: $inlineTextEnabled,
