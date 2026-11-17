@@ -55,6 +55,33 @@ extension ActivityPaneView {
         }
     }
 
+    /// The Table view of the window's centre: the rows (Recipes: recipe › run › step) over the graphs,
+    /// the divider the person's to drag (decisions 34, 37, 41).
+    @ViewBuilder
+    func tableCentre(_ shown: [ActivityMonitorRow]) -> some View {
+        if prefs.tab == .recipes {
+            ActivityGraphsSplitStack { ActivityRecipesView(libraries: libraries) } graphs: { graphs }
+        } else {
+            ActivityGraphsSplitStack { rowsView(shown) } graphs: { graphs }
+        }
+    }
+
+    /// The centre's view picker (`activity.window.centre-views`): the item's offered views, the choice kept per item.
+    var centreViewPicker: some View {
+        Picker("View", selection: Binding(
+            get: { prefs.centreView(for: prefs.tab) },
+            set: { view in update { $0.centreViews[prefs.tab.rawValue] = view } }
+        )) {
+            ForEach(ActivityCentreView.offered(for: prefs.tab)) { view in
+                Label(view.title, systemImage: view.symbol).tag(view)
+            }
+        }
+        .pickerStyle(.segmented).labelsHidden().fixedSize()
+        .padding(.horizontal, 12).padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityIdentifier("activity.centre.views")
+    }
+
     func modelRow(_ model: ActivityModelEntry) -> some View {
         HStack(spacing: 6) {
             Image(systemName: model.symbol)

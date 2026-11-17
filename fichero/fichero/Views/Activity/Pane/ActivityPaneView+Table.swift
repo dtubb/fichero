@@ -12,6 +12,9 @@ struct ActivityPanePrefs: Codable, Equatable {
     /// The tab, and the other tabs' columns as a person set them (`activity.window.toolbar-tabs`, #6588).
     var tab: ActivityPane.Tab = .runs
     var tabColumns: [String: TableColumnCustomization<ActivityMonitorRow>] = [:]
+    /// Each sidebar item's centre view, Table, Graph or Visual (`activity.window.centre-views`), by the item's raw
+    /// value.
+    var centreViews: [String: ActivityCentreView] = [:]
 
     init() {}
 
@@ -25,6 +28,12 @@ struct ActivityPanePrefs: Codable, Equatable {
         tab = try container.decodeIfPresent(ActivityPane.Tab.self, forKey: .tab) ?? ActivityPane.Tab.of(grouping)
         tabColumns = try container.decodeIfPresent([String: TableColumnCustomization<ActivityMonitorRow>].self,
                                                    forKey: .tabColumns) ?? [:]
+        centreViews = try container.decodeIfPresent([String: ActivityCentreView].self, forKey: .centreViews) ?? [:]
+    }
+
+    /// The item's centre view as chosen, if the item offers it, else Table.
+    func centreView(for tab: ActivityPane.Tab) -> ActivityCentreView {
+        centreViews[tab.rawValue].flatMap { ActivityCentreView.offered(for: tab).contains($0) ? $0 : nil } ?? .table
     }
 
     /// The tab's columns: the Runs tab's own, another tab's as set, else that tab's defaults.
