@@ -193,16 +193,15 @@ struct SidebarItemRow: View {
         // childrenCache), never from selection-scoped state — the old lookup
         // stopped at currentDocuments/collections, so a page row's spinner
         // only rendered while its parent was the selected collection.
-        let isSelfProcessing = store.isDocumentBusy(doc.id) || doc.status == .processing
-
         // Any container aggregates, not only folders: the reported case was a
-        // PDF spinning alongside its four page children.
-        let counts = store.childActivityCounts(of: doc.id)
-
+        // PDF spinning alongside its four page children. Read from the row's own
+        // box (`DocumentStore+RowActivity`), never the store: a store change then
+        // re-renders only the rows whose activity changed (2026-11-17 sidebar churn).
+        let inputs = store.rowActivity(for: doc.id).inputs
         return ContainerActivity.resolve(
-            isSelfProcessing: isSelfProcessing,
-            busyChildren: counts.busy,
-            totalChildren: counts.total
+            isSelfProcessing: inputs.isSelfProcessing || doc.status == .processing,
+            busyChildren: inputs.busyChildren,
+            totalChildren: inputs.totalChildren
         )
     }
 

@@ -41,7 +41,10 @@ final class DocumentStore {
 
     /// All collections (top-level documents)
     var collections: [Document] = [] {
-        didSet { processingIndexDirty = true }
+        didSet {
+            processingIndexDirty = true
+            scheduleRowActivityRefresh()
+        }
     }
 
     /// Currently selected collection
@@ -62,7 +65,12 @@ final class DocumentStore {
     /// without the bump a workflow's mid-run page_content write would never
     /// re-render the content pane. Internal(set) so the splice extension
     /// (`DocumentStore+ChangeStream`) can bump it.
-    var revision: Int = 0
+    var revision: Int = 0 {
+        didSet { scheduleRowActivityRefresh() }  // the sidebar rows' own boxes (`DocumentStore+RowActivity`)
+    }
+    /// The sidebar rows' activity boxes, by document id; each row observes only its own.
+    @ObservationIgnored var rowActivityBoxes: [String: RowActivityBox] = [:]
+    @ObservationIgnored var rowActivityRefreshScheduled = false
 
     /// Document ids touched by the most recent in-place splice / removal,
     /// paired with `revision`. Views that care about ONE document (the
@@ -106,6 +114,7 @@ final class DocumentStore {
         didSet {
             processingIndexDirty = true
             childActivityMemoToken &+= 1
+            scheduleRowActivityRefresh()
         }
     }
 
