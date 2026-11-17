@@ -34,7 +34,8 @@ total's best is the plain check's alone.
 Exit codes:
     0  the warning count is at or below its best-ever value
     1  the warning count GREW past its best-ever value — the ratchet FIRED
-    2  BLIND — could not run/parse SwiftLint at all (missing binary, missing
+    0  also: `not run: ...` row when the swiftlint binary is not on this machine's PATH
+    2  BLIND — could not run/parse SwiftLint at all (missing
        source tree, unparseable output, or — for the DEFAULT baseline only —
        a missing baseline file, which is committed repo content and whose
        absence means the tree moved). Distinct from 1: "I could not measure"
@@ -69,12 +70,21 @@ class Blind(Exception):
     """Raised when the warning count cannot be measured at all."""
 
 
-def _run_swiftlint() -> list[dict]:
+class NotRun(Exception):
+    """The machine has no SwiftLint binary: a missing tool is a "not run:" row, not a verdict on the tree."""
+
+
+def _swiftlint_binary() -> str:
     swiftlint = shutil.which("swiftlint")
     if swiftlint is None:
-        raise Blind("swiftlint is not on PATH")
+        raise NotRun("swiftlint is not on PATH on this machine")
+    return swiftlint
+
+
+def _run_swiftlint() -> list[dict]:
     if not SWIFT_SRC.is_dir():
         raise Blind(f"Swift source tree not found at {SWIFT_SRC}")
+    swiftlint = _swiftlint_binary()
     try:
         # cwd=ROOT: the repo-root .swiftlint.yml is the real config. Running
         # from inside fichero/ would pick up the NESTED fichero/.swiftlint.yml
@@ -231,9 +241,7 @@ def _count_by_rule(rev: str, files: list[str], configs_rev: str) -> Counter:
     Configs from the one revision, so an item that loosens a threshold is still judged by the old one."""
     if not files:
         return Counter()
-    swiftlint = shutil.which("swiftlint")
-    if swiftlint is None:
-        raise Blind("swiftlint is not on PATH")
+    swiftlint = _swiftlint_binary()
     with tempfile.TemporaryDirectory() as tree:
         try:
             _extract(configs_rev, list(CONFIGS), tree)
@@ -306,6 +314,9 @@ def main(argv: list[str] | None = None) -> int:
         except Blind as exc:
             print(f"check_swiftlint_warning_ratchet: BLIND — {exc}", file=sys.stderr)
             return BLIND_EXIT_CODE
+        except NotRun as exc:
+            print(f"not run: check_swiftlint_warning_ratchet: {exc}")
+            return 0
 
     # The DEFAULT baseline is committed repo content — its absence means the
     # tree moved (scripts/verify_all.sh's guardrail-blindness sweep,
@@ -328,6 +339,9 @@ def main(argv: list[str] | None = None) -> int:
     except Blind as exc:
         print(f"check_swiftlint_warning_ratchet: BLIND — {exc}", file=sys.stderr)
         return BLIND_EXIT_CODE
+    except NotRun as exc:
+        print(f"not run: check_swiftlint_warning_ratchet: {exc}")
+        return 0
 
 
 if __name__ == "__main__":

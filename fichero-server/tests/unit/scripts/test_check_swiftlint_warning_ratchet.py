@@ -6,8 +6,8 @@ would be slow and would depend on whatever rules happen to be installed —
 instead these tests monkeypatch `_run_swiftlint` (white-box import) to return
 canned violation lists, exercising the ratchet logic itself: ~30 lines from
 "here are N warnings" to pass/fail/tighten, independent of SwiftLint's own
-behavior. The one real-binary integration point (missing SWIFT_SRC / missing
-`swiftlint` on PATH -> BLIND) is also covered, and
+behavior. The one real-binary integration point (missing SWIFT_SRC -> BLIND; a
+missing `swiftlint` on PATH -> a `not run:` row) is also covered, and
 fichero-server/tests/unit/scripts/test_guardrails_fail_on_missing_input.py
 (#4382) separately proves this script fails in a genuinely empty tree end to
 end, real subprocess included.
@@ -164,13 +164,21 @@ class TestUpdateBaseline:
 
 
 class TestGoingBlind:
-    def test_swiftlint_missing_from_path_is_blind(self, tmp_path, monkeypatch):
+    def test_swiftlint_missing_from_path_is_a_not_run_row(self, tmp_path, monkeypatch, capsys):
         module = _import_script()
         monkeypatch.setattr(module.shutil, "which", lambda _name: None)
         r_baseline = tmp_path / "baseline.json"
         _seed_baseline(r_baseline, count=1)
         rc = module.main(["--baseline", str(r_baseline)])
-        assert rc == module.BLIND_EXIT_CODE
+        assert rc == 0
+        assert capsys.readouterr().out.startswith("not run: check_swiftlint_warning_ratchet")
+
+    def test_swiftlint_missing_from_path_is_a_not_run_row_for_since_too(self, monkeypatch, capsys):
+        module = _import_script()
+        monkeypatch.setattr(module.shutil, "which", lambda _name: None)
+        monkeypatch.setattr(module, "run_since", lambda _base: module._swiftlint_binary())
+        assert module.main(["--since", "main"]) == 0
+        assert "not run:" in capsys.readouterr().out
 
     def test_missing_swift_source_tree_is_blind(self, tmp_path, monkeypatch):
         module = _import_script()
