@@ -185,8 +185,8 @@ extension ContentView {
                 selectedDocumentIDs: browserSelection
             )
             .frame(maxWidth: .infinity)
-            .environment(\.onFolderCanvasFocus) { folderCanvasFocus = $0 }
-            .environment(\.onFolderCanvasSelection) { folderCanvasSelection = $0 }
+            .environment(\.onFolderCanvasFocus, FolderCanvasReport { folderCanvasFocus = $0 })
+            .environment(\.onFolderCanvasSelection, FolderCanvasReport { folderCanvasSelection = $0 })
             .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
         }
     }

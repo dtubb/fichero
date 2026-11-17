@@ -13,9 +13,22 @@ extension EnvironmentValues {
     /// Where a folder's canvas in the Preview reports the ONE card selected on it (nil for none or
     /// several), so the Inspector and the Reader show that item while the Preview keeps the board
     /// (2026-09-30, #5305). Set by ContentView on the Preview pane.
-    @Entry var onFolderCanvasFocus: ((Document?) -> Void)?
+    @Entry var onFolderCanvasFocus: FolderCanvasReport<Document?>?
     /// Every card selected on that canvas, so Group (⌥⌘G) can gather them (#5303).
-    @Entry var onFolderCanvasSelection: (([Document]) -> Void)?
+    @Entry var onFolderCanvasSelection: FolderCanvasReport<[Document]>?
+}
+
+/// A folder canvas's report closure, Equatable so the `@Entry` does not invalidate its readers on
+/// every update (closures cannot be compared). Every report is equal: the one setter
+/// (ContentView) only writes its own `@State`, so a newer closure does the same thing as an older one.
+struct FolderCanvasReport<Value>: Equatable {
+    let report: (Value) -> Void
+
+    init(_ report: @escaping (Value) -> Void) { self.report = report }
+
+    func callAsFunction(_ value: Value) { report(value) }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { true }
 }
 
 struct FolderContentsPreview: View {
