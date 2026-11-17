@@ -133,8 +133,8 @@ struct ActivityRunMenuTests {
     func stopCancelsTheRowsJob() async {
         let store = store()
         let outcome = await press({ $0.stop() }) { report in
-            .make(rowId: "run-1", rowName: "Read the folder", canStop: true, jobId: "job-1",
-                  runThreadId: "thread-1", readAgainLabel: nil, store: store, report: report)
+            .make(.init(rowId: "run-1", rowName: "Read the folder", canStop: true, jobId: "job-1",
+                      runThreadId: "thread-1", readAgainLabel: nil), store: store, report: report)
         }
         #expect(outcome == nil)
         #expect(RunVerbsEngine.recorded() == ["POST /api/activity/jobs/job-1/cancel"])
@@ -144,8 +144,8 @@ struct ActivityRunMenuTests {
     func readAgainReadsTheRunAgain() async {
         let store = store()
         let outcome = await press({ $0.readAgain() }) { report in
-            .make(rowId: "run-1", rowName: "Read the folder", canStop: false, jobId: "job-1",
-                  runThreadId: "thread-1", readAgainLabel: "Read the 3 pages that failed", store: store, report: report)
+            .make(.init(rowId: "run-1", rowName: "Read the folder", canStop: false, jobId: "job-1",
+                      runThreadId: "thread-1", readAgainLabel: "Read the 3 pages that failed"), store: store, report: report)
         }
         #expect(outcome == nil)
         #expect(RunVerbsEngine.recorded() == ["POST /api/workflow-execution/threads/thread-1/read-again"])
@@ -166,8 +166,8 @@ struct ActivityRunMenuTests {
         let store = store()
         RunVerbsEngine.refuse = true
         let stopped = await press({ $0.stop() }) { report in
-            .make(rowId: "run-1", rowName: "Read the folder", canStop: true, jobId: "job-1",
-                  runThreadId: "thread-1", readAgainLabel: nil, store: store, report: report)
+            .make(.init(rowId: "run-1", rowName: "Read the folder", canStop: true, jobId: "job-1",
+                      runThreadId: "thread-1", readAgainLabel: nil), store: store, report: report)
         }
         #expect(stopped?.hasPrefix("Couldn't stop Read the folder: ") == true)
         let readAgain = await press({ $0.readAgain() }) { report in

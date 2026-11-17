@@ -86,8 +86,8 @@ extension ActivityPaneView {
     }
 
     func runMenuTarget(for row: ActivityMonitorRow) -> ActivityRunMenuTarget {
-        .make(rowId: row.id, rowName: row.name, canStop: ActivityPaneVerb.stop.allows(row),
-              jobId: row.jobId, runThreadId: row.runThreadId, readAgainLabel: row.readAgainLabel,
+        .make(.init(rowId: row.id, rowName: row.name, canStop: ActivityPaneVerb.stop.allows(row),
+                    jobId: row.jobId, runThreadId: row.runThreadId, readAgainLabel: row.readAgainLabel),
               store: library(for: row.libraryId)?.activityStore, report: { notice = $0 })
     }
 
