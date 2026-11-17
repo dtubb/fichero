@@ -29,7 +29,7 @@ def _seed_ceiling(tmp_path, monkeypatch, ceiling, host="this-mac") -> None:
     monkeypatch.setattr(_mod, "CEILING_PATH", path)
     monkeypatch.setattr(_mod, "_host", lambda: "this-mac")
     if ceiling is not None:
-        path.write_text(json.dumps({**ceiling, **({"host": host} if host else {})}), encoding="utf-8")
+        path.write_text(json.dumps({**ceiling, **({"host_id": host} if host else {})}), encoding="utf-8")
 
 
 def test_count_equal_to_ceiling_passes(tmp_path, monkeypatch):
@@ -174,4 +174,11 @@ def test_update_ceiling_stamps_the_host_on_an_unstamped_ceiling(tmp_path, monkey
     _fake_stash(monkeypatch, 19)
     assert _mod.update_ceiling() == 0
     data = json.loads(_mod.CEILING_PATH.read_text(encoding="utf-8"))
-    assert data["ceiling"] == 19 and data["host"] == "this-mac"
+    assert data["ceiling"] == 19 and data["host_id"] == "this-mac"
+
+
+def test_the_host_id_is_a_hash_not_the_hostname(monkeypatch):
+    import socket
+    monkeypatch.setattr(socket, "gethostname", lambda: "Jane-Smiths-MacBook")
+    host_id = _mod._host()
+    assert "jane" not in host_id.lower() and len(host_id) == 12 and host_id == _mod._host()
