@@ -30,7 +30,13 @@ def test_a_clean_scheme_passes(tmp_path):
 
 
 def test_a_tree_with_nothing_to_scan_fails(tmp_path):
+    (tmp_path / "fichero").mkdir()
     assert _run(tmp_path).returncode == 2
+
+
+def test_a_tree_with_no_fichero_folder_fails(tmp_path):
+    done = _run(tmp_path)
+    assert done.returncode != 0 and "scan root does not exist" in done.stderr
 
 
 def test_the_real_tree_is_clean():

@@ -2,27 +2,27 @@
 """No committed project file under fichero/ carries a home-folder path (#6663).
 
 A shared .xcscheme, .xcconfig or .plist that names a user's home folder breaks every other Mac account and leaks a
-personal path from a public repo. Walks fichero/ (no git needed, build output dirs skipped); no matching file FAILS.
+personal path from a public repo. Walks fichero/ with scan_rglob (no git needed, hidden and build output dirs skipped); a missing
+fichero/ raises and no matching file FAILS.
 
 Usage: scripts/check_no_home_paths_in_project.py [--root DIR]
 Exit codes: 0 clean, 1 a home path found, 2 nothing to scan (no matching files)."""
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
+from _scan_files import scan_rglob
+
 ROOT = Path(__file__).resolve().parent.parent
 SUFFIXES = (".xcscheme", ".xcconfig", ".plist")
-SKIP_DIRS = {".git", "derived", "DerivedData", "build", ".build", "SourcePackages"}  # build output, not committed files
+SKIP_DIRS = {"derived", "DerivedData", "build", "SourcePackages"}  # build output, not committed files
 NEEDLE = "/Users/"
 
 
 def violations(root: Path) -> list[str] | None:
-    files = []
-    for dirpath, dirs, names in os.walk(root / "fichero"):
-        dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
-        files += [str((Path(dirpath) / n).relative_to(root)) for n in names if n.endswith(SUFFIXES)]
+    files = [str(p.relative_to(root)) for suffix in SUFFIXES for p in scan_rglob(root / "fichero", "*" + suffix)
+             if not SKIP_DIRS.intersection(p.relative_to(root).parts)]
     if not files:
         return None
     out = []
