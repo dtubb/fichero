@@ -484,7 +484,8 @@ RULES (earlier clusters were sent back for these):
 """
 
 [spend]
-# Caps the watcher enforces (dev-workflows.run.watch-tick): 8 USD per worker session, 60 USD per day (owner ruling
+# Caps the watcher enforces (dev-workflows.run.watch-tick): 8 USD per worker session, 250 USD per day (owner 2026-11-16 evening,
+# raised from 60 after the day cap parked every lane; earlier: owner ruling
 # 2026-11-01 evening, raised from 5/20 after the day cap parked the product worker; notional under the Max login, not a
 # bill). A worker whose model has no price here does not start.
 window = 200000   # plain sonnet's window (owner 2026-11-02: every turn stays under 200k; handoffs often, cheap and reliable)

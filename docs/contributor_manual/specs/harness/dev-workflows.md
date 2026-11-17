@@ -617,7 +617,7 @@ the write path would produce.
   `launchd` job only keeps the watcher itself alive. Built 2026-11-01: the judgement (`fichero_builder/watcher.py`: caps from
   `[spend]`, a missing cap or an unknown price refuses, decisions park, handoff, alert from a session state). Not yet: the
   process that starts, reads and acts. Test: `fichero-builder/tests/test_watcher.py`.
-  The caps in `harness.toml [spend]` are owner settings (8 USD a session, 60 USD a day as of 2026-11-01 evening). `[spend].window` is 200000 and
+  The caps in `harness.toml [spend]` are owner settings (8 USD a session, 250 USD a day as of 2026-11-16 evening). `[spend].window` is 200000 and
   `[models].builder` is plain `sonnet` (owner 2026-11-02: every turn under 200k, handoffs often, cheap and reliable), because a lane takes its model from the role (test `fichero-builder/tests/test_model_config.py::test_a_window_past_the_standard_one_has_a_builder_model_that_gets_it`).
 - `dev-workflows.run.loop` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) (owner 2026-11-02: the harness keeps going with nobody watching; a stage that waits on a
   person is a defect) — `builder loop` runs indefinitely: `builder queue run --lanes N --push` ticking forever, one `loop` heartbeat
