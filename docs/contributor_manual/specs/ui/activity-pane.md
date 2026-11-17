@@ -686,9 +686,13 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   (`db/manager.py`) and every enqueue dedupe against a row of the same kind and subject that is waiting OR PAUSED (and not
   deleted), so a relaunch never adds a twin and a deleted row's page is not queued again by the open. *Test:*
   `fichero-server/tests/unit/jobs/test_open_queues_nothing_twice_6588.py`.
-- `activity.engine.close-pauses-running-work` — **[BROKEN]** (#6596, #6588) closing a project PAUSES the work running in it
+- `activity.engine.close-pauses-running-work` — **[OK]** (#6596, #6588) closing a project PAUSES the work running in it
   ("Paused: the project closed") and waits for it to let go of the connection before closing it; never a failure with the
-  library's path in its words. *Test:* not yet written: `test_close_pauses_running_work_6588.py`.
+  library's path in its words. A workflow run in flight with a checkpoint is paused as quit pauses it, its record and rows
+  saying so before the connection closes, and the row's Continue resumes it from its checkpoint; a recipe's step run, or a
+  run with nothing to resume from, is still carried on by its recipe run or marked interrupted at the next open (#5608).
+  *Test:* `fichero-server/tests/unit/jobs/test_close_pauses_running_work_6588.py` (the run),
+  `fichero-server/tests/unit/jobs/test_close_pauses_running_work_6596.py` (the page jobs).
 
 ### Ruled 2026-11-14 afternoon: the window, the bottom panel, the log, kept exports (decisions 22-29)
 

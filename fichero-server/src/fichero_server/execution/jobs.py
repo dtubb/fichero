@@ -1324,6 +1324,16 @@ def fail_run_rows(db: "Database", run_id: str, reason: str) -> None:
     )
 
 
+def pause_run_rows(db: "Database", run_id: str, reason: str) -> None:
+    """A run its project's close paused (#6596): its row and its unfinished steps' rows are paused with `reason`."""
+    _ensure(db)
+    db.execute(
+        "UPDATE jobs SET state = 'paused', reason = ? WHERE (id = ? OR id LIKE ?) "
+        "AND kind IN ('workflow', 'workflow-step') AND state NOT IN ('done', 'failed', 'cancelled')",
+        [reason, run_id, f"{run_id}:%"],
+    )
+
+
 def _key(db: "Database") -> str:
     from fichero_server.db.manager import DatabaseManager
 

@@ -972,6 +972,7 @@ async def list_background_jobs(
         tracker = get_activity_tracker(str(db.path))
         runs = await tracker.store.list_workflow_runs(limit=50)
         from fichero_server.workflows.run_account import run_account
+        from fichero_server.execution.jobs import paused_failure
 
         # A failed run whose pages were read again by a newer run (Retry, or Read Again) is that run's now: one
         # row, not two (`activity.retry.one-row`).
@@ -1008,12 +1009,16 @@ async def list_background_jobs(
                     total=total,
                     percent=round(percent, 1),
                     state=status,
-                    reason=(run.error or None) if status == "failed" else (account.waiting_reason if account else None),
+                    # A run paused by a cause, not a person (its project closed, #6596; the app quit), says which.
+                    reason=(run.error or None) if status == "failed" or (status == "paused" and run.error)
+                    else (account.waiting_reason if account else None),
                     account=account,
                     # A run without its end time still lists, with its reason: never vanish over a timestamp.
                     failed_at=_utc(getattr(run, "completed_at", None)) if status == "failed" else None,
                     finished_at=_run_finished_at(status, getattr(run, "completed_at", None)),
-                    failure=_run_failure(run) if status == "failed" else None,
+                    failure=_run_failure(run) if status == "failed" else (
+                        await asyncio.to_thread(paused_failure, db, run.thread_id, run.error)
+                        if status == "paused" else None),
                     runs_on=await asyncio.to_thread(_run_runs_on, db, run.thread_id),
                 )
             )
