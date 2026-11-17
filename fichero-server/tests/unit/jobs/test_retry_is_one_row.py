@@ -29,11 +29,16 @@ def _listed(client) -> dict[str, dict]:
 
 
 def test_retry_on_an_interrupted_workflow_run_reads_its_pages_again_in_one_row(
-        client, test_package, workflow, pages, cloud, lane_held):
+        client, test_package, workflow, pages, cloud, lane_held, monkeypatch):
+    from fichero_server.workflows import run_account
+
     db = db_manager.get_database(test_package)
     run = _execute(client, workflow, pages)
     assert _wait_for(lambda: _waiting_pages(db, run) == 3, 60)
-    _close_and_open(test_package)  # the run stops with its project, as it does when the engine goes away
+    # The run stops with its project with nothing to go on from, as when the engine goes away: interrupted. (A run with
+    # a checkpoint is paused by the close instead, #6596, `test_close_pauses_running_work_6588.py`.)
+    monkeypatch.setattr(run_account, "_resumable_after_close", lambda db, thread_id: False)
+    _close_and_open(test_package)
     assert _status(client, run) == "failed" and _listed(client)[run]["failed_at"]
 
     r = client.post(f"/api/activity/jobs/{run}/retry")
