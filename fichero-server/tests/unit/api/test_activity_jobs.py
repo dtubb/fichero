@@ -55,7 +55,10 @@ class TestJobsEndpoint:
         derivative_jobs = [j for j in body["jobs"] if j["task_type"] == "derivatives"]
         assert len(derivative_jobs) == 1
         assert derivative_jobs[0]["percent"] == 25.0
-        assert derivative_jobs[0]["name"] == "Processing imported pages"
+        # The row names what it works on: the project and the count (`activity.pane.names-what-it-works-on`, #6588).
+        from pathlib import Path
+
+        assert derivative_jobs[0]["name"] == f"Prepare pages · {Path(db.path).parent.stem} · 4"
         # CPU fields present; percent may be None on the first sample.
         assert "process_cpu_percent" in body
         assert body["cpu_count"] >= 1
