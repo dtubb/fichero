@@ -79,7 +79,9 @@ App (`fichero/fichero/Views/Preview/ImageViewer/Regions/`, `fichero/fichero/Mode
   pans and has no segment editing at all (`source.editor.one-input-seam` is a GAP).
 - `SegmentShapes` draws a segment as its shapes and reshapes them; `RegionColours` gives each
   region a hue and its lines a gradient along the order; `SegmentSelection` is the one selection.
-- PDF pages: select and reshape only (`SegmentVerbs.pdfPage`).
+- PDF pages: select and reshape only (`SegmentVerbs.pdfPage`). The import saves a born-digital page's words and rectangles as a geometry artifact (#4418,
+  `_save_pdf_text_layer_geometry`), but they never become segments, and a segment selected in a list
+  is not highlighted on the PDF page (#6664, Stage 8).
 
 ## Prior art (what is adopted, what is done differently)
 
@@ -659,6 +661,27 @@ See section 7.2 below for what exists. The design:
   its source. The Inspector shows it; the Segments list can sort by it. *Built:* maker and
   versions. *Not built:* the merged-from list on the row, the cut's source.
 
+
+#### PDF pages (owner 2026-11-16 evening; #6664; first when segment work resumes)
+
+- `segment-editor.pdf.segments-from-the-text-layer` — **[GAP]** (#6664) a PDF page with a text layer
+  gets regions, lines and words as segments built from the geometry the import already saved
+  (#4418), mapped from PDF page coordinates to the page's rendition, with no model run and no
+  network. They are ordinary segments: they carry their text as a reading, take every verb, and
+  survive a re-render. Where the artifact is missing the engine reads the PDF again; a page with no
+  text layer (a scan) gets no segments and says so in one line ("No text layer on this page;
+  find lines to make segments"). Re-running never duplicates: an existing text-layer segment set
+  is kept, not added again.
+- `segment-editor.pdf.selection-highlights-on-the-page` — **[GAP]** (#6664; owner: clicking a
+  segment line does not highlight it on the PDF) selecting a segment anywhere, in the Segments
+  pane, the Inspector or a reading, highlights its shape on the rendered PDF page in the region's
+  colour and brings it into view (scroll, and zoom only if it is off screen); clicking a shape on
+  the page selects its row. The same selection rule and drawing as an image page
+  (`SegmentSelection`, `SegmentShapes`), one code path.
+- `segment-editor.pdf.same-verbs-as-an-image` — **[GAP]** (#6664) a PDF page offers the full verb
+  set an image page does (new region, split, join, delete, reorder, kinds), replacing "select and
+  reshape only"; every verb is the same audited engine action.
+
 ### Visual design
 
 - Region hue and the order gradient are the umbrella's (`source.editor.colour.*`); nothing here
@@ -1006,6 +1029,17 @@ hand, so the cut marks on such a line are the fallback's and say so.
 - Behaviours: `segment-editor.pencil-draws-finger-pans`, `segment-editor.palm-rejection`, `segment-editor.two-finger-tap-undo`
 - Tests: SegmentEditorPencilTests.swift
 - Depends on: 7.1
+- Size: M
+
+### Stage 8 — PDF pages: segments from the text layer, selection on the page (do first when segment work resumes)
+#### Step 8.1 — Segments from the text layer (#6664)
+- Behaviours: `segment-editor.pdf.segments-from-the-text-layer`
+- Tests: test_pdf_text_layer_segments.py
+- Size: M
+#### Step 8.2 — A selected segment lights up on the PDF page; the page's verbs (#6664)
+- Behaviours: `segment-editor.pdf.selection-highlights-on-the-page`, `segment-editor.pdf.same-verbs-as-an-image`
+- Tests: PDFSegmentHighlightTests.swift, SegmentEditorUITests.swift
+- Depends on: 8.1
 - Size: M
 
 ## Test matrix
