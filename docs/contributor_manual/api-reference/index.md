@@ -1036,6 +1036,11 @@ Wire change (2026-10-25, #6101): this was a bare array. An app and an engine of 
 wrongly (the pages list shows an error, nothing else breaks), so the app and its engine are updated together; the engine's
 contract identity differs between the two builds.
 
+The page in view first (`activity.foreground.rank-on-the-row-and-the-pick`, #6442): `PUT /api/activity/foreground` with
+`{"client", "items": [{"subject", "rank"}]}` replaces that client's last set of what is in view; the waiting jobs of those
+pages are ranked first, in step order, and every other waiting job goes back to 0. Answers `{"ranked": n}`. A set not
+reported again within 90 s lapses. It starts nothing and re-runs nothing.
+
 One job: `PUT /api/activity/jobs/{job_id}/paused` with `{"paused": true}` holds a waiting job
 (it stays paused across relaunch) and `false` resumes it, through the undoable action
 `job.pause`; `POST /api/activity/jobs/{job_id}/cancel` stops it through `job.cancel`. Both answer
