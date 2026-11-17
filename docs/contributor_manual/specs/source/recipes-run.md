@@ -614,6 +614,48 @@ replaces the Kraken figure before #6212 is coded.
   (Pillow decodes a TIFF whole) and the time beside a Kraken fan-out measured on the M4.
   Test: fichero-server/tests/unit/importers/test_thumbnail_cost_bounded_6193.py.
 
+### 13. A step runs on a page only when what it needs is there (owner 2026-11-17, #6673)
+
+The owner's run of 2026-11-17 (39 pages, Kraken lines, then reading, correcting, statements): Kraken did not
+fail on its own, but the run still came apart. The engine log shows, in order:
+
+1. `Transcribe (Kraken)` failed at once on every page: "The Kraken reader McCATMuS is not on this Mac yet".
+   The start plan named the reader but did not fetch it before the step.
+2. Kraken found lines on all 39 pages. Its polygonizer failed on one line on each of 3 pages
+   (`TopologyException: side location conflict`); Kraken stores `None` for that line's polygon, and the
+   line is dropped with nothing said.
+3. Reading those lines (`read-a-line`, a cloud vision model) failed on 5 pages, and the page read failed on
+   30 of 37, all with OpenRouter's HTTP 402 `in_flight_budget_exhausted` (#6671), shown as "quota/limit hit".
+4. The later steps went on regardless. `tie-text-to-lines` did not run (no page reading). `correct` and
+   `find-statements` ran on pages that had no reading, and the run read "Done with failures" with steps
+   that finished on nothing.
+
+The behaviours:
+
+- `recipes-run.steps.models-fetched-before-the-step` — **[GAP]** (#6673) every model a run's steps name (a
+  Kraken segmenter or reader, a local vision model) is on this Mac before the first step that uses it starts:
+  the run's first stage fetches what is missing, with its progress in the run's row. A fetch that fails ends
+  the run before any step, in words naming the model; never a step failing on every page with "not on this
+  Mac yet".
+- `recipes-run.steps.a-page-waits-for-its-inputs` — **[GAP]** (#6673) a step runs on a page only when every
+  step it needs has finished on THAT page. A page whose earlier step failed is held, not passed on: the later
+  steps report it as "waiting for <step>" (never done, never failed for a cause that is not theirs).
+  Pages that have their inputs go on: one page's failure never stops the others.
+- `recipes-run.steps.retry-flows-through` — **[GAP]** (#6673) Retry on the run redoes only the failed pages
+  of the earliest failed step, and each page that then succeeds flows on through every later step it was
+  waiting for, in order; pages already done are not redone (`recipes-run.journey.run-again-on-what-was-missed`).
+- `recipes-run.steps.no-empty-done` — **[GAP]** (#6673) a step that had nothing to work on for a page (no
+  lines to tie, no reading to correct) never counts the page as done; the summary gives each step's done,
+  waiting and failed pages with the cause of each failure in words.
+- `recipes-run.kraken.no-silent-line-loss` — **[GAP]** (#6673) a line whose polygon Kraken cannot build keeps
+  its baseline with a box drawn round it, so it is still read; the count of such lines is kept on the page's
+  run and shown in the summary ("3 lines had no outline; boxed from their baselines"). No line Kraken found
+  is dropped without a word.
+- `recipes-run.kraken.reliability-measured` — **[GAP]** (#6673) Kraken's own reliability is measured, not
+  assumed: a trial of 100 pages (the test corpora) on the M4 overnight, Kraken steps only, records per page
+  the time, lines found, lines without an outline and any failure; the numbers go in this section.
+- A provider's in-flight or rate limit pauses the run, never fails pages: `ai.where.one-retry-policy`, #6671.
+
 ## Changes to existing behaviours
 
 1. **Resume after a crash resumes in place.** `activity.durable.lease-not-fail` (P) and
