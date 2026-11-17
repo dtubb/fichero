@@ -310,6 +310,7 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   bundle with one more `Sendable` warning than the baseline is red naming it; one fewer is green and prints the lower
   count; a baseline edit that raises a count is refused; `--since` over a fixture pair reports only the item's own new
   lines. Test: test_check_xcode_warning_ratchet (a new test file), case test_the_count_per_kind_and_platform_may_only_fall_and_since_names_the_item_s_lines. Built: the ratchet and the remote build rung's hold, tested in fichero-server/tests/unit/scripts/test_check_xcode_warning_ratchet.py and fichero-builder/tests/test_perf_sweep.py.
+  Baseline: `scripts/xcode_warning_baseline.json` holds no kind for `mac` and `ios` (#6610: the existing warnings were fixed in source, so any warning on either platform refuses a land); the first build after this batch confirms it.
 - `perf-sweep.warnings.ranked-list-and-issues` [OK] (#6610) — one list for all three warning sources: the xcode ratchet's
   kinds, `check_swiftlint_warning_ratchet.py`'s per-rule counts (`TOP_N_RULES` already computed there; the script gains
   `--json <out>` and nothing else) and ruff's per-rule counts where the quality stream holds them, written to
