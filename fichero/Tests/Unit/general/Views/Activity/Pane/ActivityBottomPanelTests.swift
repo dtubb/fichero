@@ -47,4 +47,44 @@ struct ActivityBottomPanelTests {
         #expect(ActivityBottomPanel.isEmpty(ActivityHistoryFigures(minutes: minutes([0, 0, 0]))))
         #expect(!ActivityBottomPanel.isEmpty(ActivityHistoryFigures(minutes: minutes([0, 1]))))
     }
+
+    // `activity.window.graph-on-every-view` (decision 34): Recipes graphs pages per minute by recipe; a model, provider or
+    // place picked under Where graphs its own pages and calls per minute.
+    private func series() -> ActivityHistoryFigures {
+        var history = ActivityHistoryFigures(minutes: minutes([0, 0, 0]))
+        history.byRecipe = [.init(key: "Letters", pages: [2, 0, 1]), .init(key: "Read the letters", pages: [0, 3, 0])]
+        history.byModel = [
+            .init(key: "this-mac|Kraken|blla", pages: [2, 0, 1], calls: [0, 0, 0]),
+            .init(key: "cloud|Anthropic|claude", pages: [0, 3, 0], calls: [4, 6, 0]),
+            .init(key: "cloud|OpenAI|gpt", pages: [0, 1, 0], calls: [0, 1, 0]),
+        ]
+        return history
+    }
+
+    @Test("the Recipes graph stacks each recipe's pages in the minutes it did any")
+    func recipesGraph() {
+        let points = ActivityBottomPanel.recipePoints(series())
+        #expect(points.map(\.recipe) == ["Letters", "Letters", "Read the letters"])
+        #expect(points.map(\.pages) == [2, 1, 3])
+    }
+
+    @Test("a picked model graphs its own pages and calls; a provider or a place sums the models under it")
+    func pickedModelGraph() {
+        let history = series()
+        let model = ActivityBottomPanel.pickSeries("model:cloud|Anthropic|claude", history: history)
+        #expect(model?.map(\.pages) == [0, 3, 0] && model?.map(\.calls) == [4, 6, 0])
+        #expect(ActivityBottomPanel.pickSeries("provider:Anthropic", history: history)?.map(\.calls) == [4, 6, 0])
+        #expect(ActivityBottomPanel.pickSeries("place:cloud", history: history)?.map(\.pages) == [0, 4, 0])
+        #expect(ActivityBottomPanel.pickSeries("tab:runs", history: history) == nil, "a tab draws its own graph")
+        #expect(ActivityBottomPanel.pickFigures("place:cloud", history: history) == "4 pages · 11 calls in the last hour")
+    }
+
+    @Test("two projects' series are one, by key, minute by minute added")
+    func seriesMerged() {
+        let merged = ActivityBottomPanel.mergedSeries(
+            [.init(key: "a", pages: [1, 2]), .init(key: "b", pages: [0, 1])], [.init(key: "a", pages: [3, 0, 1])]
+        )
+        #expect(merged.map(\.key) == ["a", "b"])
+        #expect(merged[0].pages == [4, 2, 1])
+    }
 }

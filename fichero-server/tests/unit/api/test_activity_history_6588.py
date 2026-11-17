@@ -83,3 +83,33 @@ def test_minutes_are_bounded(client):
     assert client.get("/api/activity/history?minutes=4").status_code == 422
     assert client.get("/api/activity/history?minutes=1441").status_code == 422
     assert len(client.get("/api/activity/history").json()["buckets"]) == 60
+
+
+def test_pages_and_calls_by_recipe_and_by_model_land_in_their_minutes(client, db):
+    """`activity.window.graph-on-every-view` (decision 34): Recipes graphs pages per minute by recipe, a model its pages
+    and calls per minute. A step run of a recipe run is the project's recipe (owner 2026-11-16: the recipe is the
+    project); a workflow run on its own is its workflow. A model's series key is its id in the Models tree."""
+    from fichero_server.db import activity_records as records
+    from fichero_server.workflows import activity_recipes
+
+    job_queue._ensure(db)
+    t0 = utc_now().replace(tzinfo=None)
+    db.execute(f"INSERT INTO {records.RUNS} (id, workflow_id, workflow_name, status, started_at) "
+               "VALUES ('solo', 'wf', 'Read the letters', 'completed', ?)", [t0])
+    for job_id, kind, parent in (("recipe-run", "run-a-recipe", None), ("step", "workflow", "recipe-run")):
+        db.execute("INSERT INTO jobs (id, kind, subject, state, attempts, created_at, parent_id) "
+                   "VALUES (?, ?, ?, 'done', 0, ?, ?)", [job_id, kind, job_id, t0, parent])
+    call = {"provider": "anthropic", "model": "claude", "place": "provider", "input_tokens": 1, "output_tokens": 1}
+    _add(db, "done", _minute(2), parent="step:read", usage=[call, call])
+    _add(db, "done", _minute(2), parent="solo:read")
+    db.execute("UPDATE jobs SET model = 'kraken:blla' WHERE parent_id = 'solo:read'")
+
+    body = client.get("/api/activity/history?minutes=10").json()
+
+    recipes = {s["key"]: s for s in body["by_recipe"]}
+    project = activity_recipes.project_recipe_name(db)
+    assert recipes[project]["pages"][-3] == 1 and recipes[project]["calls"] == []
+    assert recipes["Read the letters"]["pages"][-3] == 1
+    models = {s["key"]: s for s in body["by_model"]}
+    assert models["cloud|Anthropic|claude"]["calls"][-3] == 2
+    assert models["this-mac|Kraken|blla"]["pages"][-3] == 1
