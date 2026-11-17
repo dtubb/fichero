@@ -4644,6 +4644,8 @@ def release_idle_models(besides: "str | set[str | None] | None" = None) -> list[
     was used. What was released, by name (#6129: the lane said 'memory is tight' with the embedder idle in the engine)."""
     freed: list[str] = []
     keep = besides if isinstance(besides, (set, frozenset)) else {besides}
+    if _kraken_pages_in_flight():  # `recipes-run.memory.one-heavy-model-in-sequence`: never for an embed while its stage has pages left
+        keep = {*keep, "kraken"}
     runtime = sys.modules.get("fichero_server.llm.kraken_runtime")
     if (
         "kraken" not in keep
@@ -5532,12 +5534,18 @@ class _Scheduler:
         text_held_sql = ""
         text_params: list[Any] = []
         if text_kinds:
-            text_held_sql = (
-                f"(kind IN ({', '.join('?' for _ in text_kinds)}) AND {_PERSON_RANK_SQL} = 0 AND EXISTS "
-                f"(SELECT 1 FROM jobs AS r WHERE r.kind IN ({', '.join('?' for _ in READING_KINDS)}) "
-                f"AND r.state IN ('waiting', 'running')))"
-            )
-            text_params = [*text_kinds, *READING_KINDS]
+            # A run's Kraken pages in flight hold every background embed too (`recipes-run.memory.one-heavy-model-in-sequence`);
+            # ponytail: the page gate does not name its library, so on a Mac with more than 16 GB other projects' embeds wait as well.
+            kinds_in = f"kind IN ({', '.join('?' for _ in text_kinds)}) AND {_PERSON_RANK_SQL} = 0"
+            if _kraken_pages_in_flight():
+                text_held_sql, text_params = f"({kinds_in})", [*text_kinds]
+            else:
+                text_held_sql = (
+                    f"({kinds_in} AND EXISTS (SELECT 1 FROM jobs AS r WHERE "
+                    f"(r.kind IN ({', '.join('?' for _ in READING_KINDS)}) OR COALESCE(r.model, '') LIKE ?) "
+                    f"AND r.state IN ('waiting', 'running')))"
+                )
+                text_params = [*text_kinds, *READING_KINDS, f"{KRAKEN_MODEL_PREFIX}%"]
             where += f" AND NOT {text_held_sql}"
             params += text_params
         # One provider's calls never take the whole network lane while another provider's call is
