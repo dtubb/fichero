@@ -16,8 +16,6 @@ def _run(root: Path) -> subprocess.CompletedProcess:
 def _repo(tmp_path: Path, body: str) -> Path:
     (tmp_path / "fichero").mkdir()
     (tmp_path / "fichero" / "a.xcscheme").write_text(body)
-    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
-    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
     return tmp_path
 
 
