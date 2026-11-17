@@ -967,8 +967,7 @@ async def list_background_jobs(
             for job in jobs:
                 job.state, job.reason = "waiting", held
         # Its children are the stages it holds, each with its count and the files it is on now (#6588).
-        since = derivatives.queue_since(library)
-        stages = await asyncio.to_thread(derivatives.queue_stages, db, since)
+        stages = await asyncio.to_thread(derivatives.stages_now, db, library)
         for job in jobs:
             job.stages = [StageCount(**stage) for stage in stages]
 
