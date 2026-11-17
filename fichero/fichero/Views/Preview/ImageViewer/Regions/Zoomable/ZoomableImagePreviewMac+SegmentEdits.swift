@@ -134,8 +134,9 @@ extension ZoomableImagePreview {
         return InspectorPath.stepSelection(by: step, extend: extend, selection: regionSelection, documentId: documentId, store: store)
     }
 
-    /// DRAW a polygon or baseline with the Shape tool: `segment.create` on the shown pass, ⌘Z. Only on a
-    /// segment pass (an imported page); a page drawn from an artifact keeps its box-only regions path.
+    /// DRAW a polygon or baseline with the Shape tool, sent where `DrawTarget` says: `segment.create` on the shown
+    /// pass (⌘Z), a polygon on an artifact page whose boxes are not segment rows yet through `artifactService.addRegion`,
+    /// else refused with a logged reason (a baseline there, or no pass shown).
     func drawSegmentShape(_ kind: SegmentShapes.DrawKind, points: [[Double]]) {
         guard let documentId, let store = segmentEditStore else {
             Self.logger.error("Draw \(kind.title, privacy: .public) not sent: no segment store")

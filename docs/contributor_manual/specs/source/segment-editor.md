@@ -1366,7 +1366,7 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   loupe and magnifier are viewing aids, not layers. Nothing yet turns the image itself off, and no
   setting carries workspace defaults.
 - `source.editor.draw-shapes` — **[PARTIAL]** (#4941) box, polygon, point, line and baseline can be drawn.
-  **Built 2026-09-28 (image pages, segment passes), in the ONE Shape tool:** its kind menu, shown in Edit
+  **Built 2026-09-28 (image pages, segment passes), in the ONE Shape tool; since #6412 also on a page drawn from an artifact (`DrawTarget`): a polygon on a page whose boxes are not segment rows yet (a `legacy:` pass) goes to the regions route (`artifactService.addRegion`), a line there or any drawing with no pass shown is refused with a logged reason, never dropped:** its kind menu, shown in Edit
   Segments, picks Box (a drag, as before), Polygon (click points; a click on the first point, a
   double-click or Return closes it; while drawing, the closing edge is shown, the first point is drawn larger in
   the accent colour and a hint reads "Click here, double-click or press Return to close"; Return with fewer than

@@ -14,12 +14,13 @@ enum DrawTarget: Equatable {
     /// - Parameters:
     ///   - passId: the pass the shown boxes came from.
     ///   - artifactId: the artifact that pass came from, nil for an imported pass.
-    ///   - passIsProvisional: the shown segments are the seam's view of an unconverted result, not rows.
+    ///   - passIsProvisional: the shown segments are the seam's view of an unconverted result, not rows. A `legacy:` pass id counts as
+    ///     unconverted too, so a page whose segments the store has not loaded yet is not sent a create the engine would reject.
     static func resolve(
         kind: SegmentShapes.DrawKind, points: [[Double]], passId: String?, artifactId: String?, passIsProvisional: Bool
     ) -> DrawTarget {
         guard let passId else { return .refused("no pass is shown") }
-        guard artifactId != nil, passIsProvisional else { return .createOnPass(passId) }
+        guard artifactId != nil, passIsProvisional || passId.hasPrefix("legacy:") else { return .createOnPass(passId) }
         guard kind == .polygon, let artifactId else { return .refused("a line needs the page's boxes saved as segments first") }
         return .addRegionToArtifact(artifactId: artifactId, bbox: SegmentShapes.bounds(points))
     }

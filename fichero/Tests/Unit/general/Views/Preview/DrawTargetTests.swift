@@ -29,6 +29,15 @@ struct DrawTargetTests {
             == .addRegionToArtifact(artifactId: "a", bbox: SegmentShapes.bounds(square)))
     }
 
+    @Test("a legacy: pass is unconverted even when the store has not loaded its segments")
+    func legacyPassBeforeTheStoreLoads() {
+        #expect(DrawTarget.resolve(kind: .polygon, points: square, passId: "legacy:a", artifactId: "a", passIsProvisional: false)
+            == .addRegionToArtifact(artifactId: "a", bbox: SegmentShapes.bounds(square)))
+        guard case .refused = DrawTarget.resolve(
+            kind: .baseline, points: stroke, passId: "legacy:a", artifactId: "a", passIsProvisional: false
+        ) else { Issue.record("a line on a legacy: pass must be refused"); return }
+    }
+
     @Test("a line on an unconverted artifact, or with no pass shown, is refused, not dropped")
     func refused() {
         for target in [
