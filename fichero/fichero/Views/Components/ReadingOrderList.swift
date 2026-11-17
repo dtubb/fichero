@@ -91,15 +91,12 @@ struct ReadingOrderList: View {
             if let store, !store.shown.isEmpty {
                 let nested = nestedRows(top: store.shown.map(\.segmentId))
                 List(selection: $picks) {
+                    // No `.onMove` (#6577): with the rows dragging through `itemProvider` (#6476), the List's own move
+                    // took every drag inside the list as an insertion between rows, so a line dropped ON a region row
+                    // never reached the row's drop (`movable`), which moves it in or takes that row's place.
                     ForEach(Array(store.shown.enumerated()), id: \.element.segmentId) { index, entry in
                         entryRow(entry.segmentId, at: index, nesting: nested)
                     }
-                    .onMove(perform: filter != nil ? nil : { offsets, destination in
-                        guard let from = offsets.first else { return }
-                        let segmentId = store.shown[from].segmentId
-                        let target = ReadingOrderMove.finalIndex(fromOffset: from, toOffset: destination)
-                        Task { await record(store.move(segmentId, to: target), in: store) }
-                    })
                 }
                 .contextMenu(forSelectionType: String.self, menu: lineMenu, primaryAction: primaryAction)
                 #if os(macOS)
@@ -591,7 +588,7 @@ extension ReadingOrderList {
     }
 
     /// A drop on a row that takes nothing in: the ONE dragged line takes this row's place in the order, one audited move,
-    /// one ⌘Z (the List's own `.onMove` never sees the drag, the row's `.draggable` has it). Several lines at once: no.
+    /// one ⌘Z (the List has no `.onMove`: it would take the drag, #6577). Several lines at once: no.
     private func reordered(_ ids: [String], to targetId: String) -> Bool {
         guard let store, ids.count == 1, let id = ids.first, id != targetId,
               let target = store.shown.firstIndex(where: { $0.segmentId == targetId }),
