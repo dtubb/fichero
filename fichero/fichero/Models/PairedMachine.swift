@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 
 /// A Mac this device has paired with, and the libraries it gave this device (`sharing.guest.machines-group`, #6360).
@@ -142,6 +143,47 @@ extension LibraryManager {
         guard let index = pairedMachines.firstIndex(where: { $0.id == id }) else { return }
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         pairedMachines[index].customName = trimmed.isEmpty ? nil : trimmed
+        PairedMachineStore.save(pairedMachines)
+    }
+}
+
+/// What a person is asked before a Mac is forgotten, from the sidebar or Settings › Sharing (#6662).
+struct ForgetMachinePrompt: Equatable {
+    static let menuTitle = "Forget This Mac…"
+    static let message = "Its projects leave your sidebar; you can join again with a new code."
+    let machine: PairedMachine
+    var question: String { "Forget \(machine.shownName)?" }
+
+    /// The confirmation's Forget button.
+    @MainActor
+    func confirm(in manager: LibraryManager) { manager.forgetPairedMachine(machine.id) }
+}
+
+extension LibraryManager {
+    /// Forgets a Mac this Mac joined (#6662): closes its shared projects, deletes the device token, the pinned certificate
+    /// and the token's expiry for every address it is known by, drops its sidebar rows (the project rows, the greyed row,
+    /// the paired-machine row the availability poll walks, so nothing dials it again) and, when it is the app's current
+    /// host, forgets that pairing too. The token, pin and row are app-held, so the app owns this
+    /// (`sharing.guest.forget-a-mac`). The Mac keeps listing the device until it is revoked there.
+    func forgetPairedMachine(_ id: String) {
+        guard let machine = pairedMachines.first(where: { $0.id == id }) else { return }
+        let addresses = [machine.id] + machine.addresses
+        let keys = machine.addressKeys
+        let hosts = Set(addresses.compactMap { URL(string: $0)?.host?.lowercased() })
+        for library in openLibraries where !library.host.isLocal
+            && PairedMachine.hostKey(library.host.url.absoluteString).map(keys.contains) == true {
+            closeLibrary(library.id)
+        }
+        for address in addresses {
+            AuthTokenMiddleware.clearRemoteToken(hostString: address)
+            RemoteCertificatePinning.clearPersistedSPKIPin(hostString: address)
+            DeviceTokenRenewal.clearExpiry(host: address)
+        }
+        if PairedMachine.hostKey(EngineConfig.hostString).map(keys.contains) == true {
+            RemoteClientPairing.forgetPairing()
+        }
+        hostGoneRows.removeAll { hosts.contains($0.host.lowercased()) }
+        pairedMachines.removeAll { $0.id == id }
         PairedMachineStore.save(pairedMachines)
     }
 }
