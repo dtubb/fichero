@@ -47,8 +47,12 @@ struct SidebarSourceClickTests {
             container: folder, selectedAtClick: ["img-2"], children: [image, image2]
         )
         #expect(shown.id == "img-2")
-        #expect(SidebarContainerSelection.promoted(container: folder, selectedAtClick: [], children: [image]).id == "fold")
-        #expect(SidebarContainerSelection.promoted(container: folder, selectedAtClick: ["gone"], children: [image]).id == "fold")
+        let noClick = SidebarContainerSelection.promoted(container: folder, selectedAtClick: [], children: [image])
+        #expect(noClick.id == "fold")
+        let notLoaded = SidebarContainerSelection.promoted(
+            container: folder, selectedAtClick: ["gone"], children: [image]
+        )
+        #expect(notLoaded.id == "fold")
     }
 
     @Test("the click's selection is the image itself; a folder click selects nothing")
