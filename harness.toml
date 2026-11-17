@@ -438,10 +438,11 @@ boundary = ['/Users/(?!Shared/)[A-Za-z0-9._-]+/', 'sk-ant-[A-Za-z0-9_-]{8,}', 'g
 [nightly]
 no_new_steps_at = "22:00"
 freeze_at = "00:00"
-check_runner = "m4:~/fichero-gate"
+check_runner = "imac:~/code/fichero-worktrees/nightly"  # 24 GB; the M4 is overnight-only and 16 GB hit the gate ceiling
 build_machine = "local"
-smoke_machine = "local"
+smoke_machine = "m4"  # overnight
 publish = "dev"
+check_footprint_mb = 14336  # passed to the verify run as GATE_FOOTPRINT_MB (the kraken two-model test peaks at 9.4 GB)
 
 [loop]
 # manager 2026-11-04 (alerts 315, 316): the lanes the loop ticks, named; a lane not here (an old milestone lane in queue.json) never starts.

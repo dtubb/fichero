@@ -9,7 +9,7 @@ import pytest
 from fichero_builder import journal, nightly, queue
 from test_queue_verb import Fake, lane
 
-CFG = nightly.Cfg((22, 0), (0, 0), "m4", "local", "local", "dev")
+CFG = nightly.Cfg((22, 0), (0, 0), "m4", "local", "local", "dev", 14336)
 
 
 @pytest.fixture
@@ -30,7 +30,7 @@ def _landed(lane_id, step, sent, landed):
 
 
 def test_the_nightly_table_is_read_whole_and_a_missing_key_is_an_error():
-    ok = {"no_new_steps_at": "22:00", "freeze_at": "00:00", "check_runner": "m4", "build_machine": "local", "smoke_machine": "local", "publish": "dev"}
+    ok = {"no_new_steps_at": "22:00", "freeze_at": "00:00", "check_runner": "m4", "build_machine": "local", "smoke_machine": "local", "publish": "dev", "check_footprint_mb": 14336}
     assert nightly.load({"nightly": ok}) == CFG and nightly.load({}) is None
     with pytest.raises(ValueError, match="lacks smoke_machine"):
         nightly.load({"nightly": {k: v for k, v in ok.items() if k != "smoke_machine"}})
@@ -120,6 +120,7 @@ def test_the_parts_run_in_clean_trees_at_the_frozen_sha_and_auto_notes_runs_befo
     r.check("c" * 40), r.dmg("c" * 40)
     check, dmg = seen
     assert check[0] == "m4" and "git clone -q --no-checkout git@x:o/r.git" in check[1] and f"checkout -q {'c' * 40}" in check[1]
+    assert "GATE_FOOTPRINT_MB=14336 PYTHONPATH=. python3 -m fichero_builder verify-all --full" in check[1], "the footprint rides the verify command"
     assert "verify-all --full" in check[1] and str(tmp_path) not in check[1].split("verify-all")[0], "never the loop's checkout"
     assert dmg[0] == "local" and f"checkout -q {'c' * 40}" in dmg[1]
     assert dmg[1].index("release_guard.py auto-notes") < dmg[1].index("release-all.sh --dev --skip-testflight")

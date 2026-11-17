@@ -15,7 +15,7 @@ from typing import Callable
 
 from fichero_builder import journal
 
-KEYS = ("no_new_steps_at", "freeze_at", "check_runner", "build_machine", "smoke_machine", "publish")
+KEYS = ("no_new_steps_at", "freeze_at", "check_runner", "build_machine", "smoke_machine", "publish", "check_footprint_mb")
 GRACE = timedelta(hours=6)  # a loop that is down over the freeze starts that night's nightly only until six hours after it
 MEDIAN_OF = 10  # a lane's median land time is over its last ten landed steps
 
@@ -28,6 +28,7 @@ class Cfg:
     build_machine: str
     smoke_machine: str
     publish: str
+    check_footprint_mb: int
 
 
 def _hm(key: str, text: str) -> tuple[int, int]:
@@ -48,7 +49,7 @@ def load(rules: dict) -> Cfg | None:
     if missing := [k for k in KEYS if not n.get(k)]:
         raise ValueError(f"[nightly] lacks {', '.join(missing)}")
     return Cfg(_hm("no_new_steps_at", n["no_new_steps_at"]), _hm("freeze_at", n["freeze_at"]), n["check_runner"], n["build_machine"],
-               n["smoke_machine"], n["publish"])
+               n["smoke_machine"], n["publish"], int(n["check_footprint_mb"]))
 
 
 def window(now: datetime, cfg: Cfg) -> tuple[datetime, datetime]:
@@ -199,7 +200,7 @@ def real_runners(root, cfg: Cfg, branch: str, state, texter: Callable[[str], Non
 
     def check(sha):
         t = tree("check")
-        return _on(cfg.check_runner, f"{_clean_tree(origin, sha, t)} && cd {t}/fichero-builder && PYTHONPATH=. python3 -m fichero_builder verify-all --full --root {t} --state {shlex.quote(str(state))}", 14400)
+        return _on(cfg.check_runner, f"{_clean_tree(origin, sha, t)} && cd {t}/fichero-builder && GATE_FOOTPRINT_MB={cfg.check_footprint_mb} PYTHONPATH=. python3 -m fichero_builder verify-all --full --root {t} --state {shlex.quote(str(state))}", 14400)
 
     def dmg(sha):
         t = tree("dmg")
