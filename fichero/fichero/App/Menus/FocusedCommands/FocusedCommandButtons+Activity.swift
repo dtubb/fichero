@@ -21,7 +21,7 @@ struct ActivityRunMenuTarget: Equatable {
     }
 
     /// A row's target. `report` gets the failure in words, or nil when the engine took it.
-    static func make(
+    static func make( // swiftlint:disable:this function_parameter_count
         rowId: String, rowName: String, canStop: Bool, jobId: String?, runThreadId: String?,
         readAgainLabel: String?, store: ActivityStore?, report: @escaping @MainActor (String?) -> Void
     ) -> Self {

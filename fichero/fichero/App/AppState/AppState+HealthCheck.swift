@@ -63,44 +63,7 @@ extension AppState {
             switch response {
             case .ok(let okResponse):
                 let health = try okResponse.body.json
-                // #5047: before trusting anything else this engine says, confirm
-                // we share its API contract. Only a REMOTE engine can disagree —
-                // an embedded one is the same build as this app by construction,
-                // so gating on `engineIsLocal` keeps a local run from ever being
-                // refused by a check that cannot apply to it.
-                if !EngineConfig.engineIsLocal,
-                   let mismatch = ContractCompatibility.mismatch(engine: health.contract) {
-                    // Keep the engine's reported version: refusing is more
-                    // useful to the person when the About window still shows what
-                    // the other machine is actually running.
-                    backendVersion = health.backendVersion
-                    engine.markUnreachable(mismatch.headline + ". " + mismatch.detail)
-                    logger.error("Refusing remote engine: \(mismatch.headline, privacy: .public)")
-                    // Deliberately NOT falling through to `confirmAuthAndLoad`:
-                    // refusing means refusing, not authenticating first and
-                    // failing to decode bodies later (design ruling 1).
-                    return
-                }
-                followSharingAddress(changed: health.sharing?.addressChanged != nil)
-                documentCount = health.activeLibraries ?? 0
-                backendVersion = health.backendVersion
-                // Feeds the About box "Built on" list live dep versions (seam in AppState).
-                dependencyVersions = health.dependencies?.additionalProperties ?? [:]
-                if let stall = dependencyVersions["previous_stall"], !stall.isEmpty {  // #5843
-                    if ConnectionPresentation.notePreviousStall(stall) {  // once: every Settings re-read of health repeats it
-                        logger.warning("Engine: the previous engine got stuck: \(stall, privacy: .public)")
-                    }
-                }
-                let version = health.backendVersion ?? "unknown"
-                let count = health.activeLibraries ?? 0
-                logger.info("Backend connected: v\(version), \(count) active libraries")
-                // Health 200 is necessary but NOT sufficient (#2864): confirm the
-                // engine accepts our token, then — on the ready path —
-                // resolve the login gate (#2021/#2022) and identity (F5) BEFORE
-                // flipping ready, so the first library fetch is authorized (#2407).
-                // `confirmAuthAndLoad` owns that full ordering; the login gate and
-                // identity are no longer raced after `markReady`.
-                await confirmAuthAndLoad()
+                await acceptHealth(health)
 
             default:
                 backendAccessError = nil
@@ -131,6 +94,49 @@ extension AppState {
             engine.markUnreachable(Self.diagnosis(for: accessError))
             logger.error("Backend health check failed: \(error.localizedDescription)")
         }
+    }
+
+    /// A health 200: refuse a remote engine whose API contract differs (#5047), else record what it
+    /// reports and go on to `confirmAuthAndLoad`.
+    private func acceptHealth(_ health: Components.Schemas.HealthResponse) async {
+        // #5047: before trusting anything else this engine says, confirm
+        // we share its API contract. Only a REMOTE engine can disagree —
+        // an embedded one is the same build as this app by construction,
+        // so gating on `engineIsLocal` keeps a local run from ever being
+        // refused by a check that cannot apply to it.
+        if !EngineConfig.engineIsLocal,
+           let mismatch = ContractCompatibility.mismatch(engine: health.contract) {
+            // Keep the engine's reported version: refusing is more
+            // useful to the person when the About window still shows what
+            // the other machine is actually running.
+            backendVersion = health.backendVersion
+            engine.markUnreachable(mismatch.headline + ". " + mismatch.detail)
+            logger.error("Refusing remote engine: \(mismatch.headline, privacy: .public)")
+            // Deliberately NOT falling through to `confirmAuthAndLoad`:
+            // refusing means refusing, not authenticating first and
+            // failing to decode bodies later (design ruling 1).
+            return
+        }
+        followSharingAddress(changed: health.sharing?.addressChanged != nil)
+        documentCount = health.activeLibraries ?? 0
+        backendVersion = health.backendVersion
+        // Feeds the About box "Built on" list live dep versions (seam in AppState).
+        dependencyVersions = health.dependencies?.additionalProperties ?? [:]
+        if let stall = dependencyVersions["previous_stall"], !stall.isEmpty {  // #5843
+            if ConnectionPresentation.notePreviousStall(stall) {  // once: every Settings re-read of health repeats it
+                logger.warning("Engine: the previous engine got stuck: \(stall, privacy: .public)")
+            }
+        }
+        let version = health.backendVersion ?? "unknown"
+        let count = health.activeLibraries ?? 0
+        logger.info("Backend connected: v\(version), \(count) active libraries")
+        // Health 200 is necessary but NOT sufficient (#2864): confirm the
+        // engine accepts our token, then — on the ready path —
+        // resolve the login gate (#2021/#2022) and identity (F5) BEFORE
+        // flipping ready, so the first library fetch is authorized (#2407).
+        // `confirmAuthAndLoad` owns that full ordering; the login gate and
+        // identity are no longer raced after `markReady`.
+        await confirmAuthAndLoad()
     }
 
     /// Pure: the `cannotConnectToHost` diagnosis for the active provisioning
