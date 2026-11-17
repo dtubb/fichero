@@ -585,7 +585,7 @@ routes and a project opened through the database manager.
   next open; a recipe run whose step's row ended otherwise moves on and says why). *Changed 2026-11-16 (#6596):*
   a run on its own is no longer ended interrupted by the close: it is paused (`activity.engine.close-pauses-running-work`),
   with the project closed and every project closed in
-  `fichero-server/tests/unit/jobs/test_close_pauses_running_work_6588.py`.
+  `fichero-server/tests/unit/execution/test_close_pauses_running_work_6588.py`.
 - `compute.run.retry-passing-cause-once` — **[OK]** (#5555) a page that fails for a passing cause — its model
   server still loading, starting or not ready, a memory wait that ran out, a dropped connection — is read
   once more, 10 s later, before it counts as failed (`workflows/page_retry.py`). Never for a cause another
