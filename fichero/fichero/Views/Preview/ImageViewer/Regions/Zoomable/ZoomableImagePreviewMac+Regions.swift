@@ -17,9 +17,11 @@ extension ZoomableImagePreview {
     /// or the geometry belongs to a different picture than the one shown.
     var displayedGeometryBoxes: [(index: Int, box: OCRGeometryBox)] {
         guard let ocrGeometry, geometryFrameMatchesDisplay(ocrGeometry) else { return [] }
-        // "Show Word Bounding Boxes" hides WORDS and letters only: regions and lines stay (owner 2026-11-10).
-        if ocrBoxesEnabled { return ocrGeometry.displayIndexedBoxes }
-        return ocrGeometry.displayIndexedBoxes.filter { SegmentHierarchy.Level(kind: $0.box.level) <= .line }
+        // Each level by its own switch: Show Regions, Show Lines, Show Word Bounding Boxes (owner 2026-11-17).
+        return ocrGeometry.displayIndexedBoxes.filter {
+            SegmentHierarchy.shows(SegmentHierarchy.Level(kind: $0.box.level),
+                                   regions: regionsEnabled, lines: linesEnabled, words: ocrBoxesEnabled)
+        }
     }
 
     /// What the document overlay draws INSIDE the image view (#5020, #5142): the boxes the canvas

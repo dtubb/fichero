@@ -167,6 +167,7 @@ extension ZoomableImagePreview {
             imageEnabled: imageVisibleBinding,
             annotationsEnabled: $annotationsEnabled,
             regionsEnabled: $regionsEnabled,
+            linesEnabled: $linesEnabled,
             inlineTextEnabled: $inlineTextEnabled,
             orderNumbersEnabled: $showOrderNumbers,
             boundingBoxesEnabled: $showBoundingBoxes,

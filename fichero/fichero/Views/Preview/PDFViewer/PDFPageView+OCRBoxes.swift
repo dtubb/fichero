@@ -159,7 +159,7 @@ extension PDFPageWithToolbar {
     func loadOCRGeometry() async {
         ocrGeometry = nil
         pdfGeometryScope = nil
-        guard ocrBoxesEnabled, let segmentService else { return }
+        guard let segmentService else { return }
         let store = SegmentStore.shared(for: segmentService)
         await store.load(documentId: effectiveGeometryDocumentId, seeingArtifactRevision: artifactEntityRevision)
         if let error = store.loadError(documentId: effectiveGeometryDocumentId) {

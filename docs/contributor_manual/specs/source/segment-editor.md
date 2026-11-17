@@ -1355,7 +1355,7 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   **Still `[PARTIAL]`**, because the behaviour is "every edit the editor can make" and the editor
   is unbuilt: reshape, cut, join-group, set-kind and the rest have no verb yet on any surface, so
   parity is currently a claim about six verbs rather than about an editor.
-- `source.editor.two-switches` — **[GAP]** (#4941) the editor's view switches are LAYERS (ruled 2026-09-27, Q2):
+- `source.editor.two-switches` — **[PARTIAL]** (#4941, #6674) the editor's view switches are LAYERS (ruled 2026-09-27, Q2):
   the image on or off and the overlays on or off, overlays without the image included, each with
   defaults tied to the workspace. It is no longer a hard count of two. Show Order and Show Links are
   among the overlay layers.
@@ -1365,6 +1365,7 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   `inlineTextEnabled`. Of these, `annotationsEnabled` and `regionsEnabled` become overlay layers; the
   loupe and magnifier are viewing aids, not layers. Nothing yet turns the image itself off, and no
   setting carries workspace defaults.
+  *Built 2026-11-17 (#6674; owner: "show and hide segments or bounding boxes doesn't work, they're always on or not at all"):* each segment level has its own layer switch in What to Show, the same rule on an image and a PDF page (`SegmentHierarchy.shows`): **Show Regions** draws the region segments (before it filtered only old region annotation marks, so regions were always drawn), **Show Lines** (new, `preview.linesEnabled`) the lines, **Show Word Bounding Boxes** the words and finer (before, on a PDF, it hid every box). Pinned by `fichero/Tests/Unit/general/Views/Preview/PreviewLayerSwitchesTests.swift`. Not seen in the running app.
 - `source.editor.draw-shapes` — **[PARTIAL]** (#4941) box, polygon, point, line and baseline can be drawn.
   **Built 2026-09-28 (image pages, segment passes), in the ONE Shape tool:** its kind menu, shown in Edit
   Segments, picks Box (a drag, as before), Polygon (click points; a click on the first point, a

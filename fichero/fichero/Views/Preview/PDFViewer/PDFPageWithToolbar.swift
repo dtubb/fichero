@@ -126,6 +126,9 @@ struct PDFPageWithToolbar: View {
     /// transcription against. Per pane only (#5504): a new pane starts ON, whatever the
     /// app-wide key an old toggle left behind.
     @PaneOnlyStorage("pdfPreview.ocrBoxesEnabled") var ocrBoxesEnabled = true
+    /// Show Regions and Show Lines, the image's same switches (`SegmentHierarchy.shows`).
+    @PaneStorage("preview.regionsEnabled") var regionsEnabled = true
+    @PaneStorage("preview.linesEnabled") var linesEnabled = true
     /// Annotation overlays show/hide (what-to-show menu, 2026-08-30).
     @PaneStorage("preview.annotationsEnabled") var annotationsEnabled = true
     @State var ocrGeometry: OCRGeometry?
@@ -277,13 +280,17 @@ struct PDFPageWithToolbar: View {
     /// Regions to draw: words when the pass produced them, lines otherwise —
     /// never both, the same reduction `OCRGeometryOverlay` makes for images,
     /// via the same `wordBoxes`/`lineBoxes` helpers so the level strings live
-    /// in one place (#4418). Empty whenever the toggle is off.
+    /// in one place (#4418). Each level by its own switch (owner 2026-11-17: Show Word Bounding Boxes off used to
+    /// blank the whole page's boxes).
     private var drawableOCRBoxes: [OCRGeometryBox] {
-        guard ocrBoxesEnabled, let ocrGeometry else { return [] }
+        guard let ocrGeometry else { return [] }
         // Every level at once, each lighter than its parent (hierarchy A, #5426): a page with words still
         // draws its lines and regions under them, as on an image.
         return Self.boxesForDisplayedPage(
-            ocrGeometry.displayIndexedBoxes.map(\.box),
+            ocrGeometry.displayIndexedBoxes.map(\.box).filter {
+                SegmentHierarchy.shows(SegmentHierarchy.Level(kind: $0.level),
+                                       regions: regionsEnabled, lines: linesEnabled, words: ocrBoxesEnabled)
+            },
             pageIndex: effectivePageIndex,
             isPageScoped: paneGeometryDocumentId != nil
         )
@@ -588,6 +595,8 @@ extension PDFPageWithToolbar {
             actualSize: { zoom.actualSize() },
             textBoxesEnabled: $ocrBoxesEnabled,
             annotationsEnabled: $annotationsEnabled,
+            regionsEnabled: $regionsEnabled,
+            linesEnabled: $linesEnabled,
             isPinned: $isPinned,
             onTogglePin: togglePin
         )

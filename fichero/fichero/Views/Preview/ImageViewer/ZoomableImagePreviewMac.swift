@@ -196,6 +196,8 @@ struct ZoomableImagePreview: View {
     /// from `annotationsEnabled` because "hide my highlights" and "hide the
     /// region grid" are different questions.
     @PaneStorage("preview.regionsEnabled") var regionsEnabled = true
+    /// Show Lines: the line segments (`SegmentHierarchy.shows`); Show Regions draws the region segments too.
+    @PaneStorage("preview.linesEnabled") var linesEnabled = true
     /// Draw each recognised word's text inside its box (2026-08-31). The
     /// display lives in `OCRGeometryOverlay`, which reads the same key.
     @PaneStorage("imagePreview.inlineTextEnabled") var inlineTextEnabled = false
