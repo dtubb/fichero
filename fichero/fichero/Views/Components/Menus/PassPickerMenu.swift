@@ -45,3 +45,9 @@ struct PassPickerMenu: View {
         }
     }
 }
+
+// No SegmentService in the environment: the menu is shown only when a page has a choice of passes, so it renders empty.
+#Preview("Pass picker menu, no passes") {
+    PassPickerMenu(documentId: nil)
+        .padding()
+}

@@ -78,7 +78,6 @@ KNOWN_VIOLATIONS: dict[str, tuple[int, str]] = {
     'Views/Library/ViewModes/Dataset/Timeline': (1, 'baseline 2026-11-15'),
     'Views/Library/ViewModes/List': (1, 'baseline 2026-11-15'),
     'Views/Models': (2, 'baseline 2026-11-15'),
-    'Views/Preview/ImageViewer/Layers': (1, 'baseline 2026-11-15'),
     'Views/Reader/Disagreement': (1, 'baseline 2026-11-15'),
     'Views/SPARQLConsole': (1, 'baseline 2026-11-15'),
     'Views/Settings/History': (1, 'baseline 2026-11-15'),
