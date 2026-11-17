@@ -653,6 +653,34 @@ homeless until a map-view UI spec exists (#5128).
   `CanvasZoomFloorTests.swift` in fichero/Tests/Unit/general/Views/Library/ (the pure clamp from a
   fit pose and a pane size; the empty-board floor; the renderer re-clamps on resize), beside
   `CanvasZoomKeepsTheCardsTests.swift`.
+  - **Owner ruling, 2026-11-17 (#6368):** "sometimes we're far too zoomed out, so I have to zoom in
+    again". A remembered camera still wins on open, so nothing jumps, except when it would show
+    nothing (no card in view, or the cards as specks); then the board fits. `CanvasCameraFit.shows`
+    accepts a board filling a tenth of the view today, which still opens far too far out. Fitting once,
+    before the page shapes land, and never re-fitting after stays. The 3D Space canvas gets this same
+    zoom-out stop, replacing the "3D keeps `CanvasZoomRange`" decided above.
+- `library.canvas.zoom-tracks-the-fingers` — **[GAP]** (#6666; owner 2026-11-17: "when you first zoom
+  in, it gets stuck at 100%, stutters and then zooms in") a pinch or ⌘ + two-finger scroll moves the
+  2D and 3D canvas at display rate, with no stall, jump or flat-then-picture pop. During a gesture only
+  the camera moves. The detail tier (`CanvasDetailTier`) changes once the zoom rests, with hysteresis,
+  so it never flips at a boundary. A card that gets its page's true shape keeps its picture across the
+  rebuild. Measured 2026-11-17 on a Debug build of the canvas code at `fca0bef` (Activity Night, ~100
+  pages, 40 s of pinch, ⌘-scroll, drag and click): 49 hitches, 8.2 s of hitch time, worst 600 ms. 27
+  of the 35 hitches over 100 ms coincide with the sidebar's outline list re-diffing about once a
+  second, from before any input; none coincides with zoom code alone. The sidebar is the first cause
+  to remove; the tier and reskin work costs tens of milliseconds. Tests (to write): the tier's
+  hysteresis near each boundary, and that a live zoom step changes no tier and saves no camera.
+- `library.canvas.one-hit-test-for-every-press` — **[GAP]** (#6667; owner 2026-11-17: "sometimes I can
+  click and drag immediately, other times it won't even let me drag"; "sometimes double-click doesn't
+  work either") a press on a card always drags it and a double-click on a card always opens it,
+  because every press on the 2D canvas is read by the canvas's own hit test
+  (`placeableId(atScreenPoint:)`). Today RealityKit's entity-targeted gestures compete with it: the
+  high-priority `resizeDrag` wins whenever RealityKit catches the press and does nothing (the canvas
+  draws no resize handles), and the entity `tapSelect` and the board's `pointTap` share one last-tap
+  memory but record different ids and act differently on a double-click.
+- `library.canvas.double-click-a-pdf-opens-its-canvas` — **[GAP]** (#6668; owner 2026-11-17) double-
+  clicking a PDF's card goes into the PDF and shows its pages as a Canvas, as a folder's double-click
+  does. Today the first page's Source opens.
 - `library.canvas.group-into-one-node` — **[PARTIAL]** (#5303) selecting images and choosing Edit ▸
   Group (no chord yet: ⌥⌘G, Keynote's and Freeform's, is the Preview markup Line tool today) makes ONE group node that holds them in
   order, in the place of the first, as a letter holds its pages; Edit ▸ Ungroup returns each to
