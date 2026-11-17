@@ -29,14 +29,12 @@ extension ActivityPane {
 
     static func glyph(_ row: ActivityMonitorRow) -> Glyph {
         if let transient = row.transientState { return Glyph(symbol: nil, word: transient, isFailure: false) }
-        // Blocked, not waiting: the lock, the blocker named in the tooltip only
-        // (`activity.pane.blocked-under-its-blocker`).
-        if row.blockedBy != nil, row.phase == .waiting {
-            return Glyph(symbol: "lock.circle", word: "Blocked", isFailure: false)
-        }
         switch row.phase {
         case .running: return Glyph(symbol: nil, word: "Running", isFailure: false)
-        case .waiting: return Glyph(symbol: "circle", word: "Waiting", isFailure: false)
+        // Blocked, not waiting: the lock, the blocker named in the tooltip only (`activity.pane.blocked-under-its-blocker`).
+        case .waiting:
+            return row.blockedBy != nil ? Glyph(symbol: "lock.circle", word: "Blocked", isFailure: false)
+                : Glyph(symbol: "circle", word: "Waiting", isFailure: false)
         case .paused, .interrupted: return Glyph(symbol: "pause.circle", word: "Paused", isFailure: false)
         case .cancelled: return Glyph(symbol: "stop.circle", word: "Stopped", isFailure: false)
         case .done: return Glyph(symbol: "checkmark.circle.fill", word: "Done", isFailure: false, isSuccess: true)
