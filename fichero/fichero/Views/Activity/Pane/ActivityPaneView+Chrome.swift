@@ -46,7 +46,7 @@ extension ActivityPaneView {
                         }
                     }
                 } label: {
-                    Label(place.place.title, systemImage: place.place.icon).tag("place:\(place.place.rawValue)")
+                    placeLabel(place.place).tag("place:\(place.place.rawValue)")
                 }
                 .accessibilityIdentifier("activity.sidebar.place.\(place.place.rawValue)")
             }
@@ -80,6 +80,22 @@ extension ActivityPaneView {
         .padding(.horizontal, 12).padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityIdentifier("activity.centre.views")
+    }
+
+    /// A place's row: This Mac with its memory used of its total and its processor's load, its lanes in the help
+    /// (`activity.resources.everything-measured`).
+    @ViewBuilder
+    func placeLabel(_ place: ActivityModelEntry.Place) -> some View {
+        if place == .thisMac, let mac = models.thisMac {
+            HStack(spacing: 6) {
+                Label(place.title, systemImage: place.icon)
+                Spacer(minLength: 4)
+                Text(mac.words).font(.caption).foregroundStyle(.secondary).monospacedDigit()
+            }
+            .help("Memory used of this Mac's, and its processor's load · \(mac.lanesWords)")
+        } else {
+            Label(place.title, systemImage: place.icon)
+        }
     }
 
     func modelRow(_ model: ActivityModelEntry) -> some View {

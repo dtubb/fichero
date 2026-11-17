@@ -339,7 +339,8 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
             fars = target.submit_all(job_id, [int(k) for k in pending], throttle=request.max_in_flight,
                                      timeout=request.timeout)
             for key in pending:
-                shards[key].update(state="submitted", far_id=fars[int(key)], tries=shards[key]["tries"] + 1)
+                shards[key].update(state="submitted", far_id=fars[int(key)], tries=shards[key]["tries"] + 1,
+                                   submitted_at=_now(), running_at=None, ended_at=None)
             pending = []
         for key in pending:
             if running >= request.max_in_flight:
@@ -349,7 +350,8 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
                 script_args=["--package", f"{root}/data", "--shard", key, "--out", f"{root}/out"],
                 dependencies=dependencies_for(detail["step"]),
                 labels={"fichero-shard": key})
-            shards[key].update(state="submitted", far_id=far_id, tries=shards[key]["tries"] + 1)
+            shards[key].update(state="submitted", far_id=far_id, tries=shards[key]["tries"] + 1,
+                               submitted_at=_now(), running_at=None, ended_at=None)
             running += 1
         _save(db, job_id, detail, reason=_words(_counts(shards), total))
         try:
@@ -362,8 +364,11 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
             if shard["state"] != "submitted":
                 continue
             far = seen.get(shard["far_id"]) or target.status(shard["far_id"])  # not listed: asked by id
+            if far.state == "running" and not shard.get("running_at"):
+                shard["running_at"] = _now()  # queued until now (`activity.resources.everything-measured`)
             if far.state in ("waiting", "running"):
                 continue
+            shard["ended_at"] = _now()
             if far.state == "done":
                 part = f"shard-{int(key):05d}"
                 folder = target.fetch_part(job_id, part, work / "out" / part)
@@ -497,12 +502,41 @@ def catch_up(db: Any, job_id: str) -> str:
     return "waiting"
 
 
+def times(shards: dict[str, dict[str, Any]], price_per_hour_usd: float | None,
+          now: datetime | None = None) -> dict[str, Any]:
+    """A remote read's time queued and time run, summed over its shards, from the moments each was sent, first seen
+    running and seen ended (`activity.resources.everything-measured`, #6588): node hours are its run time (one node a
+    shard), its cost the run hours at the target's price when it has one. A shard sent before these were recorded
+    counts in neither; nothing measured reads None, never 0."""
+    now = now or datetime.now(timezone.utc)
+
+    def at(value: Any) -> datetime | None:
+        return datetime.fromisoformat(value) if isinstance(value, str) else None
+
+    queued = run = 0.0
+    measured = False
+    for shard in shards.values():
+        sent, began, ended = at(shard.get("submitted_at")), at(shard.get("running_at")), at(shard.get("ended_at"))
+        if sent is None:
+            continue
+        measured = True
+        queued += max(0.0, ((began or ended or now) - sent).total_seconds())
+        if began is not None:
+            run += max(0.0, ((ended or now) - began).total_seconds())
+    if not measured:
+        return {"queued_seconds": None, "run_seconds": None, "node_hours": None, "cost_usd": None}
+    hours = run / 3600
+    return {"queued_seconds": round(queued, 1), "run_seconds": round(run, 1), "node_hours": round(hours, 4),
+            "cost_usd": round(hours * price_per_hour_usd, 4) if price_per_hour_usd else None}
+
+
 def status(db: Any, job_id: str) -> dict[str, Any]:
     state, detail = _row(db, job_id)
     from fichero_server.execution import jobs
 
     reason = (jobs.read_job(db, job_id) or {}).get("reason")
     shards = detail.pop("shards", {}) or {}
+    measured = times(shards, detail.get("price_per_hour_usd"))
     counts = _counts(shards)
     failed = {k: {"why": s.get("why"), "last_lines": s.get("last_lines")} for k, s in shards.items() if s["state"] == "failed"}
     seconds = [s["seconds"] for s in shards.values() if s.get("seconds") is not None]
@@ -517,6 +551,7 @@ def status(db: Any, job_id: str) -> dict[str, Any]:
            "actual": {"seconds_per_shard": sum(seconds) / len(seconds) if seconds else None,
                       "gpu_hours": sum(seconds) / 3600 if seconds else None},
            **{k: v for k, v in detail.items() if k in ("package", "landing", "flavor", "price_per_hour_usd", "step")}}
+    out["times"] = measured
     out["far_state"] = far_state(out)
     out["hf_spend"] = _hf_spend(db) if out["target"] == TARGET else None
     return out

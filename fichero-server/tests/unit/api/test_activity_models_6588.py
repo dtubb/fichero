@@ -95,3 +95,35 @@ def test_the_route_answers_the_list(client, db, monkeypatch):
     assert answer.status_code == 200, answer.text
     assert any(m["provider"] == "Kraken" for m in answer.json()["models"])
     assert answer.json()["places"][0] == {"place": "this-mac", "provider": "This Mac"}
+
+
+def test_this_mac_is_measured_or_says_it_is_not(client, db, monkeypatch):
+    """`activity.resources.everything-measured`: this Mac's memory used of its total, its processor's load and each lane's
+    jobs running of its width; what nothing measures is null, never 0."""
+    jobs._ensure(db)
+    registered = next(kind for kind, k in jobs.KINDS.items() if k.lane == "network") if any(
+        k.lane == "network" for k in jobs.KINDS.values()) else None
+    if registered:
+        _job(db, "n1", kind=registered, model="anthropic:claude", state="running")
+
+    mac = activity_models.this_mac(db, memory=(16 * 2**30, 25), load=4.0)
+
+    assert mac["memory_total_bytes"] == 16 * 2**30 and mac["memory_used_bytes"] == 12 * 2**30
+    assert mac["processor_percent"] is not None and mac["processor_percent"] > 0
+    lanes = {lane["lane"]: lane for lane in mac["lanes"]}
+    assert lanes["network"]["width"] == jobs.LANES["network"]
+    if registered:
+        assert lanes["network"]["busy"] == 1
+    import os
+
+    def no_load():
+        raise OSError("not measured here")
+
+    monkeypatch.setattr(os, "getloadavg", no_load)
+    unmeasured = activity_models.this_mac(db, memory=(None, None))
+    assert unmeasured["memory_used_bytes"] is None and unmeasured["processor_percent"] is None
+
+    monkeypatch.setattr(activity_models, "installed_on_this_mac", lambda: [])  # never what this Mac has installed
+    answer = client.get("/api/activity/models")
+    assert answer.status_code == 200, answer.text
+    assert answer.json()["this_mac"]["lanes"], "the lanes and their widths are always known"

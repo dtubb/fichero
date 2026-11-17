@@ -44,6 +44,15 @@ class ReadingStarted(BaseModel):
     price_per_hour_usd: float | None = None
 
 
+class RemoteTimes(BaseModel):
+    """A remote read's measured times (#6588): null where nothing measured it, never 0."""
+
+    queued_seconds: float | None = None
+    run_seconds: float | None = None
+    node_hours: float | None = None
+    cost_usd: float | None = None
+
+
 class ReadingJobStatus(BaseModel):
     """A reading run's row: its shards counted, the failed ones with their reasons, what landed."""
 
@@ -68,6 +77,8 @@ class ReadingJobStatus(BaseModel):
     actual: dict[str, Any] | None = None
     # This month's Hugging Face spend against the project's cap (`source.onboard.spend-cap`); null for a cluster run.
     hf_spend: HfSpend | None = None
+    # Time queued and time run over its shards, node hours and cost where priced (`activity.resources.everything-measured`).
+    times: RemoteTimes | None = None
 
 
 class ReadingJobParams(BaseModel):

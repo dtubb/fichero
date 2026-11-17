@@ -42,6 +42,9 @@ struct RemoteRunInspector: View {
             if run.estimateGpuHours != nil || run.actualSecondsPerShard != nil {
                 Text(estimateWords(run)).font(.callout).foregroundStyle(.secondary)
             }
+            if let times = run.timesWords {
+                Text(times).font(.callout).monospacedDigit().foregroundStyle(.secondary)
+            }
             ForEach(run.shards.filter { $0.why != nil }) { shard in
                 Label("Shard \(shard.id): \(shard.why ?? "")", systemImage: "exclamationmark.triangle")
                     .font(.callout)

@@ -52696,6 +52696,10 @@
             "type": "array",
             "title": "Places",
             "description": "every place set up, used or not"
+          },
+          "this_mac": {
+            "$ref": "#/components/schemas/ThisMac",
+            "nullable": true
           }
         },
         "type": "object",
@@ -78705,6 +78709,31 @@
         ],
         "title": "KrakenRuntimeStatusResponse"
       },
+      "LaneLoad": {
+        "properties": {
+          "lane": {
+            "type": "string",
+            "title": "Lane"
+          },
+          "busy": {
+            "type": "integer",
+            "title": "Busy",
+            "description": "this project's jobs running in it now"
+          },
+          "width": {
+            "type": "integer",
+            "title": "Width",
+            "description": "how many it runs at once"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lane",
+          "busy",
+          "width"
+        ],
+        "title": "LaneLoad"
+      },
       "LanguageCoverageRecord": {
         "properties": {
           "provider": {
@@ -89906,6 +89935,10 @@
           "hf_spend": {
             "$ref": "#/components/schemas/HfSpend",
             "nullable": true
+          },
+          "times": {
+            "$ref": "#/components/schemas/RemoteTimes",
+            "nullable": true
           }
         },
         "type": "object",
@@ -92741,6 +92774,33 @@
           "shards"
         ],
         "title": "RemoteRunRow"
+      },
+      "RemoteTimes": {
+        "properties": {
+          "queued_seconds": {
+            "type": "number",
+            "nullable": true,
+            "title": "Queued Seconds"
+          },
+          "run_seconds": {
+            "type": "number",
+            "nullable": true,
+            "title": "Run Seconds"
+          },
+          "node_hours": {
+            "type": "number",
+            "nullable": true,
+            "title": "Node Hours"
+          },
+          "cost_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cost Usd"
+          }
+        },
+        "type": "object",
+        "title": "RemoteTimes",
+        "description": "A remote read's measured times (#6588): null where nothing measured it, never 0."
       },
       "RemoveBackgroundOperationRequest": {
         "properties": {
@@ -103932,6 +103992,36 @@
         ],
         "title": "TextRegionSpan",
         "description": "One char span to resolve, with the search hit's weight for heat-map\nshading (Daniel's ruling, #4604 Q6: hotter for stronger matches)."
+      },
+      "ThisMac": {
+        "properties": {
+          "memory_used_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Memory Used Bytes"
+          },
+          "memory_total_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Memory Total Bytes"
+          },
+          "processor_percent": {
+            "type": "number",
+            "nullable": true,
+            "title": "Processor Percent",
+            "description": "the last minute's load over its cores, %"
+          },
+          "lanes": {
+            "items": {
+              "$ref": "#/components/schemas/LaneLoad"
+            },
+            "type": "array",
+            "title": "Lanes"
+          }
+        },
+        "type": "object",
+        "title": "ThisMac",
+        "description": "This Mac, measured (`activity.resources.everything-measured`): null where nothing measures it, never 0."
       },
       "ThreadDeletedResponse": {
         "properties": {
