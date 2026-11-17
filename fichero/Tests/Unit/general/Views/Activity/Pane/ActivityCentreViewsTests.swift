@@ -7,7 +7,7 @@ import Testing
 /// draws the work as a timeline of bars per lane or per model, coloured by state.
 @MainActor
 struct ActivityCentreViewsTests {
-    private let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+    private let epoch = Date(timeIntervalSince1970: 1_800_000_000)
 
     private func row(_ id: String, lane: String?, model: String?, phase: ActivityMonitorRow.Phase, started: Date?,
                      seconds: Double? = nil, children: [ActivityMonitorRow]? = nil) -> ActivityMonitorRow {
@@ -40,16 +40,16 @@ struct ActivityCentreViewsTests {
 
     @Test("Visual draws each piece of work from its start to its end on its lane's line, a run by its children")
     func timeline() {
-        let now = t0.addingTimeInterval(600)
+        let now = epoch.addingTimeInterval(600)
         let pages = [
-            row("p1", lane: "local-ml", model: "Kraken", phase: .done, started: t0, seconds: 30),
-            row("p2", lane: "network", model: "Claude", phase: .running, started: t0.addingTimeInterval(60)),
-            row("p3", lane: "network", model: "Claude", phase: .waiting, started: nil),
+            row("p1", lane: "local-ml", model: "Kraken", phase: .done, started: epoch, seconds: 30),
+            row("p2", lane: "network", model: "Claude", phase: .running, started: epoch.addingTimeInterval(60)),
+            row("p3", lane: "network", model: "Claude", phase: .waiting, started: nil)
         ]
-        let run = row("run", lane: nil, model: nil, phase: .running, started: t0, children: pages)
+        let run = row("run", lane: nil, model: nil, phase: .running, started: epoch, children: pages)
         let bars = ActivityTimeline.bars([run], by: .lane, now: now)
         #expect(bars.map(\.id) == ["p1", "p2"], "a run is drawn by its pages; one not started is not drawn")
-        #expect(bars[0].line == "local-ml" && bars[0].end == t0.addingTimeInterval(30))
+        #expect(bars[0].line == "local-ml" && bars[0].end == epoch.addingTimeInterval(30))
         #expect(bars[1].end == now, "work still going ends now")
         #expect(ActivityTimeline.bars([run], by: .model, now: now).map(\.line) == ["Kraken", "Claude"])
     }

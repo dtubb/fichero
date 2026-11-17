@@ -25,7 +25,7 @@ struct ActivityResourcesMeasuredTests {
     @Test("this Mac reads memory used of its total and its load; unmeasured is a dash")
     func thisMac() {
         let lanes: [ActivityThisMac.Lane] = [
-            .init(lane: "network", busy: 2, width: 4), .init(lane: "embed", busy: 0, width: 1),
+            .init(lane: "network", busy: 2, width: 4), .init(lane: "embed", busy: 0, width: 1)
         ]
         let mac = ActivityThisMac(memoryUsedBytes: 12 << 30, memoryTotalBytes: 16 << 30, processorPercent: 24.6,
                                   lanes: lanes)

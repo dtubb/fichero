@@ -14,7 +14,7 @@ struct ActivityNamesWhatItWorksOnTests {
             .init(title: "Thumbnails", state: "done", done: 2618, total: 2618),
             .init(title: "Text", state: "running", done: 11, total: 2618,
                   inFlight: ["letter-012.jpg", "letter-013.jpg"]),
-            .init(title: "Embed for search", state: "waiting", done: 0, total: 2618),
+            .init(title: "Embed for search", state: "waiting", done: 0, total: 2618)
         ]
         let row = ActivityMonitorRow.job(job, libraryId: nil, projectName: "Letters")
 

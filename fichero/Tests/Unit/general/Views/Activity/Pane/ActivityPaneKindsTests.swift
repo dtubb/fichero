@@ -17,7 +17,7 @@ struct ActivityPaneKindsTests {
     @Test("an Activity Graphs pane is kept in a workspace by its own name")
     func kept() throws {
         let data = try JSONEncoder().encode([PaneKind.activityGraphs])
-        #expect(String(decoding: data, as: UTF8.self) == "[\"activityGraphs\"]")
+        #expect(String(bytes: data, encoding: .utf8) == "[\"activityGraphs\"]")
         #expect(try JSONDecoder().decode([PaneKind].self, from: data) == [.activityGraphs])
     }
 

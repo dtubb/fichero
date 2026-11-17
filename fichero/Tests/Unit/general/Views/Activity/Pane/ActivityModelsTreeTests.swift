@@ -26,7 +26,7 @@ struct ActivityModelsTreeTests {
     func placesSetUp() {
         let places: [ActivityModelEntry.SetUp] = [
             .init(place: .thisMac, provider: "This Mac"), .init(place: .remote, provider: "studio.example"),
-            .init(place: .remote, provider: "ACENET"), .init(place: .cloud, provider: "Anthropic"),
+            .init(place: .remote, provider: "ACENET"), .init(place: .cloud, provider: "Anthropic")
         ]
         let quiet = ActivityModelEntry.tree([], places: places)
         #expect(quiet.map(\.place) == [.thisMac, .remote, .cloud], "a quiet project still shows where work can run")

@@ -56,7 +56,7 @@ struct ActivityBottomPanelTests {
         history.byModel = [
             .init(key: "this-mac|Kraken|blla", pages: [2, 0, 1], calls: [0, 0, 0]),
             .init(key: "cloud|Anthropic|claude", pages: [0, 3, 0], calls: [4, 6, 0]),
-            .init(key: "cloud|OpenAI|gpt", pages: [0, 1, 0], calls: [0, 1, 0]),
+            .init(key: "cloud|OpenAI|gpt", pages: [0, 1, 0], calls: [0, 1, 0])
         ]
         return history
     }
