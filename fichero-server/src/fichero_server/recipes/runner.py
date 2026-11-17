@@ -1037,6 +1037,12 @@ def run(db: Any, subject: str) -> dict[str, Any]:
 STOPPED_BEFORE = "the run was stopped before this step"
 
 
+class _DownloadFailed(str):
+    """Why a step cannot run: a model it needs did not download. `model` is the model's name."""
+
+    model: str
+
+
 def _await_downloads(db: Any, job_id: str, detail: dict[str, Any], card: dict[str, Any]) -> str | None:
     """Wait for the downloads this card's steps need that were under way when Start was pressed (`awaited`, #5660):
     the step runs once each has landed. Why it cannot run, in words, when one ended without landing or the run was
@@ -1055,8 +1061,11 @@ def _await_downloads(db: Any, job_id: str, detail: dict[str, Any], card: dict[st
                 break
             if row["state"] in ("failed", "cancelled"):
                 # `source.recipe.download-failure-waits`: the other steps run; this one says so and how to go on.
-                return (f"Model download failed: {entry['name']} did not download ({row['reason'] or row['state']}). "
-                        "Retry it in Activity, or choose the step's next candidate in Set Up")
+                failed = _DownloadFailed(f"Model download failed: {entry['name']} did not download "
+                                         f"({row['reason'] or row['state']}). "
+                                         "Retry it in Activity, or choose the step's next candidate in Set Up")
+                failed.model = entry["name"]
+                return failed
             if not said:
                 jobs.save_detail(db, job_id, json.dumps(detail),
                                  reason=f"Waiting for {entry['name']} to download for step {', '.join(card['steps'])}")
@@ -1419,7 +1428,7 @@ def _run_the_plan(db: Any, job_id: str) -> dict[str, Any]:
 def _fetch_models_first(db: Any, job_id: str, detail: dict[str, Any], started_by: str) -> None:
     """The run's first stage (`recipes-run.steps.models-fetched-before-the-step`): every model its steps name that is not on
     this Mac is fetched, and waited for, before the first step; one already downloading is waited for. A fetch that fails ends
-    the run before any step, naming the model. The plan's downloads are in `awaited` already; the run asks again, so a model
+    the run's steps on it wait (see below). The plan's downloads are in `awaited` already; the run asks again, so a model
     the plan did not name (or one deleted since) is fetched too."""
     from fichero_server.llm.local_models import enqueue_download
     from fichero_server.recipes import start
@@ -1442,13 +1451,11 @@ def _fetch_models_first(db: Any, job_id: str, detail: dict[str, Any], started_by
                             "name": download.get("name") or download["model"]})
     if not awaited:
         return
+    # A fetch that fails does not end the run (`source.recipe.download-failure-waits`): the steps that need that model wait
+    # for it page by page (`_run_batch_steps`) and the others run. Only a Stop ends it here.
     why = _await_downloads(db, job_id, detail, {"steps": [sid for card in detail["runs"] for sid in card["steps"]]})
     if why == STOPPED_BEFORE:
         raise jobs.JobCancelled(f"{jobs.stopped_by(job_id)}; stopped before any step")
-    if why:
-        words = f"{why}. The run ended before any step."
-        jobs.save_detail(db, job_id, json.dumps(detail), reason=words)
-        raise RunEnded(words)
 
 
 #: ponytail: a step that does none of a batch's pages on this many batches in a row stops the run (#5540,
@@ -1741,6 +1748,16 @@ def _held_for_inputs(cards: list[dict[str, Any]], steps: list[dict[str, Any]], i
     return [d for d in documents if d not in held], held
 
 
+def _waits_on_a_waiting_step(cards: list[dict[str, Any]], steps: list[dict[str, Any]], index: int) -> bool:
+    """Whether a step this one takes from is waiting with pages held: this step then waits for it too (its pages are held
+    by `_held_for_inputs`), instead of being "not run"."""
+    card = cards[index]
+    kinds = {k for take in card["takes"] for k in take.split("|")} if "takes" in card else None
+    return any(s["state"] == "waiting" and s.get("waiting_on")
+               and (kinds is None or kinds.intersection(c.get("gives") or ()))
+               for c, s in zip(cards[:index], steps[:index]))
+
+
 def _step_counts(step: dict[str, Any]) -> dict[str, int]:
     """A step's pages: done, waiting for an earlier step, failed (`recipes-run.steps.no-empty-done`). A step that did not
     run through (cancelled, not run) has no done pages counted."""
@@ -1786,8 +1803,10 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
             _settle(step, "not run", None, STOPPED_BEFORE)
             continue
         # The catalogue judges each folder itself (`_run_catalogue`): one failed batch must not hide a folder read in full.
-        blocked = (None if card["card"] == "catalogue" else _blocked(cards, here, index)) or _await_downloads(db, job_id, detail, card)
-        if blocked:
+        held = early is None and _waits_on_a_waiting_step(cards, steps, index)  # its pages are held, not "not run"
+        blocked = (None if card["card"] == "catalogue" or held else _blocked(cards, here, index)) or _await_downloads(db, job_id, detail, card)
+        no_model = blocked if isinstance(blocked, _DownloadFailed) else None
+        if blocked and not no_model:
             here[index]["state"] = "not run"
             _settle(step, "not run", None, blocked)
             _note_batch(step, batch, "not run", None, blocked)
@@ -1818,6 +1837,11 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
                 problems.append(why)
                 jobs.save_detail(db, job_id, json.dumps(detail))
                 continue
+        if no_model and documents:  # its model did not download: each page waits for it, the other steps run
+            scratch["waiting_on"] = {**scratch.get("waiting_on", {}), **{d: f"{no_model.model} to download" for d in documents}}
+            documents = []
+            _note_batch(step, batch, "not run", None, no_model)
+            problems.append(f"step {named} not run: {no_model}")
         if not documents and scratch.get("waiting_on"):
             # Every page it would work on is waiting for an earlier step: nothing ran, so nothing is done (#6673).
             _add(step, scratch)
