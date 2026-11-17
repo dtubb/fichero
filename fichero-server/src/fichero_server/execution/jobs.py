@@ -1619,11 +1619,11 @@ def document_names(db: "Database", ids: list[str]) -> dict[str, str]:
 
 
 def finished_page_jobs_since(db: "Database", since: Any, run_kinds: Any) -> list[tuple]:
-    """Each finished page job (a job under a run's step, not a run or step row) since `since`: its end, state, detail and
-    target, committed (the Activity history, #6588)."""
+    """Each finished page job (a job under a run's step, not a run or step row) since `since`: its end, state, detail,
+    target, model and parent, committed (the Activity history, #6588)."""
     kinds = list(run_kinds)
     return db.execute_fetchall(
-        "SELECT finished_at, state, detail, target FROM jobs WHERE parent_id IS NOT NULL "
+        "SELECT finished_at, state, detail, target, model, parent_id FROM jobs WHERE parent_id IS NOT NULL "
         f"AND kind NOT IN ({', '.join('?' * len(kinds))}) AND state IN ('done', 'failed') AND finished_at >= ?",
         [*kinds, since], committed=True)
 

@@ -52465,6 +52465,22 @@
             "title": "Buckets",
             "description": "one per minute, oldest first, the last the current minute"
           },
+          "by_recipe": {
+            "items": {
+              "$ref": "#/components/schemas/HistorySeries"
+            },
+            "type": "array",
+            "title": "By Recipe",
+            "description": "pages per minute by the recipe they ran under"
+          },
+          "by_model": {
+            "items": {
+              "$ref": "#/components/schemas/HistorySeries"
+            },
+            "type": "array",
+            "title": "By Model",
+            "description": "pages and calls per minute by model"
+          },
           "by_runtime": {
             "additionalProperties": {
               "type": "integer"
@@ -74169,6 +74185,38 @@
           "start"
         ],
         "title": "HistoryBucket"
+      },
+      "HistorySeries": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "the recipe's name, or the model's id in the Models tree (place|provider|name)"
+          },
+          "pages": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Pages",
+            "description": "pages done in each minute"
+          },
+          "calls": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Calls",
+            "description": "a model's calls in each minute; empty for a recipe"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "pages"
+        ],
+        "title": "HistorySeries",
+        "description": "One recipe's or one model's own counts, minute by minute, aligned with `buckets` (`activity.window.graph-on-every-view`)."
       },
       "HowOption": {
         "properties": {

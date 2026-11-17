@@ -43,8 +43,18 @@ class HistoryBucket(BaseModel):
     tokens: int = Field(0, description="tokens of those pages' calls")
 
 
+class HistorySeries(BaseModel):
+    """One recipe's or one model's own counts, minute by minute, aligned with `buckets` (`activity.window.graph-on-every-view`)."""
+
+    key: str = Field(description="the recipe's name, or the model's id in the Models tree (place|provider|name)")
+    pages: list[int] = Field(description="pages done in each minute")
+    calls: list[int] = Field(default_factory=list, description="a model's calls in each minute; empty for a recipe")
+
+
 class ActivityHistory(BaseModel):
     buckets: list[HistoryBucket] = Field(description="one per minute, oldest first, the last the current minute")
+    by_recipe: list[HistorySeries] = Field(default_factory=list, description="pages per minute by the recipe they ran under")
+    by_model: list[HistorySeries] = Field(default_factory=list, description="pages and calls per minute by model")
     by_runtime: dict[Runtime, int] = Field(default_factory=dict, description="pages done in the window by where they ran; a runtime with none is absent")
     today_spend_usd: float = Field(0.0, description="dollars of priced cloud calls of pages finished today (UTC)")
     today_spend_by_provider: dict[str, float] = Field(default_factory=dict, description="provider name -> today's dollars")
@@ -73,9 +83,19 @@ def history(db: Database, minutes: int, now: datetime | None = None) -> Activity
     from fichero_server.execution import jobs as job_queue
 
     rows = job_queue.finished_page_jobs_since(db, min(first, midnight).replace(tzinfo=None), RUN_KINDS)
+    from fichero_server.workflows import activity_models, activity_recipes
+
     today: dict[str, float] = {}
     runtimes: dict[Runtime, int] = {}
-    for finished, state, detail, target in rows:
+    recipes: dict[str, HistorySeries] = {}
+    models: dict[str, HistorySeries] = {}
+    run_recipes: dict[str, str] = {}
+
+    def series(table: dict[str, HistorySeries], key: str) -> HistorySeries:
+        calls = [0] * minutes if table is models else []  # a recipe's calls are its models'
+        return table.setdefault(key, HistorySeries(key=key, pages=[0] * minutes, calls=calls))
+
+    for finished, state, detail, target, model, parent in rows:
         at = ensure_utc(finished)
         try:
             usage = [price_call(u) for u in (json.loads(detail) if detail else {}).get("usage", [])]
@@ -90,8 +110,20 @@ def history(db: Database, minutes: int, now: datetime | None = None) -> Activity
                 bucket.pages_done += 1
                 kind = _runtime([c.place for c in usage if c.place], target)
                 runtimes[kind] = runtimes.get(kind, 0) + 1
+                # A page's step row is "<run>:<step>": its run, and the recipe that run belongs to.
+                run_id = str(parent).split(":", 1)[0]
+                series(recipes, activity_recipes.recipe_of_run(db, run_id, run_recipes)).pages[index] += 1
+                if model:
+                    series(models, activity_models.model_id(*activity_models.place_and_provider(model))).pages[index] += 1
             else:
                 bucket.pages_failed += 1
+            try:
+                calls = [c for c in (json.loads(detail) if detail else {}).get("usage", []) if isinstance(c, dict)
+                         and c.get("model")]
+            except Exception:  # noqa: BLE001 -- counted above as unreadable
+                calls = []
+            for call in calls:
+                series(models, activity_models.model_id(*activity_models.call_key(call))).calls[index] += 1
             bucket.spend_usd += sum(c.cost_usd for c in spend)
             bucket.tokens += sum(c.total_tokens for c in usage)
         if at >= midnight:
@@ -100,6 +132,8 @@ def history(db: Database, minutes: int, now: datetime | None = None) -> Activity
     for bucket in buckets:
         bucket.spend_usd = round(bucket.spend_usd, 6)
     result.by_runtime = runtimes
+    result.by_recipe = sorted(recipes.values(), key=lambda r: -sum(r.pages))
+    result.by_model = sorted(models.values(), key=lambda r: -(sum(r.pages) + sum(r.calls)))
     result.today_spend_by_provider = {p: round(v, 6) for p, v in today.items()}
     result.today_spend_usd = round(sum(today.values()), 6)
     return result
