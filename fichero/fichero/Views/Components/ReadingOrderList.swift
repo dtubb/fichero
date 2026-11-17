@@ -315,9 +315,9 @@ extension ReadingOrderList {
         segmentService.map { FlaggedLineStore.shared(for: $0) }
     }
 
-    /// The page's working pass as the engine names it; nil until the page is read.
+    /// The page's shown pass: the working pass as the engine names it, or the one picked (#6670); nil until read.
     private var workingPassId: String? {
-        segmentService.flatMap { SegmentStore.shared(for: $0).workingPass(documentId: documentId)?.id }
+        segmentService.flatMap { SegmentStore.shared(for: $0).shownPass(documentId: documentId)?.id }
     }
 
     /// A row shown only because it holds a match (its region, its line) is dimmed under a filter.

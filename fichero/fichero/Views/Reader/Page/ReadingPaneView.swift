@@ -494,6 +494,7 @@ struct ReadingPaneView: View {
             controls: {
                 self.readerTableExportControl
                 self.readerHeadTryControls
+                PassPickerMenu(documentId: self.effectiveDocument?.id)
             },
             tools: { EmptyView() },
             switchableRoots: PaneCrumb.otherLibraries(than: windowState.libraryId)
