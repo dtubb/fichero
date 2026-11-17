@@ -26,6 +26,13 @@ struct MissingOriginalsNotice: View {
 
     var body: some View {
         Group {
+            if let summary = store.summarySentence {
+                Label(summary, systemImage: "checkmark.circle")
+                    .font(.callout)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 4)
+                    .accessibilityIdentifier("library.relinkSummary")
+            }
             if let missing = store.missing, missing.pages > 0 {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
@@ -128,6 +135,7 @@ struct LocateOriginalsPresenter: ViewModifier {
     let store: OriginalsStore?
     let actionsService: ActionsService?
     let folderId: String?
+    @Environment(WindowSteps.self) private var steps: WindowSteps?
 
     func body(content: Content) -> some View {
         content
@@ -135,6 +143,12 @@ struct LocateOriginalsPresenter: ViewModifier {
                 if let store { MissingOriginalsNotice(store: store, folderId: folderId) }
             }
             .focusedSceneValue(\.originals, store)
+            // At open, the folder this project's originals were last relinked to, with no panel (#5535).
+            .task {
+                guard let store, let actionsService else { return }
+                await store.loadMissing()
+                await store.relinkFromRememberedRoot(actionsService: actionsService, steps: steps)
+            }
             .sheet(isPresented: Binding(get: { store?.isChoosing ?? false }, set: { store?.isChoosing = $0 })) {
                 if let store, let actionsService {
                     LocateOriginalsSheet(store: store, actionsService: actionsService)
