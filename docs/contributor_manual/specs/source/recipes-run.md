@@ -632,26 +632,26 @@ fail on its own, but the run still came apart. The engine log shows, in order:
 
 The behaviours:
 
-- `recipes-run.steps.models-fetched-before-the-step` — **[OK]** (#6673; test `fichero-server/tests/unit/recipes/test_models_fetched_before_the_step_6673.py`) every model a run's steps name (a
+- `recipes-run.steps.models-fetched-before-the-step` — **[OK]** (#6673) every model a run's steps name (a
   Kraken segmenter or reader, a local vision model) is on this Mac before the first step that uses it starts:
   the run's first stage fetches what is missing, with its progress in the run's row. A fetch that fails does
   not end the run (`source.recipe.download-failure-waits`: other steps run): the steps that need that model wait,
   each page "waiting for <model> to download", with Retry on the download; never a step failing on every page with
   "not on this Mac yet".
-- `recipes-run.steps.a-page-waits-for-its-inputs` — **[OK]** (#6673; test `fichero-server/tests/unit/recipes/test_a_page_waits_for_its_inputs_6673.py`) a step runs on a page only when every
+- `recipes-run.steps.a-page-waits-for-its-inputs` — **[OK]** (#6673) a step runs on a page only when every
   step it needs has finished on THAT page. A page whose earlier step failed is held, not passed on: the later
   steps report it as "waiting for <step>" (never done, never failed for a cause that is not theirs).
-  Pages that have their inputs go on: one page's failure never stops the others.
-- `recipes-run.steps.retry-flows-through` — **[OK]** (#6673; test `fichero-server/tests/unit/recipes/test_a_page_waits_for_its_inputs_6673.py`) Retry on the run redoes only the failed pages
+  Pages that have their inputs go on: one page's failure never stops the others. Tests: `fichero-server/tests/unit/recipes/test_a_page_waits_for_its_inputs_6673.py`.
+- `recipes-run.steps.retry-flows-through` — **[OK]** (#6673) Retry on the run redoes only the failed pages
   of the earliest failed step, and each page that then succeeds flows on through every later step it was
-  waiting for, in order; pages already done are not redone (`recipes-run.journey.run-again-on-what-was-missed`).
-- `recipes-run.steps.no-empty-done` — **[OK]** (#6673; test `fichero-server/tests/unit/recipes/test_a_page_waits_for_its_inputs_6673.py`) a step that had nothing to work on for a page (no
+  waiting for, in order; pages already done are not redone (`recipes-run.journey.run-again-on-what-was-missed`). Tests: `fichero-server/tests/unit/recipes/test_a_page_waits_for_its_inputs_6673.py`.
+- `recipes-run.steps.no-empty-done` — **[OK]** (#6673) a step that had nothing to work on for a page (no
   lines to tie, no reading to correct) never counts the page as done; the summary gives each step's done,
-  waiting and failed pages with the cause of each failure in words.
-- `recipes-run.kraken.no-silent-line-loss` — **[OK]** (#6673; test `fichero-server/tests/unit/llm/test_kraken_line_without_outline_is_boxed_6673.py`; the count is on the page's call log and the geometry's `lines_without_outline`) a line whose polygon Kraken cannot build keeps
+  waiting and failed pages with the cause of each failure in words. Tests: `fichero-server/tests/unit/recipes/test_a_page_waits_for_its_inputs_6673.py`.
+- `recipes-run.kraken.no-silent-line-loss` — **[OK]** (#6673) a line whose polygon Kraken cannot build keeps
   its baseline with a box drawn round it, so it is still read; the count of such lines is kept on the page's
   run and shown in the summary ("3 lines had no outline; boxed from their baselines"). No line Kraken found
-  is dropped without a word.
+  is dropped without a word. Tests: `fichero-server/tests/unit/llm/test_kraken_line_without_outline_is_boxed_6673.py`. Built: the count is on the page's call log and the geometry's `lines_without_outline`.
 - `recipes-run.kraken.reliability-measured` — **[GAP]** (#6673) Kraken's own reliability is measured, not
   assumed: a trial of 100 pages (the test corpora) on the M4 overnight, Kraken steps only, records per page
   the time, lines found, lines without an outline and any failure; the numbers go in this section.
