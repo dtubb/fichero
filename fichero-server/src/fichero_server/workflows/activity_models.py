@@ -105,7 +105,8 @@ def this_mac(db: "Database", *, memory: tuple[int | None, int | None] | None = N
             load = os.getloadavg()[0]
         except OSError:
             load = None
-    cores = os.cpu_count() or 0
+    from fichero_server.core.cores import cores_available
+    cores = cores_available()[0]
     busy: dict[str, int] = {}
     job_queue._ensure(db)
     for (kind,) in db.execute_fetchall("SELECT kind FROM jobs WHERE state = 'running'"):
