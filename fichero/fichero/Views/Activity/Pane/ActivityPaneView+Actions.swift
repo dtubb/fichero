@@ -98,7 +98,9 @@ extension ActivityPaneView {
         switch button {
         case .verb(let verb): perform(verb, on: [row])
         case .settings: Self.openSettings()
-        case .chooseFolder(let export): choosingFolder = ActivityFolderChoice(libraryId: row.libraryId, exportId: export)
+        case .chooseFolder(let export):
+            choosingFolder = ActivityFolderChoice(libraryId: row.libraryId, exportId: export)
+            isChoosingFolder = true
         case .showDetails: selection = [row.id]  // the Inspector shows the selected row's fix
         }
     }
