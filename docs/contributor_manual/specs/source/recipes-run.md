@@ -654,6 +654,18 @@ The behaviours:
 - `recipes-run.kraken.reliability-measured` — **[GAP]** (#6673) Kraken's own reliability is measured, not
   assumed: a trial of 100 pages (the test corpora) on the M4 overnight, Kraken steps only, records per page
   the time, lines found, lines without an outline and any failure; the numbers go in this section.
+- `recipes-run.memory.one-heavy-model-in-sequence` — **[GAP]** (#6673) a run's stages go one heavy model at a time,
+  in sequence, not all at once. Today the search embedder has a lane of its own so it runs BESIDE Kraken
+  (`execution/jobs.py`, the "embed" lane), and when memory is tight the engine frees Kraken's resident models
+  (`release_idle_models`) to make room, so on a Mac short of RAM a mid-stage embed pushes Kraken out and it reloads
+  page after page. The rule: while a run's Kraken (or local-model) stage has pages queued, the embed lane takes no
+  embed for that run's pages (they wait for the end, `recipes-run.order.search-once-at-the-end`), and Kraken's
+  resident models are never released for an embed or a thumbnail while that stage has pages left. Other projects'
+  embeds wait the same way on a Mac with 16 GB or less.
+- `recipes-run.memory.recorded-per-step` — **[GAP]** (#6673) each step of a run records the Mac's RAM, the engine's
+  peak memory, swap used and the memory-pressure level while it ran, and model loads and unloads, in the run's
+  record and in Save Logs for Support, so a run that failed on another person's Mac (2026-11-17: Ann's) can be read
+  afterwards: "Kraken reloaded 31 times; swap 6 GB; memory pressure high".
 - A provider's in-flight or rate limit pauses the run, never fails pages: `ai.where.one-retry-policy`, #6671.
 
 ## Changes to existing behaviours
