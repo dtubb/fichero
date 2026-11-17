@@ -9,6 +9,7 @@ import shlex
 import statistics
 import subprocess
 import threading
+from pathlib import Path
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Callable
@@ -78,11 +79,12 @@ def median_land_s(rows: list[dict], lane: str) -> float | None:
     return statistics.median(took[-MEDIAN_OF:]) if took else None
 
 
-def hold_why(now: datetime, cfg: Cfg, median_s: float | None) -> str:
+def hold_why(now: datetime, cfg: Cfg, median: Callable[[], float | None]) -> str:
     """'' when a lane's next step may start; else why not. Before no_new_steps_at, and from freeze_at on, every step may start."""
     start, freeze = window(now, cfg)
-    if now >= freeze:
+    if now < start or now >= freeze:
         return ""
+    median_s = median()  # the journal is read only inside the night window
     if median_s is None:
         return "after the cutoff, and the lane has no landed step to take a median land time from"
     if now + timedelta(seconds=median_s) > freeze:
@@ -90,14 +92,14 @@ def hold_why(now: datetime, cfg: Cfg, median_s: float | None) -> str:
     return ""
 
 
-def candidate_due(now: datetime, cfg: Cfg, rows: list[dict]) -> str:
+def candidate_due(now: datetime, cfg: Cfg, read: Callable[[], list[dict]]) -> str:
     """The night's key (its no_new_steps_at date) when `now` is past the freeze of the night that has no candidate row yet, else ''.
     A night's key is the date its window opened; a freeze more than GRACE ago is not started late."""
     start, freeze = window(now, cfg)
     if now < freeze:  # inside the window, or before the first: the night that just ended is the previous one
         start, freeze = window(start - timedelta(seconds=1), cfg)
     key = f"{start:%Y-%m-%d}"
-    if now < freeze or now - freeze > GRACE or any(r.get("event") == "nightly" and r.get("state") == "candidate" and r.get("night") == key for r in rows):
+    if now < freeze or now - freeze > GRACE or any(r.get("event") == "nightly" and r.get("state") == "candidate" and r.get("night") == key for r in read()):
         return ""
     return key
 
@@ -152,7 +154,7 @@ def when_due(cfg: Cfg | None, r: Runners | None, now: datetime, alert: Callable[
     nightly in its own thread (inline when `chains` is None, as the loop's other long jobs)."""
     if cfg is None or r is None:
         return
-    night = candidate_due(now, cfg, journal.read())
+    night = candidate_due(now, cfg, journal.read)
     if not night:
         return
     sha = r.head()
@@ -168,7 +170,8 @@ def when_due(cfg: Cfg | None, r: Runners | None, now: datetime, alert: Callable[
 # --- the real runners -------------------------------------------------------------------------------------------------------
 
 def _on(machine: str, script: str, timeout_s: float) -> tuple:
-    """Run a shell script on `machine`: 'local' here, else `host[:dir]` over ssh. (rc, output). ponytail: no placement or lock logic."""
+    """Run a shell script on `machine`: 'local' here, else `host[:dir]` over ssh (the dir is where `_tree` puts the part's clone).
+    (rc, output). ponytail: no placement or lock logic."""
     if machine == "local":
         argv = ["bash", "-ec", script]
     else:
@@ -180,38 +183,66 @@ def _on(machine: str, script: str, timeout_s: float) -> tuple:
     return p.returncode, (p.stdout + p.stderr)[-2000:]
 
 
+def _q(path: str) -> str:
+    """A path as one shell word; a leading ~/ is the remote's home."""
+    return '"$HOME"/' + shlex.quote(path[2:]) if path.startswith("~/") else shlex.quote(path)
+
+
+def _tree(machine: str, state, part: str) -> str:
+    """The part's one fixed clone dir on `machine`: under the state dir here, under the machine's `:dir` (default ~/fichero-nightly) over
+    ssh. A fixed path, so a night's clone replaces the last one's: nothing piles up and no name is guessable per process."""
+    if machine == "local":
+        return str(Path(state) / "nightly" / part)
+    return f"{machine.split(':', 1)[1] if ':' in machine else '~/fichero-nightly'}/{part}"
+
+
 def _clean_tree(origin: str, sha: str, tree: str) -> str:
     """Shell: a fresh clone of `origin` checked out at `sha` in `tree` (never the loop's checkout)."""
-    return f"rm -rf {shlex.quote(tree)} && git clone -q --no-checkout {shlex.quote(origin)} {shlex.quote(tree)} && git -C {shlex.quote(tree)} checkout -q {shlex.quote(sha)}"
+    t = _q(tree)
+    return f"rm -rf {t} && git clone -q --no-checkout {shlex.quote(origin)} {t} && git -C {t} checkout -q {shlex.quote(sha)}"
 
 
 def real_runners(root, cfg: Cfg, branch: str, state, texter: Callable[[str], None] | None = None) -> Runners:
     """Runners over clean clones of `origin` at the frozen sha. The check runs `builder verify-all --full` in its tree; the DMG runs
-    `release_guard.py auto-notes <version>` and then `release-all.sh --dev --skip-testflight` in its own. ponytail: the smoke and the
-    publish assume the DMG machine is where they run; one machine per part, no placement."""
+    `release_guard.py auto-notes <version>` and then `release-all.sh --dev --skip-testflight` in its own. Each part has one fixed clone
+    dir (`_tree`), replaced by the next night's. The smoke runs in the DMG's tree, or, on another machine, in a clone of the sha with the
+    built app copied over. ponytail: one machine per part, no placement."""
     u = subprocess.run(["git", "-C", str(root), "remote", "get-url", "origin"], capture_output=True, text=True)
     if u.returncode:
         raise RuntimeError(f"no origin remote in {root}: the nightly clones it")
     origin = u.stdout.strip()
-    work = f"/tmp/fichero-nightly-{os.getpid()}"
+    app = "fichero/build/xcode/Products/Release/Fichero.app"
+    if cfg.smoke_machine != cfg.build_machine and cfg.build_machine != "local":
+        raise ValueError("[nightly]: a smoke_machine other than the build_machine needs a local build_machine (the app is copied from here)")
 
-    def tree(part: str) -> str:
-        return f"{work}-{part}"
+    def tree(machine: str, part: str) -> str:
+        return _tree(machine, state, part)
 
     def check(sha):
-        t = tree("check")
-        return _on(cfg.check_runner, f"{_clean_tree(origin, sha, t)} && cd {t}/fichero-builder && GATE_FOOTPRINT_MB={cfg.check_footprint_mb} PYTHONPATH=. python3 -m fichero_builder verify-all --full --root {t} --state {shlex.quote(str(state))}", 14400)
+        t = tree(cfg.check_runner, "check")
+        return _on(cfg.check_runner, f"{_clean_tree(origin, sha, t)} && cd {_q(t)}/fichero-builder && GATE_FOOTPRINT_MB={cfg.check_footprint_mb} PYTHONPATH=. python3 -m fichero_builder verify-all --full --root {_q(t)} --state {shlex.quote(str(state))}", 14400)
 
     def dmg(sha):
-        t = tree("dmg")
-        version = f"$(sed -n 's/^MARKETING_VERSION = //p' {t}/fichero/Configs/Version.xcconfig | head -1)"
-        return _on(cfg.build_machine, f"{_clean_tree(origin, sha, t)} && cd {t} && python3 scripts/release_guard.py auto-notes {version} && scripts/release-all.sh --dev --skip-testflight", 7200)
+        t = tree(cfg.build_machine, "dmg")
+        version = f"$(sed -n 's/^MARKETING_VERSION = //p' {_q(t)}/fichero/Configs/Version.xcconfig | head -1)"
+        return _on(cfg.build_machine, f"{_clean_tree(origin, sha, t)} && cd {_q(t)} && python3 scripts/release_guard.py auto-notes {version} && scripts/release-all.sh --dev --skip-testflight", 7200)
 
     def smoke(sha):
-        return _on(cfg.smoke_machine, f"cd {tree('dmg')} && scripts/smoke-release-embedded-backend.sh", 3600)
+        built, here = tree(cfg.build_machine, "dmg"), tree(cfg.smoke_machine, "smoke")
+        if cfg.smoke_machine == cfg.build_machine:
+            return _on(cfg.smoke_machine, f"cd {_q(built)} && scripts/smoke-release-embedded-backend.sh", 3600)
+        host = cfg.smoke_machine.split(":")[0]  # the app is only in the build tree: clone the sha there, copy the app over, smoke it
+        rc, out = _on(cfg.smoke_machine, f"{_clean_tree(origin, sha, here)} && mkdir -p {_q(here)}/{shlex.quote(app)}", 1800)
+        if rc:
+            return rc, out
+        dest = f"{host}:{here[2:] if here.startswith('~/') else here}/{app}/"  # a remote path with no ~/ is relative to its home
+        rc, out = _on("local", f"rsync -a --delete {_q(built)}/{shlex.quote(app)}/ {shlex.quote(dest)}", 3600)
+        if rc:
+            return rc, out
+        return _on(cfg.smoke_machine, f"cd {_q(here)} && scripts/smoke-release-embedded-backend.sh", 3600)
 
     def publish(sha):
-        return _on(cfg.build_machine, f"cd {tree('dmg')} && scripts/release-all.sh --{cfg.publish} --skip-dmg --github --prerelease", 7200)
+        return _on(cfg.build_machine, f"cd {_q(tree(cfg.build_machine, 'dmg'))} && scripts/release-all.sh --{cfg.publish} --skip-dmg --github --prerelease", 7200)
 
     def text(msg):
         to = os.environ.get("FICHERO_NIGHTLY_TEXT_TO")

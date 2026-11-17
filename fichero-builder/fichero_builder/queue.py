@@ -359,7 +359,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             lane["paused"] = True
             return False
         if procs.nightly is not None and not s.get("resume_brief") and not s["rounds"]:  # run.nightly-build: a NEW step, after the cutoff, must fit before the freeze
-            if why := nightly.hold_why(procs.now(), procs.nightly, nightly.median_land_s(journal.read(), lane["id"])):
+            if why := nightly.hold_why(procs.now(), procs.nightly, lambda: nightly.median_land_s(journal.read(), lane["id"])):
                 if s.get("held") != why:
                     s["held"] = why
                     store(lane)

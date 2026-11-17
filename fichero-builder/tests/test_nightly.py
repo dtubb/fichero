@@ -40,11 +40,11 @@ def test_the_nightly_table_is_read_whole_and_a_missing_key_is_an_error():
 
 def test_a_step_after_the_cutoff_starts_only_if_the_lanes_median_fits_before_the_freeze():
     at = lambda h, m: datetime(2026, 11, 17, h, m)  # noqa: E731
-    assert nightly.hold_why(at(21, 59), CFG, 7200) == "", "before the cutoff nothing is held"
-    assert nightly.hold_why(at(22, 0), CFG, 3600) == "" and nightly.hold_why(at(23, 0), CFG, 3600) == "", "it fits exactly"
-    assert "does not fit before the freeze at 00:00" in nightly.hold_why(at(23, 1), CFG, 3600)
-    assert "no landed step" in nightly.hold_why(at(22, 30), CFG, None)
-    assert nightly.hold_why(datetime(2026, 11, 18, 0, 0), CFG, 9999) == "", "from the freeze on a step starts again"
+    assert nightly.hold_why(at(21, 59), CFG, lambda: 7200) == "", "before the cutoff nothing is held"
+    assert nightly.hold_why(at(22, 0), CFG, lambda: 3600) == "" and nightly.hold_why(at(23, 0), CFG, lambda: 3600) == "", "it fits exactly"
+    assert "does not fit before the freeze at 00:00" in nightly.hold_why(at(23, 1), CFG, lambda: 3600)
+    assert "no landed step" in nightly.hold_why(at(22, 30), CFG, lambda: None)
+    assert nightly.hold_why(datetime(2026, 11, 18, 0, 0), CFG, lambda: 9999) == "", "from the freeze on a step starts again"
 
 
 def test_a_lanes_median_is_over_its_landed_steps_only(state):
@@ -116,7 +116,7 @@ def test_the_parts_run_in_clean_trees_at_the_frozen_sha_and_auto_notes_runs_befo
     seen = []
     monkeypatch.setattr(nightly, "_on", lambda machine, script, timeout: seen.append((machine, script)) or (0, ""))
     monkeypatch.setattr(nightly.subprocess, "run", lambda *a, **k: type("P", (), {"returncode": 0, "stdout": "git@x:o/r.git\n", "stderr": ""})())
-    r = nightly.real_runners(tmp_path, CFG, "integration", tmp_path)
+    r = nightly.real_runners(tmp_path, CFG, "integration", tmp_path / "s")
     r.check("c" * 40), r.dmg("c" * 40)
     check, dmg = seen
     assert check[0] == "m4" and "git clone -q --no-checkout git@x:o/r.git" in check[1] and f"checkout -q {'c' * 40}" in check[1]
@@ -124,3 +124,31 @@ def test_the_parts_run_in_clean_trees_at_the_frozen_sha_and_auto_notes_runs_befo
     assert "verify-all --full" in check[1] and str(tmp_path) not in check[1].split("verify-all")[0], "never the loop's checkout"
     assert dmg[0] == "local" and f"checkout -q {'c' * 40}" in dmg[1]
     assert dmg[1].index("release_guard.py auto-notes") < dmg[1].index("release-all.sh --dev --skip-testflight")
+
+
+def test_each_part_has_one_fixed_clone_dir_and_a_machines_dir_is_used(monkeypatch, tmp_path):
+    """No per-process /tmp name: the local parts clone under the state dir, a `host:dir` machine under its dir, a bare host under
+    ~/fichero-nightly; the next night replaces the clone (rm -rf first)."""
+    seen = []
+    monkeypatch.setattr(nightly, "_on", lambda machine, script, timeout: seen.append((machine, script)) or (0, ""))
+    monkeypatch.setattr(nightly.subprocess, "run", lambda *a, **k: type("P", (), {"returncode": 0, "stdout": "git@x:o/r.git\n", "stderr": ""})())
+    cfg = nightly.Cfg((22, 0), (0, 0), "imac:~/code/fichero-worktrees/nightly", "local", "local", "dev", 14336)
+    r = nightly.real_runners(tmp_path, cfg, "integration", tmp_path / "s")
+    r.check("c" * 40), r.dmg("c" * 40), r.smoke("c" * 40)
+    check, dmg, smoke = (x[1] for x in seen)
+    assert check.startswith('rm -rf "$HOME"/code/fichero-worktrees/nightly/check &&') and "fichero-nightly-" not in check
+    assert dmg.startswith(f"rm -rf {tmp_path}/s/nightly/dmg &&") and f"cd {tmp_path}/s/nightly/dmg &&" in smoke, "the smoke runs in the DMG's tree"
+
+
+def test_a_smoke_on_another_machine_clones_the_sha_and_copies_the_built_app_over(monkeypatch, tmp_path):
+    seen = []
+    monkeypatch.setattr(nightly, "_on", lambda machine, script, timeout: seen.append((machine, script)) or (0, ""))
+    monkeypatch.setattr(nightly.subprocess, "run", lambda *a, **k: type("P", (), {"returncode": 0, "stdout": "git@x:o/r.git\n", "stderr": ""})())
+    cfg = nightly.Cfg((22, 0), (0, 0), "m4", "local", "m4", "dev", 14336)
+    nightly.real_runners(tmp_path, cfg, "integration", tmp_path / "s").smoke("c" * 40)
+    (m1, s1), (m2, s2), (m3, s3) = seen
+    assert (m1, m2, m3) == ("m4", "local", "m4") and f"checkout -q {'c' * 40}" in s1
+    assert s2.startswith("rsync -a --delete") and "Fichero.app/ m4:fichero-nightly/smoke/fichero/build/xcode/Products/Release/Fichero.app/" in s2
+    assert "scripts/smoke-release-embedded-backend.sh" in s3
+    with pytest.raises(ValueError, match="needs a local build_machine"):
+        nightly.real_runners(tmp_path, nightly.Cfg((22, 0), (0, 0), "m4", "imac", "m4", "dev", 1), "integration", tmp_path)
