@@ -1831,7 +1831,7 @@ from the region instead of the role.
   the same tone (2026-10-05). Built and pinned by `RegionColoursTests` and
   `BoxColourThroughTheStoreTests` (through `SegmentStore` and `SegmentDisplay.selected`); not yet seen in
   the app, and the set colour is not built.
-- `source.editor.colour.reading-order-gradient` — **[PARTIAL]** (#5426) inside a region, lines are shaded
+- `source.editor.colour.reading-order-gradient` — **[PARTIAL]** (#5426) inside a region, lines are shaded *Note 2026-11-17 (#6422, "shading by reading order does not work well"):* the Preview shaded along the pass's as-written order (`boxIndex`) whatever order the lists showed, so a reorder or another order never reshaded the page or its numbers. The order list now hands the order it shows to `SegmentStore.showOrder` as one sequence (each region, then its lines, `ReadingOrderStore.fullSequence`, one read per region), and `SegmentDisplay` shades and numbers along it; pinned by `ReadingOrderStoreTests.theOrderShownAsOneSequence` and `PassShownIsPickedTests.theOrderShownReshades`. Not seen in the running app; with two lists open, the last to load or move sets it.
   from a lighter strength (the first line) to the hue's full strength (the last), light to dark (owner 2026-11-10), along the working pass's reading order (the
   pane's chosen order, else as written); moving a line in the order changes its shade. Replaces the
   two-tint alternation. Built on the as-written order and pinned by `RegionColoursTests` (a reordered

@@ -80,6 +80,19 @@ struct PassShownIsPickedTests {
             == "apple-vision, Nov 8, 2025 · promoted")
     }
 
+    /// #6422: the order a list shows reshades and renumbers the Preview's lines; with none, the as-written order.
+    @Test("source.editor.colour.reading-order-gradient: the order shown reshades and renumbers the drawn lines")
+    func theOrderShownReshades() throws {
+        let written = try #require(SegmentDisplay.drawn(passes: passes, segments: segments, pickedPassId: "kraken"))
+        #expect(written.geometry.boxes.map(\.orderNumber) == [1, 2])
+        let reordered = try #require(SegmentDisplay.drawn(
+            passes: passes, segments: segments, pickedPassId: "kraken", readingOrder: ["k1", "k0"]
+        ))
+        #expect(reordered.geometry.boxes.map(\.orderNumber) == [2, 1])
+        let strengths = { (geometry: OCRGeometry) in geometry.boxes.compactMap { $0.tone?.strength } }
+        #expect(strengths(reordered.geometry) == strengths(written.geometry).reversed())
+    }
+
     @Test("source.editor.pass-shown-is-picked: one pass, no menu")
     func onePassNoChoice() {
         #expect(PassChoice.offersChoice(passes))

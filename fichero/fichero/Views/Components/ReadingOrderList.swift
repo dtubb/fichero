@@ -169,6 +169,12 @@ struct ReadingOrderList: View {
                 windowState?.pendingSegmentSelection = nil
             }
         }
+        // The order shown shades the Preview (#6422): a reorder or another order reshades its lines.
+        .task(id: "\(documentId)/\(store?.orderId ?? "")/\(store?.sequence ?? [])") {
+            guard parentSegmentId == nil, let store, store.documentId == documentId, let segmentService else { return }
+            let ids = await store.fullSequence { segment($0)?.kind == "region" }
+            SegmentStore.shared(for: segmentService).showOrder(ids, documentId: documentId)
+        }
     }
 
     /// The segments the one shared selection holds on this page (the Preview's, the Reader's, this list's).
