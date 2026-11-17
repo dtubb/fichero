@@ -174,24 +174,21 @@ struct ActivityPaneView: View {
             if showsHead { head; Divider() }
             if showsHead {
                 rowsView(shown)
-            } else if prefs.tab == .recipes && !graphsFull {
-                // Recipes (decision 37): recipe › run › step with the rates that compare them, over the graphs.
-                ActivityGraphsSplitStack {
-                    ActivityRecipesView(libraries: libraries)
-                } graphs: {
-                    graphs
+            } else if ActivityCentreView.offered(for: prefs.tab).count > 1 && !graphsFull {
+                // The centre's view of the item (`activity.window.centre-views`): Table as before, Graph full size,
+                // Visual the work drawn.
+                centreViewPicker
+                Divider()
+                switch prefs.centreView(for: prefs.tab) {
+                case .table: tableCentre(shown)
+                case .graph: graphs
+                case .visual: ActivityTimelineView(rows: shown)
                 }
             } else if graphsFull {
                 // The graphs made full size (`activity.graphs.own-pane`, decision 41): they fill the centre.
                 graphs
             } else {
-                // The window's centre: the rows over the graphs, the divider the person's to drag (decisions 34, 41); a main
-                // window's pane keeps one status line instead.
-                ActivityGraphsSplitStack {
-                    rowsView(shown)
-                } graphs: {
-                    graphs
-                }
+                tableCentre(shown)
             }
             bottomBar
         }
