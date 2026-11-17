@@ -1173,10 +1173,7 @@ def boxed_lines(lines: list[dict[str, object]]) -> int:
 def _say_boxed(count: int) -> None:
     from fichero_server.execution import jobs
 
-    try:
-        jobs.note_call_log(boxed_words(count))
-    except Exception:  # noqa: BLE001 -- a note never fails a page
-        logger.debug("could not note the boxed lines", exc_info=True)
+    jobs.note_call_log(boxed_words(count))  # a no-op outside a job's slot
 
 
 def boxed_words(count: int) -> str:
