@@ -31,6 +31,15 @@ final class PDFZoomController {
         pdfView?.zoomOut(nil)
     }
 
+    /// ⌘ + scroll over the page (`panes.chrome.command-scroll-zooms`): one small step per scroll event.
+    func scrollZoom(_ step: Int) {
+        guard let view = pdfView else { return }
+        onManualZoomChanged?(true)
+        view.scaleFactor = CommandScrollZoom.scaled(
+            view.scaleFactor, step: step, in: view.minScaleFactor...max(view.minScaleFactor, view.maxScaleFactor)
+        )
+    }
+
     func fitToWindow() {
         guard let view = pdfView else { return }
         onManualZoomChanged?(false)

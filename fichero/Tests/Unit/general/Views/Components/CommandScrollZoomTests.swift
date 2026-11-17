@@ -25,4 +25,12 @@ struct CommandScrollZoomTests {
         #expect(LibraryView.iconScale(after: -1, from: 0.5, maximum: 5) == 0.5)
         #expect(LibraryView.iconScale(after: 1, from: 2.0, maximum: 2.0) == 2.0)
     }
+
+    @Test("the page image, a PDF page and the Reader move 5% a step and stay in their own range (owner 2026-11-17)")
+    func pageScaleSteps() {
+        #expect(abs(CommandScrollZoom.scaled(1.0, step: 1, in: 0.5...3.0) - 1.05) < 0.0001)
+        #expect(abs(CommandScrollZoom.scaled(1.0, step: -1, in: 0.5...3.0) - 1 / 1.05) < 0.0001)
+        #expect(CommandScrollZoom.scaled(2.99, step: 1, in: 0.5...3.0) == 3.0)
+        #expect(CommandScrollZoom.scaled(0.5, step: -1, in: 0.5...3.0) == 0.5)
+    }
 }

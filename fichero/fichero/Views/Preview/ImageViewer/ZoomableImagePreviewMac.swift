@@ -287,7 +287,7 @@ struct ZoomableImagePreview: View {
     /// blew the type-checker budget — the same pathology the library window
     /// hit — and each layer keeps its chain small enough to check.
     var body: some View {
-        previewFocusPublishes(on: keyboardLayer)
+        previewFocusPublishes(on: keyboardLayer.commandScrollZoom { scrollZoom($0) })
     }
 
     /// Publish the preview's window-scoped focus keys — ONLY from the PRIMARY preview pane. Two

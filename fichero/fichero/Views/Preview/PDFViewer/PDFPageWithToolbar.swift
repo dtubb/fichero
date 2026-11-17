@@ -500,6 +500,7 @@ extension PDFPageWithToolbar {
                 segmentEditing: pdfSegmentEditing
             )
             .overlay(alignment: .topLeading) { pdfSegmentPopoverAnchor }
+            .commandScrollZoom { zoom.scrollZoom($0) }
             .onAppear {
                 localPageIndex = pageIndex
                 loadAnnotations()

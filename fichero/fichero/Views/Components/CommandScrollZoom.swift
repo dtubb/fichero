@@ -9,6 +9,12 @@ enum CommandScrollZoom {
         guard commandHeld, deltaY != 0 else { return nil }
         return deltaY > 0 ? 1 : -1
     }
+
+    /// A scale after one step: 5% per scroll event, in its range. Small, because a Magic Mouse sends many events for
+    /// one swipe; the page image, a PDF page and the Reader zoom by it.
+    static func scaled(_ value: CGFloat, step: Int, in range: ClosedRange<CGFloat>) -> CGFloat {
+        min(max(value * pow(1.05, CGFloat(step)), range.lowerBound), range.upperBound)
+    }
 }
 
 #if canImport(AppKit)

@@ -18,6 +18,12 @@ extension ZoomableImagePreview {
         }
     }
 
+    /// ⌘ + scroll over the page (`panes.chrome.command-scroll-zooms`): one small step per scroll event, no animation.
+    func scrollZoom(_ step: Int) {
+        imageCoordinator?.markManualZoom()
+        scale = CommandScrollZoom.scaled(scale, step: step, in: minScale...maxScale)
+    }
+
     func fitToWindow() {
         // Fit hands the zoom back to the automatic policy, so a later pane
         // resize keeps the image fitted (#4279).
