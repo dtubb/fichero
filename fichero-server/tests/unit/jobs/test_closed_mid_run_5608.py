@@ -1,5 +1,6 @@
-"""A project closed while a run's pages wait for a lane: the run ends interrupted, and a recipe run never waits on a
-dead child (#5608, `compute.run.interrupted-on-close`).
+"""A project closed while a recipe's step run's pages wait for a lane: the step run ends interrupted, and the recipe run
+never waits on a dead child (#5608, `compute.run.interrupted-on-close`). A run on its own is paused by the close instead
+(#6596, `activity.engine.close-pauses-running-work`): `test_close_pauses_running_work_6588.py`.
 
 Spec: docs/contributor_manual/specs/compute/jobs-and-fine-tuning.md. Seen on the demo engine (2026-10-08): the app
 relaunched and the engine closed the project while a recipe run's reading step had 49 pages waiting for the lane.
@@ -17,7 +18,6 @@ from __future__ import annotations
 
 import json
 import threading
-import time
 
 import pytest
 
@@ -75,40 +75,6 @@ def _close_and_open(test_package, every=False):
     else:
         db_manager.close_database(test_package)
     return db_manager.get_database(test_package)
-
-
-@pytest.mark.parametrize("every", [False, True], ids=["this-project-closed", "every-project-closed"])
-def test_compute_run_interrupted_on_close__a_run_whose_pages_wait_for_a_lane_ends_interrupted(
-        client, test_package, workflow, pages, cloud, lane_held, every):
-    """WHY (#5608): closed while its pages waited for the lane, the run's record stayed running for good; on the
-    next open it was taken for a run still going and never marked. It reads interrupted, with when the project was
-    closed, in its status, its account, the list and the tree, and offers its pages not done."""
-    from fichero_server.execution.runner import _running_workflows
-
-    db = db_manager.get_database(test_package)
-    run = _execute(client, workflow, pages)
-    assert _wait_for(lambda: _waiting_pages(db, run) == 3, 60)
-
-    db = _close_and_open(test_package, every)
-
-    assert run not in _running_workflows, "a run its project's close stopped is not live"
-    assert _status(client, run) == "failed"
-    account = _account(client, run)
-    assert account["state"] == "interrupted" and account["interrupted"] is True
-    assert account["reason"].startswith(CLOSED) and account["reason"].endswith(", before this run finished")
-    assert account["offer"]["label"] == "Read the 3 pages not done"
-    tree = _tree(client, run)
-    assert (tree["state"], tree["reason"]) == ("failed", account["reason"])
-    listed = _listed(client, run)
-    assert (listed["state"], listed["reason"]) == ("failed", account["reason"])
-    assert listed["account"]["interrupted"] is True
-    assert _waiting_pages(db, run) == 0, "no page of it waits for a lane any more"
-
-    # The runner's own end after the close (its pages stopped) does not end the run otherwise.
-    lane_held.set()
-    time.sleep(1.0)
-    assert _account(client, run)["reason"] == account["reason"]
-    assert _tree(client, run)["state"] == "failed"
 
 
 def _recipe(db, workflow, pages, steps=("read",)) -> str:

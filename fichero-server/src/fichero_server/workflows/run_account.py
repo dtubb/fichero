@@ -346,11 +346,16 @@ _CLOSED_MID_RUN_LIMIT = 500
 
 
 def closing_runs(db: Any) -> list[str]:
-    """A project is closing (#5608): each of its runs in flight in this engine leaves the live set, is noted
-    with when, and is asked to stop. Its own later writes do not end it (`closed_mid_run`); the project's next
-    open marks it interrupted, "the project was closed at HH:MM" (`mark_interrupted_runs`), and settles its
-    documents as any interrupted run's are. Called by the database manager before the connection closes."""
-    from fichero_server.execution.cancellation import request_cancellation
+    """A project is closing (#5608): each of its runs in flight in this engine leaves the live set and is noted
+    with when. Its own later writes do not end it (`closed_mid_run`). A run with a checkpoint to go on from is
+    PAUSED (#6596, `activity.engine.close-pauses-running-work`): asked to pause at its boundary, as quit does, and
+    its record and rows say "Paused: the project closed" now, before the connection closes; the row's Continue
+    resumes it from its checkpoint. A run with nothing to resume from, or a recipe's step run (its recipe run carries
+    it on), is asked to stop, and the project's next open marks it interrupted, "the project was closed at HH:MM"
+    (`mark_interrupted_runs`). Called by the database manager before the connection closes."""
+    from fichero_server.db import activity_records as records
+    from fichero_server.execution import jobs
+    from fichero_server.execution.cancellation import request_cancellation, request_pause
     from fichero_server.execution.runner import _running_workflows
     from fichero_server.workflows import activity_store
     from fichero_server.workflows.run_status import is_terminal
@@ -363,8 +368,26 @@ def closing_runs(db: Any) -> list[str]:
             _CLOSED_MID_RUN.pop(next(iter(_CLOSED_MID_RUN)))
         _CLOSED_MID_RUN[thread_id] = now
         _running_workflows.pop(thread_id, None)
-        request_cancellation(thread_id)  # its pages not yet handed in are not read with the project closed
+        if _resumable_after_close(db, thread_id):
+            request_pause(thread_id)
+            records.update_run(db, thread_id, {"status": "paused", "error": jobs.PAUSED_PROJECT_CLOSED})
+            jobs.pause_run_rows(db, thread_id, jobs.PAUSED_PROJECT_CLOSED)
+        else:
+            request_cancellation(thread_id)  # its pages not yet handed in are not read with the project closed
     return closing
+
+
+def _resumable_after_close(db: Any, thread_id: str) -> bool:
+    """Whether a run its project's close stops can be paused and resumed (#6596): it has a checkpoint to go on from,
+    and it is not a recipe's step run, which its recipe run carries on itself (`RECIPE_CARRIES_ON`)."""
+    from fichero_server.execution import jobs
+
+    try:
+        saved = db.execute_fetchone("SELECT 1 FROM checkpoints WHERE thread_id = ? AND checkpoint_ns = '' LIMIT 1",
+                                    [thread_id])
+    except Exception:  # noqa: BLE001 -- no checkpoint table yet: nothing to resume from
+        return False
+    return saved is not None and jobs.parent_kind(db, thread_id) != "run-a-recipe"
 
 
 def closed_mid_run(thread_id: str) -> bool:
