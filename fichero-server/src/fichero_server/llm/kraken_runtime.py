@@ -1141,14 +1141,46 @@ def _raw_lines(segmentation: object) -> list[dict[str, object]]:
     for line in raw or []:
         baseline, boundary = _field(line, "baseline"), _field(line, "boundary")
         regions = _field(line, "regions") or []
-        out.append(
-            {
-                "baseline": [[float(x), float(y)] for x, y in (baseline or [])],
-                "polygon": [[float(x), float(y)] for x, y in (boundary or [])],
-                "region": str(regions[0]) if regions else None,
-            }
-        )
+        base = [[float(x), float(y)] for x, y in (baseline or [])]
+        polygon = [[float(x), float(y)] for x, y in (boundary or [])]
+        entry: dict[str, object] = {"baseline": base, "polygon": polygon, "region": str(regions[0]) if regions else None}
+        if len(polygon) < 3 and len(base) >= 2:
+            # Kraken could not build this line's polygon (it stores None, `TopologyException: side location conflict`):
+            # the line keeps its baseline, boxed, so it is still read (`recipes-run.kraken.no-silent-line-loss`).
+            entry["polygon"], entry["boxed"] = _box_round(base), True
+        out.append(entry)
     return out
+
+
+def _box_round(baseline: list[list[float]]) -> list[list[float]]:
+    """A box round a baseline: its extent, and `_BOX_HEIGHT_RATIO` of its length above and below it, at least `_BOX_MIN_PX`.
+    ponytail: a ratio of the baseline's length, not the page's measured line height; measure it if boxes cut text."""
+    xs, ys = [p[0] for p in baseline], [p[1] for p in baseline]
+    pad = max(_BOX_MIN_PX, _BOX_HEIGHT_RATIO * (max(xs) - min(xs)))
+    x0, x1, y0, y1 = min(xs), max(xs), min(ys) - pad, max(ys) + pad
+    return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
+
+
+_BOX_HEIGHT_RATIO = 0.06
+_BOX_MIN_PX = 12.0
+
+
+def boxed_lines(lines: list[dict[str, object]]) -> int:
+    """How many of a page's lines had no outline from Kraken and were boxed from their baselines."""
+    return sum(1 for line in lines if line.get("boxed"))
+
+
+def _say_boxed(count: int) -> None:
+    from fichero_server.execution import jobs
+
+    try:
+        jobs.note_call_log(boxed_words(count))
+    except Exception:  # noqa: BLE001 -- a note never fails a page
+        logger.debug("could not note the boxed lines", exc_info=True)
+
+
+def boxed_words(count: int) -> str:
+    return f"{count} line{'' if count == 1 else 's'} had no outline; boxed from their baselines"
 
 
 def _raw_regions(segmentation: object) -> list[dict[str, object]]:
@@ -1191,8 +1223,9 @@ def _segment_raw(image_path: str | Path, direction: str | None = None) -> dict[s
         with _stage("segment"):
             segmentation = blla.segment(image, model=model, **text_direction(direction))
         width, height = image.width, image.height
-    return {"width": width, "height": height, "lines": _raw_lines(segmentation),
-            "regions": _raw_regions(segmentation)}
+    lines = _raw_lines(segmentation)
+    return {"width": width, "height": height, "lines": lines, "regions": _raw_regions(segmentation),
+            "boxed_lines": boxed_lines(lines)}
 
 
 #: One resident model per kind ("segment", "read"), kept between pages: every page used to reload
@@ -1461,7 +1494,8 @@ def _recognize_raw(image_path: str | Path, model_path: str, direction: str | Non
         line["text"] = "" if record is None else str(getattr(record, "prediction", record) or "")
         line["confidence"] = None if record is None else _line_confidence(record)
         line["char_positions"] = None if record is None else char_positions(record)
-    return {"width": width, "height": height, "lines": lines, "regions": _raw_regions(segmentation)}
+    return {"width": width, "height": height, "lines": lines, "regions": _raw_regions(segmentation),
+            "boxed_lines": boxed_lines(lines)}
 
 
 def segment_lines(
@@ -1844,12 +1878,16 @@ def geometry_from_segmentation(
                         [float(x), float(y)] for x, y in line.get("baseline") or []
                     ],
                     "pixel_frame": {"width": width, "height": height},
+                    **({"boxed_from_baseline": True} if line.get("boxed") else {}),
                     **_parent(line, region_index),
                 },
             )
         )
 
     mark(boxes)
+    boxed = int(payload.get("boxed_lines") or 0)
+    if boxed:  # said on the page's own run, and kept on its geometry for the summary
+        _say_boxed(boxed)
     return OCRGeometryResult(
         text="",
         provider=_PROVIDER,
@@ -1857,7 +1895,8 @@ def geometry_from_segmentation(
         boxes=boxes,
         source="kraken-blla",
         rendition_id=rendition_id,
-        metadata={"pixel_frame": {"width": width, "height": height}, "frame": FRAME_UPRIGHT},
+        metadata={"pixel_frame": {"width": width, "height": height}, "frame": FRAME_UPRIGHT,
+                  **({"lines_without_outline": boxed} if boxed else {})},
     )
 
 
@@ -1939,6 +1978,7 @@ def recognize_to_geometry(
                         [float(x), float(y)] for x, y in line.get("baseline") or []
                     ],
                     "pixel_frame": {"width": width, "height": height},
+                    **({"boxed_from_baseline": True} if line.get("boxed") else {}),
                     **_parent(line, region_index),
                 },
             )
@@ -1976,6 +2016,9 @@ def recognize_to_geometry(
         )
 
     mark(boxes)
+    boxed = int(payload.get("boxed_lines") or 0)
+    if boxed:
+        _say_boxed(boxed)
     return OCRGeometryResult(
         text="\n".join(texts),
         provider=_PROVIDER,
@@ -1983,7 +2026,8 @@ def recognize_to_geometry(
         boxes=boxes,
         source="kraken-htr",
         rendition_id=rendition_id,
-        metadata={"pixel_frame": {"width": width, "height": height}, "frame": FRAME_UPRIGHT},
+        metadata={"pixel_frame": {"width": width, "height": height}, "frame": FRAME_UPRIGHT,
+                  **({"lines_without_outline": boxed} if boxed else {})},
     )
 
 

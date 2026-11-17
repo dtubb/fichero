@@ -648,7 +648,7 @@ The behaviours:
 - `recipes-run.steps.no-empty-done` — **[OK]** (#6673; test `fichero-server/tests/unit/recipes/test_a_page_waits_for_its_inputs_6673.py`) a step that had nothing to work on for a page (no
   lines to tie, no reading to correct) never counts the page as done; the summary gives each step's done,
   waiting and failed pages with the cause of each failure in words.
-- `recipes-run.kraken.no-silent-line-loss` — **[GAP]** (#6673) a line whose polygon Kraken cannot build keeps
+- `recipes-run.kraken.no-silent-line-loss` — **[OK]** (#6673; test `fichero-server/tests/unit/llm/test_kraken_line_without_outline_is_boxed_6673.py`; the count is on the page's call log and the geometry's `lines_without_outline`) a line whose polygon Kraken cannot build keeps
   its baseline with a box drawn round it, so it is still read; the count of such lines is kept on the page's
   run and shown in the summary ("3 lines had no outline; boxed from their baselines"). No line Kraken found
   is dropped without a word.
