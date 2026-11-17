@@ -436,3 +436,10 @@ def test_the_xcode_pre_action_engine_is_not_tied_to_its_throwaway_shell() -> Non
     assert pre_action.count("( FICHERO_PARENT_PID=none ") == 2, "both detached launches (uds and https) opt out"
     assert 'if [ "${FICHERO_PARENT_PID:-}" = "none" ]; then\n  unset FICHERO_PARENT_PID' in start
     assert 'export FICHERO_PARENT_PID="${FICHERO_PARENT_PID:-$PPID}"' in start, "every other launch is still owned"
+
+
+def test_verify_all_gives_the_engine_imports_check_the_staged_bundle() -> None:
+    """The fast tier loops over every scripts/check_*.py with no argument; check_engine_imports_bundled.py needs the
+    staged bundle's app_packages (no argument is usage exit 2)."""
+    text = _script_text(SCRIPTS_DIR / "verify_all.sh")
+    assert '"$guardrail" \\\n        "fichero-server/build/fichero_server/macos/app/Fichero Server.app/Contents/Resources/app_packages"' in text
