@@ -380,14 +380,14 @@ def closing_runs(db: Any) -> list[str]:
 def _resumable_after_close(db: Any, thread_id: str) -> bool:
     """Whether a run its project's close stops can be paused and resumed (#6596): it has a checkpoint to go on from,
     and it is not a recipe's step run, which its recipe run carries on itself (`RECIPE_CARRIES_ON`)."""
+    from fichero_server.db import activity_queries
     from fichero_server.execution import jobs
 
     try:
-        saved = db.execute_fetchone("SELECT 1 FROM checkpoints WHERE thread_id = ? AND checkpoint_ns = '' LIMIT 1",
-                                    [thread_id])
+        saved = activity_queries.has_root_checkpoint(db, thread_id)
     except Exception:  # noqa: BLE001 -- no checkpoint table yet: nothing to resume from
         return False
-    return saved is not None and jobs.parent_kind(db, thread_id) != "run-a-recipe"
+    return saved and jobs.parent_kind(db, thread_id) != "run-a-recipe"
 
 
 def closed_mid_run(thread_id: str) -> bool:

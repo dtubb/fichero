@@ -338,15 +338,13 @@ def queue_stages(db: Any, since: Any) -> list[dict[str, Any]]:
     its own counts, and the files it is on now by name (at most `IN_FLIGHT_NAMED`), so "which files" is one disclosure
     away. A kind with nothing queued since is left out."""
     from fichero_server.core.timeutil import ensure_utc
+    from fichero_server.db import activity_queries
     from fichero_server.execution import jobs as job_queue
     from fichero_server.models import Document
 
     job_queue._ensure(db)
     begun = ensure_utc(since).replace(tzinfo=None) if since is not None else None
-    marks = ", ".join("?" for _ in STAGE_KINDS)
-    where = f"kind IN ({marks}) AND deleted_at IS NULL" + (" AND created_at >= ?" if begun is not None else "")
-    rows = db.execute_fetchall(f"SELECT kind, state, subject FROM jobs WHERE {where}",
-                               [*STAGE_KINDS, *([begun] if begun is not None else [])])
+    rows = activity_queries.stage_rows(db, STAGE_KINDS, begun)
     stages: list[dict[str, Any]] = []
     for kind in STAGE_KINDS:
         mine = [(state, subject) for k, state, subject in rows if k == kind]

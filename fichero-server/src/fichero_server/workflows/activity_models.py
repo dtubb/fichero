@@ -106,10 +106,11 @@ def this_mac(db: "Database", *, memory: tuple[int | None, int | None] | None = N
         except OSError:
             load = None
     from fichero_server.core.cores import cores_available
+    from fichero_server.db import activity_queries
     cores = cores_available()[0]
     busy: dict[str, int] = {}
     job_queue._ensure(db)
-    for (kind,) in db.execute_fetchall("SELECT kind FROM jobs WHERE state = 'running'"):
+    for kind in activity_queries.running_job_kinds(db):
         registered = job_queue.KINDS.get(kind)
         if registered is not None:
             busy[registered.lane] = busy.get(registered.lane, 0) + 1

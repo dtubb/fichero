@@ -14,6 +14,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any, Optional
 
 from fichero_server.core.timeutil import ensure_utc, utc_now
+from fichero_server.db import activity_queries
 
 if TYPE_CHECKING:
     from fichero_server.db import Database
@@ -58,15 +59,12 @@ def recipe_of_run(db: "Database", run_id: str, cache: dict[str, str] | None = No
     workflow it ran, by name. The graph by recipe and the Recipes view group by this one answer."""
     if cache is not None and run_id in cache:
         return cache[run_id]
-    from fichero_server.db import activity_records as records
     from fichero_server.execution import jobs as job_queue
 
     if job_queue.parent_kind(db, run_id) == RECIPE_RUN_KIND:
         name = project_recipe_name(db)
     else:
-        row = db.execute_fetchone(f"SELECT workflow_name, workflow_id FROM {records.RUNS} WHERE id = ?", [run_id])
-        name = (row[0] or row[1]) if row else None
-        name = name or "Workflow"
+        name = activity_queries.run_workflow_name(db, run_id) or "Workflow"
     if cache is not None:
         cache[run_id] = name
     return name
@@ -122,7 +120,7 @@ def run_as_step(run: dict[str, Any], name: str) -> dict[str, Any]:
 
 def _recipe_run(db: "Database", job_id: str) -> dict[str, Any]:
     """A recipe run's own row, from its job: its state and times; its steps are filled in by `recipes`."""
-    row = db.execute_fetchone("SELECT state, created_at, started_at, finished_at FROM jobs WHERE id = ?", [job_id])
+    row = activity_queries.job_times(db, job_id)
     state, created, started, finished = row if row else ("done", None, None, None)
     return {"id": job_id, "status": state, "started_at": _iso(started or created), "ended_at": _iso(finished),
             "scope": None, "steps": [], "_pages": []}
@@ -163,8 +161,7 @@ def recipes(db: "Database", *, days: int = 30) -> list[dict[str, Any]]:
     for thread_id, workflow_id, name, status, started, completed in rows:
         run = {"id": thread_id, "status": status, "started_at": _iso(started), "completed_at": _iso(completed)}
         tree = job_queue.tree(db, thread_id)
-        parent = db.execute_fetchone("SELECT p.id, p.kind FROM jobs c JOIN jobs p ON p.id = c.parent_id WHERE c.id = ?",
-                                     [thread_id])
+        parent = activity_queries.parent_kind_and_id(db, thread_id)
         if parent and parent[1] == RECIPE_RUN_KIND:
             key = project_recipe_name(db)
             recipe = by_recipe.setdefault(key, {"id": f"recipe:{key}", "name": key, "runs": []})
