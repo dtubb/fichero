@@ -39,27 +39,22 @@ enum AutomationVerbs {
     /// cancelled, a paused one resumed. Anything else (a finished batch, a document) offers none.
     static func offered(for itemType: SidebarItem.ItemType) -> [AutomationVerb] {
         switch itemType {
-        case .schedule(let schedule):
-            switch schedule.status {
-            case "active": [.pause, .runNow]
-            case "paused": [.resume]
-            default: []
-            }
-        case .trigger(let trigger):
-            switch trigger.status {
-            case "active": [.pause]
-            case "paused": [.resume]
-            default: []
-            }
-        case .batch(let batch):
-            switch batch.status {
-            case "running", "pending": [.pause, .cancel]
-            case "paused": [.resume, .cancel]
-            default: []
-            }
-        default:
-            []
+        case .schedule(let schedule): verbs(scheduleVerbs, status: schedule.status)
+        case .trigger(let trigger): verbs(triggerVerbs, status: trigger.status)
+        case .batch(let batch): verbs(batchVerbs, status: batch.status)
+        default: []
         }
+    }
+
+    /// Each kind's verbs by status; a status not listed offers none.
+    private static let scheduleVerbs: [String: [AutomationVerb]] = ["active": [.pause, .runNow], "paused": [.resume]]
+    private static let triggerVerbs: [String: [AutomationVerb]] = ["active": [.pause], "paused": [.resume]]
+    private static let batchVerbs: [String: [AutomationVerb]] = [
+        "running": [.pause, .cancel], "pending": [.pause, .cancel], "paused": [.resume, .cancel]
+    ]
+
+    private static func verbs(_ table: [String: [AutomationVerb]], status: String?) -> [AutomationVerb] {
+        status.flatMap { table[$0] } ?? []
     }
 
     /// The engine's action for a verb on a row; throws its refusal.
