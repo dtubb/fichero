@@ -1021,22 +1021,19 @@ def _landed_external(state, tmp_path, product, lane_id):
     wt, g = _ext_repo(tmp_path)
     queue.add(lane_id, str(wt), "batch-1", str(state / "b1.1"), [], kind="external", pane="%7")
     assert queue.done(lane_id) == ""
-    built = []
     fake = Fake()
     fake.procs.touches_product = lambda lane, head: product
-    fake.procs.build = lambda lane: (built.append(lane["id"]), (0, "PASSED x.dmg"))[1]
     queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
-    return built, steps_of(lane_id)[0]
+    return steps_of(lane_id)[0]
 
 
-def test_an_external_lanes_landing_builds_no_app_product_or_not(state, tmp_path):
-    """dev-workflows.run.loop-rolls-on (manager 2026-11-03): a harness batch held the heavy lock 46 min for an app nobody changed; then the
-    owner ruled a dev build only at a milestone's end or by hand, so a product batch of an external lane builds nothing either."""
-    built, s = _landed_external(state, tmp_path / "a", product=False, lane_id="lane-h")
-    assert s["state"] == "landed" and s["product"] is False and built == [], "no product path: no build"
-    assert any(r.get("state") == "build-skipped" for r in journal.read() if r["event"] == "queue")
-    built, s = _landed_external(state, tmp_path / "b", product=True, lane_id="lane-p")
-    assert s["product"] is True and built == [], "a product path: the dev build waits for the milestone's end or `builder build --dev`"
+def test_an_external_lanes_landing_records_product_and_builds_nothing(state, tmp_path):
+    """run.nightly-build (#6665): no landing builds a dev DMG; `product` is still recorded on the step."""
+    s = _landed_external(state, tmp_path / "a", product=False, lane_id="lane-h")
+    assert s["state"] == "landed" and s["product"] is False
+    s = _landed_external(state, tmp_path / "b", product=True, lane_id="lane-p")
+    assert s["product"] is True
+    assert not [r for r in journal.read() if r["event"] == "queue" and r.get("state") in ("built", "build-failed", "build-skipped")]
 
 
 def test_an_external_lanes_red_is_sent_back_by_the_loop_three_times_a_batch_then_it_is_an_alert(state, tmp_path):

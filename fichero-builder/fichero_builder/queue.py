@@ -147,7 +147,6 @@ class Procs:
     reconcile_nightly: Callable[[], tuple] | None = None  # () -> (rc, output) of the nightly reconcile over every open issue; None = off
     # taken lane ids -> (lane id, worktree, [{step, brief, issues, waits}]) of the next build-order milestone, or None
     next_milestone: Callable[[set], tuple | None] = lambda taken: None
-    build: Callable[[dict], tuple] = lambda lane: (0, "")  # lane -> (rc, output) of the dev build after its milestone landed
     daily_builds: Callable[[], tuple] | None = None  # () -> (rc, output) of `builder daily-builds`; None = no [check.daily_builds]
     verify_all: Callable[[], tuple] = lambda: (0, "")  # () -> (rc, output) of `builder verify-all` over the loop's checkout
     touches_product: Callable[[dict, str], bool] = lambda lane, head: True  # (lane, head) -> does the batch about to land change app/engine product paths
@@ -291,28 +290,6 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         if h is not None:
             procs.stop(lane)
             del handles[lane["id"]]
-        if push and lane["steps"] and not lane.get("built"):  # dev-workflows.run.loop-rolls-on: one dev build per milestone landed for real
-            lane["built"] = True
-            store(lane)
-            if lane.get("kind") == "external":
-                # owner 2026-11-03: a dev build only at a milestone's end or by hand, never per landing (a post-landing build held the heavy
-                # lock 54 min while checks waited); an external lane's batches have no milestone end the loop can see
-                journal.append("queue", lane=lane["id"], step="-", state="build-skipped",
-                               detail="an external lane's batch landed: the dev build waits for the milestone's end or `builder build --dev`")
-                return False
-
-            def build_it():
-                rc, output = procs.build(lane)
-                journal.append("queue", lane=lane["id"], step="-", state="built" if rc == 0 else "build-failed", detail=output[-300:])
-                if rc:  # an alert to read, never a stop: the roll-on goes on
-                    alert(lane["id"], "build", f"the dev build after {lane['id']} failed: {(output.strip().splitlines() or [''])[-1]}",
-                          str(journal.STATE), [])
-            if chains is None:
-                build_it()
-            else:  # the build is a quarter of an hour: inline it stopped every tick for 17 min (2026-11-02, after harness-unblock landed)
-                t = threading.Thread(target=build_it, name=f"build-{lane['id']}", daemon=True)
-                BUILDS.append(t)
-                t.start()
         return False
     s = lane["steps"][lane["cursor"]]
     if s["state"] == "parked":
@@ -1800,11 +1777,6 @@ def real_procs(root) -> Procs:
         return next((r["end"] for r in reversed(work._shared_rows(ns(lane))) if r.get("event") == "cost" and r.get("task") == lane["id"]
                      and r.get("end") != "handoff"), "gone")
 
-    def build(lane):
-        r = subprocess.run([sys.executable, "-m", "fichero_builder", "build", "--dev", "--root", str(root), "--state", str(journal.STATE)],
-                           cwd=str(pkg), capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(pkg)})
-        return r.returncode, (r.stdout + r.stderr)[-2000:]
-
     def touches_product(lane, head):
         prefixes = tuple(rules.get("check", {}).get("product_paths", ()))
         if not prefixes:
@@ -1884,7 +1856,7 @@ def real_procs(root) -> Procs:
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0, adopt=lambda lane: adopt_session(jail.load(root), lane),
                  landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
-                 next_milestone=lambda taken: next_in_order(root, taken), build=build, verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",
+                 next_milestone=lambda taken: next_in_order(root, taken), verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "",
                  workroot=str(rules.get("jail", {}).get("workroot", "")), blob=blob, root=str(root), jail_gh=bool(rules.get("jail", {}).get("gh")),
                  inline_paths=tuple(rules.get("jail", {}).get("inline_paths", brief_tool.INLINE_DEFAULT)))

@@ -402,39 +402,15 @@ def test_the_queue_rolls_on_to_the_next_build_order_milestone_when_a_lanes_steps
     assert all(x["cursor"] == len(x["steps"]) for x in queue.load())
 
 
-def test_a_finished_milestone_gets_one_dev_build_and_a_failed_build_is_an_alert_while_the_roll_on_goes_on(state):
-    """run.loop-rolls-on: `builder build --dev` after each milestone; a failure is an alert row, never a stop."""
+def test_a_landed_milestone_builds_no_dev_dmg(state):
+    """run.nightly-build (#6665): the per-landing dev build is gone; the roll-on goes on and no `built` row is written."""
     fake = Fake()
-    taken = _feeding(fake, state, ["ma", "mb", "mc"])
-    built = []
-    fake.procs.build = lambda lane: (built.append(lane["id"]), (1, "FAILED: exit 65") if lane["id"] == "ma" else (0, "PASSED x.dmg"))[1]
+    taken = _feeding(fake, state, ["ma", "mb"])
+    assert not hasattr(fake.procs, "build"), "the Procs table has no build"
     assert queue.run(fake.procs, workers_n=1, push=True, lanes_n=1, out=lambda s: None) == 0
-    assert taken == ["ma", "mb", "mc"] and built == ["ma", "mb", "mc"], "one build per milestone, and the failed one did not stop the order"
-    alerts = [r for r in journal.read() if r["event"] == "alert"]
-    assert [(a["lane"], a["step"]) for a in alerts] == [("ma", "build")] and "exit 65" in alerts[0]["what"]
-    assert [r["state"] for r in journal.read() if r["event"] == "queue" and r["state"] in ("built", "build-failed")] == ["build-failed", "built", "built"]
-
-
-def test_the_dev_build_never_holds_a_tick_the_loops_other_lanes_wait_on(state):
-    """2026-11-02: harness-unblock landed, its inline `builder build --dev` ran 17 minutes inside the tick, and no lane was checked
-    for that long. With the loop's chains the build runs in its own thread and the tick returns at once."""
-    import threading
-    import time
-    fake = Fake()
-    queue.add("ma", "/w/ma", "1.1", str(state / "b1.1"), [])
-    lanes = queue.load()
-    lanes[0]["steps"][0]["state"], lanes[0]["cursor"] = "landed", 1
-    queue.save(lanes)
-    release, started = threading.Event(), threading.Event()
-    fake.procs.build = lambda lane: (started.set(), release.wait(10), (0, "PASSED x.dmg"))[2]
-    t0 = time.time()
-    queue.tick(fake.procs, {}, workers_n=1, push=True, out=lambda s: None, chains={"pool": None})
-    assert time.time() - t0 < 2 and started.wait(5), "the tick returned while the build was still running"
-    assert queue.load()[0]["built"] is True
-    release.set()
-    for t in list(queue.BUILDS):
-        t.join(5)
-    assert [r["state"] for r in journal.read() if r["event"] == "queue" and r["state"] in ("built", "build-failed")] == ["built"]
+    assert taken == ["ma", "mb"]
+    assert not [r for r in journal.read() if r["event"] == "queue" and r["state"] in ("built", "build-failed", "build-skipped")]
+    assert not any(t.name.startswith("build-") for t in queue.BUILDS)
 
 
 def test_a_question_stops_the_roll_on_and_the_next_milestone_is_not_taken(state):
