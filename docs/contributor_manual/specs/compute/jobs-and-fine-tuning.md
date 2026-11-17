@@ -565,7 +565,7 @@ routes and a project opened through the database manager.
   back to waiting and carry on, as before (`activity.durable.poison-item`); a recipe run carries on and
   skips the pages its steps already did. Not built: the interrupted run is not resumed in place from its
   checkpoint (`activity.durable.lease-not-fail`); its pages not done are read by a new run.
-- `compute.run.interrupted-on-close` — **[OK]** (#5608) a project closed while one of its runs is in flight
+- `compute.run.interrupted-on-close` — **[OK]** (#5608) a project closed while one of a recipe's step runs is in flight
   (its pages waiting for a lane, or reading) ends that run as interrupted, said with when: on the project's
   next open its record, its row and its steps' rows in Activity, and its account say "Interrupted: the
   project was closed at HH:MM, before this run finished", by the same open-time marking as
@@ -581,9 +581,11 @@ routes and a project opened through the database manager.
   its run (a Stop, or the close) while it waited counts as not done, not as a page that failed. Built:
   `run_account.closing_runs` (called as the database manager stops a library's jobs, one project or every
   one), `jobs._wait_for_lane`, `recipes/runner._until_ended`. Tests:
-  `fichero-server/tests/unit/jobs/test_closed_mid_run_5608.py` (the project closed, and every project closed,
-  with a run's pages waiting for a held lane; a recipe run closed mid-step carries on at the next open; a
-  recipe run whose step's row ended otherwise moves on and says why).
+  `fichero-server/tests/unit/jobs/test_closed_mid_run_5608.py` (a recipe run closed mid-step carries on at the
+  next open; a recipe run whose step's row ended otherwise moves on and says why). *Changed 2026-11-16 (#6596):*
+  a run on its own is no longer ended interrupted by the close: it is paused (`activity.engine.close-pauses-running-work`),
+  with the project closed and every project closed in
+  `fichero-server/tests/unit/jobs/test_close_pauses_running_work_6588.py`.
 - `compute.run.retry-passing-cause-once` — **[OK]** (#5555) a page that fails for a passing cause — its model
   server still loading, starting or not ready, a memory wait that ran out, a dropped connection — is read
   once more, 10 s later, before it counts as failed (`workflows/page_retry.py`). Never for a cause another
