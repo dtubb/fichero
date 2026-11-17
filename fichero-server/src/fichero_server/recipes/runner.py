@@ -49,6 +49,7 @@ from fichero_server.db import document_tree
 from fichero_server.execution import jobs
 from fichero_server.llm import run_overrides, spend
 from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused
+from fichero_server.recipes import step_memory
 from fichero_server.recipes.assemble import PURPOSES, TOOL_PURPOSES
 
 KIND = "run-a-recipe"
@@ -1890,6 +1891,7 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
                 card = _text_is_the_hosted_readers(card)
         if card["card"] == "export":
             card = {**card, "final": final}  # the workbook and the transcripts are written once, on the last batch
+        memory = step_memory.StepMemory().start()
         try:
             if early is not None:  # it has been running beside the step before: its end is what this step ended with
                 child, state, why = early.future.result()
@@ -1909,7 +1911,10 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
         except Exception as exc:  # noqa: BLE001 -- the step fails alone, said in one line; the rest still run (#5684)
             logger.exception("recipe step %s could not start", named)
             child, state, why = None, "failed", could_not_start(card, exc)
+        finally:
+            measured = memory.finish()  # also when the step is stopped or deferred: the sampling thread ends
         done_notes.pop(job_id, None)
+        step_memory.record(step, named, measured)  # `recipes-run.memory.recorded-per-step`
         if state != "done" and _stop_asked(job_id):  # it was stopped with the run (#5609)
             state, why = "cancelled", "Stopped by you"
         if state == "done" and card.get("job") in RAN_ON_JOBS:

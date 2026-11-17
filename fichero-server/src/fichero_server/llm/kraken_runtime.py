@@ -1303,6 +1303,9 @@ def release_resident_models(reason: str = "unspecified") -> None:
 
     if _RESIDENT:
         logger.info("model-lane: unload kraken (%s)", reason)
+        from fichero_server.core.perf import model_unloaded
+
+        model_unloaded("kraken")
     _RESIDENT.clear()
     gc.collect()
     torch = sys.modules.get("torch")
