@@ -132,8 +132,23 @@ def place_and_provider(model: str) -> tuple[str, str, str]:
     return THIS_MAC, "This Mac", model
 
 
+def call_key(call: dict[str, Any]) -> tuple[str, str, str]:
+    """(place, provider, model) of one recorded call, as the tree places it; another Mac by its address."""
+    provider = str(call.get("provider") or "")
+    place = _CALL_PLACE.get(call.get("place") or "", None)
+    if place is None:
+        place = THIS_MAC if provider.lower() in _LOCAL_PROVIDERS else CLOUD
+    word = (_host(_row_url(provider)) if place == REMOTE else None) or _provider_word(provider)
+    return place, word, str(call["model"])
+
+
+def model_id(place: str, provider: str, name: str) -> str:
+    """A model's id in the tree, the key its graph series is read by (`activity.window.graph-on-every-view`)."""
+    return f"{place}|{provider}|{name}"
+
+
 def _new(place: str, provider: str, name: str) -> dict[str, Any]:
-    return {"id": f"{place}|{provider}|{name}", "name": name, "place": place, "provider": provider, "loaded": False,
+    return {"id": model_id(place, provider, name), "name": name, "place": place, "provider": provider, "loaded": False,
             "active": False, "memory_bytes": None, "memory_estimated": False, "running": 0, "pages_today": 0,
             "calls_today": 0, "seconds_today": 0.0}
 
@@ -169,8 +184,7 @@ def models(db: "Database", *, held: list[dict[str, Any]] | None = None,
     clusters: dict[str, str] | None = None
 
     def row(place: str, provider: str, name: str) -> dict[str, Any]:
-        key = f"{place}|{provider}|{name}"
-        return rows.setdefault(key, _new(place, provider, name))
+        return rows.setdefault(model_id(place, provider, name), _new(place, provider, name))
 
     for kind, model, state, target, detail, started, finished in job_queue.usage_rows_since(db, since):
         seconds = ((ensure_utc(finished) if finished else now) - ensure_utc(started)).total_seconds() if started else 0.0
@@ -185,13 +199,7 @@ def models(db: "Database", *, held: list[dict[str, Any]] | None = None,
                         model or "Read at scale")
         elif calls:
             for call in calls:
-                place = _CALL_PLACE.get(call.get("place") or "", None)
-                provider = str(call.get("provider") or "")
-                if place is None:
-                    place = THIS_MAC if provider.lower() in _LOCAL_PROVIDERS else CLOUD
-                # Another Mac is named by its address, as the places list names it.
-                word = (_host(_row_url(provider)) if place == REMOTE else None) or _provider_word(provider)
-                one = row(place, word, str(call["model"]))
+                one = row(*call_key(call))  # another Mac by its address, as the places list names it
                 one["calls_today"] += 1
                 if state == "running":
                     one["active"] = True
@@ -235,7 +243,7 @@ def models(db: "Database", *, held: list[dict[str, Any]] | None = None,
             if size:
                 entry["memory_bytes"], entry["memory_estimated"] = int(size), True
     # Installed on this Mac and not held: listed, not loaded (hollow), so a person sees what is here to load.
-    for provider, model_id in installed if installed is not None else installed_on_this_mac():
-        row(THIS_MAC, provider, model_id)
+    for provider, installed_id in installed if installed is not None else installed_on_this_mac():
+        row(THIS_MAC, provider, installed_id)
     order = {place: index for index, place in enumerate(PLACES)}
     return sorted(rows.values(), key=lambda r: (order[r["place"]], r["provider"].lower(), r["name"].lower()))

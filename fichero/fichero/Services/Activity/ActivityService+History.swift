@@ -29,7 +29,17 @@ struct ActivityHistoryFigures: Equatable {
         var id: Date { start }
     }
 
+    /// One recipe's or one model's own counts, minute by minute, aligned with `minutes`
+    /// (`activity.window.graph-on-every-view`); a model's key is its id in the Models tree.
+    struct Series: Equatable {
+        let key: String
+        var pages: [Int]
+        var calls: [Int] = []
+    }
+
     var minutes: [Minute] = []
+    var byRecipe: [Series] = []
+    var byModel: [Series] = []
     /// Pages done in the window by where they ran: "this-mac", "other-mac", "cloud", "cluster".
     var byRuntime: [String: Int] = [:]
     var todaySpendUsd = 0.0
@@ -51,6 +61,8 @@ struct ActivityHistoryFigures: Equatable {
         byRuntime = answer.byRuntime?.additionalProperties ?? [:]
         todaySpendUsd = answer.todaySpendUsd ?? 0
         todaySpendByProvider = answer.todaySpendByProvider?.additionalProperties ?? [:]
+        byRecipe = (answer.byRecipe ?? []).map { Series(key: $0.key, pages: $0.pages, calls: $0.calls ?? []) }
+        byModel = (answer.byModel ?? []).map { Series(key: $0.key, pages: $0.pages, calls: $0.calls ?? []) }
     }
 }
 

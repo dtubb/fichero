@@ -244,7 +244,7 @@ struct ActivityPaneView: View {
 
     /// The graphs pane: the sidebar item's graph and figures, full size or under the rows.
     var graphs: some View {
-        ActivityBottomPanel(tab: prefs.tab, history: history, rows: allRows, isFull: graphsFull,
+        ActivityBottomPanel(tab: prefs.tab, history: history, pick: sidebarPick, rows: allRows, isFull: graphsFull,
                             toggleFull: { graphsFull.toggle() })
     }
 

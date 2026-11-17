@@ -41,6 +41,37 @@ def _place_of(step: dict[str, Any]) -> Optional[str]:
     return max(places, key=places.get) if places else None
 
 
+#: The kind of a recipe run's own job: its step runs hang under it.
+RECIPE_RUN_KIND = "run-a-recipe"
+
+
+def project_recipe_name(db: "Database") -> str:
+    """The project's recipe reads as the project (owner 2026-11-16: "the recipe is the project"): its package's name."""
+    from pathlib import Path
+
+    folder = Path(str(getattr(db, "path", "") or "")).parent
+    return folder.stem or "This project's recipe"
+
+
+def recipe_of_run(db: "Database", run_id: str, cache: dict[str, str] | None = None) -> str:
+    """The recipe a workflow run belongs to: the project's recipe when the run is a step of a recipe run, else the
+    workflow it ran, by name. The graph by recipe and the Recipes view group by this one answer."""
+    if cache is not None and run_id in cache:
+        return cache[run_id]
+    from fichero_server.db import activity_records as records
+    from fichero_server.execution import jobs as job_queue
+
+    if job_queue.parent_kind(db, run_id) == RECIPE_RUN_KIND:
+        name = project_recipe_name(db)
+    else:
+        row = db.execute_fetchone(f"SELECT workflow_name, workflow_id FROM {records.RUNS} WHERE id = ?", [run_id])
+        name = (row[0] or row[1]) if row else None
+        name = name or "Workflow"
+    if cache is not None:
+        cache[run_id] = name
+    return name
+
+
 def _rate(numerator: float, denominator: int) -> Optional[float]:
     return round(numerator / denominator, 4) if denominator else None
 
