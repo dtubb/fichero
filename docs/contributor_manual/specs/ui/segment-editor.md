@@ -343,7 +343,7 @@ targets are at least 44 pt.
   answer says `outline: none`). In Edit Segments, M held is the Marker for one stroke and a tap of M
   (or the tool row's Marker) chooses it until another tool or Esc; a stroke ending within 12 points of
   its start is an outline of the kind last drawn, any other a line on it as a baseline, in the
-  region holding most of it (`MarkerStroke`). *Not built:* the popover's smoothing (0.5 is sent),
+  region holding most of it (`MarkerStroke`). The Marker sends its stroke to the shown pass (`ocrGeometryPassId`); on a page whose segments are not saved rows yet (an unconverted artifact) it refuses with a logged reason and makes nothing (#6412). *Not built:* the popover's smoothing (0.5 is sent),
   the Pencil. *Tests:* `fichero-server/tests/unit/api/test_segment_create_from_stroke.py`;
   `fichero/Tests/Unit/general/Views/Source/MarkerToolTests.swift`.
 - `segment-editor.paintbrush` — **[PARTIAL]** (→ #4941; app + engine) the Paintbrush paints along a line of ink with a
