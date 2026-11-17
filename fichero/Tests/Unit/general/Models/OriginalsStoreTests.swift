@@ -60,6 +60,8 @@ struct OriginalsStoreTests {
                                    session: URLSession(configuration: configuration))
         let store = OriginalsStore(client: client)
         store.grant = { _ in }
+        store.rememberRoot = { _ in }
+        store.recallRoot = { nil }
         return store
     }
 
@@ -99,6 +101,55 @@ struct OriginalsStoreTests {
         #expect((body["params"] as? [String: Any])?["new_root"] as? String == "/Users/ana/Fichero Test Corpus/Colombia")
         #expect(store.plan == nil, "the plan is spent")
         #expect(store.missing != nil, "read again after the relink")
+    }
+
+    @Test("transfer.machine.originals-relinked-from-one-grant: a relink is said in one sentence and its folder is kept")
+    func relinkSummaryAndRememberedFolder() async {
+        let store = store()
+        var kept: URL?
+        store.rememberRoot = { kept = $0 }
+        let folder = URL(fileURLWithPath: "/Users/ana/Fichero Test Corpus/Colombia")
+        await store.choose(folder)
+        #expect(await store.relink(actionsService: ActionsService(client: store.client), steps: nil))
+        #expect(store.summarySentence == "Relinked 1 of 3; 2 still missing.")
+        #expect(kept == folder)
+        #expect(OriginalsStore.summary(relinked: 214, of: 216) == "Relinked 214 of 216; 2 still missing.")
+        #expect(OriginalsStore.summary(relinked: 3, of: 3) == "Relinked 3 of 3.")
+    }
+
+    @Test("transfer.machine.originals-relinked-from-one-grant: a moved original asks for the project's once a run")
+    func asksOnce() {
+        let store = store()
+        #expect(store.askOnce())
+        #expect(store.isChoosing)
+        store.isChoosing = false
+        #expect(!store.askOnce(), "the next missing page does not ask again")
+        #expect(!store.isChoosing)
+        #expect(store.askOnce(force: true), "a person's own Retry still asks")
+    }
+
+    @Test("transfer.machine.originals-relinked-from-one-grant: the next launch relinks from the kept folder, no panel")
+    func launchRelinksWithNoSecondPrompt() async throws {
+        let store = store()
+        store.recallRoot = { URL(fileURLWithPath: "/Users/ana/Fichero Test Corpus/Colombia") }
+        await store.loadMissing()
+        let actions = ActionsService(client: store.client)
+        #expect(await store.relinkFromRememberedRoot(actionsService: actions, steps: nil))
+        #expect(!store.isChoosing, "no Locate Originals sheet")
+        let body = try #require(OriginalsMockURLProtocol.bodies["POST /api/actions/invoke"])
+        #expect(body["name"] as? String == "document.relink_originals")
+        #expect((body["params"] as? [String: Any])?["new_root"] as? String == "/Users/ana/Fichero Test Corpus/Colombia")
+        #expect(!(await store.relinkFromRememberedRoot(actionsService: actions, steps: nil)), "once a run")
+    }
+
+    @Test("transfer.machine.originals-relinked-from-one-grant: with no kept folder, nothing is relinked at launch")
+    func launchWithNothingKept() async {
+        let store = store()
+        store.recallRoot = { nil }
+        await store.loadMissing()
+        let actions = ActionsService(client: store.client)
+        #expect(!(await store.relinkFromRememberedRoot(actionsService: actions, steps: nil)))
+        #expect(OriginalsMockURLProtocol.bodies["POST /api/actions/invoke"] == nil)
     }
 
     @Test("Relink waits for a plan with something matched")

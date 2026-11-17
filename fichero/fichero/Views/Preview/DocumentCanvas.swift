@@ -168,6 +168,7 @@ private struct StorageDisplayImageCanvas: View {
     /// Optional: hosts without a store (isolated previews) skip the
     /// grant-prompt path; the degraded-thumbnail capsule still renders.
     @Environment(DocumentStore.self) private var documentStore: DocumentStore?
+    @Environment(WindowState.self) private var windowState: WindowState?
     @Environment(RenditionService.self) private var renditionService: RenditionService?
     @State private var image: PlatformImage?
     /// The rendition whose pixels `image` holds, when the preferred-first
@@ -405,6 +406,11 @@ private struct StorageDisplayImageCanvas: View {
             + [store.selectedDocument].compactMap { $0 }
         guard let sourcePath = candidates.first(where: { $0.id == documentId })?.path,
               !sourcePath.isEmpty else { return }
+        // A moved original asks once for the PROJECT's originals (#5535); a folder panel only for an unreadable file.
+        if let originals = windowState?.library?.originalsStore, originals.isMissing(documentId) {
+            originals.askOnce(force: force)
+            return
+        }
         FolderAccessManager.shared.promptForSource(path: sourcePath, force: force) { granted in
             guard granted else { return }
             Task { await loadImage() }
