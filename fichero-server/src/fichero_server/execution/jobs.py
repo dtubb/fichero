@@ -1875,20 +1875,26 @@ def _apply_foreground(db: "Database") -> int:
     if not _has_column(db, "foreground_rank"):
         return 0
     best, _lapsed = _live_foreground(_key(db))
+    ranks: dict[str, int] = {}
+    if best:
+        marks = ", ".join("?" for _ in best)
+        rows = db.execute_fetchall(
+            f"SELECT id, kind, subject FROM jobs WHERE state = 'waiting' AND deleted_at IS NULL "
+            f"AND split_part(subject, ':', 1) IN ({marks})", list(best))
+        for job_id, kind, subject in rows:
+            view = best.get(subject, best.get(str(subject).split(":", 1)[0], 99))
+            ranks[job_id] = 10_000 - min(view, 99) * 100 - _step_order(kind)
+    # The ranks this connection last wrote: a heartbeat that finds the same ranks rewrites nothing.
+    if getattr(db, "_foreground_applied", None) == (db.conn, ranks):
+        return len(ranks)
     db.execute("UPDATE jobs SET foreground_rank = 0 WHERE state = 'waiting' AND COALESCE(foreground_rank, 0) > 0")
-    if not best:
-        return 0
-    marks = ", ".join("?" for _ in best)
-    rows = db.execute_fetchall(
-        f"SELECT id, kind, subject FROM jobs WHERE state = 'waiting' AND deleted_at IS NULL "
-        f"AND split_part(subject, ':', 1) IN ({marks})", list(best))
-    for job_id, kind, subject in rows:
-        view = best.get(subject, best.get(str(subject).split(":", 1)[0], 99))
-        db.execute("UPDATE jobs SET foreground_rank = ? WHERE id = ?",
-                   [10_000 - min(view, 99) * 100 - _step_order(kind), job_id])
-    if rows:
+    if ranks:
+        values = ", ".join("(?, ?)" for _ in ranks)
+        db.execute(f"UPDATE jobs SET foreground_rank = v.r FROM (VALUES {values}) v(id, r) WHERE jobs.id = v.id",
+                   [x for pair in ranks.items() for x in pair])
         _scheduler.wake(_key(db))
-    return len(rows)
+    db._foreground_applied = (db.conn, ranks)
+    return len(ranks)
 
 
 def expire_foreground(db: "Database") -> None:

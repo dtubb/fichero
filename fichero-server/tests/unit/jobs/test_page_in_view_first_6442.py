@@ -154,3 +154,26 @@ def test_an_engine_restart_leaves_no_stale_rank(db, lane):
         assert _rank(db, read) == 0
     finally:
         jobs.set_paused(False)
+
+
+def test_a_heartbeat_that_finds_the_same_ranks_writes_nothing(db, lane):
+    jobs.set_paused(True)
+    try:
+        read = jobs.enqueue(db, READ, "page-23")
+        other = jobs.enqueue(db, READ, "page-60")
+        assert jobs.set_foreground(db, "window-1", [("page-23", 0)]) == 1
+        writes = []
+        real = db.execute
+        db.execute = lambda sql, *a, **k: writes.append(sql) or real(sql, *a, **k)
+        try:
+            assert jobs.set_foreground(db, "window-1", [("page-23", 0)]) == 1
+            assert writes == [], "the same ranks: no UPDATE"
+            late = jobs.enqueue(db, LINES, "page-23")
+            writes.clear()
+            assert jobs.set_foreground(db, "window-1", [("page-23", 0)]) == 2
+            assert len(writes) == 2 and all("UPDATE jobs" in w for w in writes)
+        finally:
+            db.execute = real
+        assert _rank(db, late) > _rank(db, read) > 0 and _rank(db, other) == 0
+    finally:
+        jobs.set_paused(False)
