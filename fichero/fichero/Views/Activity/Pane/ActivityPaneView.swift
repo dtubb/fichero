@@ -51,8 +51,11 @@ struct ActivityPaneView: View {
     /// Delete on running rows asks once: Stop then Delete.
     @State var confirmingDelete: [ActivityMonitorRow]?
     @State var showArchived = false
-    /// The kept export a row's Choose Folder… is choosing a folder for: the system panel is up while it is set.
+    /// The kept export a row's Choose Folder… is choosing a folder for. Kept apart from the panel's own flag: the panel
+    /// clears its binding before its completion runs, which would lose the export the chosen folder is for.
     @State var choosingFolder: ActivityFolderChoice?
+    /// The system folder panel is up.
+    @State var isChoosingFolder = false
     /// The open projects' history summed, for the window's bottom panel (`activity.window.bottom-panel`).
     @State var history = ActivityHistoryFigures()
     @AppStorage("activity.pane.prefs") var prefsData = Data()
@@ -200,8 +203,7 @@ struct ActivityPaneView: View {
         .task(id: listsArchived) { await readArchivedIfShown() }
         .task(id: refreshKey) { await refreshAll() }
         .task(id: libraries.map(\.id)) { await readHistoryEachMinute() }
-        .fileImporter(isPresented: Binding(get: { choosingFolder != nil }, set: { if !$0 { choosingFolder = nil } }),
-                      allowedContentTypes: [.folder]) { result in
+        .fileImporter(isPresented: $isChoosingFolder, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result, let choice = choosingFolder { chose(url, for: choice) }
             choosingFolder = nil
         }
