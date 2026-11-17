@@ -55,11 +55,14 @@ struct ActivityHistoryFigures: Equatable {
 }
 
 extension ActivityService {
-    /// The Models tree (`GET /api/activity/models`, `activity.window.models-tree`, #6588): every model used today or held now.
-    func models() async throws -> [ActivityModelEntry] {
+    /// The Models tree (`GET /api/activity/models`, `activity.window.models-tree`, #6588): every model used
+    /// today, held now or installed on this Mac, and every place set up.
+    func models() async throws -> ActivityModelsAnswer {
         switch try await client.api.activityModelsApiActivityModelsGet() {
         case .ok(let okResponse):
-            return try okResponse.body.json.models?.map(ActivityModelEntry.init) ?? []
+            let body = try okResponse.body.json
+            return ActivityModelsAnswer(models: body.models?.map(ActivityModelEntry.init) ?? [],
+                                        places: body.places?.map(ActivityModelEntry.SetUp.init) ?? [])
         case .undocumented(let statusCode, let payload):
             throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }

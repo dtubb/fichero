@@ -1,14 +1,18 @@
 """The Activity window's Models tree (`activity.window.models-tree`, `activity.resources.everything-measured`, #6588).
 
-One row per model this project used today or holds now, placed **this Mac › remote › cloud**, then by provider: from the job
-rows (their `model`, and the calls each recorded in its `detail.usage`: provider, model and place, `llm/places.py`) and the
-models the engine holds in memory (`execution/models_held.py`). Nothing guessed: a size nothing measures is None, a count
-not recorded is not made up.
+One row per model this project used today, holds now, or has installed on this Mac, placed **this Mac › remote › cloud**,
+then by provider: from the job rows (their `model`, and the calls each recorded in its `detail.usage`: provider, model and
+place, `llm/places.py`), the models the engine holds in memory (`execution/models_held.py`) and the local catalogue's
+installed models (`installed_local_model_entries`, not loaded until held). Beside them every place work can run, used or
+not (`places`): this Mac, another Mac by its address, each cluster set up, each cloud provider set up (owner 2026-11-16).
+Nothing guessed: a size nothing measures is None, a count not recorded is not made up.
 """
 
 from __future__ import annotations
 
 import json
+import threading
+import time
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
@@ -35,6 +39,80 @@ _PROVIDER_NAMES = {"anthropic": "Anthropic", "openai": "OpenAI", "openrouter": "
 
 def _provider_word(provider: str) -> str:
     return _PROVIDER_NAMES.get(provider.lower(), provider)
+
+
+#: The local catalogue's runtimes whose installed models the tree lists on this Mac -> the provider shown.
+_INSTALLED_RUNTIMES = {"kraken": "Kraken", "omlx": "MLX", "spacy": "spaCy", "whisper": "Whisper"}
+#: How long the installed list is kept: probing Kraken takes a second or more, and the sidebar asks every ten.
+_INSTALLED_TTL_SECONDS = 60.0
+_installed_cache: tuple[float, list[tuple[str, str]]] | None = None
+_installed_lock = threading.Lock()
+
+
+def installed_on_this_mac() -> list[tuple[str, str]]:
+    """(provider shown, model id) of every model installed on this Mac, from the one local catalogue Settings lists;
+    a runtime whose probe fails lists none (the catalogue says so in the log)."""
+    global _installed_cache
+    with _installed_lock:
+        if _installed_cache is not None and time.monotonic() - _installed_cache[0] < _INSTALLED_TTL_SECONDS:
+            return _installed_cache[1]
+    from fichero_server.api.routes.ai.local_inference import installed_local_model_entries
+
+    found = [(word, e.model_id) for runtime, word in _INSTALLED_RUNTIMES.items()
+             for e in installed_local_model_entries(runtime)]
+    with _installed_lock:
+        _installed_cache = (time.monotonic(), found)
+    return found
+
+
+def _host(url: str | None) -> str | None:
+    from urllib.parse import urlparse
+
+    return urlparse(url).hostname if url else None
+
+
+def _cluster_names(app_db: Any = None) -> dict[str, str]:
+    """Each cluster set up, its id -> the name a person gave it; {} when none or unreadable."""
+    try:
+        from fichero_server.api.routes.ai.hpc import _load_clusters
+        from fichero_server.db.app import get_app_db
+
+        return {cid: str((raw or {}).get("name") or cid) for cid, raw in _load_clusters(app_db or get_app_db()).items()}
+    except Exception:  # noqa: BLE001 -- a cluster then reads by its id
+        return {}
+
+
+def places() -> list[dict[str, str]]:
+    """Every place work can run, set up or not used: this Mac, another Mac (a provider row whose Server URL is off this
+    Mac, by its host), each cluster set up (by its name) and each cloud provider set up. (place, provider) pairs in the
+    tree's order; the provider is the node under the place, as a model's provider is."""
+    found: list[tuple[str, str]] = [(THIS_MAC, "This Mac")]
+    try:
+        from fichero_server.db.app import get_app_db
+        from fichero_server.llm import places as call_places
+        from fichero_server.llm.providers import get_provider_info
+
+        app_db = get_app_db()
+        for row in app_db.list_providers():
+            if not row.enabled:
+                continue
+            kind = getattr(row.provider_type, "value", str(row.provider_type))
+            info = get_provider_info(kind)
+            if info is None or info.is_builtin:
+                continue
+            if info.is_local:
+                if row.api_base and not call_places.address_is_on_this_mac(row.api_base):
+                    found.append((REMOTE, _host(row.api_base) or _provider_word(kind)))
+            else:
+                found.append((CLOUD, _provider_word(kind)))
+        found.extend((REMOTE, name) for name in _cluster_names(app_db).values())
+    except Exception:  # noqa: BLE001 -- the tree still shows what ran; the places set up are an addition
+        import logging
+
+        logging.getLogger(__name__).warning("Activity models: could not read the places set up", exc_info=True)
+    order = {place: index for index, place in enumerate(PLACES)}
+    unique = list(dict.fromkeys(found))
+    return [{"place": p, "provider": v} for p, v in sorted(unique, key=lambda pv: (order[pv[0]], pv[1].lower()))]
 
 
 def place_and_provider(model: str) -> tuple[str, str, str]:
@@ -68,10 +146,19 @@ def _usage(detail: str | None) -> list[dict[str, Any]]:
     return [c for c in calls if isinstance(c, dict) and c.get("model")]
 
 
+def _row_url(provider: str) -> str | None:
+    from fichero_server.llm.places import row_server_url
+
+    try:
+        return row_server_url(provider)
+    except Exception:  # noqa: BLE001 -- no row: the provider's own word
+        return None
+
+
 def models(db: "Database", *, held: list[dict[str, Any]] | None = None,
-           now: datetime | None = None) -> list[dict[str, Any]]:
-    """Every model used today or held now, with where it runs, whether it is loaded and active, its memory, and today's
-    pages, calls and seconds. Sorted by place (this Mac, remote, cloud), then provider, then name."""
+           installed: list[tuple[str, str]] | None = None, now: datetime | None = None) -> list[dict[str, Any]]:
+    """Every model used today, held now or installed on this Mac, with where it runs, whether it is loaded and active, its
+    memory, and today's pages, calls and seconds. Sorted by place (this Mac, remote, cloud), then provider, then name."""
     from fichero_server.execution import jobs as job_queue
     from fichero_server.remote_read import job as read_job
 
@@ -79,6 +166,7 @@ def models(db: "Database", *, held: list[dict[str, Any]] | None = None,
     now = ensure_utc(now or utc_now())
     since = (now - timedelta(hours=now.hour, minutes=now.minute, seconds=now.second)).replace(tzinfo=None)
     rows: dict[str, dict[str, Any]] = {}
+    clusters: dict[str, str] | None = None
 
     def row(place: str, provider: str, name: str) -> dict[str, Any]:
         key = f"{place}|{provider}|{name}"
@@ -90,7 +178,10 @@ def models(db: "Database", *, held: list[dict[str, Any]] | None = None,
         if kind == read_job.KIND:
             # A read at scale runs off this Mac: Hugging Face's jobs are the cloud, any other target a cluster of the person's.
             on_cloud = target in (None, read_job.TARGET)
-            entry = row(CLOUD if on_cloud else REMOTE, "Hugging Face" if on_cloud else (target or "Cluster"),
+            if not on_cloud and clusters is None:
+                clusters = _cluster_names()
+            entry = row(CLOUD if on_cloud else REMOTE,
+                        "Hugging Face" if on_cloud else ((clusters or {}).get(target or "") or target or "Cluster"),
                         model or "Read at scale")
         elif calls:
             for call in calls:
@@ -98,7 +189,9 @@ def models(db: "Database", *, held: list[dict[str, Any]] | None = None,
                 provider = str(call.get("provider") or "")
                 if place is None:
                     place = THIS_MAC if provider.lower() in _LOCAL_PROVIDERS else CLOUD
-                one = row(place, _provider_word(provider), str(call["model"]))
+                # Another Mac is named by its address, as the places list names it.
+                word = (_host(_row_url(provider)) if place == REMOTE else None) or _provider_word(provider)
+                one = row(place, word, str(call["model"]))
                 one["calls_today"] += 1
                 if state == "running":
                     one["active"] = True
@@ -141,5 +234,8 @@ def models(db: "Database", *, held: list[dict[str, Any]] | None = None,
                 size = None
             if size:
                 entry["memory_bytes"], entry["memory_estimated"] = int(size), True
+    # Installed on this Mac and not held: listed, not loaded (hollow), so a person sees what is here to load.
+    for provider, model_id in installed if installed is not None else installed_on_this_mac():
+        row(THIS_MAC, provider, model_id)
     order = {place: index for index, place in enumerate(PLACES)}
     return sorted(rows.values(), key=lambda r: (order[r["place"]], r["provider"].lower(), r["name"].lower()))

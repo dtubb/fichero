@@ -1697,19 +1697,29 @@ class ActivityModel(BaseModel):
     seconds_today: float = 0.0
 
 
+class ActivityPlace(BaseModel):
+    """A place work can run, set up whether used or not (owner 2026-11-16): this Mac, another Mac by its address, a
+    cluster by its name, a cloud provider. `provider` is its node under the place, as a model's provider is."""
+
+    place: Literal["this-mac", "remote", "cloud"]
+    provider: str
+
+
 class ActivityModelsResponse(BaseModel):
     models: list[ActivityModel] = Field(default_factory=list)
+    places: list[ActivityPlace] = Field(default_factory=list, description="every place set up, used or not")
 
 
 @router.get("/models", response_model=ActivityModelsResponse)
 async def activity_models(db: Database = Depends(get_library_database)) -> ActivityModelsResponse:
     """The Models tree (`activity.window.models-tree`, `activity.resources.everything-measured`, #6588): every model this
-    project used today or the engine holds now, by place (this Mac, remote, cloud) and provider, loaded or not, active or
-    not, its memory where measured, today's pages, calls and seconds."""
-    from fichero_server.workflows.activity_models import models
+    project used today, the engine holds now or this Mac has installed, by place (this Mac, remote, cloud) and provider,
+    loaded or not, active or not, its memory where measured, today's pages, calls and seconds; and every place set up."""
+    from fichero_server.workflows.activity_models import models, places
 
     found = await asyncio.to_thread(models, db)
-    return ActivityModelsResponse(models=[ActivityModel(**m) for m in found])
+    return ActivityModelsResponse(models=[ActivityModel(**m) for m in found],
+                                  places=[ActivityPlace(**p) for p in await asyncio.to_thread(places)])
 
 
 class RecipeStepRow(BaseModel):

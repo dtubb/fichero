@@ -22,6 +22,33 @@ struct ActivityModelsTreeTests {
         #expect(ActivityModelEntry.tree([claude]).map(\.place) == [.cloud])
     }
 
+    @Test("every place set up is in the tree, used or not: another Mac, a cluster, a cloud provider; This Mac always")
+    func placesSetUp() {
+        let places: [ActivityModelEntry.SetUp] = [
+            .init(place: .thisMac, provider: "This Mac"), .init(place: .remote, provider: "studio.example"),
+            .init(place: .remote, provider: "ACENET"), .init(place: .cloud, provider: "Anthropic"),
+        ]
+        let quiet = ActivityModelEntry.tree([], places: places)
+        #expect(quiet.map(\.place) == [.thisMac, .remote, .cloud], "a quiet project still shows where work can run")
+        #expect(quiet[0].providers.isEmpty, "the place's own name is not a provider under it")
+        #expect(quiet[1].providers.map(\.name) == ["studio.example", "ACENET"])
+
+        let used = ActivityModelEntry.tree([claude, kraken], places: places)
+        #expect(used[2].providers.map(\.name) == ["Anthropic"], "a provider used and set up is one node")
+        #expect(used[2].providers[0].models == [claude])
+        #expect(used[0].providers.map(\.name) == ["Kraken"])
+    }
+
+    @Test("two projects' answers are one: places once each, models merged")
+    func answersMerged() {
+        let here = ActivityModelEntry.SetUp(place: .thisMac, provider: "This Mac")
+        let cloud = ActivityModelEntry.SetUp(place: .cloud, provider: "Anthropic")
+        let one = ActivityModelsAnswer.merged([.init(models: [kraken], places: [here, cloud]),
+                                               .init(models: [kraken, claude], places: [here])])
+        #expect(one.places == [here, cloud])
+        #expect(one.models.map(\.id) == [kraken.id, claude.id])
+    }
+
     @Test("loaded is a filled icon, not loaded hollow; memory measured, estimated with ~, unmeasured a dash")
     func iconsAndMemory() {
         #expect(kraken.symbol == "cpu.fill" && claude.symbol == "cpu")

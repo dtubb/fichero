@@ -10,25 +10,8 @@ extension ActivityPaneView {
                 ForEach(ActivityPane.Tab.sidebarWork) { tab in sidebarRow(tab) }
             }
             Section("Resources") {
-                ForEach(ActivityPane.Tab.sidebarResources) { tab in sidebarRow(tab) }
-            }
-            // Models by where they run (decision 33): place › provider › model, each model's icon filled while loaded, a green
-            // dot while it works, its memory beside it.
-            if !models.isEmpty {
-                Section("Models") {
-                    ForEach(ActivityModelEntry.tree(models), id: \.place) { place in
-                        DisclosureGroup {
-                            ForEach(place.providers, id: \.name) { provider in
-                                DisclosureGroup {
-                                    ForEach(provider.models) { model in modelRow(model) }
-                                } label: {
-                                    Label(provider.name, systemImage: "building.2").tag("provider:\(provider.name)")
-                                }
-                            }
-                        } label: {
-                            Label(place.place.title, systemImage: place.place.icon)
-                        }
-                    }
+                ForEach(ActivityPane.Tab.sidebarResources) { tab in
+                    if tab == .place { whereTree } else { sidebarRow(tab) }
                 }
             }
             Section {
@@ -42,6 +25,34 @@ extension ActivityPaneView {
                                         max: Self.sidebarWidths.upperBound)
         .accessibilityIdentifier("activity.sidebar")
         .task(id: libraries.map(\.id)) { await readModelsOften() }
+    }
+
+    /// Where, with the places under it (decision 33, owner 2026-11-16): place › provider › model, every place
+    /// set up listed used or not, each model installed or used, its icon filled while loaded, a green dot while
+    /// it works, its memory beside it. Where itself lists the rows by place.
+    var whereTree: some View {
+        DisclosureGroup(isExpanded: $whereExpanded) {
+            ForEach(ActivityModelEntry.tree(models.models, places: models.places), id: \.place) { place in
+                DisclosureGroup {
+                    ForEach(place.providers, id: \.name) { provider in
+                        if provider.models.isEmpty {
+                            Label(provider.name, systemImage: "building.2").tag("provider:\(provider.name)")
+                        } else {
+                            DisclosureGroup {
+                                ForEach(provider.models) { model in modelRow(model) }
+                            } label: {
+                                Label(provider.name, systemImage: "building.2").tag("provider:\(provider.name)")
+                            }
+                        }
+                    }
+                } label: {
+                    Label(place.place.title, systemImage: place.place.icon).tag("place:\(place.place.rawValue)")
+                }
+                .accessibilityIdentifier("activity.sidebar.place.\(place.place.rawValue)")
+            }
+        } label: {
+            sidebarRow(.place)
+        }
     }
 
     func modelRow(_ model: ActivityModelEntry) -> some View {
@@ -70,23 +81,26 @@ extension ActivityPaneView {
         if pick.hasPrefix("tab:"), let tab = ActivityPane.Tab(rawValue: String(pick.dropFirst(4))) {
             show(tab)
             update { $0.filter = "" }
-        } else if pick.hasPrefix("model:"), let model = models.first(where: { "model:\($0.id)" == pick }) {
+        } else if pick.hasPrefix("model:"), let model = models.models.first(where: { "model:\($0.id)" == pick }) {
             show(.runs)
             update { $0.filter = "model: \(model.name)" }
         } else if pick.hasPrefix("provider:") {
             show(.runs)
             update { $0.filter = "model: \(pick.dropFirst(9))" }
+        } else if pick.hasPrefix("place:") {
+            show(.place)  // a place lists the rows by place, as Where does
+            update { $0.filter = "" }
         }
     }
 
     /// The models of the open projects, read every ten seconds while the window shows: loaded and working change often.
     func readModelsOften() async {
         while !Task.isCancelled {
-            var lists: [[ActivityModelEntry]] = []
+            var answers: [ActivityModelsAnswer] = []
             for library in libraries {
-                if let one = try? await library.activityService.models() { lists.append(one) }
+                if let one = try? await library.activityService.models() { answers.append(one) }
             }
-            models = ActivityModelEntry.merged(lists)
+            models = ActivityModelsAnswer.merged(answers)
             try? await Task.sleep(for: .seconds(10))
         }
     }
