@@ -644,13 +644,14 @@ the write path would produce.
   goes on).
   **Built** against fakes: `[loop].rounds`; a red with its session gone starts a new session on the step's brief plus the findings (`fix-<lane>-<step>-<round>.txt`), never into the dead feed. Test `fichero-builder/tests/test_loop.py::test_a_red_with_no_live_session_starts_a_new_one_on_a_fix_brief_with_the_findings`. The block after the last round is an alert like every block (`queue.py` `block`, Step 2.10).
   Built 2026-11-07 (an SSL error after the Mac woke came back as the review's text, read as NOT READY, and spent a batch's three send-backs with no review done): a review whose output is an API transport failure (connection, timeout, overload) with no READY or NOT READY line of its own is tried again after 60 s and 300 s; still unreachable, it is a `review-unreachable` alert for a person, never findings sent back to the lane. Test: `fichero-builder/tests/test_work_verb.py::test_a_review_that_never_reached_its_api_is_tried_again_and_then_is_an_alert_never_a_not_ready`.
-- `dev-workflows.run.loop-rolls-on` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated; the dev build per milestone is removed by `run.nightly-build`, 2026-11-17: the loop builds nothing, the roll-on below is unchanged) — when a lane's milestone has no open step left, the loop used to run `builder build
+- `dev-workflows.run.loop-rolls-on` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — when a lane's milestone has no open step left, the loop runs `builder build
   --dev` (one row, pass or fail; a failure is an alert, the roll-on goes on) - for a build-order milestone always, and for an external lane never (owner 2026-11-03: a dev build only at a milestone's end or by hand; an external lane's batches have no milestone end the loop can see, so every landing of one is a `build-skipped` row and its dev build is `builder build --dev` by hand; `product` is still recorded on the step before landing; test `fichero-builder/tests/test_loop.py::test_an_external_lanes_landing_records_product_and_builds_nothing`) - and the lane takes the first `## In order`
   milestone of `build-order.md` that no lane holds; up to N lanes at once, one ladder at a time on the machine. The order done
   is a row, and the loop keeps ticking for new issues. Test: `fichero-builder/tests/test_queue_verb.py::test_the_queue_rolls_on_to_the_next_build_order_milestone_when_a_lanes_steps_have_landed`,
   `::test_n_lanes_hold_n_milestones_and_their_chains_overlap_but_the_ladder_is_one_at_a_time`; (to write) the build after a
   milestone. **External lanes and the loop's lanes** (manager 2026-11-02): an external lane holds its milestone but does not count toward `[loop].lanes` unless the loop is checking, reviewing or landing it; a finished external lane frees its milestone; a finished lane handed new work takes that work's kind and worktree; a milestone's step-less issues are one `alert`, and a skipped brief is not planned again (test `fichero-builder/tests/test_loop.py::test_external_lanes_hold_their_milestone_but_are_not_the_loops_lanes_and_a_finished_lane_is_briefed_again`).
-  **Removed** 2026-11-17 (`run.nightly-build`, #6665): a landed milestone builds nothing; test `fichero-builder/tests/test_queue_verb.py::test_a_landed_milestone_builds_no_dev_dmg`.
+  **Built** 2026-11-02 against fakes: a lane whose last step landed with push runs `builder build --dev` once (a `built` or `build-failed` queue row; a failure is an `alert` row with no action, and the next milestone is taken regardless). Test `fichero-builder/tests/test_queue_verb.py::test_a_landed_milestone_builds_no_dev_dmg`. The build runs in its own thread, never inside a tick (an inline build held every lane's check for 17 minutes and read as a stale heartbeat), and the live-code re-exec waits for it (test `fichero-builder/tests/test_queue_verb.py::test_a_landed_milestone_builds_no_dev_dmg`). Not yet: a real build.
+  **Was** (removed 2026-11-17 by `run.nightly-build`, #6665: the loop builds nothing, the roll-on is unchanged): the per-milestone dev build above. Test of the removal: test `fichero-builder/tests/test_queue_verb.py::test_a_landed_milestone_builds_no_dev_dmg`.
 - `dev-workflows.run.loop-alerts` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) — every stop is an `alert` row: id, lane, step, what failed in one line, the path
   of its evidence (ladder JSON, review text, session file, log) and the allowed actions, a subset of `retry`, `park`,
   `ask-owner`. `builder alert <id> retry|park|ask-owner` is the manager's whole job, so a small model can do it: retry re-queues
@@ -1317,8 +1318,8 @@ Steps a long-running builder can take from the heading. `Depends on` defaults to
 - Size: M
 
 #### Step 2.11 — the loop at large: rolls on, external lanes, machine-checked trees, `builder status`, the six-hour soak (owner 2026-11-02)
-- Behaviours: `dev-workflows.run.loop-rolls-on`, `dev-workflows.run.nightly-build`, `dev-workflows.run.loop-external-lane`, `dev-workflows.run.loop-machine-checked`, `dev-workflows.run.loop-status`, `dev-workflows.run.loop-soak`
-- Tests: fichero-builder/tests/test_loop.py, fichero-builder/tests/test_status_page.py, fichero-builder/tests/test_nightly.py
+- Behaviours: `dev-workflows.run.loop-rolls-on`, `dev-workflows.run.loop-external-lane`, `dev-workflows.run.loop-machine-checked`, `dev-workflows.run.loop-status`, `dev-workflows.run.loop-soak`
+- Tests: fichero-builder/tests/test_loop.py, fichero-builder/tests/test_status_page.py
 - Depends on: 2.10
 - Size: M
 
@@ -1635,6 +1636,14 @@ Lead 2026-11-11, after the harness-console-fix batch landed; built on the same b
 
 Owner 2026-11-14 (#6589); built on the issue-close lane. Not yet: a run on the real jail user.
 
+#### Step 4.12 — the nightly dev build of one frozen sha (owner 2026-11-17)
+- Behaviours: `dev-workflows.run.nightly-build`
+- Tests: fichero-builder/tests/test_nightly.py, fichero-builder/tests/test_queue_verb.py, fichero-builder/tests/test_verify_all.py
+- Depends on: 4.11
+- Size: M
+
+Issue #6665; replaces the per-landing dev build. Not yet: a real night on the machines.
+
 ## Behaviour tests
 
 Every behaviour names its test above, written in its step; each `security.*` and gate test includes its failing case.
@@ -1741,7 +1750,7 @@ Every behaviour names its test above, written in its step; each `security.*` and
 | `dev-workflows.core.shared` | 2.6 |
 | `dev-workflows.models.by-config` | 3.1 |
 | `dev-workflows.run.local-parity` | 3.2 |
-| `dev-workflows.run.nightly-build` | 2.11 |
+| `dev-workflows.run.nightly-build` | 4.12 |
 | `dev-workflows.run.loop-dispatch` | 4.5 |
 | `dev-workflows.run.loop-already-landed` | 4.5 |
 | `dev-workflows.run.loop-blocked-watchdog` | 4.5 |
