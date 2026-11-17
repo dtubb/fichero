@@ -25,6 +25,32 @@ struct SidebarSourceClickTests {
         #expect(changes == [.openFolder("fold", selecting: ["img-2"])])
     }
 
+    // WHY: a click on an image in another folder showed the folder, then the image. If this fails, the load that
+    // follows the click takes the image (the click's own selection, already the focus) for a stale one and promotes
+    // the folder over it.
+    @Test("an image clicked in another folder stays the focus when its folder has loaded")
+    func otherFolderKeepsTheImage() {
+        #expect(SidebarContainerSelection.keepsFocus(
+            focusedId: "img-2", parentId: "fold", pdfParentId: nil, container: "fold",
+            focusAtClick: "img-2", selectedAtClick: ["img-2"]
+        ))
+        // An item opened earlier is still stale: the folder's own click promotes the folder (#5300).
+        #expect(!SidebarContainerSelection.keepsFocus(
+            focusedId: "img-2", parentId: "fold", pdfParentId: nil, container: "fold",
+            focusAtClick: "img-2", selectedAtClick: []
+        ))
+    }
+
+    @Test("with no focus yet, the loaded folder shows the image the click selected, not the folder")
+    func otherFolderPromotesTheImage() {
+        let shown = SidebarContainerSelection.promoted(
+            container: folder, selectedAtClick: ["img-2"], children: [image, image2]
+        )
+        #expect(shown.id == "img-2")
+        #expect(SidebarContainerSelection.promoted(container: folder, selectedAtClick: [], children: [image]).id == "fold")
+        #expect(SidebarContainerSelection.promoted(container: folder, selectedAtClick: ["gone"], children: [image]).id == "fold")
+    }
+
     @Test("the click's selection is the image itself; a folder click selects nothing")
     func selectionOnClick() {
         #expect(SidebarSourceOpen.selectionOnClick(image) == ["img-1"])

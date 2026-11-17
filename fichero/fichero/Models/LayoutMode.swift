@@ -253,10 +253,22 @@ struct SidebarContainerSelection {
     /// reveal selects the container and then sets the matched page (#1463). One that was already there at the click is
     /// a stale item opened earlier, and kept it left the folder's Preview on that item, never its canvas.
     static func keepsFocus(
-        focusedId: String, parentId: String?, pdfParentId: String?, container: String, focusAtClick: String?
+        focusedId: String, parentId: String?, pdfParentId: String?, container: String, focusAtClick: String?,
+        selectedAtClick: Set<String> = []
     ) -> Bool {
         let inside = focusedId == container || parentId == container || pdfParentId == container
-        return inside && focusedId != focusAtClick
+        // A sidebar click on a source opens its folder selected on it (#6657): that focus is the click's own,
+        // never a stale one.
+        return inside && (focusedId != focusAtClick || selectedAtClick == [focusedId])
+    }
+
+    /// What the Preview shows when the focus does not stay: the source the click selected, once its folder has
+    /// loaded (#6657), else the container itself. Promoting the folder first made a source click show the folder,
+    /// then the source.
+    static func promoted(container: Document, selectedAtClick: Set<String>, children: [Document]) -> Document {
+        guard selectedAtClick.count == 1, let id = selectedAtClick.first,
+              let source = children.first(where: { $0.id == id }) else { return container }
+        return source
     }
 }
 
