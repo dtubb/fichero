@@ -634,9 +634,10 @@ The behaviours:
 
 - `recipes-run.steps.models-fetched-before-the-step` — **[GAP]** (#6673) every model a run's steps name (a
   Kraken segmenter or reader, a local vision model) is on this Mac before the first step that uses it starts:
-  the run's first stage fetches what is missing, with its progress in the run's row. A fetch that fails ends
-  the run before any step, in words naming the model; never a step failing on every page with "not on this
-  Mac yet".
+  the run's first stage fetches what is missing, with its progress in the run's row. A fetch that fails does
+  not end the run (`source.recipe.download-failure-waits`: other steps run): the steps that need that model wait,
+  each page "waiting for <model> to download", with Retry on the download; never a step failing on every page with
+  "not on this Mac yet".
 - `recipes-run.steps.a-page-waits-for-its-inputs` — **[GAP]** (#6673) a step runs on a page only when every
   step it needs has finished on THAT page. A page whose earlier step failed is held, not passed on: the later
   steps report it as "waiting for <step>" (never done, never failed for a cause that is not theirs).
