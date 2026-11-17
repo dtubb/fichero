@@ -46,7 +46,7 @@ struct OtherReadingLines: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(lines, id: \.reader) { line in
-                (Text(line.reader + "  ").foregroundStyle(.tertiary) + Text(line.text).foregroundStyle(.secondary))
+                Text("\(Text(line.reader + "  ").foregroundStyle(.tertiary))\(Text(line.text).foregroundStyle(.secondary))")
                     .font(.caption)
                     .lineLimit(2)
                     .accessibilityLabel("\(line.reader): \(line.text)")
