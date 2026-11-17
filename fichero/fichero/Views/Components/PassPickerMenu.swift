@@ -29,7 +29,12 @@ struct PassPickerMenu: View {
                         Button("Show the Promoted Pass") { store.pickPass(nil, documentId: documentId) }
                     }
                 } label: {
-                    Image(systemName: "square.stack.3d.up")
+                    // Named, as the renditions menu names its rendition: an icon alone was missed (owner 2026-11-17).
+                    let title = PassChoice.shownTitle(passes: passes, pickedId: picked) ?? "Pass"
+                    Label(title, systemImage: "square.stack.3d.up")
+                        .labelStyle(.titleAndIcon)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 .paneBarMenuStyle()
                 .fixedSize()

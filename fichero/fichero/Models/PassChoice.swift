@@ -40,6 +40,14 @@ enum PassChoice {
         }
     }
 
+    /// The menu's own label: the shown pass's title, so the head says which pass is on the page.
+    static func shownTitle(
+        passes: [SegmentPassValue], pickedId: String?,
+        format: Date.FormatStyle = .dateTime.month(.abbreviated).day().hour().minute()
+    ) -> String? {
+        items(passes: passes, pickedId: pickedId, format: format).first(where: \.isShown)?.title
+    }
+
     /// The menu is offered only where there is a choice to make.
     static func offersChoice(_ passes: [SegmentPassValue]) -> Bool {
         passes.filter { !$0.isGeoreferencing }.count > 1

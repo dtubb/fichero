@@ -93,6 +93,13 @@ struct PassShownIsPickedTests {
         #expect(strengths(reordered.geometry) == strengths(written.geometry).reversed())
     }
 
+    @Test("source.editor.pass-shown-is-picked: the menu's label names the pass shown")
+    func theLabelNamesThePassShown() {
+        #expect(PassChoice.shownTitle(passes: passes, pickedId: nil, format: format)
+            == "apple-vision, Nov 8, 2025 · default")
+        #expect(PassChoice.shownTitle(passes: passes, pickedId: "kraken", format: format) == "kraken, Nov 8, 2025")
+    }
+
     @Test("source.editor.pass-shown-is-picked: one pass, no menu")
     func onePassNoChoice() {
         #expect(PassChoice.offersChoice(passes))
