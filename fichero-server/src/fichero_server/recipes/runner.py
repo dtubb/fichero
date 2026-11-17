@@ -1361,6 +1361,7 @@ def _run_the_plan(db: Any, job_id: str) -> dict[str, Any]:
         detail["batches_done"], detail["batch_states"] = 0, [None] * len(cards)
     steps = detail["steps"]
     _read_old_shapes(steps)
+    _fetch_models_first(db, job_id, detail, started_by)
     tree = _tree(db)
     batches = _batches(tree, _units(db, detail.get("documents"), detail.get("folder_id"), tree), BATCH_PAGE_LIMIT)
     if any(card["card"] == "embed" for card in cards):  # Search is in the plan: it embeds these pages once (#6126)
@@ -1413,6 +1414,41 @@ def _run_the_plan(db: Any, job_id: str) -> dict[str, Any]:
     if halted or failures:
         raise RunEnded(words)
     return {"steps": steps}
+
+
+def _fetch_models_first(db: Any, job_id: str, detail: dict[str, Any], started_by: str) -> None:
+    """The run's first stage (`recipes-run.steps.models-fetched-before-the-step`): every model its steps name that is not on
+    this Mac is fetched, and waited for, before the first step; one already downloading is waited for. A fetch that fails ends
+    the run before any step, naming the model. The plan's downloads are in `awaited` already; the run asks again, so a model
+    the plan did not name (or one deleted since) is fetched too."""
+    from fichero_server.llm.local_models import enqueue_download
+    from fichero_server.recipes import start
+
+    every = start._with_readers(detail["runs"])
+    downloads = start.runtime_to_set_up(every) + start.missing_models(every) + start.local_models_to_download(every)
+    start.mark_downloads_under_way(db, downloads)
+    awaited = detail.setdefault("awaited", [])
+    for download in downloads:
+        if not download.get("downloading"):
+            try:
+                download.update(downloading=True, job_id=enqueue_download(db, download["runtime"], download["model"],
+                                                                         started_by=started_by))
+            except ValueError as exc:
+                words = f"{download.get('name') or download['model']} cannot be downloaded: {exc}. The run ended before any step."
+                jobs.save_detail(db, job_id, json.dumps(detail), reason=words)
+                raise RunEnded(words) from exc
+        if all(e["job_id"] != download["job_id"] for e in awaited):
+            awaited.append({"steps": download["steps"], "job_id": download["job_id"],
+                            "name": download.get("name") or download["model"]})
+    if not awaited:
+        return
+    why = _await_downloads(db, job_id, detail, {"steps": [sid for card in detail["runs"] for sid in card["steps"]]})
+    if why == STOPPED_BEFORE:
+        raise jobs.JobCancelled(f"{jobs.stopped_by(job_id)}; stopped before any step")
+    if why:
+        words = f"{why}. The run ended before any step."
+        jobs.save_detail(db, job_id, json.dumps(detail), reason=words)
+        raise RunEnded(words)
 
 
 #: ponytail: a step that does none of a batch's pages on this many batches in a row stops the run (#5540,

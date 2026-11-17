@@ -632,7 +632,7 @@ fail on its own, but the run still came apart. The engine log shows, in order:
 
 The behaviours:
 
-- `recipes-run.steps.models-fetched-before-the-step` — **[GAP]** (#6673) every model a run's steps name (a
+- `recipes-run.steps.models-fetched-before-the-step` — **[OK]** (#6673; test `fichero-server/tests/unit/recipes/test_models_fetched_before_the_step_6673.py`) every model a run's steps name (a
   Kraken segmenter or reader, a local vision model) is on this Mac before the first step that uses it starts:
   the run's first stage fetches what is missing, with its progress in the run's row. A fetch that fails does
   not end the run (`source.recipe.download-failure-waits`: other steps run): the steps that need that model wait,
