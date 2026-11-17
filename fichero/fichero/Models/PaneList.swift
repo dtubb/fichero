@@ -49,6 +49,9 @@ enum PaneKind: String, Codable, CaseIterable, Sendable, Hashable {
     /// The Activity pane (#6441, `activity.pane.is-a-pane-kind`): the one table of runs and jobs; its scope's
     /// `libraryId` says whose work it shows (nil: every open project).
     case activity
+    /// The Activity graphs as a pane of their own (`activity.window.views-are-panes`, `activity.graphs.own-pane`,
+    /// decisions 40-41): the history graphs a main window can show beside its other panes.
+    case activityGraphs
 }
 
 /// What a pane is scoped to. All fields optional: a `nil` field means "follow the

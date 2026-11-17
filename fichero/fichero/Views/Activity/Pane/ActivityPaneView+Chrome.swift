@@ -160,13 +160,16 @@ extension ActivityPaneView {
 
     // MARK: - Head, filter, status bar
 
+    /// The pane's head: the Activity table's, or the Activity Graphs pane's (its kind its own, its lens the item whose
+    /// graphs it draws).
     var head: some View {
-        PaneHead(
-            crumbs: [PaneCrumb(id: "activity", title: "Activity", icon: PaneSpec.Kind.activity.icon)],
+        let kind: PaneSpec.Kind = graphsOnly ? .activityGraphs : .activity
+        return PaneHead(
+            crumbs: [PaneCrumb(id: kind.rawValue, title: kind.title, icon: kind.icon)],
             selector: {
                 PaneKindSelector(
-                    kindTitle: PaneSpec.Kind.activity.title, kindIcon: PaneSpec.Kind.activity.icon,
-                    currentKind: .activity, lenses: ActivityPane.Tab.allCases,
+                    kindTitle: kind.title, kindIcon: kind.icon,
+                    currentKind: kind, lenses: ActivityPane.Tab.allCases,
                     lensTitle: { (tab: ActivityPane.Tab) in tab.title },
                     lensIcon: { (tab: ActivityPane.Tab) in tab.icon },
                     lens: Binding(get: { prefs.tab }, set: show)
@@ -179,7 +182,7 @@ extension ActivityPaneView {
 
     /// The window's history, read now and once a minute while the window shows (`GET /api/activity/history`).
     func readHistoryEachMinute() async {
-        guard !showsHead else { return }
+        guard !showsHead || graphsOnly else { return }  // a main window's table pane keeps its one status line
         while !Task.isCancelled {
             var read: [ActivityHistoryFigures] = []
             for library in libraries {

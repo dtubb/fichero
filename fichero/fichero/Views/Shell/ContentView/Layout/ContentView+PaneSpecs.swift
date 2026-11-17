@@ -66,6 +66,8 @@ extension ContentView {
             return segmentsPane(splitKey: splitKey, modelSplit: modelSplit, fixedWidth: spec.fixedWidth)
         case .activity:
             return activityPane(slotId: slotId, fixedWidth: spec.fixedWidth)
+        case .activityGraphs:
+            return activityPane(slotId: slotId, fixedWidth: spec.fixedWidth, graphsOnly: true)
         case .chat:
             // Chat is no longer a centre pane — it lives beneath the sidebar
             // (spec panes.chat.below-sidebar). The kind stays in the enum so the
@@ -99,14 +101,19 @@ extension ContentView {
 
     /// The Activity pane (#6441, `activity.pane.is-a-pane-kind`): the one table, scoped to this window's project; its
     /// selection is the window's, which the Inspector shows (`activity.pane.inspector-shows-the-selected-row`).
-    private func activityPane(slotId: String, fixedWidth: CGFloat?) -> AnyView {
+    /// `graphsOnly`: the Activity Graphs pane (`activity.window.views-are-panes`): the same view, its graphs alone.
+    private func activityPane(slotId: String, fixedWidth: CGFloat?, graphsOnly: Bool = false) -> AnyView {
         AnyView(
-            ActivityPaneView(libraryId: windowState.libraryId, showsHead: true, paneKey: "activity.\(slotId)",
-                             onSelect: { windowState.activityPick = $0 })
+            ActivityPaneView(libraryId: windowState.libraryId, showsHead: true,
+                             paneKey: "\(graphsOnly ? "activityGraphs" : "activity").\(slotId)",
+                             graphsOnly: graphsOnly, onSelect: { if !graphsOnly { windowState.activityPick = $0 } })
                 .frame(width: fixedWidth)
                 .frame(maxWidth: fixedWidth == nil ? .infinity : nil)
                 .clipped()
-                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .activity; paneFocusHint = .activity })
+                .simultaneousGesture(TapGesture().onEnded { _ in
+                    focusedPane = graphsOnly ? .activityGraphs : .activity
+                    paneFocusHint = graphsOnly ? .activityGraphs : .activity
+                })
         )
     }
 
@@ -123,6 +130,7 @@ extension ContentView {
         case .chat: .chat
         case .segments: .segments
         case .activity: .activity
+        case .activityGraphs: .activityGraphs
         }
     }
 
@@ -137,6 +145,7 @@ extension ContentView {
         case .chat: .chat
         case .segments: .segments
         case .activity: .activity
+        case .activityGraphs: .activityGraphs
         }
     }
 
