@@ -100869,6 +100869,14 @@
             "type": "integer",
             "title": "Total",
             "default": 0
+          },
+          "in_flight": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "In Flight",
+            "description": "the files it is on now, by name (an import's stage)"
           }
         },
         "type": "object",

@@ -583,14 +583,13 @@ working, on which files, and what blocks it; the engine smarter about work that 
   path check depends on the cache's layout. Acceptance: a fixture snapshot whose `model.onnx` and `model.onnx_data` resolve to
   different folders loads after the fix; a model whose load raises reads `broken` in `GET /api/models` and in Settings, never
   installed; bge-m3's size reads 2.3 GB. *Test:* `fichero-server/tests/unit/llm/test_model_installed_means_it_loads_6591.py`.
-- `activity.pane.names-what-it-works-on` — **[GAP]** (#6588; `activity.pane.row-says-what-ran-on-what` made exact for jobs of
+- `activity.pane.names-what-it-works-on` — **[OK]** (#6588; `activity.pane.row-says-what-ran-on-what` made exact for jobs of
   their own) a row names what it works on, never only its kind: "Prepare pages · Letters · 2,618" (the folder or project and the
   count), not "Processing imported pages · 11 of 2618"; its children are the steps it holds (thumbnails, text, embed), each
   with its own count, and under a step the files it is on NOW (at most the in-flight ones, named), so "which files" is one
   disclosure away; an import's derivative work for one folder is ONE row, never one per step at the top level. Acceptance: an
   import of a folder of 2,618 images lists one top-level row naming the folder and the count, three step children, and under
-  the running step the files in flight by name. *Test:* not yet written: `ActivityNamesWhatItWorksOnTests.swift`, the engine's
-  `test_row_says_what_ran_on_what_6441.py` extended.
+  the running step the files in flight by name. *Built 2026-11-16:* the import's row is "Prepare pages · <project> · 2,618" (the queue keeps one count per project, not the folder it came from); its `stages` are the derivative kinds in the order they run (thumbnails, text, embed), each with its own done, failed and total since the queue began and `in_flight`, the files it is on now by name (at most 8); the app draws them as the row's children, the files under their stage. The queue's own detail tree keeps its registered name. *Test:* `ActivityNamesWhatItWorksOnTests.swift`, `fichero-server/tests/unit/api/test_names_what_it_works_on_6588.py`, `test_activity_jobs.py` (the row's name).
 - `activity.failure.no-raw-text-ever` — **[PARTIAL]** (#6597, #6588, #6354; `activity.pane.failure-with-its-fix-in-the-row`) the failure
   table gains the kinds the release showed bare: a model that will not load (`model-broken`: "bge-m3 could not be loaded" ·
   Download Again), a library closed under a running job (`library-closed`: the job is not failed but PAUSED, "Paused: the
