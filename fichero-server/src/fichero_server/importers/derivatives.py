@@ -365,6 +365,11 @@ def queue_stages(db: Any, since: Any) -> list[dict[str, Any]]:
     return stages
 
 
+def stages_now(db: Any, library: str) -> list[dict[str, Any]]:
+    """The import's stages since its queue began, read off the event loop by the jobs route (#5860)."""
+    return queue_stages(db, queue_since(library))
+
+
 def queue_name(library: str, total: int) -> str:
     """The import's row names what it works on: "Prepare pages · Letters · 2,618" (the project and the count), never only
     its kind (`activity.pane.names-what-it-works-on`)."""
