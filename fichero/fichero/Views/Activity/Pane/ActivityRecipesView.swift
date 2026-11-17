@@ -13,6 +13,8 @@ extension ISO8601DateFormatter {
 /// The Recipes view's centre: an outline table, recipe › run › step, every open project's recipes read from the engine.
 struct ActivityRecipesView: View {
     let libraries: [LibraryManager.LibraryReference]
+    /// The Visual view: each recipe's newest run drawn as its steps (`ActivityRunGraph`), not the outline.
+    var visual = false
     @State private var lines: [ActivityRecipeLine] = []
     @State private var selection: ActivityRecipeLine.ID?
     @State private var readOnce = false
@@ -23,6 +25,8 @@ struct ActivityRecipesView: View {
                 Text(readOnce ? "No recipe has run in the last 30 days" : "Reading the recipes…")
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if visual {
+                ActivityRunGraphView(runs: ActivityRunGraph.newestRuns(lines))
             } else {
                 Table(lines, children: \.children, selection: $selection) {
                     TableColumn("Recipe") { line in

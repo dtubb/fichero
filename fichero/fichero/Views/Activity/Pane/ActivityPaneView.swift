@@ -189,7 +189,13 @@ struct ActivityPaneView: View {
                 switch prefs.centreView(for: prefs.tab) {
                 case .table: tableCentre(shown)
                 case .graph: graphs
-                case .visual: ActivityTimelineView(rows: shown)
+                case .visual:
+                    // Recipes' Visual is each recipe's newest run as its steps; the others' the work's timeline.
+                    if prefs.tab == .recipes {
+                        ActivityRecipesView(libraries: libraries, visual: true)
+                    } else {
+                        ActivityTimelineView(rows: shown)
+                    }
                 }
             } else if graphsFull {
                 // The graphs made full size (`activity.graphs.own-pane`, decision 41): they fill the centre.
