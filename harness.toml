@@ -432,6 +432,17 @@ pinned_dir = "/Users/Shared/fichero-pinned"
 # Regexes over every ADDED line and commit message; any hit refuses the land (the public/private boundary).
 boundary = ['/Users/(?!Shared/)[A-Za-z0-9._-]+/', 'sk-ant-[A-Za-z0-9_-]{8,}', 'gh[ps]_[A-Za-z0-9]{20,}', 'BEGIN [A-Z ]*PRIVATE KEY']
 
+# dev-workflows.run.nightly-build (#6665): one dev build a night of the integration head frozen at freeze_at, from a clean tree.
+# After no_new_steps_at a lane's step starts only if its median land time fits before freeze_at. The machines are "local" or
+# host[:dir] over ssh; publish names the tier.
+[nightly]
+no_new_steps_at = "22:00"
+freeze_at = "00:00"
+check_runner = "m4:~/fichero-gate"
+build_machine = "local"
+smoke_machine = "local"
+publish = "dev"
+
 [loop]
 # manager 2026-11-04 (alerts 315, 316): the lanes the loop ticks, named; a lane not here (an old milestone lane in queue.json) never starts.
 # Build-order milestones are taken only with feed_milestones = true: a lane is queued on purpose.

@@ -31,10 +31,11 @@ import tomllib
 from concurrent.futures import ThreadPoolExecutor
 import types
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from fichero_builder import brief_tool, check_tool, codemap, jail, journal, land_tool, models, work
+from fichero_builder import brief_tool, check_tool, codemap, jail, journal, land_tool, models, nightly, work
 
 ROUNDS, RESTARTS = 2, 2
 DISPATCH: list = [()]  # [loop].dispatch: external lanes the loop runs itself, as managed worker lanes (#6466); the verb sets it
@@ -162,6 +163,9 @@ class Procs:
     jail_gh: bool = False  # [jail].gh: the jail user has a gh token, so a brief may ask for gh (#6495)
     inline_paths: tuple = ()  # [jail].inline_paths: the owner folders a hand-written brief may inline a file from (brief_tool.for_worker)
     ahead_of_origin: Callable[[dict], bool] = lambda lane: False  # lane -> its tree has commits past origin/<branch> (#6507: a retried batch's DONE)
+    nightly: object = None  # nightly.Cfg from [nightly] (run.nightly-build); None = the project has none
+    nightly_runners: object = None  # nightly.Runners; None = no nightly
+    now: Callable[[], datetime] = datetime.now  # the clock the nightly rules read; the tests set a fake
     adopt: Callable[[dict], object | None] = lambda lane: None  # #6589: lane -> a handle on its live session (a tmux window named for it), else None
 
 
@@ -354,6 +358,14 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         if lane["paused"] or next((x.get("paused") for x in load() if x["id"] == lane["id"]), False):
             lane["paused"] = True
             return False
+        if procs.nightly is not None and not s.get("resume_brief") and not s["rounds"]:  # run.nightly-build: a NEW step, after the cutoff, must fit before the freeze
+            if why := nightly.hold_why(procs.now(), procs.nightly, nightly.median_land_s(journal.read(), lane["id"])):
+                if s.get("held") != why:
+                    s["held"] = why
+                    store(lane)
+                    journal.append("queue", lane=lane["id"], step=s["step"], state="night-hold", detail=why)
+                return False
+        s.pop("held", None)
         s["trees"], s["trees_at"] = procs.trees(_others(lane, handles, procs)), time.strftime("%Y-%m-%dT%H:%M:%S")  # before the worker can move anything
         try:
             bp = Path(s.get("resume_brief") or s["brief"])
@@ -1168,6 +1180,11 @@ def daily_when_due(procs: Procs, chains: dict | None) -> None:
         t.start()
 
 
+def nightly_when_due(procs: Procs, chains: dict | None) -> None:
+    """dev-workflows.run.nightly-build: at the freeze the integration head is the night's candidate and the nightly starts (its own thread)."""
+    nightly.when_due(procs.nightly, procs.nightly_runners, procs.now(), lambda why: alert("-", "nightly", why, str(journal.STATE), ["retry"]), chains, BUILDS)
+
+
 ONLY: list = [()]  # [loop].only: the lanes the loop ticks; () = every lane in the queue (tests); the verb sets it (manager 2026-11-04)
 
 
@@ -1286,6 +1303,7 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
             journal.append("loop", state="lane-error", lane=lane["id"], detail=traceback.format_exc()[-1500:])
             out(f"{lane['id']}: lane error (journal row lane-error); the loop goes on")
     daily_when_due(procs, chains)
+    nightly_when_due(procs, chains)
     reconcile_when_due(procs, chains)
     if not busy:
         verify_when_idle(procs, chains)
@@ -1696,6 +1714,7 @@ def real_procs(root) -> Procs:
     root = Path(root)
     rules = tomllib.loads((root / "harness.toml").read_text())
     repo, branch = rules["check"]["engine_repo"], rules["land"]["branch"]
+    ncfg = nightly.load(rules)
     mdl = models.load(root)
     builder, reviewer = models.for_role(mdl, "builder").model, models.for_role(mdl, "reviewer").model
     reviewer_fast = models.for_role(mdl, "reviewer_fast").model if "reviewer_fast" in mdl else reviewer
@@ -1856,7 +1875,7 @@ def real_procs(root) -> Procs:
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0, adopt=lambda lane: adopt_session(jail.load(root), lane),
                  landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
-                 next_milestone=lambda taken: next_in_order(root, taken), verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",
+                 next_milestone=lambda taken: next_in_order(root, taken), verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, nightly=ncfg, nightly_runners=nightly.real_runners(root, ncfg, branch, journal.STATE) if ncfg else None, reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "",
                  workroot=str(rules.get("jail", {}).get("workroot", "")), blob=blob, root=str(root), jail_gh=bool(rules.get("jail", {}).get("gh")),
                  inline_paths=tuple(rules.get("jail", {}).get("inline_paths", brief_tool.INLINE_DEFAULT)))
