@@ -265,6 +265,8 @@ struct ActivityJob: Identifiable, Equatable {
     /// What blocks this work (`activity.pane.blocked-under-its-blocker`, #6593): another job's id or a typed need
     /// ("model:embeddings:bge-m3"); nil when nothing does.
     var blockedBy: String?
+    /// Its waiting jobs ranked for the page in view (`activity.foreground.one-glyph-not-words`, #6442).
+    var inView = 0
     var model: String?
     var costUsd: Double?
     var costEstimateUsd: Double?
@@ -312,6 +314,7 @@ struct ActivityJob: Identifiable, Equatable {
         }
         self.ranOn = job.ranOn.map { RanOver(kind: $0.kind, count: $0.count ?? 0, name: $0.name) }
         self.blockedBy = job.blockedBy
+        self.inView = job.inView ?? 0
         self.model = job.model
         self.costUsd = job.costUsd
         self.costEstimateUsd = job.costEstimateUsd

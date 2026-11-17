@@ -86,6 +86,8 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     var ranOnText: String?
     /// What blocks the work: listed under it, drawn with the lock (`activity.pane.blocked-under-its-blocker`).
     var blockedBy: String?
+    /// How many of its waiting jobs go next for the page in view: the eye beside its state (#6442).
+    var inView = 0
     /// A version whose results count, in Group by File and the Inspector's versions (`activity.pane.versions-are-siblings`).
     var counts = false
     /// The one progress line of a recipe run (`activity.pane.row-says-what-ran-on-what`): "Read ✓ → Names ▶ 3/12"; empty

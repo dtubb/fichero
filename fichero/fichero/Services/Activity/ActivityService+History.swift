@@ -95,3 +95,22 @@ extension ActivityService {
         }
     }
 }
+
+extension ActivityService {
+    /// The page in view (`PUT /api/activity/foreground`, `activity.foreground.rank-on-the-row-and-the-pick`, #6442):
+    /// this window's set replaces its last one; its pages' waiting jobs go first. Returns how many the engine ranked.
+    @discardableResult
+    func setForeground(client clientId: String, items: [PageInView.Item]) async throws -> Int {
+        let body = Components.Schemas.ForegroundRequest(
+            client: clientId, items: items.map { .init(subject: $0.subject, rank: $0.rank) })
+        switch try await client.api.putForegroundApiActivityForegroundPut(body: .json(body)) {
+        case .ok(let okResponse):
+            return try okResponse.body.json.ranked
+        case .unprocessableContent(let error):
+            throw ActivityServiceError.validationError(
+                (try? error.body.json)?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, let payload):
+            throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
+        }
+    }
+}
