@@ -241,6 +241,7 @@ struct ReadingPaneView: View {
             }
 
             readerTabContent
+                .commandScrollZoom { webZoom = Double(CommandScrollZoom.scaled(webZoom, step: $0, in: 0.5...3.0)) }
                 // R1/R7: the head floats OVER the content's top edge — no grey
                 // bar, content scrolls under. It replaces the Page/Knowledge/
                 // Notes SurfaceTabBar: those three are lenses now, alongside
