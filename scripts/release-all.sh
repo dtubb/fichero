@@ -10,21 +10,21 @@ set -euo pipefail
 #   scripts/release-all.sh [--skip-dmg] [--skip-notarize]
 #                          [--skip-testflight | --skip-mac-testflight | --skip-ios-testflight]
 #                          [--mac-only | --ios-only] [--github] [--draft]
-#                          [--dev | --tier <release|beta|alpha|dev>]
-# Default (no --dev/--tier): the DMG lane builds BOTH tiers per release —
-# Fichero.dmg (alpha, the public download) and Fichero-dev.dmg (dev, ALL
-# features) — and TestFlight archives the dev surface (internal-only, #3365).
-# --dev / --tier narrow the run to that single tier: `--dev` bakes ALL dev
-# features (Dev Embedded mac config + dev FICHERO_FEATURE_TIER on iOS);
-# a single-tier run always names its one DMG Fichero.dmg (the daily release: --dev).
+#                          [--dev | --public | --tier <release|beta|alpha|dev>]
+# Default (no flag) = --dev (owner 2026-11-17: "only push --dev by default"): one dev DMG
+# (ALL features), published as a GitHub PRE-RELEASE on the Sparkle dev channel, no site deploy.
+# --public is the old two-DMG release: Fichero.dmg (alpha, the public download) and
+# Fichero-dev.dmg, GitHub Latest, the public appcast item and the site. Only when the owner
+# says public: the alpha/release code path has gone untested for months.
+# --tier narrows to one tier. TestFlight archives the dev surface (internal-only, #3365).
+# A single-tier run always names its one DMG Fichero.dmg.
 #
 # See docs/contributor_manual/release/release-lane.md for required certificates/profiles and the
 # repeatable DMG, Sparkle/GitHub, and Mac TestFlight release cycle.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RELEASE_DIR="$ROOT_DIR/build/releases"
-# Fichero.dmg = alpha (the public download), Fichero-dev.dmg = dev (all
-# features). Daniel's 2026-08-25 ruling: every release ships BOTH.
+# --public: Fichero.dmg = alpha (the public download), Fichero-dev.dmg = dev (all features).
 DMG_PATH="$RELEASE_DIR/Fichero.dmg"
 DEV_DMG_PATH="$RELEASE_DIR/Fichero-dev.dmg"
 MAC_ARCHIVE_PATH="$RELEASE_DIR/Fichero-macOS.xcarchive"
@@ -200,13 +200,14 @@ while [ $# -gt 0 ]; do
     --prerelease) GITHUB_ARGS+=("--prerelease") ;;
     --wait-for-processing) WAIT_FOR_PROCESSING=true ;;
     --dev) FICHERO_RELEASE_TIER=dev ;;
+    --public) PUBLIC_RELEASE=true ;;
     --tier)
       shift
       FICHERO_RELEASE_TIER="${1:?--tier requires a value: release|beta|alpha|dev}"
       ;;
     --tier=*) FICHERO_RELEASE_TIER="${1#--tier=}" ;;
     --help|-h)
-      sed -n '2,16p' "$0"
+      sed -n '2,20p' "$0"
       exit 0
       ;;
     *)
@@ -217,18 +218,19 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-# DMG tiers for this run. Default (no --dev/--tier): BOTH DMGs — dev first,
-# alpha LAST so dmg-stage/ and Fichero.dmg hold the public artifacts for the
-# size ratchet and the GitHub step's staged-app checks. An explicit
-# --dev/--tier builds only that tier (one-off runs keep their old meaning).
-# PUBLIC TIER = ALPHA (Daniel, 2026-09-04: "it's a public alpha after all") —
-# beta is where alpha features graduate once they're proven, not a tier we
-# ship today.
+# DMG tiers for this run. Default: the dev DMG only (owner 2026-11-17: "only push --dev by
+# default"). --public: BOTH DMGs — dev first, alpha LAST so dmg-stage/ and Fichero.dmg hold
+# the public artifacts for the size ratchet and the GitHub step's staged-app checks.
+# PUBLIC TIER = ALPHA (Daniel, 2026-09-04: "it's a public alpha after all").
+# An explicit --tier builds only that tier.
 if [ -n "${FICHERO_RELEASE_TIER:-}" ]; then
   DMG_TIERS=("$FICHERO_RELEASE_TIER")
-else
+elif [ "${PUBLIC_RELEASE:-false}" = true ]; then
   DMG_TIERS=(dev alpha)
   # TestFlight is internal-only, so in dual mode it archives the dev surface.
+  FICHERO_RELEASE_TIER=dev
+else
+  DMG_TIERS=(dev)
   FICHERO_RELEASE_TIER=dev
 fi
 
@@ -863,7 +865,11 @@ publish_part() {
     fi
   done
   # A one-DMG dev run publishes on the dev channel only (never the channel-less public item).
-  if [ "${#DMG_TIERS[@]}" -eq 1 ] && [ "${DMG_TIERS[0]}" = dev ]; then export FICHERO_RELEASE_CHANNEL=dev; fi
+  # It is a GitHub pre-release (never Latest) and leaves the site alone: the site follows public releases only.
+  if [ "${#DMG_TIERS[@]}" -eq 1 ] && [ "${DMG_TIERS[0]}" = dev ]; then
+    export FICHERO_RELEASE_CHANNEL=dev FICHERO_SKIP_SITE=1
+    case " ${GITHUB_ARGS[*]-} " in *" --prerelease "*) ;; *) GITHUB_ARGS+=("--prerelease") ;; esac
+  fi
   "$ROOT_DIR/scripts/create-github-release.sh" "${GITHUB_ARGS[@]+"${GITHUB_ARGS[@]}"}" \
     || fail_part "create-github-release.sh failed"
   # Site AFTER the GitHub step: create-github-release.sh writes appcast.xml

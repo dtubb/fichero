@@ -429,3 +429,17 @@ def test_docs_download_links_name_fichero_dmg_and_the_one_dmg_text_calls_it_the_
     assert 'DOWNLOAD_LINE="Download \\`Fichero.dmg\\` below (the dev build, with every feature on' in c
     assert c.index("DOWNLOAD_LINE=") < c.index('RELEASE_BODY="## Installation')
     assert "still runs it last" not in (_ROOT / "docs/contributor_manual/specs/harness/release-and-versioning.md").read_text()
+
+
+def test_release_all_is_a_dev_prerelease_unless_public_is_asked_for():
+    """release-channels-and-feature-tiers: no flag = one dev DMG, a GitHub pre-release on the dev
+    channel with no site deploy; only --public builds the alpha DMG too (owner 2026-11-17)."""
+    r = _script("release-all.sh")
+    tiers = r[r.index("# DMG tiers for this run."):]
+    tiers = tiers[:tiers.index("\nfi\n")]
+    assert 'elif [ "${PUBLIC_RELEASE:-false}" = true ]; then\n  DMG_TIERS=(dev alpha)' in tiers
+    assert tiers.rstrip().endswith("DMG_TIERS=(dev)\n  FICHERO_RELEASE_TIER=dev"), "the default is dev only"
+    assert "--public) PUBLIC_RELEASE=true ;;" in r
+    publish = r[r.index("publish_part() {"):]
+    assert 'export FICHERO_RELEASE_CHANNEL=dev FICHERO_SKIP_SITE=1' in publish
+    assert 'GITHUB_ARGS+=("--prerelease")' in publish
