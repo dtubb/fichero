@@ -262,6 +262,9 @@ struct ActivityJob: Identifiable, Equatable {
     /// the stage's model; and the cost (`activity.pane.cost-per-row-and-totals`). Empty or nil on an engine before these.
     var stages: [Stage] = []
     var ranOn: RanOver?
+    /// What blocks this work (`activity.pane.blocked-under-its-blocker`, #6593): another job's id or a typed need
+    /// ("model:embeddings:bge-m3"); nil when nothing does.
+    var blockedBy: String?
     var model: String?
     var costUsd: Double?
     var costEstimateUsd: Double?
@@ -308,6 +311,7 @@ struct ActivityJob: Identifiable, Equatable {
                   inFlight: $0.inFlight ?? [])
         }
         self.ranOn = job.ranOn.map { RanOver(kind: $0.kind, count: $0.count ?? 0, name: $0.name) }
+        self.blockedBy = job.blockedBy
         self.model = job.model
         self.costUsd = job.costUsd
         self.costEstimateUsd = job.costEstimateUsd

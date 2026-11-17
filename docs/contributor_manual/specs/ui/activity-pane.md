@@ -554,7 +554,7 @@ sentence on four rows, after the fetch had failed; two rows showed raw text (the
 library …/fichero.duckdb was closed"). The owner restated the goal: a much simpler table, hierarchical, that shows what is
 working, on which files, and what blocks it; the engine smarter about work that cannot run; models that download.
 
-- `activity.pane.blocked-under-its-blocker` — **[GAP]** (#6593, #6588; the `blocked` state in the states table) work that cannot run
+- `activity.pane.blocked-under-its-blocker` — **[OK]** (#6593, #6588; the `blocked` state in the states table) work that cannot run
   until something else exists is BLOCKED, not waiting: the engine records on the row WHAT blocks it (`blocked_by`: another job's
   id, or a typed need — a model `runtime:model`, a key for a provider, a folder) and the lane never picks a blocked row, so it
   does not spin, re-check or re-queue. The table shows ONE row for the blocker (the download, or a need row "Search model bge-m3
@@ -565,7 +565,7 @@ working, on which files, and what blocks it; the engine smarter about work that 
   Choose Another Model…, Add Key…), and the person's fix unblocks them. Acceptance: with the search model missing, an import
   queues its embeds blocked on the download; the lane picks none of them; the table has one download row with the embed rows
   under it; the download fails: the embeds stay blocked, zero model calls, the row offers Download Again; it succeeds: the
-  embeds run. *Test:* not yet written: `test_blocked_work_waits_on_its_blocker_6588.py`, `ActivityBlockedRowsTests.swift`.
+  embeds run. *Built:* the engine half earlier under #6593 (`JobBlocked`, `blocked_by` on the row, the lane's pick skipping it, `unblock_on_download` on a download done, the listing's `blocked:<blocker>` groups); 2026-11-16 the app half: the row carries `blockedBy`, a blocked waiting row draws `lock.circle` ("Blocked", the blocker's words in its tooltip only, no line), and `ActivityPane.underBlockers` lists blocked rows under the row of the job that blocks them, else under one row for the need ("Search model bge-m3"). *Test:* `fichero-server/tests/unit/jobs/test_blocked_work_waits_on_its_blocker_6593.py`, `ActivityBlockedRowsTests.swift`.
 - `activity.download.says-bytes-and-time-left` — **[PARTIAL]** (built a6ab0bc7c: every runtime's bytes in the row's words and its detail, a folder watcher where the library has no callback; not built: the typed fields on the listed row (a contract change), the time left; #6592, #6588; supersedes "0 of 1" for a download) every model download, of
   every runtime (Kraken, MLX, embeddings, Whisper, spaCy, YOLO, the MLX runtime), reports its bytes at least every
   `PROGRESS_EVERY_SECONDS` (2) as typed fields on the row (`bytes_done`, `bytes_total`, never only words): through the library's
@@ -1012,7 +1012,7 @@ First, because every new install hits it: one real folder per model, load-checke
 
 #### Step 3.2 — blocked work under its blocker; no raw text (#6588)
 - Behaviours: `activity.pane.blocked-under-its-blocker`, `activity.failure.no-raw-text-ever`
-- Tests: test_blocked_work_waits_on_its_blocker_6588.py (not yet written), ActivityBlockedRowsTests.swift (not yet written), fichero-server/tests/unit/llm/test_every_failure_kind_has_a_fix_6354.py
+- Tests: fichero-server/tests/unit/jobs/test_blocked_work_waits_on_its_blocker_6593.py, ActivityBlockedRowsTests.swift, fichero-server/tests/unit/llm/test_every_failure_kind_has_a_fix_6354.py
 - Depends on: 3.1
 - Size: M
 

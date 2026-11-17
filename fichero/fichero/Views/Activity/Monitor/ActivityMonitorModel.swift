@@ -84,6 +84,8 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     var lane: String?
     /// What it ran over, in words ("14 pages"), from the engine's `ran_on` (`activity.pane.row-says-what-ran-on-what`).
     var ranOnText: String?
+    /// What blocks the work: listed under it, drawn with the lock (`activity.pane.blocked-under-its-blocker`).
+    var blockedBy: String?
     /// A version whose results count, in Group by File and the Inspector's versions (`activity.pane.versions-are-siblings`).
     var counts = false
     /// The one progress line of a recipe run (`activity.pane.row-says-what-ran-on-what`): "Read ✓ → Names ▶ 3/12"; empty
