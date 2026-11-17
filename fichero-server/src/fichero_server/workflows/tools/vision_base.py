@@ -121,6 +121,7 @@ from fichero_server.workflows.tools._doc_lookup import (  # noqa: E402
 )
 from fichero_server.workflows.circuit_breaker import (  # noqa: E402
     ProviderCircuitBreaker,
+    ProviderInFlightBudgetError,
     ProviderRateLimitedError,
     call_with_breaker,
 )
@@ -6131,6 +6132,8 @@ async def process_vision(
                     )
                 )
 
+        except ProviderInFlightBudgetError:
+            raise  # the run is asked to pause (#6671): the page is read again on Continue, not recorded failed
         except ProviderRateLimitedError as e:
             # #2543: the per-provider circuit breaker is OPEN — record a loud,
             # unmistakable per-file error so the run surfaces WHY it stopped
