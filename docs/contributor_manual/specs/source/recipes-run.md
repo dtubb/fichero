@@ -642,7 +642,7 @@ The behaviours:
   step it needs has finished on THAT page. A page whose earlier step failed is held, not passed on: the later
   steps report it as "waiting for <step>" (never done, never failed for a cause that is not theirs).
   Pages that have their inputs go on: one page's failure never stops the others.
-- `recipes-run.steps.retry-flows-through` — **[GAP]** (#6673) Retry on the run redoes only the failed pages
+- `recipes-run.steps.retry-flows-through` — **[OK]** (#6673; test `fichero-server/tests/unit/recipes/test_a_page_waits_for_its_inputs_6673.py`) Retry on the run redoes only the failed pages
   of the earliest failed step, and each page that then succeeds flows on through every later step it was
   waiting for, in order; pages already done are not redone (`recipes-run.journey.run-again-on-what-was-missed`).
 - `recipes-run.steps.no-empty-done` — **[OK]** (#6673; test `fichero-server/tests/unit/recipes/test_a_page_waits_for_its_inputs_6673.py`) a step that had nothing to work on for a page (no

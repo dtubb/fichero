@@ -55,3 +55,20 @@ def test_a_batch_whose_pages_all_wait_leaves_the_step_waiting_not_done(monkeypat
     step = detail["steps"][0]
     assert step["state"] == "waiting" and step["why"] == "waiting for lines"
     assert runner._step_counts(step) == {"done": 0, "waiting": 1, "failed": 0}
+
+
+def test_a_retry_flows_a_redone_page_through_the_steps_it_was_waiting_for():
+    """`recipes-run.steps.retry-flows-through`: Retry is a new run, whose steps' failures are its own. The earliest failed step
+    redoes its failed page; once it finishes, the page is no longer held, so it reaches every later step in order (the pages
+    already done are filtered by `done.split_done`, as in a first run)."""
+    first = [{"state": "partial", "failed_ids": ["p2"]}, {"state": "waiting", "waiting_on": {"p2": "lines"}}, {"state": "waiting"}]
+    assert runner._held_for_inputs(CARDS, first, 1, ["p2"]) == ([], {"p2": "lines"})
+    retry = [{"state": "done"}, {"state": "waiting"}, {"state": "waiting"}]  # a new run: its steps start clean
+    assert runner._held_for_inputs(CARDS, retry, 1, ["p2"]) == (["p2"], {})
+    retry[1] = {"state": "done"}
+    assert runner._held_for_inputs(CARDS, retry, 2, ["p2"]) == (["p2"], {})
+
+
+def test_a_retry_whose_earliest_step_fails_the_page_again_keeps_it_waiting():
+    retry = [{"state": "partial", "failed_ids": ["p2"]}, {"state": "waiting", "waiting_on": {"p2": "lines"}}, {"state": "waiting"}]
+    assert runner._held_for_inputs(CARDS, retry, 2, ["p2"]) == ([], {"p2": "lines"})
