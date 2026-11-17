@@ -5,6 +5,7 @@ release needed a person for (docs/contributor_manual/specs/harness/release-and-v
 from __future__ import annotations
 
 import importlib.util
+import os
 import plistlib
 import re
 import subprocess
@@ -445,3 +446,24 @@ def test_release_all_builds_only_the_dev_dmg_and_public_only_changes_how_it_is_p
     assert "export FICHERO_RELEASE_CHANNEL=dev FICHERO_SKIP_SITE=1" in dev and 'GITHUB_ARGS+=("--prerelease")' in dev
     assert '"${FICHERO_RELEASE_PUBLIC:-0}" != 1 ] && [ -f "$DMG_PATH.tier" ]' in c, "a public run keeps the dev DMG public"
     assert "--github \"$@\"" in p, "publish-release.sh passes --public on"
+
+
+def _public_download_line(script: str, have_dev_dmg: str, public: str, channel: str = "") -> tuple[str, str]:
+    """Run create-github-release.sh's clear-the-dev-DMG line and its DOWNLOAD_LINE choice in bash; return both results."""
+    clear = next(ln for ln in script.splitlines() if ln.endswith("HAVE_DEV_DMG=false; fi") and "FICHERO_RELEASE_CHANNEL" in ln)
+    start = script.index('if [ "$HAVE_DEV_DMG" != true ]; then')
+    pick = script[start:script.index('RELEASE_BODY="## Installation')]
+    code = f'{clear}\n{pick}\necho "$HAVE_DEV_DMG"; echo "$DOWNLOAD_LINE"'
+    done = subprocess.run(["bash", "-c", code], capture_output=True, text=True, timeout=30, check=True,
+                          env={"PATH": os.environ["PATH"], "HAVE_DEV_DMG": have_dev_dmg, "FICHERO_RELEASE_PUBLIC": public,
+                               "FICHERO_RELEASE_CHANNEL": channel})
+    have, line = done.stdout.strip().split("\n", 1)
+    return have, line
+
+
+def test_a_public_release_body_names_only_the_attached_dmg_and_ignores_a_stale_dev_dmg_6665():
+    c = _script("create-github-release.sh")
+    have, line = _public_download_line(c, "true", "1")  # a stale Fichero-dev.dmg is still on disk
+    assert have == "false" and "Fichero-dev.dmg" not in line and "`Fichero.dmg`" in line
+    have, line = _public_download_line(c, "true", "0")  # the two-DMG hand run still names both
+    assert have == "true" and "Fichero-dev.dmg" in line

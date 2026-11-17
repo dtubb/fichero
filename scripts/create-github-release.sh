@@ -161,8 +161,8 @@ TAG="v${VERSION}"
 if [ "${FICHERO_RELEASE_PUBLIC:-0}" != 1 ] && [ -f "$DMG_PATH.tier" ] && [ "$(tr -d '[:space:]' < "$DMG_PATH.tier")" = "dev" ]; then
   export FICHERO_RELEASE_CHANNEL=dev
 fi
-# A dev-channel release ships its one DMG only: drop a stray Fichero-dev.dmg BEFORE any upload.
-if [ "${FICHERO_RELEASE_CHANNEL:-}" = "dev" ]; then HAVE_DEV_DMG=false; fi
+# A dev-channel or --public release ships its one DMG only: drop a stray Fichero-dev.dmg BEFORE any upload.
+if [ "${FICHERO_RELEASE_CHANNEL:-}" = "dev" ] || [ "${FICHERO_RELEASE_PUBLIC:-0}" = 1 ]; then HAVE_DEV_DMG=false; fi
 
 # ── Sparkle update pre-publish readiness (#4901) ─────────────────────────────
 # Fails the release (set -e) before signing/publishing anything if the new
@@ -295,9 +295,9 @@ if [ "$DRY_RUN" = false ] \
   exit 1
 fi
 
-# The text follows the tier that was built: the daily one-DMG dev run (FICHERO_RELEASE_CHANNEL=dev)
-# ships the dev build as Fichero.dmg; the two-DMG hand run keeps the alpha/dev wording.
-if [ "${FICHERO_RELEASE_CHANNEL:-}" = "dev" ]; then
+# The text follows what is attached: with no Fichero-dev.dmg (the one-DMG dev run and every --public run) the dev
+# build is Fichero.dmg; only a run that attaches both DMGs names Fichero-dev.dmg.
+if [ "$HAVE_DEV_DMG" != true ]; then
   DOWNLOAD_LINE="Download \`Fichero.dmg\` below (the dev build, with every feature on — expect rough edges)"
 else
   DOWNLOAD_LINE="Download \`Fichero.dmg\` below (\`Fichero-dev.dmg\` is the internal build with ALL features on — expect rough edges)"
