@@ -150,6 +150,16 @@ struct InspectorPath: Equatable {
     /// The step a Shift+arrow takes in a list that extends (#6457): nil without Shift, so a plain arrow keeps its other job.
     static func extendPlaces(_ places: Int, shift: Bool) -> Int? { shift && places != 0 ? places : nil }
 
+    /// The order Up/Down step through: the order the lists show (#6422), the page's other boxes after it as written; with
+    /// none shown, the boxes as written. So a step after a reorder goes where the list on screen says (#6457).
+    static func stepOrder(boxes: [String], shownOrder: [String]?) -> [String] {
+        guard let shownOrder else { return boxes }
+        let onPage = Set(boxes)
+        let listed = shownOrder.filter(onPage.contains)
+        let listedSet = Set(listed)
+        return listed + boxes.filter { !listedSet.contains($0) }
+    }
+
     /// Up/Down on the shared selection (#6457), for any surface that has focus: the order is the shown page's boxes in reading order,
     /// the selection moves through `select` so the Preview, the Reader and the Inspector change together. False when nothing moves.
     @MainActor
@@ -158,7 +168,9 @@ struct InspectorPath: Equatable {
         store: SegmentStore
     ) -> Bool {
         guard let shown = SegmentDisplay.selected(for: documentId, store: store) else { return false }
-        let order = shown.geometry.boxes.compactMap(\.segmentId)
+        let order = stepOrder(
+            boxes: shown.geometry.boxes.compactMap(\.segmentId), shownOrder: store.orderShownByDocument[documentId]
+        )
         let selected = selectedSegmentIds(selection: selection, documentId: documentId, store: store)
         guard let next = stepped(
             selected, in: order, by: step, extend: extend, startsFromNothing: startsFromNothing

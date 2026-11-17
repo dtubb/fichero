@@ -78,4 +78,12 @@ struct SelectionStepsAcrossSurfacesTests {
         #expect(InspectorPath.extendPlaces(1, shift: false) == nil)
         #expect(InspectorPath.extendPlaces(0, shift: true) == nil)
     }
+
+    /// After a reorder (#6422) Up/Down follow the order the list shows, not the boxes as written; boxes the order does not
+    /// hold come after, as written; with no order shown, the boxes as written.
+    @Test func stepsFollowTheOrderShown() {
+        let boxes = ["r1", "l1", "l2", "l3"]
+        #expect(InspectorPath.stepOrder(boxes: boxes, shownOrder: nil) == boxes)
+        #expect(InspectorPath.stepOrder(boxes: boxes, shownOrder: ["r1", "l3", "l1", "gone"]) == ["r1", "l3", "l1", "l2"])
+    }
 }
