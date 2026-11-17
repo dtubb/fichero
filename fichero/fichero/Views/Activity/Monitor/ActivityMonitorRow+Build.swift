@@ -92,6 +92,7 @@ extension ActivityMonitorRow {
         row.lane = job.lane
         row.ranOnText = job.ranOn.map(\.words)
         row.blockedBy = job.blockedBy
+        row.inView = job.inView
         return row
     }
 

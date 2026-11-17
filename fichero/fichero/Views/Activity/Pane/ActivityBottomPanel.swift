@@ -215,7 +215,10 @@ struct ActivityBottomPanel: View {
             let running = rows.filter { $0.phase == .running }.count
             let waiting = rows.filter { $0.phase == .waiting }.count
             let needYou = rows.filter { $0.phase == .failed || $0.phase == .partial || $0.phase == .paused }.count
-            return "\(running) running · \(waiting) waiting · \(needYou) need you\n\(done) pages done in the last hour"
+            let counts = "\(running) running · \(waiting) waiting · \(needYou) need you"
+            // The page in view, in figures (`activity.foreground.one-glyph-not-words`, #6442).
+            let inView = ActivityPane.inViewFigures(rows).map { " · \($0)" } ?? ""
+            return "\(counts)\(inView)\n\(done) pages done in the last hour"
         case .files:
             return "\(done) pages done · \(failed) failed in the last hour"
         case .archived:

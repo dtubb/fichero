@@ -402,6 +402,16 @@
         "response_model": "RunControlsResponse"
       },
       {
+        "method": "PUT",
+        "path": "/activity/foreground",
+        "operation_id": "put_foreground_api_activity_foreground_put",
+        "summary": "Put Foreground",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ForegroundRequest",
+        "response_model": "ForegroundResponse"
+      },
+      {
         "method": "GET",
         "path": "/activity/history",
         "operation_id": "get_activity_history_api_activity_history_get",

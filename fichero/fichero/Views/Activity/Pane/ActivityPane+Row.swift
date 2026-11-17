@@ -47,6 +47,25 @@ extension ActivityPane {
         }
     }
 
+    // MARK: - The page in view
+
+    /// The tooltip and VoiceOver words of the eye (#6442); the row itself says nothing more.
+    static let inViewWord = "Next: the page in view"
+
+    /// A waiting row whose jobs go next because the person has their page open.
+    static func isNextForThePageInView(_ row: ActivityMonitorRow) -> Bool {
+        row.inView > 0 && row.phase == .waiting
+    }
+
+    /// The status bar's figures for it: "3 for the page in view · 212 more"; nil when nothing is in view.
+    static func inViewFigures(_ rows: [ActivityMonitorRow]) -> String? {
+        let waiting = rows.filter { $0.phase == .waiting && $0.blockedBy == nil }
+        let inView = waiting.reduce(0) { $0 + $1.inView }
+        guard inView > 0 else { return nil }
+        let more = waiting.reduce(0) { $0 + max($1.total, 1) } - inView
+        return more > 0 ? "\(inView) for the page in view · \(more) more" : "\(inView) for the page in view"
+    }
+
     // MARK: - Blocked under its blocker
 
     /// The rows with blocked work listed UNDER what blocks it (`activity.pane.blocked-under-its-blocker`, #6593): under

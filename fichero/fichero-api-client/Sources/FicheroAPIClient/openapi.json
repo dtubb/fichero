@@ -1121,6 +1121,49 @@
         }
       }
     },
+    "/api/activity/foreground": {
+      "put": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Put Foreground",
+        "description": "The page in view first (`activity.foreground.rank-on-the-row-and-the-pick`, #6442; Step 1.14): the client's set of\nwhat is in view replaces its last one, and the waiting jobs of those pages are ranked first in step order; the rest go\nback to 0. A set not reported again within 90 s lapses. It starts nothing and re-runs nothing.",
+        "operationId": "put_foreground_api_activity_foreground_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForegroundRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForegroundResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/activity/jobs/{job_id}/paused": {
       "put": {
         "tags": [
@@ -56406,6 +56449,11 @@
             "type": "string",
             "nullable": true,
             "title": "Blocked By"
+          },
+          "in_view": {
+            "type": "integer",
+            "title": "In View",
+            "default": 0
           }
         },
         "type": "object",
@@ -72963,6 +73011,63 @@
           "script"
         ],
         "title": "FontChoice"
+      },
+      "ForegroundItem": {
+        "properties": {
+          "subject": {
+            "type": "string",
+            "title": "Subject",
+            "description": "a page or document the person has in view"
+          },
+          "rank": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Rank",
+            "description": "its place in the view: 0 the page shown, then its neighbours",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "subject"
+        ],
+        "title": "ForegroundItem"
+      },
+      "ForegroundRequest": {
+        "properties": {
+          "client": {
+            "type": "string",
+            "title": "Client",
+            "description": "the window or pane reporting; its next report replaces this one"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ForegroundItem"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "empty: this client has nothing in view"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client"
+        ],
+        "title": "ForegroundRequest"
+      },
+      "ForegroundResponse": {
+        "properties": {
+          "ranked": {
+            "type": "integer",
+            "title": "Ranked",
+            "description": "waiting jobs now ranked for the page in view, in this project"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ranked"
+        ],
+        "title": "ForegroundResponse"
       },
       "FormatInfo": {
         "properties": {

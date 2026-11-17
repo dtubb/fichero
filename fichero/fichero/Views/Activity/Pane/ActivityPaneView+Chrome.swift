@@ -255,6 +255,7 @@ extension ActivityPaneView {
                                              waiting: rows.filter { $0.phase == .waiting }.count,
                                              spentTodayUsd: spent > 0 ? spent : nil)
         let paused = libraries.contains { $0.activityStore.backgroundMode == .paused }
-        return paused ? counts + " · Automatic work paused" : counts
+        let line = [counts, ActivityPane.inViewFigures(rows)].compactMap { $0 }.joined(separator: " · ")
+        return paused ? line + " · Automatic work paused" : line
     }
 }
