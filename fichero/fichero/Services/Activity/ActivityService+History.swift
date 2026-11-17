@@ -74,7 +74,8 @@ extension ActivityService {
         case .ok(let okResponse):
             let body = try okResponse.body.json
             return ActivityModelsAnswer(models: body.models?.map(ActivityModelEntry.init) ?? [],
-                                        places: body.places?.map(ActivityModelEntry.SetUp.init) ?? [])
+                                        places: body.places?.map(ActivityModelEntry.SetUp.init) ?? [],
+                                        thisMac: body.thisMac.map(ActivityThisMac.init))
         case .undocumented(let statusCode, let payload):
             throw await ActivityServiceError.failure(statusCode: statusCode, payload: payload)
         }
