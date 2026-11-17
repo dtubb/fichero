@@ -28,6 +28,9 @@ final class SegmentStore {
     /// The pass a person picked to see on each page (#6670, `source.editor.pass-shown-is-picked`), while the app runs.
     /// Not a promotion: the engine's working pass is unchanged, and stays the default.
     private(set) var pickedPassByDocument: [String: String] = [:]
+    /// The reading order a list shows for each page, as one sequence of segment ids (#6422): the Preview shades its
+    /// lines along it. Nil: the pass's as-written order.
+    private(set) var orderShownByDocument: [String: [String]] = [:]
     private(set) var loadErrorsByDocumentId: [String: String] = [:]
     /// Per-document generation, bumped when rows CHANGE UNDER a surface: a patch from a
     /// change event, or a forced re-read. NOT by a first load, which a surface asks for
@@ -162,6 +165,13 @@ final class SegmentStore {
         guard pickedPassByDocument[documentId] != passId else { return }
         pickedPassByDocument[documentId] = passId
         // The Preview snapshots its boxes keyed on this generation: moving it draws the picked pass at once.
+        revisions[documentId, default: 0] += 1
+    }
+
+    /// A list shows this order for the page (#6422): the Preview reshades along it.
+    func showOrder(_ segmentIds: [String], documentId: String) {
+        guard orderShownByDocument[documentId] != segmentIds else { return }
+        orderShownByDocument[documentId] = segmentIds
         revisions[documentId, default: 0] += 1
     }
 
