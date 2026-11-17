@@ -28,6 +28,8 @@ extension ActivityJob {
         let state: String
         let done: Int
         let total: Int
+        /// The files an import's stage is on now, by name (`activity.pane.names-what-it-works-on`).
+        var inFlight: [String] = []
     }
 
     struct RanOver: Equatable {

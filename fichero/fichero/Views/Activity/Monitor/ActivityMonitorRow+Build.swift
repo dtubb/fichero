@@ -83,6 +83,7 @@ extension ActivityMonitorRow {
             ended: job.failedAt
         )
         row.trail = ActivityTrail.text(job.stages)  // the one progress of a recipe run
+        if job.taskType == "derivatives" { row.children = importStages(job, under: row) }
         row.failure = job.failure
         row.startedBy = job.startedBy
         row.ended = job.finishedAt ?? job.failedAt
@@ -91,6 +92,28 @@ extension ActivityMonitorRow {
         row.lane = job.lane
         row.ranOnText = job.ranOn.map(\.words)
         return row
+    }
+
+    /// An import's row holds its stages, each with its own count, and under a stage the files it is on now, by name
+    /// (`activity.pane.names-what-it-works-on`, #6588): "which files" is one disclosure away.
+    static func importStages(_ job: ActivityJob, under parent: ActivityMonitorRow) -> [ActivityMonitorRow]? {
+        guard !job.stages.isEmpty else { return nil }
+        return job.stages.map { stage in
+            let stageId = "\(parent.id)|stage:\(stage.title)"
+            let files = stage.inFlight.map { name in
+                ActivityMonitorRow(
+                    id: "\(stageId)|\(name)", kind: .page, libraryId: parent.libraryId, runRowID: nil, runThreadId: nil,
+                    jobId: nil, name: name, projectName: nil, phase: .running, reason: nil, workingOn: nil, done: 0,
+                    total: 0, started: nil, seconds: nil, costUsd: nil, tokens: 0, errors: 0, model: nil, isLive: true,
+                    children: nil)
+            }
+            return ActivityMonitorRow(
+                id: stageId, kind: .step, libraryId: parent.libraryId, runRowID: nil, runThreadId: nil, jobId: nil,
+                name: stage.title, projectName: nil, phase: Phase(engineState: stage.state), reason: nil,
+                workingOn: nil, done: stage.done, total: stage.total, started: nil, seconds: nil, costUsd: nil,
+                tokens: 0, errors: 0, model: nil, isLive: stage.state == "running",
+                children: files.isEmpty ? nil : files)
+        }
     }
 
     private static func node(_ node: ActivityJobNode, run: ActivityRun, library: String) -> ActivityMonitorRow {

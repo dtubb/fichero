@@ -303,7 +303,10 @@ struct ActivityJob: Identifiable, Equatable {
             Remote(target: $0.target ?? "", farState: $0.farState, shards: $0.shards, pagesLanded: $0.pagesLanded ?? 0)
         }
         self.isEarlier = job.group?.rawValue == "earlier"
-        self.stages = (job.stages ?? []).map { Stage(title: $0.title, state: $0.state, done: $0.done ?? 0, total: $0.total ?? 0) }
+        self.stages = (job.stages ?? []).map {
+            Stage(title: $0.title, state: $0.state, done: $0.done ?? 0, total: $0.total ?? 0,
+                  inFlight: $0.inFlight ?? [])
+        }
         self.ranOn = job.ranOn.map { RanOver(kind: $0.kind, count: $0.count ?? 0, name: $0.name) }
         self.model = job.model
         self.costUsd = job.costUsd

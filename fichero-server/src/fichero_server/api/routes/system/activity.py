@@ -385,6 +385,7 @@ class StageCount(BaseModel):
     done: int = 0
     failed: int = 0
     total: int = 0
+    in_flight: list[str] = Field(default_factory=list, description="the files it is on now, by name (an import's stage)")
 
 
 BackgroundJob.model_rebuild()  # `stages` names StageCount, defined here
@@ -965,6 +966,11 @@ async def list_background_jobs(
         if held:
             for job in jobs:
                 job.state, job.reason = "waiting", held
+        # Its children are the stages it holds, each with its count and the files it is on now (#6588).
+        since = derivatives.queue_since(library)
+        stages = await asyncio.to_thread(derivatives.queue_stages, db, since)
+        for job in jobs:
+            job.stages = [StageCount(**stage) for stage in stages]
 
     # Workflow runs that are running, paused or recently failed. A completed run is not a
     # "job" the user needs to watch; a running, paused or failed one is.
