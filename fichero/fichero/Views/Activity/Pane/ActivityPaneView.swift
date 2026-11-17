@@ -99,7 +99,9 @@ struct ActivityPaneView: View {
         let runJobs = Set(rows.filter { $0.kind == .run }.compactMap(\.jobId))
         // The Archived item lists the archived rows and only those (`activity.window.sidebar`).
         if prefs.tab == .archived { return archivedRows }
-        return rows.filter { $0.kind == .run || !runJobs.contains($0.jobId ?? "") } + archivedRows
+        // Blocked work is listed under what blocks it (`activity.pane.blocked-under-its-blocker`).
+        return ActivityPane.underBlockers(rows.filter { $0.kind == .run || !runJobs.contains($0.jobId ?? "") })
+            + archivedRows
     }
 
     /// Archived rows are read while Show Archived is on or the Archived item is chosen.
