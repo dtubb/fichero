@@ -20,10 +20,10 @@ struct ActivityCentreViewsTests {
         return row
     }
 
-    @Test("Runs offers all three views; Recipes and Cost offer Table and Graph")
+    @Test("Runs and Recipes offer all three views; Cost offers Table and Graph")
     func offered() {
         #expect(ActivityCentreView.offered(for: .runs) == [.table, .graph, .visual])
-        #expect(ActivityCentreView.offered(for: .recipes) == [.table, .graph])
+        #expect(ActivityCentreView.offered(for: .recipes) == [.table, .graph, .visual])
         #expect(ActivityCentreView.offered(for: .cost) == [.table, .graph])
     }
 
@@ -52,5 +52,27 @@ struct ActivityCentreViewsTests {
         #expect(bars[0].line == "local-ml" && bars[0].end == t0.addingTimeInterval(30))
         #expect(bars[1].end == now, "work still going ends now")
         #expect(ActivityTimeline.bars([run], by: .model, now: now).map(\.line) == ["Kraken", "Claude"])
+    }
+
+    @Test("Recipes' Visual draws each recipe's newest run as its steps in order, each with its counts")
+    func runGraph() {
+        func line(_ id: String, _ level: ActivityRecipeLine.Level, _ name: String, done: Int = 0, failed: Int = 0,
+                  model: String? = nil, children: [ActivityRecipeLine]? = nil) -> ActivityRecipeLine {
+            ActivityRecipeLine(id: id, level: level, name: name, model: model, pagesDone: done, pagesFailed: failed,
+                               secondsPerPage: 4, children: children)
+        }
+        let newest = line("run:2", .run, "Done", children: [
+            line("s1", .step, "Detect Segments", done: 20, model: "kraken:blla"),
+            line("s2", .step, "Read Lines", done: 17, failed: 3, model: "kraken:catmus"),
+        ])
+        let older = line("run:1", .run, "Failed", children: [line("s0", .step, "Detect Segments")])
+        let empty = line("recipe:b", .recipe, "No steps yet", children: [line("run:3", .run, "Done", children: [])])
+        let runs = ActivityRunGraph.newestRuns([line("recipe:a", .recipe, "Letters", children: [newest, older]), empty])
+
+        #expect(runs.map(\.id) == ["run:2"], "the newest run only; a run with no steps is not drawn")
+        #expect(runs[0].recipe == "Letters")
+        #expect(runs[0].nodes.map(\.name) == ["Detect Segments", "Read Lines"])
+        #expect(runs[0].nodes.map(\.tone) == [.done, .failed])
+        #expect(runs[0].nodes[1].perPage == "4 s")
     }
 }
