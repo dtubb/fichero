@@ -138,3 +138,19 @@ def test_the_listed_row_counts_its_jobs_for_the_page_in_view_and_lists_them_firs
         assert not row.get("in_view"), "moved on: no row is in view"
     finally:
         jobs.set_paused(False)
+
+
+def test_an_engine_restart_leaves_no_stale_rank(db, lane):
+    jobs.set_paused(True)
+    try:
+        read = jobs.enqueue(db, READ, "page-23")
+        jobs.set_foreground(db, "window-1", [("page-23", 0)])
+        assert _rank(db, read) > 0
+
+        jobs._FOREGROUND.clear()  # the engine's memory of the view is gone
+        db._jobs_columns_on = None  # a new connection reads the jobs table again
+        jobs._ensure(db)
+
+        assert _rank(db, read) == 0
+    finally:
+        jobs.set_paused(False)

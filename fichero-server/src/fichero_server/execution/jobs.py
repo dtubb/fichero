@@ -215,6 +215,9 @@ _ADDED_COLUMNS = (
     # The page in view first (`activity.foreground.rank-on-the-row-and-the-pick`, #6442): above 0 a waiting row of the page
     # the person has open, higher first, in the pipeline's step order; the lane picks by it. Back to 0 when they move on.
     "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS foreground_rank INTEGER DEFAULT 0",
+    # The view that set a rank lives in the engine's memory and ends with it: a rank left on a row by an engine that closed
+    # or restarted is stale, so every connection's first read puts them all back to 0.
+    "UPDATE jobs SET foreground_rank = 0 WHERE foreground_rank <> 0",
 )
 
 
