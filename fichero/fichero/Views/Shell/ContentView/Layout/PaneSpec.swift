@@ -36,6 +36,8 @@ struct PaneSpec: Identifiable, Equatable {
         case segments
         /// The Activity pane (#6441).
         case activity
+        /// The Activity graphs pane (decisions 40-41).
+        case activityGraphs
 
         var title: String {
             switch self {
@@ -46,6 +48,7 @@ struct PaneSpec: Identifiable, Equatable {
             case .chat: "Chat"
             case .segments: "Segments"
             case .activity: "Activity"
+            case .activityGraphs: "Activity Graphs"
             }
         }
 
@@ -58,6 +61,7 @@ struct PaneSpec: Identifiable, Equatable {
             case .chat: "bubble.left.and.bubble.right"
             case .segments: "list.bullet.rectangle"
             case .activity: "waveform.path.ecg"
+            case .activityGraphs: "chart.bar.xaxis"
             }
         }
 
