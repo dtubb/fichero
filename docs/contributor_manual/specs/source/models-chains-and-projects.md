@@ -4335,10 +4335,12 @@ Running and failure
   in Activity with its reason, retried three times, then the steps that need the model wait with
   "Model download failed" and offer Retry or the next candidate; other steps run. *Built: a download retries a
   broken connection on its own (`model_downloads.BACKOFF_SECONDS`, four tries, then `COME_BACK_ROUNDS`, five, five
-  minutes apart: more than three), its row in Activity carries the reason, and the run's steps on it are not run
-  with "Model download failed: <model> did not download (<reason>). Retry it in Activity, or choose the step's next
-  candidate in Set Up" while the other steps run (`runner._await_downloads`,
-  `fichero-server/tests/unit/recipes/test_start_while_models_download.py`). Built (engine, #5352): the run summary's `download_failed` lists each step waiting on a download that failed, with the
+  minutes apart: more than three), its row in Activity carries the reason, and the run's steps on it wait, page by page,
+  "waiting for <model> to download" (the step's reason: "Model download failed: <model> did not download (<reason>).
+  Retry it in Activity, or choose the step's next candidate in Set Up"; a model that cannot be queued at all says
+  why in the same words) while the other steps run (`runner._await_downloads`, `runner._fetch_models_first`,
+  `fichero-server/tests/unit/recipes/test_start_while_models_download.py`,
+  `fichero-server/tests/unit/recipes/test_models_fetched_before_the_step_6673.py`). Built (engine, #5352): the run summary's `download_failed` lists each step waiting on a download that failed, with the
   download's `job_id` to retry (`POST /api/activity/jobs/{job_id}/retry`), and `next_candidate`, the first other entry of the step's
   `chain` (local first; a cloud one carries `needs_permission` until pages may leave), chosen with
   `POST /api/recipes/project/steps/use-candidate` (`run_view.download_failures`;
