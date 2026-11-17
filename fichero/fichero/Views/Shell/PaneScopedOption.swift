@@ -42,7 +42,7 @@ enum PaneScopedOption {
 /// stays at the option's existing key (so nobody's current setting is lost); the per-pane map sits
 /// at `<key>.byPane`. See `PaneScopedOption` for the read and write rules.
 @propertyWrapper
-struct PaneStorage<Value: Codable>: DynamicProperty {
+struct PaneStorage<Value: Codable & Sendable>: DynamicProperty {
     @Environment(\.paneLeafId) private var pane
     private let shared: AppStorage<Value>
     private let map: AppStorage<String>

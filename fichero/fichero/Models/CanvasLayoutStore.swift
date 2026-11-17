@@ -244,7 +244,7 @@ final class CanvasLayoutStore {
                 // Reconcile, but only while this is still the newest save — a
                 // slower earlier response must not overwrite a later drag.
                 let json = try okResponse.body.json
-                let echoed = try json.items.map(CanvasItemLayout.init(schema:))
+                let echoed = json.items.map(CanvasItemLayout.init(schema:))
                 if saveSequence[folderId] == sequence {
                     layouts[folderId] = echoed
                 }
