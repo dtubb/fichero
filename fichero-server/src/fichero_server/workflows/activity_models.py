@@ -82,6 +82,42 @@ def _cluster_names(app_db: Any = None) -> dict[str, str]:
         return {}
 
 
+def this_mac(db: "Database", *, memory: tuple[int | None, int | None] | None = None,
+             load: float | None = None) -> dict[str, Any]:
+    """This Mac, measured (`activity.resources.everything-measured`, decision 42): memory used of its total (the kernel's
+    share free of the physical memory), the processor's load (the last minute's load average over its cores), and each
+    lane's jobs running now (this project's) of its width. What nothing measures is None, never 0."""
+    import os
+
+    from fichero_server.execution import jobs as job_queue
+
+    if memory is None:
+        from fichero_server.llm import kraken_runtime
+
+        try:
+            memory = (kraken_runtime._physical_memory_bytes(), kraken_runtime._memory_free_percent())
+        except Exception:  # noqa: BLE001 -- unmeasured reads "—"
+            memory = (None, None)
+    total, free_percent = memory
+    used = int(total * (100 - free_percent) / 100) if total and free_percent is not None else None
+    if load is None:
+        try:
+            load = os.getloadavg()[0]
+        except OSError:
+            load = None
+    cores = os.cpu_count() or 0
+    busy: dict[str, int] = {}
+    job_queue._ensure(db)
+    for (kind,) in db.execute_fetchall("SELECT kind FROM jobs WHERE state = 'running'"):
+        registered = job_queue.KINDS.get(kind)
+        if registered is not None:
+            busy[registered.lane] = busy.get(registered.lane, 0) + 1
+    return {"memory_used_bytes": used, "memory_total_bytes": total,
+            "processor_percent": round(100 * load / cores, 1) if load is not None and cores else None,
+            "lanes": [{"lane": lane, "busy": busy.get(lane, 0), "width": width}
+                      for lane, width in job_queue.LANES.items()]}
+
+
 def places() -> list[dict[str, str]]:
     """Every place work can run, set up or not used: this Mac, another Mac (a provider row whose Server URL is off this
     Mac, by its host), each cluster set up (by its name) and each cloud provider set up. (place, provider) pairs in the

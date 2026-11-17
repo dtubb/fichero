@@ -1705,9 +1705,25 @@ class ActivityPlace(BaseModel):
     provider: str
 
 
+class LaneLoad(BaseModel):
+    lane: str
+    busy: int = Field(description="this project's jobs running in it now")
+    width: int = Field(description="how many it runs at once")
+
+
+class ThisMac(BaseModel):
+    """This Mac, measured (`activity.resources.everything-measured`): null where nothing measures it, never 0."""
+
+    memory_used_bytes: Optional[int] = None
+    memory_total_bytes: Optional[int] = None
+    processor_percent: Optional[float] = Field(default=None, description="the last minute's load over its cores, %")
+    lanes: list[LaneLoad] = Field(default_factory=list)
+
+
 class ActivityModelsResponse(BaseModel):
     models: list[ActivityModel] = Field(default_factory=list)
     places: list[ActivityPlace] = Field(default_factory=list, description="every place set up, used or not")
+    this_mac: Optional[ThisMac] = None
 
 
 @router.get("/models", response_model=ActivityModelsResponse)
@@ -1715,11 +1731,12 @@ async def activity_models(db: Database = Depends(get_library_database)) -> Activ
     """The Models tree (`activity.window.models-tree`, `activity.resources.everything-measured`, #6588): every model this
     project used today, the engine holds now or this Mac has installed, by place (this Mac, remote, cloud) and provider,
     loaded or not, active or not, its memory where measured, today's pages, calls and seconds; and every place set up."""
-    from fichero_server.workflows.activity_models import models, places
+    from fichero_server.workflows.activity_models import models, places, this_mac
 
     found = await asyncio.to_thread(models, db)
     return ActivityModelsResponse(models=[ActivityModel(**m) for m in found],
-                                  places=[ActivityPlace(**p) for p in await asyncio.to_thread(places)])
+                                  places=[ActivityPlace(**p) for p in await asyncio.to_thread(places)],
+                                  this_mac=ThisMac(**await asyncio.to_thread(this_mac, db)))
 
 
 class RecipeStepRow(BaseModel):

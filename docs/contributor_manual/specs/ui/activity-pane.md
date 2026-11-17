@@ -882,7 +882,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   the fixed height of `activity.window.graph-on-every-view`) the graphs are a pane: under the centre by default, its divider
   dragged, and maximised full size like any pane (and back); it follows the sidebar's selection. Acceptance: maximising it
   fills the window's centre; restoring it gives the height it had. *Built 2026-11-15:* the graphs' Full Size button fills the centre with them (kept per window, `@SceneStorage`) and Show the Table brings the rows back. A main window opening it as a pane is `activity.window.views-are-panes`, below. *Test:* `ActivityBottomPanelTests.swift` extended. *Changed 2026-11-16 (#6661):* the graphs' height is kept per window by `ActivityGraphsSplitStack` (`@SceneStorage`), so Full Size and back gives the height it had. *Test:* `fichero/Tests/Unit/general/Views/Activity/Pane/ActivityWindowLayoutTests.swift`. *Built 2026-11-16:* a main window opens the graphs as a pane of its own, "Activity Graphs" (`activity.window.views-are-panes`). *Test:* `ActivityPaneKindsTests.swift`.
-- `activity.resources.everything-measured` — **[GAP]** (#6588; decision 42; `activity.window.models-tree`) the engine answers,
+- `activity.resources.everything-measured` — **[PARTIAL]** (#6588; decision 42; `activity.window.models-tree`) the engine answers,
   per model, `memory_bytes` (a process of its own: its resident size, `execution/models_held.py`; Kraken's readers: the size
   the throttle gives them, marked `estimated`), `loaded_at`, and today's `pages`, `calls`, `seconds`; per cluster job (the
   remote jobs, `workflows/remote_jobs.py`), `queued_seconds`, `run_seconds` (from its phase history), node hours and cost when
@@ -890,7 +890,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   a cluster job or a place shows them; the Models tree's rows show memory; the Graph view draws them over time. What nothing
   measures is "—", never 0. Acceptance: an embedder loaded shows its resident megabytes; Kraken shows "~2.5 GB (estimated)";
   a cluster job of 40 min queued and 12 min run reads both. *Test:* `fichero-server/tests/unit/api/test_activity_models_6588.py`
-  extended, `test_cluster_job_times_6588.py`.
+  extended, `test_cluster_job_times_6588.py`. *Built 2026-11-16:* a remote read stamps each shard when it is sent, first seen running and seen ended, and its status answers `times` (time queued and time run summed over its shards, node hours, and cost where the target has a price), drawn in the run's Inspector ("40 min queued · 12 min run · 0.2 node-hours"); the Models answer carries `this_mac` (memory used of its total from the kernel's share free, the processor's last-minute load over its cores, each lane's jobs running of its width), drawn on This Mac's row under Where with the busy lanes in its help; each model's memory as before. *Not yet:* `loaded_at` (nothing records when a model loaded); the Inspector of a model or a place; the Graph view of them over time; a cluster's own report of node hours and cost (Slurm's accounting); seen on screen. *Test:* `fichero-server/tests/unit/remote_read/test_cluster_job_times_6588.py`, `test_activity_models_6588.py` (`test_this_mac_is_measured_or_says_it_is_not`), `ActivityResourcesMeasuredTests.swift`.
 
 ## Build order
 

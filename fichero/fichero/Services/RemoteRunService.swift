@@ -25,6 +25,26 @@ final class RemoteRunService {
         let shards: [Shard]
         let estimateGpuHours: Double?
         let actualSecondsPerShard: Double?
+        /// Measured over its shards (`activity.resources.everything-measured`): nil where nothing measured it.
+        var queuedSeconds: Double?
+        var runSeconds: Double?
+        var nodeHours: Double?
+        var costUsd: Double?
+
+        /// "40 min queued · 12 min run · 0.2 node-hours · $0.40"; nil when nothing was measured.
+        var timesWords: String? {
+            guard queuedSeconds != nil || runSeconds != nil else { return nil }
+            let span: (Double?) -> String = { seconds in
+                seconds.map { Duration.seconds($0).formatted(.units(allowed: [.hours, .minutes], width: .abbreviated)) }
+                    ?? "—"
+            }
+            var parts = ["\(span(queuedSeconds)) queued", "\(span(runSeconds)) run"]
+            if let nodeHours {
+                parts.append("\(nodeHours.formatted(.number.precision(.fractionLength(1)))) node-hours")
+            }
+            if let costUsd { parts.append(costUsd.formatted(.currency(code: "USD"))) }
+            return parts.joined(separator: " · ")
+        }
         var offers: [Offer] {
             switch farState {
             case "queued", "running": return [.cancel, .catchUp]
@@ -51,7 +71,9 @@ final class RemoteRunService {
             shardsTotal: body.shardsTotal ?? 0, pagesLanded: body.pagesLanded ?? 0,
             shards: (body.shards ?? []).compactMap { Self.shard(from: $0.additionalProperties.value.compactMapValues { $0 }) },
             estimateGpuHours: body.estimate?.additionalProperties.value["gpu_hours"] as? Double,
-            actualSecondsPerShard: body.actual?.additionalProperties.value["seconds_per_shard"] as? Double)
+            actualSecondsPerShard: body.actual?.additionalProperties.value["seconds_per_shard"] as? Double,
+            queuedSeconds: body.times?.queuedSeconds, runSeconds: body.times?.runSeconds,
+            nodeHours: body.times?.nodeHours, costUsd: body.times?.costUsd)
     }
 
     private static func shard(from raw: [String: Any]?) -> Shard? {
