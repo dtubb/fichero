@@ -35,13 +35,11 @@ enum PaneFocus: Hashable {
         case .chat: return "Chat"
         case .inspector: return "Inspector"
         case .segments: return "Segments"
-        case .activity: return "Activity"
-        case .activityGraphs: return "Activity Graphs"
+        case .activity, .activityGraphs: return self == .activity ? "Activity" : "Activity Graphs"
         }
     }
 
-    /// The pane KIND a focused pane is, for Split / Close / New Tab on the focused pane; nil for the
-    /// sidebar and the inspector, which are not leaves of the pane list.
+    /// The pane KIND a focused pane is, for Split / Close / New Tab; nil for the sidebar and inspector (not leaves).
     var paneKind: PaneKind? {
         switch self {
         case .content: .library
