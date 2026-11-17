@@ -25,6 +25,9 @@ struct ActivityPaneView: View {
     var revealFiles: [String]?
     /// Rows to select together once listed (the launch alert's Choose…).
     var revealAll: [ActivitySelection]?
+    /// The Activity Graphs pane (`activity.window.views-are-panes`, decisions 40-41): the graphs alone, as a pane of
+    /// their own, read and drawn as the window draws them.
+    var graphsOnly = false
     /// The selected row, for the Inspector beside the pane; nil with none or several selected.
     var onSelect: (ActivityPaneSelection?) -> Void = { _ in }
     /// A Show in Activity was answered (its row selected): the asker clears it, so a later refresh does not select it again.
@@ -172,7 +175,9 @@ struct ActivityPaneView: View {
         let shown = shownRows
         return VStack(spacing: 0) {
             if showsHead { head; Divider() }
-            if showsHead {
+            if graphsOnly {
+                graphs
+            } else if showsHead {
                 rowsView(shown)
             } else if ActivityCentreView.offered(for: prefs.tab).count > 1 && !graphsFull {
                 // The centre's view of the item (`activity.window.centre-views`): Table as before, Graph full size,
@@ -190,7 +195,7 @@ struct ActivityPaneView: View {
             } else {
                 tableCentre(shown)
             }
-            bottomBar
+            if !graphsOnly { bottomBar }  // the graphs pane has no rows to filter
         }
         .accessibilityIdentifier("activity.pane")
         .onChange(of: selection) { _, _ in onSelect(selectedPick) }
