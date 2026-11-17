@@ -664,10 +664,11 @@ The behaviours:
   resident models are never released for an embed or a thumbnail while that stage has pages left. Other projects'
   embeds wait the same way on a Mac with 16 GB or less.
   Tests: `fichero-server/tests/unit/jobs/test_one_heavy_model_in_sequence_6673.py`. Built: the embed lane waits while any Kraken page is in flight, on every Mac (the page gate names no library).
-- `recipes-run.memory.recorded-per-step` — **[GAP]** (#6673) each step of a run records the Mac's RAM, the engine's
+- `recipes-run.memory.recorded-per-step` — **[OK]** (#6673) each step of a run records the Mac's RAM, the engine's
   peak memory, swap used and the memory-pressure level while it ran, and model loads and unloads, in the run's
   record and in Save Logs for Support, so a run that failed on another person's Mac (2026-11-17: Ann's) can be read
   afterwards: "Kraken reloaded 31 times; swap 6 GB; memory pressure high".
+  Tests: `fichero-server/tests/unit/recipes/test_memory_recorded_per_step_6673.py`. Built: each step's `memory` in the run's detail, and one `run step <name>:` line in engine.log, which Save Logs for Support carries.
 - A provider's in-flight or rate limit pauses the run, never fails pages: `ai.where.one-retry-policy`, #6671.
 
 ## Changes to existing behaviours
