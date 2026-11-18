@@ -9,29 +9,31 @@ struct ActivityRunGraphView: View {
             Text("No recipe run has steps to draw").foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            ScrollView([.vertical, .horizontal]) {
-                VStack(alignment: .leading, spacing: 18) {
-                    ForEach(runs) { run in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(run.recipe).font(.headline)
-                                + Text(run.when.map { "  \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "")
-                                .font(.caption).foregroundColor(.secondary)
-                            HStack(spacing: 6) {
-                                ForEach(Array(run.nodes.enumerated()), id: \.element.id) { index, node in
-                                    if index > 0 {
-                                        Image(systemName: "arrow.right").foregroundStyle(.tertiary)
-                                            .accessibilityHidden(true)
-                                    }
-                                    nodeCard(node)
-                                }
+            ScrollView([.vertical, .horizontal]) { runList }
+                .accessibilityIdentifier("activity.recipes.visual")
+        }
+    }
+
+    private var runList: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            ForEach(runs) { run in
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(run.recipe).font(.headline)
+                        + Text(run.when.map { "  \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "")
+                        .font(.caption).foregroundColor(.secondary)
+                    HStack(spacing: 6) {
+                        ForEach(Array(run.nodes.enumerated()), id: \.element.id) { index, node in
+                            if index > 0 {
+                                Image(systemName: "arrow.right").foregroundStyle(.tertiary)
+                                    .accessibilityHidden(true)
                             }
+                            nodeCard(node)
                         }
                     }
                 }
-                .padding(12)
             }
-            .accessibilityIdentifier("activity.recipes.visual")
         }
+        .padding(12)
     }
 
     private func nodeCard(_ node: ActivityRunGraph.Node) -> some View {
