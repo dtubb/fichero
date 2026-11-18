@@ -27,7 +27,7 @@
 > - `source/models-chains-and-projects.md` — the card, the rules, the bake-off, discovery, the
 >   egress gate (`source.model.*`, `source.find.*`, `source.egress.*`), and #5582's paragraph,
 >   "The best model, and the best place to run it", which this spec expands.
-> - `ui/activity-and-automatic-work.md` — the one job model and its lanes (`activity.*`).
+> - `ui/activity-pane.md` — the one job model and its lanes (`activity.*`).
 
 ## Intent
 
@@ -611,5 +611,5 @@ person, never silently (`ai.where.fallback-free-and-asked`).
   rows become one "Where models run" list of places.
 - `compute/jobs-and-fine-tuning.md`: `compute.job.choose-where` is this spec's offers list for batch
   places; `compute.job.costs-shown-where-known` rolls into `ai.where.hourly-cost-in-the-account`.
-- `ui/activity-and-automatic-work.md`: a call row gains a `place`; the `network` lane's share is
+- `ui/activity-pane.md`: a call row gains a `place`; the `network` lane's share is
   per place, not per provider type.

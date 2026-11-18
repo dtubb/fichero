@@ -401,7 +401,7 @@ may be why it still reads as broken to whoever tests it next.
   `fichero/Tests/Unit/general/Views/Library/LibraryOutlineRowDragTests.swift`.
 
 The table's **Done** column (one badge per step run on a document) belongs to
-`activity.document.what-has-been-run` in `ui/activity-and-automatic-work.md` (#5434); it is
+`activity.document.what-has-been-run` in `ui/activity-pane.md` (#5434); it is
 specified there, not here.
 
 Verify-close candidate, left OPEN for the maintainer, not closed here: **#3697** ("Column

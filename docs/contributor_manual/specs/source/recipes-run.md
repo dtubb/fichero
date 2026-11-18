@@ -15,7 +15,7 @@
 Tags: [OK] built and pinned · [PARTIAL] exists, partly wired or unpinned · [GAP] not built · [BROKEN] the
 code contradicts the intent. This spec does **not** replace `source/recipe-designer.md` (how a recipe is
 designed), `source/models-chains-and-projects.md` (the run's engine behaviours, `source.recipe.*`) or
-`ui/activity-and-automatic-work.md` (lanes, throttle, durability, the Activity window). It walks the one
+`ui/activity-pane.md` (lanes, throttle, durability, the Activity window). It walks the one
 journey **from Start to the summary** and states the RELIABILITY behaviours as testable lines, each with
 its honest tag, its test and its issue. Where an existing id already says it, this spec cites it (the
 owning spec stays the place to change it) and adds a `recipes-run.*` line only for what no spec said.
@@ -50,7 +50,7 @@ app only shows what the engine says (`fichero/fichero/Views/Activity/`); no rule
 
 - **Spotlight and Photos indexing.** Long background work that never gets in the way, survives every
   quit and crash, and resumes where it was; the activity spec adopts this as its north star
-  (`ui/activity-and-automatic-work.md` "Intent"). We add nothing; this spec makes the recipe run honour it.
+  (`ui/activity-pane.md` "Intent"). We add nothing; this spec makes the recipe run honour it.
 - **Durable queues: claim with a lease, transactional outbox, exactly-once effect.** The pattern of every
   job queue that survives its workers (Sidekiq, Celery with acks-late, Postgres `SKIP LOCKED` queues): a
   `running` row whose lease lapsed goes back to `waiting`, never to `failed`
@@ -814,7 +814,7 @@ done-in-order progress, so the manual's screenshot shows both.
 
 ## Accessibility identifiers
 
-Activity's (`ui/activity-and-automatic-work.md`). This spec adds none.
+Activity's (`ui/activity-pane.md`). This spec adds none.
 
 ## UX completeness
 

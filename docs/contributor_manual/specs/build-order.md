@@ -12,10 +12,10 @@
 2. `image-enhancement` — the one product lane tonight (Step 1.1 landed first). Spec: source/image-enhancement.md
 3. `Sharing & Pairing — Dead-Simple UX` — spec APPROVED with 27 steps; rename the milestone to `sharing-two-macs` when triage runs. Spec: source/sharing-two-macs.md
 4. `recipe-designer` — wide onboarding; the recipe phases R1–R5 go into its build order first. Spec: source/wide-onboarding.md
-5. `recipes-run` — running things and watching them
-6. `activity` — running things and watching them
-7. `workflows` — running things and watching them
-8. `workflow-node-config` — running things and watching them
+5. `recipes-run` — running things and watching them: a recipe run from Start to the summary. Spec: source/recipes-run.md; how any run fails, pauses and goes on: compute/runner-reliability.md
+6. `activity` — running things and watching them: the Activity pane and window, the one job model. Spec: ui/activity-pane.md
+7. `workflows` — running things and watching them: the workflow editor and bar. Spec: ui/workflows.md
+8. `workflow-node-config` — running things and watching them. Spec: ui/workflow-node-config.md
 9. `source-model` — the data model and getting material in
 10. `importer` — the data model and getting material in
 11. `undo-trash-rollback` — the data model and getting material in
@@ -46,6 +46,11 @@
 36. `ui-test-harness` — testing and release
 37. `release-and-versioning` — testing and release
 38. `cloud-permission-and-spend` — caps in Settings, images to the cloud, a refusal with a way through. Spec: ai/cloud-permission-and-spend.md
+
+## Merged specs (pointers; the files stay as one-paragraph stubs because tests cite them by path)
+
+- `ui/activity-and-automatic-work.md` → `ui/activity-pane.md` (the one job model, lanes, throttle, durability, the window; its Stage N is Stage N+5 there) and `compute/runner-reliability.md` section K (its §J). 2026-11-18.
+- `ai/run-failure-alerts.md` → `compute/runner-reliability.md` (the kinds table, the `run.fail.*` behaviours; its Stages 1 and 2 are Stages 4 and 5 there). 2026-11-18.
 
 ## Parked
 

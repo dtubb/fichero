@@ -21,7 +21,7 @@
 > describes); `ai/ai-settings.md` (section K) (where keys live); `ai/ai-settings.md` (section M)
 > (pickers list configured models and role defaults from one list builder); `ui/workflows.md`
 > and `ui/workflow-node-config.md` (a workflow is a saved graph of tool nodes; the workflow bar;
-> the locked default workflows); `ui/activity-and-automatic-work.md` (the one job model that
+> the locked default workflows); `ui/activity-pane.md` (the one job model that
 > **runs** a recipe, #5352); `compute/remote-compute.md`, `compute/jobs-and-fine-tuning.md` and
 > `compute/distillation.md` (where work runs; training; teaching a small model from a big one);
 > `source/formats-and-training.md` (ground truth, measuring, training sets);
@@ -876,7 +876,7 @@ a step by hand, always sees progress and results, and nothing fails without sayi
 steps (`FirstRunWindow`, `RecipeSetupPlanFields`, `RecipeStepsView`, `RecipeSetupStore`), the engine's
 `recipes/assemble.py`, `start.py`, `runner.py`, `done.py`, `jobs.py`, `answers.py`, `seed/cards.yaml`,
 `api/routes/system/recipes.py` and `importers/derivatives.py`, against `source/finding-documents.md`,
-`compute/jobs-and-fine-tuning.md` (memory, runs, read again) and `ui/activity-and-automatic-work.md`.
+`compute/jobs-and-fine-tuning.md` (memory, runs, read again) and `ui/activity-pane.md`.
 Three cases were traced end to end.
 
 **The order after Start, by kind of material (the target).** Each stage is a job with its rows in
@@ -2056,7 +2056,7 @@ writes it, runs it, records it, or carries it:
 | Part | Its relation to the recipe |
 |---|---|
 | **Setup** (above) | **Writes** it: the purpose picks the steps; the answers and model cards pick the models by rule; the bake-off confirms them. |
-| **Activity and automatic work** (`ui/activity-and-automatic-work.md`, #5352) | **Runs** it: new material goes through the resolved recipe's automatic steps as jobs; because each job declares what it takes and gives, a correction re-queues exactly the later steps that depend on it (#5360, #5361). |
+| **Activity and automatic work** (`ui/activity-pane.md`, #5352) | **Runs** it: new material goes through the resolved recipe's automatic steps as jobs; because each job declares what it takes and gives, a correction re-queues exactly the later steps that depend on it (#5360, #5361). |
 | **The archive format** (`source-model.md`) | **Records** it: every pass, segment, reading and claim a step makes names the recipe and version that ran it, beside its maker, model and run, and lands as new work, never over a person's. |
 | **Export** (`formats-and-training.md`, `export/exporter.md`) | **Carries** it: an export package can include the recipe that made it, in the same RO-Crate. |
 | **The synced folder** (`synced-folder.md`) | Is an **output step's** destination, kept current as the work changes, and can work both ways. |
@@ -4823,7 +4823,7 @@ Unverified for every entry: whether an MLX build exists to read with the untrain
 - `source/source-model.md`: its glossary rows for **profile** and **recipe** should point here (a
   profile is a recipe's defaults section; a recipe is more than a chain), and its ruling 10's
   "project settings window" is settled as the Inspector (ruled 2026-10-01).
-- `ui/activity-and-automatic-work.md`: its request for an `automatic` section is met by the
+- `ui/activity-pane.md`: its request for an `automatic` section is met by the
   resolved recipe (`source.recipe.steps-name-layers`), worked out from the purpose, not written in
   the shared file.
 - `ai/ai-settings.md` (section M): a picker row could show what a card knows (suits, local or

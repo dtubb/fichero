@@ -25,7 +25,7 @@ Status words: **built** (behaviours mostly [OK]), **partly built**, **specced** 
 | 10. Natural-language generation | `kg/kg-readable-representation.md` | partly built | **summaries that show, not tell** (below) |
 | 11. Publishing | `export/exporter.md`, `source/iiif.md` (published folders, static), `source/synced-folder.md` | partly built | **a public family-history site from a regional archive** (below) |
 
-Running all of it: `ui/activity-and-automatic-work.md` (one job model, the workflow runner inside
+Running all of it: `ui/activity-pane.md` (one job model, the workflow runner inside
 it, automatic reprocessing), `ai/local-runtimes.md` (how each model runs), and the recipe and
 onboarding sections of `source/models-chains-and-projects.md` (what runs, chosen how). These
 three are one connected set and are built together.

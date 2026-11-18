@@ -240,7 +240,7 @@ one catalogue, one gate that decides whether content may leave.
   vision-language model (for example Qwen2.5-VL 3B) with LoRA; spaCy. Good models are released
   on Hugging Face as part of Fichero, with their licences respected.
 - **One job model.** A remote, cluster or training run is a job in the one job table of
-  `ui/activity-and-automatic-work.md` (its question 9, ruled 2026-10-01), never a second runner
+  `ui/activity-pane.md` (its question 9, ruled 2026-10-01), never a second runner
   or a second job table.
 - **Load a model once, group work by model, never co-run heavy models unless both fit**, and
   measure what each job uses (CPU, GPU, Neural Engine, memory).
@@ -443,7 +443,7 @@ The maintainer's standing worry is two code paths for one job. Five are already 
 | 5 | A cluster-served model as a **new kind of provider** (the fine-tuning plan) or as **an existing local-server row at another address** | An existing kind of row. A session adds a row and removes it. No second provider system. See `jobs-and-fine-tuning.md`. |
 | 6 | Two **job runners**: the workflow runner on the Mac, and a separate small `runner/run_task.py` for clusters (named, never written) | One runner. The image runs the same workflow code in a "run this package" mode. See `jobs-and-fine-tuning.md`. |
 | 7 | Two **model catalogues**: models on the Mac, and models cached on a target | One catalogue of cards (`source.model.card-is-the-catalogue`). A card gains "also present on these targets". A target has no catalogue of its own. |
-| 8 | Two **job models**: a `compute_jobs` table proposed here, and the one `jobs` table of `ui/activity-and-automatic-work.md` | The one `jobs` table (ruled 2026-10-01). A remote job is a row with lane `remote` and its target named; its far-side states are its `state` and `waiting_reason`; array pieces are child jobs. See `compute.job.one-state-machine`. |
+| 8 | Two **job models**: a `compute_jobs` table proposed here, and the one `jobs` table of `ui/activity-pane.md` | The one `jobs` table (ruled 2026-10-01). A remote job is a row with lane `remote` and its target named; its far-side states are its `state` and `waiting_reason`; array pieces are child jobs. See `compute.job.one-state-machine`. |
 | 9 | Two **trainers**: one in the Mac engine, one in the image | One trainer in the engine's code. It runs in process on the Mac and in "run a package" mode in the image, on Hugging Face Jobs or a cluster. See `compute.tune.one-trainer-three-places`. |
 
 ## How this is tested from the maintainer's side
@@ -756,7 +756,7 @@ None of these is wrong. None is needed to fine-tune a Kraken reader and a YOLO p
 
 ### Requests to other specs (not edited here)
 
-- `ui/activity-and-automatic-work.md`: its `kind` list has `remote`. Where a job runs is not what
+- `ui/activity-pane.md`: its `kind` list has `remote`. Where a job runs is not what
   it does: prefer a `target` field (this Mac by default) with lane `remote` for jobs sent away,
   and `kind` staying `workflow` or `train-a-model`. Also add `train-a-model` to the local ML lane's
   kinds.

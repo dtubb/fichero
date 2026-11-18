@@ -6,7 +6,7 @@
 >
 > **Status: APPROVED 2026-10-28** (proposed 2026-10-27, revised 2026-10-28 on the owner's direction; the owner took
 > the recommended answer to each open question, written in below as rulings). It extends `compute/hpc-runner-acenet.md` (the cluster, its rules, `SlurmTarget`),
-> `ui/activity-and-automatic-work.md` `activity.lane.scale-out-batches-and-result-files` (K tasks of S pages, the
+> `ui/activity-pane.md` `activity.lane.scale-out-batches-and-result-files` (K tasks of S pages, the
 > retry ladder, result files, the one sheet) and `activity.run.cloud-batch` (a place per step; a step nobody is
 > waiting for goes to the provider's Batch API), and `ai/where-models-run.md` `ai.where.provider-batch-is-an-offer`
 > (#5940), `ai.where.batch-results-land-once` (#5945), `ai.where.batch-stop-reaches-the-provider` (#5946). Those

@@ -605,7 +605,7 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
 - `compute/targets-and-connection.md`: add a Mac as a target kind (`training.place.other-macs`).
 - `source/models-chains-and-projects.md`: `source.model.node-actions` points here for the four buttons;
   the node is named Models (open question 3, ruled 2026-10-10).
-- `ui/activity-and-automatic-work.md`: a training row's phases in words
+- `ui/activity-pane.md`: a training row's phases in words
   (`training.run.one-row-in-activity`).
 
 ## Contradictions with existing specs (noted, not resolved here)

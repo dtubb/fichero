@@ -1011,7 +1011,7 @@ clearing a list of failures cannot quietly discard work.
 
 `GET /api/activity/jobs` lists what is working in the background: the derivative queue, running
 or failed workflow runs, and the rows of the project's `jobs` table (the one job model,
-`specs/ui/activity-and-automatic-work.md`): `running`, `waiting` (one row per kind when more
+`ui/activity-pane.md`): `running`, `waiting` (one row per kind when more
 than one waits, with the count in `total`), `paused` and recent `failed` jobs, each with its
 `reason` in words ("Paused by you", "Waiting for Kraken (another page is using it)").
 `paused` says whether *Pause Background Work* is on.

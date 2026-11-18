@@ -14,7 +14,7 @@
 > landed real clusters for two weeks) and `harness/deterministic-conductor.md` is its record. `ui/research.md` keeps the
 > Research surface; its orchestration lines (`research.manager-with-workers-orchestration`,
 > `research.future.agent-operates-projects`, `research.per-model-tool-grants`) are owned here.
-> `ui/activity-and-automatic-work.md` keeps the job model, lanes, throttling and durability; § E overrides its window
+> `ui/activity-pane.md` keeps the job model, lanes, throttling and durability; § E overrides its window
 > columns and adds workers as rows. `ui/workflows.md` keeps the canvas; no graph drives a worker's loop.
 
 ## Intent
@@ -1795,5 +1795,5 @@ Every behaviour names its test above, written in its step; each `security.*` and
 |-----|------|
 | `docs/contributor_manual/how-fichero-is-built.md` | Fichero builds itself through its harness; how to run a cluster on a scratch path as the worker user; the Researcher as the same harness |
 | `docs/contributor_manual/review-checklist.md` | the reviewer's checklist (spec diff, range-diff after a rebase, tests of changed readers, the shell file cap; the performance and security lenses of #6600 point here) |
-| `ui/research.md`, `ui/activity-and-automatic-work.md` | the surfaces; point here for orchestration, the window's columns and worker rows |
+| `ui/research.md`, `ui/activity-pane.md` | the surfaces; point here for orchestration, the window's columns and worker rows |
 | `harness/deterministic-conductor.md` | the frozen runner's record |

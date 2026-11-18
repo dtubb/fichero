@@ -478,13 +478,72 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   message naming the tool for each action (`fichero_workflow_retry`, `fichero_activity_bug_report` from the regen).
   Tests: `fichero-server/tests/unit/mcp/test_mcp_run_failure_6354`.
 
+### K. The failure on a run, carried from `ui/activity-and-automatic-work.md` section J (2026-11-18)
+
+Section J (owner 2026-11-13, #6354) owned the alert before this contract existed. Its table of thirteen kinds was superseded by
+section 1 above (`runner.kinds.one-table`, `run.fail.kinds-table`) and is gone. Its three behaviours that still stand are below,
+unchanged. Nine were deleted as superseded, each by the id that now says it: `activity.failure.never-silent` by
+`run.fail.alert-on-a-failed-run` and `runner.ask.one-dialogue-per-cause`; `activity.failure.kind-is-typed-in-the-engine` by
+`run.fail.run-carries-its-failure`; `activity.failure.fixed-table` by `run.fail.kinds-table` and `runner.kinds.one-table`;
+`activity.failure.app-only-displays` and `activity.failure.row-says-the-same` by `run.fail.activity-says-the-kind` and
+`runner.surface.one-row-one-alert`; `activity.failure.one-alert-per-run` by `run.fail.one-alert-per-attempt` and
+`run.fail.alerts-coalesce-by-cause`; `activity.failure.alert-names-the-fix` by `run.fail.actions-act`;
+`activity.failure.reaches-the-person-off-window` by `run.fail.alert-reaches-a-background-app`;
+`activity.failure.unknown-offers-a-report` by `run.fail.bug-report-route`, `run.fail.bug-report-contents` and
+`run.fail.report-shows-then-sends`. Where the carried words below name the old kinds (`out-of-credit`, `cap-reached`,
+`provider-down`, `disk-full`, `unknown`), read the contract's (`no-credit`, `cap-refused`, `network`, `unexpected`; `disk-full` is
+open question 3). No test cited any of the twelve ids.
+
+- `activity.failure.cancelled-is-not-a-failure` — **[PARTIAL]** (#6354; #6005, #4402; engine +
+  app) a run, step or page the person stopped ends `cancelled` with "Stopped by you"
+  (`activity.run.stop-reaches-in-flight-calls`), carries no `failure`, lights no glyph, raises no
+  alert and no notification; so does a run paused by the person or by the engine's own shutdown
+  (`activity.run.quit-pauses`). A page a Stop skipped is not counted as failed. *Built:* the
+  `cancelled` state and its words. *Not built:* the rule that an alert never fires for it (there is
+  no alert yet). *Tests (to write):* in `test_failure_kind_is_typed_6354.py`, a stopped run has
+  `failure` null; in `ActivityFailureAlertTests.swift`, it raises nothing.
+- `activity.failure.credit-exhausted-pauses` — **[GAP]** (#6354, the pause half needs an issue of
+  its own under #6354; #5933, `recipes-run.control.pause-and-resume`; engine; owner 2026-11-13) a
+  failure the person can mend, or that mends itself, without losing the run (`out-of-credit`,
+  `cap-reached`, `rate-limited`, `key-refused`, `provider-down`, `network`, `disk-full`, `memory`)
+  PAUSES the run instead of failing it, and the alert is raised for the pause: the step's run settles `paused` at its
+  checkpoint with `failure` set (the same path a review step takes, `activity.run.review-step-pauses`,
+  and the one the engine's shutdown takes), the pages already read are kept and counted
+  (`activity.failure.partial-results-kept`), the recipe run parks on the paused step
+  (`recipes/runner.py` `ParkedOnStepRun`, #5933) and its row reads "Paused: <words>" with Resume,
+  and Resume carries on from the failed step over the pages that were not done, never re-reading a
+  done page (`activity.retry.one-row`, `activity.durable.idempotent`). The breaker stays open for
+  its 30 s, so a Resume pressed before credit is added fails fast again and the alert updates
+  rather than repeats. A failure of the other kinds ends the run `failed` as today, with the
+  partial results kept. The engine, not the app, decides which kinds pause: `pauses: true` on the
+  table's row. *Built:* a quota error is not page-retried (`builder.py:2192-2196`), pause at a
+  checkpoint (#5933), park on a paused step. *Not built:* settling `paused` on a fatal provider
+  error (today `SystemicErrorDetected` → `failed`, `runner.py:2710`), the recipe parking on it,
+  the `failure` on a paused row. *Tests (to write):*
+  `test_out_of_credit_pauses_the_run_6354.py` (a 402 on page 4 of
+  10 leaves the run `paused` with `failure.kind == "out-of-credit"`, three pages done and kept,
+  and Resume after the stub recovers reads pages 4 to 10 only and ends `done`);
+  `test_recipe_parks_on_a_paused_step_6354.py` (the recipe row
+  reads paused with the step's words and takes the step up again on Resume).
+- `activity.failure.partial-results-kept` — **[PARTIAL]** (#6354; #5937, #5758, #4315) whatever a
+  run finished before it failed or paused is kept and shown: the pages read stay read, their
+  entities and claims stay, the run's account counts them, and the row says how many ("The run is
+  paused; the 212 pages it finished are kept"). A failed run reverts only the pages it was in the
+  middle of to pending (`runner.py:2773`, `_finalize_documents("failed")`), never the done ones.
+  *Built:* the account's done count on a failed run (`activity.run.partial-said-on-a-done-row`,
+  `activity.run.step-honest-about-lost-pages`); the revert of in-flight pages (#4315). *Not
+  built:* the count in the words, pinned against a mid-run 402. *Tests:*
+  `fichero-server/tests/unit/jobs/test_partial_is_said_on_a_done_row_5937.py`; to write, in
+  `test_out_of_credit_pauses_the_run_6354.py`, the three done pages are still read after the pause.
+
 ## Changes to existing behaviours (made in the integration of 2026-11-18)
 
 1. `ui/activity-and-automatic-work.md` §J's table of thirteen kinds (`out-of-credit`, `cap-reached`, `provider-down`,
    `model-not-found`, `disk-full`, `engine-crashed`, `input-unreadable`, `refused-by-a-rule`, `unknown`, …) is superseded by
-   the sixteen kinds of `run-failure-alerts.md` and `llm/failure.py`; §J keeps its two behaviours
-   (`activity.failure.credit-exhausted-pauses`, `activity.failure.partial-results-kept`) and now cites this contract for the
-   pause rule. `disk-full` is a wanted kind the code lacks (listed under "Issues to file" in the plan).
+   the sixteen kinds of section F (`run.fail.kinds-table`, carried from `run-failure-alerts.md`) and `llm/failure.py`; §J's three
+   live behaviours (`activity.failure.credit-exhausted-pauses`, `activity.failure.partial-results-kept`,
+   `activity.failure.cancelled-is-not-a-failure`) are section K here since 2026-11-18, the rest deleted as superseded (section K says
+   by which id). `disk-full` is a wanted kind the code lacks (listed under "Issues to file" in the plan).
 2. `ai/run-failure-alerts.md` decision 2 ("a failed run is one that ends `failed` … the run stopped at page N of M") is
    amended: `no-credit`, `key-refused`, `network` and `memory` PAUSE and ask (owner 2026-11-13 and 2026-11-18, #6675); the
    words of those rows say "paused", not "stopped". Decision 9 and the `rate-limited` row already pause.
@@ -505,7 +564,7 @@ the steps below are the same steps, in the shape the harness reads.
 ### Stage 1 — The shared foundation
 
 #### Step 1.1 — The table's pause-or-fail and retry columns; no-credit and key-refused pause (#6675)
-- Behaviours: `runner.kinds.pause-or-fail-is-the-tables`, `runner.pause.one-path`, `runner.kinds.one-table`
+- Behaviours: `runner.kinds.pause-or-fail-is-the-tables`, `runner.pause.one-path`, `runner.kinds.one-table`, `activity.failure.credit-exhausted-pauses`, `activity.failure.partial-results-kept`
 - Tests: fichero-server/tests/unit/llm/test_run_failure_kinds_6354.py, fichero-server/tests/unit/llm/test_rate_limit_backs_off_then_pauses_6584.py (plus the new pause-or-fail file described under `runner.kinds.pause-or-fail-is-the-tables`)
 - Size: M
 
@@ -516,7 +575,7 @@ the steps below are the same steps, in the shape the harness reads.
 - Size: M
 
 #### Step 1.3 — One dialogue per cause; the row and the alert (#6354, #6597)
-- Behaviours: `runner.ask.one-dialogue-per-cause`, `runner.surface.one-row-one-alert`, `runner.cli-mcp.same-words`
+- Behaviours: `runner.ask.one-dialogue-per-cause`, `runner.surface.one-row-one-alert`, `runner.cli-mcp.same-words`, `activity.failure.cancelled-is-not-a-failure`
 - Tests: fichero/Tests/Unit/general/Views/RunFailureAlertTests.swift, fichero-server/tests/unit/execution/test_failure_in_words_6212.py
 - Depends on: 1.1
 - Size: M

@@ -159,7 +159,7 @@ one three-minute warm-up) for each page would waste the allocation.
 
 ### One state machine, inside the one job model
 
-A compute job is **a row in the one `jobs` table** of `ui/activity-and-automatic-work.md`
+A compute job is **a row in the one `jobs` table** of `ui/activity-pane.md`
 (its question 9, ruled 2026-10-01): `kind` is what it does (`workflow`, `train-a-model`), its
 target is named, a job sent away runs in lane `remote`, and a training job on this Mac runs in
 the local ML lane. There is no `compute_jobs` table. The phases below are that row's `state`
