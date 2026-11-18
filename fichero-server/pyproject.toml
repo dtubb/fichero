@@ -93,7 +93,8 @@ requires = [
     "pydantic>=2.13",
     # 2.14.2 fixes GHSA-4xgf-cpjx-pc3j.
     "pydantic-settings>=2.14.2",
-    "duckdb<2",  # 2.0 pre-release upgrades a library storage 1.5.x cannot open
+    # duckdb 2.0 pre-release upgrades a library storage that 1.5.x cannot open.
+    "duckdb<2",
     # DuckDB imports pytz to return a TIMESTAMPTZ value to Python. It used to
     # arrive with pandas; pandas 3 dropped it, and every workflow-run read 500ed.
     "pytz",
@@ -403,7 +404,8 @@ dependencies = [
     "python-multipart>=0.0.31",  # PYSEC-2026-3036/3037/3040 multipart DoS
     "pydantic>=2.13",  # openrouter 0.11.x caps <2.13 and downgrades what we ship
     "pydantic-settings>=2.14.2",  # GHSA-4xgf-cpjx-pc3j
-    "duckdb<2",  # 2.0 pre-release upgrades a library storage 1.5.x cannot open
+    # duckdb 2.0 pre-release upgrades a library storage that 1.5.x cannot open.
+    "duckdb<2",
     # DuckDB imports pytz to return a TIMESTAMPTZ value to Python. It used to
     # arrive with pandas; pandas 3 dropped it, and every workflow-run read 500ed.
     "pytz",
