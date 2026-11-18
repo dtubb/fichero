@@ -281,7 +281,12 @@ fi
 
 # ── Create release on GitHub ────────────────────────────────────────────────
 echo "[2/5] Create GitHub release on $RELEASE_REPO ($TAG, build $BUILD, $DMG_SIZE_HUMAN)"
-RELEASE_TARGET="${RELEASE_TARGET:-$(git -C "$ROOT_DIR" rev-parse HEAD)}"
+if [ "$DRY_RUN" = true ]; then
+  # A dry run only prints; a copy of the tree with no .git (the gate's) must still get to the end of it.
+  RELEASE_TARGET="${RELEASE_TARGET:-$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || echo "(no git checkout)")}"
+else
+  RELEASE_TARGET="${RELEASE_TARGET:-$(git -C "$ROOT_DIR" rev-parse HEAD)}"
+fi
 # GitHub rejects a target_commitish it has never seen (2026-09-01: the whole
 # 2026.09.01.2 release leg died with HTTP 422 "tag_name is not a valid tag /
 # target_commitish is invalid" because release-merge's stamp commit was only

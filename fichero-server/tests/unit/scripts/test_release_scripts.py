@@ -13,6 +13,8 @@ These are pure filesystem + subprocess tests — no Python imports required.
 
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 import plistlib
 from pathlib import Path
@@ -402,6 +404,18 @@ def test_create_release_dry_run() -> None:
         f"create-github-release.sh --dry-run failed (rc={result.returncode}):\n"
         f"stdout: {result.stdout}\nstderr: {result.stderr}"
     )
+    assert "[DRY RUN]" in result.stdout
+
+
+def test_create_release_dry_run_needs_no_git_checkout(tmp_path: Path) -> None:
+    """The gate runs the suite from a copy of the tree with no .git: the dry run only prints, so it must still end 0."""
+    shutil.copytree(SCRIPTS_DIR, tmp_path / "scripts")
+    shutil.copytree(REPO_ROOT / "fichero", tmp_path / "fichero", ignore=shutil.ignore_patterns("*.xcassets", "*.swift"))
+    result = subprocess.run(
+        ["bash", str(tmp_path / "scripts" / "create-github-release.sh"), "--dry-run"],
+        capture_output=True, text=True, cwd=str(tmp_path), env={**os.environ, "GIT_CEILING_DIRECTORIES": str(tmp_path.parent)},
+    )
+    assert result.returncode == 0, f"rc={result.returncode}\nstdout: {result.stdout}\nstderr: {result.stderr}"
     assert "[DRY RUN]" in result.stdout
 
 
