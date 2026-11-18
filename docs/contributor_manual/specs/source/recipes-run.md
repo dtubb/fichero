@@ -674,7 +674,7 @@ The behaviours:
   refused key, the network, memory past its hold, the project closed): the run pauses through the one path and asks, never
   fails pages for it (#6675, `runner.kinds.pause-or-fail-is-the-tables`); the recipe parks on the paused step and Continue
   takes it up from the first page not done (`runner.pause.continue-from-first-not-done`, #6569).
-- `recipes-run.credit.out-of-credit-pauses-and-asks` — **[GAP]** (owner 2026-11-18, #6675) when a provider is
+- `recipes-run.credit.out-of-credit-pauses-and-asks` — **[OK]** (owner 2026-11-18, #6675) when a provider is
   out of credit, or a credit limit (a key's or an account's spending cap) is reached, the run stops there and
   asks; it does not carry on and break things. Out of credit or at a limit means OpenRouter's HTTP 402
   "insufficient credits" or "credit limit", or the quota-exhausted answer of OpenAI, Anthropic or Google. It is
@@ -689,7 +689,9 @@ The behaviours:
   3. One dialogue per provider per run, never one per page; the pause is also listed in Activity on the
      paused run.
   Tests: a 402 credit answer pauses the run (not fails it) and raises the one prompt; Continue resumes from the
-  first page not done; the rate-limit path still resumes by itself.
+  first page not done; the rate-limit path still resumes by itself. Tests:
+  `fichero-server/tests/unit/workflows/test_credit_stop_6675.py`, `fichero/Tests/Unit/general/Models/CreditPausePromptTests.swift`.
+  Built: `llm/retry.py` `_pause_the_run_for_credit`, `ProviderCreditStopError`, `ActivityStore.askAboutCredit`.
 
 ## Changes to existing behaviours
 
