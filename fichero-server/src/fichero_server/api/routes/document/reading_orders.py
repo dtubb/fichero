@@ -106,6 +106,29 @@ def entries_in_sequence(
     return rows
 
 
+def segment_ids_in_reading_sequence(db: Database, order_id: str) -> list[str]:
+    """Every segment the order lists, the whole tree: an entry, then its children, in each level's own order
+    (a seeded order nests a line under its region's entry, #6425, so the top level alone misses the lines)."""
+    by_parent: dict[str | None, list[ReadingOrderEntry]] = {}
+    for row in db.query(ReadingOrderEntry, order_id=order_id):
+        by_parent.setdefault(row.parent_entry_id, []).append(row)
+    for level in by_parent.values():
+        level.sort(key=lambda row: (row.position, row.id))
+    ids: list[str] = []
+    seen: set[str] = set()
+
+    def walk(parent: str | None) -> None:
+        for row in by_parent.get(parent, []):
+            if row.id in seen:
+                continue
+            seen.add(row.id)
+            ids.append(row.segment_id)
+            walk(row.id)
+
+    walk(None)
+    return ids
+
+
 # ---------------------------------------------------------------------------
 # `as-written`, kept current as segments arrive
 # ---------------------------------------------------------------------------
