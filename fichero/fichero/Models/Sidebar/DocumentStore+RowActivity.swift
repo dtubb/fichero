@@ -16,17 +16,17 @@ final class RowActivityBox {
         var totalChildren = 0
     }
 
+    /// The store's weak hold on a row's box: the row owns the box, so a row that leaves the sidebar frees it and the
+    /// store stops recomputing it.
+    struct Weak {
+        weak var box: RowActivityBox?
+    }
+
     private(set) var inputs = Inputs()
 
     fileprivate func set(_ value: Inputs) {
         if inputs != value { inputs = value }
     }
-}
-
-/// The store's weak hold on a row's box: the row owns the box, so a row that leaves the sidebar frees it and the store
-/// stops recomputing it.
-struct WeakRowActivityBox {
-    weak var box: RowActivityBox?
 }
 
 @MainActor extension DocumentStore {
@@ -36,7 +36,7 @@ struct WeakRowActivityBox {
     func rowActivity(for documentId: String) -> RowActivityBox {
         if let box = rowActivityBoxes[documentId]?.box { return box }
         let box = RowActivityBox()
-        rowActivityBoxes[documentId] = WeakRowActivityBox(box: box)
+        rowActivityBoxes[documentId] = RowActivityBox.Weak(box: box)
         scheduleRowActivityRefresh()
         return box
     }
