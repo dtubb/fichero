@@ -5934,7 +5934,9 @@ class _Scheduler:
             state, reason, error = "failed", failed_reason(kind_name, exc), exc
             from fichero_server.llm import failure as _failure
 
-            paused_for = _PAUSED_NOT_FAILED.get(_failure.kind_of(exc)[0])
+            kind = _failure.kind_of(exc)[0]
+            paused_for = _PAUSED_NOT_FAILED.get(kind) or (
+                _failure.paused_reason(kind, getattr(exc, "provider", None)) if kind in _failure.PAUSES else None)
             if paused_for is not None:  # a cause a person removes, then Continues: paused, never failed (#6596, #6588)
                 state, reason = "paused", paused_for
         finally:
@@ -6022,18 +6024,19 @@ PAUSED_PROJECT_CLOSED = "Paused: the project closed"
 #: A kept export's row paused because its folder is gone (`activity.kept-export.one-row-per-export`): one row waits for the
 #: folder, and the edits meanwhile join it, never a failed row per edit.
 PAUSED_EXPORT_FOLDER_GONE = "The export folder is gone"
-#: The failure kinds that PAUSE a job instead of failing it, and the paused row's words: the cause is outside the work
-#: (the project closed under it, the export's folder unplugged) and Continue carries on once it is put right.
+#: The paused row's words for the two kinds whose words predate the table; every other pausing kind (`failure.PAUSES`, the table's
+#: pause-or-fail column) is worded by `failure.paused_reason`. The cause is outside the work and Continue carries on.
 _PAUSED_NOT_FAILED = {"library-closed": PAUSED_PROJECT_CLOSED, "export-folder-gone": PAUSED_EXPORT_FOLDER_GONE}
 
 
 def paused_failure(db: "Database", job_id: str, reason: str | None) -> Any:
     """The failure a row paused for a cause a person removes is listed with (`RunFailure`, its fix the row's button), or
     None for any other row. A gone export folder's Choose Folder… names the export, the job's subject (#6588)."""
-    kind = next((k for k, said in _PAUSED_NOT_FAILED.items() if said == reason), None)
+    from fichero_server.llm import failure as _failure
+
+    kind = next((k for k, said in _PAUSED_NOT_FAILED.items() if said == reason), None) or _failure.kind_of_paused_reason(reason)
     if kind is None:
         return None
-    from fichero_server.llm import failure as _failure
 
     row = db.execute_fetchone("SELECT subject FROM jobs WHERE id = ?", [job_id], committed=True)
     subject = (row[0] or "") if row else ""

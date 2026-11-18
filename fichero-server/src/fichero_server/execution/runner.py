@@ -1545,7 +1545,7 @@ async def _run_workflow_body(
                 finalize_exc,
             )
 
-    async def _finish_as_paused(reason: str = "user_requested", review: list | None = None) -> None:
+    async def _finish_as_paused(reason: str = "user_requested", review: list | None = None, kept_failure: dict | None = None) -> None:
         """Record the run as paused (#4402).
 
         Shared by BOTH ways a run can pause: the between-events check in the
@@ -1581,7 +1581,9 @@ async def _run_workflow_body(
         else:
             from fichero_server.llm import retry as llm_retry  # noqa: PLC0415
 
-            if out_of_credit := llm_retry.paused_for_credit([thread_id]):  # paused because its provider has no credit (#6675)
+            if kept_failure is not None:  # a pausing kind the table names (`failure.PAUSES`), settled from an error (#6675)
+                paused_failure = kept_failure
+            elif out_of_credit := llm_retry.paused_for_credit([thread_id]):  # paused because its provider has no credit (#6675)
                 from fichero_server.llm.failure import credit_pause_failure  # noqa: PLC0415
 
                 paused_failure = credit_pause_failure(out_of_credit, step=workflow.name).model_dump(mode="json")
@@ -2783,6 +2785,13 @@ async def _run_workflow_body(
         return
 
     except SystemicErrorDetected as e:
+        systemic_failure = _run_failure(e, str(e), workflow, done=max(e.total_count - e.error_count, 0), total=e.total_count)
+        if systemic_failure.get("pauses"):
+            # The table's rule (`runner.kinds.pause-or-fail-is-the-tables`, #6675): a pausing kind settles the run `paused` with its
+            # failure, its done pages kept; it never ends `failed`.
+            logger.warning(f"Systemic {systemic_failure.get('kind')} error in workflow {workflow_id}: pausing the run: {e}")
+            await _finish_as_paused(kept_failure=systemic_failure)
+            return
         logger.error(f"Systemic error in background workflow {workflow_id}: {e}")
         state["status"] = "failed"
         state["error"] = str(e)

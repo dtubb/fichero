@@ -1024,7 +1024,7 @@ async def list_background_jobs(
                     failed_at=_utc(getattr(run, "completed_at", None)) if status == "failed" else None,
                     finished_at=_run_finished_at(status, getattr(run, "completed_at", None)),
                     failure=_run_failure(run) if status == "failed" else (
-                        await asyncio.to_thread(paused_failure, db, run.thread_id, run.error)
+                        (run.failure or await asyncio.to_thread(paused_failure, db, run.thread_id, run.error))
                         if status == "paused" else None),
                     runs_on=await asyncio.to_thread(_run_runs_on, db, run.thread_id),
                 )

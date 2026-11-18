@@ -68,11 +68,12 @@ def _pause_the_run_for_credit(provider: str, exc: BaseException | None) -> bool:
     True when a run was asked; False outside a run (the error is then raised as it was). `exc` None repeats the last answer."""
     from fichero_server.llm.failure import redact
     from fichero_server.llm.spend import _ask_run_to_pause
-    from fichero_server.workflows.circuit_breaker import credit_cause
+    from fichero_server.workflows.circuit_breaker import credit_cause, fatal_cause
 
     if exc is not None:
         first = (str(exc).strip().splitlines() or [""])[0]
-        _LAST_CREDIT[provider] = (credit_cause(exc), redact(first[:300]))
+        cause = "key-refused" if fatal_cause(exc) == "key" else credit_cause(exc)
+        _LAST_CREDIT[provider] = (cause, redact(first[:300]))
     cause, detail = _LAST_CREDIT.get(provider, ("out-of-credit", ""))
     run_id = _ask_run_to_pause()
     if run_id:
@@ -106,7 +107,7 @@ async def resilient(make_coro: Callable[[], Awaitable[T]], config) -> T:
     its own no-progress rule and `page_retry` own that."""
     from fichero_server.llm import _runs_on_this_mac
     from fichero_server.workflows.circuit_breaker import (
-        DEFAULT_BREAKER_THRESHOLD, IN_RETRY_LAYER, ProviderCircuitBreaker, ProviderCreditStopError, call_with_breaker, classify_provider_error, fatal_cause,
+        DEFAULT_BREAKER_THRESHOLD, IN_RETRY_LAYER, ProviderCircuitBreaker, ProviderCreditStopError, ProviderKeyStopError, call_with_breaker, classify_provider_error, fatal_cause,
         provider_stopped_error)
 
     if IN_RETRY_LAYER.get() or _runs_on_this_mac(config):
@@ -114,16 +115,16 @@ async def resilient(make_coro: Callable[[], Awaitable[T]], config) -> T:
     provider = (config.provider or "unknown").lower()
     until, why = _DEAD.get(provider, (0.0, "rate-limit"))
     if until > time.monotonic():
-        if why == "quota" and _pause_the_run_for_credit(provider, None):
-            raise ProviderCreditStopError(provider, failures=1)  # the run's other pages wait with it (#6675)
+        if why in ("quota", "key") and _pause_the_run_for_credit(provider, None):
+            raise (ProviderKeyStopError if why == "key" else ProviderCreditStopError)(provider, failures=1)  # the run waits (#6675)
         raise provider_stopped_error(provider, why)  # the cause it died of: no credit, a refused key, or a rate limit
     breaker = ProviderCircuitBreaker()  # per call: the retries are what is bounded here; process-wide state is below
     try:
         result = await call_with_breaker(make_coro, provider=provider, breaker=breaker, label=config.model)
     except Exception as exc:
         kind = classify_provider_error(exc)
-        if isinstance(exc, ProviderCreditStopError):  # no credit, run asked to pause (#6675): the run's other pages fail fast with it
-            _DEAD[provider] = (time.monotonic() + DEAD_FOR_SECONDS, "quota")
+        if isinstance(exc, (ProviderCreditStopError, ProviderKeyStopError)):  # run asked to pause (#6675): its other pages wait with it
+            _DEAD[provider] = (time.monotonic() + DEAD_FOR_SECONDS, "key" if isinstance(exc, ProviderKeyStopError) else "quota")
         elif kind == "fatal":
             _DEAD[provider] = (time.monotonic() + DEAD_FOR_SECONDS, fatal_cause(exc))
         elif breaker.is_open(provider):

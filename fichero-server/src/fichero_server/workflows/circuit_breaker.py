@@ -246,8 +246,12 @@ class ProviderCreditStopError(ProviderQuotaExhaustedError):
         return f"{name} has no credit left, or its credit limit is reached, so the run paused. Continue it once that is fixed."
 
 
+class ProviderKeyStopError(ProviderKeyRefusedError):
+    """The provider refused the API key inside a run (#6675): the run is paused with `key-refused` and its Continue."""
+
+
 #: The errors that mean "the run was asked to pause with a cause": its page is not a failed page, Continue reads it again.
-RUN_PAUSING_ERRORS = (ProviderInFlightBudgetError, ProviderCreditStopError)
+RUN_PAUSING_ERRORS = (ProviderInFlightBudgetError, ProviderCreditStopError, ProviderKeyStopError)
 
 CREDIT_LIMIT_WORDS = ("key limit", "credit limit", "limit exceeded", "limit reached", "spending limit", "spend limit")
 
@@ -560,12 +564,13 @@ async def call_with_breaker(
                 _slow_down_cap(provider)  # the next calls fit the key's credit: half as many at once
             if kind == "fatal":
                 await breaker.trip(provider, detail=str(exc), cause=fatal_cause(exc))
-                if fatal_cause(exc) == "quota":
-                    # No credit, or a credit limit (#6675): the run pauses and asks; its page is not a failed page.
-                    from fichero_server.llm.retry import _pause_the_run_for_credit
+                # No credit, a credit limit or a refused key (#6675, `failure.PAUSES`): the run pauses and asks; its page is
+                # not a failed page.
+                from fichero_server.llm.retry import _pause_the_run_for_credit
 
-                    if _pause_the_run_for_credit(provider or "unknown", exc):
-                        raise ProviderCreditStopError(provider or "unknown", failures=attempt + 1, detail=str(exc)) from exc
+                if _pause_the_run_for_credit(provider or "unknown", exc):
+                    stop = ProviderKeyStopError if fatal_cause(exc) == "key" else ProviderCreditStopError
+                    raise stop(provider or "unknown", failures=attempt + 1, detail=str(exc)) from exc
                 raise
             if kind == "terminal":
                 raise
