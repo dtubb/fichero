@@ -38,7 +38,6 @@ struct LibrarySectionHeader: View {
     nonisolated static let systemImage = "books.vertical"
 
     let library: LibraryManager.LibraryReference
-    let itemCount: Int
     var isCurrentLibrary: Bool = false
     /// The project row is the sidebar's selection (#5422): it paints the grey platter.
     var isSelected: Bool = false
@@ -64,8 +63,7 @@ struct LibrarySectionHeader: View {
     @State private var isDropTargeted = false
     // @AppStorage, not a plain defaults read, so the host mark follows the Sharing switch live.
     @AppStorage(RemoteAccessConfig.hostingEnabledKey) private var hostingEnabled = false
-    /// The sidebar Metadata's switches (`sidebar.filter-menu.shows-toggles`): the count and the sharing marks.
-    @AppStorage(SidebarMetadata.itemCount.storageKey) private var showsItemCount = true
+    /// The sidebar Metadata's sharing switch (`sidebar.filter-menu.shows-toggles`).
     @AppStorage(SidebarMetadata.sharingState.storageKey) private var showsSharingState = true
 
     var body: some View {
@@ -166,11 +164,6 @@ struct LibrarySectionHeader: View {
             }
             if showsSharingState { LibrarySharingBadge(library: library) }
             Spacer()
-            if showsItemCount, itemCount > 0 {
-                Text("\(itemCount)")
-                    .font(.caption)
-                    .foregroundStyle(isDropTargeted ? AnyShapeStyle(Color.white) : AnyShapeStyle(.secondary))
-            }
         }
         .simultaneousGesture(TapGesture().onEnded { onTap?() })
     }
@@ -192,10 +185,6 @@ struct LibrarySectionHeader: View {
 
     private var accessibilityLabel: String {
         let location = library.locationDescriptor.label
-        if itemCount > 0 {
-            let plural = itemCount == 1 ? "document" : "documents"
-            return "\(libraryName), project, \(location), \(itemCount) \(plural)"
-        }
         return "\(libraryName), project, \(location)"
     }
 

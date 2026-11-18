@@ -221,10 +221,10 @@ Both issues are already on this milestone (#291); no new issues were needed.
   `Views/Sidebar/SidebarBottomBarPatternTests.swift`.
 - `sidebar.filter-menu.shows-toggles` — **[GAP]** (#6526) (owner 2026-11-13) the sidebar Filter's menu has toggles for what the
   sidebar shows: Entities and Claims (the project rows), Sources (folders only), Workflows, Models, Hosts. Toggles
-  persist per window. The sidebar's **Metadata** (the bar's Metadata button) shows exactly three things, each
-  switchable (owner 2026-11-13): the item count beside a folder or project, a project's sharing state, and a run in
-  progress. Nothing else (no last-changed date). *Built:* `SidebarMetadata` / `SidebarMetadataMenu` (three switches,
-  on by default) gating the project header's count and sharing marks and the rows' run spinners; the Filter's
+  persist per window. The sidebar's **Metadata** (the bar's Metadata button) shows exactly two things, each
+  switchable (owner 2026-11-13): a project's sharing state and a run in progress. Nothing else (no last-changed date,
+  and no item count beside a project: owner 2026-11-16, a top-level count is not helpful). *Built:* `SidebarMetadata` /
+  `SidebarMetadataMenu` (two switches, on by default) gating the project header's sharing marks and the rows' run spinners; the Filter's
   "Entities and Claims" (`SidebarFilterMenu`). *Not built:* the Sources-only, Workflows, Models and Hosts toggles,
   and keeping the switches per window (they are app-wide `@AppStorage` today). *Tests:*
   `Views/Sidebar/SidebarBottomBarPatternTests.swift`.
