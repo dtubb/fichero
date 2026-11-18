@@ -1313,7 +1313,7 @@ requires-dist = [
     { name = "cryptography", marker = "extra == 'dev'" },
     { name = "dashscope", marker = "extra == 'dev'" },
     { name = "defusedxml" },
-    { name = "duckdb", specifier = "<2" },
+    { name = "duckdb" },
     { name = "fastapi" },
     { name = "fastembed" },
     { name = "ftfy" },
