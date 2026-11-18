@@ -371,13 +371,17 @@ class TestClaimsRoutes:
             db,
         )
 
+        from types import SimpleNamespace
+
+        request = SimpleNamespace(state=SimpleNamespace(bootstrap_auth=True), headers={}, query_params={})  # the owner's own call: every page readable
+
         # Filter by claim type
-        results = await list_claims(claim_type=ClaimType.fact, limit=200, offset=0, db=db)
+        results = await list_claims(request, claim_type=ClaimType.fact, limit=200, offset=0, db=db)
         assert len(results.items) == 1
         assert results.items[0].claim_type == ClaimType.fact
 
         # Filter by curation state
-        curated = await list_claims(curation_state=ClaimCurationState.curated, limit=200, offset=0, db=db)
+        curated = await list_claims(request, curation_state=ClaimCurationState.curated, limit=200, offset=0, db=db)
         assert len(curated.items) == 1
         assert curated.items[0].curation_state == ClaimCurationState.curated
 

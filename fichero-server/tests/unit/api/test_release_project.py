@@ -144,9 +144,8 @@ def test_release_stops_page_jobs_which_carry_on_when_it_opens_again(project, mon
     stopped: list[str | None] = []
     real_stop = jobs.stop
     monkeypatch.setattr(jobs, "stop", lambda key, *a, **k: stopped.append(key) or real_stop(key, *a, **k))
-    # Opening the project again wakes the job scheduler, whose lane thread claims the first waiting job (waiting -> running)
-    # within moments: on a loaded Mac the read below could land after that claim and see 'running'. This test is about what
-    # `resume` leaves at the next open, so the scheduler is not woken; "carrying on" is the scheduler's own tests.
+    # A wake of the job scheduler would let its lane thread claim a waiting job within moments. The wake is a spy, so the
+    # read below sees what `resume` left at the next open, and the test can say the scheduler was not woken.
     woke: list[str | None] = []
     monkeypatch.setattr(jobs._scheduler, "wake", lambda key=None, *a, **k: woke.append(key))  # a spy: the wake stays pinned
 
@@ -156,8 +155,9 @@ def test_release_stops_page_jobs_which_carry_on_when_it_opens_again(project, mon
     assert (body["jobs_stopped"], body["jobs_waiting"]) == (1, 1)
     assert stopped == [db_manager._cache_key(package)], "the project's job threads were not stopped"
     states = dict(db_manager.get_database(package).execute_fetchall("SELECT id, state FROM jobs"))
-    assert states == {"j1": "waiting", "j2": "waiting"}, "jobs must carry on at the next open"
-    assert woke == [db_manager._cache_key(package)], "opening the project again must wake the scheduler for it, once"
+    # Nothing starts by itself at an open (`activity.launch.nothing-starts-one-alert`): both rows are held for the person's Continue.
+    assert states == {"j1": "paused", "j2": "paused"}, "jobs wait for a person's Continue at the next open"
+    assert woke == [], "nothing is waiting after the open held both rows, so the scheduler is not woken"
 
 
 def test_release_stops_a_waiting_conversion_without_a_snapshot(project, monkeypatch):

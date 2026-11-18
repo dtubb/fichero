@@ -284,6 +284,11 @@ class TestConversionChangesNothingYouCanSee:
             # provisional one named (#4924 review).
             for field in ("id", "pass_id", "provisional"):
                 b.pop(field), a.pop(field)
+            # The label's facts (#6451) say which reading counts and who read it: a provisional box has no reading
+            # to name (None), the converted row's reading is the one the pass's result wrote.
+            assert b["counting_basis"] is None and b["read_by"] is None and b["counting_level"] is None
+            for field in ("counting_basis", "read_by", "counting_level"):
+                b.pop(field), a.pop(field)
             # `version` differs in exactly one way: a provisional box has no row to version,
             # and the row it becomes starts at 1 (#5152).
             assert b.pop("version") is None and a.pop("version") == 1
