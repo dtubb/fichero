@@ -10,10 +10,12 @@ downsampled pair), and its darkness, times a gain fitted on the pixels under its
 is not ink. Where the registration does not converge the page is returned unchanged and the account says why."""
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
-from PIL import Image
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 STEP = "bleed-through"
 _WORK_LONG_SIDE = 1000
@@ -81,6 +83,7 @@ def register_verso(recto_grey: Any, verso_grey: Any) -> tuple[Any, Any] | None:
 
 
 def run(image: Image.Image, params: Params, verso: Image.Image | None = None) -> tuple[Image.Image, dict[str, Any]]:
+    from PIL import Image  # lazy: PIL stays off the engine boot path (#3950)
     account: dict[str, Any] = {"step": STEP, "method": params.method, "k": params.k, "applied": False}
     try:
         import cv2

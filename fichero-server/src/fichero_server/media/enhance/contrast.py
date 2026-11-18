@@ -2,10 +2,12 @@
 the old `factor` as PIL's global contrast (`image.enhance.contrast-clahe`)."""
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
-from PIL import Image, ImageEnhance
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 STEP = "contrast"
 #: Any of these makes the row the CLAHE step; `factor` alone keeps the old PIL contrast.
@@ -24,6 +26,8 @@ class Params(BaseModel):
 
 
 def run(image: Image.Image, params: Params) -> tuple[Image.Image, dict[str, Any]]:
+    from PIL import ImageEnhance  # lazy: PIL stays off the engine boot path (#3950)
+
     # A row that names any CLAHE field (even as null) is the CLAHE step, null meaning the profile's default: how the chain has always read it.
     if params.model_fields_set & set(CLAHE_FIELDS):
         given = {k: getattr(params, k) for k in CLAHE_FIELDS if getattr(params, k) is not None}

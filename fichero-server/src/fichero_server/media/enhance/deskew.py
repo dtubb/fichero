@@ -2,12 +2,14 @@
 by `rotate.run`. A tilt under `STRAIGHTEN_MIN_DEGREES` leaves the page as it was (`image.enhance.rotate-deskew`)."""
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from PIL import Image
 from pydantic import BaseModel
 
 from fichero_server.media.enhance import rotate
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 STEP = "deskew"
 

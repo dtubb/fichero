@@ -2,10 +2,12 @@
 pixels is filled from the paper around it, and strokes longer than that stay (`image.enhance.denoise`, #6185)."""
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from PIL import Image
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 STEP = "denoise"
 
@@ -16,6 +18,7 @@ class Params(BaseModel):
 
 
 def run(image: Image.Image, params: Params) -> tuple[Image.Image, dict[str, Any]]:
+    from PIL import Image  # lazy: PIL stays off the engine boot path (#3950)
     size = 5 if params.radius >= 4 else 3
     account: dict[str, Any] = {"step": STEP, "radius": size, "speck": params.speck, "specks_removed": 0}
     try:

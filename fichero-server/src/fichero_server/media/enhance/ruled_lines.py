@@ -4,10 +4,12 @@ px) and long (a run over `min_length` of the page's side, horizontal or vertical
 #6195). Grey ruling is not handled."""
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
-from PIL import Image
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 STEP = "ruled-lines"
 #: OpenCV hue (0-179) bands of the three colours.
@@ -49,6 +51,7 @@ def _ruling(hsv: Any, colour: str, params: Params) -> Any:
 
 
 def run(image: Image.Image, params: Params) -> tuple[Image.Image, dict[str, Any]]:
+    from PIL import Image  # lazy: PIL stays off the engine boot path (#3950)
     account: dict[str, Any] = {"step": STEP, "colour": params.colour, "max_width": params.max_width, "pixels": 0}
     if params.colour == "none":
         return image, account
