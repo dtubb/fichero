@@ -515,15 +515,11 @@ open question 3). No test cited any of the twelve ids.
   its 30 s, so a Resume pressed before credit is added fails fast again and the alert updates
   rather than repeats. A failure of the other kinds ends the run `failed` as today, with the
   partial results kept. The engine, not the app, decides which kinds pause: `pauses: true` on the
-  table's row. *Built:* a quota error is not page-retried (`builder.py:2192-2196`), pause at a
-  checkpoint (#5933), park on a paused step. *Not built:* settling `paused` on a fatal provider
-  error (today `SystemicErrorDetected` → `failed`, `runner.py:2710`), the recipe parking on it,
-  the `failure` on a paused row. *Tests (to write):*
-  `test_out_of_credit_pauses_the_run_6354.py` (a 402 on page 4 of
-  10 leaves the run `paused` with `failure.kind == "out-of-credit"`, three pages done and kept,
-  and Resume after the stub recovers reads pages 4 to 10 only and ends `done`);
-  `test_recipe_parks_on_a_paused_step_6354.py` (the recipe row
-  reads paused with the step's words and takes the step up again on Resume).
+  table's row. *Built:* a quota error is not page-retried, a no-credit or key-refused answer asks the run to pause and it settles `paused` with
+  its `failure` (the runner, the parallel node's error path, the page job). *Not built:* the recipe parking on it. *Tests:*
+  `fichero-server/tests/unit/llm/test_pause_or_fail_is_the_tables_6675.py` (a 402 on page 4 of 10 leaves the run `paused` with
+  `failure.kind == "no-credit"`; a 401 with `key-refused`), `fichero-server/tests/unit/workflows/test_circuit_breaker.py`;
+  to write: `test_recipe_parks_on_a_paused_step_6354.py` (the recipe row reads paused with the step's words and takes the step up again on Resume).
 - `activity.failure.partial-results-kept` — **[PARTIAL]** (#6354; #5937, #5758, #4315) whatever a
   run finished before it failed or paused is kept and shown: the pages read stay read, their
   entities and claims stay, the run's account counts them, and the row says how many ("The run is
