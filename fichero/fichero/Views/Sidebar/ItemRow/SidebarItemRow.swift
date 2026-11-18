@@ -99,6 +99,9 @@ struct SidebarItemRow: View {
     @FocusState var isRenameFocused: Bool
     @State var isCommittingRename = false
     @State var isPulsing = false
+    /// This row's activity box; the row owns it, the store holds it weakly, so a row that leaves the sidebar stops
+    /// costing a recompute per refresh. Set when the row appears.
+    @State var activityBox: RowActivityBox?
 
     /// An automation verb changed a schedule, trigger or batch: the sidebar reads them again (#5712).
     var onAutomationChanged: (() -> Void)?
@@ -185,7 +188,7 @@ struct SidebarItemRow: View {
     /// tolerance for stale container copies. What changed is that a busy child
     /// no longer collapses into the parent's own spinner.
     var containerActivity: ContainerActivity {
-        guard case .document(let doc) = item.itemType, let store = documentStore else {
+        guard case .document(let doc) = item.itemType else {
             return .idle
         }
         // #4295: busy is derived from the RUNNING EXECUTION'S TARGETS
@@ -197,12 +200,18 @@ struct SidebarItemRow: View {
         // PDF spinning alongside its four page children. Read from the row's own
         // box (`DocumentStore+RowActivity`), never the store: a store change then
         // re-renders only the rows whose activity changed (2026-11-17 sidebar churn).
-        let inputs = store.rowActivity(for: doc.id).inputs
+        let inputs = activityBox?.inputs ?? RowActivityBox.Inputs()
         return ContainerActivity.resolve(
             isSelfProcessing: inputs.isSelfProcessing || doc.status == .processing,
             busyChildren: inputs.busyChildren,
             totalChildren: inputs.totalChildren
         )
+    }
+
+    /// Takes this row's box from its document's store (see `activityBox`).
+    func claimActivityBox() {
+        guard case .document(let doc) = item.itemType, let store = documentStore else { return }
+        activityBox = store.rowActivity(for: doc.id)
     }
 
     /// The per-item spinner, now only for a document that is itself the

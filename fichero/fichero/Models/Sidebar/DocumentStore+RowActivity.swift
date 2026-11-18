@@ -23,13 +23,20 @@ final class RowActivityBox {
     }
 }
 
+/// The store's weak hold on a row's box: the row owns the box, so a row that leaves the sidebar frees it and the store
+/// stops recomputing it.
+struct WeakRowActivityBox {
+    weak var box: RowActivityBox?
+}
+
 @MainActor extension DocumentStore {
-    /// The box a sidebar row reads for its document. Reading it registers nothing on the store itself: the box is
-    /// created idle and filled on the next refresh, which runs outside any view's body.
+    /// The box a sidebar row reads for its document; the caller keeps it, the store holds it weakly. Reading it
+    /// registers nothing on the store itself: the box is created idle and filled on the next refresh, which runs
+    /// outside any view's body.
     func rowActivity(for documentId: String) -> RowActivityBox {
-        if let box = rowActivityBoxes[documentId] { return box }
+        if let box = rowActivityBoxes[documentId]?.box { return box }
         let box = RowActivityBox()
-        rowActivityBoxes[documentId] = box
+        rowActivityBoxes[documentId] = WeakRowActivityBox(box: box)
         scheduleRowActivityRefresh()
         return box
     }
@@ -48,7 +55,9 @@ final class RowActivityBox {
     /// re-rendered.
     func refreshRowActivity() {
         rowActivityRefreshScheduled = false
-        for (documentId, box) in rowActivityBoxes {
+        rowActivityBoxes = rowActivityBoxes.filter { $0.value.box != nil }
+        for (documentId, held) in rowActivityBoxes {
+            guard let box = held.box else { continue }
             let counts = childActivityCounts(of: documentId)
             box.set(.init(isSelfProcessing: isDocumentBusy(documentId), busyChildren: counts.busy,
                           totalChildren: counts.total))

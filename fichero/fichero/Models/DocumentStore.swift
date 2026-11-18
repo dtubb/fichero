@@ -69,7 +69,7 @@ final class DocumentStore {
         didSet { scheduleRowActivityRefresh() }  // the sidebar rows' own boxes (`DocumentStore+RowActivity`)
     }
     /// The sidebar rows' activity boxes, by document id; each row observes only its own.
-    @ObservationIgnored var rowActivityBoxes: [String: RowActivityBox] = [:]
+    @ObservationIgnored var rowActivityBoxes: [String: WeakRowActivityBox] = [:]
     @ObservationIgnored var rowActivityRefreshScheduled = false
 
     /// Document ids touched by the most recent in-place splice / removal,

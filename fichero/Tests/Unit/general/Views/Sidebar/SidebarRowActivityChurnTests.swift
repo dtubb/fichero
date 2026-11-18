@@ -61,6 +61,17 @@ struct SidebarRowActivityChurnTests {
     @Test("a row's box is the same box each read, so the row keeps one observation")
     func oneBoxPerRow() {
         let store = store()
-        #expect(store.rowActivity(for: "folder-a") === store.rowActivity(for: "folder-a"))
+        let box = store.rowActivity(for: "folder-a")
+        #expect(store.rowActivity(for: "folder-a") === box)
+    }
+
+    @Test("a box nobody holds is dropped, so the refresh no longer computes it")
+    func releasedBoxIsDropped() {
+        let store = store()
+        var box: RowActivityBox? = store.rowActivity(for: "folder-a")
+        #expect(box != nil)
+        box = nil
+        store.refreshRowActivity()
+        #expect(store.rowActivityBoxes.isEmpty)
     }
 }
