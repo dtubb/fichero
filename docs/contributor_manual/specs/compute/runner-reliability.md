@@ -206,7 +206,7 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   `error_category` still comes from `execution/runner._classify_provider_error`'s own words; the remote-read, cloud-batch,
   training and download paths write their own strings. *Test:* `fichero-server/tests/unit/llm/test_run_failure_kinds_6354.py`
   (extend: each runner's failure path through a stub yields a `RunFailure`, never a bare string).
-- `runner.kinds.pause-or-fail-is-the-tables` — **[GAP]** (#6675, #6569, #6354) each kind's pause-or-fail rule (section 1)
+- `runner.kinds.pause-or-fail-is-the-tables` — **[OK]** (#6675, #6569, #6354) each kind's pause-or-fail rule (section 1)
   is a column of the table (`pauses: bool`, `engine_retries: bool`) served on `RunFailure`, and the runner acts on it: a
   pausing kind settles the run `paused` with its `failure`; a failing kind fails the item and goes on. Today only a rate
   limit and the cap pause; `no-credit` and `key-refused` are `fatal` in `llm/retry.resilient` (the provider is marked dead for
@@ -214,11 +214,10 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   `fichero-server/tests/unit/llm/test_rate_limit_backs_off_then_pauses_6584.py`):* a 402 with no in-flight reason on page 4 of 10
   leaves the run paused with `failure.kind == "no-credit"`, three pages kept, nothing sent to that provider; Continue after
   the stub recovers reads pages 4 to 10 only; a bare `RuntimeError` fails that page and the run ends partial.
-- `runner.pause.one-path` — **[PARTIAL]** (#6675, #5933) every pause for a cause goes through
+- `runner.pause.one-path` — **[OK]** (#6675, #5933) every pause for a cause goes through
   `execution/cancellation.request_pause` and settles in `_finish_as_paused` with `failure` set; no runner keeps a second
   paused state. Built: a person's Pause, the cap (`spend._ask_run_to_pause`), a rate limit (`retry._pause_the_run_for`).
-  Not built: `no-credit`, `key-refused`, `network`, `memory` after the hold gives up, `library-closed`; the recipe run parking on
-  the paused step for those causes. *Test:* `fichero-server/tests/unit/llm/test_rate_limit_backs_off_then_pauses_6584.py`
+  Built also: `no-credit`, `key-refused` (`retry._pause_the_run_for_credit`, the parallel node's error path) and the page-job kinds in `failure.PAUSES` (`jobs.py`). *Test:* `fichero-server/tests/unit/llm/test_rate_limit_backs_off_then_pauses_6584.py`
   (extend to each pausing kind).
 - `runner.pause.continue-from-first-not-done` — **[PARTIAL]** (#6569, #6331, #6332) Continue on a paused run re-checks the
   cause, forgets the pause (`forget_rate_limit_pause`, `forget_cap_stop`), and takes up the first item not done; done pages
