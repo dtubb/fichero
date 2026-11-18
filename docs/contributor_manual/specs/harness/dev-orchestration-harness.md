@@ -1,5 +1,7 @@
 # Dev Orchestration Harness — how we work — Design Spec (#TBD)
 
+> **Status: SUPERSEDED 2026-11-18 (Phase 0 of `building-fichero-locally.md`).** Brought in: nothing: four [PROPOSED] behaviours about roles and routing, all superseded; its behaviours stay here as history, under their ids (nothing: four [PROPOSED] behaviours about roles and routing, all superseded); nothing was deleted and no id was renamed. This file stays so that old links resolve; read `building-fichero-locally.md`.
+
 > Milestone: dev-orchestration-harness
 > Manual: TBD — the contributor manual has no "how the agent team works" page. It needs one:
 > the manager/worker split, how a lane is dispatched, which model each role runs, and how work
