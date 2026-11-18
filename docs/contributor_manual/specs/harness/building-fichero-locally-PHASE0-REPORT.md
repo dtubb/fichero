@@ -1,7 +1,12 @@
 # Phase 0 report — `building-fichero-locally.md` (2026-11-18)
 
-> **Decision:** written by the supervising manager after reading this report (a journal row and one line here). This report was
-> prepared by the Phase 0 worker; nothing was built; every GitHub write waits for the manager's yes.
+> **Decision (supervising manager, 2026-11-18 evening): go on to Phase 1, beside the Fichero work.** Phase 0 did what it was asked:
+> the one spec holds every harness behaviour under its id (none lost, no tag changed), the guards are green, the twelve questions are answered
+> with evidence, and the GitHub merge runs from a planned batch with an undo list. Stage 1 is the cheapest real step toward local models
+> (Pi on OpenRouter, CI, the trailer and harness.toml reconcile) and the control numbers above make it measurable. It runs as ONE harness
+> lane on Sonnet with Opus review, below the Fichero lanes in priority (owner 2026-11-18: the runner, workers, Activity and segments come
+> first). The cost ledger (#6379) moves to the front of Stage 3 work as soon as Stage 1 lands, because the spend stop rule cannot be checked
+> without it. The worktree cleanup batch waits for the owner.
 
 ## What Phase 0 did
 
