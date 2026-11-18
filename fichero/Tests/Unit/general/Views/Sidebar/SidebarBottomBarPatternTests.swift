@@ -3,8 +3,8 @@
 //  FicheroTests
 //
 //  sidebar.bottom-bar.plus-trash-filter, sidebar.filter-menu.shows-toggles and panes.chrome.one-filter-pattern
-//  (owner 2026-11-13): the sidebar's bar is + · Trash · Metadata · Filter; its Metadata is exactly item count, sharing
-//  state and run progress; every bar's Filter and Metadata are the same two controls. See
+//  (owner 2026-11-13): the sidebar's bar is + · Trash · Metadata · Filter; its Metadata is exactly sharing state and run
+//  progress (no item count, owner 2026-11-16); every bar's Filter and Metadata are the same two controls. See
 //  docs/contributor_manual/specs/ui/sidebar-crud.md and docs/contributor_manual/specs/ui/panes-workspaces.md.
 //
 
@@ -14,10 +14,10 @@ import SwiftUI
 import Testing
 
 struct SidebarBottomBarPatternTests {
-    @Test("the sidebar's Metadata is exactly item count, sharing state and run progress")
-    func sidebarMetadataIsThreeThings() {
-        #expect(SidebarMetadata.allCases == [.itemCount, .sharingState, .runProgress])
-        #expect(SidebarMetadata.allCases.map(\.title) == ["Item Count", "Sharing", "Run Progress"])
+    @Test("the sidebar's Metadata is exactly sharing state and run progress, no item count")
+    func sidebarMetadataIsTwoThings() {
+        #expect(SidebarMetadata.allCases == [.sharingState, .runProgress])
+        #expect(SidebarMetadata.allCases.map(\.title) == ["Sharing", "Run Progress"])
     }
 
     @Test("each Metadata switch is kept under its own key and is on until switched off")

@@ -79,11 +79,6 @@ extension SidebarView {
         if let libraryId = libraryHeader.libraryId,
            let library = libraryManager.getLibrary(id: libraryId) {
             let buckets = unifiedLibraryBuckets(for: libraryHeader, library: library, libraryId: libraryId)
-            // Match the header's count to the rows actually rendered below. In
-            // particular, workflow nodes are intentionally global-only and must
-            // not inflate an individual library's disclosure label.
-            let totalCount = flattenedLibraryItems(libraryId: libraryId, buckets: buckets).count
-
             // Every project a person set up gets its own header row (#4102):
             // a disclosure group you can collapse, under the Projects heading.
             // The always-there project is drawn headless above them instead
@@ -105,7 +100,7 @@ extension SidebarView {
                 // (#4229: the group's frame is the header plus its expanded
                 // subtree). The header's own `sidebarDropHighlight` is the one
                 // writer for both drop and selection (#5422).
-                libraryDisclosureLabel(library: library, totalCount: totalCount)
+                libraryDisclosureLabel(library: library)
             }
             // NO .tag — deliberately OUTSIDE List selection (#160, 2026-08-09:
             // 'sidebar should not have green when global library is selected').
