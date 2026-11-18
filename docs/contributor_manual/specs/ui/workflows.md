@@ -41,6 +41,12 @@
 
 > See also: `harness/dev-workflows.md` (proposed: the dev pipeline and Research workflows expressed as app workflows).
 
+> **Owns / Does not own (2026-11-18).** This spec OWNS the workflow editor (the canvas, nodes, presets, folders), the workflow
+> bar and the run log of a hand-started workflow. It does NOT own: workflow runs as jobs in the one job model, the Activity pane
+> and window (`ui/activity-pane.md`, which carries `ui/activity-and-automatic-work.md`'s sections G to I since 2026-11-18); how a
+> run fails, pauses and goes on (`compute/runner-reliability.md`); a recipe run (`source/recipes-run.md`) and its design
+> (`source/recipe-designer.md`); models and places (`ui/models-and-compute-window.md`).
+
 ## Intent (the design)
 
 A **workflow** is a saved, named, ordered graph of **tool nodes** — each node one

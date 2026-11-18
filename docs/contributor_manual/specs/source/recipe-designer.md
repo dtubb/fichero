@@ -13,6 +13,13 @@
 > recipe file holds and never holds, starting from one, following a published one).
 > **Status: APPROVED 2026-10-24 (rulings below).** Create
 > `recipe-designer` on approval and point its description here.
+>
+> **Owns / Does not own (2026-11-18, one owning spec per area).** This spec OWNS designing a recipe: Set Up's journey and
+> screens, the stages and their candidates, the filters and the one rank rule, measures, Checking lines, the teaching offer,
+> Budget, Ready, sharing a recipe. It does NOT own: the run once Start is pressed (`source/recipes-run.md`); how a run fails,
+> pauses and goes on (`compute/runner-reliability.md`); the Activity pane and window (`ui/activity-pane.md`); every model and
+> place with its account, downloads and the Add… sheet (`ui/models-and-compute-window.md`); the engine's rule for which model
+> runs where and the offers Ready shows (`ai/where-models-run.md`).
 > **Added 2026-10-30, DRAFT until the maintainer rules (nothing is built until then):** the condition questions in
 > section 3, the "How do you want to run this?" questions and the risks in section 4, the defaults table in
 > section 4b, Budget in section 11b, and Stage 18 of the build order (`designer.material.condition-*`,

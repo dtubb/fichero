@@ -11,6 +11,13 @@
 > properly finished as a spec. Facts read from the code of origin/integration at 2e6e62c8a and from the
 > dogfood run of 2026-10-26 (`agent-work/status/briefs/dogfood-b12-2026-10-26.md`: one 20-page run
 > wedged three times). Milestone `recipes-run` created on approval; its description points here.
+>
+> **Owns / Does not own (2026-11-18, one owning spec per area).** This spec OWNS a recipe run from Start to the summary: the
+> journey, batches and order, resume after a quit or crash, Stop, Pause and Run again, memory bounded for a run, per-step timings,
+> a step running only on pages whose inputs are there. It does NOT own: how any run fails, pauses and goes on, the failure kinds,
+> the one alert and the bug report (`compute/runner-reliability.md`); the Activity pane and window and the one job model, lanes
+> and throttle (`ui/activity-pane.md`); designing the recipe and the Set Up screens (`source/recipe-designer.md`); every model
+> and place with its account (`ui/models-and-compute-window.md`); which model runs where (`ai/where-models-run.md`).
 
 Tags: [OK] built and pinned · [PARTIAL] exists, partly wired or unpinned · [GAP] not built · [BROKEN] the
 code contradicts the intent. This spec does **not** replace `source/recipe-designer.md` (how a recipe is
