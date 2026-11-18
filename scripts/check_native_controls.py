@@ -26,6 +26,7 @@ RULE_DOC = "agents/ROADMAP.md"
 
 # Rekeyed to stable content signatures so unrelated line shifts do not churn the backlog.
 KNOWN_VIOLATIONS: dict[str, str] = {
+    "Activity/Pane/ActivityRunGraphView.swift#fbb0397781": "DESIGN (#6588): a run drawn as step cards joined by arrows, one row per recipe; a diagram, not selectable rows, so List/Table would add chrome and selection it must not have",
     # 2026-08-28 capability bar: both popovers stack a heading, a description,
     # engine-provided badges and an expandable prompt block per entry. A List
     # would impose row selection and separators on content whose whole purpose
