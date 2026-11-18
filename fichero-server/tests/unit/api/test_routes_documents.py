@@ -345,7 +345,7 @@ class TestRelatedDocuments:
         assert [item.document_id for item in response.items] == [peer.id]
         assert response.items[0].sample_entity_names == ["Valid Entity"]
 
-    def test_semantic_leg_surfaces_neighbors_without_any_claims(self, client, db):
+    def test_semantic_leg_surfaces_neighbors_without_any_claims(self, client, db, hashed_text_embedder):
         # #4120: the semantic leg works BEFORE knowledge extraction — no
         # entities, no claims, just embeddings.
         seed = Document(
@@ -384,7 +384,7 @@ class TestRelatedDocuments:
             assert ids.index(peer.id) < ids.index(outsider.id)
         assert seed.id not in by_id
 
-    def test_semantic_and_entity_legs_merge_on_the_same_row(self, client, db):
+    def test_semantic_and_entity_legs_merge_on_the_same_row(self, client, db, hashed_text_embedder):
         seed = Document(
             name="Mining Ledger",
             page_content="Gold mining accounts for the Condoto operation in 1948.",
