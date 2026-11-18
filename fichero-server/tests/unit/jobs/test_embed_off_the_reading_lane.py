@@ -62,11 +62,16 @@ def test_a_step_followed_by_an_embed_keeps_kraken_resident_and_the_embed_still_r
     assert jobs._scheduler.lanes["local-ml"].loaded_model == "kraken:blla"
 
 
-def test_an_embed_runs_beside_a_kraken_page_instead_of_waiting_for_the_model_lane(db, lanes):
+def test_an_embed_waits_for_a_kraken_page_then_runs_without_unloading_the_model(db, lanes):
+    """`activity.lane.embed-after-reading` (owner, 2026-10-19): a background embed waits while a page reads, and once the
+    page ends it runs on the embed lane: it never takes the model lane, so Kraken is not unloaded."""
     jobs.enqueue(db, PAGE, "hold")
     assert _wait_for(lambda: "page:hold" in lanes.events)
     jobs.enqueue(db, EMBED, "d1")
-    assert _wait_for(lambda: "embed:d1" in lanes.events)  # while the page still holds the model lane
+    time.sleep(1.0)
+    assert "embed:d1" not in lanes.events  # held behind the reading page
+    lanes.gate.set()
+    assert _wait_for(lambda: "embed:d1" in lanes.events)
     assert lanes.unloaded == []
 
 
