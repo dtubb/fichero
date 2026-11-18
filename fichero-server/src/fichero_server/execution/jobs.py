@@ -3189,7 +3189,7 @@ def continue_all(db: "Database") -> tuple[list[str], list[str]]:
 def held_count(db: "Database") -> int:
     """How many rows Pause All holds now."""
     _ensure(db)
-    return int(db.execute_fetchone("SELECT count(*) FROM jobs WHERE held_by = ?", [HELD_BY_PAUSE_ALL])[0])
+    return int(db.execute_fetchone("SELECT count(*) FROM jobs WHERE held_by = ?", [HELD_BY_PAUSE_ALL], committed=True)[0])
 
 
 def stop_all(db: "Database", actor: str | None = None, client: str | None = None) -> list[str]:
@@ -3899,6 +3899,7 @@ def seconds_per_item(db: "Database", kind: str) -> float | None:
         "SELECT epoch(finished_at) - epoch(started_at) FROM jobs WHERE kind = ? AND state = 'done' "
         "AND started_at IS NOT NULL AND finished_at IS NOT NULL ORDER BY finished_at DESC LIMIT ?",
         [kind, MEASURED_ITEMS],
+        committed=True,
     )
     times = sorted(r[0] for r in rows if r[0] is not None and r[0] >= 0)
     return times[len(times) // 2] if times else None
