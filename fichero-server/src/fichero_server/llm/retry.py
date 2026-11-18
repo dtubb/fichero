@@ -25,6 +25,11 @@ _SPENT: dict[str, int] = {}  # provider -> calls in a row whose retries were spe
 #: run id -> {provider, retry_after_seconds, wait_seconds}: the runs asked to pause because their provider is rate-limiting
 #: (`activity.limits.rate-limit-backs-off-then-pauses`, owner 2026-11-13): paused with that cause, never a failed page per 429.
 _PAUSED_FOR_RATE_LIMIT: dict[str, dict] = {}
+#: run id -> provider -> {provider, cause, detail}: the runs paused because a provider has no credit or its credit limit is
+#: reached (#6675). One entry per provider per run, so the app raises one dialogue however many pages hit it.
+_PAUSED_FOR_CREDIT: dict[str, dict[str, dict]] = {}
+#: provider -> (cause, the provider's own words) of its last credit answer: a later page fails fast with the same words.
+_LAST_CREDIT: dict[str, tuple[str, str]] = {}
 #: How many calls in a row to one provider must spend their bounded back-off on 429s before the runs calling it pause (the
 #: review's number, 2026-11-13): the back-off IS the automatic retrying; this is where it stops being automatic.
 RATE_LIMIT_PAUSE_AFTER = 3
@@ -43,6 +48,36 @@ def forget_rate_limit_pause(run_id: str | None) -> None:
     """The run goes on (Continue): it is no longer paused for a rate limit."""
     if run_id:
         _PAUSED_FOR_RATE_LIMIT.pop(run_id, None)
+
+
+def paused_for_credit(run_ids) -> dict | None:
+    """The credit pause of the first of `run_ids` asked to pause for one: `{provider, cause, detail}`, else None."""
+    return next((next(iter(_PAUSED_FOR_CREDIT[r].values())) for r in run_ids if r and _PAUSED_FOR_CREDIT.get(r)), None)
+
+
+def forget_credit_pause(run_id: str | None) -> None:
+    """The run goes on (Continue): the provider is asked again, so what failed it fast is forgotten."""
+    if run_id:
+        for provider in _PAUSED_FOR_CREDIT.pop(run_id, {}):
+            _DEAD.pop(provider, None)
+            _LAST_CREDIT.pop(provider, None)
+
+
+def _pause_the_run_for_credit(provider: str, exc: BaseException | None) -> bool:
+    """The provider has no credit or its limit is reached: ask the run this call belongs to to pause, with the one prompt.
+    True when a run was asked; False outside a run (the error is then raised as it was). `exc` None repeats the last answer."""
+    from fichero_server.llm.failure import redact
+    from fichero_server.llm.spend import _ask_run_to_pause
+    from fichero_server.workflows.circuit_breaker import credit_cause
+
+    if exc is not None:
+        first = (str(exc).strip().splitlines() or [""])[0]
+        _LAST_CREDIT[provider] = (credit_cause(exc), redact(first[:300]))
+    cause, detail = _LAST_CREDIT.get(provider, ("out-of-credit", ""))
+    run_id = _ask_run_to_pause()
+    if run_id:
+        _PAUSED_FOR_CREDIT.setdefault(run_id, {}).setdefault(provider, {"provider": provider, "cause": cause, "detail": detail})
+    return bool(run_id)
 
 
 def _pause_the_run_for(provider: str, exc: BaseException) -> None:
@@ -71,7 +106,7 @@ async def resilient(make_coro: Callable[[], Awaitable[T]], config) -> T:
     its own no-progress rule and `page_retry` own that."""
     from fichero_server.llm import _runs_on_this_mac
     from fichero_server.workflows.circuit_breaker import (
-        DEFAULT_BREAKER_THRESHOLD, IN_RETRY_LAYER, ProviderCircuitBreaker, call_with_breaker, classify_provider_error, fatal_cause,
+        DEFAULT_BREAKER_THRESHOLD, IN_RETRY_LAYER, ProviderCircuitBreaker, ProviderCreditStopError, call_with_breaker, classify_provider_error, fatal_cause,
         provider_stopped_error)
 
     if IN_RETRY_LAYER.get() or _runs_on_this_mac(config):
@@ -79,13 +114,17 @@ async def resilient(make_coro: Callable[[], Awaitable[T]], config) -> T:
     provider = (config.provider or "unknown").lower()
     until, why = _DEAD.get(provider, (0.0, "rate-limit"))
     if until > time.monotonic():
+        if why == "quota" and _pause_the_run_for_credit(provider, None):
+            raise ProviderCreditStopError(provider, failures=1)  # the run's other pages wait with it (#6675)
         raise provider_stopped_error(provider, why)  # the cause it died of: no credit, a refused key, or a rate limit
     breaker = ProviderCircuitBreaker()  # per call: the retries are what is bounded here; process-wide state is below
     try:
         result = await call_with_breaker(make_coro, provider=provider, breaker=breaker, label=config.model)
     except Exception as exc:
         kind = classify_provider_error(exc)
-        if kind == "fatal":
+        if isinstance(exc, ProviderCreditStopError):  # no credit, run asked to pause (#6675): the run's other pages fail fast with it
+            _DEAD[provider] = (time.monotonic() + DEAD_FOR_SECONDS, "quota")
+        elif kind == "fatal":
             _DEAD[provider] = (time.monotonic() + DEAD_FOR_SECONDS, fatal_cause(exc))
         elif breaker.is_open(provider):
             _DEAD[provider] = (time.monotonic() + DEAD_FOR_SECONDS, "rate-limit")

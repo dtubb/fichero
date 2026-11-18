@@ -122,7 +122,7 @@ from fichero_server.workflows.tools._doc_lookup import (  # noqa: E402
 from fichero_server.workflows.node_context import get_current_node  # noqa: E402
 from fichero_server.workflows.circuit_breaker import (  # noqa: E402
     ProviderCircuitBreaker,
-    ProviderInFlightBudgetError,
+    RUN_PAUSING_ERRORS,
     ProviderRateLimitedError,
     call_with_breaker,
 )
@@ -6133,7 +6133,7 @@ async def process_vision(
                     )
                 )
 
-        except ProviderInFlightBudgetError:
+        except RUN_PAUSING_ERRORS:
             raise  # the run is asked to pause (#6671): the page is read again on Continue, not recorded failed
         except ProviderRateLimitedError as e:
             # #2543: the per-provider circuit breaker is OPEN — record a loud,
@@ -6303,7 +6303,7 @@ async def process_vision(
         except Exception as exc:  # defensive: _process_file already isolates
             # per-file errors via its own try/except, but never let an
             # unexpected escape abort the sibling files.
-            if isinstance(exc, ProviderInFlightBudgetError) and (node := get_current_node()) and node.run_id:
+            if isinstance(exc, RUN_PAUSING_ERRORS) and (node := get_current_node()) and node.run_id:
                 # The run is asked to pause (#6671): the page is not a failed page, Continue reads it again.
                 raise WorkflowPaused(node.run_id) from exc
             err = failure_text(exc)

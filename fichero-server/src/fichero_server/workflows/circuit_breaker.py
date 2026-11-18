@@ -236,6 +236,33 @@ class ProviderInFlightBudgetError(ProviderRateLimitedError):
                 "Continue it in a few minutes, or add credit at " + name + ".")
 
 
+class ProviderCreditStopError(ProviderQuotaExhaustedError):
+    """The provider has no credit, or a key's or account's credit limit is reached (#6675), inside a run: the run is paused
+    with the cause and its one prompt (Open provider page, Continue, Stop), no page is recorded failed."""
+
+    @classmethod
+    def words(cls, provider: str) -> str:
+        name = _provider_name(provider)
+        return f"{name} has no credit left, or its credit limit is reached, so the run paused. Continue it once that is fixed."
+
+
+#: The errors that mean "the run was asked to pause with a cause": its page is not a failed page, Continue reads it again.
+RUN_PAUSING_ERRORS = (ProviderInFlightBudgetError, ProviderCreditStopError)
+
+CREDIT_LIMIT_WORDS = ("key limit", "credit limit", "limit exceeded", "limit reached", "spending limit", "spend limit")
+
+
+def credit_cause(exc: BaseException) -> str:
+    """`"credit-limit"` when the provider's words name a limit (a key's or an account's cap), else `"out-of-credit"`."""
+    from fichero_server.llm import _extract_exc_message
+
+    try:
+        text = _extract_exc_message(exc).lower()
+    except Exception:  # pragma: no cover - classification must never crash
+        text = str(exc).lower()
+    return "credit-limit" if any(k in text for k in CREDIT_LIMIT_WORDS) else "out-of-credit"
+
+
 _BY_CAUSE: dict[str, type[ProviderRateLimitedError]] = {
     "rate-limit": ProviderRateLimitedError, "quota": ProviderQuotaExhaustedError, "key": ProviderKeyRefusedError}
 
@@ -533,6 +560,12 @@ async def call_with_breaker(
                 _slow_down_cap(provider)  # the next calls fit the key's credit: half as many at once
             if kind == "fatal":
                 await breaker.trip(provider, detail=str(exc), cause=fatal_cause(exc))
+                if fatal_cause(exc) == "quota":
+                    # No credit, or a credit limit (#6675): the run pauses and asks; its page is not a failed page.
+                    from fichero_server.llm.retry import _pause_the_run_for_credit
+
+                    if _pause_the_run_for_credit(provider or "unknown", exc):
+                        raise ProviderCreditStopError(provider or "unknown", failures=attempt + 1, detail=str(exc)) from exc
                 raise
             if kind == "terminal":
                 raise

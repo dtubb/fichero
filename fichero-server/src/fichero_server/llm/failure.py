@@ -274,6 +274,19 @@ def _build(kind: str, refusal: CloudRefusal | None, exc: BaseException | None, t
                       exception_type=type(exc).__name__ if exc is not None else None, detail=detail, refusal=refusal)
 
 
+def credit_pause_failure(paused: dict, *, step: str | None = None, done: int | None = None,
+                         total: int | None = None) -> RunFailure:
+    """The failure a run PAUSED for credit carries (#6675, `recipes-run.credit.out-of-credit-pauses-and-asks`): the provider, out of
+    credit or a credit limit, the provider's own words, and Continue first; the pause is not a failure of any page."""
+    failure = _build("no-credit", None, None, paused.get("detail", ""), step=step, provider=paused["provider"], done=done, total=total)
+    name = failure.provider or "the provider"
+    what = "has reached its credit limit" if paused.get("cause") == "credit-limit" else "is out of credit"
+    failure.words = f"{name} {what}, so the run is paused. Nothing was lost."
+    failure.fix = f"Add credit or raise the limit at {name}, then Continue; Fichero checks again and goes on from the first page not done."
+    failure.actions = [_a("resume"), _a("open-settings", PROVIDERS_CONTROL)]
+    return failure
+
+
 def _a(kind: str, control: str | None = None) -> FailureAction:
     return FailureAction(kind=kind, control=control)  # type: ignore[arg-type]
 

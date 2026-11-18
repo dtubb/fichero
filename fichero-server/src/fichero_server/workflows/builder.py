@@ -2371,9 +2371,9 @@ def _make_parallel_node_function(
                 # #5608) while it waited for the lane: not done, not a page that failed. A page stopped alone skips,
                 # and the run's next pages go on.
                 return _with_chaining(_cancelled_result(), failed=True, error="cancelled")
-            from fichero_server.workflows.circuit_breaker import ProviderInFlightBudgetError
+            from fichero_server.workflows.circuit_breaker import RUN_PAUSING_ERRORS
 
-            if isinstance(e, ProviderInFlightBudgetError):
+            if isinstance(e, RUN_PAUSING_ERRORS):
                 # The provider's credit fits fewer calls at once (#6671): the run was asked to pause with that cause. The page
                 # is not one that failed, so the systemic-error rule never counts it and Continue reads it again.
                 from fichero_server.workflows.node_context import get_current_node
