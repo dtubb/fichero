@@ -431,6 +431,8 @@ nav:
               - Experiments, saved views, sharing: contributor_manual/specs/explore/experiments-and-sharing.md
           - Harness:
               - Building Fichero Locally, the one harness spec (draft): contributor_manual/specs/harness/building-fichero-locally.md
+              - Building Fichero Locally, Phase 0 review: contributor_manual/specs/harness/building-fichero-locally-REVIEW.md
+              - Building Fichero Locally, Phase 0 report: contributor_manual/specs/harness/building-fichero-locally-PHASE0-REPORT.md
               - Audited Action Layer: contributor_manual/specs/harness/audited-action-layer.md
               - Dev Orchestration Harness: contributor_manual/specs/harness/dev-orchestration-harness.md
               - Dev Pipeline: contributor_manual/specs/harness/deterministic-conductor.md
