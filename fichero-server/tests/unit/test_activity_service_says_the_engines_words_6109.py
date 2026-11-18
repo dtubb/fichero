@@ -5,7 +5,9 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-SERVICES = sorted((Path(__file__).resolve().parents[3] / "fichero/fichero/Services").rglob("ActivityService*.swift"))
+from _scan_files import scan_rglob
+
+SERVICES = sorted(scan_rglob(Path(__file__).resolve().parents[3] / "fichero/fichero/Services", "ActivityService*.swift"))
 
 
 def test_no_undocumented_branch_drops_the_engines_payload():
