@@ -25,6 +25,7 @@ from fichero_server.models import DocType, Document, FileType, Status
 from fichero_server.workflows.tools.extract_entities_only import _transcription_text
 
 PAGE = Path(__file__).parents[1] / "formats" / "fixtures" / "corpus" / "transkribus_spanish-notarial_0074.page.xml"
+EMBED_DIM = 1024
 PERSON = ActionContext(actor="historian", library_path=None, is_bootstrap=True)
 
 
@@ -93,7 +94,7 @@ def test_a_page_without_markup_is_read_exactly_as_before(db, tmp_path):
     assert text_for_names(db, doc.id, doc.page_content) == doc.page_content
 
 
-def test_search_reads_the_page_with_its_abbreviations_opened(db, page):
+def test_search_reads_the_page_with_its_abbreviations_opened(db, page, monkeypatch):
     """WHY: search read the page's markup too (#5651): `dicha` was not found on a page that says `dha$.dicha`.
     What search reads beside the page's text (its standing text, embedded and indexed with it) opens them; the
     page's own text keeps the line as the file had it."""
@@ -101,6 +102,9 @@ def test_search_reads_the_page_with_its_abbreviations_opened(db, page):
 
     searched = (page.metadata or {}).get(STANDING_TEXT) or ""
     assert "la dicha Anna Maria" in searched and "$" not in searched
+    # The embedder is a stand-in: this test reads which text is embedded, never a model's vectors (no model is loaded).
+    monkeypatch.setattr(type(db), "_embed_text", lambda self, text, **_kw: [1.0] * EMBED_DIM)
+    monkeypatch.setattr(type(db), "_embed_texts", lambda self, texts, **_kw: [[1.0] * EMBED_DIM for _ in texts])
     rows = db._standing_text_records(page, page.page_content)
     assert rows and all(row["embedding_scope"] == "standing" for row in rows)
 
