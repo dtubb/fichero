@@ -28,9 +28,13 @@ A person opens one window and sees everything that can do work for them and how 
 another Mac, at a cluster, at a cloud provider), whether it is downloaded, loaded in memory, broken or missing; every
 place and its account (a key, credit, limits, reachable or not); this Mac's RAM and GPU and which models can run here;
 what is using each model right now and what failed on it and why; what could be unloaded or deleted and how much it
-would give back. They act there: download, download again, unload, delete, add a key, add a Mac, add a cluster, test a
-connection, set where a kind of work runs, start or watch a training. Settings keeps what is a preference (whether cloud
-is allowed, the caps, the defaults per kind of work); the window holds what is a thing with a state.
+would give back. **Models are found by search and bookmarked, never "added"** (owner 2026-11-18): the window's
+search is the recipe finder's one job (`find-models`: Kraken's repository on Zenodo, HTR-United, Hugging Face), a found
+card is bookmarked (kept, not downloaded) or downloaded, and **the window shows the cards the recipe runner can actually
+use right now**: the same list `GET /api/recipes/candidates` offers Set Up, so what the owner sees here is what a recipe
+can reach. They act there: search, bookmark, download, download again, unload, delete, use for a step, add a key to a
+provider, connect a Mac or a cluster, test a connection, start or watch a training. Settings keeps what is a preference
+(whether cloud is allowed, the caps, the defaults per kind of work); the window holds what is a thing with a state.
 
 It lives beside Activity and shares its bones: the same `NavigationSplitView` (a source list, the one table, the
 Inspector), the same toolbar conventions, the same verb list where a verb applies, the same graphs pane. The engine's
@@ -78,6 +82,11 @@ location, and one button "Models and Compute…" that opens the window.
 Three sections, each item a grouping plus a column set over the one list, badged with the rows needing you (a broken
 model, a provider without credit, a place not reachable), remembered per window:
 
+- **Usable now** (the default item) — every card a recipe step can be given this minute: downloaded local models whose
+  runtime is present and that fit this Mac, cloud models behind a provider with a key and credit, remote places that
+  answered their probe. It is `GET /api/recipes/candidates` without a step filter: the finder's cards with `runs_here` or a
+  reachable `runs_on`, nothing else. Beside it, **Bookmarked** (cards kept from a search, downloaded or not) and
+  **Found** (the last search's cards, with why each cannot run here).
 - **This Mac** — Runtimes (Kraken, spaCy, the search embedder, MLX / oMLX, Apple Vision, Apple Intelligence and Foundation
   Models, Whisper, YOLO and OpenCV), Models (every downloaded model, by runtime), Trained here.
 - **Places** — Cloud (one item per provider row: OpenRouter, OpenAI, Anthropic, Google, Hugging Face's router, …),
@@ -94,7 +103,9 @@ Columns (one table, the header's menu chooses; widths and order kept per item as
 
 | Column | Default | Says |
 |---|---|---|
-| State glyph | on | filled when loaded, hollow when downloaded and idle, dotted when not downloaded, red X when broken, lock when blocked on a key or credit; a green dot (animated) when active |
+| State glyph | on | filled when loaded, hollow when downloaded and idle, dotted when bookmarked and not downloaded, red X when broken, lock when blocked on a key or credit; a green dot (animated) when active |
+| Usable | on | "Now" · "After download (2.1 GB)" · "Needs a key at <Provider>" · "No credit" · "Too big for this Mac (needs 9 GB)" · "No runtime in this build": the card's `runs_here` / `cannot_run_because` / `runs_on`, the finder's own words |
+| Bookmark | on | a filled bookmark glyph when kept; press to keep or let go |
 | Name | on | the model or place's display name; a model's build in grey (bf16, 4-bit MLX, Q4) |
 | Where | on | This Mac · <another Mac's name> · <cluster> · <provider> |
 | Size | on | on disk (a local model), or "—" |
@@ -131,16 +142,22 @@ The existing Inspector column, an Models section (as `activity.pane.inspector-sh
 ### Toolbar
 
 Leading: the same run controls as Activity (Play/Pause, Stop; `activity.window.run-controls`), since what runs on these
-models is Activity's work. Then **Add…** (a provider, a Mac, a cluster, a model by file or Hub repo: `#5460`), the
-filter field at the bottom bar (`panes.chrome.one-filter-pattern`), the centre's view picker **Table | Graph** (Graph:
-memory resident over time per model; calls and pages per place; cost per place), as `activity.window.centre-views`.
+models is Activity's work. Then the **Search** field (the finder's one job, `find-models`: typed words, a language or a
+script, searched on Zenodo's Kraken repository, HTR-United and Hugging Face; results land in **Found** as cards with the
+finder's words for why each can or cannot run here; "Searching online…" while the job runs, as Set Up shows it), and
+**Connect…** for PLACES only (a provider's key, a Mac, a cluster; never a model: a model is found and bookmarked, or
+imported from a file by `#5460`'s path). The filter field sits in the bottom bar (`panes.chrome.one-filter-pattern`); the
+centre's view picker is **Table | Graph** (Graph: memory resident over time per model; calls and pages per place; cost per
+place), as `activity.window.centre-views`.
 
 ### Verbs
 
-One list, in the context menu, the row's one button and the Models menu: **Download**, **Download Again**, **Unload**,
-**Delete**, **Reveal in Finder**, **Add Key…**, **Test Connection**, **Open Provider Page**, **Choose for…**, **Show in
-Activity** (the rows using it), **Remove** (a place). The row's one button is the fix of its newest failure when it has
-one (Download again, Add key, Open provider page), else its state verb (Download / Unload).
+One list, in the context menu, the row's one button and the Models menu: **Bookmark** / **Remove Bookmark**,
+**Download**, **Download Again**, **Unload**, **Delete** (the files; the bookmark stays), **Reveal in Finder**, **Use
+for…** (a step of the open project's recipe: `POST /api/recipes/candidates/use`, the same route Set Up's finder calls),
+**Add Key…**, **Test Connection**, **Open Provider Page**, **Show in Activity** (the rows using it), **Disconnect** (a
+place). The row's one button is the fix of its newest failure when it has one (Download again, Add key, Open provider
+page), else its state verb (Bookmark on a Found card / Download on a bookmarked one / Unload on a loaded one).
 
 ### Ties to Activity and to the runner contract
 
@@ -170,6 +187,33 @@ filters Activity by `model:`.
   Activity's (`activity.pane.columns-from-the-header`, `activity.pane.fix-button-has-words`). *Test:* `ModelsWindowVerbsTests.swift`.
 - `models.window.needs-you-badge` — **[GAP]** (#6588) each sidebar item is badged with its rows needing you (broken,
   no credit, needs key, not reachable), and those rows sort first. *Test:* `ModelsWindowNeedsYouTests.swift`.
+
+### A2. Search, bookmark, and what a recipe can reach (owner 2026-11-18)
+
+- `models.search.is-the-finder` — **[PARTIAL]** (#5611, #5612, #5970; built in the engine and in Set Up: the `find-models`
+  job on the search lane (`recipes/discovery.py` `search_online`, `search_online_for_step`: Zenodo's Kraken repository,
+  HTR-United, Hugging Face), what it finds kept in the model store's `discovery/` folder (`keep_hub`, `found_for` per
+  language), served as cards by `GET /api/recipes/candidates` with `runs_here`, `cannot_run_because` and `runs_on`, and
+  Set Up's finder with "Searching online…" (`ModelFinderStore.searchOnline`); not built: the window's Search field and its
+  Found item) the window's search IS the recipe finder's job: one search, one kept result, one card shape; nothing is
+  searched twice and no second catalogue exists.
+- `models.bookmark.kept-not-added` — **[GAP]** (#5460, #6588) a found card is BOOKMARKED, never "added": Bookmark keeps
+  the card in the one kept list (`discovery/`, a `bookmarked` mark beside `found_for`) without downloading it, so it
+  survives the next search letting it go; Download fetches a bookmarked card; Remove Bookmark lets it go when it is not
+  downloaded and not used by a step; a card a step uses cannot lose its bookmark. *Test (to write, in
+  `fichero-server/tests/unit/recipes/`):* a bookmarked card outlives a search that no longer finds it; a card a step uses
+  refuses Remove Bookmark with the step named.
+- `models.window.shows-what-a-recipe-can-reach` — **[GAP]** (#6588, #5976, #5974) the default item, Usable now, is
+  exactly the set of cards Set Up could give a step this minute (`GET /api/recipes/candidates`, every step, filtered to
+  `runs_here` true or a reachable `runs_on` with a key and credit); a card that cannot run says why in the finder's own
+  words ("No runtime in this build", "Needs a key at <Provider>", "Too big for this Mac"), under Found or Bookmarked,
+  never under Usable now. Acceptance: with Kraken installed, a bookmarked HF reader not downloaded and OpenRouter without
+  credit, Usable now lists Kraken's cards and no OpenRouter card; Bookmarked lists the HF reader as "After download". *Test
+  (to write):* the window's Usable now equals the candidates route's usable set for a seeded store.
+- `models.row.use-for-a-step` — **[PARTIAL]** (#5611, #5612; built: `POST /api/recipes/candidates/use` sets a step's
+  reader as a project override "chosen by you", and Set Up's step menu calls it; not built: the window's verb) Use for…
+  on a usable card offers the open project's steps that take its kind and sets it as that step's model; the Start plan
+  shows it at once.
 
 ### B. What a row says
 
@@ -208,10 +252,10 @@ filters Activity by `model:`.
 
 - `models.place.every-place-listed` — **[PARTIAL]** (#6588; the owner's ruling of 2026-11-16, built in Activity's
   Where) every place work can run is listed before anything ran there: this Mac, each enabled provider, each added Mac,
-  each cluster, Hugging Face Jobs. Owed here: the window's own rows and the Add… sheet.
-- `models.place.add-a-mac` — **[GAP]** (#5951, #5238; `compute/targets-and-connection.md` owns the connection) Add… a Mac
-  asks its address, probes it, labels it "your machine" (egress own-machine) and lists the models it serves.
-- `models.place.add-a-cluster` — **[GAP]** (#5454, #5642; `compute/hpc-runner-acenet.md` owns the flow) Add… a cluster is
+  each cluster, Hugging Face Jobs. Owed here: the window's own rows and the Connect… sheet.
+- `models.place.add-a-mac` — **[GAP]** (#5951, #5238; `compute/targets-and-connection.md` owns the connection) Connect… a
+  Mac asks its address, probes it, labels it "your machine" (egress own-machine) and lists the models it serves.
+- `models.place.add-a-cluster` — **[GAP]** (#5454, #5642; `compute/hpc-runner-acenet.md` owns the flow) Connect… a cluster is
   the existing `/api/hpc/clusters` flow (host, user, folder, allocation; Make key; Sign in; Test connection; Install image)
   as the Inspector's buttons; the row's Account is the probe's answer. Built: the routes and the HPC settings view; owed:
   the rows here and Settings' view retired.
@@ -235,8 +279,10 @@ the surface those two lines describe, `models.row.account-from-a-probe` is their
   trained here or on a cluster is a row under This Mac › Trained here with its held-out scores, provenance and where it
   can run, and Choose for… sets it for a step; Train a Model… stays on the folder's context menu and the training's row is
   Activity's.
-- `models.ground-truth.counts` — **[GAP]** (#5119, #5446) a trained model's Inspector says how many corrected lines and
-  pages it was trained on and when the set was last added to; the set itself stays in the project.
+- `models.ground-truth.counts` — **[GAP]** (#5119, #5446; the mark, the rule and the sidebar's Ground Truth smart folders
+  are `source/ground-truth.md`'s) a trained model's Inspector says how many ground-truth lines and pages it was trained
+  on and when the set was last added to, the same count the sidebar's Ground Truth › Lines folder shows; the set itself
+  stays in the project.
 
 ### E. Settings after the move
 
@@ -269,7 +315,7 @@ the surface those two lines describe, `models.row.account-from-a-probe` is their
 - Depends on: 1.2
 - Size: S
 
-### Stage 2 — Models: download, load, unload, delete
+### Stage 2 — Models: search, bookmark, download, load, unload, delete
 
 #### Step 2.1 — Installed means it loads; downloads report bytes; unload gives back (#6591, #6592)
 - Behaviours: `models.row.installed-means-it-loads`, `models.row.download-reports-bytes`, `models.row.what-unloading-gives-back`
@@ -277,9 +323,15 @@ the surface those two lines describe, `models.row.account-from-a-probe` is their
 - Depends on: 1.2
 - Size: M
 
+#### Step 2.2 — Search is the finder; bookmark, not add; Usable now is what a recipe can reach (#5611, #5460)
+- Behaviours: `models.search.is-the-finder`, `models.bookmark.kept-not-added`, `models.window.shows-what-a-recipe-can-reach`, `models.row.use-for-a-step`
+- Tests: fichero-server/tests/unit/recipes/test_hub_discovery_quality_5594.py, fichero-server/tests/unit/recipes/test_candidates_filtered_then_ranked_4950.py (extended with the bookmark mark; the Usable-now equality test to write beside them)
+- Depends on: 1.2
+- Size: M
+
 ### Stage 3 — Places
 
-#### Step 3.1 — Providers' credit and limits; the Add… sheet; a Mac; a cluster; HF Jobs (#6675, #5951, #5454)
+#### Step 3.1 — Providers' credit and limits; Connect… a Mac, a cluster, HF Jobs (#6675, #5951, #5454)
 - Behaviours: `models.row.credit-and-limits`, `models.place.every-place-listed`, `models.place.add-a-mac`, `models.place.add-a-cluster`, `models.place.hf-jobs`, `models.place.egress-from-the-address`
 - Tests: fichero-server/tests/unit/api/test_activity_models_6588.py (extended: clusters and provider accounts in the one list; a Swift test of the Account cell's words and button to write)
 - Depends on: 1.2
@@ -308,13 +360,16 @@ the surface those two lines describe, `models.row.account-from-a-probe` is their
 ## Accessibility identifiers
 
 `models.window` · `models.sidebar.<item>` · `models.table` · `models.row.<id>` · `models.row.<id>.button` ·
-`models.inspector` · `models.toolbar.add` · `models.toolbar.runControls` · `models.filter`.
+`models.inspector` · `models.toolbar.search` · `models.toolbar.connect` · `models.toolbar.runControls` · `models.filter` ·
+`models.row.<id>.bookmark`.
 
 ## UX completeness
 
 | Control (a11y id) | Label | Tooltip/help text | Localized key | Verified by |
 |---|---|---|---|---|
-| `models.toolbar.add` | Add… | Add a provider, a Mac, a cluster or a model | `models.add` | test |
+| `models.toolbar.search` | Search | Find models on Zenodo, HTR-United and Hugging Face; bookmark what you want to keep | `models.search` | test |
+| `models.toolbar.connect` | Connect… | Connect a provider's key, a Mac or a cluster | `models.connect` | test |
+| `models.row.<id>.bookmark` | Bookmark | Keep this card without downloading it | `models.bookmark` | test |
 | `models.row.<id>.button` | the fix or state verb | the row's one action | `models.row.button.<verb>` | test |
 | `models.inspector.unloadIdle` | Unload Idle Models | Frees the memory of models nothing is using | `models.unloadIdle` | test |
 

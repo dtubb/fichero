@@ -411,6 +411,7 @@ nav:
               - A Recipe's Steps at Scale (PROPOSED): contributor_manual/specs/compute/recipe-steps-at-scale.md
               - Training, Scoring & Choosing Models: contributor_manual/specs/compute/training-and-evaluation.md
               - Runner Reliability (one contract; failures, pauses, the alert, the bug report): contributor_manual/specs/compute/runner-reliability.md
+              - Ground Truth (marked by hand, in the sidebar, DRAFT): contributor_manual/specs/source/ground-truth.md
           - Docs:
               - Docs Citations & Bibliography: contributor_manual/specs/docs/docs-citations-bibliography.md
           - Export:
@@ -607,6 +608,7 @@ nav:
           - UI-Test Harness Findings (2026-09-12): contributor_manual/reports/ui-test-harness-findings-2026-09-12.md
           - Runner Reliability Review (2026-11-18): contributor_manual/reviews/2026-11-18-runner-reliability.md
           - Runner Reliability Plan (2026-11-18): contributor_manual/reviews/2026-11-18-runner-reliability-plan.md
+          - Runner Review 2, security, speed, tokens, Kraken, training (2026-11-18): contributor_manual/reviews/2026-11-18-runner-review-2.md
           - Sidebar/UX Verify-and-Close Checklist: contributor_manual/verify-checklists/sidebar-ux-verify.md
       - UI Map: contributor_manual/ui-map.md
       - API Reference: contributor_manual/api-reference/index.md
