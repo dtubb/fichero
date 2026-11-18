@@ -434,7 +434,7 @@ nav:
               - Audited Action Layer: contributor_manual/specs/harness/audited-action-layer.md
               - Dev Orchestration Harness: contributor_manual/specs/harness/dev-orchestration-harness.md
               - Dev Pipeline: contributor_manual/specs/harness/deterministic-conductor.md
-              - Dev Workflows (proposed): contributor_manual/specs/harness/dev-workflows.md
+              - Dev Workflows (superseded): contributor_manual/specs/harness/dev-workflows.md
               - Agent Profiles (proposed): contributor_manual/specs/harness/agent-profiles.md
               - Builder Console (proposed): contributor_manual/specs/harness/builder-console.md
               - Performance Sweep (draft): contributor_manual/specs/harness/performance-sweep.md

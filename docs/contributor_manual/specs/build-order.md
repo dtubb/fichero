@@ -8,7 +8,7 @@
 
 ## In order
 
-1. `dev-workflows` — the harness itself; runs beside the product lane, built by hand by the harness builder. Spec: harness/dev-workflows.md
+1. `Builder` — the harness itself (the milestone was `dev-workflows` in this file and `dev-orchestration-harness` on GitHub until the Phase 0 batch); runs beside the product lane. Spec: harness/building-fichero-locally.md
 2. `image-enhancement` — the one product lane tonight (Step 1.1 landed first). Spec: source/image-enhancement.md
 3. `Sharing & Pairing — Dead-Simple UX` — spec APPROVED with 27 steps; rename the milestone to `sharing-two-macs` when triage runs. Spec: source/sharing-two-macs.md
 4. `recipe-designer` — wide onboarding; the recipe phases R1–R5 go into its build order first. Spec: source/wide-onboarding.md

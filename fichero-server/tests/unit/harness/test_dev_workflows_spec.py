@@ -1,4 +1,4 @@
-"""spec: dev-workflows
+"""spec: dev-workflows (its text lives in docs/contributor_manual/specs/harness/building-fichero-locally.md since Phase 0, 2026-11-18)
 
 Pins the shape of the dev-workflows spec so it cannot rot while its build order is worked: every behaviour
 the spec defines is placed in exactly one build-order step, every behaviour has a row in the Behaviour tests
@@ -7,7 +7,7 @@ table, and the table names no behaviour the spec does not define.
 import re
 from pathlib import Path
 
-SPEC = Path(__file__).parents[4] / "docs/contributor_manual/specs/harness/dev-workflows.md"
+SPEC = Path(__file__).parents[4] / "docs/contributor_manual/specs/harness/building-fichero-locally.md"
 ID = r"dev-workflows\.[a-z0-9.-]*[a-z0-9]"
 
 
