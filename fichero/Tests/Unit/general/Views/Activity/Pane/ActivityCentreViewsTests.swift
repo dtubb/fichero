@@ -63,7 +63,7 @@ struct ActivityCentreViewsTests {
         }
         let newest = line("run:2", .run, "Done", children: [
             line("s1", .step, "Detect Segments", done: 20, model: "kraken:blla"),
-            line("s2", .step, "Read Lines", done: 17, failed: 3, model: "kraken:catmus"),
+            line("s2", .step, "Read Lines", done: 17, failed: 3, model: "kraken:catmus")
         ])
         let older = line("run:1", .run, "Failed", children: [line("s0", .step, "Detect Segments")])
         let empty = line("recipe:b", .recipe, "No steps yet", children: [line("run:3", .run, "Done", children: [])])

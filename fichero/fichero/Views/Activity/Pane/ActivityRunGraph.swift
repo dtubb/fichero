@@ -14,9 +14,7 @@ enum ActivityRunGraph {
         let perPage: String
 
         /// A step that failed pages is drawn red, one that read pages green, one that read none secondary.
-        var tone: Tone { failed > 0 ? .failed : (done > 0 ? .done : .none) }
-
-        enum Tone: Equatable { case done, failed, none }
+        var tone: ActivityRunGraphTone { failed > 0 ? .failed : (done > 0 ? .done : .none) }
     }
 
     struct Run: Identifiable, Equatable {
@@ -37,6 +35,9 @@ enum ActivityRunGraph {
         }
     }
 }
+
+/// How a step went, for its card's tint.
+enum ActivityRunGraphTone: Equatable { case done, failed, none }
 
 /// The run graphs: one row per recipe, its newest run's steps as cards joined by arrows.
 struct ActivityRunGraphView: View {
