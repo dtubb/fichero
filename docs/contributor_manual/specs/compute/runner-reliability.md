@@ -214,10 +214,11 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   `fichero-server/tests/unit/llm/test_rate_limit_backs_off_then_pauses_6584.py`):* a 402 with no in-flight reason on page 4 of 10
   leaves the run paused with `failure.kind == "no-credit"`, three pages kept, nothing sent to that provider; Continue after
   the stub recovers reads pages 4 to 10 only; a bare `RuntimeError` fails that page and the run ends partial.
-- `runner.pause.one-path` — **[OK]** (#6675, #5933) every pause for a cause goes through
+- `runner.pause.one-path` — **[PARTIAL]** (#6675, #5933) every pause for a cause goes through
   `execution/cancellation.request_pause` and settles in `_finish_as_paused` with `failure` set; no runner keeps a second
   paused state. Built: a person's Pause, the cap (`spend._ask_run_to_pause`), a rate limit (`retry._pause_the_run_for`).
-  Built also: `no-credit`, `key-refused` (`retry._pause_the_run_for_credit`, the parallel node's error path) and the page-job kinds in `failure.PAUSES` (`jobs.py`). *Test:* `fichero-server/tests/unit/llm/test_rate_limit_backs_off_then_pauses_6584.py`
+  Not built: `no-credit`, `key-refused`, `network`, `memory` after the hold gives up, `library-closed`; the recipe run parking on
+  the paused step for those causes. *Test:* `fichero-server/tests/unit/llm/test_rate_limit_backs_off_then_pauses_6584.py`
   (extend to each pausing kind).
 - `runner.pause.continue-from-first-not-done` — **[PARTIAL]** (#6569, #6331, #6332) Continue on a paused run re-checks the
   cause, forgets the pause (`forget_rate_limit_pause`, `forget_cap_stop`), and takes up the first item not done; done pages
@@ -501,7 +502,7 @@ open question 3). No test cited any of the twelve ids.
   `cancelled` state and its words. *Not built:* the rule that an alert never fires for it (there is
   no alert yet). *Tests (to write):* in `test_failure_kind_is_typed_6354.py`, a stopped run has
   `failure` null; in `ActivityFailureAlertTests.swift`, it raises nothing.
-- `activity.failure.credit-exhausted-pauses` — **[OK]** (#6354, the pause half needs an issue of
+- `activity.failure.credit-exhausted-pauses` — **[PARTIAL]** (#6354, the pause half needs an issue of
   its own under #6354; #5933, `recipes-run.control.pause-and-resume`; engine; owner 2026-11-13) a
   failure the person can mend, or that mends itself, without losing the run (`out-of-credit`,
   `cap-reached`, `rate-limited`, `key-refused`, `provider-down`, `network`, `disk-full`, `memory`)
@@ -515,11 +516,15 @@ open question 3). No test cited any of the twelve ids.
   its 30 s, so a Resume pressed before credit is added fails fast again and the alert updates
   rather than repeats. A failure of the other kinds ends the run `failed` as today, with the
   partial results kept. The engine, not the app, decides which kinds pause: `pauses: true` on the
-  table's row. *Built:* a quota error is not page-retried, a no-credit or key-refused answer asks the run to pause and it settles `paused` with
-  its `failure` (the runner, the parallel node's error path, the page job). *Not built:* the recipe parking on it. *Tests:*
-  `fichero-server/tests/unit/llm/test_pause_or_fail_is_the_tables_6675.py` (a 402 on page 4 of 10 leaves the run `paused` with
-  `failure.kind == "no-credit"`; a 401 with `key-refused`), `fichero-server/tests/unit/workflows/test_circuit_breaker.py`;
-  to write: `test_recipe_parks_on_a_paused_step_6354.py` (the recipe row reads paused with the step's words and takes the step up again on Resume).
+  table's row. *Built:* a quota error is not page-retried (`builder.py:2192-2196`), pause at a
+  checkpoint (#5933), park on a paused step. *Not built:* settling `paused` on a fatal provider
+  error (today `SystemicErrorDetected` → `failed`, `runner.py:2710`), the recipe parking on it,
+  the `failure` on a paused row. *Tests (to write):*
+  `test_out_of_credit_pauses_the_run_6354.py` (a 402 on page 4 of
+  10 leaves the run `paused` with `failure.kind == "out-of-credit"`, three pages done and kept,
+  and Resume after the stub recovers reads pages 4 to 10 only and ends `done`);
+  `test_recipe_parks_on_a_paused_step_6354.py` (the recipe row
+  reads paused with the step's words and takes the step up again on Resume).
 - `activity.failure.partial-results-kept` — **[PARTIAL]** (#6354; #5937, #5758, #4315) whatever a
   run finished before it failed or paused is kept and shown: the pages read stay read, their
   entities and claims stay, the run's account counts them, and the row says how many ("The run is
