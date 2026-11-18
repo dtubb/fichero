@@ -11,7 +11,7 @@ UV="$(command -v uv || echo "$HOME/.local/bin/uv")"
 PY="$(tr -d '[:space:]' < "$ROOT/.python-version")"
 "$UV" python install "$PY"
 ENV_DIR="${UV_PROJECT_ENVIRONMENT:-$ROOT/fichero-server/.venv}"
-"$UV" sync --frozen --all-extras --python "$PY"
+"$UV" sync --frozen --all-extras --no-install-project --python "$PY"  # the engine runs from src (PYTHONPATH=src), never an install of one checkout
 [ -n "${UV_PROJECT_ENVIRONMENT:-}" ] || ln -sfn fichero-server/.venv "$ROOT/.venv"
 printf '%s python %s, %s packages, lock %s\n' "$(hostname -s)" "$("$ENV_DIR/bin/python" -c 'import platform; print(platform.python_version())')" \
   "$("$UV" pip list --python "$ENV_DIR/bin/python" 2>/dev/null | tail -n +3 | wc -l | tr -d ' ')" "$(shasum -a 256 uv.lock | cut -c1-12)"
