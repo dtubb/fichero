@@ -32,6 +32,16 @@ from tests.unit.jobs.test_runs_are_jobs import (  # noqa: F401
 )
 
 
+@pytest.fixture(autouse=True)
+def fresh_scheduler(monkeypatch, app_db):
+    """The reset tests/unit/jobs/conftest.py gave these tests before they moved: a new scheduler and the mode
+    "automatic" per test, since the scheduler, its foreground streak and the pause are process-wide."""
+    monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())
+    jobs.set_mode("automatic")
+    yield
+    jobs.set_mode("automatic")
+
+
 @pytest.mark.parametrize("every", [False, True], ids=["this-project-closed", "every-project-closed"])
 def test_activity_engine_close_pauses_running_work__a_run_in_flight_is_paused_and_continues(
         client, test_package, workflow, pages, cloud, lane_held, every):

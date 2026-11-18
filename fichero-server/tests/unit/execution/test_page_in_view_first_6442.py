@@ -13,6 +13,17 @@ import pytest
 
 from fichero_server.execution import jobs
 
+
+@pytest.fixture(autouse=True)
+def fresh_scheduler(monkeypatch, app_db):
+    """The reset tests/unit/jobs/conftest.py gave these tests before they moved: a new scheduler and the mode
+    "automatic" per test, since the scheduler, its foreground streak and the pause are process-wide."""
+    monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())
+    jobs.set_mode("automatic")
+    yield
+    jobs.set_mode("automatic")
+
+
 LINES, READ = "find-lines-6442", "read-a-page-6442"
 
 
