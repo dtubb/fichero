@@ -149,3 +149,23 @@ def test_a_page_that_met_no_credit_or_a_refused_key_pauses_its_run_not_the_syste
         retry._PAUSED_FOR_CREDIT.pop(run_id, None)
         retry._DEAD.clear()
         retry._LAST_CREDIT.clear()
+
+
+def test_continue_after_the_provider_recovers_reads_the_missing_pages_only_and_ends_done(client, workflow, pages10, monkeypatch):
+    run, model = _run(client, workflow, pages10, monkeypatch, lambda: _Answer(402, "402: Insufficient credits."))
+    assert _status(client, run) == "paused"
+    read_before = model.calls - len(model.after_bad)  # the pages answered before the 402
+    assert read_before == BAD_PAGE - 1
+
+    class _Recovered(CloudModel):
+        pass
+
+    recovered = _Recovered()
+    import fichero_server.llm as llm
+
+    monkeypatch.setattr(llm, "vision", recovered)
+    answer = client.put(f"/api/activity/jobs/{run}/paused", json={"paused": False})
+    assert answer.status_code < 300, answer.text
+    assert _wait_for(lambda: _status(client, run) in ("completed", "failed", "partial"))
+    assert _status(client, run) == "completed"
+    assert recovered.calls == PAGES - read_before, "Continue read only the pages that were not done"
