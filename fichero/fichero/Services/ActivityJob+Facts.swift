@@ -19,6 +19,8 @@ extension ActivityJob {
         var rowWords: String = ""
         /// The kept export a Choose Folder… is for (the `choose-folder` action's control, #6588).
         var folderFor: String?
+        /// The provider a `no-credit` pause names, by display name (`recipes-run.credit.out-of-credit-pauses-and-asks`, #6675).
+        var provider: String?
         var primaryAction: String? { actions.first }
     }
 
