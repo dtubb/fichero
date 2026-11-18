@@ -1,5 +1,7 @@
 # Spec Pipeline — Design Spec (#TBD)
 
+> **Status: SUPERSEDED 2026-11-18 (Phase 0 of `building-fichero-locally.md`).** The behaviours this spec still governs (18) were moved into that spec under their existing ids and tags (B2 (the spec ↔ issues ↔ tests check) and the two triaged issues); nothing was deleted and no id was renamed. This file stays so that old links resolve; read `building-fichero-locally.md`. The rest stays here as history: superseded by `dev-workflows` (now in the same spec) or replaced by `builder triage`, `builder steps` and `builder milestone`.
+
 > Milestone: spec-pipeline
 > Manual: TBD — contributor-facing only; the user manual needs nothing (this is how the
 > agent team works, not a user-visible surface).
@@ -52,108 +54,22 @@ second markdown-bullet parser — one parser, one bug surface.
 
 ## Behaviors
 
-- `pipeline.status` — **[OK]** `spec_pipeline.py status` prints a per-spec table of
-  behavior counts by tag and always exits 0 (it's a report, not a gate). Pinned by
-  `test_spec_pipeline.py::test_status_counts_by_tag`, `test_spec_pipeline.py::test_status_exits_0_even_with_missing_specs_dir`.
-- `pipeline.check.rule-a-broken-needs-issue` — **[OK]** a behavior tagged
-  BROKEN/GAP/GAP-BROKEN/PARTIAL/MISSING with no cited issue is an illegal state, checked
-  offline (delegates to `check_spec_broken_has_issue.py`'s parser). Pinned by
-  `test_spec_pipeline.py::test_rule_a_broken_with_no_issue_fails`.
-- `pipeline.check.rule-b-stale-tag-closed-issue` — **[OK]** a broken-family behavior citing
-  a CLOSED issue is an illegal state (stale tag or wrongly-closed issue). Pinned by
-  `test_spec_pipeline.py::test_rule_b_closed_issue_still_broken_fails`.
-- `pipeline.check.rule-c-milestone-mismatch` — **[OK]** a behavior citing an issue whose
-  GitHub milestone differs from the spec's declared `Milestone:` is an illegal state — but
-  ONLY for a plain `#N` citation. An arrow citation (e.g. `→ #NNNN increment K`, a
-  deliberate pointer to another tracked epic increment) is legitimately cross-milestone and
-  exempt.
-  Pinned by `test_spec_pipeline.py::test_rule_c_milestone_mismatch_fails`, `test_spec_pipeline.py::test_rule_c_arrow_citation_is_exempt`.
-- `pipeline.check.rule-d-ok-needs-real-test` — **[OK]** a behavior tagged OK with no cited
-  test, or citing a test name that resolves to no file/function anywhere under
-  `fichero/Tests` or `fichero-server/tests`, is an illegal state. Pinned by
-  `test_spec_pipeline.py::test_rule_d_ok_with_no_test_fails`, `test_spec_pipeline.py::test_rule_d_ok_with_nonexistent_test_fails`,
-  `test_spec_pipeline.py::test_rule_d_ok_with_real_test_passes`.
-- `pipeline.check.rule-e-ok-needs-closed-issue` — **[OK]** a behavior tagged OK citing an
-  issue that is still OPEN is an illegal state (the fix isn't actually landed, or the tag is
-  premature). Pinned by `test_spec_pipeline.py::test_rule_e_ok_cites_open_issue_fails`,
-  `test_spec_pipeline.py::test_rule_e_ok_cites_closed_issue_passes`.
-- `pipeline.check.rule-f-orphan-open-issue` — **[OK]** an OPEN issue on a spec's milestone
-  cited by no behavior is reported as INFO by default, promoted to a failure with
-  `--strict`. Pinned by `test_spec_pipeline.py::test_queue_excludes_claimed_and_closed_issues` (queue side) — the
-  INFO/strict split itself is exercised structurally in `cmd_check`; see Open questions.
-- `pipeline.check.rule-g-milestone-spec-mirror` — **[OK]** a GitHub milestone shaped like a
-  spec anchor with no spec, or a spec-declared milestone with no matching GitHub milestone,
-  is an illegal state (mirrors `check_spec_milestones.py` from the milestone side). Uses a
-  DEDICATED milestone listing (`get_milestones`, `gh api .../milestones?state=all`), not just
-  milestones seen on issues — an empty milestone (zero issues) is otherwise invisible to a
-  script that only calls `gh issue list`. Pinned by
-  `test_spec_pipeline.py::test_rule_g_empty_milestone_with_no_spec_fails`,
-  `test_spec_pipeline.py::test_rule_g_workstream_bucket_milestone_is_exempt`.
-- `pipeline.check.rule-g-scope` — **[OK]** rule (g) reads a milestone's `state`/
-  `open_issues` before deciding whether it's a finding at all, so a genuinely dead milestone
-  never shows up as debt (creative-director cross-check, 2026-09-18 — 48 of 51 "CLOSE"
-  candidates in the first triage pass were already closed with zero open issues, and rule
-  (g) was baselining them as noise). Four combinations: CLOSED + 0 open → not a finding
-  (dead, GitHub already keeps it out of the way); CLOSED + N>0 open → a finding ("holds N
-  open issues"); OPEN + 0 open → a finding suggesting closing it; OPEN + N>0 open → the
-  original "write the spec" finding. Pinned by
-  `test_spec_pipeline.py::test_rule_g_closed_milestone_with_zero_open_issues_is_not_a_finding`,
-  `test_spec_pipeline.py::test_rule_g_closed_milestone_with_open_issues_still_fails`,
-  `test_spec_pipeline.py::test_rule_g_open_milestone_with_zero_open_issues_fails_suggesting_close`,
-  `test_spec_pipeline.py::test_rule_g_open_milestone_with_open_issues_fails_asking_for_a_spec`.
-- `pipeline.check.rule-g-non-spec-allowlist` — **[OK]**
-  `scripts/spec_pipeline_non_spec_milestones.json` exempts a real non-spec program/
-  workstream milestone (release, hygiene, lint sweeps, platform-craft — populated from
-  `agent-work/spec-pipeline/legacy-milestones-triage.md`'s 34 KEEP rows) from rule (g),
-  same shrink-only contract as `check_spec_broken_has_issue.py`'s `GRANDFATHERED_FILES`: an
-  entry whose milestone no longer exists, or now has a real spec, or carries no `reason`, is
-  itself a rule-(g) finding rather than being silently trusted. Pinned by
-  `test_spec_pipeline.py::test_rule_g_allowlisted_milestone_is_exempt`,
-  `test_spec_pipeline.py::test_rule_g_allowlist_stale_entry_fails_when_milestone_gone`,
-  `test_spec_pipeline.py::test_rule_g_allowlist_entry_now_specced_fails`,
-  `test_spec_pipeline.py::test_rule_g_allowlist_entry_without_reason_fails`.
-- `pipeline.check.rule-h-convention-governance` — **[OK]** `[CONVENTION]` is a real tag
-  (2026-09-18, replacing the earlier unrecognized-string workaround in
-  `git-worktree-workflow.md`) for a behavior that states a human/agent norm, not a claim
-  about code — exempt from rule (d)'s test-citation requirement, but guarded so it can't
-  become a silent escape hatch: (1) every `[CONVENTION]` behavior is itself a rule-h
-  "registered" finding, so the CURRENT count is a shrink-only baseline ceiling — a NEW
-  convention anywhere fails `check` until deliberately re-baselined; (2) allowed only in a
-  spec under `specs/harness/` (a process/harness spec) — used elsewhere, that's its own
-  rule-h finding; (3) a `[CONVENTION]` bullet with no reason clause explaining why no test
-  can pin it (a cheap keyword presence check, `CONVENTION_REASON_RE`) is its own rule-h
-  finding. `status`'s per-spec table carries its own `CONVENTION` column, so the tag is
-  counted separately from the ordinary tag vocabulary. Pinned by
-  `test_spec_pipeline.py::test_rule_h_convention_in_harness_with_reason_is_registered_only`,
-  `test_spec_pipeline.py::test_rule_h_convention_outside_harness_fails`,
-  `test_spec_pipeline.py::test_rule_h_convention_with_no_reason_fails`,
-  `test_spec_pipeline.py::test_rule_h_compliant_convention_can_be_baselined_and_stays_green`,
-  `test_spec_pipeline.py::test_rule_h_new_convention_fails_the_shrink_only_ceiling`,
-  `test_spec_pipeline.py::test_rule_h_does_not_count_convention_as_a_tagged_ok_behavior`.
-- `pipeline.check.offline-blind-not-green` — **[OK]** `--offline` skips every
-  GitHub-dependent rule (b, c, e, f, g) and prints `OFFLINE: blind to rules …` rather than
-  reporting success by omission; offline-only rules (a, d) still run and can still fail.
-  Pinned by `test_spec_pipeline.py::test_offline_reports_blindness_and_only_runs_offline_rules`,
-  `test_spec_pipeline.py::test_offline_still_catches_offline_rule_a`.
-- `pipeline.check.gh-failure-exits-2` — **[OK]** without `--offline`, a missing `gh`
-  exits 2 rather than silently skipping the GitHub-dependent rules; the code path mirrors
-  the exact pattern `check_spec_milestones.py` already uses for its own soft-skip, just made
-  hard here. Pinned by `test_spec_pipeline.py::test_get_issues_fails_when_gh_is_missing`.
-- `pipeline.check.missing-specs-dir-exits-2` — **[OK]** every subcommand except `status` and
-  `agent-work` exits 2 when the specs directory does not exist. Pinned by
-  `test_spec_pipeline.py::test_missing_specs_dir_exits_2`.
-- `pipeline.check.baseline-ratchet` — **[OK]** `check` fails ONLY on an illegal state not yet
-  in `scripts/spec_pipeline_baseline.json`, and ALSO fails when a baselined entry no longer
-  occurs (fixed but not removed — shrink-only, same contract as
-  `check_spec_broken_has_issue.py`'s `GRANDFATHERED_FILES`). The OK summary line reports "N
-  baselined illegal state(s) remain (by rule: …)". Pinned by
-  `test_spec_pipeline.py::test_check_passes_against_its_own_baseline`,
-  `test_spec_pipeline.py::test_check_fails_on_new_illegal_state_not_in_baseline`,
-  `test_spec_pipeline.py::test_check_fails_when_baselined_entry_no_longer_occurs`.
-- `pipeline.check.update-baseline` — **[OK]** `check --update-baseline` writes the current
-  illegal-state set to the baseline file, sorted by `(rule, spec, key)` for stable diffs;
-  re-running it with nothing changed produces a byte-for-byte identical file. Pinned by
-  `test_spec_pipeline.py::test_update_baseline_writes_sorted_and_idempotent`.
+- (moved) pipeline.status → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) pipeline.check.rule-a-broken-needs-issue → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) pipeline.check.rule-b-stale-tag-closed-issue → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) pipeline.check.rule-c-milestone-mismatch → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) pipeline.check.rule-d-ok-needs-real-test → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) pipeline.check.rule-e-ok-needs-closed-issue → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) pipeline.check.rule-f-orphan-open-issue → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) pipeline.check.rule-g-milestone-spec-mirror → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) pipeline.check.rule-g-scope → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) pipeline.check.rule-g-non-spec-allowlist → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) pipeline.check.rule-h-convention-governance → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) pipeline.check.offline-blind-not-green → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) pipeline.check.gh-failure-exits-2 → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) pipeline.check.missing-specs-dir-exits-2 → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) pipeline.check.baseline-ratchet → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) pipeline.check.update-baseline → `building-fichero-locally.md` (Phase 0, 2026-11-18)
 - `pipeline.queue.deterministic-order` — **[OK]** the queue orders by
   (milestone priority from the `MILESTONE_PRIORITY` seed list, then alphabetical), then tag
   severity (BROKEN before PARTIAL before GAP/MISSING), then spec path/line — same inputs,
@@ -278,5 +194,5 @@ against the real tree; illegal states and debt found are pipeline backlog to wor
 `queue`/`brief`, not bugs in this script. See the worker's report for the full pasted output.
 
 ## Triaged from the backlog (2026-10-04)
-- `spec.absent-tags-agree-with-tests` — **[GAP]** (#5112) a behaviour tagged absent has no test naming it; the 27 mismatches (8 GAP) are retagged.
-- `pipeline.github-hygiene-milestones-labels-needs-your-test` — **[GAP]** (#5461) remaining legacy milestones are folded into spec milestones or justified, needs-your-test issues are re-checked and stale status labels retired so every open issue has a milestone.
+- (moved) spec.absent-tags-agree-with-tests → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) pipeline.github-hygiene-milestones-labels-needs-your-test → `building-fichero-locally.md` (Phase 0, 2026-11-18)
