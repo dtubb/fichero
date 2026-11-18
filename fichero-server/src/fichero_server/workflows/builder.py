@@ -2385,6 +2385,19 @@ def _make_parallel_node_function(
             print(f"[PARALLEL] [{index + 1}/{total}] ERROR: {error_msg}")
             logger.error(f"Parallel processing failed for {file_path}: {e}")
 
+            from fichero_server.llm import failure as _failure
+            from fichero_server.llm.retry import _pause_the_run_for_credit
+
+            # No credit or a refused key pauses the run (#6675, the table): ask it to pause with that cause and raise the
+            # pause, not a systemic failure.
+            if _failure.kind_of(e)[0] in ("no-credit", "key-refused"):
+                provider_of = getattr(e, "provider", None) or "provider"
+                if _pause_the_run_for_credit(provider_of, e):
+                    from fichero_server.workflows.node_context import get_current_node
+
+                    node = get_current_node()
+                    raise WorkflowPaused(node.run_id) from e
+
             # Detect quota/rate-limit errors and pause workflow (#1222)
             if _is_quota_error(e):
                 logger.warning(f"Quota/rate-limit error detected in parallel processing: {error_msg}")

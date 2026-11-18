@@ -8,6 +8,8 @@ and the run ends partial; a hold that gave up for memory pauses. Only the cloud 
 """
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from fichero_server.llm import failure as failure_mod
@@ -119,3 +121,31 @@ def test_a_memory_error_after_the_hold_gave_up_is_a_pausing_kind():
 
     kind, _ = failure_mod.kind_of(MemoryShortError("not enough memory"))
     assert kind == "memory" and kind in failure_mod.PAUSES
+
+
+@pytest.mark.parametrize(("status", "words", "cause"), [(402, "insufficient credit", "out-of-credit"), (401, "invalid x-api-key", "key-refused")])
+def test_a_page_that_met_no_credit_or_a_refused_key_pauses_its_run_not_the_systemic_rule(status, words, cause):
+    """The parallel node's quota branch is the second route to the pause: it raises WorkflowPaused with the run asked to pause."""
+    from fichero_server.execution.cancellation import WorkflowPaused, clear_pause, pause_requested
+    from fichero_server.llm import LLMConfig, retry
+    from fichero_server.workflows.builder import _make_parallel_node_function
+    from fichero_server.workflows.types import NodeDef
+
+    async def refused(inputs, state, llm_config):
+        raise _Answer(status, words)
+
+    run_id = f"run-6675-{status}"
+    try:
+        fn = _make_parallel_node_function(node_def=NodeDef(id="node-1", tool="vision", config={}, name="Vision", node_type="vision"),
+                                          tool_fn=refused, llm_config=LLMConfig(provider="openai", model="gpt-4o"),
+                                          workflow_config=None)
+        state = {"parallel_file": "/nonexistent/a.png", "parallel_document": None, "parallel_index": 0, "parallel_total": 1,
+                 "library_path": "", "task_id": run_id, "workflow_id": ""}
+        with pytest.raises(WorkflowPaused):
+            asyncio.run(fn(state))
+        assert pause_requested(run_id)
+    finally:
+        clear_pause(run_id)
+        retry._PAUSED_FOR_CREDIT.pop(run_id, None)
+        retry._DEAD.clear()
+        retry._LAST_CREDIT.clear()

@@ -129,3 +129,12 @@ def test_a_run_paused_at_a_cap_or_by_the_images_rule_is_its_refusals_kind():
     f = from_refusal(cap, step="Read")
     assert f.kind == "cap-refused" and f.words == cap["words"] and [a.kind for a in f.actions] == ["over-cap-once", "resume"]
     assert from_refusal({**cap, "kind": "images"}).kind == "images-refused"
+
+
+def test_every_kind_carries_the_pause_and_engine_retry_columns():
+    from fichero_server.llm import failure as failure_mod
+
+    for kind in failure_mod.KINDS:
+        built = failure_mod.of_kind(kind)
+        assert built.pauses == (kind in failure_mod.PAUSES), kind
+        assert built.engine_retries == (kind in failure_mod.ENGINE_RETRIES), kind
