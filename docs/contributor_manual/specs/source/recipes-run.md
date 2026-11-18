@@ -674,6 +674,22 @@ The behaviours:
   refused key, the network, memory past its hold, the project closed): the run pauses through the one path and asks, never
   fails pages for it (#6675, `runner.kinds.pause-or-fail-is-the-tables`); the recipe parks on the paused step and Continue
   takes it up from the first page not done (`runner.pause.continue-from-first-not-done`, #6569).
+- `recipes-run.credit.out-of-credit-pauses-and-asks` — **[GAP]** (owner 2026-11-18, #6675) when a provider is
+  out of credit, or a credit limit (a key's or an account's spending cap) is reached, the run stops there and
+  asks; it does not carry on and break things. Out of credit or at a limit means OpenRouter's HTTP 402
+  "insufficient credits" or "credit limit", or the quota-exhausted answer of OpenAI, Anthropic or Google. It is
+  not a rate limit and not the in-flight budget (#6671): those wait and resume by themselves and raise no
+  dialogue.
+  1. The whole run pauses at once: no further call to that provider, no step marked failed, no later step run
+     on the missing output, nothing written that a retry would have to undo.
+  2. The app shows one dialogue box: which provider, which key or account, out of credit or credit limit, the
+     provider's own words, and what is paused (the run, the step, the pages done and the pages waiting). Its
+     buttons are **Open provider page** (the provider's top-up or limits page), **Continue** (checks the provider
+     again and resumes from the first page not done) and **Stop run**.
+  3. One dialogue per provider per run, never one per page; the pause is also listed in Activity on the
+     paused run.
+  Tests: a 402 credit answer pauses the run (not fails it) and raises the one prompt; Continue resumes from the
+  first page not done; the rate-limit path still resumes by itself.
 
 ## Changes to existing behaviours
 
