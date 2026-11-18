@@ -399,7 +399,7 @@ nav:
               - Local Runtimes & Providers: contributor_manual/specs/ai/local-runtimes.md
               - Where Models Run (model + place): contributor_manual/specs/ai/where-models-run.md
               - Cloud Permission and Spend: contributor_manual/specs/ai/cloud-permission-and-spend.md
-              - Run Failure Alerts: contributor_manual/specs/ai/run-failure-alerts.md
+              - Run Failure Alerts (superseded, pointer): contributor_manual/specs/ai/run-failure-alerts.md
           - Compute:
               - Remote Compute (foundation): contributor_manual/specs/compute/remote-compute.md
               - The Linux Server Image: contributor_manual/specs/compute/linux-server-image.md
@@ -410,7 +410,7 @@ nav:
               - Running on a University Cluster (ACENET): contributor_manual/specs/compute/hpc-runner-acenet.md
               - A Recipe's Steps at Scale (PROPOSED): contributor_manual/specs/compute/recipe-steps-at-scale.md
               - Training, Scoring & Choosing Models: contributor_manual/specs/compute/training-and-evaluation.md
-              - Runner Reliability (one contract, DRAFT): contributor_manual/specs/compute/runner-reliability.md
+              - Runner Reliability (one contract; failures, pauses, the alert, the bug report): contributor_manual/specs/compute/runner-reliability.md
           - Docs:
               - Docs Citations & Bibliography: contributor_manual/specs/docs/docs-citations-bibliography.md
           - Export:

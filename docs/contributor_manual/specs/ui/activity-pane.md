@@ -12,7 +12,7 @@
 > **Revised 2026-11-13 night (owner, through the manager; Fable).** This file is now THE Activity spec to build from: the companion
 > `activity-and-automatic-work.md` keeps the job model, the lanes, the throttle and the history of what was built; where the two
 > disagree, this file wins and the other's bullet is marked superseded (`activity.run.quit-pauses`, `activity.relaunch.only-running-work-resumes`,
-> `recipes-run.restart.requeues-unfinished`). `ai/run-failure-alerts.md` keeps the failure table; decisions 8 and 9 there carry
+> `recipes-run.restart.requeues-unfinished`). `compute/runner-reliability.md` keeps the failure table (carried from `ai/run-failure-alerts.md` on 2026-11-18); decisions 8 and 9 there carry
 > tonight's rulings. Issues: #6441 (the pane), #6583 (delete), #6584 (nothing restarts), #6354 (failures).
 > **Revised again the same night after the manager-commissioned Fable review of fe7332ad2f** (its eight must-change items and
 > its answers to the open questions accepted): Archive added, Delete redefined as real removal with Undo, ONE states table, ONE

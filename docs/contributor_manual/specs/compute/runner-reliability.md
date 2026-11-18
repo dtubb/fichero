@@ -19,13 +19,22 @@
 > otherwise, THIS file wins and the other's line is marked superseded in the same commit (the integration of 2026-11-18 did
 > that for the lines listed under "Changes to existing behaviours").
 >
-> **What it builds on, by name.** The failure kinds table is `ai/run-failure-alerts.md` `run.fail.kinds-table`, built as
+> **What it builds on, by name.** The failure kinds table is `run.fail.kinds-table` (section F below; carried from
+> `ai/run-failure-alerts.md`, merged into this file on 2026-11-18), built as
 > `fichero-server/src/fichero_server/llm/failure.py` (`RunFailure`, `classify`, `row_words`). The pause path is the one
 > `execution/cancellation.request_pause` → `_finish_as_paused` path that a person's Pause, the spend cap
 > (`llm/spend._ask_run_to_pause`) and a rate limit (`llm/retry._pause_the_run_for`) already take. The surface is the
 > Activity pane (`ui/activity-pane.md`: the states table, `activity.pane.failure-with-its-fix-in-the-row`,
 > `activity.pane.blocked-under-its-blocker`) and the alert of `run.fail.alert-on-a-failed-run`. The recipe's own rules are
 > `source/recipes-run.md` section 13 (a page waits for its inputs; models fetched first; no empty done).
+>
+> **Owns / Does not own.** This spec OWNS how work fails, pauses and goes on, wherever it runs: the one table of failure
+> kinds with their words, fixes and actions, which kinds pause and which fail, the one pause path and Continue, the one alert
+> and the bug report, memory holds, and what every runner (local, cloud, remote) must do when work goes wrong. It does NOT
+> own: the Activity window, pane and its rows, lanes and throttle (`ui/activity-pane.md`); a recipe run's journey from Start
+> to the summary (`source/recipes-run.md`); designing a recipe and the Set Up screens (`source/recipe-designer.md`); the
+> Models and Compute window, every model and place and its account (`ui/models-and-compute-window.md`); which model and
+> place a step chooses, egress and the spend caps (`ai/where-models-run.md`, `ai/cloud-permission-and-spend.md`).
 
 ## Intent (the design)
 
@@ -59,8 +68,8 @@ while the Mac pages, half the cores while the person works.
 
 ### 1. One table of failure kinds, with three more columns
 
-The kinds are those `llm/failure.py` serves today (the sixteen below); `run-failure-alerts.md` keeps the words and the
-fixes. This spec adds, per kind, **pause-or-fail**, **retryable by the engine**, and **which runners can raise it**. The
+The kinds are those `llm/failure.py` serves today (the sixteen below); the section "The words, fixes and actions of each
+kind" below keeps the words and the fixes. This spec adds, per kind, **pause-or-fail**, **retryable by the engine**, and **which runners can raise it**. The
 engine owns all three; the app shows only what the row says.
 
 | kind | pause-or-fail | engine retries first | raised by |
@@ -102,6 +111,89 @@ The Activity row (the states table of `ui/activity-pane.md`: paused with its cau
 blocker, failed with its ≤ 8 row words and the fix button) and, for a pause or failure of the whole run, ONE alert per
 attempt (`run.fail.alert-on-a-failed-run`), coalesced by cause and provider. The CLI and MCP read the same `failure`
 (`run.fail.cli-says-the-fix`, `run.fail.mcp-says-the-fix`). No client classifies; no raw exception text reaches a row.
+
+## The words, fixes and actions of each kind (carried from `ai/run-failure-alerts.md`, merged 2026-11-18)
+
+`ai/run-failure-alerts.md` (#6354, DRAFT 2026-11-05) was the spec of the failure kinds table, the bug report and the one
+alert. On 2026-11-18 (owner: one owning spec per area) its decisions, its table and its eighteen `run.fail.*` behaviours
+moved here unchanged (ids, tags, citations and issue numbers intact); the old path is a pointer. Its "What exists today"
+survey of 2026-11-05 was not carried (a code survey, nothing normative; the review of 2026-11-18 supersedes it).
+
+### Decisions (overrule any in one line)
+
+1. **One mapping, in the engine, on the run.** `_classify_provider_error` moves to `llm/failure` and answers a
+   served model, `RunFailure`; the runner stores it on the run row when the run ends failed (or pauses for a cause), and
+   every client reads it. The per-page classification keeps using the same function, so a page's reason and the run's
+   reason never disagree.
+2. **A failed run is one that ends `failed`, or pauses for a cause the person must act on (a cap, the images rule, and,
+   amended 2026-11-18 per the owner's rulings of 2026-11-13 and 2026-11-18, #6675: no credit, a refused key, the network
+   and memory).** Which kinds pause and which fail is the contract's column (`compute/runner-reliability.md` §1,
+   `runner.kinds.pause-or-fail-is-the-tables`); a pausing kind settles the run `paused` with its `failure` and raises the
+   alert, and its words say "paused", never "stopped" (the `no-credit` and `key-refused` rows below were amended to match;
+   the acceptance text of those two rows changed). A run that ends partial ("Done with failures: 3 of 203 pages")
+   FINISHED: Activity's Partial line and Retry cover it, no alert (question 1). A run paused by a person or by the
+   engine's own stop raises nothing. A page's failure is not the run's.
+3. **Unknown falls to `unexpected`, never to silence.** There is no `unknown` kind. What the table does not name is a
+   bug in Fichero, said so, with the exception's type and an offer to report it.
+4. **One alert per failed run attempt.** The key is the run's id and its `failed_at` (the key `ActivityErrorLedger`
+   already uses): a retry that fails again is a new attempt and alerts again; a relaunch never alerts again for a
+   failure already seen; a failure older than an hour at launch is in Activity, not an alert.
+5. **The cap and images kinds ARE the existing refusal alert.** `RunFailure.refusal` carries the typed `CloudRefusal`;
+   the app hands those kinds to `CloudRefusalAlert`, whose buttons resume the paused run with the once flags (the half
+   of `ai.cloud.alert-on-hand-run-paths` that is not built). Nothing is respecified.
+6. **The bug report is built by the engine** (`POST /api/activity/jobs/{id}/bug-report`), so the app, the CLI and an
+   agent send the same report and the redaction is tested once. Where it goes is question 2; until ruled, the route
+   answers the report and the app offers to save it (the Send Logs path can attach it the day the address exists).
+7. **Actions are typed, in one vocabulary with `CloudRefusalFix`** (`retry`, `resume`, `open-settings` with a control id,
+   `choose-model`, `report-bug`, `reconnect`, plus the refusal's own), so the app's one switch grows by cases, not
+   by alerts.
+8. **A pause for a cause survives a relaunch, and a failed run is never re-run by itself** (owner 2026-11-13, night;
+   #6584). Decision 2 pauses the run; the relaunch must not undo it: the recipe run's pause is stored on its row at the
+   open (`activity.relaunch.only-running-work-resumes` in `ui/activity-and-automatic-work.md`), so the run still reads
+   paused with its alert's cause, and only Resume (the alert's or Activity's) carries it on. A run that ended failed
+   stays failed with its reason and its Retry.
+9. **A rate limit backs off, then pauses; every failure carries its solution; no codes** (owner 2026-11-13, 22:25–23:15;
+   #6584, #6354). The `rate-limited` kind is a pause kind like `no-credit` and `cap-refused`: after the bounded back-off
+   (Retry-After honoured, jitter, capped) the run PAUSES with "<Provider> is limiting how fast you can send" and the fix
+   "Wait N minutes, then Continue" (no automatic Continue: the back-off is the automatic retrying; the review 2026-11-13 night),
+   never a tight loop, never a failed page per 429 (`ui/activity-pane.md` `activity.limits.rate-limit-backs-off-then-pauses`). Every kind in the table has a
+   non-empty sentence AND a fix (a typed action with a label, or an exact instruction); a kind with neither is a spec gap listed
+   under Open questions, never shown bare. The sentence names no HTTP status, error code, exception type, traceback or the
+   provider's raw reason text; those are the bug report's and Copy Details' (`activity.pane.failure-with-its-fix-in-the-row`);
+   `unexpected` says "Something went wrong in Fichero, not in your files." Every kind also has ROW WORDS of at most eight
+   whitespace tokens for the table (the "row words" column below), never a sentence cut at a word boundary. Test:
+   `fichero-server/tests/unit/llm/test_every_failure_kind_has_a_fix_6354.py` (built, with the row-words column: `RunFailure.row_words`,
+   `failure.row_words(kind)`, ≤ 8 tokens per kind; the no-raw-text rule for the provider's reason is still to add).
+
+### The table (`run.fail.kinds-table`)
+
+The engine's one mapping. "Judged by" is the exception's type first, its status code or words only when it has no type
+of its own (today's `_typed_failure` rule). `<Provider>` and `<Model>` are display names (`circuit_breaker.provider_display`),
+never ids or internals; `N`/`M` are the run's pages done and total.
+
+Row words (≤ 8 tokens, for the table; the review's column): `no-credit` "Out of credit at <Provider>" · `key-refused` "<Provider>
+refused the key" · `rate-limited` "<Provider> is limiting how fast you send" (the run PAUSES) · `cap-refused` "Paused at the
+spend cap" · `images-refused` "Pages stay on this Mac" · `model-error` "<Model> could not do this step" · `model-missing`
+"<Model> is not downloaded" · `runtime-unavailable` "No runtime for this step" · `memory` "Not enough memory for <Model>" ·
+`network` "Could not reach <Provider>" · `files-unavailable` "Some pages' files could not be opened" · `unexpected`
+"Something went wrong in Fichero".
+
+| kind | judged by | words (what happened) | fix (what to do) | actions |
+|---|---|---|---|---|
+| `no-credit` | `ProviderQuotaExhaustedError`; `fatal_cause == "quota"`; 402, `insufficient_quota`, a key limit | "<Provider> has no credit left, or this key's limit is reached, so the run is paused at page N of M. The N pages done are kept." (PAUSES, #6675; was "stopped") | "Add credit at <Provider>, or give Fichero a different key or provider, then continue the run." | `open-provider-page`, `open-settings` (`settings.ai.providers`), `choose-model`, `resume` |
+| `key-refused` | `ProviderKeyRefusedError`; `fatal_cause == "key"`; 401, `KEY_REFUSED_WORDS`; today's `auth` | "<Provider> refused the key Fichero has for it, so the run is paused at page N of M." (PAUSES, #6675; was "stopped") | "Check the key in Settings › AI › Providers (paste it again, or make a new one), or switch this step to another provider, then continue the run." | `open-settings` (`settings.ai.providers`), `choose-model`, `resume` |
+| `rate-limited` | `ProviderRateLimitedError` with the retries spent; 429 past the retry policy | "<Provider> asked Fichero to slow down more often than the run could wait, so it stopped at page N of M." | "Wait a few minutes and run it again. A higher plan at <Provider>, or another provider, avoids it." | `retry` (with `retry_after_seconds` when the provider gave one), `choose-model` |
+| `cap-refused` | `CloudSpendRefusedError` (the run PAUSES at the cap; `refusal` carried) | the refusal's own `words` | the refusal's own `fixes` | the refusal's `fixes[]`, then `resume` |
+| `images-refused` | `EgressRefusedError` (the run is refused or paused; `refusal` carried) | the refusal's own `words` | the refusal's own `fixes` | the refusal's `fixes[]`, then `resume` |
+| `model-error` | 404 / `model_not_found`; a 400 the provider blames on the request; `StructuredDecodeError`, `StructuredCallEmptyError`, a capability miss | "<Model> at <Provider> could not do this step: <the provider's one-line reason>." | "Choose another model for this step, then run it again." | `choose-model`, `retry` |
+| `model-missing` | `LocalModelNotInstalledError` | "<Model> is not downloaded to this Mac." | "Download it in Settings › AI › Local models, or choose another model." | `open-settings` (`settings.ai.localModels`), `choose-model` |
+| `runtime-unavailable` | `LocalInferenceRuntimeMissingError`, `AppleUnavailableError`, `KrakenRuntimeMissingError` | "<the runtime> is not available in this build or on this Mac." | "Choose a model that runs another way." | `choose-model` |
+| `memory` | `MemoryShortError`, `LocalModelMemoryUnavailableError` | "This Mac did not have the memory for <Model> while this ran, so it stopped at page N of M." | "Close other work, or choose a smaller model, then run it again." | `choose-model`, `retry` |
+| `network` | `transient` after the retries; DNS, connection, timeout words; 5xx (today's `network` and `server`) | "Fichero could not reach <Provider> (<the one-line cause>), so the run stopped at page N of M." | "Check the connection and <Provider>'s status, then run it again." | `retry` |
+| `files-unavailable` | today's `file_unavailable` (iCloud eviction, a missing original) | "N pages' files could not be opened (<the one-line cause>)." | "Reconnect the folder, or download the pages from iCloud, then run it again." | `reconnect`, `retry` |
+| `unexpected` | everything else, including today's `unknown` | "Something went wrong inside Fichero while it ran <step> (<ExceptionType>), so the run stopped at page N of M." | "This is a bug in Fichero, not something you did. Send a bug report so it can be fixed; you can also try the run again." | `report-bug`, `retry` |
+
+A run paused by a person, or by the engine's own stop, has no kind and no alert (`activity.durable.paused-stays-paused`).
 
 ## Behaviours
 
@@ -271,6 +363,121 @@ attempt (`run.fail.alert-on-a-failed-run`), coalesced by cause and provider. The
   `.undocumented(statusCode, _)` site that starts work reads the engine's `detail` and shows its words (182 sites drop it,
   #3931); a refused grant shows the engine's reason (#6602).
 
+### F. The engine: one failure, on the run (carried from `ai/run-failure-alerts.md`, 2026-11-18)
+
+- `run.fail.kinds-table` [PARTIAL] (#6354; built: the kinds, the served model, `classify`, `redact`, the provider and model names in the words, `unexpected` for what the table does not name, and the kind beside the page's legacy category; not built: `_typed_failure` and `_classify_provider_error` answering from the table, so the per-page `error_category`/`error_hint`/`error_action` still come from their own code) — `llm/failure` holds `RunFailure` (`kind`, `words`, `fix`, `actions[]`
+  of `{kind, control?, usd?, retry_after_seconds?}`, `provider`, `model`, `step`, `pages_done`, `pages_total`,
+  `exception_type`, `detail` (the error's first line, redacted as in C), `refusal: CloudRefusal | None`) and one function
+  `classify(exc, text, *, step, provider, model, done, total) -> RunFailure` that is the table above. `_typed_failure` and
+  `_classify_provider_error` call it (the per-page `error_category`/`error_hint`/`error_action` stay as they are, now
+  from the same table, so a page's reason and the run's agree). Tests:
+  `fichero-server/tests/unit/llm/test_run_failure_kinds_6354.py` (each row of the table from its exception; a 401
+  under `httpx` words is `key-refused`; a bare `RuntimeError("boom")` is `unexpected` with `exception_type` `RuntimeError`;
+  no answer is ever `unknown`; the words name the provider's display name, never the breaker's internals).
+- `run.fail.run-carries-its-failure` [PARTIAL] (#6354; built: the row, the status route, the jobs list, the stream and a recipe run's failed stage, a retry clearing it; not built: a stub provider raising each kind with the row, the status route and the jobs list compared end to end) — when a run ends `failed` the runner stores `failure` (the
+  `RunFailure`, JSON) on the run row beside `error` (the words stay `error`, so nothing that reads `reason` changes);
+  `GET /api/workflow-execution/threads/{id}/status` serves `failure`; `GET /api/activity/jobs` serves it on the failed
+  `BackgroundJob` (`failure: RunFailure | None`); a recipe run whose step's run failed carries that run's `failure`
+  with `step` filled, its `reason` stays `outcome_why`'s words. A run paused at a cap or by the images rule carries the
+  `cap-refused`/`images-refused` failure with its `refusal`, state `paused`. A run paused by a person or by shutdown
+  carries none. An OpenAPI regen. Tests:
+  `fichero-server/tests/unit/workflows/test_run_carries_its_failure_6354.py` (a stub provider that raises each kind;
+  the row, the status route and the jobs list agree; a paused-by-person run has `failure: null`),
+  `fichero-server/tests/unit/recipes/test_recipe_run_carries_step_failure_6354.py`.
+- `run.fail.one-failure-per-attempt` [PARTIAL] (#6354; built: only the run's end writes a failure, a retried run gets a new one with its own `failed_at`; not built: a test that three failing calls leave one failure) — the retry layer's own retries (`llm/retry.py`, `page_retry`) and a
+  page's failure write no `failure`; only the run's end does, once; a run retried through Retry / Read them again that
+  fails again gets a new `failure` and a new `failed_at`, so the attempt is told apart by `id@failed_at`
+  (`activity.jobs.failed-at`). Tests: `fichero-server/tests/unit/workflows/test_run_carries_its_failure_6354.py`
+  (three calls fail, one `failure`; a retried run has two attempts, each with its own `failed_at`).
+- `run.fail.failed-stream-event` [PARTIAL] (#6354; built: the `error` and `systemic_error` events and the `complete` event of a run whose every file failed carry `failure`; the runner has no event named `workflow_failed`) — the execution stream's `workflow_failed` event (and `systemic_error`)
+  carries `failure`, so a client on the stream need not poll; the `refused` event stays for the cap pause as built.
+  Tests: `fichero-server/tests/unit/workflows/test_failed_event_carries_failure_6354.py`.
+- `run.fail.unexpected-is-logged-whole` [OK] (#6354) — an
+  `unexpected` failure writes the full traceback to the engine log at ERROR, once, with the run id, so the bug report
+  can quote it; the served `detail` is the exception's first line only. Tests:
+  `fichero-server/tests/unit/workflows/test_run_carries_its_failure_6354.py` (`caplog`: one ERROR with the run id).
+
+### G. The bug report (carried from `ai/run-failure-alerts.md`, 2026-11-18)
+
+- `run.fail.bug-report-route` [OK] (#6354; owner 2026-11-08: the route builds the report, the app saves it on this Mac and the owner sends it, nothing leaves the Mac automatically, `run.fail.bug-report-destination`) — `POST /api/activity/jobs/{id}/bug-report` builds and answers the report
+  for a failed run: `{title, body, attachments: [{name, text}]}` where `title` is "<kind>: <words' first sentence>",
+  `body` is plain text and `attachments` are `run.json` (the fields in C) and `log.txt` (the run's Problems log lines,
+  `activity.log.problems-first`, redacted). A run that is not failed answers 409 in words. Tests:
+  `fichero-server/tests/unit/api/test_bug_report_route_6354.py`.
+- `run.fail.bug-report-contents` [PARTIAL] (#6354; built: the failure, the traceback of an `unexpected` failure, the workflow's and the step's names, the provider's and model's display names, pages done and total, start, end, duration, the Problems lines, the engine version and tier, macOS and the Mac model; not built: the app's version and build, which the app adds, and where it ran, in `activity.summary.where-and-model`'s words) — the report carries: the app version, build and tier, the engine version,
+  macOS and the Mac model, the failure (kind, words, `exception_type`, `detail`), the redacted traceback of an
+  `unexpected` failure (from the engine log, by run id), the workflow's name and the step's, the provider's and model's
+  display names, where it ran (`activity.summary.where-and-model`'s words), pages done and total, the run's start and
+  end, its duration, and the run's Problems lines. Tests: `fichero-server/tests/unit/api/test_bug_report_route_6354.py`
+  (every named field present for a stubbed `unexpected` run).
+- `run.fail.bug-report-excludes-the-private` [PARTIAL] (#6354; built: paths, keys, bearer headers, key-shaped values, document and page ids by their names, and a long quoted string in an error message, through `llm/failure.redact`; not built: a person's name from the account chain, a page's text that an error message carries unquoted, and the real engine-log fixtures held to more than their timestamps surviving) — the report never carries: a file path (every `/…/` run is
+  replaced by `<path>`, the home folder by `~`, before anything else), a library or project path, a page's text or a
+  model's answer, a prompt, a key, token or bearer header (anything matching a key shape or the words `key`, `token`,
+  `secret`, `password`, `authorization` with a value), a person's name from the account chain, or a document id. The
+  redaction is one function (`llm/failure.redact`) used by `detail`, the traceback and the log lines, and it is tested
+  against the real log fixtures in `tests/fixtures/engine_logs/`. Tests:
+  `fichero-server/tests/unit/api/test_bug_report_is_redacted_6354.py` (a traceback with a home path, an API key in a
+  URL, a bearer header and a page's text in an exception message: none of them in the report; the fixtures' lines).
+- `run.fail.bug-report-destination` [GAP] (#6354; question 2 RULED by the owner 2026-11-08) — the report is SAVED on this Mac and the owner sends it: Save Bug Report… writes the `.zip` of the three parts through the Save panel (default name `fichero-bug-<date>-<kind>.zip`, in the folder the person chooses), and the alert then offers Reveal in Finder and the maintainer's address to attach it to; nothing leaves the Mac automatically, no upload, no mail composed without the person, no telemetry; the engine route stays the one source of the report. Tests: `RunBugReportTests` (the zip is written where chosen and nothing is sent; the reveal shows the file; a run with no network behaves the same).
+
+### H. The app: an alert that says what happened and what to do (carried from `ai/run-failure-alerts.md`, 2026-11-18)
+
+- `run.fail.alert-on-a-failed-run` [GAP] (#6354) — when a run the app shows ends with a `failure`, the app raises ONE
+  alert, `RunFailureAlert` (the `CloudRefusalAlert` pattern: a `.alert` on `ContentView` from an observable prompt):
+  the title "Fichero stopped this run" (the cap alert's title) or "<Workflow> stopped", the message `words` then `fix`,
+  and a button per action in the engine's order, titled: `retry` "Run It Again", `resume` "Resume", `open-settings`
+  "Open Settings…", `choose-model` "Choose a Model…", `report-bug` "Send a Bug Report…", `reconnect` "Reconnect…", then
+  "Show in Activity" and "Not Now". No raw string, no "Server error". `cap-refused` and `images-refused` are handed to
+  `CloudRefusalAlert` with the run to resume (decision 5). Tests:
+  `fichero/Tests/Unit/general/Views/RunFailureAlertTests` (buttons from each served kind in the engine's order;
+  a cap kind builds a `CloudRefusalPrompt` whose resend resumes the run; an `unexpected` failure offers the report first;
+  no kind ever shows the raw `detail` in the message).
+- `run.fail.one-alert-per-attempt` [GAP] (#6354) — the app alerts once per `id@failed_at` (`ActivityErrorWindow.seenKey`),
+  records the key as seen when the alert is dismissed or acted on, keeps the seen set across launches with the ledger's,
+  and never alerts for a failure older than an hour at launch or already seen; a retry that fails again alerts again.
+  Tests: `fichero/Tests/Unit/general/Models/RunFailureLedgerTests` (the same failure listed by two polls alerts
+  once; a relaunch with the key seen alerts nothing; a new `failed_at` alerts).
+- `run.fail.alerts-coalesce-by-cause` [GAP] (#6354) — several runs failing within a minute for one cause and provider
+  (`no-credit`, `key-refused`, `rate-limited`, `network`) raise one alert naming them ("3 runs stopped: <Provider> has no
+  credit left…") with the same buttons; `retry` retries them all. Tests:
+  `fichero/Tests/Unit/general/Models/RunFailureLedgerTests` (three `no-credit` failures, one alert, three ids).
+- `run.fail.alert-reaches-a-background-app` [GAP] (#6354; question 3) — when the app is not active the same words go
+  out as a user notification (`UNUserNotificationCenter`, asked for once, the first time a run fails); pressing it
+  opens the Activity window on the run and raises the alert. With permission refused, the alert waits for the app to
+  come to the front. Tests: `fichero/Tests/Unit/general/Models/RunFailureNotificationTests` (the notification's
+  text is the alert's; one per attempt; pure content, no `UNUserNotificationCenter` in the test).
+- `run.fail.actions-act` [GAP] (#6354) — `retry` calls the run's Retry (`activity.window.one-button`'s), `resume` its
+  Resume with the once flags when the refusal asked for them, `open-settings` opens the control the action names
+  (`settings.ai.providers` is new: the provider's row, its key field focused), `choose-model` opens the step's model
+  choice (Set Up's step for a recipe run, the workflow's model for a hand run), `reconnect` runs
+  `engine.silent.originals-one-press-reconnect`'s picker, `report-bug` the flow in D. Tests:
+  `fichero/Tests/Unit/general/Views/RunFailureAlertTests` (each action calls its one route on a stub client).
+- `run.fail.activity-says-the-kind` [GAP] (#6354) — a failed row in Activity (DONE TODAY's line, the popover's error
+  line, the opened run's heading) says the failure's `words` first and its `fix` under them, from `failure`, falling back
+  to `reason` for a row with none (an engine from before this); the opened run has the same action buttons as the
+  alert. Tests: `fichero/Tests/Unit/general/Models/ActivityRowFailureWordsTests`.
+
+### I. Sending the bug report (carried from `ai/run-failure-alerts.md`, 2026-11-18)
+
+- `run.fail.report-shows-then-sends` [GAP] (#6354) — "Send a Bug Report…" asks the engine for the report, shows its
+  title, body and the names of its attachments, says in one line what is left out (paths, keys, your pages' text), and
+  only then saves it (owner 2026-11-08: Save Bug Report…, a `.zip` of the three parts, through the Save panel; the
+  owner sends it, nothing leaves the Mac by itself). Tests: `fichero/Tests/Unit/general/App/RunBugReportTests` (the preview text is the engine's;
+  nothing is sent before Continue; the zip holds exactly the three parts).
+
+### J. CLI and MCP (carried from `ai/run-failure-alerts.md`, 2026-11-18)
+
+- `run.fail.cli-says-the-fix` [PARTIAL] (#6354; built: `fichero workflow run --wait` and `fichero workflow status` print a failed run's words, `Fix:` and each action as its command, the bug report first for a bug in Fichero, no traceback, exit 1 from `run --wait`; the commands are the generated ones, `fichero activity-api retry-job`, `fichero activity-api post-job-bug-report` and `fichero providers set-api-key`; not built: `fichero activity jobs` saying it (the generated `fichero activity-api get-jobs` prints `failure` in its JSON), the `bug-report <id> --out <file>` command as named, and exit 1 from `workflow status`) — `fichero workflow run --wait`, `fichero workflow status` and
+  `fichero activity jobs` print a failed run's `words`, then `Fix: <fix>`, then each action as the command that does it
+  (`fichero workflow retry <id>`, `fichero ai providers set-key <provider>` or the regen's name, `fichero activity
+  bug-report <id> --out <file>`); exit 1 for a failure, 3 for a cloud refusal as built; an `unexpected` failure says
+  "a bug in Fichero" and the bug-report command first; never a traceback. Tests:
+  `fichero-cli/tests/test_cli_run_failure_words_6354`.
+- `run.fail.mcp-says-the-fix` [PARTIAL] (#6354; built: a failed run's `failure` reaches the caller intact in the status and jobs answers, and an error `detail` carrying it names the tool for each action, the bug report first for a bug in Fichero; not built: `fichero_workflow_run` with `wait`, which the tool does not have, so no engine error carries `detail.failure` today) — `fichero_workflow_status` and `fichero_activity_jobs` return `failure`
+  intact; `fichero_workflow_run` with `wait` returns it on a failed run as `EngineError` with `detail.failure`, the
+  message naming the tool for each action (`fichero_workflow_retry`, `fichero_activity_bug_report` from the regen).
+  Tests: `fichero-server/tests/unit/mcp/test_mcp_run_failure_6354`.
+
 ## Changes to existing behaviours (made in the integration of 2026-11-18)
 
 1. `ui/activity-and-automatic-work.md` §J's table of thirteen kinds (`out-of-credit`, `cap-reached`, `provider-down`,
@@ -354,6 +561,60 @@ the steps below are the same steps, in the shape the harness reads.
 - Depends on: 1.3
 - Size: M
 
+The two stages below are `ai/run-failure-alerts.md`'s build order, carried here on 2026-11-18 with its steps renumbered (its 1.x became 4.x, its 2.x became 5.x); every step keeps #6354. Stage 1 above (the pause-or-fail columns) and Stage 4 (the kinds table and the served model) describe the same table from two sides and are built together.
+
+### Stage 4 — The engine: one failure, on the run
+
+#### Step 4.1 — The kinds table and the served model (#6354)
+- Behaviours: `run.fail.kinds-table`, `run.fail.unexpected-is-logged-whole`
+- Files: a new `llm/failure` (`RunFailure`, `classify`, `redact`), `execution/runner.py` (`_typed_failure` and `_classify_provider_error` call it), `workflows/circuit_breaker.py` (export `provider_display`)
+- Tests: fichero-server/tests/unit/llm/test_run_failure_kinds_6354.py
+- Size: M
+
+#### Step 4.2 — The run carries its failure; the stream says it (#6354)
+- Behaviours: `run.fail.run-carries-its-failure`, `run.fail.one-failure-per-attempt`, `run.fail.failed-stream-event`
+- Files: `execution/runner.py` (the three failure ends and the cap pause), `workflows/activity_store.py` (a `failure` column), `api/routes/workflow_execution/schemas.py` and `core.py` (status), `api/routes/system/activity.py` (`BackgroundJob.failure`), `recipes/runner.py` (the step's failure on the recipe run), the OpenAPI regen
+- Tests: fichero-server/tests/unit/workflows/test_run_carries_its_failure_6354, fichero-server/tests/unit/recipes/test_recipe_run_carries_step_failure_6354, fichero-server/tests/unit/workflows/test_failed_event_carries_failure_6354
+- Depends on: 4.1
+- Size: M
+
+#### Step 4.3 — The bug report, built and redacted (#6354)
+- Behaviours: `run.fail.bug-report-route`, `run.fail.bug-report-contents`, `run.fail.bug-report-excludes-the-private`
+- Files: a new `api/routes/system/bug_report`, `llm/failure` (`redact`), `core/engine_log.py` (read a run's traceback by id), the regen
+- Tests: fichero-server/tests/unit/api/test_bug_report_route_6354, fichero-server/tests/unit/api/test_bug_report_is_redacted_6354
+- Depends on: 4.2
+- Size: M
+
+#### Step 4.4 — The CLI and MCP say the fix (#6354)
+- Behaviours: `run.fail.cli-says-the-fix`, `run.fail.mcp-says-the-fix`
+- Files: `fichero-cli/src/fichero_cli/__main__.py` (`workflow_run`, `workflow_status`, the activity commands, a `bug-report` command), `fichero-mcp/src/fichero_mcp/openapi_runtime.py` (`_with_ways_through` grows a `failure` case), the regen outputs
+- Tests: fichero-cli/tests/test_cli_run_failure_words_6354, fichero-server/tests/unit/mcp/test_mcp_run_failure_6354
+- Depends on: 4.3
+- Size: S
+
+### Stage 5 — The app: the alert, once, with its buttons
+
+#### Step 5.1 — The alert and its ledger (#6354)
+- Behaviours: `run.fail.alert-on-a-failed-run`, `run.fail.one-alert-per-attempt`, `run.fail.alerts-coalesce-by-cause`
+- Files: a new `Views/Shell/RunFailureAlert` and `Models/RunFailurePrompt`, `Models/ActivityErrorLedger.swift` (the alert's seen set beside the popover's), `ActivityStore` (a failed job's `failure`), `ContentView.swift` (the modifier), `CloudRefusalPrompt.swift` (a resume resend)
+- Tests: fichero/Tests/Unit/general/Views/RunFailureAlertTests, fichero/Tests/Unit/general/Models/RunFailureLedgerTests
+- Depends on: 4.2
+- Size: M
+
+#### Step 5.2 — The actions act; Activity says the kind (#6354)
+- Behaviours: `run.fail.actions-act`, `run.fail.activity-says-the-kind`
+- Files: `RunFailureAlert.swift`, `AISettingsView+Tabs.swift` (`settings.ai.providers` deep link), `ActivityWindowGroups`/`ActivityMonitorRow` (the words and fix), `ActivityPopoverSummary.swift`, the opened run's details
+- Tests: fichero/Tests/Unit/general/Views/RunFailureAlertTests, fichero/Tests/Unit/general/Models/ActivityRowFailureWordsTests
+- Depends on: 5.1
+- Size: M
+
+#### Step 5.3 — Send a Bug Report, and the background app (#6354)
+- Behaviours: `run.fail.report-shows-then-sends`, `run.fail.bug-report-destination`, `run.fail.alert-reaches-a-background-app`
+- Files: a new `App/Menus/Help/RunBugReport` (beside `SaveLogsForSupport.swift`, sharing its confirm-then-act shape), a new `Models/RunFailureNotification`
+- Tests: fichero/Tests/Unit/general/App/RunBugReportTests, fichero/Tests/Unit/general/Models/RunFailureNotificationTests
+- Depends on: 4.3, 5.2
+- Size: M
+
 ## Test matrix
 
 | Leg | This surface? | Pins | File |
@@ -366,6 +627,22 @@ the steps below are the same steps, in the shape the harness reads.
 | Click-around (XCUITest, Mac) | later | a stub provider's 402 pauses a run; the dialogue's buttons | — |
 | Load (#4634) | y | the 100-page run with a provider that runs out of credit at page 40 pauses once and finishes after Continue | `fichero-server/tests/perf/test_recipe_run_100_pages.py` (extend) |
 
+## Accessibility identifiers (carried from `ai/run-failure-alerts.md`)
+
+`runFailure.alert` · `runFailure.alert.action.<kind>` (`retry`, `resume`, `openSettings`, `chooseModel`, `reportBug`,
+`reconnect`) · `runFailure.alert.showInActivity` · `runFailure.alert.notNow` · `runFailure.report.preview` ·
+`runFailure.report.continue` · `activity.row.<jobId>.failure` (the words and fix on the row) · `settings.ai.providers`.
+
+## UX completeness (carried from `ai/run-failure-alerts.md`)
+
+| Control (a11y id) | Label | Tooltip/help text | Localized key | Verified by |
+|---|---|---|---|---|
+| `runFailure.alert.action.retry` | Run It Again | Starts the same run again from where it stopped | `runFailure.action.retry` | test |
+| `runFailure.alert.action.reportBug` | Send a Bug Report… | Shows what the report holds before anything is sent | `runFailure.action.reportBug` | test |
+| `runFailure.alert.action.openSettings` | Open Settings… | Opens the setting the failure names | `runFailure.action.openSettings` | test |
+| `runFailure.alert.action.chooseModel` | Choose a Model… | Opens this step's model choice | `runFailure.action.chooseModel` | test |
+| `runFailure.alert.showInActivity` | Show in Activity | Opens the run in the Activity window | `runFailure.showInActivity` | test |
+
 ## Open questions for the owner
 
 1. **Does `network` pause the whole run, or only the pages of the provider that is unreachable?** Recommended: the
@@ -374,3 +651,25 @@ the steps below are the same steps, in the shape the harness reads.
    page admitted, then "Paused: not enough memory for <model>" with Continue and "Choose a smaller model".
 3. **A `disk-full` kind.** The §J table named it; the code has none. Recommended: add it (pauses, fix "Free disk space",
    the volume named), filed as its own issue (the plan lists it).
+
+Carried from `ai/run-failure-alerts.md` (its questions 1 to 6, unanswered when it merged here):
+
+4. **Is a partial run a failed run?** Decision 2 says no: "Done with failures: 3 of 203 pages" finished, and Activity's
+   Partial line with Retry is the surface; only a run that ENDS failed, or pauses at a cap or the images rule, alerts. If
+   the owner wants an alert when more than some share of pages fail (say a quarter), that is one threshold in the
+   runner's `SystemicErrorDetected`, which already ends such a run failed.
+5. **Where does the bug report go?** (a) a GitHub issue on the public repo, opened from the app by the person's own
+   account (the app has no token; it would open a prefilled new-issue page in the browser, body length capped); (b) a
+   mail to the maintainer through the Send Logs path (needs the address that `help.send-logs-to-the-maintainer` still
+   lacks); (c) a local file the person attaches by hand (what the spec does until ruled); (d) a maintainer-run endpoint.
+   The route builds the same report whichever is chosen.
+6. **A notification when the app is in the background?** `run.fail.alert-reaches-a-background-app` asks for
+   notification permission the first time a run fails. The alternative is no system notification: the alert waits for the
+   app to come to the front, and the Activity pill shows red meanwhile.
+7. **Does a recipe stop at a step whose failure will fail every later cloud step** (`no-credit`, `key-refused`,
+   `cap-refused`, `network`), or carry on to the next step as it does today and alert once at the end? The spec alerts at
+   the step's failure and leaves the recipe's own behaviour to `source/recipes-run.md`.
+8. **Is the project's name private?** The bug report leaves out every path and document id; it keeps the workflow's and
+   step's names. Whether the project's name and the library's name are in it is the owner's call (default here: out).
+9. **Does `rate-limited` alert at all?** The retry layer already waits; a run that still fails is rare. The table alerts
+   with "wait a few minutes"; the owner may prefer it silent in Activity with Retry.

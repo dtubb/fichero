@@ -1040,7 +1040,7 @@ Acceptance (the owner's, 2026-11-06): on iPhone or iPad, the person pairs with a
 - Depends on: 8.7
 - Size: M
 
-Acceptance (the owner's, 2026-11-06): no sharing or pairing error appears as raw text at the bottom of the window; each is an alert saying what happened, why, and the fix, with a button where there is one. One alert component serves runs and sharing (`specs/ai/run-failure-alerts.md` Step 2.1); if that step has not landed when this is built, this step builds the component and 2.1 reuses it.
+Acceptance (the owner's, 2026-11-06): no sharing or pairing error appears as raw text at the bottom of the window; each is an alert saying what happened, why, and the fix, with a button where there is one. One alert component serves runs and sharing (`specs/compute/runner-reliability.md` Step 5.1, carried from `ai/run-failure-alerts.md` Step 2.1 on 2026-11-18); if that step has not landed when this is built, this step builds the component and 2.1 reuses it.
 
 #### Step 8.9 — one way to do people: people in Accounts, roles in the Share sheet, the guest signs in (#2083, #2403, #5735, #3284)
 - Behaviours: `sharing.people.one-way-to-do-people`, `sharing.people.sign-in-without-a-code`
