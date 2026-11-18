@@ -2,7 +2,7 @@
 
 > **Status: SUPERSEDED 2026-11-18 (Phase 0 of `building-fichero-locally.md`).** The behaviours this spec still governs (18) were moved into that spec under their existing ids and tags (B2 (the spec ↔ issues ↔ tests check) and the two triaged issues); nothing was deleted and no id was renamed. This file stays so that old links resolve; read `building-fichero-locally.md`. The rest stays here as history: superseded by `dev-workflows` (now in the same spec) or replaced by `builder triage`, `builder steps` and `builder milestone`.
 
-> Milestone: spec-pipeline
+> Milestone: Builder
 > Manual: TBD — contributor-facing only; the user manual needs nothing (this is how the
 > agent team works, not a user-visible surface).
 

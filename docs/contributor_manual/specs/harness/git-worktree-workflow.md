@@ -2,7 +2,7 @@
 
 > **Status: SUPERSEDED 2026-11-18 (Phase 0 of `building-fichero-locally.md`).** The behaviours this spec still governs (9) were moved into that spec under their existing ids and tags (B (the worktree rules the loop relies on; `git.shared-venv` [OK] stays here because the test it names does not exist)); nothing was deleted and no id was renamed. This file stays so that old links resolve; read `building-fichero-locally.md`. The rest stays here as history: superseded by `dev-workflows` (now in the same spec) or replaced by `builder triage`, `builder steps` and `builder milestone`.
 
-> Milestone: git-worktree-workflow
+> Milestone: Builder
 > Manual: docs/contributor_manual/guide/10-setup-and-day-to-day-development.md
 >
 > Design-led. **Status: DRAFT — for the design lead's review.** How the repo, the worktrees, and GitHub fit

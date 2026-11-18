@@ -2,7 +2,7 @@
 
 > **Status: SUPERSEDED 2026-11-18 (Phase 0 of `building-fichero-locally.md`).** The behaviours this spec still governs (12) were moved into that spec under their existing ids and tags (B, D, E, E0 (the twelve behaviours this spec still wants)); nothing was deleted and no id was renamed. This file stays so that old links resolve; read `building-fichero-locally.md`. The rest stays here as history: superseded by `dev-workflows` (now in the same spec) or replaced by `builder triage`, `builder steps` and `builder milestone`.
 
-> Milestone: dev-orchestration-harness
+> Milestone: Builder
 > Manual: docs/contributor_manual/how-fichero-is-built.md — "How Fichero is built" (written by Stage 1: how a spec
 > becomes issues, how coders run, what runs on GitHub and on the test Macs, and what waits for the maintainer).
 >
