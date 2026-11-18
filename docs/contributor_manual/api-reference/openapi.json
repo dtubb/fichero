@@ -94982,6 +94982,18 @@
             "$ref": "#/components/schemas/CloudRefusal",
             "nullable": true,
             "description": "`cap-refused` and `images-refused`: the typed refusal"
+          },
+          "pauses": {
+            "type": "boolean",
+            "title": "Pauses",
+            "description": "the kind's rule: the run PAUSES for it and Continue goes on (else it fails the item)",
+            "default": false
+          },
+          "engine_retries": {
+            "type": "boolean",
+            "title": "Engine Retries",
+            "description": "the engine retries this kind by itself, bounded, before pausing or failing",
+            "default": false
           }
         },
         "type": "object",
