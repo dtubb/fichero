@@ -48,7 +48,9 @@ enum CreditPausePrompt {
             ? "Paused: \(job.name), \(job.current) of \(job.total) pages done, the rest waiting."
             : "Paused: \(job.name)."
         var buttons: [(label: String, action: () -> Void)] = []
-        if let page = providerPage(failure?.provider) { buttons.append(("Open \(failure?.provider ?? "Provider") Page", { openProviderPage(page) })) }
+        if let page = providerPage(failure?.provider) {
+            buttons.append(("Open \(failure?.provider ?? "Provider") Page", { openProviderPage(page) }))
+        }
         buttons.append(("Continue", resume))
         buttons.append(("Stop Run", stop))
         return FailureAlertPrompt(
@@ -72,4 +74,17 @@ struct CreditPauseLedger {
     }
 
     private static func key(_ job: ActivityJob) -> String { "\(job.id)|\(job.failure?.provider ?? "")" }
+}
+
+extension ActivityStore {
+    /// A run paused for its provider's credit (`recipes-run.credit.out-of-credit-pauses-and-asks`, #6675) raises its one box:
+    /// Continue resumes it through the run's own Resume (the engine checks the provider again), Stop run stops it.
+    func askAboutCredit(in jobs: [ActivityJob]) {
+        guard let job = creditLedger.newlyPaused(in: jobs).first else { return }
+        creditPause = CreditPausePrompt.make(
+            job,
+            openProviderPage: { CreditPausePrompt.open($0) },
+            resume: { Task { _ = await self.setJobPaused(jobId: job.id, paused: false, runThreadId: nil) } },
+            stop: { Task { _ = await self.cancelJob(jobId: job.id, runThreadId: nil) } })
+    }
 }

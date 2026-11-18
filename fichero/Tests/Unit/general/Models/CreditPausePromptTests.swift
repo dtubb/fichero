@@ -11,7 +11,8 @@ struct CreditPausePromptTests {
         provider: String? = "OpenRouter"
     ) -> ActivityJob {
         var job = ActivityJob(id: id, taskType: "workflow", name: "Read the page", current: 12, total: 37, state: state)
-        job.failure = ActivityJob.Failure(kind: kind, words: "OpenRouter is out of credit, so the run is paused.", fix: "Add credit, then Continue.",
+        job.failure = ActivityJob.Failure(kind: kind, words: "OpenRouter is out of credit, so the run is paused.",
+                                          fix: "Add credit, then Continue.",
                                           actions: [first, "open-settings"], provider: provider)
         return job
     }
