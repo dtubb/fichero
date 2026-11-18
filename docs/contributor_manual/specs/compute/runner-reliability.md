@@ -501,7 +501,7 @@ open question 3). No test cited any of the twelve ids.
   `cancelled` state and its words. *Not built:* the rule that an alert never fires for it (there is
   no alert yet). *Tests (to write):* in `test_failure_kind_is_typed_6354.py`, a stopped run has
   `failure` null; in `ActivityFailureAlertTests.swift`, it raises nothing.
-- `activity.failure.credit-exhausted-pauses` — **[GAP]** (#6354, the pause half needs an issue of
+- `activity.failure.credit-exhausted-pauses` — **[OK]** (#6354, the pause half needs an issue of
   its own under #6354; #5933, `recipes-run.control.pause-and-resume`; engine; owner 2026-11-13) a
   failure the person can mend, or that mends itself, without losing the run (`out-of-credit`,
   `cap-reached`, `rate-limited`, `key-refused`, `provider-down`, `network`, `disk-full`, `memory`)
