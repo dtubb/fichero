@@ -407,6 +407,17 @@ def test_create_release_dry_run() -> None:
     assert "[DRY RUN]" in result.stdout
 
 
+def test_a_public_release_posts_only_the_dev_build_as_fichero_dev_dmg() -> None:
+    """Owner 2026-11-18: only the dev build is posted, named Fichero-dev.dmg; the appcast enclosure names it too."""
+    result = subprocess.run(
+        ["bash", str(CREATE_RELEASE), "--dry-run"],
+        capture_output=True, text=True, cwd=str(REPO_ROOT), env={**os.environ, "FICHERO_RELEASE_PUBLIC": "1"},
+    )
+    assert result.returncode == 0, f"rc={result.returncode}\nstdout: {result.stdout}\nstderr: {result.stderr}"
+    assert "would post the DMG as Fichero-dev.dmg: " in result.stdout
+    assert "/Fichero.dmg" not in result.stdout.split("would post the DMG as ", 1)[1].splitlines()[0]
+
+
 def test_create_release_dry_run_needs_no_git_checkout(tmp_path: Path) -> None:
     """The gate runs the suite from a copy of the tree with no .git: the dry run only prints, so it must still end 0."""
     shutil.copytree(SCRIPTS_DIR, tmp_path / "scripts")

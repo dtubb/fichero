@@ -16,7 +16,7 @@ Fichero is a Mac app to read and work with archives. It can help you transcribe 
 
 <div style="text-align: center" markdown>
 
-[Download Fichero :material-apple:](https://github.com/dtubb/fichero/releases/latest/download/Fichero.dmg){ .md-button .md-button--primary }
+[Download Fichero :material-apple:](https://github.com/dtubb/fichero/releases/latest/download/Fichero-dev.dmg){ .md-button .md-button--primary }
 
 --8<-- "docs/_latest.md"
 

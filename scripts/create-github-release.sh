@@ -163,6 +163,13 @@ if [ "${FICHERO_RELEASE_PUBLIC:-0}" != 1 ] && [ -f "$DMG_PATH.tier" ] && [ "$(tr
 fi
 # A dev-channel or --public release ships its one DMG only: drop a stray Fichero-dev.dmg BEFORE any upload.
 if [ "${FICHERO_RELEASE_CHANNEL:-}" = "dev" ] || [ "${FICHERO_RELEASE_PUBLIC:-0}" = 1 ]; then HAVE_DEV_DMG=false; fi
+# Only the dev build is posted, and it is posted as Fichero-dev.dmg (owner 2026-11-18): the one dev-tier DMG is
+# uploaded under that name, and the appcast, the release text and the site links name it. A non-dev DMG keeps its name.
+ASSET_NAME="Fichero.dmg"
+if [ "${FICHERO_RELEASE_CHANNEL:-}" = "dev" ] || [ "${FICHERO_RELEASE_PUBLIC:-0}" = 1 ] \
+   || { [ -f "$DMG_PATH.tier" ] && [ "$(tr -d '[:space:]' < "$DMG_PATH.tier")" = "dev" ]; }; then
+  ASSET_NAME="Fichero-dev.dmg"
+fi
 
 # ── Sparkle update pre-publish readiness (#4901) ─────────────────────────────
 # Fails the release (set -e) before signing/publishing anything if the new
@@ -303,7 +310,7 @@ fi
 # The text follows what is attached: with no Fichero-dev.dmg (the one-DMG dev run and every --public run) the dev
 # build is Fichero.dmg; only a run that attaches both DMGs names Fichero-dev.dmg.
 if [ "$HAVE_DEV_DMG" != true ]; then
-  DOWNLOAD_LINE="Download \`Fichero.dmg\` below (the dev build, with every feature on — expect rough edges)"
+  DOWNLOAD_LINE="Download \`$ASSET_NAME\` below (the dev build, with every feature on — expect rough edges)"
 else
   DOWNLOAD_LINE="Download \`Fichero.dmg\` below (\`Fichero-dev.dmg\` is the internal build with ALL features on — expect rough edges)"
 fi
@@ -344,8 +351,13 @@ if [ "$DRY_RUN" = false ]; then
   fi
   upload_asset() {
     # Idempotent + retried per asset (see comment above).
-    local path="$1" name
-    name="$(basename "$path")"
+    local path="$1" name="${2:-$(basename "$1")}"
+    if [ "$name" != "$(basename "$path")" ]; then  # posted under another name: a clone (no copy of the bytes) beside it
+      mkdir -p "$(dirname "$path")/upload"
+      rm -f "$(dirname "$path")/upload/$name"
+      cp -c "$path" "$(dirname "$path")/upload/$name" 2>/dev/null || cp "$path" "$(dirname "$path")/upload/$name"
+      path="$(dirname "$path")/upload/$name"
+    fi
     if gh release view "$TAG" --repo "$RELEASE_REPO" --json assets \
         --jq '.assets[].name' 2>/dev/null | grep -qx "$name"; then
       echo "  $name asset already present"
@@ -362,7 +374,7 @@ if [ "$DRY_RUN" = false ]; then
     echo "error: $name asset upload failed after 5 attempts" >&2
     exit 1
   }
-  upload_asset "$DMG_PATH"
+  upload_asset "$DMG_PATH" "$ASSET_NAME"
   if [ "$HAVE_DEV_DMG" = true ]; then
     upload_asset "$DEV_DMG_PATH"
   fi
@@ -380,7 +392,8 @@ if [ "${FICHERO_RELEASE_CHANNEL:-}" = "dev" ]; then
   MAIN_TITLE_SUFFIX=" (dev)"
   HAVE_DEV_DMG=false
 fi
-RELEASE_URL="https://github.com/$RELEASE_REPO/releases/download/${TAG}/Fichero.dmg"
+RELEASE_URL="https://github.com/$RELEASE_REPO/releases/download/${TAG}/$ASSET_NAME"
+if [ "$DRY_RUN" = true ]; then echo "[DRY RUN] would post the DMG as $ASSET_NAME: $RELEASE_URL"; fi
 DEV_RELEASE_URL="https://github.com/$RELEASE_REPO/releases/download/${TAG}/Fichero-dev.dmg"
 PUB_DATE=$(date -R)
 
