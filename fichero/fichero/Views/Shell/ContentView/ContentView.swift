@@ -965,8 +965,7 @@ struct ContentView: View {
             }
             return .ignored
         }
-        .modifier(CloudRefusalAlert())
-        .modifier(CreditPauseAlert())
+        .modifier(CloudRefusalAlert()).modifier(CreditPauseAlert())
         .alert(item: $errorService.currentAlert) { errorModel in
             let message = errorModel.recoverySuggestion != nil ?
                 "\(errorModel.message)\n\n\(errorModel.recoverySuggestion!)" :

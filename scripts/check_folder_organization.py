@@ -85,7 +85,6 @@ KNOWN_VIOLATIONS: dict[str, tuple[int, str]] = {
     'Views/Settings/Sharing/Access': (1, 'baseline 2026-11-15'),
     'Views/Settings/Snapshots': (1, 'baseline 2026-11-15'),
     'Views/Settings/Tools': (1, 'baseline 2026-11-15'),
-    'Views/Shell/Alert': (1, 'baseline 2026-11-15'),
     'Views/Shell/ContentView': (35, '#1944 sibling — 20 files; grew by ShellPrimarySelection + SheetLibraryEnvironment-adjacent splits'),
     'Views/Shell/Toolbar': (33, '2026-08-31 — 20 files: the workflow bar grew ChainRow/Context splits (file_length budget); the WorkflowBar* family wants its own subfolder, queued with the toolbar reorg'),
     'Views/Sidebar': (2, '#1944 — 27 Swift files directly; mixed Sidebar concerns'),

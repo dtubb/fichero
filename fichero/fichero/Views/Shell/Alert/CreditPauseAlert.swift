@@ -5,10 +5,12 @@ import SwiftUI
 /// window's environment shows nothing rather than trapping.
 struct CreditPauseAlert: ViewModifier {
     @Environment(ActivityStore.self) private var store: ActivityStore?
+    @Environment(\.openURL) private var openURL
 
     func body(content: Content) -> some View {
         if let store {
             content.failureAlert(Bindable(store).creditPause)
+                .onAppear { store.openProviderPage = { openURL($0) } }
         } else {
             content
         }

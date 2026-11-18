@@ -32,6 +32,8 @@ final class ActivityStore: ChangeEventConsumer {
     /// The one box for a run paused because its provider is out of credit or at its limit (#6675); nil when none waits.
     var creditPause: FailureAlertPrompt?
     @ObservationIgnored var creditLedger = CreditPauseLedger()
+    /// Opens a provider's page; the window's `CreditPauseAlert` sets it to the environment's `openURL`.
+    @ObservationIgnored var openProviderPage: (URL) -> Void = { _ in }
     private let streamService: ActivityStreamService
 
     /// When set (REMOTE hosts only), folded change frames arriving on

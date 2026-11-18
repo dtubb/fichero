@@ -1,9 +1,4 @@
 import Foundation
-#if canImport(AppKit)
-import AppKit
-#elseif canImport(UIKit)
-import UIKit
-#endif
 
 /// The one dialogue of a run paused because its provider is out of credit or at a credit limit
 /// (`recipes-run.credit.out-of-credit-pauses-and-asks`, #6675). The engine pauses the run and says so in the run's failure
@@ -24,15 +19,6 @@ enum CreditPausePrompt {
         case "google": URL(string: "https://aistudio.google.com/plan_information")
         default: nil
         }
-    }
-
-    /// Open the provider's page in the person's browser.
-    @MainActor static func open(_ url: URL) {
-        #if canImport(AppKit)
-        NSWorkspace.shared.open(url)
-        #elseif canImport(UIKit)
-        UIApplication.shared.open(url)
-        #endif
     }
 
     /// The box for a paused `job`: the engine's words, what is paused (the run's name and its pages done of the total), then
@@ -57,34 +43,5 @@ enum CreditPausePrompt {
             title: "\(failure?.provider ?? "The provider") needs credit",
             message: [failure?.words ?? "", paused, failure?.fix ?? ""].filter { !$0.isEmpty }.joined(separator: "\n\n"),
             fixes: buttons.enumerated().map { FailureAlertPrompt.Fix(id: $0.offset, label: $0.element.label, action: $0.element.action) })
-    }
-}
-
-/// One dialogue per provider per run, never one per page: a run asked about is not asked again while it stays paused for
-/// that provider; once it goes on, its next credit pause asks anew.
-struct CreditPauseLedger {
-    private var asked: Set<String> = []
-
-    /// The runs of `jobs` newly paused for a provider's credit, once each; what is no longer paused for credit is forgotten.
-    mutating func newlyPaused(in jobs: [ActivityJob]) -> [ActivityJob] {
-        let paused = jobs.filter(CreditPausePrompt.isCreditPause)
-        let keys = Set(paused.map(Self.key))
-        asked.formIntersection(keys)
-        return paused.filter { asked.insert(Self.key($0)).inserted }
-    }
-
-    private static func key(_ job: ActivityJob) -> String { "\(job.id)|\(job.failure?.provider ?? "")" }
-}
-
-extension ActivityStore {
-    /// A run paused for its provider's credit (`recipes-run.credit.out-of-credit-pauses-and-asks`, #6675) raises its one box:
-    /// Continue resumes it through the run's own Resume (the engine checks the provider again), Stop run stops it.
-    func askAboutCredit(in jobs: [ActivityJob]) {
-        guard let job = creditLedger.newlyPaused(in: jobs).first else { return }
-        creditPause = CreditPausePrompt.make(
-            job,
-            openProviderPage: { CreditPausePrompt.open($0) },
-            resume: { Task { _ = await self.setJobPaused(jobId: job.id, paused: false, runThreadId: nil) } },
-            stop: { Task { _ = await self.cancelJob(jobId: job.id, runThreadId: nil) } })
     }
 }
