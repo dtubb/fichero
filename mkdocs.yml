@@ -410,6 +410,7 @@ nav:
               - Running on a University Cluster (ACENET): contributor_manual/specs/compute/hpc-runner-acenet.md
               - A Recipe's Steps at Scale (PROPOSED): contributor_manual/specs/compute/recipe-steps-at-scale.md
               - Training, Scoring & Choosing Models: contributor_manual/specs/compute/training-and-evaluation.md
+              - Runner Reliability (one contract, DRAFT): contributor_manual/specs/compute/runner-reliability.md
           - Docs:
               - Docs Citations & Bibliography: contributor_manual/specs/docs/docs-citations-bibliography.md
           - Export:
@@ -524,6 +525,7 @@ nav:
               - About: contributor_manual/specs/ui/about.md
               - Activity & Automatic Work: contributor_manual/specs/ui/activity-and-automatic-work.md
               - Activity as a Pane (draft): contributor_manual/specs/ui/activity-pane.md
+              - Models and Compute Window (draft): contributor_manual/specs/ui/models-and-compute-window.md
               - Automation: contributor_manual/specs/ui/automation.md
               - Catalogue Table: contributor_manual/specs/ui/catalogue-table.md
               - Library View Modes: contributor_manual/specs/ui/library-view-modes.md
@@ -603,6 +605,8 @@ nav:
           - Known Launch Log Noise: contributor_manual/qa/known-launch-log-noise.md
           - Remote Pairing Smoke Checklist: contributor_manual/qa/remote-pairing-smoke-checklist.md
           - UI-Test Harness Findings (2026-09-12): contributor_manual/reports/ui-test-harness-findings-2026-09-12.md
+          - Runner Reliability Review (2026-11-18): contributor_manual/reviews/2026-11-18-runner-reliability.md
+          - Runner Reliability Plan (2026-11-18): contributor_manual/reviews/2026-11-18-runner-reliability-plan.md
           - Sidebar/UX Verify-and-Close Checklist: contributor_manual/verify-checklists/sidebar-ux-verify.md
       - UI Map: contributor_manual/ui-map.md
       - API Reference: contributor_manual/api-reference/index.md
