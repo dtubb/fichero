@@ -4,6 +4,14 @@ set -euo pipefail
 # Ensure a manual Xcode embedded-macOS build has its Briefcase engine input.
 # Normal use is a fast no-op; pass --rebuild after changing engine sources.
 
+# The engine is embedded only in the Mac app. An iOS build runs this same build phase (one multiplatform
+# target), where Xcode's PATH reaches only /usr/bin/python3 (3.9, no tomllib), and failed the iOS
+# TestFlight preflight (2026-11-18): nothing to stage for iOS, so it stops here.
+if [ -n "${PLATFORM_NAME:-}" ] && [ "$PLATFORM_NAME" != "macosx" ]; then
+  echo "No embedded engine for $PLATFORM_NAME: nothing to stage"
+  exit 0
+fi
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENGINE_DIR="$ROOT_DIR/fichero-server"
 ENGINE_APP="$ENGINE_DIR/build/fichero_server/macos/app/Fichero Server.app"
@@ -168,7 +176,7 @@ fi
   # (pymeeus) cannot be met, and pip once quietly downgraded convertdate to dodge it. Build
   # those pins into wheels here; requirement_installer_args finds them with --find-links.
   rm -rf build/lock-wheels && mkdir -p build/lock-wheels
-  python3 "$ROOT_DIR/scripts/bundle_matches_lock.py" --sdist-only uv.lock \
+  "$(dirname "$BRIEFCASE")/python" "$ROOT_DIR/scripts/bundle_matches_lock.py" --sdist-only uv.lock \
     | while read -r _pin; do
         "$(dirname "$BRIEFCASE")/python" -m pip wheel --quiet --disable-pip-version-check --no-deps -w build/lock-wheels "$_pin"
       done
