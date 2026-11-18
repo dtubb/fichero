@@ -1,8 +1,10 @@
 # Building Fichero with local models, reliably — the one harness spec — Design Spec
 
-> Milestone: Builder (one milestone; it absorbs `dev-workflows`, `dev-orchestration-harness`,
+> Milestone: Builder
+> (One milestone. It absorbs `dev-workflows`, `dev-orchestration-harness`,
 > `Builder: agent profiles and generic workflows`, `builder-mac-app`, `performance-sweep`, `spec-pipeline` and
-> `git-worktree-workflow`; see "Merge list")
+> `git-worktree-workflow`; see "Merge list". The name stands alone on the line above because `builder triage`,
+> `builder steps` and `builder milestone` read that line.)
 > Manual: docs/contributor_manual/how-fichero-is-built.md
 
 > **Status: DRAFT — written 2026-11-17 and corrected 2026-11-18 from the owner's direction and his answers of that day (paraphrased), for the supervising
@@ -164,14 +166,14 @@ unchanged at the 2026-11-18 head)
 
 - `docs/contributor_manual/specs/harness/` holds 19 files, about 930 KB. Ten are about the Builder; nine are about
   Fichero's engine, releases and code layout and stay separate (see "Not part of this spec").
-- `dev-workflows.md` is APPROVED (2026-11-01), 388 KB, 165 tagged behaviours: 9 [OK], 93 [PARTIAL], 46 [GAP],
+- The spec `dev-workflows.md` is APPROVED (2026-11-01), 388 KB, 165 tagged behaviours: 9 [OK], 93 [PARTIAL], 46 [GAP],
   16 [PROPOSED], 1 [BROKEN]. Most of the harness is partly built.
-- `deterministic-conductor.md` (DRAFT 2026-10-25): 45 behaviours, 12 [OK], 22 [PARTIAL], 11 [MISSING]. Largely
+- The spec `deterministic-conductor.md` (DRAFT 2026-10-25): 45 behaviours, 12 [OK], 22 [PARTIAL], 11 [MISSING]. Largely
   superseded by `dev-workflows`.
-- `agent-profiles.md` (DRAFT 2026-11-16): 30 behaviours, 3 [OK], 6 [PARTIAL], 21 [GAP].
-- `builder-console.md` (DRAFT 2026-11-16): 18 behaviours, 1 [OK], 4 [PARTIAL], 11 [GAP], 2 [BROKEN].
-- `performance-sweep.md` (DRAFT 2026-11-15): 20 behaviours, 4 [OK], 8 [PARTIAL], 7 [GAP], 1 [BROKEN].
-- `builder-mac-app.md` (DRAFT): 12 behaviours, all [GAP].
+- The spec `agent-profiles.md` (DRAFT 2026-11-16): 30 behaviours, 3 [OK], 6 [PARTIAL], 21 [GAP].
+- The spec `builder-console.md` (DRAFT 2026-11-16): 18 behaviours, 1 [OK], 4 [PARTIAL], 11 [GAP], 2 [BROKEN].
+- The spec `performance-sweep.md` (DRAFT 2026-11-15): 20 behaviours, 4 [OK], 8 [PARTIAL], 7 [GAP], 1 [BROKEN].
+- The spec `builder-mac-app.md` (DRAFT): 12 behaviours, all [GAP].
 - The code: `fichero-builder/` (stdlib Python), `harness.toml`, five workflows in `.github/workflows/`. Every lane
   today runs Claude Code; the Pi driver and policy extension exist without a finished adapter.
 - In `harness.toml` both the security rung and the perf rung are report-only (`enforce = false`).
@@ -250,7 +252,9 @@ Issues cited by more than one spec (#6100, #6116, #6166, #6369, #6589, #6600, #6
 
 ## Behaviours
 
-New behaviours carry the prefix `local.` and are all [GAP]. Absorbed behaviours keep their ids.
+New behaviours carry the prefix `local.` and are all [GAP]. Absorbed behaviours keep their ids. Each new behaviour cites #6116, the harness's
+parent issue, until `builder steps` files one issue per step. The absorbed behaviours follow § H, one "Absorbed from"
+section per spec, word for word.
 
 ### A. Workers and models
 
@@ -259,32 +263,32 @@ open across steps and keeps what it has read; the loop feeds it one step at a ti
 the owner's side, and sends the next brief into the same session. A new session starts only when the worker is gone
 or at its handoff. This is the owner's ruling of 2026-11-01 and nothing in this spec replaces it.
 
-- `local.long-running-kept` [GAP] — `dev-workflows.tool.queue`, `dev-workflows.worker.handoff`,
+- `local.long-running-kept` [GAP] (#6116) — `dev-workflows.tool.queue`, `dev-workflows.worker.handoff`,
   `dev-workflows.run.loop`, `dev-workflows.run.loop-chain`, `dev-workflows.run.loop-fix-rounds`,
   `dev-workflows.run.loop-rolls-on` and `dev-workflows.run.loop-survives` are absorbed whole and unchanged in
   meaning. `agent-profiles.worker.small` is read as "one step per BRIEF", not one step per worker: the session
   continues. If Phase 0 finds the two in conflict, the long-running worker wins and the owner is told.
   Serves: builds Fichero.
-- `local.handoff-per-model` [GAP] — the handoff point is set per model, not once. Today `harness.toml` has
+- `local.handoff-per-model` [GAP] (#6116) — the handoff point is set per model, not once. Today `harness.toml` has
   `window = 200000`, `handoff_at = 0.85` and `handoff_tokens = 175000`, chosen for Sonnet. Each model in the slate
   declares its usable window on this machine (a local model's is bounded by memory and by how slowly it re-reads a
   long prompt, not only by its trained length), and the 85 % rule applies to that. Serves: reliable.
-- `local.handoff-before-compaction` [GAP] — the harness's handoff is the mechanism that is built and in use: the
+- `local.handoff-before-compaction` [GAP] (#6116) — the harness's handoff is the mechanism that is built and in use: the
   worker is told at the mark, writes `HANDOFF.md`, ends with `HANDOFF READY`, and a successor (generation plus one)
   starts from that file through the same start path (`run.py`, `watcher.py`). For Pi the watcher delivers the word
   itself. Pi's own auto-compaction stays on only as a safety net, set to fire later than the handoff mark, so the
   two never race; the existing note that Pi's compaction errors with a 35B model is fixed or the net is turned off
   for that model. The bake-off compares handoff alone against handoff with the net. Serves: reliable.
-- `local.worker-sandboxed` [GAP] — the Pi worker process starts inside a sandbox profile as well as in the worker
+- `local.worker-sandboxed` [GAP] (#6116) — the Pi worker process starts inside a sandbox profile as well as in the worker
   account: it may write only its worktree and scratch, read its own install and the checkout, and reach only the
   model endpoint, the package registries and read-only GitHub. The checks and the review already run outside the
   worker's session, so the profile does not have to admit them. Pi has no permission system of its own, so this and
   the policy extension (`pi/policy.ts`, which blocks any tool call not answered ALLOW) are the limits. The start
   probes prove the wall before each worker runs. Serves: reliable.
-- `local.handoff-measured` [GAP] — the bake-off scores a model on handoffs as well as steps: whether the successor
+- `local.handoff-measured` [GAP] (#6116) — the bake-off scores a model on handoffs as well as steps: whether the successor
   carries on correctly from the handoff file, redoes finished work, or loses the thread. A model that builds one step
   well and cannot survive a handoff does not pass. Serves: reliable.
-- `local.xcode-worker` [GAP] — a Swift step goes to an Xcode worker: a Pi worker with Xcode's own tools, reached
+- `local.xcode-worker` [GAP] (#6116) — a Swift step goes to an Xcode worker: a Pi worker with Xcode's own tools, reached
   through Xcode's MCP server (`xcrun mcpbridge`, with "Allow external agents to use Xcode tools" on). It builds,
   reads structured build errors, runs named tests and renders SwiftUI previews through Xcode, not through a bare
   `xcodebuild`. This mirrors what works today with Claude inside Xcode (the release holds commits written "using
@@ -293,25 +297,25 @@ or at its handoff. This is the owner's ruling of 2026-11-01 and nothing in this 
   Xcode inside one user's session. Rendered previews and test results are attached for the reviewer, who today sees
   only the diff. Also try the other direction once: Xcode 27 accepts outside agents through the Agent Client
   Protocol; record whether Pi can be brought in that way and which works better. Serves: builds Fichero, reliable.
-- `local.escalation-by-handoff` [GAP] — escalating a step to another tier ends the session through the same handoff
+- `local.escalation-by-handoff` [GAP] (#6116) — escalating a step to another tier ends the session through the same handoff
   path: the next tier starts from the handoff file plus the failed diff, the ladder output and the findings. When the
   step lands, the lane's own worker resumes from a fresh handoff. Serves: reliable.
 
 
-- `local.target` [GAP] — every role (builder, reviewer, manager, helper) names a local provider it can run on; a role
+- `local.target` [GAP] (#6116) — every role (builder, reviewer, manager, helper) names a local provider it can run on; a role
   that works only with a cloud model is a named exception with its reason and what would remove it. The weekly report
   lists the exceptions. Serves: local.
-- `local.memory-budget` [GAP] — `harness.toml` states the machine's model budget (85 GB on the 128 GB Studio) and each
+- `local.memory-budget` [GAP] (#6116) — `harness.toml` states the machine's model budget (85 GB on the 128 GB Studio) and each
   model's loaded size; a slate that does not fit beside the gate and a build is refused at start. Serves: reliable.
-- `local.interim-16gb` [GAP] — until the Studio arrives the 16 GB M1 Pro is the main machine and the helpers
+- `local.interim-16gb` [GAP] (#6116) — until the Studio arrives the 16 GB M1 Pro is the main machine and the helpers
   (`[check].remote`, the nightly runners) stay as `harness.toml` has them: no local model server; lanes capped to
   what the machine holds; engine tests, guards and scans also run on GitHub's hosted runners so the Pro is not the
   only place they run; the full nightly check (budgeted at 14 GB) stays on its remote runner. Swift steps stay with
   the cloud builder until `local.swift-tests-per-batch` is green. Nothing built now is machine-specific: moving to
   the Studio is config, and `pool.*` is retired only then. Serves: builds Fichero.
-- `local.bridge-openrouter` [GAP] — OpenRouter is a Pi provider; the key comes from the environment and is written
+- `local.bridge-openrouter` [GAP] (#6116) — OpenRouter is a Pi provider; the key comes from the environment and is written
   nowhere; the model id, the serving provider and its quantization are recorded per run. Serves: local.
-- `local.compressed-is-the-measure` [GAP] — a decision to adopt a model cites runs on the compressed build on Mac
+- `local.compressed-is-the-measure` [GAP] (#6116) — a decision to adopt a model cites runs on the compressed build on Mac
   hardware, not only the hosted full-precision one. Serves: reliable.
 - Absorbed: `agent-profiles.adapter.interface` [OK], `agent-profiles.adapter.claude-code` [OK],
   `agent-profiles.adapter.pi` [PARTIAL] (#6631), `dev-workflows.models.by-config` [PARTIAL],
@@ -322,9 +326,9 @@ or at its handoff. This is the owner's ruling of 2026-11-01 and nothing in this 
 
 With no stronger model on call, quality is whatever the gates enforce. These are the core of the spec.
 
-- `local.gates-enforce` [GAP] — the security rung enforces after one clean week; the perf rung stays report-only
+- `local.gates-enforce` [GAP] (#6116) — the security rung enforces after one clean week; the perf rung stays report-only
   until budgets and noise bands exist, and the report says so on every run. Serves: reliable.
-- `local.swift-tests-per-batch` [GAP] — Swift unit and UI tests run per batch in a dedicated GUI user on the Studio,
+- `local.swift-tests-per-batch` [GAP] (#6116) — Swift unit and UI tests run per batch in a dedicated GUI user on the Studio,
   so a test run never quits the owner's app. Absorbs `dev-workflows.run.swift-tests` [GAP],
   `agent-profiles.ladder.swift-tests` [GAP], `agent-profiles.ladder.ui-smoke` [GAP]. Serves: reliable.
 - Absorbed unchanged: `dev-workflows.run.land-gate`, `dev-workflows.run.policy-hook`, `dev-workflows.run.jail-home`,
@@ -335,10 +339,10 @@ With no stronger model on call, quality is whatever the gates enforce. These are
   `perf-sweep.rung.not-run-is-visible` [BROKEN] (fix first), `perf-sweep.ratchet.budgets`,
   `perf-sweep.ratchet.baseline-from-n-runs`, `perf-sweep.ratchet.noise-band`.
 
-- `local.resources-measured` [GAP] — every batch records peak memory during the checks, the size of the state
+- `local.resources-measured` [GAP] (#6116) — every batch records peak memory during the checks, the size of the state
   folder and of the test database before and after, and disk free; each has a budget in `harness.toml`; over budget
   is a red rung once enforcement is on. No model judges these. Absorbs `perf-sweep.output.row`. Serves: reliable.
-- `local.wall` [GAP] — the wall around a worker, proved by probes before each start: standard accounts with no
+- `local.wall` [GAP] (#6116) — the wall around a worker, proved by probes before each start: standard accounts with no
   administrator rights; every home closed to the others; no GitHub login, ssh key or keychain item in the worker's
   reach; the model key either capped by a hard spend limit or added by a relay on the loop's side so the worker never
   holds it; network limited to the model endpoint, the package registries and read-only GitHub; nothing sensitive in
@@ -348,32 +352,32 @@ With no stronger model on call, quality is whatever the gates enforce. These are
 
 ### B2. Specs are checked before anything is built from them
 
-- `local.spec-lint` [GAP] — a script refuses a spec for approval unless every behaviour has a unique id, a tag, a
+- `local.spec-lint` [GAP] (#6116) — a script refuses a spec for approval unless every behaviour has a unique id, a tag, a
   named test or an owed-test note, a size, and a "serves" line; it lists every sentence that contradicts another
   spec's ruling by id. Absorbs what `spec-pipeline.md` asks of the spec ↔ issues ↔ tests check. Serves: reliable.
-- `local.spec-sceptical-read` [GAP] — before approval a model that did not write the spec reads it against the code
+- `local.spec-sceptical-read` [GAP] (#6116) — before approval a model that did not write the spec reads it against the code
   and writes a review file beside it: what is claimed built and is not, what cannot be tested as written, what is
   missing. `performance-sweep-REVIEW.md` is the pattern: that read found two rungs reporting green without running.
   Serves: reliable.
 
 ### C. The manager and escalation
 
-- `local.manager` [GAP] — the manager role runs on a local model in Pi. It may feed lanes, pause, resume, requeue,
+- `local.manager` [GAP] (#6116) — the manager role runs on a local model in Pi. It may feed lanes, pause, resume, requeue,
   park, file issues and answer routine worker questions. It may not relax a check. Absorbs
   `agent-profiles.role.manager` [GAP] (#6638). Serves: builds Fichero.
-- `local.escalation-tiers` [GAP] — tiers are config: local builder → second local model → PARKED. During the build
+- `local.escalation-tiers` [GAP] (#6116) — tiers are config: local builder → second local model → PARKED. During the build
   a cloud tier may sit above; it is removed at handover. Serves: reliable.
-- `local.escalation-triggers` [GAP] — only mechanical triggers escalate: two failed fix rounds, the same rung red
+- `local.escalation-triggers` [GAP] (#6116) — only mechanical triggers escalate: two failed fix rounds, the same rung red
   twice, a false DONE, a turn cap with no commit, repeated tool-call failures. The worker's opinion is not a trigger.
-- `local.pre-routing` [GAP] — the brief routes a step before any attempt: size L, routes, entitlements, pinned or
+- `local.pre-routing` [GAP] (#6116) — the brief routes a step before any attempt: size L, routes, entitlements, pinned or
   judging files, and any step kind whose recorded local failure rate is over half go to the tier that can do them.
   The rules are rewritten weekly from the escalation rows.
-- `local.escalation-row` [GAP] — one journal row per escalation: step, kind, trigger, from, to, cost. A daily dollar
+- `local.escalation-row` [GAP] (#6116) — one journal row per escalation: step, kind, trigger, from, to, cost. A daily dollar
   cap; past it, steps park.
-- `local.must-escalate` [GAP] — a weakened or deleted test, an excused red-on-base, any change to a pinned file, a
+- `local.must-escalate` [GAP] (#6116) — a weakened or deleted test, an excused red-on-base, any change to a pinned file, a
   guard, the ladder or `harness.toml`, anything on routes or entitlements, a step blocked twice, spend over cap.
 
-- `local.question-list` [GAP] — scripts decide what is a question (the escalation triggers, a refused start, a
+- `local.question-list` [GAP] (#6116) — scripts decide what is a question (the escalation triggers, a refused start, a
   contradiction the lint found); a model only drafts the wording and a proposed answer. Questions sit in one list on
   the console, each with its proposed answer, its risk and a deadline. A low-risk question takes its proposed answer
   when its deadline (24 hours) passes and says so in the journal; a risky one (anything in `local.must-escalate`) waits.
@@ -381,51 +385,51 @@ With no stronger model on call, quality is whatever the gates enforce. These are
 
 ### D. Review
 
-- `local.reviewer-differs` [GAP] — the reviewer is never the builder's model. Serves: reliable.
-- `local.shadow-reviewer` [GAP] — an open model's verdict is recorded beside the binding one and decides nothing;
+- `local.reviewer-differs` [GAP] (#6116) — the reviewer is never the builder's model. Serves: reliable.
+- `local.shadow-reviewer` [GAP] (#6116) — an open model's verdict is recorded beside the binding one and decides nothing;
   agreement is reported weekly; promotion needs the numbers and a yes. Absorbs `pipeline.review` [PARTIAL] (Claude
   binding, Qwen shadow), `dev-workflows.models.review-by-path` [PARTIAL], `dev-workflows.review.performance-lens`
   [OK], `dev-workflows.review.security-lens` [OK].
-- `local.bug-hunt-per-milestone` [GAP] — when a milestone's last step lands, and before any release, a model other
+- `local.bug-hunt-per-milestone` [GAP] (#6116) — when a milestone's last step lands, and before any release, a model other
   than the builder reads the milestone's changes together, looking for faults between steps that a per-step review
   cannot see; each finding is an issue with a failing test owed. Not run per step. Absorbs
   `dev-workflows.quality.bug-review-stream` [GAP]. Serves: reliable.
-- `local.judging-files-reviewed` [GAP] — a change to the harness's own judging files is reviewed by the strongest
+- `local.judging-files-reviewed` [GAP] (#6116) — a change to the harness's own judging files is reviewed by the strongest
   model available, and after handover needs the owner.
 
 ### E0. Issues and milestones stay current, on GitHub
 
 Issues and milestones live on GitHub; the spec is their source and `builder` is their only writer.
 
-- `local.issues-close-on-landing` [GAP] — an issue closes only by `builder landed`, once its commit is on
+- `local.issues-close-on-landing` [GAP] (#6116) — an issue closes only by `builder landed`, once its commit is on
   `origin/integration`; the behaviour it built is marked [OK] and the rules are re-pinned in the same act. Absorbs
   `issues.harness-closes-after-integration` [OK] (#6337), `dev-workflows.run.issues-close-when-done` [PARTIAL],
   `pipeline.closes-issues` [PARTIAL], and the workflows `close-fixed-issues.yml` and `issue-milestone.yml`.
-- `local.push-or-nothing-closes` [GAP] — `builder landed` refuses a commit `origin` lacks, so a loop that does not
+- `local.push-or-nothing-closes` [GAP] (#6116) — `builder landed` refuses a commit `origin` lacks, so a loop that does not
   push blocks every step and closes nothing. The owner said yes to this on 2026-11-18, so the loop runs
   with the push enabled; the report still shows any step waiting on a push.
-- `local.milestone-closes-when-empty` [GAP] — a milestone with no open issue that no spec still needs is closed by
+- `local.milestone-closes-when-empty` [GAP] (#6116) — a milestone with no open issue that no spec still needs is closed by
   `builder triage`; one a spec still needs stays open. Absorbs the six `issues.*` behaviours and
   `pipeline.issues-and-milestones-kept-current` [MISSING].
-- `local.drift-is-reported` [GAP] — the weekly report lists every disagreement between the spec, GitHub and the
+- `local.drift-is-reported` [GAP] (#6116) — the weekly report lists every disagreement between the spec, GitHub and the
   code: an [OK] behaviour with an open issue, a closed issue whose behaviour is not [OK], an issue with no milestone,
   a landed commit that closed nothing.
 
 ### E. Nightly, CI and release
 
-- `local.ci` [GAP] — GitHub Actions run engine tests, guards and the security scans on every lane push (the repo is
+- `local.ci` [GAP] (#6116) — GitHub Actions run engine tests, guards and the security scans on every lane push (the repo is
   public; standard runners cost nothing). Mac builds run on a self-hosted runner limited to this repo's own branches,
   never fork pull requests. Absorbs `pipeline.github-actions` [PARTIAL].
-- `local.nightly` [GAP] — the nightly runs on a schedule and publishes a dev pre-release only when every stage is
+- `local.nightly` [GAP] (#6116) — the nightly runs on a schedule and publishes a dev pre-release only when every stage is
   green. Absorbs `dev-workflows.run.nightly-build` [PARTIAL], `pipeline.nightly-gate` [PARTIAL].
-- `local.notes-with-every-tag` [GAP] — no tag without notes. At `v2026.11.18` the newest entry in
+- `local.notes-with-every-tag` [GAP] (#6116) — no tag without notes. At `v2026.11.18` the newest entry in
   `RELEASE_NOTES.md` is 2026.11.12; tags 11.13, 11.14, 11.17 and 11.18 have none, and `docs/_latest.md` still points to
   2026.10.30. The release script drafts the entry from the landed issues since the last tag (their titles and
   `type:` labels, grouped by area, in plain words for a user), writes `RELEASE_NOTES.md`, `CHANGELOG.md` and
   `docs/_latest.md`, and refuses to tag if any of the three is stale. Serves: builds Fichero.
-- `local.one-trailer` [GAP] — every commit names its model, harness and builder in one format; the release held
+- `local.one-trailer` [GAP] (#6116) — every commit names its model, harness and builder in one format; the release held
   about ten spellings. Absorbs `agent-profiles.trailer.one-line` [PARTIAL]. Needed before models are compared.
-- `local.release-channels` [GAP] — four channels: dev, alpha, beta, release. Dev is automatic (`local.nightly`).
+- `local.release-channels` [GAP] (#6116) — four channels: dev, alpha, beta, release. Dev is automatic (`local.nightly`).
   A promotion to alpha, beta or release is prepared by script and approved by the owner: the script checks that the
   build's nightly was green at every stage, the smoke test passed on a clean machine, no escalation is open, no check
   was relaxed since the last promotion without a recorded review, and the notes are written; it then puts one
@@ -436,26 +440,26 @@ Issues and milestones live on GitHub; the spec is their source and `builder` is 
 
 ### F. State and reporting
 
-- `local.journal-is-the-record` [GAP] — nothing edits `journal.jsonl`; the database is rebuilt from it by one command.
+- `local.journal-is-the-record` [GAP] (#6116) — nothing edits `journal.jsonl`; the database is rebuilt from it by one command.
   Absorbs `builder-console.store.one-database` [GAP] (#6644), `dev-workflows.ledger.one-row-per-unit` [GAP] (#6379).
-- `local.report-by-query` [GAP] — the weekly report is produced by queries: steps landed on Fichero versus on the
+- `local.report-by-query` [GAP] (#6116) — the weekly report is produced by queries: steps landed on Fichero versus on the
   harness; share READY within two fix rounds, by model; cost per landed step by role; escalations and how many asked
   to relax a check; shadow agreement; the parked list; the cloud exceptions. Absorbs
   `dev-workflows.ledger.comparison-view`, `dev-workflows.ledger.break-even-view` (#6387),
   `dev-workflows.bakeoff.decision-table` (#6380), `agent-profiles.bakeoff.measured`, `agent-profiles.run.record`.
-- `local.console-reachable` [GAP] — the existing web console is reachable from the owner's phone and laptop, read-only
+- `local.console-reachable` [GAP] (#6116) — the existing web console is reachable from the owner's phone and laptop, read-only
   by default. Absorbs `dev-workflows.console.tailnet-read-only`, `dev-workflows.console.phone-layout`,
   `builder-console.step.one-state` [BROKEN], `builder-console.numbers.labelled` [BROKEN] (fix both first).
 
 ### G. Handover
 
-- `local.rulings-become-rules` [GAP] — each escalation the supervising manager answers also files the guard, rule or
+- `local.rulings-become-rules` [GAP] (#6116) — each escalation the supervising manager answers also files the guard, rule or
   routing entry that would have decided it. An escalation answered twice is a defect.
-- `local.promotions-stay-with-owner` [GAP] — handover changes nothing about promotions: alpha, beta and release
+- `local.promotions-stay-with-owner` [GAP] (#6116) — handover changes nothing about promotions: alpha, beta and release
   stay the owner's yes.
-- `local.handover` [GAP] — the supervising manager is done when, for two consecutive weeks: no escalation reached it,
+- `local.handover` [GAP] (#6116) — the supervising manager is done when, for two consecutive weeks: no escalation reached it,
   the parked list stayed short, shadow agreement held, and no check was relaxed. It writes a handover note and stops.
-- `local.freeze` [GAP] — after handover the harness takes fixes only; a new harness feature needs the owner.
+- `local.freeze` [GAP] (#6116) — after handover the harness takes fixes only; a new harness feature needs the owner.
 
 ### H. The loop moves onto LangGraph
 
@@ -463,18 +467,18 @@ The loop's state machine is about 3,200 lines of the Builder's own Python (`queu
 spec adds escalation tiers, a manager, a shadow reviewer, parked-step retries and a question list: all orchestration.
 Fichero's engine already uses LangGraph. The owner has ruled that the Builder adopts it.
 
-- `local.orchestration-on-langgraph` [GAP] — the step state machine (queued, sent, checking, reviewing, fixing,
+- `local.orchestration-on-langgraph` [GAP] (#6116) — the step state machine (queued, sent, checking, reviewing, fixing,
   landed, blocked, parked, escalated) runs as a LangGraph graph with its state saved in SQLite. The jail, the worker
   sessions, the handoff, the ladder, the GitHub writes and the release script stay the Builder's own code, called
   from the graph. The JSONL journal stays the record: every state change still writes a row. Serves: reliable.
-- `local.migration-one-lane-first` [GAP] — the move is made one lane at a time, the first beside the current loop
+- `local.migration-one-lane-first` [GAP] (#6116) — the move is made one lane at a time, the first beside the current loop
   on the same steps. A lane has moved when the existing crash, restart and resume tests pass unchanged against it,
   and a worker that runs for hours and hands off at its mark carries on correctly. The old loop is deleted only when
   every lane has moved. If the long-running worker or the handoff cannot be kept, stop and report: that design
   outranks the library. Serves: reliable.
-- `local.pinned-dependency` [GAP] — the package version is pinned and recorded with the rules; an upgrade is a step
+- `local.pinned-dependency` [GAP] (#6116) — the package version is pinned and recorded with the rules; an upgrade is a step
   like any other, with the full ladder. The Builder still does not import the engine it judges. Serves: reliable.
-- `local.new-orchestration-on-the-graph` [GAP] — escalation, the manager's moves, parked-step retries, the question
+- `local.new-orchestration-on-the-graph` [GAP] (#6116) — escalation, the manager's moves, parked-step retries, the question
   list and the reviewers (binding, shadow, bug hunt) are built as graph nodes and pauses, never as more hand-written
   state code. LangChain is not adopted for this: it assembles model calls, and the Builder runs whole agents.
 
@@ -511,6 +515,11 @@ Fichero's engine already uses LangGraph. The owner has ruled that the Builder ad
 `release-channels-and-feature-tiers.md`. Phase 0 should propose moving these out of `specs/harness/` so the folder
 holds one harness spec. § E keeps the owner's yes for alpha, beta and release and makes the dev build automatic; `release-and-versioning.md` is amended only where it says otherwise.
 
+## Absorbed decisions and rulings
+
+The decisions, rulings and open questions of the specs this one absorbs, moved in Phase 0 word for word. Where one of them
+disagrees with "Decisions" or "Rulings this overturns" above, the text above wins; the Phase 0 review lists each case.
+
 ## Build order
 
 Each step is one issue under the one milestone. Sonnet builds and Opus reviews the harness's own code until the
@@ -544,6 +553,11 @@ bake-off says otherwise. Sizes are for Phase 0 to set.
 Stop and report if: more than a third of steps end blocked or parked; the supervising manager's tokens exceed what
 Sonnet used for the same work, or its use crowds the owner's own on the Max plan; OpenRouter passes 50 dollars in a week; relaxed checks rise week over week; or the harness's share of landed steps stays above
 half for two weeks after the freeze.
+
+## Behaviour tests
+
+The test tables of the absorbed specs, moved in Phase 0. A behaviour's own bullet names its test; these tables are the
+index each spec kept.
 
 ## Answers from the owner (2026-11-17 and 2026-11-18, paraphrased)
 
