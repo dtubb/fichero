@@ -28,6 +28,13 @@
 >   egress gate (`source.model.*`, `source.find.*`, `source.egress.*`), and #5582's paragraph,
 >   "The best model, and the best place to run it", which this spec expands.
 > - `ui/activity-pane.md` — the one job model and its lanes (`activity.*`).
+>
+> **Owns / Does not own.** This spec OWNS the engine's rule for which model runs where: the pair, the catalogue of places and
+> their egress class, how offers are made and ranked, the one egress gate, the spend caps and the one retry policy. It does NOT
+> own: the window that shows every model and place with its account (`ui/models-and-compute-window.md`); the Activity rows
+> (`ui/activity-pane.md`); what happens when a place fails mid-run, which kinds pause and the one alert
+> (`compute/runner-reliability.md`); a recipe run's journey (`source/recipes-run.md`); the Set Up screens that show the offers
+> (`source/recipe-designer.md`).
 
 ## Intent
 
@@ -334,9 +341,6 @@ person, never silently (`ai.where.fallback-free-and-asked`).
 - `ai.where.hf-endpoint-is-a-place` — **[GAP]** (#5588) a dedicated Hugging Face Inference
   Endpoint can be added as a place (its URL, the one Hugging Face token, its hourly price and
   cold start shown), distinct from the shared Inference Providers router (`llm/__init__.py:4197`).
-- `ai.where.place-status-is-probed` — **[BROKEN]** (#5367, #4303) a place's state in Settings is a
-  probe's result; today the dot is `isLocalProvider || hasApiKey`
-  (`ProvidersView+ProviderSettingsRow.swift:40`), so a stopped remote Ollama shows green.
 
 ### B. The pair
 
@@ -527,12 +531,12 @@ person, never silently (`ai.where.fallback-free-and-asked`).
 
 ### G. What the person sees
 
+Moved 2026-11-18 (one owning spec per area): `ai.where.settings-lists-places` and `ai.where.place-status-is-probed` to
+`ui/models-and-compute-window.md` section C (the window lists every place with a probed state); `ai.where.activity-shows-the-place`
+to `ui/activity-pane.md`. `ai.where.ready-shows-the-pair` stays here: Ready shows the offers this spec defines.
+
 - `ai.where.ready-shows-the-pair` — **[GAP]** (#5582) Ready names each step's model and place, cost,
   time, egress and account, and the next-best offer.
-- `ai.where.activity-shows-the-place` — **[GAP]** (#5582) Activity's rows and run account show the
-  place for every call and the cost per place.
-- `ai.where.settings-lists-places` — **[GAP]** (#5454, #5367) Settings, AI, "Where models run" lists
-  the places with probed state, egress class and account.
 
 ### H. Batch places
 

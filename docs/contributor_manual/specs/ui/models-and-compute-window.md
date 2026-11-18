@@ -12,6 +12,13 @@
 > pane), `ai/ai-settings.md` (what Settings › AI holds today), `ai/where-models-run.md` (the catalogue of places, §2.2)
 > and `compute/runner-reliability.md` (what a row says when its work fails). This file holds the DELTA: the things that
 > are about MODELS and PLACES leave Settings and become ONE window in Activity's style; Settings keeps preferences.
+>
+> **Owns / Does not own.** This spec OWNS the Models and Compute window: every model and place as a row with its state,
+> account, memory, what uses it now and what failed on it, the verbs on them (download, unload, delete, add a key, add a Mac or
+> a cluster, test), and what leaves Settings. It does NOT own: the Activity rows and the one job model (`ui/activity-pane.md`);
+> how a failure on a model or place is classified, paused or alerted (`compute/runner-reliability.md`); which model and place a
+> step chooses, egress and the caps (`ai/where-models-run.md`); a recipe run (`source/recipes-run.md`); choosing a model in Set
+> Up (`source/recipe-designer.md`).
 > Tags: **[OK]** built · **[PARTIAL]** exists in part · **[GAP]** designed, not built · **[BROKEN]** built and wrong.
 > Every non-[OK] line cites an issue.
 
@@ -213,6 +220,15 @@ filters Activity by `model:`.
 - `models.place.egress-from-the-address` — **[GAP]** (#5582; `ai.where.*` A own the rule) the Egress column is worked
   out from the address, never the provider type.
 
+Carried from `ai/where-models-run.md` §A and §G on 2026-11-18 (ids, tags, citations and issue numbers unchanged); the window is
+the surface those two lines describe, `models.row.account-from-a-probe` is their engine rule.
+
+- `ai.where.settings-lists-places` — **[GAP]** (#5454, #5367) Settings, AI, "Where models run" lists
+  the places with probed state, egress class and account.
+- `ai.where.place-status-is-probed` — **[BROKEN]** (#5367, #4303) a place's state in Settings is a
+  probe's result; today the dot is `isLocalProvider || hasApiKey`
+  (`ProvidersView+ProviderSettingsRow.swift:40`), so a stopped remote Ollama shows green.
+
 ### D. Trained models and ground truth
 
 - `models.trained.are-rows` — **[GAP]** (#5439, #5440; `compute/training-and-evaluation.md` owns the training) a model
@@ -246,6 +262,12 @@ filters Activity by `model:`.
 - Behaviours: `models.window.one-list`, `models.row.fits-here`, `models.row.account-from-a-probe`, `models.row.using-now-and-last-failed`
 - Tests: fichero-server/tests/unit/api/test_activity_models_6588.py (extended with the new fields; the fits-here and account-probe tests to write beside it)
 - Size: M
+
+#### Step 1.3 — The places listed with a probed state, in the window not Settings (#5454, #5367)
+- Behaviours: `ai.where.settings-lists-places`, `ai.where.place-status-is-probed`
+- Tests: fichero-server/tests/unit/api/test_activity_models_6588.py (extended: a stub probe's answer is the row's Account)
+- Depends on: 1.2
+- Size: S
 
 ### Stage 2 — Models: download, load, unload, delete
 
