@@ -669,7 +669,11 @@ The behaviours:
   record and in Save Logs for Support, so a run that failed on another person's Mac (2026-11-17: Ann's) can be read
   afterwards: "Kraken reloaded 31 times; swap 6 GB; memory pressure high".
   Tests: `fichero-server/tests/unit/recipes/test_memory_recorded_per_step_6673.py`. Built: each step's `memory` in the run's detail, and one `run step <name>:` line in engine.log, which Save Logs for Support carries.
-- A provider's in-flight or rate limit pauses the run, never fails pages: `ai.where.one-retry-policy`, #6671.
+- A provider's in-flight or rate limit pauses the run, never fails pages: `ai.where.one-retry-policy`, #6671. From
+  2026-11-18 the same holds for every PAUSING kind of the one contract (`compute/runner-reliability.md` §1: no credit, a
+  refused key, the network, memory past its hold, the project closed): the run pauses through the one path and asks, never
+  fails pages for it (#6675, `runner.kinds.pause-or-fail-is-the-tables`); the recipe parks on the paused step and Continue
+  takes it up from the first page not done (`runner.pause.continue-from-first-not-done`, #6569).
 
 ## Changes to existing behaviours
 

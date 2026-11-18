@@ -1,6 +1,7 @@
 # Settings, AI — providers, keys, local runtimes, compute targets and downloads — Design Spec (#TBD)
 
 > **Consolidating design:** `ai/where-models-run.md` (#5582) owns choosing a model together with where it runs and the one list of places; this spec keeps the Settings surface, keys and runtime status.
+> **Proposed 2026-11-18 (DRAFT, the owner to approve):** `ui/models-and-compute-window.md` takes the provider rows, the local models and runtimes, the downloads, the clusters and "Where work runs" OUT of Settings into one window in Activity's style; Settings › AI keeps the preferences (Allow cloud, the caps, the defaults, the download location). Until it is approved this spec stands as written; its table "What leaves Settings, what stays" names each section's new home.
 
 > Milestone: ai-settings
 > **One home (ruled 2026-10-04).** Every behaviour of Settings' AI pane lives here: the provider rows, the keys (folded from `ai/provider-keys.md`, section K), the one model list and row used everywhere (folded from `ui/model-selector-consistency.md`, section M), each runtime's status and the keys a runtime needs (moved from `ai/local-runtimes.md`), where work runs (moved from `compute/targets-and-connection.md`) and model downloads. How a runtime ships and loads stays in `ai/local-runtimes.md`; how a target connects stays in `compute/targets-and-connection.md`; a download's progress is a job row (`ui/activity-and-automatic-work.md`).

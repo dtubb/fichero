@@ -466,6 +466,11 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
   memory, model missing, unavailable in this build), message words only for an exception with no type; its test
   `fichero-server/tests/unit/workflows/test_errors_are_typed_5353.py` is written, green NOT yet seen (no pytest during
   gate3). Still a gap: "needs a key" has no exception type of its own yet, and the other call sites pass text only.
+  (2026-11-18) The typed kinds are the one table's (`llm/failure.py`, `compute/runner-reliability.md` §1); three runtime
+  errors still reach it untyped and read "Something went wrong in Fichero": Kraken's "reader is not on this Mac yet"
+  (`llm/kraken_runtime.py` `resolve_recognition_model`, a plain RuntimeError), MLX's "not set up / could not set up"
+  (`llm/mlx_runtime.py`), and spaCy's absent default pipeline (which returns `[]` instead of raising). The contract's
+  `runner.local.kraken`, `runner.local.mlx` and `runner.local.spacy` own the fix.
 
 ### E. Honest status
 

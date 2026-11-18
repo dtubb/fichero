@@ -517,7 +517,10 @@ person, never silently (`ai.where.fallback-free-and-asked`).
   for a reason of the place (server down, quota, key missing), its page runs at the step's next
   alternative place for the same card, only one the person accepted at Start and only a free one
   (`.fallback-free-and-asked`); the row and the run account say so. Not built: a run never moves
-  a page by itself; only the Start offer above is.
+  a page by itself; only the Start offer above is. (2026-11-18) The ruling this line waited for is the one above it
+  (free, the same card, asked, never silent); what happens mid-run when no accepted alternative exists is the one
+  contract's: the run PAUSES and asks (`compute/runner-reliability.md` §1-2, `runner.no-fallback-without-asking`), never
+  a different model and never a failed page for a cause of the place.
 - `ai.where.app-keeps-memory` — **[PARTIAL]** (#5537) a local model that does not fit now waits
   while the engine releases its own idle models; built for MLX and Kraken
   (`llm/local_inference.py:137-204`), not for other runtimes or local servers.

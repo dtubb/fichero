@@ -317,7 +317,8 @@ Undo covers Delete and Archive (in session; the engine's two actions are undoabl
   `fichero-server/tests/unit/llm/test_one_cap_per_provider_6584.py`; the existing
   `fichero-server/tests/unit/jobs/test_kraken_page_gate_two_at_once.py`, `fichero-server/tests/unit/jobs/test_throttle.py`.
 - `activity.limits.rate-limit-backs-off-then-pauses` — **[PARTIAL]** (#6584, #6354, decision 16; consistent with `run-failure-alerts.md`
-  decision 2 and its `rate-limited` kind; built in part: `circuit_breaker.call_with_breaker` backs off with jitter honouring
+  decision 2 and its `rate-limited` kind; from 2026-11-18 the pause path and the pause-or-fail rule for EVERY kind are
+  `compute/runner-reliability.md` §1-2, which this line's rate-limit case is one row of; built in part: `circuit_breaker.call_with_breaker` backs off with jitter honouring
   Retry-After up to 120 s, `retry.py` marks the provider dead for 30 s; NOT built: the pause — today the page FAILS after the
   retries and the run ends failed or partial) a 429 or rate-limit answer backs off honouring Retry-After (exponential with jitter,
   capped at the table's cap), while the provider's whole cap is held (no other call to that provider starts during the back-off);

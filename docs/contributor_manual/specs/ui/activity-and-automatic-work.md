@@ -2472,6 +2472,13 @@ actions the app knows how to offer (`add-credit`, `open-settings-ai`, `retry`, `
 `choose-another-model`, `free-disk`, `restart-engine`, `report`, `none`), never free text the app
 has to parse. "Stopped by you" is in the table only to say it is NOT a failure.
 
+> **Superseded 2026-11-18** (the runner-reliability integration, `compute/runner-reliability.md` §1 and
+> `ai/run-failure-alerts.md` `run.fail.kinds-table`): the table below was written before `llm/failure.py` landed and names
+> kinds the code never had (`out-of-credit`, `cap-reached`, `provider-down`, `model-not-found`, `engine-crashed`,
+> `input-unreadable`, `refused-by-a-rule`, `unknown`). The sixteen kinds the engine serves are the table; read this one
+> as the owner's INTENT for which kinds pause (kept, as the contract's pause-or-fail column) and for `disk-full`, a kind
+> the code still lacks (listed under the plan's issues to file). The two behaviours after it stand and cite the contract.
+
 | `kind` | When | The words (the row, the popover, the alert) | The fix offered |
 |---|---|---|---|
 | `out-of-credit` | the PROVIDER's account has no credit: 402, `insufficient_quota`, a key limit, "credit balance" (`fatal_cause` = `quota`) | "<Provider> has no credit left for this key. The run is paused; the N pages it finished are kept." | **Add credit at <Provider>** (the provider's billing page from the catalogue), then **Resume**; or **Choose another model** |

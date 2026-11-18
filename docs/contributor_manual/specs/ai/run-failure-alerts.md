@@ -1,6 +1,7 @@
 # A run that does not finish says why, and what to do (#6354)
 
-> Milestone: run-failure-alerts
+> Milestone: activity (2026-11-18: no `run-failure-alerts` milestone exists on GitHub and #6354 sits in `activity`; the review
+> `reviews/2026-11-18-runner-reliability-plan.md` folds this spec's work there rather than opening a milestone of its own)
 > Manual: TBD — a "When a run stops" section: what the alert says for each cause, where the failed run is in Activity, and what Send a Bug Report sends and leaves out.
 
 > **Status: DRAFT 2026-11-05** (Fable writes, the maintainer approves; raised by the maintainer 2026-11-05, #6354).
@@ -10,6 +11,10 @@
 > `activity.window.done-today`, `activity.popover.now-plus-next`, `activity.durable.paused-stays-paused`). Iterate on what
 > exists: the classifier in `execution/runner.py` becomes the one mapping; nothing here adds a second error vocabulary.
 > Tags: **[OK]** behaves this way today · **[PARTIAL]** part built or not wired · **[GAP]** intended, not built.
+> **Integrated 2026-11-18** with `compute/runner-reliability.md`, the ONE contract every runner follows: this file keeps
+> the table's kinds, words, fixes and actions (as `llm/failure.py` serves them, sixteen kinds); the contract owns which
+> kinds PAUSE and which FAIL (its §1), the one pause path and the one place it is shown. Where this file said a kind
+> "stopped" the run and the contract says it pauses, the contract wins (decision 2 below, amended).
 
 ## The problem
 
@@ -89,10 +94,14 @@ from a run with the error, the run and the versions, and nothing private; CLI/MC
    served model, `RunFailure`; the runner stores it on the run row when the run ends failed (or pauses for a cause), and
    every client reads it. The per-page classification keeps using the same function, so a page's reason and the run's
    reason never disagree.
-2. **A failed run is one that ends `failed`, or pauses for a cause the person must act on (a cap, the images rule).**
-   A run that ends partial ("Done with failures: 3 of 203 pages") FINISHED: Activity's Partial line and Retry cover it,
-   no alert (question 1). A run paused by a person or by the engine's own stop raises nothing. A page's failure is not
-   the run's.
+2. **A failed run is one that ends `failed`, or pauses for a cause the person must act on (a cap, the images rule, and,
+   amended 2026-11-18 per the owner's rulings of 2026-11-13 and 2026-11-18, #6675: no credit, a refused key, the network
+   and memory).** Which kinds pause and which fail is the contract's column (`compute/runner-reliability.md` §1,
+   `runner.kinds.pause-or-fail-is-the-tables`); a pausing kind settles the run `paused` with its `failure` and raises the
+   alert, and its words say "paused", never "stopped" (the `no-credit` and `key-refused` rows below were amended to match;
+   the acceptance text of those two rows changed). A run that ends partial ("Done with failures: 3 of 203 pages")
+   FINISHED: Activity's Partial line and Retry cover it, no alert (question 1). A run paused by a person or by the
+   engine's own stop raises nothing. A page's failure is not the run's.
 3. **Unknown falls to `unexpected`, never to silence.** There is no `unknown` kind. What the table does not name is a
    bug in Fichero, said so, with the exception's type and an offer to report it.
 4. **One alert per failed run attempt.** The key is the run's id and its `failed_at` (the key `ActivityErrorLedger`
@@ -140,8 +149,8 @@ spend cap" · `images-refused` "Pages stay on this Mac" · `model-error` "<Model
 
 | kind | judged by | words (what happened) | fix (what to do) | actions |
 |---|---|---|---|---|
-| `no-credit` | `ProviderQuotaExhaustedError`; `fatal_cause == "quota"`; 402, `insufficient_quota`, a key limit | "<Provider> has no credit left, or this key's limit is reached, so the run stopped at page N of M. The N pages done are kept." | "Add credit at <Provider>, or give Fichero a different key or provider, then run it again." | `open-settings` (`settings.ai.providers`), `choose-model`, `retry` |
-| `key-refused` | `ProviderKeyRefusedError`; `fatal_cause == "key"`; 401, `KEY_REFUSED_WORDS`; today's `auth` | "<Provider> refused the key Fichero has for it, so the run stopped at page N of M." | "Check the key in Settings › AI › Providers (paste it again, or make a new one), or switch this step to another provider." | `open-settings` (`settings.ai.providers`), `choose-model`, `retry` |
+| `no-credit` | `ProviderQuotaExhaustedError`; `fatal_cause == "quota"`; 402, `insufficient_quota`, a key limit | "<Provider> has no credit left, or this key's limit is reached, so the run is paused at page N of M. The N pages done are kept." (PAUSES, #6675; was "stopped") | "Add credit at <Provider>, or give Fichero a different key or provider, then continue the run." | `open-provider-page`, `open-settings` (`settings.ai.providers`), `choose-model`, `resume` |
+| `key-refused` | `ProviderKeyRefusedError`; `fatal_cause == "key"`; 401, `KEY_REFUSED_WORDS`; today's `auth` | "<Provider> refused the key Fichero has for it, so the run is paused at page N of M." (PAUSES, #6675; was "stopped") | "Check the key in Settings › AI › Providers (paste it again, or make a new one), or switch this step to another provider, then continue the run." | `open-settings` (`settings.ai.providers`), `choose-model`, `resume` |
 | `rate-limited` | `ProviderRateLimitedError` with the retries spent; 429 past the retry policy | "<Provider> asked Fichero to slow down more often than the run could wait, so it stopped at page N of M." | "Wait a few minutes and run it again. A higher plan at <Provider>, or another provider, avoids it." | `retry` (with `retry_after_seconds` when the provider gave one), `choose-model` |
 | `cap-refused` | `CloudSpendRefusedError` (the run PAUSES at the cap; `refusal` carried) | the refusal's own `words` | the refusal's own `fixes` | the refusal's `fixes[]`, then `resume` |
 | `images-refused` | `EgressRefusedError` (the run is refused or paused; `refusal` carried) | the refusal's own `words` | the refusal's own `fixes` | the refusal's `fixes[]`, then `resume` |
