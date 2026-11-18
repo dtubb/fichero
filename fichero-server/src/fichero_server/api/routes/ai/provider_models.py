@@ -571,7 +571,7 @@ async def _live_google_models() -> list[dict]:
         response = await client.get(
             "https://generativelanguage.googleapis.com/v1beta/models",
             params={"pageSize": 200},
-            headers={"x-goog-api-key": api_key},  # never in the URL: httpx logs the URL at INFO (#)
+            headers={"x-goog-api-key": api_key},  # never in the URL: httpx logs the URL at INFO (#6696)
             timeout=8.0,
         )
         response.raise_for_status()

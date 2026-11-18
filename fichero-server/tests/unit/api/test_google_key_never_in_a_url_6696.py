@@ -1,5 +1,5 @@
 """A Google key is sent in the x-goog-api-key header, never in a URL: httpx logs request URLs at INFO, which put the
-key in clear in the engine log (#, runner review 2)."""
+key in clear in the engine log (#6696, runner review 2)."""
 
 import asyncio
 

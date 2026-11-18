@@ -547,7 +547,7 @@ async def test_provider_connection(
                     message="No API key configured",
                 )
             async with httpx.AsyncClient() as client:
-                response = await client.get(  # the key in a header: httpx logs the URL at INFO (#)
+                response = await client.get(  # the key in a header: httpx logs the URL at INFO (#6696)
                     "https://generativelanguage.googleapis.com/v1/models",
                     headers={"x-goog-api-key": api_key},
                     timeout=10.0,
