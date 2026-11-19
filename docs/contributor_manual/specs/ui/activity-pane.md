@@ -1441,7 +1441,7 @@ workflow by hand: a hand run is a job like any other.
   shards done of total, pages landed, and what it offers; the Inspector's status (`GET
   /api/reading-at-scale/jobs/{id}`) lists each shard (state, tries, reason, last lines, seconds) and sets the
   estimate (pages, shards, GPU-hours from a pilot's rate) beside the actual. Not yet: the recipe step passing its
-  id (the recipes lane), a "landing" state between done and landed, the Swift row and Inspector. Test:
+  id (the recipes lane), the Swift row and Inspector. Built: far state `landing` while a shard's pages are being landed (`landing_now`). Test:
   `fichero-server/tests/unit/api/test_remote_runs_in_activity.py`,
   `fichero-server/tests/unit/remote_read/test_read_at_scale_job.py`.
 - `activity.remote.actions` — **[PARTIAL]** (#5740) Cancel (`POST /api/reading-at-scale/jobs/{id}/cancel`, cancels the
