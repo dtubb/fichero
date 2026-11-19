@@ -37,3 +37,27 @@ def test_a_file_the_bookmark_finds_is_not_missing_though_its_recorded_path_is_go
     monkeypatch.setattr(storage, "resolve_source", lambda doc, library_root=None: found)
 
     assert relink.missing_originals(db, {page.id}) is None
+
+
+def test_a_folder_relink_of_three_moved_files_relinks_three_and_leaves_none_missing(client, db, tmp_path):
+    old = tmp_path / "old"
+    pages = []
+    for i in range(3):
+        f = old / f"deep{i}" / f"f{i}.jpg"
+        f.parent.mkdir(parents=True)
+        f.write_bytes(b"data" * (i + 1))
+        doc = Document(name=f.name, doc_type=DocType.file, file_type=FileType.image, path=str(f),
+                       metadata={"file_size": f.stat().st_size})
+        db.save(doc)
+        pages.append(doc)
+    new = tmp_path / "Historical Archives"
+    new.mkdir()
+    for i in range(3):  # moved flat, nothing of the old folders kept
+        (old / f"deep{i}" / f"f{i}.jpg").rename(new / f"f{i}.jpg")
+
+    assert client.get("/api/documents/missing-originals").json()["pages"] == 3
+    done = client.post("/api/documents/relink-originals", json={"new_root": str(new)})
+
+    assert done.status_code == 200, done.text
+    assert len(done.json()["matched"]) == 3
+    assert client.get("/api/documents/missing-originals").json() is None
