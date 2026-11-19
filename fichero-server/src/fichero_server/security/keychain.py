@@ -118,7 +118,7 @@ def _run_security(*args: str, input_data: str | None = None) -> tuple[int, str, 
     Returns:
         Tuple of (return_code, stdout, stderr)
     """
-    cmd = ["security"] + list(args)
+    cmd = ["/usr/bin/security"] + list(args)  # by absolute path: never a `security` found on PATH (#4818)
     try:
         result = subprocess.run(
             cmd,
@@ -317,27 +317,21 @@ def set_api_key(provider: str, key: str) -> bool:
     if not key:
         return False
 
+    if "\n" in key or "\r" in key or "\0" in key:
+        logger.warning("Refusing to store an API key with a control character")  # it would end the `security -i` line
+        return False
+
     # First try to delete existing item (ignore errors)
     delete_api_key(provider)
 
-    # Use security add-generic-password
-    # -s: service name
-    # -a: account name
-    # -l: label (human-readable)
-    # -w: password
-    # -U: update if exists (but we deleted first, so shouldn't matter)
-    returncode, stdout, stderr = _run_security(
-        "add-generic-password",
-        "-s",
-        SERVICE,
-        "-a",
-        provider,
-        "-l",
-        f"Fichero API key for {provider}",
-        "-w",
-        key,
-        "-U",  # Update if exists
-    )
+    # `security -i` reads its command from stdin, so the key is never in argv (visible to `ps`, #4818).
+    # -s service, -a account, -l label, -w password, -U update if exists.
+    def quote(text: str) -> str:
+        return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+    line = (f"add-generic-password -s {quote(SERVICE)} -a {quote(provider)} "
+            f"-l {quote(f'Fichero API key for {provider}')} -w {quote(key)} -U\n")
+    returncode, stdout, stderr = _run_security("-i", input_data=line)
 
     if returncode == 0:
         logger.debug("Stored API key for %s", provider)
