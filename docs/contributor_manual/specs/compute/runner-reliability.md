@@ -20,7 +20,7 @@
 > that for the lines listed under "Changes to existing behaviours").
 >
 > **What it builds on, by name.** The failure kinds table is `run.fail.kinds-table` (section F below; carried from
-> `ai/run-failure-alerts.md`, merged into this file on 2026-11-18), built as
+> the former failure-alerts spec, merged into this file on 2026-11-18), built as
 > `fichero-server/src/fichero_server/llm/failure.py` (`RunFailure`, `classify`, `row_words`). The pause path is the one
 > `execution/cancellation.request_pause` → `_finish_as_paused` path that a person's Pause, the spend cap
 > (`llm/spend._ask_run_to_pause`) and a rate limit (`llm/retry._pause_the_run_for`) already take. The surface is the
@@ -51,7 +51,7 @@ while the Mac pages, half the cores while the person works.
 ## Prior art / best practices (don't invent from scratch)
 
 - **Job queues that survive their workers** (Sidekiq, Celery acks-late, Postgres `SKIP LOCKED`): a failure is a typed
-  reason on the row, a retry is bounded, a dead lease returns the row to waiting. `activity-and-automatic-work.md`
+  reason on the row, a retry is bounded, a dead lease returns the row to waiting. The former Activity spec
   adopts this; this spec adds the rule that a failure the person can mend pauses rather than fails.
 - **Circuit breakers and retry budgets** (Hystrix, Google SRE's "retry budgets"): classify by status, honour
   `Retry-After`, bound the sends per item. Built in `workflows/circuit_breaker.py` and `llm/retry.py`; this spec makes the
@@ -112,9 +112,9 @@ blocker, failed with its ≤ 8 row words and the fix button) and, for a pause or
 attempt (`run.fail.alert-on-a-failed-run`), coalesced by cause and provider. The CLI and MCP read the same `failure`
 (`run.fail.cli-says-the-fix`, `run.fail.mcp-says-the-fix`). No client classifies; no raw exception text reaches a row.
 
-## The words, fixes and actions of each kind (carried from `ai/run-failure-alerts.md`, merged 2026-11-18)
+## The words, fixes and actions of each kind (carried from the former failure-alerts spec, merged 2026-11-18)
 
-`ai/run-failure-alerts.md` (#6354, DRAFT 2026-11-05) was the spec of the failure kinds table, the bug report and the one
+The former failure-alerts spec (#6354, DRAFT 2026-11-05) was the spec of the failure kinds table, the bug report and the one
 alert. On 2026-11-18 (owner: one owning spec per area) its decisions, its table and its eighteen `run.fail.*` behaviours
 moved here unchanged (ids, tags, citations and issue numbers intact); the old path is a pointer. Its "What exists today"
 survey of 2026-11-05 was not carried (a code survey, nothing normative; the review of 2026-11-18 supersedes it).
@@ -149,7 +149,7 @@ survey of 2026-11-05 was not carried (a code survey, nothing normative; the revi
    by alerts.
 8. **A pause for a cause survives a relaunch, and a failed run is never re-run by itself** (owner 2026-11-13, night;
    #6584). Decision 2 pauses the run; the relaunch must not undo it: the recipe run's pause is stored on its row at the
-   open (`activity.relaunch.only-running-work-resumes` in `ui/activity-and-automatic-work.md`), so the run still reads
+   open (`activity.relaunch.only-running-work-resumes` in the former Activity spec), so the run still reads
    paused with its alert's cause, and only Resume (the alert's or Activity's) carries it on. A run that ended failed
    stays failed with its reason and its Retry.
 9. **A rate limit backs off, then pauses; every failure carries its solution; no codes** (owner 2026-11-13, 22:25–23:15;
@@ -370,7 +370,7 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   `.undocumented(statusCode, _)` site that starts work reads the engine's `detail` and shows its words (182 sites drop it,
   #3931); a refused grant shows the engine's reason (#6602).
 
-### F. The engine: one failure, on the run (carried from `ai/run-failure-alerts.md`, 2026-11-18)
+### F. The engine: one failure, on the run (carried from the former failure-alerts spec, 2026-11-18)
 
 - `run.fail.kinds-table` [PARTIAL] (#6354; built: the kinds, the served model, `classify`, `redact`, the provider and model names in the words, `unexpected` for what the table does not name, and the kind beside the page's legacy category; not built: `_typed_failure` and `_classify_provider_error` answering from the table, so the per-page `error_category`/`error_hint`/`error_action` still come from their own code) — `llm/failure` holds `RunFailure` (`kind`, `words`, `fix`, `actions[]`
   of `{kind, control?, usd?, retry_after_seconds?}`, `provider`, `model`, `step`, `pages_done`, `pages_total`,
@@ -404,7 +404,7 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   can quote it; the served `detail` is the exception's first line only. Tests:
   `fichero-server/tests/unit/workflows/test_run_carries_its_failure_6354.py` (`caplog`: one ERROR with the run id).
 
-### G. The bug report (carried from `ai/run-failure-alerts.md`, 2026-11-18)
+### G. The bug report (carried from the former failure-alerts spec, 2026-11-18)
 
 - `run.fail.bug-report-route` [OK] (#6354; owner 2026-11-08: the route builds the report, the app saves it on this Mac and the owner sends it, nothing leaves the Mac automatically, `run.fail.bug-report-destination`) — `POST /api/activity/jobs/{id}/bug-report` builds and answers the report
   for a failed run: `{title, body, attachments: [{name, text}]}` where `title` is "<kind>: <words' first sentence>",
@@ -427,7 +427,7 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   URL, a bearer header and a page's text in an exception message: none of them in the report; the fixtures' lines).
 - `run.fail.bug-report-destination` [GAP] (#6354; question 2 RULED by the owner 2026-11-08) — the report is SAVED on this Mac and the owner sends it: Save Bug Report… writes the `.zip` of the three parts through the Save panel (default name `fichero-bug-<date>-<kind>.zip`, in the folder the person chooses), and the alert then offers Reveal in Finder and the maintainer's address to attach it to; nothing leaves the Mac automatically, no upload, no mail composed without the person, no telemetry; the engine route stays the one source of the report. Tests: `RunBugReportTests` (the zip is written where chosen and nothing is sent; the reveal shows the file; a run with no network behaves the same).
 
-### H. The app: an alert that says what happened and what to do (carried from `ai/run-failure-alerts.md`, 2026-11-18)
+### H. The app: an alert that says what happened and what to do (carried from the former failure-alerts spec, 2026-11-18)
 
 - `run.fail.alert-on-a-failed-run` [GAP] (#6354) — when a run the app shows ends with a `failure`, the app raises ONE
   alert, `RunFailureAlert` (the `CloudRefusalAlert` pattern: a `.alert` on `ContentView` from an observable prompt):
@@ -464,7 +464,7 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   to `reason` for a row with none (an engine from before this); the opened run has the same action buttons as the
   alert. Tests: `fichero/Tests/Unit/general/Models/ActivityRowFailureWordsTests`.
 
-### I. Sending the bug report (carried from `ai/run-failure-alerts.md`, 2026-11-18)
+### I. Sending the bug report (carried from the former failure-alerts spec, 2026-11-18)
 
 - `run.fail.report-shows-then-sends` [GAP] (#6354) — "Send a Bug Report…" asks the engine for the report, shows its
   title, body and the names of its attachments, says in one line what is left out (paths, keys, your pages' text), and
@@ -472,7 +472,7 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   owner sends it, nothing leaves the Mac by itself). Tests: `fichero/Tests/Unit/general/App/RunBugReportTests` (the preview text is the engine's;
   nothing is sent before Continue; the zip holds exactly the three parts).
 
-### J. CLI and MCP (carried from `ai/run-failure-alerts.md`, 2026-11-18)
+### J. CLI and MCP (carried from the former failure-alerts spec, 2026-11-18)
 
 - `run.fail.cli-says-the-fix` [PARTIAL] (#6354; built: `fichero workflow run --wait` and `fichero workflow status` print a failed run's words, `Fix:` and each action as its command, the bug report first for a bug in Fichero, no traceback, exit 1 from `run --wait`; the commands are the generated ones, `fichero activity-api retry-job`, `fichero activity-api post-job-bug-report` and `fichero providers set-api-key`; not built: `fichero activity jobs` saying it (the generated `fichero activity-api get-jobs` prints `failure` in its JSON), the `bug-report <id> --out <file>` command as named, and exit 1 from `workflow status`) — `fichero workflow run --wait`, `fichero workflow status` and
   `fichero activity jobs` print a failed run's `words`, then `Fix: <fix>`, then each action as the command that does it
@@ -485,7 +485,7 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   message naming the tool for each action (`fichero_workflow_retry`, `fichero_activity_bug_report` from the regen).
   Tests: `fichero-server/tests/unit/mcp/test_mcp_run_failure_6354`.
 
-### K. The failure on a run, carried from `ui/activity-and-automatic-work.md` section J (2026-11-18)
+### K. The failure on a run, carried from the former Activity spec section J (2026-11-18)
 
 Section J (owner 2026-11-13, #6354) owned the alert before this contract existed. Its table of thirteen kinds was superseded by
 section 1 above (`runner.kinds.one-table`, `run.fail.kinds-table`) and is gone. Its three behaviours that still stand are below,
@@ -545,13 +545,13 @@ open question 3). No test cited any of the twelve ids.
 
 ## Changes to existing behaviours (made in the integration of 2026-11-18)
 
-1. `ui/activity-and-automatic-work.md` §J's table of thirteen kinds (`out-of-credit`, `cap-reached`, `provider-down`,
+1. The former Activity spec §J's table of thirteen kinds (`out-of-credit`, `cap-reached`, `provider-down`,
    `model-not-found`, `disk-full`, `engine-crashed`, `input-unreadable`, `refused-by-a-rule`, `unknown`, …) is superseded by
-   the sixteen kinds of section F (`run.fail.kinds-table`, carried from `run-failure-alerts.md`) and `llm/failure.py`; §J's three
+   the sixteen kinds of section F (`run.fail.kinds-table`, carried from the former failure-alerts spec) and `llm/failure.py`; §J's three
    live behaviours (`activity.failure.credit-exhausted-pauses`, `activity.failure.partial-results-kept`,
    `activity.failure.cancelled-is-not-a-failure`) are section K here since 2026-11-18, the rest deleted as superseded (section K says
    by which id). `disk-full` is a wanted kind the code lacks (listed under "Issues to file" in the plan).
-2. `ai/run-failure-alerts.md` decision 2 ("a failed run is one that ends `failed` … the run stopped at page N of M") is
+2. The former failure-alerts spec decision 2 ("a failed run is one that ends `failed` … the run stopped at page N of M") is
    amended: `no-credit`, `key-refused`, `network` and `memory` PAUSE and ask (owner 2026-11-13 and 2026-11-18, #6675); the
    words of those rows say "paused", not "stopped". Decision 9 and the `rate-limited` row already pause.
 3. `source/recipes-run.md` section 13's last line ("a provider's in-flight or rate limit pauses the run") grows to every
@@ -627,7 +627,7 @@ the steps below are the same steps, in the shape the harness reads.
 - Depends on: 1.3
 - Size: M
 
-The two stages below are `ai/run-failure-alerts.md`'s build order, carried here on 2026-11-18 with its steps renumbered (its 1.x became 4.x, its 2.x became 5.x); every step keeps #6354. Stage 1 above (the pause-or-fail columns) and Stage 4 (the kinds table and the served model) describe the same table from two sides and are built together.
+The two stages below are the former failure-alerts spec's build order, carried here on 2026-11-18 with its steps renumbered (its 1.x became 4.x, its 2.x became 5.x); every step keeps #6354. Stage 1 above (the pause-or-fail columns) and Stage 4 (the kinds table and the served model) describe the same table from two sides and are built together.
 
 ### Stage 4 — The engine: one failure, on the run
 
@@ -693,13 +693,13 @@ The two stages below are `ai/run-failure-alerts.md`'s build order, carried here 
 | Click-around (XCUITest, Mac) | later | a stub provider's 402 pauses a run; the dialogue's buttons | — |
 | Load (#4634) | y | the 100-page run with a provider that runs out of credit at page 40 pauses once and finishes after Continue | `fichero-server/tests/perf/test_recipe_run_100_pages.py` (extend) |
 
-## Accessibility identifiers (carried from `ai/run-failure-alerts.md`)
+## Accessibility identifiers (carried from the former failure-alerts spec)
 
 `runFailure.alert` · `runFailure.alert.action.<kind>` (`retry`, `resume`, `openSettings`, `chooseModel`, `reportBug`,
 `reconnect`) · `runFailure.alert.showInActivity` · `runFailure.alert.notNow` · `runFailure.report.preview` ·
 `runFailure.report.continue` · `activity.row.<jobId>.failure` (the words and fix on the row) · `settings.ai.providers`.
 
-## UX completeness (carried from `ai/run-failure-alerts.md`)
+## UX completeness (carried from the former failure-alerts spec)
 
 | Control (a11y id) | Label | Tooltip/help text | Localized key | Verified by |
 |---|---|---|---|---|
@@ -718,7 +718,7 @@ The two stages below are `ai/run-failure-alerts.md`'s build order, carried here 
 3. **A `disk-full` kind.** The §J table named it; the code has none. Recommended: add it (pauses, fix "Free disk space",
    the volume named), filed as its own issue (the plan lists it).
 
-Carried from `ai/run-failure-alerts.md` (its questions 1 to 6, unanswered when it merged here):
+Carried from the former failure-alerts spec (its questions 1 to 6, unanswered when it merged here):
 
 4. **Is a partial run a failed run?** Decision 2 says no: "Done with failures: 3 of 203 pages" finished, and Activity's
    Partial line with Retry is the surface; only a run that ENDS failed, or pauses at a cap or the images rule, alerts. If

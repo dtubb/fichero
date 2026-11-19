@@ -47,11 +47,6 @@
 37. `release-and-versioning` — testing and release
 38. `cloud-permission-and-spend` — caps in Settings, images to the cloud, a refusal with a way through. Spec: ai/cloud-permission-and-spend.md
 
-## Merged specs (pointers; the files stay as one-paragraph stubs because tests cite them by path)
-
-- `ui/activity-and-automatic-work.md` → `ui/activity-pane.md` (the one job model, lanes, throttle, durability, the window; its Stage N is Stage N+5 there) and `compute/runner-reliability.md` section K (its §J). 2026-11-18.
-- `ai/run-failure-alerts.md` → `compute/runner-reliability.md` (the kinds table, the `run.fail.*` behaviours; its Stages 1 and 2 are Stages 4 and 5 there). 2026-11-18.
-
 ## Parked
 
 - `Next release` (98 issues) and `cand 16` (18) — grab-bags, not specs: triage files each issue into its spec's milestone and these close.

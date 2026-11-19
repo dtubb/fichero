@@ -43,7 +43,7 @@
 
 > **Owns / Does not own (2026-11-18).** This spec OWNS the workflow editor (the canvas, nodes, presets, folders), the workflow
 > bar and the run log of a hand-started workflow. It does NOT own: workflow runs as jobs in the one job model, the Activity pane
-> and window (`ui/activity-pane.md`, which carries `ui/activity-and-automatic-work.md`'s sections G to I since 2026-11-18); how a
+> and window (`ui/activity-pane.md`, which carries `ui/activity-pane.md`'s sections G to I since 2026-11-18); how a
 > run fails, pauses and goes on (`compute/runner-reliability.md`); a recipe run (`source/recipes-run.md`) and its design
 > (`source/recipe-designer.md`); models and places (`ui/models-and-compute-window.md`).
 
@@ -282,7 +282,7 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
 - `workflows.run.controls-are-fire-and-forget` — **[GAP]** (#4402) pause/resume/stop
   buttons fire the endpoint and apply no local state update, so Resume can
   appear to do nothing. Stop reaching a long call or a running page is owned by
-  `activity.run.stop-reaches-in-flight-calls` (`ui/activity-and-automatic-work.md`); this line keeps
+  `activity.run.stop-reaches-in-flight-calls` (`ui/activity-pane.md`); this line keeps
   the buttons' own state (2026-07-29 review F7). Folded into #4312. **Partial
   progress, verified at HEAD 2026-09-19 (moved here from the `activity` legacy
   milestone fold, #4402):** the underlying cancellation check is no longer

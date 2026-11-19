@@ -454,7 +454,7 @@ replaces the Kraken figure before #6212 is coded.
 - `recipes-run.memory.threads-fill-the-cores` — **[PARTIAL]** (#6229) a page's torch threads are the performance cores
   given to the run divided by the pages the plan lets in at once (set once per plan, `activity.lane.torch-threads-set-once-per-plan`), served on the run status beside `pages_at_once` ("2 pages at
   once, 2 threads each"). Per the owner's ruling (2026-10-27): half the cores while the Mac is in use; the gate itself
-  is sized from the machine once #5929 is fixed (`activity-and-automatic-work.md`). Built: `RecipeRunStatus.threads_each`
+  is sized from the machine once #5929 is fixed (`ui/activity-pane.md`). Built: `RecipeRunStatus.threads_each`
   is what the pages read on now, torch's one pool as the Kraken seam last set it (`kraken_runtime.threads_reading_now`),
   and null while no Kraken page is inside the gate (a step on another engine, or between pages; #6240). Left: the app's grey line says it
   (Swift). *Test:* `fichero-server/tests/unit/recipes/test_run_says_pages_at_once.py`.

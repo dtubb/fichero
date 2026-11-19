@@ -399,7 +399,6 @@ nav:
               - Local Runtimes & Providers: contributor_manual/specs/ai/local-runtimes.md
               - Where Models Run (model + place): contributor_manual/specs/ai/where-models-run.md
               - Cloud Permission and Spend: contributor_manual/specs/ai/cloud-permission-and-spend.md
-              - Run Failure Alerts (superseded, pointer): contributor_manual/specs/ai/run-failure-alerts.md
           - Compute:
               - Remote Compute (foundation): contributor_manual/specs/compute/remote-compute.md
               - The Linux Server Image: contributor_manual/specs/compute/linux-server-image.md
@@ -528,7 +527,6 @@ nav:
           - UI:
               - About: contributor_manual/specs/ui/about.md
               - Activity (the pane, the window, the one job model): contributor_manual/specs/ui/activity-pane.md
-              - Activity & Automatic Work (superseded, pointer): contributor_manual/specs/ui/activity-and-automatic-work.md
               - Models and Compute Window (draft): contributor_manual/specs/ui/models-and-compute-window.md
               - Automation: contributor_manual/specs/ui/automation.md
               - Catalogue Table: contributor_manual/specs/ui/catalogue-table.md

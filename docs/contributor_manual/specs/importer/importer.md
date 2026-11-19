@@ -111,7 +111,7 @@ in the file's own status), never a silent nothing.
   Pinned: `test_post_ingest_derivatives.py::TestTheStageProducesADerivative`,
   `::TestFailureIsVisibleNotSilent`.
   The thumbnails are made before heavy local work queued after them (#5585,
-  `activity.lane.thumbnails-first` in `ui/activity-and-automatic-work.md`), and a folder the import
+  `activity.lane.thumbnails-first` in `ui/activity-pane.md`), and a folder the import
   fills is laid out on its canvas as filed (#5585, `library.canvas.arranged-at-import` in
   `ui/library-view-modes.md`).
 - `importer.import-roots-checked-resolved` — **[OK]** (#6261) a file may be imported only when its RESOLVED path lies under a resolved allowed root (or a sandbox staging place or a folder the owner picked): a symlink placed in Documents that points elsewhere is refused, judged by where it points; iCloud's ~/Documents, itself a link into ~/Library/Mobile Documents, still imports. Tested in `fichero-server/tests/unit/security/test_a_link_out_of_an_import_root_is_refused_6261.py`.
