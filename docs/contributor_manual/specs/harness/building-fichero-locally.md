@@ -1734,7 +1734,7 @@ Fichero's engine already uses LangGraph. The owner has ruled that the Builder ad
   `/api/status` from the store equals today's for the fixed-rows test; a crash between a journal write and a store write
   is repaired on the next open. Test (to write): fichero-builder/tests/test_store (new).
   Phase 0 amendment (owner 2026-11-17/18, from the cut `builder-console.store.one-database`): the one database is SQLite (owner 2026-11-17), rebuilt from journal.jsonl by one command; nothing edits the journal.
-- `builder-console.work-store.host-agnostic` [GAP] (#6644) (today `gh api`, `gh issue` in `console.py`, `milestone.py`, `landed.py`)
+- `builder-console.work-store.host-agnostic` [PARTIAL] (#6644) (today `gh api`, `gh issue` in `console.py`, `milestone.py`, `landed.py`)
   — milestones, issues (steps' items), comments and labels are read and written through one interface, `WorkStore`:
   `milestones()`, `issues(milestone)`, `comment(issue, text)`, `label(issue, …)`, `close(issue, residue)`, `create(…)`, with
   three implementations chosen in `[project].work_store`: a public GitHub repository, a private GitHub repository (same
@@ -1742,7 +1742,7 @@ Fichero's engine already uses LangGraph. The owner has ruled that the Builder ad
   state (§ A.3, the step states, ages and runs) is never in the work store; only the items are. A store that is unreachable
   makes the loop keep working from its last copy and raises one alert, never stops a lane. Acceptance (fake stores): the
   loop runs a lane to landed on the GitHub store and on the in-Fichero store with the same rows; an unreachable store
-  yields one alert and the lane goes on. Test (to write): fichero-builder/tests/test_work_store (new).
+  yields one alert and the lane goes on. Test: fichero-builder/tests/test_work_store.py. Built: `work_store.py` with the `WorkStore` interface, `GithubStore` (over `gh`) and `open_store`. Not built: the private-GitHub and in-Fichero stores, `[project].work_store`, the callers (`console.py`, `milestone.py`, `landed.py` still run `gh`), the unreachable-store alert.
 
 #### B. One state and an age per step; stale work is surfaced and acted on
 
