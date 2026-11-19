@@ -26,6 +26,13 @@ nonisolated enum SettingsTab: Hashable {
     case about
     case history
     case backups
+
+    /// The tab that holds the settings control a failure's `open-settings` action names ("settings.ai.providers" is the AI tab);
+    /// nil for no control or one no tab is known for.
+    nonisolated static func holding(control: String?) -> SettingsTab? {
+        guard let control else { return nil }
+        return control.hasPrefix("settings.ai.") ? .aiModels : nil
+    }
 }
 
 /// Global app state including backend connection and provider management

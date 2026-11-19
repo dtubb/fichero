@@ -47,6 +47,8 @@ struct ActivityPaneView: View {
     @Environment(LibraryManager.self) var libraryManager
     /// The window's step stack: Delete, Archive and Put Back are steps on it, so Edit › Undo takes them back.
     @Environment(WindowSteps.self) var windowSteps: WindowSteps?
+    /// Optional: a host that does not inherit the window's environment opens Settings on its last tab rather than trapping.
+    @Environment(AppState.self) var appState: AppState?
     @State var selection: Set<ActivityMonitorRow.ID> = []
     /// A column header's sort; empty keeps the state-then-start order.
     @State var sortOrder: [KeyPathComparator<ActivityMonitorRow>] = []

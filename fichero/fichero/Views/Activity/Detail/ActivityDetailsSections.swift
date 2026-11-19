@@ -26,6 +26,19 @@ struct ActivityDetailsHeading: View {
                     .textSelection(.enabled)
                     .accessibilityIdentifier("activity.details.state")
             }
+            if let words = details.failureWords {
+                Text(words)
+                    .font(.callout)
+                    .textSelection(.enabled)
+                    .accessibilityIdentifier("activity.details.failureWords")
+            }
+            if let fix = details.failureFix {
+                Text(fix)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .accessibilityIdentifier("activity.details.failureFix")
+            }
             if let workingOn = details.workingOn {
                 Label("Working on \(workingOn)", systemImage: "gearshape.2")
                     .font(.callout)

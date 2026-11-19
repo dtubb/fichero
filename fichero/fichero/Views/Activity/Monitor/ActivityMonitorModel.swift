@@ -23,7 +23,7 @@ struct ActivityMonitorRow: Identifiable, Equatable {
         var label: String {
             switch self {
             case .pause: "Pause"
-            case .resume, .carryOn: "Resume"
+            case .resume, .carryOn: "Continue"
             case .stop: "Stop"
             case .retry: "Retry"
             }

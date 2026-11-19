@@ -21,6 +21,8 @@ extension ActivityJob {
         var folderFor: String?
         /// The provider a `no-credit` pause names, by display name (`recipes-run.credit.out-of-credit-pauses-and-asks`, #6675).
         var provider: String?
+        /// The control the `open-settings` action names (`settings.ai.providers`): Settings opens on the tab that holds it.
+        var settingsControl: String?
         var primaryAction: String? { actions.first }
     }
 

@@ -42,6 +42,7 @@ struct ActivityRunControlsBar: View {
         let summaries = stores.map(\.activitySummary)
         let shows = Self.shows(summaries)
         let stoppable = Self.stoppable(summaries)
+        HStack(spacing: 8) {
         ControlGroup {
             Button {
                 run(shows == .play ? .continueAll : .pauseAll)
@@ -59,12 +60,20 @@ struct ActivityRunControlsBar: View {
                 .disabled(stoppable == 0)
                 .accessibilityIdentifier("activity.runControls.stop")
         }
+        // The engine's words when a control did not take, shown in the bar, not in a tooltip (`runner.surface.one-row-one-alert`).
+        if let notice {
+            Text(notice)
+                .font(.caption)
+                .foregroundStyle(.red)
+                .lineLimit(2)
+                .accessibilityIdentifier("activity.runControls.notice")
+        }
+        }
         .confirmationDialog(Self.stopQuestion(stoppable), isPresented: $confirmingStop) {
             Button("Stop All", role: .destructive) { run(.stopAll) }
         } message: {
             Text("What they have done is kept; Retry runs them again.")
         }
-        .help(notice ?? "")
     }
 
     private func run(_ control: ActivityRunControl) {

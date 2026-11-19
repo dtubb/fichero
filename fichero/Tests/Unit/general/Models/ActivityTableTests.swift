@@ -566,7 +566,7 @@ final class ActivityTableTests: XCTestCase {
                         offer: "Resume"),
             libraryId: Self.libraryId, projectName: nil)
         XCTAssertEqual(setAside.controls, [.carryOn])
-        XCTAssertEqual(ActivityMonitorRow.Control.carryOn.label, "Resume")
+        XCTAssertEqual(ActivityMonitorRow.Control.carryOn.label, "Continue")
         XCTAssertTrue(ActivityMonitorRow.Control.carryOn.isRetry, "Resume on a set-aside job is its retry")
         XCTAssertFalse(ActivityMonitorRow.Control.resume.isRetry, "Resume on a paused job is not")
         XCTAssertEqual(setAside.retryJobId, "recipe-1")

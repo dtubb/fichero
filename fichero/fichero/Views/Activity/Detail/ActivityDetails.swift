@@ -67,6 +67,10 @@ struct ActivityDetails: Equatable {
     /// The project, the model or models, who or what started it.
     let subheading: [String]
     let stateText: String
+    /// The engine's words for why it failed and what to do, under the state (`runner.surface.one-row-one-alert`); nil when the
+    /// row carries no failure.
+    let failureWords: String?
+    let failureFix: String?
     /// What a running row works on now, the page and the step ("Embed for search, p12.jpg"),
     /// when the state line does not already say it (#5623); nil otherwise.
     let workingOn: String?
@@ -164,6 +168,8 @@ extension ActivityDetails {
             value.flatMap { $0.isEmpty ? nil : $0 }
         }
         stateText = row.stateText
+        failureWords = row.failure.map(\.words).flatMap { $0.isEmpty ? nil : $0 }
+        failureFix = row.failure.map(\.fix).flatMap { $0.isEmpty ? nil : $0 }
         let now = row.phase == .running ? (node?.workingOn ?? row.workingOn) : nil
         workingOn = now.flatMap { $0.isEmpty || row.stateText.contains($0) ? nil : $0 }
         machineText = row.phase == .waiting || row.stateText.hasPrefix("Waiting") ? machine?.words : nil
