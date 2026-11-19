@@ -376,8 +376,7 @@ extension RegionInteractionLayer {
     private func handleChosenTool(_ event: PreviewPointerEvent, at point: CGPoint, in size: CGSize) -> Bool {
         handleOrderClick(event, at: point, in: size)
             || handleKnife(event) || handleMarker(event, in: size) || handlePaint(event, in: size)
-            || handleBrush(event, in: size) || handleBoxDraw(event, at: point, in: size)
-            || handleDrawShape(event, in: size) || handleCutMark(event, in: size)
+            || handleBrush(event, in: size) || handleDrawShape(event, in: size) || handleCutMark(event, in: size)
             || handleReshape(event, in: size) || handleLasso(event, at: point, in: size)
     }
 
