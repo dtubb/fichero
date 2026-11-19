@@ -111,10 +111,22 @@ struct OriginalsStoreTests {
         let folder = URL(fileURLWithPath: "/Volumes/Archive/Colombia")
         await store.choose(folder)
         #expect(await store.relink(actionsService: ActionsService(client: store.client), steps: nil))
-        #expect(store.summarySentence == "Relinked 1 of 3; 2 still missing.")
+        #expect(store.summarySentence == "Relinked 1. Still missing: 2.")
         #expect(kept == folder)
-        #expect(OriginalsStore.summary(relinked: 214, of: 216) == "Relinked 214 of 216; 2 still missing.")
-        #expect(OriginalsStore.summary(relinked: 3, of: 3) == "Relinked 3 of 3.")
+        #expect(OriginalsStore.summary(relinked: 214, of: 216) == "Relinked 214. Still missing: 2.")
+        #expect(OriginalsStore.summary(relinked: 3, of: 3) == "Relinked 3.")
+    }
+
+    @Test("#6733: a refused folder grant says so, and the engine is never asked for a plan")
+    func refusedGrantIsNamed() async {
+        struct Refused: LocalizedError { var errorDescription: String? { "403 outside every allowed root" } }
+        let store = store()
+        store.grant = { _ in throw Refused() }
+        await store.choose(URL(fileURLWithPath: "/Volumes/Historical Archives/Fichero"))
+        #expect(store.plan == nil)
+        #expect(store.refusal?.contains("could not get access to Fichero") == true)
+        #expect(store.refusal?.contains("403 outside every allowed root") == true)
+        #expect(OriginalsMockURLProtocol.bodies["POST /api/documents/relink-originals/plan"] == nil)
     }
 
     @Test("transfer.machine.originals-relinked-from-one-grant: a moved original asks for the project's once a run")
