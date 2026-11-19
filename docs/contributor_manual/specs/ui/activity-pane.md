@@ -661,6 +661,18 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   Continue, Retry; Show Details selects the row so the Inspector shows its fix); the row draws the word in a small bordered
   button (`docs/assets/activity-pane/pane-fix-buttons.png`). *Test:* `fichero/Tests/Unit/general/Models/ActivityErrorRowTests.swift`
   extended (`everyActionHasAWord`).
+- `activity.failure.bar-one-button-per-action` — **[GAP]** (#6731; app; owner 2026-11-19; ties to the one dialogue per cause of
+  #6354) the bar shown when a recipe run fails offers each distinct action once, deduplicated by action and target: a run
+  that failed on 149, 137 and 112 pages shows one button for each of those three, not each twice. At most two or three
+  actions show beside Show Details, and the rest are inside Show Details. Labels are readable and never cut off mid-word
+  (the label shortens or the bar wraps). Test: a failure with repeated per-document actions renders each action once.
+- `activity.runs.bulk-delete-in-background` — **[GAP]** (#6732; app + engine; owner 2026-11-19) deleting many runs at once is one
+  engine call that returns at once and finishes in the background, and while it works the Activity polls stay under 500 ms.
+  Reading a run's step records queries only the documents the run names (never every document in the library), with a test
+  that counts the rows read. Reading a run's job tree takes under a second on a library of this size (measured; an index or a
+  limit if not). A slow or busy engine never closes the window: the app's own log says why if it quits, and a crash report
+  or a log line exists whenever it does. Seen with a large batch on a library on an external volume, where the engine stalled
+  for 23 s and was shut down by its host.
 - `activity.pane.one-undo-per-action` — **[PARTIAL]** (#6599, #6588, #6583; open question 7) ONE person's action is ONE step on the
   window's Undo stack, whatever it spans: rows of several projects, runs and jobs together, Archive Finished… and Archive
   Failed included; a run's Delete is undoable like a job's (`workflow_run.delete` gains `workflow_run.undelete`). Until a
