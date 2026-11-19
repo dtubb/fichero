@@ -4,6 +4,7 @@ and the start path refuses anyone else. Process control is a small `Procs` so a 
 (dev-workflows.rollout.dry-run); nothing here types into a pane."""
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 import re
@@ -14,7 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from fichero_builder import journal, session, watcher
+from fichero_builder import journal, models, session, watcher
 
 HERE = Path(__file__).resolve().parent
 START = HERE.parents[1] / "scripts" / "harness_start.py"
@@ -131,7 +132,7 @@ def successor_brief(name: str, gen: int, worktree, handoff) -> str:
 
 
 def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = "claude", tmux_session: str = "harness",
-        tick_s: float = 30.0, procs: Procs, out=print, done=DONE, handoff=None, max_generations: int = 20, feed=None, seq: int = 0) -> str:
+        tick_s: float = 30.0, procs: Procs, out=print, done=DONE, handoff=None, max_generations: int = 20, feed=None, seq: int = 0, role: str = "") -> str:
     """Start, then watch until the worker is done (idle, its last text ends with the brief's `DONE <sha>` line, and the
     worktree's HEAD is that sha and has moved from the start: a worker's words alone never end a run),
     parked (a cap or a provider refusal) or gone. Returns the end as a word.
@@ -142,6 +143,9 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
     `step` row (task, seq, sha, moved) for the owner, then the worker idles until `msg-<seq+1>.txt` appears and is typed into
     the same pane, or `stop` appears (end "lane-done")."""
     spend = watcher.load(root)
+    if role:  # a lane's model role: its window, and the share of it where the handoff fires, are the role's (the absolute mark is the default role's)
+        spend = dataclasses.replace(spend, window=models.for_role(models.load(root), role).context, handoff_tokens=0)
+    label = {"role": role} if role else {}  # the journal rows of a role's worker say which role
     bad = watcher.refusals(spend, kind, model)
     if bad:
         for b in bad:
@@ -152,7 +156,7 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
     gen = 1
     base = procs.head()
     pane = procs.start(root, worktree, with_done_line(brief, worktree, name), name, model, tmux_session)
-    journal.append("worker", task=name, pane=pane, model=model, kind=kind, worktree=str(worktree), generation=gen)
+    journal.append("worker", task=name, pane=pane, model=model, kind=kind, worktree=str(worktree), generation=gen, **label)
     started = last_change = procs.now()
     seen = None
     told: set[str] = set()
@@ -246,12 +250,12 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
             procs.stop(pane)
             journal.append("cost", task=name, model=model, usd=round(watcher.cost_of(state, spend, model), 4),
                            tokens=state.get("tokens", 0), turns=state.get("turns", 0), seconds=int(now - started), end="handoff",
-                           generation=gen, **reading_of(first_commit))
+                           generation=gen, **label, **reading_of(first_commit))
             gen += 1
             b = Path(worktree) / f".builder-brief-{name}-{gen}.txt"
             b.write_text(successor_brief(name, gen, worktree, handoff))
             pane = procs.start(root, worktree, b, name, model, tmux_session)
-            journal.append("worker", task=name, pane=pane, model=model, kind=kind, worktree=str(worktree), generation=gen)
+            journal.append("worker", task=name, pane=pane, model=model, kind=kind, worktree=str(worktree), generation=gen, **label)
             out(f"{name}: handoff, generation {gen} started")
             started = last_change = procs.now()
             seen, state, told, unsaid, nudged, sent_turn = None, {}, set(), 0, False, -1
@@ -259,6 +263,6 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
             continue
     journal.append("cost", task=name, model=model, usd=round(watcher.cost_of(state, spend, model), 4),
                    tokens=state.get("tokens", 0), turns=state.get("turns", 0), seconds=int(procs.now() - started), end=end,
-                   generation=gen, **reading_of(first_commit))
+                   generation=gen, **label, **reading_of(first_commit))
     out(f"{name}: {end}")
     return end
