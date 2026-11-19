@@ -977,8 +977,8 @@ def restart_loop(root, tick_s: float = 30.0) -> int:
 
 
 def launch_agents(root, out, *, state=None, tick_s: float = 30.0, port: int = 8766) -> list[Path]:
-    """The owner's three LaunchAgents (dev-workflows.run.loop, run.loop-launchd): `builder loop` and the console (`builder status`)
-    kept alive and started at login, and `builder heartbeat` every three ticks. All run as the owner from the checkout's package;
+    """The owner's four LaunchAgents (dev-workflows.run.loop, run.loop-launchd): `builder loop` and the console (`builder status`)
+    kept alive and started at login, `builder heartbeat` every three ticks, and `builder release` at 03:00 (run.release-stages). All run as the owner from the checkout's package;
     logs beside the journal."""
     import plistlib
 
@@ -995,7 +995,8 @@ def launch_agents(root, out, *, state=None, tick_s: float = 30.0, port: int = 87
         label = f"local.builder.{name}"
         f = out / f"{label}.plist"
         f.write_bytes(plistlib.dumps({"Label": label, "ProgramArguments": [sys.executable, "-m", "fichero_builder", *args],
-                                      "WorkingDirectory": str(logs), "EnvironmentVariables": {"PYTHONPATH": str(pkg), "PATH": os.environ.get("PATH", ""), "PYTHONUNBUFFERED": "1"},  # #6466: loop.log lagged the journal by hours
+                                      "WorkingDirectory": str(logs), "EnvironmentVariables": {"PYTHONPATH": str(pkg), "PATH": os.environ.get("PATH", ""), "PYTHONUNBUFFERED": "1",
+                                                              **({"FICHERO_NIGHTLY_TEXT_TO": os.environ["FICHERO_NIGHTLY_TEXT_TO"]} if "FICHERO_NIGHTLY_TEXT_TO" in os.environ else {})},  # #6466: loop.log lagged the journal by hours
                                       "StandardOutPath": str(logs / f"{name}.log"), "StandardErrorPath": str(logs / f"{name}.log"), **when}))
         paths.append(f)
     return paths

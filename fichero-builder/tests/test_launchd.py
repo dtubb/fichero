@@ -147,3 +147,9 @@ def test_the_release_agent_starts_the_stage_run_nightly_with_no_keepalive(state)
     assert paths[3].name == "local.builder.release.plist" and "KeepAlive" not in rel
     assert rel["StartCalendarInterval"] == {"Hour": 3, "Minute": 0}
     assert rel["ProgramArguments"][3:] == ["release", "--root", "/r", "--state", str(state / "s")]
+
+
+def test_the_agents_carry_the_text_target_so_the_text_stage_can_send(state, monkeypatch):
+    monkeypatch.setenv("FICHERO_NIGHTLY_TEXT_TO", "+1555")
+    for p in queue.launch_agents("/r", state / "la", state=state / "s"):
+        assert plistlib.loads(p.read_bytes())["EnvironmentVariables"]["FICHERO_NIGHTLY_TEXT_TO"] == "+1555"

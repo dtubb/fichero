@@ -172,7 +172,9 @@ def main(argv=None) -> int:
     la.add_argument("--out", default=str(Path.home() / "Library" / "LaunchAgents"))
     rl = sub.add_parser("release", help="run (or resume) tonight's release stages; a model is started only when a stage is red (#6726)")
     rl.add_argument("--root", default=str(Path.cwd())), rl.add_argument("--state"), rl.add_argument("--run", help="the run id to resume (default: today's date)")
-    rl.add_argument("--mac", default="local"), rl.add_argument("--ios", default="local"), rl.add_argument("--check-runner", default="local")
+    rl.add_argument("--branch", required=True, help="the integration branch whose origin head is frozen as the candidate")
+    rl.add_argument("--merge-branch", default="", help="the PR branch the merge stage squash-merges; no merge stage without it")
+    rl.add_argument("--mac", default="local", help="candidate machines for the Mac chain, comma-separated, first usable wins"), rl.add_argument("--ios", default="local"), rl.add_argument("--check-runner", default="local")
     rl.add_argument("--floor-gb", type=int, default=60, help="the free disk a runner needs")
     al = sub.add_parser("alert", help="answer one alert row (dev-workflows.run.loop-alerts): retry | park | ask-owner, or approve | send-back for needs-maintainer")
     al.add_argument("id"), al.add_argument("action")
@@ -391,9 +393,14 @@ def main(argv=None) -> int:
         if not claude:
             print("no claude on PATH: the manager session for a red stage cannot start")
             return 1
+        if not os.environ.get("FICHERO_NIGHTLY_TEXT_TO"):  # the text stage and every alert need it: no stage runs without it
+            print("FICHERO_NIGHTLY_TEXT_TO names nobody to text")
+            return 1
         run_id = a.run or time.strftime("%Y-%m-%d")
-        st = release_run.real_stages(a.root, journal.STATE, run_id, mac=a.mac, ios=a.ios, check_runner=a.check_runner, floor_gb=a.floor_gb, text=nightly.text_owner)
-        ok = release_run.run(run_id, st, release_run.manager_session(journal.STATE, claude), lambda m: (print(m), nightly.text_owner(m)))
+        st = release_run.real_stages(a.root, journal.STATE, run_id, branch=a.branch, mac=a.mac, ios=a.ios, check_runner=a.check_runner,
+                                     floor_gb=a.floor_gb, text=nightly.text_owner, merge_branch=a.merge_branch)
+        ok = release_run.run(run_id, st, release_run.manager_session(journal.STATE, claude),
+                             lambda m: (print(m), nightly.text_owner(m)), plan=release_run.plan_for(bool(a.merge_branch)))
         return 0 if ok else 1
     if a.cmd == "launchd":
         from fichero_builder import queue

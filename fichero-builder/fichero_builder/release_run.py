@@ -6,11 +6,11 @@ if it reports success the run resumes at that stage, else the owner is texted wh
 the real stage commands are `real_stages`, the tests give `run` fakes."""
 from __future__ import annotations
 
-import hashlib
 import os
 import shlex
 import shutil
 import subprocess
+import json
 import tempfile
 import threading
 from pathlib import Path
@@ -25,6 +25,13 @@ PLAN: list[list[list[str]]] = [
     [["publish"]], [["merge"]], [["text"]],
 ]
 STAGES = [s for g in PLAN for c in g for s in c]
+
+
+def plan_for(merge: bool) -> list:
+    """PLAN, without the `merge` stage unless a branch to merge is named (an unnamed PR is never merged)."""
+    return PLAN if merge else [g for g in PLAN if g != [["merge"]]]
+
+
 Stage = Callable[[], tuple]  # () -> (rc, output)
 
 
@@ -51,17 +58,30 @@ def _try(fn: Stage) -> tuple:
         return 1, f"{type(e).__name__}: {e}"
 
 
+def _alert(run_id: str, stage: str, alert: Callable[[str], None], msg: str) -> bool:
+    """The one alert of a red run: a journal row first, then the text; a text that cannot be sent is a second row, never a crash."""
+    _stage_row(run_id, stage, "alert", msg)
+    try:
+        alert(msg)
+    except (RuntimeError, OSError, subprocess.SubprocessError) as e:
+        _stage_row(run_id, stage, "alert-failed", f"{type(e).__name__}: {e}")
+    return False
+
+
 def run(run_id: str, stages: dict[str, Stage], manager: Callable[[str, str, list[str]], bool], alert: Callable[[str], None],
         plan: list = PLAN) -> bool:
     """Run (or resume) the run `run_id`. Returns whether every stage is green. The manager is called at most once per run."""
-    asked = [False]
+    asked = [any(r["state"] == "manager" for r in rows(run_id))]  # a resumed run whose manager already ran does not start another
+    done: set = set()
 
     def chain(names: list[str], failed: list) -> None:
         for name in names:
-            if name in green(run_id):
+            if name in done:
                 continue
             rc, out = _try(stages[name])
             _stage_row(run_id, name, "green" if rc == 0 else "red", out)
+            if rc == 0:
+                done.add(name)
             if rc:
                 failed.append((name, out))
                 return
@@ -70,6 +90,7 @@ def run(run_id: str, stages: dict[str, Stage], manager: Callable[[str, str, list
         failed: list = []
         while True:
             failed.clear()
+            done |= green(run_id)  # the journal is read once per pass through a group
             ts = [threading.Thread(target=chain, args=(c, failed)) for c in group]
             [t.start() for t in ts]
             [t.join() for t in ts]
@@ -77,13 +98,11 @@ def run(run_id: str, stages: dict[str, Stage], manager: Callable[[str, str, list
                 break
             name, out = failed[0]
             if asked[0]:
-                alert(f"the release {run_id} is red at {name} again after the manager: {(out.strip().splitlines() or [''])[-1]}")
-                return False
+                return _alert(run_id, name, alert, f"the release {run_id} is red at {name} again after the manager: {(out.strip().splitlines() or [''])[-1]}")
             asked[0] = True
             _stage_row(run_id, name, "manager", "the manager session was started")
             if not _try(lambda: (0 if manager(name, out, [s for g in plan for c in g for s in c]) else 1, ""))[0] == 0:
-                alert(f"the release {run_id} is red at {name} and the manager could not fix it: {(out.strip().splitlines() or [''])[-1]}")
-                return False
+                return _alert(run_id, name, alert, f"the release {run_id} is red at {name} and the manager could not fix it: {(out.strip().splitlines() or [''])[-1]}")
     return True
 
 
@@ -120,70 +139,110 @@ def sweep(candidates: list[Path], live: list[Path]) -> list[str]:
     return done
 
 
-def engine_key(root: Path) -> str:
-    """A hash of uv.lock and the engine sources: the engine bundle is reused while it is unchanged."""
-    h = hashlib.sha256()
-    files = [root / "fichero-server" / "uv.lock", *sorted((root / "fichero-server").rglob("*.py"))]
-    for f in files:
-        if f.is_file():
-            h.update(str(f.relative_to(root)).encode() + b"\0" + f.read_bytes())
-    return h.hexdigest()
-
-
 # --- the real stages and manager -------------------------------------------------------------------------------------------
+
+def engine_key(root, sha: str) -> str:
+    """The git tree id of fichero-server (uv.lock and the engine sources) at `sha`: the engine bundle is reused while it is unchanged."""
+    p = subprocess.run(["git", "-C", str(root), "rev-parse", f"{sha}:fichero-server"], capture_output=True, text=True)
+    if p.returncode:
+        raise RuntimeError(f"no fichero-server at {sha}: {p.stderr.strip()}")
+    return p.stdout.strip()
+
 
 def _sh(script: str, machine: str, timeout_s: float) -> tuple:
     from fichero_builder.nightly import _on
     return _on(machine, script, timeout_s)
 
 
-def real_stages(root, state, run_id: str, *, mac: str, ios: str, check_runner: str, floor_gb: int, text: Callable[[str], None]) -> dict[str, Stage]:
-    """Stage callables over `root`. ponytail: the Mac app, DMG and notarize are release-all.sh's own steps (one script builds the
-    app and the DMG), so mac-dmg builds both and notarize is the same script resumed; one machine per chain, no placement beyond
-    `pick_runner`."""
+def _last_detail(run_id: str, stage: str) -> str:
+    return next((r["detail"] for r in reversed(rows(run_id)) if r["stage"] == stage and r["state"] == "green"), "")
+
+
+def real_stages(root, state, run_id: str, *, branch: str, mac: str, ios: str, check_runner: str, floor_gb: int,
+                text: Callable[[str], None], merge_branch: str = "") -> dict[str, Stage]:
+    """Stage callables. `mac`, `ios` and `check_runner` are comma lists of candidate machines ('local' or host[:dir]); `sweep` picks
+    one awake, reachable, over-floor machine per role and journals the choice. `freeze` journals the sha of origin/`branch` and makes
+    a clean clone of it on each chosen machine (never `root`, the loop's checkout, which only names the origin and runs `gh`). Every
+    build stage runs in its machine's clone. ponytail: the Mac app, DMG and notarize are release-all.sh's own steps (one script builds
+    the app and the DMG), so mac-dmg builds both and notarize is the same script resumed."""
+    from fichero_builder.nightly import _clean_tree, _q, _tree
     root, state = Path(root), Path(state)
-    r = shlex.quote(str(root))
     marker = state / "release" / "engine.key"
+    roles = {"mac": mac, "ios": ios, "check": check_runner}
 
     def disk(m):
         rc, out = _sh("df -g / | awk 'NR==2{print $4}'", m, 30)
-        return int(out.strip().splitlines()[-1]) if rc == 0 and out.strip().splitlines()[-1].isdigit() else None
+        last = out.strip().splitlines()[-1] if out.strip() else ""
+        return int(last) if rc == 0 and last.isdigit() else None
+
+    def at(role):  # the machine `sweep` chose for this role, from the journal
+        chosen = _last_detail(run_id, "sweep")
+        if not chosen:
+            raise RuntimeError("no runner was chosen: sweep is not green")
+        return json.loads(chosen)[role]
+
+    def sha():
+        v = _last_detail(run_id, "freeze")
+        if not v:
+            raise RuntimeError("no candidate was frozen: freeze is not green")
+        return v.strip()
+
+    def tree(role):
+        return _q(_tree(at(role), state, "release"))
 
     def do_sweep():
-        pick_runner([mac, ios], disk, floor_gb)
-        live = [root / "integration" / ".venv", root / ".venv"]
-        lines = sweep([root / "fichero" / "build" / "xcode" / "Products", *Path(tempfile.gettempdir()).glob("fichero-nightly-*")], live)
+        chosen = {role: pick_runner([m.strip() for m in cands.split(",")], disk, floor_gb) for role, cands in roles.items()}
+        sweep([*Path(tempfile.gettempdir()).glob("fichero-nightly-*"), *(state / "nightly").glob("*")],
+                      [root / "integration" / ".venv", root / ".venv"])
         subprocess.run(["tmutil", "deletelocalsnapshots", "/"], capture_output=True, text=True)
-        return 0, "\n".join(lines) or "nothing to sweep"
+        return 0, json.dumps(chosen)  # the detail is read back by `at`: the paths removed are not in it
 
     def freeze():
-        p = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True)
-        return p.returncode, p.stdout.strip() or p.stderr
+        p = subprocess.run(["git", "-C", str(root), "rev-parse", f"origin/{branch}"], capture_output=True, text=True)
+        if p.returncode:
+            return 1, p.stderr
+        frozen = p.stdout.strip()
+        u = subprocess.run(["git", "-C", str(root), "remote", "get-url", "origin"], capture_output=True, text=True)
+        if u.returncode:
+            return 1, u.stderr
+        for m in dict.fromkeys(at(role) for role in roles):
+            rc, out = _sh(_clean_tree(u.stdout.strip(), frozen, _tree(m, state, "release")), m, 1800)
+            if rc:
+                return rc, f"clone on {m}: {out}"
+        return 0, frozen
 
     def engine():
-        key = engine_key(root)
+        key = engine_key(root, sha())
         if marker.exists() and marker.read_text() == key:
             return 0, "engine bundle reused: uv.lock and engine sources unchanged"
         marker.parent.mkdir(parents=True, exist_ok=True)
-        rc, out = _sh(f"cd {r} && scripts/build-release.sh", mac, 7200)
+        rc, out = _sh(f"cd {tree('mac')} && scripts/build-release.sh", at("mac"), 7200)
         if rc == 0:
             marker.write_text(key)
         return rc, out
 
+    def on(role, cmd, timeout_s):
+        return lambda: _sh(f"cd {tree(role)} && {cmd}", at(role), timeout_s)
+
     def text_stage():
         text(f"Fichero release {run_id} is green on every stage.")
         return 0, "texted"
-    return {
+    out = {
         "sweep": do_sweep, "freeze": freeze,
-        "verify": lambda: _sh(f"cd {r}/fichero-builder && PYTHONPATH=. python3 -m fichero_builder verify-all --full --root {r} --state {shlex.quote(str(state))}", check_runner, 14400),
+        "verify": on("check", f"cd fichero-builder && PYTHONPATH=. python3 -m fichero_builder verify-all --full --root .. --state {shlex.quote(str(state))}", 14400),
         "engine": engine,
-        "mac-dmg": lambda: _sh(f"cd {r} && scripts/release-all.sh --dev --mac-only --skip-testflight --skip-notarize", mac, 7200),
-        "notarize": lambda: _sh(f"cd {r} && scripts/release-all.sh --dev --mac-only --skip-testflight", mac, 7200),
-        "ios": lambda: _sh(f"cd {r} && scripts/release-all.sh --dev --ios-only --skip-dmg", ios, 7200),
-        "publish": lambda: _sh(f"cd {r} && scripts/release-all.sh --dev --skip-dmg --skip-testflight --github --prerelease", mac, 7200),
-        "merge": lambda: _sh(f"cd {r} && gh pr merge --squash --auto", "local", 600),
+        "mac-dmg": on("mac", "scripts/release-all.sh --dev --mac-only --skip-testflight --skip-notarize", 7200),
+        "notarize": on("mac", "scripts/release-all.sh --dev --mac-only --skip-testflight", 7200),
+        "ios": on("ios", "scripts/release-all.sh --dev --ios-only --skip-dmg", 7200),
+        "publish": on("mac", "scripts/release-all.sh --dev --skip-dmg --skip-testflight --github --prerelease", 7200),
         "text": text_stage,
     }
+    if merge_branch:
+        out["merge"] = lambda: _sh(f"cd {shlex.quote(str(root))} && gh pr merge {shlex.quote(merge_branch)} --squash", "local", 600)
+    return out
+
+
+MANAGER_ENV = ("HOME", "PATH", "USER", "LANG", "TMPDIR")  # plus ANTHROPIC_* and CLAUDE_*: the manager gets no other variable
 
 
 def manager_session(state, claude: str, timeout_s: float = 7200) -> Callable[[str, str, list[str]], bool]:
@@ -194,8 +253,9 @@ def manager_session(state, claude: str, timeout_s: float = 7200) -> Callable[[st
         f = d / f"manager-{stage}.txt"
         f.write_text(f"The nightly release stage `{stage}` is red. Stages in order: {', '.join(stages)}.\n"
                      f"Fix the cause in this checkout, or decide what to do. Exit 0 only if the stage can now be run again.\n\nLog tail:\n{log}\n")
+        env = {k: v for k, v in os.environ.items() if k in MANAGER_ENV or k.startswith(("ANTHROPIC_", "CLAUDE_"))}
         try:
-            p = subprocess.run([claude, "-p", f"Read {f} and follow it."], capture_output=True, text=True, timeout=timeout_s, env=os.environ)
+            p = subprocess.run([claude, "-p", f"Read {f} and follow it."], capture_output=True, text=True, timeout=timeout_s, env=env)
         except (subprocess.TimeoutExpired, OSError):
             return False
         return p.returncode == 0
