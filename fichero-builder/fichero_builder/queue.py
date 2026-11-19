@@ -50,6 +50,28 @@ BOUNDARY_HIT = re.compile(r"(?m)^\s*([0-9a-f]{7,40}) (\S.*?): pattern \d+$")
 REWRITE = "rewrite that commit; a later commit does not clear it (history is pushed)"
 
 
+STATES = ("queued", "sent", "said-done", "checking", "reviewing", "fixing", "blocked", "red", "done-not-landed", "landed", "parked")
+
+
+def state_view(lane: dict, s: dict, now: float | None = None, on_origin: bool = True) -> dict:
+    """The one state a step is in (builder-console.step.one-state): the stored `done` reads `said-done`, a `sent` after a fix round
+    `fixing` (so does a `queued` one waiting for its fix brief's new session), a `blocked` from a failed check `red`, a `landed` whose head is not on origin `done-not-landed`. `why` is the stored
+    reason of the current state (`move` rewrites it on every transition); `since`/`age_s` are the entered-at time and its age.
+    `paused` and `hold` are lane flags beside it, never a state."""
+    st = s["state"]
+    if st == "done":
+        st = "said-done"
+    elif st in ("sent", "queued") and s.get("rounds"):
+        st = "fixing"
+    elif st == "blocked" and s.get("red_head"):
+        st = "red"
+    elif st == "landed" and not on_origin:
+        st = "done-not-landed"
+    since = s.get("entered_at", 0.0)
+    return {"state": st, "why": s.get("why", ""), "since": since, "age_s": max(0.0, (_now() if now is None else now) - since),
+            "flags": [f for f, on in (("paused", lane.get("paused")), ("held", lane.get("hold"))) if on]}
+
+
 def fix_text(step: str, kind: str, findings: str) -> str:
     """The fix brief's text. Owner paths quoted in a finding are cut (brief_preflight would refuse the whole brief: alert 528); a
     boundary refusal says, per hit, that the COMMIT is rewritten: its added line is pushed as history whether a later commit removes it."""
@@ -124,7 +146,7 @@ def add(lane_id: str, worktree: str, step: str, brief: str, issues: list[int], w
             save(lanes)
             return
         lane["steps"].append({"step": step, "brief": str(brief), "issues": list(issues), "waits": list(waits or []), "state": "queued",
-                              "head": "", "why": "", "rounds": 0, "restarts": 0})
+                              "head": "", "why": "", "rounds": 0, "restarts": 0, "entered_at": _now()})
         save(lanes)
     journal.append("queue", lane=lane_id, step=step, state="queued", detail=f"after {', '.join(waits or []) or 'nothing'}")
 
@@ -233,7 +255,7 @@ def open_of(issues: list[int], gh: str = "gh", cwd=None) -> list[str]:
 def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: bool, out, chains: dict | None = None) -> bool:
     """One pass over one lane. False when it can do nothing more without a person: finished, blocked or paused."""
     def move(s, state, detail="", only_head=None):
-        s["state"], s["why"] = state, detail[-500:]
+        s["state"], s["why"], s["entered_at"] = state, detail[-500:], _now()
         s.pop("settling", None)  # a final write ends the claim
         if only_head is not None and not store(lane, expect=(s["step"], only_head)):
             return  # a newer head took the step while this chain ran: its stale copy is not written, nor said
@@ -518,6 +540,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         return block(s, r["why"], ("approve", "send-back"), r.get("evidence", ""))
     if r.get("kind") in ("red", "not-ready", "refused") and s["rounds"] < ROUNDS and lane.get("kind") != "external":  # external: an alert
         s["rounds"] += 1
+        move(s, "red", r["why"])  # the failed check is its own state with its rung; the fix brief below moves the step on
         text = fix_text(s["step"], r["kind"], r.get("findings") or r["why"])
         live = handles.get(lane["id"])
         if live is not None and procs.alive(live):  # the findings into the running session (dev-workflows.run.loop-tell)
@@ -550,7 +573,7 @@ def _park(lane: dict, s: dict, why: str) -> None:
     One `queue` row; the caller saves."""
     lane["steps"].remove(s)
     lane["steps"].append(s)
-    s["state"], s["why"] = "parked", why[-500:]
+    s["state"], s["why"], s["entered_at"] = "parked", why[-500:], _now()
     for k in ("blocked_at", "settling"):
         s.pop(k, None)
     journal.append("queue", lane=lane["id"], step=s["step"], state="parked", detail=why[-300:])
@@ -584,7 +607,7 @@ def reorder(lane_id: str, step: str, action: str, to: int | None = None, why: st
             lane["steps"].remove(s)
             journal.append("queue", lane=lane_id, step=step, state="dropped", detail=f"{why.strip()[:300]} (head {str(s.get('head', ''))[:10]})")
         else:
-            s["state"], s["why"] = "queued", ""
+            s["state"], s["why"], s["entered_at"] = "queued", "", _now()
             journal.append("queue", lane=lane_id, step=step, state="unparked", detail="")
         save(lanes)
     return ""
@@ -730,7 +753,7 @@ def done(lane_id: str, sha: str = "") -> str:
             if lane["cursor"] >= len(lane["steps"]):  # finished: the next batch
                 n = sum(1 for x in lane["steps"] if x["step"].startswith("batch-")) + 1
                 lane["steps"].append({"step": f"batch-{n}", "brief": lane["steps"][-1]["brief"] if lane["steps"] else "", "issues": [], "waits": [],
-                                      "state": "queued", "head": "", "why": "", "rounds": 0, "restarts": 0})
+                                      "state": "queued", "head": "", "why": "", "rounds": 0, "restarts": 0, "entered_at": _now()})
             s = lane["steps"][lane["cursor"]]
             # no tree on this machine (a lane named by hand): the old DONE, taken from the lane's worktree
             path, why = land_tree(lane, sha) if Path(lane["worktree"]).is_dir() else ("", "")
