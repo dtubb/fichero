@@ -77,6 +77,17 @@ extension SegmentEdit {
         return best
     }
 
+    /// What the page says when a tool's edit was refused before anything was sent, never silent (#6734).
+    static func notSentWords(_ name: String, _ refusal: Refusal) -> String {
+        let why: String = switch refusal {
+        case .tooFew: "nothing to act on: the stroke reaches no segment it can change"
+        case .versionUnknown: "the segments are not saved yet"
+        case .noBaseline: "a line has no baseline"
+        case .noOrder: "this page has no reading order"
+        }
+        return "\(name): \(why)."
+    }
+
     /// What the Knife says when it is done: how many lines it cut, and how many under the stroke it left alone
     /// (crossed nowhere on the baseline, or no baseline to cut); nil when there is nothing worth saying.
     static func knifeNotice(cut: Int, leftAlone: Int) -> String? {
