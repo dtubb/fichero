@@ -76,7 +76,7 @@ extension ZoomableImagePreview {
                       shapes: entry.box.shapes, noReading: entry.box.noReading,
                       segmentId: entry.box.segmentId, kind: entry.box.level,
                       parentSegmentId: entry.box.parentSegmentId,
-                      tone: entry.box.tone?.shaded(shadeByOrder),
+                      tone: entry.box.tone,
                       orderNumber: entry.box.orderNumber,
                       direction: direction(entry.box.segmentId))
             },
@@ -100,6 +100,7 @@ extension ZoomableImagePreview {
         overlay.transcriptionFamily = transcriptionFont?.family
         overlay.showsOrderNumbers = showOrderNumbers || windowState?.orderOverlayFlash == true || windowState?.orderArmed == true
         overlay.showsBoundingBoxes = showBoundingBoxes
+        overlay.shadeBoxes(byOrder: shadeByOrder)
         return overlay
     }
 

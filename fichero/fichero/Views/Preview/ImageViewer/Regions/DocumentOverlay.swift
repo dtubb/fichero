@@ -44,7 +44,15 @@ struct DocumentOverlay: Equatable {
 
     /// Whether a box's RECTANGLE is drawn. "Show Bounding Box" off hides every segment rectangle, plain boxes
     /// included (a box with shapes keeps its polygon or baseline; only the rectangle beside it goes).
-    var drawsRectangles: Bool { showsBoundingBoxes }
+    func drawsRectangle(of box: Box) -> Bool { !box.shapes.isEmpty || showsBoundingBoxes }
+
+    /// The box BESIDE a shape: drawn only with Show Bounding Box on.
+    var drawsRectangleBesideShapes: Bool { showsBoundingBoxes }
+
+    /// "Shade by Reading Order" off: every box at full strength in its hue (`Tone.shaded`).
+    mutating func shadeBoxes(byOrder: Bool) {
+        for index in boxes.indices { boxes[index].tone = boxes[index].tone?.shaded(byOrder) }
+    }
 
     /// The finest level drawn: read once per draw, not once per box. Only it sets its reading inline.
     var finestLevel: SegmentHierarchy.Level { SegmentHierarchy.finestLevel(boxes.map(\.kind)) }
