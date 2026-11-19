@@ -301,8 +301,9 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
 - `runner.local.apple` — **[PARTIAL]** (#6288, #5859, #4629; `ai/local-runtimes.md`, `source/models-chains-and-projects.md`)
   Apple Vision, Apple Intelligence and Foundation Models: an unsupported Mac or a model not ready is `runtime-unavailable`
   before the step; a worker that stops on a page is `model-error` for that page and is said ONCE per run, never 13 times;
-  the plan never routes handwriting to a print reader (#5451). A stopped worker's failure names the signal or exit code when
-  the engine forked the worker itself; a seed-forked worker's end is not visible to the engine, so it names none. Owed: the root cause of the stopped worker (#6288).
+  the plan never routes handwriting to a print reader (#5451). Owed: the root cause of the stopped worker (#6288).
+  Built: a stopped worker's failure names the signal or exit code when the engine forked the worker itself; a seed-forked
+  worker's end is not visible to the engine, so it names none.
 - `runner.local.whisper-yolo-opencv` — **[GAP]** (#4628, #5525, #6592; `ai/local-runtimes.md`) Whisper, YOLO and the
   OpenCV steps (image preparation) raise the same kinds: a missing model `model-missing` with a download that reports its
   bytes (#6592), a build that cannot install it `runtime-unavailable`, a page that fails `model-error` for that page. Today
