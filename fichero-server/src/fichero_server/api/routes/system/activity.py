@@ -1715,6 +1715,8 @@ class ActivityPlace(BaseModel):
 
     place: Literal["this-mac", "remote", "cloud"]
     provider: str
+    account: Optional[Literal["ready", "needs-key", "not-reachable"]] = Field(
+        default=None, description="from a probe or the key a call uses; null where nothing probes")
 
 
 class LaneLoad(BaseModel):

@@ -120,11 +120,24 @@ def this_mac(db: "Database", *, memory: tuple[int | None, int | None] | None = N
                       for lane, width in job_queue.LANES.items()]}
 
 
-def places() -> list[dict[str, str]]:
+def reachable(url: str) -> bool:
+    """Whether a server answers at `url` (any HTTP answer; a refused or timed-out connection is not reachable)."""
+    import httpx
+
+    try:
+        httpx.get(url, timeout=2.0)
+    except httpx.HTTPError:
+        return False
+    return True
+
+
+def places(probe: Any = reachable) -> list[dict[str, Any]]:
     """Every place work can run, set up or not used: this Mac, another Mac (a provider row whose Server URL is off this
     Mac, by its host), each cluster set up (by its name) and each cloud provider set up. (place, provider) pairs in the
-    tree's order; the provider is the node under the place, as a model's provider is."""
-    found: list[tuple[str, str]] = [(THIS_MAC, "This Mac")]
+    tree's order; the provider is the node under the place, as a model's provider is. Each carries its `account`
+    (`models.row.account-from-a-probe`): another Mac's from `probe(its address)` ("ready" / "not-reachable"), a cloud provider's
+    from the key a call uses, app-supplied keys included ("ready" / "needs-key"); None where nothing probes (a cluster)."""
+    found: list[tuple[str, str, str | None]] = [(THIS_MAC, "This Mac", "ready")]
     try:
         from fichero_server.db.app import get_app_db
         from fichero_server.llm import places as call_places
@@ -140,17 +153,21 @@ def places() -> list[dict[str, str]]:
                 continue
             if info.is_local:
                 if row.api_base and not call_places.address_is_on_this_mac(row.api_base):
-                    found.append((REMOTE, _host(row.api_base) or _provider_word(kind)))
+                    found.append((REMOTE, _host(row.api_base) or _provider_word(kind),
+                                  "ready" if probe(row.api_base) else "not-reachable"))
             else:
-                found.append((CLOUD, _provider_word(kind)))
-        found.extend((REMOTE, name) for name in _cluster_names(app_db).values())
+                from fichero_server.llm import get_api_key
+
+                found.append((CLOUD, _provider_word(kind), "ready" if get_api_key(kind) else "needs-key"))
+        found.extend((REMOTE, name, None) for name in _cluster_names(app_db).values())
     except Exception:  # noqa: BLE001 -- the tree still shows what ran; the places set up are an addition
         import logging
 
         logging.getLogger(__name__).warning("Activity models: could not read the places set up", exc_info=True)
     order = {place: index for index, place in enumerate(PLACES)}
-    unique = list(dict.fromkeys(found))
-    return [{"place": p, "provider": v} for p, v in sorted(unique, key=lambda pv: (order[pv[0]], pv[1].lower()))]
+    unique = {(p, v): a for p, v, a in found}
+    return [{"place": p, "provider": v, "account": unique[(p, v)]}
+            for p, v in sorted(unique, key=lambda pv: (order[pv[0]], pv[1].lower()))]
 
 
 def place_and_provider(model: str) -> tuple[str, str, str]:

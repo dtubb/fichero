@@ -94,7 +94,7 @@ def test_the_route_answers_the_list(client, db, monkeypatch):
     answer = client.get("/api/activity/models")
     assert answer.status_code == 200, answer.text
     assert any(m["provider"] == "Kraken" for m in answer.json()["models"])
-    assert answer.json()["places"][0] == {"place": "this-mac", "provider": "This Mac"}
+    assert answer.json()["places"][0] == {"place": "this-mac", "provider": "This Mac", "account": "ready"}
 
 
 def test_this_mac_is_measured_or_says_it_is_not(client, db, monkeypatch):
@@ -163,3 +163,37 @@ def test_a_loaded_kraken_and_yolo_model_are_listed_loaded_6745(db, monkeypatch):
     found = {(m["provider"], m["name"]): m for m in activity_models.models(db, held=held, installed=[])}
     assert found[("Kraken", "blla")]["loaded"] and found[("Kraken", "blla")]["place"] == "this-mac"
     assert found[("YOLO layout", "yolo-doclaynet-11n")]["loaded"]
+
+
+def test_a_places_account_comes_from_a_probe_and_the_key_a_call_uses(app_db, monkeypatch):
+    """`models.row.account-from-a-probe` (#5369, #4303, #5367): another Mac reads Not reachable when its probe refuses,
+    a cloud provider reads Ready with an app-supplied key and Needs key without one; a cluster nothing probes is None."""
+    from fichero_server.models import Provider, ProviderType
+    from fichero_server.security import provider_keys
+
+    app_db.save_provider(Provider(id="p-remote", name="Studio", provider_type=ProviderType("ollama"),
+                                  api_base="http://studio.example:11434"))
+    app_db.save_provider(Provider(id="p-cloud", name="Claude", provider_type=ProviderType("anthropic")))
+    app_db.set_setting("hpc.clusters", json.dumps({"acenet": {"cluster_id": "acenet", "name": "ACENET"}}))
+    monkeypatch.setattr("fichero_server.llm.get_api_key", lambda provider: provider_keys.supplied_api_key(provider))
+    seen = []
+
+    def refusing(url):
+        seen.append(url)
+        return False
+
+    def account(listed, provider):
+        return next(p["account"] for p in listed if p["provider"] == provider)
+
+    provider_keys.forget_api_key("anthropic")
+    listed = activity_models.places(probe=refusing)
+    assert account(listed, "studio.example") == "not-reachable" and seen == ["http://studio.example:11434"]
+    assert account(listed, "Anthropic") == "needs-key"
+    assert account(listed, "ACENET") is None, "what nothing probes is None, never Ready"
+    assert account(listed, "This Mac") == "ready"
+    provider_keys.supply_api_key("anthropic", "sk-ant-test")
+    try:
+        assert account(activity_models.places(probe=lambda url: True), "Anthropic") == "ready"
+        assert account(activity_models.places(probe=lambda url: True), "studio.example") == "ready"
+    finally:
+        provider_keys.forget_api_key("anthropic")

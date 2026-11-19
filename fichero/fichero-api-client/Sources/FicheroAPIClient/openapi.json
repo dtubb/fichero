@@ -52762,6 +52762,17 @@
           "provider": {
             "type": "string",
             "title": "Provider"
+          },
+          "account": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "needs-key",
+              "not-reachable"
+            ],
+            "nullable": true,
+            "title": "Account",
+            "description": "from a probe or the key a call uses; null where nothing probes"
           }
         },
         "type": "object",
