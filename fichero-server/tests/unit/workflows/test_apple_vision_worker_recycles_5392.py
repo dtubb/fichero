@@ -136,3 +136,33 @@ def test_two_healthy_pages_at_once_both_read_the_second_waits_at_the_gate():
 
     assert asyncio.run(both()) == ["read slow1", "read slow2"]
     assert worker.WORKER.recycles == 0
+
+
+def die_by_signal(path: str, language: str = "en") -> str:
+    """Stands for apple_vision_ocr in a child the system kills."""
+    import os
+    import signal
+
+    os.kill(os.getpid(), signal.SIGKILL)
+    return "unreachable"
+
+
+def exit_with_code(path: str, language: str = "en") -> str:
+    import os
+
+    os._exit(3)
+
+
+def test_a_worker_that_dies_says_how_it_ended_and_the_page_is_still_retried_as_a_passing_cause():
+    """#6288: a stopped worker names the signal or exit code the child ended with, so the row says why, and the words
+    still match the per-page retry."""
+    from fichero_server.workflows import page_retry
+
+    with pytest.raises(vb.AppleVisionTimeout) as killed:
+        asyncio.run(vb._apple_vision_call(die_by_signal, "p1", "en"))
+    assert "killed by signal 9" in str(killed.value)
+    assert page_retry.is_passing_cause(str(killed.value))
+    with pytest.raises(vb.AppleVisionTimeout) as exited:
+        asyncio.run(vb._apple_vision_call(exit_with_code, "p2", "en"))
+    assert "exited with code 3" in str(exited.value)
+    assert _read("page3") == "read page3", "the next page gets a new worker"
