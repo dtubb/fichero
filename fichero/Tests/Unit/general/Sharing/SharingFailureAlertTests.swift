@@ -51,6 +51,17 @@ struct SharingFailureAlertTests {
         #expect(shown.title == "studio.local isn't listening")
     }
 
+    @Test func anUnreachableMacSaysSharingOffDifferentNetworkOrFirewall() {
+        // #6742: a Mac that cannot be reached says why.
+        let timedOut = SharingFailurePrompt.make(pairing: URLError(.timedOut), host: "Air", offers: [], perform: { _ in }, copy: { _ in })
+        #expect(timedOut.message.contains("Sharing on"))
+        #expect(timedOut.message.contains("different network"))
+        #expect(timedOut.message.contains("firewall"))
+        let refused = SharingFailurePrompt.make(pairing: URLError(.cannotConnectToHost), host: "Air", offers: [], perform: { _ in }, copy: { _ in })
+        #expect(refused.message.contains("Sharing may be off"))
+        #expect(refused.message.contains("firewall"))
+    }
+
     @Test func aClientErrorsTextNeverReachesTheMessage() {
         struct ClientNoise: LocalizedError {
             var errorDescription: String? { "Client encountered an error invoking the operation list_devices_api_pair_devices_get" }

@@ -68,13 +68,15 @@ enum PairingFailure: CaseIterable, Equatable, Error {
         case .tailnetNameNotFound:
             return "This \(context.noun) can't find \(host): Tailscale isn't running on this \(context.noun)."
         case .noAnswer:
-            return "\(host) didn't answer in 5 seconds. Is Fichero open on \(host), and is Sharing on? "
-                + "(If you are on a campus or hotel network, it may keep devices apart: use Tailscale.)"
+            return "\(host) didn't answer in 5 seconds. Is Fichero open on \(host), and is Sharing on? Is it on a different "
+                + "network, or is its firewall blocking Fichero? (If you are on a campus or hotel network, it may keep devices "
+                + "apart: use Tailscale.)"
         case .unexpected:
             return "Fichero could not finish connecting to \(host), and not for a reason it knows. Try again; if it happens again, "
                 + "use Copy Details and send it to the person who runs Fichero on \(host)."
         case .refused:
-            return "\(host) is on, but Fichero isn't listening there: turn Sharing off and on."
+            return "\(host) is on, but Fichero isn't listening there: Sharing may be off, or its firewall is refusing the "
+                + "connection. Turn Sharing off and on."
         case .offline:
             return "This \(context.noun) isn't connected to a network."
         default:
