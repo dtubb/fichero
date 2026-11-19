@@ -297,12 +297,12 @@ hand-written notes of v2026.11.17 read far better than the commit-subject list o
   keep reading one version section. One line per issue: the issue title, its number, "closed" or "in progress". A commit with no
   issue goes under "Other changes", by its conventional type (fix, feat, perf).
 - `release-notes.specs-section` [OK] (test: `tests/unit/scripts/test_release_guard.py::test_the_notes_are_made_from_the_record_grouped_by_milestone`) — a "Specs" section lists each spec file changed in the range with the behaviours that
-  became [OK] (from `Behaviour:` trailers) and the `Spec-change:` lines.
-- `release-notes.whats-new` [OK] (test: `tests/unit/scripts/test_release_guard.py::test_the_notes_are_made_from_the_record_grouped_by_milestone`) — on top, a 3 to 6 line "What's new" written from the milestones with the most closed issues,
+  became [OK] (the `Behaviour:` trailer ids whose line in that spec file is tagged [OK]) and the `Spec-change:` lines.
+- `release-notes.whats-new` [OK] (test: `tests/unit/scripts/test_release_guard.py::test_the_notes_are_made_from_the_record_grouped_by_milestone`) — on top, a "What's new" of up to five lines, one per milestone, written from the milestones with the most closed issues,
   with no model call and no ids, in plain words.
 - `release-notes.test-this` [OK] (test: `tests/unit/scripts/test_release_guard.py::test_the_notes_are_made_from_the_record_grouped_by_milestone`) — a "Test this" list names the closed issues in the range that carry the `needs-your-test` label.
 - `release-notes.one-text` [PARTIAL] (#6590, `tests/unit/scripts/test_release_guard.py::test_the_same_body_goes_to_the_notes_and_the_changelog_and_satisfies_the_docs_gate` and `test_hand_written_sections_are_never_touched`) — the same text goes to RELEASE_NOTES.md, CHANGELOG.md and the GitHub release body (which is
-  rendered from RELEASE_NOTES.md; no test reads the release body). Hand-written text for the version in RELEASE_NOTES.md wins and is never touched.
+  rendered from RELEASE_NOTES.md). Hand-written text for the version in RELEASE_NOTES.md wins and is never touched.
 
 ## Alternative considered: a binary per channel behind one feed
 
