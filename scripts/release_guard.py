@@ -409,9 +409,11 @@ def read_issues(numbers: list[int], *, run=Run, cache_file: Path = ISSUE_CACHE
         try:
             out = run(["gh", "api", "graphql", "-F", "owner={owner}", "-F", "name={repo}",
                        "-f", f"query={query}"], capture_output=True, text=True, check=False, timeout=60)
-            if out.returncode != 0:
-                return None
+            # gh exits 1 when the reply carries `errors` (a cited number that is a PR or does not
+            # exist comes back null beside them), so the reply is read whatever the exit code.
             repo = json.loads(out.stdout)["data"]["repository"]
+            if not isinstance(repo, dict):
+                return None
         except (OSError, ValueError, KeyError, TypeError, subprocess.TimeoutExpired):
             return None
         for n in todo:

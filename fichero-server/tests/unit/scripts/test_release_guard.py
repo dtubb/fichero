@@ -436,6 +436,16 @@ def test_the_notes_are_made_from_the_record_grouped_by_milestone(tmp_path, monke
     assert swapped.index("### sidebar-crud") < swapped.index("### sharing-two-macs")
 
 
+def test_a_cited_number_that_is_not_an_issue_does_not_lose_the_others(tmp_path):
+    import json
+    reply = {"data": {"repository": {
+        "i10": {"title": "T", "state": "OPEN", "milestone": None, "labels": {"nodes": []}}, "i11": None}},
+        "errors": [{"message": "Could not resolve to an Issue with the number of 11."}]}
+    run = lambda cmd, **_k: subprocess.CompletedProcess(cmd, 1, json.dumps(reply), "")  # noqa: E731
+    got = rg.read_issues([10, 11], run=run, cache_file=tmp_path / "c.json")
+    assert got is not None and got[10]["title"] == "T" and 11 not in got
+
+
 def test_the_specs_section_lists_only_behaviours_tagged_ok_in_the_spec():
     commits = [{"subject": "feat: x", "body": "Behaviour: a.one\nBehaviour: a.two"}]
     spec = "- `a.one` [OK] words\n- `a.two` [PARTIAL] words\n"
