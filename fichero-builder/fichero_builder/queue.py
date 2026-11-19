@@ -272,10 +272,13 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                                f"Fix on your branch (a conflict: rebase onto origin/integration), then run: {done_cmd(lane['id'])}")
         journal.append("queue", lane=lane["id"], step=s["step"], state=state if not err else "tell-refused", detail=err or note + str(f))
 
-    def block(s, why, actions=ACTIONS, evidence="", auto_send_back=False):
+    def block(s, why, actions=ACTIONS, evidence="", auto_send_back=False, red=False):
         q = journal.STATE / f"question-{lane['id']}-{s['step']}.txt"
         q.write_text(f"QUESTION: {why}\n")
-        s["red_head"], s["red_at"] = s.get("head") or s.get("checked_head", ""), time.strftime("%Y-%m-%dT%H:%M:%S")  # #6506: a retry of the same head says so
+        if red:  # a failed check only (#6506: a retry of the same head says so); a question block is not shown as red
+            s["red_head"], s["red_at"] = s.get("head") or s.get("checked_head", ""), time.strftime("%Y-%m-%dT%H:%M:%S")
+        else:
+            s.pop("red_head", None)
         if auto_send_back:
             s["auto_sb"] = s.get("auto_sb", 0) + 1  # before the move, which stores it
         s["blocked_at"] = _now()  # the watchdog's clock (#6466)
@@ -537,7 +540,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     if r.get("kind") in ("needs-maintainer", "weakened-tests", "red-on-base", "pinned-new", "guard-data"):  # a pinned check or a test changed on purpose: the manager's call
         s["approve_kind"] = r["kind"]
         s["approvals"] = r.get("approvals") or []  # every reason the refusal listed: one approve sets them all
-        return block(s, r["why"], ("approve", "send-back"), r.get("evidence", ""))
+        return block(s, r["why"], ("approve", "send-back"), r.get("evidence", ""), red=True)
     if r.get("kind") in ("red", "not-ready", "refused") and s["rounds"] < ROUNDS and lane.get("kind") != "external":  # external: an alert
         s["rounds"] += 1
         move(s, "red", r["why"])  # the failed check is its own state with its rung; the fix brief below moves the step on
@@ -557,7 +560,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     acts = ("send-back", "retry", "park") if lane.get("kind") == "external" else ACTIONS
     auto = (lane.get("kind") == "external" and bool(s.get("land_tree")) and r.get("kind") in ("red", "not-ready", "refused")
             and s.get("auto_sb", 0) < AUTO_SEND_BACKS)  # the cap spent, the alert comes as before
-    return block(s, f"{r['why']}\n{r.get('findings', '')}".strip(), acts, evidence=r.get("evidence", ""), auto_send_back=auto)
+    return block(s, f"{r['why']}\n{r.get('findings', '')}".strip(), acts, evidence=r.get("evidence", ""), auto_send_back=auto, red=r.get("kind") in ("red", "not-ready", "refused"))
 
 
 def pinned_files(diff_path: str) -> list[str]:

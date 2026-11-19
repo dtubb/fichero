@@ -1746,17 +1746,17 @@ Fichero's engine already uses LangGraph. The owner has ruled that the Builder ad
 
 #### B. One state and an age per step; stale work is surfaced and acted on
 
-- `builder-console.step.one-state` [BROKEN] (#6643) (lane-qwen shows `done`, `paused`, and `blocked 4 h: retried once` at once;
+- `builder-console.step.one-state` [PARTIAL] (#6643) (lane-qwen shows `done`, `paused`, and `blocked 4 h: retried once` at once;
   `done` means both "lane finished" and "worker said DONE, check pending") — a step is in exactly one of: `queued`, `sent`,
-  `working`, `said-done` (DONE received, check not run), `checking`, `reviewing`, `fixing` (round n of 2), `blocked`
+  `said-done` (DONE received, check not run), `checking`, `reviewing`, `fixing` (round n of 2), `blocked`
   (question, with the question), `red` (check failed, with the rung), `done-not-landed` (green and READY, not on the
-  integration branch), `landed`, `closed-out`, `retired`. `paused` and `held` are **lane** flags shown beside the state
+  integration branch), `landed`, `parked` (`queue.STATES`). `paused` and `held` are **lane** flags shown beside the state
   ("said-done · lane paused since 11-08"), never a state; a lane is `finished` only when every step is final. `why` is the
   reason for the *current* state and is cleared on every transition (`queue.py` keeps the blocked reason on a `done` step
   today). Each state has an entered-at time; the page shows the age in words. Acceptance: a step through
   queued → sent → said-done → checking → red → fixing → said-done → checking → reviewing → done-not-landed → landed has at
   each point one state, a `why` about that state, and an age that resets; pausing the lane changes the flag and nothing
-  else. Test (to write): fichero-builder/tests/test_step_state (new).
+  else. Built: `queue.state_view` and the `entered_at` stamp; the console page does not show the state, age and flags yet. Test: fichero-builder/tests/test_step_state.py.
 - `builder-console.stale.acted-on` [GAP] (#6646) (a week-old half-finished lane is a defect, owner 2026-11-16; 30 of 50 lanes today
   are finished-but-listed, two are 9-day-old paused trials, one is blocked on a question since 11-08) — every tick the loop
   lists each step older than `[loop].stale_hours.<state>` (defaults: said-done 1 h, checking 3 h, reviewing 3 h, fixing

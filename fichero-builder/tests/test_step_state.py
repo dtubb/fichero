@@ -58,3 +58,16 @@ def test_pausing_the_lane_changes_the_flag_and_nothing_else(state):  # noqa: F81
     assert a["flags"] == [] and b["flags"] == ["paused"]
     assert {k: v for k, v in a.items() if k != "flags"} == {k: v for k, v in b.items() if k != "flags"}
     assert queue.state_view({"paused": True, "hold": True}, s, now=80.0)["flags"] == ["paused", "held"]
+
+
+def test_a_block_that_is_a_question_is_blocked_and_a_failed_check_after_the_fix_rounds_is_red(state):  # noqa: F811
+    lane(state)
+    assert run(Fake(chains={"1.1": [{"ok": False, "kind": "error", "why": "rules file broken"}]})) == 0
+    s = steps()["1.1"]
+    assert s["state"] == "blocked" and queue.state_view(queue.load()[0], s)["state"] == "blocked"
+    queue.save([])
+    lane(state)
+    bad = {"ok": False, "kind": "red", "why": "still wrong", "findings": "f"}
+    assert run(Fake(chains={"1.1": [dict(bad), dict(bad), dict(bad)]})) == 0
+    s = steps()["1.1"]
+    assert s["state"] == "blocked" and queue.state_view(queue.load()[0], s)["state"] == "red"
