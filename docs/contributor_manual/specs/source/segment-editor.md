@@ -1470,6 +1470,18 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   membership is left to the engine's `SegmentPassMismatchError` rather than copied here. No menu
   item or key calls it yet, and "lines grouped into a region" needs a create-parent verb that does
   not exist on any surface.
+  **Make Region from Lines (#6737, owner 2026-11-19):** with several lines selected, Segment ▸ Make Region
+  from Lines (⌘G, also the context menu of a multi-selection) makes a new region whose box is the union of
+  the lines' boxes and moves those lines into it as its children, in their current reading order. Lines
+  that already sit in a region get the new region nested in it; when every line of the old region is
+  selected the new region replaces it, asked once. Segment ▸ Ungroup Region (⇧⌘G) is the reverse: the
+  lines go back to the parent and the region is removed. The new region is selected, takes the default
+  region type, and its type can be changed at once. One new version, one undo; never a second command
+  beside the code's existing New Region from Selection path
+  (`SegmentEditingMode`, `ZoomableImagePreviewMac+Regions`): the work starts by finding why a person could
+  not find or use it (where it shows, when it is enabled, whether it parents the lines) and extends it.
+  *Not built.* Tests owed: three lines make one region with three children and the right box; order kept;
+  undo restores; ungroup restores.
 - `source.editor.set-kind` — **[PARTIAL]** (#4941) the selection's kind (and furniture or text) can be set.
   **The plan is built (2026-09-27), the verb is not.** `SegmentEditCommand.plan` turns an
   attribute and a `SegmentSelection` into the `segment.update` requests to send, and refuses
@@ -1835,6 +1847,17 @@ level with a colour per element type and lets the user choose which levels to sh
 a parent's outline visible under its children. This design keeps the nesting and takes the colour
 from the region instead of the role.
 
+- `source.editor.colour.stroke-per-level` — **[PROPOSED]** (#6738; open choice for the owner: the stroke table below,
+  as proposed, or a different weight and dash for each level) regions, lines, baselines, words and characters are
+  all drawn solid today, so the hierarchy is hard to read. Proposed: a region a 2.5 pt solid stroke with a faint
+  fill tint and a small corner label with its type; a line a 1.5 pt solid stroke, no fill; a baseline a thin
+  solid line, not a box, with small end ticks; a word a 1 pt dashed stroke; a character a hairline dotted stroke.
+  The colour per level stays, and is not the only cue: weight and dash carry the level too, for accessibility.
+  Focus on selection: a selected region shows its lines and words at full strength and everything outside it
+  fades; a selected line fades its sibling lines. Detail by zoom: words draw only once zoomed in enough to read
+  them, characters closer still. The What to Show switches (`source.editor.two-switches`, #6674) keep deciding
+  each level's visibility. *Not built.* Tests owed: each level's stroke style from the overlay model; the fade on
+  selection; the zoom thresholds.
 - `source.editor.colour.region-hue` — **[PARTIAL]** (#5426) every region on a page is drawn in its own
   palette hue, a fixed hash of the region's id (owner 2026-11-08), so deleting or adding another region
   never recolours it; two regions can share a hue (the palette has 12); its lines, words and letters take that
