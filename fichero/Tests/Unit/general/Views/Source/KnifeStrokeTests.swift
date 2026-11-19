@@ -92,7 +92,7 @@ struct KnifeStrokeTests {
         window.pressKnifeKey()
         window.letGoOfKnifeKey()
         #expect(window.knifeArmed, "a bare K chooses the Knife")
-        #expect(window.activeMarkupTool == .select)
+        #expect(window.activeMarkupTool == nil, "a tool is chosen, so Select is not also active")
         #expect(!window.knifeHeld)
 
         window.knifeArmed = false

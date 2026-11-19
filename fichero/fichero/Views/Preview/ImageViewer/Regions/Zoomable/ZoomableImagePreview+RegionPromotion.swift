@@ -231,12 +231,7 @@ extension ZoomableImagePreview {
         if press.key == KeyEquivalent("o") {
             // The Order tool is a mode, not spring-loaded: O chooses it and O again leaves it (sending the clicks).
             guard press.phase == .down, isEditingSegments, press.modifiers.subtracting(.capsLock).isEmpty else { return .ignored }
-            if !windowState.orderArmed {
-                windowState.activeMarkupTool = .select
-                windowState.knifeArmed = false
-                windowState.markerArmed = false
-            }
-            windowState.orderArmed.toggle()
+            windowState.chooseSegmentTool(windowState.orderArmed ? nil : .order)
             return .handled
         }
         if press.key == KeyEquivalent("[") || press.key == KeyEquivalent("]") {
@@ -251,9 +246,7 @@ extension ZoomableImagePreview {
         if press.key == KeyEquivalent("p") {
             // The Paintbrush is a mode (`segment-editor.paintbrush`): P chooses it, P again puts it down.
             guard press.phase == .down, isEditingSegments, press.modifiers.subtracting(.capsLock).isEmpty else { return .ignored }
-            let armed = windowState.paintArmed
-            if !armed { windowState.activeMarkupTool = .select }
-            windowState.paintArmed = !armed
+            windowState.chooseSegmentTool(windowState.paintArmed ? nil : .paint)
             return .handled
         }
         return nil
@@ -263,7 +256,7 @@ extension ZoomableImagePreview {
     /// Ignored (the key keeps its other jobs) with no drawing or too few points.
     func finishShapeDrawingFromKey() -> KeyPress.Result {
         // Return leaves the Order tool, which sends its clicks (`segment-editor.order-by-clicking`).
-        if windowState?.orderArmed == true { windowState?.orderArmed = false; return .handled }
+        if windowState?.orderArmed == true { windowState?.chooseSegmentTool(nil); return .handled }
         guard let windowState, windowState.drawingPoints.count >= windowState.shapeKind.minimumPoints else { return .ignored }
         let points = windowState.drawingPoints
         windowState.drawingPoints = []
@@ -276,13 +269,8 @@ extension ZoomableImagePreview {
         // Escape during a polygon or baseline drawing abandons just the drawing, nothing else.
         if windowState?.abandonDrawing() == true { return }
         // Then the Knife chosen by K or the tool row goes down, back to Select; the selection stays (one thing per press).
-        if let windowState, windowState.knifeArmed || windowState.markerArmed || windowState.orderArmed
-            || windowState.brushArmed || windowState.paintArmed {
-            windowState.knifeArmed = false
-            windowState.markerArmed = false
-            windowState.orderArmed = false
-            windowState.brushArmed = false
-            windowState.paintArmed = false
+        if let windowState, windowState.activeSegmentTool != nil {
+            windowState.chooseSegmentTool(nil)
             return
         }
         isAddingRegion = false

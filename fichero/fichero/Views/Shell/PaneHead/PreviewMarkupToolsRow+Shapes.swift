@@ -28,8 +28,7 @@ extension PreviewMarkupToolsRow {
         let armed = windowState?.knifeArmed == true
         return labeled("Knife") {
             Button {
-                if !armed { windowState?.activeMarkupTool = .select; windowState?.markerArmed = false; windowState?.orderArmed = false }
-                windowState?.knifeArmed = !armed
+                windowState?.chooseSegmentTool(armed ? nil : .knife)
             } label: {
                 Image(systemName: "scissors")
             }
@@ -47,8 +46,7 @@ extension PreviewMarkupToolsRow {
         let armed = windowState?.markerArmed == true
         return labeled("Marker") {
             Button {
-                if !armed { windowState?.activeMarkupTool = .select; windowState?.knifeArmed = false; windowState?.orderArmed = false }
-                windowState?.markerArmed = !armed
+                windowState?.chooseSegmentTool(armed ? nil : .marker)
             } label: {
                 Image(systemName: "pencil.tip")
             }
@@ -66,12 +64,7 @@ extension PreviewMarkupToolsRow {
         let armed = windowState?.orderArmed == true
         return labeled("Order") {
             Button {
-                if !armed {
-                    windowState?.activeMarkupTool = .select
-                    windowState?.knifeArmed = false
-                    windowState?.markerArmed = false
-                }
-                windowState?.orderArmed = !armed
+                windowState?.chooseSegmentTool(armed ? nil : .order)
             } label: {
                 Image(systemName: "list.number")
             }
@@ -89,13 +82,7 @@ extension PreviewMarkupToolsRow {
         let armed = windowState?.brushArmed == true
         return labeled("Brush") {
             Button {
-                if !armed {
-                    windowState?.activeMarkupTool = .select
-                    windowState?.knifeArmed = false
-                    windowState?.markerArmed = false
-                    windowState?.orderArmed = false
-                }
-                windowState?.brushArmed = !armed
+                windowState?.chooseSegmentTool(armed ? nil : .brush)
             } label: {
                 Image(systemName: "paintbrush.pointed")
             }
@@ -112,8 +99,7 @@ extension PreviewMarkupToolsRow {
         let armed = windowState?.paintArmed == true
         return labeled("Paintbrush") {
             Button {
-                if !armed { windowState?.activeMarkupTool = .select }
-                windowState?.paintArmed = !armed
+                windowState?.chooseSegmentTool(armed ? nil : .paint)
             } label: {
                 Image(systemName: "paintbrush")
             }
