@@ -1230,6 +1230,9 @@ Fichero's engine already uses LangGraph. The owner has ruled that the Builder ad
   presses Enter and again while the text sits there; a message over 400 characters is written to `<state>/tells/` and the pane
   gets `Read <path>` (a long one arrived as its last line only). The loop and `builder measure` use it unless `[loop].tell` names
   a script. Test `fichero-builder/tests/test_tell.py`.
+  The worker side does the same (#6589, manager 2026-11-19): the run's own tell into its pane (`run._tell`, the feed's next
+  brief and the DONE nudge) presses Enter again, up to 3 times, while the words still sit in the input line; a swallowed
+  Enter left review briefs unsent for hours. Test `fichero-builder/tests/test_dry_run.py::test_tell_presses_enter_again_while_the_words_still_sit_unsent_in_the_input_line`.
 - `dev-workflows.models.review-by-path` [PARTIAL] (#6116; manager 2026-11-02, speed item 6a) — the review model is
   `[models].reviewer_fast` (sonnet) by default and `[models].reviewer` (opus) when the range touches `[models].reviewer_paths`
   (the harness, land and jail paths: fichero-builder/, scripts/harness_*, scripts/lane_ready_check.sh, harness.toml), and for a

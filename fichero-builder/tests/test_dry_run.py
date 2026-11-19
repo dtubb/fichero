@@ -1,6 +1,8 @@
 """dev-workflows.rollout.dry-run: the loop runs against fakes; a cap parks and stops the worker, a gone worker ends with a cost row."""
 from __future__ import annotations
 
+import types
+
 from pathlib import Path
 
 import pytest
@@ -241,7 +243,22 @@ def test_the_real_procs_tell_types_the_words_then_enter_as_two_tmux_calls(tmp_pa
     monkeypatch.setattr(run.subprocess, "run", lambda argv, **k: calls.append(argv))
     monkeypatch.setattr(run.time, "sleep", lambda s: None)
     run.real_procs(tmp_path, tmp_path / "wt").tell("%3", "end with DONE abc")
-    assert calls == [["tmux", "send-keys", "-t", "%3", "-l", "end with DONE abc"], ["tmux", "send-keys", "-t", "%3", "Enter"]]
+    sends = [c for c in calls if c[1] == "send-keys"]
+    assert sends == [["tmux", "send-keys", "-t", "%3", "-l", "end with DONE abc"], ["tmux", "send-keys", "-t", "%3", "Enter"]]
+
+
+def test_tell_presses_enter_again_while_the_words_still_sit_unsent_in_the_input_line(tmp_path, monkeypatch):
+    """#6589 2026-11-19: a long message is taken as a paste and the first Enter is swallowed; briefs sat unsent for hours.
+    While the words are still in the ❯ line the Enter is sent again; once the line is clear it stops."""
+    calls, boxes = [], iter(["  ❯ Read /x/msg-9.txt and do what it says", "  ❯ "])
+
+    def fake(argv, **k):
+        calls.append(argv)
+        return types.SimpleNamespace(stdout=next(boxes) if argv[1] == "capture-pane" else "")
+    monkeypatch.setattr(run.subprocess, "run", fake)
+    monkeypatch.setattr(run.time, "sleep", lambda s: None)
+    run.real_procs(tmp_path, tmp_path / "wt").tell("%3", "Read /x/msg-9.txt and do what it says")
+    assert [c[-1] for c in calls if c[1] == "send-keys"][1:] == ["Enter", "Enter"], "one Enter, then one more while unsent"
 
 
 def test_a_done_line_naming_the_wrong_sha_on_a_moved_branch_is_nudged_and_ended_too(root):

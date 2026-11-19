@@ -73,11 +73,26 @@ def _stop(pane: str, grace_s: float = 10.0) -> None:
     subprocess.run(["tmux", "kill-pane", "-t", pane], capture_output=True)
 
 
+def _unsent(pane: str, words: str) -> bool:
+    """The words still sit in the pane's input line (the ❯ box), i.e. the Enter was swallowed."""
+    r = subprocess.run(["tmux", "capture-pane", "-p", "-t", pane], capture_output=True, text=True)
+    out = getattr(r, "stdout", "") or ""
+    box = next((ln for ln in reversed(out.splitlines()) if "❯" in ln), "")
+    return bool(words) and words[:40] in box
+
+
 def _tell(pane: str, words: str) -> None:
-    """Into a Claude pane: the words literally, then Enter as its own call (one send-keys with both loses the Enter)."""
+    """Into a Claude pane: the words literally, then Enter as its own call (one send-keys with both loses the Enter).
+    #6589 2026-11-19: Claude Code takes a long typed message as a paste and swallows the first Enter, so briefs sat
+    unsent for hours; the Enter is sent again (up to 3 times) while the words are still in the input line."""
     subprocess.run(["tmux", "send-keys", "-t", pane, "-l", words], capture_output=True)
     time.sleep(0.5)
     subprocess.run(["tmux", "send-keys", "-t", pane, "Enter"], capture_output=True)
+    for _ in range(3):
+        time.sleep(2)
+        if not _unsent(pane, words):
+            return
+        subprocess.run(["tmux", "send-keys", "-t", pane, "Enter"], capture_output=True)
 
 
 def _head(worktree) -> str:
