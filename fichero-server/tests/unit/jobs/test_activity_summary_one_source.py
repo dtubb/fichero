@@ -148,3 +148,18 @@ def test_a_running_recipe_row_names_its_stage_and_pages_6125(monkeypatch):
     waiting["for"] = "Waiting for the model lane"
     _, reason, _ = asyncio.run(activity._recipe_state(None, "rec"))
     assert reason == "Waiting for the model lane"
+
+
+def test_a_waiting_recipe_queue_row_has_a_status_and_logs_no_warning_6745(monkeypatch, caplog):
+    """#6745: the kind's queue row (`waiting:run-a-recipe`) is no run, so no status could be read for it and every poll
+    logged a warning. Its block stands on its own row's state and reason."""
+    import asyncio
+
+    from fichero_server.api.routes.system import activity
+
+    db = type("Db", (), {"path": "/tmp/x/library.duckdb"})()
+    waiting = _job("waiting:run-a-recipe", "run-a-recipe", "waiting", reason="Waiting for reading to finish")
+    with caplog.at_level("WARNING"):
+        blocks = asyncio.run(activity.live_blocks(db, [waiting], {}))
+    assert [(b.id, b.state, b.reason) for b in blocks] == [("waiting:run-a-recipe", "waiting", "Waiting for reading to finish")]
+    assert "no status for recipe run" not in caplog.text

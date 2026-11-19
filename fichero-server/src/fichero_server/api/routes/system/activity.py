@@ -564,6 +564,10 @@ async def live_blocks(db: Database, jobs: "list[BackgroundJob]",
     for job in jobs:
         if job.task_type != "run-a-recipe" or job.state not in _LIVE_STATES:
             continue
+        if job.id.startswith(("waiting:", "paused:")):
+            # A kind's queue row (`jobs.snapshot`) stands for many runs and is no run: its status is its own row's (#6745).
+            blocks.append(LiveBlock(id=job.id, recipe=job.name, state=job.state, reason=job.reason))
+            continue
         try:
             # The status the list already read for this row (one derivation per poll); read here only for a row without
             status = (statuses or {}).get(job.id)
