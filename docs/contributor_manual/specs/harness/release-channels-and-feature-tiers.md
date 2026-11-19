@@ -282,6 +282,28 @@ Tags: [OK] built · [PARTIAL] partly built · [MISSING] not built. Nothing below
 - `channel.the-size-ratchet-runs-on-the-one-image` [MISSING] (#5287) — the release-size ratchet
   measures the image the lane built, on every run.
 
+## Release notes
+
+Behaviour of `scripts/release_guard.py auto-notes`, which `release-all.sh` runs before the docs gate (owner 2026-11-18: the
+hand-written notes of v2026.11.17 read far better than the commit-subject list of v2026.11.18).
+
+- `release-notes.range` [MISSING] — the range is the previous release tag up to the release commit.
+- `release-notes.read-the-record` [MISSING] — each commit in the range gives its subject, the issue numbers (`#N`) in its subject
+  and body, and its `Behaviour: <id>` and `Spec-change:` trailers.
+- `release-notes.issues-from-github` [MISSING] — each issue's title, milestone, state and labels are read on the release machine
+  through GitHub's CLI in one batched query, cached by issue. Offline, the notes say "issues not read" and the release goes on.
+- `release-notes.grouped-by-milestone` [MISSING] — one `###` section per milestone (the milestone's title, in the order of
+  `build-order.md` when it names the milestone, else by commit count), inside the version's `##` section so the section parsers
+  keep reading one version section. One line per issue: the issue title, its number, "closed" or "in progress". A commit with no
+  issue goes under "Other changes", by its conventional type (fix, feat, perf).
+- `release-notes.specs-section` [MISSING] — a "Specs" section lists each spec file changed in the range with the behaviours that
+  became [OK] (from `Behaviour:` trailers) and the `Spec-change:` lines.
+- `release-notes.whats-new` [MISSING] — on top, a 3 to 6 line "What's new" written from the milestones with the most closed issues,
+  with no model call and no ids, in plain words.
+- `release-notes.test-this` [MISSING] — a "Test this" list names the closed issues in the range that carry the `needs-your-test` label.
+- `release-notes.one-text` [MISSING] — the same text goes to RELEASE_NOTES.md, CHANGELOG.md and the GitHub release body (which is
+  rendered from RELEASE_NOTES.md). Hand-written text for the version in RELEASE_NOTES.md wins and is never touched.
+
 ## Alternative considered: a binary per channel behind one feed
 
 Keep separate builds (today's shape) and let the popup choose which one Sparkle fetches.
