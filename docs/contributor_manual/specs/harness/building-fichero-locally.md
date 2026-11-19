@@ -1331,7 +1331,11 @@ Fichero's engine already uses LangGraph. The owner has ruled that the Builder ad
   Built 2026-11-01: `harness.toml` [models] (`providers` and one `{provider, model, context?}` row per role) read by
   `fichero_builder/models.py`; a missing role or a provider not in `providers` raises a Question. Still owed (Phase 0 wording): `builder run`
   and the reviewer start read their model from it (they still take `--model`). Test:
-  `fichero-builder/tests/test_model_config.py::test_one_model_per_role_and_a_missing_provider_asks`.
+  `fichero-builder/tests/test_model_config.py::test_one_model_per_role_and_a_missing_provider_asks`. Per-lane role (owner 2026-11-18):
+  `builder queue add --role <name>` records the role on the lane; its worker, and every handoff successor, starts on that
+  role's model and hands off at 85 % of that role's `context`; a role missing from `[models]`, or whose provider is not in
+  `providers`, is refused at add time with the reason, never replaced by `builder`; the journal's `worker` and `cost` rows
+  carry the role. Tests: `fichero-builder/tests/test_lane_role.py`.
 
 #### E. UX
 
