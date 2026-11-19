@@ -164,6 +164,10 @@ class WindowState {
     var markerStroke: [[Double]] = []
     /// The kind the last drawn segment was: a closed Marker stroke makes one of that kind (owner 2026-11-13).
     var lastDrawnKind = "region"
+    /// A ⌥-dragged box is being drawn on the page; Escape clears it and the release makes nothing.
+    var boxDrawing = false
+    /// The segment just made by a drawn box: its Preview opens it for text, then clears this.
+    var openForTextSegmentId: String?
 
     /// The pane in Focus (`panes.focus.any-pane-fills-the-screen`): it alone fills the window, in its real full screen,
     /// the sidebar and the Inspector hidden; nil when no pane is in Focus. Window state only: never saved to a workspace.
@@ -225,6 +229,7 @@ class WindowState {
     /// drawing to abandon -- that Escape does nothing else; the next one clears as it always has.
     @discardableResult
     func abandonDrawing() -> Bool {
+        if boxDrawing { boxDrawing = false; return true }  // a ⌥-dragged box: nothing is made
         guard !drawingPoints.isEmpty else { return false }
         drawingPoints = []
         return true

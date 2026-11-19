@@ -137,7 +137,7 @@ and three of them are also **spring-loaded**: hold the key for a stroke, let go,
 
 | Tool | Key | Spring-loaded | What a drag does |
 |---|---|---|---|
-| Select | V, Esc | — | band (marquee); ⌥-drag lasso; drag on a selected shape moves it; drag a handle reshapes |
+| Select | V, Esc | — | band (marquee); ⌃-drag lasso; ⌥-drag draws a box; drag on a selected shape moves it; drag a handle reshapes |
 | Brush select | B | hold B | paints a selection mask; ⌥ subtracts; `[` `]` size |
 | Knife | K | hold K | one stroke cuts every line it crosses |
 | Marker | M | hold M | freehand outline (closed) or baseline (open), simplified on release |
@@ -269,11 +269,11 @@ targets are at least 44 pt.
 
 ### Selecting and moving
 
-- `segment-editor.select-marquee-lasso` — **[PARTIAL]** (→ #4941; app) a drag on empty page is a band; ⌥-drag is a
+- `segment-editor.select-marquee-lasso` — **[PARTIAL]** (→ #4941; app) a drag on empty page is a band; ⌃-drag is a
   lasso (a drawn loop); both select every segment whose outline is mostly (over half its area)
   inside, at the level being edited (lines by default; regions when the band starts on nothing
   and ⌘ is held). *Built:* the band on the Mac (`finishBand`, regions and words). *Built (2026-11-14):*
-  the lasso (⌥-drag from empty page in Select, drawn dashed), the over-half rule and the level rule
+  the lasso (⌃-drag from empty page in Select, drawn dashed), the over-half rule and the level rule
   for the band and the lasso (`SegmentSelectionGestures.inside`, `level`: lines when the page shows
   any, regions with ⌘, else what is shown). *Not built:* touch. *Tests:*
   `fichero/Tests/Unit/general/Views/Source/SegmentSelectionGesturesTests.swift`.
@@ -713,7 +713,8 @@ Mac keys (every one is also a Segment menu item; ⌘ chords stay unique across t
 | Brush size down / up | [ / ] |
 | Pan while held | Space |
 | Add to / remove from selection | ⇧-click, ⇧-drag |
-| Lasso | ⌥-drag on empty page |
+| Lasso | ⌃-drag on empty page |
+| Draw a box | ⌥-drag on empty page |
 | Select all (level) / same kind | ⌘A / ⌘⇧A |
 | Merge (Join) | ⌘J |
 | Split under pointer | ⌘⇧K |

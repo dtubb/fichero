@@ -182,6 +182,7 @@ extension ZoomableImagePreview {
                 onReshapeCommit: { index, target, points in reshapeSegment(index: index, target, to: points) },
                 drawKind: windowState?.shapeKind ?? .box,
                 onDrawShapeCommit: { kind, points in drawSegmentShape(kind, points: points) },
+                onDrawBox: { box in drawBoxOfLastKind(box) },
                 onKnifeCommit: { stroke in knifeCut(stroke) },
                 onMarkerCommit: { stroke, closed in drawMarkerStroke(stroke, closed: closed) },
                 onPaintCommit: { stroke, width in drawPaintStroke(stroke, widthPixels: width) },

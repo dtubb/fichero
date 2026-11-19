@@ -337,7 +337,8 @@ struct ImageWithCursorTracking: NSViewRepresentable {
                 shift: event.modifierFlags.contains(.shift),
                 clickCount: event.clickCount,
                 option: event.modifierFlags.contains(.option),
-                command: event.modifierFlags.contains(.command)
+                command: event.modifierFlags.contains(.command),
+                control: event.modifierFlags.contains(.control)
             ))
         }
     }

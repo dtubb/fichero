@@ -138,7 +138,7 @@ extension ZoomableImagePreview {
     /// DRAW a polygon or baseline with the Shape tool, sent where `DrawTarget` says: `segment.create` on the shown
     /// pass (⌘Z), a polygon on an artifact page whose boxes are not segment rows yet through `artifactService.addRegion`,
     /// else refused with a logged reason (a baseline there, or no pass shown).
-    func drawSegmentShape(_ kind: SegmentShapes.DrawKind, points: [[Double]]) {
+    func drawSegmentShape(_ kind: SegmentShapes.DrawKind, points: [[Double]], selectingResult: Bool = false) {
         if refusesEditOnMappedRendition() { return }
         guard let documentId, let store = segmentEditStore else {
             Self.logger.error("Draw \(kind.title, privacy: .public) not sent: no segment store")
@@ -171,7 +171,8 @@ extension ZoomableImagePreview {
                     kind, points: points, documentId: documentId, passId: passId, onPass: onThePass.first,
                     parentSegmentId: region?.id
                 ),
-                documentId: documentId, name: "Draw \(kind.title)"
+                documentId: documentId, name: "Draw \(kind.title)",
+                answered: { result in if selectingResult { selectNewSegment(result.resultId, documentId: documentId) } }
             )
         }
     }

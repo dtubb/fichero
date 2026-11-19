@@ -82,6 +82,8 @@ struct RegionInteractionLayer: View {
     var drawKind: SegmentShapes.DrawKind = .box
     /// Commit a drawn polygon or baseline: (its kind, its points). Nil: the Shape tool drags boxes only.
     var onDrawShapeCommit: ((SegmentShapes.DrawKind, [[Double]]) -> Void)?
+    /// A ⌥-dragged box on empty page, in the page's fractions: makes a segment of the kind last drawn. Nil: no such gesture here.
+    var onDrawBox: (([Double]) -> Void)?
     /// Commit a Knife stroke (K held): its points, in the page's fractions. Nil: no Knife here.
     var onKnifeCommit: (([[Double]]) -> Void)?
     /// Commit a Marker stroke (M held or the Marker chosen): its points in the page's fractions, and whether it closed.
@@ -112,8 +114,8 @@ struct RegionInteractionLayer: View {
     /// What letting the move drag go here would do: a reassignment lights its region.
     @State private var moveDrop: SegmentMover.Drop?
     /// Live rubber-band corners (view points).
-    @State private var bandStart: CGPoint?
-    @State private var bandCurrent: CGPoint?
+    @State var bandStart: CGPoint?
+    @State var bandCurrent: CGPoint?
     /// ⌘ held as the band or lasso began: it selects regions (`segment-editor.select-marquee-lasso`).
     @State var bandCommand = false
     /// A live lasso (⌥-drag on empty page in Select): the loop so far, in the page's fractions.
@@ -135,6 +137,8 @@ struct RegionInteractionLayer: View {
     @State var resizeDrag: BoxResize.Drag?
     /// The segment box a double-click opened, shown in its popover (#5414); nil when none is open.
     @State var segmentPopover: SegmentPopoverTarget?
+    /// A ⌥-drag box is in progress (`handleBoxDraw`).
+    @State var boxDrawActive = false
 
     var body: some View {
         GeometryReader { geo in
@@ -172,6 +176,7 @@ struct RegionInteractionLayer: View {
                 marqueeBadges(in: geo.size)
                 segmentPopoverAnchor(in: geo.size)
             }
+            .onChange(of: windowState?.openForTextSegmentId) { _, id in openNewSegmentForText(id) }
             // TOP-LEADING, never the default centre (#5214): every child is placed by `.offset` from the
             // layer's origin, and a centred frame put the content's (smaller) bounds in the MIDDLE -- with
             // only the rubber band drawn, the band landed below and right of the pointer by half the gap.
@@ -373,7 +378,8 @@ extension RegionInteractionLayer {
     private func handleChosenTool(_ event: PreviewPointerEvent, at point: CGPoint, in size: CGSize) -> Bool {
         handleOrderClick(event, at: point, in: size)
             || handleKnife(event) || handleMarker(event, in: size) || handlePaint(event, in: size)
-            || handleBrush(event, in: size) || handleDrawShape(event, in: size) || handleCutMark(event, in: size)
+            || handleBrush(event, in: size) || handleBoxDraw(event, at: point, in: size)
+            || handleDrawShape(event, in: size) || handleCutMark(event, in: size)
             || handleReshape(event, in: size) || handleLasso(event, at: point, in: size)
     }
 

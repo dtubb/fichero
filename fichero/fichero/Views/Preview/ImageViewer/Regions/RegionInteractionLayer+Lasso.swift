@@ -2,7 +2,7 @@ import SwiftUI
 
 #if os(macOS)  // RegionInteractionLayer is Mac-only (an AppKit event layer)
 
-/// The lasso in Select (`segment-editor.select-marquee-lasso`): ⌥-drag from empty page draws a loop, and letting go
+/// The lasso in Select (`segment-editor.select-marquee-lasso`): ⌃-drag from empty page draws a loop, and letting go
 /// selects every segment mostly inside it, at the level being edited (lines; regions with ⌘), ⇧ adding to the selection.
 /// Selecting is not an action: nothing is sent.
 extension RegionInteractionLayer {
@@ -11,7 +11,7 @@ extension RegionInteractionLayer {
         let point = [Double(event.point.x), Double(event.point.y)]
         switch event.phase {
         case .pressed:
-            guard event.option, event.clickCount == 1, isBandSelecting, artifactId != nil,
+            guard event.control, event.clickCount == 1, isBandSelecting, artifactId != nil,
                   !hitsAnything(at: viewPoint, in: size) else { return false }
             lasso = [point]
             bandCommand = event.command
@@ -27,6 +27,42 @@ extension RegionInteractionLayer {
             if loop.count >= 3 { selectRegions(inLoop: loop) } else { handleTap(at: viewPoint, in: size) }
             return true
         }
+    }
+
+    /// ⌥-drag from empty page in Select (`source.editor.make-new-in-the-preview`): a box, and letting go makes a segment of
+    /// the kind last drawn. Escape while dragging makes nothing. True when the event belongs to this gesture.
+    func handleBoxDraw(_ event: PreviewPointerEvent, at viewPoint: CGPoint, in size: CGSize) -> Bool {
+        guard let windowState else { return false }
+        switch event.phase {
+        case .pressed:
+            guard event.option, !event.control, event.clickCount == 1, isBandSelecting, drawsSegments, onDrawBox != nil,
+                  !hitsAnything(at: viewPoint, in: size) else { return false }
+            boxDrawActive = true
+            windowState.boxDrawing = true
+            bandStart = viewPoint
+            bandCurrent = viewPoint
+            return true
+        case .dragged:
+            guard boxDrawActive else { return false }
+            if windowState.boxDrawing { bandCurrent = viewPoint } else { bandStart = nil; bandCurrent = nil }
+            return true
+        case .released:
+            guard boxDrawActive else { return false }
+            defer { boxDrawActive = false; bandStart = nil; bandCurrent = nil; windowState.boxDrawing = false }
+            if windowState.boxDrawing, let start = bandStart,
+               let box = BoundingBoxGeometry.normalizedBox(from: start, to: viewPoint, in: size, visible: visible) {
+                onDrawBox?(box)
+            }
+            return true
+        }
+    }
+
+    /// The segment just made opens in its popover, ready for text (`WindowState.openForTextSegmentId`).
+    func openNewSegmentForText(_ id: String?) {
+        guard let id, let box = allBoxes.first(where: { $0.segmentId == id }),
+              let target = SegmentPopoverTarget.target(for: box) else { return }
+        segmentPopover = target
+        windowState?.openForTextSegmentId = nil
     }
 
     /// The Order tool (`segment-editor.order-by-clicking`): a click on a segment numbers it next, or takes its number
