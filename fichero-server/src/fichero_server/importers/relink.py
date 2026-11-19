@@ -46,6 +46,32 @@ def original_is_there(package: Path, doc: Any) -> bool:
     return resolve_source(doc, library_root=package) is not None
 
 
+def follow_bookmark(db: Any, doc: Any) -> Path | None:
+    """The file a page's bookmark finds when it is not at its recorded path (#6733): the page's path and the source
+    paths its metadata recorded move to it, and a FRESH bookmark is saved at once, so the next move is followed
+    too. None when there is no bookmark, it finds nothing, or the page is already where the bookmark says."""
+    import base64
+
+    from fichero_server import bookmarks
+
+    raw = (doc.metadata or {}).get("bookmark")
+    if not raw or not bookmarks.is_available():
+        return None
+    found = bookmarks.resolve_bookmark(base64.b64decode(raw))
+    if found is None or not Path(found).exists() or str(found) == doc.path:
+        return None
+    metadata = dict(doc.metadata)
+    for key in PATH_KEYS:
+        if metadata.get(key) == doc.path:
+            metadata[key] = str(found)
+    fresh = bookmarks.refresh_bookmark(Path(found))
+    if fresh is None:
+        raise RuntimeError(f"found {found} by its bookmark but could not make a fresh bookmark for it")
+    metadata["bookmark"] = base64.b64encode(fresh).decode()
+    db.save(doc.model_copy(update={"path": str(found), "metadata": metadata}))
+    return Path(found)
+
+
 def missing_originals(db: Any, within: set[str] | None = None) -> dict[str, Any] | None:
     """How many linked pages' originals are not where the project says, in one place (#5672); None when none."""
     from fichero_server.models import DocType, Document

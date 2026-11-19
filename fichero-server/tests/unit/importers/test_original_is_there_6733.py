@@ -61,3 +61,33 @@ def test_a_folder_relink_of_three_moved_files_relinks_three_and_leaves_none_miss
     assert done.status_code == 200, done.text
     assert len(done.json()["matched"]) == 3
     assert client.get("/api/documents/missing-originals").json() is None
+
+
+def test_two_successive_moves_are_both_followed_because_each_find_saves_a_fresh_bookmark(db, tmp_path, monkeypatch):
+    import base64
+
+    from fichero_server import bookmarks
+
+    a, b, c = (tmp_path / n / "p.jpg" for n in "abc")
+    for p in (a, b, c):
+        p.parent.mkdir()
+    a.write_bytes(b"x")
+    where: dict[bytes, object] = {b"bm-a": a}  # a bookmark finds the file where IT last saw it move to
+    monkeypatch.setattr(bookmarks, "is_available", lambda: True)
+    monkeypatch.setattr(bookmarks, "resolve_bookmark", lambda data: where.get(data))
+    monkeypatch.setattr(bookmarks, "refresh_bookmark", lambda path, old=None: b"bm-" + path.parent.name.encode())
+    page = Document(name="p.jpg", doc_type=DocType.file, file_type=FileType.image, path=str(a),
+                    metadata={"bookmark": base64.b64encode(b"bm-a").decode(), "source_path": str(a)})
+    db.save(page)
+
+    a.rename(b)
+    where[b"bm-a"] = b
+    assert relink.follow_bookmark(db, db.get(Document, page.id)) == b
+    assert db.get(Document, page.id).path == str(b)
+
+    b.rename(c)
+    where[b"bm-b"] = c  # the old bookmark still says b; only the fresh one knows c
+    assert relink.follow_bookmark(db, db.get(Document, page.id)) == c
+    saved = db.get(Document, page.id)
+    assert saved.path == str(c) and saved.metadata["source_path"] == str(c)
+    assert base64.b64decode(saved.metadata["bookmark"]) == b"bm-c"
