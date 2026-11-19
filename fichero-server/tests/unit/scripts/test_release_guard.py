@@ -439,8 +439,8 @@ def test_the_notes_are_made_from_the_record_grouped_by_milestone(tmp_path, monke
 def test_the_specs_section_lists_only_behaviours_tagged_ok_in_the_spec():
     commits = [{"subject": "feat: x", "body": "Behaviour: a.one\nBehaviour: a.two"}]
     spec = "- `a.one` [OK] words\n- `a.two` [PARTIAL] words\n"
-    body = rg.build_notes(commits, {}, [("specs/a.md", spec)], [])
-    assert "- specs/a.md: now working: a.one\n" in body
+    body = rg.build_notes(commits, {}, [("a-spec-file", spec)], [])
+    assert "- a-spec-file: now working: a.one\n" in body
 
 
 def test_the_changelog_day_ignores_a_version_suffix():
