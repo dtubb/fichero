@@ -265,3 +265,13 @@ def test_the_pages_a_redo_took_in_survive_a_resume_of_the_same_run(client, db, t
     runner.run(db, subject)
 
     assert set(sent["read-a-line"][0]) == set(versos) and "find-lines" not in sent
+
+
+def test_a_page_with_no_lines_and_no_judgement_is_not_done_for_read_a_line_and_is_not_dropped(db):
+    from fichero_server.recipes.done import is_done, split_done
+    from tests.unit.recipes.test_unread_lines_not_read_5758 import _page
+
+    card = {"job": "read-a-line", "model_override": None}
+    no_lines, read = _page(db, 0, 0), _page(db, 3, 3)
+    assert is_done(db, card, no_lines) is False
+    assert split_done(db, card, [no_lines, read]) == ([no_lines], 1)
