@@ -166,3 +166,34 @@ def test_a_worker_that_dies_says_how_it_ended_and_the_page_is_still_retried_as_a
         asyncio.run(vb._apple_vision_call(exit_with_code, "p2", "en"))
     assert "exited with code 3" in str(exited.value)
     assert _read("page3") == "read page3", "the next page gets a new worker"
+
+
+class _SeedLikeProcess:
+    """What `fork_from_seed` hands back: alive, kill, join, and no exitcode (the seed owns the child)."""
+
+    def is_alive(self) -> bool:
+        return True
+
+    def kill(self) -> None:
+        pass
+
+    def join(self, timeout: float | None = None) -> None:
+        pass
+
+
+def test_a_seeded_worker_with_no_exit_code_still_fails_its_page_in_the_same_words_and_closes_the_pipe():
+    """#6288: the production child is a seed's worker with no `exitcode`; its death must still be a WorkerFailure, the
+    pipe closed and the process forgotten, with no cause named."""
+    import multiprocessing
+
+    from fichero_server.workflows import page_retry
+
+    mine, peer = multiprocessing.Pipe()
+    peer.close()
+    fake = worker.VisionWorker()
+    fake._conn, fake._process = mine, _SeedLikeProcess()
+    with pytest.raises(worker.WorkerFailure) as raised:
+        fake.call(("tests", "x"), (), 1.0)
+    assert "worker stopped while reading this page; it starts again" in str(raised.value)
+    assert page_retry.is_passing_cause(str(raised.value))
+    assert mine.closed and fake._process is None and fake._conn is None

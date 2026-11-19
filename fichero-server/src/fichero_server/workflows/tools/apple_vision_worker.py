@@ -122,10 +122,12 @@ class VisionWorker:
         self._process = self._conn = None
 
     def _how_it_ended(self) -> str:
-        """" (killed by signal N)" or " (exited with code N)" for the child that stopped, "" when it did not end within a second."""
-        if self._process is None:
+        """A phrase for how the child ended: " (killed by signal N)" or " (exited with code N)". Empty when the child is not
+        one the engine can wait on (a seed's worker has no exit code here) or did not end within a second."""
+        join = getattr(self._process, "join", None)
+        if join is None or not hasattr(self._process, "exitcode"):
             return ""
-        self._process.join(1)
+        join(1)
         code = self._process.exitcode
         if code is None:
             return ""
