@@ -19,6 +19,18 @@ struct ConnectSheetModelTests {
         #expect(Model.nearbyStatus(searching: false, found: 0) == nil)
     }
 
+    @Test("a typed host or IP and a code make the pairing fields; no code or no address makes none")
+    func connectByAddress() throws {
+        let fields = try #require(Model.addressFields(address: "10.0.0.5", code: " 123456 ", pin: "pin"))
+        #expect(fields.remoteURL == "https://10.0.0.5:8765")
+        #expect(fields.pairCode == "123456")
+        #expect(fields.spkiPin == "pin")
+        #expect(Model.addressFields(address: "air", code: "1", pin: nil)?.remoteURL == "https://air.local:8765")
+        #expect(Model.addressFields(address: "10.0.0.5", code: " ", pin: nil) == nil)
+        #expect(Model.addressFields(address: "", code: "1", pin: nil) == nil)
+        #expect(Model.canConnect(codeRoute: true, code: "123456", link: "", isConnecting: false))
+    }
+
     @Test("a pending invite link opens the sheet; none, or an empty one, does not")
     func opensForAnInvite() {
         #expect(Model.opensFor(pendingInvite: "fichero://pair?x=1"))
