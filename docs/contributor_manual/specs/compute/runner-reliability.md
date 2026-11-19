@@ -363,7 +363,7 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   unloads between pages), plus the Mac's chip, RAM, macOS and free memory at the start. `--remote hf-jobs|cluster` is a
   dry-run only, never a paid job. Output: one JSON file and a Markdown table on stdout; exit 0 even when runtimes fail.
   *Acceptance:* with every runtime stubbed (one ok, one failing, one loading twice) the table and JSON name each result.
-  Built: the script, with every runtime stubbed in its test. Owed: Apple (no Python entry in the engine), and counted loads for MLX (read through `mlx_vlm` directly) and Whisper.
+  Built: the script, with every runtime stubbed in its test; the MLX model is loaded once per process, and the embedder row runs with `FICHERO_EMBED_IN_PROCESS=1` so its peak RSS includes the model. Owed: Apple (no Python entry in the engine), and counted loads for MLX (read through `mlx_vlm` directly) and Whisper.
   *Test:* `fichero-server/tests/unit/scripts/test_runtime_matrix.py`. `Spec-change: owner, the runtime matrix`.
 - `runner.mac.stays-usable` — **[PARTIAL]** (#5819, #6230, #6263; `activity.throttle.use-means-slower`,
   `activity.throttle.in-use-slows-to-half` own it) automatic work goes on while the person uses the Mac, at half the

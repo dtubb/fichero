@@ -16,6 +16,7 @@ even when runtimes fail: the table is the result.
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import os
 import platform
@@ -128,6 +129,7 @@ def _missing(module: str) -> str | None:
     return None if importlib.util.find_spec(module) else f"the {module} package is not in this Python"
 
 
+@functools.cache
 def _kraken_model() -> str | None:
     from fichero_server.llm import kraken_runtime as kr
 
@@ -154,6 +156,7 @@ def _kraken_segment(page: Path) -> object:
     return kr.segment_lines(page)
 
 
+@functools.cache
 def _mlx_model():
     from fichero_server.llm.mlx_model_store import MLXModelStore
 
@@ -166,14 +169,21 @@ def _mlx_why() -> str | None:
     return _missing("mlx_vlm") or (None if _mlx_model() else "no MLX vision model is installed in the model store")
 
 
-def _mlx_read(page: Path) -> object:
-    """ponytail: calls mlx_vlm directly (the engine's read goes through its model server); the engine's own per-page
-    load count is not what this measures, so `loads` is not counted for this row."""
+@functools.cache
+def _mlx_loaded() -> tuple[object, object]:
+    """The vision model and its processor, loaded once per process, so the timed pages measure reads, not loads."""
     import mlx_vlm
     from fichero_server.llm.mlx_model_store import MLXModelStore
 
-    entry = _mlx_model()
-    model, processor = mlx_vlm.load(MLXModelStore().resolve_model_path(entry.model_id))
+    return mlx_vlm.load(MLXModelStore().resolve_model_path(_mlx_model().model_id))
+
+
+def _mlx_read(page: Path) -> object:
+    """ponytail: calls mlx_vlm directly (the engine's read goes through its model server), so `loads` is not counted
+    for this row."""
+    import mlx_vlm
+
+    model, processor = _mlx_loaded()
     return mlx_vlm.generate(model, processor, "Transcribe the text on this page.", image=[str(page)], max_tokens=200)
 
 
@@ -354,6 +364,8 @@ def scratch_environment(root: Path) -> None:
 
     os.environ.setdefault("FICHERO_MODEL_STORE_ROOT", str(default_server_state_dir()))
     os.environ["FICHERO_BASE_PATH"] = str(root / "state")
+    # The embedder's model runs in a child process by default, which this process's peak RSS does not see.
+    os.environ["FICHERO_EMBED_IN_PROCESS"] = "1"
     (root / "state").mkdir(parents=True, exist_ok=True)
     (root / "library").mkdir(parents=True, exist_ok=True)
 
