@@ -81,8 +81,8 @@ def download(model_id: str) -> Path:
 
     models_path = _models_path()
     models_path.mkdir(parents=True, exist_ok=True)
-    return Path(hf_hub_download(repo_id=spec[0], filename=spec[1], revision=YOLO_REVISIONS[model_id],
-                                 local_dir=str(models_path)))
+    revision = YOLO_REVISIONS[model_id]
+    return Path(hf_hub_download(repo_id=spec[0], filename=spec[1], revision=revision, local_dir=str(_models_path())))
 
 
 def _quiet() -> None:
