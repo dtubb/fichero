@@ -2090,6 +2090,8 @@ def doing_words(card: dict[str, Any]) -> str:
     provider = (card.get("provider_override") or card.get("provider") or "").lower()
     model = card.get("model_override") or card.get("model")
     reader = _READERS.get(provider) or (str(model).rsplit("/", 1)[-1] if model and provider else None)
+    if reader == "Kraken" and model:
+        reader = f"Kraken ({model})"  # the model beside the reader (#6745)
     return f"{said} with {reader}" if reader else said
 
 
