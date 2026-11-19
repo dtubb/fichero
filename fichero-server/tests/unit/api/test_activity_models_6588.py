@@ -143,3 +143,23 @@ def test_a_request_with_many_remote_calls_reads_the_provider_list_once(db, app_d
 
     assert sum(m["calls_today"] for m in found if m["place"] == "remote") == 10
     assert len(reads) == 1
+
+
+def test_a_loaded_kraken_and_yolo_model_are_listed_loaded_6745(db, monkeypatch):
+    """#6745: with Kraken blla and the YOLO layout model in memory, the engine's held list names both, and the Models
+    answer lists each as loaded on this Mac."""
+    import sys
+
+    from fichero_server.execution import models_held
+    from fichero_server.llm import kraken_runtime, yolo_runtime
+
+    jobs._ensure(db)
+    monkeypatch.setitem(kraken_runtime._RESIDENT, "segment", ("blla", object()))
+    monkeypatch.setitem(yolo_runtime._LOADED, "yolo-doclaynet-11n", object())
+    monkeypatch.setitem(sys.modules, "fichero_server.llm.yolo_runtime", yolo_runtime)
+    held = models_held.models_held()
+    assert {"Kraken", "YOLO layout"} <= {h["kind"] for h in held}
+
+    found = {(m["provider"], m["name"]): m for m in activity_models.models(db, held=held, installed=[])}
+    assert found[("Kraken", "blla")]["loaded"] and found[("Kraken", "blla")]["place"] == "this-mac"
+    assert found[("YOLO layout", "yolo-doclaynet-11n")]["loaded"]

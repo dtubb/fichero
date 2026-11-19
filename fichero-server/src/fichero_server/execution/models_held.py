@@ -34,7 +34,7 @@ def process_bytes(pid: int | None) -> int | None:
 
 def models_held() -> list[dict[str, Any]]:
     """Each model held: {name, kind, memory_bytes}. `memory_bytes` is None where the model lives inside the engine's own memory
-    (Kraken's readers), and the child's resident size where it has a process of its own (the search embedder)."""
+    (Kraken's readers, the YOLO layout model), and the child's resident size where it has a process of its own (the search embedder)."""
     held: list[dict[str, Any]] = []
     embeddings = sys.modules.get("fichero_server.db.embeddings")
     if embeddings is not None:
@@ -45,4 +45,8 @@ def models_held() -> list[dict[str, Any]]:
     if kraken is not None:
         for kind, (key, _model) in list(kraken._RESIDENT.items()):
             held.append({"name": f"Kraken {kind}: {key}", "kind": "Kraken", "memory_bytes": None})
+    yolo = sys.modules.get("fichero_server.llm.yolo_runtime")
+    if yolo is not None:
+        for name in list(yolo._LOADED):
+            held.append({"name": name, "kind": "YOLO layout", "memory_bytes": None})
     return held
