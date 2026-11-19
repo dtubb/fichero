@@ -447,10 +447,11 @@ def test_spec_ids_in_release_and_versioning_are_unique():
 
 
 def test_docs_download_links_name_fichero_dmg_and_the_one_dmg_text_calls_it_the_dev_build():
+    # Only the dev build is posted, as Fichero-dev.dmg (owner 2026-11-18, release-channels-and-feature-tiers): the site links name it.
     for md in list((_ROOT / "docs").glob("*.md")) + [_ROOT / "README.md"]:
-        assert "releases/latest/download/Fichero-dev.dmg" not in md.read_text(), md.name
+        assert "releases/latest/download/Fichero.dmg" not in md.read_text(), md.name
     c = _script("create-github-release.sh")
-    assert 'DOWNLOAD_LINE="Download \\`Fichero.dmg\\` below (the dev build, with every feature on' in c
+    assert 'DOWNLOAD_LINE="Download \\`$ASSET_NAME\\` below (the dev build, with every feature on' in c
     assert c.index("DOWNLOAD_LINE=") < c.index('RELEASE_BODY="## Installation')
     assert "still runs it last" not in (_ROOT / "docs/contributor_manual/specs/harness/release-and-versioning.md").read_text()
 
@@ -475,8 +476,10 @@ def _public_download_line(script: str, have_dev_dmg: str, public: str, channel: 
     """Run create-github-release.sh's clear-the-dev-DMG line and its DOWNLOAD_LINE choice in bash; return both results."""
     clear = next(ln for ln in script.splitlines() if ln.endswith("HAVE_DEV_DMG=false; fi") and "FICHERO_RELEASE_CHANNEL" in ln)
     start = script.index('if [ "$HAVE_DEV_DMG" != true ]; then')
+    asset = script.index('ASSET_NAME="Fichero.dmg"')
+    name = script[asset:script.index("\nfi\n", asset) + 4]  # the posted name: Fichero-dev.dmg for the dev build
     pick = script[start:script.index('RELEASE_BODY="## Installation')]
-    code = f'{clear}\n{pick}\necho "$HAVE_DEV_DMG"; echo "$DOWNLOAD_LINE"'
+    code = f'{clear}\n{name}\n{pick}\necho "$HAVE_DEV_DMG"; echo "$DOWNLOAD_LINE"'
     done = subprocess.run(["bash", "-c", code], capture_output=True, text=True, timeout=30, check=True,
                           env={"PATH": os.environ["PATH"], "HAVE_DEV_DMG": have_dev_dmg, "FICHERO_RELEASE_PUBLIC": public,
                                "FICHERO_RELEASE_CHANNEL": channel})
@@ -487,6 +490,6 @@ def _public_download_line(script: str, have_dev_dmg: str, public: str, channel: 
 def test_a_public_release_body_names_only_the_attached_dmg_and_ignores_a_stale_dev_dmg_6665():
     c = _script("create-github-release.sh")
     have, line = _public_download_line(c, "true", "1")  # a stale Fichero-dev.dmg is still on disk
-    assert have == "false" and "Fichero-dev.dmg" not in line and "`Fichero.dmg`" in line
+    assert have == "false" and "`Fichero-dev.dmg`" in line and "`Fichero.dmg`" not in line
     have, line = _public_download_line(c, "true", "0")  # the two-DMG hand run still names both
     assert have == "true" and "Fichero-dev.dmg" in line
