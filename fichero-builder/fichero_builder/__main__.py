@@ -172,7 +172,7 @@ def main(argv=None) -> int:
     la.add_argument("--out", default=str(Path.home() / "Library" / "LaunchAgents"))
     rl = sub.add_parser("release", help="run (or resume) tonight's release stages; a model is started only when a stage is red (#6726)")
     rl.add_argument("--root", default=str(Path.cwd())), rl.add_argument("--state"), rl.add_argument("--run", help="the run id to resume (default: today's date)")
-    rl.add_argument("--branch", required=True, help="the integration branch whose origin head is frozen as the candidate")
+    rl.add_argument("--branch", required=True, help="the branch whose origin head is frozen as the candidate")
     rl.add_argument("--merge-branch", default="", help="the PR branch the merge stage squash-merges; no merge stage without it")
     rl.add_argument("--mac", default="local", help="candidate machines for the Mac chain, comma-separated, first usable wins"), rl.add_argument("--ios", default="local"), rl.add_argument("--check-runner", default="local")
     rl.add_argument("--floor-gb", type=int, default=60, help="the free disk a runner needs")
