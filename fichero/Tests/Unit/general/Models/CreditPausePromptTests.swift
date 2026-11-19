@@ -52,4 +52,10 @@ struct CreditPausePromptTests {
         #expect(ledger.newlyPaused(in: [job("run-1"), job("run-2"), job("run-3")]).isEmpty)
         #expect(ledger.newlyPaused(in: [job("run-1"), job("run-4", provider: "OpenAI")]).count == 1)
     }
+
+    @Test("the one dialogue holds every run paused for its cause, so Continue and Stop reach them all")
+    func dialogueHoldsEveryRun() {
+        let jobs = [job("run-1"), job("run-2"), job("run-3", provider: "OpenAI")]
+        #expect(CreditPauseLedger.sameCause(as: jobs[0], in: jobs).map(\.id) == ["run-1", "run-2"])
+    }
 }

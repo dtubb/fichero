@@ -13,5 +13,10 @@ struct CreditPauseLedger {
         return paused.filter { asked.insert(Self.key($0)).inserted }  // two runs meeting the cause in one poll are one dialogue
     }
 
+    /// Every run of `jobs` paused for the same cause and provider as `job`, `job` included: the one dialogue answers them all.
+    static func sameCause(as job: ActivityJob, in jobs: [ActivityJob]) -> [ActivityJob] {
+        jobs.filter { CreditPausePrompt.isCreditPause($0) && key($0) == key(job) }
+    }
+
     private static func key(_ job: ActivityJob) -> String { "\(job.failure?.kind ?? "")|\(job.failure?.provider ?? "")" }
 }

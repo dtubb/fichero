@@ -125,31 +125,40 @@ extension ActivityPaneView {
                 return
             }
             var done = 0
+            var rowsWithoutJob = 0
             var refusal: String?
             for row in targets {
                 // not `for … where await`: a where clause cannot await
-                if let error = await act(verb, on: row) { refusal = refusal ?? error } else { done += 1 }
+                switch await act(verb, on: row) {
+                case .done: done += 1
+                case .noJob: rowsWithoutJob += 1
+                case .refused(let words): refusal = refusal ?? words
+                }
             }
-            // The engine's words when it refused, never a bare count (`runner.surface.one-row-one-alert`).
-            notice = refusal ?? ActivityPaneVerb.outcome(verb, done: done, skipped: skipped + targets.count - done)
+            // The engine's words when it refused, never a bare count (`runner.surface.one-row-one-alert`); a row with no job to
+            // act on stays in the skipped count.
+            notice = refusal ?? ActivityPaneVerb.outcome(verb, done: done, skipped: skipped + rowsWithoutJob)
         }
     }
 
-    /// Pause, Continue, Stop and Retry on one row through its job's audited actions; nil when the engine took it, else the
-    /// engine's words for why not (or that the row has no job).
-    private func act(_ verb: ActivityPaneVerb, on row: ActivityMonitorRow) async -> String? {
-        let skipped = "This row has no job to act on."
+    /// What the engine did with a verb on one row.
+    private enum Acted { case done, noJob, refused(String) }
+
+    /// Pause, Continue, Stop and Retry on one row through its job's audited actions: done, the row has no job, or the engine's
+    /// words for why it refused.
+    private func act(_ verb: ActivityPaneVerb, on row: ActivityMonitorRow) async -> Acted {
+        func result(_ error: String?) -> Acted { error.map(Acted.refused) ?? .done }
         if verb == .stop {
-            guard let jobId = row.jobId, let store = library(for: row.libraryId)?.activityStore else { return skipped }
-            return await ActivityRunMenuTarget.stopJob(jobId: jobId, runThreadId: row.runThreadId, store: store)
+            guard let jobId = row.jobId, let store = library(for: row.libraryId)?.activityStore else { return .noJob }
+            return result(await ActivityRunMenuTarget.stopJob(jobId: jobId, runThreadId: row.runThreadId, store: store))
         }
         guard let jobId = verb == .retry ? row.retryJobId : row.jobId,
-              let store = library(for: row.libraryId)?.activityStore else { return skipped }
+              let store = library(for: row.libraryId)?.activityStore else { return .noJob }
         switch verb {
-        case .pause: return await store.setJobPaused(jobId: jobId, paused: true, runThreadId: row.runThreadId)
-        case .resume: return await store.setJobPaused(jobId: jobId, paused: false, runThreadId: row.runThreadId)
-        case .retry: return await store.retryJob(jobId: jobId, runThreadId: row.runThreadId)
-        case .stop, .archive, .putBack, .delete: return skipped
+        case .pause: return result(await store.setJobPaused(jobId: jobId, paused: true, runThreadId: row.runThreadId))
+        case .resume: return result(await store.setJobPaused(jobId: jobId, paused: false, runThreadId: row.runThreadId))
+        case .retry: return result(await store.retryJob(jobId: jobId, runThreadId: row.runThreadId))
+        case .stop, .archive, .putBack, .delete: return .noJob
         }
     }
 
