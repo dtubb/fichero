@@ -50,6 +50,7 @@ extension ZoomableImagePreview {
     /// became. Before this the drag snapped back with nothing sent and nothing said.
     func reshapeSegment(index: Int, _ target: SegmentShapes.Target, to points: [[Double]]) {
         let name = target == .polygon ? "Reshape Segment" : "Reshape Baseline"
+        if refusesEditOnMappedRendition() { return }
         guard let documentId, let store = segmentEditStore, let segment = shownSegment(at: index, documentId, store) else {
             Self.logger.notice("\(name, privacy: .public) not sent: box \(index) is not a segment on the shown pass")
             return
@@ -138,6 +139,7 @@ extension ZoomableImagePreview {
     /// pass (⌘Z), a polygon on an artifact page whose boxes are not segment rows yet through `artifactService.addRegion`,
     /// else refused with a logged reason (a baseline there, or no pass shown).
     func drawSegmentShape(_ kind: SegmentShapes.DrawKind, points: [[Double]]) {
+        if refusesEditOnMappedRendition() { return }
         guard let documentId, let store = segmentEditStore else {
             Self.logger.error("Draw \(kind.title, privacy: .public) not sent: no segment store")
             return
@@ -343,6 +345,7 @@ extension ZoomableImagePreview {
         _ planned: Result<SegmentEdit.Call, SegmentEdit.Refusal>, documentId: String, name: String,
         answered: @escaping @MainActor (ActionInvokeResult) -> Void = { _ in }
     ) {
+        if refusesEditOnMappedRendition() { return }
         guard case .success(let call) = planned else {
             if case .failure(let refusal) = planned {
                 Self.logger.notice("\(name, privacy: .public) not sent: \(String(describing: refusal), privacy: .public)")

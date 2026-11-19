@@ -211,6 +211,8 @@ struct ZoomableImagePreview: View {
     @State var imageVisible = true
     @Environment(\.panePreviewLayers) var panePreviewLayers
     @State var ocrGeometry: OCRGeometry?
+    /// The page's segments' boxes in the shown rendition's pixels (#6420), for the rendition named by `id`.
+    @State var renditionBoxes: (id: String, answer: SegmentBoxesOnRendition)?
     /// THIS pane's region selection (#5020): never another pane's. The window's focus points at it
     /// once the pane is used (`WindowState.focusedRegionSelection`).
     @State var regionSelection = RegionSelection()
@@ -429,6 +431,7 @@ struct ZoomableImagePreview: View {
                 handleReaderTextSelection(note)
             }
             .onChange(of: annotationStore.changeToken) { _, _ in loadAnnotations() }
+            .onChange(of: displayedRenditionId) { _, _ in loadRenditionBoxes() }
             .onChange(of: renderedImage) { _, newImg in handleRenderedImageChanged(newImg) }
             .onChange(of: scale) { _, newScale in handleScaleChanged(newScale) }
             .onChange(of: documentId) { _, _ in handleDocumentIDChangedForHighRes() }

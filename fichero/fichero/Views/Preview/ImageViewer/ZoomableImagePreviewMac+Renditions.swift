@@ -141,6 +141,51 @@ extension ZoomableImagePreview {
         )
     }
 
+    /// The geometry the picture on screen can draw: the page's own when its frame is the picture's, else the segments
+    /// mapped onto the rendition shown when the engine knows where it sits (#6420). Nil draws nothing.
+    var drawnGeometry: OCRGeometry? {
+        guard let geometry = ocrGeometry else { return nil }
+        return geometryFrameMatchesDisplay(geometry) ? geometry : mappedRenditionGeometry
+    }
+
+    /// The page's segments mapped onto the rendition shown, or nil when it is not a mapped one.
+    var mappedRenditionGeometry: OCRGeometry? {
+        guard let geometry = ocrGeometry, let shown = displayedRenditionId, let loaded = renditionBoxes,
+              loaded.id == shown else { return nil }
+        return SegmentOnRendition.mappedGeometry(geometry, on: loaded.answer)
+    }
+
+    /// True when the boxes on screen are mapped onto a rendition, so an edit would write that rendition's pixels as the
+    /// photograph's: the edit is refused in words and this answers true.
+    func refusesEditOnMappedRendition() -> Bool {
+        guard let geometry = ocrGeometry, !geometryFrameMatchesDisplay(geometry), mappedRenditionGeometry != nil else {
+            return false
+        }
+        windowState?.segmentNotice = SegmentOnRendition.editRefusal
+        return true
+    }
+
+    /// Ask the engine where the page's segments sit on the rendition now shown (#6420); when it does not know, say why.
+    func loadRenditionBoxes() {
+        guard let documentId, let segmentService, let id = displayedRenditionId else {
+            renditionBoxes = nil
+            return
+        }
+        Task {
+            do {
+                let answer = try await segmentService.segmentBoxes(documentId: documentId, renditionId: id)
+                guard displayedRenditionId == id else { return }
+                renditionBoxes = (id, answer)
+                if !answer.followed {
+                    windowState?.segmentNotice = answer.note ?? "The segments' place on this picture is not known, so no boxes are drawn."
+                }
+            } catch {
+                renditionBoxes = nil
+                Self.logger.error("Segment boxes on rendition failed: \(String(describing: error), privacy: .public)")
+            }
+        }
+    }
+
     /// What the toolbar shows about the current rendition.
     ///
     /// `nil` when there is nothing worth saying — no service, no document, or

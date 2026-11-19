@@ -16,10 +16,10 @@ extension ZoomableImagePreview {
     /// — the hit-test set for click-to-select. Empty when the layer is off
     /// or the geometry belongs to a different picture than the one shown.
     var displayedGeometryBoxes: [(index: Int, box: OCRGeometryBox)] {
-        guard let ocrGeometry, geometryFrameMatchesDisplay(ocrGeometry) else { return [] }
+        guard let drawn = drawnGeometry else { return [] }
         // Each level by its own switch: Show Regions, Show Lines, Show Word Bounding Boxes (owner 2026-11-17).
-        return ocrGeometry.displayIndexedBoxes.filter {
-            SegmentHierarchy.shows(SegmentHierarchy.Level(kind: $0.box.level),
+        return drawn.displayIndexedBoxes.filter {
+            SegmentOnRendition.isDrawn($0.box) && SegmentHierarchy.shows(SegmentHierarchy.Level(kind: $0.box.level),
                                    regions: regionsEnabled, lines: linesEnabled, words: ocrBoxesEnabled)
         }
     }
@@ -112,12 +112,10 @@ extension ZoomableImagePreview {
         return points[ref.index]
     }
 
-    /// The full box list, or nothing when the geometry names a frame other
-    /// than the pixels on screen — never draw or select against a frame that
-    /// is not the one shown.
+    /// The full box list of the geometry the picture can draw (`drawnGeometry`: the page's own, or mapped onto the
+    /// rendition shown), or nothing when neither is known — never draw or select against a frame that is not the one shown.
     var frameMatchedGeometryBoxes: [OCRGeometryBox] {
-        guard let ocrGeometry, geometryFrameMatchesDisplay(ocrGeometry) else { return [] }
-        return ocrGeometry.boxes
+        drawnGeometry?.boxes ?? []
     }
 
     /// ⌘A (Daniel, 2026-08-31): with the text tool armed, every WORD box;
@@ -282,6 +280,7 @@ extension ZoomableImagePreview {
     /// MOVE: committed on mouse-up. Indices are stable across a move, so the
     /// selection survives; the boxes re-render from the response geometry.
     func commitRegionMove(index: Int, bbox: [Double]) {
+        if refusesEditOnMappedRendition() { return }
         if moveSelectedSegments(draggedIndex: index, to: bbox) { return }   // the selection, as segments (group drag)
         if moveSegment(index: index, bbox: bbox) { return }   // an imported page (#5152)
         guard let artifactId = RegionEditTarget.forDirectEdit(shownArtifactId: ocrGeometryArtifactId),
@@ -334,6 +333,7 @@ extension ZoomableImagePreview {
     /// COMBINE: union bbox + texts in reading order — the ORDER is the
     /// server's call, so click order stays free.
     func combineSelectedRegions() {
+        if refusesEditOnMappedRendition() { return }
         if joinSelectedSegments() { return }   // an imported page (#5152)
         let selection = regionSelection
         guard let artifactId = RegionEditTarget.forSelectionEdit(
@@ -379,6 +379,7 @@ extension ZoomableImagePreview {
     ///   - onlyIndex: promote just that marquee (its own badge), or nil for
     ///     the whole set in reading order (the right-click verb).
     func promoteMarquees(named name: String = "", onlyIndex: Int? = nil) {
+        if refusesEditOnMappedRendition() { return }
         guard let documentId, let artifactService,
               let marquees = windowState?.previewMarquees,
               marquees.documentId == documentId, !marquees.isEmpty else { return }
@@ -456,6 +457,7 @@ extension ZoomableImagePreview {
     /// uses, and each strip lands as its own region — like `promoteMarquees`,
     /// but word-bounded instead of hand-drawn.
     func promoteSelectedWords() {
+        if refusesEditOnMappedRendition() { return }
         let selection = regionSelection
         guard let artifactId = ocrGeometryArtifactId, selection.artifactId == artifactId,
               !selection.isEmpty, let documentId, let artifactService,

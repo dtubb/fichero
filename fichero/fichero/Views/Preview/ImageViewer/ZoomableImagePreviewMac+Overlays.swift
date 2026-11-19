@@ -58,10 +58,9 @@ extension ZoomableImagePreview {
                 // same defect class as the misplaced spread band. nil means
                 // the document's own image; non-nil draws only when that
                 // exact rendition is what's on screen.
-                if ocrBoxesEnabled, let ocrGeometry,
-                   geometryFrameMatchesDisplay(ocrGeometry) {
+                if ocrBoxesEnabled, let drawn = drawnGeometry {
                     OCRGeometryOverlay(
-                        geometry: ocrGeometry,
+                        geometry: drawn,
                         visible: geometry.visible,
                         drawsBoxes: false,  // drawn inside the scroll view now (#5020, #5142)
                         drawsInlineText: false,
