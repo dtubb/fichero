@@ -169,3 +169,21 @@ def test_continue_after_the_provider_recovers_reads_the_missing_pages_only_and_e
     assert _wait_for(lambda: _status(client, run) in ("completed", "failed", "partial"))
     assert _status(client, run) == "completed"
     assert recovered.calls == PAGES - read_before, "Continue read only the pages that were not done"
+    from fichero_server.llm import retry
+
+    assert run not in retry._PAUSED_FOR_CREDIT, "Continue forgot the credit pause"
+
+
+def test_continue_before_the_provider_recovers_probes_once_and_pauses_again_with_one_pause_not_two(client, workflow, pages10, monkeypatch):
+    from fichero_server.llm import retry
+
+    run, model = _run(client, workflow, pages10, monkeypatch, lambda: _Answer(402, "402: Insufficient credits."))
+    assert _status(client, run) == "paused"
+    sent_before = model.calls
+    assert run in retry._PAUSED_FOR_CREDIT, "the run is paused for credit"
+
+    answer = client.put(f"/api/activity/jobs/{run}/paused", json={"paused": False})
+    assert answer.status_code < 300, answer.text
+    assert _wait_for(lambda: model.calls > sent_before and _status(client, run) == "paused"), "Continue sent a real probe, then paused again"
+    assert _failure_of(client, run)["kind"] == "no-credit"
+    assert sum(len(v) for v in retry._PAUSED_FOR_CREDIT.values()) == 1, "one pause for the one provider, not one per Continue"

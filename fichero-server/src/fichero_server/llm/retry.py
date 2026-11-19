@@ -63,6 +63,16 @@ def forget_credit_pause(run_id: str | None) -> None:
             _LAST_CREDIT.pop(provider, None)
 
 
+def forget_provider_pause(run_id: str | None) -> None:
+    """The run goes on (Continue), whatever it was paused for: the cap stop, a rate limit and a credit or key refusal are
+    forgotten, and the provider's dead mark with them, so the first call after Continue is a real probe (#6569)."""
+    from fichero_server.llm.spend import forget_cap_stop
+
+    forget_cap_stop(run_id)
+    forget_rate_limit_pause(run_id)
+    forget_credit_pause(run_id)
+
+
 def _pause_the_run_for_credit(provider: str, exc: BaseException | None) -> bool:
     """The provider has no credit or its limit is reached: ask the run this call belongs to to pause, with the one prompt.
     True when a run was asked; False outside a run (the error is then raised as it was). `exc` None repeats the last answer."""
