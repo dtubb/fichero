@@ -30,7 +30,7 @@ def test_milestones_and_issues_are_read_through_gh():
     assert gh.calls[0][:4] == ["issue", "list", "--milestone", "Builder"] and "--state" in gh.calls[0]
     gh.out = json.dumps([{"title": "Builder", "open_issues": 3, "closed_issues": 4}])
     assert s.milestones() == [{"title": "Builder", "open": 3, "closed": 4}]
-    assert gh.calls[1][:2] == ["api", "repos/{owner}/{repo}/milestones"]
+    assert gh.calls[1] == ["api", "repos/{owner}/{repo}/milestones?state=all&per_page=100", "--paginate"]
 
 
 def test_comment_label_close_and_create_write_through_gh():

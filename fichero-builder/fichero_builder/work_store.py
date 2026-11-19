@@ -40,7 +40,7 @@ class GithubStore:
         self.run = run or _gh(gh, cwd)
 
     def milestones(self) -> list[dict]:
-        rows = json.loads(self.run("api", "repos/{owner}/{repo}/milestones", "--paginate", "-f", "state=all") or "[]")
+        rows = json.loads(self.run("api", "repos/{owner}/{repo}/milestones?state=all&per_page=100", "--paginate") or "[]")
         return [{"title": r["title"], "open": r["open_issues"], "closed": r["closed_issues"]} for r in rows]
 
     def issues(self, milestone: str) -> list[dict]:
