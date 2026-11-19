@@ -689,6 +689,21 @@ the browse→read flow down the centre.
   split collapses by one before the leaf is removed. Pinned:
   `Tests/Unit/general/Models/PaneListTests.swift` ("closing a pane removes ONLY that pane…",
   "…collapses to the survivor — the row does not disappear") + `PaneInstanceIndependenceTests`.
+- `panes.head.one-menu-button` — **[GAP]** (#6741; app; owner 2026-11-19, refined the same day; spec-change: owner) every pane's
+  head has, on its right, one button whose icon is the pane's kind (a photograph for Source, a list for Items, a book for
+  Reader, a numbered list for Layout Order, and so on), and its menu is the same in every pane and in this order: Pane ▸ (the
+  kinds with their icons, a check on the current one); View As ▸ (the kind's own views: Items has Icon, List, Table, Columns,
+  Sheet, Cards, Timeline, Calendar, Map, Canvas and Space; Source has Read, List, Table, Icons and Canvas), which replaces the
+  separate Read menu and the view lists inside the kind menu; Pane options ▸ (only what this kind has: Font ▸ for Reader,
+  the overlays under Show ▸ for Source, Order ▸ for Layout Order); Split Right ▸ and Split Below ▸, each a submenu of kinds, so
+  splitting adds that pane beside or below in one step; Focus on Pane; Pin Pane, checked while on; Close Pane. The left side
+  has no close X and no kind menu: only the pane's working tools (back and forward, the order picker and the like), each in its
+  own island. The rule behind it: a pane's tools (zoom, navigation, order picker) live in islands of their own, and the
+  kind-icon menu holds only pane management. The Source pane's zoom keeps its own small island beside the menu button, and
+  Pin moves into the menu. Keyboard shortcuts stay; the kind still shows quietly in the menu's Pane ▸ check, the window title
+  and the tooltip. Tests: one menu per pane, same order everywhere; each item acts on its own pane; Split ▸ a kind adds that
+  pane; closing, splitting and pinning from the menu match today's buttons; the head has no X and no kind menu; the Pane ▸
+  check follows the kind. Related: `menus.toolbar.panes-shown-from-the-menus`.
 - `panes.head.kind-switcher-everywhere` — **[PARTIAL]** (#4706; Reader fixed d8621ecc3, pinned by
   `PaneHeadKindSwitcherParityTests`; Chat follows → #4705 increment 6) every pane head
   that renders a leaf kind mounts the kind selector, so ANY pane can become a Library, Source or
