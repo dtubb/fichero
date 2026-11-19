@@ -369,8 +369,8 @@ def _git(repo, *args):
 
 def _fixture_repo(tmp_path):
     repo = tmp_path / "repo"
-    (repo / "docs/contributor_manual/specs").mkdir(parents=True)
-    spec = repo / "docs/contributor_manual/specs/sharing.md"
+    (repo / "docs/contributor_manual/specs/harness").mkdir(parents=True)
+    spec = repo / "docs/contributor_manual/specs/harness/release-channels-and-feature-tiers.md"
     spec.write_text("- `sharing.library-confirmed` [PARTIAL]\n")
     _git(repo.parent, "init", "-q", str(repo))
     _git(repo, "add", "-A")
@@ -415,7 +415,7 @@ EXPECTED = """### What's new
 
 ### Specs
 
-- docs/contributor_manual/specs/sharing.md: now working: sharing.library-confirmed
+- docs/contributor_manual/specs/harness/release-channels-and-feature-tiers.md: now working: sharing.library-confirmed
 - Spec change: owner, ask first
 
 ### Test this
