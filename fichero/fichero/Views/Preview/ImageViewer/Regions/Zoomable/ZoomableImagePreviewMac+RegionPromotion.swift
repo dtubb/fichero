@@ -1,93 +1,10 @@
 #if os(macOS)
 import SwiftUI
 
-// The region verbs (move, delete, combine, promote, key handling), split from ZoomableImagePreviewMac+Regions.swift.
+// Promoting marquees and words to regions, the delete key, verb notifications and key handling,
+// split from ZoomableImagePreviewMac+Regions.swift.
 
 extension ZoomableImagePreview {
-    // MARK: Verbs
-
-    /// MOVE: committed on mouse-up. Indices are stable across a move, so the
-    /// selection survives; the boxes re-render from the response geometry.
-    func commitRegionMove(index: Int, bbox: [Double]) {
-        if refusesEditOnMappedRendition() { return }
-        if moveSelectedSegments(draggedIndex: index, to: bbox) { return }   // the selection, as segments (group drag)
-        if moveSegment(index: index, bbox: bbox) { return }   // an imported page (#5152)
-        guard let artifactId = RegionEditTarget.forDirectEdit(shownArtifactId: ocrGeometryArtifactId),
-              let documentId, let artifactService else { return }
-        Task {
-            do {
-                let updated = try await artifactService.moveRegion(
-                    artifactId: artifactId, documentId: documentId,
-                    index: index, bbox: bbox
-                )
-                ocrGeometry = updated.artifact.ocrGeometry
-                registerRegionUndo(updated, actionName: "Move Region")
-            } catch {
-                Self.logger.error("Region move failed: \(String(describing: error))")
-            }
-        }
-    }
-
-    /// DELETE: server-side soft (undoable action + curation log). The held
-    /// indices are meaningless afterwards, so the selection clears.
-    func deleteSelectedRegions() {
-        if deleteSelectedSegments() { return }   // an imported page (#5152)
-        if deleteSelectedBoxesAsSegments() { return }   // boxes that are segments: the audited segment.delete (#6419)
-        let selection = regionSelection
-        guard let artifactId = RegionEditTarget.forSelectionEdit(
-                  shownArtifactId: ocrGeometryArtifactId,
-                  selectionArtifactId: selection.artifactId,
-                  selectionCount: selection.count,
-                  minimumCount: 1
-              ),
-              let documentId, let artifactService else { return }
-        // The selected boxes' positions in THIS pane's list, found by identity (#5020).
-        let indices = selection.resolvedIndices(in: ocrGeometry?.boxes ?? [])
-        guard !indices.isEmpty else { return }
-        Task {
-            do {
-                let updated = try await artifactService.deleteRegions(
-                    artifactId: artifactId, documentId: documentId, indices: indices
-                )
-                ocrGeometry = updated.artifact.ocrGeometry
-                registerRegionUndo(updated, actionName: "Delete Regions")
-                selection.invalidate(artifactId: artifactId)
-                await reloadSegmentsAfterRegionEdit()  // the segments went with their boxes: every surface re-reads them (#6419)
-            } catch {
-                Self.logger.error("Region delete failed: \(String(describing: error))")
-            }
-        }
-    }
-
-    /// COMBINE: union bbox + texts in reading order — the ORDER is the
-    /// server's call, so click order stays free.
-    func combineSelectedRegions() {
-        if refusesEditOnMappedRendition() { return }
-        if joinSelectedSegments() { return }   // an imported page (#5152)
-        let selection = regionSelection
-        guard let artifactId = RegionEditTarget.forSelectionEdit(
-                  shownArtifactId: ocrGeometryArtifactId,
-                  selectionArtifactId: selection.artifactId,
-                  selectionCount: selection.count,
-                  minimumCount: 2
-              ),
-              let documentId, let artifactService else { return }
-        let indices = selection.resolvedIndices(in: ocrGeometry?.boxes ?? [])
-        guard indices.count >= 2 else { return }
-        Task {
-            do {
-                let updated = try await artifactService.combineRegions(
-                    artifactId: artifactId, documentId: documentId, indices: indices
-                )
-                ocrGeometry = updated.artifact.ocrGeometry
-                registerRegionUndo(updated, actionName: "Join Regions")
-                selection.invalidate(artifactId: artifactId)
-            } catch {
-                Self.logger.error("Region combine failed: \(String(describing: error))")
-            }
-        }
-    }
-
     /// PROMOTE: each marquee becomes its OWN region, in reading order — the
     /// diary-entry pattern (one entry, one bbox, later its own transcription).
     /// A page with no geometry artifact first gets a bare `regions` artifact
