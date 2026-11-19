@@ -1,7 +1,6 @@
 @testable import Fichero
 import Testing
 
-/// #6183: a ⌥-dragged box makes a segment; Escape during the drag makes nothing.
 @Suite("Make a new segment in the Preview (#6183)")
 @MainActor
 struct PreviewMakeNewSegmentTests {

@@ -181,6 +181,7 @@ extension ZoomableImagePreview {
     /// engine; closed, a segment of the kind last drawn; open, a line on it as a baseline, its outline from the ink, in
     /// the region holding most of it. ⌘Z.
     func drawMarkerStroke(_ stroke: [[Double]], closed: Bool) {
+        if refusesEditOnMappedRendition() { return }
         guard let passId = ocrGeometryPassId, let documentId, let store = segmentEditStore else {
             Self.logger.error("Marker stroke not sent: no pass is shown")
             return
@@ -227,6 +228,7 @@ extension ZoomableImagePreview {
     /// PAINT a line (`segment-editor.paintbrush`): one `segment.create` with the brush's stroke, in the region holding most
     /// of it; the engine makes the outline and the baseline. ⌘Z.
     func drawPaintStroke(_ stroke: [[Double]], widthPixels: Double) {
+        if refusesEditOnMappedRendition() { return }
         guard let passId = shownArtifactlessPassId, let documentId, let store = segmentEditStore else {
             Self.logger.notice("Paintbrush stroke not sent: the shown boxes are not a segment pass")
             return
@@ -246,6 +248,7 @@ extension ZoomableImagePreview {
 
     /// MOVE A CUT by its mark (`segment-editor.cut-marks-editable`): one `segment.move_cut`, the cut a person's now. ⌘Z.
     func moveCut(_ firstId: String, _ secondId: String, to place: Double) {
+        if refusesEditOnMappedRendition() { return }
         guard let documentId, let store = segmentEditStore else { return }
         let versions = Dictionary(
             store.segments(documentId: documentId).filter { $0.id == firstId || $0.id == secondId }
@@ -332,6 +335,7 @@ extension ZoomableImagePreview {
     /// CUT every line the Knife's stroke crosses (`segment-editor.split-knife`): one `segment.split` with the
     /// stroke and the versions of the page's lines it reaches, one ⌘Z. The engine says which lines it left alone.
     func knifeCut(_ stroke: [[Double]]) {
+        if refusesEditOnMappedRendition() { return }
         guard let documentId, let store = segmentEditStore else { return }
         runSegmentEdit(
             SegmentEdit.knife(stroke, over: store.segments(documentId: documentId)), documentId: documentId, name: "Cut Lines"
@@ -346,7 +350,6 @@ extension ZoomableImagePreview {
         _ planned: Result<SegmentEdit.Call, SegmentEdit.Refusal>, documentId: String, name: String,
         answered: @escaping @MainActor (ActionInvokeResult) -> Void = { _ in }
     ) {
-        if refusesEditOnMappedRendition() { return }
         guard case .success(let call) = planned else {
             if case .failure(let refusal) = planned {
                 Self.logger.notice("\(name, privacy: .public) not sent: \(String(describing: refusal), privacy: .public)")

@@ -153,28 +153,20 @@ extension ZoomableImagePreview {
     }
 
     func refreshMappedGeometry() {
-        guard let geometry = ocrGeometry, let loaded = renditionBoxes else {
-            mappedGeometryCache = nil
-            return
-        }
+        guard let geometry = ocrGeometry, let loaded = renditionBoxes else { return mappedGeometryCache = nil }
         mappedGeometryCache = SegmentOnRendition.mappedGeometry(geometry, on: loaded.answer)
     }
 
     /// True (after saying why) when the boxes on screen are mapped onto a rendition, so the edit is refused.
     func refusesEditOnMappedRendition() -> Bool {
-        guard let geometry = ocrGeometry, !geometryFrameMatchesDisplay(geometry), mappedRenditionGeometry != nil else {
-            return false
-        }
+        guard let geometry = ocrGeometry, !geometryFrameMatchesDisplay(geometry), mappedRenditionGeometry != nil else { return false }
         windowState?.segmentNotice = SegmentOnRendition.editRefusal
         return true
     }
 
     /// Ask the engine where the page's segments sit on the rendition now shown (#6420); when it does not know, say why.
     func loadRenditionBoxes() {
-        guard let documentId, let segmentService, let id = displayedRenditionId else {
-            renditionBoxes = nil
-            return
-        }
+        guard let documentId, let segmentService, let id = displayedRenditionId else { return renditionBoxes = nil }
         Task {
             do {
                 let answer = try await segmentService.segmentBoxes(documentId: documentId, renditionId: id)
