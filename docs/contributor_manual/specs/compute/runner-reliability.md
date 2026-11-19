@@ -330,6 +330,13 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   bytes and time left, resumes at launch whichever project started it (#5649, owner's ruling owed), and marks a model
   `installed` only after a load check; a failed download is `network` (Retry) or `model-broken` (Download again), never
   silent.
+- `runner.security.yolo-weights-pinned` — **[OK]** (#6697; `tests/unit/llm/test_yolo_pinned_and_hashed_6697.py`) the YOLO
+  layout weights are a pickle: the download names a commit revision, and a file whose sha256 differs from the pinned one is
+  refused as `model-broken` and never reaches `YOLO()`.
+- `runner.security.socket-and-keychain` — **[OK]** (#6704, #4818; `tests/unit/security/test_keychain_write_and_socket_mode_6704.py`)
+  the engine's Unix socket is mode 0600 right after bind; the keychain write passes the key on stdin (`security -i`), never
+  argv, and `security` is run as `/usr/bin/security`; the engine's `httpx` and `httpcore` loggers sit at WARNING so no request
+  URL is logged at INFO.
 
 ### D. Memory, and the Mac staying usable
 
