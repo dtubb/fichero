@@ -135,7 +135,7 @@ class TestKeychainWriteInvalidatesCache:
 
         # Simulate a successful keychain write (mock the macOS plumbing).
         monkeypatch.setattr(keychain, "_is_macos", lambda: True)
-        monkeypatch.setattr(keychain, "_run_security", lambda *a: (0, "", ""))
+        monkeypatch.setattr(keychain, "_run_security", lambda *a, **kw: (0, "", ""))
         assert keychain.set_api_key("openai", "rotated") is True
 
         # Cache was busted → next resolve reads fresh.
@@ -153,7 +153,7 @@ class TestKeychainWriteInvalidatesCache:
         assert reads["n"] == 1
 
         monkeypatch.setattr(keychain, "_is_macos", lambda: True)
-        monkeypatch.setattr(keychain, "_run_security", lambda *a: (0, "", ""))
+        monkeypatch.setattr(keychain, "_run_security", lambda *a, **kw: (0, "", ""))
         assert keychain.delete_api_key("anthropic") is True
 
         assert llm.get_api_key("anthropic") == "key-2"
