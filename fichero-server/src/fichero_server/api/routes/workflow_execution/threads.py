@@ -381,7 +381,7 @@ def _run_step_records(
         if doc_id
     }
     document_names = (
-        {doc.id: doc.name for doc in db.query(Document) if doc.id in doc_ids}
+        {doc.id: doc.name for doc in db.query_fields_in(Document, ["id", "name"], "id", doc_ids)}
         if doc_ids
         else {}
     )
