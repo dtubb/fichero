@@ -5763,8 +5763,9 @@ class _Scheduler:
         stored job goes back to waiting with the reason (`JobDeferred`; the throttle's same memory
         check holds it until it fits, and it resumes from its own checkpoint), and handed-in work,
         whose caller waits on this thread, waits here and tries again, unless its run is stopped."""
-        from fichero_server.execution.throttle import MemoryShortError
+        from fichero_server.execution.throttle import MEMORY_HOLD_PATIENCE_SECONDS, MemoryShortError
 
+        held_since: float | None = None
         while True:
             try:
                 if handed_in is None:
@@ -5774,6 +5775,11 @@ class _Scheduler:
             except MemoryShortError as exc:
                 if handed_in is None:
                     raise JobDeferred(str(exc)) from exc
+                held_since = held_since or time.monotonic()
+                if handed_in[3] and time.monotonic() - held_since >= MEMORY_HOLD_PATIENCE_SECONDS:
+                    from fichero_server.llm.retry import pause_the_run_for_memory
+
+                    pause_the_run_for_memory(handed_in[3], str(exc))  # held past its patience: the run pauses, never dies (#6075)
                 stopped = _run_stopped(handed_in[3], db)
                 if stopped:
                     raise JobCancelled(stopped) from exc
