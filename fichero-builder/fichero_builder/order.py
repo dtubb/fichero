@@ -89,10 +89,20 @@ def pending() -> bool:
     return any(x["id"] == LANE and any(s["state"] != "landed" for s in x["steps"]) for x in queue.load())
 
 
-def main(a) -> int:
+def main(a, store=None) -> int:
     data = json.loads(Path(a.file).read_text())
     import tomllib
     branch = tomllib.loads((Path(a.root) / "harness.toml").read_text()).get("land", {}).get("branch", "integration")
-    rc, out = save(a.root, [str(x) for x in data.get("order", [])], [str(x) for x in data.get("parked", [])], branch)
+    order = [str(x) for x in data.get("order", [])]
+    from fichero_builder import work_store, work_tree
+    store = store or work_store.open_store("github", cwd=a.root)
+    try:
+        work_tree.check_order(order, [m["title"] for m in store.milestones()])
+    except (ValueError, work_store.StoreError) as e:
+        print(f"REFUSED: {e}")
+        return 1
+    rc, out = save(a.root, order, [str(x) for x in data.get("parked", [])], branch)
+    if rc == 0:
+        work_tree.write_order(order)  # the record; save's own `order` row is the one row for this edit
     print(out)
     return rc

@@ -1,7 +1,14 @@
 """builder-console.work.counts-are-live (#6645): a milestone's step counts come from the lanes' steps, with ages, the lane and the last failure."""
 from __future__ import annotations
 
-from fichero_builder import work_tree
+import json
+import types
+from pathlib import Path
+
+import pytest
+
+from fichero_builder import __main__ as cli
+from fichero_builder import journal, order, queue, work_store, work_tree
 
 NOW = 10_000.0
 
@@ -43,3 +50,76 @@ def test_a_landed_step_whose_head_is_not_on_origin_counts_as_done_not_landed():
     t = work_tree.counts(lanes, now=NOW, on_origin=off)["m"]["states"]
     assert t["done-not-landed"]["n"] == 1 and t["landed"]["n"] == 1
     assert "done-not-landed" not in work_tree.counts(lanes, now=NOW)["m"]["states"]
+
+
+class Store:
+    """milestone title -> open issue numbers."""
+
+    def __init__(self, **ms):
+        self.ms = ms
+
+    def milestones(self):
+        return [{"title": t, "open": len(n), "closed": 0} for t, n in self.ms.items()]
+
+    def issues(self, milestone):
+        return [{"number": n, "title": "", "body": "", "labels": []} for n in self.ms[milestone]]
+
+
+@pytest.fixture
+def state(tmp_path, monkeypatch):
+    monkeypatch.setattr(journal, "STATE", tmp_path / "s")
+    monkeypatch.setattr(work_store, "open_store", lambda name, **kw: Store(**{"performance-sweep": [6600, 6601], "Builder": [6645]}))
+    return tmp_path
+
+
+def test_queue_add_with_issues_puts_the_lane_under_the_issues_milestone(state, capsys):
+    brief = state / "b.txt"
+    brief.write_text("x")
+    for lane, issue in (("x", "6600"), ("y", "9999")):
+        assert cli.main(["queue", "add", "--lane", lane, "--worktree", "/w", "--step", "1.1", "--brief", str(brief), "--issues", issue,
+                         "--state", str(state / "s")]) == 0
+    lanes = queue.load()
+    assert [(x["id"], x["milestone"]) for x in lanes] == [("x", "performance-sweep"), ("y", "unfiled")]
+    assert set(work_tree.counts(lanes)) == {"performance-sweep", "unfiled"}
+
+
+def test_issues_in_two_milestones_refuse_the_queue_add_and_the_lane_is_not_made(state, capsys):
+    brief = state / "b.txt"
+    brief.write_text("x")
+    rc = cli.main(["queue", "add", "--lane", "x", "--worktree", "/w", "--step", "1.1", "--brief", str(brief), "--issues", "6600", "6645",
+                   "--state", str(state / "s")])
+    assert rc == 1 and "more than one milestone" in capsys.readouterr().out and queue.load() == []
+
+
+def test_the_order_verb_refuses_a_name_with_no_milestone_by_name_and_writes_the_record_when_saved(state, monkeypatch, capsys):
+    f = state / "req.json"
+    args = types.SimpleNamespace(file=str(f), root=str(state))
+    (state / "harness.toml").write_text('[land]\nbranch = "integration"\n')
+    f.write_text(json.dumps({"order": ["Builder", "dev-workflows"]}))
+    saved = []
+    monkeypatch.setattr(order, "save", lambda *a: (saved.append(a), (0, "saving"))[1])
+    assert order.main(args, Store(Builder=[1])) == 1
+    assert "'dev-workflows'" in capsys.readouterr().out and saved == [] and work_tree.read_order() == []
+    f.write_text(json.dumps({"order": ["performance-sweep", "Builder"]}))
+    assert order.main(args, Store(**{"performance-sweep": [], "Builder": []})) == 0
+    assert work_tree.read_order() == ["performance-sweep", "Builder"] and len(saved) == 1
+
+
+def test_a_refused_save_leaves_the_record_as_it_was(state, monkeypatch):
+    work_tree.write_order(["Builder"])
+    (state / "harness.toml").write_text("")
+    (state / "req.json").write_text(json.dumps({"order": ["a", "Builder"]}))
+    monkeypatch.setattr(order, "save", lambda *a: (1, "a reorder is still saving"))
+    assert order.main(types.SimpleNamespace(file=str(state / "req.json"), root=str(state)), Store(a=[], Builder=[])) == 1
+    assert work_tree.read_order() == ["Builder"]
+
+
+def test_triage_order_appends_what_the_record_lacks_and_never_reorders(state):
+    work_tree.write_order(["b", "a"])
+    known = ["a", "b", "c", "d"]
+    assert work_tree.append_order(["a", "d", "c"], known) == ["d", "c"]
+    assert work_tree.read_order() == ["b", "a", "d", "c"]
+    assert work_tree.append_order(["a"], known) == []
+    with pytest.raises(ValueError, match="'zzz'"):
+        work_tree.append_order(["zzz"], known)
+    assert work_tree.read_order() == ["b", "a", "d", "c"]

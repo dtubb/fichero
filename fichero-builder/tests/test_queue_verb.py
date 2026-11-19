@@ -250,7 +250,7 @@ def test_the_worker_cap_holds_a_second_lane_back_until_the_first_is_finished(sta
     assert [s[0] for s in fake.starts] == ["m1", "m2"] and fake.stops == ["m1", "m2"]
 
 
-def test_add_merges_steps_into_a_lane_and_keeps_their_state_and_the_verb_refuses_without_its_arguments(state, capsys):
+def test_add_merges_steps_into_a_lane_and_keeps_their_state_and_the_verb_refuses_without_its_arguments(state, capsys, monkeypatch):
     lane(state)
     items = queue.load()
     items[0]["steps"][0]["state"] = "landed"
@@ -261,6 +261,7 @@ def test_add_merges_steps_into_a_lane_and_keeps_their_state_and_the_verb_refuses
     assert "needs" in capsys.readouterr().out
     loose = state / "loose-brief.txt"
     loose.write_text("the brief")
+    monkeypatch.setattr("fichero_builder.work_store.open_store", lambda name, **kw: type("S", (), {"milestones": lambda self: []})())
     assert cli.main(["queue", "add", "--lane", "m9", "--worktree", "/w", "--step", "1.1", "--brief", str(loose), "--issues", "3", "--state", str(state / "s")]) == 0
     assert queue.load()[1]["steps"][0]["issues"] == [3]
 

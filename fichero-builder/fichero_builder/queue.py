@@ -126,8 +126,8 @@ def workers(root) -> int:
 
 
 def add(lane_id: str, worktree: str, step: str, brief: str, issues: list[int], waits: list[str] | None = None, kind: str = "worker",
-        hold: bool | None = None, pane: str = "", maintainer: bool | None = None, role: str = "") -> None:
-    """A step at the end of its lane (made when new); a step the lane has already keeps its state."""
+        hold: bool | None = None, pane: str = "", maintainer: bool | None = None, role: str = "", milestone: str = "") -> None:
+    """A step at the end of its lane (made when new); a step the lane has already keeps its state. `milestone` is the lane's place in the work tree."""
     with journal.Lock("queue"):
         lanes = load()
         lane = next((x for x in lanes if x["id"] == lane_id), None)
@@ -136,6 +136,8 @@ def add(lane_id: str, worktree: str, step: str, brief: str, issues: list[int], w
             lanes.append(lane)
         elif lane["cursor"] >= len(lane["steps"]) and not any(s["step"] == step for s in lane["steps"]):
             lane.update(kind=kind, worktree=os.path.abspath(worktree))  # a finished lane handed new work takes its kind and tree
+        if milestone:
+            lane["milestone"] = milestone
         if hold is not None:
             lane["hold"] = hold  # a milestone a person holds: never taken by the intake
         if pane:
@@ -2125,8 +2127,16 @@ def main(a) -> int:
         if src.resolve() != dest.resolve():
             kept.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(src, dest)
+        milestone = ""
+        if a.issues:  # the lane joins the work tree under its issues' milestone (builder-console.ordered-work.one-source)
+            from fichero_builder import work_store, work_tree
+            try:
+                milestone = work_tree.milestone_of(work_store.open_store("github"), a.issues)
+            except (ValueError, work_store.StoreError) as e:
+                print(f"REFUSED: {e}")
+                return 1
         add(a.lane, a.worktree, a.step, str(dest), a.issues, role=a.role, kind=getattr(a, "kind", "worker"), hold=True if getattr(a, "hold", False) else None,
-            pane=getattr(a, "pane", ""), maintainer=True if getattr(a, "maintainer", False) else None)
+            pane=getattr(a, "pane", ""), maintainer=True if getattr(a, "maintainer", False) else None, milestone=milestone)
         print(f"queued {a.lane} {a.step}")
         return 0
     if a.action == "tell":  # dev-workflows.run.loop-tell: a finding into the lane's live session, as its next message
