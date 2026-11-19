@@ -507,3 +507,18 @@ def test_catch_up_never_brings_back_a_finished_run_and_a_parent_must_be_a_real_s
     with pytest.raises(ValueError, match="parent"):
         read_job.start(db, request, started_by="owner", target_factory=FakeHub)
     assert db.execute_fetchone("SELECT count(*) FROM jobs WHERE kind = ? AND parent_id = 'no-such-job'", [read_job.KIND])[0] == 0
+
+
+def test_a_shard_being_landed_shows_the_run_as_landing_and_it_is_done_after(db, archive, tmp_path):
+    """WHY (`activity.remote-under-its-step`): between the far side ending and the pages landing the row says `landing`."""
+    job_id, subject, target = _cluster_run(db, archive, tmp_path)
+    seen = []
+
+    def watching_land(*args, **kwargs):
+        seen.append(read_job.status(db, job_id)["far_state"])
+        return read_job.land_shard(*args, **kwargs)
+
+    read_job.run(db, subject, target=target, sleep=lambda s: None, land=watching_land)
+    assert seen and set(seen) == {"landing"}
+    status = read_job.status(db, job_id)
+    assert status["far_state"] == "done" and "landing_now" not in status
