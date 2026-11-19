@@ -313,8 +313,8 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   `circuit_breaker.call_with_breaker`): a 429 or in-flight budget backs off honouring Retry-After and pauses after
   `RATE_LIMIT_PAUSE_AFTER` spent calls; a 402 with no credit, a 401 and a key limit PAUSE and ask (owed, #6675); a 5xx or a
   dropped connection backs off then pauses as `network` (owed); a 404 or a refused request fails the page as `model-error`;
-  one cap of calls in flight per provider across every run; LangChain's own retries off behind the breaker (owed, #5944).
-  Built: the classification, the in-flight budget as a slow-down, the per-provider cap, the rate-limit pause. *Test:*
+  one cap of calls in flight per provider across every run; LangChain's own retries off behind the breaker.
+  Built: LangChain's own retries off (`max_retries=0`) with a call sent at most 5 times by the breaker, the classification, the in-flight budget as a slow-down, the per-provider cap, the rate-limit pause. *Test:*
   `fichero-server/tests/unit/workflows/test_in_flight_budget_6671.py`, `test_rate_limit_backs_off_then_pauses_6584.py`.
 - `runner.cloud.batch` — **[PARTIAL]** (#5940, #6251; `compute/recipe-steps-at-scale.md` owns it) a provider batch's
   errored or expired lines fail only their pages (`model-error`), a batch the account cannot pay for pauses as `no-credit`,
