@@ -82,7 +82,6 @@ struct RegionInteractionLayer: View {
     var drawKind: SegmentShapes.DrawKind = .box
     /// Commit a drawn polygon or baseline: (its kind, its points). Nil: the Shape tool drags boxes only.
     var onDrawShapeCommit: ((SegmentShapes.DrawKind, [[Double]]) -> Void)?
-    /// A ⌥-dragged box on empty page, in the page's fractions: makes a segment of the kind last drawn. Nil: no such gesture here.
     var onDrawBox: (([Double]) -> Void)?
     /// Commit a Knife stroke (K held): its points, in the page's fractions. Nil: no Knife here.
     var onKnifeCommit: (([[Double]]) -> Void)?

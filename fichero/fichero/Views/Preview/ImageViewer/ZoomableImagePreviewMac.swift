@@ -394,9 +394,16 @@ struct ZoomableImagePreview: View {
         .onChange(of: renditionIndex) { _, _ in publishHeadChrome() }
     }
 
+    // Its own short chain, so the type-checker copes.
+    private var renditionLayer: some View {
+        lifecycleLayer
+            .onChange(of: displayedRenditionId) { _, _ in loadRenditionBoxes() }
+            .onChange(of: ocrGeometry) { _, _ in refreshMappedGeometry() }
+    }
+
     /// Layer 2: notification + change observation.
     private var observationLayer: some View {
-        lifecycleLayer
+        renditionLayer
             // The head's markup row (Daniel, 2026-08-29): highlight and note
             // arm the same region-draw path the bottom bar's buttons used to.
             .onReceive(NotificationCenter.default.publisher(for: .previewAnnotateTool)) { note in
@@ -432,8 +439,6 @@ struct ZoomableImagePreview: View {
                 handleReaderTextSelection(note)
             }
             .onChange(of: annotationStore.changeToken) { _, _ in loadAnnotations() }
-            .onChange(of: displayedRenditionId) { _, _ in loadRenditionBoxes() }
-            .onChange(of: ocrGeometry) { _, _ in refreshMappedGeometry() }
             .onChange(of: renderedImage) { _, newImg in handleRenderedImageChanged(newImg) }
             .onChange(of: scale) { _, newScale in handleScaleChanged(newScale) }
             .onChange(of: documentId) { _, _ in handleDocumentIDChangedForHighRes() }

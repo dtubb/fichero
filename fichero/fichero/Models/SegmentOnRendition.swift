@@ -72,7 +72,6 @@ enum SegmentOnRendition {
         return mapped
     }
 
-    /// Whether a mapped box has a place on the picture.
     static func isDrawn(_ box: OCRGeometryBox) -> Bool {
         box.bbox.count >= 4 && box.bbox[2] > 0 && box.bbox[3] > 0
     }
