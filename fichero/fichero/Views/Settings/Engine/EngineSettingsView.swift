@@ -14,6 +14,7 @@ struct EngineSettingsView: View {
     @State private var restartError: String?
     @State private var advanced = ServerAdvancedModel()
     @State private var clients: [String] = []
+    @State private var tailnetURL: String?
 
     var body: some View {
         Form {
@@ -28,6 +29,16 @@ struct EngineSettingsView: View {
                             Task { await restartEngine() }
                         }
                         .disabled(!ServerSettingsText.canRestart(isRestarting: isRestarting, engineIsLocal: EngineConfig.engineIsLocal))
+                    }
+                }
+                let addresses = ServerSettingsText.reachableAt(
+                    running: appState.isBackendRunning && EngineConfig.engineIsLocal,
+                    hostName: (ProcessInfo.processInfo.hostName.split(separator: ".").first.map(String.init) ?? ProcessInfo.processInfo.hostName),
+                    port: 8765, tailnetURL: tailnetURL)
+                if !addresses.isEmpty {
+                    LabeledContent("Reachable at") {
+                        VStack(alignment: .trailing) { ForEach(addresses, id: \.self) { Text($0).textSelection(.enabled) } }
+                            .foregroundStyle(.secondary)
                     }
                 }
                 if let stats = storageStats {
@@ -64,6 +75,9 @@ struct EngineSettingsView: View {
             await appState.identityStore.load()
             await loadStorageStats()
             await loadClients()
+            if EngineConfig.engineIsLocal {
+                tailnetURL = try? await PairingService(apiRoot: EngineConfig.host).detectedTailnetURL()
+            }
         }
     }
 
