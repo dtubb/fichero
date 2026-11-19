@@ -48,7 +48,7 @@ def _make_fixture(tmp_path: Path, pbx_contents: str = "// no version literals\n"
         encoding="utf-8",
     )
     (root / "RELEASE_NOTES.md").write_text(
-        "## 2026.07.01\n\n- previous entry\n", encoding="utf-8"
+        "## 2026.07.31-beta\n\n- this release\n\n## 2026.07.01\n\n- previous entry\n", encoding="utf-8"
     )
     # The stamp gate (2026-08-27) refuses a version with no CHANGELOG section;
     # an Unreleased section is what it auto-promotes.
@@ -92,9 +92,28 @@ def test_stamp_round_trips_through_xcconfig(tmp_path: Path) -> None:
     pyproject = (root / "fichero-server" / "pyproject.toml").read_text(encoding="utf-8")
     assert 'version = "2026.7.31b1"' in pyproject
 
-    # Release-notes heading tracks the stamp.
+    # The notes already carry this version's section; the stamp leaves them alone.
     notes = (root / "RELEASE_NOTES.md").read_text(encoding="utf-8")
-    assert notes.startswith("## 2026.07.31-beta\n")
+    assert notes == "## 2026.07.31-beta\n\n- this release\n\n## 2026.07.01\n\n- previous entry\n"
+
+
+def test_the_stamp_never_retitles_an_older_section(tmp_path: Path) -> None:
+    root = _make_fixture(tmp_path)
+    (root / "RELEASE_NOTES.md").write_text("## 2026.07.01\n\n- previous entry\n", encoding="utf-8")
+    before = (root / "fichero" / "Configs" / "Version.xcconfig").read_text(encoding="utf-8")
+    result = _run_stamp(root, "2026.07.31")
+    assert result.returncode != 0
+    assert "no '## 2026.07.31' section" in result.stderr
+    assert (root / "RELEASE_NOTES.md").read_text(encoding="utf-8") == "## 2026.07.01\n\n- previous entry\n"
+    assert (root / "fichero" / "Configs" / "Version.xcconfig").read_text(encoding="utf-8") == before
+
+
+def test_print_version_gives_the_version_and_touches_nothing(tmp_path: Path) -> None:
+    root = _make_fixture(tmp_path)
+    result = _run_stamp(root, "2026.07.31", "--beta", "--print-version")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout == "2026.07.31-beta\n"
+    assert (root / "RELEASE_NOTES.md").read_text(encoding="utf-8").startswith("## 2026.07.31-beta\n")
 
 
 def test_build_counter_increments_from_previous_stamp(tmp_path: Path) -> None:
@@ -105,7 +124,7 @@ def test_build_counter_increments_from_previous_stamp(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     (root / "RELEASE_NOTES.md").write_text(
-        "## 2026.09.03\n\n- previous entry\n", encoding="utf-8"
+        "## 2026.09.04\n\n- this release\n\n## 2026.09.03\n\n- previous entry\n", encoding="utf-8"
     )
     result = _run_stamp(root, "2026.09.04")
     assert result.returncode == 0, result.stdout + result.stderr
@@ -117,6 +136,7 @@ def test_stamp_refuses_pbxproj_version_literals(tmp_path: Path) -> None:
     root = _make_fixture(
         tmp_path, pbx_contents="\t\t\t\tMARKETING_VERSION = 2026.07.01;\n"
     )
+    (root / "RELEASE_NOTES.md").write_text("## 2026.07.31\n\n- this release\n", encoding="utf-8")
     result = _run_stamp(root, "2026.07.31")
     assert result.returncode != 0
     assert "single source" in result.stderr
@@ -198,6 +218,7 @@ def test_the_stamp_leaves_another_tables_own_version_alone(tmp_path: Path) -> No
     two tables are stamped.
     """
     root = _make_fixture(tmp_path)
+    (root / "RELEASE_NOTES.md").write_text("## 2026.09.21\n\n- this release\n", encoding="utf-8")
     result = _run_stamp(root, "2026.09.21")
     assert result.returncode == 0, result.stdout + result.stderr
 

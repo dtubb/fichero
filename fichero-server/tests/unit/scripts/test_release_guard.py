@@ -577,6 +577,7 @@ def test_release_all_names_a_single_tier_dmg_fichero_dmg_and_publishes_before_te
     assert 'case "$DMG_TIER:${#DMG_TIERS[@]}" in\n      dev:2) TIER_DMG_PATH="$DEV_DMG_PATH"' in r
     assert r.index('run_part Publish publish_part') < r.index('run_part "Mac TestFlight" mac_testflight')
     assert r.index('guard auto-notes') < r.index('check_release_docs_ready.py')
+    assert r.index('guard auto-notes') < r.index('set-release-version.sh" "${STAMP_ARGS')
     assert "verify-appcast" in r
 
 
