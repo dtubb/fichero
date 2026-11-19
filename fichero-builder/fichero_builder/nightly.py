@@ -244,13 +244,6 @@ def real_runners(root, cfg: Cfg, branch: str, state, texter: Callable[[str], Non
     def publish(sha):
         return _on(cfg.build_machine, f"cd {_q(tree(cfg.build_machine, 'dmg'))} && scripts/release-all.sh --{cfg.publish} --skip-dmg --github --prerelease", 7200)
 
-    def text(msg):
-        to = os.environ.get("FICHERO_NIGHTLY_TEXT_TO")
-        if not to:
-            raise RuntimeError("FICHERO_NIGHTLY_TEXT_TO names nobody to text")
-        script = f'tell application "Messages" to send {_as(msg)} to participant {_as(to)} of (1st account whose service type = iMessage)'
-        subprocess.run(["osascript", "-e", script], check=True, capture_output=True, text=True)
-
     def test_list(sha):
         p = subprocess.run(["git", "-C", str(root), "log", "--format=- %s", f"origin/main..{sha}"], capture_output=True, text=True)
         return f"Fichero dev build {sha[:9]} is published. To try:\n" + "\n".join(p.stdout.splitlines()[:30])
@@ -260,7 +253,16 @@ def real_runners(root, cfg: Cfg, branch: str, state, texter: Callable[[str], Non
         if out.returncode:
             raise RuntimeError(f"no origin/{branch}: {out.stderr.strip()}")
         return out.stdout.strip()
-    return Runners(head=head, check=check, dmg=dmg, smoke=smoke, publish=publish, text=texter or text, test_list=test_list)
+    return Runners(head=head, check=check, dmg=dmg, smoke=smoke, publish=publish, text=texter or text_owner, test_list=test_list)
+
+
+def text_owner(msg: str) -> None:
+    """An iMessage to FICHERO_NIGHTLY_TEXT_TO; an unset variable is an error, not a silent skip."""
+    to = os.environ.get("FICHERO_NIGHTLY_TEXT_TO")
+    if not to:
+        raise RuntimeError("FICHERO_NIGHTLY_TEXT_TO names nobody to text")
+    script = f'tell application "Messages" to send {_as(msg)} to participant {_as(to)} of (1st account whose service type = iMessage)'
+    subprocess.run(["osascript", "-e", script], check=True, capture_output=True, text=True)
 
 
 def _as(s: str) -> str:

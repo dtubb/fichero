@@ -1,8 +1,6 @@
 """dev-workflows.run.release-stages: stages resume from the first not green; red calls the manager once, then resumes."""
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from fichero_builder import journal, release_run as rr

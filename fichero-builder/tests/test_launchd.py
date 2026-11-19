@@ -139,3 +139,11 @@ def test_a_no_session_alert_is_one_per_lane_per_day_and_none_for_a_lane_whose_st
     queue.save(lanes)
     queue.repane(listing)
     assert [r["lane"] for r in alerts()] == ["a", "a"] and queue.load()[0]["no_session"] > "2026-11-10", "a day later, still nobody: one more, stamped today"
+
+
+def test_the_release_agent_starts_the_stage_run_nightly_with_no_keepalive(state):
+    paths = queue.launch_agents("/r", state / "la", state=state / "s")
+    rel = plistlib.loads(paths[3].read_bytes())
+    assert paths[3].name == "local.builder.release.plist" and "KeepAlive" not in rel
+    assert rel["StartCalendarInterval"] == {"Hour": 3, "Minute": 0}
+    assert rel["ProgramArguments"][3:] == ["release", "--root", "/r", "--state", str(state / "s")]

@@ -170,6 +170,10 @@ def main(argv=None) -> int:
     la.add_argument("--root", default=str(Path.cwd())), la.add_argument("--state"), la.add_argument("--tick", type=float, default=30.0)
     la.add_argument("--port", type=int, default=8766, help="the console's port"), la.add_argument("--load", action="store_true", help="launchctl bootout + bootstrap each agent")
     la.add_argument("--out", default=str(Path.home() / "Library" / "LaunchAgents"))
+    rl = sub.add_parser("release", help="run (or resume) tonight's release stages; a model is started only when a stage is red (#6726)")
+    rl.add_argument("--root", default=str(Path.cwd())), rl.add_argument("--state"), rl.add_argument("--run", help="the run id to resume (default: today's date)")
+    rl.add_argument("--mac", default="local"), rl.add_argument("--ios", default="local"), rl.add_argument("--check-runner", default="local")
+    rl.add_argument("--floor-gb", type=int, default=60, help="the free disk a runner needs")
     al = sub.add_parser("alert", help="answer one alert row (dev-workflows.run.loop-alerts): retry | park | ask-owner, or approve | send-back for needs-maintainer")
     al.add_argument("id"), al.add_argument("action")
     al.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
@@ -379,6 +383,18 @@ def main(argv=None) -> int:
             if a.restart:
                 print(f"loop restarted, pid {queue.restart_loop(a.restart, a.tick)}")
         return 1 if aid else 0
+    if a.cmd == "release":
+        from fichero_builder import nightly, release_run, start_tool
+
+        journal.STATE = Path(a.state) if a.state else journal.STATE
+        claude = start_tool.find_claude()
+        if not claude:
+            print("no claude on PATH: the manager session for a red stage cannot start")
+            return 1
+        run_id = a.run or time.strftime("%Y-%m-%d")
+        st = release_run.real_stages(a.root, journal.STATE, run_id, mac=a.mac, ios=a.ios, check_runner=a.check_runner, floor_gb=a.floor_gb, text=nightly.text_owner)
+        ok = release_run.run(run_id, st, release_run.manager_session(journal.STATE, claude), lambda m: (print(m), nightly.text_owner(m)))
+        return 0 if ok else 1
     if a.cmd == "launchd":
         from fichero_builder import queue
 

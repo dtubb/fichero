@@ -987,7 +987,8 @@ def launch_agents(root, out, *, state=None, tick_s: float = 30.0, port: int = 87
     st = ["--state", str(state)] if state else []
     jobs = {"loop": (["loop", "--root", str(root), "--tick", f"{tick_s:g}", *st], {"KeepAlive": True, "RunAtLoad": True, "AbandonProcessGroup": True}),
             "heartbeat": (["heartbeat", "--tick", f"{tick_s:g}", *st], {"StartInterval": int(3 * tick_s)}),
-            "console": (["status", "--port", str(port), "--root", str(root), *st], {"KeepAlive": True, "RunAtLoad": True})}
+            "console": (["status", "--port", str(port), "--root", str(root), *st], {"KeepAlive": True, "RunAtLoad": True}),
+            "release": (["release", "--root", str(root), *st], {"StartCalendarInterval": {"Hour": 3, "Minute": 0}})}  # #6726: the nightly release; no model runs while it is green
     out.mkdir(parents=True, exist_ok=True)
     paths = []
     for name, (args, when) in jobs.items():
