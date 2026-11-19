@@ -226,7 +226,7 @@ already supports.
 Ruled by the maintainer 2026-10-06: a trained model lives inside its project, its card and its
 weights both, in the project's package (not kept once in the machine's store and referenced by
 checksum); an audited action makes it global; a model trained on data that may not be released
-(Sergio's) is never publishable, wherever it is copied. Training, fine-tuning and distilling are recipe
+(the notebook corpus's) is never publishable, wherever it is copied. Training, fine-tuning and distilling are recipe
 steps like any other (the guided path in `source/models-chains-and-projects.md`), run by the job runner
 under the memory rules below and where the compute is (Hugging Face Jobs, ACENET or another Alliance
 cluster, a bigger Mac).
@@ -258,8 +258,8 @@ cluster, a bigger Mac).
   store; every project's discovery and bake-off can then offer it.
 - `compute.model.never-publishable-stays-so` — **[OK]** (#5539) *Built: Make Global copies the card
   unchanged, `not_for_release` included, and reports `may_publish` from it. Tested in
-  `test_make_global_keeps_a_model_that_may_not_be_released_unreleasable`.* A model that may not be
-  released (Sergio's: trained on data that may not be released) stays so wherever it is copied.
+  `fichero-server/tests/unit/training/test_models_live_in_the_project.py::test_make_global_keeps_a_model_that_may_not_be_released_unreleasable`.* A model that may not be
+  released (the notebook corpus's: trained on data that may not be released) stays so wherever it is copied.
 - `compute.model.publish` — **[GAP]** (#5539) To Hugging Face or Zenodo with its card, its base's
   licence, the training data's consent (refused where the data may not be released) and its scores with
   the sets they were measured on (`compute/distillation.md`, best practice).
@@ -651,7 +651,7 @@ needs them.
   ACENET's cluster, a cloud service), each with its time, cost and greenhouse gas marked measured,
   estimate or unknown (`activity.run.where-and-estimate`, `activity.ghg.estimate-with-its-basis`),
   and the base the recipe picked (`source.recipe.picks-the-tuning-base`). Today the training routes
-  have no caller in the app; Sergio's runs are made by API and CLI. The estimate covers the whole
+  have no caller in the app; the notebook corpus's runs are made by API and CLI. The estimate covers the whole
   archive before anything starts (`recipe.distil.whole-archive-estimate-first`).
 - `compute.tune.local-mlx-shown-never-default` — **[GAP]** (#5440, #5240) fine-tuning a vision or
   language model with MLX on this Mac is offered with its estimated time, because it is slow, and is
@@ -694,7 +694,7 @@ needs them.
   schedule its base reader carries, so every base trains alike and none starts with no end. Until 2026-10-04 the
   trainer passed `-q early` with no ceiling and no schedule; the PP-OCRv6 base brings a cosine schedule,
   whose step count was then infinite, and ketos stopped at once (`OverflowError: cannot convert float
-  infinity to integer`, Mosquera HF Job 6ac26009…, 72 s); the McCATMuS base trained.
+  infinity to integer`, the notebook corpus HF Job 6ac26009…, 72 s); the McCATMuS base trained.
 - `compute.tune.hf-token-checked-first` — **[OK]** (#5526; built: `training/hf_jobs.py` `HfJobsTarget.check_token` (whoami; a `fineGrained` token needs `job.write` and `repo.write`, a `read` one is refused) and `rejected`, called by `training/job.py` in `start` and before preparing in `run`, and for a 401/403 at sending; tested in `fichero-server/tests/unit/training/test_hf_training_preflight_to_spec.py`; the old jobs' reasons of #5526 item 4 are not rewritten) training on Hugging Face asks the service who the
   token belongs to, and whether it may run Jobs and write to the person's repositories and buckets, BEFORE
   anything is queued and again before the training set is prepared, so a token that cannot do the work is
@@ -702,7 +702,7 @@ needs them.
   app supplied, or the one in the Keychain) and what it lacks; a token the service refuses (while checking,
   sending or submitting) ends the job with "Hugging Face rejected the token …", never as a failed Job. When
   the app-supplied token is refused and the Keychain holds a different one that the service accepts, the
-  refusal says so and names both; Fichero never quietly uses the other token instead. Sergio's two runs of
+  refusal says so and names both; Fichero never quietly uses the other token instead. The notebook corpus's two runs of
   2026-10-06 prepared for ~9.6 min each and then failed at sending with "Invalid user token." from a stale
   app-supplied key while the Keychain token was valid.
 - `compute.tune.kraken-batch-fits-the-gpu` — **[OK]** (#5527; built: `TrainKrakenRequest.batch_size`, `training/hf_jobs.py` `KRAKEN_BATCH_BY_FLAVOR` and `kraken_batch`, `hf_kraken_train.py --batch`, the row's and the start answer's `batch_size`; tested in `fichero-server/tests/unit/training/test_hf_training_preflight_to_spec.py`; the plan saying which GPU a base needs before it starts is not built) a Kraken training on Hugging Face takes an
@@ -715,7 +715,7 @@ needs them.
   reading check flagged (`source.lines.reading-checked-against-the-page`: a reading that belongs to a
   neighbour, a null or empty reading, one below the set score) and every line a person rejected, and
   records on the set and on the job's card how many it left out and why, by flag. A set built before
-  the check ran says so. The Mosquera teacher set of 2026-10-04 (55 photos, 4,793 lines) had no such
+  the check ran says so. The notebook-corpus teacher set of 2026-10-04 (55 photos, 4,793 lines) had no such
   check and carried shifted lines; both trainings on it were cancelled to retrain on a checked set. **Preview and start agree (#5699):** the set finds a page's photograph where every step does
   (`resolve_source`: a copy-imported page's stored path is inside the package), never the stored path as it
   stands; the checks, the reasons and text extraction likewise. A start whose set would be empty (on this Mac,

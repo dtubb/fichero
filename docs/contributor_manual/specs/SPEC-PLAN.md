@@ -81,8 +81,8 @@ maintainer's step document (Mellel, to come) sets the order. Build next.
 **Specs to write, in this order:**
 
 1. **Projects harness and the improvement loop** (`~/code/fichero-projects/SPEC.md`, its own
-   private repository). Fichero as the harness for real projects that train models: Sergio
-   Mosquera's notebooks (one hand, about 400 pages, a Qwen-VL transcription to correct) and the
+   private repository). Fichero as the harness for real projects that train models: the notebook corpus
+   its notebooks (one hand, about 400 pages, a Qwen-VL transcription to correct) and the
    a handwritten diary (one hand) first; then a regional court and civil archive (damaged, many hands, 1870s to 1980s);
    Spanish hands from the twenty-first century backwards. The loop:
    1. a frontier model drafts ground truth;

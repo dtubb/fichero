@@ -56,7 +56,7 @@ noise; and the person's corrections of the new model's output feed the next trai
   dev and test sets kept apart; repeat and report the spread) is in `compute/distillation.md`
   "Best practice the loop enforces" (#5538). This spec does not restate it.
 - **A/B discipline:** the same test set for every candidate, a stated noise band, a fixed tie-break
-  order and a kept record. The project's ruling on Sergio's data is a noise band of 0.5 CER points
+  order and a kept record. The project's ruling on the notebook corpus's data is a noise band of 0.5 CER points
   (ruled 2026-10-03).
 
 ## What exists today (VERIFIED on disk 2026-10-10)
@@ -161,7 +161,7 @@ One sheet, in the engine's words, built from one `GET` plan before anything is p
    knows what the training must beat). "Not measured yet" with a Measure button when it has not run.
 4. **Where it trains**, with the cost shown before Train (Screen 2); nothing leaves the Mac until
    Train is pressed; a **Not for release** badge whenever the folder's rights say the pages may not
-   be released (the Sergio rule), carried onto the card.
+   be released (the notebook corpus rule), carried onto the card.
 
 ### Screen 2 — Where it trains, compared
 
@@ -284,7 +284,7 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
 - **The noise band** (ruled 2026-10-10: **measured per project**): each project measures its own noise from
   repeated scoring of its held-out pages (the same model run twice, and models known to be equal), per model
   kind in that kind's unit, and keeps it with the measurement; until measured, the 0.5 CER points of the
-  Sergio ruling stands in, labelled as not yet measured. A difference smaller than it is not a win, and the table says "too close to call". The same band
+  notebook corpus ruling stands in, labelled as not yet measured. A difference smaller than it is not a win, and the table says "too close to call". The same band
   serves the bake-off's ranking bands, the reasons A/B and regression. Today the bake-off uses one
   point and the reasons A/B 0.5 (see "Contradictions").
 

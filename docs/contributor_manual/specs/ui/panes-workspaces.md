@@ -334,7 +334,7 @@ starting a new one.
   `Models/SidebarColumnStateTests.swift`.
 - `panes.chrome.bars-do-not-name-the-selection` — **[PARTIAL]** (#4880) (owner 2026-11-13, a screenshot) a pane's bottom bar never
   repeats what is selected: the Inspector's Content, Info, Outline and Order bars carried the selected item's name
-  (`EAP1477_…_IMG_009.jpg`) as their status line, which the pane head and the toolbar already say. The bar stays
+  (a test page) as their status line, which the pane head and the toolbar already say. The bar stays
   (every inspector sub-pane has one, the 2026-08-23 rule), with its controls and no name; a pane whose bar counts
   something (notes, citations, entities) keeps its count. *Built:* `DocumentInspector.withInspectorBar` passes no
   status, `InspectorBottomMiniToolbar` draws none when it is empty. *Not built:* a look on screen. *Tests:*

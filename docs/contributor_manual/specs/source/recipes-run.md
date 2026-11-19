@@ -9,7 +9,7 @@
 > of 2026-10-26 (paraphrased): what matters most is that recipes RUN, reliably: the engine does not
 > crash, memory does not leak, a run on 20 to 100+ pages finishes, and the recipe runner was never
 > properly finished as a spec. Facts read from the code of origin/integration at 2e6e62c8a and from the
-> dogfood run of 2026-10-26 (`agent-work/status/briefs/dogfood-b12-2026-10-26.md`: one 20-page run
+> dogfood run of 2026-10-26 (the dogfood brief of that day: one 20-page run
 > wedged three times). Milestone `recipes-run` created on approval; its description points here.
 >
 > **Owns / Does not own (2026-11-18, one owning spec per area).** This spec OWNS a recipe run from Start to the summary: the
@@ -248,7 +248,7 @@ replaces the Kraken figure before #6212 is coded.
   engine (`FICHERO_BASE_PATH` a fresh directory, never the owner's app database) ends done with no step
   failed outright, the engine process alive throughout and `/api/health` answering within 1 s at every
   sample; it is the M4 gate's load leg (#4634), marked slow and skipped on the Pro. Nothing today runs a
-  whole recipe at that size: the owner's 20-page runs wedged three times (dogfood B12) and a Dev Local
+  whole recipe at that size: the owner's 20-page runs wedged three times (dogfood on a test box) and a Dev Local
   engine was SIGKILLed at 14.9 of 16 GB of swap (#6075). The load leg is written (skipped unless
   `FICHERO_LOAD_LEG_PAGES` names a folder of 100+ pages) and not yet run on the M4. Test: fichero-server/tests/perf/test_recipe_run_100_pages.py.
 - `recipes-run.reliability.a-page-never-spins-silently` — **[PARTIAL]** (#6236) no page holds a step without a
@@ -467,7 +467,7 @@ replaces the Kraken figure before #6212 is coded.
   reaches N of N and the thumbnails-first hold lifts. Today the recipe run and the import's pages do
   (`activity.durable.dies-with-the-engine`), but a thumbnail claim whose file does NOT exist is neither
   run nor released, so `activity.lane.thumbnails-first` held every Kraken, embed and spaCy job forever
-  across three restarts (dogfood B12: 81 of 95 thumbnails, the 14 missing pages never made).
+  across three restarts (dogfood on a test box: 81 of 95 thumbnails, the 14 missing pages never made).
   Built: the reopen puts every claim no live thread runs back to waiting, and a running thumbnail row no thread runs is
   requeued by the next scan (`requeue_orphaned_first`), so the hold lifts. Left: the real kill-and-restart run on the M4
   that shows `Make thumbnails` reaching N of N. Test: fichero-server/tests/unit/jobs/test_thumbnail_claims_requeued_after_crash.py.
@@ -496,7 +496,7 @@ replaces the Kraken figure before #6212 is coded.
 - `recipes-run.isolation.one-project-never-blocks-another` — **[PARTIAL]** (#6213) the lanes are shared,
   the holds are not: a project whose rows are wedged (running with no worker) never holds the thumbnail,
   model or embed lane against another project; a fresh project's import makes its first thumbnail within
-  a minute whatever another project's rows say. Dogfood B12 23:50Z: a fresh project sat at 0 of 20,
+  a minute whatever another project's rows say. Dogfood on a test box 23:50Z: a fresh project sat at 0 of 20,
   "Waiting for the thumbnail lane: work in another project is running", on the wedged project's phantom
   rows. Built: an images-lane job running past `STUCK_IMAGE_JOB_SECONDS` (60 s) holds no slot, no one-heavy hold and no
   waiting row's reason, and the lane starts a thread beside it (at most `slots` more); its row stays running. The one-slot
@@ -511,7 +511,7 @@ replaces the Kraken figure before #6212 is coded.
   Test: fichero-server/tests/unit/jobs/test_lanes_released_per_project.py.
 - `recipes-run.isolation.release-never-refused-by-a-phantom` — **[OK]** (#6213) releasing a library
   refuses only for a run with a live thread of this engine, naming the run and its state; with every thread
-  terminal it releases. Dogfood B12: `fichero_library_release` answered 409 "1 workflow run(s) are going"
+  terminal it releases. dogfood on a test box: `fichero_library_release` answered 409 "1 workflow run(s) are going"
   with `list_threads` empty and every thread terminal. Test: fichero-server/tests/unit/jobs/test_lanes_released_per_project.py.
 
 ### 10. A run can be stopped, paused and resumed

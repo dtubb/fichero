@@ -108,7 +108,7 @@ in the file's own status), never a silent nothing.
   `::test_image_file_skips_text_extraction` (no `.jpg`→`.txt` fallback attempted).
 - `importer.derivative-generation-visible-failure` — **[OK]** an eligible file (image/PDF)
   gets a thumbnail derivative queued, and a failure in that stage is visible, never silent.
-  Pinned: `test_post_ingest_derivatives.py::TestTheStageProducesADerivative`,
+  Pinned: `fichero-server/tests/unit/api/test_post_ingest_derivatives.py::TestTheStageProducesADerivative`,
   `::TestFailureIsVisibleNotSilent`.
   The thumbnails are made before heavy local work queued after them (#5585,
   `activity.lane.thumbnails-first` in `ui/activity-pane.md`), and a folder the import
@@ -364,7 +364,7 @@ Two clusters, neither with a spec today:
   operational/infrastructure bug in one collection's staging pipeline, not an app behavior.
 - **#1331** ("Black folder + Maps folder metadata fusion") — dataset-specific metadata work
   for one named collection.
-- **#1235** ("import Sergio Mosquera notebooks"), **#1233** ("import already-catalogued GHC
+- **#1235** ("import a notebook corpus"), **#1233** ("import already-catalogued
   materials") — literal data-loading tasks for named collections, not spec behaviors.
 
 **Milestones**: neither #188 nor #65 reaches zero this pass. #188 (25 open) loses 6 (5 fit,
@@ -502,11 +502,11 @@ from this pass shipped and closed at 177fc6cd3). Everything else stays on #188.
 - `importer.image-ingest-limit-200-megapixels` — **[PARTIAL]** (#5183, #5515) the ingest decompression-bomb limit is 200 MP (loaders/image_loader.py, with PIL's own guard moved to match; a refusal names the pixel count, and the 74.8 MP Reichsanzeiger page from #5183 ingests; pinned by fichero-server/tests/unit/loaders/test_ingest_limit_200mp.py); still owed: images above about 64 MP shown through tiles or downsampled previews so memory stays bounded. (Ruled 2026-09-28.)
 - `importer.copy-mode-drop-pairs-layout-with-image` — **[GAP]** (#5220) a COPY-mode drop of loose files pairs a layout file with its image like link and move do (case-blind pairing landed in ad8b7c4bc, e6db06f05, 964470d1b).
 - `importer.missing-original-fails-in-words` — **[GAP]** (#5818) a page whose original is not where it was imported from fails its thumbnail job in words, "<file> isn't where it was imported from: Locate Originals…" (the sentence #5811 gives a try), so the job row ends `failed` naming the file instead of finishing silently; the batch ends with each failed page named. A run waiting behind thumbnails says what it waits for (the stage, the pages that failed and why): `activity.waiting-says-why` (`execution/jobs.py` `first_reason`: the held row appends up to four thumbnail pages that failed since it was queued, newest first; tested in `tests/unit/jobs/test_a_waiting_run_says_what_it_waits_for_5818.py`).
-- `importer.derivative-source-found-for-resumed-documents` — **[BROKEN]** (#5408) resuming derivatives finds each pending document's source (SM_NPQ_C01_* on the Sergio library fail with 'source not found') or says why.
+- `importer.derivative-source-found-for-resumed-documents` — **[BROKEN]** (#5408) resuming derivatives finds each pending document's source (pages of a notebook corpus fail with 'source not found') or says why.
 
 ## Future (ideas, not scheduled)
-- (#1233) GHC/ACENET already-catalogued corpus is a demo/test dataset awaiting the Source Archives home; Future section, not current engine work.
-- (#1235) Sergio Mosquera notebooks + catalogue spreadsheet as a release demo library (sergio_import.py exists but corpus unfinished); Future section; note Sergio data rulings (train yes, release no).
+- (#1233) already-catalogued corpus is a demo/test dataset awaiting the Source Archives home; Future section, not current engine work.
+- (#1235) a notebook corpus + catalogue spreadsheet as a release demo library (its import script exists but corpus unfinished); Future section; note notebook corpus data rulings (train yes, release no).
 - (#2208) ICANH/Andagoya corpus import + Spanish Script transcription QA is corpus-specific work for the Source Archives program, not a pipeline behaviour.
 - (#2209) Archivos Nuestros corpus import + library QA is corpus-specific Source Archives work, not a pipeline behaviour.
 - (#4183) Browser extensions (Safari, Chrome, Firefox) and a system share-sheet target to add content to Fichero.

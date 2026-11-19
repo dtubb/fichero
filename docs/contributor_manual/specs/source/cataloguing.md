@@ -65,7 +65,7 @@ until a person accepts or changes it, and is never exported as confirmed.
 **An entry shows; it does not tell.** A catalogue entry is rendered from the fields alone, by a
 template per prototype:
 
-> **Letter**, 12 March 1789, from Juan de Arriaga (Popayán) to Pedro Mosquera (Cartagena).
+> **Letter**, 12 March 1789, from Juan de Arriaga (Popayán) to Pedro Ortega (Cartagena).
 > 2 leaves. Spanish. Damaged at the lower margin. Names: 6 people, 3 places.
 
 Every phrase is a field. Nothing is interpreted, summarised or characterised. An empty field is

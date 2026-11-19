@@ -496,12 +496,12 @@ loop and proves nothing about speed.
 
 ## Build order (revised 2026-10-03; engine before app; each slice builds, tests and commits alone)
 
-The first goal is narrow: **fine-tune a Kraken reader and a YOLO page detector on the Sergio
+The first goal is narrow: **fine-tune a Kraken reader and a YOLO page detector on the notebook corpus
 notebooks' checked pages, first on Hugging Face Jobs, then on this Mac, then on ACENET; measure
 each by CER on held-out pages; adopt the winner in the project's recipe as a new card.** The
 order serves that goal first. the appendix "The review of 2026-10-03" gives the reasons.
 
-0. **Before any training (other specs).** Checked pages on the Sergio notebooks (a person);
+0. **Before any training (other specs).** Checked pages on a notebook corpus (a person);
    a training set from them, split by notebook (`source.train.*`, #4947), with line pictures for
    Kraken and YOLO labels for the detector (`formats/yolo.py` already writes them); the one CER
    (built); the one job table (#5353).
@@ -772,7 +772,7 @@ None of these is wrong. None is needed to fine-tune a Kraken reader and a YOLO p
 
 ### The order to build (the smallest path)
 
-Goal: a Kraken reader and a YOLO page detector, fine-tuned on the Sergio notebooks' checked
+Goal: a Kraken reader and a YOLO page detector, fine-tuned on a notebook corpus' checked
 pages, first on Hugging Face Jobs, then on this Mac, then on ACENET; measured by CER on held-out
 notebooks; adopted by the project's recipe as a new card.
 
@@ -825,16 +825,16 @@ table. The key is in the Keychain; a recipe names only `runs_on: cluster`. New:
 
 ### Questions for the maintainer (few, each with a recommendation)
 
-1. **Rights for the Sergio notebooks.** Training on Hugging Face Jobs sends page images to a
+1. **Rights for a notebook corpus.** Training on Hugging Face Jobs sends page images to a
    company in the United States, and release needs the right to publish. *Recommend:* confirm
-   with Sergio that training on Hugging Face is acceptable before step 3; release only after
+   with the notebook corpus owner that training on Hugging Face is acceptable before step 3; release only after
    written agreement.
 2. **Noise band for "proven".** *Recommend:* two runs within 0.5 points of CER on the held-out
    notebooks; tighten once we know the spread.
 
 ### Rulings after the review (2026-10-03)
 
-- **Sergio notebooks:** page images may go to Hugging Face Jobs to train our own models; models trained on them are not released. Step 7 (release) does not apply to this project.
+- **a notebook corpus:** page images may go to Hugging Face Jobs to train our own models; models trained on them are not released. Step 7 (release) does not apply to this project.
 - **"Proven" noise band:** two runs within 0.5 CER points (the recommendation), to be tightened when real runs show the spread.
 
 ## Future (ideas, not scheduled)

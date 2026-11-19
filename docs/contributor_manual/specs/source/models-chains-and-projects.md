@@ -31,17 +31,17 @@
 
 ## The golden path (north star, ruled 2026-10-04)
 
-The Mosquera goal is a recipe that anyone can run through the app, not a model made by hand. This is
+The notebook-corpus goal is a recipe that anyone can run through the app, not a model made by hand. This is
 that path, end to end, as one behaviour. Each step names its card, its screen, its engine route, its
-Activity rows and its state. A step marked ✱ is one that Sergio's project does today by API or CLI,
+Activity rows and its state. A step marked ✱ is one that the notebook corpus's project does today by API or CLI,
 so it is a gap in the app, whatever the engine has. Each step also names the MCP tool that drives it:
 all Fichero work, by a person or an agent, goes through the app or its MCP tools and API, and a
 missing tool is written (spec, test, code) before the step is done another way (ruled 2026-10-04).
 
-Mosquera is practice. The target the path is built for is an archive of about 80,000 images with
+A notebook corpus is practice. The target the path is built for is an archive of about 80,000 images with
 many scripts and hands and many damaged pages; the scale behaviours below the table say what that
-asks of every step. Two rulings of 2026-10-04 are being written up in Sergio's specs and are only
-cited here: Mosquera is not split, and whether a volume is split or read by page regions is an open
+asks of every step. Two rulings of 2026-10-04 are being written up in the notebook corpus's specs and are only
+cited here: a notebook corpus is not split, and whether a volume is split or read by page regions is an open
 question (leaning to regions); and an import has no rank of its own (`source/source-model.md`, the
 readings).
 
@@ -55,14 +55,14 @@ readings).
   Built: one Start runs split, lines, read, check, names, statements, export and publish as one
   `run-a-recipe` job (`recipes/runner.py`). Not built: a sample scope, the clean-set, training,
   evaluation and choose steps as recipe steps, reading away from this Mac, and screens for the ✱
-  steps. *Test:* a named-machine journey (`source.onboard.*` journeys, section 14) on a small Mosquera
+  steps. *Test:* a named-machine journey (`source.onboard.*` journeys, section 14) on a small notebook corpus
   volume, with the engine half driven through the public routes in automation.
 
 | # | Step | Card | Screen | Engine route | MCP tool | Activity rows | State |
 |---|---|---|---|---|---|---|---|
 | 1 | Setup: what you have, what you want | project setup, purpose | first-run recipe screens (`FirstRunWindow+Recipe`, `RecipeSetupFields`) | `GET`/`PUT /api/recipes/project`, `/purposes`, `/languages`, `/scripts`, `/derived`, `POST /api/recipes/assemble` | missing (#5455) | none (no job) | PARTIAL (#4951; `source.onboard.five-questions`) |
 | 2 ✱ | Choose a route: cloud, this Mac or distil, with time, cost, GHG for the whole archive | the routes | none | `GET /api/recipes/routes` (no app caller) | missing (#5455) | none | GAP in the app (#4951, #5404; `source.onboard.routes-for-the-volume`); GHG #5420 |
-| 3 | Split, or page regions | `split-pages`, or regions | Start (`RecipeStepsView`) | `POST /api/recipes/project/start` | `fichero_workflow_run` (a step, not the recipe) | `run-a-recipe` → step → workflow run → pages | OPEN QUESTION: Mosquera is not split and its recipe drops the step; split against page regions is open (Sergio's spec, leaning to regions; #4951) |
+| 3 | Split, or page regions | `split-pages`, or regions | Start (`RecipeStepsView`) | `POST /api/recipes/project/start` | `fichero_workflow_run` (a step, not the recipe) | `run-a-recipe` → step → workflow run → pages | OPEN QUESTION: a notebook corpus is not split and its recipe drops the step; split against page regions is open (the notebook corpus's spec, leaning to regions; #4951) |
 | 4 | Kraken lines | `find-lines` | Start | the same | `fichero_workflow_run` | pages on the local-model lane | PARTIAL (Kraken provisioned automatically) |
 | 5 ✱ | A teacher reads a sample | `read-a-line` / `read-a-page`, sample scope | none | none: Start reads every page | missing: a sample scope (#5455) | none | GAP (`source.onboard.samples-first`, `distill.collect.sample-covers-scope`, #5337) |
 | 6 ✱ | Check, by Fable or a person | `check` | no start or results screen | `POST /api/check/runs` (`check: line-against-page` for the teacher-line check) | `fichero_check_run`, `_status`, `_verdicts` | a `check` job; the teacher-line check a `check-lines` job | PARTIAL (#5404, #5446; `source.check.run-is-a-job`, `source.lines.reading-checked-against-the-page`) |
@@ -73,7 +73,7 @@ readings).
 | 11 | Read the archive | the chosen reader | Start | Start, on this Mac; Hugging Face Jobs by shard; ✱ no route for Rorqual | `fichero_read_at_scale` (Hugging Face), `fichero_reading_status`; Rorqual missing (#5457, #5454) | pages on the lanes; shards as rows | this Mac PARTIAL; Hugging Face PARTIAL; Rorqual GAP (#5457, #5238) |
 | 12 | Names and statements | `find-names-tag-words`, `find-statements` | Start | Start | `fichero_workflow_run` | workflow runs | PARTIAL (`source.job.find-statements`) |
 | 13 | Check | `check` | as step 6 | as step 6 | as step 6 | as step 6 | PARTIAL (#5404) |
-| 14 | Publish | `publish` | Start | Start (an 11ty site); ✱ a Hugging Face dataset or model: no screen | missing for the Hub (#5455) | the recipe's step | site PARTIAL (`source.job.publish`); Hub GAP (`compute.publish.*`). Sergio's data: train yes, release no |
+| 14 | Publish | `publish` | Start | Start (an 11ty site); ✱ a Hugging Face dataset or model: no screen | missing for the Hub (#5455) | the recipe's step | site PARTIAL (`source.job.publish`); Hub GAP (`compute.publish.*`). The notebook corpus's data: train yes, release no |
 
 At the scale of the real archive (about 80,000 images, many scripts and hands, many damaged pages),
 ruled 2026-10-04:
@@ -899,7 +899,7 @@ Activity; a stage that cannot run says why and the stages that do not need it ca
   peak-memory sentence the engine already writes for a step on this Mac's model server.
 - **The plan:** lines and reading as one Kraken run, the reader chosen by rule. PP-OCRv6 ranks first
   because its card carries a published aggregate CER of 3.9% over 44 languages, and no other reader
-  has a figure; the same reader measured 24.6% on Mosquera pages on 2026-10-05/06. Then correcting
+  has a figure; the same reader measured 24.6% on notebook-corpus pages on 2026-10-05/06. Then correcting
   with the 3B local vision model (the 7B is refused on 8 GB), names with spaCy's Spanish pipeline, and
   dates by the Gregorian rules. Statements and authority links have no model card, so setup shows them
   with a problem and a fix. Search **has** a card in setup, but Start has no runner card for
@@ -1605,7 +1605,7 @@ reading, names and dates worked out once: page 18 of the sixteenth-century manus
 *Diálogo de la Lengua* (Biblioteca Nacional de España, public domain; "Imagen procedente de los fondos de
 la Biblioteca Nacional de España"), its lines read after the DILE transcription (CC BY-SA 4.0, M. T.
 Carrasco Benitez, dir.; Alba Agraz Ortiz and Sara Sánchez Hernández), the same page and licence as the
-engine's paleography fixture. Never a project's own material, and never the private diary or Sergio papers.
+engine's paleography fixture. Never a project's own material, and never the private diary or notebook corpus papers.
 
 What each stage's picture does:
 
@@ -2111,7 +2111,7 @@ path, each step a job they can watch and stop:
    teacher-line check removes lines it misread (#5446), a local reader is fine-tuned (Hugging Face or
    this Mac) and measured on the same pages — #5526, #5527, #5444.
 4. **Use the winner** with the person's yes, and keep measuring as corrections arrive.
-Proved by hand on 2026-10-05/06 (Mosquera notebooks): the check removed 34% of Gemini's teacher lines
+Proved by hand on 2026-10-05/06 (notebook corpus): the check removed 34% of Gemini's teacher lines
 (about 700 read the line above); fine-tuning cut McCATMuS from 40.4% to 19.6% and PP-OCRv6 from 24.6%
 to 18.4% on ten checked pages, for about $1.15. Each hand step that night is a gap the issues close.
 
@@ -2544,8 +2544,8 @@ Jobs and chains
   reading is, in order: a person's checked reading, a checked model reading, then the newest model page
   reading. After alignment the line's counting reading is its aligned stretch; an earlier machine
   reading of the same line (Apple Vision's OCR, a stock Kraken read) stays as history and never counts
-  while a better reading of the line exists. On Mosquera this is 319 of 374 pages, whose only shaped
-  lines are Apple Vision's (C01_030: `WtrtNI-`, `¥eTIQ`) or stock Kraken's.
+  while a better reading of the line exists. On the notebook corpus this is 319 of 374 pages, whose only shaped
+  lines are Apple Vision's (test page 30: `WtrtNI-`, `¥eTIQ`) or stock Kraken's.
 - `source.read.once-lines-exist-every-reading-ties-to-a-line` — **[PARTIAL]** (#5721) done in the Transcribe tool: on a page that already has lines, Apple Vision (on each line's own picture, one line a call) and a vision model (the line reader, a few pictures a call) read each line onto the page's working pass, as Kraken does, with no second pass and the page's text left alone (`tests/unit/workflows/test_every_reader_ties_to_lines_5721.py`: `test_apple_vision_on_a_page_with_lines_reads_each_line_and_makes_no_second_pass_5721`, `test_a_vision_model_on_a_page_with_lines_is_shown_each_line_and_its_words_land_on_them_5721`, `test_an_auto_reader_on_a_page_with_lines_ties_to_them_whichever_it_resolves_to_5721`, `test_a_reader_never_replaces_the_text_of_a_page_that_has_lines_5721`); a page with text and no instruction to read again is still passed through as before (`test_a_page_that_has_text_and_no_instruction_to_read_again_is_not_read_5721`); a page with no lines read by a model says its text is tied to no line (`test_a_page_with_no_lines_read_by_a_model_says_its_text_is_tied_to_no_line_5721`); a run where only some pages have lines reads every page whole and names the one with no lines (`test_a_run_where_only_some_pages_have_lines_reads_every_page_whole_and_says_which_has_no_lines_5721`); a page whose lines came back with no reading is read whole, only that page, with a note (`test_a_page_whose_lines_came_back_empty_keeps_its_page_text_in_a_run_of_several_pages_5721`). Owed: a real run on a page like 39_Hoja_549_Recto.JPG; Apple Vision is given the line's padded polygon bounds, not its exact rectangle. On a page that already has lines
   (segments), every reader's output is a reading of those lines, whatever the reader is: Kraken, Apple Vision (run on
   the line's rectangle), an MLX or cloud vision model (shown each line's crop), or the one the recipe chose. Page-level
@@ -2677,13 +2677,13 @@ Jobs and chains
   the target line alone: the crop is cut to the line's own polygon with the outside masked (or the
   target is marked), never a crop in which a neighbouring line is more complete than the target. Before
   (2026-10-04) `llm/line_reader.crop_line` showed about two and a half lines with the target unmarked, and
-  on SM_NPQ_C01_005 lines 4–19 held the text of the line above; a check of the exported training set
+  on test page 5 lines 4–19 held the text of the line above; a check of the exported training set
   flagged a quarter of a two-photo trial as shifted. Built (2026-10-17): `crop_line` paints everything
   outside the polygon (widened by a sixth of the line's height, for ascenders) the crop's median paper
   colour; the runner's copy (`remote_read/runner.crop_line`) does the same, pixel for pixel; the training
   pairs, the checker's cards and the evaluation all cut through `crop_line`. Tested in
   `fichero-server/tests/unit/llm/test_read_the_marked_line_5445.py`. Not built: a real run on
-  SM_NPQ_C01_005 to count the lines that still read a neighbour; training sets exported before this
+  test page 5 to count the lines that still read a neighbour; training sets exported before this
   hold the old pictures and are built again.
 - `source.lines.reading-checked-against-the-page` — **[PARTIAL]** (#5446) *Built (2026-10-05): `POST /api/check/runs` with `check: line-against-page` (provider `kraken`, a Kraken reader) queues a `check-lines` job on the local model lane; `checking/line_check.py` reads each line of the pass again through `kraken_runtime.read_given_lines`, scores the reading (1 − accent-blind CER) against its own rough read and up to two same-column lines either side, and rejects (`check.verdict`, trust `model`, the scores in its reasons) a reading closer to a neighbour (beaten by 0.15 and itself at least 0.40) or below 0.30; passing lines get no verdict, and a line a person has checked is not checked again; `GET /api/check/runs/{id}` gives the counts and each flagged line with its scores. Built (2026-10-08, #5524): while the check runs or waits for memory, those counts and flags are the pages it has finished so far, and its job's reason says the counts; a stop for memory waits and carries on after its last finished page (never `failed`, no line given a second verdict); a passing line is counted, not given a verdict; the memory reason shows the two amounts it compared so they never read as the same number (`fichero-server/tests/unit/check/test_line_check_memory.py`). Empty and `null` readings are left out by the training set's own rule. Tested in `fichero-server/tests/unit/check/test_line_against_page.py`. Shown in the app (2026-10-05): `FlaggedLineStore` reads the reading verdicts and each run that rejected a line on the page; a line whose reading's newest verdict is still the run's reject carries a flag mark in the Order list (the Segments pane's list), the strip and the grid, with its flag and scores in words on hover ("Teacher text matches the next line better (0.52 vs 0.21)"), the Segments pane's head counts the page's flagged lines, and the Inspector says the flag, the run's counts and offers Confirm Reading (a person's `check.verdict` confirm on the rejected reading, which clears the mark in place); tested in `fichero/Tests/Unit/general/Models/FlaggedLineStoreTests.swift`. Not built: a null or empty line shown as flagged (the training set leaves it out by its own rule, unmarked).* each model reading of a Kraken line
   is scored against that line's own rough Kraken read and its neighbours' (the characters they share);
@@ -2724,7 +2724,7 @@ Jobs and chains
   Apple finds the lines and keeps no text (the Detect Segments tool's `keep_text` off: the page's line boxes
   carry no reading, no word boxes), so the text of a print page comes from the reader the recipe names. A
   handwriting page goes to Kraken (the card states print and typescript only). Apple's OCR of handwriting is
-  noise (Mosquera SM_NPQ_C01_030: `WtrtNI-`, `¥eTIQ`) and would otherwise reach the Order tab as a reading.
+  noise (the notebook corpus test page 30: `WtrtNI-`, `¥eTIQ`) and would otherwise reach the Order tab as a reading.
 - `source.recipe.line-finders-are-a-candidate-list` — **[PARTIAL]** (#5451; ruled 2026-10-17; *built: `bakeoff.line_finders()` lists a finder for every card naming `find-lines`, one with no workflow is listed not scored, and the planner skips a pin it cannot run by name; pinned by `fichero-server/tests/unit/recipes/test_line_finders_candidate_list_5451.py`. Not built: a cloud or MLX line finder that runs, and the online search for line finders*) the Find lines route for
   a kind of page (print, typescript, a hand) is a LIST of candidate line finders, never a constant: for print the
   list starts with Apple lines-only (`source.recipe.apple-finds-lines-on-print`); for a hand it holds Kraken's
@@ -4757,8 +4757,8 @@ node; a model appears in the sidebar only inside a training node, as its base or
   trained says what its own card says: its licence "trained by you; not for release" unless its card says
   `not_for_release: false` (the one test, `training.project_models._may_publish`), and the languages its card
   names, never its base model's README's (a reader taught on Spanish notebooks is not an English one). It stays
-  usable in the person's own projects (`open_licence`: no licence to accept); releasing is what it never does. WHY (2026-10-11, the MCP onboarding walk): the trained Mosquera reader, taught on Sergio's
-  notebooks, showed `open_licence: true` and `languages: ["en"]` while its own card said not for release; Sergio's
+  usable in the person's own projects (`open_licence`: no licence to accept); releasing is what it never does. WHY (2026-10-11, the MCP onboarding walk): the trained notebook-corpus reader, taught on the notebook corpus's
+  notebooks, showed `open_licence: true` and `languages: ["en"]` while its own card said not for release; the notebook corpus's
   pages may train a model but never be released. Built: `recipes.discovery.installed_cards` and
   `local_text_cards`; tested in `fichero-server/tests/unit/recipes/test_trained_card_keeps_its_release_5683.py`.
 - `source.model.node-inspector` — **[OK]** (#5439) *Built (engine): `GET /api/training/model` gives
@@ -4793,7 +4793,7 @@ about 3B, not 8B. The recipe picks it.
 - `source.recipe.picks-the-tuning-base` — **[GAP]** (#5442, #4950) the recipe picks the base from
   the project's language, script and hand among the catalogue's candidates, preferring about 3B.
   Where several fit, the evaluation job (`distill.eval.job`) decides on the project's held-out
-  pages. A base with a restricted licence can train but not be released (Sergio's data: train yes,
+  pages. A base with a restricted licence can train but not be released (the notebook corpus's data: train yes,
   release no). Ruled 2026-10-04: the default is Qwen3-VL-4B, with 2B as the fast choice; the recipe
   can pick others, and the evaluation decides.
 
@@ -5060,7 +5060,7 @@ Ruled 2026-10-01 (former questions 1-4):
    about 7,500 dollars for 500,000 pages"), rather than a budget setting; revisit if people ask
    for a budget.
 9. **Two-page spreads: split into page documents, or mark page regions?** (#5452, #5427) Ruled so
-   far (2026-10-04): **Mosquera is not split**; its whole photographs stay the pages, and its
+   far (2026-10-04): **a notebook corpus is not split**; its whole photographs stay the pages, and its
    recipe has no split step (Preview's one-page view, #5427, covers seeing one side). Open, with two
    options:
    - (a) **Split at import**, as the first step of preparing images: setup sees two-page spreads (or

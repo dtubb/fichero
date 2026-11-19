@@ -341,9 +341,9 @@ import, never jumps it) → **hand-curated**
 newest first**, an import among them → **legacy artifact geometry** (boxes still read from an artifact,
 ranked among themselves by the 2026-08-25 type tiers). **An import has no rank of its own (ruled
 2026-10-04, #5443):** a PAGE, ALTO, TEI or folder import is just the first pass on the page, ranked by
-date like a machine's, and its maker is named where the file says it (the Mosquera DOCX draft was
+date like a machine's, and its maker is named where the file says it (the notebook-corpus DOCX draft was
 Qwen-VL's). Until 2026-10-04 an "imported" tier sat above machine passes, so a geometry-free TEI import
-of a draft blanked Preview on 358 of 374 Mosquera pages. **A pass without shapes is passed over for
+of a draft blanked Preview on 358 of 374 notebook-corpus pages. **A pass without shapes is passed over for
 drawing** (`ui.preview.draws-a-pass-with-shapes`): a pass whose segments are all
 `shape: unstated` (or have no box) goes behind every pass with shapes -- behind, not out, so a text-only
 page still selects its own lines (built 2026-10-04, #5443;
