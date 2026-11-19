@@ -44,4 +44,12 @@ struct CreditPausePromptTests {
         #expect(ledger.newlyPaused(in: [job(state: .running)]).isEmpty)
         #expect(ledger.newlyPaused(in: [job()]).count == 1)
     }
+
+    @Test("two runs meeting the same provider's pause are one dialogue; another provider is its own")
+    func oneDialoguePerCause() {
+        var ledger = CreditPauseLedger()
+        #expect(ledger.newlyPaused(in: [job("run-1"), job("run-2")]).count == 1)
+        #expect(ledger.newlyPaused(in: [job("run-1"), job("run-2"), job("run-3")]).isEmpty)
+        #expect(ledger.newlyPaused(in: [job("run-1"), job("run-4", provider: "OpenAI")]).count == 1)
+    }
 }
