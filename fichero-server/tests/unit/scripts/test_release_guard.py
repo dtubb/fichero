@@ -436,6 +436,30 @@ def test_the_notes_are_made_from_the_record_grouped_by_milestone(tmp_path, monke
     assert swapped.index("### sidebar-crud") < swapped.index("### sharing-two-macs")
 
 
+def test_the_specs_section_lists_only_behaviours_tagged_ok_in_the_spec():
+    commits = [{"subject": "feat: x", "body": "Behaviour: a.one\nBehaviour: a.two"}]
+    spec = "- `a.one` [OK] words\n- `a.two` [PARTIAL] words\n"
+    body = rg.build_notes(commits, {}, [("specs/a.md", spec)], [])
+    assert "- specs/a.md: now working: a.one\n" in body
+
+
+def test_the_changelog_day_ignores_a_version_suffix():
+    assert rg.changelog_day("2026.11.18-beta1") == rg.changelog_day("2026.11.18") == "2026-11-18"
+
+
+def test_the_issue_cache_keeps_only_the_newest_numbers(tmp_path, monkeypatch):
+    import json
+    monkeypatch.setattr(rg, "ISSUE_CACHE_MAX", 2)
+    cache = tmp_path / "c.json"
+    old = {str(n): {"title": "t", "state": "closed", "milestone": None, "labels": []} for n in (1, 2, 3)}
+    cache.write_text(json.dumps(old))
+    reply = {"data": {"repository": {"i9": {"title": "n", "state": "CLOSED", "milestone": None,
+                                             "labels": {"nodes": []}}}}}
+    run = lambda *a, **k: subprocess.CompletedProcess(a, 0, json.dumps(reply), "")  # noqa: E731
+    assert rg.read_issues([9], run=run, cache_file=cache)[9]["title"] == "n"
+    assert sorted(json.loads(cache.read_text()), key=int) == ["3", "9"]
+
+
 def test_milestones_without_a_build_order_go_by_commit_count_and_the_order_is_read_from_the_list():
     commits = [{"subject": "fix: a (#20)", "body": ""}, {"subject": "fix: b (#30)", "body": ""},
                {"subject": "fix: c (#30)", "body": "Part of #30"}]

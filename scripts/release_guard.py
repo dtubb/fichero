@@ -383,10 +383,10 @@ def _has_section(text: str, heading: str) -> bool:
     return re.search(rf"^##[ \t]+{re.escape(heading)}[ \t]*$", text, re.MULTILINE) is not None
 
 
-_USER_TYPES = {"fix": "fix", "feat": "feat", "perf": "perf"}
 _SPEC_TYPES = ("spec", "test", "chore", "ci", "docs", "style")
 _GH_QUERY = ("query($owner:String!,$name:String!){repository(owner:$owner,name:$name){%s}}")
 _GH_ISSUE = "i%d:issue(number:%d){title state milestone{title} labels(first:30){nodes{name}}}"
+ISSUE_CACHE_MAX = 500
 ISSUE_CACHE = ROOT / "build" / "releases" / "issue-cache.json"
 BUILD_ORDER = ROOT / "docs" / "contributor_manual" / "specs" / "build-order.md"
 SPECS_DIR = "docs/contributor_manual/specs"
@@ -422,6 +422,7 @@ def read_issues(numbers: list[int], *, run=Run, cache_file: Path = ISSUE_CACHE
                         "milestone": (raw["milestone"] or {}).get("title"),
                         "labels": [x["name"] for x in raw["labels"]["nodes"]]}
         closed = {n: v for n, v in {**cached, **found}.items() if v["state"] == "closed"}
+        closed = dict(sorted(closed.items())[-ISSUE_CACHE_MAX:])  # the newest numbers; the cache cannot grow without bound
         try:
             cache_file.parent.mkdir(parents=True, exist_ok=True)
             cache_file.write_text(json.dumps(closed))
@@ -517,7 +518,8 @@ def build_notes(commits: list[dict], issues: dict[int, dict] | None, specs: list
     changes = [t for c in commits for t in _trailers(c, "Spec-change") if t.lower() != "none"]
     spec_lines = []
     for path, text in specs:
-        done = [i for i in dict.fromkeys(ids) if f"`{i}`" in text]
+        done = [i for i in dict.fromkeys(ids)
+                if re.search(rf"`{re.escape(i)}`[^\n]*\[OK\]", text)]
         spec_lines.append(f"- {path}" + (f": now working: {', '.join(done)}" if done else ""))
     if spec_lines or changes:
         out += ["### Specs", ""] + spec_lines + [f"- Spec change: {t}" for t in dict.fromkeys(changes)] + [""]
@@ -528,10 +530,14 @@ def build_notes(commits: list[dict], issues: dict[int, dict] | None, specs: list
     return "\n".join(out).strip("\n") + "\n" if out else "- Maintenance release: no user-facing changes.\n"
 
 
+def changelog_day(version: str) -> str:
+    return "-".join(version.split("-")[0].split(".")[:3])
+
+
 def auto_notes(version: str, notes: str, changelog: str, body: str, prev: str) -> tuple[str, str]:
     """Add the version's section to the notes and the day's to the changelog when absent.
     A section that exists (hand-written) is returned untouched."""
-    day = "-".join(version.split("-")[0].split(".")[:3])
+    day = changelog_day(version)
 
     def put(text: str, heading: str, intro: str) -> str:
         if _has_section(text, heading):
@@ -655,7 +661,9 @@ def main(argv: list[str] | None = None) -> int:
     elif a.cmd == "auto-notes":
         rn, cl = ROOT / "RELEASE_NOTES.md", ROOT / "CHANGELOG.md"
         commits, prev, spec_paths = commit_range()
-        if not (_has_section(rn.read_text(), a.version) and _has_section(cl.read_text(), "-".join(a.version.split(".")[:3]))):
+        have = (_has_section(rn.read_text(), a.version)
+                and _has_section(cl.read_text(), changelog_day(a.version)))
+        if not have:
             nums = sorted({int(n) for c in commits for n in re.findall(r"#(\d+)", c["subject"] + "\n" + c["body"])})
             issues = read_issues(nums) if nums else {}
             if issues is None:
