@@ -6043,6 +6043,17 @@ def paused_failure(db: "Database", job_id: str, reason: str | None) -> Any:
     return _failure.of_kind(kind, folder_for=subject.partition(":")[0] if kind == "export-folder-gone" else None)
 
 
+def failed_failure(reason: str | None) -> Any:
+    """The failure a FAILED job row is listed with (`RunFailure`: words, fix, buttons), read back from the row words
+    `failed_reason` wrote; a reason that keeps its own words is `unexpected` with those words (#6354, #6597)."""
+    from fichero_server.llm import failure as _failure
+
+    kind = _failure.kind_of_failed_reason(reason)
+    if kind is not None:
+        return _failure.of_kind(kind)
+    return _failure.of_kind("unexpected").model_copy(update={"words": reason or _failure.row_words("unexpected")})
+
+
 def _pause_for_close(db: "Database", live: list[str] | None) -> None:
     """Closing a project PAUSES its waiting rows (`live` None), or its running ones (`live` the ids still running here):
     "Paused: the project closed", for Continue on reopen. A run's own row is settled by its record (`closing_runs`)."""

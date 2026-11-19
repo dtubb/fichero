@@ -233,6 +233,18 @@ def kind_of_paused_reason(reason: str | None) -> str | None:
     return None
 
 
+def kind_of_failed_reason(reason: str | None) -> str | None:
+    """The kind whose row words a failed job row's `reason` is (`jobs.failed_reason` writes them), else None for a reason that
+    keeps its own words."""
+    if not reason:
+        return None
+    for kind in KINDS:
+        template = _ROW_WORDS[kind]
+        if re.fullmatch(re.escape(template).replace(re.escape("{name}"), ".+").replace(re.escape("{model}"), ".+"), reason):
+            return kind
+    return None
+
+
 def of_kind(kind: str, *, folder_for: str | None = None) -> RunFailure:
     """A kind's failure with no exception at hand: a job row the engine PAUSED for a cause a person removes (`jobs`
     `_PAUSED_NOT_FAILED`), listed with its fix. `folder_for`: the kept export a `choose-folder` action is for (#6588)."""

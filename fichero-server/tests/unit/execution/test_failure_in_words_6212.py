@@ -58,3 +58,20 @@ def test_the_engine_raises_no_worded_key_error():
               for n, line in enumerate(p.read_text().splitlines(), 1)
               if re.search(r"raise KeyError\(f?[\"']", line)]
     assert worded == []
+
+
+@pytest.mark.parametrize("exc", [KeyError("x"), RuntimeError("the model file is missing"), TimeoutError(), MissingInWords("No local runtime installs model: x")])
+def test_every_failed_job_row_has_a_failure_with_words_and_a_fix(exc):
+    """`failure` on every job row (#6354): the failure a failed row is listed with is read back from the words `failed_reason`
+    wrote; a reason that keeps its own words keeps them."""
+    reason = jobs.failed_reason("embed-page", exc)
+    failure = jobs.failed_failure(reason)
+    assert failure.words.strip() and failure.fix.strip(), failure
+    assert failure.words == reason or failure.row_words == reason, (failure.words, reason)
+
+
+def test_a_classified_failure_reads_back_as_its_kind():
+    from fichero_server.llm import failure as failure_mod
+
+    reason = jobs.failed_reason("embed-page", ConnectionError("down"))
+    assert jobs.failed_failure(reason).kind == failure_mod.kind_of(ConnectionError("down"))[0]
