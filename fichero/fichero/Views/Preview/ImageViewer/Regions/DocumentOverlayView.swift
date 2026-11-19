@@ -232,6 +232,8 @@ final class DocumentOverlayView: NSView {
         let finest = overlay.finestLevel
         let emphasis = overlay.emphasis
         for (box, rect) in overlay.boxes(in: dirtyRect, imageRect: imageRect) {
+            // A box without shapes IS its rectangle: Show Bounding Box off draws nothing for it.
+            if box.shapes.isEmpty, !overlay.drawsRectangles { continue }
             let level = SegmentHierarchy.Level(kind: box.kind)
             let shown = box.segmentId.flatMap { emphasis[$0] } ?? .rest
             let strength = CGFloat(SegmentHierarchy.strokeOpacity(
@@ -251,7 +253,7 @@ final class DocumentOverlayView: NSView {
                 && DocumentOverlay.setsTextInline(kind: box.kind, finest: finest)
             // A segment with its own shapes is drawn AS them -- the outline its file drew, the baseline
             // under its ink -- never as the box around them (#5163's residue).
-            if overlay.showsBoundingBoxes, !box.shapes.isEmpty {
+            if overlay.drawsRectangles, !box.shapes.isEmpty {
                 // The box beside the polygon: faint and dashed so it never reads as the shape itself.
                 drawHollow(rect, colour: colour(0.5), width: line, dash: [3 / scale, 3 / scale])
             }

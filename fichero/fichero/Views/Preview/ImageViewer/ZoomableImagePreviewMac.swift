@@ -203,7 +203,8 @@ struct ZoomableImagePreview: View {
     @PaneStorage("imagePreview.inlineTextEnabled") var inlineTextEnabled = false
     /// "Show Order Numbers" (Display menu, #6482): the reading number on each line's box. Off by default.
     @PaneStorage("imagePreview.showOrderNumbers") var showOrderNumbers = false
-    @PaneStorage("imagePreview.showBoundingBoxes") var showBoundingBoxes = false
+    /// "Show Bounding Box": every segment rectangle. On by default, since a plain box is only its rectangle.
+    @PaneStorage("imagePreview.showBoundingBoxes") var showBoundingBoxes = true
     /// The image layer (ruled 2026-09-27, Q2). On by default: a page with its picture hidden
     /// is a deliberate view, never where a person should land by accident.
     /// The SOURCE's own setting (#6657, `SourceViewSettings`), else the pane's workspace

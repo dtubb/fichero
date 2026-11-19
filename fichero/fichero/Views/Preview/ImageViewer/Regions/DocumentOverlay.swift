@@ -42,6 +42,10 @@ struct DocumentOverlay: Equatable {
     /// "Show Bounding Box" (Display menu): the box around a polygon or baseline, drawn beside it, dashed and faint.
     var showsBoundingBoxes = false
 
+    /// Whether a box's RECTANGLE is drawn. "Show Bounding Box" off hides every segment rectangle, plain boxes
+    /// included (a box with shapes keeps its polygon or baseline; only the rectangle beside it goes).
+    var drawsRectangles: Bool { showsBoundingBoxes }
+
     /// The finest level drawn: read once per draw, not once per box. Only it sets its reading inline.
     var finestLevel: SegmentHierarchy.Level { SegmentHierarchy.finestLevel(boxes.map(\.kind)) }
 
