@@ -26,3 +26,8 @@ struct MarkdownCanvas: View {
         }
     }
 }
+
+#Preview {
+    MarkdownCanvas(text: "A **bold** word, some *emphasis* and `code`.")
+        .frame(width: 320, height: 160)
+}

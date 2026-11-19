@@ -72,37 +72,7 @@ struct SegmentOutlineRow: View {
     }
 }
 
-/// The list's ⌥⌘ keys, claimed only while the list has focus. `.keyboardShortcut` on a button is
-/// WINDOW-wide: with the list showing a selection, ⌥⌘↑ pressed in the Reader moved the list's row
-/// instead of the Reader's caret line. Nil detaches the shortcut; the buttons still work by click.
-enum ReadingOrderListKeys {
-    static func shortcut(_ key: KeyEquivalent, listFocused: Bool) -> KeyboardShortcut? {
-        listFocused ? KeyboardShortcut(key, modifiers: [.command, .option]) : nil
-    }
-}
-
 #if DEBUG
-/// A page of three regions, the middle one holding three lines, as the engine would list them.
-@MainActor
-private final class PreviewOrderTransport: ReadingOrderTransport {
-    func orders(documentId: String) async throws -> [ReadingOrderSummary] {
-        [.init(id: "o1", name: "as-written", kind: "as-written")]
-    }
-    func entries(orderId: String, parentEntryId: String?) async throws -> [ReadingOrderMove.Entry] {
-        parentEntryId == nil
-            ? ["heading", "body", "marginal note"].map { .init(entryId: "e-\($0)", segmentId: $0, version: 1) }
-            : ["line 1", "line 2", "line 3"].map {
-                .init(entryId: "e-\($0)", segmentId: $0, version: 1, parentEntryId: parentEntryId)
-            }
-    }
-    func place(_ place: ReadingOrderMove.Place) async throws -> String? { "preview-audit" }
-}
-
-#Preview("A page's order") {
-    ReadingOrderList(documentId: "page-1", store: ReadingOrderStore(transport: PreviewOrderTransport()))
-        .frame(width: 320, height: 260)
-}
-
 #Preview("Nested: a region, its lines, a line's words") {
     let words = ["In", "the", "beginning"].map { SegmentsPane.OutlineRow(segmentId: $0, kind: "word", children: []) }
     let lines = (1...3).map {
@@ -127,10 +97,4 @@ private final class PreviewOrderTransport: ReadingOrderTransport {
     .frame(width: 320, height: 300)
 }
 
-#Preview("A block's lines") {
-    ReadingOrderList(
-        documentId: "page-1", parentSegmentId: "body", store: ReadingOrderStore(transport: PreviewOrderTransport())
-    )
-    .frame(width: 320, height: 260)
-}
 #endif

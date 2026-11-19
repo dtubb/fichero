@@ -391,3 +391,10 @@ extension ReadingOrderList {
         }
     }
 }
+
+#if DEBUG
+#Preview("A page's order") {
+    ReadingOrderList(documentId: "page-1", store: ReadingOrderStore(transport: PreviewOrderTransport()))
+        .frame(width: 320, height: 260)
+}
+#endif
