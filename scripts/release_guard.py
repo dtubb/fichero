@@ -19,7 +19,7 @@ Every subcommand is one thing the 2026.11.14 release needed a person for
     part NAME STATUS [REASON] record a lane part's outcome in the summary file
     summary                   print the one-line-per-part table
     auto-notes VERSION        write RELEASE_NOTES.md / CHANGELOG.md sections from commit
-                              subjects when none are hand-written
+                              the record (issues, milestones, specs) when none are hand-written
     verify-appcast BUILD      wait for BUILD in the live appcast (publish is not done before)
 
   morning release (scripts/morning-release.sh):
@@ -383,22 +383,154 @@ def _has_section(text: str, heading: str) -> bool:
     return re.search(rf"^##[ \t]+{re.escape(heading)}[ \t]*$", text, re.MULTILINE) is not None
 
 
-def _bullet(subject: str) -> str | None:
+_USER_TYPES = {"fix": "fix", "feat": "feat", "perf": "perf"}
+_SPEC_TYPES = ("spec", "test", "chore", "ci", "docs", "style")
+_GH_QUERY = ("query($owner:String!,$name:String!){repository(owner:$owner,name:$name){%s}}")
+_GH_ISSUE = "i%d:issue(number:%d){title state milestone{title} labels(first:30){nodes{name}}}"
+ISSUE_CACHE = ROOT / "build" / "releases" / "issue-cache.json"
+BUILD_ORDER = ROOT / "docs" / "contributor_manual" / "specs" / "build-order.md"
+SPECS_DIR = "docs/contributor_manual/specs"
+
+
+def read_issues(numbers: list[int], *, run=Run, cache_file: Path = ISSUE_CACHE
+                ) -> dict[int, dict] | None:
+    """{number: {title, state, milestone, labels}} through GitHub's CLI, one batched query for
+    the numbers not cached (closed issues are cached by number). None when GitHub cannot be
+    read; the notes then say so and the release goes on."""
+    import json
+    try:
+        cached = {int(k): v for k, v in json.loads(cache_file.read_text()).items()}
+    except (OSError, ValueError):
+        cached = {}
+    found = {n: cached[n] for n in numbers if n in cached}
+    todo = [n for n in numbers if n not in found]
+    if todo:
+        query = _GH_QUERY % " ".join(_GH_ISSUE % (n, n) for n in todo)
+        try:
+            out = run(["gh", "api", "graphql", "-F", "owner={owner}", "-F", "name={repo}",
+                       "-f", f"query={query}"], capture_output=True, text=True, check=False, timeout=60)
+            if out.returncode != 0:
+                return None
+            repo = json.loads(out.stdout)["data"]["repository"]
+        except (OSError, ValueError, KeyError, TypeError, subprocess.TimeoutExpired):
+            return None
+        for n in todo:
+            raw = repo.get(f"i{n}")
+            if raw is None:  # a number that is not an issue (a PR, a typo): nothing to say about it
+                continue
+            found[n] = {"title": raw["title"], "state": raw["state"].lower(),
+                        "milestone": (raw["milestone"] or {}).get("title"),
+                        "labels": [x["name"] for x in raw["labels"]["nodes"]]}
+        closed = {n: v for n, v in {**cached, **found}.items() if v["state"] == "closed"}
+        try:
+            cache_file.parent.mkdir(parents=True, exist_ok=True)
+            cache_file.write_text(json.dumps(closed))
+        except OSError:
+            pass  # the cache is only a speedup
+    return found
+
+
+def milestone_order(text: str) -> list[str]:
+    """Milestone names from build-order.md's numbered list, top to bottom."""
+    return re.findall(r"^\d+\.\s+`([^`]+)`", text, re.MULTILINE)
+
+
+def commit_range(run=Run) -> tuple[list[dict], str, list[str]]:
+    """(commits on HEAD since the newest v* tag, newest first, each {subject, body}; that tag
+    without its v; the spec files changed in the range)."""
+    git = ["git", "-C", str(ROOT)]
+    tags = run(git + ["tag", "-l", "v*", "--sort=-creatordate"],
+               check=False, capture_output=True, text=True).stdout.split()
+    rng = f"{tags[0]}..HEAD" if tags else "HEAD"
+    out = run(git + ["log", "--no-merges", "--format=%s%x1f%b%x1e", rng],
+              check=False, capture_output=True, text=True).stdout
+    commits = []
+    for rec in out.split("\x1e"):
+        if rec.strip():
+            subject, _, body = rec.strip("\n").partition("\x1f")
+            commits.append({"subject": subject, "body": body})
+    specs: list[str] = []
+    if tags:
+        names = run(git + ["diff", "--name-only", rng.replace("..", "..."), "--", SPECS_DIR],
+                    check=False, capture_output=True, text=True).stdout.split()
+        specs = [n for n in names if n.endswith(".md")]
+    return commits, (tags[0][1:] if tags else ""), specs
+
+
+def _trailers(commit: dict, key: str) -> list[str]:
+    return [m.strip() for m in re.findall(rf"^{key}:[ \t]*(.+)$", commit["body"], re.MULTILINE)]
+
+
+def _commit_line(subject: str) -> str | None:
     m = re.match(r"^(\w+)(?:\(([^)]*)\))?!?:\s*(.+)$", subject)
-    if m and m.group(1) in ("spec", "test", "chore", "ci", "docs", "style"):
+    if not m:
+        return "- " + subject.strip()[:240]
+    kind, scope, text = m.groups()
+    if kind in _SPEC_TYPES:
         return None  # not user-facing
-    if m:
-        scope, text = m.group(2), m.group(3)
-        subject = f"{scope.replace('-', ' ').capitalize()}: {text}" if scope else text
-    return "- " + subject.strip()[:240]
+    label = scope.replace("-", " ") + ": " if scope else ""
+    return f"- {kind}: {label}{text.strip()[:240]}"
 
 
-def auto_notes(version: str, notes: str, changelog: str, subjects: list[str], prev: str
-               ) -> tuple[str, str]:
+def build_notes(commits: list[dict], issues: dict[int, dict] | None, specs: list[tuple[str, str]],
+                order: list[str]) -> str:
+    """The body of a release's notes, from the record: milestones with their issues, other
+    changes, specs, a "What's new" on top and a "Test this" list. specs is [(path, text)] of
+    the spec files changed in the range; issues None means GitHub could not be read."""
+    refs: dict[int, int] = {}      # issue -> commits citing it
+    plain: list[str] = []          # commits with no issue
+    for c in commits:
+        nums = sorted({int(n) for n in re.findall(r"#(\d+)", c["subject"] + "\n" + c["body"])})
+        for n in nums:
+            refs[n] = refs.get(n, 0) + 1
+        if not nums or issues is None:
+            if (line := _commit_line(c["subject"])) and line not in plain:
+                plain.append(line)
+    sections: dict[str, list[int]] = {}
+    unread: list[int] = []
+    for n in sorted(refs):
+        if issues is None or n not in issues:
+            unread.append(n)
+        else:
+            sections.setdefault(issues[n]["milestone"] or "No milestone", []).append(n)
+    weight = {m: sum(refs[n] for n in ns) for m, ns in sections.items()}
+    names = sorted(sections, key=lambda m: (order.index(m) if m in order else len(order), -weight[m], m))
+    closed = {m: sum(issues[n]["state"] == "closed" for n in sections[m]) for m in sections}  # type: ignore[index]
+
+    out: list[str] = []
+    top = [m for m in sorted(sections, key=lambda m: (-closed[m], names.index(m))) if closed[m]][:5]
+    if top:
+        out += ["### What's new", ""] + [
+            f"- {m}: {closed[m]} {'thing' if closed[m] == 1 else 'things'} finished." for m in top] + [""]
+    elif issues is None:
+        out += ["### What's new", "", "- The issues could not be read from GitHub; the changes are listed below.", ""]
+    for m in names:
+        out += [f"### {m}", ""] + [
+            f"- {issues[n]['title']} (#{n}), {'closed' if issues[n]['state'] == 'closed' else 'in progress'}"  # type: ignore[index]
+            for n in sections[m]] + [""]
+    if unread:
+        out += ["### Issues not read", "",
+                "GitHub could not be read, so these are only numbers: " + ", ".join(f"#{n}" for n in unread) + ".", ""]
+    if plain:
+        out += ["### Other changes", ""] + plain + [""]
+    ids = [i for c in commits for i in _trailers(c, "Behaviour")]
+    changes = [t for c in commits for t in _trailers(c, "Spec-change") if t.lower() != "none"]
+    spec_lines = []
+    for path, text in specs:
+        done = [i for i in dict.fromkeys(ids) if f"`{i}`" in text]
+        spec_lines.append(f"- {path}" + (f": now working: {', '.join(done)}" if done else ""))
+    if spec_lines or changes:
+        out += ["### Specs", ""] + spec_lines + [f"- Spec change: {t}" for t in dict.fromkeys(changes)] + [""]
+    test = [n for n in sorted(refs) if issues and n in issues and issues[n]["state"] == "closed"
+            and "needs-your-test" in issues[n]["labels"]]
+    if test:
+        out += ["### Test this", ""] + [f"- {issues[n]['title']} (#{n})" for n in test] + [""]  # type: ignore[index]
+    return "\n".join(out).strip("\n") + "\n" if out else "- Maintenance release: no user-facing changes.\n"
+
+
+def auto_notes(version: str, notes: str, changelog: str, body: str, prev: str) -> tuple[str, str]:
     """Add the version's section to the notes and the day's to the changelog when absent.
     A section that exists (hand-written) is returned untouched."""
-    bullets = [b for s in subjects if (b := _bullet(s))] or ["- Maintenance release: no user-facing changes."]
-    body = "\n".join(bullets) + "\n"
     day = "-".join(version.split("-")[0].split(".")[:3])
 
     def put(text: str, heading: str, intro: str) -> str:
@@ -410,16 +542,6 @@ def auto_notes(version: str, notes: str, changelog: str, subjects: list[str], pr
 
     since = f"What changed since {prev}.\n\n" if prev else ""
     return put(notes, version, since), put(changelog, day, "\n")
-
-
-def commit_subjects(run=Run) -> tuple[list[str], str]:
-    """(commit subjects on HEAD since the newest v* tag, newest first; that tag without its v)."""
-    tags = run(["git", "-C", str(ROOT), "tag", "-l", "v*", "--sort=-creatordate"],
-               check=False, capture_output=True, text=True).stdout.split()
-    rng = f"{tags[0]}..HEAD" if tags else "HEAD"
-    out = run(["git", "-C", str(ROOT), "log", "--no-merges", "--format=%s", rng],
-              check=False, capture_output=True, text=True)
-    return out.stdout.splitlines(), (tags[0][1:] if tags else "")
 
 
 def appcast_has_build(build: int, *, feed=fetch_feed) -> bool:
@@ -532,8 +654,18 @@ def main(argv: list[str] | None = None) -> int:
 
     elif a.cmd == "auto-notes":
         rn, cl = ROOT / "RELEASE_NOTES.md", ROOT / "CHANGELOG.md"
-        subjects, prev = commit_subjects()
-        for path, new in zip((rn, cl), auto_notes(a.version, rn.read_text(), cl.read_text(), subjects, prev)):
+        commits, prev, spec_paths = commit_range()
+        if not (_has_section(rn.read_text(), a.version) and _has_section(cl.read_text(), "-".join(a.version.split(".")[:3]))):
+            nums = sorted({int(n) for c in commits for n in re.findall(r"#(\d+)", c["subject"] + "\n" + c["body"])})
+            issues = read_issues(nums) if nums else {}
+            if issues is None:
+                print("  issues not read: GitHub was not reachable", file=sys.stderr)
+            specs = [(p, (ROOT / p).read_text()) for p in spec_paths if (ROOT / p).exists()]
+            order = milestone_order(BUILD_ORDER.read_text()) if BUILD_ORDER.exists() else []
+            body = build_notes(commits, issues, specs, order)
+        else:
+            body = ""
+        for path, new in zip((rn, cl), auto_notes(a.version, rn.read_text(), cl.read_text(), body, prev)):
             if new != path.read_text():
                 path.write_text(new)
                 print(f"  wrote an auto-generated section into {path.name}")

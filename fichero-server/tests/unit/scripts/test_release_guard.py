@@ -353,17 +353,133 @@ NOTES = "# Release Notes\n\nintro\n\n## 2026.11.12\nOld.\n"
 LOG = "# Changelog\n\n## 2026-11-12\n\n- old\n"
 
 
-def test_missing_sections_are_written_from_commit_subjects():
-    subjects = ["feat(segment-editor): two short switches", "spec(release): a spec line",
-                "fix: a crash on launch", "Plain subject"]
-    notes, log = rg.auto_notes("2026.11.15", NOTES, LOG, subjects, "2026.11.12")
+ISSUES = {
+    10: {"title": "Sharing asks which library to open", "state": "closed", "milestone": "sharing-two-macs",
+         "labels": ["needs-your-test"]},
+    11: {"title": "Pairing code is shown larger", "state": "closed", "milestone": "sharing-two-macs", "labels": []},
+    20: {"title": "Importer keeps file dates", "state": "open", "milestone": "importer", "labels": []},
+    30: {"title": "Sidebar rows scroll smoothly", "state": "closed", "milestone": "sidebar-crud", "labels": []},
+}
+
+
+def _git(repo, *args):
+    subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", *args],
+                   check=True, capture_output=True)
+
+
+def _fixture_repo(tmp_path):
+    repo = tmp_path / "repo"
+    (repo / "docs/contributor_manual/specs").mkdir(parents=True)
+    spec = repo / "docs/contributor_manual/specs/sharing.md"
+    spec.write_text("- `sharing.library-confirmed` [PARTIAL]\n")
+    _git(repo.parent, "init", "-q", str(repo))
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "init")
+    _git(repo, "tag", "v2026.11.17")
+    spec.write_text("- `sharing.library-confirmed` [OK]\n")
+    for msg in ["feat(sharing): ask first (#10)\n\nBehaviour: sharing.library-confirmed\nSpec-change: owner, ask first",
+                "fix(sharing): bigger code\n\nFixes #11",
+                "fix(importer): dates\n\nPart of #20",
+                "fix(sidebar): smooth scroll (#30)",
+                "perf: faster open",
+                "fix: a crash on launch",
+                "test: only a test"]:
+        _git(repo, "commit", "-q", "--allow-empty", "-m", msg)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "spec(sharing): ok")
+    return repo
+
+
+EXPECTED = """### What's new
+
+- sharing-two-macs: 2 things finished.
+- sidebar-crud: 1 thing finished.
+
+### sharing-two-macs
+
+- Sharing asks which library to open (#10), closed
+- Pairing code is shown larger (#11), closed
+
+### sidebar-crud
+
+- Sidebar rows scroll smoothly (#30), closed
+
+### importer
+
+- Importer keeps file dates (#20), in progress
+
+### Other changes
+
+- fix: a crash on launch
+- perf: faster open
+
+### Specs
+
+- docs/contributor_manual/specs/sharing.md: now working: sharing.library-confirmed
+- Spec change: owner, ask first
+
+### Test this
+
+- Sharing asks which library to open (#10)
+"""
+
+
+def test_the_notes_are_made_from_the_record_grouped_by_milestone(tmp_path, monkeypatch):
+    repo = _fixture_repo(tmp_path)
+    monkeypatch.setattr(rg, "ROOT", repo)
+    commits, prev, spec_paths = rg.commit_range()
+    assert prev == "2026.11.17" and len(commits) == 8
+    specs = [(p, (repo / p).read_text()) for p in spec_paths]
+    # build-order names sharing and sidebar, not importer: importer comes after them
+    assert rg.build_notes(commits, ISSUES, specs, ["sharing-two-macs", "sidebar-crud"]) == EXPECTED
+    swapped = rg.build_notes(commits, ISSUES, specs, ["sidebar-crud", "sharing-two-macs"])
+    assert swapped.index("### sidebar-crud") < swapped.index("### sharing-two-macs")
+
+
+def test_milestones_without_a_build_order_go_by_commit_count_and_the_order_is_read_from_the_list():
+    commits = [{"subject": "fix: a (#20)", "body": ""}, {"subject": "fix: b (#30)", "body": ""},
+               {"subject": "fix: c (#30)", "body": "Part of #30"}]
+    body = rg.build_notes(commits, ISSUES, [], [])
+    assert body.index("### sidebar-crud") < body.index("### importer")
+    assert rg.milestone_order("1. `dev-workflows` — x\n2. `importer` — y\n- `no` — z\n") == ["dev-workflows", "importer"]
+
+
+def test_offline_the_notes_say_the_issues_were_not_read_and_keep_the_commits():
+    commits = [{"subject": "fix(sharing): bigger code (#11)", "body": ""}]
+    body = rg.build_notes(commits, None, [], [])
+    assert "### Issues not read" in body and "#11" in body
+    assert "- fix: sharing: bigger code (#11)" in body
+
+
+def test_the_issue_reader_batches_one_query_caches_closed_issues_and_offline_is_none(tmp_path):
+    import json
+    calls = []
+    payload = {"data": {"repository": {
+        "i10": {"title": "T", "state": "CLOSED", "milestone": {"title": "m"}, "labels": {"nodes": [{"name": "x"}]}},
+        "i20": {"title": "U", "state": "OPEN", "milestone": None, "labels": {"nodes": []}}}}}
+
+    def fake(cmd, **_k):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, json.dumps(payload), "")
+
+    cache = tmp_path / "c.json"
+    got = rg.read_issues([10, 20], run=fake, cache_file=cache)
+    assert got[10] == {"title": "T", "state": "closed", "milestone": "m", "labels": ["x"]}
+    assert got[20]["milestone"] is None and len(calls) == 1
+    assert "i10:issue(number:10)" in calls[0][-1] and "i20:issue(number:20)" in calls[0][-1]
+    assert rg.read_issues([10], run=fake, cache_file=cache)[10]["title"] == "T" and len(calls) == 1  # cached
+    assert rg.read_issues([20], run=fake, cache_file=cache) is not None and len(calls) == 2  # open: asked again
+    down = lambda cmd, **_k: subprocess.CompletedProcess(cmd, 1, "", "no network")  # noqa: E731
+    assert rg.read_issues([99], run=down, cache_file=cache) is None
+    assert rg.read_issues([99], run=lambda *_a, **_k: (_ for _ in ()).throw(OSError("no gh")), cache_file=cache) is None
+
+
+def test_the_same_body_goes_to_the_notes_and_the_changelog_and_satisfies_the_docs_gate():
+    body = "### m\n\n- A thing (#1), closed\n"
+    notes, log = rg.auto_notes("2026.11.15", NOTES, LOG, body, "2026.11.12")
     assert notes.index("## 2026.11.15") < notes.index("## 2026.11.12")
-    assert "What changed since 2026.11.12." in notes
-    assert "- Segment editor: two short switches" in notes
-    assert "- a crash on launch" in notes and "- Plain subject" in notes
-    assert "spec line" not in notes
+    assert "What changed since 2026.11.12." in notes and body in notes and body in log
     assert log.index("## 2026-11-15") < log.index("## 2026-11-12")
-    # the generated docs satisfy the release-docs gate
     spec = importlib.util.spec_from_file_location("crd", _ROOT / "scripts" / "check_release_docs_ready.py")
     crd = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(crd)
@@ -373,12 +489,12 @@ def test_missing_sections_are_written_from_commit_subjects():
 def test_hand_written_sections_are_never_touched():
     notes = "# Release Notes\n\n## 2026.11.15\nMine.\n\n" + NOTES.split("\n\n", 2)[2]
     log = "# Changelog\n\n## 2026-11-15\n\n- mine\n"
-    assert rg.auto_notes("2026.11.15", notes, log, ["feat: x"], "2026.11.12") == (notes, log)
+    assert rg.auto_notes("2026.11.15", notes, log, "- x\n", "2026.11.12") == (notes, log)
 
 
 def test_no_user_facing_commits_still_gives_a_nonempty_section():
-    notes, _ = rg.auto_notes("2026.11.15", NOTES, LOG, ["spec: only a spec"], "2026.11.12")
-    assert "Maintenance release" in notes
+    assert "Maintenance release" in rg.build_notes([{"subject": "spec: only a spec", "body": ""}], {}, [], [])
+    assert "Maintenance release" in rg.build_notes([], {}, [], [])
 
 
 def test_publish_is_verified_against_the_live_appcast():
