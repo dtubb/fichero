@@ -27,13 +27,14 @@ class BugReport(BaseModel):
 
 def environment() -> dict[str, Optional[str]]:
     """The engine's version and tier, macOS and the Mac model: what a report needs to say what ran, none of it private."""
-    from fichero_server.api.main import _ENGINE_VERSION
+    from fichero_server.api.main import _CONTRACT_IDENTITY, _ENGINE_VERSION
 
     try:
         model = subprocess.run(["sysctl", "-n", "hw.model"], capture_output=True, text=True, timeout=2).stdout.strip() or None
     except (OSError, subprocess.SubprocessError):
         model = None
-    return {"engine_version": _ENGINE_VERSION, "tier": os.environ.get("FICHERO_FEATURE_TIER", "release").strip().lower(),
+    return {"engine_version": _ENGINE_VERSION, "contract_version": _CONTRACT_IDENTITY.version if _CONTRACT_IDENTITY else None,
+            "tier": os.environ.get("FICHERO_FEATURE_TIER", "release").strip().lower(),
             "macos": platform.mac_ver()[0] or platform.platform(), "arch": platform.machine(), "mac_model": model}
 
 
