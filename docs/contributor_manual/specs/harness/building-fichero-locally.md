@@ -1712,7 +1712,7 @@ Fichero's engine already uses LangGraph. The owner has ruled that the Builder ad
 
 #### A. One live source of work (milestones › steps › lanes)
 
-- `builder-console.ordered-work.one-source` [GAP] (#6645) (the order is `docs/contributor_manual/specs/build-order.md`, hand-edited
+- `builder-console.ordered-work.one-source` [PARTIAL] (#6645) (the order is `docs/contributor_manual/specs/build-order.md`, hand-edited
   last 2026-11-04, while tonight's lanes were queued by hand around it) — the ordered list of milestones the loop works is
   a record in `<state>/work.json`, written only by verbs: `builder order` (the console's drag, `builder milestone --enqueue`,
   `builder lane`, `queue add`) and `builder triage --order` (appends, never reorders). Every lane names its milestone and
@@ -1721,7 +1721,7 @@ Fichero's engine already uses LangGraph. The owner has ruled that the Builder ad
   with the milestone to make, never dropped. `build-order.md` becomes a generated copy written at each landing of the
   order, marked as such, never read. Acceptance: `queue add --lane x --issues 6600` puts lane x under `performance-sweep`;
   an order edit from the page is one `order` row and the next tick feeds from it; a name with no milestone is refused by
-  name; the page and `builder status --json` show the same order. Test (to write): fichero-builder/tests/test_work_tree (new).
+  name; the page and `builder status --json` show the same order. Test: fichero-builder/tests/test_work_tree.py. Built: `<state>/work.json` holds the order (`work_tree.read_order`, `write_order`); `queue add --issues` writes the lane's `milestone` from its issues (`unfiled` when none is in one, refused when they span two); `builder order` refuses a title with no GitHub milestone by name and writes the record after a successful save; `work_tree.append_order` is the append-only form. Not built: the loop's intake, the console and `status --json` still read `build-order.md`; nothing generates `build-order.md` from the record; `builder triage --order`, `milestone --enqueue` and `builder lane` do not call `append_order` or write the lane's milestone.
 - `builder-console.work.counts-are-live` [PARTIAL] (#6645) — each milestone row shows, from the work tree and the journal, not from
   issue counts: steps queued / running / waiting for check or review / blocked / done-not-landed / landed / closed-out,
   each with the oldest age in that state, the lane holding it, and the last failure (the newest red rung, NOT READY
