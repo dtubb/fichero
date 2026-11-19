@@ -1,4 +1,5 @@
 #if DEBUG
+import SwiftUI
 
 /// A page of three regions, the middle one holding three lines, as the engine would list them.
 @MainActor
