@@ -228,14 +228,14 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
 - `runner.pause.survives-relaunch` — **[OK]** (#6584) a run paused for a cause is still paused after a relaunch, with its
   cause; the open continues only work that was running when the app quit. *Test:*
   `fichero-server/tests/unit/jobs/test_durable_5357.py`, the tests cited by `activity.relaunch.only-running-work-resumes`.
-- `runner.ask.one-dialogue-per-cause` — **[GAP]** (#6675, #6354) a pausing kind that needs the person (`no-credit`,
+- `runner.ask.one-dialogue-per-cause` — **[PARTIAL]** (#6675, #6354) a pausing kind that needs the person (`no-credit`,
   `key-refused`, `cap-refused`, `images-refused`, `export-folder-gone`) raises ONE dialogue per cause and provider, whatever number of runs it pauses (Continue and Stop run act on all of them), from
   the one alert (`run.fail.alert-on-a-failed-run`): the provider, the key or account, the kind, the provider's own words
   (redacted), what is paused (run, step, pages done of total), and the buttons the table names (Open provider page,
   Continue, Stop run). A `rate-limited`, `network`, `memory` or `interrupted` pause raises no dialogue: the row says it and
   Continue enables when the wait is up. *Test:* `fichero/Tests/Unit/general/Views/RunFailureAlertTests.swift` (extend: a `no-credit`
   pause builds one prompt with those buttons; two pages meeting it build one prompt), `fichero/Tests/Unit/general/Models/CreditPausePromptTests.swift`
-  (`oneDialoguePerCause`, `dialogueHoldsEveryRun`).
+  (`oneDialoguePerCause`, `dialogueHoldsEveryRun`). Built for `no-credit`; the other pausing kinds raise no dialogue yet.
 - `runner.surface.one-row-one-alert` — **[PARTIAL]** (#6354, #6597, #6599) the failure is shown in the Activity row (the
   kind's ≤ 8 row words and its fix button; `activity.pane.failure-with-its-fix-in-the-row`), in the opened run, and as the
   one alert; a job row never carries exception text (`activity.failure.no-raw-text-ever`). Built: `failed_reason` writes row
