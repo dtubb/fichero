@@ -354,7 +354,6 @@ def scratch_environment(root: Path) -> None:
 
     os.environ.setdefault("FICHERO_MODEL_STORE_ROOT", str(default_server_state_dir()))
     os.environ["FICHERO_BASE_PATH"] = str(root / "state")
-    os.environ.pop("FICHERO_ALLOW_REAL_STATE", None)
     (root / "state").mkdir(parents=True, exist_ok=True)
     (root / "library").mkdir(parents=True, exist_ok=True)
 
