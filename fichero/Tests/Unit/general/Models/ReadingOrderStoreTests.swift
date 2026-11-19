@@ -234,6 +234,20 @@ struct ReadingOrderStoreTests {
         #expect(store.entries.map(\.segmentId) == ["s-a", "s-b", "s-c"])   // the top is untouched
     }
 
+    /// #6422: the Preview shades lines along the order a list shows; the store gives it as one sequence, a region's
+    /// lines after the region, reading only the regions' levels (one read each), never every line's words.
+    @Test("source.editor.colour.reading-order-gradient: the order shown as one sequence, regions opened")
+    func theOrderShownAsOneSequence() async throws {
+        let (store, transport) = try await loaded()
+        let before = transport.entriesCalls
+        let ids = await store.fullSequence { $0 == "s-b" }
+        #expect(ids == ["s-a", "s-b", "s-l1", "s-l2", "s-l3", "s-c"])
+        #expect(transport.entriesCalls == before + 1)
+        await store.show(childrenOf: "s-b")
+        await store.move("s-l3", to: 0)
+        #expect(store.sequence == ["s-a", "s-b", "s-l3", "s-l1", "s-l2", "s-c"], "a reorder is in the sequence")
+    }
+
     @Test("words under a line are listed and moved with the same verbs as lines")
     func wordsReorderUnderTheirLine() async throws {
         let (store, transport) = try await loaded()

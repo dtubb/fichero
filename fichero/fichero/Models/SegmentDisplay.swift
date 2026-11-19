@@ -24,7 +24,9 @@ enum SegmentDisplay {
         return drawn(
             passes: store.passes(documentId: documentId),
             segments: store.segments(documentId: documentId),
-            focusedArtifactId: focus.documentId == documentId ? focus.id : nil
+            focusedArtifactId: focus.documentId == documentId ? focus.id : nil,
+            pickedPassId: store.pickedPassByDocument[documentId],
+            readingOrder: store.orderShownByDocument[documentId]
         )
     }
 
@@ -49,10 +51,14 @@ enum SegmentDisplay {
     /// boxes. A pass whose `boxIndex` values are not exactly `0..<count` is refused by
     /// `geometry(from:...)` and passed over, never guessed at.
     nonisolated static func drawn(
-        passes: [SegmentPassValue], segments: [Segment], focusedArtifactId: String? = nil
+        passes: [SegmentPassValue], segments: [Segment], focusedArtifactId: String? = nil, pickedPassId: String? = nil,
+        readingOrder: [String]? = nil
     ) -> Selected? {
         let segmentsByPass = Dictionary(grouping: segments, by: \.passId)
-        for pass in drawingOrder(passes, segments: segments, focusedArtifactId: focusedArtifactId) {
+        let order = drawingOrder(
+            passes, segments: segments, focusedArtifactId: focusedArtifactId, pickedPassId: pickedPassId
+        )
+        for pass in order {
             guard let passSegments = segmentsByPass[pass.id], !passSegments.isEmpty,
                   let geometry = geometry(
                       from: passSegments,
@@ -60,7 +66,8 @@ enum SegmentDisplay {
                       // as the artifact path always read it.
                       provider: pass.name,
                       model: pass.model,
-                      renditionId: passSegments.first?.anchor.renditionId
+                      renditionId: passSegments.first?.anchor.renditionId,
+                      readingOrder: readingOrder
                   ) else { continue }
             return Selected(geometry: geometry, artifactId: pass.sourceArtifactId, passId: pass.id)
         }
@@ -69,6 +76,7 @@ enum SegmentDisplay {
 
     /// The ONE order the Preview tries a page's passes in (#5467). The app ranks nothing itself:
     ///
+    /// 0. **the pass a person picked** in the Pass menu (#6670), when it has a shape to draw: a reorder too.
     /// 1. **the inspector's focused artifact**, when this page has a pass from it with a shape to draw
     ///    (ruled 2026-08-27: clicking a result in the Inspector shows its boxes). A REORDER, never a
     ///    filter: a focused pass with nothing usable falls through to the rest.
@@ -81,13 +89,14 @@ enum SegmentDisplay {
     ///
     /// A georeferencing pass holds control points, not the page's text (#5122): never drawn.
     nonisolated static func drawingOrder(
-        _ passes: [SegmentPassValue], segments: [Segment], focusedArtifactId: String? = nil
+        _ passes: [SegmentPassValue], segments: [Segment], focusedArtifactId: String? = nil, pickedPassId: String? = nil
     ) -> [SegmentPassValue] {
         let text = passes.filter { !$0.isGeoreferencing }
         let shapedPassIds = Set(segments.filter(hasShape).map(\.passId))
-        let focused = focusedArtifactId.map { id in
-            text.filter { $0.sourceArtifactId == id && shapedPassIds.contains($0.id) }
-        } ?? []
+        let picked = pickedPassId.map { id in text.filter { $0.id == id && shapedPassIds.contains(id) } } ?? []
+        let focused = picked + (focusedArtifactId.map { id in
+            text.filter { $0.sourceArtifactId == id && shapedPassIds.contains($0.id) && $0.id != pickedPassId }
+        } ?? [])
         let rest = text.enumerated().sorted { lhs, rhs in
             if lhs.element.drawn != rhs.element.drawn { return lhs.element.drawn }
             switch (lhs.element.rank, rhs.element.rank) {
@@ -152,7 +161,8 @@ enum SegmentDisplay {
         from segments: [Segment],
         provider: String,
         model: String?,
-        renditionId: String?
+        renditionId: String?,
+        readingOrder: [String]? = nil
     ) -> OCRGeometry? {
         guard Set(segments.compactMap(\.boxIndex)) == Set(0..<segments.count) else {
             log.error("""
@@ -161,11 +171,10 @@ enum SegmentDisplay {
                 """)
             return nil
         }
-        // ponytail: the pass's as-written order (`boxIndex`), not a named order the Segments pane may have
-        // chosen -- `ReadingOrderStore` is per pane and the Preview holds none. Reading a chosen order here
-        // needs the pane's order id beside the document; until then a reordered named order does not reshade.
-        let tones = RegionColours.tones(of: segments)
-        let numbers = RegionColours.orderNumbers(of: segments)
+        // The order a list shows for the page (`SegmentStore.showOrder`, #6422), else the pass's as-written order
+        // (`boxIndex`): a reorder or another order reshades the lines and renumbers them.
+        let tones = RegionColours.tones(of: segments, readingOrder: readingOrder)
+        let numbers = RegionColours.orderNumbers(of: segments, readingOrder: readingOrder)
         let boxes: [OCRGeometryBox] = segments
             .sorted { ($0.boxIndex ?? 0) < ($1.boxIndex ?? 0) }
             .map { segment in

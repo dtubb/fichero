@@ -141,6 +141,48 @@ extension ZoomableImagePreview {
         )
     }
 
+    /// The geometry the picture shown can draw: the page's own, else the segments mapped onto the rendition (#6420).
+    var drawnGeometry: OCRGeometry? {
+        guard let geometry = ocrGeometry else { return nil }
+        return geometryFrameMatchesDisplay(geometry) ? geometry : mappedRenditionGeometry
+    }
+
+    var mappedRenditionGeometry: OCRGeometry? {
+        guard let shown = displayedRenditionId, renditionBoxes?.id == shown else { return nil }
+        return mappedGeometryCache
+    }
+
+    func refreshMappedGeometry() {
+        guard let geometry = ocrGeometry, let loaded = renditionBoxes else { return mappedGeometryCache = nil }
+        mappedGeometryCache = SegmentOnRendition.mappedGeometry(geometry, on: loaded.answer)
+    }
+
+    /// True (after saying why) when the boxes on screen are mapped onto a rendition, so the edit is refused.
+    func refusesEditOnMappedRendition() -> Bool {
+        guard let geometry = ocrGeometry, !geometryFrameMatchesDisplay(geometry), mappedRenditionGeometry != nil else { return false }
+        windowState?.segmentNotice = SegmentOnRendition.editRefusal
+        return true
+    }
+
+    /// Ask the engine where the page's segments sit on the rendition now shown (#6420); when it does not know, say why.
+    func loadRenditionBoxes() {
+        guard let documentId, let segmentService, let id = displayedRenditionId else { return renditionBoxes = nil }
+        Task {
+            do {
+                let answer = try await segmentService.segmentBoxes(documentId: documentId, renditionId: id)
+                guard displayedRenditionId == id else { return }
+                renditionBoxes = (id, answer)
+                refreshMappedGeometry()
+                if !answer.followed {
+                    windowState?.segmentNotice = answer.note ?? "The segments' place on this picture is not known, so no boxes are drawn."
+                }
+            } catch {
+                renditionBoxes = nil
+                Self.logger.error("Segment boxes on rendition failed: \(String(describing: error), privacy: .public)")
+            }
+        }
+    }
+
     /// What the toolbar shows about the current rendition.
     ///
     /// `nil` when there is nothing worth saying — no service, no document, or

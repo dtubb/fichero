@@ -353,6 +353,12 @@ run_fast() {
     if [[ "$(basename "$guardrail")" == "check_unmerged_work.py" || "$(basename "$guardrail")" == "check_emit_change_coverage.py" ]]; then
       continue
     fi
+    if [[ "$(basename "$guardrail")" == "check_engine_imports_bundled.py" ]]; then
+      # Takes the staged bundle's app_packages (no argument is usage exit 2); a machine with no stage prints "not run:" and passes.
+      run_check "check_engine_imports_bundled.py" "${PYTHON_BIN}" "$guardrail" \
+        "fichero-server/build/fichero_server/macos/app/Fichero Server.app/Contents/Resources/app_packages"
+      continue
+    fi
     run_check "$(basename "$guardrail")" "${PYTHON_BIN}" "$guardrail"
   done
   run_check "check_emit_change_coverage.py" "${PYTHON_BIN}" scripts/check_emit_change_coverage.py

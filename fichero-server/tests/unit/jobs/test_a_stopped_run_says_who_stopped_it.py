@@ -1,6 +1,6 @@
 """`activity.recipe-run.stop-reaches-its-step`: a stopped run says who stopped it.
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md. WHY (2026-10-11, the hardening pass): #5609's
+Spec: docs/contributor_manual/specs/ui/activity-pane.md. WHY (2026-10-11, the hardening pass): #5609's
 Stop works (checked live on a scratch engine: the answer was "stopping", its running step was stopped and the run
 ended cancelled), but every stopped row read "Stopped by you", though an agent may have pressed it. The person's own
 Stop still reads "Stopped by you"; through the MCP server or the command line it says so; another account is named.

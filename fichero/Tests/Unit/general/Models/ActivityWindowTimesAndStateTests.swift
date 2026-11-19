@@ -3,7 +3,7 @@
 //  FicheroTests
 //
 //  Pure rules behind two Activity window behaviours
-//  (docs/contributor_manual/specs/ui/activity-and-automatic-work.md):
+//  (docs/contributor_manual/specs/ui/activity-pane.md):
 //
 //  - activity.window.absolute-times (#5432): every row said "just now". The
 //    store read the engine's `started_at` (aware UTC WITH microseconds) through

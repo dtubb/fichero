@@ -7,7 +7,7 @@
 > graph views read.
 >
 > Design-led (Testing Constitution). **Status: DRAFT** (2026-10-29), written from the review in
-> `agent-work/status/briefs/kg-review-2026-10-29.md` and the B12 data. This is the OVERVIEW of the
+> `agent-work/status/briefs/kg-review-2026-10-29.md` and the test-box data. This is the OVERVIEW of the
 > knowledge graph: what it is for, how names and statements are made, reviewed, joined to the
 > catalogue and shown. The detail specs stand and are cited, never restated: `kg-tables.md` (the
 > Entities and Claims tables, CRUD, rules that survive re-import), `kg-entity-inspector.md` (one
@@ -71,7 +71,7 @@ native graph, timeline and map views.
   made by a named rule, with its evidence, as of a date, confidence as a control. Adopted from
   `../explore/networks.md`.
 - Deliberately not adopted: automatic merging on embedding similarity (what produced 1,493
-  pending pairs in B12); an LLM writing prose from the graph (`kg.read.no-llm`); a second
+  pending pairs in the test box); an LLM writing prose from the graph (`kg.read.no-llm`); a second
   model-written list of names beside the graph (the catalogue's access points today).
 
 ## Words
@@ -122,7 +122,7 @@ native graph, timeline and map views.
   date gate; not built: institution as a stated subtype, money.
 - `kg.names.tagger-is-a-seed` — **[GAP]** (#5536, #5545; owner ruling 2026-10-29) the bundled
   Spanish tagger is assessed on the project's check set before it is offered as a names source;
-  on B12 it is not good enough (the review, section 4.1: offices as people, given names as
+  on the test box it is not good enough (the review, section 4.1: offices as people, given names as
   places, cut surnames, a hundred names a page), so by default it runs only as a free seed whose
   names are proposals into the canonical set and never the catalogue's names by themselves; a
   project where it measures well on the check set may choose it as the step's source; a tagger
@@ -155,7 +155,7 @@ native graph, timeline and map views.
   entity (`kg.entity.models-propose-merges` in `kg-tables.md`). *Test:*
   `fichero-server/tests/unit/kg/test_models_propose_merges_to_spec.py`.
 - `kg.resolve.no-write-time-embedding-pairs` — **[BROKEN]** (#6280, #4842) the writer no
-  longer queues an embedding-cosine or `SequenceMatcher` pair for every new name: B12 holds
+  longer queues an embedding-cosine or `SequenceMatcher` pair for every new name: the test box holds
   1,493 pending pairs for 2,885 names, most of them two people of one surname or two events
   of one kind, and nobody can review that. The writer keeps the exact and alias matches; the
   similar-name pairs it queued are withdrawn by the system (never marked rejected); proposals
@@ -222,7 +222,7 @@ native graph, timeline and map views.
   (`date_values`, `time_start`); a dated row with no clear actor is a page date, and there are no
   subject-less claims, never a claim whose subject slot holds the date; the timeline reads dates, the tables and the
   paragraph never show a date where a person should be; existing dated rows are converted by
-  an audited, scan-first repair, never a batch rewrite. In B12's Sonnet folder 36 of 75 claims
+  an audited, scan-first repair, never a batch rewrite. In the test box's Sonnet folder 36 of 75 claims
   are such rows.
 - `kg.statements.object-role` — **[GAP]** (#3808, #5541) a statement's object carries a role
   where the extraction knows it (patient, recipient, place, instrument), seeded from the
@@ -301,7 +301,7 @@ approval).
   to outside authorities are an OPTION of the entities step, off unless chosen, per type: when
   on, GeoNames (and Wikidata where chosen) candidates are proposed for places and Wikidata for
   people and organisations, from the authority sheet, confirmed by a person, kept apart from what
-  the pages say (`kg-enrichment.md`, `gazetteer.links-proposed-confirmed`). For B12 and B13:
+  the pages say (`kg-enrichment.md`, `gazetteer.links-proposed-confirmed`). For two test boxes:
   GeoNames for places on, no outside links for people.
 
 ### E. Review lenses
@@ -613,7 +613,7 @@ The owner asked (2026-11-07) how Fichero should find names, relations, coreferen
 - Depends on: 1.4
 - Size: M
 
-Order: the check set gains the HTR text beside the clean text per page (the page's raw reading and its corrected one); the candidate cards (spaCy stock and tuned, GLiNER, the distilled tagger, the HIPE-lineage model, NuNER) with licence class and place; the bake-off's names scorer per type over the one path; the by-hand script for non-open candidates on a scratch engine (the Step 8.1 pattern). The decision the owner asked for is the table this step produces, read on the B12 check set first.
+Order: the check set gains the HTR text beside the clean text per page (the page's raw reading and its corrected one); the candidate cards (spaCy stock and tuned, GLiNER, the distilled tagger, the HIPE-lineage model, NuNER) with licence class and place; the bake-off's names scorer per type over the one path; the by-hand script for non-open candidates on a scratch engine (the Step 8.1 pattern). The decision the owner asked for is the table this step produces, read on the test-box check set first.
 
 - test (to write): `test_names_bakeoff_candidates.py` in fichero-server/tests/unit/recipes/ (per-type precision and recall for each fitting candidate, clean and HTR; one scorer; the non-open candidate absent from the step and present in the by-hand table; figures on the run and the card)
 
@@ -677,8 +677,8 @@ Nothing of Stages 6 and 7 is for the Monday build. The order inside each is engi
 | iPhone / iPad | later | read-only lens and sheet | — |
 | Load | yes | a box of 100 folders and 20,000 names: the lens pages, the pass is bounded, no peg (#5261) | `fichero-server/tests/perf/` |
 
-Fixtures: ten corrected B12 pages (names and statements confirmed by the owner) as the check
-set; the B12 one-folder Sonnet run as the before picture; a synthetic box for load.
+Fixtures: ten corrected test-box pages (names and statements confirmed by the owner) as the check
+set; the test-box one-folder Sonnet run as the before picture; a synthetic box for load.
 
 ## Open questions for the owner
 
@@ -692,7 +692,7 @@ applied to the behaviours they name.
 - A person edits them into ONE canonical set. Every draft, from any source, is a proposal resolved
   into the canonical entities by accept, merge or reject; a superseded draft does not persist as
   parallel data (`kg.names.one-canonical-set`).
-- The bundled Spanish tagger is assessed for this archive; on B12 it is very noisy and belongs, by
+- The bundled Spanish tagger is assessed for this archive; on the test box it is very noisy and belongs, by
   default, as a free seed or proposal only (`kg.names.tagger-is-a-seed`).
 - At promote, the catalogue's access points are typed by the graph into `catalogue_people`,
   `catalogue_places` and `catalogue_institutions`, with no model call
@@ -726,7 +726,7 @@ applied to the behaviours they name.
    subject-less claims (`kg.statements.dates-are-values`).
 5. A reviewer model for names and statements is allowed at its own trust level, measured on a
    check set first, then turned on per project (`kg.resolve.person-wins`).
-6. Outside authority links are an option of the entities step, not always on; for B12 and B13,
+6. Outside authority links are an option of the entities step, not always on; for two test boxes,
    GeoNames for places on, no outside links for people (`kg.attr.links-proposed-per-type`).
 7. The per-document entities artifact is migrated once into proposals, then retired with the app
    store that reads it (`kg.one.entities-artifact-retired`). The export spec being written on `spec/export-catalogue` points here

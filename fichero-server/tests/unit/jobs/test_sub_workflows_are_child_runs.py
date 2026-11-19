@@ -1,6 +1,6 @@
 """A sub-workflow is a child run of the step that called it: Stop and Pause reach it (#5375, #5374).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md: `activity.run.stop-reaches-sub-workflows`
+Spec: docs/contributor_manual/specs/ui/activity-pane.md: `activity.run.stop-reaches-sub-workflows`
 ("Stop and Pause reach a sub-workflow. Today the child gets its own task id, so its cancel check is
 never true") and "What is deleted": a sub-workflow's `ainvoke` becomes "a child run job of the step
 that called it, so pause, cancel and the record reach it". Written from the spec's text, and driven

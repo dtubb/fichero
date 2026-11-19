@@ -5,6 +5,7 @@ release needed a person for (docs/contributor_manual/specs/harness/release-and-v
 from __future__ import annotations
 
 import importlib.util
+import os
 import plistlib
 import re
 import subprocess
@@ -139,11 +140,17 @@ def test_key_still_dataless_or_missing_refuses(tmp_path):
 
 
 # 6. smoke check before publish
-def _fake_attach(version, build):
+def _fake_attach(version, build, engine_stamp="same"):
+    """A mounted Fichero.app; its engine carries the app's own stamp unless `engine_stamp` says otherwise (None: none)."""
     def attach(cmd):
         mount = Path(cmd[cmd.index("-mountpoint") + 1])
         contents = mount / "Fichero.app" / "Contents"
         contents.mkdir(parents=True)
+        stamp = f"{version} {build}\n" if engine_stamp == "same" else engine_stamp
+        if stamp is not None:
+            pkg = contents / "Resources" / "Fichero Server.app" / "Contents" / "Resources" / "app" / "fichero_server"
+            pkg.mkdir(parents=True)
+            (pkg / "release-stamp.txt").write_text(stamp)
         (contents / "Info.plist").write_bytes(plistlib.dumps(
             {"CFBundleShortVersionString": version, "CFBundleVersion": build}))
     return attach
@@ -174,6 +181,23 @@ def test_smoke_refuses_unstapled_or_wrong_stamp(tmp_path):
     assert any("stapler" in p for p in problems) and any("Gatekeeper" in p for p in problems)
     assert any("(23), the stamp is 2026.11.14 (24)" in p for p in problems)
     assert run.calls[-1][:2] == ["hdiutil", "detach"]
+
+
+def test_smoke_refuses_an_engine_stamped_for_another_release(tmp_path):
+    """#6723: a release whose engine would report a version other than the app's is not published."""
+    dmg = tmp_path / "Fichero.dmg"
+    dmg.write_bytes(b"x")
+    run = Recorder(on={"attach": _fake_attach("2026.11.18", "29", engine_stamp="2026.11.17 28\n"), "detach": _detach})
+    problems = rg.smoke(dmg, "2026.11.18", "29", run=run)
+    assert len(problems) == 1 and "engine is stamped 2026.11.17 (28)" in problems[0] and "2026.11.18 (29)" in problems[0]
+
+
+def test_smoke_refuses_an_engine_with_no_stamp(tmp_path):
+    dmg = tmp_path / "Fichero.dmg"
+    dmg.write_bytes(b"x")
+    run = Recorder(on={"attach": _fake_attach("2026.11.18", "29", engine_stamp=None), "detach": _detach})
+    problems = rg.smoke(dmg, "2026.11.18", "29", run=run)
+    assert len(problems) == 1 and "no release stamp" in problems[0]
 
 
 # 7. notify
@@ -423,9 +447,49 @@ def test_spec_ids_in_release_and_versioning_are_unique():
 
 
 def test_docs_download_links_name_fichero_dmg_and_the_one_dmg_text_calls_it_the_dev_build():
+    # Only the dev build is posted, as Fichero-dev.dmg (owner 2026-11-18, release-channels-and-feature-tiers): the site links name it.
     for md in list((_ROOT / "docs").glob("*.md")) + [_ROOT / "README.md"]:
-        assert "releases/latest/download/Fichero-dev.dmg" not in md.read_text(), md.name
+        assert "releases/latest/download/Fichero.dmg" not in md.read_text(), md.name
     c = _script("create-github-release.sh")
-    assert 'DOWNLOAD_LINE="Download \\`Fichero.dmg\\` below (the dev build, with every feature on' in c
+    assert 'DOWNLOAD_LINE="Download \\`$ASSET_NAME\\` below (the dev build, with every feature on' in c
     assert c.index("DOWNLOAD_LINE=") < c.index('RELEASE_BODY="## Installation')
     assert "still runs it last" not in (_ROOT / "docs/contributor_manual/specs/harness/release-and-versioning.md").read_text()
+
+
+def test_release_all_builds_only_the_dev_dmg_and_public_only_changes_how_it_is_published():
+    """release-channels-and-feature-tiers (owner 2026-11-17): one dev DMG is built; no flag publishes it as a dev-channel
+    pre-release with no site; --public publishes the same DMG as the public item (Latest, appcast, site)."""
+    r, c, p = _script("release-all.sh"), _script("create-github-release.sh"), _script("publish-release.sh")
+    tiers = r[r.index("# DMG tiers for this run"):]
+    tiers = tiers[:tiers.index("\nfi\n")]
+    assert "DMG_TIERS=(dev alpha)" not in r and "DMG_TIERS=(dev)\n  FICHERO_RELEASE_TIER=dev" in tiers
+    assert "--public) PUBLIC_RELEASE=true ;;" in r
+    publish = r[r.index("publish_part() {"):]
+    public, dev = publish.split("  else\n", 1)
+    assert "export FICHERO_RELEASE_PUBLIC=1" in public and "unset FICHERO_RELEASE_CHANNEL" in public
+    assert "export FICHERO_RELEASE_CHANNEL=dev FICHERO_SKIP_SITE=1" in dev and 'GITHUB_ARGS+=("--prerelease")' in dev
+    assert '"${FICHERO_RELEASE_PUBLIC:-0}" != 1 ] && [ -f "$DMG_PATH.tier" ]' in c, "a public run keeps the dev DMG public"
+    assert "--github \"$@\"" in p, "publish-release.sh passes --public on"
+
+
+def _public_download_line(script: str, have_dev_dmg: str, public: str, channel: str = "") -> tuple[str, str]:
+    """Run create-github-release.sh's clear-the-dev-DMG line and its DOWNLOAD_LINE choice in bash; return both results."""
+    clear = next(ln for ln in script.splitlines() if ln.endswith("HAVE_DEV_DMG=false; fi") and "FICHERO_RELEASE_CHANNEL" in ln)
+    start = script.index('if [ "$HAVE_DEV_DMG" != true ]; then')
+    asset = script.index('ASSET_NAME="Fichero.dmg"')
+    name = script[asset:script.index("\nfi\n", asset) + 4]  # the posted name: Fichero-dev.dmg for the dev build
+    pick = script[start:script.index('RELEASE_BODY="## Installation')]
+    code = f'{clear}\n{name}\n{pick}\necho "$HAVE_DEV_DMG"; echo "$DOWNLOAD_LINE"'
+    done = subprocess.run(["bash", "-c", code], capture_output=True, text=True, timeout=30, check=True,
+                          env={"PATH": os.environ["PATH"], "HAVE_DEV_DMG": have_dev_dmg, "FICHERO_RELEASE_PUBLIC": public,
+                               "FICHERO_RELEASE_CHANNEL": channel})
+    have, line = done.stdout.strip().split("\n", 1)
+    return have, line
+
+
+def test_a_public_release_body_names_only_the_attached_dmg_and_ignores_a_stale_dev_dmg_6665():
+    c = _script("create-github-release.sh")
+    have, line = _public_download_line(c, "true", "1")  # a stale Fichero-dev.dmg is still on disk
+    assert have == "false" and "`Fichero-dev.dmg`" in line and "`Fichero.dmg`" not in line
+    have, line = _public_download_line(c, "true", "0")  # the two-DMG hand run still names both
+    assert have == "true" and "Fichero-dev.dmg" in line

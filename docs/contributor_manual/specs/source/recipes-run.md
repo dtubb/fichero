@@ -9,13 +9,20 @@
 > of 2026-10-26 (paraphrased): what matters most is that recipes RUN, reliably: the engine does not
 > crash, memory does not leak, a run on 20 to 100+ pages finishes, and the recipe runner was never
 > properly finished as a spec. Facts read from the code of origin/integration at 2e6e62c8a and from the
-> dogfood run of 2026-10-26 (`agent-work/status/briefs/dogfood-b12-2026-10-26.md`: one 20-page run
+> dogfood run of 2026-10-26 (the dogfood brief of that day: one 20-page run
 > wedged three times). Milestone `recipes-run` created on approval; its description points here.
+>
+> **Owns / Does not own (2026-11-18, one owning spec per area).** This spec OWNS a recipe run from Start to the summary: the
+> journey, batches and order, resume after a quit or crash, Stop, Pause and Run again, memory bounded for a run, per-step timings,
+> a step running only on pages whose inputs are there. It does NOT own: how any run fails, pauses and goes on, the failure kinds,
+> the one alert and the bug report (`compute/runner-reliability.md`); the Activity pane and window and the one job model, lanes
+> and throttle (`ui/activity-pane.md`); designing the recipe and the Set Up screens (`source/recipe-designer.md`); every model
+> and place with its account (`ui/models-and-compute-window.md`); which model runs where (`ai/where-models-run.md`).
 
 Tags: [OK] built and pinned · [PARTIAL] exists, partly wired or unpinned · [GAP] not built · [BROKEN] the
 code contradicts the intent. This spec does **not** replace `source/recipe-designer.md` (how a recipe is
 designed), `source/models-chains-and-projects.md` (the run's engine behaviours, `source.recipe.*`) or
-`ui/activity-and-automatic-work.md` (lanes, throttle, durability, the Activity window). It walks the one
+`ui/activity-pane.md` (lanes, throttle, durability, the Activity window). It walks the one
 journey **from Start to the summary** and states the RELIABILITY behaviours as testable lines, each with
 its honest tag, its test and its issue. Where an existing id already says it, this spec cites it (the
 owning spec stays the place to change it) and adds a `recipes-run.*` line only for what no spec said.
@@ -50,7 +57,7 @@ app only shows what the engine says (`fichero/fichero/Views/Activity/`); no rule
 
 - **Spotlight and Photos indexing.** Long background work that never gets in the way, survives every
   quit and crash, and resumes where it was; the activity spec adopts this as its north star
-  (`ui/activity-and-automatic-work.md` "Intent"). We add nothing; this spec makes the recipe run honour it.
+  (`ui/activity-pane.md` "Intent"). We add nothing; this spec makes the recipe run honour it.
 - **Durable queues: claim with a lease, transactional outbox, exactly-once effect.** The pattern of every
   job queue that survives its workers (Sidekiq, Celery with acks-late, Postgres `SKIP LOCKED` queues): a
   `running` row whose lease lapsed goes back to `waiting`, never to `failed`
@@ -241,7 +248,7 @@ replaces the Kraken figure before #6212 is coded.
   engine (`FICHERO_BASE_PATH` a fresh directory, never the owner's app database) ends done with no step
   failed outright, the engine process alive throughout and `/api/health` answering within 1 s at every
   sample; it is the M4 gate's load leg (#4634), marked slow and skipped on the Pro. Nothing today runs a
-  whole recipe at that size: the owner's 20-page runs wedged three times (dogfood B12) and a Dev Local
+  whole recipe at that size: the owner's 20-page runs wedged three times (dogfood on a test box) and a Dev Local
   engine was SIGKILLed at 14.9 of 16 GB of swap (#6075). The load leg is written (skipped unless
   `FICHERO_LOAD_LEG_PAGES` names a folder of 100+ pages) and not yet run on the M4. Test: fichero-server/tests/perf/test_recipe_run_100_pages.py.
 - `recipes-run.reliability.a-page-never-spins-silently` — **[PARTIAL]** (#6236) no page holds a step without a
@@ -447,7 +454,7 @@ replaces the Kraken figure before #6212 is coded.
 - `recipes-run.memory.threads-fill-the-cores` — **[PARTIAL]** (#6229) a page's torch threads are the performance cores
   given to the run divided by the pages the plan lets in at once (set once per plan, `activity.lane.torch-threads-set-once-per-plan`), served on the run status beside `pages_at_once` ("2 pages at
   once, 2 threads each"). Per the owner's ruling (2026-10-27): half the cores while the Mac is in use; the gate itself
-  is sized from the machine once #5929 is fixed (`activity-and-automatic-work.md`). Built: `RecipeRunStatus.threads_each`
+  is sized from the machine once #5929 is fixed (`ui/activity-pane.md`). Built: `RecipeRunStatus.threads_each`
   is what the pages read on now, torch's one pool as the Kraken seam last set it (`kraken_runtime.threads_reading_now`),
   and null while no Kraken page is inside the gate (a step on another engine, or between pages; #6240). Left: the app's grey line says it
   (Swift). *Test:* `fichero-server/tests/unit/recipes/test_run_says_pages_at_once.py`.
@@ -460,7 +467,7 @@ replaces the Kraken figure before #6212 is coded.
   reaches N of N and the thumbnails-first hold lifts. Today the recipe run and the import's pages do
   (`activity.durable.dies-with-the-engine`), but a thumbnail claim whose file does NOT exist is neither
   run nor released, so `activity.lane.thumbnails-first` held every Kraken, embed and spaCy job forever
-  across three restarts (dogfood B12: 81 of 95 thumbnails, the 14 missing pages never made).
+  across three restarts (dogfood on a test box: 81 of 95 thumbnails, the 14 missing pages never made).
   Built: the reopen puts every claim no live thread runs back to waiting, and a running thumbnail row no thread runs is
   requeued by the next scan (`requeue_orphaned_first`), so the hold lifts. Left: the real kill-and-restart run on the M4
   that shows `Make thumbnails` reaching N of N. Test: fichero-server/tests/unit/jobs/test_thumbnail_claims_requeued_after_crash.py.
@@ -489,7 +496,7 @@ replaces the Kraken figure before #6212 is coded.
 - `recipes-run.isolation.one-project-never-blocks-another` — **[PARTIAL]** (#6213) the lanes are shared,
   the holds are not: a project whose rows are wedged (running with no worker) never holds the thumbnail,
   model or embed lane against another project; a fresh project's import makes its first thumbnail within
-  a minute whatever another project's rows say. Dogfood B12 23:50Z: a fresh project sat at 0 of 20,
+  a minute whatever another project's rows say. Dogfood on a test box 23:50Z: a fresh project sat at 0 of 20,
   "Waiting for the thumbnail lane: work in another project is running", on the wedged project's phantom
   rows. Built: an images-lane job running past `STUCK_IMAGE_JOB_SECONDS` (60 s) holds no slot, no one-heavy hold and no
   waiting row's reason, and the lane starts a thread beside it (at most `slots` more); its row stays running. The one-slot
@@ -504,7 +511,7 @@ replaces the Kraken figure before #6212 is coded.
   Test: fichero-server/tests/unit/jobs/test_lanes_released_per_project.py.
 - `recipes-run.isolation.release-never-refused-by-a-phantom` — **[OK]** (#6213) releasing a library
   refuses only for a run with a live thread of this engine, naming the run and its state; with every thread
-  terminal it releases. Dogfood B12: `fichero_library_release` answered 409 "1 workflow run(s) are going"
+  terminal it releases. dogfood on a test box: `fichero_library_release` answered 409 "1 workflow run(s) are going"
   with `list_threads` empty and every thread terminal. Test: fichero-server/tests/unit/jobs/test_lanes_released_per_project.py.
 
 ### 10. A run can be stopped, paused and resumed
@@ -613,6 +620,85 @@ replaces the Kraken figure before #6212 is coded.
   thumbnails run on the images lane (`test_lanes_released_per_project.py`). Left: a reduced-size TIFF decode
   (Pillow decodes a TIFF whole) and the time beside a Kraken fan-out measured on the M4.
   Test: fichero-server/tests/unit/importers/test_thumbnail_cost_bounded_6193.py.
+
+### 13. A step runs on a page only when what it needs is there (owner 2026-11-17, #6673)
+
+The owner's run of 2026-11-17 (39 pages, Kraken lines, then reading, correcting, statements): Kraken did not
+fail on its own, but the run still came apart. The engine log shows, in order:
+
+1. `Transcribe (Kraken)` failed at once on every page: "The Kraken reader McCATMuS is not on this Mac yet".
+   The start plan named the reader but did not fetch it before the step.
+2. Kraken found lines on all 39 pages. Its polygonizer failed on one line on each of 3 pages
+   (`TopologyException: side location conflict`); Kraken stores `None` for that line's polygon, and the
+   line is dropped with nothing said.
+3. Reading those lines (`read-a-line`, a cloud vision model) failed on 5 pages, and the page read failed on
+   30 of 37, all with OpenRouter's HTTP 402 `in_flight_budget_exhausted` (#6671), shown as "quota/limit hit".
+4. The later steps went on regardless. `tie-text-to-lines` did not run (no page reading). `correct` and
+   `find-statements` ran on pages that had no reading, and the run read "Done with failures" with steps
+   that finished on nothing.
+
+The behaviours:
+
+- `recipes-run.steps.models-fetched-before-the-step` — **[OK]** (#6673) every model a run's steps name (a
+  Kraken segmenter or reader, a local vision model) is on this Mac before the first step that uses it starts:
+  the run's first stage fetches what is missing, with its progress in the run's row. A fetch that fails does
+  not end the run (`source.recipe.download-failure-waits`: other steps run): the steps that need that model wait,
+  each page "waiting for <model> to download", with Retry on the download; never a step failing on every page with
+  "not on this Mac yet". Tests: `fichero-server/tests/unit/recipes/test_models_fetched_before_the_step_6673.py`.
+- `recipes-run.steps.a-page-waits-for-its-inputs` — **[OK]** (#6673) a step runs on a page only when every
+  step it needs has finished on THAT page. A page whose earlier step failed is held, not passed on: the later
+  steps report it as "waiting for <step>" (never done, never failed for a cause that is not theirs).
+  Pages that have their inputs go on: one page's failure never stops the others. Tests: `fichero-server/tests/unit/recipes/test_a_page_waits_for_its_inputs_6673.py`.
+- `recipes-run.steps.retry-flows-through` — **[OK]** (#6673) Retry on the run redoes only the failed pages
+  of the earliest failed step, and each page that then succeeds flows on through every later step it was
+  waiting for, in order; pages already done are not redone (`recipes-run.journey.run-again-on-what-was-missed`). Tests: `fichero-server/tests/unit/recipes/test_a_page_waits_for_its_inputs_6673.py`.
+- `recipes-run.steps.no-empty-done` — **[OK]** (#6673) a step that had nothing to work on for a page (no
+  lines to tie, no reading to correct) never counts the page as done; the summary gives each step's done,
+  waiting and failed pages with the cause of each failure in words. Tests: `fichero-server/tests/unit/recipes/test_a_page_waits_for_its_inputs_6673.py`.
+- `recipes-run.kraken.no-silent-line-loss` — **[OK]** (#6673) a line whose polygon Kraken cannot build keeps
+  its baseline with a box drawn round it, so it is still read; the count of such lines is kept on the page's
+  run and shown in the summary ("3 lines had no outline; boxed from their baselines"). No line Kraken found
+  is dropped without a word. Tests: `fichero-server/tests/unit/llm/test_kraken_line_without_outline_is_boxed_6673.py`. Built: the count is on the page's call log and the geometry's `lines_without_outline`.
+- `recipes-run.kraken.reliability-measured` — **[GAP]** (#6673) Kraken's own reliability is measured, not
+  assumed: a trial of 100 pages (the test corpora) on the M4 overnight, Kraken steps only, records per page
+  the time, lines found, lines without an outline and any failure; the numbers go in this section.
+- `recipes-run.memory.one-heavy-model-in-sequence` — **[OK]** (#6673) a run's stages go one heavy model at a time,
+  in sequence, not all at once. Today the search embedder has a lane of its own so it runs BESIDE Kraken
+  (`execution/jobs.py`, the "embed" lane), and when memory is tight the engine frees Kraken's resident models
+  (`release_idle_models`) to make room, so on a Mac short of RAM a mid-stage embed pushes Kraken out and it reloads
+  page after page. The rule: while a run's Kraken (or local-model) stage has pages queued, the embed lane takes no
+  embed for that run's pages (they wait for the end, `recipes-run.order.search-once-at-the-end`), and Kraken's
+  resident models are never released for an embed or a thumbnail while that stage has pages left. Other projects'
+  embeds wait the same way on a Mac with 16 GB or less.
+  Tests: `fichero-server/tests/unit/execution/test_one_heavy_model_in_sequence_6673.py`. Built: the embed lane waits while any Kraken page is in flight, on every Mac (the page gate names no library).
+- `recipes-run.memory.recorded-per-step` — **[OK]** (#6673) each step of a run records the Mac's RAM, the engine's
+  peak memory, swap used and the memory-pressure level while it ran, and model loads and unloads, in the run's
+  record and in Save Logs for Support, so a run that failed on another person's Mac (2026-11-17: Ann's) can be read
+  afterwards: "Kraken reloaded 31 times; swap 6 GB; memory pressure high".
+  Tests: `fichero-server/tests/unit/recipes/test_memory_recorded_per_step_6673.py`. Built: each step's `memory` in the run's detail, and one `run step <name>:` line in engine.log, which Save Logs for Support carries.
+- A provider's in-flight or rate limit pauses the run, never fails pages: `ai.where.one-retry-policy`, #6671. From
+  2026-11-18 the same holds for every PAUSING kind of the one contract (`compute/runner-reliability.md` §1: no credit, a
+  refused key, the network, memory past its hold, the project closed): the run pauses through the one path and asks, never
+  fails pages for it (#6675, `runner.kinds.pause-or-fail-is-the-tables`); the recipe parks on the paused step and Continue
+  takes it up from the first page not done (`runner.pause.continue-from-first-not-done`, #6569).
+- `recipes-run.credit.out-of-credit-pauses-and-asks` — **[OK]** (owner 2026-11-18, #6675) when a provider is
+  out of credit, or a credit limit (a key's or an account's spending cap) is reached, the run stops there and
+  asks; it does not carry on and break things. Out of credit or at a limit means OpenRouter's HTTP 402
+  "insufficient credits" or "credit limit", or the quota-exhausted answer of OpenAI, Anthropic or Google. It is
+  not a rate limit and not the in-flight budget (#6671): those wait and resume by themselves and raise no
+  dialogue.
+  1. The whole run pauses at once: no further call to that provider, no step marked failed, no later step run
+     on the missing output, nothing written that a retry would have to undo.
+  2. The app shows one dialogue box: which provider, which key or account, out of credit or credit limit, the
+     provider's own words, and what is paused (the run, the step, the pages done and the pages waiting). Its
+     buttons are **Open provider page** (the provider's top-up or limits page), **Continue** (checks the provider
+     again and resumes from the first page not done) and **Stop run**.
+  3. One dialogue per provider per run, never one per page; the pause is also listed in Activity on the
+     paused run.
+  Tests: a 402 credit answer pauses the run (not fails it) and raises the one prompt; Continue resumes from the
+  first page not done; the rate-limit path still resumes by itself. Tests:
+  `fichero-server/tests/unit/workflows/test_credit_stop_6675.py`, `fichero/Tests/Unit/general/Models/CreditPausePromptTests.swift`.
+  Built: `llm/retry.py` `_pause_the_run_for_credit`, `ProviderCreditStopError`, `ActivityStore.askAboutCredit`.
 
 ## Changes to existing behaviours
 
@@ -735,7 +821,7 @@ done-in-order progress, so the manual's screenshot shows both.
 
 ## Accessibility identifiers
 
-Activity's (`ui/activity-and-automatic-work.md`). This spec adds none.
+Activity's (`ui/activity-pane.md`). This spec adds none.
 
 ## UX completeness
 

@@ -145,22 +145,21 @@ def test_full_round_trip_in_memory_asgi():
     from fichero_server.api.auth import initialize_token
     from fichero_server.api.main import app
 
-    # TestClient: the sync httpx.Client face over an in-process ASGI app —
+    # The bearer header, always. Under the suite bypass (FICHERO_DISABLE_AUTH=1) the app enforces nothing and an owner-only
+    # action (ingest) is refused to a caller that is nobody; `tests/unit/conftest.py` attaches the ENFORCING middleware to
+    # this module-global `app` at its LOAD, bound to the token it captured then. Use that token when the unit conftest is
+    # loaded; alone, attach the middleware here before the app starts, with a fresh token.
+    unit_conftest = sys.modules.get("tests.unit.conftest")
+    token = getattr(unit_conftest, "_UNIT_TEST_AUTH_TOKEN", None)
+    if token is None:
+        from fichero_server.api.auth import attach_auth_middleware
+
+        token = initialize_token()
+        attach_auth_middleware(app, token)
+    headers = {"Authorization": f"Bearer {token}"}
+    # TestClient: the sync httpx.Client face over an in-process ASGI app --
     # lets the in-memory leg share the exact _round_trip the socket legs run.
     with TestClient(app) as client:
-        # The bearer header, always. Under the suite bypass
-        # (FICHERO_DISABLE_AUTH=1) this app enforces nothing and the header is
-        # inert — but `tests/unit/conftest.py` attaches the ENFORCING
-        # middleware to this same module-global `app` at conftest LOAD, bound
-        # to the token it captured then, and that attachment is permanent for
-        # the session. So whether this leg meets auth (and with WHICH token)
-        # depends on whether any unit test shared the run. Use that token when
-        # the unit conftest is loaded; the freshly initialized one otherwise —
-        # the engine rotates the bootstrap token at startup, so a header minted
-        # from the file after the fact reads as stale to that middleware.
-        unit_conftest = sys.modules.get("tests.unit.conftest")
-        token = getattr(unit_conftest, "_UNIT_TEST_AUTH_TOKEN", None) or initialize_token()
-        headers = {"Authorization": f"Bearer {token}"}
         docs = _round_trip(client, headers, "inmemory")
     # Two distinct documents made the trip (text for search, image for thumbnail).
     assert docs[".txt"] != docs[".png"]

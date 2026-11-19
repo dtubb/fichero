@@ -98,6 +98,10 @@ logger = logging.getLogger(__name__)
 #: module-level seam, so a test of the distribution-metadata fallback points it at a file that is not there.
 SOURCE_PYPROJECT = Path(__file__).resolve().parents[3] / "pyproject.toml"
 
+#: Written into a staged engine bundle by `scripts/stamp_release_into_engine.sh`: "<release version> <build>". Absent in a
+#: source checkout and in an unstamped build (#6723, `contract.release-engine-reports-its-release`).
+RELEASE_STAMP = Path(__file__).resolve().parents[1] / "release-stamp.txt"
+
 
 def _resolve_engine_version() -> str:
     """Best-effort engine version for the health/About surface.
@@ -111,6 +115,10 @@ def _resolve_engine_version() -> str:
     Run from a source checkout (a ``pyproject.toml`` beside the package's ``src``), the checkout's own version:
     a venv's install metadata is from whenever it was last installed (#5679,
     `contract.dev-engine-version-is-its-source`). A built engine has no ``pyproject.toml`` there.
+
+    A release's engine carries a release stamp ("<version> <build>") and reports that, "2026.11.18 (29)": its
+    distribution's version is the API contract's, which the health response reports apart as ``contract.version``
+    (#6723, `contract.release-engine-reports-its-release`).
     """
     import re
 
@@ -123,6 +131,11 @@ def _resolve_engine_version() -> str:
         if found is None:
             raise RuntimeError(f"the source checkout's {pyproject} names no version")
         return found.group(1)
+    if RELEASE_STAMP.is_file():
+        parts = RELEASE_STAMP.read_text(encoding="utf-8").split()
+        if len(parts) != 2:
+            raise RuntimeError(f"{RELEASE_STAMP} must hold '<release version> <build>', not {parts!r}")
+        return f"{parts[0]} ({parts[1]})"
     for dist_name in ("fichero-server", "fichero_server"):
         try:
             return package_version(dist_name)

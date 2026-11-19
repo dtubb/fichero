@@ -576,6 +576,12 @@ async def resume_workflow(
         if live and live.get("status") in ("accepted", "running"):
             raise HTTPException(status_code=409, detail=f"The run {thread_id} is already running")
 
+        # Continue forgets what the run was paused for (the cap, a rate limit, no credit or a refused key), so its first call
+        # is a real probe and a cause still in force pauses it again (#6569).
+        from fichero_server.llm.retry import forget_provider_pause  # noqa: PLC0415
+
+        forget_provider_pause(thread_id)
+
         # Get checkpoint
         config = {"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}}
         checkpoint_tuple = await checkpointer.aget_tuple(config)

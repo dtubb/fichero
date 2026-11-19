@@ -594,6 +594,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/sorting.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/stages.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/start.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/step_choices.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/step_memory.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/suggestions.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/table.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/topics.py

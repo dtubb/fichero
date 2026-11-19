@@ -1,6 +1,6 @@
 """A text model's calls in a run are jobs on the lanes, like a vision model's pages (#5358, #5353).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md: `activity.jobs-are-a-tree`
+Spec: docs/contributor_manual/specs/ui/activity-pane.md: `activity.jobs-are-a-tree`
 ("pages of tools that do not hand their model calls to a lane (text extraction, chat)" was its
 gap) and `activity.run.lane-cap-per-mac` ("text-model calls (extraction, summaries)" was its gap).
 Written from the spec's text, and driven through the public surface: a real run started with

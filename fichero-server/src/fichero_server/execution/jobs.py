@@ -1,6 +1,6 @@
 """One job model, first slice: background work as durable rows, run by one scheduler (#5353).
 
-Spec: `docs/contributor_manual/specs/ui/activity-and-automatic-work.md` (sections 1, 3, 4, 5) and
+Spec: `docs/contributor_manual/specs/ui/activity-pane.md` (sections 1, 3, 4, 5) and
 the residency rules of `ai/local-runtimes.md` section 3.
 
 A job is a row in the project database's `jobs` table: what it is (`kind`, from the recipe job
@@ -3189,7 +3189,7 @@ def continue_all(db: "Database") -> tuple[list[str], list[str]]:
 def held_count(db: "Database") -> int:
     """How many rows Pause All holds now."""
     _ensure(db)
-    return int(db.execute_fetchone("SELECT count(*) FROM jobs WHERE held_by = ?", [HELD_BY_PAUSE_ALL])[0])
+    return int(db.execute_fetchone("SELECT count(*) FROM jobs WHERE held_by = ?", [HELD_BY_PAUSE_ALL], committed=True)[0])
 
 
 def stop_all(db: "Database", actor: str | None = None, client: str | None = None) -> list[str]:
@@ -3899,6 +3899,7 @@ def seconds_per_item(db: "Database", kind: str) -> float | None:
         "SELECT epoch(finished_at) - epoch(started_at) FROM jobs WHERE kind = ? AND state = 'done' "
         "AND started_at IS NOT NULL AND finished_at IS NOT NULL ORDER BY finished_at DESC LIMIT ?",
         [kind, MEASURED_ITEMS],
+        committed=True,
     )
     times = sorted(r[0] for r in rows if r[0] is not None and r[0] >= 0)
     return times[len(times) // 2] if times else None
@@ -4644,6 +4645,8 @@ def release_idle_models(besides: "str | set[str | None] | None" = None) -> list[
     was used. What was released, by name (#6129: the lane said 'memory is tight' with the embedder idle in the engine)."""
     freed: list[str] = []
     keep = besides if isinstance(besides, (set, frozenset)) else {besides}
+    if _kraken_pages_in_flight():  # `recipes-run.memory.one-heavy-model-in-sequence`: never for an embed while its stage has pages left
+        keep = {*keep, "kraken"}
     runtime = sys.modules.get("fichero_server.llm.kraken_runtime")
     if (
         "kraken" not in keep
@@ -5532,12 +5535,18 @@ class _Scheduler:
         text_held_sql = ""
         text_params: list[Any] = []
         if text_kinds:
-            text_held_sql = (
-                f"(kind IN ({', '.join('?' for _ in text_kinds)}) AND {_PERSON_RANK_SQL} = 0 AND EXISTS "
-                f"(SELECT 1 FROM jobs AS r WHERE r.kind IN ({', '.join('?' for _ in READING_KINDS)}) "
-                f"AND r.state IN ('waiting', 'running')))"
-            )
-            text_params = [*text_kinds, *READING_KINDS]
+            # A run's Kraken pages in flight hold every background embed too (`recipes-run.memory.one-heavy-model-in-sequence`);
+            # ponytail: the page gate does not name its library, so on a Mac with more than 16 GB other projects' embeds wait as well.
+            kinds_in = f"kind IN ({', '.join('?' for _ in text_kinds)}) AND {_PERSON_RANK_SQL} = 0"
+            if _kraken_pages_in_flight():
+                text_held_sql, text_params = f"({kinds_in})", [*text_kinds]
+            else:
+                text_held_sql = (
+                    f"({kinds_in} AND EXISTS (SELECT 1 FROM jobs AS r WHERE "
+                    f"(r.kind IN ({', '.join('?' for _ in READING_KINDS)}) OR COALESCE(r.model, '') LIKE ?) "
+                    f"AND r.state IN ('waiting', 'running')))"
+                )
+                text_params = [*text_kinds, *READING_KINDS, f"{KRAKEN_MODEL_PREFIX}%"]
             where += f" AND NOT {text_held_sql}"
             params += text_params
         # One provider's calls never take the whole network lane while another provider's call is
@@ -5925,7 +5934,9 @@ class _Scheduler:
             state, reason, error = "failed", failed_reason(kind_name, exc), exc
             from fichero_server.llm import failure as _failure
 
-            paused_for = _PAUSED_NOT_FAILED.get(_failure.kind_of(exc)[0])
+            kind = _failure.kind_of(exc)[0]
+            paused_for = _PAUSED_NOT_FAILED.get(kind) or (
+                _failure.paused_reason(kind, getattr(exc, "provider", None)) if kind in _failure.PAUSES else None)
             if paused_for is not None:  # a cause a person removes, then Continues: paused, never failed (#6596, #6588)
                 state, reason = "paused", paused_for
         finally:
@@ -6013,22 +6024,34 @@ PAUSED_PROJECT_CLOSED = "Paused: the project closed"
 #: A kept export's row paused because its folder is gone (`activity.kept-export.one-row-per-export`): one row waits for the
 #: folder, and the edits meanwhile join it, never a failed row per edit.
 PAUSED_EXPORT_FOLDER_GONE = "The export folder is gone"
-#: The failure kinds that PAUSE a job instead of failing it, and the paused row's words: the cause is outside the work
-#: (the project closed under it, the export's folder unplugged) and Continue carries on once it is put right.
+#: The paused row's words for the two kinds whose words predate the table; every other pausing kind (`failure.PAUSES`, the table's
+#: pause-or-fail column) is worded by `failure.paused_reason`. The cause is outside the work and Continue carries on.
 _PAUSED_NOT_FAILED = {"library-closed": PAUSED_PROJECT_CLOSED, "export-folder-gone": PAUSED_EXPORT_FOLDER_GONE}
 
 
 def paused_failure(db: "Database", job_id: str, reason: str | None) -> Any:
     """The failure a row paused for a cause a person removes is listed with (`RunFailure`, its fix the row's button), or
     None for any other row. A gone export folder's Choose Folder… names the export, the job's subject (#6588)."""
-    kind = next((k for k, said in _PAUSED_NOT_FAILED.items() if said == reason), None)
+    from fichero_server.llm import failure as _failure
+
+    kind = next((k for k, said in _PAUSED_NOT_FAILED.items() if said == reason), None) or _failure.kind_of_paused_reason(reason)
     if kind is None:
         return None
-    from fichero_server.llm import failure as _failure
 
     row = db.execute_fetchone("SELECT subject FROM jobs WHERE id = ?", [job_id], committed=True)
     subject = (row[0] or "") if row else ""
     return _failure.of_kind(kind, folder_for=subject.partition(":")[0] if kind == "export-folder-gone" else None)
+
+
+def failed_failure(reason: str | None) -> Any:
+    """The failure a FAILED job row is listed with (`RunFailure`: words, fix, buttons), read back from the row words
+    `failed_reason` wrote; a reason that keeps its own words is `unexpected` with those words (#6354, #6597)."""
+    from fichero_server.llm import failure as _failure
+
+    kind = _failure.kind_of_failed_reason(reason)
+    if kind is not None:
+        return _failure.of_kind(kind)
+    return _failure.of_kind("unexpected").model_copy(update={"words": reason or _failure.row_words("unexpected")})
 
 
 def _pause_for_close(db: "Database", live: list[str] | None) -> None:

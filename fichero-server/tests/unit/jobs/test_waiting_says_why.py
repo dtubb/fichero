@@ -1,6 +1,6 @@
 """A waiting row says what it truly waits for (#5606, `activity.waiting-says-why`).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md. On the onboarding box,
+Spec: docs/contributor_manual/specs/ui/activity-pane.md. On the onboarding box,
 "Embed for search" (0 of 203) said "Waiting: you're using the Mac" while the same response's
 machine state said the Mac was not in use: the reason was left on the row by an earlier throttle
 scan, and the real wait was the model lane, held by a recipe's Paleographer Review. "Processing

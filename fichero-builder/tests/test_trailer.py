@@ -29,7 +29,9 @@ def test_the_one_line_is_accepted():
     (LINE, "Co-Authored-By: Claude <noreply@anthropic.com>"),
     (LINE, LINE),
     (LINE, "Written-By: Claude Opus using Claude Code using Fichero Builder"),
-], ids=["co-authored-only", "directed-only", "bare-model", "plus-co-authored", "two-identical", "two-lines"])
+    ("Written-By: Claude Sonnet 5.5 using Claude Code using Another Product",),
+    (),
+], ids=["co-authored-only", "directed-only", "bare-model", "plus-co-authored", "two-identical", "two-lines", "wrong-product", "no-trailer"])
 def test_every_other_shape_is_refused_naming_the_rule(trailers):
     problems = ph.commit_msg_problems(_msg(*trailers), CFG)
     assert problems and all("Written-By" in p for p in problems)

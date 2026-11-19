@@ -37,6 +37,9 @@ from fichero_server.security.remote_access_tls import (
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
+# A request URL (and anything in its query) is logged by these at INFO: keep them at WARNING (#6696).
+for _noisy in ("httpx", "httpcore"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -173,6 +176,7 @@ def _bind_uds_socket(uds_path: str) -> socket.socket:
         raise SystemExit(str(refusal)) from refusal
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.bind(uds_path)
+    os.chmod(uds_path, 0o600)  # the owner only, whatever the umask (#6704)
     note_bound_by_this_process(uds_path)
     sock.listen(socket.SOMAXCONN)
     sock.setblocking(False)

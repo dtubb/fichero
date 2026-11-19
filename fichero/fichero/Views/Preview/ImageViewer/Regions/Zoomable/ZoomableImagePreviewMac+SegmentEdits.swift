@@ -50,6 +50,7 @@ extension ZoomableImagePreview {
     /// became. Before this the drag snapped back with nothing sent and nothing said.
     func reshapeSegment(index: Int, _ target: SegmentShapes.Target, to points: [[Double]]) {
         let name = target == .polygon ? "Reshape Segment" : "Reshape Baseline"
+        if refusesEditOnMappedRendition() { return }
         guard let documentId, let store = segmentEditStore, let segment = shownSegment(at: index, documentId, store) else {
             Self.logger.notice("\(name, privacy: .public) not sent: box \(index) is not a segment on the shown pass")
             return
@@ -137,7 +138,8 @@ extension ZoomableImagePreview {
     /// DRAW a polygon or baseline with the Shape tool, sent where `DrawTarget` says: `segment.create` on the shown
     /// pass (⌘Z), a polygon on an artifact page whose boxes are not segment rows yet through `artifactService.addRegion`,
     /// else refused with a logged reason (a baseline there, or no pass shown).
-    func drawSegmentShape(_ kind: SegmentShapes.DrawKind, points: [[Double]]) {
+    func drawSegmentShape(_ kind: SegmentShapes.DrawKind, points: [[Double]], selectingResult: Bool = false) {
+        if refusesEditOnMappedRendition() { return }
         guard let documentId, let store = segmentEditStore else {
             Self.logger.error("Draw \(kind.title, privacy: .public) not sent: no segment store")
             return
@@ -169,7 +171,8 @@ extension ZoomableImagePreview {
                     kind, points: points, documentId: documentId, passId: passId, onPass: onThePass.first,
                     parentSegmentId: region?.id
                 ),
-                documentId: documentId, name: "Draw \(kind.title)"
+                documentId: documentId, name: "Draw \(kind.title)",
+                answered: { result in if selectingResult { selectNewSegment(result.resultId, documentId: documentId) } }
             )
         }
     }
@@ -178,6 +181,7 @@ extension ZoomableImagePreview {
     /// engine; closed, a segment of the kind last drawn; open, a line on it as a baseline, its outline from the ink, in
     /// the region holding most of it. ⌘Z.
     func drawMarkerStroke(_ stroke: [[Double]], closed: Bool) {
+        if refusesEditOnMappedRendition() { return }
         guard let passId = ocrGeometryPassId, let documentId, let store = segmentEditStore else {
             Self.logger.error("Marker stroke not sent: no pass is shown")
             return
@@ -224,6 +228,7 @@ extension ZoomableImagePreview {
     /// PAINT a line (`segment-editor.paintbrush`): one `segment.create` with the brush's stroke, in the region holding most
     /// of it; the engine makes the outline and the baseline. ⌘Z.
     func drawPaintStroke(_ stroke: [[Double]], widthPixels: Double) {
+        if refusesEditOnMappedRendition() { return }
         guard let passId = shownArtifactlessPassId, let documentId, let store = segmentEditStore else {
             Self.logger.notice("Paintbrush stroke not sent: the shown boxes are not a segment pass")
             return
@@ -243,6 +248,7 @@ extension ZoomableImagePreview {
 
     /// MOVE A CUT by its mark (`segment-editor.cut-marks-editable`): one `segment.move_cut`, the cut a person's now. ⌘Z.
     func moveCut(_ firstId: String, _ secondId: String, to place: Double) {
+        if refusesEditOnMappedRendition() { return }
         guard let documentId, let store = segmentEditStore else { return }
         let versions = Dictionary(
             store.segments(documentId: documentId).filter { $0.id == firstId || $0.id == secondId }
@@ -329,6 +335,7 @@ extension ZoomableImagePreview {
     /// CUT every line the Knife's stroke crosses (`segment-editor.split-knife`): one `segment.split` with the
     /// stroke and the versions of the page's lines it reaches, one ⌘Z. The engine says which lines it left alone.
     func knifeCut(_ stroke: [[Double]]) {
+        if refusesEditOnMappedRendition() { return }
         guard let documentId, let store = segmentEditStore else { return }
         runSegmentEdit(
             SegmentEdit.knife(stroke, over: store.segments(documentId: documentId)), documentId: documentId, name: "Cut Lines"

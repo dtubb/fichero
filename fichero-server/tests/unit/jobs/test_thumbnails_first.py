@@ -1,6 +1,6 @@
 """A new import's thumbnails are made before heavy local work on its pages (#5585).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md -- `activity.lane.thumbnails-first`.
+Spec: docs/contributor_manual/specs/ui/activity-pane.md -- `activity.lane.thumbnails-first`.
 After linking a 203-page box, many thumbnails were still blank half an hour later while the
 recipe's reading had the Mac. Thumbnails are cheap and are what the person sees, so the local ML
 lane now takes no job queued at or after a library's waiting thumbnails until they are made.

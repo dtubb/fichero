@@ -25,12 +25,12 @@ enum ActivityCentreView: String, Codable, CaseIterable, Identifiable {
     }
 
     /// The views that mean something for a sidebar item: every item has Table and Graph; Visual is offered where the
-    /// rows are work with a start and an end (Runs, Files, Archived, Where). Recipes' Visual is a run's node graph, and
-    /// Cost has none: both offer Table and Graph.
+    /// rows are work with a start and an end (Runs, Files, Archived, Where: a timeline) and on Recipes (each recipe's
+    /// newest run as its steps, `ActivityRunGraph`). Cost has none.
     static func offered(for tab: ActivityPane.Tab) -> [ActivityCentreView] {
         switch tab {
-        case .runs, .files, .archived, .place: [.table, .graph, .visual]
-        case .recipes, .cost: [.table, .graph]
+        case .runs, .files, .archived, .place, .recipes: [.table, .graph, .visual]
+        case .cost: [.table, .graph]
         }
     }
 }

@@ -49,6 +49,7 @@ from fichero_server.db import document_tree
 from fichero_server.execution import jobs
 from fichero_server.llm import run_overrides, spend
 from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused
+from fichero_server.recipes import step_memory
 from fichero_server.recipes.assemble import PURPOSES, TOOL_PURPOSES
 
 KIND = "run-a-recipe"
@@ -531,11 +532,9 @@ def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
         if awaited_state == "paused":
             # A person paused the step's run itself: Resume on the recipe resumes that run (the recipe adopts it when it is taken up).
             clear_pause(awaited)
-            from fichero_server.llm.retry import forget_rate_limit_pause
-            from fichero_server.llm.spend import forget_cap_stop
+            from fichero_server.llm.retry import forget_provider_pause
 
-            forget_cap_stop(awaited)
-            forget_rate_limit_pause(awaited)
+            forget_provider_pause(awaited)
             _resume_step_run(db, awaited, job_id)
             document_tree.release_waiting_job(db, job_id, clear_reason=True)
             jobs.wake_lane(db)
@@ -545,11 +544,9 @@ def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
     child = jobs.running_child(db, job_id)
     if child is not None:
         clear_pause(child)  # still winding down to its pause: let it go on
-        from fichero_server.llm.retry import forget_rate_limit_pause
-        from fichero_server.llm.spend import forget_cap_stop
+        from fichero_server.llm.retry import forget_provider_pause
 
-        forget_cap_stop(child)
-        forget_rate_limit_pause(child)
+        forget_provider_pause(child)
         if jobs._job_row(db, child)[1] == "paused":
             _resume_step_run(db, child, job_id)
     document_tree.clear_job_reason_if(db, job_id, (jobs.PAUSING, jobs.PAUSED_WITH_RUN))
@@ -1037,6 +1034,12 @@ def run(db: Any, subject: str) -> dict[str, Any]:
 STOPPED_BEFORE = "the run was stopped before this step"
 
 
+class _DownloadFailed(str):
+    """Why a step cannot run: a model it needs did not download. `model` is the model's name."""
+
+    model: str
+
+
 def _await_downloads(db: Any, job_id: str, detail: dict[str, Any], card: dict[str, Any]) -> str | None:
     """Wait for the downloads this card's steps need that were under way when Start was pressed (`awaited`, #5660):
     the step runs once each has landed. Why it cannot run, in words, when one ended without landing or the run was
@@ -1044,6 +1047,10 @@ def _await_downloads(db: Any, job_id: str, detail: dict[str, Any], card: dict[st
     for entry in detail.get("awaited") or []:
         if entry.get("landed") or not set(entry["steps"]) & set(card["steps"]):
             continue
+        if entry.get("cannot"):  # never queued: the steps on it wait, with the reason
+            failed = _DownloadFailed(f"Model download failed: {entry['cannot']}")
+            failed.model = entry["name"]
+            return failed
         said = False
         while True:
             _closed_stops_the_recipe(db, parent=job_id)
@@ -1055,8 +1062,11 @@ def _await_downloads(db: Any, job_id: str, detail: dict[str, Any], card: dict[st
                 break
             if row["state"] in ("failed", "cancelled"):
                 # `source.recipe.download-failure-waits`: the other steps run; this one says so and how to go on.
-                return (f"Model download failed: {entry['name']} did not download ({row['reason'] or row['state']}). "
-                        "Retry it in Activity, or choose the step's next candidate in Set Up")
+                failed = _DownloadFailed(f"Model download failed: {entry['name']} did not download "
+                                         f"({row['reason'] or row['state']}). "
+                                         "Retry it in Activity, or choose the step's next candidate in Set Up")
+                failed.model = entry["name"]
+                return failed
             if not said:
                 jobs.save_detail(db, job_id, json.dumps(detail),
                                  reason=f"Waiting for {entry['name']} to download for step {', '.join(card['steps'])}")
@@ -1361,6 +1371,7 @@ def _run_the_plan(db: Any, job_id: str) -> dict[str, Any]:
         detail["batches_done"], detail["batch_states"] = 0, [None] * len(cards)
     steps = detail["steps"]
     _read_old_shapes(steps)
+    _fetch_models_first(db, job_id, detail, started_by)
     tree = _tree(db)
     batches = _batches(tree, _units(db, detail.get("documents"), detail.get("folder_id"), tree), BATCH_PAGE_LIMIT)
     if any(card["card"] == "embed" for card in cards):  # Search is in the plan: it embeds these pages once (#6126)
@@ -1413,6 +1424,40 @@ def _run_the_plan(db: Any, job_id: str) -> dict[str, Any]:
     if halted or failures:
         raise RunEnded(words)
     return {"steps": steps}
+
+
+def _fetch_models_first(db: Any, job_id: str, detail: dict[str, Any], started_by: str) -> None:
+    """The run's first stage (`recipes-run.steps.models-fetched-before-the-step`): every model its steps name that is not on
+    this Mac is fetched, and waited for, before the first step; one already downloading is waited for. A fetch that fails, or a model that cannot be fetched at all,
+    does not end the run: the steps on it wait (see below). The plan's downloads are in `awaited` already; the run asks again, so a model
+    the plan did not name (or one deleted since) is fetched too."""
+    from fichero_server.llm.local_models import enqueue_download
+    from fichero_server.recipes import start
+
+    every = start._with_readers(detail["runs"])
+    downloads = start.runtime_to_set_up(every) + start.missing_models(every) + start.local_models_to_download(every)
+    start.mark_downloads_under_way(db, downloads)
+    awaited = detail.setdefault("awaited", [])
+    for download in downloads:
+        if not download.get("downloading"):
+            try:
+                download.update(downloading=True, job_id=enqueue_download(db, download["runtime"], download["model"],
+                                                                         started_by=started_by))
+            except ValueError as exc:  # nothing to fetch, or this Mac cannot run it: its steps wait, the others run
+                name = download.get("name") or download["model"]
+                awaited.append({"steps": download["steps"], "job_id": None, "name": name,
+                                "cannot": f"{name} cannot be downloaded: {exc}"})
+                continue
+        if all(e["job_id"] != download["job_id"] for e in awaited):
+            awaited.append({"steps": download["steps"], "job_id": download["job_id"],
+                            "name": download.get("name") or download["model"]})
+    if not awaited:
+        return
+    # A fetch that fails does not end the run (`source.recipe.download-failure-waits`): the steps that need that model wait
+    # for it page by page (`_run_batch_steps`) and the others run. Only a Stop ends it here.
+    why = _await_downloads(db, job_id, detail, {"steps": [sid for card in detail["runs"] for sid in card["steps"]]})
+    if why == STOPPED_BEFORE:
+        raise jobs.JobCancelled(f"{jobs.stopped_by(job_id)}; stopped before any step")
 
 
 #: ponytail: a step that does none of a batch's pages on this many batches in a row stops the run (#5540,
@@ -1674,7 +1719,53 @@ def _step_pages(db: Any, card: dict[str, Any], step: dict[str, Any], batch: dict
             gone = {e["page_id"] for e in uncertain}
             documents = [d for d in documents if d not in gone]
             scratch["left_out"] = [*(scratch.get("left_out") or []), *uncertain]
+    if documents and card["card"] not in _WHOLE_RUN_CARDS:
+        index = detail["steps"].index(step)
+        documents, waiting = _held_for_inputs(detail["runs"], detail["steps"], index, documents)
+        if waiting:
+            scratch["waiting_on"] = waiting
     return documents, scratch, kinds
+
+
+#: The cards that work over the whole run, not page by page: they are not held back for a page.
+_WHOLE_RUN_CARDS = frozenset({"catalogue", "publish", "export", "embed"})
+
+
+def _held_for_inputs(cards: list[dict[str, Any]], steps: list[dict[str, Any]], index: int, documents: list[str]
+                     ) -> tuple[list[str], dict[str, str]]:
+    """(the pages whose inputs are there, {page: the step it waits for}) (`recipes-run.steps.a-page-waits-for-its-inputs`):
+    a page that an earlier step this one takes from failed on, or is itself waiting on, is held back, named for the step
+    that failed it. A card queued before cards declared their inputs takes from every card before it."""
+    card = cards[index]
+    kinds = {k for take in card["takes"] for k in take.split("|")} if "takes" in card else None
+    waiting: dict[str, str] = {}
+    for c, s in zip(cards[:index], steps[:index]):
+        if kinds is not None and not kinds.intersection(c.get("gives") or ()):
+            continue
+        for page in s.get("failed_ids") or []:
+            waiting.setdefault(page, ", ".join(c["steps"]))
+        for page, cause in (s.get("waiting_on") or {}).items():
+            waiting.setdefault(page, cause)
+    held = {d: waiting[d] for d in documents if d in waiting}
+    return [d for d in documents if d not in held], held
+
+
+def _waits_on_a_waiting_step(cards: list[dict[str, Any]], steps: list[dict[str, Any]], index: int) -> bool:
+    """Whether a step this one takes from is waiting with pages held: this step then waits for it too (its pages are held
+    by `_held_for_inputs`), instead of being "not run"."""
+    card = cards[index]
+    kinds = {k for take in card["takes"] for k in take.split("|")} if "takes" in card else None
+    return any(s["state"] == "waiting" and s.get("waiting_on")
+               and (kinds is None or kinds.intersection(c.get("gives") or ()))
+               for c, s in zip(cards[:index], steps[:index]))
+
+
+def _step_counts(step: dict[str, Any]) -> dict[str, int]:
+    """A step's pages: done, waiting for an earlier step, failed (`recipes-run.steps.no-empty-done`). A step that did not
+    run through (cancelled, not run) has no done pages counted."""
+    failed = len(step.get("failed_ids") or [])
+    done = max(0, step.get("pages_tried", 0) - step.get("pages_lost", 0)) if step.get("state") in ("done", "partial") else 0
+    return {"done": done, "waiting": len(step.get("waiting_on") or {}), "failed": failed}
 
 
 def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, Any], tree: _Tree,
@@ -1714,8 +1805,10 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
             _settle(step, "not run", None, STOPPED_BEFORE)
             continue
         # The catalogue judges each folder itself (`_run_catalogue`): one failed batch must not hide a folder read in full.
-        blocked = (None if card["card"] == "catalogue" else _blocked(cards, here, index)) or _await_downloads(db, job_id, detail, card)
-        if blocked:
+        held = early is None and _waits_on_a_waiting_step(cards, steps, index)  # its pages are held, not "not run"
+        blocked = (None if card["card"] == "catalogue" or held else _blocked(cards, here, index)) or _await_downloads(db, job_id, detail, card)
+        no_model = blocked if isinstance(blocked, _DownloadFailed) else None
+        if blocked and not no_model:
             here[index]["state"] = "not run"
             _settle(step, "not run", None, blocked)
             _note_batch(step, batch, "not run", None, blocked)
@@ -1746,6 +1839,19 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
                 problems.append(why)
                 jobs.save_detail(db, job_id, json.dumps(detail))
                 continue
+        if no_model and documents:  # its model did not download: each page waits for it, the other steps run
+            scratch["waiting_on"] = {**scratch.get("waiting_on", {}), **{d: f"{no_model.model} to download" for d in documents}}
+            documents = []
+            _note_batch(step, batch, "not run", None, no_model)
+            problems.append(f"step {named} not run: {no_model}")
+        if not documents and scratch.get("waiting_on"):
+            # Every page it would work on is waiting for an earlier step: nothing ran, so nothing is done (#6673).
+            _add(step, scratch)
+            causes = sorted(set(step["waiting_on"].values()))
+            here[index]["state"] = states[index] = "waiting"
+            step["why"] = f"waiting for {'; '.join(causes)}"
+            jobs.save_detail(db, job_id, json.dumps(detail))
+            continue
         if not documents:
             _add(step, scratch)
             here[index]["state"] = states[index] = "done"
@@ -1786,6 +1892,7 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
                 card = _text_is_the_hosted_readers(card)
         if card["card"] == "export":
             card = {**card, "final": final}  # the workbook and the transcripts are written once, on the last batch
+        memory = step_memory.StepMemory().start()
         try:
             if early is not None:  # it has been running beside the step before: its end is what this step ended with
                 child, state, why = early.future.result()
@@ -1805,7 +1912,10 @@ def _run_batch_steps(db: Any, job_id: str, detail: dict[str, Any], batch: dict[s
         except Exception as exc:  # noqa: BLE001 -- the step fails alone, said in one line; the rest still run (#5684)
             logger.exception("recipe step %s could not start", named)
             child, state, why = None, "failed", could_not_start(card, exc)
+        finally:
+            measured = memory.finish()  # also when the step is stopped or deferred: the sampling thread ends
         done_notes.pop(job_id, None)
+        step_memory.record(step, named, measured)  # `recipes-run.memory.recorded-per-step`
         if state != "done" and _stop_asked(job_id):  # it was stopped with the run (#5609)
             state, why = "cancelled", "Stopped by you"
         if state == "done" and card.get("job") in RAN_ON_JOBS:
@@ -2060,6 +2170,7 @@ def _status(db: Any, job_id: str) -> dict[str, Any]:
         step["job"] = card.get("job")  # what the stage does, by its last job (a reading, names, dates)
         step["doing"] = doing_words(card)
         step["note"] = card.get("note")  # Start's count of what was already done, kept on the run (#6091)
+        step["counts"] = _step_counts(step)  # done / waiting / failed pages (#6673)
     for step in steps:
         if (step["state"] == "running" and not step.get("child_id") and row["state"] == "running"
                 and step.get("card") in _CARDS_WITH_A_JOB):
@@ -2077,7 +2188,7 @@ def _status(db: Any, job_id: str) -> dict[str, Any]:
         # "running" under a failed run (the engine stopped mid-step, and the run was set aside).
         ended = row["reason"] or row["state"]
         for step in steps:
-            if step["state"] == "waiting":
+            if step["state"] == "waiting" and not step.get("waiting_on"):  # held pages: its why says what it waits for
                 step.update(state="not run", why=f"the run ended before this step: {ended}")
             elif step["state"] == "running":
                 step.update(state="not run", why=f"stopped when the run ended, before this step finished: {ended}")

@@ -97,7 +97,7 @@ extension ActivityPaneView {
     func press(_ button: ActivityPaneButton, on row: ActivityMonitorRow) {
         switch button {
         case .verb(let verb): perform(verb, on: [row])
-        case .settings: Self.openSettings()
+        case .settings: Self.openSettings(control: row.failure?.settingsControl, appState: appState)
         case .chooseFolder(let export):
             choosingFolder = ActivityFolderChoice(libraryId: row.libraryId, exportId: export)
             isChoosingFolder = true
@@ -125,26 +125,40 @@ extension ActivityPaneView {
                 return
             }
             var done = 0
+            var rowsWithoutJob = 0
+            var refusal: String?
             for row in targets {
-                done += await act(verb, on: row) ? 1 : 0  // not `for … where await`: a where clause cannot await
+                // not `for … where await`: a where clause cannot await
+                switch await act(verb, on: row) {
+                case .done: done += 1
+                case .noJob: rowsWithoutJob += 1
+                case .refused(let words): refusal = refusal ?? words
+                }
             }
-            notice = ActivityPaneVerb.outcome(verb, done: done, skipped: skipped + targets.count - done)
+            // The engine's words when it refused, never a bare count (`runner.surface.one-row-one-alert`); a row with no job to
+            // act on stays in the skipped count.
+            notice = refusal ?? ActivityPaneVerb.outcome(verb, done: done, skipped: skipped + rowsWithoutJob)
         }
     }
 
-    /// Pause, Continue, Stop and Retry on one row through its job's audited actions; true when the engine took it.
-    private func act(_ verb: ActivityPaneVerb, on row: ActivityMonitorRow) async -> Bool {
+    /// What the engine did with a verb on one row.
+    private enum Acted { case done, noJob, refused(String) }
+
+    /// Pause, Continue, Stop and Retry on one row through its job's audited actions: done, the row has no job, or the engine's
+    /// words for why it refused.
+    private func act(_ verb: ActivityPaneVerb, on row: ActivityMonitorRow) async -> Acted {
+        func result(_ error: String?) -> Acted { error.map(Acted.refused) ?? .done }
         if verb == .stop {
-            guard let jobId = row.jobId, let store = library(for: row.libraryId)?.activityStore else { return false }
-            return await ActivityRunMenuTarget.stopJob(jobId: jobId, runThreadId: row.runThreadId, store: store) == nil
+            guard let jobId = row.jobId, let store = library(for: row.libraryId)?.activityStore else { return .noJob }
+            return result(await ActivityRunMenuTarget.stopJob(jobId: jobId, runThreadId: row.runThreadId, store: store))
         }
         guard let jobId = verb == .retry ? row.retryJobId : row.jobId,
-              let store = library(for: row.libraryId)?.activityStore else { return false }
+              let store = library(for: row.libraryId)?.activityStore else { return .noJob }
         switch verb {
-        case .pause: return await store.setJobPaused(jobId: jobId, paused: true, runThreadId: row.runThreadId) == nil
-        case .resume: return await store.setJobPaused(jobId: jobId, paused: false, runThreadId: row.runThreadId) == nil
-        case .retry: return await store.retryJob(jobId: jobId, runThreadId: row.runThreadId) == nil
-        case .stop, .archive, .putBack, .delete: return false
+        case .pause: return result(await store.setJobPaused(jobId: jobId, paused: true, runThreadId: row.runThreadId))
+        case .resume: return result(await store.setJobPaused(jobId: jobId, paused: false, runThreadId: row.runThreadId))
+        case .retry: return result(await store.retryJob(jobId: jobId, runThreadId: row.runThreadId))
+        case .stop, .archive, .putBack, .delete: return .noJob
         }
     }
 
@@ -250,7 +264,12 @@ extension ActivityPaneView {
     }
 
     /// A failed row's fix when it is a setting (a key, a provider, a model): the Settings window.
-    static func openSettings() {
+    /// It lands on the control the failure names: `settings.ai.*` is the AI tab (`SettingsTab.holding`).
+    static func openSettings(control: String? = nil, appState: AppState? = nil) {
+        if let tab = SettingsTab.holding(control: control), let appState {
+            appState.openSettings(tab: tab)
+            return
+        }
         #if os(macOS)
         NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         #endif

@@ -1,6 +1,6 @@
 """Kraken pages run as jobs on the local-model lane (#5358, `activity.lane.*`).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md -- `activity.lane.group-by-model`,
+Spec: docs/contributor_manual/specs/ui/activity-pane.md -- `activity.lane.group-by-model`,
 `activity.lane.load-once`, `activity.kraken-mlx-inference-visible`; ai/local-runtimes.md section 3.
 
 The maintainer's goal is Kraken running efficiently: one reader loaded and used for a whole

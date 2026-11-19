@@ -1,6 +1,6 @@
 """While memory is busy, heavy work runs one job at a time (#5622, `activity.throttle.one-heavy-when-memory-tight`).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md. The maintainer saw two projects'
+Spec: docs/contributor_manual/specs/ui/activity-pane.md. The maintainer saw two projects'
 "Processing imported pages" running together (thumbnails on the images lane, embeds on the model lane)
 at memory pressure warn and 312% CPU, while the rows read "Waiting: you're using the Mac". Pressure warn
 does not hold work (#5524); it stops heavy work running side by side, in any project, whatever started it.

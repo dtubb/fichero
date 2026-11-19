@@ -42,6 +42,23 @@ final class ReadingOrderStore {
         }
     }
 
+    /// The order shown as one sequence, for the Preview's shading (#6422): each top entry, then the level below it
+    /// where it has been read. The Preview shades lines along it, so a reorder or another order reshades the page.
+    var sequence: [String] {
+        entries.flatMap { [$0.segmentId] + (levels[$0.entryId]?.map(\.segmentId) ?? []) }
+    }
+
+    /// `sequence`, first reading the level below each top entry `opens` names (a region's lines) that is not read yet.
+    func fullSequence(opening opens: (String) -> Bool) async -> [String] {
+        if let orderId {
+            for parent in entries where levels[parent.entryId] == nil && opens(parent.segmentId) {
+                let children = try? await transport.entries(orderId: orderId, parentEntryId: parent.entryId)
+                levels[parent.entryId] = children ?? []
+            }
+        }
+        return sequence
+    }
+
     /// A segment edit made anywhere (a delete, its ⌘Z) changes which rows the order holds; the level shown is
     /// read again on `SegmentEditRunner.didChange` for THIS page (#6423: a deleted segment stayed listed).
     @ObservationIgnored private var changes: SegmentChangeObserver?
@@ -81,7 +98,9 @@ final class ReadingOrderStore {
         // Read everything first, assign after: a read that fails or is cancelled (the page changed under it) must not
         // leave this store believing it holds `documentId`, or `loadFollowing` skips every retry and the list stays empty.
         let loaded = try await transport.orders(documentId: documentId)
-        let chosen = (loaded.first { $0.name == name } ?? loaded.first)?.id
+        // The shown pass's own order first (#6670: a pass picked to show is not the one the engine lists first).
+        let chosen = (loaded.first { $0.name == name && $0.passId != nil && $0.passId == workingPassId }
+            ?? loaded.first { $0.name == name } ?? loaded.first)?.id
         var top: [ReadingOrderMove.Entry] = []
         if let chosen { top = try await transport.entries(orderId: chosen, parentEntryId: nil) }
         self.documentId = documentId

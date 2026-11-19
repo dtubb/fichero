@@ -200,7 +200,7 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
   it may still be the pass whose text shows. Until 2026-10-04 the app's `rankedPasses` picked
   the top pass whether or not it had shapes, and an import ranked above machine passes, so a
   geometry-free TEI import (a draft with no coordinates) left the image with no boxes on 358 of 374
-  Mosquera pages (SM_NPQ_C01_005, C01_052, #5425). **Built 2026-10-04:** the import rank is gone
+  notebook-corpus pages (test page 5, test page 52, #5425). **Built 2026-10-04:** the import rank is gone
   (engine and app) and the app moves a pass whose segments are all `shape: unstated` behind
   every pass with shapes, so the page shows the Gemini reading of Kraken's lines it already has.
   Pinned by `fichero/Tests/Unit/general/Models/WorkingPassRankingTests.swift`. **The engine serves
@@ -213,7 +213,7 @@ image and PDF documents," routing to `StorageDisplayImageCanvas`/`ZoomableImageP
   nothing itself. Pinned through the real store by
   `fichero/Tests/Unit/general/Models/ImportedPageDrawsItsBoxesTests.swift`
   (`testAShapelessWorkingPassKeepsItsListAndThePreviewDrawsTheNextPassWithShapes`). PARTIAL until seen
-  on screen on C01_005 and C01_052.
+  on screen on test page 5 and test page 52.
 - `ui.preview.draws-what-the-segments-list-lists` — **[PARTIAL]** (#5463; owner: the engine) With every
   box switch on, Preview draws every box of the page's working pass, the same pass the Segments list
   lists and the page's text reads, whatever other result the page has beside it. On a diary

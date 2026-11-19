@@ -334,16 +334,19 @@ starting a new one.
   `Models/SidebarColumnStateTests.swift`.
 - `panes.chrome.bars-do-not-name-the-selection` — **[PARTIAL]** (#4880) (owner 2026-11-13, a screenshot) a pane's bottom bar never
   repeats what is selected: the Inspector's Content, Info, Outline and Order bars carried the selected item's name
-  (`EAP1477_…_IMG_009.jpg`) as their status line, which the pane head and the toolbar already say. The bar stays
+  (a test page) as their status line, which the pane head and the toolbar already say. The bar stays
   (every inspector sub-pane has one, the 2026-08-23 rule), with its controls and no name; a pane whose bar counts
   something (notes, citations, entities) keeps its count. *Built:* `DocumentInspector.withInspectorBar` passes no
   status, `InspectorBottomMiniToolbar` draws none when it is empty. *Not built:* a look on screen. *Tests:*
   `Views/Inspector/InspectorBottomBarStatusTests.swift`.
-- `panes.chrome.command-scroll-zooms` — **[PARTIAL]** (owner 2026-11-13) ⌘ + the scroll wheel, or a Magic Mouse's swipe,
+- `panes.chrome.command-scroll-zooms` — **[PARTIAL]** (owner 2026-11-13; #6672) ⌘ + the scroll wheel, or a Magic Mouse's swipe,
   zooms the view under the pointer wherever the view zooms by pinch: the Canvas already did (`CanvasScrollPan`, into the
-  cursor), the page image too (`ScrollWheelZoom`), and now the Items' Icon grid (one 0.1 step per scroll, in the pinch's
-  range). Without ⌘ a scroll is a scroll. One modifier, `View.commandScrollZoom` (`CommandScrollZoom`), for any view
-  that joins. *Not built:* List and Table row size, the Source pane's folder views' zoom button (#26), the pinch lag
+  cursor), and now the Items' Icon grid (one 0.1 step per scroll, in the pinch's range) and, owner 2026-11-17 ("not just
+  in canvas, but also in source reader/image/preview, icons"), the Source's page image, a PDF page and the Reader, by
+  5% per scroll event in each one's own zoom range (`CommandScrollZoom.scaled`; small, because a Magic Mouse sends many
+  events for one swipe). *Correction 2026-11-17:* this bullet said the page image already zoomed (`ScrollWheelZoom`);
+  that view was never mounted, and the image did not zoom. Without ⌘ a scroll is a scroll. One modifier,
+  `View.commandScrollZoom` (`CommandScrollZoom`), for any view that joins. *Not built:* List and Table row size, the Source pane's folder views' zoom button (#26), the pinch lag
   the owner saw on the Canvas. *Tests:* `Views/Components/CommandScrollZoomTests.swift`.
 - `panes.chrome.one-filter-pattern` — **[GAP]** (#4374) (owner 2026-11-13, screenshots of every bar; supersedes the toolbar
   prompt's items 13 and 14) every list of items has ONE bottom bar, the same five controls in the same order:

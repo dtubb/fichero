@@ -7,6 +7,7 @@ pushed, nothing notarized. The guards run first; the suite and the build run bes
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -23,10 +24,12 @@ def _suite_dirs(root: Path, cfg) -> tuple[list[str], tuple]:
     return dirs, whole
 
 
-def verify(root, cfg=None, *, jail_required: bool = True) -> dict:
+def verify(root, cfg=None, *, jail_required: bool = True, full: bool = False) -> dict:
     """{ok, sha, parts: {name: {ok, seconds, detail}}}: the three parts over HEAD; the first red does not stop the others."""
     root = Path(root)
     cfg = cfg or check_tool.load(root)
+    if full:  # the nightly: the guards the per-batch ladder leaves to it (`[check].guard_skip`) run too
+        cfg = dataclasses.replace(cfg, guard_skip=frozenset())
     j = jail.load(root)
     if j is None and jail_required:
         raise jail.JailMissing("no [jail] in the rules file: the verification will not run as the owner")
@@ -89,7 +92,7 @@ def verify(root, cfg=None, *, jail_required: bool = True) -> dict:
 def main(a) -> int:
     from fichero_builder import build
 
-    r = verify(a.root)
+    r = verify(a.root, full=getattr(a, "full", False))
     for name, p in r["parts"].items():
         print(f"{'GREEN' if p['ok'] else 'RED  '} {name}: {p['seconds']} s: {p['detail'].splitlines()[-1] if p['detail'] else ''}")
     print(f"{'VERIFIED' if r['ok'] else 'NOT VERIFIED'} {r['sha'][:9]}")

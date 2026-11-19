@@ -65,17 +65,6 @@ final class SidebarLibraryBucketsTests: XCTestCase {
         )
     }
 
-    /// A library header's count must reflect the same flattened rows that its
-    /// disclosure content renders. Workflow mirrors are global-only, so summing
-    /// every bucket would make a non-global library advertise hidden rows.
-    func testLibraryHeaderCountUsesFlattenedVisibleRows() throws {
-        let source = try appSource("Views/Sidebar/Sections/SidebarView+UnifiedLibrarySections.swift")
-        XCTAssertTrue(
-            source.contains("let totalCount = flattenedLibraryItems(libraryId: libraryId, buckets: buckets).count")
-        )
-        XCTAssertFalse(source.contains("buckets.documentItems.count + buckets.searchItems.count + buckets.workflowItems.count"))
-    }
-
     /// #4102: every library — global included — renders as its own collapsible
     /// disclosure group. The global library used to render headless, which made
     /// its contents (notably the Default Workflows subfolders) float at the
@@ -88,7 +77,7 @@ final class SidebarLibraryBucketsTests: XCTestCase {
             source.contains("if library.id == LibraryManager.globalLibraryId {"),
             "the global library must not take a headless branch (#4102)"
         )
-        XCTAssertTrue(source.contains("libraryDisclosureLabel(library: library, totalCount: totalCount)"))
+        XCTAssertTrue(source.contains("libraryDisclosureLabel(library: library)"))
         XCTAssertEqual(
             source.components(separatedBy: "DisclosureGroup(").count - 1, 1,
             "one shared DisclosureGroup renders every library"

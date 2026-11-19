@@ -1,6 +1,8 @@
 # Dev Pipeline — specs in, tested builds out, by scripts not by memory — Design Spec (#6116)
 
-> Milestone: dev-orchestration-harness
+> **Status: SUPERSEDED 2026-11-18 (Phase 0 of `building-fichero-locally.md`).** The behaviours this spec still governs (12) were moved into that spec under their existing ids and tags (B, D, E, E0 (the twelve behaviours this spec still wants)); nothing was deleted and no id was renamed. This file stays so that old links resolve; read `building-fichero-locally.md`. The rest stays here as history: superseded by `dev-workflows` (now in the same spec) or replaced by `builder triage`, `builder steps` and `builder milestone`.
+
+> Milestone: Builder
 > Manual: docs/contributor_manual/how-fichero-is-built.md — "How Fichero is built" (written by Stage 1: how a spec
 > becomes issues, how coders run, what runs on GitHub and on the test Macs, and what waits for the maintainer).
 >
@@ -147,25 +149,8 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   changing that spec's behaviour must touch (the reviewer's spec-diff rule); coder and reviewer read docs and specs
   through jdocmunch. Tests and guards are the existing scripts, wrapped, never forked ("Checks: the ladder").
   Test: `pipeline/tests/test_specs.py::test_reconcile_three_real_specs_counts` (reads only).
-- `pipeline.issues-and-milestones-kept-current` [MISSING] (#6116) — the runner works in the existing issues and
-  milestones, never a second system. Only existing milestones are used: a new one is a queue item, never created by
-  the runner; one with every issue closed is proposed for closing in the queue; progress (closed of total) is on the
-  Milestones page; the no-milestone count only goes down. One claim convention: `claimed` is set while an item codes
-  and removed on `failed` or `needs-maintainer`; `status:in-progress` and assignees are retired as locks. A short
-  comment with a `<!-- pipeline:<event>:<task> -->` marker goes on checked (check summary), reviewed (verdict) and
-  pushed (sha), so resume can see which comments exist; the issue closes only through close-on-push from `Fixes #N`;
-  `Part of #N` leaves it open with what is left. Every write goes through one function, `--dry-run` by default in
-  tests. Tests: `pipeline/tests/test_gh.py::test_every_write_goes_through_one_function_and_dry_run_writes_nothing`,
-  `pipeline/tests/test_core.py::test_claimed_label_follows_the_state`,
-  `pipeline/tests/test_feeder.py::test_claimed_issues_are_skipped`.
-- `pipeline.github-actions` [PARTIAL] (#6116) — the Macs are the only gate: no GitHub workflow runs ruff, guards or
-  tests (owner ruling 2026-11-01; `ci.yml` was deleted after it had been disabled by hand and had never run on
-  integration). GitHub keeps only what needs nothing but GitHub, one workflow each: `close-fixed-issues.yml` runs
-  `close_fixed_issues.py --apply` after a push to integration (a `Part of #N` never closes); `issue-milestone.yml`
-  labels a new issue with no milestone `no-milestone` and one by an outside author `from-user`. Anything more on
-  GitHub needs a reason. Tests: a `test_workflows` pytest under `fichero-server/tests/unit/scripts/`, written with
-  Step 1.1 (the YAML is parsed and each workflow's trigger, condition and command are asserted; it also asserts
-  no workflow runs pytest, ruff or a guard script).
+- (moved) pipeline.issues-and-milestones-kept-current → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) pipeline.github-actions → `building-fichero-locally.md` (Phase 0, 2026-11-18)
 
 ### Running the work (the runner + the feeder)
 - `pipeline.one-state-machine` [OK] — an item moves only by the runner's transitions, each in the
@@ -181,34 +166,9 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   proofreading; it loads and validates, nothing more is built for it). Tests:
   `pipeline/tests/test_config.py::test_runner_code_names_no_project_specifics`,
   `pipeline/tests/test_config.py::test_example_writing_profile_loads_and_validates`.
-- `pipeline.resume-from-journal` [PARTIAL] (#6116) — the journal is append-only JSONL under `~/.local/state/pipeline/<checkout>/`; state
-  is the journal replayed; an intent line precedes each side effect (commit, gh write, tell, worktree) and a done
-  line follows it; on restart an item with an open intent is reconciled against the world (the `Fixes #N` commit on
-  the branch, the marker in the GitHub comment, the worktree) before anything is redone, so nothing is lost or
-  doubled; finished issues and existing model results are never redone. One `flock` on the journal is taken by
-  whoever dispatches (launchd's runner or the CLI), so two runners never dispatch the same work. Tests:
-  `pipeline/tests/test_journal.py::test_replay_gives_the_same_state`,
-  `pipeline/tests/test_core.py::test_resume_after_kill_between_intent_and_done`,
-  `pipeline/tests/test_journal.py::test_second_dispatcher_waits_on_the_journal_lock`.
-- `pipeline.pause-all` [OK] — a kill switch: `python -m pipeline pause` (and `resume`) writes a journal
-  line after which no transition starts a coder, a check or a job; running work finishes its current step. The page
-  shows PAUSED. Test: `pipeline/tests/test_core.py::test_paused_runner_starts_nothing`.
-- `pipeline.pinned-checks` [OK] — the checks (`scripts/lane_ready_check.sh`, `scripts/check_*`,
-  `scripts/gate`, `pipeline/`) run in a SCRATCH TREE made of the task's committed HEAD with the pinned checkout's
-  check files laid over it (`git worktree add --detach`, then `git checkout <pinned sha> -- <check paths>`), so a
-  guard that scans `ROOT = Path(__file__).parent.parent` sees the coder's diff and never the pinned tree, uncommitted
-  edits or the worktree's own copies; a coder cannot edit the check it is judged by (the runner builds itself, so
-  this matters most; the trial's engine ran the gate in the project root and failed a correct fix). A diff that changes or removes a file under those paths goes to `needs-maintainer` (for the fichero profile those are `scripts/check_*`, `scripts/lane_ready_check.sh` and `scripts/gate`; the runner's own `pipeline/` code and new tests pass this rung and the reviewer is the gate, but a diff that deletes or weakens a base test, by a removed test function, fewer `assert`s or an added skip/xfail, still goes to `needs-maintainer`); adding a new guard is
-  allowed, since the pinned runner does not run it until the maintainer pulls it in. The runner moves to a new sha only on the
-  maintainer's command, after the push. Tests: `pipeline/tests/test_checks.py::test_a_coder_change_that_breaks_a_guard_turns_the_check_red`,
-  `pipeline/tests/test_checks.py::test_checks_run_from_the_pinned_checkout`,
-  `pipeline/tests/test_checks.py::test_diff_touching_check_paths_needs_maintainer`,
-  `pipeline/tests/test_checks.py::test_a_new_guard_may_be_added_but_no_check_changed`,
-  `pipeline/tests/test_checks.py::test_new_runner_code_and_a_new_test_pass_pinned_checks`,
-  `pipeline/tests/test_checks.py::test_deleting_or_weakening_a_base_test_or_editing_a_guard_needs_maintainer`,
-  `pipeline/tests/test_checks.py::test_checks_cwd_is_the_worktree`,
-  `pipeline/tests/test_checks.py::test_a_coder_sitecustomize_cannot_green_the_guards`,
-  `pipeline/tests/test_core.py::test_rewriting_own_acceptance_in_the_spec_needs_maintainer`.
+- (moved) pipeline.resume-from-journal → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) pipeline.pause-all → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) pipeline.pinned-checks → `building-fichero-locally.md` (Phase 0, 2026-11-18)
 - `pipeline.three-faces` [OK] — the CLI, the MCP server and the page call the same functions
   (`core.API`) and nothing skips a check. MCP tools are per role: the coder gets `report`, `ask`, `done`; the
   reviewer gets `verdict`; the manager gets `status`, `next`, `start`, `check`, `tell`, `file_bug`, `point`. Approve
@@ -311,20 +271,8 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   `pipeline/tests/test_coder.py::test_worker_kind_selection_and_fallback_on_rate_limit`,
   `pipeline/tests/test_coder.py::test_idle_state_from_fixture_jsonl_of_each_kind`,
   `pipeline/tests/test_coder.py::test_model_per_role_from_config`.
-- `pipeline.cost-cap` [OK] — the runner sums `message.usage.cost.total` from Pi's session JSONL per
-  task while the coder runs and stops the SESSION at `cost_cap_usd` (US$5 per coder or reviewer window; the page
-  shows dollars per issue, the session's cost over the issues it finished — step 1.2 cost US$6.40 over four rounds,
-  far too much for one small guard); a DAILY cap across every item and role (`daily_cap_usd`, US$25, summed from
-  the journal's cost lines) refuses `start`
-  and `review`, stops a running item as `rate-limited` ("daily cap"), and lifts only with the next day or the
-  maintainer's `resume --raise-cap <usd>` (journaled); the page shows today's spend against the cap. Items drain
-  one at a time, sequentially: `start 6140 6139` runs them in order, each checked before the next. Tokens and dollars are recorded per issue and per model, so the open-model share is measured. Tests:
-  `pipeline/tests/test_coder.py::test_cost_parser_on_redacted_real_sample`,
-  `pipeline/tests/test_coder.py::test_cost_cap_stops_the_task`,
-  `pipeline/tests/test_coder.py::test_cost_is_recorded_per_issue_and_model`.
-- `pipeline.retry-with-the-failure` [OK] — a failed check is told to the coder with the failure text;
-  `retries` (2) retries, then the fallback list, then the queue. Test:
-  `pipeline/tests/test_core.py::test_failed_check_retries_twice_then_needs_maintainer`.
+- (moved) pipeline.cost-cap → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) pipeline.retry-with-the-failure → `building-fichero-locally.md` (Phase 0, 2026-11-18)
 - `pipeline.machine-budget` [PARTIAL] (#6116) — Stage 0 hard-codes: coders 1, one test run at a time (a FIFO
   `flock`), and a free-memory check (`vm_stat` pages free + speculative + purgeable, `memory_pressure` not critical)
   before a coder, a check or a test run; below the job kind's need the item waits with its reason in the journal.
@@ -401,10 +349,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   and every fast guard the runner's fast-guards rung runs (all `scripts/check_*.py` minus the skip list in
   `pipeline/projects/fichero.toml`, read from there, 60 s each; #6140). Test: `scripts/lane_ready_check.sh --self-test`
   (a scratch commit that breaks `check_folder_organization` is NOT READY).
-- `pipeline.test-red-on-base` [OK] — the branch's changed or new test files are copied into a scratch
-  worktree at origin/integration and must fail there, and must pass on the branch; a test that passes on the base
-  proves nothing. Tests: `pipeline/tests/test_checks.py::test_red_on_base_fails_a_test_that_passes_on_base`,
-  `pipeline/tests/test_checks.py::test_red_on_base_passes_a_real_fix`.
+- (moved) pipeline.test-red-on-base → `building-fichero-locally.md` (Phase 0, 2026-11-18)
 - `pipeline.quick-checks-per-item` [PARTIAL] (#6116) — each item, in order, stopping at the first red: the ready check,
   the test files the spec's Test matrix and the issue name (red on base, green on the branch), `scripts/gate part`
   for the areas the diff touches, the fast guards, and on an engine diff the contract guards
@@ -413,39 +358,11 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   counts (a flaky suite does not burn a retry). Tests: `pipeline/tests/test_checks.py::test_run_all_records_each_rung`,
   `pipeline/tests/test_checks.py::test_contract_guards_run_on_an_engine_diff`,
   `pipeline/tests/test_checks.py::test_red_reruns_once_before_it_counts`.
-- `pipeline.review` [PARTIAL] (#6116) — built: `python -m pipeline send-back <item>` re-dispatches a NOT_READY item to its coder with the findings (the scheduler does it for a binding one within the retries). a verdict is `verdict(issue, sha, READY|NOT_READY, by, findings)`; a short sha
-  is resolved with `rev-parse`; it binds only from the reviewer role and only when the sha is the worktree's live
-  head AND the sha of the item's last check AND that check was green: a red check sends a `checked` or `reviewed`
-  item back to `coding`, so a READY can never bind over a red (re-review HIGH N1). A binding NOT_READY sends the item back
-  to coding with the findings as its retry text and counts an attempt; `reset <issue>` zeroes attempts the runner
-  itself caused; `retry <issue>` runs the item again from the start arguments its record keeps (task, base,
-  from_file), with the red check's or the review's text as the brief's failure section, on the fallback list's next
-  worker after a rate-limited stop; it refuses a record without start arguments and names the `repair` to run.
-  `repair <issue> --base --from-file --since` corrects a record by APPENDING journal lines with a note; nobody edits
-  the journal by hand. An unfiled step run from a local file is keyed `<number>@<task>`, so several steps may share
-  "Part of #N" and each is its own item. Claude's verdict binds; the Qwen
-  shadow runs beside it (`trial2/shadow/watch-reviews.sh`); once Qwen's precision passes the bar over 30 items
-  (counted by hand until it matters: no missed HIGH, 90 % agreement), small items pass on the machine checks plus
-  Qwen and Claude reviews the batch diff at the gate. The reviewer applies the ponytail lens (shortest working diff,
-  no speculative code) as one named check, from `pipeline/pi-agent/rules/ponytail-reviewer.md`, beside correctness,
-  the spec diff and security. `python -m pipeline review <item>` runs it: a Pi window (role reviewer) told a brief with
-  the item's diff range, spec lines and check results, blocking until its `pipeline_verdict` for the checked head is
-  in the journal; its cost counts toward the item's cap. Tests: `pipeline/tests/test_core.py::test_verdict_only_from_reviewer_for_current_sha`,
-  `pipeline/tests/test_core.py::test_new_commit_voids_the_verdict`.
+- (moved) pipeline.review → `building-fichero-locally.md` (Phase 0, 2026-11-18)
 
 ### Landing, closing, building, releasing
-- `pipeline.nightly-gate` [PARTIAL] (#6116) — built: `python -m pipeline land <item> [--apply]`, the manual landing of ONE reviewed READY item: every `scripts/check_*.py` (no skip list) in a scratch tree of the reviewed head, then a fast-forward push of that sha to the profile's integration branch only (never main, never a tag, never forced); a dry run unless `--apply`; the scheduler queues "ready to land" and never pushes. Not built: the night's candidate merge, the M4 engine gate and the targets. Reviewed items merge into the night's candidate; the full engine gate runs on
-  the M4 overnight; green → push integration → the nightly targets (dev DMG plus both TestFlights; Mac, iPhone and
-  iPad get the build); red → nothing is pushed or built and the page says which part and which item; nothing pushes
-  main except the weekly release. Tests: `pipeline/tests/test_nightly.py::test_red_gate_pushes_nothing_and_names_the_part`,
-  `pipeline/tests/test_nightly.py::test_nightly_build_only_after_green_gate`.
-- `pipeline.closes-issues` [PARTIAL] (#6116) — the runner closes issues and milestones, properly, and never a second
-  closer: when an item's commit lands on integration with its checks green, `scripts/close_fixed_issues.py` (the one
-  closer, also the close-fixed-issues Action's) closes the issue with a comment naming the sha and the checks; a
-  dry-run line goes in the journal before each close; a worker-reported residue (part of the issue not done) updates
-  the issue body with what is left and leaves it open; a milestone closes when its last open issue closes; the page
-  shows what was closed today. Tests: `pipeline/tests/test_core.py::test_landing_closes_through_the_one_closer_after_a_dry_run_line`,
-  `pipeline/tests/test_core.py::test_a_residue_leaves_the_issue_open_with_what_is_left`.
+- (moved) pipeline.nightly-gate → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) pipeline.closes-issues → `building-fichero-locally.md` (Phase 0, 2026-11-18)
 - `pipeline.pipeline-as-data` [PARTIAL] (#6116) — the profile's `[[steps]]` declare what each item goes through (brief,
   code, checks, review, land, close): each step's kind (script, model or manual), what it reads and writes, where its
   exit code sends it (`on_ok`, `on_fail`), and its caps (`timeout_s` for a script, `max_iter` for a step a route loops
@@ -469,14 +386,7 @@ merged (2026-10-25): the merged ids are listed under "Merged ids" at the end of 
   processed, or failed with the reason) shows on the Builds page; a failed target files a bug through bug-intake,
   de-duplicated, and never blocks the other targets. Test:
   `pipeline/tests/test_nightly.py::test_failed_target_files_one_bug_and_the_others_run`.
-- `pipeline.weekly-release` [PARTIAL] (#6116) — on its schedule the weekly release runs every target and stops for the
-  maintainer's yes (on the page or the CLI, never over MCP) before anything public: the GitHub release, Sparkle, the
-  product site (tubb.ca/apps/fichero, appcast, release page), the App Store submission; the pre-release scan checks
-  private docs as well as keys and paths. The docs site (MkDocs) is its own schedule job: it refreshes after a green
-  push, built from a clean checkout of the pushed sha, never a working tree (a prior deploy published untracked
-  private docs/ pages), after the scan for private paths. Tests:
-  `pipeline/tests/test_nightly.py::test_weekly_release_waits_for_the_yes_before_public_targets`,
-  `pipeline/tests/test_nightly.py::test_docs_deploy_builds_from_a_clean_checkout_of_the_sha`.
+- (moved) pipeline.weekly-release → `building-fichero-locally.md` (Phase 0, 2026-11-18)
 
 ### Following along
 - `pipeline.dashboard-minimal` [OK] — one local page (127.0.0.1 only; one HTML file, plain CSS, a

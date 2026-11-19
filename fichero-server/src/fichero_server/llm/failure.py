@@ -1,6 +1,6 @@
 """The engine's one mapping from a failure to what a person is told (`run.fail.kinds-table`, #6354).
 
-`classify` is the table in `specs/ai/run-failure-alerts.md`: the exception's TYPE decides first, its status code or words only
+`classify` is the table in `specs/compute/runner-reliability.md`: the exception's TYPE decides first, its status code or words only
 when it has no type of its own, and what the table does not name is `unexpected` (a bug in Fichero), never silence.
 `RunFailure` is the served model; `redact` is the one function that takes what is private out of any text a report may carry.
 """
@@ -8,7 +8,7 @@ when it has no type of its own, and what the table does not name is `unexpected`
 from __future__ import annotations
 
 import re
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, get_args
 
 from pydantic import BaseModel, Field
 
@@ -17,6 +17,13 @@ from fichero_server.llm.refusal import CloudRefusal
 Kind = Literal["no-credit", "key-refused", "rate-limited", "cap-refused", "images-refused", "model-error", "model-missing",
                "runtime-unavailable", "memory", "network", "files-unavailable", "model-broken", "library-closed",
                "export-folder-gone", "interrupted", "unexpected"]
+KINDS: tuple[str, ...] = get_args(Kind)
+#: The kinds that PAUSE the run instead of failing it (`runner.kinds.pause-or-fail-is-the-tables`, #6675, runner-reliability section 1):
+#: the cause is outside the work and Continue carries on once it is put right. Every other kind fails the item and goes on.
+PAUSES = frozenset({"no-credit", "key-refused", "rate-limited", "cap-refused", "images-refused", "network", "memory",
+                    "library-closed", "export-folder-gone"})
+#: The kinds the engine retries by itself, bounded, before it pauses or fails (the table's "engine retries first" column).
+ENGINE_RETRIES = frozenset({"rate-limited", "network", "memory", "model-error", "interrupted"})
 ActionKind = Literal["retry", "resume", "open-settings", "choose-model", "report-bug", "reconnect", "raise-to", "allow-everywhere",
                      "allow-project", "allow-once", "over-cap-once", "choose-folder"]
 
@@ -57,6 +64,8 @@ class RunFailure(BaseModel):
     exception_type: Optional[str] = Field(default=None, description="the exception's class name; never its message")
     detail: str = Field(default="", description="the error's first line, redacted")
     refusal: Optional[CloudRefusal] = Field(default=None, description="`cap-refused` and `images-refused`: the typed refusal")
+    pauses: bool = Field(default=False, description="the kind's rule: the run PAUSES for it and Continue goes on (else it fails the item)")
+    engine_retries: bool = Field(default=False, description="the engine retries this kind by itself, bounded, before pausing or failing")
 
 
 # --- redaction -------------------------------------------------------------------------------------------------------------
@@ -205,6 +214,37 @@ def classify(exc: BaseException | None, text: str = "", *, step: str | None = No
     return _build(kind, refusal, exc, text, step=step, provider=provider, model=model, done=done, total=total)
 
 
+def paused_reason(kind: str, provider: str | None = None) -> str:
+    """The words of a job row paused for `kind` ("Paused: Out of credit at OpenRouter"); `kind_of_paused_reason` reads them back."""
+    from fichero_server.workflows.circuit_breaker import provider_display
+
+    return "Paused: " + row_words(kind, name=provider_display(provider) if provider else "the provider")
+
+
+def kind_of_paused_reason(reason: str | None) -> str | None:
+    """The pausing kind a job row's paused `reason` says (`paused_reason`), else None."""
+    if not reason or not reason.startswith("Paused: "):
+        return None
+    said = reason[len("Paused: "):]
+    for kind in sorted(PAUSES):
+        template = _ROW_WORDS[kind]
+        if re.fullmatch(re.escape(template).replace(re.escape("{name}"), ".+").replace(re.escape("{model}"), ".+"), said):
+            return kind
+    return None
+
+
+def kind_of_failed_reason(reason: str | None) -> str | None:
+    """The kind whose row words a failed job row's `reason` is (`jobs.failed_reason` writes them), else None for a reason that
+    keeps its own words."""
+    if not reason:
+        return None
+    for kind in KINDS:
+        template = _ROW_WORDS[kind]
+        if re.fullmatch(re.escape(template).replace(re.escape("{name}"), ".+").replace(re.escape("{model}"), ".+"), reason):
+            return kind
+    return None
+
+
 def of_kind(kind: str, *, folder_for: str | None = None) -> RunFailure:
     """A kind's failure with no exception at hand: a job row the engine PAUSED for a cause a person removes (`jobs`
     `_PAUSED_NOT_FAILED`), listed with its fix. `folder_for`: the kept export a `choose-folder` action is for (#6588)."""
@@ -271,7 +311,25 @@ def _build(kind: str, refusal: CloudRefusal | None, exc: BaseException | None, t
         acts = [a.model_copy(update={"retry_after_seconds": wait}) if a.kind == "retry" else a for a in acts]
     return RunFailure(kind=kind, words=words, fix=fix, actions=acts, provider=prov, model=mdl, step=step, pages_done=done,
                       pages_total=total, row_words=row_words(kind, name=name, model=shown_model),
-                      exception_type=type(exc).__name__ if exc is not None else None, detail=detail, refusal=refusal)
+                      exception_type=type(exc).__name__ if exc is not None else None, detail=detail, refusal=refusal,
+                      pauses=kind in PAUSES, engine_retries=kind in ENGINE_RETRIES)
+
+
+def credit_pause_failure(paused: dict, *, step: str | None = None, done: int | None = None,
+                         total: int | None = None) -> RunFailure:
+    """The failure a run PAUSED for credit carries (#6675, `recipes-run.credit.out-of-credit-pauses-and-asks`): the provider, out of
+    credit or a credit limit, the provider's own words, and Continue first; the pause is not a failure of any page."""
+    refused = paused.get("cause") == "key-refused"
+    failure = _build("key-refused" if refused else "no-credit", None, None, paused.get("detail", ""), step=step,
+                     provider=paused["provider"], done=done, total=total)
+    name = failure.provider or "the provider"
+    what = "refused the key" if refused else "has reached its credit limit" if paused.get("cause") == "credit-limit" else "is out of credit"
+    failure.words = f"{name} {what}, so the run is paused. Nothing was lost."
+    failure.fix = ("Check the key in Settings › AI › Providers, then Continue." if refused else
+                   f"Add credit or raise the limit at {name}, then Continue; Fichero checks again and goes on from the first page not done.")
+    failure.fix += " Fichero goes on from the first page not done." if refused else ""
+    failure.actions = [_a("resume"), _a("open-settings", PROVIDERS_CONTROL)]
+    return failure
 
 
 def _a(kind: str, control: str | None = None) -> FailureAction:

@@ -18,7 +18,7 @@
 > a second exporter. Taking files **in** is a new *trigger* for the one import path
 > (`importer/importer.md`), not a second importer; re-import of an unchanged file is the
 > importer's content-hash skip (#739). Running work on what comes in is the activity system's
-> (`ui/activity-and-automatic-work.md`, #5352). Which formats exist is `formats-and-training.md`'s.
+> (`ui/activity-pane.md`, #5352). Which formats exist is `formats-and-training.md`'s.
 
 ## Intent
 

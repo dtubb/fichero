@@ -257,6 +257,10 @@ def release_idle_embedders(idle_seconds: float | None = None, reason: str = "idl
 
         gc.collect()  # the ONNX session goes with its last reference; collect now, not someday
         logger.info("model-lane: unload embedder %s (%s)", ", ".join(released), reason)
+        from fichero_server.core.perf import model_unloaded
+
+        for name in released:
+            model_unloaded(f"embedder {name}")
     # The Transformers NER pipeline (~1 GB with torch) goes the same way, when that module was ever imported: nothing else frees it (## 1003)
     ner = sys.modules.get("fichero_server.workflows.ner.providers")
     if ner is not None:

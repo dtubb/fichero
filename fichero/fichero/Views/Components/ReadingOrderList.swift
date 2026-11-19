@@ -32,11 +32,11 @@ struct ReadingOrderList: View {
     /// What a row shows under its words: the Segments pane's other readings (#6492); nil shows nothing more.
     var rowFooter: ((String) -> AnyView)?
 
-    @Environment(ReadingOrderService.self) private var service: ReadingOrderService?
+    @Environment(ReadingOrderService.self) var service: ReadingOrderService?
     @Environment(SegmentService.self) var segmentService: SegmentService?
     @Environment(ActionStore.self) var actionStore: ActionStore?
     @Environment(WindowSteps.self) var windowSteps: WindowSteps?
-    @Environment(WindowState.self) private var windowState: WindowState?
+    @Environment(WindowState.self) var windowState: WindowState?
 
     @State var store: ReadingOrderStore?
 
@@ -67,7 +67,7 @@ struct ReadingOrderList: View {
     @State var picks: Set<String> = []
     /// The one selected row; nil with none or several (the verbs that act on one row ask this; Shift, ⌘ and ⌥ click
     /// pick several, Finder style, and the list's Delete and the shared selection take them all).
-    private var selection: String? {
+    var selection: String? {
         get { picks.count == 1 ? picks.first : nil }
         nonmutating set { picks = newValue.map { [$0] } ?? [] }
     }
@@ -75,9 +75,9 @@ struct ReadingOrderList: View {
     /// focused the same keys reach the Reader's caret line (`ReaderLineMove`), not this list.
     @FocusState var listFocused: Bool
     /// The line being renamed in place (Return, Finder style; Step 1.25) and the words typed so far.
-    @State private var renaming: String?
-    @State private var draft = ""
-    @FocusState private var renameFocused: Bool
+    @State var renaming: String?
+    @State var draft = ""
+    @FocusState var renameFocused: Bool
     /// The region a drag is over, lit as a drop target.
     @State var dropTarget: String?
 
@@ -91,15 +91,12 @@ struct ReadingOrderList: View {
             if let store, !store.shown.isEmpty {
                 let nested = nestedRows(top: store.shown.map(\.segmentId))
                 List(selection: $picks) {
+                    // No `.onMove` (#6577): with the rows dragging through `itemProvider` (#6476), the List's own move
+                    // took every drag inside the list as an insertion between rows, so a line dropped ON a region row
+                    // never reached the row's drop (`movable`), which moves it in or takes that row's place.
                     ForEach(Array(store.shown.enumerated()), id: \.element.segmentId) { index, entry in
                         entryRow(entry.segmentId, at: index, nesting: nested)
                     }
-                    .onMove(perform: filter != nil ? nil : { offsets, destination in
-                        guard let from = offsets.first else { return }
-                        let segmentId = store.shown[from].segmentId
-                        let target = ReadingOrderMove.finalIndex(fromOffset: from, toOffset: destination)
-                        Task { await record(store.move(segmentId, to: target), in: store) }
-                    })
                 }
                 .contextMenu(forSelectionType: String.self, menu: lineMenu, primaryAction: primaryAction)
                 #if os(macOS)
@@ -169,10 +166,16 @@ struct ReadingOrderList: View {
                 windowState?.pendingSegmentSelection = nil
             }
         }
+        // The order shown shades the Preview (#6422): a reorder or another order reshades its lines.
+        .task(id: "\(documentId)/\(store?.orderId ?? "")/\(store?.sequence ?? [])") {
+            guard parentSegmentId == nil, let store, store.documentId == documentId, let segmentService else { return }
+            let ids = await store.fullSequence { segment($0)?.kind == "region" }
+            SegmentStore.shared(for: segmentService).showOrder(ids, documentId: documentId)
+        }
     }
 
     /// The segments the one shared selection holds on this page (the Preview's, the Reader's, this list's).
-    private var sharedIds: [String] {
+    var sharedIds: [String] {
         guard let segmentService, let selection = windowState?.sharedRegionSelection else { return [] }
         return InspectorPath.selectedSegmentIds(
             selection: selection, documentId: documentId, store: SegmentStore.shared(for: segmentService)
@@ -229,9 +232,9 @@ struct ReadingOrderList: View {
     }
 
     /// The line Correct This Line is asking about; nil when it is not asking.
-    @State private var correcting: Segment?
+    @State var correcting: Segment?
 
-    private var documentStore: SegmentStore? { segmentService.map { SegmentStore.shared(for: $0) } }
+    var documentStore: SegmentStore? { segmentService.map { SegmentStore.shared(for: $0) } }
 
     /// Why Create Named Order did not happen; nil after it did.
     @State var createNote: String?
@@ -243,13 +246,13 @@ extension ReadingOrderList {
     /// Shift+Up/Down (#6457): only Shift extends; a plain arrow stays the List's own (`InspectorPath.extendPlaces`).
     /// ⌥↑ / ⌥↓ move the selected line one place, the same call as the Move buttons (Finder keeps plain arrows for the
     /// selection). Nil for any other chord, so the arrows keep their meaning.
-    private func optionMove(_ step: ReadingOrderMove.Step, _ press: KeyPress) -> KeyPress.Result? {
+    func optionMove(_ step: ReadingOrderMove.Step, _ press: KeyPress) -> KeyPress.Result? {
         guard press.modifiers == .option, let store, let segmentId = selection else { return nil }
         Task { await record(store.move(segmentId, step: step), in: store) }
         return .handled
     }
 
-    private func extend(_ places: Int, _ press: KeyPress, store: SegmentStore?) -> KeyPress.Result {
+    func extend(_ places: Int, _ press: KeyPress, store: SegmentStore?) -> KeyPress.Result {
         guard let places = InspectorPath.extendPlaces(places, shift: press.modifiers.contains(.shift)),
               let store, let focused = windowState?.sharedRegionSelection,
               InspectorPath.stepSelection(by: places, extend: true, selection: focused, documentId: documentId, store: store)
@@ -258,7 +261,7 @@ extension ReadingOrderList {
     }
 
     /// Return on the one selected line: edit its words in place (`OrderRename.begins`).
-    private func beginRename(_ id: String? = nil) -> KeyPress.Result {
+    func beginRename(_ id: String? = nil) -> KeyPress.Result {
         guard renaming == nil, let id = id ?? selection,
               let words = OrderRename.begins(on: [segment(id)].compactMap { $0 }) else { return .ignored }
         draft = words
@@ -269,7 +272,7 @@ extension ReadingOrderList {
     }
 
     /// Return (or a click away) in the field: record the words as the person's reading, through the one correction path.
-    private func commitRename() {
+    func commitRename() {
         guard let id = renaming else { return }
         renaming = nil
         guard let line = segment(id), let words = OrderRename.commit(draft, on: line), let segmentService else { return }
@@ -293,7 +296,7 @@ extension ReadingOrderList {
 
     /// A double-click on a row (Return renames): reveal it in the linked Preview, selected, scrolled and
     /// zoomed to (#5424) -- the one reveal the Reader's line click makes too.
-    private func reveal(_ ids: Set<String>) {
+    func reveal(_ ids: Set<String>) {
         guard let segmentId = ids.first, let windowState, let segmentService else { return }
         // Revealed first, then told: inside `onSelected?(...)` the reveal never ran when no callback was given.
         let revealed = windowState.revealSegments(
@@ -304,20 +307,20 @@ extension ReadingOrderList {
 
     /// The level shown, as the page holds it, for a page with no named order: the WORKING pass's
     /// segments only (`SegmentStore.workingSegments`, #5467), never the top level of every pass.
-    private var asWritten: [String] {
+    var asWritten: [String] {
         guard let segmentService else { return [] }
         let segments = SegmentStore.shared(for: segmentService).workingSegments(documentId: documentId)
         return SegmentsPane.asWritten(segments, under: parentSegmentId)
     }
 
     /// Which lines the teacher-line check flagged (#5446): the one store every line list reads.
-    private var flags: FlaggedLineStore? {
+    var flags: FlaggedLineStore? {
         segmentService.map { FlaggedLineStore.shared(for: $0) }
     }
 
-    /// The page's working pass as the engine names it; nil until the page is read.
-    private var workingPassId: String? {
-        segmentService.flatMap { SegmentStore.shared(for: $0).workingPass(documentId: documentId)?.id }
+    /// The page's shown pass: the working pass as the engine names it, or the one picked (#6670); nil until read.
+    var workingPassId: String? {
+        segmentService.flatMap { SegmentStore.shared(for: $0).shownPass(documentId: documentId)?.id }
     }
 
     /// A row shown only because it holds a match (its region, its line) is dimmed under a filter.
@@ -330,7 +333,7 @@ extension ReadingOrderList {
 
 extension ReadingOrderList {
     /// The keys, as buttons so they are discoverable and so the shortcuts have a home.
-    private func keyRow(_ store: ReadingOrderStore) -> some View {
+    func keyRow(_ store: ReadingOrderStore) -> some View {
         HStack(spacing: 8) {
             stepButton("arrow.up.to.line", "Move to Start", .toStart, key: .pageUp, store)
             stepButton("arrow.up", "Move Up", .upward, key: .upArrow, store)
@@ -344,7 +347,7 @@ extension ReadingOrderList {
         .disabled(selection == nil)
     }
 
-    private func stepButton(
+    func stepButton(
         _ icon: String, _ title: String, _ step: ReadingOrderMove.Step,
         key: KeyEquivalent, _ store: ReadingOrderStore
     ) -> some View {
@@ -361,13 +364,13 @@ extension ReadingOrderList {
     }
 
     /// ⌘Z for the move just made.
-    private func record(_ auditId: String?, in store: ReadingOrderStore) {
+    func record(_ auditId: String?, in store: ReadingOrderStore) {
         store.registerUndo(auditId: auditId, steps: windowSteps, actionsService: actionStore?.actionsService)
     }
 
     /// "Line 6 · its words", as the Segments pane labels it (#5505): one label on every surface, the number kept
     /// once a line has a reading.
-    private func label(for segmentId: String, at index: Int) -> String {
+    func label(for segmentId: String, at index: Int) -> String {
         guard segmentService != nil else { return "Segment \(index + 1)" }
         // A region is numbered among the page's regions, the number every other surface gives it.
         let found = segment(segmentId)
@@ -375,11 +378,11 @@ extension ReadingOrderList {
         return SegmentsPane.rowLabel(found, at: SegmentsPane.numberingPlace(of: found, at: index, among: working))
     }
 
-    private func segment(_ segmentId: String) -> Segment? {
+    func segment(_ segmentId: String) -> Segment? {
         segmentService.flatMap { SegmentStore.shared(for: $0).segments(documentId: documentId).first { $0.id == segmentId } }
     }
 
-    private static func keyName(_ key: KeyEquivalent) -> String {
+    static func keyName(_ key: KeyEquivalent) -> String {
         switch key {
         case .upArrow: "↑"
         case .downArrow: "↓"
@@ -389,280 +392,9 @@ extension ReadingOrderList {
     }
 }
 
-/// One row of the nested Segments list (hierarchy A, #5426, `source.editor.hierarchy.segments-list-nests`): the
-/// swatch of the colour its box is drawn in (`SelectionStyle.regionSwatch`, the one colour path), its words, and
-/// its children disclosed under it, indented -- a region open on its lines, a line closed on its
-/// words.
-struct SegmentOutlineRow: View {
-    let node: SegmentsPane.OutlineRow
-    let index: Int
-    let tones: [String: RegionColours.Tone]
-    /// The list's own row for an id (its words, its flag).
-    let content: (String, Int) -> AnyView
-    /// What surrounds the whole row (the swatch included): the list's drag and drop, lit across the row.
-    let wrap: (String, AnyView) -> AnyView
-    /// The row lit as a drop target: the WHOLE row's background (the list row), not the words' width.
-    var lit: String?
-    /// Every group open, as while a filter is on: a match must never sit inside a closed group (#6476).
-    var opensAll = false
-
-    @State private var expanded: Bool
-
-    init(
-        node: SegmentsPane.OutlineRow, index: Int, tones: [String: RegionColours.Tone],
-        content: @escaping (String, Int) -> AnyView, wrap: @escaping (String, AnyView) -> AnyView = { _, view in view },
-        lit: String? = nil, opensAll: Bool = false
-    ) {
-        self.wrap = wrap
-        self.lit = lit
-        self.opensAll = opensAll
-        self.node = node
-        self.index = index
-        self.tones = tones
-        self.content = content
-        // A region shows its lines; a line keeps its words until asked.
-        _expanded = State(initialValue: SegmentHierarchy.Level(kind: node.kind) == .region)
-    }
-
-    var body: some View {
-        Group { rows }
-            // The drop target's whole row, edge to edge, like the sidebar's.
-            .listRowBackground(lit == node.segmentId ? Color.accentColor.opacity(0.25) : Color.clear)
-    }
-
-    @ViewBuilder private var rows: some View {
-        if node.children.isEmpty {
-            labelled
-        } else {
-            DisclosureGroup(isExpanded: opensAll ? .constant(true) : $expanded) {
-                ForEach(Array(node.children.enumerated()), id: \.element.id) { position, child in
-                    SegmentOutlineRow(
-                        node: child, index: position, tones: tones, content: content, wrap: wrap, lit: lit, opensAll: opensAll
-                    )
-                }
-            } label: {
-                labelled
-            }
-        }
-    }
-
-    private var labelled: some View {
-        wrap(node.segmentId, AnyView(
-            HStack(spacing: 6) {
-                // The kind's icon in the hue its box is drawn in: the swatch and the kind in one mark.
-                Image(systemName: SegmentHierarchy.Level(kind: node.kind).symbolName)
-                    .foregroundStyle(SelectionStyle.regionSwatch(tones[node.segmentId]))
-                    .frame(width: 16)
-                    .accessibilityHidden(true)
-                content(node.segmentId, index)
-            }
-        ))
-        .tag(node.segmentId)
-    }
-}
-
-/// The list's ⌥⌘ keys, claimed only while the list has focus. `.keyboardShortcut` on a button is
-/// WINDOW-wide: with the list showing a selection, ⌥⌘↑ pressed in the Reader moved the list's row
-/// instead of the Reader's caret line. Nil detaches the shortcut; the buttons still work by click.
-enum ReadingOrderListKeys {
-    static func shortcut(_ key: KeyEquivalent, listFocused: Bool) -> KeyboardShortcut? {
-        listFocused ? KeyboardShortcut(key, modifiers: [.command, .option]) : nil
-    }
-}
-
 #if DEBUG
-/// A page of three regions, the middle one holding three lines, as the engine would list them.
-@MainActor
-private final class PreviewOrderTransport: ReadingOrderTransport {
-    func orders(documentId: String) async throws -> [ReadingOrderSummary] {
-        [.init(id: "o1", name: "as-written", kind: "as-written")]
-    }
-    func entries(orderId: String, parentEntryId: String?) async throws -> [ReadingOrderMove.Entry] {
-        parentEntryId == nil
-            ? ["heading", "body", "marginal note"].map { .init(entryId: "e-\($0)", segmentId: $0, version: 1) }
-            : ["line 1", "line 2", "line 3"].map {
-                .init(entryId: "e-\($0)", segmentId: $0, version: 1, parentEntryId: parentEntryId)
-            }
-    }
-    func place(_ place: ReadingOrderMove.Place) async throws -> String? { "preview-audit" }
-}
-
 #Preview("A page's order") {
     ReadingOrderList(documentId: "page-1", store: ReadingOrderStore(transport: PreviewOrderTransport()))
         .frame(width: 320, height: 260)
 }
-
-#Preview("Nested: a region, its lines, a line's words") {
-    let words = ["In", "the", "beginning"].map { SegmentsPane.OutlineRow(segmentId: $0, kind: "word", children: []) }
-    let lines = (1...3).map {
-        SegmentsPane.OutlineRow(segmentId: "line \($0)", kind: "line", children: $0 == 1 ? words : [])
-    }
-    let regions = [
-        SegmentsPane.OutlineRow(segmentId: "body", kind: "region", children: lines),
-        SegmentsPane.OutlineRow(segmentId: "marginal note", kind: "region", children: [])
-    ]
-    // The region at full strength, its lines shaded along the order, the first line's words in its shade.
-    let tones: [String: RegionColours.Tone] = [
-        "body": .init(hue: 0, strength: 1), "marginal note": .init(hue: 1, strength: 1),
-        "line 1": .init(hue: 0, strength: 1), "line 2": .init(hue: 0, strength: 0.725),
-        "line 3": .init(hue: 0, strength: 0.45),
-        "In": .init(hue: 0, strength: 1), "the": .init(hue: 0, strength: 1), "beginning": .init(hue: 0, strength: 1)
-    ]
-    return List {
-        ForEach(Array(regions.enumerated()), id: \.element.id) { index, region in
-            SegmentOutlineRow(node: region, index: index, tones: tones, content: { id, _ in AnyView(Text(id)) })
-        }
-    }
-    .frame(width: 320, height: 300)
-}
-
-#Preview("A block's lines") {
-    ReadingOrderList(
-        documentId: "page-1", parentSegmentId: "body", store: ReadingOrderStore(transport: PreviewOrderTransport())
-    )
-    .frame(width: 320, height: 260)
-}
 #endif
-
-// MARK: - Moving lines into a region (menu, drag and drop)
-
-extension ReadingOrderList {
-    private var pageSegments: [Segment] { documentStore?.workingSegments(documentId: documentId) ?? [] }
-
-    /// The lines a move on `named` means: the row, or the focused selection when it holds the row (one rule with Delete).
-    private func movedIds(named: Set<String>?) -> [String] {
-        guard let store = documentStore else { return [] }
-        // The rows the menu was opened on, else the list's own picks (Delete, the menu bar): they are the selection,
-        // whatever the shared one holds (it can lag behind a pick, which moved only the first of four).
-        let held = SegmentDeleter.selectedIds(windowState?.sharedRegionSelection, documentId: documentId, store: store)
-        return SegmentDeleter.listRows(picked: named ?? picks, order: self.store?.shown.map(\.segmentId) ?? [], held: held)
-    }
-
-    /// ONE audited `segment.reparent`, one ⌘Z; why it did not happen is said under the list, never silent.
-    private func moveLines(_ ids: [String], into parent: String?) {
-        guard let store = documentStore else { return }
-        let steps = windowSteps, actionsService = actionStore?.actionsService, documentId = documentId
-        Task {
-            createNote = await SegmentMover.run(
-                SegmentDeleter.segments(ids, documentId: documentId, store: store), into: parent,
-                documentId: documentId, store: store, services: (actionsService, steps)
-            )
-        }
-    }
-
-    /// Tab: into the row above at the same level; Shift-Tab (or the back-tab character): out of the parent. Ignored when
-    /// the list is flat, nothing is selected, or the move has nowhere to go, so Tab still moves the focus.
-    private func indent(_ press: KeyPress) -> KeyPress.Result {
-        guard nests, let store, filter == nil, !picks.isEmpty else { return .ignored }
-        let outline = SegmentsPane.outline(pageSegments, top: store.shown.map(\.segmentId))
-        let ids = OrderDrop.inOutlineOrder(picks, outline: outline)
-        let outdents = press.modifiers.contains(.shift) || press.characters == "\u{19}"
-        if outdents {
-            guard let out = OrderDrop.outdentTarget(ids, in: pageSegments) else { return .ignored }
-            moveLines(ids, into: out.parent)
-        } else {
-            guard let target = OrderDrop.indentTarget(ids, outline: outline, in: pageSegments) else { return .ignored }
-            moveLines(ids, into: target)
-        }
-        return .handled
-    }
-
-    private func canTake(_ regionId: String) -> Bool {
-        guard let region = segment(regionId), region.kind == "region" else { return false }
-        return true
-    }
-
-    private func dragPayload(_ segmentId: String) -> SegmentDrag {
-        SegmentDrag.forRow(segmentId) { segment($0)?.text }
-    }
-
-    private func dropped(_ ids: [String], onto regionId: String) -> Bool {
-        guard let region = segment(regionId), region.kind == "region" else { return false }
-        let accepted = OrderDrop.accepted(ids, into: region, in: pageSegments)
-        guard !accepted.isEmpty else { return false }
-        moveLines(accepted, into: regionId)
-        return true
-    }
-
-    /// A drop on a row that takes nothing in: the ONE dragged line takes this row's place in the order, one audited move,
-    /// one ⌘Z (the List's own `.onMove` never sees the drag, the row's `.draggable` has it). Several lines at once: no.
-    private func reordered(_ ids: [String], to targetId: String) -> Bool {
-        guard let store, ids.count == 1, let id = ids.first, id != targetId,
-              let target = store.shown.firstIndex(where: { $0.segmentId == targetId }),
-              store.shown.contains(where: { $0.segmentId == id }) else { return false }
-        Task { await record(store.move(id, to: target), in: store) }
-        return true
-    }
-
-    /// A row: its words, and -- in the Segments pane -- a control that opens it to its children.
-    func row(_ segmentId: String, at index: Int) -> some View {
-        rowContent(segmentId, at: index)
-    }
-
-    /// The whole row, swatch and all, is the drag handle and the drop target, lit like the sidebar's: a drag carries the
-    /// selection when it holds this row, else the row; dropped on a region it moves them in. The drag is the ROW's
-    /// (`itemProvider`), never a `.draggable` on its content: that took the mouse-down, so a click on a row's words did
-    /// not select it, only a click beside them (#6476). With the List seeing the click it also takes the keyboard, so
-    /// Delete and the arrows come here without a tap gesture of our own.
-    func movable(_ segmentId: String, _ view: some View) -> some View {
-        view
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(.rect)
-            .itemProvider { dragPayload(segmentId).itemProvider() }
-            .dropDestination(for: SegmentDrag.self, action: { drags, _ in
-                let ids = drags.flatMap(\.ids)
-                // On a region it moves them in; anywhere else it puts the dragged line in this row's place.
-                return dropped(ids, onto: segmentId) || reordered(ids, to: segmentId)
-            }, isTargeted: { targeting in
-                if targeting, canTake(segmentId) { dropTarget = segmentId } else if dropTarget == segmentId { dropTarget = nil }
-            })
-    }
-
-    private func rowContent(_ segmentId: String, at index: Int) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            rowLine(segmentId, at: index)
-            if let rowFooter, renaming != segmentId {
-                rowFooter(segmentId)
-            }
-        }
-    }
-
-    private func rowLine(_ segmentId: String, at index: Int) -> some View {
-        HStack {
-            if renaming == segmentId {
-                TextField("Words", text: $draft)
-                    .font(BundledFonts.shared.font(.body))
-                    .focused($renameFocused)
-                    .onSubmit { commitRename() }
-                    #if os(macOS)
-                    .onExitCommand { renaming = nil }
-                    #endif
-                    .onChange(of: renameFocused) { _, focused in if !focused { commitRename() } }
-            } else {
-                Text(rowLabel?(segmentId, index) ?? label(for: segmentId, at: index))
-                    .font(BundledFonts.shared.font(.body))
-                    .lineLimit(2)
-                    // An unread line says what to do (#5505).
-                    .help(SegmentsPane.rowHelp(segment(segmentId)) ?? "")
-                if let rowAccessory {
-                    Spacer(minLength: 4)
-                    rowAccessory(segmentId)
-                }
-            }
-            // A line the teacher-line check flagged (#5446): marked, its scores on hover.
-            if let line = flags?.flag(segmentId: segmentId, documentId: documentId) {
-                Spacer(minLength: 4)
-                FlaggedLineMark(line: line)
-            }
-            if !nests, let onOpen, opens?(segmentId) ?? false {
-                Spacer(minLength: 4)
-                Button { onOpen(segmentId) } label: {
-                    Image(systemName: "chevron.right")
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("Open")
-                .help("List what this segment holds")
-            }
-        }
-    }
-}

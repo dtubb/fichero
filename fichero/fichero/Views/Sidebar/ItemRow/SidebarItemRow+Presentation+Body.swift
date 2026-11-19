@@ -58,6 +58,7 @@ extension SidebarItemRow {
             // drag arena so the row's `.draggable` is the sole drag
             // source (#711).
             .textSelection(.disabled)
+            .onAppear { claimActivityBox() }
             // Project › Workflows ▸'s automation verbs on the selected schedule, trigger or batch (#5712).
             .focusedSceneValue(\.automationVerbs, selectedItemId == item.id ? automationTarget : nil)
             .accessibilityLabel(accessibilityLabel)

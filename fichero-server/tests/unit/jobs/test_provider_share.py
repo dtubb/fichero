@@ -1,6 +1,6 @@
 """One provider's calls never take the whole network lane (#5358).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md, `activity.run.lane-cap-per-mac`
+Spec: docs/contributor_manual/specs/ui/activity-pane.md, `activity.run.lane-cap-per-mac`
 ("a cap per provider" was its gap) and the lane table: the network lane is "a few, per provider
 rate limit; the limit is the provider's, not the CPU's". Written from the spec's text, and driven
 through the public surface: real entity-extraction runs started with

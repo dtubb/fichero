@@ -13,6 +13,7 @@ model default is now "unknown".
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 
 
 import fichero_server.api.routes.claim.claims  # noqa: F401 -- registers claim.* actions
@@ -213,7 +214,8 @@ class TestSerializationSitesApplyTheDerivation:
             text="t", source_document_id="doc-1", provider="openai", provenance_kind=None
         )
         db.save(legacy)
-        result = asyncio.run(get_claim(legacy.id, db=db))
+        owner_request = SimpleNamespace(state=SimpleNamespace(bootstrap_auth=True), headers={}, query_params={})  # every page readable
+        result = asyncio.run(get_claim(legacy.id, owner_request, db=db))
         assert result.provenance_kind == ProvenanceKind.workflow
         # The STORED row is untouched -- no backfill.
         assert db.get(KnowledgeClaim, legacy.id).provenance_kind is None

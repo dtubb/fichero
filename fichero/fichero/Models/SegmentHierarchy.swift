@@ -25,6 +25,18 @@ nonisolated enum SegmentHierarchy {
         }
     }
 
+    /// The Preview's layer switches (`source.editor.two-switches`, ruled 2026-09-27 Q2; owner 2026-11-17: "show and
+    /// hide segments or bounding boxes doesn't work, they're always on or not at all"): Show Regions draws the
+    /// regions, Show Lines the lines, Show Word Bounding Boxes the words and anything finer. Each level by its own
+    /// switch, on the image and on a PDF page alike.
+    static func shows(_ level: Level, regions: Bool, lines: Bool, words: Bool) -> Bool {
+        switch level {
+        case .region: regions
+        case .line: lines
+        case .word, .letter: words
+        }
+    }
+
     /// How strongly a level's outline is drawn, times its tone's strength: each finer level lighter than the
     /// one it sits in. A line's shade is at most 1 (`RegionColours`), so a line (<= 0.8) is always lighter
     /// than its region (1), and a word (its line's shade x 0.7) lighter than its line.

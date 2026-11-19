@@ -31,10 +31,11 @@ import tomllib
 from concurrent.futures import ThreadPoolExecutor
 import types
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from fichero_builder import brief_tool, check_tool, codemap, jail, journal, land_tool, models, work
+from fichero_builder import brief_tool, check_tool, codemap, jail, journal, land_tool, models, nightly, work
 
 ROUNDS, RESTARTS = 2, 2
 DISPATCH: list = [()]  # [loop].dispatch: external lanes the loop runs itself, as managed worker lanes (#6466); the verb sets it
@@ -47,6 +48,28 @@ FIX = ("Step {step}: the {kind} did not pass. Fix it on this branch with new com
 OWNER_PATH = re.compile(r"(?<![\w/])(?:~/[\w./-]+|/Users/(?!Shared/)[\w./-]+)")  # what a jail user cannot read; brief_preflight refuses it
 BOUNDARY_HIT = re.compile(r"(?m)^\s*([0-9a-f]{7,40}) (\S.*?): pattern \d+$")
 REWRITE = "rewrite that commit; a later commit does not clear it (history is pushed)"
+
+
+STATES = ("queued", "sent", "said-done", "checking", "reviewing", "fixing", "blocked", "red", "done-not-landed", "landed", "parked")
+
+
+def state_view(lane: dict, s: dict, now: float | None = None, on_origin: bool = True) -> dict:
+    """The one state a step is in (builder-console.step.one-state): the stored `done` reads `said-done`, a `sent` after a fix round
+    `fixing` (so does a `queued` one waiting for its fix brief's new session), a `blocked` from a failed check `red`, a `landed` whose head is not on origin `done-not-landed`. `why` is the stored
+    reason of the current state (`move` rewrites it on every transition); `since`/`age_s` are the entered-at time and its age.
+    `paused` and `hold` are lane flags beside it, never a state."""
+    st = s["state"]
+    if st == "done":
+        st = "said-done"
+    elif st in ("sent", "queued") and s.get("rounds"):
+        st = "fixing"
+    elif st == "blocked" and s.get("red_head"):
+        st = "red"
+    elif st == "landed" and not on_origin:
+        st = "done-not-landed"
+    since = s.get("entered_at", 0.0)
+    return {"state": st, "why": s.get("why", ""), "since": since, "age_s": max(0.0, (_now() if now is None else now) - since),
+            "flags": [f for f, on in (("paused", lane.get("paused")), ("held", lane.get("hold"))) if on]}
 
 
 def fix_text(step: str, kind: str, findings: str) -> str:
@@ -123,7 +146,7 @@ def add(lane_id: str, worktree: str, step: str, brief: str, issues: list[int], w
             save(lanes)
             return
         lane["steps"].append({"step": step, "brief": str(brief), "issues": list(issues), "waits": list(waits or []), "state": "queued",
-                              "head": "", "why": "", "rounds": 0, "restarts": 0})
+                              "head": "", "why": "", "rounds": 0, "restarts": 0, "entered_at": _now()})
         save(lanes)
     journal.append("queue", lane=lane_id, step=step, state="queued", detail=f"after {', '.join(waits or []) or 'nothing'}")
 
@@ -147,7 +170,6 @@ class Procs:
     reconcile_nightly: Callable[[], tuple] | None = None  # () -> (rc, output) of the nightly reconcile over every open issue; None = off
     # taken lane ids -> (lane id, worktree, [{step, brief, issues, waits}]) of the next build-order milestone, or None
     next_milestone: Callable[[set], tuple | None] = lambda taken: None
-    build: Callable[[dict], tuple] = lambda lane: (0, "")  # lane -> (rc, output) of the dev build after its milestone landed
     daily_builds: Callable[[], tuple] | None = None  # () -> (rc, output) of `builder daily-builds`; None = no [check.daily_builds]
     verify_all: Callable[[], tuple] = lambda: (0, "")  # () -> (rc, output) of `builder verify-all` over the loop's checkout
     touches_product: Callable[[dict, str], bool] = lambda lane, head: True  # (lane, head) -> does the batch about to land change app/engine product paths
@@ -163,6 +185,9 @@ class Procs:
     jail_gh: bool = False  # [jail].gh: the jail user has a gh token, so a brief may ask for gh (#6495)
     inline_paths: tuple = ()  # [jail].inline_paths: the owner folders a hand-written brief may inline a file from (brief_tool.for_worker)
     ahead_of_origin: Callable[[dict], bool] = lambda lane: False  # lane -> its tree has commits past origin/<branch> (#6507: a retried batch's DONE)
+    nightly: object = None  # nightly.Cfg from [nightly] (run.nightly-build); None = the project has none
+    nightly_runners: object = None  # nightly.Runners; None = no nightly
+    now: Callable[[], datetime] = datetime.now  # the clock the nightly rules read; the tests set a fake
     adopt: Callable[[dict], object | None] = lambda lane: None  # #6589: lane -> a handle on its live session (a tmux window named for it), else None
 
 
@@ -230,7 +255,7 @@ def open_of(issues: list[int], gh: str = "gh", cwd=None) -> list[str]:
 def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: bool, out, chains: dict | None = None) -> bool:
     """One pass over one lane. False when it can do nothing more without a person: finished, blocked or paused."""
     def move(s, state, detail="", only_head=None):
-        s["state"], s["why"] = state, detail[-500:]
+        s["state"], s["why"], s["entered_at"] = state, detail[-500:], _now()
         s.pop("settling", None)  # a final write ends the claim
         if only_head is not None and not store(lane, expect=(s["step"], only_head)):
             return  # a newer head took the step while this chain ran: its stale copy is not written, nor said
@@ -247,10 +272,13 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                                f"Fix on your branch (a conflict: rebase onto origin/integration), then run: {done_cmd(lane['id'])}")
         journal.append("queue", lane=lane["id"], step=s["step"], state=state if not err else "tell-refused", detail=err or note + str(f))
 
-    def block(s, why, actions=ACTIONS, evidence="", auto_send_back=False):
+    def block(s, why, actions=ACTIONS, evidence="", auto_send_back=False, red=False):
         q = journal.STATE / f"question-{lane['id']}-{s['step']}.txt"
         q.write_text(f"QUESTION: {why}\n")
-        s["red_head"], s["red_at"] = s.get("head") or s.get("checked_head", ""), time.strftime("%Y-%m-%dT%H:%M:%S")  # #6506: a retry of the same head says so
+        if red:  # a failed check only (#6506: a retry of the same head says so); a question block is not shown as red
+            s["red_head"], s["red_at"] = s.get("head") or s.get("checked_head", ""), time.strftime("%Y-%m-%dT%H:%M:%S")
+        else:
+            s.pop("red_head", None)
         if auto_send_back:
             s["auto_sb"] = s.get("auto_sb", 0) + 1  # before the move, which stores it
         s["blocked_at"] = _now()  # the watchdog's clock (#6466)
@@ -291,28 +319,6 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         if h is not None:
             procs.stop(lane)
             del handles[lane["id"]]
-        if push and lane["steps"] and not lane.get("built"):  # dev-workflows.run.loop-rolls-on: one dev build per milestone landed for real
-            lane["built"] = True
-            store(lane)
-            if lane.get("kind") == "external":
-                # owner 2026-11-03: a dev build only at a milestone's end or by hand, never per landing (a post-landing build held the heavy
-                # lock 54 min while checks waited); an external lane's batches have no milestone end the loop can see
-                journal.append("queue", lane=lane["id"], step="-", state="build-skipped",
-                               detail="an external lane's batch landed: the dev build waits for the milestone's end or `builder build --dev`")
-                return False
-
-            def build_it():
-                rc, output = procs.build(lane)
-                journal.append("queue", lane=lane["id"], step="-", state="built" if rc == 0 else "build-failed", detail=output[-300:])
-                if rc:  # an alert to read, never a stop: the roll-on goes on
-                    alert(lane["id"], "build", f"the dev build after {lane['id']} failed: {(output.strip().splitlines() or [''])[-1]}",
-                          str(journal.STATE), [])
-            if chains is None:
-                build_it()
-            else:  # the build is a quarter of an hour: inline it stopped every tick for 17 min (2026-11-02, after harness-unblock landed)
-                t = threading.Thread(target=build_it, name=f"build-{lane['id']}", daemon=True)
-                BUILDS.append(t)
-                t.start()
         return False
     s = lane["steps"][lane["cursor"]]
     if s["state"] == "parked":
@@ -377,6 +383,14 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         if lane["paused"] or next((x.get("paused") for x in load() if x["id"] == lane["id"]), False):
             lane["paused"] = True
             return False
+        if procs.nightly is not None and not s.get("resume_brief") and not s["rounds"]:  # run.nightly-build: a NEW step, after the cutoff, must fit before the freeze
+            if why := nightly.hold_why(procs.now(), procs.nightly, lambda: nightly.median_land_s(journal.read(), lane["id"])):
+                if s.get("held") != why:
+                    s["held"] = why
+                    store(lane)
+                    journal.append("queue", lane=lane["id"], step=s["step"], state="night-hold", detail=why)
+                return False
+        s.pop("held", None)
         s["trees"], s["trees_at"] = procs.trees(_others(lane, handles, procs)), time.strftime("%Y-%m-%dT%H:%M:%S")  # before the worker can move anything
         try:
             bp = Path(s.get("resume_brief") or s["brief"])
@@ -526,9 +540,10 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     if r.get("kind") in ("needs-maintainer", "weakened-tests", "red-on-base", "pinned-new", "guard-data"):  # a pinned check or a test changed on purpose: the manager's call
         s["approve_kind"] = r["kind"]
         s["approvals"] = r.get("approvals") or []  # every reason the refusal listed: one approve sets them all
-        return block(s, r["why"], ("approve", "send-back"), r.get("evidence", ""))
+        return block(s, r["why"], ("approve", "send-back"), r.get("evidence", ""), red=True)
     if r.get("kind") in ("red", "not-ready", "refused") and s["rounds"] < ROUNDS and lane.get("kind") != "external":  # external: an alert
         s["rounds"] += 1
+        move(s, "red", r["why"])  # the failed check is its own state with its rung; the fix brief below moves the step on
         text = fix_text(s["step"], r["kind"], r.get("findings") or r["why"])
         live = handles.get(lane["id"])
         if live is not None and procs.alive(live):  # the findings into the running session (dev-workflows.run.loop-tell)
@@ -545,7 +560,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     acts = ("send-back", "retry", "park") if lane.get("kind") == "external" else ACTIONS
     auto = (lane.get("kind") == "external" and bool(s.get("land_tree")) and r.get("kind") in ("red", "not-ready", "refused")
             and s.get("auto_sb", 0) < AUTO_SEND_BACKS)  # the cap spent, the alert comes as before
-    return block(s, f"{r['why']}\n{r.get('findings', '')}".strip(), acts, evidence=r.get("evidence", ""), auto_send_back=auto)
+    return block(s, f"{r['why']}\n{r.get('findings', '')}".strip(), acts, evidence=r.get("evidence", ""), auto_send_back=auto, red=r.get("kind") in ("red", "not-ready", "refused"))
 
 
 def pinned_files(diff_path: str) -> list[str]:
@@ -561,7 +576,7 @@ def _park(lane: dict, s: dict, why: str) -> None:
     One `queue` row; the caller saves."""
     lane["steps"].remove(s)
     lane["steps"].append(s)
-    s["state"], s["why"] = "parked", why[-500:]
+    s["state"], s["why"], s["entered_at"] = "parked", why[-500:], _now()
     for k in ("blocked_at", "settling"):
         s.pop(k, None)
     journal.append("queue", lane=lane["id"], step=s["step"], state="parked", detail=why[-300:])
@@ -595,7 +610,7 @@ def reorder(lane_id: str, step: str, action: str, to: int | None = None, why: st
             lane["steps"].remove(s)
             journal.append("queue", lane=lane_id, step=step, state="dropped", detail=f"{why.strip()[:300]} (head {str(s.get('head', ''))[:10]})")
         else:
-            s["state"], s["why"] = "queued", ""
+            s["state"], s["why"], s["entered_at"] = "queued", "", _now()
             journal.append("queue", lane=lane_id, step=step, state="unparked", detail="")
         save(lanes)
     return ""
@@ -741,7 +756,7 @@ def done(lane_id: str, sha: str = "") -> str:
             if lane["cursor"] >= len(lane["steps"]):  # finished: the next batch
                 n = sum(1 for x in lane["steps"] if x["step"].startswith("batch-")) + 1
                 lane["steps"].append({"step": f"batch-{n}", "brief": lane["steps"][-1]["brief"] if lane["steps"] else "", "issues": [], "waits": [],
-                                      "state": "queued", "head": "", "why": "", "rounds": 0, "restarts": 0})
+                                      "state": "queued", "head": "", "why": "", "rounds": 0, "restarts": 0, "entered_at": _now()})
             s = lane["steps"][lane["cursor"]]
             # no tree on this machine (a lane named by hand): the old DONE, taken from the lane's worktree
             path, why = land_tree(lane, sha) if Path(lane["worktree"]).is_dir() else ("", "")
@@ -1191,6 +1206,11 @@ def daily_when_due(procs: Procs, chains: dict | None) -> None:
         t.start()
 
 
+def nightly_when_due(procs: Procs, chains: dict | None) -> None:
+    """dev-workflows.run.nightly-build: at the freeze the integration head is the night's candidate and the nightly starts (its own thread)."""
+    nightly.when_due(procs.nightly, procs.nightly_runners, procs.now(), lambda why: alert("-", "nightly", why, str(journal.STATE), ["retry"]), chains, BUILDS)
+
+
 ONLY: list = [()]  # [loop].only: the lanes the loop ticks; () = every lane in the queue (tests); the verb sets it (manager 2026-11-04)
 
 
@@ -1309,6 +1329,7 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
             journal.append("loop", state="lane-error", lane=lane["id"], detail=traceback.format_exc()[-1500:])
             out(f"{lane['id']}: lane error (journal row lane-error); the loop goes on")
     daily_when_due(procs, chains)
+    nightly_when_due(procs, chains)
     reconcile_when_due(procs, chains)
     if not busy:
         verify_when_idle(procs, chains)
@@ -1719,6 +1740,7 @@ def real_procs(root) -> Procs:
     root = Path(root)
     rules = tomllib.loads((root / "harness.toml").read_text())
     repo, branch = rules["check"]["engine_repo"], rules["land"]["branch"]
+    ncfg = nightly.load(rules)
     mdl = models.load(root)
     builder, reviewer = models.for_role(mdl, "builder").model, models.for_role(mdl, "reviewer").model
     reviewer_fast = models.for_role(mdl, "reviewer_fast").model if "reviewer_fast" in mdl else reviewer
@@ -1800,11 +1822,6 @@ def real_procs(root) -> Procs:
         return next((r["end"] for r in reversed(work._shared_rows(ns(lane))) if r.get("event") == "cost" and r.get("task") == lane["id"]
                      and r.get("end") != "handoff"), "gone")
 
-    def build(lane):
-        r = subprocess.run([sys.executable, "-m", "fichero_builder", "build", "--dev", "--root", str(root), "--state", str(journal.STATE)],
-                           cwd=str(pkg), capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(pkg)})
-        return r.returncode, (r.stdout + r.stderr)[-2000:]
-
     def touches_product(lane, head):
         prefixes = tuple(rules.get("check", {}).get("product_paths", ()))
         if not prefixes:
@@ -1884,7 +1901,7 @@ def real_procs(root) -> Procs:
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0, adopt=lambda lane: adopt_session(jail.load(root), lane),
                  landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
-                 next_milestone=lambda taken: next_in_order(root, taken), build=build, verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",
+                 next_milestone=lambda taken: next_in_order(root, taken), verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, nightly=ncfg, nightly_runners=nightly.real_runners(root, ncfg, branch, journal.STATE) if ncfg else None, reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "",
                  workroot=str(rules.get("jail", {}).get("workroot", "")), blob=blob, root=str(root), jail_gh=bool(rules.get("jail", {}).get("gh")),
                  inline_paths=tuple(rules.get("jail", {}).get("inline_paths", brief_tool.INLINE_DEFAULT)))

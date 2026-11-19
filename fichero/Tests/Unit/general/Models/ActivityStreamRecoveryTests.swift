@@ -4,7 +4,7 @@
 //
 //  activity.stream-reconnects-after-a-sharing-switch (#5912): the live stream comes back by itself after the engine
 //  restarts, re-reads the endpoint on each failed attempt, reads the run list again once, and says "Reconnecting".
-//  See docs/contributor_manual/specs/ui/activity-and-automatic-work.md.
+//  See docs/contributor_manual/specs/ui/activity-pane.md.
 //
 
 @testable import Fichero

@@ -1,6 +1,6 @@
 """Clear Failed clears the failed jobs the Activity window lists (#5634).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md, `activity.window.clear-failed`.
+Spec: docs/contributor_manual/specs/ui/activity-pane.md, `activity.window.clear-failed`.
 WHY: the maintainer pressed Clear Failed and nothing changed. It deleted only workflow runs; a failed
 job of its own (a recipe run, a model download, Detect Regions) could not be cleared at all, so its row
 and the toolbar's error glyph stayed forever. Through the routes and the real jobs table.

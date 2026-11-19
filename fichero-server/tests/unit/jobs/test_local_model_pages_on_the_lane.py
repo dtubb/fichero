@@ -1,6 +1,6 @@
 """A page read by a model served on this Mac (MLX, Ollama, LM Studio) holds the local-model lane.
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md -- `activity.lane.*`,
+Spec: docs/contributor_manual/specs/ui/activity-pane.md -- `activity.lane.*`,
 `activity.kraken-mlx-inference-visible`; ai/local-runtimes.md section 3 ("the Mac holds one heavy
 model at a time unless two fit"). Before this, an MLX page and a Kraken page (or the embedder) ran
 at the same time, two heavy models in one Mac's memory. The model call itself is faked here.

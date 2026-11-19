@@ -81,13 +81,21 @@ struct ActivityLogLinesView: View {
         .background(selected ? AnyShapeStyle(Color.accentColor.opacity(0.22))
                     : isCurrent ? AnyShapeStyle(Color.yellow.opacity(0.18)) : AnyShapeStyle(Color.clear))
         .contentShape(Rectangle())
-        .gesture(
-            TapGesture().modifiers(.command).onEnded { selection.click(line.id, shift: false, command: true) }
-                .exclusively(before: TapGesture().modifiers(.shift).onEnded { selection.click(line.id, shift: true, command: false) })
-                .exclusively(before: TapGesture().onEnded { selection.click(line.id, shift: false, command: false) })
-        )
+        .gesture(clickGesture(line.id))
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    // ⌘- and ⇧-click extend the selection on the Mac; TapGesture.modifiers is unavailable on iOS (it failed the
+    // iOS TestFlight compile, 2026-11-18), where a tap selects one line.
+    private func clickGesture(_ id: Int) -> some Gesture {
+        #if os(macOS)
+        TapGesture().modifiers(.command).onEnded { selection.click(id, shift: false, command: true) }
+            .exclusively(before: TapGesture().modifiers(.shift).onEnded { selection.click(id, shift: true, command: false) })
+            .exclusively(before: TapGesture().onEnded { selection.click(id, shift: false, command: false) })
+        #else
+        TapGesture().onEnded { selection.click(id, shift: false, command: false) }
+        #endif
     }
 
     private func scroll(_ proxy: ScrollViewProxy, to index: Int) {

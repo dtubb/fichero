@@ -240,7 +240,7 @@ one catalogue, one gate that decides whether content may leave.
   vision-language model (for example Qwen2.5-VL 3B) with LoRA; spaCy. Good models are released
   on Hugging Face as part of Fichero, with their licences respected.
 - **One job model.** A remote, cluster or training run is a job in the one job table of
-  `ui/activity-and-automatic-work.md` (its question 9, ruled 2026-10-01), never a second runner
+  `ui/activity-pane.md` (its question 9, ruled 2026-10-01), never a second runner
   or a second job table.
 - **Load a model once, group work by model, never co-run heavy models unless both fit**, and
   measure what each job uses (CPU, GPU, Neural Engine, memory).
@@ -443,7 +443,7 @@ The maintainer's standing worry is two code paths for one job. Five are already 
 | 5 | A cluster-served model as a **new kind of provider** (the fine-tuning plan) or as **an existing local-server row at another address** | An existing kind of row. A session adds a row and removes it. No second provider system. See `jobs-and-fine-tuning.md`. |
 | 6 | Two **job runners**: the workflow runner on the Mac, and a separate small `runner/run_task.py` for clusters (named, never written) | One runner. The image runs the same workflow code in a "run this package" mode. See `jobs-and-fine-tuning.md`. |
 | 7 | Two **model catalogues**: models on the Mac, and models cached on a target | One catalogue of cards (`source.model.card-is-the-catalogue`). A card gains "also present on these targets". A target has no catalogue of its own. |
-| 8 | Two **job models**: a `compute_jobs` table proposed here, and the one `jobs` table of `ui/activity-and-automatic-work.md` | The one `jobs` table (ruled 2026-10-01). A remote job is a row with lane `remote` and its target named; its far-side states are its `state` and `waiting_reason`; array pieces are child jobs. See `compute.job.one-state-machine`. |
+| 8 | Two **job models**: a `compute_jobs` table proposed here, and the one `jobs` table of `ui/activity-pane.md` | The one `jobs` table (ruled 2026-10-01). A remote job is a row with lane `remote` and its target named; its far-side states are its `state` and `waiting_reason`; array pieces are child jobs. See `compute.job.one-state-machine`. |
 | 9 | Two **trainers**: one in the Mac engine, one in the image | One trainer in the engine's code. It runs in process on the Mac and in "run a package" mode in the image, on Hugging Face Jobs or a cluster. See `compute.tune.one-trainer-three-places`. |
 
 ## How this is tested from the maintainer's side
@@ -496,12 +496,12 @@ loop and proves nothing about speed.
 
 ## Build order (revised 2026-10-03; engine before app; each slice builds, tests and commits alone)
 
-The first goal is narrow: **fine-tune a Kraken reader and a YOLO page detector on the Sergio
+The first goal is narrow: **fine-tune a Kraken reader and a YOLO page detector on the notebook corpus
 notebooks' checked pages, first on Hugging Face Jobs, then on this Mac, then on ACENET; measure
 each by CER on held-out pages; adopt the winner in the project's recipe as a new card.** The
 order serves that goal first. the appendix "The review of 2026-10-03" gives the reasons.
 
-0. **Before any training (other specs).** Checked pages on the Sergio notebooks (a person);
+0. **Before any training (other specs).** Checked pages on a notebook corpus (a person);
    a training set from them, split by notebook (`source.train.*`, #4947), with line pictures for
    Kraken and YOLO labels for the detector (`formats/yolo.py` already writes them); the one CER
    (built); the one job table (#5353).
@@ -756,7 +756,7 @@ None of these is wrong. None is needed to fine-tune a Kraken reader and a YOLO p
 
 ### Requests to other specs (not edited here)
 
-- `ui/activity-and-automatic-work.md`: its `kind` list has `remote`. Where a job runs is not what
+- `ui/activity-pane.md`: its `kind` list has `remote`. Where a job runs is not what
   it does: prefer a `target` field (this Mac by default) with lane `remote` for jobs sent away,
   and `kind` staying `workflow` or `train-a-model`. Also add `train-a-model` to the local ML lane's
   kinds.
@@ -772,7 +772,7 @@ None of these is wrong. None is needed to fine-tune a Kraken reader and a YOLO p
 
 ### The order to build (the smallest path)
 
-Goal: a Kraken reader and a YOLO page detector, fine-tuned on the Sergio notebooks' checked
+Goal: a Kraken reader and a YOLO page detector, fine-tuned on a notebook corpus' checked
 pages, first on Hugging Face Jobs, then on this Mac, then on ACENET; measured by CER on held-out
 notebooks; adopted by the project's recipe as a new card.
 
@@ -825,16 +825,16 @@ table. The key is in the Keychain; a recipe names only `runs_on: cluster`. New:
 
 ### Questions for the maintainer (few, each with a recommendation)
 
-1. **Rights for the Sergio notebooks.** Training on Hugging Face Jobs sends page images to a
+1. **Rights for a notebook corpus.** Training on Hugging Face Jobs sends page images to a
    company in the United States, and release needs the right to publish. *Recommend:* confirm
-   with Sergio that training on Hugging Face is acceptable before step 3; release only after
+   with the notebook corpus owner that training on Hugging Face is acceptable before step 3; release only after
    written agreement.
 2. **Noise band for "proven".** *Recommend:* two runs within 0.5 points of CER on the held-out
    notebooks; tighten once we know the spread.
 
 ### Rulings after the review (2026-10-03)
 
-- **Sergio notebooks:** page images may go to Hugging Face Jobs to train our own models; models trained on them are not released. Step 7 (release) does not apply to this project.
+- **a notebook corpus:** page images may go to Hugging Face Jobs to train our own models; models trained on them are not released. Step 7 (release) does not apply to this project.
 - **"Proven" noise band:** two runs within 0.5 CER points (the recommendation), to be tightened when real runs show the spread.
 
 ## Future (ideas, not scheduled)

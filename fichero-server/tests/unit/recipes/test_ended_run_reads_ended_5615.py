@@ -1,6 +1,6 @@
 """A run that has ended reads ended, in words, on every surface (#5615, `activity.ended-run-reads-ended`).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md and
+Spec: docs/contributor_manual/specs/ui/activity-pane.md and
 docs/contributor_manual/specs/source/models-chains-and-projects.md (`source.recipe.run-status-is-activity`). Seen in
 the MCP review of 2026-10-08 on a real project: a recipe run failed "Interrupted 3 times; set aside" while its
 Correct stage said running and its names stage waiting; the list named it `run-a-recipe`; the reason gave no cause,

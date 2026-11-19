@@ -1,6 +1,6 @@
 """This Mac's state in the Activity popover (`activity.popover.summary`, #5415).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md. The popover says whether
+Spec: docs/contributor_manual/specs/ui/activity-pane.md. The popover says whether
 heavy work is held back and why; it needs the Mac's memory pressure, heat, battery and use, read
 from the engine. `GET /api/activity/jobs` serves them as `machine`, read through the SAME
 readings the throttle (`execution/throttle.py`) acts on.

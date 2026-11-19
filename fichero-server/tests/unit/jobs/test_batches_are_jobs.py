@@ -1,6 +1,6 @@
 """A batch runs off the request, each item a run of the one runner, the batch their parent job (#5374).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md: `activity.run.batch-off-the-request`
+Spec: docs/contributor_manual/specs/ui/activity-pane.md: `activity.run.batch-off-the-request`
 ("a batch runs on the engine's work path, not on the API's event loop, survives the client
 disconnecting, and writes a run record per item") and "What is deleted": "a batch is a parent job
 whose children are run jobs". Written from the spec's text, and driven through the public surface:

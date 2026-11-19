@@ -1,6 +1,6 @@
 """What the Activity details view reads from the engine (#5561).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md, "The details view (#5561)":
+Spec: docs/contributor_manual/specs/ui/activity-pane.md, "The details view (#5561)":
 
 * `activity.details.engine-carries-what-it-shows`: "every node of `GET /api/activity/jobs/{id}` carries
   `started_at`, `finished_at`, `working_on`, `started_by`, the page's document id and display name, and the

@@ -4,10 +4,12 @@ not), blurred, and the page is divided by it and rescaled to the paper's median 
 The colour channels are left alone."""
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from PIL import Image
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 STEP = "stain-flatten"
 #: The background is estimated at this long side, then scaled back up.
@@ -28,6 +30,7 @@ def _paper(light: Any) -> float:
 
 
 def run(image: Image.Image, params: Params) -> tuple[Image.Image, dict[str, Any]]:
+    from PIL import Image  # lazy: PIL stays off the engine boot path (#3950)
     account: dict[str, Any] = {"step": STEP, "kernel_divisor": params.kernel_divisor, "strength": params.strength}
     try:
         import cv2

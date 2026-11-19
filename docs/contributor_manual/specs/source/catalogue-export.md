@@ -305,7 +305,7 @@ this spec points at them rather than repeating them:
   Nombres is read from the same record through the same scope function (`kg.one.catalogue-reads-the-record`).
 
 **spaCy `es_core_news_sm` on this archive: a free seed, never canonical by itself.** The evidence from
-B12 (the 2026-10-26 to 29 runs): "Juzgado" typed as a person; month names as entities; fragments of
+the test box (the 2026-10-26 to 29 runs): "Juzgado" typed as a person; month names as entities; fragments of
 names split at line ends; 397 places in one folder of court papers. That is the model doing what it
 was trained for (modern news Spanish) on 1900s legal Spanish with line-broken words, and no threshold
 fixes a type error. Where it fits: as the free first pass whose proposals a model step or a person
@@ -321,7 +321,7 @@ proposals only when asked, marked (`kg.attr.entry-shows-state`).
 
 The team also hands over the transcript folder by folder as Word. It is the existing Word emitter
 (`export_word_docx`, `export.word-and-excel-and-markdown-folder-are-typed-emitters` [OK]) reading the
-same record stream the workbook reads, with four options the B12 export of 2026-10-28 showed missing:
+same record stream the workbook reads, with four options the test-box export of 2026-10-28 showed missing:
 
 - **Images off.** `include_images: false` prints neither the image nor the "[Image not included…]"
   note; the page is its heading and its text. The default stays on for the Reader's Word export and
@@ -329,7 +329,7 @@ same record stream the workbook reads, with four options the B12 export of 2026-
 - **A page break per page.** `page_break_per_page: true` puts a page break before each page's heading
   (today: a Heading 2 only).
 - **Blank pages listed once per folder.** A page the run sorted blank (`material = blank`) prints no
-  body ("No text content available." 545 times was the B12 file); the folder ends with one line,
+  body ("No text content available." 545 times was the test-box file); the folder ends with one line,
   "Páginas en blanco: IMG_017–IMG_019, IMG_025", the same ranges as the Problemas clause, from the same
   function.
 - **One file per folder in one call.** `per: folder` on the route returns a zip of one .docx per

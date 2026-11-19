@@ -2,10 +2,12 @@
 The old `adaptive_binarize` operation (a global mean threshold) stays as it was for the chain rows that carry it."""
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
-from PIL import Image
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 STEP = "binarise"
 
@@ -17,6 +19,7 @@ class Params(BaseModel):
 
 
 def run(image: Image.Image, params: Params) -> tuple[Image.Image, dict[str, Any]]:
+    from PIL import Image  # lazy: PIL stays off the engine boot path (#3950)
     block = int(params.block) | 1
     account: dict[str, Any] = {"step": STEP, "method": params.method, "block": block, "c": params.c}
     try:

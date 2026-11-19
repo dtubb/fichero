@@ -76,3 +76,14 @@ def test_a_red_part_names_what_failed_and_never_says_green(world, monkeypatch):
     assert not verify.verify(root, jail_required=False)["ok"]
     (row,) = [r for r in journal.read() if r["event"] == "verify"]
     assert row["parts"]["guards"]["detail"].startswith("failed: check_b")
+
+
+def test_full_runs_the_guards_the_ladder_skips(world, monkeypatch):
+    """run.nightly-build: `verify-all --full` empties [check].guard_skip, so the nightly-only guards run too."""
+    root, seen, _ok = world
+    cfgs = []
+    monkeypatch.setattr(check_tool, "load", lambda r: check_tool.Config(guard_skip=frozenset({"check_x"}), build_paths=("fichero/",)))
+    monkeypatch.setattr(check_tool, "guards", lambda tree, cfg: (cfgs.append(cfg.guard_skip), {"ok": True})[1])
+    verify.verify(root, jail_required=False)
+    verify.verify(root, jail_required=False, full=True)
+    assert cfgs == [frozenset({"check_x"}), frozenset()]

@@ -8,7 +8,7 @@
 ## Intent
 
 Machines propose: a line's reading, a statement (subject, relation, object), an entity. Before a
-project relies on them (the Mosquera notebooks' site, a training set, an edition), someone checks
+project relies on them (a notebook corpus' site, a training set, an edition), someone checks
 them: a person, or a checker model such as a palaeographer (Fable reading a hard hand) or a careful
 reader of statements. One job does this for every layer, so a recipe names *check* after the step
 it checks, and a checker's verdicts are found, counted and trusted the same way whatever the layer.

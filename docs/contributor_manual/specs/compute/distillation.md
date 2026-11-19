@@ -199,7 +199,7 @@ entities, claims.
 
 ### Best practice the loop enforces (maintainer 2026-10-06, #5538)
 
-The first full run (Sergio's notebooks, 2026-10-05/06: McCATMuS 40.4% to 19.6%, PP-OCRv6 24.6% to
+The first full run (a notebook corpus, 2026-10-05/06: McCATMuS 40.4% to 19.6%, PP-OCRv6 24.6% to
 18.4% character error) proved the loop and showed where it can flatter itself. Every distillation and
 fine-tune, for every model kind (readers, names, layout, vision), follows these rules; the guided path
 refuses or warns, in words, when one is not met.
@@ -428,7 +428,7 @@ Fichero is this one job: the bake-off at setup, a model scored when it lands
   card holds no held-out page, are refused in words before anything is queued. The reference is the
   newest pass on the page whose model or name the request gives as `checked`; each page records who
   checked it (`person` for a pass a person wrote, else `model`), and the run counts them. Tested in `fichero-server/tests/unit/training/test_evaluation_job.py`.
-  Not built: a hold-out chosen by Fichero (the person names the pages, as the Sergio project's ten
+  Not built: a hold-out chosen by Fichero (the person names the pages, as the notebook corpus project's ten
   Fable-checked pages were).* scores come only from held-out pages
   a person or Fable checked, with the check's trust level recorded (`distill.scale.check-trust-levels`),
   and never from a page any candidate trained on.
@@ -531,8 +531,8 @@ measurement and the cascade's routing are pinned with known confidences and outc
 
 ## Open questions
 
-1. **Answered** (this spec, ruled 2026-10-03; sergio rulings 2026-10-03): Kraken reader and YOLO detector first, tested on the Sergio notebooks, trained on Hugging Face Jobs first. **First job to distil.** Line reading is the best-trodden path and has the most corrected data.
-   Layout (YOLO) is second. **The first test is the Sergio notebooks project** (one hand, 374 page
+1. **Answered** (this spec, ruled 2026-10-03; notebook corpus rulings 2026-10-03): Kraken reader and YOLO detector first, tested on a notebook corpus, trained on Hugging Face Jobs first. **First job to distil.** Line reading is the best-trodden path and has the most corrected data.
+   Layout (YOLO) is second. **The first test is a notebook corpus project** (one hand, 374 page
    photographs, a Qwen-VL draft and a frontier-model draft to check; `fichero-projects`). A second
    customer is a researcher who has corrected many VLM transcriptions in his library: his
    corrections are exactly the checked ground truth step 3 asks for. Recommendation, in this order:

@@ -73,4 +73,26 @@ struct RunFailureAlertTests {
         """)
         #expect(RunFailurePrompt.make(cap, perform: { _ in }).fixes.map(\.label) == ["Resume"])
     }
+
+    @Test("the Control verb for a paused row reads Continue, never Resume")
+    func continueWord() {
+        #expect(ActivityMonitorRow.Control.resume.label == "Continue")
+        #expect(ActivityMonitorRow.Control.carryOn.label == "Continue")
+    }
+
+    @Test("open-settings on a settings.ai control lands on the AI tab; an unknown control names no tab")
+    func settingsLandsOnTheControl() {
+        #expect(SettingsTab.holding(control: "settings.ai.providers") == .aiModels)
+        #expect(SettingsTab.holding(control: nil) == nil)
+        #expect(SettingsTab.holding(control: "settings.nowhere") == nil)
+    }
+
+    @Test("a failed row's words and fix are the engine's, kept on the row's Inspector")
+    func wordsAndFixOnTheRow() {
+        var job = ActivityJob(id: "run-1", taskType: "workflow", name: "Read", current: 1, total: 4, state: .failed)
+        job.failure = ActivityJob.Failure(kind: "no-credit", words: "OpenRouter has no credit left.", fix: "Add credit.",
+                                          actions: ["open-settings"], settingsControl: "settings.ai.providers")
+        #expect(job.failure?.words == "OpenRouter has no credit left.")
+        #expect(job.failure?.settingsControl == "settings.ai.providers")
+    }
 }

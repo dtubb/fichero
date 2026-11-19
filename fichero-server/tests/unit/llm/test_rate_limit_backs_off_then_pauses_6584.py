@@ -1,7 +1,7 @@
 """A rate limit backs off, then PAUSES the run with its cause; never a tight loop (#6584, #6354).
 
 Spec: docs/contributor_manual/specs/ui/activity-pane.md `activity.limits.rate-limit-backs-off-then-pauses`,
-docs/contributor_manual/specs/ai/run-failure-alerts.md decision 9. WHY (owner 2026-11-13): OpenRouter told a user she was
+docs/contributor_manual/specs/compute/runner-reliability.md decision 9. WHY (owner 2026-11-13): OpenRouter told a user she was
 sending too many requests while her run went on failing page after page. At the one retry layer: a stub provider answering
 429 with a Retry-After sees gaps of at least that between sends; when the back-off is spent the run this call belongs to is
 asked to pause and the pause carries the provider; a provider that answers clears it.

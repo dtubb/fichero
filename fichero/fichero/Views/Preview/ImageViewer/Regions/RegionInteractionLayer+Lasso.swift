@@ -29,6 +29,40 @@ extension RegionInteractionLayer {
         }
     }
 
+    /// ⌥-drag from empty page in Select (`source.editor.make-new-in-the-preview`): a box; letting go makes a segment.
+    func handleBoxDraw(_ event: PreviewPointerEvent, at viewPoint: CGPoint, in size: CGSize) -> Bool {
+        guard let windowState else { return false }
+        switch event.phase {
+        case .pressed:
+            guard event.option, !event.control, event.clickCount == 1, isBandSelecting, drawsSegments, onDrawBox != nil,
+                  !hitsAnything(at: viewPoint, in: size) else { return false }
+            boxDrawActive = true
+            windowState.boxDrawing = true
+            bandStart = viewPoint
+            bandCurrent = viewPoint
+            return true
+        case .dragged:
+            guard boxDrawActive else { return false }
+            if windowState.boxDrawing { bandCurrent = viewPoint } else { bandStart = nil; bandCurrent = nil }
+            return true
+        case .released:
+            guard boxDrawActive else { return false }
+            defer { boxDrawActive = false; bandStart = nil; bandCurrent = nil; windowState.boxDrawing = false }
+            if windowState.boxDrawing, let start = bandStart,
+               let box = BoundingBoxGeometry.normalizedBox(from: start, to: viewPoint, in: size, visible: visible) {
+                onDrawBox?(box)
+            }
+            return true
+        }
+    }
+
+    func openNewSegmentForText(_ id: String?) {
+        guard let id, let box = allBoxes.first(where: { $0.segmentId == id }),
+              let target = SegmentPopoverTarget.target(for: box) else { return }
+        segmentPopover = target
+        windowState?.openForTextSegmentId = nil
+    }
+
     /// The Order tool (`segment-editor.order-by-clicking`): a click on a segment numbers it next, or takes its number
     /// away; ⇧ on the first click continues after the selected segment. True while the tool is chosen, so nothing else
     /// acts on the page meanwhile. Nothing is sent until the tool is left.

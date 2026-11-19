@@ -13,6 +13,8 @@ These are pure filesystem + subprocess tests — no Python imports required.
 
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 import plistlib
 from pathlib import Path
@@ -161,13 +163,11 @@ def test_embedded_engine_version_guard_rejects_stale_bundle(tmp_path: Path) -> N
 def test_release_all_always_rebuilds_engine_before_packaging() -> None:
     text = _script_text(RELEASE_ALL)
     rebuild = text.index('preflight-embedded-engine.sh" --rebuild')
-    # `; then` is load-bearing. The looser `if [ "$SKIP_DMG" = false ]` also
-    # matches the CREDENTIALS PREFLIGHT (`… && [ "$SKIP_NOTARIZE" = false ]`),
-    # which runs BEFORE the rebuild by design — so this test failed while the
-    # script was correct, and read as "a release can package a stale engine".
-    # A false alarm about #3956 is expensive: it is exactly the failure everyone
-    # is primed to believe. Match the packaging block and nothing else.
-    packaging = text.index('if [ "$SKIP_DMG" = false ]; then')
+    # Anchor on the packaging block itself (`CURRENT_PART="DMG"`). Every `if [ "$SKIP_DMG" = false ]; then` before it
+    # is something else that runs BEFORE the rebuild by design: the build-number choice, the build check and the
+    # credentials preflight. Matching any of those made this test fail while the script was correct, and read as
+    # "a release can package a stale engine" (#3956).
+    packaging = text.index('CURRENT_PART="DMG"')
 
     assert rebuild < packaging
     assert '--skip-backend) SKIP_BACKEND=true' not in text
@@ -407,6 +407,29 @@ def test_create_release_dry_run() -> None:
     assert "[DRY RUN]" in result.stdout
 
 
+def test_a_public_release_posts_only_the_dev_build_as_fichero_dev_dmg() -> None:
+    """Owner 2026-11-18: only the dev build is posted, named Fichero-dev.dmg; the appcast enclosure names it too."""
+    result = subprocess.run(
+        ["bash", str(CREATE_RELEASE), "--dry-run"],
+        capture_output=True, text=True, cwd=str(REPO_ROOT), env={**os.environ, "FICHERO_RELEASE_PUBLIC": "1"},
+    )
+    assert result.returncode == 0, f"rc={result.returncode}\nstdout: {result.stdout}\nstderr: {result.stderr}"
+    assert "would post the DMG as Fichero-dev.dmg: " in result.stdout
+    assert "/Fichero.dmg" not in result.stdout.split("would post the DMG as ", 1)[1].splitlines()[0]
+
+
+def test_create_release_dry_run_needs_no_git_checkout(tmp_path: Path) -> None:
+    """The gate runs the suite from a copy of the tree with no .git: the dry run only prints, so it must still end 0."""
+    shutil.copytree(SCRIPTS_DIR, tmp_path / "scripts")
+    shutil.copytree(REPO_ROOT / "fichero", tmp_path / "fichero", ignore=shutil.ignore_patterns("*.xcassets", "*.swift"))
+    result = subprocess.run(
+        ["bash", str(tmp_path / "scripts" / "create-github-release.sh"), "--dry-run"],
+        capture_output=True, text=True, cwd=str(tmp_path), env={**os.environ, "GIT_CEILING_DIRECTORIES": str(tmp_path.parent)},
+    )
+    assert result.returncode == 0, f"rc={result.returncode}\nstdout: {result.stdout}\nstderr: {result.stderr}"
+    assert "[DRY RUN]" in result.stdout
+
+
 # ---------------------------------------------------------------------------
 # -n alias works the same as --dry-run
 # ---------------------------------------------------------------------------
@@ -438,3 +461,10 @@ def test_the_xcode_pre_action_engine_is_not_tied_to_its_throwaway_shell() -> Non
     assert pre_action.count("( FICHERO_PARENT_PID=none ") == 2, "both detached launches (uds and https) opt out"
     assert 'if [ "${FICHERO_PARENT_PID:-}" = "none" ]; then\n  unset FICHERO_PARENT_PID' in start
     assert 'export FICHERO_PARENT_PID="${FICHERO_PARENT_PID:-$PPID}"' in start, "every other launch is still owned"
+
+
+def test_verify_all_gives_the_engine_imports_check_the_staged_bundle() -> None:
+    """The fast tier loops over every scripts/check_*.py with no argument; check_engine_imports_bundled.py needs the
+    staged bundle's app_packages (no argument is usage exit 2)."""
+    text = _script_text(SCRIPTS_DIR / "verify_all.sh")
+    assert '"$guardrail" \\\n        "fichero-server/build/fichero_server/macos/app/Fichero Server.app/Contents/Resources/app_packages"' in text

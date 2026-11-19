@@ -1,6 +1,6 @@
 """Heavy local work waits while the Mac needs itself (`activity.throttle.power-heat-memory`, #5358).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md, section 4; and
+Spec: docs/contributor_manual/specs/ui/activity-pane.md, section 4; and
 compute/jobs-and-fine-tuning.md `compute.tune.on-this-mac`. The maintainer's Mac beachballed with
 a heavy job running while he worked. A background model job now waits on memory pressure, heat,
 battery and the person using the Mac, says which on its row, and goes on when it clears.

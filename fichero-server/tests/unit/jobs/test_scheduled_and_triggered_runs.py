@@ -1,6 +1,6 @@
 """Scheduled and file-triggered runs are runs of the one runner (#5372, #5374).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md:
+Spec: docs/contributor_manual/specs/ui/activity-pane.md:
 `activity.run.scheduled-runs-execute` ("a scheduled or file-triggered run executes through the same
 path as a run started by hand"; today they pass the stored workflow, whose nodes are dicts, to
 `build_graph`, which fails) and `activity.run.one-way-to-run`. The plan names the pin:

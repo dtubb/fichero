@@ -1,5 +1,5 @@
 """Stop on a recipe run reaches the step it is running whatever its kind (#5609,
-`activity.recipe-run.stop-reaches-its-step`, docs/contributor_manual/specs/ui/activity-and-automatic-work.md).
+`activity.recipe-run.stop-reaches-its-step`, docs/contributor_manual/specs/ui/activity-pane.md).
 
 Before: Stop reached a workflow run, a check and a search step, but a Find the Documents step (its job had no Stop)
 and the steps the run does itself (entries, prepare, publish) ran to their end before the run stopped.

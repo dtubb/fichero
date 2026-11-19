@@ -1,6 +1,6 @@
 """Chat's model calls are jobs on the lanes too, outside any run (#5358).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md: `activity.run.lane-cap-per-mac`
+Spec: docs/contributor_manual/specs/ui/activity-pane.md: `activity.run.lane-cap-per-mac`
 ("the cap on concurrent model calls is one per Mac"; "chat outside a run" was its gap) and the
 local-model lane's "local-model calls outside a run (chat)". Written from the spec's text, and
 driven through the public surface: questions asked with `POST /api/chat`, and Activity read with

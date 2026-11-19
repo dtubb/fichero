@@ -94,6 +94,8 @@ engine_repo = "/Users/Shared/fichero-engine"
 
 # every _scan_files test, the functional ones too, once a day on the loop's checkout (`builder daily-builds`), red = an alert
 daily_tests = [
+  "fichero-server/tests/unit/scripts/test_check_spec_no_archive_names.py",
+  "fichero-server/tests/unit/test_activity_service_says_the_engines_words_6109.py",
   "fichero-server/tests/unit/db/test_shared_connection_lock.py",
   "fichero-server/tests/unit/api/test_mutation_log_names_its_actor.py",
   "fichero-server/tests/unit/api/test_no_model_work_in_gets.py",
@@ -252,6 +254,7 @@ daily_tests = [
   "fichero-server/tests/unit/seams/test_retired_geometry_field_seam.py",
 ]
 "fichero/fichero/" = [
+  "fichero-server/tests/unit/test_activity_service_says_the_engines_words_6109.py",
   "fichero-server/tests/unit/scripts/test_app_loggers_share_one_subsystem_6124.py",
   "fichero-server/tests/unit/scripts/test_ios_never_links_ingest_3282.py",
   "fichero-server/tests/unit/scripts/test_sf_symbol_names.py",
@@ -323,6 +326,7 @@ check_native_row_containers = ["fichero/fichero", "scripts"]
 check_no_ambient_owner_in_tests = ["fichero-server/tests", "scripts"]
 check_no_emoji_sf_symbols = ["fichero/fichero", "scripts"]
 check_no_hardcoded_engine_base = ["fichero/fichero", "scripts"]
+check_no_home_paths_in_project = ["fichero", "scripts"]
 check_no_raw_urlsession = ["fichero/fichero-api-client", "scripts"]
 check_no_raw_urlsession_app = ["fichero/fichero", "scripts"]
 check_observer_pattern = ["fichero/fichero", "scripts"]
@@ -353,6 +357,7 @@ check_spec_broken_has_issue = ["docs/contributor_manual", "scripts"]
 check_spec_build_order_shape = ["docs/contributor_manual", "scripts"]
 check_spec_manual_refs = ["docs/contributor_manual", "scripts"]
 check_spec_milestones = ["docs/contributor_manual", "scripts"]
+check_spec_no_archive_names = ["docs/contributor_manual", "scripts"]
 check_spec_no_duplicates = ["docs/contributor_manual", "scripts"]
 check_specs_have_tests = ["agent-work/specs", "docs/contributor_manual", "fichero-cli/tests", "fichero-mcp/tests", "fichero-server/tests", "fichero/Tests", "scripts"]
 check_stacked_presentation_modifiers = ["fichero/fichero", "scripts"]
@@ -431,6 +436,18 @@ branch = "integration"   # the branch the Lead pushes a green head to
 pinned_dir = "/Users/Shared/fichero-pinned"
 # Regexes over every ADDED line and commit message; any hit refuses the land (the public/private boundary).
 boundary = ['/Users/(?!Shared/)[A-Za-z0-9._-]+/', 'sk-ant-[A-Za-z0-9_-]{8,}', 'gh[ps]_[A-Za-z0-9]{20,}', 'BEGIN [A-Z ]*PRIVATE KEY']
+
+# dev-workflows.run.nightly-build (#6665): one dev build a night of the integration head frozen at freeze_at, from a clean tree.
+# After no_new_steps_at a lane's step starts only if its median land time fits before freeze_at. The machines are "local" or
+# host[:dir] over ssh; publish names the tier.
+[nightly]
+no_new_steps_at = "22:00"
+freeze_at = "00:00"
+check_runner = "imac:~/code/fichero-worktrees/nightly"  # 24 GB; the M4 is overnight-only and 16 GB hit the gate ceiling
+build_machine = "local"
+smoke_machine = "m4"  # overnight
+publish = "dev"
+check_footprint_mb = 14336  # passed to the verify run as GATE_FOOTPRINT_MB (the kraken two-model test peaks at 9.4 GB)
 
 [loop]
 # manager 2026-11-04 (alerts 315, 316): the lanes the loop ticks, named; a lane not here (an old milestone lane in queue.json) never starts.

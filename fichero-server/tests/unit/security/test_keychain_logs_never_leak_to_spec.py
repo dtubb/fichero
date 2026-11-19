@@ -27,7 +27,7 @@ def security_result(monkeypatch):
     monkeypatch.setattr(keychain, "_is_macos", lambda: True)
     monkeypatch.setattr(keychain, "_invalidate_llm_api_key_cache", lambda provider: None)
     result = [(0, "", "")]
-    monkeypatch.setattr(keychain, "_run_security", lambda *args: result[0])
+    monkeypatch.setattr(keychain, "_run_security", lambda *args, **kw: result[0])
     return result
 
 

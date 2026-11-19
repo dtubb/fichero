@@ -1,0 +1,73 @@
+@testable import Fichero
+import Foundation
+import Testing
+
+/// `recipes-run.credit.out-of-credit-pauses-and-asks` (#6675): a run paused for credit raises one box with Open provider page,
+/// Continue and Stop run; a rate-limit pause raises none; the same pause is asked once.
+@Suite("Credit pause prompt")
+struct CreditPausePromptTests {
+    private func job(
+        _ id: String = "run-1", state: ActivityJob.State = .paused, kind: String = "no-credit", first: String = "resume",
+        provider: String? = "OpenRouter"
+    ) -> ActivityJob {
+        var job = ActivityJob(id: id, taskType: "workflow", name: "Read the page", current: 12, total: 37, state: state)
+        job.failure = ActivityJob.Failure(kind: kind, words: "OpenRouter is out of credit, so the run is paused.",
+                                          fix: "Add credit, then Continue.",
+                                          actions: [first, "open-settings"], provider: provider)
+        return job
+    }
+
+    @Test("a paused no-credit run is a credit pause; a rate-limit pause and a failed run are not")
+    func recognised() {
+        #expect(CreditPausePrompt.isCreditPause(job()))
+        #expect(!CreditPausePrompt.isCreditPause(job(kind: "rate-limited")))
+        #expect(!CreditPausePrompt.isCreditPause(job(state: .failed, first: "open-settings")))
+    }
+
+    @Test("the box names what is paused and has Open provider page, Continue and Stop Run")
+    func buttons() {
+        var done: [String] = []
+        let prompt = CreditPausePrompt.make(job(), openProviderPage: { done.append($0.host ?? "") },
+                                            resume: { done.append("continue") }, stop: { done.append("stop") })
+        #expect(prompt.fixes.map(\.label) == ["Open OpenRouter Page", "Continue", "Stop Run"])
+        #expect(prompt.message.contains("OpenRouter is out of credit"))
+        #expect(prompt.message.contains("12 of 37 pages done"))
+        prompt.fixes.forEach { $0.action() }
+        #expect(done == ["openrouter.ai", "continue", "stop"])
+    }
+
+    @Test("one box per run and provider: the same pause is not asked again, a new pause after Continue is")
+    func askedOnce() {
+        var ledger = CreditPauseLedger()
+        #expect(ledger.newlyPaused(in: [job()]).count == 1)
+        #expect(ledger.newlyPaused(in: [job()]).isEmpty)
+        #expect(ledger.newlyPaused(in: [job(state: .running)]).isEmpty)
+        #expect(ledger.newlyPaused(in: [job()]).count == 1)
+    }
+
+    @Test("two runs meeting the same provider's pause are one dialogue; another provider is its own")
+    func oneDialoguePerCause() {
+        var ledger = CreditPauseLedger()
+        #expect(ledger.newlyPaused(in: [job("run-1"), job("run-2")]).count == 1)
+        #expect(ledger.newlyPaused(in: [job("run-1"), job("run-2"), job("run-3")]).isEmpty)
+        #expect(ledger.newlyPaused(in: [job("run-1"), job("run-4", provider: "OpenAI")]).count == 1)
+    }
+
+    @Test("the one dialogue holds every run paused for its cause, so Continue and Stop reach them all")
+    func dialogueHoldsEveryRun() {
+        let jobs = [job("run-1"), job("run-2"), job("run-3", provider: "OpenAI")]
+        #expect(CreditPauseLedger.sameCause(as: jobs[0], in: jobs).map(\.id) == ["run-1", "run-2"])
+    }
+
+    @Test("a run that pauses a poll later is in the cause's runs; a second provider is asked once the first is answered")
+    func laterRunsAndOtherProviders() {
+        let first = [job("run-1")]
+        let later = [job("run-1"), job("run-2")]
+        #expect(CreditPauseLedger.sameCause(as: first[0], in: later).map(\.id) == ["run-1", "run-2"])
+        var ledger = CreditPauseLedger()
+        let both = [job("run-1"), job("run-3", provider: "OpenAI")]
+        #expect(ledger.nextToAsk(in: both)?.id == "run-1")
+        #expect(ledger.nextToAsk(in: both)?.id == "run-3")
+        #expect(ledger.nextToAsk(in: both) == nil)
+    }
+}

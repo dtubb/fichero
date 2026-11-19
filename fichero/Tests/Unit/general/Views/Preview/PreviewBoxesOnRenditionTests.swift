@@ -46,4 +46,34 @@ struct PreviewBoxesOnRenditionTests {
         #expect(SegmentOnRendition.selectAllIndices(levels: levels, shown: [1], frameMatches: true, isTextTool: true) == [2, 3])
         #expect(SegmentOnRendition.selectAllIndices(levels: ["line"], shown: [], frameMatches: true, isTextTool: true) == [0])
     }
+
+    private func geometry() -> OCRGeometry {
+        var region = OCRGeometryBox(text: "", bbox: [0.1, 0.1, 0.5, 0.5], level: "region")
+        region.segmentId = "r1"
+        var line = OCRGeometryBox(text: "a", bbox: [0.1, 0.1, 0.5, 0.1], level: "line")
+        line.segmentId = "l1"
+        var stray = OCRGeometryBox(text: "b", bbox: [0.2, 0.2, 0.1, 0.1], level: "line")
+        stray.segmentId = "gone"
+        return OCRGeometry(text: "", provider: "p", model: nil, boxes: [region, line, stray], renditionId: nil)
+    }
+
+    @Test("a followed rendition draws each segment's mapped box, normalised by the rendition's size, in the page's order")
+    func mappedGeometryDrawsOnTheRendition() throws {
+        let answer = SegmentBoxesOnRendition(
+            followed: true, note: nil, size: CGSize(width: 800, height: 1200),
+            boxes: ["r1": [80, 120, 400, 600], "l1": [80, 120, 400, 120]]
+        )
+        let mapped = try #require(SegmentOnRendition.mappedGeometry(geometry(), on: answer))
+        #expect(mapped.boxes.count == 3)
+        #expect(mapped.boxes[0].bbox == [0.1, 0.1, 0.5, 0.5])
+        #expect(mapped.boxes[1].bbox == [0.1, 0.1, 0.5, 0.1])
+        #expect(SegmentOnRendition.isDrawn(mapped.boxes[1]))
+        #expect(!SegmentOnRendition.isDrawn(mapped.boxes[2]))
+    }
+
+    @Test("a rendition whose place on the page is not known maps nothing")
+    func unfollowedMapsNothing() {
+        let answer = SegmentBoxesOnRendition(followed: false, note: "not known", size: nil, boxes: [:])
+        #expect(SegmentOnRendition.mappedGeometry(geometry(), on: answer) == nil)
+    }
 }

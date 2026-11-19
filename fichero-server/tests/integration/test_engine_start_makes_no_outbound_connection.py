@@ -118,12 +118,15 @@ def test_an_engine_start_and_a_minute_idle_reach_nothing_off_the_machine(tmp_pat
     proxy = _RecordingDeadProxy()
     proxy_url = f"http://127.0.0.1:{proxy.port}"
     port = _free_port()
+    token = "offline-test-bootstrap-token"
     base_url = f"http://127.0.0.1:{port}"
     env = {
         **os.environ,
         "HOME": str(tmp_path),                                  # COLD: no shared model cache
         "PYTHONPATH": os.pathsep.join([str(shim_dir), str(REPO_ROOT / "fichero-server" / "src")]),
-        "FICHERO_DISABLE_AUTH": "1",
+        "FICHERO_DISABLE_AUTH": "0",
+        "FICHERO_TOKEN_DIR": str(tmp_path / "token"),           # auth ON: the opt-in switch is the owner's (bootstrap token)
+        "FICHERO_BOOTSTRAP_TOKEN": token,
         "FICHERO_FEATURE_TIER": "dev",
         "FICHERO_SKIP_DEFAULT_WORKFLOWS": "1",
         "FICHERO_BASE_PATH": str(tmp_path / "base"),
@@ -142,13 +145,13 @@ def test_an_engine_start_and_a_minute_idle_reach_nothing_off_the_machine(tmp_pat
             why = _wait_healthy(base_url, process)
             assert why is None, f"{why}\n" + engine_log.read_text(errors="replace")[-3000:]
             assert httpx.get(f"{base_url}/api/health", timeout=10).status_code == 200
-            opened = httpx.get(f"{base_url}/api/documents", headers={"X-Fichero-Library-Path": str(library)}, timeout=30)
+            headers = {"X-Fichero-Library-Path": str(library), "Authorization": f"Bearer {token}"}
+            opened = httpx.get(f"{base_url}/api/documents", headers=headers, timeout=30)
             assert opened.status_code == 200, opened.text[:300]
             time.sleep(IDLE_SECONDS)                            # the background queues' idle minute
             quiet = (list(proxy.asked), connect_log.read_text())
             # POSITIVE CONTROL: the one sanctioned reach -- an explicit authority refresh behind its
             # switch -- must be SEEN, or a silent recorder would pass anything.
-            headers = {"X-Fichero-Library-Path": str(library)}
             switched = httpx.put(f"{base_url}/api/kg/entity-curation/authority/settings",
                                  json={"external_authority_enabled": True}, headers=headers, timeout=30)
             assert switched.status_code == 200, switched.text[:300]

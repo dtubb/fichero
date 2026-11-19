@@ -25,6 +25,12 @@ final class SegmentStore {
     /// Each page's resolved line directions (segment id -> direction), for the on-image labels (#5199).
     private(set) var directionsByDocument: [String: [String: String]] = [:]
     private(set) var loadingDocumentIds: Set<String> = []
+    /// The pass a person picked to see on each page (#6670, `source.editor.pass-shown-is-picked`), while the app runs.
+    /// Not a promotion: the engine's working pass is unchanged, and stays the default.
+    private(set) var pickedPassByDocument: [String: String] = [:]
+    /// The reading order a list shows for each page, as one sequence of segment ids (#6422): the Preview shades its
+    /// lines along it. Nil: the pass's as-written order.
+    private(set) var orderShownByDocument: [String: [String]] = [:]
     private(set) var loadErrorsByDocumentId: [String: String] = [:]
     /// Per-document generation, bumped when rows CHANGE UNDER a surface: a patch from a
     /// change event, or a forced re-read. NOT by a first load, which a surface asks for
@@ -154,13 +160,33 @@ final class SegmentStore {
         passes(documentId: documentId).first(where: \.working)
     }
 
-    /// THE pass-filtered read of a page (#5467 (d)): the working pass's segments, nothing of any
-    /// other pass. The Segments list lists these, the Preview draws them first
-    /// (`SegmentDisplay.drawingOrder`), and the Reader's lines are the engine's reading of the same
-    /// pass. `segments(documentId:)` stays the page's whole answer for a lookup by id.
+    /// Show this pass on the page (the Pass menu, #6670); nil goes back to the working pass.
+    func pickPass(_ passId: String?, documentId: String) {
+        guard pickedPassByDocument[documentId] != passId else { return }
+        pickedPassByDocument[documentId] = passId
+        // The Preview snapshots its boxes keyed on this generation: moving it draws the picked pass at once.
+        revisions[documentId, default: 0] += 1
+    }
+
+    /// A list shows this order for the page (#6422): the Preview reshades along it.
+    func showOrder(_ segmentIds: [String], documentId: String) {
+        guard orderShownByDocument[documentId] != segmentIds else { return }
+        orderShownByDocument[documentId] = segmentIds
+        revisions[documentId, default: 0] += 1
+    }
+
+    /// The pass the page shows: the one picked, else the working pass (`PassChoice.shown`).
+    func shownPass(documentId: String) -> SegmentPassValue? {
+        PassChoice.shown(passes: passes(documentId: documentId), pickedId: pickedPassByDocument[documentId])
+    }
+
+    /// THE pass-filtered read of a page (#5467 (d)): the shown pass's segments -- the working pass's, unless a
+    /// person picked another (#6670) -- nothing of any other pass. The Segments list lists these, the Preview
+    /// draws them first (`SegmentDisplay.drawingOrder`), and the Reader's lines are these.
+    /// `segments(documentId:)` stays the page's whole answer for a lookup by id.
     func workingSegments(documentId: String) -> [Segment] {
-        guard let working = workingPass(documentId: documentId) else { return [] }
-        return segments(documentId: documentId).filter { $0.passId == working.id }
+        guard let shown = shownPass(documentId: documentId) else { return [] }
+        return segments(documentId: documentId).filter { $0.passId == shown.id }
     }
 
     func isLoading(documentId: String) -> Bool {

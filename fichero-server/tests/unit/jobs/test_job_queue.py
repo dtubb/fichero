@@ -1,6 +1,6 @@
 """The one job model, first slice (#5353): durable rows, one scheduler, one pause.
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md -- `activity.one-job-model`,
+Spec: docs/contributor_manual/specs/ui/activity-pane.md -- `activity.one-job-model`,
 `activity.durable.*`, `activity.pause.global*`, `activity.lane.group-by-model`,
 `activity.lane.co-run-only-if-it-fits`, `activity.correction-reembed-visible`.
 

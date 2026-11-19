@@ -95,6 +95,14 @@ if [ -f "$STAGE_DIR/$APP_NAME/Contents/Info.plist" ]; then
   echo "  Sparkle feed: $SPARKLE_FEED_URL"
 fi
 
+# ── 2a. Stamp the release into the staged engine (#6723) ────────────────────
+# The engine's own distribution version is the API contract's; the release it shipped in is the app's. Before signing,
+# so the signature covers the stamp. The same two plist keys release_guard's smoke check compares it against.
+APP_PLIST="$STAGE_DIR/$APP_NAME/Contents/Info.plist"
+"$ROOT_DIR/scripts/stamp_release_into_engine.sh" "$STAGE_DIR/$APP_NAME/Contents/Resources/Fichero Server.app" \
+  "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PLIST")" \
+  "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PLIST")"
+
 # ── 2b. Re-sign staged app with Developer ID for notarization (inside-out) ───
 # The Release build signed with Apple Development; notarytool requires Developer
 # ID Application + hardened runtime + secure timestamp on EVERY Mach-O.

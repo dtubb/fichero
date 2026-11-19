@@ -24,6 +24,9 @@ YOLO_MODELS: dict[str, tuple[str, str, str, int]] = {
                            "DocLayNet (printed and born-digital pages), YOLO11 nano, AGPL-3.0", 5_558_611),
 }
 DEFAULT_MODEL = "yolo-doclaynet-11n"
+#: The `.pt` is a pickle, so it is fetched at one commit and loaded only when its sha256 matches (#6697).
+YOLO_REVISIONS: dict[str, str] = {"yolo-doclaynet-11n": "49b97586dbd3bdae169e8f5e165710d0facf5f1e"}
+YOLO_SHA256: dict[str, str] = {"yolo-doclaynet-11n": "e34e0e60bcfa560e19a8d896d4e850c66cd9191862dbdaddfac054b813ee75dd"}
 
 _LOCK = threading.Lock()
 _LOADED: dict[str, object] = {}
@@ -78,7 +81,8 @@ def download(model_id: str) -> Path:
 
     models_path = _models_path()
     models_path.mkdir(parents=True, exist_ok=True)
-    return Path(hf_hub_download(repo_id=spec[0], filename=spec[1], local_dir=str(models_path)))
+    revision = YOLO_REVISIONS[model_id]
+    return Path(hf_hub_download(repo_id=spec[0], filename=spec[1], revision=revision, local_dir=str(_models_path())))
 
 
 def _quiet() -> None:
@@ -97,6 +101,23 @@ def _quiet() -> None:
                      "runs_dir": str(home / "runs")})
 
 
+def _verify_pinned(model_id: str, path: Path) -> None:
+    """A catalogue model's file must hash to the pinned sha256 before ultralytics unpickles it; a trained model is local."""
+    want = YOLO_SHA256.get(model_id)
+    if want is None:
+        return
+    import hashlib
+
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    if digest.hexdigest() != want:
+        from fichero_server.llm.failure import ModelBrokenError
+
+        raise ModelBrokenError(model_id, f"{model_id}: the weights' sha256 does not match the pinned one; not loaded")
+
+
 def _model(model_id: str):
     path = model_path(model_id)
     if path is None:
@@ -106,6 +127,7 @@ def _model(model_id: str):
         raise LocalModelNotInstalledError(f"The layout model {model_id} is not downloaded to this Mac")
     with _LOCK:
         if model_id not in _LOADED:
+            _verify_pinned(model_id, path)
             _quiet()
             from ultralytics import YOLO
 

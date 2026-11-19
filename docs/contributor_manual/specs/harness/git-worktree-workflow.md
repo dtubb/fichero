@@ -1,6 +1,8 @@
 # Git / Worktree / GitHub Workflow — Design Spec (#TBD)
 
-> Milestone: git-worktree-workflow
+> **Status: SUPERSEDED 2026-11-18 (Phase 0 of `building-fichero-locally.md`).** The behaviours this spec still governs (9) were moved into that spec under their existing ids and tags (B (the worktree rules the loop relies on; `git.shared-venv` [OK] stays here because the test it names does not exist)); nothing was deleted and no id was renamed. This file stays so that old links resolve; read `building-fichero-locally.md`. The rest stays here as history: superseded by `dev-workflows` (now in the same spec) or replaced by `builder triage`, `builder steps` and `builder milestone`.
+
+> Milestone: Builder
 > Manual: docs/contributor_manual/guide/10-setup-and-day-to-day-development.md
 >
 > Design-led. **Status: DRAFT — for the design lead's review.** How the repo, the worktrees, and GitHub fit
@@ -62,83 +64,15 @@ running the second one for real even found a genuine violation, not just a theor
 The other three stay **CONVENTION** — a human/agent discipline about how git is used, not a
 code path — nothing in the repo tree can prove or disprove them.
 
-- `git.one-repo` — **[CONVENTION]** all worktrees share `~/code/fichero/.git`; only `main`
-  pushes to origin. True by definition of `git worktree` (there is only one `.git`, ever) —
-  not a code path that could regress independently of git itself. Challenged: a script
-  COULD run `git rev-parse --git-common-dir` from every worktree and assert they agree, but
-  that's checking git's own invariant, not this repo's discipline — stays CONVENTION.
-- `git.branch-off-origin-main` — **[CONVENTION]** lanes branch off a fetched `origin/main`, or off the integration
-  branch's HEAD sha when they need its unpushed commits. The launcher script that pinned this was removed
-  (2026-10-16); the rule is now a manager decision, not a code path.
-- `git.integration-gate` — **[CONVENTION]** multi-lane work gates on `integration` before
-  `main`. A manager decision about WHEN to gate, not a code path — `verify_all.sh` runs the
-  same way regardless of which branch invokes it. Challenged: no code path decides "2+
-  lanes landing together" vs. "one lane gates alone" — genuinely a judgment call, stays
-  CONVENTION.
-- `git.commit-never-stash` — **[PARTIAL]** (#4814, retagged 2026-09-18 from CONVENTION — a
-  cheap script CAN pin the outcome, so calling it untestable was wrong) interrupted work is
-  a WIP commit, not a stash. Built: `scripts/check_no_orphan_stashes.py`, a shrink-only
-  ceiling over the shared stash stack (`scripts/stash_ceiling.json`, seeded at the current
-  count of 19 grandfathered maintainer entries) — a NEW stash beyond the ceiling fails
-  loudly, naming the newest entries; the count going DOWN fails too (lower the ceiling
-  deliberately, never absorb silently). `--update-ceiling` is itself LOWER-ONLY (plus
-  first-time seeding) — it refuses to write a HIGHER count, closing the exact escape hatch
-  where a worker who stashed could otherwise just re-run it and go green; raising it is a
-  maintainer hand-edit of `scripts/stash_ceiling.json` with a reason. Read-only: never runs
-  a mutating stash command. Auto-wired into `verify_all.sh`'s `scripts/check_*.py` sweep by
-  its own filename — no separate wiring step — and it passes today (19==19). Still PARTIAL,
-  not OK: the 19 pre-existing entries are accepted debt, not resolved (#4814). Pinned:
-  `test_check_no_orphan_stashes.py::test_count_equal_to_ceiling_passes`,
-  `::test_count_above_ceiling_fails_and_names_newest`,
-  `::test_count_below_ceiling_fails_asking_to_lower_it`,
-  `::test_update_ceiling_first_time_seeding_is_allowed`,
-  `::test_update_ceiling_refuses_to_raise`,
-  `::test_update_ceiling_lowers_when_count_drops`,
-  `::test_update_ceiling_is_a_noop_when_equal`,
-  `::test_never_calls_a_mutating_git_command`.
-  Built (#6658 #6659): the ceiling file records a `host_id` (a hash of the hostname, never the name); a machine whose id
-  differs, or a ceiling with no `host_id`, prints a `not run:` row and exits 0 instead of judging a stack it does not own;
-  `--update-ceiling` stamps the id. Not built: the committed ceiling has no `host_id` yet, so the check is `not run:` on every machine,
-  the owner's included, until `--update-ceiling` is run once on the owning machine; `check_tool` does not turn a guard's
-  `not run:` line into a not-run row of its own. Pinned: `::test_a_ceiling_set_on_another_machine_is_not_run_here`,
-  `::test_a_ceiling_naming_no_machine_is_not_run`, `::test_update_ceiling_stamps_the_host_on_an_unstamped_ceiling`,
-  `::test_the_host_id_is_a_hash_not_the_hostname`.
-- `git.agent-commits-authored-as-claude` — **[PARTIAL]** (#5997) a commit with an agent trailer (`Directed-By:` or a `Co-Authored-By: Claude …`) is authored as `Claude <noreply@anthropic.com>`, the maintainer credited by the trailer (AGENTS.md); 37 commits from 2026-10-19 reached integration authored as the maintainer (left there by ruling). Built: `scripts/check_agent_commits_authored_as_claude.py [BASE..TIP]` (default `origin/integration..HEAD`; stdlib and git only), which fails a push RANGE naming each offending sha and its author (exit 1), exits 2 when git cannot read a given range, SKIPs with exit 0 when run with no argument where there is no `origin/integration` (the gate runs every check bare; the M4 clones have none), compares the author exactly (name and address, case and all), and judges only the range it is given, so history already on integration never fails it (run on `c13efa580..be2cd2e12` it names those 37). It judges a range, not the tree, so the every-guard sweep lists it as machine state. Wired into the Pro push checklist (`pro-push-guards.sh <sha> <app_packages> [BASE..TIP]`). Not built: a check at commit time (a hook), or in `verify_all.sh` with the push range. Pinned: `test_check_agent_commits_authored_as_claude.py` (a good and a bad commit in a temp repo, a Co-Authored-By Claude trailer, a human co-author passes, history outside the range is not judged, an unreadable range fails).
-  Built 2026-11-05: a `Written-By:` trailer (the one trailer a commit carries since the owner's ruling) counts as an agent trailer too, so such a commit must be authored as `Claude <noreply@anthropic.com>` whatever model wrote it, as for the old trailers (`scripts/check_agent_commits_authored_as_claude.py`, test `fichero-server/tests/unit/scripts/test_check_agent_commits_authored_as_claude.py::test_a_written_by_trailer_counts_as_an_agent_trailer`).
-- `git.cleanup-merged-worktrees` — **[BROKEN]** (#4813, retagged 2026-09-18 from CONVENTION —
-  this ONE was closer to testable than it looked, and running the new check found a real
-  violation, not just a theoretical one) merged lanes removed + branch deleted; no rot. Built:
-  `scripts/check_merged_worktrees.py`, cross-referencing `git worktree list --porcelain`
-  against `git merge-base --is-ancestor … main` (branch or detached-HEAD commit), with a
-  shrink-only allowlist for deliberately-kept worktrees; main checkout + the current
-  worktree are always exempt. Read-only: prints `git worktree remove …`, never runs it.
-  Run for real (2026-09-18): 3 lingering worktrees found today
-  (`.gate-snapshots/snap-testready`, `impl-loove-entity`, `release-merge`) — the "no rot"
-  claim is currently FALSE in this repo, not merely unproven, hence BROKEN. Now wired into
-  `verify_all.sh` (it is a `check_*.py`), and all 3 are allowlisted with an honest
-  "awaiting maintainer decision" reason each (`scripts/merged_worktrees_allowlist.json`) so
-  the gate stays green while the maintainer decides — the allowlist has no automated write
-  path, every entry is a hand edit with a reason, same one-way principle as the stash
-  ceiling. This masks the symptom for the gate, not the underlying rot: still BROKEN until
-  the maintainer resolves the 3 (removes them, or turns "awaiting decision" into a permanent
-  reason) (#4813). Pinned:
-  `test_check_merged_worktrees.py::test_merged_lane_is_flagged`,
-  `::test_unmerged_lane_is_not_flagged`,
-  `::test_main_checkout_and_current_worktree_are_never_flagged`,
-  `::test_allowlisted_merged_lane_is_not_flagged`,
-  `::test_stale_allowlist_entry_fails`,
-  `::test_never_calls_a_mutating_git_command`.
-- `git.abandoned-worktree-flagged` — **[GAP]** (#4813, the same worktree-rot class) a guardrail
-  flags a lane worktree that is `ahead:0` of its base and abandoned, the unmerged twin of
-  `git.cleanup-merged-worktrees`; read-only, with the same shrink-only allowlist and reasons.
-  (Ruled 2026-10-04, design lead.)
-- `git.canonical-checkout-clean` — **[GAP]** (#4813) the canonical checkout (`~/code/fichero`) is
-  a clean `main` mirror and venv host only: it holds no uncommitted work, and all work happens in
-  worktrees. (Ruled 2026-10-04, design lead.)
-- `git.updated-via-github` — **[CONVENTION]** "what's next" comes from milestones/ROADMAP,
-  not a shared branch. Describes where a human/agent looks for work — not a code path.
-  Challenged: no artifact in the repo records WHERE an agent looked for its next task, so
-  there is nothing to assert against — stays CONVENTION.
+- (moved) git.one-repo → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) git.branch-off-origin-main → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) git.integration-gate → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) git.commit-never-stash → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) git.agent-commits-authored-as-claude → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) git.cleanup-merged-worktrees → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) git.abandoned-worktree-flagged → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) git.canonical-checkout-clean → `building-fichero-locally.md` (Phase 0, 2026-11-18)
+- (moved) git.updated-via-github → `building-fichero-locally.md` (Phase 0, 2026-11-18)
 - `git.shared-venv` [OK] — ONE `.venv` at the canonical checkout (`~/code/fichero/.venv`), shared
   by all worktrees; worktrees have none of their own. Correctness comes from
   **`PYTHONPATH=fichero-server/src` relative to the worktree you're in**, which forces that tree's

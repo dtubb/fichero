@@ -27,6 +27,19 @@ final class OriginalsStore {
     var grant: (URL) async throws -> Void = { try await FolderAccessManager.shared.saveBookmarkIfDirectory($0) }
     /// Locate Originals is open (File › Locate Originals…, an item's menu, the Items pane's notice).
     var isChoosing = false
+    /// The last relink in one sentence, "Relinked 214 of 216; 2 still missing." (#5535).
+    private(set) var summarySentence: String?
+    /// Where this project's originals were last relinked to (#5535): kept after a relink, tried at the next open. A
+    /// test's stand-ins replace them.
+    @ObservationIgnored lazy var rememberRoot: (URL) -> Void = { [client] folder in
+        RememberedOriginalsRoot.remember(folder, project: client.currentLibraryPath)
+    }
+    @ObservationIgnored lazy var recallRoot: () -> URL? = { [client] in
+        RememberedOriginalsRoot.recall(project: client.currentLibraryPath)
+    }
+    /// A missing original has asked for the project's originals this run; the remembered folder has been tried.
+    private var askedThisRun = false
+    private var triedRememberedRoot = false
 
     /// Open Locate Originals, for the project or one folder.
     func begin(folderId: String? = nil) {
@@ -105,6 +118,10 @@ final class OriginalsStore {
                 actionName: "Locate Originals", actionsService: actionsService, steps: steps,
                 afterChange: { [weak self] in await self?.loadMissing(folderId: folder) }
             )
+            summarySentence = Self.summary(
+                relinked: plan.matched.count, of: plan.matched.count + plan.notFound.count + plan.ambiguous.count
+            )
+            rememberRoot(newRoot)
             self.plan = nil
             return true
         } catch {
@@ -112,6 +129,38 @@ final class OriginalsStore {
             refusal = "Could not relink the originals: \(error.localizedDescription)"
             return false
         }
+    }
+
+    /// A page whose original is missing asks for the PROJECT's originals, at most once a run (#5535): one Locate
+    /// Originals, never a folder panel per file or folder. `force` is a person's own Retry. Returns whether it opened.
+    @discardableResult
+    func askOnce(force: Bool = false) -> Bool {
+        guard force || !askedThisRun else { return false }
+        askedThisRun = true
+        begin()
+        return true
+    }
+
+    /// At open (#5535): a project whose originals are missing relinks from the folder it was last relinked to, with
+    /// no panel; Locate Originals is asked for only if that leaves something missing. Once a run. Returns whether
+    /// it relinked.
+    @discardableResult
+    func relinkFromRememberedRoot(actionsService: ActionsService, steps: WindowSteps?) async -> Bool {
+        guard !triedRememberedRoot, (missing?.pages ?? 0) > 0 else { return false }
+        triedRememberedRoot = true
+        guard let root = recallRoot() else { return false }
+        await choose(root)
+        guard plan?.matched.isEmpty == false else {
+            cancel()
+            return false
+        }
+        return await relink(actionsService: actionsService, steps: steps)
+    }
+
+    /// The relink in one sentence: how many of the missing were found, and how many are still missing.
+    static func summary(relinked: Int, of total: Int) -> String {
+        let still = total - relinked
+        return "Relinked \(relinked) of \(total)" + (still > 0 ? "; \(still) still missing." : ".")
     }
 
     /// Put the chooser back to nothing chosen.

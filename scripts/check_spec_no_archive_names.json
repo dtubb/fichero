@@ -1,0 +1,20 @@
+{
+  "why": "sha256 of the lowercased tokens a spec must not carry (#6695): the archive's person and family names, box ids, page ids and folder names. Hashes, so a public repo does not publish the words. The guard hashes every word of a spec line (split on anything that is not a letter or digit) and fails naming file and line only.",
+  "sha256_of_lowercased_token": [
+    "121f8bd5661f979d7c7fabc99d501ef74e0c1304a0d9a911a36030b8d43957be",
+    "18af908ccebbd30bcf0c0338bb53bd59a4cb101f0251ec2d9f220f87091ab83b",
+    "316b614d9e0b049b6d2505a77ef21711815db3c919dac119a114cce94b504df6",
+    "36033babfb48ec64e197c97fb40d65e6c79f81e04c61aeccef3009e01645ab8d",
+    "3b7e9da2df5de9523282424656a51ce393523866f9179f93a92744353ad76cba",
+    "5a62a6e60905c800efecff00b53840f8bb372d9da28b9b2cb72bedfe7d5a05df",
+    "67f60552e1b6fe934cbf45579f307479b6683747e2f9d59f6c32c7a462950b7a",
+    "6bf0a8d4af5bd6e2a3bb7a4ff18420d102724bfe25e8bc1277b4823004c36b03",
+    "76bdb563530c997e6fdf55cc894b3c8d454b14f052427b5e26487816f20643fb",
+    "8651b2bcef1776e9ebffd170feb1430004ad2b52e37c7b53489a31f431e1a7af",
+    "870e9bd8793df8497af626de17dc072edae426e7977660d08df21fb71a1f35fc",
+    "9091ccfbd32d410f5243a6cedce1dbd9c51fb8bb740963f9ec06be5ed0bf92e1",
+    "a7a16178e6ac0fd774b03c657f29acb916f18365f0988c56ba1ab2c4e84c5eed",
+    "d6d1922ee010b99cb2d96ed35042b6d05aedf9b59ed9e1e5ce044fd3f2ee558f",
+    "e35970cb8ce82ff163016313b67d8ab0b3356f6df36be28e7e20357f6493bf42"
+  ]
+}

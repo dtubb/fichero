@@ -13,6 +13,13 @@
 > recipe file holds and never holds, starting from one, following a published one).
 > **Status: APPROVED 2026-10-24 (rulings below).** Create
 > `recipe-designer` on approval and point its description here.
+>
+> **Owns / Does not own (2026-11-18, one owning spec per area).** This spec OWNS designing a recipe: Set Up's journey and
+> screens, the stages and their candidates, the filters and the one rank rule, measures, Checking lines, the teaching offer,
+> Budget, Ready, sharing a recipe. It does NOT own: the run once Start is pressed (`source/recipes-run.md`); how a run fails,
+> pauses and goes on (`compute/runner-reliability.md`); the Activity pane and window (`ui/activity-pane.md`); every model and
+> place with its account, downloads and the Add… sheet (`ui/models-and-compute-window.md`); the engine's rule for which model
+> runs where and the offers Ready shows (`ai/where-models-run.md`).
 > **Added 2026-10-30, DRAFT until the maintainer rules (nothing is built until then):** the condition questions in
 > section 3, the "How do you want to run this?" questions and the risks in section 4, the defaults table in
 > section 4b, Budget in section 11b, and Stage 18 of the build order (`designer.material.condition-*`,
@@ -1501,7 +1508,7 @@ Written for the builder 2026-11-07 (spec-writer). **Built:** a taught model is a
 - Depends on: 7.2, 11.2
 - Size: M
 
-Written for the builder 2026-11-07 (spec-writer). **Built:** the routes' figures with their basis (`routes.py`), the plan's estimate and the cap refusal with fixes (Step 18.2), the run's summary with pace and cost (`activity-and-automatic-work.md` Step 2.1). **Left:** (1) engine: Ready's total predicted cost and hours as the sum of the stages' predictions (Step 7.2), shown against the route's figure in one line ("your path estimated US$120; measured on your pages, US$96"); (2) the run carries predicted then measured per stage, the summary saying both; (3) a cap that stops a run says so in the run's words with the fix (18.2's) and the pages done; (4) a path move during a run (a Teach switch, a cheaper step) is an offer on the run, clicked, never applied by itself. **Acceptance (engine):** the Ready answer's total equals the sum of the stage predictions and names the route's figure; a run's summary carries predicted and measured per stage; a run stopped by the cap says the cap, the pages done and the fixes; a switch during the run appears as an offer row and changes nothing until taken. **Acceptance (app, by test):** Ready shows the one line; Activity's row shows the offer.
+Written for the builder 2026-11-07 (spec-writer). **Built:** the routes' figures with their basis (`routes.py`), the plan's estimate and the cap refusal with fixes (Step 18.2), the run's summary with pace and cost (`ui/activity-pane.md` Step 2.1). **Left:** (1) engine: Ready's total predicted cost and hours as the sum of the stages' predictions (Step 7.2), shown against the route's figure in one line ("your path estimated US$120; measured on your pages, US$96"); (2) the run carries predicted then measured per stage, the summary saying both; (3) a cap that stops a run says so in the run's words with the fix (18.2's) and the pages done; (4) a path move during a run (a Teach switch, a cheaper step) is an offer on the run, clicked, never applied by itself. **Acceptance (engine):** the Ready answer's total equals the sum of the stage predictions and names the route's figure; a run's summary carries predicted and measured per stage; a run stopped by the cap says the cap, the pages done and the fixes; a switch during the run appears as an offer row and changes nothing until taken. **Acceptance (app, by test):** Ready shows the one line; Activity's row shows the offer.
 
 - test (to write): `test_ready_totals.py`, `test_run_predicted_measured.py`, `test_run_cap_stops.py` in fichero-server/tests/unit/recipes/ (the sum against the route; predicted then measured; the stop's words; the offer row)
 

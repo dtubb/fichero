@@ -157,11 +157,19 @@ TAG="v${VERSION}"
 # The channel comes from the BUILT artifact, not from how this publish was started: release-all.sh writes
 # <dmg>.tier beside each DMG it builds. A dev-tier Fichero.dmg is never a channel-less public item, even on
 # the two-step hand route (release-all.sh --dev, then publish-release.sh). No tier file: the env var decides.
-if [ -f "$DMG_PATH.tier" ] && [ "$(tr -d '[:space:]' < "$DMG_PATH.tier")" = "dev" ]; then
+# FICHERO_RELEASE_PUBLIC=1 (release-all.sh --public): the dev DMG IS the public download (owner 2026-11-17).
+if [ "${FICHERO_RELEASE_PUBLIC:-0}" != 1 ] && [ -f "$DMG_PATH.tier" ] && [ "$(tr -d '[:space:]' < "$DMG_PATH.tier")" = "dev" ]; then
   export FICHERO_RELEASE_CHANNEL=dev
 fi
-# A dev-channel release ships its one DMG only: drop a stray Fichero-dev.dmg BEFORE any upload.
-if [ "${FICHERO_RELEASE_CHANNEL:-}" = "dev" ]; then HAVE_DEV_DMG=false; fi
+# A dev-channel or --public release ships its one DMG only: drop a stray Fichero-dev.dmg BEFORE any upload.
+if [ "${FICHERO_RELEASE_CHANNEL:-}" = "dev" ] || [ "${FICHERO_RELEASE_PUBLIC:-0}" = 1 ]; then HAVE_DEV_DMG=false; fi
+# Only the dev build is posted, and it is posted as Fichero-dev.dmg (owner 2026-11-18): the one dev-tier DMG is
+# uploaded under that name, and the appcast, the release text and the site links name it. A non-dev DMG keeps its name.
+ASSET_NAME="Fichero.dmg"
+if [ "${FICHERO_RELEASE_CHANNEL:-}" = "dev" ] || [ "${FICHERO_RELEASE_PUBLIC:-0}" = 1 ] \
+   || { [ -f "$DMG_PATH.tier" ] && [ "$(tr -d '[:space:]' < "$DMG_PATH.tier")" = "dev" ]; }; then
+  ASSET_NAME="Fichero-dev.dmg"
+fi
 
 # ── Sparkle update pre-publish readiness (#4901) ─────────────────────────────
 # Fails the release (set -e) before signing/publishing anything if the new
@@ -280,7 +288,12 @@ fi
 
 # ── Create release on GitHub ────────────────────────────────────────────────
 echo "[2/5] Create GitHub release on $RELEASE_REPO ($TAG, build $BUILD, $DMG_SIZE_HUMAN)"
-RELEASE_TARGET="${RELEASE_TARGET:-$(git -C "$ROOT_DIR" rev-parse HEAD)}"
+if [ "$DRY_RUN" = true ]; then
+  # A dry run only prints; a copy of the tree with no .git (the gate's) must still get to the end of it.
+  RELEASE_TARGET="${RELEASE_TARGET:-$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || echo "(no git checkout)")}"
+else
+  RELEASE_TARGET="${RELEASE_TARGET:-$(git -C "$ROOT_DIR" rev-parse HEAD)}"
+fi
 # GitHub rejects a target_commitish it has never seen (2026-09-01: the whole
 # 2026.09.01.2 release leg died with HTTP 422 "tag_name is not a valid tag /
 # target_commitish is invalid" because release-merge's stamp commit was only
@@ -294,10 +307,10 @@ if [ "$DRY_RUN" = false ] \
   exit 1
 fi
 
-# The text follows the tier that was built: the daily one-DMG dev run (FICHERO_RELEASE_CHANNEL=dev)
-# ships the dev build as Fichero.dmg; the two-DMG hand run keeps the alpha/dev wording.
-if [ "${FICHERO_RELEASE_CHANNEL:-}" = "dev" ]; then
-  DOWNLOAD_LINE="Download \`Fichero.dmg\` below (the dev build, with every feature on — expect rough edges)"
+# The text follows what is attached: with no Fichero-dev.dmg (the one-DMG dev run and every --public run) the dev
+# build is Fichero.dmg; only a run that attaches both DMGs names Fichero-dev.dmg.
+if [ "$HAVE_DEV_DMG" != true ]; then
+  DOWNLOAD_LINE="Download \`$ASSET_NAME\` below (the dev build, with every feature on — expect rough edges)"
 else
   DOWNLOAD_LINE="Download \`Fichero.dmg\` below (\`Fichero-dev.dmg\` is the internal build with ALL features on — expect rough edges)"
 fi
@@ -338,8 +351,13 @@ if [ "$DRY_RUN" = false ]; then
   fi
   upload_asset() {
     # Idempotent + retried per asset (see comment above).
-    local path="$1" name
-    name="$(basename "$path")"
+    local path="$1" name="${2:-$(basename "$1")}"
+    if [ "$name" != "$(basename "$path")" ]; then  # posted under another name: a clone (no copy of the bytes) beside it
+      mkdir -p "$(dirname "$path")/upload"
+      rm -f "$(dirname "$path")/upload/$name"
+      cp -c "$path" "$(dirname "$path")/upload/$name" 2>/dev/null || cp "$path" "$(dirname "$path")/upload/$name"
+      path="$(dirname "$path")/upload/$name"
+    fi
     if gh release view "$TAG" --repo "$RELEASE_REPO" --json assets \
         --jq '.assets[].name' 2>/dev/null | grep -qx "$name"; then
       echo "  $name asset already present"
@@ -356,7 +374,7 @@ if [ "$DRY_RUN" = false ]; then
     echo "error: $name asset upload failed after 5 attempts" >&2
     exit 1
   }
-  upload_asset "$DMG_PATH"
+  upload_asset "$DMG_PATH" "$ASSET_NAME"
   if [ "$HAVE_DEV_DMG" = true ]; then
     upload_asset "$DEV_DMG_PATH"
   fi
@@ -374,7 +392,8 @@ if [ "${FICHERO_RELEASE_CHANNEL:-}" = "dev" ]; then
   MAIN_TITLE_SUFFIX=" (dev)"
   HAVE_DEV_DMG=false
 fi
-RELEASE_URL="https://github.com/$RELEASE_REPO/releases/download/${TAG}/Fichero.dmg"
+RELEASE_URL="https://github.com/$RELEASE_REPO/releases/download/${TAG}/$ASSET_NAME"
+if [ "$DRY_RUN" = true ]; then echo "[DRY RUN] would post the DMG as $ASSET_NAME: $RELEASE_URL"; fi
 DEV_RELEASE_URL="https://github.com/$RELEASE_REPO/releases/download/${TAG}/Fichero-dev.dmg"
 PUB_DATE=$(date -R)
 

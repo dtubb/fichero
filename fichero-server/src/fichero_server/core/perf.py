@@ -68,3 +68,16 @@ def model_load(model: str) -> Iterator[None]:
         _logger.warning("model loaded again: %s, %.0f s after its last load (load %d in this engine, %.1f s): "
                         "something let it go mid-run", model, started - last, count, ended - started)
     _LOADS[model] = (count, ended, said)
+
+
+_UNLOADS: dict[str, int] = {}  # model -> unloads in this engine
+
+
+def model_unloaded(model: str) -> None:
+    """Count one unload, so a step's record can say how many models it saw let go (`recipes-run.memory.recorded-per-step`)."""
+    _UNLOADS[model] = _UNLOADS.get(model, 0) + 1
+
+
+def model_load_totals() -> tuple[int, int]:
+    """(loads, unloads) of every model since this engine started."""
+    return sum(n for n, _t, _s in _LOADS.values()), sum(_UNLOADS.values())

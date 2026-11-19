@@ -3,7 +3,7 @@
 //  FicheroTests
 //
 //  #6583: Delete acts on every row the window lists, not only on workflow runs. Spec:
-//  `docs/contributor_manual/specs/ui/activity-and-automatic-work.md`, `activity.window.delete-any-row`.
+//  `docs/contributor_manual/specs/ui/activity-pane.md`, `activity.window.delete-any-row`.
 //  WHY (owner 2026-11-13): a failed recipe run, a paused download or a queued group of thumbnails could not be deleted.
 //
 

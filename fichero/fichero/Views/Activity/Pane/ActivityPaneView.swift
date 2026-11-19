@@ -47,6 +47,8 @@ struct ActivityPaneView: View {
     @Environment(LibraryManager.self) var libraryManager
     /// The window's step stack: Delete, Archive and Put Back are steps on it, so Edit › Undo takes them back.
     @Environment(WindowSteps.self) var windowSteps: WindowSteps?
+    /// Optional: a host that does not inherit the window's environment opens Settings on its last tab rather than trapping.
+    @Environment(AppState.self) var appState: AppState?
     @State var selection: Set<ActivityMonitorRow.ID> = []
     /// A column header's sort; empty keeps the state-then-start order.
     @State var sortOrder: [KeyPathComparator<ActivityMonitorRow>] = []
@@ -189,7 +191,13 @@ struct ActivityPaneView: View {
                 switch prefs.centreView(for: prefs.tab) {
                 case .table: tableCentre(shown)
                 case .graph: graphs
-                case .visual: ActivityTimelineView(rows: shown)
+                case .visual:
+                    // Recipes' Visual is each recipe's newest run as its steps; the others' the work's timeline.
+                    if prefs.tab == .recipes {
+                        ActivityRecipesView(libraries: libraries, visual: true)
+                    } else {
+                        ActivityTimelineView(rows: shown)
+                    }
                 }
             } else if graphsFull {
                 // The graphs made full size (`activity.graphs.own-pane`, decision 41): they fill the centre.

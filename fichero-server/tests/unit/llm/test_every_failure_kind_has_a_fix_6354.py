@@ -1,7 +1,7 @@
 """Every failure kind the engine can name carries its words and its fix (#6354, #6584; owner 2026-11-13: error codes do not
-help, every error needs a solution; `activity.pane.failure-with-its-fix-in-the-row`, `run-failure-alerts.md` decision 9).
+help, every error needs a solution; `activity.pane.failure-with-its-fix-in-the-row`, `compute/runner-reliability.md` decision 9).
 
-Spec: docs/contributor_manual/specs/ui/activity-pane.md, docs/contributor_manual/specs/ai/run-failure-alerts.md.
+Spec: docs/contributor_manual/specs/ui/activity-pane.md, docs/contributor_manual/specs/compute/runner-reliability.md.
 """
 from __future__ import annotations
 

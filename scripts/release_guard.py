@@ -247,6 +247,15 @@ def smoke(dmg: Path, version: str, build: str, *, run=Run) -> list[str]:
         got = (str(info.get("CFBundleShortVersionString")), str(info.get("CFBundleVersion")))
         if got != (version, str(build)):
             problems.append(f"{app.name}: carries {got[0]} ({got[1]}), the stamp is {version} ({build})")
+        stamp = (app / "Contents" / "Resources" / "Fichero Server.app" / "Contents" / "Resources" / "app"
+                 / "fichero_server" / "release-stamp.txt")
+        if not stamp.is_file():
+            problems.append(f"{app.name}: its engine has no release stamp (#6723), so it would report the contract version")
+        else:
+            engine = tuple(stamp.read_text().split())
+            if engine != got:
+                problems.append(f"{app.name}: its engine is stamped {' ('.join(engine)}"
+                                f"{')' if len(engine) > 1 else ''}, the app is {got[0]} ({got[1]})")
     finally:
         run(["hdiutil", "detach", str(mount), "-force"], check=False, capture_output=True)
         try:

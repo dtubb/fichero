@@ -121,6 +121,18 @@ class VisionWorker:
             self._process.join(5)
         self._process = self._conn = None
 
+    def _how_it_ended(self) -> str:
+        """A phrase for how the child ended: " (killed by signal N)" or " (exited with code N)". Empty when the child is not
+        one the engine can wait on (a seed's worker has no exit code here) or did not end within a second."""
+        join = getattr(self._process, "join", None)
+        if join is None or not hasattr(self._process, "exitcode"):
+            return ""
+        join(1)
+        code = self._process.exitcode
+        if code is None:
+            return ""
+        return f" (killed by signal {-code})" if code < 0 else f" (exited with code {code})"
+
     def call(self, ref: Ref, args: tuple, timeout: float) -> Any:
         """Run one call in the child. WorkerTimeout (the child is killed) when it does not answer in `timeout` seconds;
         WorkerBusy (nothing killed) when an earlier call kept the child for the whole of `timeout`; WorkerFailure when the child died; the call's own exception otherwise."""
@@ -138,8 +150,9 @@ class VisionWorker:
                     raise WorkerTimeout("the Apple Vision call did not return")
                 kind, payload = self._conn.recv()
             except (EOFError, OSError) as exc:
+                how = self._how_it_ended()
                 self._end()
-                raise WorkerFailure("Apple Vision's worker stopped while reading this page; it starts again for the next one.") from exc
+                raise WorkerFailure(f"Apple Vision's worker stopped while reading this page{how}; it starts again for the next one.") from exc
             if kind == "raised":
                 raise payload
             return payload

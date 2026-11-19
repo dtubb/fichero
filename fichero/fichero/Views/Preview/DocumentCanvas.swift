@@ -129,33 +129,6 @@ struct DocumentCanvas: View {
     }
 }
 
-/// Renders a Markdown representation as scrollable, selectable text (#2264).
-///
-/// Native rendering only — `AttributedString(markdown:)` for inline + block
-/// syntax, falling back to the raw text if it doesn't parse. Heavier Markdown
-/// (tables, images) can graduate to a web view later if a corpus needs it.
-private struct MarkdownCanvas: View {
-    let text: String
-
-    private var attributed: AttributedString {
-        (try? AttributedString(
-            markdown: text,
-            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        )) ?? AttributedString(text)
-    }
-
-    var body: some View {
-        ScrollView {
-            Text(attributed)
-                .font(.body)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                // Slim margin — more width for the text (Daniel, 2026-08-10).
-                .padding(8)
-        }
-    }
-}
-
 private struct StorageDisplayImageCanvas: View {
     let documentId: String
     var onNavigateToDocument: ((String) -> Void)?
@@ -168,6 +141,7 @@ private struct StorageDisplayImageCanvas: View {
     /// Optional: hosts without a store (isolated previews) skip the
     /// grant-prompt path; the degraded-thumbnail capsule still renders.
     @Environment(DocumentStore.self) private var documentStore: DocumentStore?
+    @Environment(WindowState.self) private var windowState: WindowState?
     @Environment(RenditionService.self) private var renditionService: RenditionService?
     @State private var image: PlatformImage?
     /// The rendition whose pixels `image` holds, when the preferred-first
@@ -405,6 +379,11 @@ private struct StorageDisplayImageCanvas: View {
             + [store.selectedDocument].compactMap { $0 }
         guard let sourcePath = candidates.first(where: { $0.id == documentId })?.path,
               !sourcePath.isEmpty else { return }
+        // A moved original asks once for the PROJECT's originals (#5535); a folder panel only for an unreadable file.
+        if let originals = windowState?.library?.originalsStore, originals.isMissing(documentId) {
+            originals.askOnce(force: force)
+            return
+        }
         FolderAccessManager.shared.promptForSource(path: sourcePath, force: force) { granted in
             guard granted else { return }
             Task { await loadImage() }

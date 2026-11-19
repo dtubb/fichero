@@ -11,12 +11,10 @@ private let libraryHeaderLogger = Logger(
 extension SidebarView {
     @ViewBuilder
     func libraryDisclosureLabel(
-        library: LibraryManager.LibraryReference,
-        totalCount: Int
+        library: LibraryManager.LibraryReference
     ) -> some View {
         LibraryHeaderRow(
             library: library,
-            totalCount: totalCount,
             isCurrentLibrary: library.id == windowState.libraryId,
             isSelected: selectionState.selectedDestinations.contains(.library(library.id)),
             onFileDrop: { [library] urls, mode in

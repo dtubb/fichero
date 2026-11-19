@@ -191,7 +191,7 @@ the spec's lean)". Questions in these specs not listed here stay open in the spe
 - `source/synced-folder.md` — same quiet period as Activity.
 - `ui/about.md` — copyright single-sourced (`about.copyright-single-sourced`, #3234); create the
   `about` milestone.
-- `ui/activity-and-automatic-work.md` — yield to typing on the local-ML lane only; LangGraph keeps
+- `ui/activity-pane.md` — yield to typing on the local-ML lane only; LangGraph keeps
   graph, fan-out, state and interrupt.
 - `ui/automation.md` — background priority for scheduled runs, normal for "run now"; same audited
   layer.

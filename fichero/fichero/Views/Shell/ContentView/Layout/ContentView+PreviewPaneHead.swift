@@ -93,6 +93,13 @@ extension ContentView {
         )
     }
 
+    /// The library ancestry of the shown document as crumbs; empty when nothing is shown.
+    func shownDocumentCrumbs(_ shown: Document?) -> [PaneCrumb] {
+        guard let doc = shown else { return [] }
+        let ancestry = libraryPathCrumbs(anchorId: doc.id, resolve: { documentStore.resolveDocument($0) })
+        return ancestry.isEmpty ? [PaneCrumb(doc)] : ancestry.map(PaneCrumb.init)
+    }
+
     func previewPaneHead(pinnedPreviewDocument: Binding<Document?>) -> some View {
         // The crumb names what the preview SHOWS — the image / spread /
         // page / region itself, never the folder it lives in (Daniel,
@@ -103,14 +110,7 @@ extension ContentView {
             detailDocument: detailDocument,
             inspectorDocument: inspectorDocument
         ) ?? detailDocument
-        var crumbs: [PaneCrumb] = []
-        if let doc = shown {
-            let ancestry = libraryPathCrumbs(
-                anchorId: doc.id,
-                resolve: { documentStore.resolveDocument($0) }
-            )
-            crumbs = ancestry.isEmpty ? [PaneCrumb(doc)] : ancestry.map(PaneCrumb.init)
-        }
+        var crumbs = shownDocumentCrumbs(shown)
         // The one-click return to the SPREAD a region/page-part came from
         // (Daniel, 2026-08-29: the crumb is orientation; this lives with the
         // paging controls). Present only when the shown document has a
@@ -152,7 +152,12 @@ extension ContentView {
                     }
                 )
             },
-            controls: { PreviewHeadLensControls(chrome: self.previewChrome, onEnterFullScreen: previewFullScreenAction(shown)) },
+            controls: {
+                PreviewHeadLensControls(
+                    chrome: self.previewChrome, documentId: browserSelection.count > 1 ? nil : shown?.id,
+                    onEnterFullScreen: previewFullScreenAction(shown)
+                )
+            },
             tools: { EmptyView() },
             canSplit: previewPaneCanSplit,
             switchableRoots: PaneCrumb.otherLibraries(than: windowState.libraryId)

@@ -166,17 +166,17 @@
   },
   {
     "rule": "h",
-    "spec": "docs/contributor_manual/specs/harness/git-worktree-workflow.md",
+    "spec": "docs/contributor_manual/specs/harness/building-fichero-locally.md",
     "key": "convention:git.integration-gate"
   },
   {
     "rule": "h",
-    "spec": "docs/contributor_manual/specs/harness/git-worktree-workflow.md",
+    "spec": "docs/contributor_manual/specs/harness/building-fichero-locally.md",
     "key": "convention:git.one-repo"
   },
   {
     "rule": "h",
-    "spec": "docs/contributor_manual/specs/harness/git-worktree-workflow.md",
+    "spec": "docs/contributor_manual/specs/harness/building-fichero-locally.md",
     "key": "convention:git.updated-via-github"
   }
 ]

@@ -67,19 +67,56 @@ DEFAULT_BREAKER_COOLDOWN = 30.0
 #: width would hold a lane slot while a call waits for a provider slot. `FICHERO_CLOUD_CALLS_AT_ONCE` overrides until the
 #: setting exists (1-8).
 PROVIDER_CALLS_AT_ONCE = min(8, max(1, int(os.environ.get("FICHERO_CLOUD_CALLS_AT_ONCE", "4") or 4)))
-_PROVIDER_SLOTS: dict[str, threading.BoundedSemaphore] = {}
+#: How many answers in a row (after an in-flight-budget answer cut the cap) raise a provider's cap back by one.
+ANSWERS_PER_CAP_STEP = 4
+
+
+class _Cap:
+    """One provider's in-flight cap: it starts at `PROVIDER_CALLS_AT_ONCE`, is halved by an in-flight-budget answer (floor 1)
+    and rises by one per `ANSWERS_PER_CAP_STEP` answers, never past where it started (#6671)."""
+
+    def __init__(self, start: int) -> None:
+        self.start = self.cap = start
+        self.answers = 0
+
+
+_PROVIDER_SLOTS: dict[str, _Cap] = {}
 _IN_FLIGHT: dict[str, int] = {}
 _SLOTS_LOCK = threading.Lock()
 
 
-def provider_slots(provider: str | None) -> threading.BoundedSemaphore:
-    """The one semaphore for `provider` (a threading one: the workflows' loops live on different threads)."""
+def _cap_for(provider: str | None) -> _Cap:
     key = provider or "unknown"
+    cap = _PROVIDER_SLOTS.get(key)
+    if cap is None:
+        cap = _PROVIDER_SLOTS[key] = _Cap(PROVIDER_CALLS_AT_ONCE)
+    return cap
+
+
+def provider_cap(provider: str | None) -> int:
+    """How many calls to `provider` may be in flight now (the start cap, less what in-flight-budget answers took)."""
     with _SLOTS_LOCK:
-        sem = _PROVIDER_SLOTS.get(key)
-        if sem is None:
-            sem = _PROVIDER_SLOTS[key] = threading.BoundedSemaphore(PROVIDER_CALLS_AT_ONCE)
-        return sem
+        return _cap_for(provider).cap
+
+
+def _slow_down_cap(provider: str | None) -> None:
+    """The provider said its credit does not fit the calls in flight: halve its cap (floor 1)."""
+    with _SLOTS_LOCK:
+        cap = _cap_for(provider)
+        cap.cap = max(1, cap.cap // 2)
+        cap.answers = 0
+
+
+def _answered(provider: str | None) -> None:
+    """A call to `provider` was answered: after `ANSWERS_PER_CAP_STEP` of them a lowered cap rises by one."""
+    with _SLOTS_LOCK:
+        cap = _cap_for(provider)
+        if cap.cap >= cap.start:
+            return
+        cap.answers += 1
+        if cap.answers >= ANSWERS_PER_CAP_STEP:
+            cap.cap += 1
+            cap.answers = 0
 
 
 def calls_in_flight(provider: str | None) -> int:
@@ -100,25 +137,26 @@ def _inside_a_lane() -> bool:
         return False
 
 
-async def _take_slot(provider: str | None) -> threading.BoundedSemaphore | None:
+async def _take_slot(provider: str | None) -> _Cap | None:
     if _inside_a_lane():
         return None
-    sem = provider_slots(provider)
+    key = provider or "unknown"
     # Waiting its turn costs no thread (a call stuck at a provider must not hold an executor thread for every waiter):
-    # a non-blocking try, then a short sleep on this call's own loop.
-    while not sem.acquire(blocking=False):
+    # a check under the lock, then a short sleep on this call's own loop.
+    while True:
+        with _SLOTS_LOCK:
+            cap = _cap_for(provider)
+            if _IN_FLIGHT.get(key, 0) < cap.cap:
+                _IN_FLIGHT[key] = _IN_FLIGHT.get(key, 0) + 1
+                return cap
         await asyncio.sleep(0.05)
-    with _SLOTS_LOCK:
-        _IN_FLIGHT[provider or "unknown"] = _IN_FLIGHT.get(provider or "unknown", 0) + 1
-    return sem
 
 
-def _give_slot(provider: str | None, sem: threading.BoundedSemaphore | None) -> None:
-    if sem is None:
+def _give_slot(provider: str | None, slot: _Cap | None) -> None:
+    if slot is None:
         return
     with _SLOTS_LOCK:
         _IN_FLIGHT[provider or "unknown"] = max(0, _IN_FLIGHT.get(provider or "unknown", 0) - 1)
-    sem.release()
 
 
 #: Why a provider cannot answer: it asked us to slow down, it has no credit, or it refused the key.
@@ -187,6 +225,48 @@ class ProviderKeyRefusedError(ProviderRateLimitedError):
         return f"{name} refused the API key. Check the key in Settings › AI, or choose another model."
 
 
+class ProviderInFlightBudgetError(ProviderRateLimitedError):
+    """The provider kept answering that the key's credit does not fit the calls still in flight (OpenRouter 402
+    `in_flight_budget_exhausted`, #6671) and the retries are spent. Not a dead provider: the run pauses with its Continue."""
+
+    @classmethod
+    def words(cls, provider: str) -> str:
+        name = _provider_name(provider)
+        return (f"{name} is limiting how many requests can be in flight for this key, so this step paused. "
+                "Continue it in a few minutes, or add credit at " + name + ".")
+
+
+class ProviderCreditStopError(ProviderQuotaExhaustedError):
+    """The provider has no credit, or a key's or account's credit limit is reached (#6675), inside a run: the run is paused
+    with the cause and its one prompt (Open provider page, Continue, Stop), no page is recorded failed."""
+
+    @classmethod
+    def words(cls, provider: str) -> str:
+        name = _provider_name(provider)
+        return f"{name} has no credit left, or its credit limit is reached, so the run paused. Continue it once that is fixed."
+
+
+class ProviderKeyStopError(ProviderKeyRefusedError):
+    """The provider refused the API key inside a run (#6675): the run is paused with `key-refused` and its Continue."""
+
+
+#: The errors that mean "the run was asked to pause with a cause": its page is not a failed page, Continue reads it again.
+RUN_PAUSING_ERRORS = (ProviderInFlightBudgetError, ProviderCreditStopError, ProviderKeyStopError)
+
+CREDIT_LIMIT_WORDS = ("key limit", "credit limit", "limit exceeded", "limit reached", "spending limit", "spend limit")
+
+
+def credit_cause(exc: BaseException) -> str:
+    """`"credit-limit"` when the provider's words name a limit (a key's or an account's cap), else `"out-of-credit"`."""
+    from fichero_server.llm import _extract_exc_message
+
+    try:
+        text = _extract_exc_message(exc).lower()
+    except Exception:  # pragma: no cover - classification must never crash
+        text = str(exc).lower()
+    return "credit-limit" if any(k in text for k in CREDIT_LIMIT_WORDS) else "out-of-credit"
+
+
 _BY_CAUSE: dict[str, type[ProviderRateLimitedError]] = {
     "rate-limit": ProviderRateLimitedError, "quota": ProviderQuotaExhaustedError, "key": ProviderKeyRefusedError}
 
@@ -226,6 +306,21 @@ KEY_REFUSED_WORDS = ("invalid api key", "invalid_api_key", "incorrect api key", 
                      "authentication_error")
 
 
+IN_FLIGHT_BUDGET_REASON = "in_flight_budget_exhausted"
+
+
+def is_in_flight_budget(exc: BaseException) -> bool:
+    """An HTTP 402 whose reason is OpenRouter's `in_flight_budget_exhausted`; a 402 with no such reason is not."""
+    from fichero_server.llm import _extract_exc_message, _extract_exc_status_code
+
+    if _extract_exc_status_code(exc) != 402:
+        return False
+    try:
+        return IN_FLIGHT_BUDGET_REASON in _extract_exc_message(exc).lower()
+    except Exception:  # pragma: no cover - classification must never crash
+        return IN_FLIGHT_BUDGET_REASON in str(exc).lower()
+
+
 def classify_provider_error(exc: BaseException) -> str:
     """Classify a provider exception as ``"slow-down"``, ``"transient"``, ``"fatal"`` or ``"terminal"``
     (`ai.where.one-retry-policy`, #5944).
@@ -244,6 +339,8 @@ def classify_provider_error(exc: BaseException) -> str:
         text = _extract_exc_message(exc).lower()
     except Exception:  # pragma: no cover - classification must never crash
         text = str(exc).lower()
+    if is_in_flight_budget(exc):
+        return "slow-down"  # the credit fits fewer calls at once, not none: wait for the in-flight calls, never fatal
     if status in (401, 402) or any(k in text for k in (*NO_CREDIT_WORDS, *KEY_REFUSED_WORDS)):
         return "fatal"
     try:
@@ -462,13 +559,29 @@ async def call_with_breaker(
                 _give_slot(provider, slot)
         except Exception as exc:
             kind = classify_provider_error(exc)
+            in_flight = kind == "slow-down" and is_in_flight_budget(exc)
+            if in_flight:
+                _slow_down_cap(provider)  # the next calls fit the key's credit: half as many at once
             if kind == "fatal":
                 await breaker.trip(provider, detail=str(exc), cause=fatal_cause(exc))
+                # No credit, a credit limit or a refused key (#6675, `failure.PAUSES`): the run pauses and asks; its page is
+                # not a failed page.
+                from fichero_server.llm.retry import _pause_the_run_for_credit
+
+                if _pause_the_run_for_credit(provider or "unknown", exc):
+                    stop = ProviderKeyStopError if fatal_cause(exc) == "key" else ProviderCreditStopError
+                    raise stop(provider or "unknown", failures=attempt + 1, detail=str(exc)) from exc
                 raise
             if kind == "terminal":
                 raise
             # slow-down or transient: neither is a breaker failure (a provider that said "slow down" is alive); the
             # number of sends is bounded by max_retries alone.
+            if attempt >= max_retries and in_flight:
+                # Not a failure of the provider: the run pauses with the cause and its Continue (#6671).
+                from fichero_server.llm.retry import _pause_the_run_for
+
+                _pause_the_run_for(provider or "unknown", exc)
+                raise ProviderInFlightBudgetError(provider or "unknown", failures=attempt + 1, detail=str(exc)) from exc
             if attempt >= max_retries:
                 # Retries spent without an answer: THIS is the breaker's failure (K calls in a row that never got
                 # through open it), not each 429 on the way.
@@ -506,6 +619,7 @@ async def call_with_breaker(
             continue
         else:
             await breaker.record_success(provider)
+            _answered(provider)
             return result
         finally:
             IN_RETRY_LAYER.reset(token)

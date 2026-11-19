@@ -196,6 +196,8 @@ struct ZoomableImagePreview: View {
     /// from `annotationsEnabled` because "hide my highlights" and "hide the
     /// region grid" are different questions.
     @PaneStorage("preview.regionsEnabled") var regionsEnabled = true
+    /// Show Lines: the line segments (`SegmentHierarchy.shows`); Show Regions draws the region segments too.
+    @PaneStorage("preview.linesEnabled") var linesEnabled = true
     /// Draw each recognised word's text inside its box (2026-08-31). The
     /// display lives in `OCRGeometryOverlay`, which reads the same key.
     @PaneStorage("imagePreview.inlineTextEnabled") var inlineTextEnabled = false
@@ -209,6 +211,9 @@ struct ZoomableImagePreview: View {
     @State var imageVisible = true
     @Environment(\.panePreviewLayers) var panePreviewLayers
     @State var ocrGeometry: OCRGeometry?
+    /// The page's segments' boxes in the shown rendition's pixels (#6420), for the rendition named by `id`.
+    @State var renditionBoxes: (id: String, answer: SegmentBoxesOnRendition)?
+    @State var mappedGeometryCache: OCRGeometry?
     /// THIS pane's region selection (#5020): never another pane's. The window's focus points at it
     /// once the pane is used (`WindowState.focusedRegionSelection`).
     @State var regionSelection = RegionSelection()
@@ -287,7 +292,7 @@ struct ZoomableImagePreview: View {
     /// blew the type-checker budget — the same pathology the library window
     /// hit — and each layer keeps its chain small enough to check.
     var body: some View {
-        previewFocusPublishes(on: keyboardLayer)
+        previewFocusPublishes(on: keyboardLayer.commandScrollZoom { scrollZoom($0) })
     }
 
     /// Publish the preview's window-scoped focus keys — ONLY from the PRIMARY preview pane. Two
@@ -389,9 +394,16 @@ struct ZoomableImagePreview: View {
         .onChange(of: renditionIndex) { _, _ in publishHeadChrome() }
     }
 
+    // Its own short chain, so the type-checker copes.
+    private var renditionLayer: some View {
+        lifecycleLayer
+            .onChange(of: displayedRenditionId) { _, _ in loadRenditionBoxes() }
+            .onChange(of: ocrGeometry) { _, _ in refreshMappedGeometry() }
+    }
+
     /// Layer 2: notification + change observation.
     private var observationLayer: some View {
-        lifecycleLayer
+        renditionLayer
             // The head's markup row (Daniel, 2026-08-29): highlight and note
             // arm the same region-draw path the bottom bar's buttons used to.
             .onReceive(NotificationCenter.default.publisher(for: .previewAnnotateTool)) { note in

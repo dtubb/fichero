@@ -21,7 +21,6 @@ private let libraryHeaderLogger = Logger(
 /// the per-library `@State` the gate needs.
 struct LibraryHeaderRow: View {
     let library: LibraryManager.LibraryReference
-    let totalCount: Int
     let isCurrentLibrary: Bool
     var isSelected: Bool = false
     let onFileDrop: ([URL], IngestMode) -> Bool
@@ -167,7 +166,6 @@ struct LibraryHeaderRow: View {
     private var header: some View {
         LibrarySectionHeader(
             library: library,
-            itemCount: totalCount,
             isCurrentLibrary: isCurrentLibrary,
             isSelected: isSelected,
             // Nil callbacks make LibrarySectionHeader reject the drop (its
@@ -213,7 +211,6 @@ struct LibraryHeaderRow: View {
     // the same nine-plus services LibraryView's canvas already built a fixture for.
     LibraryHeaderRow(
         library: LibraryPreviewFixtures.library,
-        totalCount: 42,
         isCurrentLibrary: true,
         onFileDrop: { _, _ in true },
         onSidebarItemDrop: { _, _ in },

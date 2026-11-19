@@ -1,8 +1,8 @@
 # Fichero Builder — the harness map
 
 Plain Python 3.12 on the standard library; imports nothing from the engine (`tests/test_no_engine_import.py`). Spec:
-`docs/contributor_manual/specs/harness/dev-workflows.md` (the verbs) and `harness/issues-and-labels.md` (what they read
-and write on GitHub). Run it as `python -m fichero_builder <verb>` from `fichero-builder` with `PYTHONPATH=.`; the rules
+`docs/contributor_manual/specs/harness/building-fichero-locally.md` (the one harness spec: the verbs under "Absorbed from
+`dev-workflows.md`", what they read and write on GitHub under "Absorbed from `issues-and-labels.md`"). Run it as `python -m fichero_builder <verb>` from `fichero-builder` with `PYTHONPATH=.`; the rules
 file is `harness.toml` in the repo root (or the pinned copy).
 
 ## Two users, one boundary

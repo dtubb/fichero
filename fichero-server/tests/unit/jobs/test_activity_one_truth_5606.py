@@ -1,7 +1,7 @@
 """The list and the tree give a row the same state and reason; a page's reason is words, its server's output is
 in the job's log (#5606, `activity.list-and-tree-agree`, `compute.memory.server-death-said`).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md and
+Spec: docs/contributor_manual/specs/ui/activity-pane.md and
 docs/contributor_manual/specs/compute/jobs-and-fine-tuning.md. Seen live after an engine restart: a recipe
 run's tree said "waiting — Interrupted; carries on" while `GET /api/activity/jobs` listed the same row as
 running with no reason; and a page failed with "The local model server stopped while reading: 2026-10-07

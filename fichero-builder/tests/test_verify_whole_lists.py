@@ -48,7 +48,7 @@ def test_every_engine_test_using_the_scan_helper_runs_daily_and_the_ones_that_sc
     per_batch = {t for v in cfg.whole_tests.values() if not isinstance(v, str) for t in v}
     temp_only = {f"fichero-server/tests/unit/{t}" for t in (
         "formats/test_real_files_lose_no_text.py", "importers/test_folder_of_images_and_layout.py", "importers/test_pages_in_icloud_5669.py",
-        "jobs/test_adopted_folder.py", "jobs/test_synced_folder.py", "jobs/test_synced_folder_keep_arranged.py",
+        "scripts/test_check_spec_no_archive_names.py", "jobs/test_adopted_folder.py", "jobs/test_synced_folder.py", "jobs/test_synced_folder_keep_arranged.py",
         "llm/test_spacy_pipelines_as_files_to_spec.py", "transfer/test_incoming_copy_security.py",
         "transfer/test_transfer_a_page_whole.py", "transfer/test_transfer_is_never_half_done.py")}
     assert not found - per_batch - temp_only, sorted(found - per_batch - temp_only)

@@ -25,7 +25,7 @@ Status words: **built** (behaviours mostly [OK]), **partly built**, **specced** 
 | 10. Natural-language generation | `kg/kg-readable-representation.md` | partly built | **summaries that show, not tell** (below) |
 | 11. Publishing | `export/exporter.md`, `source/iiif.md` (published folders, static), `source/synced-folder.md` | partly built | **a public family-history site from a regional archive** (below) |
 
-Running all of it: `ui/activity-and-automatic-work.md` (one job model, the workflow runner inside
+Running all of it: `ui/activity-pane.md` (one job model, the workflow runner inside
 it, automatic reprocessing), `ai/local-runtimes.md` (how each model runs), and the recipe and
 onboarding sections of `source/models-chains-and-projects.md` (what runs, chosen how). These
 three are one connected set and are built together.
@@ -81,8 +81,8 @@ maintainer's step document (Mellel, to come) sets the order. Build next.
 **Specs to write, in this order:**
 
 1. **Projects harness and the improvement loop** (`~/code/fichero-projects/SPEC.md`, its own
-   private repository). Fichero as the harness for real projects that train models: Sergio
-   Mosquera's notebooks (one hand, about 400 pages, a Qwen-VL transcription to correct) and the
+   private repository). Fichero as the harness for real projects that train models: a notebook corpus
+   with its notebooks (one hand, about 400 pages, a Qwen-VL transcription to correct) and the
    a handwritten diary (one hand) first; then a regional court and civil archive (damaged, many hands, 1870s to 1980s);
    Spanish hands from the twenty-first century backwards. The loop:
    1. a frontier model drafts ground truth;

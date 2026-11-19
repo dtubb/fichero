@@ -157,7 +157,7 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
 - `kg.entity.variant-spellings-proposed` — **[OK]** (#4508; built: `spelling_key` and the `spelling_variants` tier of `plan_entity_dedupe` in `knowledge/dedupe.py`, `spelling_variants`/`propose` on `POST /api/kg/entity-curation/dedupe` queuing through `review.queue`; tested in `fichero-server/tests/unit/kg/test_variant_spellings_to_spec.py`) a project's knowledge graph is checked for
   entities of one type whose names are the same name written differently, and each is PROPOSED as a merge for a
   person to accept or reject; nothing is merged by the check. The same name written differently means equal once
-  these are set aside: case, accents and punctuation; old spelling (`Mosqera`/`Mosquera`, `Ysabel`/`Isabel`,
+  these are set aside: case, accents and punctuation; old spelling (`Qintero`/`Quintero`, `Ysabel`/`Isabel`,
   `Ximénez`/`Jiménez`, `Gonçalez`/`Gonzalez`, `Baca`/`Vaca`, a silent h, a doubled letter); the usual
   abbreviations of names (`Fran.co`/`Francisco`, `Xpoval`/`Cristóbal`, `Glz`/`González`); and titles (`Don`,
   `Doña`, `Capitán`, `Fray`). An abbreviation is read as one only where it is written as one: with a point or a raised letter (`Fran.co`, `Pº`), or a contraction that is no word (`Xpoval`, `Glz`); a plain word is the word (the surname `Franco` is not `Fran.co`). A number is never set aside (`Dredge No. 1` and `Dredge No. 3` stay apart), nor is

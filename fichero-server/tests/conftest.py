@@ -1566,3 +1566,34 @@ def _no_embedder_leaks_between_tests():
         gone = cache.pop(name)
         if hasattr(gone, "close"):
             gone.close()
+
+
+class _HashedTextEmbedding:
+    """A stand-in for fastembed's `TextEmbedding`: the words of a text hashed into a 1,024-slot count vector, so two texts
+    that share words are near each other and two that share none are not. No model is read, nothing is fetched."""
+
+    DIM = 1024
+
+    def embed(self, texts):
+        import re
+        import zlib
+
+        for text in texts:
+            vector = [0.0] * self.DIM
+            for word in re.findall(r"\w+", str(text).lower()):
+                vector[zlib.crc32(word.encode("utf-8")) % self.DIM] += 1.0
+            if not any(vector):
+                vector[0] = 1.0
+            yield vector
+
+
+@pytest.fixture
+def hashed_text_embedder(monkeypatch):
+    """The search model is `_HashedTextEmbedding` for this test: the engine loads it in place of the pinned model, which a
+    test never fetches (#5188), so a test that wants real-looking neighbours gets them from shared words."""
+    from fichero_server.db import embed_process, embeddings
+
+    monkeypatch.setattr(embed_process, "load_text_embedding", lambda *_a, **_k: _HashedTextEmbedding())
+    monkeypatch.setattr(embeddings, "_EMBEDDER_CACHE", {})
+    embeddings.forget_load_failures()
+    yield

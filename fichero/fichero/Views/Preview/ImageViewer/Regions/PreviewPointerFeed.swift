@@ -20,6 +20,7 @@ struct PreviewPointerEvent: Sendable {
     var option = false
     /// ⌘ held: a drag of lines moves their shapes rather than reassigning them (`segment-editor.reassign-by-drag`).
     var command = false
+    var control = false
 }
 
 /// The seam through which AppKit hands the region layer its clicks and

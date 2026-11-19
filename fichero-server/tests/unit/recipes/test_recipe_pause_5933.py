@@ -203,3 +203,23 @@ def test_a_cleared_job_row_is_not_a_cleared_run_the_retake_adopts_it_666(db, mon
     assert json.loads(jobs.read_job(db, recipe)["detail"])["awaiting"]["child"] == "done-run"
     monkeypatch.setattr("fichero_server.api.routes.workflow.chains._step_run_outcome", lambda thread: ("completed", None))
     assert runner._adopt_step_run("done-run", recipe) == ("done-run", "done", None)
+
+
+def test_resume_on_a_recipe_parked_for_no_credit_forgets_the_pause_so_the_first_call_is_a_probe_6569(db, monkeypatch):
+    """The step's run paused for no credit; Continue on the recipe forgets that pause and the provider's dead mark."""
+    import json
+
+    from fichero_server.llm import retry
+
+    runner.register_job_kinds()
+    recipe = jobs.enqueue(db, runner.KIND, "resume-no-credit")
+    child = jobs.enqueue(db, "workflow", "thread-credit")
+    db.execute("UPDATE jobs SET state = 'paused', detail = ? WHERE id = ?", [None, child])
+    db.execute("UPDATE jobs SET detail = ? WHERE id = ?", [json.dumps({"awaiting": {"card": "read", "child": child}}), recipe])
+    monkeypatch.setattr(retry, "_PAUSED_FOR_CREDIT", {child: {"openai": {"provider": "openai", "cause": "out-of-credit", "detail": ""}}})
+    monkeypatch.setattr(retry, "_DEAD", {"openai": ("quota", 0.0)})
+    monkeypatch.setattr(retry, "_LAST_CREDIT", {"openai": ("out-of-credit", "")})
+    monkeypatch.setattr(runner, "_resume_step_run", lambda database, thread, recipe=None: None)
+    jobs.pause_job(db, recipe, False)
+    assert not retry._PAUSED_FOR_CREDIT and not retry._DEAD and not retry._LAST_CREDIT
+    clear_pause(child)

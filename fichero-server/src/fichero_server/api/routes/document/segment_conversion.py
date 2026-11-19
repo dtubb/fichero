@@ -1608,6 +1608,8 @@ def apply_edit_to_segments(
                         reshaped_now.version if reshaped_now is not None else keep_row.version
                     ),
                     "member_box_indexes_added": member_indexes,
+                    # The joined readings the merge wrote onto the kept segment: undo retracts them.
+                    "representation_ids": merged["after"]["representation_ids"],
                 },
             },
         }
@@ -1651,6 +1653,8 @@ class SegmentUncombineParams(BaseModel):
     #: undoing once removes only the second combine's members and leaves
     #: the first's.
     member_box_indexes_added: list[int] = Field(default_factory=list)
+    #: The joined readings the combine's merge wrote on the kept segment; `segment.unmerge` retracts them.
+    representation_ids: list[str] = Field(default_factory=list)
 
 
 def _action_uncombine(db: Any, params: SegmentUncombineParams, ctx: ActionContext):
@@ -1676,7 +1680,8 @@ def _action_uncombine(db: Any, params: SegmentUncombineParams, ctx: ActionContex
     _unmerged, unmerge_spec = _action_unmerge(
         db,
         SegmentUnmergeParams(
-            versions=params.versions, expected_versions=params.expected_versions
+            versions=params.versions, expected_versions=params.expected_versions,
+            representation_ids=params.representation_ids,
         ),
         ctx,
     )

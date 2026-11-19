@@ -188,6 +188,17 @@ document is deliberate. `SourceAnchor.document_id` stays required.
   the version in the `pyproject.toml` it runs from, not an older install's metadata in its venv (seen
   2026-10-11: `backend_version` 2026.9.20 beside contract 2026.10.11); a built engine, with no
   `pyproject.toml` beside its package, reports its distribution's. Same test file.
+- `contract.release-engine-reports-its-release` — **[OK]** (#6723) a release's engine reports the release it shipped in,
+  "2026.11.18 (29)" (version and build), as `backend_version` and in a bug report's `engine_version`, not its distribution's
+  version, which is the API contract's (seen 2026-11-18: an engine reporting 2026.10.30 in a 2026.11.18 release). The
+  contract version is reported apart, as `contract.version` in health and `contract_version` in a bug report.
+  `scripts/stamp_release_into_engine.sh` writes `fichero_server/release-stamp.txt` ("<version> <build>") into the staged
+  engine in `build-release-dmg.sh`, before signing; the file is never tracked. A source checkout and an unstamped build
+  report what they did before. `release_guard.smoke` refuses to publish a DMG whose engine stamp is missing or differs
+  from the app's `CFBundleShortVersionString` and `CFBundleVersion`; the Mac app's launch check compares the
+  contract version, not the release one, to its stamps, and the pairing version-mismatch sentence
+  (`sharing.version-mismatch-says-which-side`) keeps comparing contract versions on both Macs. Tests: `fichero-server/tests/unit/api/test_engine_reports_its_release_6723.py`
+  (a stage stamped with 2026.11.18 build 29 resolves to `2026.11.18 (29)`), `fichero-server/tests/unit/scripts/test_release_guard.py`.
 - `contract.identity-guard-sees-code-drift` — **[GAP]** (#5080) the contract-identity guard fails when the committed contract no longer describes the code, not only when it differs from its own hash.
 
 ## Future (ideas, not scheduled)

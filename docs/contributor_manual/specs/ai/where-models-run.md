@@ -27,7 +27,14 @@
 > - `source/models-chains-and-projects.md` — the card, the rules, the bake-off, discovery, the
 >   egress gate (`source.model.*`, `source.find.*`, `source.egress.*`), and #5582's paragraph,
 >   "The best model, and the best place to run it", which this spec expands.
-> - `ui/activity-and-automatic-work.md` — the one job model and its lanes (`activity.*`).
+> - `ui/activity-pane.md` — the one job model and its lanes (`activity.*`).
+>
+> **Owns / Does not own.** This spec OWNS the engine's rule for which model runs where: the pair, the catalogue of places and
+> their egress class, how offers are made and ranked, the one egress gate, the spend caps and the one retry policy. It does NOT
+> own: the window that shows every model and place with its account (`ui/models-and-compute-window.md`); the Activity rows
+> (`ui/activity-pane.md`); what happens when a place fails mid-run, which kinds pause and the one alert
+> (`compute/runner-reliability.md`); a recipe run's journey (`source/recipes-run.md`); the Set Up screens that show the offers
+> (`source/recipe-designer.md`).
 
 ## Intent
 
@@ -334,9 +341,6 @@ person, never silently (`ai.where.fallback-free-and-asked`).
 - `ai.where.hf-endpoint-is-a-place` — **[GAP]** (#5588) a dedicated Hugging Face Inference
   Endpoint can be added as a place (its URL, the one Hugging Face token, its hourly price and
   cold start shown), distinct from the shared Inference Providers router (`llm/__init__.py:4197`).
-- `ai.where.place-status-is-probed` — **[BROKEN]** (#5367, #4303) a place's state in Settings is a
-  probe's result; today the dot is `isLocalProvider || hasApiKey`
-  (`ProvidersView+ProviderSettingsRow.swift:40`), so a stopped remote Ollama shows green.
 
 ### B. The pair
 
@@ -471,11 +475,11 @@ person, never silently (`ai.where.fallback-free-and-asked`).
   (`llm/retry.py`), and five (`DEFAULT_BREAKER_THRESHOLD`) of them in a row, with no answer between, fail the provider
   fast for 30 s engine-wide; our own wall-clock budget for a call running out is raised at once, not retried; **fatal** (401,
   402, `insufficient_quota`, a key limit) opens the breaker at once with no retry and the provider is failed fast for 30 s
-  engine-wide; anything else is raised at once. Each try takes the lane slot and the cloud spend hold again, so a backoff holds neither. *Not built (same retry layer, not yet reached):* the Hub's inference API
+  engine-wide, EXCEPT a 402 whose reason is `in_flight_budget_exhausted` (OpenRouter: the request would exceed the key's credit given its calls still in flight; #6671), which is a **slow-down**: it is retried after the in-flight calls settle, halves that provider's in-flight cap (floor 1; the cap rises by one for every 4 answers, up to its start), never opens the breaker, and when its retries are spent the run pauses with the cause (`activity.limits.rate-limit-backs-off-then-pauses`), no page failed; a 402 with no such reason stays fatal; anything else is raised at once. Each try takes the lane slot and the cloud spend hold again, so a backoff holds neither. *Not built (same retry layer, not yet reached):* the Hub's inference API
   (`vision_inference_api`), streaming (`astream`) and the unused `abatch` run without it, so each is one send with no
   retry; the workflow vision tool's `hold_lane` still wraps its whole retry loop (the backoff holds the network slot
   there), `ai.where.retry-outside-the-slot`. *Test:* `fichero-server/tests/unit/llm/test_one_retry_layer_5944.py` (including a chat turn that gets a 429 then an answer),
-  `fichero-server/tests/unit/workflows/test_circuit_breaker.py`.
+  `fichero-server/tests/unit/workflows/test_circuit_breaker.py`, `fichero-server/tests/unit/workflows/test_in_flight_budget_6671.py`.
 - `ai.where.dead-provider-says-why` — **[PARTIAL]** (#5944; review ## 950) a provider that cannot answer is failed fast for 30 s (`ai.where.one-retry-policy`), and it keeps its CAUSE, typed: **no credit** (402, insufficient_quota, a key limit) is `ProviderQuotaExhaustedError`, a **refused key** (401, an invalid key) is `ProviderKeyRefusedError`, and a **rate limit** that keeps coming is `ProviderRateLimitedError` (`workflows/circuit_breaker.py`, `fatal_cause`; the dead mark in `llm/retry.py` holds the cause beside the time). Every later call raises that cause's error in plain words that name the provider and the fix and never the breaker's internals: no credit says to add credit (never to wait for a quota to reset), a refused key says to check the key in Settings, only a rate limit says to run it again in a few minutes. The vision tool classes it by cause (`no_credit`, `key_refused`, `rate_limited`; none retried; `classify_vision_failure`). All three still are `ProviderRateLimitedError`, the class the callers catch. *Tests:* `fichero-server/tests/unit/llm/test_provider_dead_keeps_its_cause_950.py` (one per cause, the words, the breaker's own raise, the vision kind). Unrun on the M4. The app shows the engine's words for these as sent: the workflow output log's error cell (`ErrorStatusCell.cellText`) shows the engine's first sentence for EVERY error and keeps no labels of its own ("No credits", "Rate limit" were guesses from substrings of the engine's prose; the status carries the message only, with no error kind to switch on); test `fichero/Tests/Unit/general/Views/ErrorStatusCellWordsTests.swift` (Swift, needs compile: builder). The Activity row and its details already show the engine's reason as sent.
 - `ai.where.one-cloud-cap` — **[PARTIAL]** (#5358) one cap on calls to a place, inside or outside a
   project; today the lane's 4 and a process semaphore of 12 (`llm/__init__.py:138,1504-1510`).
@@ -517,19 +521,22 @@ person, never silently (`ai.where.fallback-free-and-asked`).
   for a reason of the place (server down, quota, key missing), its page runs at the step's next
   alternative place for the same card, only one the person accepted at Start and only a free one
   (`.fallback-free-and-asked`); the row and the run account say so. Not built: a run never moves
-  a page by itself; only the Start offer above is.
+  a page by itself; only the Start offer above is. (2026-11-18) The ruling this line waited for is the one above it
+  (free, the same card, asked, never silent); what happens mid-run when no accepted alternative exists is the one
+  contract's: the run PAUSES and asks (`compute/runner-reliability.md` §1-2, `runner.no-fallback-without-asking`), never
+  a different model and never a failed page for a cause of the place.
 - `ai.where.app-keeps-memory` — **[PARTIAL]** (#5537) a local model that does not fit now waits
   while the engine releases its own idle models; built for MLX and Kraken
   (`llm/local_inference.py:137-204`), not for other runtimes or local servers.
 
 ### G. What the person sees
 
+Moved 2026-11-18 (one owning spec per area): `ai.where.settings-lists-places` and `ai.where.place-status-is-probed` to
+`ui/models-and-compute-window.md` section C (the window lists every place with a probed state); `ai.where.activity-shows-the-place`
+to `ui/activity-pane.md`. `ai.where.ready-shows-the-pair` stays here: Ready shows the offers this spec defines.
+
 - `ai.where.ready-shows-the-pair` — **[GAP]** (#5582) Ready names each step's model and place, cost,
   time, egress and account, and the next-best offer.
-- `ai.where.activity-shows-the-place` — **[GAP]** (#5582) Activity's rows and run account show the
-  place for every call and the cost per place.
-- `ai.where.settings-lists-places` — **[GAP]** (#5454, #5367) Settings, AI, "Where models run" lists
-  the places with probed state, egress class and account.
 
 ### H. Batch places
 
@@ -608,5 +615,5 @@ person, never silently (`ai.where.fallback-free-and-asked`).
   rows become one "Where models run" list of places.
 - `compute/jobs-and-fine-tuning.md`: `compute.job.choose-where` is this spec's offers list for batch
   places; `compute.job.costs-shown-where-known` rolls into `ai.where.hourly-cost-in-the-account`.
-- `ui/activity-and-automatic-work.md`: a call row gains a `place`; the `network` lane's share is
+- `ui/activity-pane.md`: a call row gains a `place`; the `network` lane's share is
   per place, not per provider type.

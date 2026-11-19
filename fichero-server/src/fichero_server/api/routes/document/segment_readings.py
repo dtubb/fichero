@@ -1791,14 +1791,12 @@ def document_text(
         # assembled from one pass's readings in another pass's order would be a
         # sentence nobody wrote.
         from fichero_server.api.routes.document.reading_orders import (
-            entries_in_sequence,
             order_for_text,
+            segment_ids_in_reading_sequence,
         )
 
         named_order = order_for_text(db, order)
-        ordered_segment_ids = [
-            row.segment_id for row in entries_in_sequence(db, named_order.id)
-        ]
+        ordered_segment_ids = segment_ids_in_reading_sequence(db, named_order.id)
     if pass_id is not None:
         candidates = _pass_candidates(db, document_id)
         answer = PassAnswer(pass_id=pass_id, basis=PassBasis.chosen)

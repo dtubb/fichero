@@ -21,7 +21,7 @@
 > **Where this sits.** Three specs describe one machine and must agree:
 > - `source/models-chains-and-projects.md` says **what** a model is (the card, `source.model.*`),
 >   what a job takes and gives, how a recipe names a model, and how candidates are ranked.
-> - `ui/activity-and-automatic-work.md` says **when and where** work runs (the one job model,
+> - `ui/activity-pane.md` says **when and where** work runs (the one job model,
 >   lanes, load once, group by model, co-run only if it fits, measure the processors).
 > - **This spec** says **how** each runtime runs: how it ships, its card id, how it loads and stays
 >   resident, its batching and accelerator, its measured memory, how it reports as a job, how its
@@ -466,6 +466,11 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
   memory, model missing, unavailable in this build), message words only for an exception with no type; its test
   `fichero-server/tests/unit/workflows/test_errors_are_typed_5353.py` is written, green NOT yet seen (no pytest during
   gate3). Still a gap: "needs a key" has no exception type of its own yet, and the other call sites pass text only.
+  (2026-11-18) The typed kinds are the one table's (`llm/failure.py`, `compute/runner-reliability.md` §1); three runtime
+  errors still reach it untyped and read "Something went wrong in Fichero": Kraken's "reader is not on this Mac yet"
+  (`llm/kraken_runtime.py` `resolve_recognition_model`, a plain RuntimeError), MLX's "not set up / could not set up"
+  (`llm/mlx_runtime.py`), and spaCy's absent default pipeline (which returns `[]` instead of raising). The contract's
+  `runner.local.kraken`, `runner.local.mlx` and `runner.local.spacy` own the fix.
 
 ### E. Honest status
 
@@ -544,7 +549,7 @@ Engine first: the estimate and the five-step factor as a pure function with its 
   `.jobs-replace-capabilities` into its "Model cards" list (or point to them here); the activity
   spec already cites `source.model.runs-here`, which no spec defined until this one. Its recipe
   YAML pin forms are the split form of the card id.
-- `ui/activity-and-automatic-work.md`: *done 2026-10-04, absorbed into `activity.global-work-is-the-macs`.* Add `activity.first-use-download-is-a-job` (a model fetched
+- `ui/activity-pane.md`: *done 2026-10-04, absorbed into `activity.global-work-is-the-macs`.* Add `activity.first-use-download-is-a-job` (a model fetched
   on first use is a child `download-model` job and the step waits with "Waiting for model
   download") and `activity.recipe-adoption-prefetches` (adopting a recipe enqueues downloads for
   its missing pinned cards); its lane table should list Whisper, Tesseract, YOLO and the resident

@@ -1,7 +1,7 @@
 """'Run automatically' keeps working while the person uses the Mac, slower; it holds back fully only on battery,
 memory pressure, heat or a build (#5819, `activity.throttle.use-means-slower`).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md. Seen live: a Transcribe run sat on
+Spec: docs/contributor_manual/specs/ui/activity-pane.md. Seen live: a Transcribe run sat on
 "Waiting: you're using the Mac" for a long time. The throttle's real probes with the Mac's signals faked.
 """
 from __future__ import annotations

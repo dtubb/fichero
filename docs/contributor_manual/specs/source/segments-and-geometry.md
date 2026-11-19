@@ -812,13 +812,13 @@ Passes, orders, links
   stored flag. The order: a person's live choice; then a pass a person made or touched; then the newest
   of the rest. **An import has no rank of its own (ruled 2026-10-04, #5443):** it is just the first
   pass, ranked by date among the passes nobody touched, and says what made it where the file does.
-  **Built 2026-10-04 (#5443, #5425):** `resolve_working_pass` lost its "imported" tier (on Mosquera it
+  **Built 2026-10-04 (#5443, #5425):** `resolve_working_pass` lost its "imported" tier (on the notebook corpus it
   had made a geometry-free TEI import of a Qwen-VL draft the working pass of 358 of 374 pages, over
   the Gemini reading of Kraken's lines), so a run's newly landed pass is working with no promote; a
   person's choice beats it; an outside edit from a synced folder still never wins until chosen; and
   the app draws the engine's working pass first rather than its own copy of the ladder. The Order tab
   lists the working pass's own `as-written` order: the engine lists it first (#5450; before, any pass's
-  order could come first, and on C01_030 the tab showed Apple Vision's lines). Pinned by
+  order could come first, and on test page 30 the tab showed Apple Vision's lines). Pinned by
   `fichero-server/tests/unit/api/test_an_import_has_no_rank_of_its_own.py` and
   `fichero/Tests/Unit/general/Models/WorkingPassRankingTests.swift` (the same cases). **One place
   (#5467, engine half built 2026-10-04):** the engine picks a page's working pass in ONE function,
@@ -843,7 +843,7 @@ Passes, orders, links
   setup's scripts and its languages' usual scripts; no test when it names none, or a script letters
   cannot tell, such as `Jpan`) ranks after every sound machine read (`doubtful_read`, judged from the
   pass's source result's text). Newest still wins among the sound reads; a page with one read keeps it;
-  a person's choice and a person's work win as before. On the demo c01_012_right.jpg's Apple Vision
+  a person's choice and a person's work win as before. On the demo a test page image's Apple Vision
   regions read (250,355 characters, Cyrillic) was the working text over its Kraken read. Pinned by
   `fichero-server/tests/unit/api/test_a_noisy_read_is_not_the_working_pass.py`. Not built: preferring the
   recipe's own read step's pass by its model (the rule judges the noise, not the reader). The app's copy of the ladder

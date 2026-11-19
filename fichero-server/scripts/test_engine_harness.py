@@ -146,6 +146,9 @@ class EngineHarness:
         # #4537 class rule: the engine's own dotfiles/state land in the
         # disposable app-home, never the real container or real $HOME.
         env["HOME"] = str(self.app_home)
+        # A caller's own base path (a test run's, whose process holds its app.duckdb) would override the disposable
+        # home: the engine then fought that process for the lock and answered /api/health with 500.
+        env.pop("FICHERO_BASE_PATH", None)
         # The seeded library lives in this per-run temp dir, which is OUTSIDE the
         # engine's home-derived allowed roots (HOME is the disposable app-home).
         # Whitelist it explicitly so the engine's library-open path check

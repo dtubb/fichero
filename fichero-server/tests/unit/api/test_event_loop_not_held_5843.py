@@ -36,17 +36,23 @@ def _loop_turn_during(blocking_call) -> float:
     return asyncio.run(go())
 
 
-def test_get_stats_runs_off_the_loop(monkeypatch):
+def test_get_stats_runs_off_the_loop(monkeypatch, tmp_path):
     from fichero_server.api import main
 
     def slow_stats():
         time.sleep(1.5)  # lancedb opening
         return {}
 
-    db = SimpleNamespace(all=lambda _model: [], count=lambda _model: 0, embedding_stats=slow_stats)
+    db = SimpleNamespace(
+        path=tmp_path / "x.duckdb",
+        count_committed=lambda _model, **_kw: 0,
+        count=lambda _model: 0,
+        embedding_stats=slow_stats,
+    )
+    request = SimpleNamespace(headers={})
     monkeypatch.setattr(main, "EmbeddingStatsResponse", lambda **_kw: None)
     monkeypatch.setattr(main, "LibraryStatsResponse", lambda **_kw: None)
-    assert _loop_turn_during(lambda: main.get_stats(db)) < 1.0
+    assert _loop_turn_during(lambda: main.get_stats(request, db)) < 1.0
 
 
 def test_vision_locales_are_never_loaded_on_the_loop(monkeypatch):
@@ -71,12 +77,13 @@ def test_vision_locales_are_never_loaded_on_the_loop(monkeypatch):
 def test_the_activity_poll_reads_the_job_table_off_the_loop(monkeypatch):
     from fichero_server.api.routes.system import activity
 
-    def slow_snapshot(_db):
+    def slow_snapshot(_db, **_kw):
         time.sleep(1.5)  # waiting on the transaction gate behind a write
         return []
 
     monkeypatch.setattr(jobs, "snapshot", slow_snapshot)
     monkeypatch.setattr(jobs, "waiting_reason_of", lambda *_a, **_k: None)
+    monkeypatch.setattr(jobs, "held_count", lambda _db: 0)
     monkeypatch.setattr("fichero_server.importers.derivatives.background_jobs_snapshot", lambda _lib: [])
     db = SimpleNamespace(path="/lib/x.duckdb")
     monkeypatch.setattr(activity, "get_activity_tracker", lambda _p: (_ for _ in ()).throw(RuntimeError("skip")))

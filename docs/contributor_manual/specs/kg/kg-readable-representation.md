@@ -358,14 +358,14 @@ often the wrong subject; not multilingual.
   an earlier sentence's subject; (v) a pronoun subject resolves ONLY to a NAMED antecedent in
   the SAME sentence (matched by identical `source_text`) — cross-sentence binding, or no
   `source_text` to prove sameness, drops the item rather than guessing. A recipient also now
-  keeps its preposition ("to Pedro Mosquera") rather than reading as the bare object — see
+  keeps its preposition ("to Pedro Ortega") rather than reading as the bare object — see
   `kg.read.object-slot-has-no-role` below for the ongoing scope of that specific gap. Pinned:
   `test_spacy_svo_validator.py::TestEnglishRecipientKeepsItsPreposition` (both tests),
   `test_pronoun_subject_resolution.py::TestPronounSubjectResolution` (all 6),
   `test_svo_write_quality.py::TestPronounSubjectsNeverLand` (all 3).
 
   **Fixed and tested, verified at HEAD (82937b118):** the Spanish impersonal "se" passive case
-  this paragraph previously reported as BROKEN — "Se vendió la mina a Pedro Mosquera" proposing
+  this paragraph previously reported as BROKEN — "Se vendió la mina a Pedro Ortega" proposing
   the mine as the seller, "Se le entregó la escritura" making the deed the one who delivered —
   no longer proposes the patient as the subject. The small Spanish model puts the patient at
   plain `nsubj` and marks the "se" itself: `expl:pass` for an impersonal/passive clause,
@@ -396,7 +396,7 @@ often the wrong subject; not multilingual.
   not proof the underlying data-corruption race is fixed — kept honest here as PARTIAL evidence,
   not [OK].
 - `kg.read.object-slot-has-no-role` — **[GAP]** (#4832) a proposed triple's object slot carries
-  no ROLE — a recipient ("to Pedro Mosquera") and a patient ("the mine") differ today only by
+  no ROLE — a recipient ("to Pedro Ortega") and a patient ("the mine") differ today only by
   whichever preposition survived in the text, not by a stored, queryable distinction the entry
   composer (`kg.read.biography`) could render on. Stated as INTENT for the composer work, not a
   regression: the recipient-keeps-its-preposition fix above (7c6f1aae5) makes the text itself
@@ -868,7 +868,7 @@ visible payoff.
    `entity_ids` (never just `svo_*` text), and the patch regenerates `claim.text` (7d, blocked
    on the engine). When a claim renders on more than one entity's page (e.g. a sale — direct on
    the seller's, inverse on the buyer's), the editor says so before saving ("also appears on
-   Pedro Mosquera's page") — mechanically this already works, since `claimStore.changeToken`
+   Pedro Ortega's page") — mechanically this already works, since `claimStore.changeToken`
    triggers a re-read on every page showing that claim (`EntityDigestView.swift:286`). →
    `kg.read.edit-unit-is-the-claim`, `kg.read.sentence-opens-source-highlighted`.
 8. **Guard and honesty (engine).** A no-LLM test that patches `llm.chat` to raise and asserts

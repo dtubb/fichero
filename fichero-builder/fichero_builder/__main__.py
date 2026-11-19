@@ -155,7 +155,7 @@ def main(argv=None) -> int:
     bc = sub.add_parser("build-check", help="the app's build rung over a lane's HEAD now, before its done: every error line with file:line and the log; a green result is reused by the ladder's build rung for the same tree; lands nothing")
     bc.add_argument("lane"), bc.add_argument("--root", default="."), bc.add_argument("--state", help="where the queue and the journal live")
     va = sub.add_parser("verify-all", help="everything on a checkout's HEAD verified before a dev DMG: every guard, the full engine suite (on [check].remote), the app build; one `verify` row; --build makes the dev DMG only after a green verdict")
-    va.add_argument("--root", default="."), va.add_argument("--state", help="where the journal lives"), va.add_argument("--build", action="store_true")
+    va.add_argument("--root", default="."), va.add_argument("--state", help="where the journal lives"), va.add_argument("--build", action="store_true"), va.add_argument("--full", action="store_true", help="also the guards [check].guard_skip leaves to the nightly")
     db = sub.add_parser("daily-builds", help="what the build rung never compiles ([check.daily_builds]: the iOS app, the Swift test target), on [check].build_remote only; exit 0 green, 1 red, 2 could not run (#6390)")
     db.add_argument("--root", default="."), db.add_argument("--state", help="where the journal lives")
     hv = sub.add_parser("heavy", help="run a heavy command (xcodebuild, a full pytest run) under the machine's one-heavy-job lock; waits, and says who holds it after 30 s: builder heavy -- <cmd>")

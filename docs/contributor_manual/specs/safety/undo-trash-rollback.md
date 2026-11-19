@@ -267,7 +267,7 @@ These are requests, not edits. The files belong to their authors.
   wired, and wrong in the four ways listed above. Done 2026-10-10:
   `menus.undo-reaches-every-mutating-action` now points to `../ui/undo-everywhere.md`, which is
   the source for what Command-Z does in the app.
-- **To `ui/activity-and-automatic-work.md`** (which absorbed `ui/activity.md`): deleted runs join
+- **To `ui/activity-pane.md`** (which absorbed `ui/activity.md`): deleted runs join
   the Trash (slice 2); a run's own "take back" control is slice 4 (`activity.window.what-it-made`).
 
 ## How this is tested from the maintainer's side

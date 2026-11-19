@@ -37,10 +37,10 @@ and nodegoat's reconciliation lists (candidate pairs with evidence, accept or re
 
 ```
 ┌ Sidebar ─┬ Source (page image) ───────┬ Reader (text) ─────┬ Inspector ───────────────┐
-│ Project  │ names and spans marked:    │ the same marks;    │ Review ▸ GHC_B12 Doc06   │
+│ Project  │ names and spans marked:    │ the same marks;    │ Review ▸ a test letter   │
 │  Sources │ dashed = proposed,         │ click a mark →     │ 43 of 77 checked ▸ Next  │
-│   Doc06 ◀│ solid = confirmed,         │ row selected       │ ── Flagged (4) ─────────  │
-│   Doc07  │ hidden = rejected          │                    │ [merge?] A ≈ B  ✓ ⇄ ✗ ⏎  │
+│   Pg 06 ◀│ solid = confirmed,         │ row selected       │ ── Flagged (4) ─────────  │
+│   Pg 07  │ hidden = rejected          │                    │ [merge?] A ≈ B  ✓ ⇄ ✗ ⏎  │
 │          │                            │                    │ ── People (31) ──────────│
 │          │                            │                    │ ● Name  3 pp  ✓ ✎ ⇄ ✗    │
 │          │                            │                    │ ── Places (9) ───────────│

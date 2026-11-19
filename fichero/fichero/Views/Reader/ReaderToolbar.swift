@@ -133,6 +133,8 @@ struct ReaderToolbar: View {
     var annotationsEnabled: Binding<Bool>?
     /// Saved region marks show/hide (what-to-show menu, 2026-08-31).
     var regionsEnabled: Binding<Bool>?
+    /// Show Lines: the line segments on the page (`SegmentHierarchy.shows`).
+    var linesEnabled: Binding<Bool>?
     /// Draw each recognised word's text INSIDE its box (2026-08-31).
     var inlineTextEnabled: Binding<Bool>?
     /// "Show Order Numbers": the reading number on each line (the Preview's Display menu).
@@ -249,6 +251,10 @@ struct ReaderToolbar: View {
             }
             if let regionsEnabled {
                 Toggle("Show Regions", isOn: regionsEnabled)
+            }
+            if let linesEnabled {
+                Toggle("Show Lines", isOn: linesEnabled)
+                    .accessibilityIdentifier("previewShowLines")
             }
             if let inlineTextEnabled {
                 Toggle("Show Text Inline", isOn: inlineTextEnabled)

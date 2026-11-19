@@ -1,6 +1,8 @@
 # The builder as a sandboxed Mac app — Design Spec (#6345)
 
-> Milestone: builder-mac-app
+> **Status: SUPERSEDED 2026-11-18 (Phase 0 of `building-fichero-locally.md`).** Nothing is brought in now: all 12 behaviours are deferred by that spec's Deferred section (the web console reachable from the phone covers watching). They stay here as history, under their ids and tags, so nothing is lost; read `building-fichero-locally.md`.
+
+> Milestone: Builder
 > Manual: TBD — the contributor manual's "Running the builder" page must say how to install the app, grant it the
 > one folder it works in, read the console, and answer an alert; no user-manual section, this is a contributor tool.
 

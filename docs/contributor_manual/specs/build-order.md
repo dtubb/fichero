@@ -8,14 +8,14 @@
 
 ## In order
 
-1. `dev-workflows` — the harness itself; runs beside the product lane, built by hand by the harness builder. Spec: harness/dev-workflows.md
+1. `Builder` — the harness itself (the milestone was `dev-workflows` in this file and `dev-orchestration-harness` on GitHub until the Phase 0 batch); runs beside the product lane. Spec: harness/building-fichero-locally.md
 2. `image-enhancement` — the one product lane tonight (Step 1.1 landed first). Spec: source/image-enhancement.md
 3. `Sharing & Pairing — Dead-Simple UX` — spec APPROVED with 27 steps; rename the milestone to `sharing-two-macs` when triage runs. Spec: source/sharing-two-macs.md
 4. `recipe-designer` — wide onboarding; the recipe phases R1–R5 go into its build order first. Spec: source/wide-onboarding.md
-5. `recipes-run` — running things and watching them
-6. `activity` — running things and watching them
-7. `workflows` — running things and watching them
-8. `workflow-node-config` — running things and watching them
+5. `recipes-run` — running things and watching them: a recipe run from Start to the summary. Spec: source/recipes-run.md; how any run fails, pauses and goes on: compute/runner-reliability.md
+6. `activity` — running things and watching them: the Activity pane and window, the one job model. Spec: ui/activity-pane.md
+7. `workflows` — running things and watching them: the workflow editor and bar. Spec: ui/workflows.md
+8. `workflow-node-config` — running things and watching them. Spec: ui/workflow-node-config.md
 9. `source-model` — the data model and getting material in
 10. `importer` — the data model and getting material in
 11. `undo-trash-rollback` — the data model and getting material in

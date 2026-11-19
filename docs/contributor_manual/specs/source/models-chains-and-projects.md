@@ -21,7 +21,7 @@
 > describes); `ai/ai-settings.md` (section K) (where keys live); `ai/ai-settings.md` (section M)
 > (pickers list configured models and role defaults from one list builder); `ui/workflows.md`
 > and `ui/workflow-node-config.md` (a workflow is a saved graph of tool nodes; the workflow bar;
-> the locked default workflows); `ui/activity-and-automatic-work.md` (the one job model that
+> the locked default workflows); `ui/activity-pane.md` (the one job model that
 > **runs** a recipe, #5352); `compute/remote-compute.md`, `compute/jobs-and-fine-tuning.md` and
 > `compute/distillation.md` (where work runs; training; teaching a small model from a big one);
 > `source/formats-and-training.md` (ground truth, measuring, training sets);
@@ -31,17 +31,17 @@
 
 ## The golden path (north star, ruled 2026-10-04)
 
-The Mosquera goal is a recipe that anyone can run through the app, not a model made by hand. This is
+The notebook-corpus goal is a recipe that anyone can run through the app, not a model made by hand. This is
 that path, end to end, as one behaviour. Each step names its card, its screen, its engine route, its
-Activity rows and its state. A step marked ✱ is one that Sergio's project does today by API or CLI,
+Activity rows and its state. A step marked ✱ is one that the notebook corpus's project does today by API or CLI,
 so it is a gap in the app, whatever the engine has. Each step also names the MCP tool that drives it:
 all Fichero work, by a person or an agent, goes through the app or its MCP tools and API, and a
 missing tool is written (spec, test, code) before the step is done another way (ruled 2026-10-04).
 
-Mosquera is practice. The target the path is built for is an archive of about 80,000 images with
+A notebook corpus is practice. The target the path is built for is an archive of about 80,000 images with
 many scripts and hands and many damaged pages; the scale behaviours below the table say what that
-asks of every step. Two rulings of 2026-10-04 are being written up in Sergio's specs and are only
-cited here: Mosquera is not split, and whether a volume is split or read by page regions is an open
+asks of every step. Two rulings of 2026-10-04 are being written up in the notebook corpus's specs and are only
+cited here: a notebook corpus is not split, and whether a volume is split or read by page regions is an open
 question (leaning to regions); and an import has no rank of its own (`source/source-model.md`, the
 readings).
 
@@ -55,14 +55,14 @@ readings).
   Built: one Start runs split, lines, read, check, names, statements, export and publish as one
   `run-a-recipe` job (`recipes/runner.py`). Not built: a sample scope, the clean-set, training,
   evaluation and choose steps as recipe steps, reading away from this Mac, and screens for the ✱
-  steps. *Test:* a named-machine journey (`source.onboard.*` journeys, section 14) on a small Mosquera
+  steps. *Test:* a named-machine journey (`source.onboard.*` journeys, section 14) on a small notebook corpus
   volume, with the engine half driven through the public routes in automation.
 
 | # | Step | Card | Screen | Engine route | MCP tool | Activity rows | State |
 |---|---|---|---|---|---|---|---|
 | 1 | Setup: what you have, what you want | project setup, purpose | first-run recipe screens (`FirstRunWindow+Recipe`, `RecipeSetupFields`) | `GET`/`PUT /api/recipes/project`, `/purposes`, `/languages`, `/scripts`, `/derived`, `POST /api/recipes/assemble` | missing (#5455) | none (no job) | PARTIAL (#4951; `source.onboard.five-questions`) |
 | 2 ✱ | Choose a route: cloud, this Mac or distil, with time, cost, GHG for the whole archive | the routes | none | `GET /api/recipes/routes` (no app caller) | missing (#5455) | none | GAP in the app (#4951, #5404; `source.onboard.routes-for-the-volume`); GHG #5420 |
-| 3 | Split, or page regions | `split-pages`, or regions | Start (`RecipeStepsView`) | `POST /api/recipes/project/start` | `fichero_workflow_run` (a step, not the recipe) | `run-a-recipe` → step → workflow run → pages | OPEN QUESTION: Mosquera is not split and its recipe drops the step; split against page regions is open (Sergio's spec, leaning to regions; #4951) |
+| 3 | Split, or page regions | `split-pages`, or regions | Start (`RecipeStepsView`) | `POST /api/recipes/project/start` | `fichero_workflow_run` (a step, not the recipe) | `run-a-recipe` → step → workflow run → pages | OPEN QUESTION: a notebook corpus is not split and its recipe drops the step; split against page regions is open (the notebook corpus's spec, leaning to regions; #4951) |
 | 4 | Kraken lines | `find-lines` | Start | the same | `fichero_workflow_run` | pages on the local-model lane | PARTIAL (Kraken provisioned automatically) |
 | 5 ✱ | A teacher reads a sample | `read-a-line` / `read-a-page`, sample scope | none | none: Start reads every page | missing: a sample scope (#5455) | none | GAP (`source.onboard.samples-first`, `distill.collect.sample-covers-scope`, #5337) |
 | 6 ✱ | Check, by Fable or a person | `check` | no start or results screen | `POST /api/check/runs` (`check: line-against-page` for the teacher-line check) | `fichero_check_run`, `_status`, `_verdicts` | a `check` job; the teacher-line check a `check-lines` job | PARTIAL (#5404, #5446; `source.check.run-is-a-job`, `source.lines.reading-checked-against-the-page`) |
@@ -73,7 +73,7 @@ readings).
 | 11 | Read the archive | the chosen reader | Start | Start, on this Mac; Hugging Face Jobs by shard; ✱ no route for Rorqual | `fichero_read_at_scale` (Hugging Face), `fichero_reading_status`; Rorqual missing (#5457, #5454) | pages on the lanes; shards as rows | this Mac PARTIAL; Hugging Face PARTIAL; Rorqual GAP (#5457, #5238) |
 | 12 | Names and statements | `find-names-tag-words`, `find-statements` | Start | Start | `fichero_workflow_run` | workflow runs | PARTIAL (`source.job.find-statements`) |
 | 13 | Check | `check` | as step 6 | as step 6 | as step 6 | as step 6 | PARTIAL (#5404) |
-| 14 | Publish | `publish` | Start | Start (an 11ty site); ✱ a Hugging Face dataset or model: no screen | missing for the Hub (#5455) | the recipe's step | site PARTIAL (`source.job.publish`); Hub GAP (`compute.publish.*`). Sergio's data: train yes, release no |
+| 14 | Publish | `publish` | Start | Start (an 11ty site); ✱ a Hugging Face dataset or model: no screen | missing for the Hub (#5455) | the recipe's step | site PARTIAL (`source.job.publish`); Hub GAP (`compute.publish.*`). The notebook corpus's data: train yes, release no |
 
 At the scale of the real archive (about 80,000 images, many scripts and hands, many damaged pages),
 ruled 2026-10-04:
@@ -876,7 +876,7 @@ a step by hand, always sees progress and results, and nothing fails without sayi
 steps (`FirstRunWindow`, `RecipeSetupPlanFields`, `RecipeStepsView`, `RecipeSetupStore`), the engine's
 `recipes/assemble.py`, `start.py`, `runner.py`, `done.py`, `jobs.py`, `answers.py`, `seed/cards.yaml`,
 `api/routes/system/recipes.py` and `importers/derivatives.py`, against `source/finding-documents.md`,
-`compute/jobs-and-fine-tuning.md` (memory, runs, read again) and `ui/activity-and-automatic-work.md`.
+`compute/jobs-and-fine-tuning.md` (memory, runs, read again) and `ui/activity-pane.md`.
 Three cases were traced end to end.
 
 **The order after Start, by kind of material (the target).** Each stage is a job with its rows in
@@ -899,7 +899,7 @@ Activity; a stage that cannot run says why and the stages that do not need it ca
   peak-memory sentence the engine already writes for a step on this Mac's model server.
 - **The plan:** lines and reading as one Kraken run, the reader chosen by rule. PP-OCRv6 ranks first
   because its card carries a published aggregate CER of 3.9% over 44 languages, and no other reader
-  has a figure; the same reader measured 24.6% on Mosquera pages on 2026-10-05/06. Then correcting
+  has a figure; the same reader measured 24.6% on notebook-corpus pages on 2026-10-05/06. Then correcting
   with the 3B local vision model (the 7B is refused on 8 GB), names with spaCy's Spanish pipeline, and
   dates by the Gregorian rules. Statements and authority links have no model card, so setup shows them
   with a problem and a fix. Search **has** a card in setup, but Start has no runner card for
@@ -1104,7 +1104,7 @@ plan's peak memory across steps. Ready shows none of it.
   `fichero/Tests/Unit/general/Models/ProjectRunStripTests.swift`. *Not built:* waiting on a download
   (a run never waits for one; Start is refused until it is here).
 - `source.read.batch-of-one` — **[PARTIAL]** (#5854; measured 2026-10-19 on the M4, one 33-line page, PP-OCRv6 medium, plain Kraken) the reader sends **one line at a time** through the network, whatever memory there is. A batch pads every line crop to the widest in it, and the page paid for the padding: batch 1 read the page in 3.0 s, 2 in 7.2 s, 4 in 5.1 s, 8 in 5.5 s, 16 in 43.5 s, 33 in 54.0 s (threads, QoS and the worker thread made no difference). This retires the review 279 floor of 8 lines while memory is not short, which made the engine's recognise 36-110 s a page against a 10 s target. Memory can no longer shrink it below one. *Test:* `fichero-server/tests/unit/llm/test_kraken_batch_bounded_5758.py`. Re-benched on the M4 (4 pages through the engine seam, `fichero-server/scripts/bench_reading.py`): median page 50.1 s before, **9.1 s** after (recognise p50 44.9 s to 4.0 s). A CATMuS-page bench is queued with the tester.
-- `source.read.pages-at-once-scales` — **[PARTIAL]** (plan; owner 2026-10-19, speed round 2; #5846) **this line owns N, the number of pages read at once; `source.read.two-pages-at-once` is the built mechanism (the gate, the page notes) and takes N from here; the lane's side is `activity.lane.same-model-pages-together` in `docs/contributor_manual/specs/ui/activity-and-automatic-work.md`.** **Plainly (owner's ruling 2026-10-20, #5931): N is the Mac's PERFORMANCE cores, held down by memory; the efficiency cores stay for the app and the person.** *Built, unrun until an M4 pass:* `core.cores.cores_available` gives the cores (a Mac's `hw.perflevel0.physicalcpu` through sysctlbyname in ctypes, never a child process, #4555, else half of `hw.physicalcpu`; `source.read.threads-fit-the-machine` owns the other machines), and `pages_at_once` is that number, on a Mac only, for a person's fast run, through `page_fan_out`. Tests: `fichero-server/tests/unit/llm/test_kraken_two_pages_at_once.py` (fake cores; fake free memory for the cap and the floor of one; a cluster task or container reads one page), `fichero-server/tests/unit/core/test_threads_fit_the_machine_5953.py` (the sysctl cases). *Measured (M4, 4 performance cores):* segmenting a page (blla) is mostly Python under the GIL, so threads give 1.4x at two and nothing at four or eight (4.0, 2.9, 3.0, 4.0 s a page); reading (torch) releases the GIL and scales with its threads, sub-linearly; two whole pages side by side read 6 pages in 6.9 s a page against 9 to 10 one at a time; each page in flight holds about 1.5 GB beyond the model and a reader copy of about 60 MB. *N:* one for any run a person did not start (fewer while the Mac is in use, `activity.throttle.use-means-slower`); for a person's run, the least of: **the performance cores, gated at two until #5929 closes** (#5929 is torch's MPS destructor faulting at process exit, after every row has printed, not a fault in threads; the gate's reason is therefore unconfirmed, and the manager decides whether N rises on the M4 bench evidence alone or waits for the exit fix; `runtime.torch.exits-cleanly`) (there is no minimum core count: a Mac with few cores reads N = its performance cores like any other, the old "under four cores = one page" rule is gone; the owner's ruling is the target; `kraken_runtime.PAGES_AT_ONCE_GATE_5929` is lifted when #5929 is fixed and an M4 run at N=4 is clean), and what free memory beyond the model holds at 1.5 GB a page (`page_fan_out`, so one on an 8 GB Mac). Each page reads with the performance cores divided by N. When memory sets N below two, the run says so in words ("reading one at a time: two pages need 3 GB more than this Mac has free") *(not built yet: nothing emits this message today)*. *Observed, not the rule (M4 Air, fanless, 4 performance cores, 2026-10-20, `briefs/gil-proof-result-2026-10-20.md`):* blla alone in separate processes or threads plateaus at N=2 (16.0 to 27.7 pages/min, then flat to N=8 while CPU a page rises 4x); the engine reads 7.2, 9.6, 11.2, 9.6 pages/min at N=1, 2, 4, 8. It is not the GIL (processes do no better than threads), not our locks, not heat; a shared hardware limit is suspected and untested. The ruling stands: N follows the performance cores, and a Mac that does not scale to them is measured with `gil_proof.py procs --pools one`. *Many cores:* an 18-core Mac reads faster (torch) but segments no faster, so the run is bound by blla near 3 s a page; going past that needs blla in separate processes, which the engine cannot start safely today (a forked child of an engine that has run torch crashes; a fresh process cannot start inside the sandbox, #4555), or the cluster: one model load per Slurm array task (the hpc spec). *Bench:* `fichero-server/scripts/bench_reading.py --concurrency N`, N = 1, 2, 4, max, the same 8 pages: s a page, peak memory and the N chosen.
+- `source.read.pages-at-once-scales` — **[PARTIAL]** (plan; owner 2026-10-19, speed round 2; #5846) **this line owns N, the number of pages read at once; `source.read.two-pages-at-once` is the built mechanism (the gate, the page notes) and takes N from here; the lane's side is `activity.lane.same-model-pages-together` in `docs/contributor_manual/specs/ui/activity-pane.md`.** **Plainly (owner's ruling 2026-10-20, #5931): N is the Mac's PERFORMANCE cores, held down by memory; the efficiency cores stay for the app and the person.** *Built, unrun until an M4 pass:* `core.cores.cores_available` gives the cores (a Mac's `hw.perflevel0.physicalcpu` through sysctlbyname in ctypes, never a child process, #4555, else half of `hw.physicalcpu`; `source.read.threads-fit-the-machine` owns the other machines), and `pages_at_once` is that number, on a Mac only, for a person's fast run, through `page_fan_out`. Tests: `fichero-server/tests/unit/llm/test_kraken_two_pages_at_once.py` (fake cores; fake free memory for the cap and the floor of one; a cluster task or container reads one page), `fichero-server/tests/unit/core/test_threads_fit_the_machine_5953.py` (the sysctl cases). *Measured (M4, 4 performance cores):* segmenting a page (blla) is mostly Python under the GIL, so threads give 1.4x at two and nothing at four or eight (4.0, 2.9, 3.0, 4.0 s a page); reading (torch) releases the GIL and scales with its threads, sub-linearly; two whole pages side by side read 6 pages in 6.9 s a page against 9 to 10 one at a time; each page in flight holds about 1.5 GB beyond the model and a reader copy of about 60 MB. *N:* one for any run a person did not start (fewer while the Mac is in use, `activity.throttle.use-means-slower`); for a person's run, the least of: **the performance cores, gated at two until #5929 closes** (#5929 is torch's MPS destructor faulting at process exit, after every row has printed, not a fault in threads; the gate's reason is therefore unconfirmed, and the manager decides whether N rises on the M4 bench evidence alone or waits for the exit fix; `runtime.torch.exits-cleanly`) (there is no minimum core count: a Mac with few cores reads N = its performance cores like any other, the old "under four cores = one page" rule is gone; the owner's ruling is the target; `kraken_runtime.PAGES_AT_ONCE_GATE_5929` is lifted when #5929 is fixed and an M4 run at N=4 is clean), and what free memory beyond the model holds at 1.5 GB a page (`page_fan_out`, so one on an 8 GB Mac). Each page reads with the performance cores divided by N. When memory sets N below two, the run says so in words ("reading one at a time: two pages need 3 GB more than this Mac has free") *(not built yet: nothing emits this message today)*. *Observed, not the rule (M4 Air, fanless, 4 performance cores, 2026-10-20, `briefs/gil-proof-result-2026-10-20.md`):* blla alone in separate processes or threads plateaus at N=2 (16.0 to 27.7 pages/min, then flat to N=8 while CPU a page rises 4x); the engine reads 7.2, 9.6, 11.2, 9.6 pages/min at N=1, 2, 4, 8. It is not the GIL (processes do no better than threads), not our locks, not heat; a shared hardware limit is suspected and untested. The ruling stands: N follows the performance cores, and a Mac that does not scale to them is measured with `gil_proof.py procs --pools one`. *Many cores:* an 18-core Mac reads faster (torch) but segments no faster, so the run is bound by blla near 3 s a page; going past that needs blla in separate processes, which the engine cannot start safely today (a forked child of an engine that has run torch crashes; a fresh process cannot start inside the sandbox, #4555), or the cluster: one model load per Slurm array task (the hpc spec). *Bench:* `fichero-server/scripts/bench_reading.py --concurrency N`, N = 1, 2, 4, max, the same 8 pages: s a page, peak memory and the N chosen.
 - `source.read.threads-fit-the-machine` — **[PARTIAL]** (#5953, #5931; owner ruling 2026-10-20; cites `source.read.pages-at-once-scales` for N, gated at 2 until #5929, the exit-time MPS crash, closes) one rule gives the cores a run may use: `cores_available` (`core/cores.py`) is, under Slurm, `SLURM_CPUS_PER_TASK`; in a container, the cgroup quota (`cpu.max` quota / period, rounded up; `max` is none; version 1 `cpu.cfs_quota_us` too); on a Mac, the performance cores (`hw.perflevel0.physicalcpu`, falling back to `hw.physicalcpu` / 2); else the CPUs the process is allowed; never `os.cpu_count`. Torch threads per pipeline are `max(1, cores_available // N)`, set with `torch.set_num_threads` and `OMP_NUM_THREADS` / `MKL_NUM_THREADS` (before torch loads in a child); one model per GPU. A Mac reads N pages side by side (`pages_at_once`); a cluster task or a container reads one page pipeline and gets its parallelism from array tasks. The chosen numbers (source, cores_available, N, threads) are written in the run's Activity details (the page's call log). *Built, unrun until an M4 pass:* `core.cores.cores_available`, `background_compute.cpu_count` (the cores a run may use; the host's count survives only as `host_cpu_count`, Activity's display figure), `compute_preferences.apply_to_this_thread` and `embed_threads` built from it, `kraken_runtime._note_threads_chosen`. *Not built:* the cluster side (a Slurm array task sets its own N and threads when it runs `fichero-server`), one model per GPU. *Test:* `fichero-server/tests/unit/core/test_threads_fit_the_machine_5953.py` (each source with fakes: perflevel0, fallback, `SLURM_CPUS_PER_TASK`, `cpu.max` with a quota and with `max`, none; the thread split; a guard that `os.cpu_count` is not used for threads), `fichero-server/tests/unit/llm/test_kraken_two_pages_at_once.py`.
 - `source.recipe.steps-work-alone-in-order` — **[CONVENTION]** (#5939; owner ruling 2026-10-20) before any big batch (the ~800 folders, ~61,000 images), each recipe step must work on its own, in order, on a small set; the focus now is Find Regions and Read (segment and transcribe), and the later steps come one at a time after. Test (to write): a run of the step alone on the sample pages finishes with its output stored, before the next step is started.
 - `source.read.two-pages-at-once` — **[PARTIAL]** (speed round 2, 2026-10-19; measured on the M4, 8 pages, blla and PP-OCRv6 medium, the box loaded) a **person-started (fast) run reads pages side by side**, as many as `source.read.pages-at-once-scales` says (which owns N; the Mac's performance cores held down by memory, `kraken_runtime.pages_at_once`). Sequential read 9.7-10.2 s a page; segmenting page N+1 while reading page N, only 7.9-9.5; two whole pages at once on 5 threads each, 6.3. The seam's gate (`_PageGate`, still `_INFERENCE_LOCK`) lets that many pages in at once; taking it whole (the model lane unloading Kraken, `local_inference`) waits for every page and blocks new ones; `locked()` means any page is running. The page notes (`_PAGE`) belong to the page's own thread, a model loads once even when two pages ask at the same moment, and the idle release never frees a model while a page runs. The vision-level page gate (`_KrakenPageGate`, where the lane's Kraken jobs are enqueued) lets in the same number of pages, so two are queued at all (review 341, 343); the cores are split by the pages actually inside (one page reads with every core, two with half each). The lane must let two pages of the same model run together (bugs, `activity.lane.*`). *Test:* `fichero-server/tests/unit/llm/test_kraken_two_pages_at_once.py` and `fichero-server/tests/unit/jobs/test_kraken_page_gate_two_at_once.py`; `fichero-server/scripts/bench_reading.py --concurrency 2` reports s/page and the RSS peak. The gate and the seam decide "a person" from the RUN (`person_waits_on(db, run)`, set by `process_vision` for its context), never from the thread: a `workflow-<id>` thread has no job (review 344). Not yet benched through the engine. **The reader is copied per page, the segmenter is shared (#5685):** Kraken keeps a page's state on the reader (`_len`, `_line_iter`), so each page in flight reads on a reader of its own (`_own_reader`: `runtime.kraken.no-reader-copy-per-page`, one copy for each pipeline, handed from page to page), on both the segment-and-read path and the read of lines already found; the blla segmenter keeps none, so the one resident segmenter is shared by the pages at once. *Test:* `fichero-server/tests/unit/llm/test_kraken_segmenter_two_at_once_5685.py` (two pages segmented at once find what each finds alone) and `test_both_read_paths_take_their_reader_from_the_pool` in `test_kraken_two_pages_at_once.py`.
@@ -1605,7 +1605,7 @@ reading, names and dates worked out once: page 18 of the sixteenth-century manus
 *Diálogo de la Lengua* (Biblioteca Nacional de España, public domain; "Imagen procedente de los fondos de
 la Biblioteca Nacional de España"), its lines read after the DILE transcription (CC BY-SA 4.0, M. T.
 Carrasco Benitez, dir.; Alba Agraz Ortiz and Sara Sánchez Hernández), the same page and licence as the
-engine's paleography fixture. Never a project's own material, and never the private diary or Sergio papers.
+engine's paleography fixture. Never a project's own material, and never the private diary or notebook corpus papers.
 
 What each stage's picture does:
 
@@ -2056,7 +2056,7 @@ writes it, runs it, records it, or carries it:
 | Part | Its relation to the recipe |
 |---|---|
 | **Setup** (above) | **Writes** it: the purpose picks the steps; the answers and model cards pick the models by rule; the bake-off confirms them. |
-| **Activity and automatic work** (`ui/activity-and-automatic-work.md`, #5352) | **Runs** it: new material goes through the resolved recipe's automatic steps as jobs; because each job declares what it takes and gives, a correction re-queues exactly the later steps that depend on it (#5360, #5361). |
+| **Activity and automatic work** (`ui/activity-pane.md`, #5352) | **Runs** it: new material goes through the resolved recipe's automatic steps as jobs; because each job declares what it takes and gives, a correction re-queues exactly the later steps that depend on it (#5360, #5361). |
 | **The archive format** (`source-model.md`) | **Records** it: every pass, segment, reading and claim a step makes names the recipe and version that ran it, beside its maker, model and run, and lands as new work, never over a person's. |
 | **Export** (`formats-and-training.md`, `export/exporter.md`) | **Carries** it: an export package can include the recipe that made it, in the same RO-Crate. |
 | **The synced folder** (`synced-folder.md`) | Is an **output step's** destination, kept current as the work changes, and can work both ways. |
@@ -2111,7 +2111,7 @@ path, each step a job they can watch and stop:
    teacher-line check removes lines it misread (#5446), a local reader is fine-tuned (Hugging Face or
    this Mac) and measured on the same pages — #5526, #5527, #5444.
 4. **Use the winner** with the person's yes, and keep measuring as corrections arrive.
-Proved by hand on 2026-10-05/06 (Mosquera notebooks): the check removed 34% of Gemini's teacher lines
+Proved by hand on 2026-10-05/06 (notebook corpus): the check removed 34% of Gemini's teacher lines
 (about 700 read the line above); fine-tuning cut McCATMuS from 40.4% to 19.6% and PP-OCRv6 from 24.6%
 to 18.4% on ten checked pages, for about $1.15. Each hand step that night is a gap the issues close.
 
@@ -2544,8 +2544,8 @@ Jobs and chains
   reading is, in order: a person's checked reading, a checked model reading, then the newest model page
   reading. After alignment the line's counting reading is its aligned stretch; an earlier machine
   reading of the same line (Apple Vision's OCR, a stock Kraken read) stays as history and never counts
-  while a better reading of the line exists. On Mosquera this is 319 of 374 pages, whose only shaped
-  lines are Apple Vision's (C01_030: `WtrtNI-`, `¥eTIQ`) or stock Kraken's.
+  while a better reading of the line exists. On the notebook corpus this is 319 of 374 pages, whose only shaped
+  lines are Apple Vision's (test page 30: `WtrtNI-`, `¥eTIQ`) or stock Kraken's.
 - `source.read.once-lines-exist-every-reading-ties-to-a-line` — **[PARTIAL]** (#5721) done in the Transcribe tool: on a page that already has lines, Apple Vision (on each line's own picture, one line a call) and a vision model (the line reader, a few pictures a call) read each line onto the page's working pass, as Kraken does, with no second pass and the page's text left alone (`tests/unit/workflows/test_every_reader_ties_to_lines_5721.py`: `test_apple_vision_on_a_page_with_lines_reads_each_line_and_makes_no_second_pass_5721`, `test_a_vision_model_on_a_page_with_lines_is_shown_each_line_and_its_words_land_on_them_5721`, `test_an_auto_reader_on_a_page_with_lines_ties_to_them_whichever_it_resolves_to_5721`, `test_a_reader_never_replaces_the_text_of_a_page_that_has_lines_5721`); a page with text and no instruction to read again is still passed through as before (`test_a_page_that_has_text_and_no_instruction_to_read_again_is_not_read_5721`); a page with no lines read by a model says its text is tied to no line (`test_a_page_with_no_lines_read_by_a_model_says_its_text_is_tied_to_no_line_5721`); a run where only some pages have lines reads every page whole and names the one with no lines (`test_a_run_where_only_some_pages_have_lines_reads_every_page_whole_and_says_which_has_no_lines_5721`); a page whose lines came back with no reading is read whole, only that page, with a note (`test_a_page_whose_lines_came_back_empty_keeps_its_page_text_in_a_run_of_several_pages_5721`). Owed: a real run on a page like 39_Hoja_549_Recto.JPG; Apple Vision is given the line's padded polygon bounds, not its exact rectangle. On a page that already has lines
   (segments), every reader's output is a reading of those lines, whatever the reader is: Kraken, Apple Vision (run on
   the line's rectangle), an MLX or cloud vision model (shown each line's crop), or the one the recipe chose. Page-level
@@ -2677,13 +2677,13 @@ Jobs and chains
   the target line alone: the crop is cut to the line's own polygon with the outside masked (or the
   target is marked), never a crop in which a neighbouring line is more complete than the target. Before
   (2026-10-04) `llm/line_reader.crop_line` showed about two and a half lines with the target unmarked, and
-  on SM_NPQ_C01_005 lines 4–19 held the text of the line above; a check of the exported training set
+  on test page 5 lines 4–19 held the text of the line above; a check of the exported training set
   flagged a quarter of a two-photo trial as shifted. Built (2026-10-17): `crop_line` paints everything
   outside the polygon (widened by a sixth of the line's height, for ascenders) the crop's median paper
   colour; the runner's copy (`remote_read/runner.crop_line`) does the same, pixel for pixel; the training
   pairs, the checker's cards and the evaluation all cut through `crop_line`. Tested in
   `fichero-server/tests/unit/llm/test_read_the_marked_line_5445.py`. Not built: a real run on
-  SM_NPQ_C01_005 to count the lines that still read a neighbour; training sets exported before this
+  test page 5 to count the lines that still read a neighbour; training sets exported before this
   hold the old pictures and are built again.
 - `source.lines.reading-checked-against-the-page` — **[PARTIAL]** (#5446) *Built (2026-10-05): `POST /api/check/runs` with `check: line-against-page` (provider `kraken`, a Kraken reader) queues a `check-lines` job on the local model lane; `checking/line_check.py` reads each line of the pass again through `kraken_runtime.read_given_lines`, scores the reading (1 − accent-blind CER) against its own rough read and up to two same-column lines either side, and rejects (`check.verdict`, trust `model`, the scores in its reasons) a reading closer to a neighbour (beaten by 0.15 and itself at least 0.40) or below 0.30; passing lines get no verdict, and a line a person has checked is not checked again; `GET /api/check/runs/{id}` gives the counts and each flagged line with its scores. Built (2026-10-08, #5524): while the check runs or waits for memory, those counts and flags are the pages it has finished so far, and its job's reason says the counts; a stop for memory waits and carries on after its last finished page (never `failed`, no line given a second verdict); a passing line is counted, not given a verdict; the memory reason shows the two amounts it compared so they never read as the same number (`fichero-server/tests/unit/check/test_line_check_memory.py`). Empty and `null` readings are left out by the training set's own rule. Tested in `fichero-server/tests/unit/check/test_line_against_page.py`. Shown in the app (2026-10-05): `FlaggedLineStore` reads the reading verdicts and each run that rejected a line on the page; a line whose reading's newest verdict is still the run's reject carries a flag mark in the Order list (the Segments pane's list), the strip and the grid, with its flag and scores in words on hover ("Teacher text matches the next line better (0.52 vs 0.21)"), the Segments pane's head counts the page's flagged lines, and the Inspector says the flag, the run's counts and offers Confirm Reading (a person's `check.verdict` confirm on the rejected reading, which clears the mark in place); tested in `fichero/Tests/Unit/general/Models/FlaggedLineStoreTests.swift`. Not built: a null or empty line shown as flagged (the training set leaves it out by its own rule, unmarked).* each model reading of a Kraken line
   is scored against that line's own rough Kraken read and its neighbours' (the characters they share);
@@ -2724,7 +2724,7 @@ Jobs and chains
   Apple finds the lines and keeps no text (the Detect Segments tool's `keep_text` off: the page's line boxes
   carry no reading, no word boxes), so the text of a print page comes from the reader the recipe names. A
   handwriting page goes to Kraken (the card states print and typescript only). Apple's OCR of handwriting is
-  noise (Mosquera SM_NPQ_C01_030: `WtrtNI-`, `¥eTIQ`) and would otherwise reach the Order tab as a reading.
+  noise (the notebook corpus test page 30: `WtrtNI-`, `¥eTIQ`) and would otherwise reach the Order tab as a reading.
 - `source.recipe.line-finders-are-a-candidate-list` — **[PARTIAL]** (#5451; ruled 2026-10-17; *built: `bakeoff.line_finders()` lists a finder for every card naming `find-lines`, one with no workflow is listed not scored, and the planner skips a pin it cannot run by name; pinned by `fichero-server/tests/unit/recipes/test_line_finders_candidate_list_5451.py`. Not built: a cloud or MLX line finder that runs, and the online search for line finders*) the Find lines route for
   a kind of page (print, typescript, a hand) is a LIST of candidate line finders, never a constant: for print the
   list starts with Apple lines-only (`source.recipe.apple-finds-lines-on-print`); for a hand it holds Kraken's
@@ -4335,10 +4335,12 @@ Running and failure
   in Activity with its reason, retried three times, then the steps that need the model wait with
   "Model download failed" and offer Retry or the next candidate; other steps run. *Built: a download retries a
   broken connection on its own (`model_downloads.BACKOFF_SECONDS`, four tries, then `COME_BACK_ROUNDS`, five, five
-  minutes apart: more than three), its row in Activity carries the reason, and the run's steps on it are not run
-  with "Model download failed: <model> did not download (<reason>). Retry it in Activity, or choose the step's next
-  candidate in Set Up" while the other steps run (`runner._await_downloads`,
-  `fichero-server/tests/unit/recipes/test_start_while_models_download.py`). Built (engine, #5352): the run summary's `download_failed` lists each step waiting on a download that failed, with the
+  minutes apart: more than three), its row in Activity carries the reason, and the run's steps on it wait, page by page,
+  "waiting for <model> to download" (the step's reason: "Model download failed: <model> did not download (<reason>).
+  Retry it in Activity, or choose the step's next candidate in Set Up"; a model that cannot be queued at all says
+  why in the same words) while the other steps run (`runner._await_downloads`, `runner._fetch_models_first`,
+  `fichero-server/tests/unit/recipes/test_start_while_models_download.py`,
+  `fichero-server/tests/unit/recipes/test_models_fetched_before_the_step_6673.py`). Built (engine, #5352): the run summary's `download_failed` lists each step waiting on a download that failed, with the
   download's `job_id` to retry (`POST /api/activity/jobs/{job_id}/retry`), and `next_candidate`, the first other entry of the step's
   `chain` (local first; a cloud one carries `needs_permission` until pages may leave), chosen with
   `POST /api/recipes/project/steps/use-candidate` (`run_view.download_failures`;
@@ -4755,8 +4757,8 @@ node; a model appears in the sidebar only inside a training node, as its base or
   trained says what its own card says: its licence "trained by you; not for release" unless its card says
   `not_for_release: false` (the one test, `training.project_models._may_publish`), and the languages its card
   names, never its base model's README's (a reader taught on Spanish notebooks is not an English one). It stays
-  usable in the person's own projects (`open_licence`: no licence to accept); releasing is what it never does. WHY (2026-10-11, the MCP onboarding walk): the trained Mosquera reader, taught on Sergio's
-  notebooks, showed `open_licence: true` and `languages: ["en"]` while its own card said not for release; Sergio's
+  usable in the person's own projects (`open_licence`: no licence to accept); releasing is what it never does. WHY (2026-10-11, the MCP onboarding walk): the trained notebook-corpus reader, taught on the notebook corpus's
+  notebooks, showed `open_licence: true` and `languages: ["en"]` while its own card said not for release; the notebook corpus's
   pages may train a model but never be released. Built: `recipes.discovery.installed_cards` and
   `local_text_cards`; tested in `fichero-server/tests/unit/recipes/test_trained_card_keeps_its_release_5683.py`.
 - `source.model.node-inspector` — **[OK]** (#5439) *Built (engine): `GET /api/training/model` gives
@@ -4791,7 +4793,7 @@ about 3B, not 8B. The recipe picks it.
 - `source.recipe.picks-the-tuning-base` — **[GAP]** (#5442, #4950) the recipe picks the base from
   the project's language, script and hand among the catalogue's candidates, preferring about 3B.
   Where several fit, the evaluation job (`distill.eval.job`) decides on the project's held-out
-  pages. A base with a restricted licence can train but not be released (Sergio's data: train yes,
+  pages. A base with a restricted licence can train but not be released (the notebook corpus's data: train yes,
   release no). Ruled 2026-10-04: the default is Qwen3-VL-4B, with 2B as the fast choice; the recipe
   can pick others, and the evaluation decides.
 
@@ -4821,7 +4823,7 @@ Unverified for every entry: whether an MLX build exists to read with the untrain
 - `source/source-model.md`: its glossary rows for **profile** and **recipe** should point here (a
   profile is a recipe's defaults section; a recipe is more than a chain), and its ruling 10's
   "project settings window" is settled as the Inspector (ruled 2026-10-01).
-- `ui/activity-and-automatic-work.md`: its request for an `automatic` section is met by the
+- `ui/activity-pane.md`: its request for an `automatic` section is met by the
   resolved recipe (`source.recipe.steps-name-layers`), worked out from the purpose, not written in
   the shared file.
 - `ai/ai-settings.md` (section M): a picker row could show what a card knows (suits, local or
@@ -5058,7 +5060,7 @@ Ruled 2026-10-01 (former questions 1-4):
    about 7,500 dollars for 500,000 pages"), rather than a budget setting; revisit if people ask
    for a budget.
 9. **Two-page spreads: split into page documents, or mark page regions?** (#5452, #5427) Ruled so
-   far (2026-10-04): **Mosquera is not split**; its whole photographs stay the pages, and its
+   far (2026-10-04): **a notebook corpus is not split**; its whole photographs stay the pages, and its
    recipe has no split step (Preview's one-page view, #5427, covers seeing one side). Open, with two
    options:
    - (a) **Split at import**, as the first step of preparing images: setup sees two-page spreads (or
