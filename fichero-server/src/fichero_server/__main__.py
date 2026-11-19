@@ -24,6 +24,7 @@ import warnings
 
 from fichero_server.security.bind_host import listen_port, port_in_use_message, resolve_bind_host
 from fichero_server.security.bind_host import private_interface_ips as _private_interface_ips
+from fichero_server.security.bind_host import tailscale_interface_ips as _tailscale_interface_ips
 from fichero_server.security.bind_host import resolve_lan_bind_host
 from fichero_server.security.bind_host import primary_lan_ip as _primary_lan_ip
 from fichero_server.security.security_scoped_access import activate_library_bookmarks
@@ -76,12 +77,33 @@ def _app_db_for_listener():
 def _listener_hosts(bind_host: str, app_db=None) -> list[str]:  # noqa: ARG001 -- the app db no longer gates the listener
     """Sharing on listens on this network: the loopback port, the LAN address the app named (`FICHERO_LAN_HOST`), and
     every private interface address of this Mac, so another Mac reaches it over the Thunderbolt bridge (#6383, owner
-    ruling 2026-11-07, extends #5897). There is no separate "This network" switch; Tailscale reaches the loopback port
-    through `tailscale serve`. Never 0.0.0.0, never a public address beyond the one named."""
+    ruling 2026-11-07, extends #5897), and this Mac's Tailscale address (100.64/10, #6746) so a tailnet device reaches it
+    directly. There is no separate "This network" switch. Never 0.0.0.0, never a public address beyond the one named."""
     lan_host = resolve_lan_bind_host()
     if lan_host is None:
         return [bind_host]
-    return list(dict.fromkeys([bind_host, lan_host, *_private_interface_ips()]))
+    return list(dict.fromkeys([bind_host, lan_host, *_private_interface_ips(), *_tailscale_interface_ips()]))
+
+
+def _new_tailscale_hosts(bound: set[str]) -> list[str]:
+    """Tailscale addresses this Mac has now that no listener holds (#6746): Tailscale can connect after the server started."""
+    return [a for a in _tailscale_interface_ips() if a not in bound]
+
+
+def _watch_tailscale_address(bound: set[str], port: int, make_server, interval: float = 15.0) -> None:
+    """Bind and serve a Tailscale address that appears after launch; one thread, one extra server per new address."""
+    while True:
+        time.sleep(interval)
+        for host in _new_tailscale_hosts(bound):
+            try:
+                sock = _bind_listener_socket(host, port)
+            except OSError as exc:
+                logger.error("Sharing listener could NOT bind the Tailscale address %s:%d (%s).", host, port, exc)
+                continue
+            bound.add(host)
+            threading.Thread(target=make_server().run, kwargs={"sockets": [sock]},
+                             name=f"fichero-tcp-tls-{host}", daemon=True).start()
+            logger.info("Sharing listener: bound the Tailscale address %s:%d", host, port)
 
 
 def _slot_address(host: str, bind_host: str, port: int) -> str | None:
@@ -560,6 +582,13 @@ def _main(argv: list[str] | None = None):
                     target=tcp_server.run,
                     kwargs={"sockets": tcp_sockets},
                     name="fichero-tcp-tls",
+                    daemon=True,
+                ).start()
+                threading.Thread(
+                    target=_watch_tailscale_address,
+                    args=({s.getsockname()[0] for s in tcp_sockets}, tcp_port,
+                          lambda: uvicorn.Server(uvicorn.Config(**tcp_kwargs))),
+                    name="fichero-tailscale-watch",
                     daemon=True,
                 ).start()
                 logger.info(

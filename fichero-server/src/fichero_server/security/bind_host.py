@@ -211,6 +211,24 @@ def private_interface_ips(addresses: list[str] | None = None) -> list[str]:
     return list(dict.fromkeys(a for a in source if is_private_lan_address(a)))
 
 
+TAILSCALE_NETWORK = ipaddress.ip_network("100.64.0.0/10")
+
+
+def tailscale_interface_ips(addresses: list[str] | None = None) -> list[str]:
+    """This Mac's Tailscale address(es) (#6746): the 100.64/10 IPv4 of an interface that is up. Bound beside the private
+    ones while Sharing is on, so a device on the tailnet reaches the server at the Mac's tailnet address, not only
+    through `tailscale serve`. ``addresses`` stands in for the interfaces in tests."""
+    source = _interface_ipv4s() if addresses is None else addresses
+    found = []
+    for a in source:
+        try:
+            if ipaddress.ip_address(a) in TAILSCALE_NETWORK:
+                found.append(a)
+        except ValueError:
+            continue
+    return list(dict.fromkeys(found))
+
+
 def port_in_use_message(port: int) -> str:
     """The sentence for a port an older engine still holds (`sharing.stale-server-holding-the-port`): what the app and the
     Sharing pane show instead of "engine failed to start"."""
