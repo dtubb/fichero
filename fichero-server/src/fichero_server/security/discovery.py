@@ -128,6 +128,11 @@ def _packed_address(host: str) -> bytes | None:
         return None
 
 
+def _server_name(config: BonjourConfig) -> str:
+    """The `.local` name this Mac's advert gives as its host."""
+    return config.server_host or f"{_safe_host_label(socket.gethostname())}.local"
+
+
 def _txt_properties(config: BonjourConfig) -> dict[str, str]:
     properties = {
         "version": config.version,
@@ -139,6 +144,9 @@ def _txt_properties(config: BonjourConfig) -> dict[str, str]:
         # against (for example a Tailscale URL or other explicitly managed
         # private transport). Bonjour is presence, not transport security.
         "public_url": config.public_url,
+        # Where a nearby Mac reaches this one when no `public_url` is configured (#6742): without it the browser had a
+        # name and no address, and the Connect sheet left the Mac out. Presence, not trust, like the rest.
+        "address": f"https://{_server_name(config)}:{config.port}",
     }
     return properties
 
@@ -158,8 +166,7 @@ def build_service_info(
         addresses=addresses,
         port=config.port,
         properties=_txt_properties(config),
-        server=f"{config.server_host}." if config.server_host
-        else f"{_safe_host_label(socket.gethostname())}.local.",
+        server=f"{_server_name(config)}.",
     )
 
 
