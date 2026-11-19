@@ -138,10 +138,10 @@ and three of them are also **spring-loaded**: hold the key for a stroke, let go,
 | Tool | Key | Spring-loaded | What a drag does |
 |---|---|---|---|
 | Select | V, Esc | — | band (marquee); ⌥-drag lasso; drag on a selected shape moves it; drag a handle reshapes |
-| Brush select | B | hold B | paints a selection mask; ⌥ subtracts; `[` `]` size |
+| Select Brush | B | hold B | paints a selection mask; ⌥ subtracts; `[` `]` size |
 | Knife | K | hold K | one stroke cuts every line it crosses |
 | Marker | M | hold M | freehand outline (closed) or baseline (open), simplified on release |
-| Paintbrush | P | — | paints a polygon along the ink; width on a slider, pressure optional |
+| Line Brush (the Paintbrush) | P | — | paints a polygon along the ink; width on a slider, pressure optional |
 | Order | O | — | click segments in sequence to set the reading order |
 | Shape (box / polygon / baseline by points) | S | — | the umbrella's one Shape tool, unchanged (`source.editor.draw-shapes`) |
 
@@ -376,9 +376,18 @@ targets are at least 44 pt.
   `fichero/Tests/Unit/general/Views/Source/PaintbrushToolTests.swift`.
   *Named for what it does (#6734, owner 2026-11-19):* the tool is called Line Brush, tooltip "Line Brush — paint along a line
   of writing to make a line" (it was Paintbrush; the name and the id change together). A stroke becomes a new line segment,
-  selected and open for text; when the engine refuses it, a message says why (today nothing is said). *Not built:* the
-  rename, the refusal message, and a test that drives the stroke's commit path and checks the stored segment (owner saw it
-  record nothing).
+  selected and open for text; when the engine refuses it, a message says why. *Not built:* a test that drives the stroke's
+  commit path and checks the stored segment (owner saw it record nothing).
+  *Built note (#6734):* the stroke goes to the shown pass (`ocrGeometryPassId`), as the Marker's does, whether or not the page
+  has a result artifact (it was dropped there before, with a log line only); a page with no saved segments refuses with a
+  message on the page. The tool row calls it **Line Brush** ("paint along a line of writing to make a line") and the Brush
+  **Select Brush** ("brush over segments to select them").
+
+- `segment-editor.one-tool` — **[BUILT]** (#6734, owner 2026-11-19) the tool row is one choice: exactly one tool is active
+  and shown. The Knife, Marker, Order, Select Brush and Line Brush leave Select empty while chosen (`chooseSegmentTool`);
+  choosing another tool, its key, Return (Order) or Esc moves the choice, and putting a tool down returns to Select.
+  Every refused or failed tool edit says why on the page. *Tests:*
+  `fichero/Tests/Unit/general/Views/Source/SegmentToolChoiceTests.swift`.
 
 ### Lines and baselines
 
