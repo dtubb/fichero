@@ -1554,7 +1554,7 @@ Fichero's engine already uses LangGraph. The owner has ruled that the Builder ad
   adapter's generated config names the two required servers with commands the worker user can run; a fake adapter
   whose MCP answer is `Unsupported` refuses; a failed index build refuses; a testing × swift worker's config has the
   Xcode set and no engine server, a testing × python worker's the reverse; a server the project lacks yields a
-  row; the assembled prompt names exactly the delivered servers. Test (to write): fichero-builder/tests/test_mcp_servers (new).
+  row; the assembled prompt names exactly the delivered servers. Test: fichero-builder/tests/test_mcp_servers.py. Built: `mcp_servers.delivered`, written into `mcp.json` by `start_tool.prepare` (Claude Code only); a stack's `tools:` line replaces the role's whole list; the index prefix exits 71 on a failed build and `work.do_run` journals a `refused` row. Not built: the repo's `harness.toml` sets no `[jail].doc_map` or `doc_index`, and `agents/roles`, `stacks`, `projects` hold no files yet, so no worker gets an optional server.
 - `agent-profiles.project.profile` [GAP] (#6627) — a project is its `harness.toml`: a `[project]` table (name, kind
   `code`, `data` or `text` (`data` is research on a Fichero library's records, the sibling's § E), languages, tools by name and path, the checks it owns, the paths each rung applies to, the
   integration branch) beside the existing `[check]`, `[policy]`, `[jail]`, `[land]`, `[models]` tables; the builder's
