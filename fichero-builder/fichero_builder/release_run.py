@@ -151,7 +151,8 @@ def _last_detail(run_id: str, stage: str) -> str:
 
 
 def real_stages(root, state, run_id: str, *, branch: str, mac: str, ios: str, check_runner: str, floor_gb: int,
-                text: Callable[[str], None], merge_branch: str = "") -> dict[str, Stage]:
+                text: Callable[[str], None], merge_branch: str = "", tmp_root: Path | None = None,
+                snapshot_cmd: tuple[str, ...] = ("tmutil", "deletelocalsnapshots", "/")) -> dict[str, Stage]:
     """Stage callables. `mac`, `ios` and `check_runner` are comma lists of candidate machines ('local' or host[:dir]); `sweep` picks
     one awake, reachable, over-floor machine per role and journals the choice. `freeze` journals the sha of origin/`branch` and makes
     a clean clone of it on each chosen machine (never `root`, the loop's checkout, which only names the origin and runs `gh`). Every
@@ -188,9 +189,9 @@ def real_stages(root, state, run_id: str, *, branch: str, mac: str, ios: str, ch
     def do_sweep():
         seen.clear()
         chosen = {role: pick_runner([m.strip() for m in cands.split(",")], disk, floor_gb) for role, cands in roles.items()}
-        sweep([*Path(tempfile.gettempdir()).glob("fichero-nightly-*"), state / "nightly" / "release"],  # this run's own clone dir only: run.nightly-build keeps its trees beside it
+        sweep([*(tmp_root or Path(tempfile.gettempdir())).glob("fichero-nightly-*"), state / "nightly" / "release"],  # this run's own clone dir only: run.nightly-build keeps its trees beside it
                       [root / "integration" / ".venv", root / ".venv"])
-        subprocess.run(["tmutil", "deletelocalsnapshots", "/"], capture_output=True, text=True)
+        subprocess.run(list(snapshot_cmd), capture_output=True, text=True)
         return 0, json.dumps(chosen)  # the detail is read back by `at`: the paths removed are not in it
 
     def freeze():

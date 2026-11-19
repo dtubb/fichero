@@ -119,7 +119,8 @@ def test_the_real_stages_build_in_a_clean_clone_on_the_chosen_machine_never_the_
     (tmp_path / "root").mkdir()
     g("init", "-q", "-b", "main"), g("commit", "-q", "--allow-empty", "-m", "1")
     g("remote", "add", "origin", str(tmp_path / "root")), g("update-ref", "refs/remotes/origin/main", "HEAD")
-    st = rr.real_stages(tmp_path / "root", tmp_path / "s", "r9", branch="main", mac="down,imac", ios="air", check_runner="local", floor_gb=5, text=print)
+    st = rr.real_stages(tmp_path / "root", tmp_path / "s", "r9", branch="main", mac="down,imac", ios="air", check_runner="local", floor_gb=5, text=print,
+                         tmp_root=tmp_path / "tmp", snapshot_cmd=("true",))
     monkeypatch.setattr(rr, "pick_runner", lambda c, probe, f: c[-1])
     for name in ("sweep", "freeze"):
         rc, out = st[name]()
@@ -136,8 +137,7 @@ def test_sweep_removes_only_this_runs_clone_dir_never_the_nightly_builds_trees(t
     for part in ("release", "check", "dmg"):
         (nightly / part).mkdir(parents=True)
     monkeypatch.setattr(rr, "pick_runner", lambda c, probe, f: c[0])
-    monkeypatch.setattr(rr.subprocess, "run", lambda *a, **k: None)
-    st = rr.real_stages(tmp_path, tmp_path / "s", "r10", branch="main", mac="local", ios="local", check_runner="local", floor_gb=1, text=print)
+    st = rr.real_stages(tmp_path, tmp_path / "s", "r10", branch="main", mac="local", ios="local", check_runner="local", floor_gb=1, text=print, tmp_root=tmp_path / "tmp", snapshot_cmd=("true",))
     assert st["sweep"]()[0] == 0 and not (nightly / "release").exists() and (nightly / "check").exists() and (nightly / "dmg").exists()
 
 
