@@ -354,7 +354,7 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
 - `runner.memory.recorded` — **[OK]** (#6673; `recipes-run.memory.recorded-per-step` owns it) each step records the Mac's
   RAM, the engine's peak, swap, pressure and model loads and unloads, in the run's record and in Save Logs for Support.
   *Test:* `fichero-server/tests/unit/recipes/test_memory_recorded_per_step_6673.py`.
-- `runner.measured.runtime-matrix` — **[GAP]** every runtime the engine has is measured on the real Mac, not stubbed:
+- `runner.measured.runtime-matrix` — **[PARTIAL]** (#6675) every runtime the engine has is measured on the real Mac, not stubbed:
   `scripts/runtime_matrix.py` runs a fixed sample of 5 public test-fixture page images through each runtime's own entry
   point (Kraken segment, Kraken read, MLX vision read, the embedder, spaCy names, YOLO, OpenCV preprocessing, Whisper,
   Apple on macOS 27+), twice in a row, on a scratch state dir and library (never the app's). Per runtime it records: ran
@@ -363,6 +363,7 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   unloads between pages), plus the Mac's chip, RAM, macOS and free memory at the start. `--remote hf-jobs|cluster` is a
   dry-run only, never a paid job. Output: one JSON file and a Markdown table on stdout; exit 0 even when runtimes fail.
   *Acceptance:* with every runtime stubbed (one ok, one failing, one loading twice) the table and JSON name each result.
+  Built: the script, with every runtime stubbed in its test. Owed: Apple (no Python entry in the engine), and counted loads for MLX (read through `mlx_vlm` directly) and Whisper.
   *Test:* `fichero-server/tests/unit/scripts/test_runtime_matrix.py`. `Spec-change: owner, the runtime matrix`.
 - `runner.mac.stays-usable` — **[PARTIAL]** (#5819, #6230, #6263; `activity.throttle.use-means-slower`,
   `activity.throttle.in-use-slows-to-half` own it) automatic work goes on while the person uses the Mac, at half the
