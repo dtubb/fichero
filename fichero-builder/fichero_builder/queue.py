@@ -976,19 +976,21 @@ def restart_loop(root, tick_s: float = 30.0) -> int:
     return p.pid
 
 
-def launch_agents(root, out, *, state=None, tick_s: float = 30.0, port: int = 8766) -> list[Path]:
+def launch_agents(root, out, *, branch: str | None = None, state=None, tick_s: float = 30.0, port: int = 8766) -> list[Path]:
     """The owner's four LaunchAgents (dev-workflows.run.loop, run.loop-launchd): `builder loop` and the console (`builder status`)
     kept alive and started at login, `builder heartbeat` every three ticks, and `builder release` at 03:00 (run.release-stages). All run as the owner from the checkout's package;
     logs beside the journal."""
     import plistlib
+    import tomllib
 
+    branch = branch or tomllib.loads((Path(root) / "harness.toml").read_text())["land"]["branch"]  # the release agent freezes this branch's origin head
     pkg, out = Path(__file__).resolve().parents[1], Path(out)
     logs = Path(state) if state else journal.STATE
     st = ["--state", str(state)] if state else []
     jobs = {"loop": (["loop", "--root", str(root), "--tick", f"{tick_s:g}", *st], {"KeepAlive": True, "RunAtLoad": True, "AbandonProcessGroup": True}),
             "heartbeat": (["heartbeat", "--tick", f"{tick_s:g}", *st], {"StartInterval": int(3 * tick_s)}),
             "console": (["status", "--port", str(port), "--root", str(root), *st], {"KeepAlive": True, "RunAtLoad": True}),
-            "release": (["release", "--root", str(root), *st], {"StartCalendarInterval": {"Hour": 3, "Minute": 0}})}  # #6726: the nightly release; no model runs while it is green
+            "release": (["release", "--root", str(root), "--branch", branch, *st], {"StartCalendarInterval": {"Hour": 3, "Minute": 0}})}  # #6726: the nightly release; no model runs while it is green
     out.mkdir(parents=True, exist_ok=True)
     paths = []
     for name, (args, when) in jobs.items():

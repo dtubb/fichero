@@ -63,7 +63,7 @@ def test_adopt_session_takes_a_live_window_named_for_the_lane_with_a_fake_sessio
 
 
 def test_the_loop_agent_abandons_its_process_group_so_a_kickstart_leaves_the_workers(state):
-    loop, heartbeat, console, _release = (plistlib.loads(p.read_bytes()) for p in queue.launch_agents("/r", state / "la", state=state / "s"))
+    loop, heartbeat, console, _release = (plistlib.loads(p.read_bytes()) for p in queue.launch_agents("/r", state / "la", state=state / "s", branch="main"))
     assert loop["AbandonProcessGroup"] is True and "AbandonProcessGroup" not in heartbeat
 
 

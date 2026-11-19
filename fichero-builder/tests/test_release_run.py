@@ -145,3 +145,13 @@ def test_the_real_stages_build_in_a_clean_clone_on_the_chosen_machine_never_the_
     assert st["mac-dmg"]() == (0, "ok") and st["ios"]() == (0, "ok")
     (m1, s1), (m2, s2) = calls
     assert (m1, m2) == ("imac", "air") and str(tmp_path / "root") not in s1 + s2 and "nightly" in s1 and "release-all.sh" in s1
+
+
+def test_sweep_removes_only_this_runs_clone_dir_never_the_nightly_builds_trees(tmp_path, monkeypatch):
+    nightly = tmp_path / "s" / "nightly"
+    for part in ("release", "check", "dmg"):
+        (nightly / part).mkdir(parents=True)
+    monkeypatch.setattr(rr, "pick_runner", lambda c, probe, f: c[0])
+    monkeypatch.setattr(rr.subprocess, "run", lambda *a, **k: None)
+    st = rr.real_stages(tmp_path, tmp_path / "s", "r10", branch="main", mac="local", ios="local", check_runner="local", floor_gb=1, text=print)
+    assert st["sweep"]()[0] == 0 and not (nightly / "release").exists() and (nightly / "check").exists() and (nightly / "dmg").exists()

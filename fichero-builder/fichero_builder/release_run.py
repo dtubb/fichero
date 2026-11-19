@@ -175,29 +175,35 @@ def real_stages(root, state, run_id: str, *, branch: str, mac: str, ios: str, ch
         last = out.strip().splitlines()[-1] if out.strip() else ""
         return int(last) if rc == 0 and last.isdigit() else None
 
+    seen: dict = {}
+
+    def green_detail(stage):  # read once per process: a green stage's detail does not change (a resume is a new process)
+        if stage not in seen:
+            seen[stage] = _last_detail(run_id, stage)
+        if not seen[stage]:
+            seen.pop(stage)
+            raise RuntimeError(f"{stage} is not green")
+        return seen[stage]
+
     def at(role):  # the machine `sweep` chose for this role, from the journal
-        chosen = _last_detail(run_id, "sweep")
-        if not chosen:
-            raise RuntimeError("no runner was chosen: sweep is not green")
-        return json.loads(chosen)[role]
+        return json.loads(green_detail("sweep"))[role]
 
     def sha():
-        v = _last_detail(run_id, "freeze")
-        if not v:
-            raise RuntimeError("no candidate was frozen: freeze is not green")
-        return v.strip()
+        return green_detail("freeze").strip()
 
     def tree(role):
         return _q(_tree(at(role), state, "release"))
 
     def do_sweep():
+        seen.clear()
         chosen = {role: pick_runner([m.strip() for m in cands.split(",")], disk, floor_gb) for role, cands in roles.items()}
-        sweep([*Path(tempfile.gettempdir()).glob("fichero-nightly-*"), *(state / "nightly").glob("*")],
+        sweep([*Path(tempfile.gettempdir()).glob("fichero-nightly-*"), state / "nightly" / "release"],  # this run's own clone dir only: run.nightly-build keeps its trees beside it
                       [root / "integration" / ".venv", root / ".venv"])
         subprocess.run(["tmutil", "deletelocalsnapshots", "/"], capture_output=True, text=True)
         return 0, json.dumps(chosen)  # the detail is read back by `at`: the paths removed are not in it
 
     def freeze():
+        seen.pop("freeze", None)
         p = subprocess.run(["git", "-C", str(root), "rev-parse", f"origin/{branch}"], capture_output=True, text=True)
         if p.returncode:
             return 1, p.stderr

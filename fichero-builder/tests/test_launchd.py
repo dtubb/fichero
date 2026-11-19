@@ -21,7 +21,7 @@ def state(tmp_path, monkeypatch):
 
 
 def test_the_console_is_a_third_agent_kept_alive_and_started_at_login(state):
-    paths = queue.launch_agents("/r", state / "la", state=state / "s", port=8766)
+    paths = queue.launch_agents("/r", state / "la", state=state / "s", port=8766, branch="main")
     con = plistlib.loads(paths[2].read_bytes())
     assert paths[2].name == "local.builder.console.plist" and con["KeepAlive"] is True and con["RunAtLoad"] is True
     assert con["ProgramArguments"][3:] == ["status", "--port", "8766", "--root", "/r", "--state", str(state / "s")]
@@ -85,7 +85,7 @@ def test_no_tmux_on_the_path_is_nothing_to_re_point_never_an_error(state, monkey
 
 def test_the_agents_run_unbuffered_so_loop_log_is_current(state):
     """#6466: launchd block-buffers stdout, so loop.log lagged the journal by hours; every agent runs with PYTHONUNBUFFERED."""
-    for p in queue.launch_agents("/r", state / "la", state=state / "s"):
+    for p in queue.launch_agents("/r", state / "la", state=state / "s", branch="main"):
         assert plistlib.loads(p.read_bytes())["EnvironmentVariables"]["PYTHONUNBUFFERED"] == "1", p.name
 
 
@@ -142,14 +142,20 @@ def test_a_no_session_alert_is_one_per_lane_per_day_and_none_for_a_lane_whose_st
 
 
 def test_the_release_agent_starts_the_stage_run_nightly_with_no_keepalive(state):
-    paths = queue.launch_agents("/r", state / "la", state=state / "s")
+    paths = queue.launch_agents("/r", state / "la", state=state / "s", branch="main")
     rel = plistlib.loads(paths[3].read_bytes())
     assert paths[3].name == "local.builder.release.plist" and "KeepAlive" not in rel
     assert rel["StartCalendarInterval"] == {"Hour": 3, "Minute": 0}
-    assert rel["ProgramArguments"][3:] == ["release", "--root", "/r", "--state", str(state / "s")]
+    assert rel["ProgramArguments"][3:] == ["release", "--root", "/r", "--branch", "main", "--state", str(state / "s")]
 
 
 def test_the_agents_carry_the_text_target_so_the_text_stage_can_send(state, monkeypatch):
     monkeypatch.setenv("FICHERO_NIGHTLY_TEXT_TO", "+1555")
-    for p in queue.launch_agents("/r", state / "la", state=state / "s"):
+    for p in queue.launch_agents("/r", state / "la", state=state / "s", branch="main"):
         assert plistlib.loads(p.read_bytes())["EnvironmentVariables"]["FICHERO_NIGHTLY_TEXT_TO"] == "+1555"
+
+
+def test_the_release_agent_takes_the_branch_from_harness_toml_when_none_is_given(state):
+    (state / "harness.toml").write_text('[land]\nbranch = "trunk"\n')
+    rel = plistlib.loads(queue.launch_agents(state, state / "la", state=state / "s")[3].read_bytes())
+    assert rel["ProgramArguments"][6:8] == ["--branch", "trunk"]
