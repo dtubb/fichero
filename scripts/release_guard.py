@@ -438,12 +438,13 @@ def milestone_order(text: str) -> list[str]:
     return re.findall(r"^\d+\.\s+`([^`]+)`", text, re.MULTILINE)
 
 
-def commit_range(run=Run) -> tuple[list[dict], str, list[str]]:
-    """(commits on HEAD since the newest v* tag, newest first, each {subject, body}; that tag
-    without its v; the spec files changed in the range)."""
+def commit_range(version: str, run=Run) -> tuple[list[dict], str, list[str]]:
+    """(commits on HEAD since the newest v* tag that is not v<version>, newest first, each
+    {subject, body}; that tag without its v; the spec files changed in the range)."""
     git = ["git", "-C", str(ROOT)]
-    tags = run(git + ["tag", "-l", "v*", "--sort=-creatordate"],
-               check=False, capture_output=True, text=True).stdout.split()
+    tags = [t for t in run(git + ["tag", "-l", "v*", "--sort=-creatordate"],
+                           check=False, capture_output=True, text=True).stdout.split()
+            if t != f"v{version}"]
     rng = f"{tags[0]}..HEAD" if tags else "HEAD"
     out = run(git + ["log", "--no-merges", "--format=%s%x1f%b%x1e", rng],
               check=False, capture_output=True, text=True).stdout
@@ -662,7 +663,7 @@ def main(argv: list[str] | None = None) -> int:
 
     elif a.cmd == "auto-notes":
         rn, cl = ROOT / "RELEASE_NOTES.md", ROOT / "CHANGELOG.md"
-        commits, prev, spec_paths = commit_range()
+        commits, prev, spec_paths = commit_range(a.version)
         have = (_has_section(rn.read_text(), a.version)
                 and _has_section(cl.read_text(), changelog_day(a.version)))
         if not have:

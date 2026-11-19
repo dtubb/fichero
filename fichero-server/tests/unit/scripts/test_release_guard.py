@@ -427,13 +427,26 @@ EXPECTED = """### What's new
 def test_the_notes_are_made_from_the_record_grouped_by_milestone(tmp_path, monkeypatch):
     repo = _fixture_repo(tmp_path)
     monkeypatch.setattr(rg, "ROOT", repo)
-    commits, prev, spec_paths = rg.commit_range()
+    commits, prev, spec_paths = rg.commit_range("2026.11.18")
     assert prev == "2026.11.17" and len(commits) == 8
     specs = [(p, (repo / p).read_text()) for p in spec_paths]
     # build-order names sharing and sidebar, not importer: importer comes after them
     assert rg.build_notes(commits, ISSUES, specs, ["sharing-two-macs", "sidebar-crud"]) == EXPECTED
     swapped = rg.build_notes(commits, ISSUES, specs, ["sidebar-crud", "sharing-two-macs"])
     assert swapped.index("### sidebar-crud") < swapped.index("### sharing-two-macs")
+
+
+def test_the_range_starts_at_the_newest_tag_that_is_not_the_version_being_released(tmp_path, monkeypatch):
+    repo = _fixture_repo(tmp_path)
+    monkeypatch.setattr(rg, "ROOT", repo)
+    _git(repo, "tag", "v2026.11.19")  # the release's own tag exists already (a run after tagging)
+    commits, prev, _specs = rg.commit_range("2026.11.19")
+    assert prev == "2026.11.17" and len(commits) == 8
+
+
+def test_the_intro_names_the_last_release_from_that_tag():
+    notes, _log = rg.auto_notes("2026.11.19", NOTES, LOG, "- x\n", "2026.11.18")
+    assert "## 2026.11.19\nWhat changed since 2026.11.18.\n" in notes
 
 
 def test_a_cited_number_that_is_not_an_issue_does_not_lose_the_others(tmp_path):
