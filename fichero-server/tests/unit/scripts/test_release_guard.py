@@ -140,11 +140,17 @@ def test_key_still_dataless_or_missing_refuses(tmp_path):
 
 
 # 6. smoke check before publish
-def _fake_attach(version, build):
+def _fake_attach(version, build, engine_stamp="same"):
+    """A mounted Fichero.app; its engine carries the app's own stamp unless `engine_stamp` says otherwise (None: none)."""
     def attach(cmd):
         mount = Path(cmd[cmd.index("-mountpoint") + 1])
         contents = mount / "Fichero.app" / "Contents"
         contents.mkdir(parents=True)
+        stamp = f"{version} {build}\n" if engine_stamp == "same" else engine_stamp
+        if stamp is not None:
+            pkg = contents / "Resources" / "Fichero Server.app" / "Contents" / "Resources" / "app" / "fichero_server"
+            pkg.mkdir(parents=True)
+            (pkg / "release-stamp.txt").write_text(stamp)
         (contents / "Info.plist").write_bytes(plistlib.dumps(
             {"CFBundleShortVersionString": version, "CFBundleVersion": build}))
     return attach
@@ -175,6 +181,23 @@ def test_smoke_refuses_unstapled_or_wrong_stamp(tmp_path):
     assert any("stapler" in p for p in problems) and any("Gatekeeper" in p for p in problems)
     assert any("(23), the stamp is 2026.11.14 (24)" in p for p in problems)
     assert run.calls[-1][:2] == ["hdiutil", "detach"]
+
+
+def test_smoke_refuses_an_engine_stamped_for_another_release(tmp_path):
+    """#6723: a release whose engine would report a version other than the app's is not published."""
+    dmg = tmp_path / "Fichero.dmg"
+    dmg.write_bytes(b"x")
+    run = Recorder(on={"attach": _fake_attach("2026.11.18", "29", engine_stamp="2026.11.17 28\n"), "detach": _detach})
+    problems = rg.smoke(dmg, "2026.11.18", "29", run=run)
+    assert len(problems) == 1 and "engine is stamped 2026.11.17 (28)" in problems[0] and "2026.11.18 (29)" in problems[0]
+
+
+def test_smoke_refuses_an_engine_with_no_stamp(tmp_path):
+    dmg = tmp_path / "Fichero.dmg"
+    dmg.write_bytes(b"x")
+    run = Recorder(on={"attach": _fake_attach("2026.11.18", "29", engine_stamp=None), "detach": _detach})
+    problems = rg.smoke(dmg, "2026.11.18", "29", run=run)
+    assert len(problems) == 1 and "no release stamp" in problems[0]
 
 
 # 7. notify
