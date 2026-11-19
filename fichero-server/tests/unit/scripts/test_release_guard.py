@@ -539,6 +539,12 @@ def test_hand_written_sections_are_never_touched():
     assert rg.auto_notes("2026.11.15", notes, log, "- x\n", "2026.11.12") == (notes, log)
 
 
+def test_a_hand_written_unreleased_changelog_section_becomes_the_days_entry():
+    log = "# Changelog\n\n## Unreleased\n\n- mine\n\n## 2026-11-12\n\n- old\n"
+    _notes, out = rg.auto_notes("2026.11.15", NOTES, log, "- generated\n", "2026.11.12")
+    assert out == "# Changelog\n\n## Unreleased\n\n## 2026-11-15\n\n- mine\n\n## 2026-11-12\n\n- old\n"
+
+
 def test_no_user_facing_commits_still_gives_a_nonempty_section():
     assert "Maintenance release" in rg.build_notes([{"subject": "spec: only a spec", "body": ""}], {}, [], [])
     assert "Maintenance release" in rg.build_notes([], {}, [], [])

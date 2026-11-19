@@ -545,6 +545,9 @@ def auto_notes(version: str, notes: str, changelog: str, body: str, prev: str) -
     def put(text: str, heading: str, intro: str) -> str:
         if _has_section(text, heading):
             return text
+        if heading == day and re.search(r"^## Unreleased\b", text, re.MULTILINE):
+            # what the stamp does: the hand-written Unreleased content becomes the day's entry
+            return text.replace("## Unreleased\n", f"## Unreleased\n\n## {heading}\n", 1)
         block = f"## {heading}\n{intro}{body}\n"
         m = re.search(r"^## ", text, re.MULTILINE)
         return text[: m.start()] + block + text[m.start():] if m else text.rstrip("\n") + "\n\n" + block
