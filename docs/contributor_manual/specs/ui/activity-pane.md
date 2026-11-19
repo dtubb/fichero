@@ -1437,7 +1437,7 @@ workflow by hand: a hand run is a job like any other.
 - `activity.remote-under-its-step` — **[PARTIAL]** (#5240, #5353, #5740) a remote job a run starts (a Hugging
   Face Job, a cluster job) is a child of the step that sent it, its far-side state its own row's. Built (engine):
   `ReadAtScaleRequest.parent_job_id` hangs the run under its step (`jobs.set_parent`); the Activity row (`GET
-  /api/activity/jobs`, `BackgroundJob.remote`) says target, far-side state (queued / running / done / failed),
+  /api/activity/jobs`, `BackgroundJob.remote`) says target, far-side state (queued / running / landing / done / failed),
   shards done of total, pages landed, and what it offers; the Inspector's status (`GET
   /api/reading-at-scale/jobs/{id}`) lists each shard (state, tries, reason, last lines, seconds) and sets the
   estimate (pages, shards, GPU-hours from a pilot's rate) beside the actual. Built: the recipe step passes its id (`recipes/runner.py` sends `parent_job_id`;
