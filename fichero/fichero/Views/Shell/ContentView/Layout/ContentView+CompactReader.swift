@@ -117,18 +117,18 @@ extension ContentView {
                         // stage-to-stage swiping later if wanted. (#2551)
                 }
                 // Reader and Info push on top of the file (#6566); Back pops to it.
-                .navigationDestination(isPresented: $compactReaderPushed) {
+                .navigationDestination(isPresented: Bindable(windowState).compactReaderPushed) {
                     compactStepScreen(.reader)
                 }
-                .navigationDestination(isPresented: $compactInfoPushed) {
+                .navigationDestination(isPresented: Bindable(windowState).compactInfoPushed) {
                     compactStepScreen(.info)
                 }
                 .onChange(of: browserSelection) { _, _ in syncPushedReaderDocument() }
                 .onChange(of: detailDocument) { _, _ in syncPushedReaderDocument() }
                 .onChange(of: pushedReaderDocument) { _, newValue in
                     if newValue == nil {
-                        compactReaderPushed = false
-                        compactInfoPushed = false
+                        windowState.compactReaderPushed = false
+                        windowState.compactInfoPushed = false
                         detailDocument = nil
                         browserSelection = []
                     }
@@ -151,8 +151,8 @@ extension ContentView {
             ForEach(step.next, id: \.self) { target in
                 Button(target.title) {
                     switch target {
-                    case .reader: compactReaderPushed = true
-                    case .info: compactInfoPushed = true
+                    case .reader: windowState.compactReaderPushed = true
+                    case .info: windowState.compactInfoPushed = true
                     case .source: break
                     }
                 }

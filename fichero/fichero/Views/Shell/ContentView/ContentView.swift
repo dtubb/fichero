@@ -603,9 +603,6 @@ struct ContentView: View {
     /// resolves to a leaf, even if `selectedDocuments` and `currentDocuments`
     /// momentarily disagree. Synced from selection by `syncPushedReaderDocument()`.
     @State var pushedReaderDocument: Document?
-    /// The Reader / Info screens pushed on top of the file on the iPhone (#6566).
-    @State var compactReaderPushed = false
-    @State var compactInfoPushed = false
 
     // Main toolbar state (per-window persistence)
     @SceneStorage("viewDisplayMode") var viewDisplayMode: ViewDisplayMode = .icon
