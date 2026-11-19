@@ -141,22 +141,20 @@ extension ZoomableImagePreview {
         )
     }
 
-    /// The geometry the picture on screen can draw: the page's own when its frame is the picture's, else the segments
-    /// mapped onto the rendition shown when the engine knows where it sits (#6420). Nil draws nothing.
+    /// The geometry the picture shown can draw: the page's own, else the segments mapped onto the rendition (#6420).
     var drawnGeometry: OCRGeometry? {
         guard let geometry = ocrGeometry else { return nil }
         return geometryFrameMatchesDisplay(geometry) ? geometry : mappedRenditionGeometry
     }
 
-    /// The page's segments mapped onto the rendition shown, or nil when it is not a mapped one.
+    /// The segments mapped onto the rendition shown; nil when it is not a mapped one.
     var mappedRenditionGeometry: OCRGeometry? {
         guard let geometry = ocrGeometry, let shown = displayedRenditionId, let loaded = renditionBoxes,
               loaded.id == shown else { return nil }
         return SegmentOnRendition.mappedGeometry(geometry, on: loaded.answer)
     }
 
-    /// True when the boxes on screen are mapped onto a rendition, so an edit would write that rendition's pixels as the
-    /// photograph's: the edit is refused in words and this answers true.
+    /// True (after saying why) when the boxes on screen are mapped onto a rendition, so the edit is refused.
     func refusesEditOnMappedRendition() -> Bool {
         guard let geometry = ocrGeometry, !geometryFrameMatchesDisplay(geometry), mappedRenditionGeometry != nil else {
             return false

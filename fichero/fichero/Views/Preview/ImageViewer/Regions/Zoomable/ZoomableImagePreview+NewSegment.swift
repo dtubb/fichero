@@ -2,8 +2,8 @@
 import SwiftUI
 
 extension ZoomableImagePreview {
-    /// A ⌥-dragged box (`source.editor.make-new-in-the-preview`): a segment of the kind last drawn, one `segment.create`
-    /// and one ⌘Z, then selected and opened for text. A region is the box's outline; a line is a baseline across its middle.
+    /// A ⌥-dragged box (`source.editor.make-new-in-the-preview`): a segment of the kind last drawn (a line gets a
+    /// baseline across the middle), one `segment.create`, selected and opened for text.
     func drawBoxOfLastKind(_ box: [Double]) {
         guard box.count >= 4 else { return }
         if windowState?.lastDrawnKind == "line" {

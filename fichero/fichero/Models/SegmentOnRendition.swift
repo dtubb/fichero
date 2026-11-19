@@ -49,14 +49,12 @@ enum SegmentOnRendition {
         return frameMatches && !shown.isEmpty ? shown : every
     }
 
-    /// Said when an edit that writes a segment's place is tried on a rendition the boxes are only MAPPED onto: the edit would
-    /// commit the rendition's pixels as the photograph's fractions (#6420, until the inverse map exists).
+    /// Said when an edit that writes a segment's place is tried on a rendition the boxes are only mapped onto (#6420).
     static let editRefusal = "Switch to the original to move, reshape, draw or join segments: this picture only shows them."
 
-    /// The page's geometry drawn on a rendition: each box with a `segmentId` the engine mapped takes the mapped box
-    /// normalised by the rendition's size, same order and count so indices (selection) stay the page's. A box the answer
-    /// does not hold gets an empty box (`isDrawn` false) and no shapes: outlines and baselines are photograph fractions
-    /// and are not mapped. Nil when the place of the rendition on the page is not known or its size is missing.
+    /// The page's geometry on a rendition: each mapped box normalised by the rendition's size, same order and count so
+    /// selection indices stay the page's. An unmapped box is empty (`isDrawn` false); shapes are not mapped; nil when
+    /// the rendition's place or size is not known.
     static func mappedGeometry(_ geometry: OCRGeometry, on answer: SegmentBoxesOnRendition) -> OCRGeometry? {
         guard answer.followed, let size = answer.size, size.width > 0, size.height > 0 else { return nil }
         var mapped = geometry

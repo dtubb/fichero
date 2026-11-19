@@ -29,8 +29,7 @@ extension RegionInteractionLayer {
         }
     }
 
-    /// ⌥-drag from empty page in Select (`source.editor.make-new-in-the-preview`): a box, and letting go makes a segment of
-    /// the kind last drawn. Escape while dragging makes nothing. True when the event belongs to this gesture.
+    /// ⌥-drag from empty page in Select (`source.editor.make-new-in-the-preview`): a box; letting go makes a segment.
     func handleBoxDraw(_ event: PreviewPointerEvent, at viewPoint: CGPoint, in size: CGSize) -> Bool {
         guard let windowState else { return false }
         switch event.phase {
