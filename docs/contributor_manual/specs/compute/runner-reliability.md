@@ -221,9 +221,9 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   the paused step for those causes. *Test:* `fichero-server/tests/unit/llm/test_rate_limit_backs_off_then_pauses_6584.py`
   (extend to each pausing kind).
 - `runner.pause.continue-from-first-not-done` — **[PARTIAL]** (#6569, #6331, #6332) Continue on a paused run re-checks the
-  cause, forgets the pause (`forget_rate_limit_pause`, `forget_cap_stop`), and takes up the first item not done; done pages
-  are never re-read; Retry inside a run redoes only the failed pages and the step list updates. Built for the rate limit and
-  the cap; owed for the other causes and the recipe parking. *Test:* `fichero-server/tests/unit/recipes/test_recipe_pause_5933.py`,
+  cause, forgets the pause (`forget_provider_pause`: `forget_rate_limit_pause`, `forget_cap_stop`, `forget_credit_pause`), and takes up the first item not done; done pages
+  are never re-read; Retry inside a run redoes only the failed pages and the step list updates. Built for the rate limit, the
+  cap and no credit or a refused key (a plain run's Continue, `resume_workflow`, and the recipe row's both call the helper); owed for the other causes and the recipe parking. *Test:* `fichero-server/tests/unit/recipes/test_recipe_pause_5933.py`,
   `fichero-server/tests/unit/recipes/test_a_page_waits_for_its_inputs_6673.py` (extend: a continued run makes only the missing calls).
 - `runner.pause.survives-relaunch` — **[OK]** (#6584) a run paused for a cause is still paused after a relaunch, with its
   cause; the open continues only work that was running when the app quit. *Test:*
