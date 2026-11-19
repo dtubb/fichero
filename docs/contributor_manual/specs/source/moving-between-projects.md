@@ -741,7 +741,7 @@ Nothing in the project changes.
   originals are now, or a parent) is granted to the engine, kept as a security-scoped bookmark for THIS project
   (`OriginalsStore.rememberRoot`, keyed by the project's path) and every missing original under it is matched (the
   path below its old root, then name and size, then checksum: `relink_plan`, #5672) and relinked in ONE
-  `document.relink_originals` action, one ⌘Z, said in one sentence: "Relinked 214 of 216; 2 still missing."
+  `document.relink_originals` action, one ⌘Z, said in one sentence: "Relinked 214. Still missing: 2."
   On the next launch, a project whose originals are missing tries its remembered folder first, with no panel, and
   asks only when something is still missing after that, once. *Built:* the routing in `DocumentCanvas`
   (`OriginalsStore.askOnce`), the remembered folder and its silent relink at open
