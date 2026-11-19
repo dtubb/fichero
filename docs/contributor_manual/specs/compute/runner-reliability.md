@@ -353,8 +353,12 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   `fichero-server/tests/unit/execution/test_one_heavy_model_in_sequence_6673.py`.
 - `runner.memory.hold-not-kill` — **[PARTIAL]** (#6075, #4987; `activity.throttle.hold-when-swapping`,
   `recipes-run.memory.hold-when-paging` own it) new heavy work is held while the Mac pages; a hold that outlasts its
-  patience becomes a `memory` pause with the row saying so, never a killed engine. Built: the hold; owed: the pause, the
-  popover's paging line, the measured ceilings (`recipes-run.memory.peak-ceiling-per-model-kind`).
+  patience becomes a `memory` pause with the row saying so, never a killed engine. Built: the hold; a page of a run held
+  for memory for `throttle.MEMORY_HOLD_PATIENCE_SECONDS` (ten minutes) asks its run to pause, and the paused run records a
+  `memory` failure with Continue first (`retry.pause_the_run_for_memory`, `failure.memory_pause_failure`; *test:*
+  `fichero-server/tests/unit/jobs/test_kraken_holds_under_swap_and_pressure_6075.py`). Owed: the first paging reading
+  reading the previous sample from the run's record, the popover's paging line beside the pause, the measured ceilings
+  (`recipes-run.memory.peak-ceiling-per-model-kind`).
 - `runner.memory.recorded` — **[OK]** (#6673; `recipes-run.memory.recorded-per-step` owns it) each step records the Mac's
   RAM, the engine's peak, swap, pressure and model loads and unloads, in the run's record and in Save Logs for Support.
   *Test:* `fichero-server/tests/unit/recipes/test_memory_recorded_per_step_6673.py`.
@@ -372,7 +376,10 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
 - `runner.mac.stays-usable` — **[PARTIAL]** (#5819, #6230, #6263; `activity.throttle.use-means-slower`,
   `activity.throttle.in-use-slows-to-half` own it) automatic work goes on while the person uses the Mac, at half the
   performance cores and background QoS; a run the person started begins at once, throttled, never waits for Run now
-  (#6263). Built: the one in-use rule; owed: half the cores (#6230), the started run beginning at once (#6263).
+  (#6263). Built: the one in-use rule; a started run's step is never held for use or battery, only for memory or heat (*test:*
+  `fichero-server/tests/unit/jobs/test_started_run_begins_at_once_6263.py`); an import's automatic Kraken reads on half the
+  performance cores at utility QoS. Owed: other automatic work in use still drops to the lowest QoS class (#6230), and the
+  Air's step hold of #6263, not reproduced.
 
 ### E. The hand-run paths (the context menus, the workflow bar, the recipe runner)
 
