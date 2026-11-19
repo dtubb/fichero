@@ -35,7 +35,15 @@ def _linked_missing(package: Path, doc: Any) -> Path | None:
         return None
     except ValueError:
         pass
-    return None if path.exists() else path
+    return None if original_is_there(package, doc) else path
+
+
+def original_is_there(package: Path, doc: Any) -> bool:
+    """The one test of "is the original there" (#6733): the thumbnail's own (`resolve_source`: bookmark, recorded
+    path, source keys), so the sheet and the thumbnail cannot disagree."""
+    from fichero_server.db.storage import resolve_source
+
+    return resolve_source(doc, library_root=package) is not None
 
 
 def missing_originals(db: Any, within: set[str] | None = None) -> dict[str, Any] | None:
