@@ -522,3 +522,16 @@ def test_a_shard_being_landed_shows_the_run_as_landing_and_it_is_done_after(db, 
     assert seen and set(seen) == {"landing"}
     status = read_job.status(db, job_id)
     assert status["far_state"] == "done" and "landing_now" not in status
+
+
+def test_a_shard_whose_landing_raises_does_not_leave_the_run_saying_landing(db, archive, tmp_path):
+    """WHY (`activity.remote-under-its-step`): a landing that fails must not leave the row at `landing`."""
+    job_id, subject, target = _cluster_run(db, archive, tmp_path)
+
+    def failing_land(*args, **kwargs):
+        raise RuntimeError("disk full")
+
+    with pytest.raises(RuntimeError, match="disk full"):
+        read_job.run(db, subject, target=target, sleep=lambda s: None, land=failing_land)
+    status = read_job.status(db, job_id)
+    assert "landing_now" not in status and status["far_state"] != "landing"

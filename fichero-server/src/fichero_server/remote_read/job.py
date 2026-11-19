@@ -373,8 +373,13 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
                 part = f"shard-{int(key):05d}"
                 detail["landing_now"] = key  # the far side ended it; its pages are not landed yet
                 _save(db, job_id, detail)
-                folder = target.fetch_part(job_id, part, work / "out" / part)
-                result = land(db, job_id, folder, pass_name=pass_name, actor=started_by)
+                try:
+                    folder = target.fetch_part(job_id, part, work / "out" / part)
+                    result = land(db, job_id, folder, pass_name=pass_name, actor=started_by)
+                except BaseException:
+                    detail.pop("landing_now", None)  # the run ends here: the row must not say `landing`
+                    _save(db, job_id, detail)
+                    raise
                 detail.pop("landing_now", None)
                 for name, value in result.items():
                     detail["landing"][name] = detail["landing"].get(name, 0) + value
