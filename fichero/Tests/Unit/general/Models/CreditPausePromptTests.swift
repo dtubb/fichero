@@ -58,4 +58,16 @@ struct CreditPausePromptTests {
         let jobs = [job("run-1"), job("run-2"), job("run-3", provider: "OpenAI")]
         #expect(CreditPauseLedger.sameCause(as: jobs[0], in: jobs).map(\.id) == ["run-1", "run-2"])
     }
+
+    @Test("a run that pauses a poll later is in the cause's runs; a second provider is asked once the first is answered")
+    func laterRunsAndOtherProviders() {
+        let first = [job("run-1")]
+        let later = [job("run-1"), job("run-2")]
+        #expect(CreditPauseLedger.sameCause(as: first[0], in: later).map(\.id) == ["run-1", "run-2"])
+        var ledger = CreditPauseLedger()
+        let both = [job("run-1"), job("run-3", provider: "OpenAI")]
+        #expect(ledger.nextToAsk(in: both)?.id == "run-1")
+        #expect(ledger.nextToAsk(in: both)?.id == "run-3")
+        #expect(ledger.nextToAsk(in: both) == nil)
+    }
 }
