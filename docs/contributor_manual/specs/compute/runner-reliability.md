@@ -355,8 +355,10 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   `recipes-run.memory.hold-when-paging` own it) new heavy work is held while the Mac pages; a hold that outlasts its
   patience becomes a `memory` pause with the row saying so, never a killed engine. Built: the hold; a page of a run held
   for memory for `throttle.MEMORY_HOLD_PATIENCE_SECONDS` (ten minutes) asks its run to pause, and the paused run records a
-  `memory` failure with Continue first (`retry.pause_the_run_for_memory`, `failure.memory_pause_failure`; *test:*
-  `fichero-server/tests/unit/jobs/test_kraken_holds_under_swap_and_pressure_6075.py`). Owed: the first paging reading
+  `memory` failure with Continue first (`retry.pause_the_run_for_memory`, `failure.memory_pause_failure`; *tests:*
+  `fichero-server/tests/unit/jobs/test_kraken_holds_under_swap_and_pressure_6075.py` for the pause at patience,
+  `fichero-server/tests/unit/llm/test_pause_or_fail_is_the_tables_6675.py` for the paused run's `memory` failure with Continue
+  first and for Continue forgetting the pause). Owed: the first paging reading
   reading the previous sample from the run's record, the popover's paging line beside the pause, the measured ceilings
   (`recipes-run.memory.peak-ceiling-per-model-kind`).
 - `runner.memory.recorded` — **[OK]** (#6673; `recipes-run.memory.recorded-per-step` owns it) each step records the Mac's

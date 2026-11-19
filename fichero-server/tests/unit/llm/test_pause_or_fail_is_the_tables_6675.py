@@ -187,3 +187,44 @@ def test_continue_before_the_provider_recovers_probes_once_and_pauses_again_with
     assert _wait_for(lambda: model.calls > sent_before and _status(client, run) == "paused"), "Continue sent a real probe, then paused again"
     assert _failure_of(client, run)["kind"] == "no-credit"
     assert sum(len(v) for v in retry._PAUSED_FOR_CREDIT.values()) == 1, "one pause for the one provider, not one per Continue"
+
+
+# --- a run paused because a page was held for memory past its patience (`runner.memory.hold-not-kill`, #6075) ---
+
+def test_a_run_paused_for_memory_settles_paused_with_a_memory_failure_and_continue_first(client, workflow, pages10, monkeypatch):
+    import fichero_server.llm as llm
+    from fichero_server.llm import retry
+    from fichero_server.workflows import validation
+    from fichero_server.workflows.node_context import get_current_node
+
+    monkeypatch.setattr(retry, "_PAUSED_FOR_MEMORY", {})
+
+    class _HeldFromPage4(CloudModel):
+        async def __call__(self, images, prompt, config, **kwargs):
+            if self.calls + 1 >= BAD_PAGE:
+                retry.pause_the_run_for_memory(get_current_node().run_id, "Waiting: memory is tight: Kraken needs about 2.5 GB")
+            return await super().__call__(images, prompt, config, **kwargs)
+
+    monkeypatch.setattr(llm, "vision", _HeldFromPage4())
+    monkeypatch.setattr(validation, "validate_workflow_llm_preflight", lambda *a, **k: [])
+    run = _execute(client, workflow, pages10)
+    assert _wait_for(lambda: _status(client, run) in ("completed", "failed", "paused", "partial"))
+    assert _status(client, run) == "paused"
+    failure = _failure_of(client, run)
+    assert failure["kind"] == "memory" and failure["pauses"] is True
+    assert failure["actions"][0]["kind"] == "resume"
+
+
+def test_the_memory_failure_names_continue_first_and_the_pause_is_forgotten_on_continue(monkeypatch):
+    from fichero_server.llm import retry
+
+    monkeypatch.setattr(retry, "_PAUSED_FOR_MEMORY", {})
+    paused = {"detail": "Waiting: memory is tight"}
+    built = failure_mod.memory_pause_failure(paused, step="Read")
+    assert built.kind == "memory" and built.pauses and [a.kind for a in built.actions][0] == "resume"
+    assert "paused" in built.words
+    retry._PAUSED_FOR_MEMORY["run-x"] = paused
+    assert retry.paused_for_memory(["run-x"]) == paused
+    retry.forget_provider_pause("run-x")
+    assert retry.paused_for_memory(["run-x"]) is None
+
