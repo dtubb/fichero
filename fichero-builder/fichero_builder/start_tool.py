@@ -14,7 +14,7 @@ import stat
 import sys
 from pathlib import Path
 
-from fichero_builder import adapters, check_tool, codemap, profiles
+from fichero_builder import adapters, check_tool, journal, mcp_servers, profiles
 from fichero_builder.jail import Jail
 
 _HOOK = Path(__file__).resolve().parents[2] / "scripts" / "harness_policy_hook.py"  # <repo>/scripts; the first live run found parents[4] after the move
@@ -96,7 +96,11 @@ def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_b
     # the worker commits as Claude, never as the jail user (a host name leaked, check_agent_commits_authored_as_claude, 2026-11-02)
     for k, v in (("user.name", AUTHOR["GIT_AUTHOR_NAME"]), ("user.email", AUTHOR["GIT_AUTHOR_EMAIL"])):
         subprocess.run(["git", "config", "--global", k, v], check=True)
-    (scratch / "mcp.json").write_text(json.dumps(codemap.mcp_config(root)))  # with --strict-mcp-config: this file is all the worker gets
+    adapters.require_lane_capable(adapters.ClaudeCode())
+    servers, missing = mcp_servers.delivered(root, role=role, stack=stack, project=project)
+    for name in missing:
+        journal.append("mcp-missing", server=name, role=role, stack=stack, project=project)
+    (scratch / "mcp.json").write_text(json.dumps({"mcpServers": servers}))  # with --strict-mcp-config: this file is all the worker gets
     # a linked worktree's .git is a file: ask git where hooks live (the clone's shared hooks dir)
     hooks = subprocess.run(["git", "-C", str(worktree), "rev-parse", "--path-format=absolute", "--git-path", "hooks"],
                            capture_output=True, text=True, check=True).stdout.strip()
@@ -105,7 +109,7 @@ def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_b
     cm.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(_HOOK))} --root {shlex.quote(str(root))} --commit-msg "$1"\n')
     cm.chmod(cm.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
     (scratch / "prompt.md").write_text(profiles.assemble(root, worktree=worktree, scratch=scratch, harness=adapters.ClaudeCode.harness, model=model,
-                               role=role, stack=stack, project=project))  # a file, never the text on tmux's line
+                               role=role, stack=stack, project=project, servers=list(servers)))  # a file, never the text on tmux's line
     claude = [claude_bin, "--dangerously-skip-permissions", "--model", model, "--settings", str(scratch / "settings.json"),
               "--setting-sources", "", "--strict-mcp-config", f"--mcp-config={scratch / 'mcp.json'}"]  # =form: --mcp-config is variadic and would swallow the brief
     return ["sh", "-c", _READ_PROMPT, "sh", str(scratch / "prompt.md"), brief, *claude]  # the brief stays the first user message

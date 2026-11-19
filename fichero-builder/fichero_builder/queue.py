@@ -1793,7 +1793,7 @@ def real_procs(root) -> Procs:
         (feed / "brief.txt").write_text(Path(a.brief).read_text())  # #6466: the brief lives under the owner's state dir, which the worker cannot read
         (feed / "brief.txt").chmod(0o644)
         a.brief = str(feed / "brief.txt")
-        codemap.provide(root)
+        codemap.provide_all(root)
         role = lane.get("role", "")  # a lane's [models] role: its model and window; no role = [models].builder
         cmd = work.run_cmd(a, models.for_role(mdl, role).model if role else builder, "--feed", feed, "--seq", lane["seq"], *(("--role", role) if role else ()))
         log = open(Path(j.workroot) / f"run-{lane['id']}.log", "ab")  # #6466: a start that fails is read here, not lost to /dev/null (the workroot is where the owner may write)

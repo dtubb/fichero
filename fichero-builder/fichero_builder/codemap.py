@@ -24,27 +24,38 @@ def _jail_table(root) -> dict:
     return tomllib.loads(f.read_text()).get("jail", {}) if f.is_file() else {}
 
 
-def wrapper(root) -> str:
+# the two index servers every worker needs (agent-profiles.mcp.required): the `[jail]` key naming the owner's install, the script's name
+INDEX_SERVERS = {"jcodemunch": ("code_map", "jcodemunch-mcp"), "jdocmunch": ("doc_map", "jdocmunch-mcp")}
+
+
+def wrapper(root, server: str = "jcodemunch") -> str:
     """The copied server's command if one is in place, else ''."""
     t = _jail_table(root)
-    if not (t.get("code_map") and t.get("workroot")):
+    key, name = INDEX_SERVERS[server]
+    if not (t.get(key) and t.get("workroot")):
         return ""
-    w = Path(t["workroot"]) / "bin" / "jcodemunch-mcp"
+    w = Path(t["workroot"]) / "bin" / name
     return str(w) if w.is_file() else ""
 
 
-def provide(root, say=print) -> str:
+def provide_all(root, say=print) -> dict[str, str]:
+    """`provide` for each index server: {server: wrapper path or ''}."""
+    return {s: provide(root, say, s) for s in INDEX_SERVERS}
+
+
+def provide(root, say=print, server: str = "jcodemunch") -> str:
     """As the owner, before a worker starts: the copy and its wrapper, made once and again after an upgrade. The wrapper's path, or ''."""
     t = _jail_table(root)
-    if not (t.get("code_map") and t.get("workroot")):
+    key, name = INDEX_SERVERS[server]
+    if not (t.get(key) and t.get("workroot")):
         return ""
-    script = Path(t["code_map"]).expanduser().resolve()
+    script = Path(t[key]).expanduser().resolve()
     if not script.is_file():
         return ""
-    home = Path(t["workroot"]) / "jcodemunch"
+    home = Path(t["workroot"]) / server
     venv, stamp = home / "venv", home / "installed-from"
     want = str(script.stat().st_mtime_ns)
-    w = Path(t["workroot"]) / "bin" / "jcodemunch-mcp"
+    w = Path(t["workroot"]) / "bin" / name
     try:
         for d in (home, w.parent):  # the workroot is world-writable: a worker's link here would have the owner copy and chmod through it
             try:
@@ -66,25 +77,39 @@ def provide(root, say=print) -> str:
                     if not p.is_symlink():
                         p.chmod(p.stat().st_mode | stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
             q = shlex.quote
-            w.write_text(f'#!/bin/sh\nJCODEMUNCH_MAX_FOLDER_FILES={MAX_FILES} exec {q(str(venv / "bin" / "python"))} {q(str(venv / "bin" / script.name))} "$@"\n')
+            env = f"JCODEMUNCH_MAX_FOLDER_FILES={MAX_FILES} " if server == "jcodemunch" else ""
+            w.write_text(f'#!/bin/sh\n{env}exec {q(str(venv / "bin" / "python"))} {q(str(venv / "bin" / script.name))} "$@"\n')
             w.chmod(0o755)
             stamp.write_text(want)
     except OSError as e:
-        say(f"code map: not provided ({e}); the worker will grep")
+        say(f"{server}: not provided ({e}); the worker cannot start without it")
         return ""
     return str(w)
 
 
-def mcp_config(root) -> dict:
-    """What the worker's `--strict-mcp-config` file holds: the copied server when there is one, nothing else."""
-    w = wrapper(root)
-    return {"mcpServers": {"jcodemunch": {"type": "stdio", "command": w, "args": [], "env": {}}} if w else {}}
+INDEX_FAILED = 71  # the exit code of a worker command whose index build failed
+
+
+def index_args(root, server: str, worktree) -> list[str]:
+    """The index command's arguments: jcodemunch's own; jdocmunch's from `[jail].doc_index` (a list with `{worktree}`), refused when unset."""
+    if server == "jcodemunch":
+        return ["index", str(worktree), "--no-ai-summaries"]
+    argv = _jail_table(root).get("doc_index")
+    if not argv:
+        raise ValueError("harness.toml [jail].doc_index (the jdocmunch index arguments, with {worktree}) is not set")
+    return [x.replace("{worktree}", str(worktree)) for x in argv]
 
 
 def index_prefix(root, worktree) -> str:
-    """Shell to run as the worker before the session: `<wrapper> index <worktree> ...; ` (a failed index never stops the worker)."""
-    w = wrapper(root)
-    return f"{shlex.quote(w)} index {shlex.quote(str(worktree))} --no-ai-summaries >/dev/null 2>&1; " if w else ""
+    """Shell to run as the worker before the session: each provided server's index over the worktree. A failed build prints
+    which server and exits INDEX_FAILED, so the session never starts without its index."""
+    out = ""
+    for server in INDEX_SERVERS:
+        w = wrapper(root, server)
+        if w:
+            args = " ".join(shlex.quote(x) for x in index_args(root, server, worktree))
+            out += f"{shlex.quote(w)} {args} >/dev/null 2>&1 || {{ echo 'index build failed: {server}' >&2; exit {INDEX_FAILED}; }}; "
+    return out
 
 
 def owner_binary(root) -> str:

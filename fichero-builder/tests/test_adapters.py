@@ -6,7 +6,8 @@ import subprocess
 
 import pytest
 
-from fichero_builder import adapters, codemap, start_tool
+from _fake_index import write_rules
+from fichero_builder import adapters, start_tool
 
 QUESTIONS = ("system_prompt", "mcp", "model", "permission", "policy", "session_read")
 
@@ -38,7 +39,7 @@ def test_six_answers_and_unsupported_is_said():
 
 
 def test_claude_code_argv(tmp_path, monkeypatch):
-    (tmp_path / "harness.toml").write_text('[policy]\nrules = [{ re = "x", reason = "NO X" }]\n')
+    write_rules(tmp_path, '[policy]\nrules = [{ re = "x", reason = "NO X" }]\n')
     wt = tmp_path / "wt"
     wt.mkdir()
     subprocess.run(["git", "-C", str(wt), "init", "-q"], check=True)
@@ -52,13 +53,13 @@ def test_claude_code_argv(tmp_path, monkeypatch):
     assert argv[argv.index("--settings") + 1] == str(scratch / "settings.json")
     assert argv[argv.index("--setting-sources") + 1] == ""  # no user, project or local settings: only the generated file
     assert "--strict-mcp-config" in argv
-    assert json.loads((scratch / "mcp.json").read_text()) == codemap.mcp_config(tmp_path)
+    assert list(json.loads((scratch / "mcp.json").read_text())["mcpServers"]) == ["jcodemunch", "jdocmunch"]
 
 
 def test_a_hostile_brief_reaches_the_shell_as_one_argument(tmp_path, monkeypatch):
     """harness_start shell-quotes every word; the wrapper takes the brief as $2, so command text in it is never run."""
     import shlex
-    (tmp_path / "harness.toml").write_text("")
+    write_rules(tmp_path)
     wt = tmp_path / "wt"
     wt.mkdir()
     subprocess.run(["git", "-C", str(wt), "init", "-q"], check=True)

@@ -35,7 +35,7 @@ def _part(agents: Path, rel: str) -> str:
 
 
 def assemble(root, *, worktree, scratch, harness: str, model: str, role: str | None = None, stack: str | None = None,
-             project: str | None = None, agents_dir: Path | None = None) -> str:
+             project: str | None = None, agents_dir: Path | None = None, servers: list[str] | None = None) -> str:
     agents = Path(agents_dir) if agents_dir else AGENTS
     toml = Path(root) / "harness.toml"
     cfg = tomllib.loads(toml.read_text()) if toml.is_file() else {}
@@ -43,4 +43,7 @@ def assemble(root, *, worktree, scratch, harness: str, model: str, role: str | N
     common = (_part(agents, "common/common.md").replace("{{WORKTREE}}", str(worktree)).replace("{{SCRATCH}}", str(scratch))
               .replace("{{POLICY}}", policy).replace("{{TRAILER}}", trailer(model, harness)))
     rels = (role and f"roles/{role}.md", stack and f"stacks/{stack}.md", project and f"projects/{project}/project.md")
-    return "\n".join([common, *[_part(agents, rel) for rel in rels if rel]])
+    parts = [common, *[_part(agents, rel) for rel in rels if rel]]
+    if servers is not None:
+        parts.append(f"MCP servers you have: {', '.join(servers)}.\n")
+    return "\n".join(parts)
