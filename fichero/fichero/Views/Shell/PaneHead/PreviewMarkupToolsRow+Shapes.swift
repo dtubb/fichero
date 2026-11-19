@@ -80,7 +80,7 @@ extension PreviewMarkupToolsRow {
     /// it stays until another tool is chosen; holding B gives it for one stroke.
     private var brushButton: some View {
         let armed = windowState?.brushArmed == true
-        return labeled("Brush") {
+        return labeled("Select Brush") {
             Button {
                 windowState?.chooseSegmentTool(armed ? nil : .brush)
             } label: {
@@ -88,8 +88,8 @@ extension PreviewMarkupToolsRow {
             }
             .buttonStyle(.borderless)
             .foregroundStyle(armed ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
-            .help("Brush — paint over segments to select them; ⌥ takes away, [ and ] change the size (hold B for one stroke)")
-            .accessibilityLabel("Brush")
+            .help("Select Brush — brush over segments to select them; ⌥ takes away, [ and ] change the size (hold B for one stroke)")
+            .accessibilityLabel("Select Brush")
             .accessibilityIdentifier("segmentEditor.tool.brush")
         }
     }
@@ -97,7 +97,7 @@ extension PreviewMarkupToolsRow {
     /// The Paintbrush (`segment-editor.paintbrush`): paint along a line of ink to make it a line (P; `[` `]` width).
     private var paintButton: some View {
         let armed = windowState?.paintArmed == true
-        return labeled("Paintbrush") {
+        return labeled("Line Brush") {
             Button {
                 windowState?.chooseSegmentTool(armed ? nil : .paint)
             } label: {
@@ -105,8 +105,8 @@ extension PreviewMarkupToolsRow {
             }
             .buttonStyle(.borderless)
             .foregroundStyle(armed ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
-            .help("Paintbrush — paint along a line of ink to make it a line (P); [ and ] change the width")
-            .accessibilityLabel("Paintbrush")
+            .help("Line Brush — paint along a line of writing to make a line (P); [ and ] change the width")
+            .accessibilityLabel("Line Brush")
             .accessibilityIdentifier("segmentEditor.tool.paintbrush")
         }
     }
