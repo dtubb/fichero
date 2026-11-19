@@ -108,6 +108,22 @@ final class ProjectNamingTests: XCTestCase {
         XCTAssertTrue(source.contains("SidebarKnowledgeRowsNode(store: library.knowledgeRowCountsStore"))
     }
 
+    /// #6742: a remote Mac's projects are their own section named for it, never in Projects.
+    func testARemoteMacsProjectsAreTheirOwnSectionNeverUnderProjects() throws {
+        let rows = [Row(name: "Local", libraryId: UUID()), Row(name: "GHG", libraryId: UUID()), Row(name: "Other", libraryId: UUID())]
+        let hosts = ["GHG": "https://macbook-air-m1.local:8765", "Other": "https://macbook-air-m1.local:8765"]
+        let split = SidebarProjectSections.splitByMac(rows) { hosts[$0.name] }
+        XCTAssertEqual(split.local.map(\.name), ["Local"])
+        XCTAssertEqual(split.remote.map(\.host), ["https://macbook-air-m1.local:8765"])
+        XCTAssertEqual(split.remote.first?.items.map(\.name), ["GHG", "Other"])
+        XCTAssertEqual(SidebarProjectSections.remoteHeader(name: "macbook-air-m1", state: .reconnecting), "macbook-air-m1 · reconnecting")
+
+        let view = try Self.appSource("Views/Sidebar/Sections/SidebarView+ViewComponents.swift")
+        XCTAssertTrue(view.contains("ForEach(byMac.local)"), "Projects lists only this Mac's")
+        XCTAssertFalse(view.contains("ForEach(sections.projects)"))
+        XCTAssertTrue(view.contains("Button(\"Disconnect\")"))
+    }
+
     /// Below it, a Projects heading over every other project, in order; none when no other is open.
     func testTheProjectsHeadingListsTheOtherProjects() throws {
         XCTAssertEqual(SidebarProjectSections.projectsHeading, "Projects")
@@ -125,7 +141,7 @@ final class ProjectNamingTests: XCTestCase {
 
         let view = try Self.appSource("Views/Sidebar/Sections/SidebarView+ViewComponents.swift")
         // a host-gone project is listed too
-        XCTAssertTrue(view.contains("if !sections.projects.isEmpty || !libraryManager.hostGoneRows.isEmpty {"))
+        XCTAssertTrue(view.contains("if !byMac.local.isEmpty || !libraryManager.hostGoneRows.isEmpty {"))
         XCTAssertTrue(view.contains("Text(SidebarProjectSections.projectsHeading)"))
     }
 

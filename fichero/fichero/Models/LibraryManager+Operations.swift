@@ -237,6 +237,15 @@ extension LibraryManager {
         saveOpenLibraryPaths()
     }
 
+    /// Disconnect from a remote Mac (#6742): every project pinned to it leaves the sidebar and the saved list; the Mac stays paired.
+    func disconnectRemoteMac(_ hostRoot: URL) {
+        let leaving = openLibraries.filter { $0.pinnedToHost && $0.host.url == hostRoot }.map(\.id)
+        guard !leaving.isEmpty else { return }
+        openLibraries.removeAll { leaving.contains($0.id) }
+        if let current = currentLibraryId, leaving.contains(current) { currentLibraryId = Self.globalLibraryId }
+        saveOpenLibraryPaths()
+    }
+
     /// Create a project at the location setup's Your project step chose (`NewProjectStore`): the ONE
     /// create path behind first run and File › Set Up New Project…, in a window and with no window
     /// (#4530, #5482). The project is inserted once into `openLibraries` (the sidebar's rows),
