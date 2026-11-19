@@ -264,13 +264,15 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   `fichero-server/tests/unit/jobs/test_blocked_work_waits_on_its_blocker_6593.py`.
 - `runner.results.no-silent-loss` — **[PARTIAL]** (#6673, #6271) no runner drops an item it found without a word: Kraken's
   line without an outline is boxed and counted (`recipes-run.kraken.no-silent-line-loss`, built); a page a step skipped is
-  counted and named with its reason on the step (#6271 built: `left_out` names the pages and the reason, never "already done"); a names run
+  counted and named with its reason on the step (#6271: 545 pages never segmented and counted done, owed); a names run
   counts its "left out: no text" pages on its row (`engine.silent.pages-left-out-of-a-names-run`, owed). *Test:*
   `fichero-server/tests/unit/llm/test_kraken_line_without_outline_is_boxed_6673.py`, `fichero-server/tests/unit/recipes/test_left_out_is_not_done_6271.py`.
+  Built: #6271's skipped pages are counted and named on the step (`left_out`), never "already done".
 - `runner.results.counted-done-only-with-a-result` — **[PARTIAL]** (#6271, #6673) a page is done for a step only when the
   step's result is there (lines on the working pass, a reading on each line, a judgement "blank"); a page with no result and
-  no judgement is neither done nor silent. Built for the steps §13 covers and, for #6271, `read-a-line`'s done check: a page with no lines is not done
-  (`test_left_out_is_not_done_6271.py::test_a_page_with_no_lines_and_no_judgement_is_not_done_for_read_a_line_and_is_not_dropped`).
+  no judgement is neither done nor silent. Built for the steps §13 covers; owed for `read-a-line`'s done check against pages
+  Kraken never saw (#6271).
+  Built: `read-a-line`'s done check for a page with no lines (`test_left_out_is_not_done_6271.py`).
 
 ### C. Each runner (what each must do; the owning spec is named)
 
