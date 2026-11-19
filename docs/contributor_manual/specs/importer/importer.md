@@ -501,6 +501,27 @@ from this pass shipped and closed at 177fc6cd3). Everything else stays on #188.
 - `importer.move-import-leaves-file-at-destination` — **[OK]** (#5313) after a MOVE import the file is at its destination and gone from the source, pinned by fichero-server/tests/unit/security/test_library_membership_and_ingest_mode_api.py::test_ingest_file_mode_link_copy_move_apply.
 - `importer.image-ingest-limit-200-megapixels` — **[PARTIAL]** (#5183, #5515) the ingest decompression-bomb limit is 200 MP (loaders/image_loader.py, with PIL's own guard moved to match; a refusal names the pixel count, and the 74.8 MP Reichsanzeiger page from #5183 ingests; pinned by fichero-server/tests/unit/loaders/test_ingest_limit_200mp.py); still owed: images above about 64 MP shown through tiles or downsampled previews so memory stays bounded. (Ruled 2026-09-28.)
 - `importer.copy-mode-drop-pairs-layout-with-image` — **[GAP]** (#5220) a COPY-mode drop of loose files pairs a layout file with its image like link and move do (case-blind pairing landed in ad8b7c4bc, e6db06f05, 964470d1b).
+- `importer.originals.bookmark-followed` — **[GAP]** (#6733; app + engine; owner 2026-11-19) on open, and on "Original unavailable", each
+  document's stored bookmark is resolved first; a file the bookmark finds after a rename or a move is relinked silently, its
+  new path and a fresh bookmark saved at once. A bookmark the engine cannot resolve in its own process is resolved by the app,
+  which hands the engine paths (or the engine uses the app's resolved scope). Whenever an original is found (a bookmark that
+  resolves somewhere new, Retry, a folder relink, or a stale bookmark that still resolves) its new path and a fresh bookmark
+  are saved, and a stale bookmark is always refreshed, so the next move is followed too. Test: a moved and renamed file is
+  found by its bookmark; a file moved twice is followed both times without asking.
+- `importer.originals.locate-folder-relinks-all` — **[GAP]** (#6733; app + engine; owner 2026-11-19) File ▸ Locate Originals takes a folder
+  and relinks every missing original found under it, matching by file name and size, then by content hash, and reports N
+  relinked and M still missing; it never errors on the ones it cannot match, and an error it does show names what failed.
+  Test: a folder holding three moved files relinks three and reports none missing.
+- `importer.originals.retry-finds-and-relinks` — **[GAP]** (#6733; app + engine; owner 2026-11-19) a thumbnail that says "Original unavailable"
+  offers Retry. Retry resolves the bookmark, then searches the last folder used and the library's known roots; on finding the
+  original it relinks it and offers to relink the other K missing originals in that folder too. Test: Retry finds one and
+  offers the rest.
+- `importer.originals.one-is-it-there-test` — **[GAP]** (#6733; app + engine; owner 2026-11-19) one test of "is this original there?" is used by
+  the Locate Originals sheet, the thumbnail and Retry, so they cannot disagree (today the sheet says every linked original is
+  where the project says while thumbnails say "Original unavailable"; a volume the engine cannot read must count as missing,
+  not as found). The sheet's words are plain: nothing missing, "All N originals were found."; some missing, "N of M originals
+  can't be found. They were last in: …" with "Choose the folder they're in now…"; after a relink, "Relinked N. Still missing: M."
+  The sheet can still point at a new folder when nothing is missing ("Move originals to a new folder…"). Related: #5818.
 - `importer.missing-original-fails-in-words` — **[GAP]** (#5818) a page whose original is not where it was imported from fails its thumbnail job in words, "<file> isn't where it was imported from: Locate Originals…" (the sentence #5811 gives a try), so the job row ends `failed` naming the file instead of finishing silently; the batch ends with each failed page named. A run waiting behind thumbnails says what it waits for (the stage, the pages that failed and why): `activity.waiting-says-why` (`execution/jobs.py` `first_reason`: the held row appends up to four thumbnail pages that failed since it was queued, newest first; tested in `tests/unit/jobs/test_a_waiting_run_says_what_it_waits_for_5818.py`).
 - `importer.derivative-source-found-for-resumed-documents` — **[BROKEN]** (#5408) resuming derivatives finds each pending document's source (pages of a notebook corpus fail with 'source not found') or says why.
 
