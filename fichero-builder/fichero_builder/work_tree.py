@@ -1,7 +1,9 @@
 """builder-console.work.counts-are-live (#6645): per milestone, how many steps are in each state, the oldest age in that state, the
 lanes holding them and the last failure, read from the lanes' steps through `queue.state_view`. A lane's `milestone` key names its
-milestone; a lane without one is `unfiled`. GitHub counts are not read here, and no page calls this yet."""
+milestone; a lane without one is `unfiled`. GitHub counts are not read here, and no page calls this yet. `on_origin(lane, step)` says whether a landed step's head is on origin; without it every landed step counts as landed."""
 from __future__ import annotations
+
+from typing import Callable
 
 from fichero_builder import queue
 
@@ -10,14 +12,14 @@ GROUP = {"queued": "queued", "sent": "running", "fixing": "running", "said-done"
 FINAL = ("landed", "parked")
 
 
-def counts(lanes: list[dict], now: float | None = None) -> dict[str, dict]:
+def counts(lanes: list[dict], now: float | None = None, on_origin: Callable[[dict, dict], bool] | None = None) -> dict[str, dict]:
     out: dict[str, dict] = {}
     newest_fail: dict[str, float] = {}
     for lane in lanes:
         m = out.setdefault(lane.get("milestone") or "unfiled", {"states": {}, "last_failure": "", "running_lane": "", "last_lane": "", "paused": []})
         if lane.get("paused"):
             m["paused"].append(lane["id"])
-        views = [queue.state_view(lane, s, now=now) for s in lane["steps"]]
+        views = [queue.state_view(lane, s, now=now, on_origin=on_origin(lane, s) if on_origin else True) for s in lane["steps"]]
         for v in views:
             g = m["states"].setdefault(GROUP[v["state"]], {"n": 0, "oldest_age_s": 0.0, "lanes": []})
             g["n"] += 1

@@ -1729,7 +1729,7 @@ Fichero's engine already uses LangGraph. The owner has ruled that the Builder ad
   closed"), never as a step state. "Lane running" means a lane with a non-final step; a finished lane is "last lane:
   <name>, landed <ago>". Acceptance (fixture tree): a milestone with one checking step and one blocked step shows both
   with ages and the blocked one's question; a milestone whose only lane is finished shows no running lane. Test:
-  fichero-builder/tests/test_work_tree.py, case test_counts_come_from_the_tree. Built: `work_tree.counts` over the lanes' steps. Not built: the console page reading it, the GitHub open/closed pair beside it, the lane's `milestone` key being written.
+  fichero-builder/tests/test_work_tree.py, case test_counts_come_from_the_tree. Built: `work_tree.counts` over the lanes' steps. `closed-out` is the `parked` group. Not built: the on-origin check no caller passes yet (without it `done-not-landed` is never produced), the console page reading it, the GitHub open/closed pair beside it, the lane's `milestone` key being written.
 - `builder-console.store.one-database` [GAP] (#6644) (today: `queue.json`, `journal.jsonl`, `ladder-<lane>.json`, `review-<lane>.txt`,
   `question-*.txt`, `fix-*.txt`, read and joined by `console.py`) — the state of milestones › steps › lanes › runs › alerts
   › edits is one store, `<state>/harness.duckdb` (DuckDB, the database Fichero already uses, one file; owner 2026-11-16),

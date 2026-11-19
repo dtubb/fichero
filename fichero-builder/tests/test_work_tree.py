@@ -35,3 +35,11 @@ def test_the_newest_failure_wins_and_a_red_check_counts_as_red():
     lanes[0]["steps"][0]["red_head"] = "abc"
     t = work_tree.counts(lanes, now=NOW)["m"]
     assert t["states"]["red"]["n"] == 1 and t["states"]["blocked"]["n"] == 1 and t["last_failure"] == "red at rung lint"
+
+
+def test_a_landed_step_whose_head_is_not_on_origin_counts_as_done_not_landed():
+    lanes = [_lane("a", "m", ("1.1", "landed", "", NOW - 60), ("1.2", "landed", "", NOW - 30))]
+    off = lambda lane, s: s["step"] != "1.1"  # noqa: E731
+    t = work_tree.counts(lanes, now=NOW, on_origin=off)["m"]["states"]
+    assert t["done-not-landed"]["n"] == 1 and t["landed"]["n"] == 1
+    assert "done-not-landed" not in work_tree.counts(lanes, now=NOW)["m"]["states"]
