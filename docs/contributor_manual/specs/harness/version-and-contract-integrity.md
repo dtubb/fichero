@@ -196,7 +196,8 @@ document is deliberate. `SourceAnchor.document_id` stays required.
   engine in `build-release-dmg.sh`, before signing; the file is never tracked. A source checkout and an unstamped build
   report what they did before. `release_guard.smoke` refuses to publish a DMG whose engine stamp is missing or differs
   from the app's `CFBundleShortVersionString` and `CFBundleVersion`; the Mac app's launch check compares the
-  contract version, not the release one, to its stamps. Tests: `fichero-server/tests/unit/api/test_engine_reports_its_release_6723.py`
+  contract version, not the release one, to its stamps, and the pairing version-mismatch sentence
+  (`sharing.version-mismatch-says-which-side`) keeps comparing contract versions on both Macs. Tests: `fichero-server/tests/unit/api/test_engine_reports_its_release_6723.py`
   (a stage stamped with 2026.11.18 build 29 resolves to `2026.11.18 (29)`), `fichero-server/tests/unit/scripts/test_release_guard.py`.
 - `contract.identity-guard-sees-code-drift` — **[GAP]** (#5080) the contract-identity guard fails when the committed contract no longer describes the code, not only when it differs from its own hash.
 

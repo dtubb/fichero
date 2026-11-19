@@ -38,7 +38,7 @@ final class LivePairingHost: PairingSequence.Host {
             let mismatch = ContractCompatibility.mismatch(engine: health.contract)
             return (nil, PairingSequence.HostHealth(
                 contract: mismatch == nil ? Self.contractMatches : "differs",
-                version: health.backendVersion ?? health.contract?.version))  // the release a built engine ships in (#6723)
+                version: health.contract?.version ?? health.backendVersion))
         } catch is RemoteCertificatePinningError {
             return (.certificatePin, nil)
         } catch {

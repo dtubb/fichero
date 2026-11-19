@@ -18,8 +18,9 @@ import Foundation
 /// ## What is compared
 ///
 /// Three versions, from three independent places:
-///   - **running** — `backend_version` from `GET /api/health`: the engine that
-///     actually answered, resolved from its installed distribution metadata.
+///   - **running** — `contract.version` from `GET /api/health`: the engine that
+///     actually answered, from its distribution metadata. Not `backend_version`, which a
+///     release's engine reports as the release it shipped in (#6723).
 ///   - **embedded** — `FicheroEmbeddedEngineVersion` in the app's `Info.plist`:
 ///     the `CFBundleShortVersionString` of the engine bundle the embed phase
 ///     copied. What is INSIDE this app.
