@@ -120,11 +120,12 @@ extension AppState {
     /// It also fills `backendVersion` on the proven-readiness path, which skips
     /// the health GET entirely — About's "Server X" row was blank there.
     func verifyEmbeddedEngineVersion() async {
-        let reported = await reportedEngineVersion()
+        let (reported, contractVersion) = await reportedEngineVersions()
         if let reported { backendVersion = reported }
         let verdict = EmbeddedEngineVersionCheck.verdict(
             isEmbedded: EngineConfig.engineProvisioningStrategy() == .releaseEmbedded,
-            reportedVersion: reported,
+            // The contract version, not the release one: the stamps are the pyproject's, which is the contract's (#6723).
+            reportedVersion: contractVersion ?? reported,
             stamps: EmbeddedEngineVersionCheck.stamps(from: .main)
         )
         switch verdict {
@@ -144,13 +145,14 @@ extension AppState {
         }
     }
 
-    /// `backend_version` from one `/api/health`, or nil if it doesn't answer.
-    /// Fail-quiet: an unreachable engine is the heartbeat's story to tell, and
-    /// this check must never invent a second unreachable surface.
-    private func reportedEngineVersion() async -> String? {
+    /// `backend_version` (the release a built engine shipped in, "2026.11.18 (29)") and the contract's version from one
+    /// `/api/health`, nil each when it doesn't answer. Fail-quiet: an unreachable engine is the heartbeat's story to
+    /// tell, and this check must never invent a second unreachable surface.
+    private func reportedEngineVersions() async -> (release: String?, contract: String?) {
         guard let response = try? await ficheroClient.api.healthCheckApiHealthGet(headers: .init()),
-              case .ok(let okResponse) = response else { return nil }
-        return try? okResponse.body.json.backendVersion
+              case .ok(let okResponse) = response,
+              let health = try? okResponse.body.json else { return (nil, nil) }
+        return (health.backendVersion, health.contract?.version)
     }
 
     /// Remember the endpoint the app is currently connected to so failover can
