@@ -149,6 +149,23 @@ The logic lives in `scripts/release_guard.py` (one subcommand per point) so it i
   the summary table. The release-docs preflight still applies: a morning with no
   `RELEASE_NOTES.md` section for the day stops there and texts the failure. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py` covers the lock, the commit count, the publish gate, the publish hand-off (`guard publish` records Publish from `publish-release.sh`'s exit status) and, running the script itself against a stub guard, a count that fails stopping the run with a text. Not yet tested: the PR step, the preflight stop, the lock taken before its trap.
 
+- `release.nightly.reliable-publish` — **[GAP]** (#6726; owner 2026-11-19) every night a dev DMG (GitHub, Sparkle, the site) and an iOS
+  TestFlight build publish, and a Mac TestFlight build once signing is set up on the DMG host, run by a launchd job calling the
+  builder's deterministic release-all and daily-builds, with no model tokens; a model is brought in only when a stage is red,
+  and then a text says what is red. Stages, in order: (1) before the freeze, check every build machine (reachable, awake, free
+  disk at or above the floor), pick one, and text the owner at 22:00 if none can run; (2) a per-machine sweep before the build
+  frees space (DerivedData untouched for 7 days, build trees of commits already landed, device-support folders for iOS versions
+  older than the newest two, old DMGs except the newest published and the last two, package caches past their size cap, and
+  local Time Machine snapshots after files are removed), never the release's own DerivedData or the newest DMGs, keeps a floor
+  (40 GB proposed), and texts when it cannot reach it; the release's disk check counts snapshots; (3) the verify stage runs
+  with the engine importable and from the release candidate, not the live builder checkout; (4) a red stage texts what is red
+  at once, and an unpublished DMG is never silent; (5) the red goes to the manager, who fixes it, and the nightly resumes from
+  the failed stage instead of starting over. Cheaper runs: the Mac DMG and the iOS archive build in parallel on two Macs and
+  publish when both are green; the separate iOS compile preflight is skipped when the same run archives iOS; the engine bundle
+  is reused when the lock file and engine sources are unchanged since the last good build; Xcode builds incrementally in a kept
+  DerivedData on the build Mac; one notarization covers the DMG with the app inside. Also open: the main branch's pull
+  request and merge scripted. Test owed per stage.
+
 ## Release notes — two artifacts, different owners
 
 Two files, two conventions — do not conflate them:
@@ -355,7 +372,7 @@ while any box is open.
 
 ### Release defaults (owner, 2026-11-14, #6590)
 
-- `release.lane.notes-auto-generated` — **[OK]** when `RELEASE_NOTES.md` has no `## <version>` section, or `CHANGELOG.md` no entry for the day, `release_guard.py auto-notes` writes them (#6728) from the record since the newest `v*` tag that is not `v<version>`, grouped by milestone (the sections are specified in `release-channels-and-feature-tiers.md`, "Release notes"); `release-all.sh` runs it before the stamp and before the release-docs preflight, with the version from `set-release-version.sh --print-version`. The stamp only checks that `RELEASE_NOTES.md` has a `## <version>` section and fails when it does not; it never retitles another section. A hand-written section is never touched, and a hand-written `## Unreleased` in `CHANGELOG.md` becomes the day's entry. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
+- `release.lane.notes-auto-generated` — **[OK]** when `RELEASE_NOTES.md` has no `## <version>` section, or `CHANGELOG.md` no entry for the day, `release_guard.py auto-notes` writes them (#6728) from the record since the newest `v*` tag that is not `v<version>`, with an intro that says "since <that last release>", grouped by milestone (the sections are specified in `release-channels-and-feature-tiers.md`, "Release notes"); `release-all.sh` runs it before the stamp and before the release-docs preflight, with the version from `set-release-version.sh --print-version`. The stamp only checks that `RELEASE_NOTES.md` has a `## <version>` section and fails when it does not; it never retitles another section. A hand-written section is never touched, and a hand-written `## Unreleased` in `CHANGELOG.md` becomes the day's entry. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
 - `release.lane.daily-builds-dev-dmg-only` — **[OK]** the morning release runs `release-all.sh --dev` and builds one DMG, the dev tier, named `Fichero.dmg` (a single-tier run always names its DMG `Fichero.dmg`); the two-DMG default stays for a hand run. That DMG is published on the `dev` Sparkle channel only (`FICHERO_RELEASE_CHANNEL=dev`: its appcast item carries `<sparkle:channel>dev</sparkle:channel>`, no channel-less item is written), so Alpha, Beta and Release installs are never offered it (`release-channels-and-feature-tiers.md`, "One feed, two channels"). `FICHERO_MORNING_ARGS` can change the flags. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
 - `release.queue.two-workers` — **[OK]** `harness.toml` `[queue] workers = 2`. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
 - `release.lane.site-deploy-triggers-netlify` — **[OK]** `deploy-site.sh` posts to the Netlify build hook in `FICHERO_NETLIFY_BUILD_HOOK` after the push (unset: it says so and relies on the push). *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
