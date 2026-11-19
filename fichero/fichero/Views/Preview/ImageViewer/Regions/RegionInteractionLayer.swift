@@ -137,7 +137,6 @@ struct RegionInteractionLayer: View {
     @State var resizeDrag: BoxResize.Drag?
     /// The segment box a double-click opened, shown in its popover (#5414); nil when none is open.
     @State var segmentPopover: SegmentPopoverTarget?
-    /// A ⌥-drag box is in progress (`handleBoxDraw`).
     @State var boxDrawActive = false
 
     var body: some View {

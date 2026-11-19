@@ -56,7 +56,6 @@ extension RegionInteractionLayer {
         }
     }
 
-    /// The segment just made opens in its popover, ready for text (`WindowState.openForTextSegmentId`).
     func openNewSegmentForText(_ id: String?) {
         guard let id, let box = allBoxes.first(where: { $0.segmentId == id }),
               let target = SegmentPopoverTarget.target(for: box) else { return }

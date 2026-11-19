@@ -147,11 +147,17 @@ extension ZoomableImagePreview {
         return geometryFrameMatchesDisplay(geometry) ? geometry : mappedRenditionGeometry
     }
 
-    /// The segments mapped onto the rendition shown; nil when it is not a mapped one.
     var mappedRenditionGeometry: OCRGeometry? {
-        guard let geometry = ocrGeometry, let shown = displayedRenditionId, let loaded = renditionBoxes,
-              loaded.id == shown else { return nil }
-        return SegmentOnRendition.mappedGeometry(geometry, on: loaded.answer)
+        guard let shown = displayedRenditionId, renditionBoxes?.id == shown else { return nil }
+        return mappedGeometryCache
+    }
+
+    func refreshMappedGeometry() {
+        guard let geometry = ocrGeometry, let loaded = renditionBoxes else {
+            mappedGeometryCache = nil
+            return
+        }
+        mappedGeometryCache = SegmentOnRendition.mappedGeometry(geometry, on: loaded.answer)
     }
 
     /// True (after saying why) when the boxes on screen are mapped onto a rendition, so the edit is refused.
@@ -174,6 +180,7 @@ extension ZoomableImagePreview {
                 let answer = try await segmentService.segmentBoxes(documentId: documentId, renditionId: id)
                 guard displayedRenditionId == id else { return }
                 renditionBoxes = (id, answer)
+                refreshMappedGeometry()
                 if !answer.followed {
                     windowState?.segmentNotice = answer.note ?? "The segments' place on this picture is not known, so no boxes are drawn."
                 }

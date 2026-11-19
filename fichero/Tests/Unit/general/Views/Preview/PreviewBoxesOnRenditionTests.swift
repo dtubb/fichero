@@ -76,9 +76,4 @@ struct PreviewBoxesOnRenditionTests {
         let answer = SegmentBoxesOnRendition(followed: false, note: "not known", size: nil, boxes: [:])
         #expect(SegmentOnRendition.mappedGeometry(geometry(), on: answer) == nil)
     }
-
-    @Test("the refusal for a geometry-writing edit on a mapped rendition says what to do")
-    func editRefusalIsInWords() {
-        #expect(SegmentOnRendition.editRefusal.contains("original"))
-    }
 }

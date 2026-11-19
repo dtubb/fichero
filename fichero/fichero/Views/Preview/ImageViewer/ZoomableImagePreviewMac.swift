@@ -213,6 +213,7 @@ struct ZoomableImagePreview: View {
     @State var ocrGeometry: OCRGeometry?
     /// The page's segments' boxes in the shown rendition's pixels (#6420), for the rendition named by `id`.
     @State var renditionBoxes: (id: String, answer: SegmentBoxesOnRendition)?
+    @State var mappedGeometryCache: OCRGeometry?
     /// THIS pane's region selection (#5020): never another pane's. The window's focus points at it
     /// once the pane is used (`WindowState.focusedRegionSelection`).
     @State var regionSelection = RegionSelection()
@@ -432,6 +433,7 @@ struct ZoomableImagePreview: View {
             }
             .onChange(of: annotationStore.changeToken) { _, _ in loadAnnotations() }
             .onChange(of: displayedRenditionId) { _, _ in loadRenditionBoxes() }
+            .onChange(of: ocrGeometry) { _, _ in refreshMappedGeometry() }
             .onChange(of: renderedImage) { _, newImg in handleRenderedImageChanged(newImg) }
             .onChange(of: scale) { _, newScale in handleScaleChanged(newScale) }
             .onChange(of: documentId) { _, _ in handleDocumentIDChangedForHighRes() }

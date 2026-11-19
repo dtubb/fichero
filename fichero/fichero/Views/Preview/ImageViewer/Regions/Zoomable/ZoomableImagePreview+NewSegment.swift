@@ -14,7 +14,6 @@ extension ZoomableImagePreview {
         }
     }
 
-    /// Select the segment just made and open it for text; the boxes were re-read before this runs.
     func selectNewSegment(_ id: String?, documentId: String) {
         guard let id, let scope = ocrGeometrySelectionScope, let boxes = ocrGeometry?.boxes,
               let index = boxes.firstIndex(where: { $0.segmentId == id }) else { return }

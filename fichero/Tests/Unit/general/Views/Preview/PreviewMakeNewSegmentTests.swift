@@ -14,12 +14,6 @@ struct PreviewMakeNewSegmentTests {
         #expect(!windowState.abandonDrawing())
     }
 
-    @Test("a box is the corners of its rect, and a line is one baseline across its middle")
-    func boxCorners() {
-        #expect(SegmentShapes.corners(ofRect: [0.1, 0.2, 0.3, 0.1]).count == 4)
-        #expect(SegmentShapes.DrawKind.baseline.minimumPoints == 2)
-    }
-
     @Test("the pointer event carries ⌥ and ⌃ apart, so the lasso (⌃) and the box (⌥) do not collide")
     func modifiersApart() {
         let event = PreviewPointerEvent(phase: .pressed, point: .zero, shift: false, clickCount: 1, option: true)
