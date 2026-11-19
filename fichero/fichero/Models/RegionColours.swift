@@ -20,11 +20,10 @@ nonisolated enum RegionColours {
     struct Tone: Hashable {
         let hue: Int
         let strength: Double
-    }
 
-    /// The display option "Shade by Reading Order" (Display menu); on unless a person turned it off.
-    static let shadeKey = "preview.shadeByReadingOrder"
-    static var shadesByOrder: Bool { EngineConfig.defaults.object(forKey: shadeKey) as? Bool ?? true }
+        /// "Shade by Reading Order" (a pane's Display switch): off, the line is full strength and keeps its hue.
+        func shaded(_ shadeByOrder: Bool) -> Tone { shadeByOrder ? self : Tone(hue: hue, strength: 1) }
+    }
 
     /// Each segment's tone (`colour.region-hue`, `colour.reading-order-gradient`, `colour.never-random`,
     /// `colour.regionless-lines-are-one-region`).
@@ -39,7 +38,7 @@ nonisolated enum RegionColours {
     ///   page's as-written order, which is the boxes' own order (`boxIndex`) -- the engine makes the as-written
     ///   order from it (`ConvertPageRequest`). Segments the order does not name follow it in as-written order.
     static func tones(of segments: [Segment], readingOrder: [String]? = nil,
-                      shadeByOrder: Bool = RegionColours.shadesByOrder) -> [String: Tone] {
+                      shadeByOrder: Bool = true) -> [String: Tone] {
         let byId = Dictionary(segments.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let asWritten = segments.sorted { ($0.boxIndex ?? 0, $0.id) < ($1.boxIndex ?? 0, $1.id) }
         var sequence = (readingOrder ?? []).compactMap { byId[$0] }

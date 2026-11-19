@@ -13,3 +13,12 @@ struct OverlaySwitchesTests {
         #expect(!overlay.drawsRectangles)
     }
 }
+
+extension OverlaySwitchesTests {
+    @Test("source.editor.colour.shade-is-a-display-option: a pane's Shade by Reading Order off draws every line at full strength, same hue")
+    func shadeSwitch() {
+        let tone = RegionColours.Tone(hue: 3, strength: 0.5)
+        #expect(tone.shaded(true) == tone)
+        #expect(tone.shaded(false) == RegionColours.Tone(hue: 3, strength: 1))
+    }
+}

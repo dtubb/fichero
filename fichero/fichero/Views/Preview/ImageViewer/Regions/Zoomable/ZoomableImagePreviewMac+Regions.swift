@@ -76,7 +76,7 @@ extension ZoomableImagePreview {
                       shapes: entry.box.shapes, noReading: entry.box.noReading,
                       segmentId: entry.box.segmentId, kind: entry.box.level,
                       parentSegmentId: entry.box.parentSegmentId,
-                      tone: entry.box.tone,
+                      tone: entry.box.tone?.shaded(shadeByOrder),
                       orderNumber: entry.box.orderNumber,
                       direction: direction(entry.box.segmentId))
             },
