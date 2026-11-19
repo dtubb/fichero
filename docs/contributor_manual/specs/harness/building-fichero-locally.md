@@ -1722,14 +1722,14 @@ Fichero's engine already uses LangGraph. The owner has ruled that the Builder ad
   order, marked as such, never read. Acceptance: `queue add --lane x --issues 6600` puts lane x under `performance-sweep`;
   an order edit from the page is one `order` row and the next tick feeds from it; a name with no milestone is refused by
   name; the page and `builder status --json` show the same order. Test (to write): fichero-builder/tests/test_work_tree (new).
-- `builder-console.work.counts-are-live` [GAP] (#6645) — each milestone row shows, from the work tree and the journal, not from
+- `builder-console.work.counts-are-live` [PARTIAL] (#6645) — each milestone row shows, from the work tree and the journal, not from
   issue counts: steps queued / running / waiting for check or review / blocked / done-not-landed / landed / closed-out,
   each with the oldest age in that state, the lane holding it, and the last failure (the newest red rung, NOT READY
   finding or question, one line). GitHub open/closed counts stay as a second, labelled pair ("GitHub: 31 open · 26
   closed"), never as a step state. "Lane running" means a lane with a non-final step; a finished lane is "last lane:
   <name>, landed <ago>". Acceptance (fixture tree): a milestone with one checking step and one blocked step shows both
-  with ages and the blocked one's question; a milestone whose only lane is finished shows no running lane. Test (to write):
-  fichero-builder/tests/test_work_tree (new), case test_counts_come_from_the_tree.
+  with ages and the blocked one's question; a milestone whose only lane is finished shows no running lane. Test:
+  fichero-builder/tests/test_work_tree.py, case test_counts_come_from_the_tree. Built: `work_tree.counts` over the lanes' steps. Not built: the console page reading it, the GitHub open/closed pair beside it, the lane's `milestone` key being written.
 - `builder-console.store.one-database` [GAP] (#6644) (today: `queue.json`, `journal.jsonl`, `ladder-<lane>.json`, `review-<lane>.txt`,
   `question-*.txt`, `fix-*.txt`, read and joined by `console.py`) — the state of milestones › steps › lanes › runs › alerts
   › edits is one store, `<state>/harness.duckdb` (DuckDB, the database Fichero already uses, one file; owner 2026-11-16),
