@@ -68,3 +68,9 @@ def test_a_hostile_brief_reaches_the_shell_as_one_argument(tmp_path, monkeypatch
     argv = start_tool.prepare(tmp_path, wt, f"x; touch {mark}; $(touch {mark})", tmp_path / "s", claude_bin="echo")
     out = subprocess.run(["sh", "-c", " ".join(shlex.quote(x) for x in argv)], capture_output=True, text=True)
     assert out.returncode == 0 and not mark.exists() and "touch" in out.stdout
+
+
+def test_the_claude_code_adapter_answers_all_six_and_can_take_a_lane():
+    cc = adapters.get("claude-code")
+    assert not any(isinstance(cc.answer(q), adapters.Unsupported) for q in QUESTIONS)
+    adapters.require_lane_capable(cc)
