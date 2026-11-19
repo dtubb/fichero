@@ -1,7 +1,7 @@
 """An import's automatic Kraken reading runs at utility QoS with few threads even while the Mac is used; other automatic
 work stays at the lowest class (owner ruling 2026-10-20, amends #5819).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md (`activity.throttle.use-means-slower`).
+Spec: docs/contributor_manual/specs/ui/activity-pane.md (`activity.throttle.use-means-slower`).
 The throttle's use signal and the QoS setters are faked; nothing reads the real Mac.
 """
 from __future__ import annotations

@@ -1,6 +1,6 @@
 """The task API's six kinds run as jobs (#5353, `activity.task-queue-grows-into-jobs`).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md. The task queue those routes
+Spec: docs/contributor_manual/specs/ui/activity-pane.md. The task queue those routes
 used was never started by the engine, so every `/api/tasks` call answered 503 and none of its
 workers (reindex, metrics, repair, vector repair, KG metrics, re-anchor) ever ran outside tests.
 These drive the real routes and the real scheduler; only the embedder is faked.

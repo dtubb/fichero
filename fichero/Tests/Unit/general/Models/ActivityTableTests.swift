@@ -7,7 +7,7 @@
 //  Pause and Stop on a row and a failed row's reason shown; it updates ONE row
 //  in place from the change stream. The toolbar popover is a summary.
 //
-//  Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md,
+//  Spec: docs/contributor_manual/specs/ui/activity-pane.md,
 //  `activity.window.table`, `activity.window.expand`, `activity.window.working-on`,
 //  `activity.window.cost`, `activity.window.measures`,
 //  `activity.window.row-shows-lane-state-reason`, `activity.window.grouped-by-project`,

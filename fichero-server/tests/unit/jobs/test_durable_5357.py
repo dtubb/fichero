@@ -1,6 +1,6 @@
 """Durable work: a paused run is still paused after a relaunch, and resumes without doing a page twice (#5357).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md -- `activity.durable.paused-stays-paused`,
+Spec: docs/contributor_manual/specs/ui/activity-pane.md -- `activity.durable.paused-stays-paused`,
 `activity.durable.nothing-twice`, `activity.stale-runs-settle-across-restarts`. Found by reading the open-time
 sweep: every running, accepted *and paused* run was turned into a failed one on reopen, although a paused run
 resumes from its checkpoint on disk. Driven through the public surface: a real run started with

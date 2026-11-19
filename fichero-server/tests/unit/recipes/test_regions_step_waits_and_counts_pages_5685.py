@@ -1,7 +1,7 @@
 """`activity.throttle.power-heat-memory` (#5685): Find Regions inside a recipe run waits while the throttle says so,
 saying why, and counts pages.
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md. WHY (2026-10-11, the MCP onboarding walk):
+Spec: docs/contributor_manual/specs/ui/activity-pane.md. WHY (2026-10-11, the MCP onboarding walk):
 while Find Regions ran, the run's row said "running", "Running step find-regions: 0 of 1 folder done", while
 machine.why_wait said "Waiting: you're using the Mac". The regions model is stubbed; the throttle is the real one
 with its probe answered.

@@ -3,7 +3,7 @@
 //  FicheroTests
 //
 //  activity.popover.at-most-five (owner 2026-11-13): the popover names at most five pieces of work, in order, and the
-//  rest are one "N more in Activity" line. See docs/contributor_manual/specs/ui/activity-and-automatic-work.md.
+//  rest are one "N more in Activity" line. See docs/contributor_manual/specs/ui/activity-pane.md.
 //
 
 @testable import Fichero

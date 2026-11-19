@@ -7,7 +7,7 @@
 //  filtered log read. It follows the row: the table's tree re-read is its
 //  update, with no stream or poll of its own.
 //
-//  Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md,
+//  Spec: docs/contributor_manual/specs/ui/activity-pane.md,
 //  "The details view (#5561)": `activity.details.one-record`,
 //  `activity.details.follows-the-row`, `activity.details.heading-names-not-ids`,
 //  `activity.details.state-says-why`, `activity.details.progress-counts`,

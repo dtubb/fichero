@@ -1,6 +1,6 @@
 """An import's derivative stages are jobs (#5353; `activity.durable.*`, `activity.throttle.lanes`).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md. The derivative pool used an
+Spec: docs/contributor_manual/specs/ui/activity-pane.md. The derivative pool used an
 in-memory executor: a quit mid-import lost its queue (only `Status.pending` remembered, and only
 for some stages), nothing showed per stage, and nothing could pause it. The stages themselves are
 faked here (no thumbnails rendered, no model loaded): these pin the queue around them.

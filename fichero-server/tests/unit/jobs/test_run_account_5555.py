@@ -1,7 +1,7 @@
 """A run's account: interrupted runs, Activity's counts, and reading failed pages again (#5555).
 
 Spec: docs/contributor_manual/specs/compute/jobs-and-fine-tuning.md (`compute.run.*`) and
-docs/contributor_manual/specs/ui/activity-and-automatic-work.md (`activity.run.account`). Found on the 8 GB
+docs/contributor_manual/specs/ui/activity-pane.md (`activity.run.account`). Found on the 8 GB
 Air: after an engine restart a run said "running" for good; Activity showed the run as "running, total 0"
 while only the run's status counted its pages; and pages that failed while a model loaded were never read
 again. Driven through the public surface: real runs started with `POST /api/workflow-execution/execute`,

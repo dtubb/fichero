@@ -1,6 +1,6 @@
 """One rule for the Mac being in use, a build, battery, memory and heat, applied by every caller (#5819, owner ruling A).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md (`activity.throttle.use-means-slower`).
+Spec: docs/contributor_manual/specs/ui/activity-pane.md (`activity.throttle.use-means-slower`).
 A person's work goes flat out and only battery slows it; background work is slowed (lowest priority) by use and by a
 build, and held by battery, memory and heat; memory and heat hold everything. The callers agree because they all ask
 `throttle.decide` / `throttle.why_wait`.

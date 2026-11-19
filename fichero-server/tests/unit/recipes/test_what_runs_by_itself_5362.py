@@ -1,5 +1,5 @@
 """What runs by itself, one engine read (#5362), tested to the spec
-(docs/contributor_manual/specs/ui/activity-and-automatic-work.md, `activity.auto.what-runs-by-itself`).
+(docs/contributor_manual/specs/ui/activity-pane.md, `activity.auto.what-runs-by-itself`).
 
 The read must say what the import and the correction then do: here it is read through
 `GET /api/recipes/project/automatic`, and an import after Start is checked to run exactly the steps it said.

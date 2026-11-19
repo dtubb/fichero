@@ -1,6 +1,6 @@
 """Delete works on every row Activity lists, and deleted work stays gone (#6583).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md, `activity.window.delete-any-row`.
+Spec: docs/contributor_manual/specs/ui/activity-pane.md, `activity.window.delete-any-row`.
 WHY (owner 2026-11-13): Delete in the window acted only on workflow runs; a job of its own (a failed recipe run, a
 paused download, a queued group of thumbnails) could not be deleted at all, and Clear Failed only hid failures.
 Through the route and the real jobs table; nothing runs (background work is paused for the test).

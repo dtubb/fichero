@@ -1,6 +1,6 @@
 """`activity.retry.one-row`: Retry on a failed row runs it again and Activity still shows one row.
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md. WHY (2026-10-11, the hardening pass): on a
+Spec: docs/contributor_manual/specs/ui/activity-pane.md. WHY (2026-10-11, the hardening pass): on a
 scratch engine killed mid-run, Retry on the interrupted workflow run's row was refused with "This is work a workflow
 run (or a training) handed in and waits for: retry that instead", though the row WAS the run. A queued job's retry
 already puts the same row back (one row, `failed_at` cleared: `test_a_job_that_dies_with_the_engine.py`). A failed

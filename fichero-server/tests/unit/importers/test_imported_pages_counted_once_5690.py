@@ -1,7 +1,7 @@
 """`activity.waiting-says-why` and the import queue's count (#5690): "Processing imported pages" counts pages, each
 once.
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md. WHY (2026-10-11, the MCP onboarding walk):
+Spec: docs/contributor_manual/specs/ui/activity-pane.md. WHY (2026-10-11, the MCP onboarding walk):
 a 92-page project's import queue counted 178: every page with its own text was counted when queued and again by
 its embed (the page itself among the embed's targets). A PDF's pages are still added to the count, one each.
 """

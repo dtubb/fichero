@@ -1,6 +1,6 @@
 """One job model, first slice: background work as durable rows, run by one scheduler (#5353).
 
-Spec: `docs/contributor_manual/specs/ui/activity-and-automatic-work.md` (sections 1, 3, 4, 5) and
+Spec: `docs/contributor_manual/specs/ui/activity-pane.md` (sections 1, 3, 4, 5) and
 the residency rules of `ai/local-runtimes.md` section 3.
 
 A job is a row in the project database's `jobs` table: what it is (`kind`, from the recipe job

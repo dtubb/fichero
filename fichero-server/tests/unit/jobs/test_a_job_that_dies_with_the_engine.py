@@ -1,6 +1,6 @@
 """`activity.durable.dies-with-the-engine`: work the engine was doing when it died never reads "running" for good.
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md. WHY (2026-10-11, the hardening pass): an agent
+Spec: docs/contributor_manual/specs/ui/activity-pane.md. WHY (2026-10-11, the hardening pass): an agent
 and a person read Activity after a crash and must be told what happened to every job, in words, with a way on.
 Checked live on a scratch engine killed (-9) during an import, a recipe run and its workflow step: on restart the
 import's pages and the recipe run carried on from their checkpoints, the workflow run read "Interrupted: the engine

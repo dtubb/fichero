@@ -1,7 +1,7 @@
 """Stop on a recipe run's row stops the run (#5609, `activity.jobs-are-a-tree`: Stop on the run's row reaches the run
 and its waiting pages).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md. Seen on the demo engine (2026-10-08):
+Spec: docs/contributor_manual/specs/ui/activity-pane.md. Seen on the demo engine (2026-10-08):
 `POST /api/activity/jobs/{id}/cancel` on a `run-a-recipe` job answered {state: running} and a minute later the run
 was running its next step; only cancelling its child workflow run stopped the child.
 

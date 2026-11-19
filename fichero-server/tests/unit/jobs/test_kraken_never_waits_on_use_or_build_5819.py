@@ -1,7 +1,7 @@
 """#5819: Find Lines slept between pages whenever "you're using the Mac" or "a build is running". Work the person
 started waits only for memory and heat; any work goes slower, never stops, while the Mac is used or a build runs.
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md (`activity.throttle.use-means-slower`).
+Spec: docs/contributor_manual/specs/ui/activity-pane.md (`activity.throttle.use-means-slower`).
 The throttle's real probes with the Mac's signals faked; the pages have no image, so only the waiting is exercised.
 """
 from __future__ import annotations

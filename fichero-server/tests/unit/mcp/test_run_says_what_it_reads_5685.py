@@ -1,6 +1,6 @@
 """While a recipe run reads, its status names the step reading and its pages, never folders, and never says it waits
 for a lane only its own pages hold (#5685), tested to the spec: `activity.run.says-what-it-reads`
-(docs/contributor_manual/specs/ui/activity-and-automatic-work.md).
+(docs/contributor_manual/specs/ui/activity-pane.md).
 
 WHY: the operator's live run (integration 88b81f01e): while Kraken had read 56 of 87 pages, the run said "Running
 step find-lines, read-a-line: 0 of 1 folder done" and "Waiting for the model lane: Transcribe (Kraken) is reading",

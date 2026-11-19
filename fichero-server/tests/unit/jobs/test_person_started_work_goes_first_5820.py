@@ -1,7 +1,7 @@
 """Work a person started goes ahead of background work on a shared lane (#5820,
 `activity.throttle.person-started-first`).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md. Seen live: a Transcribe (Kraken) run waited
+Spec: docs/contributor_manual/specs/ui/activity-pane.md. Seen live: a Transcribe (Kraken) run waited
 "for the model lane: Embed for search", behind background embedding. A job is one item (one page's embed), so a
 running background job yields at its own end: the next pick on the lane is the person's job, not the next
 background one.

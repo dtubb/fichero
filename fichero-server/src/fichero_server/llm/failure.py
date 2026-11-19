@@ -1,6 +1,6 @@
 """The engine's one mapping from a failure to what a person is told (`run.fail.kinds-table`, #6354).
 
-`classify` is the table in `specs/ai/run-failure-alerts.md`: the exception's TYPE decides first, its status code or words only
+`classify` is the table in `specs/compute/runner-reliability.md`: the exception's TYPE decides first, its status code or words only
 when it has no type of its own, and what the table does not name is `unexpected` (a bug in Fichero), never silence.
 `RunFailure` is the served model; `redact` is the one function that takes what is private out of any text a report may carry.
 """

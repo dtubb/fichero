@@ -1,6 +1,6 @@
 """A workflow run is a job with its steps and pages as children (#5353, spec steps 3-4).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md, "Workflow runs inside the one job
+Spec: docs/contributor_manual/specs/ui/activity-pane.md, "Workflow runs inside the one job
 model": "A run is a parent job (kind = workflow) ... Each step is a child job (kind = workflow-step), one
 per graph node ... Each page in a fanned-out step is a grandchild job". Written from the spec's text and
 driven through the public surface: a real run started with `POST /api/workflow-execution/execute`,

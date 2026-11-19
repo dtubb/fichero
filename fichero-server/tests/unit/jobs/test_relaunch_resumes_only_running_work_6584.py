@@ -1,6 +1,6 @@
 """What a relaunch resumes, and what it must leave alone (#6584).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md, `activity.relaunch.only-running-work-resumes`.
+Spec: docs/contributor_manual/specs/ui/activity-pane.md, `activity.relaunch.only-running-work-resumes`.
 WHY (owner 2026-11-13): a run that had failed, or that the person had paused, carried on by itself when the app
 relaunched. A recipe run's pause lived only in memory, so the open put its row back to waiting and the lane took it;
 a document whose thumbnail had failed was handed to the derivative queue again at every open. Through `jobs.resume`

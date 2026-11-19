@@ -1,6 +1,6 @@
 """#5690: a recipe's Names step is not starved by the import's NLP drafts at the one spaCy lock.
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md (`activity.waiting-says-why`). WHY (2026-10-11,
+Spec: docs/contributor_manual/specs/ui/activity-pane.md (`activity.waiting-says-why`). WHY (2026-10-11,
 the MCP onboarding walk): Names sat at 0 of 92 for 15+ minutes with no waiting reason while "Processing imported
 pages" ran. Both read names with spaCy under one process-wide lock (a spaCy pipeline is not thread-safe), and the
 drafts' loop took it again page after page: a plain lock is not fair, so the step a person started never got a

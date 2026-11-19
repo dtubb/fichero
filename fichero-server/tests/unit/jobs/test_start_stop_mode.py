@@ -1,7 +1,7 @@
 """Start / Stop, held work that starts by itself, pause and stop on a counted row, and the import row's
 details (#5621, #5623).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md, `activity.mode.start-stop`,
+Spec: docs/contributor_manual/specs/ui/activity-pane.md, `activity.mode.start-stop`,
 `activity.throttle.recheck-when-it-clears`, `activity.pause.per-queue`,
 `activity.details.what-it-works-on-now`. The maintainer, testing the Dev Embedded build: work held for
 battery stayed held after plugging in, nothing could say "run it now", and the import's "Processing

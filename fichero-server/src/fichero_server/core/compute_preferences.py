@@ -10,7 +10,7 @@ Two choices, kept in the app settings and overridable by environment for test ru
 
 ``FICHERO_COMPUTE_PRIORITY`` / ``FICHERO_COMPUTE_DEVICE`` win over the setting, so a test run can go
 as fast as possible without changing the person's choice. Read by Kraken now; the one job model
-(`ui/activity-and-automatic-work.md`) reads the same preferences for every heavy kind.
+(`ui/activity-pane.md`) reads the same preferences for every heavy kind.
 """
 from __future__ import annotations
 

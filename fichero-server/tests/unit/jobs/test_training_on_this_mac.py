@@ -1,6 +1,6 @@
 """Training a Kraken reader on this Mac, gently (`compute.tune.on-this-mac`, `compute.tune.measured-on-16gb`, #5397).
 
-Spec: docs/contributor_manual/specs/compute/jobs-and-fine-tuning.md and ui/activity-and-automatic-work.md
+Spec: docs/contributor_manual/specs/compute/jobs-and-fine-tuning.md and ui/activity-pane.md
 (`activity.throttle.power-heat-memory`). The maintainer wants long training on his own Mac that never
 makes it unusable. The job runs on the local-model lane, holds while he uses the Mac, lets memory go
 when it is tight, steps aside for work he is waiting for, and comes back without repeating an epoch.

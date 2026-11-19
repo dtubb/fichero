@@ -1,6 +1,6 @@
 """Time, cost and errors roll up a run's tree (#5353).
 
-Spec: docs/contributor_manual/specs/ui/activity-and-automatic-work.md, `activity.jobs-are-a-tree`:
+Spec: docs/contributor_manual/specs/ui/activity-pane.md, `activity.jobs-are-a-tree`:
 "a job's children (steps, pages) are jobs; progress, time, cost and errors roll up the tree", and
 the job's `cost` field: "tokens and money from the vendored price list (`llm/model_types.py`),
 summed up the tree". Written from the spec's text, and driven through the public surface: a real
