@@ -45,5 +45,5 @@ def assemble(root, *, worktree, scratch, harness: str, model: str, role: str | N
     rels = (role and f"roles/{role}.md", stack and f"stacks/{stack}.md", project and f"projects/{project}/project.md")
     parts = [common, *[_part(agents, rel) for rel in rels if rel]]
     if servers is not None:
-        parts.append(f"MCP servers you have: {', '.join(servers)}.\n")
+        parts.append(f"MCP servers you have: {', '.join(servers) or 'none'}.\n")
     return "\n".join(parts)

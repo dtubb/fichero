@@ -78,8 +78,8 @@ def append_order(titles: list[str], milestones: list[str]) -> list[str]:
 
 
 def milestone_of(store, issues: list[int]) -> str:
-    """The one milestone the open issues belong to, or `unfiled` when none is in a milestone. Issues in two milestones are a ValueError."""
-    found = {m["title"] for m in store.milestones() for i in store.issues(m["title"]) if i["number"] in issues}
+    """The one milestone the issues belong to (one store call per issue), or `unfiled` when none is in a milestone. Issues in two milestones are a ValueError."""
+    found = {t for t in (store.milestone_of(n) for n in issues) if t}
     if len(found) > 1:
         raise ValueError(f"issues {issues} are in more than one milestone: {', '.join(sorted(found))}")
     return found.pop() if found else "unfiled"

@@ -100,3 +100,12 @@ def test_a_server_the_project_lacks_is_a_journal_row_not_a_silent_drop(world):
     assert "apple-docs" not in servers
     rows = [x for x in journal.read() if x["event"] == "mcp-missing"]
     assert [(x["server"], x["stack"], x["project"]) for x in rows] == [("apple-docs", "swift", "p")]
+
+
+def test_without_require_index_a_server_with_no_wrapper_is_left_out_and_journaled(world):
+    toml = (world.root / "harness.toml").read_text().replace("require_index = true\n", "")
+    (world.root / "harness.toml").write_text(toml)
+    (world.wr / "bin" / "jdocmunch-mcp").unlink()
+    servers, prompt = _prepare(world)
+    assert list(servers) == ["jcodemunch"] and prompt.rstrip().endswith("MCP servers you have: jcodemunch.")
+    assert [x["server"] for x in journal.read() if x["event"] == "mcp-missing"] == ["jdocmunch"]

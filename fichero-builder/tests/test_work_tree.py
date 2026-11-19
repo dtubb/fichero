@@ -63,6 +63,10 @@ class Store:
     def issues(self, milestone):
         return [{"number": n, "title": "", "body": "", "labels": []} for n in self.ms[milestone]]
 
+    def milestone_of(self, issue):
+        self.asked = getattr(self, "asked", []) + [issue]
+        return next((t for t, n in self.ms.items() if issue in n), "")
+
 
 @pytest.fixture
 def state(tmp_path, monkeypatch):
@@ -122,3 +126,18 @@ def test_triage_order_appends_what_the_record_lacks_and_never_reorders(state):
     with pytest.raises(ValueError, match="'zzz'"):
         work_tree.append_order(["zzz"], known)
     assert work_tree.read_order() == ["b", "a", "d", "c"]
+
+
+def test_milestone_of_asks_once_per_issue_not_once_per_milestone():
+    store = Store(a=[1], b=[2], c=[3], d=[4])
+    assert work_tree.milestone_of(store, [3]) == "c" and store.asked == [3]
+
+
+def test_the_github_store_reads_an_issues_milestone_with_one_gh_view():
+    calls = []
+
+    def gh(*args):
+        calls.append(list(args))
+        return json.dumps({"milestone": {"title": "Builder"}} if args[2] == "7" else {"milestone": None})
+    s = work_store.GithubStore(run=gh)
+    assert s.milestone_of(7) == "Builder" and s.milestone_of(8) == "" and calls[0] == ["issue", "view", "7", "--json", "milestone"]

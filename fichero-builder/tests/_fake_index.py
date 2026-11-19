@@ -23,7 +23,7 @@ def write_rules(root, extra=""):
     wr = root / "wr"
     (wr / "bin").mkdir(parents=True, exist_ok=True)
     code, doc = install(root, "jcodemunch"), install(root, "jdocmunch")
-    (root / "harness.toml").write_text(f'[jail]\nuser = "wu"\nworkroot = "{wr}"\ncode_map = "{code}"\ndoc_map = "{doc}"\n'
+    (root / "harness.toml").write_text(f'[jail]\nuser = "wu"\nworkroot = "{wr}"\ncode_map = "{code}"\ndoc_map = "{doc}"\nrequire_index = true\n'
                                        f'doc_index = ["index-local", "{{worktree}}"]\n[check]\nengine_repo = "/e"\n{extra}')
     codemap.provide_all(root)
     return wr

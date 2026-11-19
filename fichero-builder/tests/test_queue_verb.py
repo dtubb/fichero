@@ -261,7 +261,7 @@ def test_add_merges_steps_into_a_lane_and_keeps_their_state_and_the_verb_refuses
     assert "needs" in capsys.readouterr().out
     loose = state / "loose-brief.txt"
     loose.write_text("the brief")
-    monkeypatch.setattr("fichero_builder.work_store.open_store", lambda name, **kw: type("S", (), {"milestones": lambda self: []})())
+    monkeypatch.setattr("fichero_builder.work_store.open_store", lambda name, **kw: type("S", (), {"milestone_of": lambda self, n: ""})())
     assert cli.main(["queue", "add", "--lane", "m9", "--worktree", "/w", "--step", "1.1", "--brief", str(loose), "--issues", "3", "--state", str(state / "s")]) == 0
     assert queue.load()[1]["steps"][0]["issues"] == [3]
 

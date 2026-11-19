@@ -1,8 +1,9 @@
-"""The MCP servers a worker gets (agent-profiles.mcp.required): jcodemunch and jdocmunch always, then the intersection of what the
-role and stack ask (the `tools:` line of the role file and the stack file) and what the project provides (the `tools:` line of its
-project file). A stack's `tools:` line replaces the role's whole list. A required server with no wrapper, or an optional one the
-project provides with no `[mcp.<name>]` command in harness.toml, is an AdapterRefused; a server asked for and not provided is
-returned as missing for the caller to journal.
+"""The MCP servers a worker gets (agent-profiles.mcp.required): jcodemunch and jdocmunch, then the intersection of what the role and
+stack ask (the `tools:` line of the role file and the stack file) and what the project provides (the `tools:` line of its project
+file). A stack's `tools:` line replaces the role's whole list. With `[jail].require_index` set, a required server with no wrapper is
+an AdapterRefused; without it that server is left out and returned as missing. An optional server the project provides with no
+`[mcp.<name>]` command in harness.toml is an AdapterRefused; a server asked for and not provided is returned as missing for the
+caller to journal.
 """
 from __future__ import annotations
 
@@ -34,15 +35,19 @@ def delivered(root, *, role=None, stack=None, project=None, agents_dir=None) -> 
     """({server name: its mcp.json entry}, names asked for that the project does not provide)."""
     agents = Path(agents_dir) if agents_dir else AGENTS
     servers: dict[str, dict] = {}
+    missing = []
     for name in REQUIRED:
         w = codemap.wrapper(root, name)
+        if not w and not codemap._jail_table(root).get("require_index"):
+            missing.append(name)  # [jail].require_index is off: the worker starts without it and the caller journals the row
+            continue
         if not w:
             raise AdapterRefused(f"{name} is required for every worker and has no wrapper under the workroot: set [jail].{codemap.INDEX_SERVERS[name][0]} "
                                  "to the install and let the owner side provide it")
         servers[name] = {"type": "stdio", "command": w, "args": [], "env": {}}
     provides = (_tools(agents / "projects" / project / "project.md") if project else None) or []
-    commands = tomllib.loads((Path(root) / "harness.toml").read_text()).get("mcp", {})
-    missing = []
+    rules = Path(root) / "harness.toml"
+    commands = tomllib.loads(rules.read_text()).get("mcp", {}) if rules.is_file() else {}
     for name in wanted(agents, role, stack):
         if name in REQUIRED:
             continue
