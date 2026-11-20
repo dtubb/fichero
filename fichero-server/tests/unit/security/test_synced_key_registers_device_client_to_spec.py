@@ -1,7 +1,9 @@
 """multiuser.second-device-by-synced-key / remote-flow-no-pairing-code (#2403): a device holding the person's synced key
-signs in by challenge with no password and no code; the engine registers it as its own `device` client."""
+signs in by challenge with no password and no code; the engine registers it as its own `device` client. The signature
+covers the key (its hash), never a client id, so a device with no client here signs from what the challenge returns."""
 from __future__ import annotations
 
+import hashlib
 
 from tests.signed_in import new_key, signature_for
 from tests.unit.security.test_sharing_probe_2026_10_01 import _multiuser_on, harness  # noqa: F401
@@ -16,16 +18,19 @@ def _setup(harness, monkeypatch):
     return harness, users, key, pem, first
 
 
+def _body(key, pem, issued, name="Alice's iPhone", **overrides):
+    """Everything is read from the challenge's answer and the device's own key: no database read."""
+    signature = signature_for(
+        key, hashlib.sha256(pem.encode()).hexdigest(), issued, purpose="fichero-key-sign-in-v1", **overrides
+    )
+    return {"public_key_pem": pem, "nonce": issued["nonce"], "signature": signature, "client": {"name": name, "host": "iPhone"}}
+
+
 def _sign_in(harness, key, pem, name="Alice's iPhone"):
     issued = harness.client().post("/api/auth/key-challenge", json={"public_key_pem": pem})
     assert issued.status_code == 200, issued.text
-    holder_id = harness.app_db.live_clients_by_public_key(pem)[0].id
-    signature = signature_for(key, holder_id, issued.json())
-    return harness.client().post(
-        "/api/auth/sign-in-by-key",
-        json={"public_key_pem": pem, "nonce": issued.json()["nonce"], "signature": signature,
-              "client": {"name": name, "host": "iPhone"}},
-    )
+    assert set(issued.json()) == {"nonce", "expires_in", "expires_at", "engine_id"}  # no client id is revealed
+    return harness.client().post("/api/auth/sign-in-by-key", json=_body(key, pem, issued.json(), name))
 
 
 def test_a_new_device_with_the_synced_key_signs_in_and_gets_its_own_client(harness, monkeypatch):
@@ -46,38 +51,49 @@ def test_the_same_device_again_reuses_its_client_and_another_device_gets_another
     assert _sign_in(harness, key, pem, name="Alice's iPad").json()["client"]["id"] != one
 
 
-def test_revoking_the_device_client_ends_its_session(harness, monkeypatch):
+def test_revoking_the_device_client_ends_its_session_and_it_cannot_sign_back_in(harness, monkeypatch):
     harness, _users, key, pem, _first = _setup(harness, monkeypatch)
     body = _sign_in(harness, key, pem).json()
     harness.app_db.revoke_client(body["client"]["id"])
     me = harness.client().get("/api/auth/identity", headers={"Authorization": f"Bearer {body['session_token']}"})
     assert me.status_code == 401
-
-
-def test_a_key_nobody_holds_and_a_wrong_signature_are_refused(harness, monkeypatch):
-    harness, _users, key, pem, _first = _setup(harness, monkeypatch)
-    other_key, other_pem = new_key()
-    assert harness.client().post("/api/auth/key-challenge", json={"public_key_pem": other_pem}).status_code == 401
-    issued = harness.client().post("/api/auth/key-challenge", json={"public_key_pem": pem}).json()
-    forged = signature_for(other_key, harness.app_db.live_clients_by_public_key(pem)[0].id, issued)
-    refused = harness.client().post(
-        "/api/auth/sign-in-by-key",
-        json={"public_key_pem": pem, "nonce": issued["nonce"], "signature": forged, "client": {"name": "Thief"}},
-    )
-    assert refused.status_code == 401
+    assert _sign_in_status(harness, key, pem) == 401
     assert [c.name for c in harness.app_db.live_clients_by_public_key(pem)] == ["Alice's Mac"]
 
 
-def test_a_revoked_device_cannot_sign_back_in_with_the_shared_key(harness, monkeypatch):
+def _sign_in_status(harness, key, pem):
+    issued = harness.client().post("/api/auth/key-challenge", json={"public_key_pem": pem}).json()
+    return harness.client().post("/api/auth/sign-in-by-key", json=_body(key, pem, issued)).status_code
+
+
+def test_a_key_nobody_holds_looks_the_same_as_one_somebody_holds_and_is_refused(harness, monkeypatch):
     harness, _users, key, pem, _first = _setup(harness, monkeypatch)
-    body = _sign_in(harness, key, pem).json()
-    harness.app_db.revoke_client(body["client"]["id"])
-    assert harness.client().post("/api/auth/key-challenge", json={"public_key_pem": pem}).status_code == 401
-    signature = signature_for(key, harness.app_db.live_clients_by_public_key(pem)[0].id,
-                              {"engine_id": "x", "nonce": "n", "expires_at": 1})
-    again = harness.client().post(
-        "/api/auth/sign-in-by-key",
-        json={"public_key_pem": pem, "nonce": "n", "signature": signature, "client": {"name": "Alice's iPhone"}},
+    other_key, other_pem = new_key()
+    assert harness.client().post("/api/auth/key-challenge", json={"public_key_pem": other_pem}).status_code == 200
+    assert _sign_in_status(harness, other_key, other_pem) == 401
+    assert [c.name for c in harness.app_db.live_clients_by_public_key(other_pem)] == []
+
+
+def test_a_wrong_signature_or_a_replayed_nonce_is_refused(harness, monkeypatch):
+    harness, _users, key, pem, _first = _setup(harness, monkeypatch)
+    other_key, _ = new_key()
+    issued = harness.client().post("/api/auth/key-challenge", json={"public_key_pem": pem}).json()
+    forged = _body(other_key, pem, issued, name="Thief")
+    assert harness.client().post("/api/auth/sign-in-by-key", json=forged).status_code == 401
+    good = _body(key, pem, issued)  # the nonce was spent by the failed try
+    assert harness.client().post("/api/auth/sign-in-by-key", json=good).status_code == 401
+    assert [c.name for c in harness.app_db.live_clients_by_public_key(pem)] == ["Alice's Mac"]
+
+
+def test_failed_key_sign_ins_do_not_lock_the_macs_own_client_out(harness, monkeypatch):
+    harness, _users, key, pem, first = _setup(harness, monkeypatch)
+    other_key, _ = new_key()
+    for _ in range(12):
+        issued = harness.client().post("/api/auth/key-challenge", json={"public_key_pem": pem}).json()
+        harness.client().post("/api/auth/sign-in-by-key", json=_body(other_key, pem, issued))
+    issued = harness.client().post("/api/auth/challenge", json={"client_id": first.id}).json()
+    signed = harness.client().post(
+        "/api/auth/sign-in",
+        json={"client_id": first.id, "nonce": issued["nonce"], "signature": signature_for(key, first.id, issued)},
     )
-    assert again.status_code == 401
-    assert harness.app_db.live_clients_by_public_key(pem)[0].name == "Alice's Mac"
+    assert signed.status_code == 200, signed.text

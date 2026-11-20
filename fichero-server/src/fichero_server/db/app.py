@@ -1934,13 +1934,6 @@ class AppDatabase:
             self.conn.commit()
         return client
 
-    def set_session_client(self, token_hash: str, client_id: str) -> None:
-        """Point an open session at the client it really belongs to (revoking that client then ends it)."""
-        with self._lock:
-            self.conn.execute("UPDATE sessions SET client_id = ?, device_label = (SELECT name FROM clients WHERE id = ?) "
-                              "WHERE token_hash = ?", [client_id, client_id, token_hash])
-            self.conn.commit()
-
     def live_clients_by_public_key(self, public_key_pem: str) -> list[AccountClient]:
         """Every live client holding exactly this public key, oldest first (the synced key's other devices)."""
         with self._lock:

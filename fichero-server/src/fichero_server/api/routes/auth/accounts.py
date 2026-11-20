@@ -8,6 +8,7 @@ shared-secret-only single-user app.
 from __future__ import annotations
 
 import base64
+import hashlib
 import hmac
 import logging
 import os
@@ -1022,6 +1023,19 @@ class KeySignInRequest(BaseModel):
     client: DeviceClientBody
 
 
+_key_challenges: dict[str, tuple[str, int]] = {}  # nonce -> (key hash, expires_at): key sign-in, never a client id
+_key_sign_in_failures: dict[str, list[float]] = {}  # key hash -> failure times, apart from the clients' own counters
+
+
+def _key_hash(public_key_pem: str) -> str:
+    return hashlib.sha256(public_key_pem.encode()).hexdigest()
+
+
+def _key_sign_in_message(engine_id: str, key_hash: str, nonce: str, expires_at: int) -> bytes:
+    """Names the key, not a client: a device that has no client here can sign it from what the challenge returned."""
+    return "\x00".join(["fichero-key-sign-in-v1", engine_id, key_hash, nonce, str(expires_at)]).encode()
+
+
 def _key_holder(app_db: AppDatabase, public_key_pem: str):
     """The oldest live client holding this key: the key is already trusted for that person. None when no one holds it."""
     if not _is_p256_public_key(public_key_pem) or app_db.public_key_was_revoked(public_key_pem):
@@ -1032,22 +1046,50 @@ def _key_holder(app_db: AppDatabase, public_key_pem: str):
 
 @auth_router.post("/key-challenge", response_model=ChallengeResponse)
 def key_challenge(body: KeyChallengeRequest, app_db: AppDatabase = Depends(get_app_database)) -> ChallengeResponse:
-    """`multiuser.second-device-by-synced-key`: another device of the same person holds the synced key but has no client
-    here. The challenge is made for the client that already holds the key; a key nobody holds is refused as an unknown client is."""
-    holder = _key_holder(app_db, body.public_key_pem)
-    if holder is None:
+    """`multiuser.second-device-by-synced-key`: a nonce for any valid P-256 key, whether or not it is registered, so the
+    answer does not say who holds a key; the sign-in refuses an unknown one. Counted apart from client sign-ins."""
+    if not _is_p256_public_key(body.public_key_pem):
         raise _REFUSED
-    return challenge(ChallengeRequest(client_id=holder.id), app_db)
+    now = time.time()
+    for stale in [n for n, (_, exp) in _key_challenges.items() if exp <= now]:
+        del _key_challenges[stale]
+    key = _key_hash(body.public_key_pem)
+    mine = [n for n, (k, _) in _key_challenges.items() if k == key]
+    for old in mine[: max(0, len(mine) - MAX_OUTSTANDING_CHALLENGES + 1)]:
+        del _key_challenges[old]
+    nonce = secrets.token_urlsafe(32)
+    expires_at = int(now) + CHALLENGE_TTL_SECONDS
+    _key_challenges[nonce] = (key, expires_at)
+    return ChallengeResponse(
+        nonce=nonce, expires_in=CHALLENGE_TTL_SECONDS, expires_at=expires_at, engine_id=_engine_id(app_db)
+    )
 
 
 @auth_router.post("/sign-in-by-key", response_model=SignInResponse)
 def sign_in_by_key(body: KeySignInRequest, app_db: AppDatabase = Depends(get_app_database)) -> SignInResponse:
     """Sign in with a trusted key from a device the engine has not seen: on the first success the engine registers a new
     `device` client (named by the device, same key, same person); a repeat from the same device reuses that row."""
+    now = time.time()
+    key = _key_hash(body.public_key_pem)
+    recent = [t for t in _key_sign_in_failures.get(key, []) if now - t < 60]
+    if len(recent) >= SIGN_IN_FAILURES_PER_MINUTE:
+        raise HTTPException(status_code=429, detail="too many failed sign-ins", headers={"Retry-After": "60"})
+    issued = _key_challenges.pop(body.nonce, None)  # single use, spent whether or not the signature is good
     holder = _key_holder(app_db, body.public_key_pem)
-    if holder is None:
+    ok = (
+        issued is not None
+        and issued[0] == key
+        and issued[1] > now
+        and holder is not None
+        and _signature_is_valid(
+            body.public_key_pem, _key_sign_in_message(_engine_id(app_db), key, body.nonce, issued[1]), body.signature
+        )
+    )
+    user = app_db.get_user(holder.user_id) if ok else None
+    if user is None or not user.active:
+        if _is_p256_public_key(body.public_key_pem):
+            _key_sign_in_failures[key] = [*recent, now]
         raise _REFUSED
-    signed = sign_in(SignInRequest(client_id=holder.id, nonce=body.nonce, signature=body.signature), app_db)
     mine = next(
         (
             c for c in app_db.live_clients_by_public_key(body.public_key_pem)
@@ -1058,9 +1100,14 @@ def sign_in_by_key(body: KeySignInRequest, app_db: AppDatabase = Depends(get_app
         user_id=holder.user_id, kind="device", name=body.client.name, host=body.client.host,
         public_key_pem=body.public_key_pem,
     )
-    if mine.id != holder.id:  # the session belongs to the device's own row, so revoking it ends it
-        app_db.set_session_client(accounts.hash_token(signed.session_token), mine.id)
-    return signed.model_copy(update={"client": SignInClient(id=mine.id, kind=mine.kind, name=mine.name)})
+    raw_token = accounts.new_session_token()
+    app_db.create_session(
+        user_id=user.id, token_hash=accounts.hash_token(raw_token), device_label=mine.name, ttl=SESSION_TTL,
+        client_id=mine.id,
+    )
+    return SignInResponse(
+        session_token=raw_token, user=_to_public_user(user), client=SignInClient(id=mine.id, kind=mine.kind, name=mine.name)
+    )
 
 
 class FirstRunClient(BaseModel):
