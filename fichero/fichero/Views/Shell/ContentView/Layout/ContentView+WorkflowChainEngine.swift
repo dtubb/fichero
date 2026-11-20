@@ -401,18 +401,33 @@ extension ContentView {
         // load for no UX gain — start responsive at 1s, then widen to a 5s cap.
         var pollInterval: Duration = .seconds(1)
         let maxPollInterval: Duration = .seconds(5)
+        var failedPolls = 0
+        var reachedTerminal = false
+        defer {
+            if !reachedTerminal, Date() >= deadline { importError = ChainRunWords.stoppedWatching }
+        }
         while Date() < deadline {
             // A Stop press cancels this polling Task (stopStagedChain); it has
             // already cancelled the steps on the engine, so quit watching.
             if Task.isCancelled { break }
-            guard let status = try? await service.getExecutionStatus(execution.executionId)
-            else {
+            let status: ChainExecutionStatusResponse
+            do {
+                status = try await service.getExecutionStatus(execution.executionId)
+                failedPolls = 0
+            } catch {
+                failedPolls += 1
+                engineChainLogger.warning("chain status poll failed (\(failedPolls) in a row): \(error.localizedDescription)")
+                // Said once, at the third miss in a row; the polling goes on, the chain may still be running.
+                if failedPolls == 3 { importError = ChainRunWords.lostTrack(afterFailedPolls: failedPolls) }
                 try? await Task.sleep(for: maxPollInterval)
                 continue
             }
             applyEngineStepResults(status, threads: execution.steps,
                                    started: &started, ended: &ended)
-            if WorkflowBarChainPersistence.isTerminal(status.status) { break }
+            if WorkflowBarChainPersistence.isTerminal(status.status) {
+                reachedTerminal = true
+                break
+            }
             try? await Task.sleep(for: pollInterval)
             pollInterval = min(pollInterval + .seconds(1), maxPollInterval)
         }

@@ -5,6 +5,7 @@ import Foundation
 /// the alert from them.
 enum RunStartWords {
     static let title = "Couldn't Start the Run"
+    static let lostTrackTitle = "Chain Run"
     static let importTitle = "Import Error"
 
     static let noSelection = "Select one or more documents before running a workflow."
@@ -18,6 +19,7 @@ enum RunStartWords {
     /// The title of the window's error alert for `message`: a run's start failure says so; everything else is an import's.
     static func alertTitle(for message: String?) -> String {
         guard let message else { return importTitle }
+        if message.hasPrefix(ChainRunWords.lostTrackPrefix) { return lostTrackTitle }
         let starts = [noSelection, workflowPrefix, ChainRunWords.noProject, ChainRunWords.engineCannot, "Chain failed to start: "]
         return starts.contains(where: { message.hasPrefix($0) }) ? title : importTitle
     }

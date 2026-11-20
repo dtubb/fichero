@@ -30,3 +30,14 @@ struct WorkflowStartFailureTests {
         #expect(RunStartWords.alertTitle(for: nil) == "Import Error")
     }
 }
+
+@Suite("Chain run lost track")
+struct ChainLostTrackTests {
+    @Test("a chain the app cannot follow says so, in its own title, and says it may still be running")
+    func lostTrack() {
+        for words in [ChainRunWords.lostTrack(afterFailedPolls: 3), ChainRunWords.stoppedWatching] {
+            #expect(RunStartWords.alertTitle(for: words) == "Chain Run")
+            #expect(words.contains("may still be running"))
+        }
+    }
+}
