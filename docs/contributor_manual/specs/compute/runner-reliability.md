@@ -375,6 +375,24 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   *Acceptance:* with every runtime stubbed (one ok, one failing, one loading twice) the table and JSON name each result.
   Built: the script, with every runtime stubbed in its test; the MLX model is loaded once per process, and the embedder row runs with `FICHERO_EMBED_IN_PROCESS=1` so its peak RSS includes the model. Owed: Apple (no Python entry in the engine), and counted loads for MLX (read through `mlx_vlm` directly) and Whisper.
   *Test:* `fichero-server/tests/unit/scripts/test_runtime_matrix.py`. `Spec-change: owner, the runtime matrix`.
+- `runner.soak.drives-the-real-engine` — **[PARTIAL]** (#6732) a run of 5000 pages finishes overnight, whichever place does each step.
+  `scripts/soak_run.py FOLDER [--limit N] [--steps segment|regions|read] [--place local|mlx|google-dry] [--kill-at N]` starts the
+  real engine on a socket with a scratch state dir and library (never the app's), imports the images, starts the recipe and polls
+  the run, recording per minute pages done, pages/hour, the RSS of the engine and its children, swap, failures by kind and model
+  loads, into one JSON and a Markdown summary. `--kill-at N` kills the engine once N pages are done, starts it again and checks no
+  page fewer is done. `--place google-dry` never starts the run: it prints the plan's cost per 1000 pages. Exit 1 when a page is
+  lost or done twice (counted from the run's per-step account, as the API names no page ids), memory grows past 100 MB/hour after
+  warm-up or the peak passes 5500 MB, or 5000 pages would take over 10 hours. Owed: the manager's run on the iMac and the 8 GB M1
+  over 5000 real pages; a per-page ledger. *Test:* `fichero-server/tests/unit/scripts/test_soak_run_6732.py`.
+- `runner.soak.google-reading-efficiency` — **[OK]** (#6732) the cloud line reader, with a fake Gemini client and no spend, sends
+  16 lines a request, never a line picture twice, at most four requests at once for a page and no more at once than the provider's
+  slot cap across the engine, retries a 429 after at least its Retry-After and a 5xx with a growing back-off, and does not retry a
+  400; a page already read is not sent again (`source.recipe.done-is-not-redone`). *Tests:*
+  `fichero-server/tests/unit/llm/test_google_reading_efficiency_soak.py`,
+  `fichero-server/tests/unit/recipes/test_start_stop_restart_resumes.py`.
+- `runner.soak.mlx-reading` — **[OK]** (#6732) the local MLX reader's model server is started once for a run of many pages (and once
+  more after a crash), pages stream through the read slots one at a time on an 8 GB Mac, and the weights plus the reads in flight
+  stay inside half the Mac's memory. *Test:* `fichero-server/tests/unit/llm/test_mlx_reading_loads_once_and_streams.py`.
 - `runner.mac.stays-usable` — **[PARTIAL]** (#5819, #6230, #6263; `activity.throttle.use-means-slower`,
   `activity.throttle.in-use-slows-to-half` own it) automatic work goes on while the person uses the Mac, at half the
   performance cores and background QoS; a run the person started begins at once, throttled, never waits for Run now
