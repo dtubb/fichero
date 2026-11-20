@@ -285,7 +285,7 @@ struct WorkflowPickerReachesPresetTests {
             return step
         }
         let sent = [false, true].map { WorkflowBarPolicy.stepAcceptsRunOverride(pinned(accepts: $0)) }
-        #expect(sent == [false, true])
+        #expect(sent == [false, true] && WorkflowBarPolicy.droppedPinNote(pinned(accepts: true)) == nil)
         #expect(WorkflowBarPolicy.droppedPinNote(pinned(accepts: false)) != nil, "a pin that is not sent is said")
         #expect(WorkflowBarPolicy.droppedPinNote(StagedWorkflowStep(kind: .workflow(item(accepts: false)))) == nil)
     }
