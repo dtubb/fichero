@@ -54,7 +54,7 @@ def _stage_row(run_id: str, stage: str, state: str, detail: str = "") -> None:
 def _try(fn: Stage) -> tuple:
     try:
         return fn()
-    except (RuntimeError, OSError, ValueError) as e:  # a stage that cannot run is red with its reason
+    except Exception as e:  # any error in a stage (a failed text's CalledProcessError, a KeyError) is that stage red with its reason, never a dead thread
         return 1, f"{type(e).__name__}: {e}"
 
 
@@ -179,9 +179,6 @@ def real_stages(root, state, run_id: str, *, branch: str, mac: str, ios: str, ch
 
     def at(role):  # the machine `sweep` chose for this role, from the journal
         return json.loads(green_detail("sweep"))[role]
-
-    def sha():
-        return green_detail("freeze").strip()
 
     def tree(role):
         return _q(_tree(at(role), state, f"release-{role}"))

@@ -172,3 +172,16 @@ def test_the_mac_and_ios_chains_get_their_own_clone_when_both_land_on_one_machin
     st["mac-dmg"](), st["ios"]()
     mac, ios = calls
     assert "nightly/release-mac" in mac and "nightly/release-ios" in ios and "release-ios" not in mac and "release-mac" not in ios
+
+
+def test_a_stage_that_raises_any_error_is_red_and_alerts_never_counts_as_green():
+    import subprocess
+
+    def boom():
+        raise subprocess.CalledProcessError(1, "osascript")
+    st = stages([])
+    st["text"] = boom
+    alerts = []
+    assert not rr.run("r12", st, lambda *a: False, alerts.append)
+    states = [(r["stage"], r["state"]) for r in rr.rows("r12")]
+    assert ("text", "red") in states and ("text", "alert") in states and len(alerts) == 1 and "text" in alerts[0]
