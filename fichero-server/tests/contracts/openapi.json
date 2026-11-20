@@ -3360,6 +3360,92 @@
         }
       }
     },
+    "/api/auth/key-challenge": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Key Challenge",
+        "description": "`multiuser.second-device-by-synced-key`: another device of the same person holds the synced key but has no client\nhere. The challenge is made for the client that already holds the key; a key nobody holds is refused as an unknown client is.",
+        "operationId": "key_challenge_api_auth_key_challenge_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeyChallengeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChallengeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/sign-in-by-key": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Sign In By Key",
+        "description": "Sign in with a trusted key from a device the engine has not seen: on the first success the engine registers a new\n`device` client (named by the device, same key, same person); a repeat from the same device reuses that row.",
+        "operationId": "sign_in_by_key_api_auth_sign_in_by_key_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeySignInRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/first-run": {
       "post": {
         "tags": [
@@ -4295,6 +4381,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PairResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pair/own-devices": {
+      "put": {
+        "tags": [
+          "pairing",
+          "pairing"
+        ],
+        "summary": "Set Own Devices",
+        "description": "`signin.own.*` (#6568): on mints a NEW 32-byte enrollment secret for the owner (stored only as a hash) and\nretires every earlier one; off retires them all. Only this Mac's own app, over its Unix socket, may.",
+        "operationId": "set_own_devices_api_pair_own_devices_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnDevicesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnDevicesResponse"
                 }
               }
             }
@@ -66427,6 +66556,27 @@
         "title": "DetectLanguageResponse",
         "description": "Language detection result."
       },
+      "DeviceClientBody": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "host": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Host",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "DeviceClientBody"
+      },
       "DeviceListResponse": {
         "properties": {
           "items": {
@@ -78020,6 +78170,54 @@
         ],
         "title": "KeptExportWriting"
       },
+      "KeyChallengeRequest": {
+        "properties": {
+          "public_key_pem": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Public Key Pem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "public_key_pem"
+        ],
+        "title": "KeyChallengeRequest"
+      },
+      "KeySignInRequest": {
+        "properties": {
+          "public_key_pem": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Public Key Pem"
+          },
+          "nonce": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Nonce"
+          },
+          "signature": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Signature"
+          },
+          "client": {
+            "$ref": "#/components/schemas/DeviceClientBody"
+          }
+        },
+        "type": "object",
+        "required": [
+          "public_key_pem",
+          "nonce",
+          "signature",
+          "client"
+        ],
+        "title": "KeySignInRequest"
+      },
       "KeywordCloudEntry": {
         "properties": {
           "name": {
@@ -85800,6 +85998,38 @@
         ],
         "title": "OutputSchema",
         "description": "JSON Schema for structured output from LLM nodes.\n\nWhen specified, the LLM will be instructed to return\ndata matching this schema exactly (using structured output mode).\n\nExample for named entity extraction:\n{\n    \"type\": \"object\",\n    \"properties\": {\n        \"people\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n        \"organizations\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n        \"dates\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}\n    },\n    \"required\": [\"people\", \"organizations\", \"dates\"]\n}"
+      },
+      "OwnDevicesRequest": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "title": "OwnDevicesRequest"
+      },
+      "OwnDevicesResponse": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "enrollment_secret": {
+            "type": "string",
+            "nullable": true,
+            "title": "Enrollment Secret",
+            "description": "the new secret, shown once; none when turned off"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "title": "OwnDevicesResponse"
       },
       "OwnerPasswordRequest": {
         "properties": {
