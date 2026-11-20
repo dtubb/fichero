@@ -519,7 +519,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         elif left:
             journal.append("queue", lane=lane["id"], step=s["step"], state="issue-open", detail=", ".join(left))
         return True
-    if r.get("kind") == "already-landed":  # #6466 (run.loop-already-landed): every commit is on origin already; the step IS landed
+    if r.get("kind") == "already-landed" and lane.get("kind") == "external":  # #6466 (run.loop-already-landed): every commit is on origin already; the step IS landed
+        # a worker lane's step with no commits over origin is never landed (#6589 2026-11-20: catalogue-1): it falls to the block below
         close_alerts(lane["id"], s["step"], "already on origin")
         fresh_stop()
         lane["cursor"] += 1
@@ -542,6 +543,16 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         move(s, "done", "the pinned diff is the one already approved: the check runs again with that approval")
         return True
     if r.get("kind") in ("needs-maintainer", "weakened-tests", "red-on-base", "pinned-new", "guard-data"):  # a pinned check or a test changed on purpose: the manager's call
+        judged = r.get("head") or s.get("checked_head") or s.get("head", "")
+        once = s.setdefault("reapproved", [])
+        if judged and r["kind"] in (s.get("approved_for") or {}).get(judged, []) and f"{judged}:{r['kind']}" not in once:
+            # #6589 2026-11-20 (runner-soak blocked 3x at one head): an approve is remembered for the head it judged; the same head and
+            # the same reason go on once by themselves, then it blocks as before (an approve that did not take effect must not loop)
+            once.append(f"{judged}:{r['kind']}")
+            _set_approval(s, r["kind"], r.get("approvals"))
+            journal.append("queue", lane=lane["id"], step=s["step"], state="auto-approve", detail=f"{r['kind']} at {judged[:9]} was approved: the same head goes on by itself")
+            move(s, "done", f"{r['kind']} at {judged[:9]} was approved already: the check runs again with that approval")
+            return True
         s["approve_kind"] = r["kind"]
         s["approvals"] = r.get("approvals") or []  # every reason the refusal listed: one approve sets them all
         return block(s, r["why"], ("approve", "send-back"), r.get("evidence", ""), red=True)
@@ -820,6 +831,21 @@ def _alert_kind(r: dict) -> tuple:
     return (r.get("lane"), r.get("step"), re.sub(r"\d+", "N", str(r.get("what", "")).split(";")[0]).strip())
 
 
+def _set_approval(s: dict, kind: str | None, approvals) -> None:
+    """The flags an approve sets on a step: every reason the alert listed, else the one for its kind."""
+    if approvals:  # maintainer, weakened, pinned-new, red
+        for k in approvals:
+            s[k] = True
+    elif kind == "pinned-new":
+        s["approve_pinned_new"] = True  # the chain re-runs the check recording the new pinned files as approved
+    elif kind == "red-on-base":
+        s["approve_red"] = True  # the chain re-runs the check recording the approval in the red-on-base row
+    elif kind == "weakened-tests":
+        s["approve_weakened"] = True  # the chain re-runs the check recording the approval (the check row says so)
+    else:
+        s["maintainer"] = True  # the chain runs the check with --maintainer
+
+
 def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, str]:
     """The manager's one verb: retry or approve re-run the step, send-back gives it to a new session with the finding,
     park leaves it, ask-owner puts it on GitHub for the owner. An action the alert does not offer is refused, with a row."""
@@ -898,17 +924,14 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
                 had = set(s.get("approved_tests") or ()) if s.get("approved_head") == s.get("head", "") else set()
                 s["approved_head"] = s.get("head", "")
                 s["approved_tests"] = sorted(had | set(re.findall(r"[\w./-]+\.(?:py|json)", said)))
-            if action == "approve" and s.get("approvals"):  # every reason the alert listed (maintainer, weakened, pinned-new, red)
-                for k in s["approvals"]:
-                    s[k] = True
-            elif action == "approve" and s.get("approve_kind") == "pinned-new":
-                s["approve_pinned_new"] = True  # the chain re-runs the check recording the new pinned files as approved
-            elif action == "approve" and s.get("approve_kind") == "red-on-base":
-                s["approve_red"] = True  # the chain re-runs the check recording the approval in the red-on-base row
-            elif action == "approve" and s.get("approve_kind") == "weakened-tests":
-                s["approve_weakened"] = True  # the chain re-runs the check recording the approval (the check row says so)
-            elif action == "approve":
-                s["maintainer"] = True  # the chain runs the check with --maintainer
+            if action == "approve":
+                _set_approval(s, s.get("approve_kind"), s.get("approvals"))
+                at_ = re.search(r"\bat ([0-9a-f]{7,40})\b", a.get("what", ""))  # the head the alert judged: the approve is remembered for it
+                judged = at_.group(1) if at_ else s.get("checked_head") or s.get("head", "")
+                if judged and s.get("approve_kind"):
+                    kinds = s.setdefault("approved_for", {}).setdefault(judged, [])
+                    if s["approve_kind"] not in kinds:
+                        kinds.append(s["approve_kind"])
             if action == "send-back":
                 fix = journal.STATE / f"sendback-{alert_id}.txt"
                 fix.write_text(Path(s["brief"]).read_text().rstrip("\n") + OWNER_PATH.sub("<a path outside the jail>", f"\n\nSent back by the manager: {a['what']}\nEvidence: {a['evidence']}\n"))

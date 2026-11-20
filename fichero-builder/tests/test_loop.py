@@ -1633,3 +1633,27 @@ def test_a_snapshot_a_later_batch_is_using_is_not_removed(state, tmp_path):
     queue.save(lanes)
     queue.clean_up(queue.load()[0], "origin/integration")
     assert land.exists(), "the tree no longer holds this step's head"
+
+
+def test_a_worker_step_with_no_commits_over_origin_is_blocked_never_landed(state):
+    """#6589 2026-11-20: catalogue-1 was marked landed with nothing done. `already-landed` is for an external lane's
+    batch whose commits are on origin; a worker lane's step with no commits is a block."""
+    lane(state)
+    fake = Fake(chains={"1.1": [{"ok": False, "kind": "already-landed", "why": "the worktree has no commits over origin/integration"}]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert steps()["1.1"]["state"] == "blocked" and fake.landed_calls == [] and queue.load()[0]["cursor"] == 0
+    assert "no commits" in steps()["1.1"]["why"]
+
+
+def test_an_approved_red_on_base_is_remembered_for_its_head_and_the_same_head_is_not_blocked_again(state):
+    """#6589 2026-11-20: runner-soak was blocked 3x at one head for the same red-on-base. After an approve, the same head and
+    the same kind go on by themselves, once; the alert is not raised again."""
+    lane(state)
+    red = {"ok": False, "kind": "red-on-base", "why": "red-on-base at hhhhhhhhh: NOT RED ON BASE: fichero-builder/tests/test_x.py passes", "head": "hhhhhhhhh1"}
+    fake = Fake(chains={"1.1": [dict(red), dict(red)]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    (a,) = _alerts()
+    assert queue.answer(a["id"], "approve")[0] == 0
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert steps()["1.1"]["state"] == "landed" and len(_alerts()) == 1, "the second red at the same head raised no alert"
+    assert [r for r in journal.read() if r["event"] == "queue" and r.get("state") == "auto-approve"]
