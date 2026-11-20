@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -85,7 +86,7 @@ def test_the_embedder_row_never_downloads(monkeypatch, tmp_path):
     """fastembed downloads a missing model, and the matrix timed a 116 s download as an 87 to 118 s load (2026-11-19)."""
     monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)
     rm.scratch_environment(tmp_path)
-    assert __import__("os").environ["HF_HUB_OFFLINE"] == "1"
+    assert os.environ["HF_HUB_OFFLINE"] == "1"
 
 
 def test_each_row_carries_the_footprint_beside_the_peak_rss(tmp_path):
@@ -154,4 +155,4 @@ def test_engine_app_runs_the_workers_under_the_apps_python_with_its_packages(tmp
     monkeypatch.setenv("PYTHONPATH", "")  # restored after the test
     assert rm.main(["--engine-app", str(app), "--out", str(tmp_path / "m.json")]) == 0
     assert rm.WORKER_PYTHON == str(python)
-    assert str(packages) in __import__("os").environ["PYTHONPATH"].split(":")
+    assert str(packages) in os.environ["PYTHONPATH"].split(":")
