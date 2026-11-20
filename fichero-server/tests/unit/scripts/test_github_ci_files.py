@@ -13,7 +13,10 @@ def test_dependabot_yml_targets_integration_weekly_over_directories_that_exist()
     for u in doc["updates"]:
         assert u["target-branch"] == "integration"
         assert u["schedule"]["interval"] == "weekly"
-        assert (ROOT / u["directory"].lstrip("/")).is_dir(), u["directory"]
+        d = ROOT / u["directory"].lstrip("/")
+        assert d.is_dir(), u["directory"]
+        if u["package-ecosystem"] == "swift":
+            assert (d / "Package.swift").is_file(), u["directory"]
 
 
 def _workflow(name):
@@ -27,7 +30,9 @@ def test_security_workflow_runs_on_prs_and_nightly_reuses_the_rungs_scanner_and_
     assert set(doc["on"]) >= {"pull_request", "schedule"}
     assert doc["on"]["pull_request"]["branches"] == ["integration"]
     text = (ROOT / ".github/workflows/security.yml").read_text()
-    assert "scripts/security_scan_run.py" in text and "read_osv" in text
+    assert "scripts/security_scan_run.py" in text
+    assert 'sec["pins"]' in text and 'sec.get("osv"' in text and "uv tool install" in text and "install_security_tools" not in text
+    assert 'if result["refused"]' in text
     assert {m["language"] for m in doc["jobs"]["codeql"]["strategy"]["matrix"]["include"]} == {"python", "swift"}
 
 

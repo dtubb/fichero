@@ -2,7 +2,7 @@ name: Security
 
 # Spec: docs/contributor_manual/specs/harness/github-ci.md (ci.security-workflow).
 # Runs the builder's own security rung (scripts/security_scan_run.py: bandit, semgrep, gitleaks, with their baselines and pins in
-# harness.toml [check.security]) and its osv-scanner reader (fichero_builder/security_rung.py read_osv), so there is one scanner
+# harness.toml [check.security]; osv-scanner only while osv = true, read by security_rung.read_osv), so there is one scanner
 # set and one threshold, not a second one. CodeQL is the one scanner added here. Secret scanning push protection is a repository
 # setting (Settings > Code security), not code: the owner switches it on.
 on:
@@ -28,8 +28,32 @@ jobs:
         with:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v5
-      - name: Install the rung's scanners
-        run: scripts/install_security_tools.sh
+      - name: Read the rung's pins and osv switch from harness.toml
+        id: cfg
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, tomllib
+          sec = tomllib.load(open("harness.toml", "rb"))["check"]["security"]
+          pins = sec["pins"]
+          print("pins=" + json.dumps({**pins, "osv-scanner-enabled": bool(sec.get("osv", False))}))
+          for k in ("bandit", "semgrep", "gitleaks", "osv-scanner"):
+              print(f"{k}={pins[k]}")
+          print("osv=" + str(bool(sec.get("osv", False))).lower())
+          PY
+      - name: Install the scanners at the pinned versions
+        run: |
+          uv tool install "bandit==${{ steps.cfg.outputs.bandit }}"
+          uv tool install "semgrep==${{ steps.cfg.outputs.semgrep }}"
+          g="${{ steps.cfg.outputs.gitleaks }}"
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${g}/gitleaks_${g}_darwin_arm64.tar.gz" | tar -xz -C "$RUNNER_TEMP" gitleaks
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install osv-scanner (only when harness.toml [check.security] osv is true)
+        if: steps.cfg.outputs.osv == 'true'
+        run: |
+          o="${{ steps.cfg.outputs.osv-scanner }}"
+          curl -sSfL -o "$RUNNER_TEMP/osv-scanner" "https://github.com/google/osv-scanner/releases/download/v${o}/osv-scanner_darwin_arm64"
+          chmod +x "$RUNNER_TEMP/osv-scanner"
       - name: Choose the range
         id: range
         run: |
@@ -40,36 +64,26 @@ jobs:
           fi
           test -n "$since" || { echo "no commit older than 24 hours to diff against" >&2; exit 1; }
           echo "since=$since" >> "$GITHUB_OUTPUT"
-      - name: Scan the range (bandit, semgrep, gitleaks)
+      - name: Scan the range (bandit, semgrep, gitleaks, and osv-scanner when switched on)
         run: |
-          pins="$(python3 -c "import json,tomllib;print(json.dumps(tomllib.load(open('harness.toml','rb'))['check']['security']['pins']))")"
-          python3 scripts/security_scan_run.py --since "${{ steps.range.outputs.since }}" --head HEAD --pins "$pins" | tee scan.out
-      - name: Dependencies (osv-scanner over the Python lock and the Swift Package.resolved files)
-        run: |
-          args=""
-          for f in fichero-server/uv.lock fichero/fichero.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved fichero/fichero-api-client/Package.resolved; do
-            test -f "$f" && args="$args --lockfile $f"
-          done
-          cfg=""; test -f osv-scanner.toml && cfg="--config osv-scanner.toml"
-          osv-scanner scan $args $cfg --format json --output osv.json || true
-          test -s osv.json || { echo "osv-scanner wrote no JSON" >&2; exit 1; }
-      - name: Fail on high or critical
+          python3 scripts/security_scan_run.py --since "${{ steps.range.outputs.since }}" --head HEAD --pins '${{ steps.cfg.outputs.pins }}' | tee scan.out
+      - name: Fail on high or critical, or on a scanner that did not run
         run: |
           python3 - <<'PY'
           import json, sys
           sys.path.insert(0, "fichero-builder")
           from fichero_builder import security_rung as sr
-          rows = sr.read_osv(json.load(open("osv.json")))
           line = [l for l in open("scan.out") if l.startswith("SECURITY-RESULT ")]
           if not line:
               sys.exit("the scan printed no SECURITY-RESULT line")
           result = json.loads(line[-1].split(" ", 1)[1])
-          rows += result["rows"]
+          rows = result["rows"]
           for r in result["refused"]:
               print(r)
           print(sr.table(rows))
           red = [r for r in rows if r["red"]]
-          # a REFUSED line is printed above and does not fail: brew installs the newest scanner, the pins are the Macs' versions
+          if result["refused"]:
+              sys.exit(f"{len(result['refused'])} scanner(s) refused or wrote no output: nothing was scanned by them")
           sys.exit(f"{len(red)} red finding(s)" if red else 0)
           PY
 
