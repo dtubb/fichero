@@ -273,6 +273,28 @@ filters Activity by `model:`.
   (the bookmark stays), says how much disk it frees, and asks first when a recipe uses it (open question 3), with the
   deletion shown in Activity.
 
+### B2. Run settings per model (owner 2026-11-19)
+
+The Inspector of a local model has a Run settings section: each knob with the engine's own value shown as the default and
+what the setting costs this Mac (memory from the engine's per-page figure; time per page "—" until measured). Unset is the
+engine's rule; a value out of range is refused with the range, never clamped.
+
+- `models.settings.run-knobs` — **[PARTIAL]** (#6588; built: `llm/model_run_settings.py`, `GET`/`PUT
+  /api/activity/models/run-settings/{runtime}`, and Kraken reading them) for Kraken, the knobs the engine has: pages at once
+  (the cap `page_fan_out` still bounds by free memory), threads a page, lines per batch (`reader_batch_size`) and device
+  (auto / CPU / GPU; `FICHERO_COMPUTE_DEVICE` still wins). Not built: the Inspector section; the other local runtimes
+  (MLX, spaCy, Whisper, YOLO) have no such knob in the engine yet. *Tests:*
+  `fichero-server/tests/unit/llm/test_model_run_settings_6588.py`.
+- `models.settings.run-knobs-image-size-precision` — **[GAP]** (#6588) Kraken's maximum image size and its precision
+  (32-bit or 16-bit): the engine has no such knob today (`kraken_runtime.py` reads neither), so each needs the engine rule
+  first, with a test that the page is scaled or the reader runs at that precision.
+- `models.settings.run-knobs-default-per-mac` — **[GAP]** (#6588, runner-perf's measurements) the default each knob shows
+  is the value measured best on this Mac's class (cores, memory), not only the engine's formula; the time cost beside each
+  setting is that measurement. Owed until runner-perf has measured.
+- `models.settings.run-knobs-cost-shown` — **[PARTIAL]** (#6588; built: the route's `cost.memory_bytes`, tested for pages
+  at once) each setting shows what it asks of this Mac before it is applied; not built: the Inspector's display, and
+  `seconds_per_page` (null).
+
 ### C. Places
 
 - `models.place.every-place-listed` — **[PARTIAL]** (#6588; the owner's ruling of 2026-11-16, built in Activity's
