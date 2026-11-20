@@ -18,6 +18,13 @@ import Foundation
 // (`requires_vision`). This is a projection of those declarations, kept free
 // of SwiftUI so the rule is unit-testable.
 extension WorkflowBarPolicy {
+    /// Whether a run may carry a provider/model override for this step (#4963). A workflow with no language or vision node
+    /// declares `accepts_model_override: false`; the engine refuses an override sent to it (#3804), pinned or not.
+    static func stepAcceptsRunOverride(_ step: StagedWorkflowStep) -> Bool {
+        if case .workflow(let item) = step.kind { return item.canOverrideModel }
+        return true
+    }
+
 
     /// The configured default a step resolves to when nothing is pinned.
     enum ModelTier: String, Equatable {

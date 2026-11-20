@@ -60,6 +60,8 @@ extension ContentView {
         for step: StagedWorkflowStep,
         stagedCount: Int = 1
     ) -> (provider: String?, model: String?) {
+        // A workflow that takes no override gets none, pinned or not (#4963): the engine refuses the run otherwise.
+        guard WorkflowBarPolicy.stepAcceptsRunOverride(step) else { return (nil, nil) }
         // A pin the step's tool cannot use is NOT sent (R-11, 2026-09-04):
         // the engine would decline to stamp it and the node would resolve its
         // tier default anyway, so sending it would only make the bar's

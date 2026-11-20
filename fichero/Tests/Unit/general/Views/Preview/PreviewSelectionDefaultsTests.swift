@@ -277,6 +277,15 @@ struct WorkflowPickerReachesPresetTests {
         ) == nil)
     }
 
+    @Test("a workflow that takes no model override is sent none, pinned or not (#4963)")
+    func noOverrideForAWorkflowThatRefusesIt() {
+        var step = StagedWorkflowStep(kind: .workflow(item(accepts: false)))
+        step.providerOverride = "openrouter"
+        step.modelOverride = "google/gemini-2.5-flash"
+        #expect(WorkflowBarPolicy.stepAcceptsRunOverride(step) == false)
+        #expect(WorkflowBarPolicy.stepAcceptsRunOverride(StagedWorkflowStep(kind: .workflow(item()))))
+    }
+
     @Test("a pinned step keeps its pin")
     func pinWins() {
         var pinned = StagedWorkflowStep(kind: .workflow(item()))
