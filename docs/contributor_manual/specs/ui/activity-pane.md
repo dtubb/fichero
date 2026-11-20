@@ -2300,8 +2300,8 @@ and node, not by job); a retry action for failed pages.
   needs, switching models only between groups and unloading the old one only when the next does not fit beside it (`activity.lane.one-model-at-a-time`, the later ruling; Apple and spaCy never evict). Built: queued jobs
   for the model last used run before any other model's (`fichero-server/tests/unit/jobs/test_job_queue.py`), Kraken pages
   included, named by reader (`kraken:<reader id>`); leaving Kraken for another heavy model frees
-  Kraken's resident models first; the embedder is a light model (runs beside the big ones, never "the loaded model"), so a
-  Kraken page after an embed does not free it (memory pressure does, when it must); a
+  Kraken's resident models first; the embedder is never "the loaded model" but is never loaded beside Kraken either: a Kraken load frees an idle embedder
+  and waits while an embed holds it, and an embed's load frees Kraken's resident models and waits while a page runs; a
   background job for another heavy model waits for 20 s of quiet on the loaded one, so bursts do
   not swap models page by page, while work a person waits for switches at once
   (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). The quiet spell is not the only hold (#5846,
@@ -2404,8 +2404,8 @@ and node, not by job); a retry action for failed pages.
   query text, one short vector, and nothing else: `GET /api/kg/claim-search?q=`, `GET /api/kg/entities/semantic?q=` (and
   `/api/search`) answer with a query embedding. The embed is bounded (`QUERY_EMBED_SECONDS`, 5 s): if the embedder is busy
   or cold past the bound the GET answers 503 in words ("The search model is busy …, try again"), never hangs; the late embed
-  finishes on its own thread and the next GET finds the model loaded. It never loads, unloads or waits on a heavy model
-  (Kraken, MLX, a VLM): the embedder is the small model that runs beside them. A passage embed (`role="passage"`, the batch
+  finishes on its own thread and the next GET finds the model loaded. It never unloads a heavy model; when Kraken is loaded the embedder is not
+  loaded beside it, so a search during a Kraken run answers the 503 "the search model is busy". A passage embed (`role="passage"`, the batch
   `_embed_texts`) stays refused. Pinned by `fichero-server/tests/unit/api/test_get_embeds_its_own_query.py` (a answers,
   b busy answers in words within the bound, c the loaded heavy model is still loaded).
 - `activity.read.get-keeps-kraken-and-lane-refused` — **[OK]** Kraken, recognise and `run_on_lane` stay refused in every GET
@@ -2488,7 +2488,7 @@ and node, not by job); a retry action for failed pages.
   only when the next one does not fit beside it (the throttle's one memory rule: Kraken's need is its small working need
   while its models are resident, else the cold figure, a served model's own size); when both fit they stay loaded
   together, and the engine log says which (`model-lane: keep … loaded beside …`, or the unload with the memory it
-  needed). Small models (the embedder, spaCy) run beside the big ones and are never "the loaded model"; Apple Vision is
+  needed). Small models (spaCy) run beside the big ones and are never "the loaded model", the embedder never loads beside Kraken (owner 2026-11-19); Apple Vision is
   built in, takes no lane and evicts nothing. Pinned by
   `fichero-server/tests/unit/jobs/test_one_model_at_a_time_on_the_lane.py` (vision work and an embed during a Kraken run
   unload nothing; a VLM and Kraken that both fit stay loaded; when they do not, ten interleaved pages cause at most two

@@ -1284,6 +1284,7 @@ def _resident_locked(kind: str, key: str, load: Callable[[], object]) -> object:
     if held is not None and held[0] == key:
         return held[1]
     _RESIDENT.pop(kind, None)  # drop the old one before loading its replacement
+    _release_the_embedder()
     # One line per load, countable with the unloads (`model-lane:`), so a reload per page shows (#5846).
     logger.info("model-lane: load kraken %s %s (%s)", kind, key,
                 "replacing the one held" if held is not None else "none held")
@@ -1293,6 +1294,30 @@ def _resident_locked(kind: str, key: str, load: Callable[[], object]) -> object:
         model = load()
     _RESIDENT[kind] = (key, model)
     return model
+
+
+def _release_the_embedder() -> None:
+    """The embedder and Kraken are never loaded together (owner rule 2026-11-19): free the embedder before a Kraken
+    model loads; while an embed holds it, wait (a `MemoryShortError`, so the lane runs the page again later)."""
+    embeddings = sys.modules.get("fichero_server.db.embeddings")
+    if embeddings is None:
+        return
+    embeddings.release_idle_embedders(idle_seconds=0, reason="Kraken loads")
+    if embeddings._EMBEDDER_CACHE:
+        raise KrakenMemoryUnavailableError("An embed is using the search model; Kraken waits for it to finish.")
+
+
+def release_for_the_embedder() -> None:
+    """The other half: free Kraken's resident models before the embedder loads. While a page is running (the gate is
+    held or a run has pages in flight) raise `MemoryShortError` so the embed waits."""
+    if not _RESIDENT:
+        return
+    if _a_run_has_pages_in_flight() or not _INFERENCE_LOCK.acquire(blocking=False):
+        raise MemoryShortError("Kraken is reading a page; the search model waits for it to finish.")
+    try:
+        release_resident_models("the embedder loads")
+    finally:
+        _INFERENCE_LOCK.release()
 
 
 def release_resident_models(reason: str = "unspecified") -> None:

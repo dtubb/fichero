@@ -338,6 +338,9 @@ def _get_shared_embedder(model_name: str, cache_dir: str) -> Any:
             held_back = load_failure_in_force(model_name)
             if held_back is not None:
                 raise embed_process.EmbedderUnavailable(held_back)  # at once: the words, not another load
+            kraken = sys.modules.get("fichero_server.llm.kraken_runtime")  # never loaded beside Kraken (owner rule 2026-11-19)
+            if kraken is not None:
+                kraken.release_for_the_embedder()
             # Cap ONNX intra-op parallelism so a bulk embed can't peg every core
             # and freeze the app ([[user-machine-always-useful]]). fastembed
             # otherwise defaults to all cores per call.
