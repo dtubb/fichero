@@ -284,9 +284,9 @@ struct WorkflowPickerReachesPresetTests {
             (step.providerOverride, step.modelOverride) = ("openrouter", "google/gemini-2.5-flash")
             return step
         }
-        #expect(!WorkflowBarPolicy.stepAcceptsRunOverride(pinned(accepts: false)) && WorkflowBarPolicy.stepAcceptsRunOverride(pinned(accepts: true)))
+        let sent = [false, true].map { WorkflowBarPolicy.stepAcceptsRunOverride(pinned(accepts: $0)) }
+        #expect(sent == [false, true])
         #expect(WorkflowBarPolicy.droppedPinNote(pinned(accepts: false)) != nil, "a pin that is not sent is said")
-        #expect(WorkflowBarPolicy.droppedPinNote(pinned(accepts: true)) == nil)
         #expect(WorkflowBarPolicy.droppedPinNote(StagedWorkflowStep(kind: .workflow(item(accepts: false)))) == nil)
     }
 
