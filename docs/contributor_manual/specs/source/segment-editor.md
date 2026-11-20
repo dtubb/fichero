@@ -1288,13 +1288,13 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   through its own inverse when it has one, belongs to the shared undo route, not to segments;
   the safety set (branch `spec/undo-trash`, not merged) proposes it for every action, and this
   set agrees.
-  *Checked 2026-11-20:* the "still owed" sentence above is out of date for the version check: `segment.merge` and
+  (Today a redo of a segment edit is refused as stale: the shared undo route replays the
+  original request. The editor cannot ship without this.)
+  **Built** 2026-11-20 (checked): the "still owed" sentence above is out of date for the version check: `segment.merge` and
   `segment.split` take `expected_versions`, an undo of a split is refused (409) when a part was edited since and
   deletes nothing, an undo of a merge is refused when the kept segment changed since, and a merge naming a stale
   member is refused (`fichero-server/tests/unit/api/test_segment_undo_refuses_after_others_edit.py`). Parts of a
   redone split still get new ids. Not seen in the app.
-  (Today a redo of a segment edit is refused as stale: the shared undo route replays the
-  original request. The editor cannot ship without this.)
 - `source.editor.system-undo` — **[PARTIAL]** (#4941) ⌘Z and ⇧⌘Z undo and redo editor actions through the action
   pass. (Rule (i) flags `test_artifact_regions_edit.py` as mentioning this id: that file pins the
   ENGINE half added for it — the route now names its audit row — and asserts nothing about ⌘Z,
