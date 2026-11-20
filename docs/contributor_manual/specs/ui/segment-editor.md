@@ -320,6 +320,18 @@ targets are at least 44 pt.
   baseline, order and children are untouched. A segment that is already a box is left out; a selection of only boxes is
   refused with the reason. *Tests:* `test_segment_convert_to_box.py`; `SegmentConvertToBoxTests.swift`.
   *Not built:* the toolbar shape-menu entry; **Convert to Box (fit ink)**, the rectangle of the ink inside the polygon.
+- `segment-editor.make-region-from-lines` — **[PARTIAL]** (#6737, owner 2026-11-19; app + engine) **Make Region from Lines**
+  (Edit › Segments ▸, ⌘G, and the page's context menu on two or more selected segments) makes one new region whose box is the
+  union of the lines' shapes and moves the lines into it as its children, in their reading order (`segment.group_lines`;
+  the region takes the lines' own parent, so lines inside a region make a region nested in it; lines under different
+  parents are refused with the reason). **Ungroup Region** (the same menus, no chord: ⇧⌘G shows or hides Items) sends a
+  region's lines to its parent and deletes the region (`segment.ungroup_region`). Each is one audit row and one undo, and
+  each is the other's undo: undoing a group deletes the region, undoing an ungroup brings the same region back with the
+  same lines and their reading-order entries as they were. The region joins the pass's `as-written` order only.
+  *Tests:* `test_segment_group_lines.py`; `SegmentGroupLinesTests.swift`.
+  *Not built:* the new region selected afterwards and open for its type; the "replace the old region when every line of it
+  is selected" question; the region in orders other than `as-written`; the existing marquee path "New Region from
+  Selection…" stays as it was (it names a drawn selection, it does not group segments).
 - `segment-editor.vertices` — **[PARTIAL]** (→ #4941; app + engine) a click on a side adds a point; ⌥-click a
   point removes it (built); ⌫ with a pressed point removes it; **Simplify** (⌘⌥S, and a slider
   in the Shape popover) asks the engine for a simpler outline, `segment.simplify` with a
