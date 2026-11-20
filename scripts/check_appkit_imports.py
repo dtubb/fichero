@@ -81,6 +81,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Capture/CaptureInlineRowIOS.swift": "hygiene — capture-queue row thumbnail uses UIImage; split out of FicheroApp_iOS.swift by file_length; iOS-only",
     "Models/Platform/PlatformAliases.swift": "THE platform bridge: NSColor/UIColor, NSFont/UIFont, NSImage/UIImage and the representable aliases; sanctioned by design",
     "Models/Platform/PlatformPasteboard.swift": "platform bridge: NSPasteboard/UIPasteboard behind one API; sanctioned by design",
+    "Models/Platform/RunRefusalAlert.swift": "platform bridge: the NSAlert a menu verb with no window raises for the engine's refusal (#6602)",
     "Models/SpaceTheme.swift": "#2713 — Spatial renderer color bridge uses NSColor/UIColor behind #if canImport; #2101",
     "Models/WorkflowExporter.swift": "NSOpenPanel/NSSavePanel for workflow import/export, #if canImport(AppKit) (#2101)",
     "Services/ImageEditingService.swift": "NSImage/UIImage conversion for Core Image output, #if canImport (#2101)",

@@ -323,5 +323,11 @@
     "class": "violation",
     "reason": "batch-21 (#6588): a preview store built once from a fixed list for a #Preview; it never reloads, so there is nothing to splice",
     "issue": 6588
+  },
+  {
+    "file": "fichero/fichero/Models/RecipeSetupStore.swift",
+    "method": "save",
+    "class": "by-design",
+    "reason": "by-design 2026-11-20 (#6744): after a save the steps a folder can run again are the saved recipe's, a handful of step names read as one value (redoSteps), not rows with identity to splice; the read is the point of the save"
   }
 ]
