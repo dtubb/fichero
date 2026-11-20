@@ -44,7 +44,7 @@ def test_the_report_names_each_runtime_and_its_loads(tmp_path):
     assert rows["stub-failing"]["status"] == "failed"
     assert rows["stub-failing"]["kind"] and rows["stub-failing"]["words"]  # the engine's own kind and words
     assert rows["stub-absent"] == {"runtime": "stub-absent", "note": "", "status": "unavailable",
-                                   "words": "not on this Mac", "peak_rss_mb": None}
+                                   "words": "not on this Mac", "peak_rss_mb": None, "footprint_mb": None}
     assert {"chip", "ram_gb", "macos", "free_memory_mb"} <= set(report["machine"])
     json.dumps(report)  # one JSON file
 
@@ -67,3 +67,52 @@ def test_a_failing_runtime_does_not_stop_the_matrix_or_the_exit_code(tmp_path, m
     assert rm.main(["--out", str(out)]) == 0
     assert len(json.loads(out.read_text())["runtimes"]) == 4
     assert "| stub-failing | failed |" in capsys.readouterr().out
+
+
+def test_the_sample_has_a_real_size_page(tmp_path):
+    """The fixtures are 100 to 900 px wide and Kraken scales every page to 1800 rows, so they measured upscaled thumbnails
+    (9.5 GB for a fixture, 3.8 GB for a real page, 2026-11-19): the sample carries an A4 page at 300 dpi too."""
+    from PIL import Image
+
+    pages = rm.sample_pages(tmp_path)
+    assert [p.name for p in pages[:5]] == list(rm.SAMPLE) and pages[-1].name == rm.REAL_PAGE
+    with Image.open(pages[-1]) as image:
+        assert image.size == (2480, 3508)
+    assert rm.sample_pages(tmp_path) == pages  # a second call (the worker's) reuses the file
+
+
+def test_the_embedder_row_never_downloads(monkeypatch, tmp_path):
+    """fastembed downloads a missing model, and the matrix timed a 116 s download as an 87 to 118 s load (2026-11-19)."""
+    monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)
+    rm.scratch_environment(tmp_path)
+    assert __import__("os").environ["HF_HUB_OFFLINE"] == "1"
+
+
+def test_each_row_carries_the_footprint_beside_the_peak_rss(tmp_path):
+    report = rm.build_report(_stubs(), [tmp_path / "p.png"], isolate=False)
+    ok = next(r for r in report["runtimes"] if r["runtime"] == "stub-ok")
+    assert "footprint_mb" in ok
+    assert "footprint MB" in rm.table(report)
+
+
+def test_python_runs_every_worker_with_that_interpreter(monkeypatch, tmp_path):
+    """The gate venvs lack mlx_vlm, mlx_whisper and ultralytics; `--python` measures with the shipped engine's Python."""
+    commands = []
+
+    class Done:
+        stdout = json.dumps({"runtime": "stub-ok", "status": "ok"}) + "\n"
+
+    monkeypatch.setattr(rm.subprocess, "run", lambda command, **kw: commands.append(command) or Done())
+    monkeypatch.setattr(rm, "WORKER_PYTHON", "/engine/python")
+    rm.run_matrix(_stubs()[:1], [tmp_path / "p.png"], isolate=True)
+    assert commands[0][0] == "/engine/python" and "--worker" in commands[0]
+    monkeypatch.setattr(rm, "WORKER_PYTHON", None)
+    rm.run_matrix(_stubs()[:1], [tmp_path / "p.png"], isolate=True)
+    assert commands[1][0] == sys.executable
+
+
+def test_python_must_exist(capsys):
+    import pytest
+
+    with pytest.raises(SystemExit):
+        rm.main(["--python", "/no/such/python"])
