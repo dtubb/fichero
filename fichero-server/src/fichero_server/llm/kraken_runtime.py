@@ -1647,6 +1647,15 @@ def recognition_display_name(model_id: str) -> str:
     return f"the reader from Kraken's repository (record {match.group(1)})" if match else "the Kraken reader"
 
 
+def is_kraken_recognition_record(record: object) -> bool:
+    """Whether a repository record is a Kraken recognition model: the one test the listing (`discovery._row`) and the
+    download share, so a reader the finder offers is one the download accepts (#6733)."""
+    keywords = list(getattr(record, "keywords", None) or [])
+    if getattr(record, "software_name", None) != "kraken" and "kraken_pytorch" not in keywords:
+        return False
+    return "recognition" in (getattr(record, "model_type", None) or [])
+
+
 def download_recognition_model(
     model_id: str,
     home: Path | None = None,
@@ -1683,8 +1692,7 @@ def download_recognition_model(
         from htrmopo import get_description
 
         record = get_description(str(spec["doi"]))
-        if "recognition" not in (getattr(record, "model_type", None) or []) or \
-                getattr(record, "software_name", None) != "kraken":
+        if not is_kraken_recognition_record(record):
             raise ValueError(f"{spec['doi']} is not a Kraken recognition model in Kraken's repository")
     # Each reader in its own folder: in one shared folder their metadata.json and README.md overwrote
     # each other, and "the newest .mlmodel anywhere" picked ANOTHER reader when this one ships as

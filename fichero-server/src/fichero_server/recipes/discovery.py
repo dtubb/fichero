@@ -763,11 +763,11 @@ def _harvest() -> dict[str, dict[str, Any]]:
 
 def _row(record: Any) -> dict[str, Any] | None:
     """A repository record as discovery keeps it, or None when it is not a Kraken recognition model."""
+    from fichero_server.llm.kraken_runtime import is_kraken_recognition_record
+
+    if not is_kraken_recognition_record(record):
+        return None
     keywords = list(getattr(record, "keywords", None) or [])
-    if getattr(record, "software_name", None) != "kraken" and "kraken_pytorch" not in keywords:
-        return None
-    if "recognition" not in (getattr(record, "model_type", None) or []):
-        return None
     metrics = getattr(record, "metrics", None) or {}
     published = getattr(record, "publication_date", None)
     return {
