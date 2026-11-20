@@ -581,6 +581,22 @@ _WANTED: contextvars.ContextVar[dict[str, str | None]] = contextvars.ContextVar(
     "kraken_wanted", default={"segment": "blla", "read": None})
 
 
+#: The page the next segmentation reads, in megapixels of the network's input (`network_megapixels`); None: not known.
+_PAGE_MEGAPIXELS: contextvars.ContextVar[float | None] = contextvars.ContextVar("kraken_page_megapixels", default=None)
+
+#: Kraken's blla scales every page to this height, whatever the scan's size (kraken/blla.mlmodel input spec).
+_NETWORK_HEIGHT = 1800
+#: Measured 2026-11-19 (iMac M4, convolutions banded): peak = 0.5 GB + 0.6 GB per megapixel of the network's input
+#: (a portrait page 1.9 GB, a two-page spread 3.4 GB).
+_NETWORK_BASE_BYTES = int(0.5 * 1024**3)
+_NETWORK_BYTES_PER_MEGAPIXEL = int(0.6 * 1024**3)
+
+
+def network_megapixels(width: int, height: int) -> float:
+    """The network's input in megapixels for a `width` x `height` page: Kraken scales the height to 1800 and keeps the ratio."""
+    return width * _NETWORK_HEIGHT / height * _NETWORK_HEIGHT / 1e6
+
+
 def kraken_models_resident() -> bool:
     """Whether every model the next call will use is in memory now, with the key it will ask for: the call loads
     nothing (a held line finder with no reader, or another reader, still loads one)."""
@@ -593,6 +609,10 @@ def kraken_need_bytes() -> int:
     that IS the next Kraken page only: the page guard, the page fan-out, the reader's batch and `model_need` for a
     loaded Kraken. NOT the shared floor other heavy work asks (`throttle.heavy_work_need_bytes` stays cold)."""
     cold = _kraken_memory_need_bytes()
+    megapixels = _PAGE_MEGAPIXELS.get()
+    if megapixels is not None and not os.environ.get(_MEMORY_NEED_ENV_VAR):  # the page's own size, not the flat figure
+        working = int(_NETWORK_BYTES_PER_MEGAPIXEL * megapixels)
+        return max(_RESIDENT_WORKING_NEED_BYTES, working) if kraken_models_resident() else _NETWORK_BASE_BYTES + working
     return min(cold, _RESIDENT_WORKING_NEED_BYTES) if kraken_models_resident() else cold
 
 
@@ -1043,11 +1063,13 @@ def _kraken_call_once(op: Callable[[], _T]) -> _T:
     jobs_module = sys.modules.get("fichero_server.execution.jobs")
     person = bool(jobs_module and jobs_module.current_job_is_a_persons())
     wanted = _WANTED.get()  # likewise: the thread below starts with no context
+    page_megapixels = _PAGE_MEGAPIXELS.get()
     allowed = pages_at_once(person)  # two for a person's run when memory holds two, else one
 
     def _throttled() -> None:
         global _THREADS_NOW, _THREADS_SET_ON
         _WANTED.set(wanted)
+        _PAGE_MEGAPIXELS.set(page_megapixels)
         _PAGE.clear()  # this page's notes: each page's own thread keeps its own
         try:
             # #4987 "know before running": checked INSIDE the lock, before
@@ -1580,6 +1602,7 @@ def segment_lines(
         raise KrakenSegmentationError("No image path was supplied for this page; the engine could not resolve its source file.")
     caller = run_call or _kraken_call
     token = _WANTED.set({"segment": "blla"})
+    size_token = _PAGE_MEGAPIXELS.set(_page_megapixels(image_path))
     try:
         return caller(lambda: _segment_raw(image_path, direction))
     except (KrakenRuntimeMissingError, KrakenMemoryUnavailableError, ModelWorkInGet):  # a GET's refusal keeps its own words
@@ -1592,6 +1615,20 @@ def segment_lines(
         raise KrakenSegmentationError(f"Kraken segmentation failed: {exc}") from exc
     finally:
         _WANTED.reset(token)
+        _PAGE_MEGAPIXELS.reset(size_token)
+
+
+def _page_megapixels(page: str | Path) -> float | None:
+    """The page's network input in megapixels, from the file's header; None when it cannot be read (the flat figure then
+    applies, and the segmentation itself reports the unreadable file)."""
+    from PIL import Image
+
+    try:
+        with Image.open(page) as image:  # the header only: `upright_size` turns it by the EXIF orientation
+            width, height = upright_size(image)
+    except (OSError, ValueError):
+        return None
+    return network_megapixels(width, height) if width and height else None
 
 
 def recognize_lines(
