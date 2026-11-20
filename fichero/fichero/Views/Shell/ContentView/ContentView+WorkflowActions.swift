@@ -344,7 +344,11 @@ extension ContentView {
             to: threadId,
             onCancel: { [weak workflowStreamService] in
                 Task { @MainActor in
-                    try? await workflowStreamService?.stopWorkflow(threadId: threadId)
+                    do {
+                        try await workflowStreamService?.stopWorkflow(threadId: threadId)
+                    } catch {
+                        RunRefusalAlert.show(RunStartWords.stopFailure(error), title: RunStartWords.stopTitle)
+                    }
                 }
             }
         )
@@ -450,9 +454,13 @@ extension ContentView {
         let service = workflowStreamService
         observer.cloudRefusal = CloudRefusalPrompt(refusal: refusal) { once in
             Task { @MainActor in
-                try? await service.resumeWorkflow(
-                    threadId: runId, allowCloudOnce: once.allowCloud, overCapOnce: once.overCap,
-                    onEvent: { observer.handleEvent($0, forThreadId: runId) })
+                do {
+                    try await service.resumeWorkflow(
+                        threadId: runId, allowCloudOnce: once.allowCloud, overCapOnce: once.overCap,
+                        onEvent: { observer.handleEvent($0, forThreadId: runId) })
+                } catch {
+                    RunRefusalAlert.show(RunStartWords.resumeFailure(error), title: RunStartWords.resumeTitle)
+                }
             }
         }
     }

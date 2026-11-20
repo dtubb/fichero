@@ -18,6 +18,19 @@ enum RunStartWords {
         workflowPrefix + error.localizedDescription
     }
 
+    static let stopTitle = "Couldn't Stop the Run"
+    static let resumeTitle = "Couldn't Continue the Run"
+
+    /// A Stop the engine did not take, with its words: the run may still be going.
+    static func stopFailure(_ error: Error) -> String {
+        "The run may still be going. " + error.localizedDescription
+    }
+
+    /// A Continue the engine did not take, with its words: the run stays paused.
+    static func resumeFailure(_ error: Error) -> String {
+        "The run stays paused. " + error.localizedDescription
+    }
+
     /// The title of the window's error alert for `message`: a run's start failure says so; everything else is an import's.
     static func alertTitle(for message: String?) -> String {
         guard let message else { return importTitle }

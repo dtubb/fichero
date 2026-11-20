@@ -32,6 +32,14 @@ struct WorkflowStartFailureTests {
         #expect(RunStartWords.noLibrary != RunStartWords.notRunnableHere)
     }
 
+    @Test("a Stop or Continue the engine refused says so, with its words, and is not titled a start")
+    func stopAndResume() {
+        #expect(RunStartWords.stopFailure(Refused()) == "The run may still be going. cannot apply the requested provider/model override")
+        #expect(RunStartWords.resumeFailure(Refused()) == "The run stays paused. cannot apply the requested provider/model override")
+        #expect(RunStartWords.stopTitle != RunStartWords.title)
+        #expect(RunStartWords.resumeTitle != RunStartWords.title)
+    }
+
     @Test("an import's failure keeps the import title")
     func importStays() {
         #expect(RunStartWords.alertTitle(for: "Import failed: disk full") == "Import Error")
