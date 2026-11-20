@@ -165,7 +165,7 @@ extension ContentView {
     private func compactStepScreen(_ step: CompactDocumentStep) -> some View {
         Group {
             switch step {
-            case .reader: AnyView(compactReadingPane)
+            case .reader: AnyView(widescreenReadingPane())
             case .info: AnyView(inspectorView)
             case .source: EmptyView()
             }
