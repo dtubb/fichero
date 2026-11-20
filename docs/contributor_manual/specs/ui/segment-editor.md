@@ -893,6 +893,8 @@ The umbrella's speed trial (slice 12) is the gate and is not restated. This file
 - `segment-editor.edge.empty-region` — **[PARTIAL]** (→ #4941; engine + app) a region with no lines is kept (a person
   may draw into it), drawn with its label only, and listed by the validator as empty before export.
   *Built (2026-11-13):* the validator lists it (`empty-region`). *Not built:* the label-only drawing.
+  *Built note (2026-11-20):* deleting every line of a region keeps the region, and the validator then names it empty
+  (`fichero-server/tests/unit/api/test_segment_empty_region_and_stale_delete.py`). Needs an on-screen check.
 - `segment-editor.edge.no-baseline` — **[OK]** (→ #4941; app + engine) a line with no baseline (a box from an older
   result, an Apple Vision line) cannot be cut by the knife, redrawn or cut into words by
   positions; the tools say so and offer **Add Baseline**, which proposes one through the box's
@@ -924,6 +926,8 @@ The umbrella's speed trial (slice 12) is the gate and is not restated. This file
 - `segment-editor.edge.stale` — **[OK]** (engine) every action here is refused when the row changed
   since it was read; the app reloads the row and shows what changed. Pinned by
   `fichero-server/tests/unit/api/test_segment_update_many.py::test_one_stale_line_refuses_the_whole_edit`.
+  *Built note (2026-11-20):* `segment.delete` with one stale version refuses the whole call and deletes nothing
+  (`test_segment_empty_region_and_stale_delete.py`).
 - `segment-editor.edge.rtl-vertical` — **[PARTIAL]** (→ #5154; engine) a knife cut, a word cut and an order
   sequence follow the line's resolved direction: "before the cut" is the right part of a
   right-to-left line and the upper part of a vertical one (`estimated_cut` already does this
