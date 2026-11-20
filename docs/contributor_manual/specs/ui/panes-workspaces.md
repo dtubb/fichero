@@ -238,7 +238,7 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
   pane's visibility both ways and toggling changes the current workspace; the shortcuts stay. The
   Workspaces menu has no Toolbar Buttons submenu, and `ToolbarVisibilityPlan` is deleted (a saved
   snapshot's old `toolbar` key is ignored on decode). Only an iPhone keeps a Chat button in the bar.
-  *Test:* `ToolbarGroupingTests.toolbarHasNoPaneToggles`, `::workspacesMenuChecksFollowVisibility`,
+  *Test:* `fichero/Tests/Unit/general/Views/Shell/ToolbarGroupingTests.swift::toolbarHasNoPaneToggles`, `::workspacesMenuChecksFollowVisibility`,
   `::viewMenuChecksPanes`, `WorkspacesMenuNoSecondDefinitionGuardrailTests.noToolbarButtonsSubmenu`,
   `WindowWorkspaceTests`. *Not built:* View ▸ Customize Toolbar (`.toolbar(id:)` customization).
 - `shell.search.always-visible-with-scope` — **[PARTIAL]** (#6729; owner 2026-11-19) search is one field
@@ -1154,8 +1154,10 @@ also show the path (`ContentView+RootLayout.swift:311-317`).
   and view pickers sit at the head's left (`PaneHead`, `PaneKindSelector`) and What to show sits in Preview's footer.
   *Built (2026-11-14):* the button is the pane's kind icon with a chevron (no +); the menu, and the head's
   right-click, list Pane ▸ (the kinds, the current one ticked), Split, Focus on Pane (Leave Focus while that pane is in
-  Focus), Pin, Close (`PaneMenuEntries`). *Not built:* Show as ▸ and What to Show ▸ in the menu, Link…, removing the
-  head's ✕, kind and view pickers and pin button (the UI tests still find the ✕), and a Preview showing a page
+  Focus), Pin, Close (`PaneMenuEntries`). *Built (#6741):* the head's ✕ and kind picker are gone (`PaneHead.identityCapsule` holds the view
+  chooser only); Pane ▸ and Close Pane in the menu replace them, and the two UI tests that clicked the ✕ open the
+  menu. *Not built:* Show as ▸ and What to Show ▸ in the menu (the view chooser stays at the left), Split Right ▸ /
+  Below ▸ as submenus of kinds, Link…, removing the pin button, and a Preview showing a page
   focused from the menu opening the page reader as ⌃⌘R does (it shows the pane alone). *Tests:*
   `fichero/Tests/Unit/general/Views/Shell/PaneMenuTests.swift`.
 - `panes.chrome.head-keeps-only-what-moves` — **[GAP]** (#5435; ruled by the owner 2026-11-13) with the pane menu on
