@@ -301,3 +301,30 @@ final class WorkflowBarRunScopeTests: XCTestCase {
         XCTAssertEqual(options.map(\.id), ["automatic"])
     }
 }
+
+/// #4961: a workflow row selected in the Library to open its editor is never the scope of a run.
+@MainActor
+final class WorkflowBarWorkflowRowScopeTests: XCTestCase {
+    private func snapshot(browser: [String], detailId: String? = nil) -> WorkflowBarPolicy.SelectionSnapshot {
+        WorkflowBarPolicy.SelectionSnapshot(
+            marqueeDocumentId: nil, marqueeRect: nil, marqueeDocumentName: nil, regionIds: [], regionParentDocumentId: nil,
+            regionParentName: nil, artifactId: nil, artifactDocumentId: nil, artifactDisplayName: nil, artifactType: nil,
+            artifactStepName: nil, artifactDocumentName: nil, browserSelection: browser, detailDocumentId: detailId,
+            detailDocumentName: nil)
+    }
+
+    func testASelectedWorkflowRowIsNotTheScope() {
+        let scope = WorkflowBarPolicy.resolveRunScope(snapshot(browser: ["system-default-workflows:Organize"]))
+        XCTAssertEqual(scope, .nothing)
+    }
+
+    func testOnlyTheDocumentsOfAMixedSelectionAreTheScope() {
+        let scope = WorkflowBarPolicy.resolveRunScope(snapshot(browser: ["system-default-workflows:Organize", "doc-1"]))
+        XCTAssertEqual(scope, .documents(ids: ["doc-1"]))
+    }
+
+    func testAWorkflowOpenInTheDetailPaneIsNotTheScope() {
+        let scope = WorkflowBarPolicy.resolveRunScope(snapshot(browser: [], detailId: "system-workflows:mine"))
+        XCTAssertEqual(scope, .nothing)
+    }
+}

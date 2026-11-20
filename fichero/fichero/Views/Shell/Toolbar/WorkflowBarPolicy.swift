@@ -319,6 +319,7 @@ enum WorkflowBarPolicy {
     /// the browser likewise outranks a lingering single-artifact focus —
     /// selecting five documents is unmistakably the selection you can see.
     static func resolveRunScope(_ snapshot: SelectionSnapshot) -> RunScope {
+        let snapshot = snapshot.withoutWorkflowRows
         if let marqueeDocumentId = snapshot.marqueeDocumentId,
            let rect = snapshot.marqueeRect,
            rect.width > 0, rect.height > 0,
@@ -354,6 +355,13 @@ enum WorkflowBarPolicy {
             return .detailDocument(id: detailId, name: snapshot.detailDocumentName)
         }
         return .nothing
+    }
+
+    /// Whether a library row id is a workflow or a workflow folder, never something a run can read (#4961).
+    static func isWorkflowRowId(_ id: String) -> Bool {
+        let defaults = Document.defaultWorkflowsContainerID
+        return id == defaults || id.hasPrefix("\(defaults):")
+            || id == Document.workflowsFolderID || id.hasPrefix("\(Document.workflowsFolderID):")
     }
 
     /// The chip text for scopes the ladder resolves ABOVE the browser — the
