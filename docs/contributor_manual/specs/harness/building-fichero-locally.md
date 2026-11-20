@@ -426,6 +426,89 @@ Fichero's engine already uses LangGraph. The owner has ruled that the Builder ad
   list and the reviewers (binding, shadow, bug hunt) are built as graph nodes and pauses, never as more hand-written
   state code. LangChain is not adopted for this: it assembles model calls, and the Builder runs whole agents.
 
+### I. What the night of 2026-11-19 taught (#6589)
+
+Ten lanes ran through one night. Each line below is a rule the loop broke or was missing that night, or one the owner
+ruled on 2026-11-19 and 2026-11-20 (paraphrased). "Built" names the code that already does it; "left" is the gap.
+Spec-change: owner 2026-11-20.
+
+- `local.done-needs-delivery` [GAP] (#6589) — a worker's DONE ends a step only when it came after the step's message
+  was delivered. The message is delivered when the pane shows it submitted; a DONE printed before that, or left on the
+  pane from the step before, ends nothing. Today `tell.send` in `fichero-builder/fichero_builder/tell.py` returns success
+  with a warning when it cannot see the text leave the input box, and the loop moves the step to `sent` either way.
+  Acceptance: a step whose message was not seen submitted stays undelivered, and a DONE row older than the delivery is
+  not read as that step's. Serves: reliable.
+- `local.undelivered-is-redelivered` [GAP] (#6589) — a message with no proof of delivery is kept and delivered again, to
+  whichever session holds the lane next: a managed worker, an external session, or a new pane after a restart. It is
+  dropped only when the step ends or is parked, with a row. Acceptance: a brief, a finding and a LANDED note sent to a
+  pane that did not submit are each delivered once to the lane's next session, in order. Serves: reliable.
+- `local.no-commit-is-never-landed` [PARTIAL] (#6589) — a step with no commit of its own never reads `landed`. Built: a
+  DONE from a tree with nothing past the land branch is blocked as a DONE with no commit
+  (`fichero-builder/fichero_builder/queue.py`; test
+  `fichero-builder/tests/test_loop.py::test_a_done_with_no_new_commit_this_session_still_counts_when_the_tree_is_ahead_of_origin`).
+  Left: the chain in `fichero-builder/fichero_builder/work.py` answers `already-landed` for any tree with no commit over
+  the land branch, and `dev-workflows.run.loop-already-landed` lands it. Only a step whose own commits are all on the
+  land branch by patch is already landed; a step that made none is blocked with "nothing was built". Serves: reliable.
+- `local.approve-remembered-per-head-and-reason` [PARTIAL] (#6589) — an approve is remembered for the head and the reason
+  it was given, so the same refusal of the same head never asks twice: not after a retry, a restart or a re-check.
+  Built: the content bindings of `dev-workflows.ladder.approve-is-fingerprinted` and
+  `dev-workflows.run.loop-approval-by-diff`. Left: every other refusal kind, which asks again each time it is raised.
+  Acceptance: an approved refusal raised again at the same head with the same reason is one `auto-approve` row and no
+  alert; a new head or a new reason is an alert as before. Serves: reliable.
+- `local.already-built-is-declared` [PARTIAL] (#6589) — a test that already passes on the base is declared, never slipped
+  in: the commit holds tests only and its message carries `Already built: #N path::test`. Built: the red-on-base rung
+  owes such a file no red and refuses it when it fails on base (`fichero-builder/fichero_builder/check_tool.py`), the
+  landing comments the issue with the test (`fichero-builder/fichero_builder/landed.py`), and the step brief's head says
+  it (`fichero-builder/fichero_builder/brief_tool.py`). Left: the common prompt (`fichero-builder/agents/common/common.md`)
+  does not say it; the fix brief sent after a NOT RED ON BASE refusal does not say it; and the rung does not check that
+  the declaring commit touches tests only. Serves: reliable.
+- `local.diff-bound-splits-the-step` [GAP] (#6589) — a batch over the diff bound is split by the loop, not sent back to a
+  person: a core that fits the bound stays the step, and the rest becomes a new step `<lane>-part2` queued behind it on
+  the same lane, each with its own tests. Today `check_tool.diff_bound` only refuses with the count. Acceptance: a
+  batch of two commits whose sum is over the bound becomes two steps that each pass the bound; one commit over the
+  bound alone is a question for the manager, never a silent pass. Serves: reliable, with little supervision.
+- `local.removed-tree-is-not-a-moved-tree` [GAP] (#6589) — the check that no tree outside a step's own moved reads a tree
+  that was removed since the step started (a landed lane's cleanup) as removed, and says nothing. Today `queue.trees`
+  reads a missing path as `unreadable` and `queue.tree_check` raises the alert for any difference. Acceptance: a tree
+  snapped at the start and removed by `dev-workflows.run.loop-cleanup` raises no alert; a tree whose head or status
+  changed still does. Serves: reliable.
+- `local.dismiss-never-parks-in-flight` [PARTIAL] (#6589) — dismissing an alert never parks a step that is being worked
+  on. Built: `queue.park_blocked` parks only a step still `blocked` (`dev-workflows.run.loop-dismiss-parks` and its
+  tests). Left: on 2026-11-19 a dismissed alert parked a step whose session was at work on the finding; no test covers
+  an alert whose step has since been sent back or retried, or a blocked step with a live session. Acceptance: Dismiss
+  and Dismiss All leave such a step where it is and say so in the row. Serves: reliable.
+- `local.restart-resumes-the-night` [PARTIAL] (#6589) — after a crash or a restart of the machine the loop starts by
+  itself and carries on: steps keep their state, a live session is adopted, and a session that was lost is queued again
+  from its tree. Built: the LaunchAgents of `dev-workflows.run.loop-launchd`, and for a managed lane the adopt-or-queue
+  rule in `fichero-builder/fichero_builder/queue.py` (`dev-workflows.run.restart-adopts-live-window`). Left: an external
+  lane whose session died gets one alert a day and waits (`dev-workflows.run.loop-no-session`); a chain, a check or a
+  release stage that was running at the crash has no test that it starts again. Serves: reliable, with little supervision.
+- `local.network-outage-is-infra` [PARTIAL] (#6589) — a network outage during a fetch, a rebase, a check or a GitHub call
+  is infra: the step waits and the call is tried again until the network is back, with one row. It is never a conflict,
+  a red or an alert for a person. Built: the rebase tries once more after 20 seconds on a network error
+  (`fichero-builder/fichero_builder/work.py`), and a base run that cannot start is infra, not a verdict
+  (`fichero-builder/fichero_builder/check_tool.py`). Left: an outage longer than that one retry blocks the step with the
+  git error as if it were a conflict. Acceptance: with the remote unreachable for ten ticks a step in rebase stays in
+  one `infra-wait` state with one row and no alert, and goes on by itself when the remote answers. Serves: reliable.
+
+#### Workers and scale: what ten workers showed
+
+Measured on the night of 2026-11-19: ten worker lanes landed about one step an hour, the same rate as three to five
+lanes. The limit was not the number of sessions. It was the checks, the review and the rebase each landing forces on
+every other lane, and the processor and disk of the one Mac that runs the loop. More lanes past five added waiting
+steps and disk use, not landings.
+
+- `local.scale.lanes-follow-the-landing-rate` [GAP] (#6589) — the number of lanes that run at once is set from the measured
+  landing rate, not from how many sessions the plan allows: the loop adds a lane only while the last hours show that
+  a lane more landed more. Today the counts are fixed numbers in `harness.toml` (`[queue] workers`, `[loop] lanes`,
+  `[check] parallel`). Acceptance: the nightly report gives landings an hour beside the lane count, and a lane count
+  that did not raise the rate over a night is named in it. Serves: reliable, with little supervision.
+- `local.scale.checks-run-on-other-macs` [PARTIAL] (#6589) — the checks are carried by check runners on other Macs so the
+  loop's Mac keeps its processor and disk for the workers: one runner keeps its trees on an external disk, another is
+  a desktop Mac. Built: `harness.toml` `[check] remote` lists the runners in order, a runner under
+  `remote_min_free_gb` is skipped, and the nightly names its own `check_runner`. Left: which rung goes to which Mac is
+  the list's order, not a placement by capability (`dev-workflows.pool.placement-and-fallback`). Serves: reliable.
+
 ### From `dev-workflows.md` — Behaviours
 
 
@@ -3367,6 +3450,24 @@ done by hand (this file, its review and report). The absorbed specs' own build o
 - Behaviours: `local.spec-lint`, `local.spec-sceptical-read`, `pipeline.status`
 - Tests: fichero-server/tests/unit/scripts/test_spec_pipeline.py
 - Size: M
+
+#### Step 2.6 — a DONE, a message and an approve are each counted once, for the right step
+- Behaviours: `local.done-needs-delivery`, `local.undelivered-is-redelivered`, `local.no-commit-is-never-landed`, `local.approve-remembered-per-head-and-reason`, `local.dismiss-never-parks-in-flight`
+- Tests: fichero-builder/tests/test_loop.py, fichero-builder/tests/test_tell.py, fichero-builder/tests/test_alerts_clear.py
+- Depends on: 2.1
+- Size: M
+
+#### Step 2.7 — the loop splits, waits and resumes by itself
+- Behaviours: `local.already-built-is-declared`, `local.diff-bound-splits-the-step`, `local.removed-tree-is-not-a-moved-tree`, `local.restart-resumes-the-night`, `local.network-outage-is-infra`
+- Tests: fichero-builder/tests/test_loop.py, fichero-builder/tests/test_builder_restart.py, fichero-builder/tests/test_work_tree.py
+- Depends on: 2.6
+- Size: M
+
+#### Step 2.8 — lanes follow the landing rate; checks run on other Macs
+- Behaviours: `local.scale.lanes-follow-the-landing-rate`, `local.scale.checks-run-on-other-macs`
+- Tests: fichero-builder/tests/test_loop.py, fichero-builder/tests/test_measure.py
+- Depends on: 2.2
+- Size: S
 
 ### Stage 3 — state and reports
 
