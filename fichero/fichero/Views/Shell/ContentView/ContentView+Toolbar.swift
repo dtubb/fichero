@@ -185,33 +185,32 @@ extension ContentView {
         // collections) made the toggles AND the Workspaces menu vanish for
         // Entities/Claims, with nothing left to bring panes back (spec F1/F2,
         // panes.toolbar.toggles-consistent). The Workspaces menu is un-gated below.
-        if Self.showsPaneToggles(
+        // The view-mode picker LEFT the toolbar (Daniel, 2026-08-23): it
+        // is the library pane head's lens now (LibraryView+PaneHead).
+
+        // Items, Source and Reader have no toolbar buttons (#6730): the Workspaces menu and View ▸ Panes list
+        // them with a check, and their shortcuts stay. Chat is a ROW pane; on the Mac it is in the far-left
+        // `sidebarButtons` pair (2026-11-11), and so is the iPad's (#6563): only an iPhone, which has no pair,
+        // keeps its button here. Compiled out on macOS: an `if` with an empty body does not type-check in a
+        // `ToolbarContentBuilder`.
+        #if !os(macOS)
+        if sidebarPairHome == nil,
+           Self.showsPaneToggles(
             sidebarMode: sidebarMode,
             compactFlow: Self.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass)
-        ) {
-            // The view-mode picker LEFT the toolbar (Daniel, 2026-08-23): it
-            // is the library pane head's lens now (LibraryView+PaneHead).
-
-            // Items, Source and Reader have no toolbar buttons (#6730): the Workspaces menu and View ▸ Panes list
-            // them with a check, and their shortcuts stay. Chat is a ROW pane; on the Mac it is in the far-left
-            // `sidebarButtons` pair (2026-11-11), and so is the iPad's (#6563): only an iPhone, which has no pair,
-            // keeps its button here.
-            #if !os(macOS)
-            if sidebarPairHome == nil {
-                ToolbarItemGroup(placement: .automatic) {
-                    Button {
-                        setChatPaneVisible(!showChatPane)
-                    } label: {
-                        Label(showChatPane ? "Hide Chat" : "Show Chat",
-                              systemImage: ToolbarSymbols.chatPane)
-                            .toolbarSurfaceLit(showChatPane)
-                    }
-                    .help(showChatPane ? "Hide the Chat" : "Show the Chat")
+           ) {
+            ToolbarItemGroup(placement: .automatic) {
+                Button {
+                    setChatPaneVisible(!showChatPane)
+                } label: {
+                    Label(showChatPane ? "Hide Chat" : "Show Chat",
+                          systemImage: ToolbarSymbols.chatPane)
+                        .toolbarSurfaceLit(showChatPane)
                 }
+                .help(showChatPane ? "Hide the Chat" : "Show the Chat")
             }
-            #endif
-
         }
+        #endif
 
         // Search is the SYSTEM toolbar search item now (Daniel,
         // 2026-08-29: "not proper macOS search… use the default one") —
