@@ -1024,7 +1024,9 @@ class KeySignInRequest(BaseModel):
 
 def _key_holder(app_db: AppDatabase, public_key_pem: str):
     """The oldest live client holding this key: the key is already trusted for that person. None when no one holds it."""
-    holders = app_db.live_clients_by_public_key(public_key_pem) if _is_p256_public_key(public_key_pem) else []
+    if not _is_p256_public_key(public_key_pem) or app_db.public_key_was_revoked(public_key_pem):
+        return None  # a revoked device must not sign straight back in with the shared key: a revoke needs a new key
+    holders = app_db.live_clients_by_public_key(public_key_pem)
     return holders[0] if holders else None
 
 

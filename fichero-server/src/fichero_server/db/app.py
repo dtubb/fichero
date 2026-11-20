@@ -1945,10 +1945,25 @@ class AppDatabase:
         """Every live client holding exactly this public key, oldest first (the synced key's other devices)."""
         with self._lock:
             rows = self.conn.execute(
-                "SELECT id FROM clients WHERE public_key_pem = ? AND revoked_at IS NULL ORDER BY created_at, id",
+                "SELECT id, user_id, kind, name, host, public_key_pem, created_at, revoked_at "
+                "FROM clients WHERE public_key_pem = ? AND revoked_at IS NULL ORDER BY created_at, id",
                 [public_key_pem],
             ).fetchall()
-        return [c for c in (self.get_client(r[0]) for r in rows) if c is not None]
+        return [
+            AccountClient(
+                id=r[0], user_id=r[1], kind=r[2], name=r[3], host=r[4] or "", public_key_pem=r[5],
+                created_at=ensure_utc(r[6]), revoked_at=None,
+            )
+            for r in rows
+        ]
+
+    def public_key_was_revoked(self, public_key_pem: str) -> bool:
+        """True when any client holding this key was revoked: the key can no longer register new devices."""
+        with self._lock:
+            row = fetch_one(self.conn.execute(
+                "SELECT 1 FROM clients WHERE public_key_pem = ? AND revoked_at IS NOT NULL LIMIT 1", [public_key_pem]
+            ))
+        return row is not None
 
     def user_has_key(self, user_id: str) -> bool:
         with self._lock:

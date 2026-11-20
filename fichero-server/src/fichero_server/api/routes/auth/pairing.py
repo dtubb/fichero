@@ -26,7 +26,7 @@ from fichero_server.security import accounts
 from fichero_server.actions import ActionContext, ChangeSpec, action, registry
 from fichero_server.actions.registry import ActionRefused
 from fichero_server.api.auth import app_action_context, _has_proxy_origin_headers, _rate_limit_scope_from_request, _use_multiuser_auth, actor_from_request, ensure_owner_account
-from fichero_server.api.routes.auth.accounts import _current_session_user
+from fichero_server.api.routes.auth.accounts import _audit, _current_session_user
 from fichero_server.db import Database
 from fichero_server.db.app import AppDatabase, get_app_db
 from fichero_server.models import AccountUser, ActionAudit, Device
@@ -1213,6 +1213,7 @@ def set_own_devices(
     owner = _pairing_user(request, app_db)
     if not owner.is_owner:
         raise HTTPException(status_code=403, detail="only the owner can change sign-in options")
+    _audit(request, app_db, "pair.own_devices", owner.id, enabled=body.enabled)
     app_db.revoke_enrollment_secrets()
     if not body.enabled:
         return OwnDevicesResponse(enabled=False)

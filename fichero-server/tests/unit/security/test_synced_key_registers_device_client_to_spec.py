@@ -66,3 +66,18 @@ def test_a_key_nobody_holds_and_a_wrong_signature_are_refused(harness, monkeypat
     )
     assert refused.status_code == 401
     assert [c.name for c in harness.app_db.live_clients_by_public_key(pem)] == ["Alice's Mac"]
+
+
+def test_a_revoked_device_cannot_sign_back_in_with_the_shared_key(harness, monkeypatch):
+    harness, _users, key, pem, _first = _setup(harness, monkeypatch)
+    body = _sign_in(harness, key, pem).json()
+    harness.app_db.revoke_client(body["client"]["id"])
+    assert harness.client().post("/api/auth/key-challenge", json={"public_key_pem": pem}).status_code == 401
+    signature = signature_for(key, harness.app_db.live_clients_by_public_key(pem)[0].id,
+                              {"engine_id": "x", "nonce": "n", "expires_at": 1})
+    again = harness.client().post(
+        "/api/auth/sign-in-by-key",
+        json={"public_key_pem": pem, "nonce": "n", "signature": signature, "client": {"name": "Alice's iPhone"}},
+    )
+    assert again.status_code == 401
+    assert harness.app_db.live_clients_by_public_key(pem)[0].name == "Alice's Mac"

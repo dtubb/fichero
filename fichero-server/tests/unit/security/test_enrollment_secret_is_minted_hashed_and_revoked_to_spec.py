@@ -56,3 +56,13 @@ def test_on_again_mints_a_new_secret_and_retires_the_old(harness):
 def test_only_the_macs_own_app_over_the_socket_may(harness):
     _owner(harness)
     assert tcp_app_client(harness).put(ROUTE, json={"enabled": True}).status_code == 403
+
+
+def test_the_change_is_audited_without_the_secret(harness, monkeypatch):
+    _owner(harness)
+    seen = []
+    real = harness.app_db.save_chained_account_audit
+    monkeypatch.setattr(harness.app_db, "save_chained_account_audit", lambda audit: (seen.append(audit), real(audit))[1])
+    secret = mac_app_client(harness).put(ROUTE, json={"enabled": True}).json()["enrollment_secret"]
+    assert [a.action_name for a in seen] == ["pair.own_devices"]
+    assert secret not in str(seen[0].model_dump())
