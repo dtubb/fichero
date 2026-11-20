@@ -3256,7 +3256,7 @@ person adds, never required; and every step says plainly what it does wherever a
   label for what it does, the same in Set Up, the Recipe Designer, the recipe card, Start's plan and
   Activity: **Find lines** (`find-lines`), **Read each line** (`read-a-line`), **Read the whole page**
   (`read-a-page`), **Review the reading** (`correct`); while running, Activity says **Finding the lines**,
-  **Reading each line**, **Reading the whole page**, **Reviewing the reading**. One source: the job's
+  **Reading each line**, **Reading the whole page**, **Reviewing the reading**, with the model beside a Kraken reader ("Finding the lines with Kraken (blla)", the part of the model's name after the last `/`, #6745). One source: the job's
   topic title (`fichero-server/src/fichero_server/recipes/seed/topics.yaml`, `title:`), which Start's
   plan already uses (`source.onboard.ready-speaks-plainly`, `start.step_names`). Before 2026-10-28 the words differed
   by surface (topics said "Read a page" and "Correct"; the stage page "Read lines", "Read pages"; the runner "Reading the lines",
