@@ -8,6 +8,7 @@ from the engine's own per-page figure, its time "—" until a measurement exists
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 SETTING_KEY = "models.run_settings"
@@ -18,12 +19,25 @@ KNOBS: dict[str, dict[str, tuple[Any, ...]]] = {
 }
 
 
+#: (app db, read at monotonic seconds, data): Kraken reads a knob per page, so the stored JSON is kept for a few seconds
+#: (another process may save it) and dropped at once by a save in this one.
+_CACHE_SECONDS = 5.0
+_cache: tuple[Any, float, dict[str, dict[str, Any]]] | None = None
+
+
 def _stored() -> dict[str, dict[str, Any]]:
+    global _cache
     from fichero_server.db.app import get_app_db
 
-    raw = get_app_db().get_setting(SETTING_KEY)
+    db = get_app_db()
+    now = time.monotonic()
+    if _cache and _cache[0] is db and now - _cache[1] < _CACHE_SECONDS:
+        return _cache[2]
+    raw = db.get_setting(SETTING_KEY)
     data = json.loads(raw) if raw else {}
-    return data if isinstance(data, dict) else {}
+    data = data if isinstance(data, dict) else {}
+    _cache = (db, now, data)
+    return data
 
 
 def run_settings(runtime: str) -> dict[str, Any]:
@@ -57,9 +71,11 @@ def save_run_settings(runtime: str, values: dict[str, Any]) -> dict[str, Any]:
     changed = validate(runtime, values)
     from fichero_server.db.app import get_app_db
 
-    data = _stored()
+    global _cache
+    data = dict(_stored())
     data[runtime] = {**run_settings(runtime), **changed}
     get_app_db().set_setting(SETTING_KEY, json.dumps(data))
+    _cache = None
     return run_settings(runtime)
 
 

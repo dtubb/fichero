@@ -2351,6 +2351,8 @@ def _action_unload_idle_models(db: Database, params: RunControlsParams, ctx: Act
 def _action_set_run_settings(db: Database, params: RunSettingsParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     from fichero_server.llm import model_run_settings as mrs
 
+    if params.runtime not in mrs.KNOBS:
+        raise ValueError(f"No run settings for {params.runtime}; they exist for {sorted(mrs.KNOBS)}")
     before = mrs.run_settings(params.runtime)
     after = mrs.save_run_settings(params.runtime, params.values)
     return after, ChangeSpec(domains=["activity"], before=before, after=after, emit_type="models.run_settings")

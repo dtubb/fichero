@@ -65,3 +65,27 @@ def test_the_route_reads_and_saves_a_runtimes_settings_with_their_cost(client, a
     assert saved.json()["cost"]["memory_bytes"] - one.json()["cost"]["memory_bytes"] == 2 * kraken_runtime._PAGE_BYTES
     assert client.put("/api/activity/models/run-settings/kraken", json={"threads": 0}).status_code == 422
     assert client.get("/api/activity/models/run-settings/nonesuch").status_code == 404
+
+
+def test_a_knob_is_read_from_the_database_once_not_per_call(app_db, monkeypatch):
+    from fichero_server.db.app import get_app_db
+
+    mrs.save_run_settings("kraken", {"threads": 3})
+    db = get_app_db()
+    reads = []
+    real = db.get_setting
+    monkeypatch.setattr(db, "get_setting", lambda key: reads.append(key) or real(key))
+    for _ in range(5):
+        assert kraken_runtime.reading_threads(8, 2) == 3
+    assert len(reads) <= 1
+    mrs.save_run_settings("kraken", {"threads": 5})
+    assert kraken_runtime.reading_threads(8, 2) == 5, "a save drops the kept copy"
+
+
+def test_setting_an_unknown_runtime_through_the_action_is_a_value_error(app_db):
+    from fichero_server.actions.registry import registry
+    from fichero_server.api.routes.system import activity  # noqa: F401  (registers the action)
+
+    reg = registry.get("models.set_run_settings")
+    with pytest.raises(ValueError):
+        reg.execute(None, reg.params_model(runtime="nonesuch", values={}), None)
