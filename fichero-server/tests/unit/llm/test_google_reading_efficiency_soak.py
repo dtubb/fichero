@@ -137,3 +137,25 @@ def test_a_400_is_not_retried(monkeypatch):
     except _Status:
         pass
     assert calls == [1]
+
+
+def test_a_gemini_429_that_gives_its_wait_in_the_body_is_waited_for(monkeypatch):
+    """Gemini names the wait in the error's RetryInfo (`retryDelay`), or in its message ("Please retry in 7.5s"), not in a header."""
+    info = {"error": {"details": [{"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "34s"}]}}
+    in_details = _Status(429)
+    in_details.details = info
+    in_message = _Status(429)
+    in_message.args = ("429 RESOURCE_EXHAUSTED. Please retry in 7.5s.",)
+    assert cb.retry_after_seconds(in_details) == 34.0
+    assert cb.retry_after_seconds(in_message) == 7.5
+    assert cb.retry_after_seconds(_Status(429)) is None
+    waits = _slept(monkeypatch)
+    answers = [in_details, "read"]
+
+    async def call():
+        a = answers.pop(0)
+        if isinstance(a, Exception):
+            raise a
+        return a
+
+    assert asyncio.run(retry.resilient(call, GOOGLE)) == "read" and max(waits) >= 34

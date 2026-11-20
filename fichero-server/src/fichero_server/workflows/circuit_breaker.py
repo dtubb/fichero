@@ -40,6 +40,7 @@ import contextvars
 import logging
 import os
 import random
+import re
 import threading
 import time
 from dataclasses import dataclass
@@ -292,11 +293,27 @@ def retry_after_seconds(exc: BaseException) -> float | None:
             value = headers.get("retry-after") or headers.get("Retry-After")
         except Exception:  # noqa: BLE001
             value = None
+    if value is None:
+        value = _gemini_retry_delay(exc)
     try:
         seconds = float(value)  # an HTTP-date form is not honoured: the backoff covers it
     except (TypeError, ValueError):
         return None
     return min(max(seconds, 0.0), RETRY_AFTER_CAP)
+
+
+_RETRY_IN = re.compile(r"retry in ([\d.]+)s|\"retryDelay\":\s*\"([\d.]+)s\"", re.IGNORECASE)
+
+
+def _gemini_retry_delay(exc: BaseException) -> str | None:
+    """Gemini's 429 names its wait in the body: `RetryInfo.retryDelay` ("34s") in the error's `details`, or "Please retry in 7.5s"
+    in its message; no Retry-After header."""
+    details = getattr(exc, "details", None)
+    for item in ((details or {}).get("error") or {}).get("details") or [] if isinstance(details, dict) else []:
+        if isinstance(item, dict) and str(item.get("retryDelay", "")).endswith("s"):
+            return str(item["retryDelay"])[:-1]
+    found = _RETRY_IN.search(f"{exc} {details if details is not None else ''}")
+    return (found.group(1) or found.group(2)) if found else None
 
 
 #: The words of a provider that has no credit, and of one that refused the key (a refusal that reached us as text only, a
