@@ -139,10 +139,14 @@ struct FocusedStartRecipeButton: View {
         store.runFirstPages = nil  // the menu's Start is the whole project, not a first-pages run left on Ready (#6295)
         if store.startPlan == nil || store.startPlanFolderId != nil || wasLimited { await store.loadStartPlan() }
         guard store.canStart else {
+            RunRefusalAlert.show(RunRefusalAlert.words(startError: store.errorMessage, planRefusals: store.startPlan?.refusals ?? []))
             setUpProjectAction?.run()
             return
         }
-        guard await store.start() else { return }
+        guard await store.start() else {
+            RunRefusalAlert.show(RunRefusalAlert.words(startError: store.errorMessage, planRefusals: []))
+            return
+        }
         // Land on the run Start queued, as setup's Start does (#5576).
         #if os(macOS)
         if let selection = FirstRunWindow.startedRunSelection(jobId: store.startedRunJobId, projectId: projectId) {
@@ -216,7 +220,13 @@ struct RunRecipeOnFolderMenuItem: View {
     private func run(folderId: String, library: LibraryManager.LibraryReference, redo: [String] = []) async {
         let store = library.recipeSetupStore
         await store.loadStartPlan(folderId: folderId)
-        guard store.canStart, await store.start(folderId: folderId, redo: redo) else {
+        guard store.canStart else {
+            RunRefusalAlert.show(RunRefusalAlert.words(startError: store.errorMessage, planRefusals: store.startPlan?.refusals ?? []))
+            setUp(library)
+            return
+        }
+        guard await store.start(folderId: folderId, redo: redo) else {
+            RunRefusalAlert.show(RunRefusalAlert.words(startError: store.errorMessage, planRefusals: []))
             setUp(library)
             return
         }
