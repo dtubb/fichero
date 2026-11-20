@@ -281,11 +281,12 @@ extension LibraryView {
             on: document.id, isFolder: document.docType == .folder, selection: selection
         ) {
             RunRecipeOnFolderMenuItem(folderId: recipeFolder, library: activeLibraryReference)
-        }        // A step run again on several folders, a parent folder, or selected items, as one run (#6744).
+        }
+        // A step run again on several folders, a parent folder, or selected items, as one run (#6744).
         let redoSelection = selection.contains(document.id) ? selection : [document.id]
         if redoSelection.count > 1 || document.docType != .folder {
             RunStepAgainOnSelectionMenu(
-                pages: RecipeFolderScope.redoPages(selection: redoSelection, in: currentLibraryDocuments),
+                pages: RecipeFolderScope.redoPages(selection: redoSelection, in: documentStore.sidebarDocuments),
                 library: activeLibraryReference
             )
         }
