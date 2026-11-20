@@ -1880,6 +1880,18 @@ class AppDatabase:
             self.conn.commit()
         return secret
 
+    def revoke_enrollment_secrets(self, user_id: str | None = None) -> int:
+        """Retire every live enrollment secret (of one person, or of all); a later redeem is refused. Returns how many."""
+        sql = "UPDATE enrollment_secrets SET revoked = TRUE WHERE revoked = FALSE"
+        params: list[str] = []
+        if user_id is not None:
+            sql += " AND user_id = ?"
+            params.append(user_id)
+        with self._lock:
+            count = len(self.conn.execute(sql + " RETURNING id", params).fetchall())
+            self.conn.commit()
+        return count
+
     def get_enrollment_secret_by_token_hash(self, token_hash: str) -> EnrollmentSecret | None:
         """Return a persistent enrollment grant by its stored hash."""
         with self._lock:
