@@ -977,6 +977,17 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("unload-idle-models")
+    def activity_unload_idle_models_post(
+        ctx: typer.Context,
+    ) -> None:
+        """Unload Idle Models (POST /api/activity/models/unload-idle)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/activity/models/unload-idle"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("pause-all")
     def activity_pause_all_post(
         ctx: typer.Context,

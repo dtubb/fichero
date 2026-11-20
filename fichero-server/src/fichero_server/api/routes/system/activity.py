@@ -1753,6 +1753,21 @@ async def activity_models(db: Database = Depends(get_library_database)) -> Activ
                                   this_mac=ThisMac(**await asyncio.to_thread(this_mac, db)))
 
 
+class UnloadIdleResponse(BaseModel):
+    freed: list[str] = Field(default_factory=list, description="the models let go of, by name")
+
+
+@router.post("/models/unload-idle", response_model=UnloadIdleResponse)
+async def unload_idle_models(
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> UnloadIdleResponse:
+    """Unload Idle Models (`models.row.what-unloading-gives-back`, #4987): let go of every model the engine holds and nothing
+    is using (the embedders; Kraken's readers unless a page is reading with them) and answer what was freed by name."""
+    result = registry.invoke(db, "activity.unload_idle_models", {}, ctx)
+    return UnloadIdleResponse.model_validate(result.result)
+
+
 class RecipeStepRow(BaseModel):
     id: str
     name: str
@@ -2267,6 +2282,14 @@ def _action_continue_all(db: Database, params: RunControlsParams, ctx: ActionCon
     ids = let_go + runs
     return {"ids": ids, "count": len(ids), "runs_resumed": runs}, ChangeSpec(
         domains=["activity"], target_ids=ids, before={}, after={"ids": ids}, emit_type="background.resumed")
+
+
+@action("activity.unload_idle_models", RunControlsParams, domains=["activity"])
+def _action_unload_idle_models(db: Database, params: RunControlsParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.execution import jobs as job_queue
+
+    freed = job_queue.release_idle_models()
+    return {"freed": freed}, ChangeSpec(domains=["activity"], before={}, after={"freed": freed}, emit_type="models.unloaded")
 
 
 @action("activity.stop_all", RunControlsParams, domains=["activity"])

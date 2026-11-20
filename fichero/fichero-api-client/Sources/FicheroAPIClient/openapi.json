@@ -1076,6 +1076,61 @@
         }
       }
     },
+    "/api/activity/models/unload-idle": {
+      "post": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Unload Idle Models",
+        "description": "Unload Idle Models (`models.row.what-unloading-gives-back`, #4987): let go of every model the engine holds and nothing\nis using (the embedders; Kraken's readers unless a page is reading with them) and answer what was freed by name.",
+        "operationId": "unload_idle_models_api_activity_models_unload_idle_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnloadIdleResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/activity/recipes": {
       "get": {
         "tags": [
@@ -107466,6 +107521,20 @@
           "right_path"
         ],
         "title": "UnicodeLibraryMergeParams"
+      },
+      "UnloadIdleResponse": {
+        "properties": {
+          "freed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Freed",
+            "description": "the models let go of, by name"
+          }
+        },
+        "type": "object",
+        "title": "UnloadIdleResponse"
       },
       "UpNextItem": {
         "properties": {

@@ -197,3 +197,27 @@ def test_a_places_account_comes_from_a_probe_and_the_key_a_call_uses(app_db, mon
         assert account(activity_models.places(probe=lambda url: True), "studio.example") == "ready"
     finally:
         provider_keys.forget_api_key("anthropic")
+
+
+def test_unload_idle_models_frees_the_idle_and_keeps_a_model_with_a_page_in_flight(client, db, monkeypatch):
+    """`models.row.what-unloading-gives-back` (#4987, #4999): the route calls `release_idle_models`, answers what it freed by
+    name, and a Kraken reader with a page in flight is kept."""
+    import sys
+    import threading
+    import types
+
+    released = []
+    runtime = types.SimpleNamespace(_RESIDENT={"catmus": object()}, _INFERENCE_LOCK=threading.Lock(),
+                                    release_resident_models=lambda reason: released.append(reason))
+    embeddings = types.SimpleNamespace(release_idle_embedders=lambda idle_seconds, reason: ["nomic-embed"])
+    monkeypatch.setitem(sys.modules, "fichero_server.llm.kraken_runtime", runtime)
+    monkeypatch.setitem(sys.modules, "fichero_server.db.embeddings", embeddings)
+    monkeypatch.setattr(jobs, "_kraken_pages_in_flight", lambda: True)
+
+    busy = client.post("/api/activity/models/unload-idle")
+    assert busy.status_code == 200, busy.text
+    assert busy.json()["freed"] == ["nomic-embed"] and released == [], "the idle embedder goes, the reading Kraken stays"
+
+    monkeypatch.setattr(jobs, "_kraken_pages_in_flight", lambda: False)
+    idle = client.post("/api/activity/models/unload-idle")
+    assert idle.json()["freed"] == ["Kraken", "nomic-embed"] and released == ["memory is tight"]

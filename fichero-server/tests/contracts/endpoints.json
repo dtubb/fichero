@@ -709,6 +709,16 @@
       },
       {
         "method": "POST",
+        "path": "/activity/models/unload-idle",
+        "operation_id": "unload_idle_models_api_activity_models_unload_idle_post",
+        "summary": "Unload Idle Models",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "UnloadIdleResponse"
+      },
+      {
+        "method": "POST",
         "path": "/activity/pause-all",
         "operation_id": "pause_all_api_activity_pause_all_post",
         "summary": "Pause All",

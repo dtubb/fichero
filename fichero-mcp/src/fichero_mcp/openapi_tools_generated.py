@@ -443,6 +443,12 @@ def fichero_activity_models(
     return _rt.call("GET", "/api/activity/models")
 
 
+def fichero_activity_unload_idle_models(
+) -> Any:
+    "Unload Idle Models\n\nUnload Idle Models (`models.row.what-unloading-gives-back`, #4987): let go of every model the engine holds and nothing\nis using (the embedders; Kraken's readers unless a page is reading with them) and answer what was freed by name.\n\nRoute: POST /api/activity/models/unload-idle (toolset `activity`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/activity/models/unload-idle")
+
+
 def fichero_activity_pause_all(
 ) -> Any:
     "Pause All\n\nPause All (`activity.window.run-controls`, #6588): every running and waiting piece of work of this project, a\nperson's runs too, pauses as its own Pause does, and background work is paused so nothing new starts. One undo step;\nContinue All lets go exactly what it held.\n\nRoute: POST /api/activity/pause-all (toolset `activity`; changes data, as the agent account when one exists)."
@@ -9729,6 +9735,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_activity_retry_job", "activity", "POST", "/api/activity/jobs/{job_id}/retry", fichero_activity_retry_job),
     GeneratedTool("fichero_activity_get_metrics_summary", "activity", "GET", "/api/activity/metrics/summary", fichero_activity_get_metrics_summary),
     GeneratedTool("fichero_activity_models", "activity", "GET", "/api/activity/models", fichero_activity_models),
+    GeneratedTool("fichero_activity_unload_idle_models", "activity", "POST", "/api/activity/models/unload-idle", fichero_activity_unload_idle_models),
     GeneratedTool("fichero_activity_pause_all", "activity", "POST", "/api/activity/pause-all", fichero_activity_pause_all),
     GeneratedTool("fichero_activity_get_recent_activities", "activity", "GET", "/api/activity/recent", fichero_activity_get_recent_activities),
     GeneratedTool("fichero_activity_recipes", "activity", "GET", "/api/activity/recipes", fichero_activity_recipes),
