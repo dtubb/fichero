@@ -449,6 +449,7 @@ nav:
               - Git / Worktree / GitHub Workflow: contributor_manual/specs/harness/git-worktree-workflow.md
               - Release & Versioning: contributor_manual/specs/harness/release-and-versioning.md
               - Version & Contract Integrity: contributor_manual/specs/harness/version-and-contract-integrity.md
+              - GitHub CI & Security Tools: contributor_manual/specs/harness/github-ci.md
               - Code Organisation (draft): contributor_manual/specs/harness/code-organization.md
               - Release Channels & Feature Tiers (draft): contributor_manual/specs/harness/release-channels-and-feature-tiers.md
           - KG:

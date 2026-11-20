@@ -1,0 +1,33 @@
+# Weekly version and security update PRs, into integration. (spec: docs/contributor_manual/specs/harness/github-ci.md, ci.dependabot)
+# fichero-builder has no manifest or lock file (no pyproject.toml, no requirements file), so there is nothing for Dependabot to read there.
+# Dependabot opens PRs that edit manifests and lock files with its own tooling; nobody edits a Package.resolved by hand.
+version: 2
+updates:
+  - package-ecosystem: "uv"
+    directory: "/fichero-server"
+    target-branch: "integration"
+    schedule: { interval: "weekly", day: "monday" }
+    labels: ["dependencies", "python"]
+    groups:
+      python-minor-patch: { update-types: ["minor", "patch"] }
+  - package-ecosystem: "swift"
+    directory: "/fichero"
+    target-branch: "integration"
+    schedule: { interval: "weekly", day: "monday" }
+    labels: ["dependencies", "swift"]
+    groups:
+      swift-minor-patch: { update-types: ["minor", "patch"] }
+  - package-ecosystem: "swift"
+    directory: "/fichero/fichero-api-client"
+    target-branch: "integration"
+    schedule: { interval: "weekly", day: "monday" }
+    labels: ["dependencies", "swift"]
+    groups:
+      swift-minor-patch: { update-types: ["minor", "patch"] }
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    target-branch: "integration"
+    schedule: { interval: "weekly", day: "monday" }
+    labels: ["dependencies", "github-actions"]
+    groups:
+      actions: { patterns: ["*"] }
