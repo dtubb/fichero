@@ -1213,7 +1213,7 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   partial map would delete what it knows and refuse the rest — half a Delete, worse than none.
   Not yet wired to a view, and that is the next step rather than a claim: what remains for this
   behaviour is the three surfaces writing to it.
-- `source.editor.highlight-on-its-box` — **[BROKEN]** (→ #5020) a selected segment's highlight is drawn
+- `source.editor.highlight-on-its-box` — **[PARTIAL]** (#5020; needs an on-screen check at two zooms) a selected segment's highlight is drawn
   on the box that was clicked, in the pane where it was clicked, at that pane's own zoom and scroll.
   **Broken:** the maintainer saw it land below and right of the clicked box, and in the other Preview
   pane too. Diagnosed 2026-09-27 (no fix yet): selection is `RegionSelection.shared`, one app-wide
@@ -1235,7 +1235,7 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   index, and every reader resolves it in its own list -- a box a list no longer holds is dropped, never
   replaced by the box at its old index (the same test file). Still owed before this is `[OK]`: the
   maintainer's check on screen at two zooms, and the drawing half (`overlay-moves-with-the-image`).
-- `source.editor.overlay-moves-with-the-image` — **[BROKEN]** (→ #5142) segment overlays move with the image,
+- `source.editor.overlay-moves-with-the-image` — **[PARTIAL]** (#5142; needs an on-screen check) segment overlays move with the image,
   frame for frame, while it is scrolled and zoomed, on a page as dense as the Cherokee Phoenix p. 2.
   **Broken:** they lag, then catch up. Diagnosed 2026-09-27 (no fix yet): the image is transformed by
   AppKit's scroll view in the gesture's own pass; the overlays are SwiftUI views laid out from a
@@ -1243,6 +1243,10 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   least one hop behind. Each tick then re-maps and re-strokes every box (4,525 on that page). Owed:
   the boxes drawn inside the scroll view's document view, in image coordinates, so one transform
   moves pixels and boxes together and only the visible boxes are drawn (`source.editor.one-overlay`).
+  **Built since** (`834b0bd1c0` .. `8e2380a92c`): boxes, saved marks, marquees and inline words are drawn in the
+  scroll view's document view through `DocumentBoxMapping`; the coordinate mapping is pinned by
+  `fichero/Tests/Unit/general/Views/Preview/DocumentBoxMappingTests.swift` (drawn rect == page rect x
+  magnification - clip origin, at every zoom and page shape). Not yet seen on screen on the Cherokee Phoenix p. 2.
 - `source.editor.edits-are-actions` — **[PARTIAL]** (#4941) every edit is one audited, reversible engine action; the
   editor updates only the changed segments.
   **Both halves hold for the edit path that exists today** (audited 2026-09-27); what is owed is
