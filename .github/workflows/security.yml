@@ -1,0 +1,96 @@
+name: Security
+
+# Spec: docs/contributor_manual/specs/harness/github-ci.md (ci.security-workflow).
+# Runs the builder's own security rung (scripts/security_scan_run.py: bandit, semgrep, gitleaks, with their baselines and pins in
+# harness.toml [check.security]) and its osv-scanner reader (fichero_builder/security_rung.py read_osv), so there is one scanner
+# set and one threshold, not a second one. CodeQL is the one scanner added here. Secret scanning push protection is a repository
+# setting (Settings > Code security), not code: the owner switches it on.
+on:
+  pull_request:
+    branches: ['integration']
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scanners:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v5
+      - name: Install the rung's scanners
+        run: scripts/install_security_tools.sh
+      - name: Choose the range
+        id: range
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            since="${{ github.event.pull_request.base.sha }}"
+          else
+            since="$(git rev-list -1 --before='24 hours ago' HEAD)"
+          fi
+          test -n "$since" || { echo "no commit older than 24 hours to diff against" >&2; exit 1; }
+          echo "since=$since" >> "$GITHUB_OUTPUT"
+      - name: Scan the range (bandit, semgrep, gitleaks)
+        run: |
+          pins="$(python3 -c "import json,tomllib;print(json.dumps(tomllib.load(open('harness.toml','rb'))['check']['security']['pins']))")"
+          python3 scripts/security_scan_run.py --since "${{ steps.range.outputs.since }}" --head HEAD --pins "$pins" | tee scan.out
+      - name: Dependencies (osv-scanner over the Python lock and the Swift Package.resolved files)
+        run: |
+          args=""
+          for f in fichero-server/uv.lock fichero/fichero.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved fichero/fichero-api-client/Package.resolved; do
+            test -f "$f" && args="$args --lockfile $f"
+          done
+          cfg=""; test -f osv-scanner.toml && cfg="--config osv-scanner.toml"
+          osv-scanner scan $args $cfg --format json --output osv.json || true
+          test -s osv.json || { echo "osv-scanner wrote no JSON" >&2; exit 1; }
+      - name: Fail on high or critical
+        run: |
+          python3 - <<'PY'
+          import json, sys
+          sys.path.insert(0, "fichero-builder")
+          from fichero_builder import security_rung as sr
+          rows = sr.read_osv(json.load(open("osv.json")))
+          line = [l for l in open("scan.out") if l.startswith("SECURITY-RESULT ")]
+          if not line:
+              sys.exit("the scan printed no SECURITY-RESULT line")
+          result = json.loads(line[-1].split(" ", 1)[1])
+          rows += result["rows"]
+          for r in result["refused"]:
+              print(r)
+          print(sr.table(rows))
+          red = [r for r in rows if r["red"]]
+          # a REFUSED line is printed above and does not fail: brew installs the newest scanner, the pins are the Macs' versions
+          sys.exit(f"{len(red)} red finding(s)" if red else 0)
+          PY
+
+  codeql:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { language: python, os: ubuntu-latest, build-mode: none }
+          - { language: swift, os: macos-15, build-mode: none }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}

@@ -14,3 +14,18 @@ def test_dependabot_yml_targets_integration_weekly_over_directories_that_exist()
         assert u["target-branch"] == "integration"
         assert u["schedule"]["interval"] == "weekly"
         assert (ROOT / u["directory"].lstrip("/")).is_dir(), u["directory"]
+
+
+def _workflow(name):
+    doc = yaml.safe_load((ROOT / ".github/workflows" / name).read_text())
+    doc["on"] = doc.pop(True, doc.get("on"))  # YAML reads a bare `on` as True
+    return doc
+
+
+def test_security_workflow_runs_on_prs_and_nightly_reuses_the_rungs_scanner_and_adds_codeql():
+    doc = _workflow("security.yml")
+    assert set(doc["on"]) >= {"pull_request", "schedule"}
+    assert doc["on"]["pull_request"]["branches"] == ["integration"]
+    text = (ROOT / ".github/workflows/security.yml").read_text()
+    assert "scripts/security_scan_run.py" in text and "read_osv" in text
+    assert {m["language"] for m in doc["jobs"]["codeql"]["strategy"]["matrix"]["include"]} == {"python", "swift"}
