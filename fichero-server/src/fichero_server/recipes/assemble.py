@@ -108,6 +108,7 @@ FICHERO_DOES_IT: dict[str, tuple[dict[str, str], tuple[str, ...]]] = {
 }
 
 #: Jobs whose model must know the project's language (section 8, rule 3).
+READ_JOBS = frozenset({"read-a-line", "read-a-page"})
 LANGUAGE_JOBS = frozenset({"correct", "translate-transliterate-normalise", "find-names-tag-words",
                            "find-statements", "make-a-vector"})
 #: Of those, the ones where a model that lacks the language would rewrite it into another.
@@ -617,6 +618,8 @@ def _rank_key(card: Card, material: str, a: Answers | None = None) -> tuple:
         # Fit before a card's own average (#5516): the period and the material, then the script it was made for.
         _period_rank(card, a),
         _material_rank(card, material) == 2,  # another material falls below the script; "states none" does not
+        # A reader that states no script is unknown, never a match for every script (#6733).
+        1 if card.scripts is None and a is not None and a.scripts and READ_JOBS & card.jobs else 0,
         0 if made_for_script(card, a) else 1,
         _language_rank(card, a),
         _material_rank(card, material),
