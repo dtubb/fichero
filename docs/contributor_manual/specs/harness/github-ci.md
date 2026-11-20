@@ -15,7 +15,7 @@ it. Spec-change: owner 2026-11-20.
 
 ## Dependabot
 
-- `ci.dependabot` [GAP] — `.github/dependabot.yml` opens weekly update PRs (version and security) against `integration`
+- `ci.dependabot` [GAP] (#6600) — `.github/dependabot.yml` opens weekly update PRs (version and security) against `integration`
   for `fichero-server` (uv, reading `uv.lock`), the Swift packages under `fichero/` and `fichero/fichero-api-client`,
   and GitHub Actions. Minor and patch updates are grouped per ecosystem and labelled `dependencies` plus the ecosystem.
   Dependabot edits the manifests and `Package.resolved` itself; nobody edits a `Package.resolved` by hand.
@@ -26,7 +26,7 @@ it. Spec-change: owner 2026-11-20.
 
 ## Security workflow
 
-- `ci.security-workflow` [GAP] — `.github/workflows/security.yml` runs on pull requests to `integration` and nightly. It
+- `ci.security-workflow` [GAP] (#6600) — `.github/workflows/security.yml` runs on pull requests to `integration` and nightly. It
   does not add a second scanner: job `scanners` runs the builder's security rung as it is (`scripts/install_security_tools.sh`,
   then `scripts/security_scan_run.py` with the pins of `harness.toml [check.security]` and the baselines under `scripts/`:
   bandit, semgrep, gitleaks), and reads osv-scanner's JSON over `fichero-server/uv.lock` and both Swift `Package.resolved`
@@ -42,7 +42,7 @@ it. Spec-change: owner 2026-11-20.
 
 ## Test workflow
 
-- `ci.test-workflow` [GAP] — `.github/workflows/tests.yml` runs on pull requests to `integration`, report-only (every job is
+- `ci.test-workflow` [GAP] (#6600) — `.github/workflows/tests.yml` runs on pull requests to `integration`, report-only (every job is
   `continue-on-error`, so a red run blocks nothing until the maintainer has read a few weeks of results). Job `engine`
   (macos-15, arm64; uv with its cache keyed on `fichero-server/uv.lock`) runs every `scripts/check_spec_*.py` guard and
   then `pytest tests/unit` in `fichero-server`. Job `swift` (macos-15) builds the `Fichero (Dev Local)` scheme and runs its
@@ -54,7 +54,7 @@ it. Spec-change: owner 2026-11-20.
 
 ## The builder reads the results
 
-- `ci.builder-reads-actions` [GAP] — `builder check` may take a green GitHub Actions run for the same commit as one rung,
+- `ci.builder-reads-actions` [GAP] (#6600) — `builder check` may take a green GitHub Actions run for the same commit as one rung,
   so the three Macs do less. It is opt-in: `[check.github] use_actions = false` in `harness.toml`, off until the owner
   turns it on. How it reads a run, on the manager's side only (workers have no GitHub token and never call it):
   `gh run list --commit <head sha> --workflow tests.yml --json databaseId,status,conclusion` for the exact head sha of the
