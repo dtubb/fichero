@@ -90,3 +90,31 @@ def cost(runtime: str, values: dict[str, Any]) -> dict[str, Any]:
     pages = values.get("pages_at_once") or kraken_runtime.pages_at_once(False)
     return {"memory_bytes": kraken_runtime.kraken_need_bytes() + max(0, pages - 1) * kraken_runtime._PAGE_BYTES,
             "seconds_per_page": None}
+
+
+def defaults(runtime: str) -> dict[str, dict[str, Any]]:
+    """What Auto means for each knob on this Mac now, and why: {knob: {"value", "reason"}}. The engine's own rule, never a
+    saved value."""
+    if runtime != "kraken":
+        raise KeyError(runtime)
+    from fichero_server.core.compute_preferences import DEFAULTS
+    from fichero_server.core.cores import cores_available
+    from fichero_server.llm import kraken_runtime
+
+    pages, held = kraken_runtime.pages_at_once_and_why(True)
+    cores, _ = cores_available()
+    return {
+        "pages_at_once": {"value": pages, "reason": held or "the performance cores, held down by the free memory"},
+        "threads": {"value": kraken_runtime.threads_each(cores, pages),
+                    "reason": f"the {cores} cores shared by the pages read at once"},
+        "batch_size": {"value": 1, "reason": "one line at a time: a batch pads every line to the widest in it"},
+        "device": {"value": DEFAULTS["device"], "reason": "the compute preference (Auto reads on the CPU)"},
+    }
+
+
+def script_heights() -> dict[str, Any]:
+    """The line finder's measured network height and base per script (read-only: #6752). `default` is a script not measured."""
+    from fichero_server.llm.kraken_script_defaults import DEFAULT, _BY_SCRIPT
+
+    return {"default": {"height": DEFAULT.height, "base": DEFAULT.base},
+            "scripts": {code: {"height": d.height, "base": d.base} for code, d in sorted(_BY_SCRIPT.items())}}
