@@ -40,8 +40,8 @@ what cannot be undone.
   Apple as peers (`:35-47`), as `ai/ai-settings.md` ratified.
 - **Kraken on the Mac** now runs inside the engine's own process, loaded once and used one
   operation at a time (VERIFIED `llm/kraken_runtime.py:512-519`; the subprocess of the first pass
-  is gone), and fetches readers by DOI from its repository (#4951). It only reads; it is never
-  trained (`source/formats-and-training.md:15`).
+  is gone), and fetches readers by DOI from its repository (#4951). Since 2026-10-04 a reader is also trained: on Hugging
+  Face Jobs (`training/hf_kraken_train.py`) and on this Mac (`training/local.py`); the line finder is not.
 - **The step is registered, not built**: `train-a-model` (line readings and lines in, a model card
   out) is in the job registry (VERIFIED `recipes/jobs.py:143-146`). Its description still says it
   runs "on a cluster, a GPU service or a large Mac", which the 2026-10-03 ruling corrects: Kraken
@@ -49,8 +49,12 @@ what cannot be undone.
 - **The one CER is reachable** through `POST /api/documents/{id}/readings/compare`
   (`workflows/transcription_accuracy.py`; VERIFIED `api/routes/document/compare_readings.py:88`),
   labelled `agreement` unless a person checked the reference.
-- **No training code, no YOLO detector, no vLLM, no Hugging Face Jobs call, and no call to MLX's
-  convert step** anywhere in the engine (VERIFIED by search, 2026-10-03).
+- **What trains today (read 2026-11-19; the list of 2026-10-03 said nothing did):** a Kraken reader on Hugging Face
+  Jobs and on this Mac (`training/job.py`, `training/hf_jobs.py`, `training/local.py`); a vision LoRA on Hugging Face
+  Jobs (`training/hf_vision_lora_train.py`), converted for MLX on landing (`training/mlx_landing.py`); a YOLO region
+  detector on this Mac from a person's regions (`training/yolo_local.py`); a resumable Slurm wrapper, tested with a stub
+  trainer (`training/resumable.py`). Not built: Kraken's line finder, YOLO off the Mac, spaCy, a text model, a full
+  fine-tune, vLLM, and any publishing of a model.
 - **Training sets, scores and cards are designed elsewhere and unbuilt**: `source.train.*`
   (#4947), `source.model.*` and `source.find.*` (#4948). That spec says a Kraken training spec
   "is not written" (`formats-and-training.md:133-135`). For the *running* of training, this is
@@ -735,19 +739,24 @@ needs them.
   on the Mac can then be told to use that model rather than its built-in one. *Existing data:*
   pages segmented before are untouched; the trained model makes new passes. *Test:* as above,
   plus one page segmented on the Mac with the returned model.
-- `compute.tune.yolo-layout` — **[GAP]** (#5240, #5397) a `train-layout` job trains a YOLO-family detector
+- `compute.tune.yolo-layout` — **[PARTIAL]** (#5240, #5397, #5525) *Built for regions on this Mac
+  (`prep.yolo.fine-tune-from-corrected-regions` in `source/image-preparation.md` owns that path: `training/yolo_set.py`,
+  `training/yolo_local.py`, `POST /api/training/regions/here`,
+  `fichero-server/tests/unit/training/test_yolo_regions_training.py`). Not built: the page detector and lines, training
+  on Hugging Face Jobs or a cluster, and the held-out gate.* a `train-layout` job trains a YOLO-family detector
   for the page (`prep.yolo-detectors-run-and-train`), regions (by kind) or lines from a training
   set of the project's checked boxes or outlines (exported as YOLO, which Fichero already writes,
-  `source.format.yolo-out`), on this Mac first (16 GB), on Hugging Face Jobs, or on a cluster; the trained detector comes back as a model card and is measured on held-out pages
-  (precision and recall per region kind) before a recipe may use it. *Existing data:* earlier
-  passes are untouched; the detector makes new passes. *Test:* a tiny set trains, returns, and
-  finds boxes on one held-out page.
+  `source.format.yolo-out`), on this Mac where it fits (offered, never the default:
+  `compute.tune.local-mlx-shown-never-default`), on Hugging Face Jobs, or on a cluster; the trained detector comes back
+  as a model card and passes the one gate on held-out pages (`distill.gate.one-rule`, `training.eval.layout-overlap`)
+  before a recipe may use it. *Existing data:* earlier passes are untouched; the detector makes new passes. *Test:* a
+  tiny set trains, returns, and finds boxes on one held-out page.
 - `compute.tune.lora` — **[PARTIAL]** (#5240) *Built for a vision model on Hugging Face Jobs (#5398): `hf_vision_lora_train.py` (transformers + peft, bf16, loss on the answer alone) on line pairs cut by the line reader's own crop with its own instruction; rank and epochs on the request, not yet a recipe file; QLoRA and the CPU tiny-model test are not built.* a `train-lora` job fine-tunes a base model named by card with LoRA
   (QLoRA when the card and the target's memory call for it), from a recipe file that names
   rank, learning rate, epochs and the prompt form, and returns the adapter, its log and scores.
   A recipe is a shareable file in the sense of `source.recipe.is-a-file` (→ #4950). *Test:* a
   tiny model and a tiny set, in automation on CPU for a few steps, yields an adapter that
-  loads; the full path is a named-machine test. The base is the recipe's pick from the catalogue (`source.recipe.picks-the-tuning-base`, about 3B, #5442); today the request defaults to `Qwen/Qwen3-VL-8B-Instruct`.
+  loads; the full path is a named-machine test. The base is the recipe's pick from the catalogue (`source.recipe.picks-the-tuning-base`, about 3B, #5442); today the request defaults to `Qwen/Qwen3-VL-8B-Instruct`. An adapter is the default for a vision or language model; training every weight instead is `distill.train.lora-or-full` (`compute/distillation.md`).
 - `compute.tune.survives-the-time-limit` — **[PARTIAL]** (#5240; the wrapper and sbatch are `training/resumable.py`, tested with a stub trainer that checkpoints on SIGUSR1 in `fichero-server/tests/unit/training/test_resumable_training.py`: two parts, steps 1..12 once each, `scontrol requeue` once; not yet wired to a real `ketos train` run or a cluster, and the Activity row's "running (part 2)" is `part_words`, not yet shown) a training job longer than its time limit saves a
   checkpoint on the scheduler's warning signal, is re-queued under the same job id, and resumes
   from the checkpoint; the job's row reads "running (part 2)". *Test:* fixture with a
@@ -820,6 +829,22 @@ needs them.
   rendered in the Hub's form, with base model, training set, licence and the adapter library
   named as the Hub expects (CITED, S14); no second card is written by hand. *Test:* round trip
   of the rendered fields. For a model trained in Fichero the card states: the base model and its licence; the training data (kind, number of lines, its rights answer, never the text); the script and language; the period and hand where the project knows them; the held-out CER and WER with the project's noise band; the model's licence; and that it was made in Fichero (version, recipe step). A figure with no held-out measurement says "not measured" (#5971). *Test (to write):* a rendered card for a trained Kraken model carries every one of these, and a model with no held-out result says "not measured".
+- `compute.publish.card-says-what-it-beat` — **[GAP]** (#5971) the published card of a model trained for a recipe step
+  states, beside the fields of `compute.publish.card-is-the-card`: the step it was made for; how it was trained (whole,
+  adapter or full fine-tune, `distill.train.lora-or-full`); its teacher, if any; where its training data came from as
+  counts by trust level (a person's corrections, a model checker's, unchecked teacher output), never the pages or the
+  text; and the gate's verdict: its score and the score of the step's previous model on the same held-out pages, the
+  number of pages, the noise band, and the date. A model published without a verdict says "not measured against the
+  model it replaced". *Test (to write):* test_published_card_says_what_it_beat.py in
+  fichero-server/tests/unit/training/ (a rendered card for a reader that beat its base carries both figures and the
+  counts; nothing on it is a line of text).
+- `compute.publish.found-on-another-mac` — **[GAP]** (#5971, #5539) a published model reaches the person's other Macs
+  and other people's Fichero by its repository id: the model finder (`models.search.is-the-finder`) finds it, a private
+  or gated one with a token that may read it; it lands as a card pinned to the published revision, with the published
+  scores shown as "measured elsewhere" until it is scored on that project's own held-out pages, and it passes the one
+  gate there before it replaces a step's model. *Test (to write):* test_published_model_found_elsewhere.py in
+  fichero-server/tests/unit/training/ (a recorded Hub: the card lands pinned, its scores labelled, and it is not a
+  step's model until chosen).
 - `compute.publish.dry-run-first` — **[GAP]** (#5971; owner 2026-10-20) a publish can be rehearsed: the dry run builds
   the repository's files (the model, its card) in a scratch folder and shows what would be sent and to which repository
   and visibility, with nothing sent and no token read. A real publish is a second, separate step built by the SAME builder as the dry run (one code path), and it requires a matching dry run: one made for the same files, repository and visibility, still current; without it nothing is sent. *Test (to write):* a publish with no matching dry run is refused in words. *Built:* nothing:
@@ -898,6 +923,27 @@ Built: landing as a card in the project (`training/landing.py`, `training/mlx_la
 Built: `training/bakeoff_lines.py` `push_private_dataset` (the staged lines to a private dataset of the person's account; the owner's rule: train yes, release no). Left: one start sheet from the recipe, onboarding or a model's node showing every place with its cost and time and the set's size; the bake-off's `lines.json` (every arm's reading per line) becoming the training lines with each line's check level; `compute.tune.start`'s two parameters (recipe, base model). Acceptance: the sheet lists this Mac, Hugging Face and the cluster with figures and refuses a place the app does not allow; the dataset pushed is private and holds the lines with their check levels; a bake-off's lines land as a set the trainer reads.
 
 - test (to write): `test_training_start_sheet.py` in fichero-server/tests/unit/training/ (the places with figures; the refusal; the private push; the bake-off lines as a set)
+
+### Stage 2 — publish a trained model, and find it on another Mac (written 2026-11-19; the model loop's last stage, `compute/distillation.md` Stage 2)
+
+#### Step 2.1 — the rehearsal and the card: what would be sent, private, with what it beat (#5971)
+- Behaviours: `compute.publish.dry-run-first`, `compute.publish.card-is-the-card`, `compute.publish.card-says-what-it-beat`, `compute.publish.private-by-default`, `compute.model.publish`
+- Tests: test_publish_dry_run.py (not yet written), test_published_card_says_what_it_beat.py (not yet written)
+- Size: M
+
+Built: nothing uploads a model; the Hub is reached for jobs and for one private dataset
+(`training/bakeoff_lines.py` `push_private_dataset`). No network in this step: the dry run builds the files and the card
+in a scratch folder. A model whose training data may not be released is refused here, in words
+(`compute.model.never-publishable-stays-so`).
+
+#### Step 2.2 — the publish itself, asked each time, audited, and the model found from another Mac (#5971)
+- Behaviours: `compute.publish.is-separate-and-asked-again`, `compute.publish.public-needs-the-owners-yes-each-time`, `compute.publish.is-audited-and-says-what-cannot-be-undone`, `compute.publish.token-is-narrow`, `compute.publish.found-on-another-mac`
+- Tests: test_publish_needs_a_matching_dry_run.py (not yet written), test_published_model_found_elsewhere.py (not yet written)
+- Depends on: 2.1
+- Size: M
+
+Against a recorded Hub. The first real publish is a private repository in the person's own account, from the named
+machine, after the dry run was read by the person.
 
 ## Test matrix
 

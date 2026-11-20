@@ -7,7 +7,7 @@
 > automatic work), the pane and the window (the table, the Inspector, the verbs, the sidebar, the Models tree, the log, the graphs),
 > and what every row says. It does NOT own: how work fails, pauses and goes on, the failure kinds, the one alert and the bug report
 > (`compute/runner-reliability.md`); a recipe run's journey from Start to the summary (`source/recipes-run.md`); designing a recipe and
-> the Set Up screens (`source/recipe-designer.md`); the Models and Compute window, every model and place with its account
+> the Set Up screens (`source/recipe-designer.md`); the Models and Cluster window, every model and place with its account
 > (`ui/models-and-compute-window.md`); the workflow editor and the workflow bar (`ui/workflows.md`).
 >
 > Design-led (Testing Constitution). **Status: DRAFT** (2026-11-08, Fable). THE Activity spec; the former Activity spec (APPROVED 2026-10-27: the one job model, the window, lanes, durability, automatic work) was merged into it on 2026-11-18 (the carried section below). Also a companion and of `panes-workspaces.md` (the pane and workspace system). This file holds only the DELTA the owner asked for on 2026-11-08: Activity becomes a PANE KIND; the generic Activity window is that pane plus the existing Inspector; one hierarchical table with disclosure triangles, grouped by run or by file over the same data; several versions of one step as siblings; history kept and filterable; Run Automatically a setting. Everything the big spec already pins (the job model, the one-bar row, the groups, the details view's content, lanes, retries) stays as written there and is cited, not restated. Menu items and chords go through the one command table of `menus-and-commands.md` (#6435).

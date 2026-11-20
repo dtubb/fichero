@@ -33,7 +33,7 @@
 > and the bug report, memory holds, and what every runner (local, cloud, remote) must do when work goes wrong. It does NOT
 > own: the Activity window, pane and its rows, lanes and throttle (`ui/activity-pane.md`); a recipe run's journey from Start
 > to the summary (`source/recipes-run.md`); designing a recipe and the Set Up screens (`source/recipe-designer.md`); the
-> Models and Compute window, every model and place and its account (`ui/models-and-compute-window.md`); which model and
+> Models and Cluster window, every model and place and its account (`ui/models-and-compute-window.md`); which model and
 > place a step chooses, egress and the spend caps (`ai/where-models-run.md`, `ai/cloud-permission-and-spend.md`).
 
 ## Intent (the design)
