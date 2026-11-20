@@ -921,6 +921,27 @@ def threads_each(cores: int, pages_at_once: int) -> int:
     return max(1, cores // max(1, pages_at_once))
 
 
+def _run_setting(knob: str) -> Any:
+    """What the person set for Kraken in the Models window (`models.settings.run-knobs`); None when unset."""
+    from fichero_server.llm.model_run_settings import run_settings
+
+    return run_settings("kraken")[knob]
+
+
+def reading_threads(cores: int, pages_at_once: int) -> int:
+    """The threads each page reads on: the person's setting, else `threads_each`."""
+    return _run_setting("threads") or threads_each(cores, pages_at_once)
+
+
+def reading_device() -> str:
+    """The reader's device: the environment's override, else the person's Kraken setting, else the global preference."""
+    from fichero_server.core.compute_preferences import DEVICES, compute_preferences
+
+    if os.environ.get("FICHERO_COMPUTE_DEVICE", "").strip().lower() in DEVICES:
+        return compute_preferences()["device"]
+    return _run_setting("device") or compute_preferences()["device"]
+
+
 #: torch's threads as the Kraken seam last set them, and the torch they were set on: one pool for the whole process, so
 #: every page inside reads on it, and it is set again only when the plan changes (#6229).
 _THREADS_NOW: int | None = None
@@ -964,7 +985,7 @@ def pages_at_once_and_why(person: bool) -> tuple[int, str | None]:
     cores, source = cores_available()
     if not is_a_mac_pipeline_host(source):
         return 1, "this machine reads one page at a time"
-    n = page_fan_out(min(cores, PAGES_AT_ONCE_GATE_5929))
+    n = page_fan_out(_run_setting("pages_at_once") or min(cores, PAGES_AT_ONCE_GATE_5929))
     return n, None if n > 1 else "the free memory holds one page"
 
 
@@ -1093,7 +1114,7 @@ def _kraken_call_once(op: Callable[[], _T]) -> _T:
             from fichero_server.execution.throttle import decide
 
             priority, qos, cores = set_page_priority(person)
-            threads = threads_each(cores, allowed)
+            threads = reading_threads(cores, allowed)
             _PAGE.update(priority=priority, qos=qos, threads=threads, person=person, throttle=decide(person).action)
             _note_threads_chosen(threads, allowed)
             # The other thread pools (OpenMP, the BLAS libraries) read these when torch first loads, so they are
@@ -1402,7 +1423,7 @@ def reader_batch_size() -> int:
     """How many lines the reader sends through at once: one (#5854, `source.read.batch-of-one`). A batch pads every
     line crop to the widest in it: on a 33-line page batch 1 took 3.0 s, 8 took 5.5 s, 16 took 43.5 s (M4). Memory
     could only ever shrink it below one, so it no longer enters (#5758's bound is met by one line at a time)."""
-    return 1
+    return _run_setting("batch_size") or 1
 
 
 #: What each page read at once holds beyond the model: its image, the segmenter's maps, the lines' crops (measured
@@ -1423,12 +1444,12 @@ def _reader_config(config_cls: Callable[..., object]) -> object:
     """The reader's device, as the person chose (`torch_accelerator`: auto is the CPU, #5529). Kraken's
     "auto" was slower than either per page (measured 2026-10-03 on a Sergio notebook half-page:
     auto 28 s, CPU 13 s, MPS 11 s, with the model already loaded)."""
-    from fichero_server.core.compute_preferences import compute_preferences, torch_accelerator
+    from fichero_server.core.compute_preferences import torch_accelerator
 
     # num_line_workers=0: Kraken's default (2) extracts lines in a multiprocessing Pool, whose semaphore the
     # app sandbox refuses ("[Errno 1] Operation not permitted"), so every reader failed in the app and worked
     # in a terminal (2026-10-10). 0 is Kraken's own in-process path; training already runs with --workers 0.
-    config = config_cls(accelerator=torch_accelerator(compute_preferences()["device"]), device=1, num_line_workers=0)
+    config = config_cls(accelerator=torch_accelerator(reading_device()), device=1, num_line_workers=0)
     if hasattr(config, "batch_size"):  # bounded by the memory the Mac has now, not Kraken's own default (#5758)
         config.batch_size = reader_batch_size()
     return config
