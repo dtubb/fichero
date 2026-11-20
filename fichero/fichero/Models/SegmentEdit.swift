@@ -40,6 +40,9 @@ enum SegmentEdit {
         case cutCharacters(SegmentCutWordsRequest)
         /// Convert to Box (`segment.convert_to_box`).
         case convertToBox(SegmentCutWordsRequest)
+        /// Make Region from Lines (`segment.group_lines`) and Ungroup Region (`segment.ungroup_region`).
+        case groupLines(SegmentCutWordsRequest)
+        case ungroupRegion(SegmentUngroupRegionRequest)
         /// Order by clicking (`reading_order.sequence`).
         case sequence(ReadingOrderSequenceRequest)
         /// The selection moved by one offset (`segment.translate`).

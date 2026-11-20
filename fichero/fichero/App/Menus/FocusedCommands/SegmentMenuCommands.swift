@@ -24,6 +24,9 @@ struct SegmentMenuTarget {
     var simplify: () -> Void = {}
     /// Convert to Box (⌥⌘B): the selected polygons become their bounding rectangles.
     var convertToBox: () -> Void = {}
+    /// Make Region from Lines (⌘G) and Ungroup Region (no chord: ⇧⌘G shows or hides Items).
+    var makeRegion: () -> Void = {}
+    var ungroupRegion: () -> Void = {}
     /// Cut Words (⇧⌘W): the selected lines' readings cut into word segments.
     var cutWords: () -> Void = {}
     /// Cut Characters: the selected words cut into characters at their positions (`segment-editor.cut-characters`).
@@ -83,6 +86,11 @@ struct SegmentMenuContent: View {
             .disabled(count == 0)
         Button("Convert to Box") { target?.convertToBox() }
             .keyboardShortcut("b", modifiers: [.command, .option])
+            .disabled(count == 0)
+        Button("Make Region from Lines") { target?.makeRegion() }
+            .keyboardShortcut("g", modifiers: [.command])
+            .disabled(count < 2)
+        Button("Ungroup Region") { target?.ungroupRegion() }
             .disabled(count == 0)
         Button("Add Baseline") { target?.addBaseline() }
             .disabled(count == 0 || target?.selectionHasBaselines != false)

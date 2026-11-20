@@ -128,6 +128,21 @@ extension ZoomableImagePreview {
         runSegmentEdit(SegmentEdit.convertToBox(selectedSegments(documentId)), documentId: documentId, name: "Convert to Box")
     }
 
+    /// MAKE REGION FROM LINES (`segment-editor.make-region-from-lines`, ⌘G): the selected lines become the children of one
+    /// new region; one ⌘Z.
+    func makeRegionFromSelectedLines() {
+        guard let documentId else { return }
+        runSegmentEdit(SegmentEdit.groupLines(selectedSegments(documentId)), documentId: documentId, name: "Make Region from Lines")
+    }
+
+    /// UNGROUP REGION: each selected region's lines go back to its parent and the region is removed; one ⌘Z each.
+    func ungroupSelectedRegions() {
+        guard let documentId else { return }
+        for region in selectedSegments(documentId) where region.kind == "region" {
+            runSegmentEdit(SegmentEdit.ungroupRegion(region), documentId: documentId, name: "Ungroup Region")
+        }
+    }
+
     /// SPLIT the one selected line where it was last clicked (`segment-editor.split-at-a-point`, ⌘⇧K).
     func splitSelectedLineAtLastPoint() {
         guard let documentId, let line = selectedSegments(documentId).first, let pressed = pointerFeed.latest?.point else { return }

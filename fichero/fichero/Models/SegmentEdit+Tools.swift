@@ -220,6 +220,27 @@ extension SegmentEdit {
         ))
     }
 
+    /// MAKE REGION FROM LINES (`segment-editor.make-region-from-lines`): two or more selected segments become the children
+    /// of one new region, in one `segment.group_lines` and one undo.
+    static func groupLines(_ lines: [Segment]) -> Result<Call, Refusal> {
+        guard lines.count >= 2 else { return .failure(.tooFew) }
+        guard let versions = versions(of: lines) else { return .failure(.versionUnknown) }
+        return .success(Call(
+            action: "segment.group_lines",
+            params: .groupLines(SegmentCutWordsRequest(segmentIds: lines.map(\.id), expectedVersions: versions))
+        ))
+    }
+
+    /// UNGROUP REGION: a region's lines go to its parent and the region is removed, in one `segment.ungroup_region`.
+    static func ungroupRegion(_ region: Segment) -> Result<Call, Refusal> {
+        guard region.kind == "region" else { return .failure(.tooFew) }
+        guard let version = region.version else { return .failure(.versionUnknown) }
+        return .success(Call(
+            action: "segment.ungroup_region",
+            params: .ungroupRegion(SegmentUngroupRegionRequest(regionId: region.id, expectedVersion: version))
+        ))
+    }
+
     /// What Cut Words says when it could not cut every line: how many it left, and that they need a reading or ink.
     static func cutWordsNotice(made: Int, leftAlone: Int) -> String? {
         guard leftAlone > 0 else { return nil }
@@ -278,6 +299,13 @@ struct SegmentCutWordsRequest: Encodable, Equatable {
     enum CodingKeys: String, CodingKey { case segmentIds = "segment_ids", expectedVersions = "expected_versions" }
 }
 
+/// `segment.ungroup_region`: one region, at the version the caller read.
+struct SegmentUngroupRegionRequest: Encodable, Equatable {
+    let regionId: String
+    let expectedVersion: Int
+    enum CodingKeys: String, CodingKey { case regionId = "region_id", expectedVersion = "expected_version" }
+}
+
 extension SegmentEdit.Params {
     /// The tools' request bodies, the second half of `payload`, so neither switch carries every kind.
     var toolPayload: any Encodable {
@@ -287,7 +315,8 @@ extension SegmentEdit.Params {
         case .knife(let params): params
         case .simplify(let params): params
         case .cutWords(let params): params
-        case .addBaseline(let params), .cutCharacters(let params), .convertToBox(let params): params
+        case .addBaseline(let params), .cutCharacters(let params), .convertToBox(let params), .groupLines(let params): params
+        case .ungroupRegion(let params): params
         case .sequence(let params): params
         case .translate(let params): params
         case .moveCut(let params): params

@@ -253,6 +253,10 @@ extension ZoomableImagePreview {
                     Button("Redraw Outline from Baseline") { redrawSelectedOutlines() }
                 }
                 Button("Convert to Box") { convertSelectedToBox() }
+                if selection.count >= 2 {
+                    Button("Make Region from Lines") { makeRegionFromSelectedLines() }
+                }
+                Button("Ungroup Region") { ungroupSelectedRegions() }
                 Button(
                     selection.count == 1 ? "Delete Region" : "Delete \(selection.count) Regions",
                     role: .destructive
