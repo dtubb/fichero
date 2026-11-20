@@ -48,15 +48,8 @@ extension ContentView {
         // query field would look like an unexplained library.
         showSearchField = true
 
-        // Capture the browsed folder BEFORE clearing the selection so the
-        // results bar can offer it as a scope (#4107/S3).
-        //
-        // Named through the BREADCRUMB (Daniel, 2026-09-02: scope should
-        // "reuse the breadcrumb concept — the whole library or the current
-        // breadcrumb context"). One id-indexed dictionary, then one walk —
-        // the same shape `breadcrumbSubtitle` uses, and for the same reason:
-        // a per-hop `first(where:)` over the library is an O(depth × library)
-        // scan on a gesture the user waits on (#4602).
+        // Capture the browsed folder BEFORE clearing the selection so the results bar can offer it as a scope
+        // (#4107/S3), named through the breadcrumb: one id-indexed dictionary, one walk (#4602).
         var targets = SearchScopeTargets()
         if case .library(let doc) = viewMode, let doc, doc.docType == .folder {
             let documentsById = Dictionary(
@@ -87,14 +80,8 @@ extension ContentView {
             folderByDefault: UserDefaults.standard.bool(forKey: Self.searchDefaultScopeIsFolderKey)
         )
         sidebarSelectionState.selectedItemId = nil
-        // A NEW submission owns the selection too (Daniel, 2026-09-02: a
-        // second search "does not refresh … until you click around"). A
-        // selection carried over from the previous result set survives into
-        // rows that no longer contain it, and — because `runTransientSearch`
-        // only re-points the reader `if browserSelection.isEmpty` — it also
-        // pins the reader to the OLD query's document while the grid shows
-        // the new one. Clearing here is what makes "search again" read as a
-        // fresh answer rather than an edit of the last one.
+        // A NEW submission owns the selection too (2026-09-02): a selection carried over from the previous result
+        // set would pin the reader to the OLD query's document while the grid shows the new one.
         browserSelection = []
         // Release every library pane's pinned scope (Daniel, 2026-09-02: while
         // results are showing, the other view modes "show the whole folder, not
@@ -382,5 +369,30 @@ extension URL {
         }
 
         return resourceValues?.isDirectory == true
+    }
+}
+
+// MARK: - Chat & Router Helpers
+
+enum ChatScopeBuilder {
+    static func currentScopeDocumentIds(
+        browserSelection: Set<String>,
+        currentDocuments: [Document],
+        detailDocument: Document?
+    ) -> [String] {
+        let selectedIds = currentDocuments
+            .filter { browserSelection.contains($0.id) && $0.docType != .folder }
+            .map(\.id)
+        if !selectedIds.isEmpty {
+            return selectedIds
+        }
+
+        if let detailDocument, detailDocument.docType != .folder {
+            return [detailDocument.id]
+        }
+
+        return currentDocuments
+            .filter { $0.docType != .folder }
+            .map(\.id)
     }
 }
