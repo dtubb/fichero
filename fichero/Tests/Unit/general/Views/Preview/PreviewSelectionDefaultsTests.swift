@@ -279,16 +279,14 @@ struct WorkflowPickerReachesPresetTests {
 
     @Test("a workflow that takes no model override is sent none, pinned or not (#4963)")
     func noOverrideForAWorkflowThatRefusesIt() {
-        var step = StagedWorkflowStep(kind: .workflow(item(accepts: false)))
-        step.providerOverride = "openrouter"
-        step.modelOverride = "google/gemini-2.5-flash"
-        #expect(WorkflowBarPolicy.stepAcceptsRunOverride(step) == false)
-        #expect(WorkflowBarPolicy.stepAcceptsRunOverride(StagedWorkflowStep(kind: .workflow(item()))))
-        #expect(WorkflowBarPolicy.droppedPinNote(step) != nil, "a pin that is not sent is said")
-        var takes = StagedWorkflowStep(kind: .workflow(item()))
-        takes.providerOverride = "openrouter"
-        takes.modelOverride = "google/gemini-2.5-flash"
-        #expect(WorkflowBarPolicy.droppedPinNote(takes) == nil)
+        func pinned(accepts: Bool) -> StagedWorkflowStep {
+            var step = StagedWorkflowStep(kind: .workflow(item(accepts: accepts)))
+            (step.providerOverride, step.modelOverride) = ("openrouter", "google/gemini-2.5-flash")
+            return step
+        }
+        #expect(!WorkflowBarPolicy.stepAcceptsRunOverride(pinned(accepts: false)) && WorkflowBarPolicy.stepAcceptsRunOverride(pinned(accepts: true)))
+        #expect(WorkflowBarPolicy.droppedPinNote(pinned(accepts: false)) != nil, "a pin that is not sent is said")
+        #expect(WorkflowBarPolicy.droppedPinNote(pinned(accepts: true)) == nil)
         #expect(WorkflowBarPolicy.droppedPinNote(StagedWorkflowStep(kind: .workflow(item(accepts: false)))) == nil)
     }
 
