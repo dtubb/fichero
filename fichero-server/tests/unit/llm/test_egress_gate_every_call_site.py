@@ -148,6 +148,7 @@ _SENDS_A_KEY = "sends the API key to the provider the person set up, to list or 
 _FETCHES_THE_SOURCE = "fetches FROM the source the person is importing; sends only that source's own URLs"
 _HUB_FETCH = "downloads weights or a model card from the Hugging Face Hub: sends only the repo id, no library content"
 _LOOPBACK = "talks to a model server on this Mac"
+_PROBES_AN_ADDRESS = "a bodyless GET of a server address the person set up, to say whether it answers: no library content"
 ALLOWED = {
     "api/routes/ai/models.py::_fetch_hf_models": _OWN_FETCH,
     "api/routes/ai/models.py::_fetch_hf_tasks": _OWN_FETCH,
@@ -179,6 +180,7 @@ ALLOWED = {
     "loaders/iiif_loader.py::load": _FETCHES_THE_SOURCE,
     "media/iiif_fetch.py::urllib_get": _FETCHES_THE_SOURCE,
     "recipes/htr_united.py::_fetch_catalogue": _OWN_FETCH,
+    "workflows/activity_models.py::reachable": _PROBES_AN_ADDRESS,
 }
 
 
