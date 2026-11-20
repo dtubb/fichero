@@ -701,4 +701,4 @@ def test_a_download_without_kraken_makes_no_directory(monkeypatch: pytest.Monkey
 
     with pytest.raises(KrakenRuntimeMissingError):
         kraken_runtime.download_recognition_model("kraken-mccatmus", home=tmp_path)
-    assert list(tmp_path.rglob("*")) == []
+    assert list(tmp_path.iterdir()) == []
