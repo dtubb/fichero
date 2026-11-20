@@ -1015,9 +1015,12 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
             logger.warning("the try's progress for %s was incomplete: %s", name, problem)
         made = _collect(copy, before, back)
         texts, boxes, items = _for_comparing(copy, before, back, stage_id)
-        out.update(state="done" if all(r["state"] != "failed" for r in ran) else "failed", ran=ran,
+        empty = nothing_made(stage_id, made)
+        out.update(state="done" if empty is None and all(r["state"] != "failed" for r in ran) else "failed", ran=ran,
                    made={**made, **extra}, texts=texts, boxes=boxes, items=items, spent=spent)
         failed = [_sentence(r["why"]) or "the run stopped before it finished" for r in ran if r["state"] == "failed"]
+        if empty and not failed:
+            failed = [empty]
         if failed:
             out["error"] = "; ".join(failed)  # a failure always says why in words, never a blank
         if out["state"] == "done":  # kept for Start to adopt from (`wide.try.start-reuses-a-matching-try`); see `recipes/adopt.py`
@@ -1207,6 +1210,15 @@ def _for_comparing(copy: Any, before: dict[str, set[str]], back: dict[str, str],
     else:
         items = [e.canonical_name for e in new.get("KnowledgeEntity", [])]
     return texts, boxes, [i for i in items if i]
+
+
+def nothing_made(stage_id: str, made: dict[str, Any]) -> str | None:
+    """Why a Read try that made no reading on any page failed, in words, or None: every line came back empty (the
+    reader ran and returned nothing), which is a failed read and never a finished one (#6733)."""
+    if stage_id != "read" or any(p["readings"] for p in made["per_page"]):
+        return None
+    return ("The reader read nothing: no line on any page came back with text, so this reader does not suit these "
+            "pages. Try another reader.")
 
 
 def _collect(copy: Any, before: dict[str, set[str]], back: dict[str, str]) -> dict[str, Any]:
