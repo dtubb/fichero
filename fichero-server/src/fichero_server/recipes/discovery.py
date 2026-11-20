@@ -1664,6 +1664,13 @@ def remove_bookmark(key: str, recipe: dict[str, Any] | None) -> None:
     _write_hub({**data, "found": found})
 
 
+def steps_using_model(model_id: str, recipe: dict[str, Any] | None) -> list[str]:
+    """The steps of `recipe` (the open project's) whose chosen card names the downloaded model `model_id`: the id whole, after
+    a `:` or `/` and before an `@` or the end, never a part of another id."""
+    pattern = re.compile(rf"(?:^|[:/]){re.escape(model_id)}(?:@|$)")
+    return sorted({str(o.get("step")) for o in (recipe or {}).get("overrides") or [] if pattern.search(str(o.get("card") or ""))})
+
+
 def _hub_key(card: Card) -> str:
     """Where a kept Hub reader is filed: its repository, or `not-runnable:<repo>` for one this build cannot run, so
     the MLX conversion of a model and the model itself are both kept."""
