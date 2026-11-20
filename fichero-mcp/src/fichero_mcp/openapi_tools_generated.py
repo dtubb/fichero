@@ -5576,9 +5576,10 @@ def fichero_local_models_delete(
     *,
     model_type: Annotated[str, Field(description='Model Type')],
     model_id: Annotated[str, Field(description='Model Id')],
+    confirm: Annotated[Optional[bool], Field(description='Confirm')] = None,
 ) -> Any:
-    'Delete Model\n\nDelete a downloaded model.\n\nArgs:\n    model_type: "whisper" or "embeddings"\n    model_id: Model identifier\n\nRoute: DELETE /api/local-models/{model_type}/{model_id} (toolset `local-models`; changes data, as the agent account when one exists).'
-    return _rt.call("DELETE", f"/api/local-models/{model_type}/{model_id}")
+    'Delete Model\n\nDelete a downloaded model.\n\nArgs:\n    model_type: "whisper" or "embeddings"\n    model_id: Model identifier\n    confirm: with a project open, a model a step of its recipe uses is refused (409, the steps named) until true\n        (`models.manage.delete-a-model`, #6588)\n\nRoute: DELETE /api/local-models/{model_type}/{model_id} (toolset `local-models`; changes data, as the agent account when one exists).'
+    return _rt.call("DELETE", f"/api/local-models/{model_type}/{model_id}", params={"confirm": confirm})
 
 
 def fichero_locations_resolve(

@@ -11704,6 +11704,7 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         model_type: str = typer.Argument(..., help='Model Type'),
         model_id: str = typer.Argument(..., help='Model Id'),
+        confirm: Optional[bool] = typer.Option(None, '--confirm/--no-confirm', help='Confirm.'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Model (DELETE /api/local-models/{model_type}/{model_id})."""
@@ -11711,7 +11712,9 @@ def register_generated_openapi_commands(
             typer.confirm("Delete local-models?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/local-models/{model_type}/{model_id}"
-            params = None
+            params = {
+                "confirm": confirm,
+            }
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 

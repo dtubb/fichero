@@ -8190,7 +8190,13 @@
           "model_type",
           "model_id"
         ],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "confirm",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
         "request_model": null,
         "response_model": "fichero_server__models__DeleteModelResponse"
       }

@@ -49656,7 +49656,7 @@
           "local-models"
         ],
         "summary": "Delete Model",
-        "description": "Delete a downloaded model.\n\nArgs:\n    model_type: \"whisper\" or \"embeddings\"\n    model_id: Model identifier",
+        "description": "Delete a downloaded model.\n\nArgs:\n    model_type: \"whisper\" or \"embeddings\"\n    model_id: Model identifier\n    confirm: with a project open, a model a step of its recipe uses is refused (409, the steps named) until true\n        (`models.manage.delete-a-model`, #6588)",
         "operationId": "delete_model_api_local_models__model_type___model_id__delete",
         "parameters": [
           {
@@ -49675,6 +49675,16 @@
             "schema": {
               "type": "string",
               "title": "Model Id"
+            }
+          },
+          {
+            "name": "confirm",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Confirm"
             }
           }
         ],
@@ -95484,6 +95494,21 @@
             "type": "object",
             "title": "Cost",
             "description": "memory_bytes the settings ask of this Mac; seconds_per_page null (not measured)"
+          },
+          "defaults": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Defaults",
+            "description": "per knob, what Auto means on this Mac now: `value` and `reason`"
+          },
+          "script_heights": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Script Heights",
+            "description": "the line finder's measured network height and base per script (read-only)"
           }
         },
         "type": "object",
