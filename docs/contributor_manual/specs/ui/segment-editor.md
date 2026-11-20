@@ -314,6 +314,12 @@ targets are at least 44 pt.
   the whole selection one image pixel, ⇧ ten, ⌥⇧ a hundred; with a pressed point, the point
   alone (built). A held key gathers into one action, committed when the key is released or
   after half a second of stillness (`undo.typing.commit-is-one-step` applied to keys).
+- `segment-editor.convert-to-box` — **[PARTIAL]** (#6736, owner 2026-11-19; app + engine) **Convert to Box** (Edit › Segments ▸,
+  ⌥⌘B, and the page's context menu on a selection) replaces each selected polygon with its axis-aligned bounding rectangle:
+  one `segment.convert_to_box` for the whole selection, one undo, the old polygon kept in the segment's history. Id, kind,
+  baseline, order and children are untouched. A segment that is already a box is left out; a selection of only boxes is
+  refused with the reason. *Tests:* `test_segment_convert_to_box.py`; `SegmentConvertToBoxTests.swift`.
+  *Not built:* the toolbar shape-menu entry; **Convert to Box (fit ink)**, the rectangle of the ink inside the polygon.
 - `segment-editor.vertices` — **[PARTIAL]** (→ #4941; app + engine) a click on a side adds a point; ⌥-click a
   point removes it (built); ⌫ with a pressed point removes it; **Simplify** (⌘⌥S, and a slider
   in the Shape popover) asks the engine for a simpler outline, `segment.simplify` with a
