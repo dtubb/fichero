@@ -58,6 +58,8 @@ _UNAUTHENTICATED_PATHS = frozenset(
         "/api/auth/login",
         "/api/auth/challenge",
         "/api/auth/sign-in",
+        "/api/auth/key-challenge",
+        "/api/auth/sign-in-by-key",
         "/api/auth/first-run",
         "/api/auth/migrate-owner",
         "/api/auth/local-clients/request",

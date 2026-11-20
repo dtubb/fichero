@@ -1934,6 +1934,22 @@ class AppDatabase:
             self.conn.commit()
         return client
 
+    def set_session_client(self, token_hash: str, client_id: str) -> None:
+        """Point an open session at the client it really belongs to (revoking that client then ends it)."""
+        with self._lock:
+            self.conn.execute("UPDATE sessions SET client_id = ?, device_label = (SELECT name FROM clients WHERE id = ?) "
+                              "WHERE token_hash = ?", [client_id, client_id, token_hash])
+            self.conn.commit()
+
+    def live_clients_by_public_key(self, public_key_pem: str) -> list[AccountClient]:
+        """Every live client holding exactly this public key, oldest first (the synced key's other devices)."""
+        with self._lock:
+            rows = self.conn.execute(
+                "SELECT id FROM clients WHERE public_key_pem = ? AND revoked_at IS NULL ORDER BY created_at, id",
+                [public_key_pem],
+            ).fetchall()
+        return [c for c in (self.get_client(r[0]) for r in rows) if c is not None]
+
     def user_has_key(self, user_id: str) -> bool:
         with self._lock:
             row = fetch_one(self.conn.execute(

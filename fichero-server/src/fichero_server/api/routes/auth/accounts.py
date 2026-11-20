@@ -1006,6 +1006,61 @@ def challenge(body: ChallengeRequest, app_db: AppDatabase = Depends(get_app_data
     )
 
 
+class KeyChallengeRequest(BaseModel):
+    public_key_pem: str = Field(min_length=1, max_length=2000)
+
+
+class DeviceClientBody(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    host: str = Field(default="", max_length=120)
+
+
+class KeySignInRequest(BaseModel):
+    public_key_pem: str = Field(min_length=1, max_length=2000)
+    nonce: str = Field(min_length=1, max_length=200)
+    signature: str = Field(min_length=1, max_length=2000)
+    client: DeviceClientBody
+
+
+def _key_holder(app_db: AppDatabase, public_key_pem: str):
+    """The oldest live client holding this key: the key is already trusted for that person. None when no one holds it."""
+    holders = app_db.live_clients_by_public_key(public_key_pem) if _is_p256_public_key(public_key_pem) else []
+    return holders[0] if holders else None
+
+
+@auth_router.post("/key-challenge", response_model=ChallengeResponse)
+def key_challenge(body: KeyChallengeRequest, app_db: AppDatabase = Depends(get_app_database)) -> ChallengeResponse:
+    """`multiuser.second-device-by-synced-key`: another device of the same person holds the synced key but has no client
+    here. The challenge is made for the client that already holds the key; a key nobody holds is refused as an unknown client is."""
+    holder = _key_holder(app_db, body.public_key_pem)
+    if holder is None:
+        raise _REFUSED
+    return challenge(ChallengeRequest(client_id=holder.id), app_db)
+
+
+@auth_router.post("/sign-in-by-key", response_model=SignInResponse)
+def sign_in_by_key(body: KeySignInRequest, app_db: AppDatabase = Depends(get_app_database)) -> SignInResponse:
+    """Sign in with a trusted key from a device the engine has not seen: on the first success the engine registers a new
+    `device` client (named by the device, same key, same person); a repeat from the same device reuses that row."""
+    holder = _key_holder(app_db, body.public_key_pem)
+    if holder is None:
+        raise _REFUSED
+    signed = sign_in(SignInRequest(client_id=holder.id, nonce=body.nonce, signature=body.signature), app_db)
+    mine = next(
+        (
+            c for c in app_db.live_clients_by_public_key(body.public_key_pem)
+            if c.user_id == holder.user_id and c.name == body.client.name.strip() and c.host == body.client.host.strip()
+        ),
+        None,
+    ) or app_db.create_client(
+        user_id=holder.user_id, kind="device", name=body.client.name, host=body.client.host,
+        public_key_pem=body.public_key_pem,
+    )
+    if mine.id != holder.id:  # the session belongs to the device's own row, so revoking it ends it
+        app_db.set_session_client(accounts.hash_token(signed.session_token), mine.id)
+    return signed.model_copy(update={"client": SignInClient(id=mine.id, kind=mine.kind, name=mine.name)})
+
+
 class FirstRunClient(BaseModel):
     kind: Literal["app"] = "app"
     name: str = Field(min_length=1, max_length=120)
