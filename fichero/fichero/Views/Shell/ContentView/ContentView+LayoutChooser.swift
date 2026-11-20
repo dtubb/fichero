@@ -114,7 +114,7 @@ extension ContentView {
         // FocusedValue). The two can no longer differ in items, wording, order, shortcuts or
         // enabled state, because they are the same view rendering the same input shape.
         Menu {
-            // iOS: Show/Hide Items, Source and Reader first (`PaneToggleHome`, #6563); nothing on the Mac.
+            // The panes, each checked while visible (#6730).
             paneToggleMenuSection
             WorkspacesMenuBody(commands: windowLayoutCommands)
         } label: {

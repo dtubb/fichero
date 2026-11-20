@@ -420,8 +420,8 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         // "no Pane / no Browser in the labels" (Daniel, 2026-08-25): the
         // menu says what the toolbar toggle says — just "Library".
         // The pane is Items (ruled 2026-10-10); its labels come from the one constant.
-        XCTAssertTrue(menuSource.contains("ItemsPane.showLabel"))
-        XCTAssertTrue(menuSource.contains("ItemsPane.hideLabel"))
+        // #6730: one checked item named for the pane, not a Show/Hide pair.
+        XCTAssertTrue(menuSource.contains("title: ItemsPane.name"))
         XCTAssertTrue(menuSource.contains("icon: \"books.vertical\""))
     }
 

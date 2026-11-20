@@ -201,85 +201,24 @@ extension ContentView {
             // The view-mode picker LEFT the toolbar (Daniel, 2026-08-23): it
             // is the library pane head's lens now (LibraryView+PaneHead).
 
-            // ONE group, not three loose items (#4374). Six controls of three
-            // different kinds used to sit in a single undifferentiated
-            // `.automatic` run, so nothing told the system that these three
-            // toggles are one control and the sort/filter pair is another —
-            // which is why overflow shed an arbitrary pane toggle instead of
-            // collapsing the set. The missing structure WAS the bug; spacing
-            // was only its symptom.
-            //
-            // Order is the columns' own leading-to-trailing order: library
-            // list (#4288, the standard Mac "hide the list, focus on reading"
-            // control), then preview, then reading.
-            //
-            // Pane toggles are native `Toggle`s (#4360): the on-state is the
-            // system's own treatment on the toolbar's Liquid Glass, so each
-            // control keeps ONE position-encoded glyph. The old glyph-swap
-            // grammar decayed both the library and preview toggles to the same
-            // bare `rectangle` when hidden — two meanings on one symbol.
-            // No `id:` — `ToolbarItemGroup` has no identified initialiser, only
-            // `(placement:content:)`. The group is positional; customisation
-            // identity belongs to the items a user can reorder, and these three
-            // move as one by construction.
-            // On iOS the three are the Workspaces menu's first section instead (`PaneToggleHome`, #6563).
-            if toolbarVisibility.showPaneToggles && PaneToggleHome.current == .toolbarGroup {
+            // Items, Source and Reader have no toolbar buttons (#6730): the Workspaces menu and View ▸ Panes list
+            // them with a check, and their shortcuts stay. Chat is a ROW pane; on the Mac it is in the far-left
+            // `sidebarButtons` pair (2026-11-11), and so is the iPad's (#6563): only an iPhone, which has no pair,
+            // keeps its button here.
+            #if !os(macOS)
+            if sidebarPairHome == nil {
                 ToolbarItemGroup(placement: .automatic) {
-                    libraryPaneToggleButton
-
-                    // Buttons, not Toggles (Daniel, 2026-08-29: the accent-FILLED
-                    // on-state "changing colors — that's a bad UX"). The WORDS
-                    // still carry the state — Show X / Hide X — which is what
-                    // the label says beneath the icon in Icon-and-Text mode, so
-                    // state reads without colour. On top of that the glyph is
-                    // LIT while the surface is open (Daniel, 2026-09-02): in
-                    // Icon Only mode there are no words, and six identical
-                    // buttons said nothing about what was already up. Lit glyph,
-                    // not filled control — see `toolbarSurfaceLit`.
-                    // Read from `paneVisibility` — DERIVED from `activePaneList` (spec
-                    // workspaces.one-system, #4687) — not the legacy `showDocumentCanvas`/
-                    // `showReadingPane` Bools, which `applyWorkspaceLayout`, pane close and
-                    // kind-switch all bypass and which could therefore lie about what a
-                    // workspace actually put on screen.
                     Button {
-                        setCanvasPaneVisible(!paneVisibility.canvas)
+                        setChatPaneVisible(!showChatPane)
                     } label: {
-                        Label(paneVisibility.canvas ? SourcePane.hideLabel : SourcePane.showLabel,
-                              systemImage: ToolbarSymbols.previewPane)
-                            .toolbarSurfaceLit(paneVisibility.canvas)
+                        Label(showChatPane ? "Hide Chat" : "Show Chat",
+                              systemImage: ToolbarSymbols.chatPane)
+                            .toolbarSurfaceLit(showChatPane)
                     }
-                    .help(paneVisibility.canvas ? SourcePane.hideLabel : SourcePane.showLabel)
-
-                    Button {
-                        setReadingPaneVisible(!paneVisibility.reading)
-                    } label: {
-                        Label(paneVisibility.reading ? "Hide Reader" : "Show Reader",
-                              systemImage: ToolbarSymbols.readingPane)
-                            .toolbarSurfaceLit(paneVisibility.reading)
-                    }
-                    .help(paneVisibility.reading
-                          ? "Hide the Reader"
-                          : "Show the Reader — transcripts, translations, and the knowledge graph")
-
-                    // Chat is a ROW pane (Daniel 2026-08-12: "there is no button
-                    // to turn it on and off") — fourth member of the pane group,
-                    // same grammar as preview/reading. On the Mac it moved to the
-                    // far-left `sidebarButtons` pair (2026-11-11), and so did the iPad's (#6563): only an iPhone, which has no
-                    // pair, keeps it here.
-                    #if !os(macOS)
-                    if sidebarPairHome == nil {
-                        Button {
-                            setChatPaneVisible(!showChatPane)
-                        } label: {
-                            Label(showChatPane ? "Hide Chat" : "Show Chat",
-                                  systemImage: ToolbarSymbols.chatPane)
-                                .toolbarSurfaceLit(showChatPane)
-                        }
-                        .help(showChatPane ? "Hide the Chat" : "Show the Chat")
-                    }
-                    #endif
+                    .help(showChatPane ? "Hide the Chat" : "Show the Chat")
                 }
             }
+            #endif
 
         }
 
@@ -294,10 +233,8 @@ extension ContentView {
         // wanted. They are sections of the Workspaces menu now; the body
         // is in ContentView+LayoutChooser.swift.
         //
-        // NEVER gated on selection: this menu hosts the Toolbar Buttons submenu,
-        // so it is the way every other button comes back. It was mistakenly inside
-        // the selection gate above (the bug its own comment warned against); now it
-        // is gated only on the compact nav-stack flow (spec panes.toolbar.toggles-consistent).
+        // NEVER gated on selection: this menu lists the panes with a check, so it is the way a hidden pane comes
+        // back. It is gated only on the compact nav-stack flow (spec panes.toolbar.toggles-consistent).
         if Self.showsWorkspacesMenu(
             compactFlow: Self.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass)
         ) {
@@ -316,24 +253,6 @@ extension ContentView {
 
     // The Sidebar/Chat pair (`sidebarButtons`, `sidebarToolbarContent`) lives in
     // ContentView+SidebarButtons.swift.
-
-    // MARK: Library pane toggle (#4288)
-
-    private var libraryPaneToggleButton: some View {
-        let model = LibraryPaneToggleModel(paneVisibility: paneVisibility)
-        return Button {
-            withAnimation(FrameAnimation.snappy) {
-                setLibraryPaneVisible(!model.isVisible)
-            }
-        } label: {
-            Label(model.isVisible ? ItemsPane.hideLabel : ItemsPane.showLabel,
-                  systemImage: model.systemImage)
-                .toolbarSurfaceLit(model.isVisible)
-        }
-        .disabled(!model.isEnabled)
-        .help(model.help)
-        .accessibilityLabel(model.title)
-    }
 
     // Library sort + filter moved to `LibraryView+MiniToolbar` (#4407 /
     // #4374 finding 3): a control lives with the surface it acts on, and these
