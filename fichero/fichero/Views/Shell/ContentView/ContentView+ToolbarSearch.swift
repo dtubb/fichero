@@ -33,16 +33,16 @@ extension ContentView {
     }
 
     /// What the search menu holds, over the SAME bindings the request is
-    /// built from (`runTransientSearch` reads `transientSearchScopeIsFolder`
+    /// built from (`runTransientSearch` reads `transientSearchScope`
     /// and `transientSearchType`; `runToolbarSearch` reads `searchFieldMode`),
     /// so the menu can never show a setting the next search will not honour.
     var toolbarSearchOptions: SearchFieldOptionsMenu {
         SearchFieldOptionsMenu(
             mode: searchFieldModeBinding,
-            scopeIsFolder: $transientSearchScopeIsFolder,
+            scope: $transientSearchScope,
             searchType: $transientSearchType,
             libraryName: searchChromeLibraryName,
-            contextFolder: transientSearchContextFolder,
+            targets: transientSearchTargets,
             reviewedEntityCount: transientSearchStore?.searchStats?.reviewedEntityCount,
             // Save needs a result set to save. With no search up there is
             // none, so the row is absent rather than dead — the same rule the
@@ -104,10 +104,10 @@ extension ContentView {
         return Menu {
             SearchFieldOptionsMenu(
                 mode: options.$mode,
-                scopeIsFolder: options.$scopeIsFolder,
+                scope: options.$scope,
                 searchType: options.$searchType,
                 libraryName: options.libraryName,
-                contextFolder: options.contextFolder,
+                targets: options.targets,
                 reviewedEntityCount: options.reviewedEntityCount,
                 canSave: options.canSave,
                 onSave: options.onSave

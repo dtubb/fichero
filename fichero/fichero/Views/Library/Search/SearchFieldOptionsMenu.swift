@@ -27,9 +27,8 @@ import SwiftUI
 struct SearchFieldOptionsMenu: View {
     /// Ask vs Keyword (#4117) — how the query is interpreted.
     @Binding var mode: SearchFieldMode
-    /// Scope (#4107/S3): false = the whole library, true = the breadcrumb
-    /// context. Two choices, never three (Daniel: "dead simple").
-    @Binding var scopeIsFolder: Bool
+    /// Where the search looks (#6729): page, document, folder, project or everywhere.
+    @Binding var scope: SearchScope
     /// Retrieval tier (#4112/S8, re-cut as a ladder 2026-09-02): the raw
     /// request value, so the menu and the request cannot disagree.
     @Binding var searchType: String
@@ -38,10 +37,8 @@ struct SearchFieldOptionsMenu: View {
     /// actually came from, so this menu and the results header cannot name
     /// different libraries.
     let libraryName: String
-    /// The breadcrumb context, when there is one to offer. Absent at the
-    /// library root: there is no second scope to choose, so the scope
-    /// section does not appear rather than showing one dead option.
-    let contextFolder: TransientSearchFolder?
+    /// The page, document and folder the node scopes can name. A scope with no node is not offered.
+    let targets: SearchScopeTargets
     /// Reviewed knowledge-graph entities in this library, from the last
     /// response's `kg_entities.reviewed`. `nil` = the engine did not say, and
     /// an unknown count keeps the graph rung ENABLED (honest, not cautious).
@@ -51,13 +48,9 @@ struct SearchFieldOptionsMenu: View {
     let onSave: () -> Void
 
     static let scopeSectionTitle = "Search Scope"
-    static let projectScopeTitle = "This Project"
-    static let folderScopeTitle = "This Folder"
 
     /// The field's placeholder: what the next search will look in.
-    var scopePlaceholder: String {
-        contextFolder != nil && scopeIsFolder ? "Search this folder" : "Search this project"
-    }
+    var scopePlaceholder: String { targets.effective(scope).placeholder }
 
     var body: some View {
         Picker("Interpretation", selection: $mode) {
@@ -66,19 +59,14 @@ struct SearchFieldOptionsMenu: View {
         }
 
         Divider()
-        // The scope is shown in the field's placeholder and checked here (#6729). Only the scopes the engine can
-        // filter by are offered: This Folder (its `folder_id` filter, when there is a breadcrumb context) and
-        // This Project (the whole library). Page, Document and Everywhere need engine filters that do not exist.
+        // The scope is shown in the field's placeholder and checked here (#6729).
         Section(Self.scopeSectionTitle) {
-            Toggle(Self.projectScopeTitle, isOn: Binding(
-                get: { !scopeIsFolder }, set: { if $0 { scopeIsFolder = false } }
-            ))
-            if let contextFolder {
-                Toggle(Self.folderScopeTitle, isOn: Binding(
-                    get: { scopeIsFolder }, set: { if $0 { scopeIsFolder = true } }
+            ForEach(targets.offered, id: \.self) { option in
+                Toggle(option.title, isOn: Binding(
+                    get: { targets.effective(scope) == option }, set: { if $0 { scope = option } }
                 ))
                 // The whole trail on hover: "1885" alone is ambiguous in a library with three of them.
-                .help(contextFolder.trail)
+                .help(targets.node(for: option)?.trail ?? "")
             }
         }
 
@@ -162,10 +150,10 @@ struct SearchFieldOptionsMenu: View {
 /// for ("the loupe icon in the search box") wherever the button is mounted.
 struct SearchFieldOptionsMenuButton: View {
     @Binding var mode: SearchFieldMode
-    @Binding var scopeIsFolder: Bool
+    @Binding var scope: SearchScope
     @Binding var searchType: String
     let libraryName: String
-    let contextFolder: TransientSearchFolder?
+    let targets: SearchScopeTargets
     let reviewedEntityCount: Int?
     let canSave: Bool
     let onSave: () -> Void
@@ -179,10 +167,10 @@ struct SearchFieldOptionsMenuButton: View {
         Menu {
             SearchFieldOptionsMenu(
                 mode: $mode,
-                scopeIsFolder: $scopeIsFolder,
+                scope: $scope,
                 searchType: $searchType,
                 libraryName: libraryName,
-                contextFolder: contextFolder,
+                targets: targets,
                 reviewedEntityCount: reviewedEntityCount,
                 canSave: canSave,
                 onSave: onSave

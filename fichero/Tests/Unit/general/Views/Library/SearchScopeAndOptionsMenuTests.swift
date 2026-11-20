@@ -79,19 +79,11 @@ final class SearchScopeAndOptionsMenuTests: XCTestCase {
 
     // MARK: - Two choices, never more
 
-    func testScopeOffersExactlyTwoChoices() throws {
+    func testScopeRowsComeFromTheOfferedScopes() throws {
         let source = try Self.appSource(Self.menuSource)
 
-        let picker = try XCTUnwrap(
-            source.components(separatedBy: "Picker(\"Look in\", selection: $scopeIsFolder)")
-                .dropFirst().first
-        )
-        let body = String(picker.prefix(300))
-        XCTAssertTrue(body.contains("Text(libraryName).tag(false)"))
-        XCTAssertTrue(body.contains("Text(contextFolder.trail).tag(true)"))
-        // No third scope until cross-library fan-out lands (#4110).
-        XCTAssertFalse(source.contains("All Libraries"))
-        XCTAssertFalse(source.contains("Everywhere"))
+        XCTAssertTrue(source.contains("ForEach(targets.offered, id: \\.self)"))
+        XCTAssertTrue(source.contains("Toggle(option.title"))
     }
 
     /// At the library root there is no second place to look, so the section
@@ -99,7 +91,7 @@ final class SearchScopeAndOptionsMenuTests: XCTestCase {
     func testTheScopeSectionIsAbsentWithNoBrowsedContext() throws {
         let source = try Self.appSource(Self.menuSource)
 
-        XCTAssertTrue(source.contains("if let contextFolder {"))
+        XCTAssertTrue(try Self.appSource("Views/Library/Search/SearchScope.swift").contains("case .folder: folder != nil"))
     }
 
     // MARK: - The row folded into the menu
@@ -153,11 +145,11 @@ final class SearchScopeAndOptionsMenuTests: XCTestCase {
         let bar = try Self.appSource(Self.barSource)
         let results = try Self.appSource("Views/Shell/ContentView/ContentView+SearchResults.swift")
 
-        XCTAssertTrue(bar.contains("scopeIsFolder: $transientSearchScopeIsFolder"))
+        XCTAssertTrue(bar.contains("scope: $transientSearchScope"))
         XCTAssertTrue(bar.contains("searchType: $transientSearchType"))
         XCTAssertTrue(bar.contains("mode: searchFieldModeBinding"))
         XCTAssertTrue(
-            results.contains("transientSearchScopeIsFolder ? transientSearchContextFolder?.id : nil")
+            results.contains("transientSearchTargets.engineFolderId(for: transientSearchScope)")
         )
     }
 
@@ -167,7 +159,7 @@ final class SearchScopeAndOptionsMenuTests: XCTestCase {
         let source = try Self.appSource(Self.barSource)
 
         let handler = try XCTUnwrap(
-            source.components(separatedBy: ".onChange(of: transientSearchScopeIsFolder)")
+            source.components(separatedBy: ".onChange(of: transientSearchScope)")
                 .dropFirst().first
         )
         let body = String(handler.prefix(300))

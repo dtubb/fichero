@@ -92,11 +92,10 @@ extension SearchFieldOptionsMenu {
 
         menu.addItem(.separator())
         menu.addItem(.sectionHeader(title: Self.scopeSectionTitle))
-        menu.addItem(Self.item(Self.projectScopeTitle, isOn: !scopeIsFolder) { $scopeIsFolder.wrappedValue = false })
-        if let contextFolder {
-            let folder = Self.item(Self.folderScopeTitle, isOn: scopeIsFolder) { $scopeIsFolder.wrappedValue = true }
-            folder.toolTip = contextFolder.trail
-            menu.addItem(folder)
+        for option in targets.offered {
+            let item = Self.item(option.title, isOn: targets.effective(scope) == option) { $scope.wrappedValue = option }
+            item.toolTip = targets.node(for: option)?.trail
+            menu.addItem(item)
         }
 
         menu.addItem(.separator())

@@ -155,12 +155,10 @@ final class ToolbarSearchRoutingTests: XCTestCase {
         // browsed folder and toggleable in the results bar. No client-side
         // result filtering, and no "All libraries" until #4110.
         XCTAssertTrue(storeSource.contains("[\"folder_id\": $0]"))
-        XCTAssertTrue(resultsSource.contains("transientSearchScopeIsFolder ? transientSearchContextFolder?.id : nil"))
+        XCTAssertTrue(resultsSource.contains("transientSearchTargets.engineFolderId(for: transientSearchScope)"))
         // The scope control is a menu row now, and it is named the way the
         // breadcrumb names places (2026-09-02) — but it still resolves to the
         // SAME engine filter, which is what this test is really about.
-        XCTAssertTrue(resultsSource.contains("Picker(\"Look in\", selection: $scopeIsFolder)"))
-        XCTAssertFalse(resultsSource.contains("All Libraries"))
     }
 
     func testDefaultScopeIsOneFinderStylePreference() throws {
@@ -170,7 +168,7 @@ final class ToolbarSearchRoutingTests: XCTestCase {
         // #4108/S4: ONE preference (Finder's "When performing a search"),
         // read at submit; folder default only applies when a folder exists.
         XCTAssertTrue(actionsSource.contains("Self.searchDefaultScopeIsFolderKey"))
-        XCTAssertTrue(actionsSource.contains("transientSearchContextFolder != nil"))
+        XCTAssertTrue(actionsSource.contains("targets.defaultScope("))
         XCTAssertTrue(settingsSource.contains("Picker(\"When performing a search\""))
         XCTAssertTrue(settingsSource.contains("ContentView.searchDefaultScopeIsFolderKey"))
     }

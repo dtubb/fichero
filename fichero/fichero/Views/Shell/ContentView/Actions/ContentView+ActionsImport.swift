@@ -57,21 +57,35 @@ extension ContentView {
         // the same shape `breadcrumbSubtitle` uses, and for the same reason:
         // a per-hop `first(where:)` over the library is an O(depth × library)
         // scan on a gesture the user waits on (#4602).
+        var targets = SearchScopeTargets()
         if case .library(let doc) = viewMode, let doc, doc.docType == .folder {
             let documentsById = Dictionary(
                 (documentStore.currentDocuments + documentStore.collections).map { ($0.id, $0) },
                 uniquingKeysWith: { first, _ in first }
             )
-            transientSearchContextFolder = TransientSearchFolder.browsing(
-                doc, parentLookup: { documentsById[$0] }
-            )
-        } else {
-            transientSearchContextFolder = nil
+            targets.folder = TransientSearchFolder.browsing(doc, parentLookup: { documentsById[$0] })
         }
+        // The page being read and its document (#6729). A page's document is its parent; any other non-folder node
+        // is its own document.
+        if let shown = detailDocument {
+            let lookup: (String) -> Document? = { id in
+                (documentStore.currentDocuments + documentStore.collections).first { $0.id == id }
+            }
+            if shown.docType == .page {
+                targets.page = TransientSearchFolder.browsing(shown, parentLookup: lookup)
+                if let parentId = shown.parentId, let parent = lookup(parentId), parent.docType != .folder {
+                    targets.document = TransientSearchFolder.browsing(parent, parentLookup: lookup)
+                }
+            } else if shown.docType != .folder {
+                targets.document = TransientSearchFolder.browsing(shown, parentLookup: lookup)
+            }
+        }
+        transientSearchTargets = targets
         // Finder-style default scope (#4108/S4); folder scope only applies
         // when there IS a browsed folder to scope to.
-        transientSearchScopeIsFolder = transientSearchContextFolder != nil
-            && UserDefaults.standard.bool(forKey: Self.searchDefaultScopeIsFolderKey)
+        transientSearchScope = targets.defaultScope(
+            folderByDefault: UserDefaults.standard.bool(forKey: Self.searchDefaultScopeIsFolderKey)
+        )
         sidebarSelectionState.selectedItemId = nil
         // A NEW submission owns the selection too (Daniel, 2026-09-02: a
         // second search "does not refresh … until you click around"). A

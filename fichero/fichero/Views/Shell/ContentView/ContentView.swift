@@ -763,10 +763,10 @@ struct ContentView: View {
     @State var transientSearchLimit: Int = ContentView.transientSearchPageSize
     /// Folder the user was browsing when the search ran (#4107/S3) — offered
     /// as a scope alongside the whole library in the results bar.
-    @State var transientSearchContextFolder: TransientSearchFolder?
+    @State var transientSearchTargets = SearchScopeTargets()
     /// Whether the active search is scoped to the context folder (true) or
     /// the whole library (false, the default).
-    @State var transientSearchScopeIsFolder = false
+    @State var transientSearchScope = SearchScope.project
     // The DISPLAY NAME of the library the showing results actually came
     // from (Daniel, 2026-09-01: the chrome named a different library than
     // the results). `runTransientSearch` resolves its library with a
