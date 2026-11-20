@@ -611,6 +611,7 @@ nav:
           - Runner Reliability Plan (2026-11-18): contributor_manual/reviews/2026-11-18-runner-reliability-plan.md
           - Runner Review 2, security, speed, tokens, Kraken, training (2026-11-18): contributor_manual/reviews/2026-11-18-runner-review-2.md
           - The Model Loop on Every Recipe Step, review and build order (2026-11-19): contributor_manual/reviews/2026-11-19-distil-every-step-review.md
+          - The Model Loop, issues to file (2026-11-19): contributor_manual/reviews/2026-11-19-distil-issues.md
           - Sidebar/UX Verify-and-Close Checklist: contributor_manual/verify-checklists/sidebar-ux-verify.md
       - UI Map: contributor_manual/ui-map.md
       - API Reference: contributor_manual/api-reference/index.md
