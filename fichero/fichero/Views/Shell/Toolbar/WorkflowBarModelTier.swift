@@ -26,6 +26,14 @@ extension WorkflowBarPolicy {
     }
 
 
+    /// What the bar says about a pinned model it will not send (#4963): the step takes no model override, so the pin
+    /// is dropped from the run. nil when the pin is sent or there is none.
+    static func droppedPinNote(_ step: StagedWorkflowStep) -> String? {
+        guard step.hasModelOverride, !stepAcceptsRunOverride(step) else { return nil }
+        return "The pinned model is not used: this workflow takes no model choice"
+    }
+
+
     /// The configured default a step resolves to when nothing is pinned.
     enum ModelTier: String, Equatable {
         /// The Vision default — a page read as pixels.
