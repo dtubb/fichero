@@ -583,8 +583,8 @@ def _material_rank(card: Card, material: str) -> int:
 
 def _rank_key(card: Card, material: str, a: Answers | None = None) -> tuple:
     """The fixed order (section 8, `source.recipe.script-reader-first`): a measurement on the project's pages in
-    bands of the project's noise band (one point until measured) first; then a reader made for the project's
-    script before a generic one; then one whose card states the material, then one that states none; then the published CER in one-point bands, so a published
+    bands of the project's noise band (one point until measured) first; then the period, then a card that states another material last, then a reader made for the project's script before a
+    generic one, then the languages, then a card that states the material before one that states none; then the published CER in one-point bands, so a published
     CER only ranks cards of the same script tier and material; then a model already on this Mac before one to
     download (`source.onboard.auto.installed-model-first`, #5583), local before remote, cheaper, faster, lower
     carbon, trainable, smaller, and the card id so ties are deterministic. Without answers (the bake-off's own
@@ -594,10 +594,11 @@ def _rank_key(card: Card, material: str, a: Answers | None = None) -> tuple:
     published = int((card.cer_published if card.cer_published is not None else 1.0) * 100)
     return (
         measured,
-        0 if made_for_script(card, a) else 1,
-        # Fit before a card's own average (#5516): the languages, then the period, then the material.
-        _language_rank(card, a),
+        # Fit before a card's own average (#5516): the period and the material, then the script it was made for.
         _period_rank(card, a),
+        _material_rank(card, material) == 2,  # another material falls below the script; "states none" does not
+        0 if made_for_script(card, a) else 1,
+        _language_rank(card, a),
         _material_rank(card, material),
         published,
         1 if card.installed is False else 0,

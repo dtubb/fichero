@@ -873,6 +873,20 @@ def _row_scripts(row: dict[str, Any]) -> frozenset[str]:
     return covered_scripts(scripts)
 
 
+def _row_period(row: dict[str, Any]) -> tuple[int, int] | None:
+    """The years a record's own words name ("15th century", "16th-17th centuries", "1650-1700"), the union of
+    every period it names, or None when it names none: the rules rank a reader made for another period lower."""
+    text = " ".join([row.get("summary", ""), row.get("description", ""), *row.get("keywords", [])])
+    spans: list[tuple[int, int]] = []
+    for m in _PERIOD.finditer(text):
+        found = [int(n) for n in re.findall(r"\b(\d{1,4})(?:st|nd|rd|th)?\b", m.group(0))]
+        if m.group(0)[:1].isdigit() and len(found) and found[0] < 100:
+            spans.append(((found[0] - 1) * 100 + 1, found[-1] * 100))
+        elif len(found) == 2:
+            spans.append((min(found), max(found)))
+    return (min(s[0] for s in spans), max(s[1] for s in spans)) if spans else None
+
+
 def _row_material(row: dict[str, Any]) -> frozenset[str]:
     """The material a record's own words name ("printed", "manuscripts", "typewritten"), or none: the rules
     rank a reader whose card states the asked material first (`source.recipe.script-reader-first`, #5593)."""
@@ -911,7 +925,7 @@ def repository_cards(rows: list[dict[str, Any]], seed: tuple[Card, ...] | list[C
         out.append(Card(
             id=f"kraken:zenodo/{row['doi']}@pinned", pin={"zenodo": row["doi"]}, jobs=frozenset({"read-a-line"}),
             scripts=_row_scripts(row) or None, languages=langs, material=_row_material(row),
-            open_licence=_is_open(row["licence"]), size_gb=round(gib(row["size_bytes"]), 4),
+            period=_row_period(row), open_licence=_is_open(row["licence"]), size_gb=round(gib(row["size_bytes"]), 4),
             trainable=True, cer_published=cer if matches else None, licence=row["licence"],
             note=row["summary"] or row["doi"], source="kraken-repository", offered_because=why,
         ))
