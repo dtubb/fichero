@@ -1434,18 +1434,27 @@ def _reader_config(config_cls: Callable[..., object]) -> object:
     return config
 
 
-def _segmenter() -> object:
-    """Kraken's built-in baseline line finder, loaded once."""
+def _segmenter(base_path: str | None = None) -> object:
+    """Kraken's line finder, loaded once: the built-in blla base, or (with `base_path`) the newer 2026 base (zenodo
+    22879549, #6751), which `TorchVGSLModel.load_model` cannot read (KeyError 'hyper_params') and
+    `kraken.tasks.SegmentationTaskModel` can. Both are banded; a different base replaces the resident one."""
     from importlib import resources
 
-    from kraken.lib import vgsl
-
     def load() -> object:
-        model = vgsl.TorchVGSLModel.load_model(resources.files("kraken").joinpath("blla.mlmodel"))
-        _band_convolutions(model, _SEGMENTER_BAND_ROWS)
+        if base_path is None:
+            from kraken.lib import vgsl
+
+            model = vgsl.TorchVGSLModel.load_model(resources.files("kraken").joinpath("blla.mlmodel"))
+            _band_convolutions(model, _SEGMENTER_BAND_ROWS)
+        else:
+            from kraken.tasks import SegmentationTaskModel
+
+            model = SegmentationTaskModel.load_model(base_path)
+            if not _band_convolutions(getattr(model, "model", model), _SEGMENTER_BAND_ROWS):
+                raise KrakenSegmentationError(f"No convolution to band in the segmentation base {base_path}.")
         return model
 
-    return _resident("segment", "blla", load)
+    return _resident("segment", base_path or "blla", load)
 
 
 #: Output rows each 3x3 / 7x7 convolution of the line finder computes at once. Measured 2026-11-19 on a portrait page

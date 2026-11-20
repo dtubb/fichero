@@ -58,3 +58,30 @@ def test_the_segmenter_is_banded_at_32_rows(monkeypatch):
     monkeypatch.setattr("importlib.resources.files", lambda name: types.SimpleNamespace(joinpath=lambda p: p))
     assert kraken_runtime._segmenter() is model
     assert seen == {"rows": 32}
+
+
+def test_the_newer_segmentation_base_loads_through_the_task_model_and_is_banded_too(monkeypatch):
+    inner = _model()
+    task_model = types.SimpleNamespace(model=inner)
+    loaded, kinds = [], []
+    tasks = types.ModuleType("kraken.tasks")
+    tasks.SegmentationTaskModel = types.SimpleNamespace(load_model=lambda path: loaded.append(path) or task_model)
+    monkeypatch.setitem(sys.modules, "kraken", types.ModuleType("kraken"))
+    monkeypatch.setitem(sys.modules, "kraken.tasks", tasks)
+    monkeypatch.setattr(kraken_runtime, "_resident", lambda kind, key, load: kinds.append(key) or load())
+    x = torch.randn(1, 3, 101, 77)
+    with torch.no_grad():
+        want = inner.nn(x)
+    assert kraken_runtime._segmenter("/models/base-2026.safetensors") is task_model
+    assert loaded == ["/models/base-2026.safetensors"] and kinds == ["/models/base-2026.safetensors"]
+    assert sum(isinstance(layer.co, torch.nn.Module) and not isinstance(layer.co, torch.nn.Conv2d) for layer in inner.nn) == 2
+    with torch.no_grad():
+        assert torch.allclose(inner.nn(x), want, atol=1e-5)
+
+
+def test_blla_and_the_newer_base_are_resident_under_different_keys(monkeypatch):
+    kinds = []
+    monkeypatch.setattr(kraken_runtime, "_resident", lambda kind, key, load: kinds.append(key))
+    kraken_runtime._segmenter()
+    kraken_runtime._segmenter("/models/base-2026.safetensors")
+    assert kinds == ["blla", "/models/base-2026.safetensors"]
