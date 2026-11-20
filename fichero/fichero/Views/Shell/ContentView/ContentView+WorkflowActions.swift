@@ -179,7 +179,7 @@ extension ContentView {
                 : effective)
         guard !selectedIds.isEmpty else {
             workflowLogger.warning("runWorkflowOnSelection: no selection — nothing to run")
-            importError = "Select one or more documents before running a workflow."
+            importError = RunStartWords.noSelection
             return
         }
 
@@ -389,7 +389,7 @@ extension ContentView {
             // Not a failure to explain in the banner: the alert says what was refused and offers the way through.
             executionObserver.cloudRefusal = CloudRefusalPrompt(refusal: refusal, resend: resend)
         } else {
-            importError = "Workflow failed to start: \(error.localizedDescription)"
+            importError = RunStartWords.workflowStartFailure(error)
         }
         workflowLogger.error("executeWorkflowViaSSE failed: \(error.localizedDescription)")
         executionObserver.endExecution(threadId: threadId, status: .failed)
