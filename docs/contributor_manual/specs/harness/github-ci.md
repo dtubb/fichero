@@ -51,3 +51,23 @@ it. Spec-change: owner 2026-11-20.
   `reviews/2026-11-20-ci-review.md`). Acceptance: the workflow triggers on `pull_request` to `integration`, has exactly
   the jobs `engine` and `swift`, both `continue-on-error` on `macos-15`, and the engine job enables the uv cache.
   Test: `fichero-server/tests/unit/scripts/test_github_ci_files.py::test_test_workflow_runs_on_prs_to_integration_report_only_with_a_cached_uv_engine_job_and_a_swift_job` in fichero-server/tests/unit/scripts/.
+
+## The builder reads the results
+
+- `ci.builder-reads-actions` [GAP] — `builder check` may take a green GitHub Actions run for the same commit as one rung,
+  so the three Macs do less. It is opt-in: `[check.github] use_actions = false` in `harness.toml`, off until the owner
+  turns it on. How it reads a run, on the manager's side only (workers have no GitHub token and never call it):
+  `gh run list --commit <head sha> --workflow tests.yml --json databaseId,status,conclusion` for the exact head sha of the
+  batch, then the run's jobs through `gh api` (the Actions "list jobs for a workflow run" endpoint). The jobs are
+  `continue-on-error`, which makes the run's own conclusion `success` even when a job failed, so the rung reads each JOB's
+  conclusion and each step's conclusion, never the run's. The rung is satisfied only when the run is `completed`, its head
+  sha equals the batch head exactly, and the `engine` job's steps `Spec guards` and `Unit tests` are `success`. It then
+  stands in for the engine unit-test rung and the spec-guard rung of that batch, and the ladder row says
+  `from GitHub run <id>`. A run that is missing, still running, for another sha, red, cancelled, or unreadable (no `gh`,
+  no network, a bad reply) is never a pass: the rung runs on the Macs as it does today and the row says why the run was not
+  used. The `build`, `perf`, red-on-base and review rungs never come from GitHub. The security rung's scanners may be taken
+  the same way from the `security.yml` job `scanners`, and CodeQL alerts are read from code scanning for the head sha and
+  listed in the review prompt under SECURITY SCAN as reported, never as a gate. Acceptance (no network, a fake `gh`): a
+  completed run for the head sha whose `Unit tests` step succeeded satisfies the rung; the same run with the step failed,
+  a run for the parent sha, a run still `in_progress`, a `gh` that exits non-zero, and `use_actions = false` each leave the
+  rung to run locally with the reason in its row. Built: nothing yet; the workflows above are what it will read.
