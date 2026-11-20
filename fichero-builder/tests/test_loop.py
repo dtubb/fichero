@@ -1694,3 +1694,23 @@ def test_the_workers_uv_cache_is_pruned_once_a_week(state):
     (journal.STATE / queue.UV_PRUNE).write_text(f"{time.time() - 8 * 86400}\n")
     queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
     assert len(calls) == 2
+
+
+def test_a_step_red_only_on_the_file_bound_gets_a_split_brief_and_the_next_step_brings_part2_back(state):
+    """#6589 2026-11-20 item 6: a batch over the file bound is not blocked: the worker keeps the core (<= the bound) on the lane
+    branch and the rest on <lane>-part2; the next step's brief tells it to bring part2 back."""
+    lane(state)
+    over = {"ok": False, "kind": "red", "why": "the check is red at h1 (failed: diff-bound)", "findings": "failed rung: diff-bound\ndiff bound: 40 files, over 25"}
+    fake = Fake(chains={"1.1": [over]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    split = fake.sent[0]
+    assert "40 files" in split and "at most 25 files" in split and "m1-part2" in split and "git branch -f m1-part2 HEAD" in split
+    assert steps()["1.1"]["state"] == "landed" and steps()["1.2"]["state"] == "landed" and _alerts() == []
+    assert "m1-part2" in fake.sent[1] and "brief 1.2" in fake.sent[1], "the next step is told to bring part2 back"
+
+
+def test_any_other_red_still_gets_the_plain_fix_brief(state):
+    lane(state)
+    fake = Fake(chains={"1.1": [{"ok": False, "kind": "red", "why": "pytest red", "findings": "failed rung: pytest\nt1 failed"}]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert "part2" not in fake.sent[0] and "t1 failed" in fake.sent[0]

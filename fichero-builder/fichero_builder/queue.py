@@ -73,6 +73,24 @@ def state_view(lane: dict, s: dict, now: float | None = None, on_origin: bool = 
             "flags": [f for f, on in (("paused", lane.get("paused")), ("held", lane.get("hold"))) if on]}
 
 
+FILE_BOUND = re.compile(r"failed rung: diff-bound\b[\s\S]*?diff bound: (\d+) files, over (\d+)")
+SPLIT = ("Step {step}: the diff is {files} files, over the bound of {bound}. Split it, do not shrink the work: keep the core, at most {bound} files, "
+         "on this branch; the rest goes to the branch {part2}.\n"
+         "1. `git branch -f {part2} HEAD` (everything you have now is kept there).\n"
+         "2. `git reset --soft $(git merge-base HEAD origin/integration)`, `git reset`, then `git add` the core files only (at most {bound} files, "
+         "the ones the step cannot do without) and commit them as before, one commit per behaviour.\n"
+         "3. Leave the other files to {part2}: `git checkout -- .` and `git clean -fd` remove them from this tree (they are kept on {part2}).\n"
+         "The next step brings {part2} back. When the core is committed, end your turn with the exact line DONE <short sha of the branch head>.\n")
+PART2_NOTE = ("\n\nPart 2 of the step before this one is on the branch {part2} (it was over the diff bound, so it was split). Bring it back first: "
+              "`git checkout {part2} -- .` for the files it holds, commit them, then do this step. Keep each push under the bound.\n")
+
+
+def split_text(lane_id: str, step: str, findings: str) -> str:
+    """The split brief for a step red only on the file bound ('' for any other red): core on the lane branch, the rest on <lane>-part2."""
+    m = FILE_BOUND.search(findings)
+    return SPLIT.format(step=step, files=m.group(1), bound=m.group(2), part2=f"{lane_id}-part2") if m else ""
+
+
 def fix_text(step: str, kind: str, findings: str) -> str:
     """The fix brief's text. Owner paths quoted in a finding are cut (brief_preflight would refuse the whole brief: alert 528); a
     boundary refusal says, per hit, that the COMMIT is rewritten: its added line is pushed as history whether a later commit removes it."""
@@ -522,6 +540,9 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         close_alerts(lane["id"], s["step"], f"the step landed at {r['head'][:9]}")
         fresh_stop()
         lane["cursor"] += 1  # ONE write ends the landing: the step is landed and the cursor is past it in the same store, so no `builder done` can run between the two
+        if s.get("part2") and lane["cursor"] < len(lane["steps"]):  # a split step: the next step's brief says where the rest is
+            nb = Path(lane["steps"][lane["cursor"]]["brief"])
+            nb.write_text(nb.read_text().rstrip("\n") + PART2_NOTE.format(part2=s["part2"]))
         move(s, "landed", f"landed {r['head'][:9]}" + (" (pushed)" if push else " (not pushed)") + (f"; still open: {', '.join(left)}" if left else ""))
         if push and lane.get("kind") != "external" and lane["cursor"] >= len(lane["steps"]) and any(x.get("product") for x in lane["steps"]):
             # dev-workflows.run.verify-all (owner 2026-11-03): a MILESTONE's last step landed (a worker lane has no step left) and some step touched the product: ONE verify-all once every lane is idle
@@ -571,7 +592,12 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
     if r.get("kind") in ("red", "not-ready", "refused") and s["rounds"] < ROUNDS and lane.get("kind") != "external":  # external: an alert
         s["rounds"] += 1
         move(s, "red", r["why"])  # the failed check is its own state with its rung; the fix brief below moves the step on
-        text = fix_text(s["step"], r["kind"], r.get("findings") or r["why"])
+        text = split_text(lane["id"], s["step"], r.get("findings") or "")
+        if text:
+            s["part2"] = f"{lane['id']}-part2"  # the next step's brief carries the note when this one lands
+            journal.append("queue", lane=lane["id"], step=s["step"], state="split", detail=f"over the file bound: the core stays, the rest goes to {s['part2']}")
+        else:
+            text = fix_text(s["step"], r["kind"], r.get("findings") or r["why"])
         live = handles.get(lane["id"])
         if live is not None and procs.alive(live):  # the findings into the running session (dev-workflows.run.loop-tell)
             lane["seq"] += 1
