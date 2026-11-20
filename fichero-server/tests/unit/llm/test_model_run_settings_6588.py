@@ -51,3 +51,17 @@ def test_the_cost_is_memory_from_the_engines_figure_and_time_unmeasured(app_db):
     three = mrs.cost("kraken", {"pages_at_once": 3})
     assert three["memory_bytes"] - one["memory_bytes"] == 2 * kraken_runtime._PAGE_BYTES
     assert one["seconds_per_page"] is None
+
+
+def test_the_route_reads_and_saves_a_runtimes_settings_with_their_cost(client, app_db):
+    got = client.get("/api/activity/models/run-settings/kraken")
+    assert got.status_code == 200, got.text
+    assert got.json()["settings"]["threads"] is None and got.json()["cost"]["seconds_per_page"] is None
+
+    one = client.put("/api/activity/models/run-settings/kraken", json={"pages_at_once": 1})
+    saved = client.put("/api/activity/models/run-settings/kraken", json={"threads": 2, "pages_at_once": 3})
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["settings"]["threads"] == 2
+    assert saved.json()["cost"]["memory_bytes"] - one.json()["cost"]["memory_bytes"] == 2 * kraken_runtime._PAGE_BYTES
+    assert client.put("/api/activity/models/run-settings/kraken", json={"threads": 0}).status_code == 422
+    assert client.get("/api/activity/models/run-settings/nonesuch").status_code == 404

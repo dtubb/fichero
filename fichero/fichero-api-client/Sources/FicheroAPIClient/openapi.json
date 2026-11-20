@@ -1076,6 +1076,122 @@
         }
       }
     },
+    "/api/activity/models/run-settings/{runtime}": {
+      "get": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Get Run Settings",
+        "description": "The run settings of a local runtime (`models.settings.run-knobs`, #6588) and what they cost this Mac.",
+        "operationId": "get_run_settings_api_activity_models_run_settings__runtime__get",
+        "parameters": [
+          {
+            "name": "runtime",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Runtime"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunSettingsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "Put Run Settings",
+        "description": "Set (a value) or un-set (null) the knobs sent; the others keep their value. 422 for a value out of range.",
+        "operationId": "put_run_settings_api_activity_models_run_settings__runtime__put",
+        "parameters": [
+          {
+            "name": "runtime",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Runtime"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunSettingsBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunSettingsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/activity/models/unload-idle": {
       "post": {
         "tags": [
@@ -95327,6 +95443,55 @@
         "type": "object",
         "title": "RunProgress",
         "description": "How far a run has got."
+      },
+      "RunSettingsBody": {
+        "properties": {
+          "pages_at_once": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Pages At Once"
+          },
+          "threads": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Threads"
+          },
+          "batch_size": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Batch Size"
+          },
+          "device": {
+            "type": "string",
+            "nullable": true,
+            "title": "Device"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RunSettingsBody"
+      },
+      "RunSettingsResponse": {
+        "properties": {
+          "settings": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Settings",
+            "description": "every knob of the runtime; null where the engine's own rule applies"
+          },
+          "cost": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Cost",
+            "description": "memory_bytes the settings ask of this Mac; seconds_per_page null (not measured)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "settings",
+          "cost"
+        ],
+        "title": "RunSettingsResponse"
       },
       "RunStatus": {
         "type": "string",

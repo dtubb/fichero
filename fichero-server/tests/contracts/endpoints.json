@@ -708,6 +708,30 @@
         "response_model": "ActivityModelsResponse"
       },
       {
+        "method": "GET",
+        "path": "/activity/models/run-settings/{runtime}",
+        "operation_id": "get_run_settings_api_activity_models_run_settings__runtime__get",
+        "summary": "Get Run Settings",
+        "path_params": [
+          "runtime"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "RunSettingsResponse"
+      },
+      {
+        "method": "PUT",
+        "path": "/activity/models/run-settings/{runtime}",
+        "operation_id": "put_run_settings_api_activity_models_run_settings__runtime__put",
+        "summary": "Put Run Settings",
+        "path_params": [
+          "runtime"
+        ],
+        "query_params": [],
+        "request_model": "RunSettingsBody",
+        "response_model": "RunSettingsResponse"
+      },
+      {
         "method": "POST",
         "path": "/activity/models/unload-idle",
         "operation_id": "unload_idle_models_api_activity_models_unload_idle_post",

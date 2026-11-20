@@ -977,6 +977,45 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("get-run-settings")
+    def activity_get_run_settings_get(
+        ctx: typer.Context,
+        runtime: str = typer.Argument(..., help='Runtime'),
+    ) -> None:
+        """Get Run Settings (GET /api/activity/models/run-settings/{runtime})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/activity/models/run-settings/{runtime}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("put-run-settings")
+    def activity_put_run_settings_put(
+        ctx: typer.Context,
+        runtime: str = typer.Argument(..., help='Runtime'),
+        batch_size: Optional[int] = typer.Option(None, '--batch-size', help='Batch Size.'),
+        device: Optional[str] = typer.Option(None, '--device', help='Device.'),
+        pages_at_once: Optional[int] = typer.Option(None, '--pages-at-once', help='Pages At Once.'),
+        threads: Optional[int] = typer.Option(None, '--threads', help='Threads.'),
+    ) -> None:
+        """Put Run Settings (PUT /api/activity/models/run-settings/{runtime})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/activity/models/run-settings/{runtime}"
+            params = None
+            payload = _build_json_payload({
+                "batch_size": batch_size,
+                "device": device,
+                "pages_at_once": pages_at_once,
+                "threads": threads,
+            }, {
+                "batch_size": {'type': 'integer', 'nullable': True, 'title': 'Batch Size', 'x-cli-required': False},
+                "device": {'type': 'string', 'nullable': True, 'title': 'Device', 'x-cli-required': False},
+                "pages_at_once": {'type': 'integer', 'nullable': True, 'title': 'Pages At Once', 'x-cli-required': False},
+                "threads": {'type': 'integer', 'nullable': True, 'title': 'Threads', 'x-cli-required': False},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("unload-idle-models")
     def activity_unload_idle_models_post(
         ctx: typer.Context,

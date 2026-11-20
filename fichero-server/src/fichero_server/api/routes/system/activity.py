@@ -33,7 +33,7 @@ from fastapi import (
     Request,
 )
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.api.auth import action_context
 from fichero_server.api.change_stream import CHANGE_ID_LISTS, ChangeEvent, _change_hub
@@ -1753,6 +1753,61 @@ async def activity_models(db: Database = Depends(get_library_database)) -> Activ
                                   this_mac=ThisMac(**await asyncio.to_thread(this_mac, db)))
 
 
+class RunSettingsBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    pages_at_once: Optional[int] = None
+    threads: Optional[int] = None
+    batch_size: Optional[int] = None
+    device: Optional[str] = None
+
+
+class RunSettingsParams(BaseModel):
+    runtime: str
+    values: dict[str, Any]
+
+
+class RunSettingsResponse(BaseModel):
+    settings: dict[str, Any] = Field(description="every knob of the runtime; null where the engine's own rule applies")
+    cost: dict[str, Any] = Field(description="memory_bytes the settings ask of this Mac; seconds_per_page null (not measured)")
+
+
+def _run_settings_answer(runtime: str) -> RunSettingsResponse:
+    from fichero_server.llm import model_run_settings as mrs
+
+    try:
+        values = mrs.run_settings(runtime)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"No run settings for {runtime}") from None
+    return RunSettingsResponse(settings=values, cost=mrs.cost(runtime, values))
+
+
+@router.get("/models/run-settings/{runtime}", response_model=RunSettingsResponse)
+async def get_run_settings(runtime: str) -> RunSettingsResponse:
+    """The run settings of a local runtime (`models.settings.run-knobs`, #6588) and what they cost this Mac."""
+    return await asyncio.to_thread(_run_settings_answer, runtime)
+
+
+@router.put("/models/run-settings/{runtime}", response_model=RunSettingsResponse)
+async def put_run_settings(
+    runtime: str,
+    body: RunSettingsBody,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> RunSettingsResponse:
+    """Set (a value) or un-set (null) the knobs sent; the others keep their value. 422 for a value out of range."""
+    from fichero_server.llm import model_run_settings as mrs
+
+    if runtime not in mrs.KNOBS:
+        raise HTTPException(status_code=404, detail=f"No run settings for {runtime}")
+    try:
+        registry.invoke(db, "models.set_run_settings",
+                        {"runtime": runtime, "values": body.model_dump(exclude_unset=True)}, ctx)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return await asyncio.to_thread(_run_settings_answer, runtime)
+
+
 class UnloadIdleResponse(BaseModel):
     freed: list[str] = Field(default_factory=list, description="the models let go of, by name")
 
@@ -2290,6 +2345,15 @@ def _action_unload_idle_models(db: Database, params: RunControlsParams, ctx: Act
 
     freed = job_queue.release_idle_models()
     return {"freed": freed}, ChangeSpec(domains=["activity"], before={}, after={"freed": freed}, emit_type="models.unloaded")
+
+
+@action("models.set_run_settings", RunSettingsParams, domains=["activity"])
+def _action_set_run_settings(db: Database, params: RunSettingsParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.llm import model_run_settings as mrs
+
+    before = mrs.run_settings(params.runtime)
+    after = mrs.save_run_settings(params.runtime, params.values)
+    return after, ChangeSpec(domains=["activity"], before=before, after=after, emit_type="models.run_settings")
 
 
 @action("activity.stop_all", RunControlsParams, domains=["activity"])
