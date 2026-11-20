@@ -60,12 +60,12 @@ async def prepare_images_facts(db: Database = Depends(get_library_database)) -> 
     `prep.estimate.time-on-this-mac-before-start`): answers suggested from five sample pages, and the time line."""
     import asyncio
 
-    from fichero_server.recipes import topics
     from fichero_server.recipes.prepare_check import to_check
     from fichero_server.recipes.prepare_suggest import estimate, suggest
+    from fichero_server.recipes.start import how_it_works
 
     suggestions = await asyncio.to_thread(suggest, db)
     return PrepareImagesFacts(suggestions={k: PrepareSuggestion(**v) for k, v in suggestions.items()},
                               estimate=estimate(len(db.unit_of_work_ids())),
-                              how_it_works=topics.how_it_works("prepare-the-image"),
+                              how_it_works=how_it_works("prepare-the-image"),
                               to_check=to_check(db))
