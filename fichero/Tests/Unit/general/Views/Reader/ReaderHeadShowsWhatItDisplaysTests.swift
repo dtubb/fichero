@@ -17,10 +17,10 @@
 //      clicks deep inside the "+" split menu (source pin, PaneHead).
 //
 
+@testable import Fichero
 import Foundation
 import SwiftUI
 import Testing
-@testable import Fichero
 
 struct ReaderHeadShowsWhatItDisplaysTests {
 
