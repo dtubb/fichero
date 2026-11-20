@@ -191,6 +191,10 @@ class Engine:
         self.proc: subprocess.Popen | None = None
         self.env = {**os.environ, "FICHERO_BASE_PATH": str(root / "state"), "FICHERO_UDS_PATH": str(self.socket),
                     "PYTHONPATH": os.pathsep.join([str(REPO / "fichero-server/src"), str(REPO / "fichero-cli/src")])}
+        sys.path.insert(0, str(REPO / "fichero-server/src"))
+        from fichero_server.security.real_data_guard import refuse_real_base
+
+        refuse_real_base(root / "state")  # a soak engine never writes into the owner's real libraries
         (root / "state").mkdir(parents=True, exist_ok=True)
         self.library.parent.mkdir(parents=True, exist_ok=True)
 
