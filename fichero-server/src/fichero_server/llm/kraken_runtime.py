@@ -1392,8 +1392,56 @@ def _segmenter() -> object:
 
     from kraken.lib import vgsl
 
-    return _resident("segment", "blla", lambda: vgsl.TorchVGSLModel.load_model(
-        resources.files("kraken").joinpath("blla.mlmodel")))
+    def load() -> object:
+        model = vgsl.TorchVGSLModel.load_model(resources.files("kraken").joinpath("blla.mlmodel"))
+        _band_convolutions(model, _SEGMENTER_BAND_ROWS)
+        return model
+
+    return _resident("segment", "blla", load)
+
+
+#: Output rows each 3x3 / 7x7 convolution of the line finder computes at once. Measured 2026-11-19 on a portrait page
+#: (M4): 32 rows peak 1.9 GB against 3.8 GB unbanded, 16 and 64 rows were larger, the lines and polygons identical.
+_SEGMENTER_BAND_ROWS = 32
+
+
+class _BandedConv:
+    """The same convolution done `rows` output rows at a time, so torch's im2col buffer is a band's, not the page's."""
+
+    def __new__(cls, conv: object, rows: int) -> object:
+        import torch
+        import torch.nn.functional as functional
+
+        class Banded(torch.nn.Module):
+            def __init__(self) -> None:
+                super().__init__()
+                self.conv, self.rows = conv, rows
+
+            def forward(self, x):
+                c = self.conv
+                (kh, _kw), (sh, _sw), (ph, pw) = c.kernel_size, c.stride, c.padding
+                x = functional.pad(x, (pw, pw, ph, ph))
+                out_h = (x.shape[2] - kh) // sh + 1
+                parts = [functional.conv2d(x[:, :, r * sh:(min(r + self.rows, out_h) - 1) * sh + kh, :],
+                                           c.weight, c.bias, stride=c.stride)
+                         for r in range(0, out_h, self.rows)]
+                return torch.cat(parts, dim=2)
+
+        return Banded()
+
+
+def _band_convolutions(model: object, rows: int) -> int:
+    """Wrap every non-1x1, non-dilated `Conv2d` in the model's layers (`layer.co`) so it runs in bands of `rows`
+    output rows; the arithmetic is the same, so the output is. Returns how many were wrapped."""
+    import torch
+
+    wrapped = 0
+    for layer in model.nn.children():
+        co = getattr(layer, "co", None)
+        if isinstance(co, torch.nn.Conv2d) and co.kernel_size != (1, 1) and co.dilation == (1, 1):
+            layer.co = _BandedConv(co, rows)
+            wrapped += 1
+    return wrapped
 
 
 def _line_confidence(record: object) -> float | None:
