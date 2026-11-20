@@ -368,7 +368,10 @@ final class RecipeSetupStore {
     /// `wide.output.run-this-step`). `documents`: a run's pages alone, as
     /// its `missed` names them (a run an import started, #6170).
     func start(folderId: String? = nil, redo: [String] = [], documents: [String]? = nil, firstPages first: Int? = nil,
-               steps: [String]? = nil) async -> Bool {
+               steps chosen: [String]? = nil) async -> Bool {
+        // A step run again is those steps alone (#6744): a run that sent `redo` without `steps` ran the whole recipe, the
+        // Kraken lines after a regions-only choice with it.
+        let steps = chosen ?? (redo.isEmpty ? nil : redo)
         do {
             let body: Operations.StartProjectApiRecipesProjectStartPost.Input.Body? =
                 folderId == nil && redo.isEmpty && documents == nil && first == nil && steps == nil && runCapUsd == nil
