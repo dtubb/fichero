@@ -90,14 +90,22 @@ def _new_tailscale_hosts(bound: set[str]) -> list[str]:
     return [a for a in _tailscale_interface_ips() if a not in bound]
 
 
+def _tailscale_watch_wanted() -> bool:
+    """The watcher runs only when the launch set was more than loopback (a named LAN host, i.e. Sharing on): a loopback-only
+    server never binds a tailnet address, now or later."""
+    return resolve_lan_bind_host() is not None
+
+
 def _watch_tailscale_address(bound: set[str], port: int, make_server, interval: float = 15.0) -> None:
     """Bind and serve a Tailscale address that appears after launch; one thread, one extra server per new address."""
+    failed: set[str] = set()
     while True:
         time.sleep(interval)
-        for host in _new_tailscale_hosts(bound):
+        for host in _new_tailscale_hosts(bound | failed):
             try:
                 sock = _bind_listener_socket(host, port)
             except OSError as exc:
+                failed.add(host)  # logged once, not every interval
                 logger.error("Sharing listener could NOT bind the Tailscale address %s:%d (%s).", host, port, exc)
                 continue
             bound.add(host)
@@ -584,13 +592,14 @@ def _main(argv: list[str] | None = None):
                     name="fichero-tcp-tls",
                     daemon=True,
                 ).start()
-                threading.Thread(
-                    target=_watch_tailscale_address,
-                    args=({s.getsockname()[0] for s in tcp_sockets}, tcp_port,
-                          lambda: uvicorn.Server(uvicorn.Config(**tcp_kwargs))),
-                    name="fichero-tailscale-watch",
-                    daemon=True,
-                ).start()
+                if _tailscale_watch_wanted():
+                    threading.Thread(
+                        target=_watch_tailscale_address,
+                        args=({s.getsockname()[0] for s in tcp_sockets}, tcp_port,
+                              lambda: uvicorn.Server(uvicorn.Config(**tcp_kwargs))),
+                        name="fichero-tailscale-watch",
+                        daemon=True,
+                    ).start()
                 logger.info(
                     "Sharing listener up: https on %s:%d (alongside unix:%s)",
                     ", ".join(tcp_hosts),
