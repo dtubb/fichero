@@ -134,11 +134,11 @@ def test_the_real_stages_build_in_a_clean_clone_on_the_chosen_machine_never_the_
 
 def test_sweep_removes_only_this_runs_clone_dir_never_the_nightly_builds_trees(tmp_path, monkeypatch):
     nightly = tmp_path / "s" / "nightly"
-    for part in ("release", "check", "dmg"):
+    for part in ("release-mac", "release-ios", "check", "dmg"):
         (nightly / part).mkdir(parents=True)
     monkeypatch.setattr(rr, "pick_runner", lambda c, probe, f: c[0])
     st = rr.real_stages(tmp_path, tmp_path / "s", "r10", branch="main", mac="local", ios="local", check_runner="local", floor_gb=1, text=print, tmp_root=tmp_path / "tmp", snapshot_cmd=("true",))
-    assert st["sweep"]()[0] == 0 and not (nightly / "release").exists() and (nightly / "check").exists() and (nightly / "dmg").exists()
+    assert st["sweep"]()[0] == 0 and not (nightly / "release-mac").exists() and not (nightly / "release-ios").exists() and (nightly / "check").exists() and (nightly / "dmg").exists()
 
 
 def test_the_manager_prompt_frames_the_log_as_untrusted_data_and_does_not_carry_it(tmp_path, monkeypatch):
@@ -152,3 +152,23 @@ def test_the_manager_prompt_frames_the_log_as_untrusted_data_and_does_not_carry_
 
 def test_there_is_no_engine_stage_release_all_builds_the_engine_once():
     assert "engine" not in rr.STAGES
+
+
+def test_the_mac_and_ios_chains_get_their_own_clone_when_both_land_on_one_machine(tmp_path, monkeypatch):
+    import subprocess
+    calls = []
+    monkeypatch.setattr(rr, "_sh", lambda script, machine, t: calls.append(script) or (0, "10" if script.startswith("df") else "ok"))
+    g = lambda *a: subprocess.run(["git", "-C", str(tmp_path / "root"), "-c", "user.name=t", "-c", "user.email=t@t", *a], check=True, capture_output=True, text=True).stdout.strip()  # noqa: E731
+    (tmp_path / "root").mkdir()
+    g("init", "-q", "-b", "main"), g("commit", "-q", "--allow-empty", "-m", "1")
+    g("remote", "add", "origin", str(tmp_path / "root")), g("update-ref", "refs/remotes/origin/main", "HEAD")
+    st = rr.real_stages(tmp_path / "root", tmp_path / "s", "r11", branch="main", mac="local", ios="local", check_runner="local", floor_gb=1, text=print,
+                        tmp_root=tmp_path / "tmp", snapshot_cmd=("true",))
+    for name in ("sweep", "freeze"):
+        rc, out = st[name]()
+        assert rc == 0, out
+        journal.append("release", run="r11", stage=name, state="green", detail=out)
+    calls.clear()
+    st["mac-dmg"](), st["ios"]()
+    mac, ios = calls
+    assert "nightly/release-mac" in mac and "nightly/release-ios" in ios and "release-ios" not in mac and "release-mac" not in ios

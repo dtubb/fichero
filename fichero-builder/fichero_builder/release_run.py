@@ -184,12 +184,12 @@ def real_stages(root, state, run_id: str, *, branch: str, mac: str, ios: str, ch
         return green_detail("freeze").strip()
 
     def tree(role):
-        return _q(_tree(at(role), state, "release"))
+        return _q(_tree(at(role), state, f"release-{role}"))
 
     def do_sweep():
         seen.clear()
         chosen = {role: pick_runner([m.strip() for m in cands.split(",")], disk, floor_gb) for role, cands in roles.items()}
-        sweep([*(tmp_root or Path(tempfile.gettempdir())).glob("fichero-nightly-*"), state / "nightly" / "release"],  # this run's own clone dir only: run.nightly-build keeps its trees beside it
+        sweep([*(tmp_root or Path(tempfile.gettempdir())).glob("fichero-nightly-*"), *(state / "nightly").glob("release-*")],  # this run's own clone dirs only (one per role): run.nightly-build keeps its trees beside it
                       [root / "integration" / ".venv", root / ".venv"])
         subprocess.run(list(snapshot_cmd), capture_output=True, text=True)
         return 0, json.dumps(chosen)  # the detail is read back by `at`: the paths removed are not in it
@@ -203,10 +203,11 @@ def real_stages(root, state, run_id: str, *, branch: str, mac: str, ios: str, ch
         u = subprocess.run(["git", "-C", str(root), "remote", "get-url", "origin"], capture_output=True, text=True)
         if u.returncode:
             return 1, u.stderr
-        for m in dict.fromkeys(at(role) for role in roles):
-            rc, out = _sh(_clean_tree(u.stdout.strip(), frozen, _tree(m, state, "release")), m, 1800)
+        for role in roles:  # one clone per role: the Mac and iOS chains run at once and release-all.sh edits its tree
+            m = at(role)
+            rc, out = _sh(_clean_tree(u.stdout.strip(), frozen, _tree(m, state, f"release-{role}")), m, 1800)
             if rc:
-                return rc, f"clone on {m}: {out}"
+                return rc, f"clone of {role} on {m}: {out}"
         return 0, frozen
 
     def on(role, cmd, timeout_s):
