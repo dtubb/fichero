@@ -100,6 +100,7 @@ extension ZoomableImagePreview {
         overlay.transcriptionFamily = transcriptionFont?.family
         overlay.showsOrderNumbers = showOrderNumbers || windowState?.orderOverlayFlash == true || windowState?.orderArmed == true
         overlay.showsBoundingBoxes = showBoundingBoxes
+        overlay.shadeBoxes(byOrder: shadeByOrder)
         return overlay
     }
 

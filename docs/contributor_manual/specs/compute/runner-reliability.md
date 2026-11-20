@@ -314,7 +314,7 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   `RATE_LIMIT_PAUSE_AFTER` spent calls; a 402 with no credit, a 401 and a key limit PAUSE and ask (owed, #6675); a 5xx or a
   dropped connection backs off then pauses as `network` (owed); a 404 or a refused request fails the page as `model-error`;
   one cap of calls in flight per provider across every run; LangChain's own retries off behind the breaker (owed, #5944).
-  Built: the classification, the in-flight budget as a slow-down, the per-provider cap, the rate-limit pause. *Test:*
+  Built: LangChain's own retries off (`max_retries=0`) with a call sent at most 5 times by the breaker, the classification, the in-flight budget as a slow-down, the per-provider cap, the rate-limit pause. *Test:*
   `fichero-server/tests/unit/workflows/test_in_flight_budget_6671.py`, `test_rate_limit_backs_off_then_pauses_6584.py`.
 - `runner.cloud.batch` — **[PARTIAL]** (#5940, #6251; `compute/recipe-steps-at-scale.md` owns it) a provider batch's
   errored or expired lines fail only their pages (`model-error`), a batch the account cannot pay for pauses as `no-credit`,
@@ -353,8 +353,14 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   `fichero-server/tests/unit/execution/test_one_heavy_model_in_sequence_6673.py`.
 - `runner.memory.hold-not-kill` — **[PARTIAL]** (#6075, #4987; `activity.throttle.hold-when-swapping`,
   `recipes-run.memory.hold-when-paging` own it) new heavy work is held while the Mac pages; a hold that outlasts its
-  patience becomes a `memory` pause with the row saying so, never a killed engine. Built: the hold; owed: the pause, the
-  popover's paging line, the measured ceilings (`recipes-run.memory.peak-ceiling-per-model-kind`).
+  patience becomes a `memory` pause with the row saying so, never a killed engine. Built: the hold; a page of a run held
+  for memory for `throttle.MEMORY_HOLD_PATIENCE_SECONDS` (ten minutes) asks its run to pause, and the paused run records a
+  `memory` failure with Continue first (`retry.pause_the_run_for_memory`, `failure.memory_pause_failure`; *tests:*
+  `fichero-server/tests/unit/jobs/test_kraken_holds_under_swap_and_pressure_6075.py` for the pause at patience,
+  `fichero-server/tests/unit/llm/test_pause_or_fail_is_the_tables_6675.py` for the paused run's `memory` failure with Continue
+  first and for Continue forgetting the pause). Owed: the first paging reading
+  reading the previous sample from the run's record, the popover's paging line beside the pause, the measured ceilings
+  (`recipes-run.memory.peak-ceiling-per-model-kind`).
 - `runner.memory.recorded` — **[OK]** (#6673; `recipes-run.memory.recorded-per-step` owns it) each step records the Mac's
   RAM, the engine's peak, swap, pressure and model loads and unloads, in the run's record and in Save Logs for Support.
   *Test:* `fichero-server/tests/unit/recipes/test_memory_recorded_per_step_6673.py`.
@@ -372,7 +378,10 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
 - `runner.mac.stays-usable` — **[PARTIAL]** (#5819, #6230, #6263; `activity.throttle.use-means-slower`,
   `activity.throttle.in-use-slows-to-half` own it) automatic work goes on while the person uses the Mac, at half the
   performance cores and background QoS; a run the person started begins at once, throttled, never waits for Run now
-  (#6263). Built: the one in-use rule; owed: half the cores (#6230), the started run beginning at once (#6263).
+  (#6263). Built: the one in-use rule; a started run's step is never held for use or battery, only for memory or heat (*test:*
+  `fichero-server/tests/unit/jobs/test_started_run_begins_at_once_6263.py`); an import's automatic Kraken reads on half the
+  performance cores at utility QoS. Owed: other automatic work in use still drops to the lowest QoS class (#6230), and the
+  Air's step hold of #6263, not reproduced.
 
 ### E. The hand-run paths (the context menus, the workflow bar, the recipe runner)
 

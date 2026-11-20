@@ -245,7 +245,7 @@ extension EmbeddedBackendService {
     /// Split out of `stop()` for #4291 so the quit path can send SIGTERM on the
     /// main actor — cheap, no wait — and then do the reaping off-main.
     @discardableResult
-    func beginStop() -> pid_t? {
+    func beginStop(askedBy caller: String = #fileID) -> pid_t? {
         // Don't stop external backends (user-managed)
         if isExternalBackend {
             logger.info("Using external backend - leaving it running (user-managed)")
@@ -259,7 +259,7 @@ extension EmbeddedBackendService {
             return nil
         }
 
-        logger.info("Stopping embedded backend (PID: \(pid))...")
+        logger.info("Stopping embedded backend (PID: \(pid)), asked by \(caller) (#6732)")
 
         // Mark intentional so the terminationHandler doesn't flip .failed.
         intentionalStop = true
@@ -281,8 +281,8 @@ extension EmbeddedBackendService {
     /// the respawn path: both need the port released before they continue, but
     /// neither may beachball the main thread doing it. The waits are
     /// `Task.sleep`, so the main run loop keeps servicing events throughout.
-    func stopAndAwaitExit(policy: TerminationDeadlinePolicy = .quit) async {
-        guard let pid = beginStop() else { return }
+    func stopAndAwaitExit(policy: TerminationDeadlinePolicy = .quit, askedBy caller: String = #fileID) async {
+        guard let pid = beginStop(askedBy: caller) else { return }
         await Self.reapChild(pid: pid, policy: policy)
     }
 
@@ -293,8 +293,8 @@ extension EmbeddedBackendService {
     /// respawn. It DOES block the caller for up to the policy's total deadline,
     /// so anything that can await should call `stopAndAwaitExit()` instead; the
     /// quit path does (#4291).
-    func stop(policy: TerminationDeadlinePolicy = .quit) {
-        guard let pid = beginStop() else { return }
+    func stop(policy: TerminationDeadlinePolicy = .quit, askedBy caller: String = #fileID) {
+        guard let pid = beginStop(askedBy: caller) else { return }
         let start = Date()
         var hasEscalated = false
         while true {

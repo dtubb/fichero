@@ -58,6 +58,10 @@ extension SidebarView {
         let sections = SidebarProjectSections.split(
             filteredLibraryHeaders, libraryId: { $0.libraryId }, alwaysThereId: LibraryManager.globalLibraryId
         )
+        // A remote Mac's projects are its own section, never under this Mac's Projects (#6742).
+        let byMac = SidebarProjectSections.splitByMac(sections.projects) { header in
+            libraryManager.openLibraries.first { $0.id == header.libraryId && $0.pinnedToHost }?.host.url.absoluteString
+        }
         List(selection: sidebarSelectionBinding) {
             // Its own section with no heading, so the Projects section after it is a peer, as Finder's
             // Favourites and Locations are (Daniel, 2026-10-11): a sidebar list draws a section's heading
@@ -72,9 +76,9 @@ extension SidebarView {
                     alwaysThereProjectItems(top)
                 }
             }
-            if !sections.projects.isEmpty || !libraryManager.hostGoneRows.isEmpty {
+            if !byMac.local.isEmpty || !libraryManager.hostGoneRows.isEmpty {
                 Section {
-                    ForEach(sections.projects) { libraryHeader in
+                    ForEach(byMac.local) { libraryHeader in
                         unifiedLibrarySection(libraryHeader)
                     }
                     ForEach(libraryManager.hostGoneRows) { row in
@@ -83,6 +87,24 @@ extension SidebarView {
                 } header: {
                     Text(SidebarProjectSections.projectsHeading)
                         .accessibilityIdentifier(SidebarAccessibilityID.projectsHeading)
+                }
+            }
+            ForEach(byMac.remote, id: \.host) { remote in
+                let name = libraryManager.pairedMachines.first { $0.id == remote.host }?.shownName
+                    ?? URL(string: remote.host)?.host ?? remote.host
+                let gone = libraryManager.hostGoneRows.contains { $0.host.caseInsensitiveCompare(name) == .orderedSame }
+                Section {
+                    ForEach(remote.items) { libraryHeader in
+                        unifiedLibrarySection(libraryHeader)
+                    }
+                } header: {
+                    Text(SidebarProjectSections.remoteHeader(name: name, state: gone ? .offline : .connected))
+                        .contextMenu {
+                            Button("Disconnect") {
+                                if let url = URL(string: remote.host) { libraryManager.disconnectRemoteMac(url) }
+                            }
+                        }
+                        .accessibilityIdentifier("sidebar.remoteMac.\(remote.host)")
                 }
             }
             // One section per paired Mac (one that shared nothing yet says so), titled by its name, below Projects

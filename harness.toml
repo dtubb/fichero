@@ -511,7 +511,7 @@ handoff_tokens = 175000   # owner 2026-11-02: hand off here, an absolute count (
 session_usd = 8
 day_usd = 250   # owner 2026-11-16 evening: Max plan, more than 120 a day is fine
 silent_s = 1800
-prices = { sonnet = [3, 15], opus = [15, 75], haiku = [1, 5] }
+prices = { sonnet = [3, 15], opus = [15, 75], haiku = [1, 5], claude-fable-5-1 = [15, 75] }  # fable: notional like the others (Max login); opus rates until the owner sets its own
 
 [models]
 # One model per role (dev-workflows.models.by-config); a role whose provider is not in `providers` is a question for a
@@ -529,6 +529,8 @@ spec-writer = { provider = "claude-code", model = "opus" }
 helper = { provider = "claude-code", model = "haiku" }
 manager = { provider = "claude-code", model = "haiku" }  # reads alerts and answers them (dev-workflows.run.loop-roles)
 researcher = { provider = "claude-code", model = "sonnet" }
+# owner 2026-11-18: a lane runs its worker on this role (`builder queue add --role maintainer-fable`); its handoff mark is 85 % of `context`
+maintainer-fable = { provider = "claude-code", model = "claude-fable-5-1", context = 200000 }
 
 [triage.labels]
 # `builder triage --labels` (dev-workflows.tool.triage, rules in specs/harness/issues-and-labels.md): a label outside

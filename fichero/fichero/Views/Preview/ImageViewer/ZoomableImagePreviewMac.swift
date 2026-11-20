@@ -203,7 +203,13 @@ struct ZoomableImagePreview: View {
     @PaneStorage("imagePreview.inlineTextEnabled") var inlineTextEnabled = false
     /// "Show Order Numbers" (Display menu, #6482): the reading number on each line's box. Off by default.
     @PaneStorage("imagePreview.showOrderNumbers") var showOrderNumbers = false
-    @PaneStorage("imagePreview.showBoundingBoxes") var showBoundingBoxes = false
+    /// "Show Bounding Box": every segment rectangle. A NEW pane-only key, on by default: the old
+    /// `imagePreview.showBoundingBoxes` meant only the box beside a polygon, and a stored off there would blank
+    /// every page of plain boxes (#5504's failure).
+    @PaneOnlyStorage("imagePreview.showSegmentRectangles") var showBoundingBoxes = true
+    /// "Shade by Reading Order": each line's strength along its region; off, every line is full strength. Per pane, applied
+    /// at draw time (`Tone.shaded`), so the page redraws at once.
+    @PaneOnlyStorage("imagePreview.shadeByReadingOrder") var shadeByOrder = true
     /// The image layer (ruled 2026-09-27, Q2). On by default: a page with its picture hidden
     /// is a deliberate view, never where a person should land by accident.
     /// The SOURCE's own setting (#6657, `SourceViewSettings`), else the pane's workspace

@@ -126,8 +126,8 @@ def workers(root) -> int:
 
 
 def add(lane_id: str, worktree: str, step: str, brief: str, issues: list[int], waits: list[str] | None = None, kind: str = "worker",
-        hold: bool | None = None, pane: str = "", maintainer: bool | None = None) -> None:
-    """A step at the end of its lane (made when new); a step the lane has already keeps its state."""
+        hold: bool | None = None, pane: str = "", maintainer: bool | None = None, role: str = "", milestone: str = "") -> None:
+    """A step at the end of its lane (made when new); a step the lane has already keeps its state. `milestone` is the lane's place in the work tree."""
     with journal.Lock("queue"):
         lanes = load()
         lane = next((x for x in lanes if x["id"] == lane_id), None)
@@ -136,12 +136,16 @@ def add(lane_id: str, worktree: str, step: str, brief: str, issues: list[int], w
             lanes.append(lane)
         elif lane["cursor"] >= len(lane["steps"]) and not any(s["step"] == step for s in lane["steps"]):
             lane.update(kind=kind, worktree=os.path.abspath(worktree))  # a finished lane handed new work takes its kind and tree
+        if milestone:
+            lane["milestone"] = milestone
         if hold is not None:
             lane["hold"] = hold  # a milestone a person holds: never taken by the intake
         if pane:
             lane["pane"] = pane  # where findings and LANDED are told (an external lane's session)
         if maintainer is not None:
             lane["maintainer"] = maintainer  # the harness builder's lane: its batches change pinned files on purpose (--maintainer)
+        if role:
+            lane["role"] = role  # the [models] role its worker and every handoff successor run on
         if any(s["step"] == step for s in lane["steps"]):
             save(lanes)
             return
@@ -1791,8 +1795,9 @@ def real_procs(root) -> Procs:
         (feed / "brief.txt").write_text(Path(a.brief).read_text())  # #6466: the brief lives under the owner's state dir, which the worker cannot read
         (feed / "brief.txt").chmod(0o644)
         a.brief = str(feed / "brief.txt")
-        codemap.provide(root)
-        cmd = work.run_cmd(a, builder, "--feed", feed, "--seq", lane["seq"])
+        codemap.provide_all(root)
+        role = lane.get("role", "")  # a lane's [models] role: its model and window; no role = [models].builder
+        cmd = work.run_cmd(a, models.for_role(mdl, role).model if role else builder, "--feed", feed, "--seq", lane["seq"], *(("--role", role) if role else ()))
         log = open(Path(j.workroot) / f"run-{lane['id']}.log", "ab")  # #6466: a start that fails is read here, not lost to /dev/null (the workroot is where the owner may write)
         # #6589: its own session, so launchd's kill of the loop job (kickstart -k) never reaches the worker's tmux server
         return subprocess.Popen([j.sudo, "-n", "-H", "-u", j.user, "sh", "-c", f"cd {q(j.workroot)} && {cmd}"],
@@ -2107,6 +2112,12 @@ def main(a) -> int:
         if not (a.lane and a.worktree and a.step and a.brief):
             print("REFUSED: queue add needs --lane, --worktree, --step and --brief")
             return 1
+        if a.role:
+            try:
+                models.for_role(models.load(a.root), a.role)
+            except models.Question as e:
+                print(f"REFUSED: --role {a.role}: {e}")
+                return 1
         src = Path(a.brief).expanduser()
         if not src.is_file():
             print(f"REFUSED: the brief {a.brief} is not a file")
@@ -2116,8 +2127,16 @@ def main(a) -> int:
         if src.resolve() != dest.resolve():
             kept.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(src, dest)
-        add(a.lane, a.worktree, a.step, str(dest), a.issues, kind=getattr(a, "kind", "worker"), hold=True if getattr(a, "hold", False) else None,
-            pane=getattr(a, "pane", ""), maintainer=True if getattr(a, "maintainer", False) else None)
+        milestone = ""
+        if a.issues:  # the lane joins the work tree under its issues' milestone (builder-console.ordered-work.one-source)
+            from fichero_builder import work_store, work_tree
+            try:
+                milestone = work_tree.milestone_of(work_store.open_store("github"), a.issues)
+            except (ValueError, work_store.StoreError) as e:
+                print(f"REFUSED: {e}")
+                return 1
+        add(a.lane, a.worktree, a.step, str(dest), a.issues, role=a.role, kind=getattr(a, "kind", "worker"), hold=True if getattr(a, "hold", False) else None,
+            pane=getattr(a, "pane", ""), maintainer=True if getattr(a, "maintainer", False) else None, milestone=milestone)
         print(f"queued {a.lane} {a.step}")
         return 0
     if a.action == "tell":  # dev-workflows.run.loop-tell: a finding into the lane's live session, as its next message

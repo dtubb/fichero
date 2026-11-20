@@ -41,6 +41,9 @@ MEMORY_REASON = "Waiting: memory is tight"
 PAGING_GROWTH_BYTES = 64 * 1024**2
 PAGING_WINDOW_SECONDS = 60.0
 _PAGING_SAMPLE_EVERY = 2.0
+#: A page held for memory waits this long (`runner.memory.hold-not-kill`, #6075); after it the run PAUSES as `memory`, with
+#: Continue, and is never killed. Ten minutes: a build or a closed app frees memory sooner; longer is the person's to decide.
+MEMORY_HOLD_PATIENCE_SECONDS = 600.0
 _PAGING_SAMPLES: list[tuple[float, int | None, int | None]] = []  # (time, pageout bytes, swap bytes), oldest first
 #: `NSProcessInfoThermalState`: 0 nominal, 1 fair, 2 serious, 3 critical.
 _THERMAL_SERIOUS = 2

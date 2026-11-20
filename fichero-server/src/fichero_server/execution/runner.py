@@ -1587,6 +1587,10 @@ async def _run_workflow_body(
                 from fichero_server.llm.failure import credit_pause_failure  # noqa: PLC0415
 
                 paused_failure = credit_pause_failure(out_of_credit, step=workflow.name).model_dump(mode="json")
+            elif short := llm_retry.paused_for_memory([thread_id]):  # a page held for memory past its patience (#6075)
+                from fichero_server.llm.failure import memory_pause_failure  # noqa: PLC0415
+
+                paused_failure = memory_pause_failure(short, step=workflow.name).model_dump(mode="json")
             elif limited := llm_retry.paused_for_rate_limit([thread_id]):  # paused because its provider is rate-limiting
                 from fichero_server.llm.failure import _build  # noqa: PLC0415
 

@@ -22,6 +22,15 @@ enum ConnectSheetModel {
         (pickedAddress ?? pastedHost).map { "Connects to \($0)" }
     }
 
+    static let addressPlaceholder = "Host or IP address"
+
+    /// Connect by address (#6742): a typed host or IP and the Mac's pairing code. Nil until the address is one and a code is typed.
+    static func addressFields(address: String, code: String, pin: String?) -> RemoteClientPairingFields? {
+        let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = HostChoices.typedURL(address), !trimmed.isEmpty else { return nil }
+        return RemoteClientPairingFields(remoteURL: url.absoluteString, pairCode: trimmed, spkiPin: pin, libraryPath: "")
+    }
+
     /// Name and Password are asked only when the host asks for a person.
     static func asksForPerson(hostAskedForPerson: Bool) -> Bool { hostAskedForPerson }
 

@@ -40,6 +40,7 @@
 #   scripts/set-release-version.sh 2026.06.27      # explicit date, stable
 #   scripts/set-release-version.sh 2026.06.27 --beta
 #   scripts/set-release-version.sh --dry-run       # print computed versions, touch nothing
+#   scripts/set-release-version.sh --print-version # print the version it would stamp, touch nothing
 #   scripts/set-release-version.sh --self-check    # assert N=1 vs N=2 produce expected strings
 #
 # Env:
@@ -58,11 +59,13 @@ DATE=""
 BETA=false
 DRY_RUN=false
 SELF_CHECK=false
+PRINT_VERSION=false
 for arg in "$@"; do
   case "$arg" in
     --beta)       BETA=true ;;
     --dry-run|-n) DRY_RUN=true ;;
     --self-check) SELF_CHECK=true ;;
+    --print-version) PRINT_VERSION=true ;;
     --help|-h)    sed -n '32,41p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*)           echo "error: unknown flag: $arg" >&2; exit 2 ;;
     *)
@@ -128,46 +131,25 @@ compute_versions() {
 # ── release-notes heading (the third thing that must agree) ──────────────────
 # create-github-release.sh renders the `## <MARKETING_VERSION>` section of
 # RELEASE_NOTES.md into the Sparkle appcast, and refuses to publish without it.
-# So the heading has to track the stamp. Retitle it here rather than leaving a
-# manual step that only bites when a build slips past midnight.
-#
-# Two guards, because retitling the wrong heading rewrites history:
-#   1. only an UNRELEASED heading — no `v<version>` tag may exist for it
-#   2. only a CalVer-SHAPED heading — never `0.0.1 — Alpha (2026-04-29)`
-# Anything else is a hand-edit, and we say so instead of guessing.
-is_calver_heading() { [[ "$1" =~ ^[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?(-beta)?$ ]]; }
-
-retitle_release_notes() {  # <target-version> <dry-run:true|false>
-  local target="$1" dry="$2" top
+# The section is written before the stamp (`release_guard.py auto-notes`, or by
+# hand); the stamp only checks it is there. It never retitles another section:
+# retitling the newest one once shipped an old release's notes under today's
+# version.
+check_release_notes() {  # <target-version> <dry-run:true|false>
+  local target="$1" dry="$2"
   [ -f "$NOTES" ] || { echo "error: $NOTES not found" >&2; return 1; }
-  top="$(grep -m1 -E '^## ' "$NOTES" | sed -E 's/^## +//')"
-  [ -n "$top" ] || { echo "error: RELEASE_NOTES.md has no '## ' section" >&2; return 1; }
-
-  if [ "$top" = "$target" ]; then
-    echo "notes  : '## $target' already current"
+  if grep -qE "^## +$(printf '%s' "$target" | sed 's/[.]/\\./g')[[:space:]]*$" "$NOTES"; then
+    echo "notes  : '## $target' present"
     return 0
-  fi
-  if ! is_calver_heading "$top"; then
-    echo "error: top release-notes section is '## $top', not an unreleased dated entry." >&2
-    echo "       add a '## $target' section to RELEASE_NOTES.md by hand." >&2
-    return 1
-  fi
-  if git -C "$ROOT" rev-parse -q --verify "refs/tags/v$top" >/dev/null 2>&1; then
-    echo "error: '## $top' is already released (tag v$top exists)." >&2
-    echo "       add a new '## $target' section; do not retitle a shipped release." >&2
-    return 1
   fi
   if [ "$dry" = true ]; then
-    echo "notes  : would retitle '## $top' -> '## $target'"
+    echo "notes  : no '## $target' section yet (the stamp needs one)"
     return 0
   fi
-  RN_FILE="$NOTES" RN_OLD="$top" RN_NEW="$target" python3 - <<'PY'
-import os, pathlib
-p = pathlib.Path(os.environ["RN_FILE"])
-p.write_text(p.read_text().replace("## " + os.environ["RN_OLD"],
-                                   "## " + os.environ["RN_NEW"], 1))
-PY
-  echo "notes  : retitled '## $top' -> '## $target'"
+  echo "error: RELEASE_NOTES.md has no '## $target' section." >&2
+  echo "       run 'release_guard.py auto-notes $target' or add the section by hand;" >&2
+  echo "       the stamp does not retitle another section." >&2
+  return 1
 }
 
 # ── PEP 440 validity check (best-effort: uses repo venv, then python3) ────────
@@ -216,18 +198,6 @@ if [ "$SELF_CHECK" = true ]; then
   assert_eq "old 8-digit era reset" "$(next_build_int 20260830)"   "1"
   assert_eq "garbage resets"        "$(next_build_int '')"         "1"
   assert_eq "forced counter" "$(FICHERO_BUILD_NUMBER=7 next_build_int 3)" "7"
-  # release-notes heading guard: retitle dated entries, never historical ones
-  assert_heading() {  # <heading> <want:yes|no>
-    if is_calver_heading "$1"; then got=yes; else got=no; fi
-    if [ "$got" = "$2" ]; then echo "  ok: heading '$1' retitlable=$got"
-    else echo "  FAIL: heading '$1' retitlable=$got (expected $2)" >&2; fails=$((fails+1)); fi
-  }
-  assert_heading "2026.07.08-beta"   yes
-  assert_heading "2026.07.08"        yes
-  assert_heading "2026.07.08.2-beta" yes
-  assert_heading "0.0.1 — Alpha (2026-04-29)" no
-  assert_heading "0.0.2"             no
-  assert_heading "Highlights"        no
   echo
   if [ "$fails" -eq 0 ]; then echo "self-check: PASS"; exit 0; else echo "self-check: $fails FAILED" >&2; exit 1; fi
 fi
@@ -239,11 +209,13 @@ compute_versions "$DATE" "$BETA" "$N"
 PREV_BUILD="$(sed -nE 's/^CURRENT_PROJECT_VERSION = (.*)$/\1/p' "$XCCONFIG" | head -1)"
 BUILD_INT="$(next_build_int "$PREV_BUILD")"
 
+if [ "$PRINT_VERSION" = true ]; then echo "$APP_VERSION"; exit 0; fi
+
 echo "date   : $DATE  (same-day build #$N)"
 echo "app    : MARKETING_VERSION=$APP_VERSION  CURRENT_PROJECT_VERSION=$BUILD_INT"
 echo "engine : version=$ENGINE_VERSION"
 
-retitle_release_notes "$APP_VERSION" "$DRY_RUN"
+check_release_notes "$APP_VERSION" "$DRY_RUN"
 
 # ── changelog section (the fourth thing that must agree, 2026-08-27) ─────────
 # CHANGELOG.md promises "full commit-level history, day by day" — and then

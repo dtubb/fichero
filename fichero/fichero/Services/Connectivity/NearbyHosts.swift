@@ -22,8 +22,10 @@ final class NearbyHosts {
             let hosts = results.compactMap { result -> HostChoices.Found? in
                 guard case let .service(name, _, _, _) = result.endpoint else { return nil }
                 var url: String?
-                if case let .bonjour(txt) = result.metadata { url = txt["public_url"] }
-                return .init(name: name, publicURL: url?.isEmpty == false ? url : nil)
+                if case let .bonjour(txt) = result.metadata {
+                    url = HostChoices.advertisedURL(publicURL: txt["public_url"], address: txt["address"])
+                }
+                return .init(name: name, publicURL: url)
             }
             Task { @MainActor [weak self] in self?.found = hosts }
         }

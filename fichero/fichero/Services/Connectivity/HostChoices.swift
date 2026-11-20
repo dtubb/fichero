@@ -9,6 +9,12 @@ enum HostChoices {
         let publicURL: String?
     }
 
+    /// The address to offer for a service: its configured `public_url`, else the `address` the engine advertises for its own
+    /// `.local` name (#6742: a Mac with no public URL was found by name and then left out for having no address).
+    static func advertisedURL(publicURL: String?, address: String?) -> String? {
+        [publicURL, address].compactMap { $0 }.first { !$0.isEmpty }
+    }
+
     /// The Bonjour service name the engine advertises for a Mac (`security/discovery.py`: "Fichero Server on <host>",
     /// dots made dashes), so a Mac can leave itself out of its own list (#5892).
     static func ownServiceName(hostName: String) -> String {

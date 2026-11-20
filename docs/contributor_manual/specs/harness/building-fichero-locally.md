@@ -1230,6 +1230,9 @@ Fichero's engine already uses LangGraph. The owner has ruled that the Builder ad
   presses Enter and again while the text sits there; a message over 400 characters is written to `<state>/tells/` and the pane
   gets `Read <path>` (a long one arrived as its last line only). The loop and `builder measure` use it unless `[loop].tell` names
   a script. Test `fichero-builder/tests/test_tell.py`.
+  The worker side does the same (#6589, manager 2026-11-19): the run's own tell into its pane (`run._tell`, the feed's next
+  brief and the DONE nudge) presses Enter again, up to 3 times, while the words still sit in the input line; a swallowed
+  Enter left review briefs unsent for hours. Test `fichero-builder/tests/test_dry_run.py::test_tell_presses_enter_again_while_the_words_still_sit_unsent_in_the_input_line`.
 - `dev-workflows.models.review-by-path` [PARTIAL] (#6116; manager 2026-11-02, speed item 6a) — the review model is
   `[models].reviewer_fast` (sonnet) by default and `[models].reviewer` (opus) when the range touches `[models].reviewer_paths`
   (the harness, land and jail paths: fichero-builder/, scripts/harness_*, scripts/lane_ready_check.sh, harness.toml), and for a
@@ -1331,7 +1334,11 @@ Fichero's engine already uses LangGraph. The owner has ruled that the Builder ad
   Built 2026-11-01: `harness.toml` [models] (`providers` and one `{provider, model, context?}` row per role) read by
   `fichero_builder/models.py`; a missing role or a provider not in `providers` raises a Question. Still owed (Phase 0 wording): `builder run`
   and the reviewer start read their model from it (they still take `--model`). Test:
-  `fichero-builder/tests/test_model_config.py::test_one_model_per_role_and_a_missing_provider_asks`.
+  `fichero-builder/tests/test_model_config.py::test_one_model_per_role_and_a_missing_provider_asks`. Per-lane role (owner 2026-11-18):
+  `builder queue add --role <name>` records the role on the lane; its worker, and every handoff successor, starts on that
+  role's model and hands off at 85 % of that role's `context`; a role missing from `[models]`, or whose provider is not in
+  `providers`, is refused at add time with the reason, never replaced by `builder`; the journal's `worker` and `cost` rows
+  carry the role. Tests: `fichero-builder/tests/test_lane_role.py`.
 
 #### E. UX
 
@@ -1547,7 +1554,7 @@ Fichero's engine already uses LangGraph. The owner has ruled that the Builder ad
   adapter's generated config names the two required servers with commands the worker user can run; a fake adapter
   whose MCP answer is `Unsupported` refuses; a failed index build refuses; a testing × swift worker's config has the
   Xcode set and no engine server, a testing × python worker's the reverse; a server the project lacks yields a
-  row; the assembled prompt names exactly the delivered servers. Test (to write): fichero-builder/tests/test_mcp_servers (new).
+  row; the assembled prompt names exactly the delivered servers. Test: fichero-builder/tests/test_mcp_servers.py. Built: `mcp_servers.delivered`, written into `mcp.json` by `start_tool.prepare` (Claude Code only); a stack's `tools:` line replaces the role's whole list; the index prefix exits 71 on a failed build and `work.do_run` journals a `refused` row. The refusal of a missing server applies only when `[jail].require_index` is set; without it the server is left out and an `mcp-missing` row is journaled. Not built: the repo's `harness.toml` sets no `[jail].doc_map`, `doc_index` or `require_index`, so the requirement is off for Fichero's own workers; and `agents/roles`, `stacks`, `projects` hold no files yet, so no worker gets an optional server.
 - `agent-profiles.project.profile` [GAP] (#6627) — a project is its `harness.toml`: a `[project]` table (name, kind
   `code`, `data` or `text` (`data` is research on a Fichero library's records, the sibling's § E), languages, tools by name and path, the checks it owns, the paths each rung applies to, the
   integration branch) beside the existing `[check]`, `[policy]`, `[jail]`, `[land]`, `[models]` tables; the builder's
@@ -1705,7 +1712,7 @@ Fichero's engine already uses LangGraph. The owner has ruled that the Builder ad
 
 #### A. One live source of work (milestones › steps › lanes)
 
-- `builder-console.ordered-work.one-source` [GAP] (#6645) (the order is `docs/contributor_manual/specs/build-order.md`, hand-edited
+- `builder-console.ordered-work.one-source` [PARTIAL] (#6645) (the order is `docs/contributor_manual/specs/build-order.md`, hand-edited
   last 2026-11-04, while tonight's lanes were queued by hand around it) — the ordered list of milestones the loop works is
   a record in `<state>/work.json`, written only by verbs: `builder order` (the console's drag, `builder milestone --enqueue`,
   `builder lane`, `queue add`) and `builder triage --order` (appends, never reorders). Every lane names its milestone and
@@ -1714,15 +1721,15 @@ Fichero's engine already uses LangGraph. The owner has ruled that the Builder ad
   with the milestone to make, never dropped. `build-order.md` becomes a generated copy written at each landing of the
   order, marked as such, never read. Acceptance: `queue add --lane x --issues 6600` puts lane x under `performance-sweep`;
   an order edit from the page is one `order` row and the next tick feeds from it; a name with no milestone is refused by
-  name; the page and `builder status --json` show the same order. Test (to write): fichero-builder/tests/test_work_tree (new).
-- `builder-console.work.counts-are-live` [GAP] (#6645) — each milestone row shows, from the work tree and the journal, not from
+  name; the page and `builder status --json` show the same order. Test: fichero-builder/tests/test_work_tree.py. Built: `<state>/work.json` holds the order (`work_tree.read_order`, `write_order`); `queue add --issues` writes the lane's `milestone` from its issues (`unfiled` when none is in one, refused when they span two); `builder order` refuses a title with no GitHub milestone by name and writes the record after a successful save; `work_tree.append_order` is the append-only form. Not built: the loop's intake, the console and `status --json` still read `build-order.md`; nothing generates `build-order.md` from the record; `builder triage --order`, `milestone --enqueue` and `builder lane` do not call `append_order` or write the lane's milestone.
+- `builder-console.work.counts-are-live` [PARTIAL] (#6645) — each milestone row shows, from the work tree and the journal, not from
   issue counts: steps queued / running / waiting for check or review / blocked / done-not-landed / landed / closed-out,
   each with the oldest age in that state, the lane holding it, and the last failure (the newest red rung, NOT READY
   finding or question, one line). GitHub open/closed counts stay as a second, labelled pair ("GitHub: 31 open · 26
   closed"), never as a step state. "Lane running" means a lane with a non-final step; a finished lane is "last lane:
   <name>, landed <ago>". Acceptance (fixture tree): a milestone with one checking step and one blocked step shows both
-  with ages and the blocked one's question; a milestone whose only lane is finished shows no running lane. Test (to write):
-  fichero-builder/tests/test_work_tree (new), case test_counts_come_from_the_tree.
+  with ages and the blocked one's question; a milestone whose only lane is finished shows no running lane. Test:
+  fichero-builder/tests/test_work_tree.py, case test_counts_come_from_the_tree. Built: `work_tree.counts` over the lanes' steps. `closed-out` is the `parked` group. Not built: the on-origin check no caller passes yet (without it `done-not-landed` is never produced), the console page reading it, the GitHub open/closed pair beside it, the lane's `milestone` key being written.
 - `builder-console.store.one-database` [GAP] (#6644) (today: `queue.json`, `journal.jsonl`, `ladder-<lane>.json`, `review-<lane>.txt`,
   `question-*.txt`, `fix-*.txt`, read and joined by `console.py`) — the state of milestones › steps › lanes › runs › alerts
   › edits is one store, `<state>/harness.duckdb` (DuckDB, the database Fichero already uses, one file; owner 2026-11-16),
@@ -1734,7 +1741,7 @@ Fichero's engine already uses LangGraph. The owner has ruled that the Builder ad
   `/api/status` from the store equals today's for the fixed-rows test; a crash between a journal write and a store write
   is repaired on the next open. Test (to write): fichero-builder/tests/test_store (new).
   Phase 0 amendment (owner 2026-11-17/18, from the cut `builder-console.store.one-database`): the one database is SQLite (owner 2026-11-17), rebuilt from journal.jsonl by one command; nothing edits the journal.
-- `builder-console.work-store.host-agnostic` [GAP] (#6644) (today `gh api`, `gh issue` in `console.py`, `milestone.py`, `landed.py`)
+- `builder-console.work-store.host-agnostic` [PARTIAL] (#6644) (today `gh api`, `gh issue` in `console.py`, `milestone.py`, `landed.py`)
   — milestones, issues (steps' items), comments and labels are read and written through one interface, `WorkStore`:
   `milestones()`, `issues(milestone)`, `comment(issue, text)`, `label(issue, …)`, `close(issue, residue)`, `create(…)`, with
   three implementations chosen in `[project].work_store`: a public GitHub repository, a private GitHub repository (same
@@ -1742,7 +1749,7 @@ Fichero's engine already uses LangGraph. The owner has ruled that the Builder ad
   state (§ A.3, the step states, ages and runs) is never in the work store; only the items are. A store that is unreachable
   makes the loop keep working from its last copy and raises one alert, never stops a lane. Acceptance (fake stores): the
   loop runs a lane to landed on the GitHub store and on the in-Fichero store with the same rows; an unreachable store
-  yields one alert and the lane goes on. Test (to write): fichero-builder/tests/test_work_store (new).
+  yields one alert and the lane goes on. Test: fichero-builder/tests/test_work_store.py. Built: `work_store.py` with the `WorkStore` interface, `GithubStore` (over `gh`) and `open_store`. Not built: the private-GitHub and in-Fichero stores, `[project].work_store`, the callers (`console.py`, `milestone.py`, `landed.py` still run `gh`), the unreachable-store alert.
 
 #### B. One state and an age per step; stale work is surfaced and acted on
 

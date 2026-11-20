@@ -68,7 +68,19 @@ def test_build_service_info_uses_fichero_type_port_and_txt() -> None:
         "api": "1",
         "spki": "",
         "public_url": "https://fichero.example.ts.net",
+        "address": f"https://{discovery._server_name(config)}:8765",
     }
+
+
+def test_the_advert_names_an_address_when_no_public_url_is_set() -> None:
+    """#6742: a running server with no public URL was advertised by name only, so the Connect sheet never listed it."""
+    config = discovery.BonjourConfig(
+        enabled=True, host="10.0.0.5", port=8765, service_name="Fichero Test", version="v", spki_hash="",
+        public_url="", server_host="macbook-air-m1.local",
+    )
+    info = discovery.build_service_info(config, service_info_cls=FakeServiceInfo)
+    assert info.properties["public_url"] == ""
+    assert info.properties["address"] == "https://macbook-air-m1.local:8765"
 
 
 def test_spki_txt_is_always_redacted_even_when_tls_is_configured() -> None:

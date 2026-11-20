@@ -35,7 +35,55 @@ def _linked_missing(package: Path, doc: Any) -> Path | None:
         return None
     except ValueError:
         pass
-    return None if path.exists() else path
+    return None if original_is_there(package, doc) else path
+
+
+def original_is_there(package: Path, doc: Any) -> bool:
+    """The one test of "is the original there" (#6733), the thumbnail's own answer (`resolve_source`: bookmark,
+    recorded path, source keys), so the sheet and the thumbnail cannot disagree. The recorded path is tried first, as
+    one stat plus the confinement `resolve_source` applies to it; the bookmark is resolved only when that fails."""
+    from fichero_server.db.storage import _exists, resolve_source, settings
+    from fichero_server.security.path_security import resolve_document_source_path
+
+    recorded = Path(doc.path) if getattr(doc, "path", None) else None
+    if (recorded is not None and recorded.is_absolute() and _exists(recorded)
+            and resolve_document_source_path(recorded, package, storage_base=settings.base_path) is not None):
+        return True
+    return resolve_source(doc, library_root=package) is not None
+
+
+def follow_bookmark(db: Any, doc: Any) -> Path | None:
+    """The file a page's bookmark finds when it is not at its recorded path (#6733): the page's path and the source
+    paths its metadata recorded move to it, and a FRESH bookmark is saved at once, so the next move is followed
+    too. It writes directly, not through `document.relink_originals` (it is called from nowhere yet; wiring it
+    means making it a plan entry of that action). None when there is no bookmark, it finds nothing, or the page is
+    already where the bookmark says."""
+    import base64
+
+    from fichero_server import bookmarks
+
+    raw = (doc.metadata or {}).get("bookmark")
+    if not raw or not bookmarks.is_available():
+        return None
+    from fichero_server.db.storage import settings
+    from fichero_server.security.path_security import resolve_document_source_path
+
+    with bookmarks.BookmarkAccess(base64.b64decode(raw)) as resolved:
+        # the same confinement `resolve_source` gives a bookmark's answer; a path outside it is not followed
+        found = resolve_document_source_path(resolved, Path(db.path).parent, storage_base=settings.base_path) \
+            if resolved is not None and Path(resolved).exists() else None
+        fresh = bookmarks.refresh_bookmark(Path(found)) if found is not None and str(found) != doc.path else None
+    if found is None or str(found) == doc.path:
+        return None
+    metadata = dict(doc.metadata)
+    for key in PATH_KEYS:
+        if metadata.get(key) == doc.path:
+            metadata[key] = str(found)
+    if fresh is None:
+        raise RuntimeError(f"found {found} by its bookmark but could not make a fresh bookmark for it")
+    metadata["bookmark"] = base64.b64encode(fresh).decode()
+    db.save(doc.model_copy(update={"path": str(found), "metadata": metadata}))
+    return Path(found)
 
 
 def missing_originals(db: Any, within: set[str] | None = None) -> dict[str, Any] | None:

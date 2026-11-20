@@ -115,9 +115,13 @@ def do_run(a, model: str) -> str:
     if why := ensure_worktree(a, a.name):
         raise RuntimeError(why)
     before = len(_shared_rows(a))
-    codemap.provide(a.pinned)
+    codemap.provide_all(a.pinned)
     cmd = run_cmd(a, model)
     r = as_worker(a, cmd)
+    if r.returncode == codemap.INDEX_FAILED:
+        why = f"the worker did not start: {(r.stderr or r.stdout).strip()[-300:]}"
+        journal.append("refused", task=a.name, reason=why)
+        raise RuntimeError(why)
     if r.stdout.strip():
         print(r.stdout.strip())
     new = _shared_rows(a)[before:]

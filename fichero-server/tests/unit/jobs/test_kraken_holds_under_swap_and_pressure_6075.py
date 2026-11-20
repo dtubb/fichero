@@ -89,3 +89,50 @@ def test_pages_at_once_is_one_when_paging_under_pressure_even_for_a_person(monke
     monkeypatch.setattr(throttle, "memory_is_busy", lambda: True)
     monkeypatch.setattr(throttle, "paging_now_on_this_mac", lambda **_: True)
     assert kraken_runtime.pages_at_once(True) == 1
+
+
+# --- a hold that outlasts its patience becomes a `memory` pause on the run (`runner.memory.hold-not-kill`, #6075) ---
+
+def test_a_page_held_for_memory_past_its_patience_pauses_its_run_as_memory(db, monkeypatch):
+    import pytest
+
+    from fichero_server.execution import cancellation, jobs
+    from fichero_server.llm import retry
+
+    monkeypatch.setattr(throttle, "MEMORY_HOLD_PATIENCE_SECONDS", 0.2)
+    monkeypatch.setattr(jobs, "THROTTLE_LOOK_AGAIN_SECONDS", 0.05)
+    monkeypatch.setattr(jobs._scheduler, "MEMORY_POLL_SECONDS", 0.01)
+    monkeypatch.setattr(throttle, "decide", lambda *a, **k: throttle.Decision("hold", "Waiting: memory is tight", "background"))
+    calls: list[int] = []
+
+    def page():
+        calls.append(1)
+        raise throttle.MemoryShortError("Waiting: memory is tight: Kraken needs about 2.5 GB")
+
+    run_id = "run-held-6075"
+    try:
+        with pytest.raises(jobs.JobCancelled):
+            jobs._scheduler._work(db, "held-page", None, "page", (page, None, "local-ml", run_id))
+        assert cancellation.pause_requested(run_id)
+        paused = retry.paused_for_memory([run_id])
+        assert paused and "Kraken needs about 2.5 GB" in paused["detail"]
+        assert len(calls) >= 2, "it held and looked again before it gave up"
+    finally:
+        cancellation.clear_pause(run_id)
+        retry.forget_provider_pause(run_id)
+
+
+def test_a_hold_inside_its_patience_does_not_pause(db, monkeypatch):
+    from fichero_server.execution import jobs
+
+    monkeypatch.setattr(jobs, "THROTTLE_LOOK_AGAIN_SECONDS", 0.05)
+    monkeypatch.setattr(jobs._scheduler, "MEMORY_POLL_SECONDS", 0.01)
+    state = {"n": 0}
+
+    def page():
+        state["n"] += 1
+        if state["n"] < 3:
+            raise throttle.MemoryShortError("Waiting: memory is tight")
+        return "read"
+
+    assert jobs._scheduler._work(db, "held-page-2", None, "page", (page, None, "local-ml", "run-held-6075b")) == "read"

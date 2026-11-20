@@ -1213,7 +1213,7 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   partial map would delete what it knows and refuse the rest — half a Delete, worse than none.
   Not yet wired to a view, and that is the next step rather than a claim: what remains for this
   behaviour is the three surfaces writing to it.
-- `source.editor.highlight-on-its-box` — **[BROKEN]** (→ #5020) a selected segment's highlight is drawn
+- `source.editor.highlight-on-its-box` — **[PARTIAL]** (#5020; needs an on-screen check at two zooms) a selected segment's highlight is drawn
   on the box that was clicked, in the pane where it was clicked, at that pane's own zoom and scroll.
   **Broken:** the maintainer saw it land below and right of the clicked box, and in the other Preview
   pane too. Diagnosed 2026-09-27 (no fix yet): selection is `RegionSelection.shared`, one app-wide
@@ -1235,7 +1235,7 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   index, and every reader resolves it in its own list -- a box a list no longer holds is dropped, never
   replaced by the box at its old index (the same test file). Still owed before this is `[OK]`: the
   maintainer's check on screen at two zooms, and the drawing half (`overlay-moves-with-the-image`).
-- `source.editor.overlay-moves-with-the-image` — **[BROKEN]** (→ #5142) segment overlays move with the image,
+- `source.editor.overlay-moves-with-the-image` — **[PARTIAL]** (#5142; needs an on-screen check) segment overlays move with the image,
   frame for frame, while it is scrolled and zoomed, on a page as dense as the Cherokee Phoenix p. 2.
   **Broken:** they lag, then catch up. Diagnosed 2026-09-27 (no fix yet): the image is transformed by
   AppKit's scroll view in the gesture's own pass; the overlays are SwiftUI views laid out from a
@@ -1243,6 +1243,10 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   least one hop behind. Each tick then re-maps and re-strokes every box (4,525 on that page). Owed:
   the boxes drawn inside the scroll view's document view, in image coordinates, so one transform
   moves pixels and boxes together and only the visible boxes are drawn (`source.editor.one-overlay`).
+  **Built since** (`834b0bd1c0` .. `8e2380a92c`): boxes, saved marks, marquees and inline words are drawn in the
+  scroll view's document view through `DocumentBoxMapping`; the coordinate mapping is pinned by
+  `fichero/Tests/Unit/general/Views/Preview/DocumentBoxMappingTests.swift` (drawn rect == page rect x
+  magnification - clip origin, at every zoom and page shape). Not yet seen on screen on the Cherokee Phoenix p. 2.
 - `source.editor.edits-are-actions` — **[PARTIAL]** (#4941) every edit is one audited, reversible engine action; the
   editor updates only the changed segments.
   **Both halves hold for the edit path that exists today** (audited 2026-09-27); what is owed is
@@ -1366,6 +1370,7 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   loupe and magnifier are viewing aids, not layers. Nothing yet turns the image itself off, and no
   setting carries workspace defaults.
   *Built 2026-11-17 (#6674; owner: "show and hide segments or bounding boxes doesn't work, they're always on or not at all"):* each segment level has its own layer switch in What to Show, the same rule on an image and a PDF page (`SegmentHierarchy.shows`): **Show Regions** draws the region segments (before it filtered only old region annotation marks, so regions were always drawn), **Show Lines** (new, `preview.linesEnabled`) the lines, **Show Word Bounding Boxes** the words and finer (before, on a PDF, it hid every box). Pinned by `fichero/Tests/Unit/general/Views/Preview/PreviewLayerSwitchesTests.swift`. Not seen in the running app.
+- `source.editor.switches-hide-their-own-layer` — **[PARTIAL]** (#6725; owner 2026-11-18) in the Preview's What to show menu each switch hides only its own layer, at once, and is kept per pane: Show Bounding Box off draws no segment rectangle, plain boxes included (a segment with shapes keeps its polygon or baseline; the switch is pane-only and starts on, and the pre-#6725 stored value is not read); Shade by Reading Order (pane-only) off draws every line at full strength in its region's hue; the other switches keep their rule (`source.editor.two-switches`). *Test:* `OverlaySwitchesTests` (written: Show Bounding Box, Shade by Reading Order; the other switches have no test of their own yet).
 - `source.editor.draw-shapes` — **[PARTIAL]** (#4941) box, polygon, point, line and baseline can be drawn.
   **Built 2026-09-28 (image pages, segment passes), in the ONE Shape tool:** its kind menu, shown in Edit
   Segments, picks Box (a drag, as before), Polygon (click points; a click on the first point, a

@@ -69,6 +69,29 @@ enum SidebarProjectSections {
         return (top, projects)
     }
 
+    /// Splits the projects by the Mac they live on (#6742): those of this Mac under Projects, and each remote Mac's in its own
+    /// section, in the order the Macs first appear. `remoteHost` names the Mac a project is pinned to, nil for a local one.
+    static func splitByMac<Item>(
+        _ items: [Item], remoteHost: (Item) -> String?
+    ) -> (local: [Item], remote: [(host: String, items: [Item])]) {
+        var local: [Item] = []
+        var remote: [(host: String, items: [Item])] = []
+        for item in items {
+            guard let host = remoteHost(item) else { local.append(item); continue }
+            if let index = remote.firstIndex(where: { $0.host == host }) {
+                remote[index].items.append(item)
+            } else {
+                remote.append((host, [item]))
+            }
+        }
+        return (local, remote)
+    }
+
+    /// The header of a remote Mac's section: its name and the connection state beside it.
+    enum RemoteState: String { case connected, reconnecting, offline }
+
+    static func remoteHeader(name: String, state: RemoteState) -> String { "\(name) · \(state.rawValue)" }
+
     /// Whether the always-there project's section is drawn. A device whose engine is always another Mac's (an iPad or
     /// iPhone paired to a host) has no library of its own: its always-there slot shows a library only once the slot
     /// holds the host's paired library (`LibraryManager.adoptPairedRemoteLibrary`). Until then the slot is the

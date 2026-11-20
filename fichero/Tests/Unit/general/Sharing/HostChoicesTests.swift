@@ -24,6 +24,15 @@ struct HostChoicesTests {
         #expect(HostChoices.offered(found, ownName: "this mac").map(\.name) == ["Studio"])
     }
 
+    @Test func aMacWithNoPublicURLIsOfferedAtTheAddressItAdvertises() {
+        // #6742: the M1 Air advertised a name and an empty public_url, so it was dropped for having no address.
+        let url = HostChoices.advertisedURL(publicURL: "", address: "https://macbook-air-m1.local:8765")
+        #expect(url == "https://macbook-air-m1.local:8765")
+        #expect(HostChoices.advertisedURL(publicURL: "https://a.tail1.ts.net", address: "https://a.local:8765") == "https://a.tail1.ts.net")
+        #expect(HostChoices.advertisedURL(publicURL: nil, address: nil) == nil)
+        #expect(HostChoices.offered([host("macbook-air-m1", url)], ownName: "me").map(\.name) == ["macbook-air-m1"])
+    }
+
     @Test func oneRowPerAddressSortedByName() {
         let found = [host("b", "https://x.local:1"), host("a", "https://x.local:1"), host("c", "https://c.local:1")]
         #expect(HostChoices.offered(found, ownName: "me").map(\.name) == ["b", "c"])

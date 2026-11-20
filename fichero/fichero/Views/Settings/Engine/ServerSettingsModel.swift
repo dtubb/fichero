@@ -12,6 +12,15 @@ enum ServerSettingsText {
         return unique.isEmpty ? nil : unique.joined(separator: " · ")
     }
 
+    /// The addresses another device reaches this server at (#6746): this Mac's `.local` name and the Tailscale name, with the port.
+    /// Nothing for a server that is not running; the Tailscale line only while Tailscale gave a name.
+    static func reachableAt(running: Bool, hostName: String, port: Int, tailnetURL: String?) -> [String] {
+        guard running else { return [] }
+        var lines = ["https://\(hostName.hasSuffix(".local") ? hostName : hostName + ".local"):\(port)"]
+        if let tailnet = tailnetURL, !tailnet.isEmpty, !lines.contains(tailnet) { lines.append(tailnet) }
+        return lines
+    }
+
     static func canRestart(isRestarting: Bool, engineIsLocal: Bool) -> Bool { !isRestarting && engineIsLocal }
 
     /// The one red line under the Server URL field when it cannot be used; nothing when it can (blank means built-in).

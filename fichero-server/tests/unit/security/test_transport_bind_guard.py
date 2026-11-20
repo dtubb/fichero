@@ -14,6 +14,7 @@ from fichero_server.security.bind_host import (
 @pytest.fixture(autouse=True)
 def _no_private_interfaces(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(backend_main, "_private_interface_ips", lambda: [])
+    monkeypatch.setattr(backend_main, "_tailscale_interface_ips", lambda: [])
 
 
 def test_listener_hosts_stays_loopback_only_without_explicit_lan_host(

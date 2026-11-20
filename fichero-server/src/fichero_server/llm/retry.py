@@ -28,6 +28,9 @@ _PAUSED_FOR_RATE_LIMIT: dict[str, dict] = {}
 #: run id -> provider -> {provider, cause, detail}: the runs paused because a provider has no credit or its credit limit is
 #: reached (#6675). One entry per provider per run, so the app raises one dialogue however many pages hit it.
 _PAUSED_FOR_CREDIT: dict[str, dict[str, dict]] = {}
+#: run id -> {detail}: the runs paused because a page was held for memory past its patience (`throttle.MEMORY_HOLD_PATIENCE_SECONDS`,
+#: `runner.memory.hold-not-kill`, #6075); detail is the hold's own words, with the two numbers it compared.
+_PAUSED_FOR_MEMORY: dict[str, dict] = {}
 #: provider -> (cause, the provider's own words) of its last credit answer: a later page fails fast with the same words.
 _LAST_CREDIT: dict[str, tuple[str, str]] = {}
 #: How many calls in a row to one provider must spend their bounded back-off on 429s before the runs calling it pause (the
@@ -63,6 +66,25 @@ def forget_credit_pause(run_id: str | None) -> None:
             _LAST_CREDIT.pop(provider, None)
 
 
+def paused_for_memory(run_ids) -> dict | None:
+    """The memory pause of the first of `run_ids` asked to pause for one: `{detail}`, else None."""
+    return next((_PAUSED_FOR_MEMORY[r] for r in run_ids if r and r in _PAUSED_FOR_MEMORY), None)
+
+
+def forget_memory_pause(run_id: str | None) -> None:
+    """The run goes on (Continue): the memory hold starts again from nothing."""
+    if run_id:
+        _PAUSED_FOR_MEMORY.pop(run_id, None)
+
+
+def pause_the_run_for_memory(run_id: str, words: str) -> None:
+    """A page of this run was held for memory past its patience: ask the run to pause at its next boundary, with the cause."""
+    from fichero_server.execution.cancellation import request_pause
+
+    _PAUSED_FOR_MEMORY[run_id] = {"detail": words}
+    request_pause(run_id)
+
+
 def forget_provider_pause(run_id: str | None) -> None:
     """The run goes on (Continue), whatever it was paused for: the cap stop, a rate limit and a credit or key refusal are
     forgotten, and the provider's dead mark with them, so the first call after Continue is a real probe (#6569)."""
@@ -71,6 +93,7 @@ def forget_provider_pause(run_id: str | None) -> None:
     forget_cap_stop(run_id)
     forget_rate_limit_pause(run_id)
     forget_credit_pause(run_id)
+    forget_memory_pause(run_id)
 
 
 def _pause_the_run_for_credit(provider: str, exc: BaseException | None) -> bool:

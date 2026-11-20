@@ -371,8 +371,16 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
             shard["ended_at"] = _now()
             if far.state == "done":
                 part = f"shard-{int(key):05d}"
-                folder = target.fetch_part(job_id, part, work / "out" / part)
-                result = land(db, job_id, folder, pass_name=pass_name, actor=started_by)
+                detail["landing_now"] = key  # the far side ended it; its pages are not landed yet
+                _save(db, job_id, detail)
+                try:
+                    folder = target.fetch_part(job_id, part, work / "out" / part)
+                    result = land(db, job_id, folder, pass_name=pass_name, actor=started_by)
+                except BaseException:
+                    detail.pop("landing_now", None)  # the run ends here: the row must not say `landing`
+                    _save(db, job_id, detail)
+                    raise
+                detail.pop("landing_now", None)
                 for name, value in result.items():
                     detail["landing"][name] = detail["landing"].get(name, 0) + value
                 shard.update(state="landed", landed=result, seconds=_shard_seconds(folder))
@@ -465,8 +473,10 @@ def _shard_seconds(folder: Path) -> float | None:
 
 
 def far_state(status: dict[str, Any]) -> str:
-    """Where the run is, in words, on the far side (`activity.remote-under-its-step`): queued, running, done, failed."""
+    """Where the run is, in words, on the far side (`activity.remote-under-its-step`): queued, running, landing, done, failed."""
     counts = status["counts"]
+    if status.get("landing_now") is not None:
+        return "landing"
     if counts.get("submitted"):
         return "running"
     if counts.get("pending"):
@@ -481,7 +491,8 @@ def remote_row(status: dict[str, Any]) -> dict[str, Any]:
     state = far_state(status)
     done, total = status.get("shards_done", status["counts"].get("landed", 0)), status.get("shards_total") or sum(
         status["counts"].values())
-    offers = {"queued": ["Cancel", "Catch up"], "running": ["Cancel", "Catch up"], "failed": ["Retry failed shards"]}
+    offers = {"queued": ["Cancel", "Catch up"], "running": ["Cancel", "Catch up"],
+              "landing": ["Cancel", "Catch up"], "failed": ["Retry failed shards"]}
     return {"target": status.get("target"), "far_state": state, "shards": f"{done} of {total} shards",
             "pages_landed": status.get("pages_landed", 0), "offers": offers.get(state, [])}
 
@@ -550,7 +561,7 @@ def status(db: Any, job_id: str) -> dict[str, Any]:
            "estimate": detail.get("estimate"),
            "actual": {"seconds_per_shard": sum(seconds) / len(seconds) if seconds else None,
                       "gpu_hours": sum(seconds) / 3600 if seconds else None},
-           **{k: v for k, v in detail.items() if k in ("package", "landing", "flavor", "price_per_hour_usd", "step")}}
+           **{k: v for k, v in detail.items() if k in ("package", "landing", "landing_now", "flavor", "price_per_hour_usd", "step")}}
     out["times"] = measured
     out["far_state"] = far_state(out)
     out["hf_spend"] = _hf_spend(db) if out["target"] == TARGET else None

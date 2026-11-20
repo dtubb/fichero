@@ -27,7 +27,7 @@ final class OriginalsStore {
     var grant: (URL) async throws -> Void = { try await FolderAccessManager.shared.saveBookmarkIfDirectory($0) }
     /// Locate Originals is open (File › Locate Originals…, an item's menu, the Items pane's notice).
     var isChoosing = false
-    /// The last relink in one sentence, "Relinked 214 of 216; 2 still missing." (#5535).
+    /// The last relink in one sentence, "Relinked 214. Still missing: 2." (#5535, #6733).
     private(set) var summarySentence: String?
     /// Where this project's originals were last relinked to (#5535): kept after a relink, tried at the next open. A
     /// test's stand-ins replace them.
@@ -78,14 +78,21 @@ final class OriginalsStore {
         refusal = nil
         isWorking = true
         defer { isWorking = false }
+        var granted = false
         do {
             plan = try await FolderAccessManager.grantThenEngineWork(
-                grant: { try await grant(folder) },
+                grant: {
+                    try await grant(folder)
+                    granted = true
+                },
                 engineWork: { try await requestPlan(folder, folderId: folderId) }
             )
         } catch {
             if error.isCancellationError { return }
-            refusal = "Could not look in \(folder.lastPathComponent): \(error.localizedDescription)"
+            // Name the step that failed (#6733): a refused grant means the engine was never asked to look.
+            refusal = granted
+                ? "Could not look in \(folder.lastPathComponent): \(error.localizedDescription)"
+                : "Fichero could not get access to \(folder.lastPathComponent), so nothing was looked for: \(error.localizedDescription)"
         }
     }
 
@@ -160,7 +167,7 @@ final class OriginalsStore {
     /// The relink in one sentence: how many of the missing were found, and how many are still missing.
     static func summary(relinked: Int, of total: Int) -> String {
         let still = total - relinked
-        return "Relinked \(relinked) of \(total)" + (still > 0 ? "; \(still) still missing." : ".")
+        return "Relinked \(relinked)." + (still > 0 ? " Still missing: \(still)." : "")
     }
 
     /// Put the chooser back to nothing chosen.

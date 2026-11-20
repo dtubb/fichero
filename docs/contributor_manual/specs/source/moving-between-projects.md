@@ -741,14 +741,19 @@ Nothing in the project changes.
   originals are now, or a parent) is granted to the engine, kept as a security-scoped bookmark for THIS project
   (`OriginalsStore.rememberRoot`, keyed by the project's path) and every missing original under it is matched (the
   path below its old root, then name and size, then checksum: `relink_plan`, #5672) and relinked in ONE
-  `document.relink_originals` action, one ⌘Z, said in one sentence: "Relinked 214 of 216; 2 still missing."
+  `document.relink_originals` action, one ⌘Z, said in one sentence: "Relinked 214. Still missing: 2."
   On the next launch, a project whose originals are missing tries its remembered folder first, with no panel, and
   asks only when something is still missing after that, once. *Built:* the routing in `DocumentCanvas`
   (`OriginalsStore.askOnce`), the remembered folder and its silent relink at open
   (`OriginalsStore.relinkFromRememberedRoot`, run by `LocateOriginalsPresenter`), the summary
-  (`OriginalsStore.summary`). *Not built:* resolving a stale bookmark of each original on the same volume first
-  (owner 2026-10-06); carrying trained models with a moved project. *Test:* engine matching
-  `fichero-server/tests/unit/importers/test_locate_originals_5672.py`; the ask-once, the summary and the
+  (`OriginalsStore.summary`); "is the original there" is ONE test for the sheet and the thumbnail
+  (`relink.original_is_there`: the recorded path first, then `resolve_source`; a file outside the roots the engine
+  may read counts as missing, #6733); a refused folder grant says Fichero could not get access and that nothing was
+  looked for (`OriginalsStore.choose`); the sheet says "All originals were found." when none is missing;
+  `relink.follow_bookmark` repoints a page to where its bookmark finds it and saves a fresh bookmark. *Not built:*
+  calling `follow_bookmark` (from a route or the app; it writes directly, not through `document.relink_originals`),
+  the app resolving bookmarks the engine cannot, Retry offering the other missing originals (#6733); carrying trained models with a moved project. *Test:* engine matching
+  `fichero-server/tests/unit/importers/test_locate_originals_5672.py` and `test_original_is_there_6733.py`; the ask-once, the summary and the
   no-second-prompt launch `fichero/Tests/Unit/general/Models/OriginalsStoreTests.swift`.
 - `transfer.machine.incoming-bounded` — **[PARTIAL]** (#5657, security review 2026-10-11) a far peer cannot
   fill this disk: a copy is refused (413) before anything is written when one object is over 512 MB, the whole

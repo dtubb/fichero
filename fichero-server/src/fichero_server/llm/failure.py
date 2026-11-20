@@ -332,6 +332,18 @@ def credit_pause_failure(paused: dict, *, step: str | None = None, done: int | N
     return failure
 
 
+def memory_pause_failure(paused: dict, *, step: str | None = None, done: int | None = None,
+                         total: int | None = None) -> RunFailure:
+    """The failure a run PAUSED for memory carries (`runner.memory.hold-not-kill`, #6075): a page was held for memory past its
+    patience; the run is paused, not failed, and Continue goes on from the first page not done."""
+    failure = _build("memory", None, None, paused.get("detail", ""), step=step, done=done, total=total)
+    failure.words = "This Mac did not have the memory for this step, so the run is paused. Nothing was lost."
+    failure.fix = ("Close other apps, or choose a smaller model, then Continue; "
+                   "Fichero goes on from the first page not done.")
+    failure.actions = [_a("resume"), _a("choose-model")]
+    return failure
+
+
 def _a(kind: str, control: str | None = None) -> FailureAction:
     return FailureAction(kind=kind, control=control)  # type: ignore[arg-type]
 

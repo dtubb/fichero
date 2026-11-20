@@ -86,10 +86,10 @@ struct LocateOriginalsSheet: View {
                         .font(.caption).foregroundStyle(.secondary).lineLimit(3)
                 }
             } else {
-                Text("Every linked original is where the project says.").font(.callout)
+                Text("All originals were found.").font(.callout)
             }
             HStack {
-                Button("Choose the Folder They Are In Now…") { choosingFolder = true }
+                Button("Choose the folder they're in now…") { choosingFolder = true }
                 if let root = store.newRoot { Text(root.path).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
             }
             if store.isWorking { ProgressView().controlSize(.small) }

@@ -289,6 +289,17 @@ if [ "$SKIP_DMG" = false ]; then
   export FICHERO_BUILD_NUMBER="${FICHERO_BUILD_NUMBER:-$NEXT_BUILD}"
 fi
 
+# Release notes first (the stamp checks the section exists and retitles nothing).
+if [ -n "${FICHERO_RELEASE_VERSION:-}" ]; then NOTES_VERSION="$FICHERO_RELEASE_VERSION"
+else
+  NOTES_ARGS=()
+  [ "${FICHERO_RELEASE_BETA:-0}" = "1" ] && NOTES_ARGS+=(--beta)
+  NOTES_VERSION="$("$ROOT_DIR/scripts/set-release-version.sh" --print-version "${NOTES_ARGS[@]+"${NOTES_ARGS[@]}"}")"
+fi
+echo
+echo "── Preflight: release notes for $NOTES_VERSION (auto-generated when none are hand-written) ──"
+guard auto-notes "$NOTES_VERSION"
+
 # ── Auto-stamp the dated release version (once, up front) ────────────────────
 # Stamp TODAY's date across frontend + backend before any build path runs, so
 # both the DMG and the TestFlight archive carry the same auto-incremented dated
@@ -318,10 +329,6 @@ REL_LABEL="Fichero $FICHERO_RELEASE_VERSION ($(project_setting CURRENT_PROJECT_V
 if [ "$SKIP_DMG" = false ]; then
   guard check-build "$(project_setting CURRENT_PROJECT_VERSION)" || exit 1
 fi
-
-echo
-echo "── Preflight: release notes (auto-generated when none are hand-written) ──"
-guard auto-notes "$FICHERO_RELEASE_VERSION"
 
 echo
 echo "── Preflight: release docs readiness ──"

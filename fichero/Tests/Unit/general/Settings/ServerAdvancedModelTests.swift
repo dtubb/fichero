@@ -15,6 +15,16 @@ import Testing
 struct ServerAdvancedModelTests {
     private struct Refused: LocalizedError { var errorDescription: String? { "That address did not answer, so the previous one is back." } }
 
+    @Test("the server lists the addresses it is reachable at: its .local name and its Tailscale name (#6746)")
+    func reachableAt() {
+        let both = ServerSettingsText.reachableAt(
+            running: true, hostName: "macbook-air-m1", port: 8765, tailnetURL: "https://macbook-air-m1.tail1.ts.net")
+        #expect(both == ["https://macbook-air-m1.local:8765", "https://macbook-air-m1.tail1.ts.net"])
+        #expect(ServerSettingsText.reachableAt(running: true, hostName: "air.local", port: 8765, tailnetURL: nil)
+            == ["https://air.local:8765"])
+        #expect(ServerSettingsText.reachableAt(running: false, hostName: "air", port: 8765, tailnetURL: "https://a.ts.net").isEmpty)
+    }
+
     @Test("status is one word; Restart needs a local engine that is not already restarting")
     func statusAndRestart() {
         #expect(ServerSettingsText.status(running: true) == "Running")

@@ -282,6 +282,28 @@ Tags: [OK] built · [PARTIAL] partly built · [MISSING] not built. Nothing below
 - `channel.the-size-ratchet-runs-on-the-one-image` [MISSING] (#5287) — the release-size ratchet
   measures the image the lane built, on every run.
 
+## Release notes
+
+Behaviour of `scripts/release_guard.py auto-notes`, which `release-all.sh` runs before the docs gate (owner 2026-11-18: the
+hand-written notes of v2026.11.17 read far better than the commit-subject list of v2026.11.18).
+
+- `release-notes.range` [OK] (test: `tests/unit/scripts/test_release_guard.py::test_the_notes_are_made_from_the_record_grouped_by_milestone`) — the range is the previous release tag up to the release commit.
+- `release-notes.read-the-record` [OK] (test: `tests/unit/scripts/test_release_guard.py::test_the_notes_are_made_from_the_record_grouped_by_milestone`) — each commit in the range gives its subject, the issue numbers (`#N`) in its subject
+  and body, and its `Behaviour: <id>` and `Spec-change:` trailers.
+- `release-notes.issues-from-github` [OK] (test: `tests/unit/scripts/test_release_guard.py::test_the_issue_reader_batches_one_query_caches_closed_issues_and_offline_is_none` and `test_offline_the_notes_say_the_issues_were_not_read_and_keep_the_commits`) — each issue's title, milestone, state and labels are read on the release machine
+  through GitHub's CLI in one batched query, cached by issue. Offline, the notes say "issues not read" and the release goes on.
+- `release-notes.grouped-by-milestone` [OK] (test: `tests/unit/scripts/test_release_guard.py::test_milestones_without_a_build_order_go_by_commit_count_and_the_order_is_read_from_the_list`) — one `###` section per milestone (the milestone's title, in the order of
+  `build-order.md` when it names the milestone, else by commit count), inside the version's `##` section so the section parsers
+  keep reading one version section. One line per issue: the issue title, its number, "closed" or "in progress". A commit with no
+  issue goes under "Other changes", by its conventional type (fix, feat, perf).
+- `release-notes.specs-section` [OK] (test: `tests/unit/scripts/test_release_guard.py::test_the_notes_are_made_from_the_record_grouped_by_milestone`) — a "Specs" section lists each spec file changed in the range with the behaviours that
+  became [OK] (the `Behaviour:` trailer ids whose line in that spec file is tagged [OK]) and the `Spec-change:` lines.
+- `release-notes.whats-new` [OK] (test: `tests/unit/scripts/test_release_guard.py::test_the_notes_are_made_from_the_record_grouped_by_milestone`) — on top, a "What's new" of up to five lines, one per milestone, written from the milestones with the most closed issues,
+  with no model call and no ids, in plain words.
+- `release-notes.test-this` [OK] (test: `tests/unit/scripts/test_release_guard.py::test_the_notes_are_made_from_the_record_grouped_by_milestone`) — a "Test this" list names the closed issues in the range that carry the `needs-your-test` label.
+- `release-notes.one-text` [PARTIAL] (#6590, `tests/unit/scripts/test_release_guard.py::test_the_same_body_goes_to_the_notes_and_the_changelog_and_satisfies_the_docs_gate` and `test_hand_written_sections_are_never_touched`) — the same text goes to RELEASE_NOTES.md, CHANGELOG.md and the GitHub release body (which is
+  rendered from RELEASE_NOTES.md). Hand-written text for the version in RELEASE_NOTES.md wins and is never touched.
+
 ## Alternative considered: a binary per channel behind one feed
 
 Keep separate builds (today's shape) and let the popup choose which one Sparkle fetches.

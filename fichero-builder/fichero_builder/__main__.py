@@ -73,6 +73,7 @@ def main(argv=None) -> int:
     r.add_argument("--tick", type=float, default=30.0)
     r.add_argument("--handoff", help="the handoff file a successor reads (default <worktree>/HANDOFF.md)")
     r.add_argument("--feed", help="the queue's lane: a folder only the owner writes; DONE ends the step, not the session; msg-<seq+1>.txt is typed into the same pane; `stop` ends it")
+    r.add_argument("--role", default="", help="the lane's model role in [models] (queue add --role): its context is the window the handoff mark is taken from")
     r.add_argument("--seq", type=int, default=0, help="with --feed: the first brief's message number")
     r.add_argument("--state", help="where the journal lives (default $FICHERO_BUILDER_STATE, else <[jail].workroot>/state, else the XDG state home)")
     c = sub.add_parser("check", help="run the ladder over SINCE..HEAD from the pinned copy; exit 1 if red")
@@ -133,6 +134,7 @@ def main(argv=None) -> int:
     q.add_argument("--lane"), q.add_argument("--worktree"), q.add_argument("--step"), q.add_argument("--brief"), q.add_argument("--issues", type=int, nargs="*", default=[])
     q.add_argument("--hold", action="store_true", help="add: a milestone a person holds (the intake never takes this lane)")
     q.add_argument("--maintainer", action="store_true", help="add: a registered maintainer lane (the harness builder): its checks run --maintainer")
+    q.add_argument("--role", default="", help="add: the lane's worker runs on this role of harness.toml [models] (and so do its handoff successors), not on `builder`")
     q.add_argument("--pane", default="", help="add: the external lane's tmux pane, told its findings and LANDED")
     q.add_argument("--kind", choices=["worker", "external"], default="worker", help="add: external = a branch the loop starts no worker for; `builder done` is its DONE")
     q.add_argument("--push", action="store_true"), q.add_argument("--once", action="store_true"), q.add_argument("--tick", type=float, default=30.0)
@@ -646,7 +648,7 @@ def main(argv=None) -> int:
     else:
         procs = run_mod.real_procs(Path.home(), a.worktree)
     end = run_mod.run(a.root, a.worktree, a.brief, name=a.name, model=a.model, kind=a.kind, tmux_session=a.session,
-                      tick_s=a.tick, procs=procs, handoff=a.handoff, feed=a.feed, seq=a.seq)
+                      tick_s=a.tick, procs=procs, handoff=a.handoff, feed=a.feed, seq=a.seq, role=a.role)
     return 0 if end in ("done", "done-unsaid", "lane-done", "gone", "parked") else 1  # a clean end is 0; "refused" is the 1
 
 

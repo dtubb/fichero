@@ -141,6 +141,8 @@ struct ReaderToolbar: View {
     var orderNumbersEnabled: Binding<Bool>?
     /// "Show Bounding Box": the box beside a polygon or baseline (the Preview's Display menu).
     var boundingBoxesEnabled: Binding<Bool>?
+    /// "Shade by Reading Order": this pane's switch; nil hides it.
+    var shadeByOrderEnabled: Binding<Bool>?
     /// The segment-editing MODE (#5114). Lives in this menu because the ruling put it
     /// with the view's other options. nil where there are no segments to edit.
     var segmentEditingEnabled: Binding<Bool>?
@@ -279,11 +281,10 @@ struct ReaderToolbar: View {
                             SelectionStyle.regionLegendSwatch(hue: hue)
                         }
                     }
-                    Toggle("Shade by Reading Order", isOn: Binding(
-                        get: { RegionColours.shadesByOrder },
-                        set: { EngineConfig.defaults.set($0, forKey: RegionColours.shadeKey) }
-                    ))
-                    .accessibilityIdentifier("previewShadeByOrder")
+                    if let shadeByOrderEnabled {
+                        Toggle("Shade by Reading Order", isOn: shadeByOrderEnabled)
+                            .accessibilityIdentifier("previewShadeByOrder")
+                    }
                 }
             }
         } label: {

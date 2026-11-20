@@ -13,6 +13,8 @@ struct MacRemoteClientPairingSection: View {
     @State private var nearby = NearbyHosts()
     @State private var chosen: HostChoices.Found?
     @State private var pairCode = ""
+    /// "Connect by address…" (#6742): a host or IP typed here, paired with the code below it.
+    @State private var typedHost = ""
     // This Mac's own `.ts.net` address, from its own engine; a host in another tailnet always asks for its invite.
     @State private var ownTailnetURL: String?
     /// A failed connect, as the one alert (`sharing.alerts.one-alert-per-failure`); never a line of raw text under the fields.
@@ -47,7 +49,12 @@ struct MacRemoteClientPairingSection: View {
         Section {
             nearbyList
 
-            if chosenNeedsCodeOnly {
+            Text("Or connect by address").font(.caption).foregroundStyle(.secondary)
+            TextField(ConnectSheetModel.addressPlaceholder, text: $typedHost)
+                .textFieldStyle(.roundedBorder)
+                .autocorrectionDisabled()
+
+            if codeRoute {
                 TextField(ConnectSheetModel.codePlaceholder, text: $pairCode)
                     .textFieldStyle(.roundedBorder)
                     .autocorrectionDisabled()
@@ -60,7 +67,8 @@ struct MacRemoteClientPairingSection: View {
 
             // Where the code or link goes, said once.
             if let connectsTo = ConnectSheetModel.connectsTo(
-                pickedAddress: chosenNeedsCodeOnly ? chosen?.publicURL : nil, pastedHost: inviteHost) {
+                pickedAddress: HostChoices.typedURL(typedHost)?.absoluteString ?? (chosenNeedsCodeOnly ? chosen?.publicURL : nil),
+                pastedHost: inviteHost) {
                 Text(connectsTo).font(.caption).foregroundStyle(.secondary)
             }
 
@@ -137,6 +145,9 @@ struct MacRemoteClientPairingSection: View {
 
     /// A picked host certified by a public authority is paired with from its code alone; any other needs its invite
     /// (the invite carries the key to pin, which Bonjour never does).
+    /// The code field shows for a picked Mac that pairs from its code, and for a typed address.
+    private var codeRoute: Bool { chosenNeedsCodeOnly || HostChoices.typedURL(typedHost) != nil }
+
     private var chosenNeedsCodeOnly: Bool {
         chosen.map { !HostChoices.needsInvite($0, ownTailnetURL: ownTailnetURL) } ?? false
     }
@@ -144,6 +155,14 @@ struct MacRemoteClientPairingSection: View {
     /// What Connect pairs with: the picked host and its typed code, or the pasted invite (which must be for the host
     /// that was picked, if one was).
     private func fieldsToPair() throws -> RemoteClientPairingFields {
+        if let url = HostChoices.typedURL(typedHost) {
+            // The key it presented, read at first contact and trusted by the person (`trustTypedAddress`).
+            guard let fields = ConnectSheetModel.addressFields(
+                address: typedHost, code: pairCode, pin: trusted?.url == url ? trusted?.pin : nil) else {
+                throw APIError.badRequest("Type the code shown on \(url.host ?? "that Mac").")
+            }
+            return fields
+        }
         if let chosen, chosenNeedsCodeOnly, let url = chosen.publicURL {
             return RemoteClientPairingFields(remoteURL: url, pairCode: pairCode, spkiPin: nil, libraryPath: "")
         }
@@ -174,7 +193,8 @@ struct MacRemoteClientPairingSection: View {
     /// First contact with a typed address: read the key it presents and ask the person to trust its fingerprint. A host a
     /// public CA certifies (`tailscale serve`) needs no pin and is trusted as is. Returns false when the ask is shown.
     private func trustTypedAddress() async throws -> Bool {
-        guard let address = HostKeyProbe.typedAddress(clientInvite), trusted?.url != address else { return true }
+        guard let address = HostChoices.typedURL(typedHost) ?? HostKeyProbe.typedAddress(clientInvite),
+              trusted?.url != address else { return true }
         guard let ask = try await HostKeyProbe.firstContact(address) else {
             trusted = (address, nil)
             return true
@@ -185,7 +205,7 @@ struct MacRemoteClientPairingSection: View {
 
     private var canConnect: Bool {
         ConnectSheetModel.canConnect(
-            codeRoute: chosenNeedsCodeOnly, code: pairCode, link: clientInvite, isConnecting: isClientPairing,
+            codeRoute: codeRoute, code: pairCode, link: clientInvite, isConnecting: isClientPairing,
             needsPerson: needsPerson || linkSignsIn, name: personName, password: personPassword)
     }
 

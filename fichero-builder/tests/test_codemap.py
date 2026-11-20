@@ -10,6 +10,7 @@ import types
 
 import pytest
 
+from _fake_index import write_rules
 from fichero_builder import codemap, start_tool, work
 
 SERVER = """#!/usr/bin/env python3
@@ -65,19 +66,20 @@ def test_a_failed_copy_says_why_and_the_worker_still_runs(world, monkeypatch, ca
     assert "disk full" in capsys.readouterr().out
 
 
-def test_prepare_registers_only_the_copied_server_and_keeps_the_strict_config(world, tmp_path, monkeypatch):
+def test_prepare_registers_only_the_two_copied_servers_and_keeps_the_strict_config(tmp_path, monkeypatch):
     wt = tmp_path / "wt"
     wt.mkdir()
     subprocess.run(["git", "-C", str(wt), "init", "-q"], check=True)
     monkeypatch.setenv("HOME", str(tmp_path / "h"))
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "gc"))
-    w = codemap.provide(world.root)
-    argv = start_tool.prepare(world.root, wt, "do it", tmp_path / "scratch")
-    assert json.loads((tmp_path / "scratch" / "mcp.json").read_text()) == {"mcpServers": {"jcodemunch": {"type": "stdio", "command": w, "args": [], "env": {}}}}
+    wr = write_rules(tmp_path)
+    argv = start_tool.prepare(tmp_path, wt, "do it", tmp_path / "scratch")
+    assert json.loads((tmp_path / "scratch" / "mcp.json").read_text()) == {"mcpServers": {n: {"type": "stdio", "command": str(wr / "bin" / f"{n}-mcp"), "args": [], "env": {}}
+                                                                                         for n in ("jcodemunch", "jdocmunch")}}
     assert "--strict-mcp-config" in argv
 
 
-def test_prepare_makes_the_workers_git_commit_as_claude(world, tmp_path, monkeypatch):
+def test_prepare_makes_the_workers_git_commit_as_claude(tmp_path, monkeypatch):
     wt = tmp_path / "wt"
     wt.mkdir()
     subprocess.run(["git", "-C", str(wt), "init", "-q"], check=True)
@@ -85,8 +87,8 @@ def test_prepare_makes_the_workers_git_commit_as_claude(world, tmp_path, monkeyp
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "gc"))
     for k in start_tool.AUTHOR:
         monkeypatch.delenv(k, raising=False)
-    codemap.provide(world.root)
-    start_tool.prepare(world.root, wt, "do it", tmp_path / "scratch")
+    write_rules(tmp_path)
+    start_tool.prepare(tmp_path, wt, "do it", tmp_path / "scratch")
     (wt / "f").write_text("x")
     subprocess.run(["git", "-C", str(wt), "add", "f"], check=True)
     subprocess.run(["git", "-C", str(wt), "-c", "core.hooksPath=/dev/null", "commit", "-qm", "m"], check=True)
@@ -94,12 +96,13 @@ def test_prepare_makes_the_workers_git_commit_as_claude(world, tmp_path, monkeyp
     assert who == "Claude <noreply@anthropic.com> / Claude <noreply@anthropic.com>"
 
 
-def test_the_worker_side_command_indexes_the_worktree_first_and_a_failed_index_does_not_stop_it(world):
-    codemap.provide(world.root)
-    a = types.SimpleNamespace(pinned=str(world.root), worktree="/wr/wt", brief="/b", root=str(world.root), name="n", kind="claude", session="s", tick=30.0)
+def test_the_worker_side_command_indexes_the_worktree_with_both_servers_first_and_a_failed_index_stops_it(tmp_path):
+    write_rules(tmp_path)
+    a = types.SimpleNamespace(pinned=str(tmp_path), worktree="/wr/wt", brief="/b", root=str(tmp_path), name="n", kind="claude", session="s", tick=30.0)
     cmd = work.run_cmd(a, "sonnet")
-    index, _, rest = cmd.partition("; ")
-    assert index.endswith("index /wr/wt --no-ai-summaries >/dev/null 2>&1") and "-m fichero_builder run" in rest
+    code, doc, run = (cmd.index(x) for x in ("jcodemunch-mcp index /wr/wt --no-ai-summaries >/dev/null 2>&1 || {", "jdocmunch-mcp index-local /wr/wt >/dev/null 2>&1 || {",
+                                             "-m fichero_builder run"))
+    assert code < doc < run and cmd.count(f"exit {codemap.INDEX_FAILED}") == 2
 
 
 def test_the_standing_rules_tell_the_worker_to_find_code_with_the_map():

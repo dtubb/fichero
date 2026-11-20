@@ -172,16 +172,16 @@ final class EngineLifecycleController {
     /// — by then `applicationShouldTerminate`'s bounded async teardown has
     /// normally already reaped the child, so this is a no-op (`beginStop` returns
     /// nil once the pid is cleared). Prefer `stopAndAwaitExit()` (#4291).
-    func stop() {
-        backendService.stop()
+    func stop(askedBy caller: String = #fileID) {
+        backendService.stop(askedBy: caller)
     }
 
     /// Stop the engine without blocking the main thread, bounded by
     /// `TerminationDeadlineTests`-pinned `TerminationDeadlinePolicy` (#4291).
     /// This is what the quit path awaits before replying to
     /// `applicationShouldTerminate`.
-    func stopAndAwaitExit() async {
-        await backendService.stopAndAwaitExit()
+    func stopAndAwaitExit(askedBy caller: String = #fileID) async {
+        await backendService.stopAndAwaitExit(askedBy: caller)
     }
 
     /// The single connect sequence shared by launch and Retry (#3108). Moved
