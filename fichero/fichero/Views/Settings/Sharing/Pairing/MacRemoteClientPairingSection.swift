@@ -67,7 +67,8 @@ struct MacRemoteClientPairingSection: View {
 
             // Where the code or link goes, said once.
             if let connectsTo = ConnectSheetModel.connectsTo(
-                pickedAddress: HostChoices.typedURL(typedHost)?.absoluteString ?? (chosenNeedsCodeOnly ? chosen?.publicURL : nil), pastedHost: inviteHost) {
+                pickedAddress: HostChoices.typedURL(typedHost)?.absoluteString ?? (chosenNeedsCodeOnly ? chosen?.publicURL : nil),
+                pastedHost: inviteHost) {
                 Text(connectsTo).font(.caption).foregroundStyle(.secondary)
             }
 

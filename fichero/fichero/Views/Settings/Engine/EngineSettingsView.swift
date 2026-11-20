@@ -33,7 +33,7 @@ struct EngineSettingsView: View {
                 }
                 let addresses = ServerSettingsText.reachableAt(
                     running: appState.isBackendRunning && EngineConfig.engineIsLocal,
-                    hostName: (ProcessInfo.processInfo.hostName.split(separator: ".").first.map(String.init) ?? ProcessInfo.processInfo.hostName),
+                    hostName: ProcessInfo.processInfo.hostName.split(separator: ".").first.map(String.init) ?? "",
                     port: 8765, tailnetURL: tailnetURL)
                 if !addresses.isEmpty {
                     LabeledContent("Reachable at") {

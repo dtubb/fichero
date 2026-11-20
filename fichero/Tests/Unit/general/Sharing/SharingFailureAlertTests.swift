@@ -57,7 +57,8 @@ struct SharingFailureAlertTests {
         #expect(timedOut.message.contains("Sharing on"))
         #expect(timedOut.message.contains("different network"))
         #expect(timedOut.message.contains("firewall"))
-        let refused = SharingFailurePrompt.make(pairing: URLError(.cannotConnectToHost), host: "Air", offers: [], perform: { _ in }, copy: { _ in })
+        let refused = SharingFailurePrompt.make(
+            pairing: URLError(.cannotConnectToHost), host: "Air", offers: [], perform: { _ in }, copy: { _ in })
         #expect(refused.message.contains("Sharing may be off"))
         #expect(refused.message.contains("firewall"))
     }
