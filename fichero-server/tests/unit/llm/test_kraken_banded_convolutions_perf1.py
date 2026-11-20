@@ -1,4 +1,7 @@
 """The line finder's convolutions run a band of rows at a time (runner.measured, perf-1): the same output, a smaller im2col buffer."""
+import sys
+import types
+
 import pytest
 
 torch = pytest.importorskip("torch")
@@ -48,7 +51,6 @@ def test_the_segmenter_is_banded_at_32_rows(monkeypatch):
     seen = {}
     monkeypatch.setattr(kraken_runtime, "_band_convolutions", lambda m, rows: seen.update(rows=rows) or 0)
     monkeypatch.setattr(kraken_runtime, "_resident", lambda kind, key, load: load())
-    import sys, types
     vgsl = types.SimpleNamespace(TorchVGSLModel=types.SimpleNamespace(load_model=lambda path: model))
     monkeypatch.setitem(sys.modules, "kraken", types.ModuleType("kraken"))
     monkeypatch.setitem(sys.modules, "kraken.lib", types.SimpleNamespace(vgsl=vgsl))
