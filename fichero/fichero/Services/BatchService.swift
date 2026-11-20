@@ -32,8 +32,8 @@ class BatchService {
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw BatchServiceError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw BatchServiceError.unexpectedResponse(statusCode)
+        case .undocumented(let statusCode, let payload):
+            throw await BatchServiceError.refused(statusCode, payload)
         }
     }
 
@@ -84,8 +84,8 @@ class BatchService {
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw BatchServiceError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw BatchServiceError.unexpectedResponse(statusCode)
+        case .undocumented(let statusCode, let payload):
+            throw await BatchServiceError.refused(statusCode, payload)
         }
     }
 
@@ -102,8 +102,8 @@ class BatchService {
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw BatchServiceError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw BatchServiceError.unexpectedResponse(statusCode)
+        case .undocumented(let statusCode, let payload):
+            throw await BatchServiceError.refused(statusCode, payload)
         }
     }
 
@@ -119,8 +119,8 @@ class BatchService {
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw BatchServiceError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw BatchServiceError.unexpectedResponse(statusCode)
+        case .undocumented(let statusCode, let payload):
+            throw await BatchServiceError.refused(statusCode, payload)
         }
     }
 
@@ -136,8 +136,8 @@ class BatchService {
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw BatchServiceError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw BatchServiceError.unexpectedResponse(statusCode)
+        case .undocumented(let statusCode, let payload):
+            throw await BatchServiceError.refused(statusCode, payload)
         }
     }
 
@@ -154,8 +154,8 @@ class BatchService {
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw BatchServiceError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw BatchServiceError.unexpectedResponse(statusCode)
+        case .undocumented(let statusCode, let payload):
+            throw await BatchServiceError.refused(statusCode, payload)
         }
     }
 
@@ -171,8 +171,8 @@ class BatchService {
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw BatchServiceError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw BatchServiceError.unexpectedResponse(statusCode)
+        case .undocumented(let statusCode, let payload):
+            throw await BatchServiceError.refused(statusCode, payload)
         }
     }
 
@@ -189,8 +189,8 @@ class BatchService {
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw BatchServiceError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw BatchServiceError.unexpectedResponse(statusCode)
+        case .undocumented(let statusCode, let payload):
+            throw await BatchServiceError.refused(statusCode, payload)
         }
     }
 
@@ -206,8 +206,8 @@ class BatchService {
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw BatchServiceError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw BatchServiceError.unexpectedResponse(statusCode)
+        case .undocumented(let statusCode, let payload):
+            throw await BatchServiceError.refused(statusCode, payload)
         }
     }
 
@@ -224,8 +224,8 @@ class BatchService {
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw BatchServiceError.validationError(detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw BatchServiceError.unexpectedResponse(statusCode)
+        case .undocumented(let statusCode, let payload):
+            throw await BatchServiceError.refused(statusCode, payload)
         }
     }
 }
@@ -309,6 +309,14 @@ extension BatchService {
 enum BatchServiceError: LocalizedError {
     case validationError(String)
     case unexpectedResponse(Int)
+    /// The engine refused with its own words (#3931).
+    case engineRefused(Int, String)
+
+    /// The error for an undocumented status: the engine's `detail` when it gave one, else the status alone.
+    static func refused(_ statusCode: Int, _ payload: UndocumentedPayload) async -> BatchServiceError {
+        guard let words = await EngineErrorDetail.message(from: payload) else { return .unexpectedResponse(statusCode) }
+        return .engineRefused(statusCode, words)
+    }
 
     var errorDescription: String? {
         switch self {
@@ -316,6 +324,8 @@ enum BatchServiceError: LocalizedError {
             return "Validation error: \(message)"
         case .unexpectedResponse(let statusCode):
             return "Unexpected response: HTTP \(statusCode)"
+        case .engineRefused(_, let words):
+            return words
         }
     }
 }
