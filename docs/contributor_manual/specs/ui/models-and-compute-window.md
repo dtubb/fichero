@@ -253,7 +253,7 @@ filters Activity by `model:`.
 - `models.row.what-unloading-gives-back` — **[PARTIAL]** (#4987, #4999) This Mac's Inspector lists each resident model with
   its memory and the one button Unload idle models, which calls `release_idle_models` and shows what was freed.
   *Test (to write, in `fichero-server/tests/unit/api/`):* the route frees the idle embedder and answers its name; a model with a
-  page in flight is kept. **Built:** `POST /api/activity/models/unload-idle` calls `release_idle_models` and answers what it freed by name, tested in `fichero-server/tests/unit/api/test_activity_models_6588.py::test_unload_idle_models_frees_the_idle_and_keeps_a_model_with_a_page_in_flight`; **Not built:** the Inspector's list of resident models and the button.
+  page in flight is kept. **Built:** `POST /api/activity/models/unload-idle` calls `release_idle_models` and answers what it freed by name, tested in `fichero-server/tests/unit/api/test_activity_models_6588.py::test_unload_idle_models_frees_the_idle_and_keeps_a_model_with_a_page_in_flight`; **Not built:** the Inspector's list of resident models and the button. The route and its action `activity.unload_idle_models` are the owner's (the Mac's models are shared by every project; `owner_only`, app scope), tested in `test_model_run_settings_6588.py::test_the_mac_wide_model_writes_are_the_owners`.
 - `models.row.download-reports-bytes` — **[PARTIAL]** (#6592; `activity.download.says-bytes-and-time-left` owns it) a
   Downloads row says bytes done of total and the time left for every runtime.
 - `models.row.unmeasured-is-dash` — **[OK]** (#6588; `activity.resources.everything-measured` owns it) what nothing
@@ -280,7 +280,7 @@ engine's rule; a value out of range is refused with the range, never clamped.
   (the cap `page_fan_out` still bounds by free memory), threads a page, lines per batch (`reader_batch_size`) and device
   (auto / CPU / GPU; `FICHERO_COMPUTE_DEVICE` still wins). Not built: the Inspector section; the other local runtimes
   (MLX, spaCy, Whisper, YOLO) have no such knob in the engine yet. *Tests:*
-  `fichero-server/tests/unit/llm/test_model_run_settings_6588.py`.
+  `fichero-server/tests/unit/llm/test_model_run_settings_6588.py`. Writing them (the `PUT` and the action `models.set_run_settings`) is the owner's, since they apply to every project and `device` overrides the owner's compute preference; reading them needs a signed-in person.
 - `models.settings.run-knobs-image-size-precision` — **[GAP]** (#6588) Kraken's maximum image size and its precision
   (32-bit or 16-bit): the engine has no such knob today (`kraken_runtime.py` reads neither), so each needs the engine rule
   first, with a test that the page is scaled or the reader runs at that precision.
