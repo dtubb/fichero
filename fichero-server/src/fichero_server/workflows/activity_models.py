@@ -120,15 +120,29 @@ def this_mac(db: "Database", *, memory: tuple[int | None, int | None] | None = N
                       for lane, width in job_queue.LANES.items()]}
 
 
+#: How long a server's answer is kept: the window asks every ten seconds, and a Mac that is asleep costs a timeout each time.
+_REACH_TTL_SECONDS = 45.0
+_reach_cache: dict[str, tuple[float, bool]] = {}
+_reach_lock = threading.Lock()
+
+
 def reachable(url: str) -> bool:
-    """Whether a server answers at `url` (any HTTP answer; a refused or timed-out connection is not reachable)."""
+    """Whether a server answers at `url` (any HTTP answer; a refused or timed-out connection is not reachable); the answer
+    is kept for `_REACH_TTL_SECONDS`."""
     import httpx
 
+    with _reach_lock:
+        kept = _reach_cache.get(url)
+    if kept is not None and time.monotonic() - kept[0] < _REACH_TTL_SECONDS:
+        return kept[1]
     try:
         httpx.get(url, timeout=2.0)
+        answer = True
     except httpx.HTTPError:
-        return False
-    return True
+        answer = False
+    with _reach_lock:
+        _reach_cache[url] = (time.monotonic(), answer)
+    return answer
 
 
 def places(probe: Any = reachable) -> list[dict[str, Any]]:
@@ -138,6 +152,7 @@ def places(probe: Any = reachable) -> list[dict[str, Any]]:
     (`models.row.account-from-a-probe`): another Mac's from `probe(its address)` ("ready" / "not-reachable"), a cloud provider's
     from the key a call uses, app-supplied keys included ("ready" / "needs-key"); None where nothing probes (a cluster)."""
     found: list[tuple[str, str, str | None]] = [(THIS_MAC, "This Mac", "ready")]
+    to_probe: dict[int, str] = {}  # index in `found` -> address, probed together after the loop
     try:
         from fichero_server.db.app import get_app_db
         from fichero_server.llm import places as call_places
@@ -153,13 +168,21 @@ def places(probe: Any = reachable) -> list[dict[str, Any]]:
                 continue
             if info.is_local:
                 if row.api_base and not call_places.address_is_on_this_mac(row.api_base):
-                    found.append((REMOTE, _host(row.api_base) or _provider_word(kind),
-                                  "ready" if probe(row.api_base) else "not-reachable"))
+                    to_probe[len(found)] = row.api_base
+                    found.append((REMOTE, _host(row.api_base) or _provider_word(kind), None))
             else:
                 from fichero_server.llm import get_api_key
 
                 found.append((CLOUD, _provider_word(kind), "ready" if get_api_key(kind) else "needs-key"))
         found.extend((REMOTE, name, None) for name in _cluster_names(app_db).values())
+        if to_probe:  # all at once: a poll waits one timeout, not one per Mac
+            from concurrent.futures import ThreadPoolExecutor
+
+            with ThreadPoolExecutor(max_workers=len(to_probe)) as pool:
+                answers = dict(zip(to_probe, pool.map(probe, to_probe.values())))
+            for index, answer in answers.items():
+                place, provider, _ = found[index]
+                found[index] = (place, provider, "ready" if answer else "not-reachable")
     except Exception:  # noqa: BLE001 -- the tree still shows what ran; the places set up are an addition
         import logging
 

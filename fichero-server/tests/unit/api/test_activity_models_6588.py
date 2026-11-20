@@ -221,3 +221,34 @@ def test_unload_idle_models_frees_the_idle_and_keeps_a_model_with_a_page_in_flig
     monkeypatch.setattr(jobs, "_kraken_pages_in_flight", lambda: False)
     idle = client.post("/api/activity/models/unload-idle")
     assert idle.json()["freed"] == ["Kraken", "nomic-embed"] and released == ["memory is tight"]
+
+
+def test_a_poll_checks_each_remote_mac_at_once_and_keeps_the_answer_for_a_while(app_db, monkeypatch):
+    """The Models poll (every ten seconds) never waits on one Mac after another, and never re-checks an address inside its
+    cache window (review of window-1)."""
+    import threading
+    import time
+
+    import httpx
+    from fichero_server.models import Provider, ProviderType
+
+    for n in range(3):
+        app_db.save_provider(Provider(id=f"p{n}", name=f"Mac{n}", provider_type=ProviderType("ollama"),
+                                      api_base=f"http://mac{n}.example:11434"))
+    calls = []
+    gate = threading.Barrier(3, timeout=5)
+
+    def slow_get(url, timeout):
+        calls.append(url)
+        gate.wait()  # all three must be in flight together, else the barrier times out
+        raise httpx.ConnectError("asleep")
+
+    monkeypatch.setattr(httpx, "get", slow_get)
+    activity_models._reach_cache.clear()
+    started = time.monotonic()
+    listed = activity_models.places()
+    assert [p["account"] for p in listed if p["place"] == "remote"] == ["not-reachable"] * 3
+    assert len(calls) == 3 and time.monotonic() - started < 4
+    activity_models.places()
+    assert len(calls) == 3, "the second poll reads the cached answers"
+    activity_models._reach_cache.clear()
