@@ -1295,6 +1295,10 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   deletes nothing, an undo of a merge is refused when the kept segment changed since, and a merge naming a stale
   member is refused (`fichero-server/tests/unit/api/test_segment_undo_refuses_after_others_edit.py`). Parts of a
   redone split still get new ids. Not seen in the app.
+  *Built note (2026-11-20):* redo of a delete, of a group move (`segment.translate`) and of a simplify does the edit
+  again, and undo after the redo ends where the first undo ended; a redo of a group move is refused (409) and moves
+  nothing when another writer changed a member since
+  (`fichero-server/tests/unit/api/test_segment_redo_of_delete_translate_simplify.py`). Not seen in the app.
 - `source.editor.system-undo` — **[PARTIAL]** (#4941) ⌘Z and ⇧⌘Z undo and redo editor actions through the action
   pass. (Rule (i) flags `test_artifact_regions_edit.py` as mentioning this id: that file pins the
   ENGINE half added for it — the route now names its audit row — and asserts nothing about ⌘Z,
