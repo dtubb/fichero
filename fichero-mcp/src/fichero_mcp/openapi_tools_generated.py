@@ -968,7 +968,7 @@ def fichero_auth_key_challenge(
     *,
     public_key_pem: Annotated[str, Field(description='Public Key Pem.')],
 ) -> Any:
-    'Key Challenge\n\n`multiuser.second-device-by-synced-key`: another device of the same person holds the synced key but has no client\nhere. The challenge is made for the client that already holds the key; a key nobody holds is refused as an unknown client is.\n\nRoute: POST /api/auth/key-challenge (toolset `auth`; changes data, as the agent account when one exists).'
+    'Key Challenge\n\n`multiuser.second-device-by-synced-key`: a nonce for any valid P-256 key, whether or not it is registered, so the\nanswer does not say who holds a key; the sign-in refuses an unknown one. Counted apart from client sign-ins.\n\nRoute: POST /api/auth/key-challenge (toolset `auth`; changes data, as the agent account when one exists).'
     return _rt.call("POST", "/api/auth/key-challenge", json=_rt.body({"public_key_pem": public_key_pem}))
 
 

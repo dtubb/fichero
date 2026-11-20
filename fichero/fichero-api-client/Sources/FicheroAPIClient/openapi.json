@@ -3367,7 +3367,7 @@
           "auth"
         ],
         "summary": "Key Challenge",
-        "description": "`multiuser.second-device-by-synced-key`: another device of the same person holds the synced key but has no client\nhere. The challenge is made for the client that already holds the key; a key nobody holds is refused as an unknown client is.",
+        "description": "`multiuser.second-device-by-synced-key`: a nonce for any valid P-256 key, whether or not it is registered, so the\nanswer does not say who holds a key; the sign-in refuses an unknown one. Counted apart from client sign-ins.",
         "operationId": "key_challenge_api_auth_key_challenge_post",
         "requestBody": {
           "content": {
