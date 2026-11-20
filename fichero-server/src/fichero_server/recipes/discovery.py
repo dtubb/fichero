@@ -1606,7 +1606,7 @@ def keep_hub(cards: list[Card], languages: frozenset[str], left_out: int = 0) ->
     for repo, row in list(found.items()):
         if repo not in found_now:
             row["found_for"] = sorted(set(row.get("found_for") or ()) - languages)
-            if not row["found_for"]:
+            if not row["found_for"] and not row.get("bookmarked"):  # a bookmarked card outlives the search (#5460)
                 del found[repo]
     for card in cards:
         key, repo = _hub_key(card), _hub_repo(card)
@@ -1619,14 +1619,49 @@ def keep_hub(cards: list[Card], languages: frozenset[str], left_out: int = 0) ->
                        "material": sorted(card.material), "licence": card.licence, "note": card.note,
                        "offered_because": card.offered_because, "size_gb": card.size_gb,
                        "runs_here": card.runs_here, "cannot_run_because": card.cannot_run_because,
-                       "runs_on": card.runs_on, "found_for": sorted({*before.get("found_for", []), *languages}), "found_at": now}
+                       "runs_on": card.runs_on, "found_for": sorted({*before.get("found_for", []), *languages}), "found_at": now,
+                       **({"bookmarked": True} if before.get("bookmarked") else {})}
     left = dict(data.get("left_out") or {})
     left[_languages_key(languages)] = left_out
+    _write_hub({"found": found, "left_out": left})
+
+
+def _write_hub(data: dict[str, Any]) -> None:
     folder = _store_root()
     folder.mkdir(parents=True, exist_ok=True)
     tmp = folder / f".{HUB_FILE}.tmp"
-    tmp.write_text(json.dumps({"found": found, "left_out": left}, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
     tmp.replace(folder / HUB_FILE)
+
+
+class BookmarkInUse(Exception):
+    """A card a step uses keeps its bookmark; the message names the steps."""
+
+
+def bookmark(key: str) -> None:
+    """Keep a found card (`models.bookmark.kept-not-added`, #5460): it stays in the kept list without being downloaded, and a
+    later search that does not find it leaves it. KeyError for a card no search found."""
+    data = _hub_file()
+    found = cached_hub()
+    found[key]["bookmarked"] = True  # KeyError: nothing to keep
+    _write_hub({**data, "found": found})
+
+
+def remove_bookmark(key: str, recipe: dict[str, Any] | None) -> None:
+    """Let a bookmark go. Refused (BookmarkInUse, naming the steps) while a step of `recipe` (the open project's) has this
+    card as its chosen model. A card no search finds now leaves the list with its bookmark."""
+    data = _hub_file()
+    found = cached_hub()
+    row = found[key]
+    card_ids = {f"mlx:hf/{row.get('repo') or key}@main", f"remote:hf/{row.get('repo') or key}@main",
+                f"hf:hf/{row.get('repo') or key}@main", str(row.get("id") or "")}
+    steps = sorted({str(o.get("step")) for o in (recipe or {}).get("overrides") or [] if o.get("card") in card_ids})
+    if steps:
+        raise BookmarkInUse(f"{row.get('note') or key} is the model of step {', '.join(steps)}: choose another for it first")
+    row.pop("bookmarked", None)
+    if not row.get("found_for"):
+        del found[key]
+    _write_hub({**data, "found": found})
 
 
 def _hub_key(card: Card) -> str:
