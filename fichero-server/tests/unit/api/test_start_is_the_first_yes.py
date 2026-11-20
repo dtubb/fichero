@@ -146,3 +146,15 @@ def test_with_a_reader_this_mac_can_fetch_the_default_recipe_starts_and_records_
     # (#5677), and the recipe says so.
     assert started["workflows"] == ["Detect Segments (Kraken)", "Transcribe (Kraken)"]
     assert [o["job"] for o in recipe["left_off"]] == ["correct"]
+
+
+def test_a_start_for_chosen_steps_runs_those_steps_and_nothing_after_them(client, db):
+    """#6744: a run started for one step (the lines) ran the reader after it too. The queued run holds only the steps asked
+    for; asking for none (the app sent a re-run's steps as `redo` alone) is the whole recipe."""
+    _pages(db)
+    _save(client, RECIPE)
+    whole = client.get("/api/recipes/project/start").json()
+    assert [w["steps"] for w in whole["workflows"]] == [["lines", "read"]]
+    r = client.post("/api/recipes/project/start", json={"steps": ["lines"], "redo": ["lines"]})
+    assert r.status_code == 200, r.text
+    assert [w["steps"] for w in r.json()["workflows"]] == [["lines"]]
