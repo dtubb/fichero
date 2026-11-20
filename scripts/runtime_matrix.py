@@ -2,10 +2,13 @@
 """Measure every runtime the engine has, on this Mac, with real models (`runner.measured.runtime-matrix`).
 
     PYTHONPATH=fichero-server/src python3 scripts/runtime_matrix.py [--out matrix.json] [--only NAME ...]
-                                                                    [--python PATH] [--remote hf-jobs|cluster]
+                                                                    [--python PATH | --engine-app APP] [--remote hf-jobs|cluster]
 
 `--python PATH` runs every runtime under that interpreter, for a Mac whose dev venv lacks mlx_vlm, mlx_whisper or
 ultralytics: pass the shipped engine's Python (inside the app bundle, its Resources python), with PYTHONPATH as above.
+`--engine-app <the built engine .app>` does the same from the app bundle: its bundled Python and its
+Contents/Resources/app_packages on PYTHONPATH (where ultralytics, mlx_vlm and mlx_whisper ship). YOLO also needs its
+weights downloaded to the model store (the app's download-model job), else its row says so.
 The sample is the 5 fixtures plus one A4 page at 300 dpi built at run time; the embedder runs offline.
 
 Each runtime runs a fixed sample of public test-fixture page images through the engine's own entry point, twice in a
@@ -134,6 +137,18 @@ def real_size_page(folder: Path) -> Path:
 
 def sample_pages(folder: Path) -> list[Path]:
     return [FIXTURES / name for name in SAMPLE] + [real_size_page(folder)]
+
+
+def engine_app_python(app: Path) -> tuple[Path, Path]:
+    """The shipped engine's interpreter and its `app_packages` folder (where `ultralytics`, `mlx_vlm` and `mlx_whisper` are
+    installed), found from the engine app bundle. Exits naming what is missing."""
+    contents = app / "Contents"
+    pythons = sorted(contents.glob("Frameworks/Python.framework/Versions/3.*/bin/python3.*"))
+    packages = contents / "Resources" / "app_packages"
+    if not pythons or not packages.is_dir():
+        raise SystemExit(f"--engine-app {app}: no bundled Python (Contents/Frameworks/Python.framework/Versions/3.x/bin) "
+                         "or no Contents/Resources/app_packages in it")
+    return pythons[-1], packages
 
 
 def peak_rss_mb() -> float:
@@ -424,10 +439,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--remote", choices=["hf-jobs", "cluster"], help="dry-run a remote place, never a job")
     parser.add_argument("--python", type=Path, help="run every runtime under this interpreter (the shipped engine's Python, "
                         "which has mlx_vlm, mlx_whisper and ultralytics); default: this one")
+    parser.add_argument("--engine-app", type=Path, help="the built engine app: run every runtime under its "
+                        "bundled Python with its app_packages, so YOLO, MLX VLM and Whisper run as shipped")
     parser.add_argument("--worker", help="internal: measure this one runtime and print its row as JSON")
     args = parser.parse_args(argv)
     global WORKER_PYTHON
-    if args.python:
+    if args.engine_app:
+        if args.python:
+            parser.error("--engine-app and --python are two ways to name the interpreter: give one")
+        python, packages = engine_app_python(args.engine_app)
+        WORKER_PYTHON = str(python)
+        os.environ["PYTHONPATH"] = os.pathsep.join(p for p in (str(packages), os.environ.get("PYTHONPATH")) if p)
+    elif args.python:
         if not args.python.is_file():
             parser.error(f"--python {args.python}: no such interpreter")
         WORKER_PYTHON = str(args.python)

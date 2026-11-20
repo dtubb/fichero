@@ -116,3 +116,42 @@ def test_python_must_exist(capsys):
 
     with pytest.raises(SystemExit):
         rm.main(["--python", "/no/such/python"])
+
+
+def _fake_app(tmp_path):
+    app = tmp_path / "Fichero Server.app" / "Contents"
+    python = app / "Frameworks" / "Python.framework" / "Versions" / "3.13" / "bin" / "python3.13"
+    python.parent.mkdir(parents=True)
+    python.write_text("#!/bin/sh\n")
+    (app / "Resources" / "app_packages").mkdir(parents=True)
+    return tmp_path / "Fichero Server.app", python, app / "Resources" / "app_packages"
+
+
+def test_the_engine_apps_python_and_packages_are_found_from_the_app(tmp_path):
+    """YOLO, MLX VLM and Whisper ship only inside the app (`app_packages/ultralytics`, `mlx_vlm`, `mlx_whisper`)."""
+    app, python, packages = _fake_app(tmp_path)
+    assert rm.engine_app_python(app) == (python, packages)
+
+
+def test_an_app_with_no_bundled_python_or_packages_is_refused(tmp_path):
+    import pytest
+
+    with pytest.raises(SystemExit):
+        rm.engine_app_python(tmp_path / "Nope.app")
+    app, python, packages = _fake_app(tmp_path)
+    python.unlink()
+    with pytest.raises(SystemExit):
+        rm.engine_app_python(app)
+
+
+def test_engine_app_runs_the_workers_under_the_apps_python_with_its_packages(tmp_path, monkeypatch):
+    app, python, packages = _fake_app(tmp_path)
+    monkeypatch.setattr(rm, "real_runtimes", lambda: [])
+    monkeypatch.setattr(rm, "install_load_counters", lambda: None)
+    monkeypatch.setattr(rm, "scratch_environment", lambda root: None)
+    monkeypatch.setattr(rm, "build_report", lambda *a, **k: {"machine": {"chip": "x", "ram_gb": 1, "macos": "x", "free_memory_mb": 1}, "runtimes": []})
+    monkeypatch.setattr(rm, "WORKER_PYTHON", None)
+    monkeypatch.setenv("PYTHONPATH", "")  # restored after the test
+    assert rm.main(["--engine-app", str(app), "--out", str(tmp_path / "m.json")]) == 0
+    assert rm.WORKER_PYTHON == str(python)
+    assert str(packages) in __import__("os").environ["PYTHONPATH"].split(":")

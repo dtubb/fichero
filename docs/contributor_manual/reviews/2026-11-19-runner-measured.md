@@ -51,7 +51,10 @@ Every measured model loaded once per run: no per-page reload.
 | The matrix: an A4 page at 300 dpi in the sample, the embedder offline, footprint beside RSS, `--python PATH` | `test_runtime_matrix.py` |
 
 Run the matrix under the shipped engine's Python so MLX VLM, Whisper and YOLO are measured:
-`PYTHONPATH=fichero-server/src python3 scripts/runtime_matrix.py --python <the app bundle's Python> --out matrix.json`.
+`PYTHONPATH=fichero-server/src python3 scripts/runtime_matrix.py --engine-app <the built engine .app> --out matrix.json`
+(its bundled Python and `Contents/Resources/app_packages`, where `ultralytics`, `mlx_vlm` and `mlx_whisper` ship; `--python PATH` names an
+interpreter directly). YOLO's weights must be downloaded to the model store first, else its row says so. Not yet run: workers cannot
+reach the Macs, so YOLO, MLX and Whisper are still unmeasured.
 
 ## Kraken on 7 real archive pages (iMac M4, 2026-11-19)
 
