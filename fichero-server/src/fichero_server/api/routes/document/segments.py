@@ -2724,6 +2724,190 @@ def _action_segment_reparent(db: Database, params: SegmentReparentParams, ctx: A
     return {"versions": after_versions}, spec
 
 
+class SegmentGroupLinesParams(BaseModel):
+    """`segment-editor.make-region-from-lines`: Make Region from Lines."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    segment_ids: list[str] = Field(min_length=1, description="The lines that go into one new region, in the order they are read.")
+    expected_versions: dict[str, int] = Field(description="Each line's version as last read, {segment_id: version}; a changed line is refused.")
+    region_id: Optional[str] = Field(
+        default=None,
+        description="A region an ungroup took away: it is brought back, with these lines in it, instead of a new one being made.",
+    )
+    order_entries: list[SegmentOrderEntryParams] = Field(
+        default_factory=list, description="With region_id: the reading-order entries of the region and its lines, written back as they were.",
+    )
+
+
+class SegmentUngroupRegionParams(BaseModel):
+    """`segment-editor.make-region-from-lines`: Ungroup Region."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    region_id: str = Field(description="The region whose lines go back to its own parent; the region is deleted.")
+    expected_version: int = Field(description="The region's version as last read; a changed region is refused.")
+    order_entries: list[SegmentOrderEntryParams] = Field(
+        default_factory=list, description="The lines' reading-order entries as they were before a group; written back as recorded instead of by page position.",
+    )
+
+
+def _invert_group_lines(before, after, ctx: ActionContext):
+    """Reads ONLY `after`: the region this made goes (its lines return to the parent) and the entries come back."""
+    if not after or not after.get("region_id"):
+        return None
+    return ("segment.ungroup_region", {
+        "region_id": after["region_id"], "expected_version": after["region_version"],
+        "order_entries": after.get("order_entries", []),
+    })
+
+
+def _invert_ungroup_region(before, after, ctx: ActionContext):
+    """Reads ONLY `after`: the region comes back with the lines it held, their entries where they were."""
+    if not after or not after.get("region_id") or not after.get("versions"):
+        return None
+    versions = {item["segment_id"]: item["version"] for item in after["versions"]}
+    if not versions:
+        return None
+    return ("segment.group_lines", {
+        "segment_ids": list(versions), "expected_versions": versions, "region_id": after["region_id"],
+        "order_entries": after.get("order_entries", []),
+    })
+
+
+@action(
+    "segment.group_lines",
+    SegmentGroupLinesParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_group_lines,
+)
+def _action_segment_group_lines(db: Database, params: SegmentGroupLinesParams, ctx: ActionContext):
+    """Make a region from lines: a new region whose box is the union of the lines' shapes, in the lines' own parent
+    (so a region of lines inside a region nests), and the lines move into it as its children, placed in every order by
+    page position. One audit row, one undo. All or nothing: the lines must be live, at the versions the caller saw, in
+    one pass and under one parent. With `region_id` it brings back a region `segment.ungroup_region` took away."""
+    _refuse_repeated_ids(params.segment_ids)
+    rows = [_live_current_row(db, sid, _require_expected_version(params.expected_versions, sid)) for sid in params.segment_ids]
+    first = rows[0]
+    if any(row.pass_id != first.pass_id or row.document_id != first.document_id for row in rows):
+        raise _as_http_error(SegmentPassMismatchError("the lines are not all in the same pass and document"))
+    if len({row.parent_segment_id for row in rows}) > 1:
+        raise HTTPException(
+            status_code=422, detail="the lines are inside different regions: select lines of one region (or none) to group them",
+        )
+    parent_id = first.parent_segment_id
+
+    audit_id = uuid.uuid4().hex
+    if params.region_id is None:
+        points = [point for row in rows for point in _anchor_points(row)]
+        if not points:
+            raise HTTPException(status_code=422, detail="the lines have no shape to draw a region around")
+        xs, ys = [point[0] for point in points], [point[1] for point in points]
+        region = _create_segment_impl(db, SegmentCreateParams(
+            document_id=first.document_id, pass_id=first.pass_id, kind="region", parent_segment_id=parent_id,
+            anchor=SourceAnchor(document_id=first.document_id, rect=[min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)]),
+        ), ctx)
+    else:
+        from fichero_server.api.routes.document.reading_orders import restore_segment_entries
+
+        region = db.get(Segment, params.region_id)
+        if region is None:
+            raise HTTPException(status_code=404, detail=f"Segment not found: {params.region_id}")
+        if region.deleted_at is None:
+            raise HTTPException(status_code=409, detail=f"segment {region.id!r} is not deleted")
+        _assert_restore_target_live(db, region)
+        snapshot_segment_version(db, region, deleted=True, actor=ctx.actor, audit_id=audit_id)
+        region.deleted_at = None
+        region.deleted_by = None
+        db.save(region)
+        db.save(SegmentForwarding(
+            document_id=region.document_id, old_segment_id=region.id, kind="restored",
+            new_segment_ids=[], actor=ctx.actor, audit_id=audit_id, sequence=db.next_forwarding_sequence(),
+        ))
+        restore_segment_entries(db, [entry.model_dump() for entry in params.order_entries if entry.segment_id == region.id])
+
+    after_versions: list[dict[str, Any]] = []
+    for row in rows:
+        snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        row.parent_segment_id = region.id
+        db.save(row)
+        after_versions.append({"segment_id": row.id, "version": row.version})
+    if params.region_id is None:
+        order_entries = _reposition_entries(db, rows)
+    else:
+        order_entries = _put_entries_back(db, [entry for entry in params.order_entries if entry.segment_id != region.id])
+
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=[region.id, *[row.id for row in rows]],
+        before=None,
+        after={
+            "versions": after_versions, "region_id": region.id, "region_version": region.version,
+            "order_entries": order_entries,
+        },
+        emit_type="segment.updated",
+        segment_ids=[region.id, *[row.id for row in rows]],
+        pass_ids=[first.pass_id],
+        document_ids=[first.document_id],
+    )
+    return {"segment_ids": [region.id], "region_id": region.id, "versions": after_versions}, spec
+
+
+@action(
+    "segment.ungroup_region",
+    SegmentUngroupRegionParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_ungroup_region,
+)
+def _action_segment_ungroup_region(db: Database, params: SegmentUngroupRegionParams, ctx: ActionContext):
+    """Ungroup a region: its live children go to the region's own parent (in the order by page position, or as the
+    caller recorded them), then the region is deleted, like `segment.delete`. One audit row, one undo: the undo brings
+    the region back with the same children. A region with no children is just removed."""
+    from fichero_server.api.routes.document.reading_orders import remove_segment_entries
+
+    _assert_not_provisional_http(params.region_id, what="region_id")
+    region = _live_current_row(db, params.region_id, params.expected_version)
+    children = [row for row in db.query(Segment, parent_segment_id=region.id) if row.deleted_at is None]
+
+    audit_id = uuid.uuid4().hex
+    after_versions: list[dict[str, Any]] = []
+    for row in children:
+        snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        row.parent_segment_id = region.parent_segment_id
+        db.save(row)
+        after_versions.append({"segment_id": row.id, "version": row.version})
+    order_entries = _put_entries_back(db, params.order_entries) if params.order_entries else _reposition_entries(db, children)
+
+    snapshot_segment_version(db, region, deleted=True, actor=ctx.actor, audit_id=audit_id)
+    region.deleted_at = utc_now()
+    region.deleted_by = ctx.actor
+    db.save(region)
+    db.save(SegmentForwarding(
+        document_id=region.document_id, old_segment_id=region.id, kind="deleted",
+        new_segment_ids=[], actor=ctx.actor, audit_id=audit_id, sequence=db.next_forwarding_sequence(),
+    ))
+    region_entries = remove_segment_entries(db, [region.id])
+
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=[region.id, *[row.id for row in children]],
+        before=None,
+        after={
+            "versions": after_versions, "region_id": region.id, "region_version": region.version,
+            "order_entries": [*order_entries, *region_entries],
+        },
+        emit_type="segment.updated",
+        segment_ids=[region.id, *[row.id for row in children]],
+        pass_ids=[region.pass_id],
+        document_ids=[region.document_id],
+    )
+    return {"segment_ids": [row.id for row in children], "region_id": region.id, "versions": after_versions}, spec
+
+
 class SegmentTranslateParams(BaseModel):
     """`segment-editor.group-drag`, `segment-editor.nudge`: the selection moved by one offset."""
 
