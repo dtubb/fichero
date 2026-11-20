@@ -268,6 +268,21 @@ def test_a_tree_removed_during_the_step_did_not_move_by_a_stray_write(state, tmp
     assert _alerts() == []
 
 
+def test_a_landed_lanes_worktree_is_not_in_the_snapshot_list(state, tmp_path):
+    lane(state)
+    queue.add("m2", str(tmp_path), "2.1", str(state / "b1.1"), [9])
+    lanes = queue.load()
+    lanes[1]["steps"][0]["state"] = "landed"
+    lanes[1]["cursor"] = 1
+    queue.save(lanes)
+    fake = Fake()
+    assert str(tmp_path) not in queue._others(queue.load()[0], {}, fake.procs)
+    lanes = queue.load()
+    lanes[1]["steps"][0]["state"], lanes[1]["cursor"] = "queued", 0
+    queue.save(lanes)
+    assert str(tmp_path) in queue._others(queue.load()[0], {}, fake.procs), "a queued lane stays in"
+
+
 def test_a_landing_meanwhile_excuses_the_jail_root_and_a_busy_lane_is_not_checked(state, tmp_path):
     JR, W2 = _dirs(tmp_path)
     lane(state)
@@ -1682,7 +1697,8 @@ def test_an_approved_red_on_base_is_remembered_for_its_head_and_the_same_head_is
     """#6589 2026-11-20: runner-soak was blocked 3x at one head for the same red-on-base. After an approve, the same head and
     the same kind go on by themselves, once; the alert is not raised again."""
     lane(state)
-    red = {"ok": False, "kind": "red-on-base", "why": "red-on-base at hhhhhhhhh: NOT RED ON BASE: fichero-builder/tests/test_x.py passes", "head": "hhhhhhhhh1"}
+    full = "ab12cd34e" + "5" * 31  # the real refusal carries no "head" key: the ladder's head is "judged", the alert names its first 9
+    red = {"ok": False, "kind": "red-on-base", "why": f"red-on-base at {full[:9]}: NOT RED ON BASE: fichero-builder/tests/test_x.py passes", "judged": full}
     fake = Fake(chains={"1.1": [dict(red), dict(red)]})
     queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
     (a,) = _alerts()

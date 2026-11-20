@@ -576,7 +576,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         move(s, "done", "the pinned diff is the one already approved: the check runs again with that approval")
         return True
     if r.get("kind") in ("needs-maintainer", "weakened-tests", "red-on-base", "pinned-new", "guard-data"):  # a pinned check or a test changed on purpose: the manager's call
-        judged = r.get("head") or s.get("checked_head") or s.get("head", "")
+        judged = (r.get("judged") or r.get("head") or s.get("checked_head") or s.get("head", ""))[:9]  # the 9-character head the alert names, as answer() keys it
         once = s.setdefault("reapproved", [])
         if judged and r["kind"] in (s.get("approved_for") or {}).get(judged, []) and f"{judged}:{r['kind']}" not in once:
             # #6589 2026-11-20 (runner-soak blocked 3x at one head): an approve is remembered for the head it judged; the same head and
@@ -965,7 +965,7 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
             if action == "approve":
                 _set_approval(s, s.get("approve_kind"), s.get("approvals"))
                 at_ = re.search(r"\bat ([0-9a-f]{7,40})\b", a.get("what", ""))  # the head the alert judged: the approve is remembered for it
-                judged = at_.group(1) if at_ else s.get("checked_head") or s.get("head", "")
+                judged = (at_.group(1) if at_ else s.get("checked_head") or s.get("head", ""))[:9]
                 if judged and s.get("approve_kind"):
                     kinds = s.setdefault("approved_for", {}).setdefault(judged, [])
                     if s["approve_kind"] not in kinds:
