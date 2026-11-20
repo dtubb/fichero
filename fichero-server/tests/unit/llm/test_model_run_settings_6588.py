@@ -89,3 +89,37 @@ def test_setting_an_unknown_runtime_through_the_action_is_a_value_error(app_db):
     reg = registry.get("models.set_run_settings")
     with pytest.raises(ValueError):
         reg.execute(None, reg.params_model(runtime="nonesuch", values={}), None)
+
+
+def test_the_mac_wide_model_writes_are_the_owners(app_db, monkeypatch):
+    """Run settings and Unload Idle Models change the whole Mac: a signed-in non-owner is refused on the route and the
+    action twin is declared app-owner-only; a read needs a signed-in person (#6325 H9)."""
+    from types import SimpleNamespace
+
+    from fastapi import HTTPException
+    from fichero_server.actions.registry import registry
+    from fichero_server.api.routes.auth import accounts
+    from fichero_server.api.routes.system import activity
+
+    for name in ("models.set_run_settings", "activity.unload_idle_models"):
+        reg = registry.get(name)
+        assert reg.owner_only and reg.owner_scope == "app", name
+    by_path = {(r.path, m): r for r in activity.router.routes for m in r.methods}
+    assert {d.call for d in by_path[("/activity/models/run-settings/{runtime}", "PUT")].dependant.dependencies} >= {
+        accounts._require_owner_or_bootstrap}
+    assert {d.call for d in by_path[("/activity/models/unload-idle", "POST")].dependant.dependencies} >= {
+        accounts._require_owner_or_bootstrap}
+    assert {d.call for d in by_path[("/activity/models/run-settings/{runtime}", "GET")].dependant.dependencies} >= {
+        accounts._require_authenticated_or_bootstrap}
+
+    monkeypatch.setattr(accounts, "_use_multiuser_auth", lambda: True)
+    request = SimpleNamespace(state=SimpleNamespace(bootstrap_auth=False))
+    monkeypatch.setattr(accounts, "_current_session_user", lambda request: None)
+    with pytest.raises(HTTPException) as signed_out:
+        accounts._require_authenticated_or_bootstrap(request)
+    assert signed_out.value.status_code == 401
+    monkeypatch.setattr(accounts, "_current_session_user", lambda request: SimpleNamespace(is_owner=False))
+    accounts._require_authenticated_or_bootstrap(request)
+    with pytest.raises(HTTPException) as editor:
+        accounts._require_owner_or_bootstrap(request)
+    assert editor.value.status_code == 403

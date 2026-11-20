@@ -38,6 +38,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from fichero_server.api.auth import action_context
 from fichero_server.api.change_stream import CHANGE_ID_LISTS, ChangeEvent, _change_hub
 from fichero_server.api.main import get_library_database, get_library_database_for_write, run_check
+from fichero_server.api.routes.auth.accounts import _require_authenticated_or_bootstrap, _require_owner_or_bootstrap
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.db import Database, committed
 from fichero_server.workflows.activity import (
@@ -1782,13 +1783,15 @@ def _run_settings_answer(runtime: str) -> RunSettingsResponse:
     return RunSettingsResponse(settings=values, cost=mrs.cost(runtime, values))
 
 
-@router.get("/models/run-settings/{runtime}", response_model=RunSettingsResponse)
+@router.get("/models/run-settings/{runtime}", response_model=RunSettingsResponse,
+            dependencies=[Depends(_require_authenticated_or_bootstrap)])
 async def get_run_settings(runtime: str) -> RunSettingsResponse:
     """The run settings of a local runtime (`models.settings.run-knobs`, #6588) and what they cost this Mac."""
     return await asyncio.to_thread(_run_settings_answer, runtime)
 
 
-@router.put("/models/run-settings/{runtime}", response_model=RunSettingsResponse)
+@router.put("/models/run-settings/{runtime}", response_model=RunSettingsResponse,
+            dependencies=[Depends(_require_owner_or_bootstrap)])
 async def put_run_settings(
     runtime: str,
     body: RunSettingsBody,
@@ -1812,7 +1815,7 @@ class UnloadIdleResponse(BaseModel):
     freed: list[str] = Field(default_factory=list, description="the models let go of, by name")
 
 
-@router.post("/models/unload-idle", response_model=UnloadIdleResponse)
+@router.post("/models/unload-idle", response_model=UnloadIdleResponse, dependencies=[Depends(_require_owner_or_bootstrap)])
 async def unload_idle_models(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
@@ -2339,7 +2342,7 @@ def _action_continue_all(db: Database, params: RunControlsParams, ctx: ActionCon
         domains=["activity"], target_ids=ids, before={}, after={"ids": ids}, emit_type="background.resumed")
 
 
-@action("activity.unload_idle_models", RunControlsParams, domains=["activity"])
+@action("activity.unload_idle_models", RunControlsParams, domains=["activity"], owner_only=True, owner_scope="app")
 def _action_unload_idle_models(db: Database, params: RunControlsParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     from fichero_server.execution import jobs as job_queue
 
@@ -2347,7 +2350,7 @@ def _action_unload_idle_models(db: Database, params: RunControlsParams, ctx: Act
     return {"freed": freed}, ChangeSpec(domains=["activity"], before={}, after={"freed": freed}, emit_type="models.unloaded")
 
 
-@action("models.set_run_settings", RunSettingsParams, domains=["activity"])
+@action("models.set_run_settings", RunSettingsParams, domains=["activity"], owner_only=True, owner_scope="app")
 def _action_set_run_settings(db: Database, params: RunSettingsParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     from fichero_server.llm import model_run_settings as mrs
 
