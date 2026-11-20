@@ -16,6 +16,7 @@ struct AddProviderSheet: View {
     @State var serverUrl: String = ""
     @State var isLoading = true
     @State var isAdding = false
+    @State var addError: String?  // why the last Add did not go through
     @State var step: Int = 1  // 1 = choose, 2 = configure, 3 = models
     @State var addedProvider: Components.Schemas.ProviderResponse?  // The provider we just added
     @State var selectedModelForStep3: ModelInfo?  // Selected model in step 3
