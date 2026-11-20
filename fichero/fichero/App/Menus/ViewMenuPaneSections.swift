@@ -39,20 +39,20 @@ struct PaneVisibilitySection: View {
         Section("Panes") {
             PaneToggleButton(
                 binding: showDocumentGrid,
-                title: ItemsPane.name,
-                icon: "books.vertical",
+                title: PaneMenuEntry.items.title,
+                icon: PaneMenuEntry.items.systemImage,
                 shortcut: KeyboardShortcut("g", modifiers: [.command, .shift])
             )
             PaneToggleButton(
                 binding: showDocumentCanvas,
-                title: SourcePane.name,
-                icon: "doc.richtext",
+                title: PaneMenuEntry.source.title,
+                icon: PaneMenuEntry.source.systemImage,
                 shortcut: nil
             )
             PaneToggleButton(
                 binding: showReadingPane,
-                title: "Reader",
-                icon: "text.book.closed",
+                title: PaneMenuEntry.reader.title,
+                icon: PaneMenuEntry.reader.systemImage,
                 shortcut: nil
             )
             ShowMiniToolbarToggle()

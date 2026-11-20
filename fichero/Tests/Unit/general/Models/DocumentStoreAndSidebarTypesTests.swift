@@ -421,8 +421,8 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         // menu says what the toolbar toggle says — just "Library".
         // The pane is Items (ruled 2026-10-10); its labels come from the one constant.
         // #6730: one checked item named for the pane, not a Show/Hide pair.
-        XCTAssertTrue(menuSource.contains("title: ItemsPane.name"))
-        XCTAssertTrue(menuSource.contains("icon: \"books.vertical\""))
+        XCTAssertTrue(menuSource.contains("title: PaneMenuEntry.items.title"))
+        XCTAssertTrue(menuSource.contains("icon: PaneMenuEntry.items.systemImage"))
     }
 
     /// #4374 inverted this assertion. The toolbar's "View" button rendered
