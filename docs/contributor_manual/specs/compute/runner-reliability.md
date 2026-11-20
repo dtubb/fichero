@@ -410,6 +410,14 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   so in words (never "resolved to 0 processable files" from the workflow row itself, #4961); the bar sends no model override
   a workflow cannot take (#4963). Built: the typed refusal on the hand-run paths (uncompiled); owed: the mid-run alert, the
   two scope bugs.
+- `runner.hand-run.redo-selection` — **[PARTIAL]** (#6744, #6602) "Run a Step Again on the Selection" in a library row's
+  context menu (`RunStepAgainOnSelectionMenu`) runs the chosen step on the selected folders and items as one run: the pages
+  are the selection with each folder expanded to its files (`RecipeFolderScope.redoPages`, once, no duplicates). The menu
+  shows when more than one row is selected or the clicked row is not a folder. A redo start sends its chosen steps as
+  `steps` (`RecipeSetupStore.start`), so the engine runs those steps alone; `save` reloads `redoSteps` after a successful
+  save. A refused Start, or a refused folder run, shows the engine's words in `RunRefusalAlert`. Tests:
+  `RedoScopeTests`, `RunRefusalAlertTests` (the words), the `steps` expectation in `RecipeSetupStoreTests`
+  (uncompiled); owed: a test of the menu's visibility rule and of `RunRefusalAlert.show` (a platform alert, no seam).
 - `runner.hand-run.never-swallowed` — **[GAP]** (#3931, #6602) no hand-run path drops the engine's error body: every
   `.undocumented(statusCode, _)` site that starts work reads the engine's `detail` and shows its words (182 sites drop it,
   #3931); a refused grant shows the engine's reason (#6602).
