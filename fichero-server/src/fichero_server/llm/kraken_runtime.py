@@ -1807,6 +1807,8 @@ def download_recognition_model(
     # Each reader in its own folder: in one shared folder their metadata.json and README.md overwrote
     # each other, and "the newest .mlmodel anywhere" picked ANOTHER reader when this one ships as
     # .safetensors (Kraken 7's format) -- PP-OCRv6 resolved to McCATMuS (2026-10-03).
+    if run_call is None:
+        require_installed()  # a reader is of no use without Kraken: said first, before any folder is made
     data_home = recognition_data_home(home) / model_id
     data_home.mkdir(parents=True, exist_ok=True)
 
@@ -1840,8 +1842,7 @@ def download_recognition_model(
     else:
         # A download is not Kraken work: it never takes Kraken's lock or its memory check (it used to, through
         # `_kraken_call`, so a page being read held up the download and the other way round). A reader is
-        # of no use without Kraken, so its absence is still said first.
-        require_installed()
+        # of no use without Kraken, so its absence is said first (above, before the folder is made).
         _fetch()
 
     found = [p for p in data_home.rglob("*") if p.suffix in (".mlmodel", ".safetensors")]
