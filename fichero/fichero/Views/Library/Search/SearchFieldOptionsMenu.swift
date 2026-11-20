@@ -50,20 +50,35 @@ struct SearchFieldOptionsMenu: View {
     let canSave: Bool
     let onSave: () -> Void
 
+    static let scopeSectionTitle = "Search Scope"
+    static let projectScopeTitle = "This Project"
+    static let folderScopeTitle = "This Folder"
+
+    /// The field's placeholder: what the next search will look in.
+    var scopePlaceholder: String {
+        contextFolder != nil && scopeIsFolder ? "Search this folder" : "Search this project"
+    }
+
     var body: some View {
         Picker("Interpretation", selection: $mode) {
             Text("Ask").tag(SearchFieldMode.ask)
             Text("Keyword").tag(SearchFieldMode.keyword)
         }
 
-        if let contextFolder {
-            Divider()
-            // The scope IS the breadcrumb (Daniel, 2026-09-02). A menu row
-            // can afford the whole trail, which is what the pills could not:
-            // "1885" alone is ambiguous in a library with three of them.
-            Picker("Look in", selection: $scopeIsFolder) {
-                Text(libraryName).tag(false)
-                Text(contextFolder.trail).tag(true)
+        Divider()
+        // The scope is shown in the field's placeholder and checked here (#6729). Only the scopes the engine can
+        // filter by are offered: This Folder (its `folder_id` filter, when there is a breadcrumb context) and
+        // This Project (the whole library). Page, Document and Everywhere need engine filters that do not exist.
+        Section(Self.scopeSectionTitle) {
+            Toggle(Self.projectScopeTitle, isOn: Binding(
+                get: { !scopeIsFolder }, set: { if $0 { scopeIsFolder = false } }
+            ))
+            if let contextFolder {
+                Toggle(Self.folderScopeTitle, isOn: Binding(
+                    get: { scopeIsFolder }, set: { if $0 { scopeIsFolder = true } }
+                ))
+                // The whole trail on hover: "1885" alone is ambiguous in a library with three of them.
+                .help(contextFolder.trail)
             }
         }
 

@@ -100,8 +100,14 @@ struct OneToolbarSearchItemTests {
         let folder = TransientSearchFolder(id: "f1", name: "1885", path: ["Diaries", "1885"])
         let menu = Self.options(state, folder: folder, canSave: true).nsMenu
 
-        try Self.choose("Diaries ▸ 1885", in: menu)
+        try Self.choose("This Folder", in: menu)
         #expect(state.scopeIsFolder)
+        // The section is named, the current scope is checked, and the field says what it searches (#6729).
+        let checked = Self.options(state, folder: folder, canSave: false).nsMenu
+        #expect(checked.items.contains { $0.isSectionHeader && $0.title == "Search Scope" })
+        #expect(try Self.item("This Folder", in: checked).state == .on)
+        #expect(try Self.item("This Project", in: checked).state == .off)
+        #expect(Self.options(state, folder: folder, canSave: false).scopePlaceholder == "Search this folder")
 
         try Self.choose(SearchRetrievalTier.fulltext.title, in: menu)
         #expect(state.searchType == SearchRetrievalTier.fulltext.requestValue)
@@ -117,7 +123,8 @@ struct OneToolbarSearchItemTests {
     func absentAndDeadRowsAreHonest() throws {
         let state = SearchState()
         let menu = Self.options(state, reviewed: 0).nsMenu
-        #expect(!menu.items.contains { $0.title == "Marshall Diaries" })
+        #expect(!menu.items.contains { $0.title == "This Folder" })
+        #expect(Self.options(state, reviewed: 0).scopePlaceholder == "Search this project")
         #expect(!menu.items.contains { $0.title == "Save Search" })
         let graph = try Self.item(SearchRetrievalTier.semanticGraph.title, in: menu)
         #expect(!graph.isEnabled)
