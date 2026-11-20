@@ -44,6 +44,7 @@ class Procs:
     read: Callable[[], dict | None]           # the newest session file parsed, or None before the first turn
     head: Callable[[], str] = lambda: ""      # the worktree's HEAD sha; a DONE line must name it and it must have moved
     tell: Callable[[str, str], None] = lambda pane, words: None  # a word to the worker (Pi: steer; Claude: the hook tells)
+    redeliver: Callable[[str, str], None] | None = None  # a message that started no turn: Enter if its words sit in the input box, else typed again; None = tell
     sleep: Callable[[float], None] = time.sleep
     now: Callable[[], float] = time.time
 
@@ -95,6 +96,14 @@ def _tell(pane: str, words: str) -> None:
         subprocess.run(["tmux", "send-keys", "-t", pane, "Enter"], capture_output=True)
 
 
+def _redeliver(pane: str, words: str) -> None:
+    """The words still sit in the input line: only Enter. Not there (swallowed, or never typed): the words again."""
+    if _unsent(pane, words):
+        subprocess.run(["tmux", "send-keys", "-t", pane, "Enter"], capture_output=True)
+    else:
+        _tell(pane, words)
+
+
 def _head(worktree) -> str:
     return subprocess.run(["git", "-C", str(worktree), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
 
@@ -103,11 +112,12 @@ def real_procs(home, worktree) -> Procs:
     def read():
         f = newest_session(home, worktree)
         return session.parse_session(f) if f else None
-    return Procs(start=_start, alive=_alive, stop=_stop, read=read, head=lambda: _head(worktree), tell=_tell)
+    return Procs(start=_start, alive=_alive, stop=_stop, read=read, head=lambda: _head(worktree), tell=_tell, redeliver=_redeliver)
 
 
 DONE = re.compile(r"^DONE ([0-9a-f]{7,40})\b", re.M)  # the brief's end line: DONE <short sha of the branch head>
 HANDOFF_READY = "HANDOFF READY"
+REDELIVER_S, REDELIVERIES = 60.0, 3  # a message with no turn started after this long is delivered again, up to this many times
 
 
 def register(name: str, worktree, handoff, model: str, window: int, tmux_session: str, reg_dir=None, handoff_tokens: int = 0) -> Path:
@@ -179,6 +189,9 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
     base0, first_commit = base, None
     unsaid, nudged = 0, False  # ticks idle with the branch moved and no good DONE line (defect 2: a worker that commits and never says it)
     outstanding, sent_turn = True, -1  # feed: a step is out; and the turn it went in at, so the last step's DONE text is not read as this one's
+    # #6589 2026-11-20: a DONE counts only if printed after THIS message was delivered: a prompt arrived since it was sent (the session
+    # file's `prompts`; a state without the count falls back to the turn count) and the last text is not the one on screen when it went out
+    sent = {"prompts": -1, "text": "", "at": started, "words": "", "again": 0}
 
     def step_done(sha: str, moved: bool, **more) -> None:
         nonlocal outstanding, base, unsaid, nudged
@@ -224,9 +237,16 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
             nxt = Path(feed) / f"msg-{seq + 1}.txt"
             if not outstanding and nxt.exists():
                 seq, base, sent_turn, outstanding = seq + 1, procs.head(), state.get("turns", 0), True
+                words = f"Read {nxt} and do what it says; end your turn with the DONE line it names."
+                sent = {"prompts": state.get("prompts", -1), "text": state.get("last_text", ""), "at": now, "words": words, "again": 0}
                 journal.append("watch", task=name, what=f"sent: message {seq}")
-                procs.tell(pane, f"Read {nxt} and do what it says; end your turn with the DONE line it names.")
-        idle = state.get("idle") and outstanding and state.get("turns", 0) > sent_turn
+                procs.tell(pane, words)
+        delivered = state.get("prompts", 0) > sent["prompts"] if "prompts" in state else state.get("turns", 0) > sent_turn
+        if outstanding and sent["words"] and not delivered and now - sent["at"] >= REDELIVER_S * (sent["again"] + 1) and sent["again"] < REDELIVERIES:
+            sent["again"] += 1  # the Enter was swallowed or the paste lost: the loop delivers again, for any session
+            journal.append("watch", task=name, what=f"redeliver: message {seq} started no turn in {int(now - sent['at'])} s (attempt {sent['again']})")
+            (procs.redeliver or procs.tell)(pane, sent["words"])
+        idle = state.get("idle") and outstanding and state.get("turns", 0) > sent_turn and delivered and state.get("last_text", "") != sent["text"]
         m = done.search(state.get("last_text", "")) if idle else None
         head = procs.head() if idle else ""
         said = bool(m and head and head.startswith(m.group(1)))
@@ -274,6 +294,7 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
             out(f"{name}: handoff, generation {gen} started")
             started = last_change = procs.now()
             seen, state, told, unsaid, nudged, sent_turn = None, {}, set(), 0, False, -1
+            sent = {"prompts": -1, "text": "", "at": procs.now(), "words": "", "again": 0}
             base0, first_commit = procs.head(), None
             continue
     journal.append("cost", task=name, model=model, usd=round(watcher.cost_of(state, spend, model), 4),

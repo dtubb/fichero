@@ -344,3 +344,71 @@ def test_a_run_with_no_commit_has_no_reading_figure(root):
     fake = Fake([{**HEALTHY, "turns": 3, "tokens": 5000}])
     assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None) == "gone"
     assert journal.read()[-1]["turns_before_first_commit"] is None and not [r for r in journal.read() if r["event"] == "reading"]
+
+
+def _feed_run(root, states, heads, at_read, **extra):
+    """A feed run where `at_read[n]` is called on the n-th read; returns (told, redelivered, step rows)."""
+    feed = root / "inbox"
+    feed.mkdir(exist_ok=True)
+    fake = Fake(states, heads=heads)
+    told, again, reads = [], [], []
+    real_read = fake.read
+    fake.procs.tell = lambda pane, words: told.append(words)
+    fake.procs.redeliver = lambda pane, words: again.append(words)
+
+    def read():
+        reads.append(1)
+        if (f := at_read.get(len(reads))):
+            f(feed)
+        return real_read()
+    fake.procs.read = read
+    run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None, feed=feed, **extra)
+    return told, again, [(r["seq"], r["sha"], r["moved"]) for r in journal.read() if r["event"] == "step"]
+
+
+def test_an_old_done_on_screen_never_marks_a_new_step_done_before_its_message_is_delivered(root):
+    """#6589 2026-11-20: a DONE counts only if printed after this step's message was delivered. Step 2's message was sent but no
+    prompt arrived (turns moved on by tool turns of the old work); the old `DONE bbbb222` text is still the last text."""
+    done1 = {**HEALTHY, "idle": True, "moved": True, "turns": 2, "prompts": 1, "last_text": "DONE bbbb222"}
+    other_turn = {**done1, "moved": False, "turns": 3}  # an assistant turn, no new prompt: the message sits in the input box
+    states = [HEALTHY, done1, done1, other_turn, other_turn, other_turn, {**HEALTHY, "idle": True, "turns": 3, "prompts": 1, "last_text": "DONE bbbb222"}]
+    told, again, rows = _feed_run(root, states, ("aaaa111", "bbbb222"),
+                                  {3: lambda feed: (feed / "msg-1.txt").write_text("next"), 7: lambda feed: (feed / "stop").write_text("")})
+    assert rows == [(0, "bbbb222", True)], "the old DONE gave no second step row"
+
+
+def test_a_message_that_started_no_turn_within_sixty_seconds_is_delivered_again(root):
+    done1 = {**HEALTHY, "idle": True, "moved": True, "turns": 2, "prompts": 1, "last_text": "DONE bbbb222"}
+    quiet = {**done1, "moved": False}
+    states = [HEALTHY, done1, quiet, quiet, quiet, quiet, quiet]
+    told, again, rows = _feed_run(root, states, ("aaaa111", "bbbb222"),
+                                  {3: lambda feed: (feed / "msg-1.txt").write_text("next"), 8: lambda feed: (feed / "stop").write_text("")})
+    assert len(told) == 1 and len(again) >= 1 and again[0] == told[0], (told, again)
+    assert [r for r in journal.read() if r["event"] == "watch" and r["what"].startswith("redeliver")]
+
+
+def test_a_delivered_message_is_not_delivered_again(root):
+    done1 = {**HEALTHY, "idle": True, "moved": True, "turns": 2, "prompts": 1, "last_text": "DONE bbbb222"}
+    working = {**HEALTHY, "idle": False, "turns": 3, "prompts": 2, "last_text": "working"}
+    states = [HEALTHY, done1, done1, working, working, working, working, working]
+    told, again, rows = _feed_run(root, states, ("aaaa111", "bbbb222"),
+                                  {3: lambda feed: (feed / "msg-1.txt").write_text("next"), 9: lambda feed: (feed / "stop").write_text("")})
+    assert len(told) == 1 and again == []
+
+
+def test_the_real_redeliver_presses_enter_when_the_words_sit_in_the_box_and_types_them_again_when_a_turn_never_started(tmp_path, monkeypatch):
+    calls = []
+    box = iter(["❯ Read /x/msg-9.txt and do what it says", "❯ ", "❯ ", "❯ ", "❯ "])
+
+    def fake(argv, **k):
+        calls.append(argv)
+        return types.SimpleNamespace(stdout=next(box) if argv[1] == "capture-pane" else "")
+    monkeypatch.setattr(run.subprocess, "run", fake)
+    monkeypatch.setattr(run.time, "sleep", lambda s: None)
+    words = "Read /x/msg-9.txt and do what it says"
+    p = run.real_procs(tmp_path, tmp_path / "wt")
+    p.redeliver("%3", words)
+    assert [c[3:] for c in calls if c[1] == "send-keys"][:1] == [["Enter"]] or [c[-1] for c in calls if c[1] == "send-keys"][0] == "Enter"
+    calls.clear()
+    p.redeliver("%3", words)
+    assert [c[-1] for c in calls if c[1] == "send-keys"][0] == words
