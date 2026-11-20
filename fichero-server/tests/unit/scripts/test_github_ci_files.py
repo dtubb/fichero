@@ -29,3 +29,12 @@ def test_security_workflow_runs_on_prs_and_nightly_reuses_the_rungs_scanner_and_
     text = (ROOT / ".github/workflows/security.yml").read_text()
     assert "scripts/security_scan_run.py" in text and "read_osv" in text
     assert {m["language"] for m in doc["jobs"]["codeql"]["strategy"]["matrix"]["include"]} == {"python", "swift"}
+
+
+def test_test_workflow_runs_on_prs_to_integration_report_only_with_a_cached_uv_engine_job_and_a_swift_job():
+    doc = _workflow("tests.yml")
+    assert doc["on"]["pull_request"]["branches"] == ["integration"]
+    jobs = doc["jobs"]
+    assert set(jobs) == {"engine", "swift"}
+    assert all(j["continue-on-error"] is True and j["runs-on"] == "macos-15" for j in jobs.values())
+    assert "enable-cache: true" in (ROOT / ".github/workflows/tests.yml").read_text()

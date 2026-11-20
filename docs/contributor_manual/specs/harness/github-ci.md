@@ -39,3 +39,15 @@ it. Spec-change: owner 2026-11-20.
   are settings, not code, and this workflow does not set them. Acceptance: the workflow triggers on `pull_request` to
   `integration` and on a schedule, names `security_scan_run.py` and `read_osv`, and its CodeQL matrix is Python and Swift.
   Test: `fichero-server/tests/unit/scripts/test_github_ci_files.py::test_security_workflow_runs_on_prs_and_nightly_reuses_the_rungs_scanner_and_adds_codeql` in fichero-server/tests/unit/scripts/.
+
+## Test workflow
+
+- `ci.test-workflow` [GAP] — `.github/workflows/tests.yml` runs on pull requests to `integration`, report-only (every job is
+  `continue-on-error`, so a red run blocks nothing until the maintainer has read a few weeks of results). Job `engine`
+  (macos-15, arm64; uv with its cache keyed on `fichero-server/uv.lock`) runs every `scripts/check_spec_*.py` guard and
+  then `pytest tests/unit` in `fichero-server`. Job `swift` (macos-15) builds the `Fichero (Dev Local)` scheme and runs its
+  unit tests with signing off. Public repositories pay nothing for these minutes; the first runs are the measure of whether
+  the Swift job fits in a run the builder can wait for, and if it does not it is split or moved to Xcode Cloud (see
+  `reviews/2026-11-20-ci-review.md`). Acceptance: the workflow triggers on `pull_request` to `integration`, has exactly
+  the jobs `engine` and `swift`, both `continue-on-error` on `macos-15`, and the engine job enables the uv cache.
+  Test: `fichero-server/tests/unit/scripts/test_github_ci_files.py::test_test_workflow_runs_on_prs_to_integration_report_only_with_a_cached_uv_engine_job_and_a_swift_job` in fichero-server/tests/unit/scripts/.

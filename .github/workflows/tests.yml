@@ -1,0 +1,57 @@
+name: Tests
+
+# Spec: docs/contributor_manual/specs/harness/github-ci.md (ci.test-workflow). REPORT-ONLY at first: every job is
+# continue-on-error, so a red run is read (by people and by `builder check`, ci.builder-reads-actions) but blocks nothing.
+on:
+  pull_request:
+    branches: ['integration']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  engine:
+    name: Engine unit suite and spec guards
+    runs-on: macos-15
+    timeout-minutes: 60
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: fichero-server/uv.lock
+      - name: Install the engine
+        working-directory: fichero-server
+        run: uv sync --frozen
+      - name: Spec guards
+        working-directory: fichero-server
+        run: |
+          status=0
+          for g in ../scripts/check_spec_*.py; do
+            echo "== $g"
+            uv run --frozen python "$g" || status=1
+          done
+          exit $status
+      - name: Unit tests
+        working-directory: fichero-server
+        run: uv run --frozen pytest tests/unit -q -p no:cacheprovider
+
+  swift:
+    name: Swift build and unit tests
+    runs-on: macos-15
+    timeout-minutes: 90
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test (scheme Dev Local, macOS)
+        run: |
+          set -o pipefail
+          xcodebuild test -project fichero/fichero.xcodeproj -scheme "Fichero (Dev Local)" \
+            -destination 'platform=macOS' -skipPackagePluginValidation -skipMacroValidation \
+            CODE_SIGNING_ALLOWED=NO | tail -n 200
