@@ -307,6 +307,9 @@ targets are at least 44 pt.
   selection (`SegmentEdit.translate`). *Not built:* the other selected boxes following the pointer while the drag is
   live (they land on release). *Tests:* `fichero-server/tests/unit/api/test_segment_translate.py`;
   `fichero/Tests/Unit/general/Views/Source/GroupMoveAndNudgeTests.swift`.
+  *Built note (2026-11-20):* a segment's shapes move with its outline; the answer names the offset used after it was held at
+  the page edge; a segment named twice or already deleted refuses the whole move and moves nothing
+  (`fichero-server/tests/unit/api/test_segment_translate_edges.py`). Needs an on-screen check.
 - `segment-editor.nudge` — **[PARTIAL]** (→ #4941; app) with a selection and no pressed point, the arrow keys move
   the whole selection one image pixel, ⇧ ten, ⌥⇧ a hundred; with a pressed point, the point
   alone (built). A held key gathers into one action, committed when the key is released or
