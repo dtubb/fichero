@@ -622,13 +622,16 @@ See section 7.2 below for what exists. The design:
   to fit the ink (snapping to the page's text); Shift applies it to every selected segment. Proposed, C: keys on a selection,
   ⌥↑ and ⌥↓ for height and ⌥← and ⌥→ for width, 1 px a press (10 px with Shift), working on many lines at once. Edge handles
   that move one axis with ⌥-drag are left out as fiddly on small line boxes. Saved and undoable; a test per gesture.
-- `segment-editor.convert-to-box` — **[GAP]** (#6736; app + engine; owner 2026-11-19) Convert to Box replaces each selected
+- `segment-editor.convert-to-box` — **[PARTIAL]** (#6736; app + engine; owner 2026-11-19) Convert to Box replaces each selected
   segment's polygon with its axis-aligned bounding rectangle, from the Segment menu, the context menu of the selected
   segments, the toolbar's shape menu and a shortcut (⌥⌘B proposed); it works on many at once. An optional second form,
   Convert to Box (fit ink), makes the rectangle of the ink inside the polygon instead. The segment keeps its id, text,
   readings, order and children; the change is a new version, undoable, with the old shape kept in history; a box can be turned
   back into a polygon by editing its points. Tests: one polygon gives its box; three selected give three boxes; id, text and
   order unchanged; undo restores the polygon.
+  *Built (2026-11-20):* the engine half: `segment.convert_to_box` (the plain bounding rectangle; all or nothing, one undo,
+  a stale version refuses all; `fichero-server/tests/unit/api/test_segment_convert_to_box.py`). *Not built:* the menus, the
+  shortcut and the fit-ink form. Needs an on-screen check.
 - `segment-editor.convert-level` — **[GAP]** (#6740; app + engine; owner 2026-11-19) a region can become a line and a line a
   region. Convert to Line on a region keeps its shape, text and order position and computes a baseline (or draws one from its
   box, the lower third, editable); a region with child lines asks whether to merge their text into the one line, in order, or
