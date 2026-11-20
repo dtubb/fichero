@@ -1,4 +1,4 @@
-# Compute — Teaching small models from big ones — Design Spec (#5336)
+# Compute — The model loop: teach, correct, train, evaluate, run anywhere, publish — Design Spec (#5336)
 
 > Milestone: remote-compute
 > Manual: TBD — a section, "Making your own model", explaining how a project turns a big model's
@@ -14,32 +14,42 @@
 > that #4642 (a small palaeography model that explains its readings) asked for, generalised to
 > every job a model does in Fichero.
 
+> **Revised 2026-11-19 (the owner's goal for every recipe step).** This file is the ONE home of the loop. It OWNS: the
+> six stages and what each means for each kind of step (the table below), the one gate a trained model passes before it
+> replaces a step's model, the reasons arms, the evaluation job and the bake-off. It does NOT own, and only cites: the
+> training job, the trainers, where a model lives and publishing (`compute/jobs-and-fine-tuning.md`, `compute.tune.*`,
+> `compute.model.*`, `compute.publish.*`); the Train sheet, the places table, the scorers and the A/B table
+> (`compute/training-and-evaluation.md`, `training.*`); what counts as ground truth (`source/ground-truth.md`); how each
+> runtime ships and runs (`ai/local-runtimes.md`); and the loop's UI, which is the Models and Cluster window
+> (`ui/models-and-compute-window.md`, `models.loop.*`, `models.run-settings.*`).
+
 ## Intent
 
-The best results today come from very large models: hosted vision-language models, or big open
-ones that need a cluster. They are slow, costly, need a network, and send pages to someone else.
-A project rarely needs all of what they know. It needs one script, one set of hands, one kind of
-document, done well, over and over.
+The best results today come from very large hosted models. They are slow, costly, need a network, and send pages to
+someone else. A project rarely needs all of what they know. It needs one script, one set of hands, one kind of
+document, done well, over and over. So **every step of a recipe** (find the page and its regions, find lines, read,
+review, normalise, names, claims) has the same loop, and a person can stop at any stage of it:
 
-So a project should be able to **teach a small model from a big one**:
-1. A big model (the *teacher*) works through a sample of the project's pages.
-2. People check and correct its work in the app, as they do now.
-3. That checked work becomes a training set.
-4. A small model (the *student*) is trained on it and runs locally on the Mac, fast, free and
-   offline, through MLX or Kraken.
-5. The student is measured against the people's corrections, not against the teacher.
-6. It replaces the teacher only for the jobs and pages where it is shown to be good enough.
-7. Where it is unsure, Fichero still asks the teacher, or a person.
+1. **Teach.** Run the step on a sample with a big hosted model (a provider's model, or a big open one on a GPU) as the
+   *teacher*. Its work lands as an ordinary pass, with its cost and, where the provider returns it, its reasoning.
+2. **Correct.** People correct the step's output in the app, as they do now: line outlines, region boxes, readings,
+   normalised forms, names. Each correction is ground truth for that step; there is no separate labelling.
+3. **Train.** A small model (the *student*) for that step is trained from the corrections, and from the teacher's
+   output and reasons where they passed the check: by fine-tuning a small model whole (Kraken, YOLO, spaCy), or a vision
+   or language model by LoRA or with all its weights. On this Mac, on Hugging Face Jobs, or on a cluster.
+4. **Evaluate.** The student is scored against the step's current model on held-out corrected pages. It can lose.
+   Only one that wins beyond the noise may replace the current model, and the person chooses.
+5. **Run anywhere.** The adopted model runs where the step runs: any Mac from 8 GB up, Hugging Face, or a cluster.
+6. **Publish.** The person may keep it in the project, make it available to every project on their Macs, or publish it
+   with its card. A model trained on a project's private pages is private until the person says otherwise.
 
-Every correction then makes the project's own model better. A community's corrections become a
-community's model.
+What this buys: better prompts (the teacher's reasons show what a prompt must ask for), better results on this
+project's hands, and cheap, private, offline runs. Every later correction makes the next round better.
 
-**Distillation is an option, never the default** (ruled 2026-10-03). The cheapest local step
-stays the default until an A/B on the project's checked pages says otherwise
-(`source.recipe.cheapest-local-first`). When a person chooses training in setup, the default
-offered is this loop: distil from a large teacher, then fine-tune a small model. It runs by itself
-only if it was chosen in setup (`source.recipe.train-never-automatic`). Every student Fichero
-adopts must run on a 16 GB Mac.
+**The loop is an option, never the default** (ruled 2026-10-03). The cheapest local step stays the default until an
+A/B on the project's checked pages says otherwise (`source.recipe.cheapest-local-first`). When a person chooses
+training in setup, the default offered is this loop. It runs by itself only if that was chosen in setup
+(`source.recipe.train-never-automatic`). The floor for a student Fichero adopts is an 8 GB Mac (`distill.runs-local`).
 
 ## Prior art / best practices
 
@@ -81,51 +91,65 @@ adopts must run on a 16 GB Mac.
 
 ## The design
 
-### Which jobs can be distilled
+### One loop, every step
 
-Every job a model does in Fichero has a teacher and a natural student:
+The six stages are the same for every step; what each holds differs by the kind of step. This is the one table (it
+replaces the two this spec had: which jobs can be distilled, and the best-practice table of #5538). A step with no row
+cannot be taught or trained, and says so (`training.distil.per-step`).
 
-| Job | Typical teacher | Small student | Runs on |
-|---|---|---|---|
-| Layout: regions, signs | big VLM, or a person's boxes | YOLO detector | Mac (PyTorch on the GPU, or Core AI) |
-| Lines and baselines | big VLM, Kraken base model | Kraken segmentation model | Mac |
-| Reading a line | big VLM | Kraken recognition model, TrOCR, small VLM with LoRA | Mac |
-| Reading with reasons | big VLM with reasoning | small VLM with LoRA, trained step-by-step | Mac (MLX) |
-| Identifying signs | big VLM, people | small image classifier | Mac |
-| Entities and claims from text | big LLM | small LLM with LoRA, or spaCy | Mac |
-| Normalising spelling | big LLM | small sequence model | Mac |
-| Picture and text vectors | large encoder | encoder fine-tuned on the project | Mac |
+| Step | Teacher | What a person corrects (the ground truth) | Small model, and how it is trained | Neutral check of teacher output | Scored on held-out corrected pages by | Built (read 2026-11-19) |
+| --- | --- | --- | --- | --- | --- | --- |
+| Find the page; regions, tables | a hosted vision model or an existing layout model proposing regions | the page box; regions with their kinds; table cells | a YOLO detector, fine-tuned whole | overlap with a second detector | precision and recall at a stated overlap, per region kind (`training.eval.layout-overlap`) | the detector runs here (`llm/yolo_runtime.py`, `recipes/regions.py`); it trains here from a person's regions (`training/yolo_set.py`, `training/yolo_local.py`); no teacher, no training off the Mac, no gate |
+| Find lines | the base line finder; a hosted model's line boxes are too coarse to teach from, so the lesson is the person's corrections | lines: baselines and outlines | Kraken's line finder, fine-tuned whole (`ketos segtrain`) | agreement with a second line finder | lines found at a stated overlap, and the CER of reading the lines it found (`training.eval.lines-found`) | runs here and in the remote runner (`remote_read/runner.py`); no training |
+| Read a line | a hosted vision model reading each line the line finder found | line readings | a Kraken reader fine-tuned whole; or a small vision model by LoRA or with all its weights | a second reader that is not the one trained, nor its base | the one CER, and WER | teacher reads the lines; the set; training on Hugging Face Jobs and here; landing; the evaluation job (see Behaviors) |
+| Read with reasons; review | a hosted reasoning model | readings; the answer is always the checked text, the reasons are the teacher's | a small vision model by LoRA or with all its weights, in two arms | as above | CER and WER, answer-only against reasons; repetition and truncation flagged (#5522) | the reasons job, the two arms, the A/B; a LoRA on Hugging Face Jobs |
+| Read print (Tesseract, #5554) | a hosted vision model reading each line | line readings, as line image and text | Tesseract's line reader, from the language's data (tesstrain), on the CPU | a second reader | CER and WER against the base language data | not built |
+| Read (Apple Vision, #5554) | none: it cannot be trained | the project's names, places and terms | none; it is given the words as its custom-word list, and the app says so | — | CER with and without the list | not built |
+| Normalise spelling; expand | a hosted language model | normalised forms | a small text model by LoRA or with all its weights | agreement with a second model | exact match per word, and CER against the corrected forms | not built |
+| Names | a hosted language model naming people, places, things | names as mentions on segments (#5488) | a spaCy pipeline trained whole; or a Create ML word tagger (#5556) | agreement with a second tagger | precision and recall per kind of name (`training.eval.names-precision-recall`) | spaCy runs; no training |
+| Claims; fields; finding documents | a hosted language model | corrected claims, field values, document boundaries | a small language model by LoRA or with all its weights; an Apple Foundation Models adapter when a toolkit for the current macOS exists (#5556, below) | agreement with a second model | the step's own score (`training.eval.fields-exact-and-cer`, `training.eval.boundaries`) | not built |
+| Identifying signs | a hosted vision model, or people | sign labels | a small image classifier | — | accuracy per sign | not built |
+| Picture and text vectors | a large encoder | pairs drawn from corrections | an encoder fine-tuned on the project | — | retrieval on held-out pairs | not built |
 
-### The loop
+### The six stages
 
-1. **Choose the job and the scope:** a project, a script, a hand, a document type.
-2. **Collect.** The teacher runs on a sample as an ordinary run. Its output lands as a pass with
-   its maker, provenance and cost. Fichero proposes the sample to cover the scope: every hand,
-   every layout, not only the easy pages.
-3. **Check.** People correct the teacher's work in the app. Only checked work is ground truth.
-   Unchecked teacher output can be added deliberately, and is then counted and marked
-   (`compute.tune.bootstrapped-data-is-marked`).
-4. **Build the set.** The training set is built from the selection (`source.train.*`). It holds the
-   reasons as well, where the teacher's run recorded them. A vision run already keeps a thinking
-   model's reasoning for each **page**, on the artifact and in the episode ledger (VERIFIED
-   `workflows/tools/vision_base.py:4138-4143`, `:4971-5019`); reasons tied to each **line** are
-   not recorded yet (#4642). See "Distilling a reasoning model's palaeography". The split is by document,
-   never by line (`source.train.split-by-manuscript`).
-5. **Train.** On the Mac where the model fits (Kraken and YOLO on a 16 GB Mac), otherwise on
-   Hugging Face Jobs, then a cluster such as ACENET (`compute.job.*`, `compute.tune.*`). The student's card records its teacher, its set, its base model and every
-   licence.
-6. **Measure.** On held-out, human-checked pages, Fichero shows the student beside the teacher
-   and beside people's corrections: the one CER (`workflows/transcription_accuracy.py`, through
-   the readings/compare route; *agreement*, not CER, where no person checked the reference), word
-   error rate, detection precision
-   and recall, per hand, per page kind and per sign (`source.train.measured`). It also shows speed
-   and cost per page for both.
-7. **Adopt where it is good enough.** The project sets a bar per job (for example, CER no worse
-   than the teacher's plus one point). The student becomes the default **only for the scope where
-   it clears the bar**, recorded on its card (`source.model.suits`). Elsewhere the teacher stays.
-8. **Keep learning.** New corrections accumulate. Fichero says when there is enough new checked
-   work to retrain, and the new student must beat the old one on the same held-out pages before
-   it replaces it.
+1. **Teach.** The teacher runs the step on a sample as an ordinary run, through the one egress gate, on any place a
+   step can run (a provider's model, a provider's batch, a big open model on Hugging Face or a cluster;
+   `compute/recipe-steps-at-scale.md`). Its output lands as a pass with its maker, provenance and cost
+   (`distill.loop.teacher-any-step`). The sample is the person's choice per run: a covering sample or the first N pages
+   (`distill.collect.first-n-or-covering-sample`). Each call's prompt, raw output and reasoning are one record in the
+   episode ledger (`observability/episodes.py`); no second store holds traces (`distill.loop.thinking-kept-every-step`).
+2. **Correct.** People correct the step's output where they work. A correction is ground truth for its step the moment
+   it is made, and is counted (`distill.scale.everyday-corrections-are-data`; the mark and the smart folders are
+   `source/ground-truth.md`'s). Checks have trust levels (`distill.scale.check-trust-levels`). Where a person corrected
+   what the teacher produced, the person's is the lesson (`training.distil.corrections-outrank-teacher`). Unchecked
+   teacher output can be added deliberately, and is counted and marked (`compute.tune.bootstrapped-data-is-marked`).
+3. **Train.** The set is built from the selection (`source.train.*`), split by document, in three parts kept apart
+   (best practice, below). It holds the teacher's reasons where the run recorded them (`distill.set.keeps-reasons`).
+   How the student is trained is a recorded choice (`distill.train.lora-or-full`). Where it trains is the person's
+   choice from one compared table of places with time, cost and what leaves the Mac (`training.place.compared`): this
+   Mac where it fits (offered, never the default: `compute.tune.local-mlx-shown-never-default`), Hugging Face Jobs, a
+   cluster. A training recipe is proven on Hugging Face Jobs before it is sent to a cluster
+   (`compute.tune.proven-on-huggingface-first`). One trainer runs in all three (`compute.tune.one-trainer-three-places`).
+4. **Evaluate: the one gate.** Every trained model is scored by the evaluation job (`distill.eval.job`) on held-out
+   corrected pages no candidate trained on, beside the step's current model, with speed, peak memory and cost per page.
+   It replaces the current model only when it passes the gate (`distill.gate.one-rule`): better than the current model
+   by more than the project's noise band on the same pages; or, when the current model is a hosted teacher, no worse
+   than the teacher by more than the project's bar, because it is cheaper and private. A model that does not pass is
+   kept as a card, shown as not better, and not offered. Passing the gate offers it; the person chooses
+   (`compute.tune.not-default-until-chosen`), unless automatic training was chosen in setup.
+5. **Run anywhere.** The card names a build for each place it can run (`compute.engine.same-card-resolves-by-platform`):
+   Kraken, YOLO and spaCy models as they are; a vision or language student as a 4-bit MLX build for a Mac and as
+   transformers weights for a Linux GPU (`distill.student.transformers-base-on-hf-mlx-copy-local`). A place where no
+   build fits says so and names one where it does (`training.fit.by-memory-before-start`). Run settings that make a
+   model fit a small Mac (image size, batch, device, threads, precision) are per model and per place
+   (`models.run-settings.per-model`).
+6. **Publish.** In the project by default (`compute.model.lives-in-project`); to every project on the person's Macs
+   (`compute.model.make-global`); or published with its card (`compute.publish.*`), private unless the person chooses
+   otherwise each time, refused where the training data may not be released.
+
+Then **keep learning**: new corrections accumulate; Fichero says when there is enough new checked work to retrain; the
+retrained model passes the same gate against the one it would replace (`distill.retrain.must-beat`).
 
 ### Distilling a reasoning model's palaeography
 
@@ -158,7 +182,7 @@ The ledger already exports chat-form training pairs with the person's correction
 rather than writing a second exporter.
 
 **Training.** One base (for example Qwen2.5-VL 3B), LoRA, the same settings for A and B. On
-Hugging Face Jobs first, then ACENET (`compute.tune.lora`); the adapters run on a 16 GB Mac.
+Hugging Face Jobs first, then a cluster (`compute.tune.lora`, `distill.train.lora-or-full`); the 4-bit MLX build runs on the person's Mac.
 
 **Measured, A against B against the teacher and the cheap baseline**, on the held-out checked
 pages: the one CER and WER; speed and peak memory per page on a 16 GB Mac (B writes reasoning
@@ -194,7 +218,7 @@ entities, claims.
   each image from the Image API at the size its reader needs, politely, and results map back onto
   the canvas.
 - **Rounds stop on evidence.** Each round must beat the last on the same fixed held-out pages by
-  more than the noise band (0.5 CER), or the loop stops and says so. A student never trains on its
+  more than the project's noise band (`training.regression.noise-band-one-number`), or the loop stops and says so. A student never trains on its
   own unchecked output, and held-out pages never train.
 
 ### Best practice the loop enforces (maintainer 2026-10-06, #5538)
@@ -227,19 +251,8 @@ refuses or warns, in words, when one is not met.
    which volumes, who corrected), the settings, every score with the set it was measured on, cost and
    time.
 
-The same rules for every kind of model (ruled 2026-10-06: Kraken, YOLO, vision models, spaCy alike);
-what a corrected set holds and how it is scored differs by kind:
-
-| Model | Teacher (example) | Neutral check | Corrected sets hold | Scored by |
-| --- | --- | --- | --- | --- |
-| Kraken line reader | a frontier vision model reading each line | a second reader that is not the one trained | line readings on the page's lines | character and word error rate |
-| Vision model (LoRA) | the same, or a larger vision model | as above | line or page readings | character and word error rate; repetition and truncation flagged (#5522) |
-| YOLO layout / tables | a frontier model or an existing layout model proposing regions | overlap with a second detector | regions (and table cells) with their kinds | box overlap: precision and recall at a stated overlap, per region kind |
-| spaCy names | a frontier model naming people, places, things | agreement with a second tagger | names as mentions on segments (#5488) | precision and recall per kind of name |
-| Tesseract line reader (#5554) | a frontier vision model reading each line | a second reader that is not the one trained | line readings on the page's lines, as line image + text | character and word error rate against the base language data |
-| Apple Vision (#5554) | — (no training API) | — | the project's names, places and terms as its custom-word list | character and word error rate with and without the list |
-| Apple Foundation Models adapter (#5556) | a frontier model doing the text step | agreement with a second model | the step's corrected outputs (names normalised, claims) | the step's own score; no adapter toolkit for macOS 27 yet (see below) |
-| Create ML word tagger or detector (#5556) | as spaCy names or YOLO regions | as those rows | as those rows | as those rows |
+The same rules hold for every kind of model (ruled 2026-10-06: Kraken, YOLO, vision models, spaCy alike); what a corrected
+set holds, the neutral check and the score, by kind, are the columns of the one table in "One loop, every step".
 
 Tesseract fine-tunes its line reader from corrected lines (tesstrain, starting from the language's data), on the CPU, small enough for the 8 GB Mac; the result is a model in the project like any other (#5554).
 Apple Vision cannot be trained. It can be given a list of words, so the project's own names, places and
@@ -345,10 +358,12 @@ Tests for `distill.reasoning.*` and `distill.set.keeps-reasons`:
   checked pages beside the teacher and the people's corrections, per hand, page kind and sign,
   with speed and cost per page; the error rate is the one CER, called *agreement* where no person
   checked the reference.
-- `distill.adopt.within-bar` — **[GAP]** (#5337) a student becomes the default only for the
-  scope where it clears the project's bar, recorded on its card.
-- `distill.retrain.must-beat` — **[GAP]** (#5337) a retrained student replaces the old one
-  only if it beats it on the same held-out pages.
+- `distill.adopt.within-bar` — **[GAP]** (#5337) where a step's current model is a hosted teacher, a student becomes
+  the default only for the scope where it is no worse than the teacher by more than the project's bar (asked in setup;
+  one point of the kind's unit until then, labelled), recorded on its card. This is the second arm of the one gate
+  (`distill.gate.one-rule`).
+- `distill.retrain.must-beat` — **[GAP]** (#5337) a retrained student replaces the old one only if it passes the one
+  gate against it on the same held-out pages (`distill.gate.one-rule`).
 - `distill.cascade.small-first` — **[GAP]** (#5338) a run uses the student first and sends
   only low-confidence pieces to the teacher or to a person, recording where each piece went.
 - `distill.cascade.calibrated` — **[GAP]** (#5338) routing uses confidence calibrated on held-out
@@ -370,16 +385,21 @@ Tests for `distill.reasoning.*` and `distill.set.keeps-reasons`:
   of its base, set and teacher licences (extends `compute.tune.licence-carries` with the teacher).
   That a set holds people-checked work by default, and counts any unchecked teacher output, is
   already `source.train.human-checked-by-default` and `compute.tune.bootstrapped-data-is-marked`.
-- `distill.runs-local` — **[GAP]** (#5240, #5397) an adopted student runs on the person's Macs (8 GB is the floor; 16 and 24 GB fit more)
-  through MLX, Core AI, PyTorch or Kraken, throttled like any background work, its speed and peak memory measured there
-  (`compute.tune.measured-on-16gb`) (the MLX conversion is `compute.tune.convert-for-mlx`).
+- `distill.runs-local` — **[GAP]** (#5240, #5397) an adopted student runs on the person's Macs (8 GB is the floor; 16 GB
+  and above fit more) through MLX, Core AI, PyTorch or Kraken, throttled like any background work, its speed and peak
+  memory measured there (`compute.tune.measured-on-16gb`); a student whose smallest build does not fit an 8 GB Mac says
+  which Macs and places it does fit (the MLX conversion is `compute.tune.convert-for-mlx`).
 
 - `distill.collect.teacher-reads-the-lines` — **[PARTIAL]** (#5398) *Built (0cbfab3bc, 768c12865): Transcribe in Kraken mode with `lines_read_by: "model"` has Kraken find each line and the run's vision model read each line's crop, a few per call; the pass keeps Kraken's geometry, so its PAGE XML export (one reading per line) is a training set; a line the teacher says holds no writing is dropped and counted; a batch answer that does not match line for line is re-asked one line at a time. Pinned by `fichero-server/tests/unit/workflows/test_teacher_reads_kraken_lines.py` (through the Transcribe tool) and `fichero-server/tests/unit/api/test_readings_not_echoed.py`. Not built: choosing the sample to cover every hand and layout.* the teacher labels the student's own unit of work (a line Kraken found) so the pair needs no alignment.
 - `distill.scale.check-trust-levels` — **[GAP]** (#5404) a training or held-out set records the
   check level of each page (person, model checker, unchecked teacher); scores against a
   model-checked reference say so.
-- `distill.scale.everyday-corrections-are-data` — **[GAP]** (#5404) corrections to text, entities and
-  claims made in ordinary use reach the next training set through the episode ledger.
+- `distill.scale.everyday-corrections-are-data` — **[GAP]** (#5404) a correction made in ordinary use is ground truth
+  for its step with no labelling step: line outlines and baselines (find lines), region and page boxes (find regions),
+  readings, normalised forms, names, fields, document boundaries and claims. Each reaches the step's next training set
+  (geometry from the person's passes, text through the episode ledger), and the step's count of corrected pages and
+  lines rises as they are made, so 500 pages of corrected lines are 500 pages of ground truth for the line finder.
+  Built for a person's regions (`training/yolo_set.py` `persons_regions`) and line readings (`training/kraken_set.py`).
 - `distill.student.transformers-base-on-hf-mlx-copy-local` — **[GAP]** (#6407, #6406; PROVISIONAL, owner to confirm; manager 2026-11-08) a student that is to run on Hugging Face is fine-tuned from a TRANSFORMERS base there (Kraken or a safetensors vision model, the two kinds the Job and the remote reader already load), and the bulk read on Hugging Face runs that transformers student; for fast runs on a Mac the same student is converted to an MLX copy (`compute.tune.convert-for-mlx`) that lives in the project beside it (`compute.model.lives-in-project`); MLX itself NEVER runs on Hugging Face. The student's card names both forms with where each runs (`distill.train.card-names-teacher`; the places rule `source.onboard.hf-place-one-rule-everywhere`: "runs on Hugging Face as its base; the MLX copy runs here"). An MLX-only model the person picked as the base is refused for a Hugging Face fine-tune in words naming its transformers original when the Hub lists one. Acceptance: a distil run placed on Hugging Face trains the transformers student there, reads the rest there with it, and lands an MLX copy in the project whose card says "this Mac"; a run placed on this Mac trains Kraken here and converts nothing. *Test:* `test_teach_as_you_go_end_to_end.py` (not yet written) and the existing `test_vision_student_lands.py`.
 - `distill.scale.local-first-then-remote` — **[GAP]** (#5404) the same recipe that read a sample on
   this Mac reads a whole archive on Hugging Face Jobs or a cluster, sharded, resending only failed
@@ -390,6 +410,58 @@ Tests for `distill.reasoning.*` and `distill.set.keeps-reasons`:
   coordinates.
 - `distill.scale.rounds-stop-on-evidence` — **[GAP]** (#5404) a round that does not beat the last on
   the fixed held-out pages by more than the noise band is not adopted, and the loop says why.
+
+### The one loop, every step (the owner's goal of 2026-11-19)
+
+Tests to write, one file a line, in `fichero-server/tests/unit/training/`, each through the API with a recording stand-in
+for the teacher and the trainer.
+
+- `distill.loop.one-answer-per-step` — **[GAP]** (#5941, #5337) the engine answers, for one step of a project's
+  recipe, the state of its loop in one read: the step's current model and where it runs; its teacher runs (model, pages,
+  cost); its ground truth counted in the step's own unit (pages and lines corrected, by trust level, and how many since
+  the last training); its training jobs; its trained candidates, each with its held-out score beside the current
+  model's and the gate's verdict in words; where each candidate can run; and whether it is published. The recipe's
+  cycle section (`compute.tune.loop-is-one-visible-cycle`) and the window (`models.loop.steps-are-rows`) read this one
+  answer; neither computes a stage itself. A step with no row in the table answers "this step cannot be trained" with
+  why. *Test (to write):* test_step_loop_answer.py (a step with a fake teacher run, 12 corrected pages, one landed
+  candidate that lost: every stage reads back, in order, with the verdict).
+- `distill.loop.teacher-any-step` — **[GAP]** (#5337, #5940) any step with a Teacher column in the table can be run on
+  a chosen sample with a hosted model as its teacher: a provider's model, a provider's batch, or a big open model on
+  Hugging Face or a cluster. The result is an ordinary pass or artifact of that step with its maker and cost; the same
+  input and model are never sent twice (`activity.read.page-read-once`). Built for reading a line
+  (`distill.collect.teacher-reads-the-lines`) and for reasons (`distill.reasoning.gather-is-a-job`); not for regions,
+  normalising, names, claims or fields. *Test (to write):* test_teacher_any_step.py (a fake hosted model proposes
+  regions on five pages: a region pass per page with its maker and cost; a second run sends nothing).
+- `distill.loop.thinking-kept-every-step` — **[GAP]** (#4642, #5337) where a teacher returns reasoning, the episode of
+  each call keeps it for every step, not only reading, tied to the unit the step works on (a line, a region, a name);
+  a trace enters a training set only where the teacher's own answer for that unit agrees with the checked one
+  (`distill.reasoning.answer-is-checked`, generalised), and the count dropped is on the set. Built per page for a vision
+  run and per line for the reasons job. *Test (to write):* test_thinking_kept_every_step.py.
+- `distill.train.lora-or-full` — **[GAP]** (#5240) how a student is trained is chosen on the start sheet and recorded
+  on its card, one of: **whole** (a small model's every weight: Kraken, YOLO, spaCy, Tesseract; the only way for these);
+  **adapter** (LoRA, or QLoRA where memory calls for it: a vision or language model; the default for these); **full
+  fine-tune** (every weight of a vision or language model). A full fine-tune is offered only on a place whose memory
+  holds it, with its time and cost beside the adapter's, and is refused in words on one that cannot; it returns merged
+  weights in the portable form and is converted for MLX like an adapter's merge (`compute.tune.convert-for-mlx`); it
+  passes the same gate. Built: the adapter path for a vision model on Hugging Face Jobs
+  (`training/hf_vision_lora_train.py`). *Test (to write):* test_lora_or_full.py (a tiny model trained both ways on CPU
+  loads and scores; a full fine-tune asked of a place too small is refused naming one that fits).
+- `distill.gate.one-rule` — **[GAP]** (#4951, #5337) one rule, one code path, decides whether a trained or downloaded
+  model may replace a step's current model, for every kind of step: on the same held-out corrected pages, by the kind's
+  scorer, it is better than the current model by more than the project's noise band
+  (`training.ab.beats-current-by-noise-band`, `training.regression.noise-band-one-number`); or, where the current model
+  is a hosted teacher, it is within the project's bar of it (`distill.adopt.within-bar`). The verdict is words on the
+  card: "better by 2.1 points on 40 pages", "too close to call", "worse: kept, not offered", or "not measured: no
+  held-out corrected pages". A model with no verdict is never offered as a replacement. Built: adoption past the band
+  for a Kraken reader (`fichero-server/tests/unit/training/test_adopt_past_the_noise_band_5700.py`), as its own path.
+  *Test (to write):* test_one_gate.py (a better, a too-close, a worse and an unmeasured candidate, for a reader and
+  for a detector, each give their verdict from the same function).
+- `distill.deploy.served-on-hugging-face` — **[GAP]** (#5240, #5398) a trained model's transformers build can be
+  served from the person's own Hugging Face account as an endpoint that is a provider row like any other
+  (`compute.engine.session-adds-and-removes-a-row`): private, its hourly price shown before it starts, stopped when
+  idle, counted against the caps; Hugging Face Jobs stay the place for batch runs. No code today
+  (`compute/recipe-steps-at-scale.md`, "What exists"). *Test (to write):* test_served_on_hugging_face.py (a recorded
+  Hub: the endpoint is created private, the row appears, an idle one is paused).
 
 ### Evaluation against out-of-the-box models (the one home, ruled 2026-10-04, #5441)
 
@@ -523,6 +595,68 @@ Built: reading at scale lands idempotently (`compute.land.idempotent`); a page i
 
 Across Steps 1.1–1.3 and `source/recipe-designer.md` Stage 19, ONE end-to-end test (#6407, written 2026-11-08): `test_teach_as_you_go_end_to_end.py` in fichero-server/tests/unit/training/ (a fake Gemini labels the first 100 pages of a 1,000-page fake project (and, in a second case, a covering sample); a fake Job returns a student; the student's CER and WER on the held-out checked pages clear the gate; the remaining 900 pages run on the student on a fake Hugging Face target; a counting fake sees every page read exactly once by exactly one model: zero repeated passes, `activity.read.page-read-once`; the switch is recorded). Named on Steps 1.1 and 1.2 above and on Stage 19's steps so one file pins the whole story.
 
+### Stage 2 — the loop on every step (written 2026-11-19 from `reviews/2026-11-19-distil-every-step-review.md`)
+
+Two things come first and together, the two runtimes the loop stands on, proven for real: YOLO running wherever the
+engine runs (`ai/local-runtimes.md` Step 2.1, `runtime.yolo.imports-wherever-the-engine-runs`) and Kraken on Hugging
+Face end to end (Step 2.1 here). Steps of other specs that this stage needs are named with their spec.
+
+#### Step 2.1 — Kraken on Hugging Face, end to end and for real: lines and readings as a Job, training as a Job, the model home and gated (#5398, #5337)
+- Behaviours: `distill.eval.job`, `distill.eval.held-out-checked-pages`, `distill.eval.stored-on-the-model-node`
+- Tests: fichero-server/tests/unit/training/test_hf_jobs_target.py, fichero-server/tests/unit/training/test_trained_reader_lands.py, fichero-server/tests/unit/training/test_evaluation_job.py, fichero-server/tests/unit/remote_read/test_read_at_scale_job.py, test_distil_kraken_on_hf.py (not yet written)
+- Depends on: 1.1
+- Size: M
+
+This is Step 1.2 above (whose behaviours stay there) carried to a real run, with the score that makes it a loop: the
+evaluation job run at landing. Built: `training/hf_jobs.py` `HfJobsTarget` (a private bucket in the
+person's account, send, submit, statuses, fetch, cancel; the token checked first for `job.write` and `repo.write`; the
+hardware price read first; a time limit always sent); `training/hf_kraken_train.py` (`ketos train` from a base reader);
+`training/job.py` (the `train-a-model` job, `POST /api/training/kraken`); `training/landing.py` (the reader lands with
+its card); `remote_read/runner.py` and `remote_read/job.py` (Kraken's line finder and a Kraken reader as a Job, shard
+by shard, landing idempotently; the monthly cap read by `_hf_spend`). Left: the held-out score written on the card at
+landing (the held-out pages stay home and nothing scores them by itself); the line finder trained as a Job
+(`compute.tune.kraken-segmentation`); the training start checked against the project's and the app's caps as price times
+time limit (today a $0 cap only holds the offer, `recipes/train_offers.py`); the card naming its teacher. A first real
+run needs, from the owner: a fine-grained Hugging Face token with write to his own repositories and Jobs, billing
+enabled for Jobs on that account, and a spending cap above $0 for the project (a few dollars covers a `t4-small` run
+inside its 4 h limit). Acceptance, on the named machine with that token: 20 public test pages are segmented and read by
+a Job and land once; a reader trained by a Job from their lines lands with its held-out CER on its card and the gate's
+verdict; the spend recorded is under the cap; a second start with the cap at $0 is refused in words before anything is
+sent.
+
+- test (to write): `test_distil_kraken_on_hf.py` in fichero-server/tests/unit/training/ (the fake-Hub half of the above; the real half is a named-machine run recorded in the review)
+
+#### Step 2.2 — the one gate, for readers and detectors (#4951, #5337)
+- Behaviours: `distill.gate.one-rule`, `distill.retrain.must-beat`
+- Tests: fichero-server/tests/unit/training/test_adopt_past_the_noise_band_5700.py, fichero-server/tests/unit/training/test_noise_band_per_project_5692.py, test_one_gate.py (not yet written)
+- Size: M
+
+#### Step 2.3 — one answer per step, and corrections counted as ground truth for every step (#5941, #5404)
+- Behaviours: `distill.loop.one-answer-per-step`
+- Tests: fichero-server/tests/unit/training/test_train_on_the_persons_corrections_5700.py, test_step_loop_answer.py (not yet written)
+- Depends on: 2.2
+- Size: M
+
+#### Step 2.4 — a teacher for any step, its reasoning kept (#5337, #4642)
+- Behaviours: `distill.loop.teacher-any-step`, `distill.loop.thinking-kept-every-step`, `distill.reasoning.traces-in-the-ledger`
+- Tests: fichero-server/tests/unit/training/test_distill_reasoning_to_spec.py, test_teacher_any_step.py (not yet written), test_thinking_kept_every_step.py (not yet written)
+- Depends on: 2.3
+- Size: M
+
+#### Step 2.5 — adapter or full fine-tune, and a served model on Hugging Face (#5240)
+- Behaviours: `distill.train.lora-or-full`, `distill.deploy.served-on-hugging-face`
+- Tests: fichero-server/tests/unit/training/test_vision_lora_trainer.py, test_lora_or_full.py (not yet written), test_served_on_hugging_face.py (not yet written)
+- Depends on: 2.2
+- Size: M
+
+The corrections counted for every step (`distill.scale.everyday-corrections-are-data`, `distill.scale.check-trust-levels`)
+and the bar (`distill.adopt.within-bar`) are built in Stage 1's steps, which hold them. The steps of the other specs in this stage, in order after the gate (Step 2.2): the layout row trained off the Mac and
+the line finder trained (`compute/jobs-and-fine-tuning.md` Step 1.2, `compute.tune.yolo-layout`,
+`compute.tune.kraken-segmentation`); names and normalising trained (`compute/training-and-evaluation.md`,
+`training.propose.names-tagger`, `training.eval.names-precision-recall`); publishing
+(`compute/jobs-and-fine-tuning.md` Stage 2); the window's loop rows and run settings
+(`ui/models-and-compute-window.md` Stage 5).
+
 ## Test matrix
 
 To be filled at approval. The fixtures are real corrected pages from the test corpus, with a tiny
@@ -559,3 +693,14 @@ measurement and the cascade's routing are pinned with known confidences and outc
    number.
 3. **Cascade default:** on for adopted students, or opt in? Recommendation: on, because the
    alternative silently accepts unsure output, and the run report shows what escalated.
+4. **The bar, asked where?** The gate's second arm (a student may be worse than a hosted teacher by the bar) needs a
+   number per project. Recommendation: one question in setup beside the spending cap, one point of the kind's unit until
+   answered, shown on every verdict.
+5. **A served model on Hugging Face** (`distill.deploy.served-on-hugging-face`) costs by the hour while it is up.
+   Recommendation: Jobs first for every batch; the endpoint only when a person asks for a model to be reachable from
+   another device, stopped when idle, always under the caps.
+6. **Full fine-tune of a vision model**: offered on every place that holds it, or only on a cluster? Recommendation:
+   wherever the memory holds it, with its cost beside the adapter's; the adapter stays the default.
+7. **A hosted teacher for line finding.** The table says a hosted model's line boxes are too coarse to teach a line
+   finder, so the lesson is the person's corrections of the base line finder. To be measured on the first project before
+   it is relied on.

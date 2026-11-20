@@ -141,7 +141,7 @@ noise; and the person's corrections of the new model's output feed the next trai
 
 ## The design
 
-### Screen 1 — Train a Model… (a folder's context menu)
+### Screen 1 — Train a Model… (a folder's context menu, and Train… on a step's row in the Models and Cluster window: one sheet)
 
 One sheet, in the engine's words, built from one `GET` plan before anything is pressed.
 
@@ -214,18 +214,15 @@ the next training.
 
 ### Screen 6 — Distilling, and where a model can run
 
-Distilling is `compute/distillation.md`'s loop: a big teacher (a fine-tuned Qwen VL 32B on Hugging
-Face or ACENET, or a provider model) reads many pages; its answers, and a thinking model's reasons,
-train a small student; a person's corrections outrank the teacher; the student is checked against
-both on held-out pages and adopted only within the step's bar; in use, the student reads every page
-and the teacher only the pages it doubts. Each recipe step distils its own way (readers, names,
-layout, fields, documents: the table in #5538). Restricted data trains but is never released.
+The loop (teach, correct, train, evaluate, run anywhere, publish) and what it holds for each kind of step are
+`compute/distillation.md`'s, in one table; this spec does not restate them. Restricted data trains but is never released
+(`training.fit.restricted-trains-never-released`).
 
 Where a model can run is decided by its size against that machine's memory, before it starts:
 
 | Machine | Runs |
 | --- | --- |
-| This 8 GB Mac | Kraken; YOLO (through Core ML); spaCy; Apple's models; a 3B vision model |
+| This 8 GB Mac | Kraken; YOLO; spaCy; Apple's models; a 3B vision model |
 | 16 GB and 24 GB Macs | the above plus 7–8B |
 | Hugging Face with vLLM | 32B and above |
 | ACENET with vLLM offline | 32B–70B, in batches |
@@ -429,9 +426,9 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
 
 ### The flow and distilling (Screens 5 and 6)
 
-- `training.flow.every-correction-is-data` — **[GAP]** (#5404) corrections of lines, regions, names, fields,
-  documents and kinds, normalised text and statements are each a labelled example for their kind of model
-  (`distill.scale.everyday-corrections-are-data`, `finddocs.corrections-teach`).
+- `training.flow.every-correction-is-data` — **[GAP]** (#5404) the Train sheet's rows and counts come from the
+  corrections that `distill.scale.everyday-corrections-are-data` makes ground truth (that line owns the rule; also
+  `finddocs.corrections-teach`); the sheet invents no count of its own.
 - `training.flow.what-comes-back` — **[PARTIAL]** (#5398, #5525) what comes back lands inside the project
   with its card: built for a Kraken reader and an MLX vision model
   (`compute.tune.model-comes-back-as-a-card`); not for YOLO weights, a spaCy or Create ML model, or a
@@ -483,6 +480,10 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
 - `training.eval.layout-overlap` — **[GAP]** (#5525) a layout model is scored by mAP50 and per-kind
   precision and recall at IoU 0.5 against corrected regions on held-out pages, by Ultralytics' own
   validation, never a scorer of ours (`prep.yolo.fine-tune-from-corrected-regions`).
+- `training.eval.lines-found` — **[GAP]** (#5441, #5240) a line finder is scored on held-out pages against the
+  person's corrected lines: precision and recall of lines at a stated overlap of their outlines, and the CER of reading
+  the lines it found with the step's reader against the checked text, so a finder that splits or merges lines shows in
+  both. *Test (to write):* test_lines_found_score.py (a finder that merges two lines loses recall and CER).
 - `training.eval.names-precision-recall` — **[GAP]** (#5545, #5536) a names model is scored by precision,
   recall and F1 per kind of name against confirmed mentions on held-out pages.
 - `training.eval.fields-exact-and-cer` — **[GAP]** (#5545) a structured-fields model is scored by exact
@@ -608,7 +609,12 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
 - `ui/activity-pane.md`: a training row's phases in words
   (`training.run.one-row-in-activity`).
 
-## Contradictions with existing specs (noted, not resolved here)
+## Contradictions with existing specs (noted here; resolved 2026-11-19 where it says so)
+
+- **Resolved 2026-11-19 in `compute/distillation.md`:** one gate (`distill.gate.one-rule`) replaces the three adoption
+  rules (the bar, the band, must-beat); the band is the project's (`training.regression.noise-band-one-number`), with
+  no figure written elsewhere; YOLO on this Mac is offered, never the default (`compute.tune.yolo-layout`, now PARTIAL);
+  the floor Mac is 8 GB.
 
 - **Noise band.** The ruling is 0.5 CER points; `recipes/bakeoff.py` bands by one point
   (`source.onboard.bakeoff-random-sample` says "within one CER point"); `reasons_ab.py` uses 0.005.
