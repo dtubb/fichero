@@ -1,0 +1,152 @@
+"""`scripts/soak_run.py` (`runner.soak.drives-the-real-engine`, #6732): its readings, its verdict, and its kill-and-resume loop with a
+fake engine. No engine, no model, no network."""
+from __future__ import annotations
+
+import importlib.util
+import sys
+from pathlib import Path
+
+_SCRIPT = Path(__file__).resolve().parents[4] / "scripts" / "soak_run.py"
+_SPEC = importlib.util.spec_from_file_location("soak_run", _SCRIPT)
+assert _SPEC and _SPEC.loader
+sr = importlib.util.module_from_spec(_SPEC)
+sys.modules[_SPEC.name] = sr
+_SPEC.loader.exec_module(sr)  # type: ignore[attr-defined]
+
+PS = "  1     0  1000\n 10     1  2048000\n 11    10  1024000\n 12     1  5000\n 13    11   512000\n"
+
+
+def _status(done, total=100, failed=0, state="running", kinds=None, loads=0):
+    return {"state": state, "steps": [{"account": {"pages_done": done, "pages_failed": failed, "pages_left": total - done - failed,
+                                                    "pages_total": total}, "failures_by_kind": kinds or {}, "model_loads": loads}]}
+
+
+def _samples(dones, rss=None, total=100, last_state="done"):
+    out, prev = [], None
+    for i, d in enumerate(dones):
+        st = last_state if i == len(dones) - 1 else "running"
+        prev = sr.reading(_status(d, total, state=st), minute=i, rss_mb=(rss or [1000] * len(dones))[i], swap_mb=0.0, previous=prev)
+        out.append(prev)
+    return out
+
+
+def test_rss_counts_the_engine_and_every_descendant_and_nothing_else():
+    assert sr.tree_rss_mb(PS, 10) == round((2048000 + 1024000 + 512000) / 1024, 1)
+
+
+def test_swap_used_is_read_in_mb():
+    assert sr.parse_swap_mb("total = 2048.00M  used = 1023.25M  free = 1024.75M  (encrypted)") == 1023.2
+    assert sr.parse_swap_mb("total = 4.00G  used = 2.00G") == 2048.0
+    assert sr.parse_swap_mb("garbage") is None
+
+
+def test_a_reading_has_pages_per_hour_failures_by_kind_and_loads():
+    first = sr.reading(_status(10), minute=1, rss_mb=900, swap_mb=1.0, previous=None)
+    second = sr.reading(_status(40, kinds={"memory": 2}, loads=3), minute=2, rss_mb=950, swap_mb=1.0, previous=first)
+    assert second["pages_per_hour"] == 1800.0 and second["failures_by_kind"] == {"memory": 2} and second["model_loads"] == 3
+
+
+def test_a_clean_run_is_ok():
+    v = sr.judge(_samples([0, 20, 40, 60, 80, 100]), 100, resume=None)
+    assert v["ok"] and v["reds"] == []
+
+
+def test_a_count_that_falls_is_pages_lost():
+    v = sr.judge(_samples([0, 50, 30, 100]), 100, resume=None)
+    assert not v["ok"] and any("lost" in r for r in v["reds"])
+
+
+def test_more_done_than_pages_is_a_page_done_twice():
+    s = _samples([0, 50, 100])
+    s[1]["accounts"][0]["pages_done"] = 120
+    assert any("done twice" in r for r in sr.judge(s, 100, resume=None)["reds"])
+
+
+def test_a_run_that_ends_done_with_pages_neither_read_nor_failed_lost_them():
+    v = sr.judge(_samples([0, 50, 90]), 100, resume=None)
+    assert any("pages were lost" in r for r in v["reds"])
+
+
+def test_memory_that_keeps_growing_after_warm_up_is_a_leak():
+    rss = [1000 + 50 * i for i in range(40)]  # 50 MB a minute = 3000 MB/hour
+    v = sr.judge(_samples(list(range(0, 400, 10)), rss=rss, total=400), 400, resume=None)
+    assert any("a leak" in r for r in v["reds"]) and v["leak_mb_per_hour"] > sr.LEAK_MB_PER_HOUR
+
+
+def test_flat_memory_is_no_leak():
+    v = sr.judge(_samples(list(range(0, 401, 10)), rss=[2000] * 41, total=400), 400, resume=None)
+    assert v["leak_mb_per_hour"] == 0 and v["ok"], v["reds"]
+
+
+def test_a_peak_over_the_bound_is_red():
+    v = sr.judge(_samples([0, 50, 100], rss=[1000, sr.RSS_BOUND_MB + 1, 1000]), 100, resume=None)
+    assert any("bound" in r for r in v["reds"])
+
+
+def test_5000_pages_over_ten_hours_is_red_and_under_is_not():
+    slow = _samples([0, 100], total=100)
+    slow[-1]["minute"] = 600.0  # 100 pages in 10 h: 5000 would take 500 h
+    assert any("5000 pages would take" in r for r in sr.judge(slow, 100, resume=None)["reds"])
+    fast = _samples([0, 100], total=100)
+    fast[-1]["minute"] = 60.0  # 100 an hour: 50 h... still over
+    assert sr.projected_hours(fast) == 50.0
+    fast[-1]["minute"] = 1.0  # 6000 an hour
+    assert sr.judge(fast, 100, resume=None)["ok"]
+
+
+def test_the_time_the_engine_was_down_is_not_counted_against_the_rate():
+    s = _samples([0, 100])
+    s[-1]["minute"] = 60.0
+    assert sr.projected_hours(s, down_minutes=30.0) == 25.0
+
+
+def test_resume_with_fewer_pages_done_is_pages_lost_and_with_more_is_fine():
+    assert "lost" in sr.resume_check({"done": 50}, {"done": 45})["problem"]
+    assert sr.resume_check({"done": 50}, {"done": 50})["problem"] is None
+
+
+class FakeEngine:
+    def __init__(self, dones, total=100):
+        self.dones, self.total, self.log, self.after_restart = list(dones), total, [], None
+
+    def status(self, _job):
+        return _status(self.dones.pop(0), self.total, state="done" if len(self.dones) == 0 else "running")
+
+    def rss_mb(self):
+        return 1000.0
+
+    def kill(self):
+        self.log.append("kill")
+
+    def start(self):
+        self.log.append("start")
+
+
+def test_kill_at_kills_once_restarts_and_checks_the_run_carried_on(monkeypatch):
+    monkeypatch.setattr(sr, "sh", lambda _a: "")
+    engine = FakeEngine([10, 40, 40, 70, 100])  # the 40 after the restart is the resumed count
+    got = sr.soak(engine, "job", 100, kill_at=40, every=0, hours=1, sleep=lambda _s: None)
+    assert engine.log == ["kill", "start"] and got["resume"]["problem"] is None
+    assert sr.judge(got["samples"], 100, resume=got["resume"], down_minutes=got["down_minutes"])["ok"]
+
+
+def test_a_restart_that_loses_pages_fails_the_soak(monkeypatch):
+    monkeypatch.setattr(sr, "sh", lambda _a: "")
+    engine = FakeEngine([10, 40, 5, 60, 100])
+    got = sr.soak(engine, "job", 100, kill_at=40, every=0, hours=1, sleep=lambda _s: None)
+    v = sr.judge(got["samples"], 100, resume=got["resume"])
+    assert not v["ok"] and any("lost" in r for r in v["reds"])
+
+
+def test_the_google_dry_cost_is_per_1000_pages_and_unknown_when_a_model_has_no_price():
+    assert sr.cost_per_1000({"cloud_cap": {"estimate_usd": 1.5}}, 300) == {"pages": 300, "estimate_usd": 1.5, "usd_per_1000": 5.0}
+    assert sr.cost_per_1000({"cloud_cap": {"estimate_usd": None}}, 300)["usd_per_1000"] is None
+    assert sr.cost_per_1000({}, 300)["usd_per_1000"] is None
+
+
+def test_the_markdown_names_the_verdict_and_every_reading():
+    s = _samples([0, 50, 100])
+    report = {"pages": 100, "steps": "segment", "place": "local", "samples": s, "resume": None, "cost": None,
+              "verdict": sr.judge(s, 100, resume=None)}
+    text = sr.markdown(report)
+    assert "verdict: **ok**" in text and text.count("\n| ") >= 3
