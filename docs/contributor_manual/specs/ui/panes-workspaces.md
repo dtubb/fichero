@@ -232,7 +232,24 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
   (`.library && !isKGLibrarySelection`), so Entities/Claims hid every toggle AND the recovery
   menu. Fix: pure `showsPaneToggles(sidebarMode:compactFlow:)` (drops isKG) + `showsWorkspacesMenu`
   (compact-only); Workspaces menu moved to its own un-gated conditional. Pinned:
-  `ToolbarTogglePolicyTests`.
+  `ToolbarTogglePolicyTests`. **Rewritten for #6730 (owner 2026-11-19):** the toolbar has no Hide
+  Items, Hide Source or Hide Reader buttons. The Workspaces menu's first section and View ▸ Panes list
+  Items, Source, Reader and the Inspector as checked toggles (`PaneMenuEntry`); a check follows the
+  pane's visibility both ways and toggling changes the current workspace; the shortcuts stay. The
+  Workspaces menu has no Toolbar Buttons submenu, and `ToolbarVisibilityPlan` is deleted (a saved
+  snapshot's old `toolbar` key is ignored on decode). Only an iPhone keeps a Chat button in the bar.
+  *Test:* `ToolbarGroupingTests.toolbarHasNoPaneToggles`, `::workspacesMenuChecksFollowVisibility`,
+  `::viewMenuChecksPanes`, `WorkspacesMenuNoSecondDefinitionGuardrailTests.noToolbarButtonsSubmenu`,
+  `WindowWorkspaceTests`. *Not built:* View ▸ Customize Toolbar (`.toolbar(id:)` customization).
+- `shell.search.always-visible-with-scope` — **[PARTIAL]** (#6729; owner 2026-11-19) search is one field
+  in the toolbar; its magnifier menu has a **Search Scope** section with a check on the current scope,
+  and the placeholder names it ("Search this project", "Search this folder"). **Built:** This Project (the
+  whole library) and, when a breadcrumb folder is the context, This Folder (the engine's `folder_id`
+  filter). *Test:* `OneToolbarSearchItemTests.menuHoldsWhatTheSecondButtonOffered`,
+  `::absentAndDeadRowsAreHonest`. **Not built:** the scopes This Page, This Document and Everywhere (the
+  search route has no filter for them: an engine ruling is needed); the right inspector's minimum width
+  keeping the field whole; a UI test that the field stays visible and focusable (⌘F) with the inspector
+  narrow or closed.
 - `panes.claim.source-is-document` — **[OK]** (fixed b7be99143) the Claims Source column shows
   the document NAME (resolved over ALL loaded docs, not just the folder scope — the id-fallback
   bug), is **draggable** (shared `LibraryItemDrag` payload), and **clicks through** to the source
