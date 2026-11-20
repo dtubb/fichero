@@ -270,7 +270,7 @@ def soak(engine: Any, job_id: str, total: int, *, kill_at: int | None, every: fl
     killed = False
     while True:
         minute = (clock() - t0) / 60
-        s = reading(engine.status(job_id), minute=minute, rss_mb=engine.rss_mb(), swap_mb=parse_swap_mb(sh(["sysctl", "-n", "vm.swapusage"])),
+        s = reading(engine.status(job_id), minute=minute, rss_mb=engine.rss_mb(), swap_mb=parse_swap_mb(sh(["/usr/sbin/sysctl", "-n", "vm.swapusage"])),
                     previous=samples[-1] if samples else None)
         samples.append(s)
         if s["state"] in ENDED or minute > hours * 60:

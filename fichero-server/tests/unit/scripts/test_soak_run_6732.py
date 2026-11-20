@@ -217,3 +217,10 @@ def test_page_images_walk_subfolders_and_skip_packages_and_thumbnails(tmp_path):
         f.write_bytes(b"x")
     assert [p.relative_to(tmp_path).as_posix() for p in sr.page_images(tmp_path, None)] == ["a.png", "box1/b.JPG", "box1/sub/c.tif"]
     assert len(sr.page_images(tmp_path, 2)) == 2
+
+
+def test_swap_is_read_with_sysctl_by_absolute_path(monkeypatch):
+    seen = []
+    monkeypatch.setattr(sr, "sh", lambda argv: seen.append(argv) or "")
+    sr.soak(FakeEngine([100]), "job", 100, kill_at=None, every=0, hours=1, sleep=lambda _s: None)
+    assert ["/usr/sbin/sysctl", "-n", "vm.swapusage"] in seen
