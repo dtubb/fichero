@@ -15,7 +15,7 @@ it. Spec-change: owner 2026-11-20.
 
 ## Dependabot
 
-- `ci.dependabot` [GAP] (#6600) — `.github/dependabot.yml` opens weekly update PRs (version and security) against `integration`
+- `ci.dependabot` [PARTIAL] (#6600; the file and its shape test are in the tree, no run of it on GitHub has been read yet) — `.github/dependabot.yml` opens weekly update PRs (version and security) against `integration`
   for `fichero-server` (uv, reading `uv.lock`), the Swift package `fichero/fichero-api-client` (the one `Package.swift` under `fichero/`; Dependabot's swift ecosystem reads a `Package.swift`, not the Xcode project's `Package.resolved`, so the app project has no entry),
   and GitHub Actions. Minor and patch updates are grouped per ecosystem and labelled `dependencies` plus the ecosystem.
   Dependabot edits the manifests and `Package.resolved` itself; nobody edits a `Package.resolved` by hand.
@@ -26,7 +26,7 @@ it. Spec-change: owner 2026-11-20.
 
 ## Security workflow
 
-- `ci.security-workflow` [GAP] (#6600) — `.github/workflows/security.yml` runs on pull requests to `integration` and nightly. It
+- `ci.security-workflow` [PARTIAL] (#6600; the file and its shape test are in the tree, no run of it on GitHub has been read yet) — `.github/workflows/security.yml` runs on pull requests to `integration` and nightly. It
   does not add a second scanner: job `scanners` reads the pins and the `osv` switch from `harness.toml [check.security]`,
   installs bandit and semgrep by `uv tool install` and gitleaks from its release at exactly those pinned versions (osv-scanner
   too, only when `osv` is true), then runs `scripts/security_scan_run.py` with those pins and the baselines under `scripts/`:
@@ -44,7 +44,7 @@ it. Spec-change: owner 2026-11-20.
 
 ## Test workflow
 
-- `ci.test-workflow` [GAP] (#6600) — `.github/workflows/tests.yml` runs on pull requests to `integration`, report-only (every job is
+- `ci.test-workflow` [PARTIAL] (#6600; the file and its shape test are in the tree, no run of it on GitHub has been read yet) — `.github/workflows/tests.yml` runs on pull requests to `integration`, report-only (every job is
   `continue-on-error`, so a red run blocks nothing until the maintainer has read a few weeks of results). Job `engine`
   (macos-15, arm64; uv with its cache keyed on `fichero-server/uv.lock`) runs every `scripts/check_spec_*.py` guard and
   then `pytest tests/unit` in `fichero-server`. Job `swift` (macos-15) builds the `Fichero (Dev Local)` scheme and runs its
@@ -53,6 +53,43 @@ it. Spec-change: owner 2026-11-20.
   `reviews/2026-11-20-ci-review.md`). Acceptance: the workflow triggers on `pull_request` to `integration`, has exactly
   the jobs `engine` and `swift`, both `continue-on-error` on `macos-15`, and the engine job enables the uv cache.
   Test: `fichero-server/tests/unit/scripts/test_github_ci_files.py::test_test_workflow_runs_on_prs_to_integration_report_only_with_a_cached_uv_engine_job_and_a_swift_job` in fichero-server/tests/unit/scripts/.
+
+## Dependency and security audits
+
+- `ci.dependency-audit` [PARTIAL] (#6600) — one auditor reads both sides, not one per language: osv-scanner reads the engine's
+  `fichero-server/uv.lock` and both Swift `Package.resolved` files (the app project's, which Dependabot cannot read, and
+  the api-client package's), and `security_rung.read_osv` in `fichero-builder/fichero_builder/security_rung.py` turns
+  its findings into the rung's rows. pip-audit is not added: it would read the same advisories for the Python lock
+  alone. Swift advisories arrive the same way, and as Dependabot security alerts for the api-client package. Built:
+  the reader, the pinned version and the workflow step. Left: `harness.toml [check.security] osv = false`, so neither
+  the rung nor the workflow runs it today; it is switched on when the open alerts are cleared. Acceptance: with
+  `osv = true` a vulnerable pin in a fixture lock is a red row naming the package and the advisory, for the Python
+  lock and for a `Package.resolved`; with `osv = false` the row says not run, never green.
+
+## Python test tiers on Actions
+
+- `ci.python-tiers` [GAP] (#6600) — GitHub Actions runs every Python tier a hosted runner can, one job per tier, so the
+  builder can read each by name. Built: the engine's `tests/unit` tier and the `check_spec_*` guards
+  (`ci.test-workflow`). Left: the builder's own suite (`fichero-builder/tests`) and the engine's contract tier
+  (`fichero-server/tests/contracts`) have no job. The integration and perf tiers need models, libraries and a quiet
+  machine and stay on the Macs. Acceptance: `tests.yml` has one job per tier it runs, named for the tier, and the
+  shape test in `fichero-server/tests/unit/scripts/test_github_ci_files.py` names each.
+
+## Xcode Cloud
+
+- `ci.xcode-cloud-swift-only` [GAP] (#6600) — Xcode Cloud, if it is used, builds and tests Swift only: the app schemes and
+  the Swift test target. It never runs Python: no engine tests, no guards, no engine (Briefcase) build. Python stays on
+  GitHub Actions and the Macs. Nothing is configured today: the tree holds no Xcode Cloud workflow or script, and the
+  Swift job runs on Actions (`ci.test-workflow`) until its measured time says it should move. Acceptance: a custom
+  script added for Xcode Cloud starts no Python interpreter, and a test of the CI files says so.
+
+## Repository settings
+
+- `ci.settings-are-the-owners` [GAP] (#6600) — secret scanning, its push protection, Dependabot alerts and security
+  updates, and code scanning as a required check on `integration` are repository settings. The owner switches them
+  on; no workflow, script or builder verb sets them, and a worker has no token that could. Until they are on, a
+  secret is caught only by the gitleaks scan of `ci.security-workflow` and the builder's own security rung, after the
+  push, not before it.
 
 ## The builder reads the results
 
@@ -73,3 +110,20 @@ it. Spec-change: owner 2026-11-20.
   completed run for the head sha whose `Unit tests` step succeeded satisfies the rung; the same run with the step failed,
   a run for the parent sha, a run still `in_progress`, a `gh` that exits non-zero, and `use_actions = false` each leave the
   rung to run locally with the reason in its row. Built: nothing yet; the workflows above are what it will read.
+
+## What the builder reads from Actions and what it runs on the Macs
+
+- `ci.actions-or-local` [GAP] (#6600) — each check has one place it may come from. Today every row below is run on the
+  Macs: `harness.toml` has no `[check.github]` table and `fichero-builder/fichero_builder/check_tool.py` has no reader
+  (`ci.builder-reads-actions`). Acceptance: every rung's row names its source, `local`, a runner, or
+  `from GitHub run <id>`; a rung in the last two rows of the table never names a GitHub run.
+
+| Check | Read from GitHub | Run on the Macs |
+| --- | --- | --- |
+| Engine unit tests, spec guards | a green `tests.yml` job for the exact head, when `use_actions` is on | otherwise, and always when the run is missing, red or unreadable |
+| bandit, semgrep, gitleaks, osv-scanner | the `scanners` job of `security.yml`, the same way | otherwise |
+| CodeQL | code scanning alerts for the head, listed for the reviewer | never run locally; never a gate in the builder |
+| Dependabot | its pull requests and alerts live on GitHub | nothing in the builder reads them yet |
+| Builder's own tests, contract tier | not yet (`ci.python-tiers`) | yes |
+| Pinned checks, ready, diff bound, red-on-base, the build rung, Swift tests, perf, review | never | always |
+| Nightly verify, DMG, notarize, smoke, publish | never | always |
