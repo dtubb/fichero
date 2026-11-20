@@ -22,7 +22,10 @@ def test_a_file_that_exists_but_the_thumbnail_cannot_open_is_missing_for_the_she
     here.parent.mkdir()
     here.write_bytes(b"x")
     page = _page(db, here)
+    from fichero_server.security import path_security
+
     monkeypatch.setattr(storage, "resolve_source", lambda doc, library_root=None: None)
+    monkeypatch.setattr(path_security, "resolve_document_source_path", lambda *a, **k: None)
 
     said = relink.missing_originals(db, {page.id})
 
