@@ -18,6 +18,7 @@ struct InspectorButton: View {
             Label("Inspector", systemImage: "sidebar.right")
         }
         .keyboardShortcut("i", modifiers: [.command, .control])
+        .help("Show Inspector (⌃⌘I)")
         .disabled(showInspector == nil)
     }
 }

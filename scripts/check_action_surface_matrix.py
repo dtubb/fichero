@@ -265,10 +265,10 @@ ACTION_SPECS: tuple[ActionSpec, ...] = (
         keyboard_patterns=("FocusedRunWorkflowOnSelectionButton",),
     ),
     ActionSpec(
-        action="Inspector",
+        action="Show Inspector",
         expected=("menu", "keyboard"),
-        menu_patterns=("Label(\"Inspector\"",),
-        keyboard_patterns=("InspectorButton",),
+        menu_patterns=("Show Inspector",),
+        keyboard_patterns=("Show Inspector",),
     ),
     ActionSpec(
         action="Go Up",
