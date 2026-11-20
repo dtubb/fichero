@@ -228,7 +228,7 @@ def _others(lane: dict, handles: dict, procs: Procs) -> list[str]:
         if x["id"] == lane["id"] or x["id"] in handles or x["worktree"] == lane["worktree"]:
             continue
         st = x["steps"][x["cursor"]]["state"] if x["cursor"] < len(x["steps"]) else "landed"
-        if st in QUIET and not (x.get("kind") == "external" and st == "queued"):
+        if st != "landed" and st in QUIET and not (x.get("kind") == "external" and st == "queued"):
             out.append(x["worktree"])
     return out
 
@@ -239,7 +239,7 @@ def tree_check(lane: dict, s: dict, handles: dict, procs: Procs) -> list[str]:
     snap, since = s.pop("trees", None) or {}, s.pop("trees_at", "")
     if procs.jail_root in snap and any(r.get("event") == "landed" and r.get("step") == "jail-root" and r.get("ts", "") >= since for r in journal.read()):
         snap.pop(procs.jail_root)
-    now = procs.trees([p for p in _others(lane, handles, procs) if p in snap])
+    now = procs.trees([p for p in _others(lane, handles, procs) if p in snap and os.path.isdir(p)])  # a tree removed meanwhile did not move by a stray write
     return [f"{p}: {snap[p]} -> {now[p]}" for p in now if now[p] != snap[p]]
 
 
