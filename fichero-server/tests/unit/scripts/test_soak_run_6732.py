@@ -150,3 +150,70 @@ def test_the_markdown_names_the_verdict_and_every_reading():
               "verdict": sr.judge(s, 100, resume=None)}
     text = sr.markdown(report)
     assert "verdict: **ok**" in text and text.count("\n| ") >= 3
+
+
+class FakeCli:
+    """The fichero CLI of a scratch library whose project has no recipe yet: Start refuses a step the saved recipe lacks."""
+
+    RECIPES = {"transcribe": ["find-lines", "leave-out", "read-a-line"], "tables": ["find-regions", "find-lines", "read-a-line"]}
+
+    def __init__(self):
+        self.saved, self.calls = None, []
+
+    def __call__(self, *args):
+        self.calls.append(args)
+        if args[:2] == ("recipes", "assemble"):
+            purpose = args[args.index("--purposes") + 1]
+            return {"steps": [{"id": i, "job": i} for i in self.RECIPES[purpose]]}
+        if args[:2] == ("recipes", "save-project-setup"):
+            import json as _json
+            self.saved = _json.loads(args[args.index("--recipe") + 1])
+            return {}
+        if args[:2] == ("recipes", "start-project"):
+            have = {s["id"] for s in (self.saved or {}).get("steps") or []}
+            missing = [a for a in args[2:] if a != "--steps" and a not in have]
+            if missing:
+                raise RuntimeError(f"POST /api/recipes/project/start -> 422: the recipe has no step {', '.join(missing)}")
+            return {"started": {"job_id": "j1"}}
+        return {}
+
+
+def _engine_with(cli, tmp_path):
+    engine = sr.Engine.__new__(sr.Engine)
+    engine.cli = cli
+    engine.library = tmp_path / "Soak.fichero"
+    return engine
+
+
+def test_start_run_saves_a_recipe_that_has_the_asked_step_first(tmp_path):
+    cli = FakeCli()
+    engine = _engine_with(cli, tmp_path)
+    engine.save_recipe("segment", "local")
+    assert engine.start_run("segment")["started"]["job_id"] == "j1"
+
+
+def test_a_step_only_another_recipe_has_picks_that_recipe(tmp_path):
+    cli = FakeCli()
+    engine = _engine_with(cli, tmp_path)
+    engine.save_recipe("regions", "local")
+    assert engine.start_run("regions")["started"]["job_id"] == "j1"
+    assert "find-regions" in {s["id"] for s in cli.saved["steps"]}
+
+
+def test_a_step_no_recipe_has_stops_the_soak_in_words(tmp_path):
+    import pytest
+
+    cli = FakeCli()
+    cli.RECIPES = {"transcribe": ["find-lines"], "tables": ["find-lines"]}
+    engine = _engine_with(cli, tmp_path)
+    with pytest.raises(RuntimeError, match="find-regions"):
+        engine.save_recipe("regions", "local")
+
+
+def test_page_images_walk_subfolders_and_skip_packages_and_thumbnails(tmp_path):
+    for rel in ("a.png", "box1/b.JPG", "box1/sub/c.tif", "Old.fichero/pages/d.png", "thumbnails/e.png", "box1/notes.txt"):
+        f = tmp_path / rel
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_bytes(b"x")
+    assert [p.relative_to(tmp_path).as_posix() for p in sr.page_images(tmp_path, None)] == ["a.png", "box1/b.JPG", "box1/sub/c.tif"]
+    assert len(sr.page_images(tmp_path, 2)) == 2

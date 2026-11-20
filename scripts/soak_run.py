@@ -41,6 +41,16 @@ RSS_BOUND_MB = 5500.0  # an 8 GB M1 with the OS and the app beside the engine
 WARMUP_FRACTION = 0.2
 MIN_SAMPLES_FOR_LEAK = 10
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".tif", ".tiff", ".webp")
+# A fresh scratch library has no recipe, so Start refuses every step. The recipe is assembled from these purposes, the first
+# one whose recipe has every asked step: transcribe has the line finder and the reader, tables adds the region finder.
+RECIPE_PURPOSES = ("transcribe", "tables")
+
+
+def page_images(folder: Path, limit: int | None) -> list[Path]:
+    """Page images under `folder`, subfolders included, sorted; a `*.fichero` package and a `thumbnails` folder are skipped."""
+    found = (p for p in folder.rglob("*") if p.suffix.lower() in IMAGE_SUFFIXES and p.is_file()
+             and not any(part.endswith(".fichero") or part.lower() == "thumbnails" for part in p.relative_to(folder).parts[:-1]))
+    return sorted(found)[:limit]
 
 
 # ── What the Mac says ────────────────────────────────────────────────────────────────────────────────────────
@@ -224,11 +234,24 @@ class Engine:
             raise RuntimeError(f"fichero {' '.join(args)} failed: {(done.stderr or done.stdout).strip()[:400]}")
         return json.loads(done.stdout or "null")
 
-    def prepare(self, images: list[Path], place: str, batch: int = 100) -> None:
+    def save_recipe(self, steps: str, place: str) -> None:
+        """Save the project recipe the soak runs: the first of RECIPE_PURPOSES whose recipe has every step STEPS[steps] names."""
+        want = STEPS[steps]
+        for purpose in RECIPE_PURPOSES:
+            answers = {"languages": ["en"], "scripts": ["Latn"], "purposes": [purpose], "cloud_allowed": place == "google-dry"}
+            recipe = self.cli("recipes", "assemble", "--languages", "en", "--scripts", "Latn", "--purposes", purpose,
+                              *(["--cloud-allowed"] if place == "google-dry" else []))
+            if set(want) <= {s["id"] for s in recipe["steps"]}:
+                self.cli("recipes", "save-project-setup", "--answers", json.dumps(answers), "--recipe", json.dumps(recipe))
+                return
+        raise RuntimeError(f"no recipe from {', '.join(RECIPE_PURPOSES)} has the step {', '.join(want)}")
+
+    def prepare(self, images: list[Path], place: str, steps: str, batch: int = 100) -> None:
         self.cli("library", "create", str(self.library))
         self.cli("recipes", "put-places", "--places", "this-mac,cloud" if place == "google-dry" else "this-mac")
         for i in range(0, len(images), batch):
             self.cli("docs", "import-files-together", *[a for p in images[i:i + batch] for a in ("--upload", f"files={p}")])
+        self.save_recipe(steps, place)  # after the import: assemble refuses a project with no pages
 
     def start_run(self, steps: str) -> dict[str, Any]:
         return self.cli("recipes", "start-project", *[a for s in STEPS[steps] for a in ("--steps", s)])
@@ -274,7 +297,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--hours", type=float, default=14.0, help="give up after this long")
     ap.add_argument("--out", type=Path, default=Path("soak.json"))
     a = ap.parse_args(argv)
-    images = sorted(p for p in a.folder.iterdir() if p.suffix.lower() in IMAGE_SUFFIXES)[: a.limit]
+    images = page_images(a.folder, a.limit)
     if not images:
         print(f"no page images in {a.folder}", file=sys.stderr)
         return 2
@@ -282,7 +305,7 @@ def main(argv: list[str] | None = None) -> int:
         engine = Engine(Path(tmp))
         try:
             engine.start()
-            engine.prepare(images, a.place)
+            engine.prepare(images, a.place, a.steps)
             if a.place == "google-dry":
                 report = {"pages": len(images), "steps": a.steps, "place": a.place, "samples": [], "resume": None,
                           "cost": cost_per_1000(engine.cli("recipes", "get-start-plan", *[f for s in STEPS[a.steps] for f in ("--steps", s)]), len(images)),
