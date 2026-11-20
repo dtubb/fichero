@@ -386,7 +386,7 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   over 5000 real pages; a per-page ledger. *Test:* `fichero-server/tests/unit/scripts/test_soak_run_6732.py`.
 - `runner.soak.google-reading-efficiency` — **[OK]** (#6732) the cloud line reader, with a fake Gemini client and no spend, sends
   16 lines a request, never a line picture twice, at most four requests at once for a page and no more at once than the provider's
-  slot cap across the engine, retries a 429 after at least its Retry-After and a 5xx with a growing back-off, and does not retry a
+  slot cap across the engine, retries a 429 after at least its wait (the Retry-After header, or Gemini's `retryDelay` in the error body) and a 5xx with a growing back-off, and does not retry a
   400; a page already read is not sent again (`source.recipe.done-is-not-redone`). *Tests:*
   `fichero-server/tests/unit/llm/test_google_reading_efficiency_soak.py`,
   `fichero-server/tests/unit/recipes/test_start_stop_restart_resumes.py`.
