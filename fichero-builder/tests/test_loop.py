@@ -1657,3 +1657,40 @@ def test_an_approved_red_on_base_is_remembered_for_its_head_and_the_same_head_is
     queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
     assert steps()["1.1"]["state"] == "landed" and len(_alerts()) == 1, "the second red at the same head raised no alert"
     assert [r for r in journal.read() if r["event"] == "queue" and r.get("state") == "auto-approve"]
+
+
+def test_a_new_lane_does_not_start_under_the_disk_floor_and_the_row_says_why(state, monkeypatch):
+    """#6589 2026-11-20 item 5: the Mac filled up under new lanes; under [loop].disk_floor_gb nothing new starts."""
+    lane(state)
+    fake = Fake()
+    fake.procs.free_gb = lambda: 12.0
+    monkeypatch.setattr(queue, "DISK_FLOOR_GB", [30.0])
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    assert fake.starts == [] and steps()["1.1"]["state"] == "queued"
+    rows = [r for r in journal.read() if r["event"] == "queue" and r.get("state") == "disk-hold"]
+    assert len(rows) == 1 and "12" in rows[0]["detail"] and "30" in rows[0]["detail"]
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    assert len([r for r in journal.read() if r.get("state") == "disk-hold"]) == 1, "one row per reason, not a row a tick"
+    fake.procs.free_gb = lambda: 80.0
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    assert fake.starts, "above the floor it starts"
+
+
+def test_removing_a_lanes_tree_drops_its_jcodemunch_index(state, tmp_path):
+    fake, wt, land, repo, g = _cleanup_world(state, tmp_path)
+    dropped = []
+    fake.procs.drop_index = dropped.append
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    assert not wt.exists() and dropped == [str(land), str(wt)]
+
+
+def test_the_workers_uv_cache_is_pruned_once_a_week(state):
+    fake = Fake()
+    calls = []
+    fake.procs.uv_prune = lambda: calls.append(1) or (0, "pruned")
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    assert len(calls) == 1 and [r["state"] for r in journal.read() if r["event"] == "uv-prune"] == ["done"]
+    (journal.STATE / queue.UV_PRUNE).write_text(f"{time.time() - 8 * 86400}\n")
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    assert len(calls) == 2

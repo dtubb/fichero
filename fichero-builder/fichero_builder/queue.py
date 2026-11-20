@@ -40,6 +40,7 @@ from fichero_builder import brief_tool, check_tool, codemap, jail, journal, land
 ROUNDS, RESTARTS = 2, 2
 DISPATCH: list = [()]  # [loop].dispatch: external lanes the loop runs itself, as managed worker lanes (#6466); the verb sets it
 APPROVED_PINNED: list = [{}]  # [loop.approved_pinned] {path: blob sha}: a maintainer lane's pinned diff of exactly these blobs is approved by itself (#6466)
+DISK_FLOOR_GB: list = [0.0]  # [loop].disk_floor_gb: under this many free GB no new lane starts; 0 = off
 BLOCKED_H: list = [4.0]  # [loop].blocked_hours: a blocked step this old is retried once in a fresh session, then parked (#6466)
 _now = time.time  # the tests set the clock
 AUTO_SEND_BACKS = 3  # an external lane's red check is sent back by the loop this many times a batch, then it is an alert
@@ -193,6 +194,9 @@ class Procs:
     nightly_runners: object = None  # nightly.Runners; None = no nightly
     now: Callable[[], datetime] = datetime.now  # the clock the nightly rules read; the tests set a fake
     adopt: Callable[[dict], object | None] = lambda lane: None  # #6589: lane -> a handle on its live session (a tmux window named for it), else None
+    free_gb: Callable[[], float] | None = None  # the free disk on the Mac the lanes' trees live on; None = not checked (#6589 2026-11-20)
+    drop_index: Callable[[str], None] = lambda tree: None  # a removed tree's path -> its jcodemunch index in the worker's home is deleted
+    uv_prune: Callable[[], tuple] | None = None  # () -> (rc, output): the worker's uv cache pruned; None = off
 
 
 QUIET = ("queued", "blocked", "landed", "parked")  # a step state in which the lane's own worker is not moving its tree
@@ -409,6 +413,14 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             if h is None:
                 if len(handles) >= workers_n:
                     return True
+                if procs.free_gb is not None and DISK_FLOOR_GB[0] and (free := procs.free_gb()) < DISK_FLOOR_GB[0]:
+                    why = f"{free:.0f} GB free, under the floor of {DISK_FLOOR_GB[0]:g} GB: no new lane starts"
+                    if s.get("disk_held") != why:
+                        s["disk_held"] = why
+                        store(lane)
+                        journal.append("queue", lane=lane["id"], step=s["step"], state="disk-hold", detail=why)
+                    return False
+                s.pop("disk_held", None)
                 lane["seq"] += 1
                 handles[lane["id"]] = procs.start(lane, s)
             else:
@@ -1237,6 +1249,34 @@ def daily_when_due(procs: Procs, chains: dict | None) -> None:
         t.start()
 
 
+UV_PRUNE = "uv-prune.last"  # when the worker's uv cache was last pruned (epoch seconds)
+UV_PRUNE_S = 7 * 24 * 3600
+
+
+def uv_prune_when_due(procs: Procs, chains: dict | None) -> None:
+    """#6589 2026-11-20 item 5: the worker's uv cache grows with every run; pruned weekly, one `uv-prune` row. A BUILDS thread, so a re-exec waits."""
+    if procs.uv_prune is None or any(t.name == "uv-prune" and t.is_alive() for t in BUILDS):
+        return
+    marker = journal.STATE / UV_PRUNE
+    try:
+        if time.time() - float(marker.read_text()) < UV_PRUNE_S:
+            return
+    except (OSError, ValueError):
+        pass
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(f"{time.time()}\n")
+
+    def run_it():
+        rc, output = procs.uv_prune()
+        journal.append("uv-prune", state="done" if rc == 0 else "failed", detail=output[-300:])
+    if chains is None:
+        run_it()
+    else:
+        t = threading.Thread(target=run_it, name="uv-prune", daemon=True)
+        BUILDS.append(t)
+        t.start()
+
+
 def nightly_when_due(procs: Procs, chains: dict | None) -> None:
     """dev-workflows.run.nightly-build: at the freeze the integration head is the night's candidate and the nightly starts (its own thread)."""
     nightly.when_due(procs.nightly, procs.nightly_runners, procs.now(), lambda why: alert("-", "nightly", why, str(journal.STATE), ["retry"]), chains, BUILDS)
@@ -1289,7 +1329,7 @@ def _cleanup_row(lane: dict, step: str, path: str, state: str, detail: str) -> N
     journal.append("cleanup", lane=lane["id"], step=step, path=path, state=state, detail=detail)
 
 
-def _remove_tree(lane: dict, step: str, tree: str, repo: str) -> bool:
+def _remove_tree(lane: dict, step: str, tree: str, repo: str, on_removed: Callable[[str], None] = lambda tree: None) -> bool:
     """`git worktree remove` (never --force) of `tree`, run from `repo`; a dirty tree stays and one row says why. True when removed."""
     key = (lane["id"], tree)
     if _cg(tree, "status", "--porcelain").stdout.strip():
@@ -1299,6 +1339,7 @@ def _remove_tree(lane: dict, step: str, tree: str, repo: str) -> bool:
         if r.returncode == 0:
             CLEAN_KEPT.pop(key, None)
             _cleanup_row(lane, step, tree, "removed", f"{tree} removed")
+            on_removed(tree)
             return True
         why = f"{tree} kept: {(r.stderr or r.stdout).strip()[-200:]}"
     if CLEAN_KEPT.get(key) != why:
@@ -1307,7 +1348,7 @@ def _remove_tree(lane: dict, step: str, tree: str, repo: str) -> bool:
     return False
 
 
-def clean_up(lane: dict, ref: str) -> None:
+def clean_up(lane: dict, ref: str, on_removed: Callable[[str], None] = lambda tree: None) -> None:
     """#6589 item 16 (dev-workflows.run.loop-cleanup): a landed step whose head is an ancestor of `ref` loses its land-<lane> snapshot; a
     worker lane with no step left also loses its tree wt-<lane> and, when merged into `ref`, its branch. Never --force; one row each."""
     heads: dict = {}
@@ -1320,7 +1361,7 @@ def clean_up(lane: dict, ref: str) -> None:
         if heads.setdefault(tree, _cg(tree, "rev-parse", "HEAD").stdout.strip()) != s["head"]:
             continue  # the tree was reset to a newer sha: it is not this step's snapshot any more
         if _cg(tree, "merge-base", "--is-ancestor", s["head"], ref).returncode == 0:
-            _remove_tree(lane, s["step"], tree, _cg(tree, "rev-parse", "--path-format=absolute", "--git-common-dir").stdout.strip() or lane["worktree"])
+            _remove_tree(lane, s["step"], tree, _cg(tree, "rev-parse", "--path-format=absolute", "--git-common-dir").stdout.strip() or lane["worktree"], on_removed)
     wt = lane["worktree"]
     if (lane.get("kind") == "external" or not lane["steps"] or lane["cursor"] < len(lane["steps"]) or any(s["state"] != "landed" for s in lane["steps"])
             or os.path.basename(wt) != f"wt-{lane['id']}" or not os.path.isdir(wt)):
@@ -1339,7 +1380,7 @@ def clean_up(lane: dict, ref: str) -> None:
             CLEAN_KEPT[(lane["id"], wt)] = why
             _cleanup_row(lane, "", wt, "kept", why)
         return
-    if _remove_tree(lane, "", wt, common):
+    if _remove_tree(lane, "", wt, common, on_removed):
         r = subprocess.run(["git", "--git-dir", common, "branch", "-D", branch], capture_output=True, text=True)
         _cleanup_row(lane, "", wt, "removed" if r.returncode == 0 else "kept", f"branch {branch} " + ("removed" if r.returncode == 0 else f"kept: {r.stderr.strip()[-200:]}"))
 
@@ -1355,13 +1396,14 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
                 with journal.Lock("queue"):  # a concurrent `builder done` resets land-<lane>; re-read the lane inside the lock, so HEAD is checked against the current queue
                     cur = next((x for x in load() if x["id"] == lane["id"]), None)
                     if cur is not None:
-                        clean_up(cur, procs.cleanup_ref)
+                        clean_up(cur, procs.cleanup_ref, procs.drop_index)
         except Exception:  # noqa: BLE001 - the same for the tick's own work on a lane: a row, and the other lanes still tick
             journal.append("loop", state="lane-error", lane=lane["id"], detail=traceback.format_exc()[-1500:])
             out(f"{lane['id']}: lane error (journal row lane-error); the loop goes on")
     daily_when_due(procs, chains)
     nightly_when_due(procs, chains)
     reconcile_when_due(procs, chains)
+    uv_prune_when_due(procs, chains)
     if not busy:
         verify_when_idle(procs, chains)
         if getattr(procs, "root", ""):  # housekeeping at a quiet tick: the ladders' old scratch dirs (run.scratch-sweep)
@@ -1376,7 +1418,7 @@ DRAIN_SINCE: list = [0.0]
 BUILDS: list = []  # the post-landing dev builds' threads: a re-exec waits for them
 
 
-PER_TICK_KEYS = ("rounds", "only", "dispatch", "blocked_hours", "approved_pinned")  # the `[loop]` keys `apply_loop_cfg` re-reads at every tick
+PER_TICK_KEYS = ("rounds", "only", "dispatch", "blocked_hours", "approved_pinned", "disk_floor_gb")  # the `[loop]` keys `apply_loop_cfg` re-reads at every tick
 
 
 def code_mark(root="") -> tuple:
@@ -1412,6 +1454,7 @@ def apply_loop_cfg(cfg: dict) -> None:
     ONLY[0] = tuple(cfg.get("only", ()))
     DISPATCH[0] = tuple(cfg.get("dispatch", ()))
     BLOCKED_H[0] = float(cfg.get("blocked_hours", BLOCKED_H[0]))
+    DISK_FLOOR_GB[0] = float(cfg.get("disk_floor_gb", DISK_FLOOR_GB[0]))
     APPROVED_PINNED[0] = {str(k): str(v) for k, v in dict(cfg.get("approved_pinned", {})).items()}
 
 
@@ -1930,7 +1973,20 @@ def real_procs(root) -> Procs:
         return intake_sha(lane, branch, int(loop_cfg.get("intake_commits", 8)), float(loop_cfg.get("intake_hours", 3)),
                           any_subject=lane["id"] in loop_cfg.get("intake_any", ()))
 
-    return Procs(start=start, alive=lambda h: h.poll() is None, send=send, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
+    def as_worker(script: str) -> tuple:
+        j = jail.load(root)
+        if not (j and j.user):
+            return 1, "no [jail] user"
+        r = subprocess.run([j.sudo, "-n", "-H", "-u", j.user, "sh", "-c", script], capture_output=True, text=True)
+        return r.returncode, (r.stdout + r.stderr)[-500:]
+
+    def drop_index(tree):  # the worker's jcodemunch index of a removed tree: ~/.code-index/local-<tree name>-<8 hex> and its .db
+        base = shlex.quote(f"local-{Path(tree).name}-") + "????????"
+        rc, out = as_worker(f'rm -rf "$HOME"/.code-index/{base} "$HOME"/.code-index/{base}.db')
+        journal.append("cleanup", lane="-", step="", path=tree, state="index-dropped" if rc == 0 else "index-kept", detail=out.strip()[-200:] or f"index of {tree} dropped")
+
+    return Procs(start=start, alive=lambda h: h.poll() is None, send=send, free_gb=lambda: shutil.disk_usage(rules.get("jail", {}).get("workroot") or str(root)).free / 1e9,
+                 drop_index=drop_index, uv_prune=(lambda: as_worker("uv cache prune")) if rules.get("jail", {}).get("user") else None, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0, adopt=lambda lane: adopt_session(jail.load(root), lane),
                  landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
                  next_milestone=lambda taken: next_in_order(root, taken), verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, nightly=ncfg, nightly_runners=nightly.real_runners(root, ncfg, branch, journal.STATE) if ncfg else None, reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",
