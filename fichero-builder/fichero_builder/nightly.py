@@ -114,6 +114,8 @@ class Runners:
     publish: Callable[[str], tuple]       # the GitHub dev prerelease and TestFlight
     text: Callable[[str], None]           # a text to the owner
     test_list: Callable[[str], str]       # sha -> what to try, one text
+    cleanup: Callable[[str], tuple] | None = None  # after a green publish: the local DMGs, archives and staging of that and older releases are deleted
+    sizes: Callable[[], str] | None = None         # the build folders' sizes, one line each, for the report
 
 
 def run_night(cfg: Cfg, r: Runners, sha: str, night: str, alert: Callable[[str], None]) -> bool:
@@ -144,7 +146,10 @@ def run_night(cfg: Cfg, r: Runners, sha: str, night: str, alert: Callable[[str],
     if results["publish"][0]:
         alert(f"the nightly of {sha[:9]} is red at publish: {(results['publish'][1].strip().splitlines() or [''])[-1]}")
         return False
-    r.text(r.test_list(sha))
+    if r.cleanup:  # the release is on GitHub: its local copies and the older ones go; a failed clear is a row, the night stays published
+        part("cleanup", r.cleanup)
+    report = r.test_list(sha) + (f"\nBuild folders:\n{r.sizes()}" if r.sizes else "")
+    r.text(report)
     row("published")
     return True
 
@@ -248,12 +253,22 @@ def real_runners(root, cfg: Cfg, branch: str, state, texter: Callable[[str], Non
         p = subprocess.run(["git", "-C", str(root), "log", "--format=- %s", f"origin/main..{sha}"], capture_output=True, text=True)
         return f"Fichero dev build {sha[:9]} is published. To try:\n" + "\n".join(p.stdout.splitlines()[:30])
 
+    def cleanup(sha):
+        t = tree(cfg.build_machine, "dmg")
+        loop_releases = f" && rm -rf {_q(str(root))}/build/releases/*.dmg {_q(str(root))}/build/releases/*.xcarchive {_q(str(root))}/build/releases/dmg-stage" if cfg.build_machine == "local" else ""
+        return _on(cfg.build_machine, f"rm -rf {_q(t)}/build/releases{loop_releases}", 1800)
+
+    def sizes():
+        t = tree(cfg.build_machine, "dmg")
+        dirs = " ".join(f"{_q(t)}/{d}" for d in ("build", "fichero/build", "fichero-server/build"))
+        return _on(cfg.build_machine, f"du -sh {dirs} 2>/dev/null; true", 600)[1].strip()
+
     def head():
         out = subprocess.run(["git", "-C", str(root), "rev-parse", f"origin/{branch}"], capture_output=True, text=True)
         if out.returncode:
             raise RuntimeError(f"no origin/{branch}: {out.stderr.strip()}")
         return out.stdout.strip()
-    return Runners(head=head, check=check, dmg=dmg, smoke=smoke, publish=publish, text=texter or text_owner, test_list=test_list)
+    return Runners(head=head, check=check, dmg=dmg, smoke=smoke, publish=publish, text=texter or text_owner, test_list=test_list, cleanup=cleanup, sizes=sizes)
 
 
 def text_owner(msg: str) -> None:
