@@ -10,21 +10,15 @@ import SwiftUI
 /// view there, and a single list of every lens in the app would be twenty rows
 /// that only make sense in pairs.
 ///
-/// With a `paneKindSwitcher` in the environment (injected per SLOT by the
-/// pane row), the kind icon is a working menu — R3's mutation across kinds.
-/// Without one (a pane hosted outside a switchable slot), it renders as a
-/// plain label rather than a menu that lies.
+/// The kind choice is not here: it is Pane ▸ in the pane menu at the head's right (#6741).
 struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
     let kindTitle: String
     let kindIcon: String
-    /// This slot's own kind (#4880: every kind chooser ticks its current row —
+    /// This slot's own kind (#4880; the tick now lives in the pane menu's Pane ▸ —
     /// the row list already covers every real kind via `PaneSpec.Kind.
     /// selectableKinds`, so the control needs to know which one it IS to mark
     /// it).
     let currentKind: PaneSpec.Kind
-    /// Injected by the pane slot: when present, the kind icon is a MENU that
-    /// switches what the slot hosts (Daniel, 2026-08-23).
-    @Environment(\.paneKindSwitcher) private var paneKindSwitcher
     let lenses: [Lens]
     let lensTitle: (Lens) -> String
     let lensIcon: (Lens) -> String
@@ -84,9 +78,7 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
     /// that opens ONE menu (the maintainer, 2026-09-01 "one icon" ruling), used by
     /// every kind once its normal two-control row no longer fits.
     private func mergedRung(namesWhatIsShown: Bool) -> some View {
-        // Folds in the real pane-kind switch (#4705) so the narrowest rung
-        // loses no capability versus the normal two-control row above it.
-        lensMenuContent(includeKindSwitcher: true) {
+        lensMenuContent {
             HStack(spacing: 4) {
                 Label(kindTitle, systemImage: kindIcon)
                     .font(.callout.weight(.medium))
@@ -108,65 +100,7 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
     }
 
     private func selectorRow(lensIconOnly: Bool) -> some View {
-        HStack(spacing: 6) {
-            kindControl
-
-            Divider().frame(height: PaneHeadMetrics.dividerHeight)
-
-            lensMenu(iconOnly: lensIconOnly)
-        }
-    }
-
-    /// Icon plus chevron (#4880: "a bare icon with no chevron does not look
-    /// like a menu at all"). With a slot switcher present, clicking it
-    /// changes what the slot hosts — the control that makes a pane's type
-    /// mutable in place (R3). Every row carries its icon AND a tick on the
-    /// pane's current kind (`kindRow`).
-    @ViewBuilder
-    private var kindControl: some View {
-        let label = Label(kindTitle, systemImage: kindIcon)
-            .font(.callout.weight(.medium))
-            .labelStyle(.iconOnly)
-        if let paneKindSwitcher {
-            Menu {
-                // Real kinds only (#4705): `.inspector`/`.chat` are
-                // placeholder leaves until increments 6/7 give them content.
-                ForEach(PaneSpec.Kind.selectableKinds, id: \.rawValue) { kind in
-                    Button {
-                        paneKindSwitcher.switchKind(kind)
-                    } label: {
-                        kindRow(kind)
-                    }
-                }
-            } label: {
-                label
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .accessibilityLabel("Pane kind: \(kindTitle) — click to change")
-            .help("\(kindTitle) — click to change this pane")
-        } else {
-            label
-                .accessibilityLabel("Pane kind: \(kindTitle)")
-                .help(kindTitle)
-        }
-    }
-
-    /// One kind row: icon, title, and a trailing tick when it is the pane's
-    /// current kind (#4880) — shared by the kind chooser and the narrowest
-    /// rung's folded-in kind switch, so the two can never show the tick
-    /// differently.
-    private func kindRow(_ kind: PaneSpec.Kind) -> some View {
-        Label {
-            HStack(spacing: 4) {
-                Text(kind.title)
-                if kind == currentKind {
-                    Image(systemName: "checkmark")
-                }
-            }
-        } icon: {
-            Image(systemName: kind.icon)
-        }
+        lensMenu(iconOnly: lensIconOnly)
     }
 
     /// One lens row: icon, title, and a trailing tick on the current lens
@@ -241,27 +175,8 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
             .fixedSize(horizontal: true, vertical: false)
     }
 
-    private func lensMenuContent<L: View>(
-        includeKindSwitcher: Bool = false,
-        @ViewBuilder label: () -> L
-    ) -> some View {
+    private func lensMenuContent<L: View>(@ViewBuilder label: () -> L) -> some View {
         Menu {
-                // Folded in only by the narrowest rung: the normal row
-                // already has its own separate `kindControl` menu, so
-                // adding this here too would duplicate the switch rather
-                // than restore parity (#4705).
-                if includeKindSwitcher, let paneKindSwitcher {
-                    Section(kindTitle) {
-                        ForEach(PaneSpec.Kind.selectableKinds, id: \.rawValue) { kind in
-                            Button {
-                                paneKindSwitcher.switchKind(kind)
-                            } label: {
-                                kindRow(kind)
-                            }
-                        }
-                    }
-                    Divider()
-                }
                 if lensSections.isEmpty {
                     Picker("View", selection: $lens) {
                         ForEach(lenses) { option in

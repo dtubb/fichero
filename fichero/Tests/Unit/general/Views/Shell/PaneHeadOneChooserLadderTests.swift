@@ -1,9 +1,9 @@
 @testable import Fichero
 import Testing
 
-/// #4880: every pane kind renders the SAME two-control row — a kind chooser
-/// (icon, chevron, a tick on the current kind) and a view chooser (icon,
-/// label, chevron, a tick on the current view) — instead of Reader's old
+/// #4880 / #6741: every pane kind renders the SAME head: a view chooser (icon,
+/// label, chevron, a tick on the current view) on the left, and the kind choice in the pane
+/// menu on the right (Pane >, ticked) — instead of Reader's old
 /// permanently-merged single icon (`collapsesKindIntoLens`, deleted from
 /// `PaneKindSelector`). The merge that remains is the shared narrowest-width
 /// fallback every kind already used (`mergedRung`, unconditional now).
@@ -47,30 +47,24 @@ struct PaneHeadOneChooserLadderTests {
 
     // MARK: - Both menus tick their current row, without losing the row's icon
 
-    @Test("the kind chooser's menu rows use kindRow, which ticks the current kind without dropping its icon")
-    func kindChooserRowsUseKindRow() throws {
+    @Test("the selector has no kind menu: the kind choice is Pane > in the pane menu (#6741)")
+    func selectorHasNoKindMenu() throws {
         let source = try Self.paneKindSelectorSource()
-        let body = try #require(
-            source.components(separatedBy: "private var kindControl: some View {").dropFirst().first
-        )
-        let scope = try #require(body.components(separatedBy: "\n    }").first)
-        #expect(scope.contains("kindRow(kind)"))
-        // The old plain label lost the tick entirely; a bare `Label(kind.title,` in this scope
-        // would mean the regression came back.
-        #expect(!scope.contains("Label(kind.title, systemImage: kind.icon)"))
+        #expect(!source.contains("kindControl"))
+        #expect(!source.contains("kindRow"))
+        #expect(!source.contains("paneKindSwitcher"))
+        #expect(!source.contains("includeKindSwitcher"))
     }
 
-    @Test("the kind chooser shows a chevron (menuIndicator is no longer forced hidden)")
-    func kindChooserShowsChevron() throws {
-        let source = try Self.paneKindSelectorSource()
+    @Test("the pane head has no left close button")
+    func paneHeadHasNoLeftClose() throws {
+        let source = try AppSource.text("Views/Shell/PaneHead/PaneHead.swift")
         let body = try #require(
-            source.components(separatedBy: "private var kindControl: some View {").dropFirst().first
+            source.components(separatedBy: "private var identityCapsule: some View {").dropFirst().first
         )
         let scope = try #require(body.components(separatedBy: "\n    }").first)
-        #expect(
-            !scope.contains(".menuIndicator(.hidden)"),
-            "#4880: the kind chooser must show its chevron like every other menu; a bare icon does not read as a menu."
-        )
+        #expect(!scope.contains("xmark"))
+        #expect(!scope.contains("closePane"))
     }
 
     @Test("the sectioned view menu ticks the current lens without replacing its icon")
@@ -84,17 +78,5 @@ struct PaneHeadOneChooserLadderTests {
         // The old code swapped the icon OUT for a bare checkmark on the selected row — #4880 asks
         // for both at once.
         #expect(!scope.contains("systemImage: \"checkmark\""))
-    }
-
-    // MARK: - The narrowest fallback still folds the real kind switch in, for every kind alike
-
-    @Test("the narrowest rung's folded-in kind switch uses kindRow too")
-    func narrowestRungKindSwitchUsesKindRow() throws {
-        let source = try Self.paneKindSelectorSource()
-        let body = try #require(
-            source.components(separatedBy: "if includeKindSwitcher, let paneKindSwitcher {").dropFirst().first
-        )
-        let scope = try #require(body.components(separatedBy: "\n                    Divider()").first)
-        #expect(scope.contains("kindRow(kind)"))
     }
 }

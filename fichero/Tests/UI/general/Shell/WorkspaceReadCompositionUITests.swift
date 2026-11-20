@@ -69,12 +69,13 @@ final class WorkspaceReadCompositionUITests: FicheroUISessionTests {
             "Read should compose at least two panes to test independent close (saw \(before))."
         )
 
-        // Click one pane head's close affordance ("Close pane" / "Close this split").
-        let close = app.buttons
-            .matching(NSPredicate(format: "label BEGINSWITH %@", "Close")).firstMatch
-        guard close.waitForExistence(timeout: 8), close.isHittable else {
-            throw XCTSkip("No hittable pane-head close control found — cannot drive the close interaction.")
-        }
+        // Open one pane head's menu and choose Close Pane / Close This Split (#6741: the head has no X).
+        let menu = app.menuButtons["Pane menu"].firstMatch
+        XCTAssertTrue(menu.waitForExistence(timeout: 8), "No pane-head menu found.")
+        menu.click()
+        let close = app.menuItems
+            .matching(NSPredicate(format: "title BEGINSWITH %@", "Close")).firstMatch
+        XCTAssertTrue(close.waitForExistence(timeout: 4), "The pane menu has no Close entry.")
         close.click()
         Thread.sleep(forTimeInterval: 0.75)
 
