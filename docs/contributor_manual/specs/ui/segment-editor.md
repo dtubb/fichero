@@ -926,8 +926,6 @@ The umbrella's speed trial (slice 12) is the gate and is not restated. This file
 - `segment-editor.edge.stale` — **[OK]** (engine) every action here is refused when the row changed
   since it was read; the app reloads the row and shows what changed. Pinned by
   `fichero-server/tests/unit/api/test_segment_update_many.py::test_one_stale_line_refuses_the_whole_edit`.
-  *Built note (2026-11-20):* `segment.delete` with one stale version refuses the whole call and deletes nothing
-  (`test_segment_empty_region_and_stale_delete.py`).
 - `segment-editor.edge.rtl-vertical` — **[PARTIAL]** (→ #5154; engine) a knife cut, a word cut and an order
   sequence follow the line's resolved direction: "before the cut" is the right part of a
   right-to-left line and the upper part of a vertical one (`estimated_cut` already does this
