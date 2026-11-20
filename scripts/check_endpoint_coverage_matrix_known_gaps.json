@@ -203,8 +203,6 @@
   "POST /api/rights/{record_id}/withdraw": "slice 14 rights and consent records (#4953), engine side only: their UI waits for its own wireframes (ruled 2026-09-27); reached from the CLI and MCP meanwhile",
   "POST /api/search/explain": "developer/debug utility — wire into Search settings panel when needed (reason carried from check_ui_wiring's swiftui allowlist, #5105)",
   "POST /api/search/stream": "2026-08-19 streaming search v1 (#4604 Q11) - SearchStore adoption queued",
-  "GET /api/activity/history": "the Activity Monitor's bottom panel graphs (#6588, activity.window.bottom-panel): engine first, reached through the generated CLI and MCP; the panel is the app half, not built yet",
-  "GET /api/segments/document/{doc_id}/validate": "segment-editor.validate-before-export (#6582): engine and CLI; the export sheet's count with Fix and Export Anyway is the app half, not built yet",
   "POST /api/segments/bulk": "no Swift call for the /api/segments/* family (20 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "POST /api/segments/carry": "no Swift call for the /api/segments/* family (20 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "POST /api/segments/delete": "no Swift call for the /api/segments/* family (20 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
@@ -308,5 +306,8 @@
   "POST /api/segments/reparent": "Move Into / Lift Out and the Order list's drop (#6476, Step 1.25): the app runs it as the audited action segment.reparent through POST /api/actions/invoke (SegmentMover, SegmentEditRunner), so ⌘Z holds it; this matrix counts a route by its operation name",
   "POST /api/segments/regenerate-outline": "Redraw Outline from Baseline (#6582, segment-editor.regenerate-polygon-from-baseline): the app runs it as the audited action segment.regenerate_outline through POST /api/actions/invoke (SegmentEdit+Tools), so ⌘Z holds it; this matrix counts a route by its operation name",
   "GET /api/pair/addresses": "the app reads the Mac's addresses from GET /api/pair/sharing since #6554 (one line per address); the CLI still lists them",
-  "POST /api/workflow-execution/runs/archive": "the app reaches workflow_run.archive through the generic /api/actions/invoke (one undoable step on the window's stack, #6441), not this route; the route is for the CLI and MCP"
+  "POST /api/workflow-execution/runs/archive": "the app reaches workflow_run.archive through the generic /api/actions/invoke (one undoable step on the window's stack, #6441), not this route; the route is for the CLI and MCP",
+  "POST /api/activity/models/unload-idle": "the window's model management (#6588): engine first, reached through the generated CLI and MCP; the Models window that calls it is not built yet",
+  "GET /api/activity/models/run-settings/{runtime}": "the window's model management (#6588): engine first, reached through the generated CLI and MCP; the Models window that calls it is not built yet",
+  "PUT /api/activity/models/run-settings/{runtime}": "the window's model management (#6588): engine first, reached through the generated CLI and MCP; the Models window that calls it is not built yet"
 }

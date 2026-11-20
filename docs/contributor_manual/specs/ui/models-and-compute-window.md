@@ -208,13 +208,12 @@ filters Activity by `model:`.
   Set Up's finder with "Searching online…" (`ModelFinderStore.searchOnline`); not built: the window's Search field and its
   Found item) the window's search IS the recipe finder's job: one search, one kept result, one card shape; nothing is
   searched twice and no second catalogue exists.
-- `models.bookmark.kept-not-added` — **[PARTIAL]** (#5460, #6588; built: `discovery.bookmark` / `remove_bookmark` and
-  `keep_hub` keeping a bookmarked card, tested in `fichero-server/tests/unit/recipes/test_bookmark_kept_not_added_5460.py`;
-  not built: the route, the bookmark glyph and the Download of a bookmarked card) a found card is BOOKMARKED, never "added": Bookmark keeps
+- `models.bookmark.kept-not-added` — **[PARTIAL]** (#5460, #6588) a found card is BOOKMARKED, never "added": Bookmark keeps
   the card in the one kept list (`discovery/`, a `bookmarked` mark beside `found_for`) without downloading it, so it
   survives the next search letting it go; Download fetches a bookmarked card; Remove Bookmark lets it go when it is not
-  downloaded and not used by a step; a card a step uses cannot lose its bookmark. *Tests:* a bookmarked card outlives a search that no longer finds it; a card a step uses
-  refuses Remove Bookmark with the step named.
+  downloaded and not used by a step; a card a step uses cannot lose its bookmark. *Test (to write, in
+  `fichero-server/tests/unit/recipes/`):* a bookmarked card outlives a search that no longer finds it; a card a step uses
+  refuses Remove Bookmark with the step named. **Built:** `discovery.bookmark` / `remove_bookmark` and `keep_hub` keeping a bookmarked card, tested in `fichero-server/tests/unit/recipes/test_bookmark_kept_not_added_5460.py`; **Not built:** the route, the bookmark glyph and the Download of a bookmarked card.
 - `models.window.shows-what-a-recipe-can-reach` — **[GAP]** (#6588, #5976, #5974) the default item, Usable now, is
   exactly the set of cards Set Up could give a step this minute (`GET /api/recipes/candidates`, every step, filtered to
   `runs_here` true or a reachable `runs_on` with a key and credit); a card that cannot run says why in the finder's own
@@ -241,11 +240,9 @@ filters Activity by `model:`.
   never the machine's, a model under free memory reads "Yes", one over it "No" naming what to unload.
 - `models.row.account-from-a-probe` — **[PARTIAL]** (#5369, #4303, #5367; `keys.status-sees-supplied-keys`,
   `runtime.status-from-the-endpoint`) a place's Account column comes from the same lookup a call uses (keys the app
-  supplies included) and from a real probe. Built: `places()` in `GET /api/activity/models` carries `account` (another Mac
-  from a probe of its address, a cloud provider from `llm.get_api_key`, a cluster null); not built: no Swift code reads it
-  yet, and the probe is a bare reachability check of the server address, not a model-list request. *Test:*
-  `fichero-server/tests/unit/api/test_activity_models_6588.py::test_a_places_account_comes_from_a_probe_and_the_key_a_call_uses`
-  (a refusing probe gives "not-reachable"; an app-supplied key reads "ready"; no key reads "needs-key").
+  supplies included) and from a real probe; today key status ignores app-supplied keys and no Swift code reads the
+  runtimes endpoint, so a row can read ready with nothing behind it. *Test (to write, in `fichero-server/tests/unit/api/`):* a
+  stub probe that refuses gives "Not reachable"; an app-supplied key reads Ready; no key reads Needs key. **Built:** `places()` in `GET /api/activity/models` carries `account` (another Mac from a probe of its address, a cloud provider from `llm.get_api_key`, a cluster null), tested in `fichero-server/tests/unit/api/test_activity_models_6588.py::test_a_places_account_comes_from_a_probe_and_the_key_a_call_uses`; **Not built:** no Swift code reads it, and the probe is a reachability check of the address, not a model-list request.
 - `models.row.credit-and-limits` — **[GAP]** (#6675, #6354) a provider that answered no credit, a key limit or a rate
   limit shows it in Account in the provider's words (redacted), with the dead mark's seconds left and the calls in flight
   of its cap; the row's button is Open provider page; the paused runs are listed under Using now with Continue.
@@ -253,11 +250,10 @@ filters Activity by `model:`.
 - `models.row.using-now-and-last-failed` — **[GAP]** (#6588, #6354) Using now lists the Activity rows in flight on this
   model or place; Last failed shows the newest `failure` on it today with its fix button; Show in Activity filters by it.
   *Test:* `ModelsRowActivityTiesTests.swift`.
-- `models.row.what-unloading-gives-back` — **[PARTIAL]** (#4987, #4999; built: `POST /api/activity/models/unload-idle`
-  calls `release_idle_models` and answers what it freed by name; not built: This Mac's Inspector, its list of resident
-  models and the Unload idle models button) This Mac's Inspector lists each resident model with its memory and the one
-  button Unload idle models, which shows what was freed. *Test:*
-  `fichero-server/tests/unit/api/test_activity_models_6588.py::test_unload_idle_models_frees_the_idle_and_keeps_a_model_with_a_page_in_flight`.
+- `models.row.what-unloading-gives-back` — **[PARTIAL]** (#4987, #4999) This Mac's Inspector lists each resident model with
+  its memory and the one button Unload idle models, which calls `release_idle_models` and shows what was freed.
+  *Test (to write, in `fichero-server/tests/unit/api/`):* the route frees the idle embedder and answers its name; a model with a
+  page in flight is kept. **Built:** `POST /api/activity/models/unload-idle` calls `release_idle_models` and answers what it freed by name, tested in `fichero-server/tests/unit/api/test_activity_models_6588.py::test_unload_idle_models_frees_the_idle_and_keeps_a_model_with_a_page_in_flight`; **Not built:** the Inspector's list of resident models and the button.
 - `models.row.download-reports-bytes` — **[PARTIAL]** (#6592; `activity.download.says-bytes-and-time-left` owns it) a
   Downloads row says bytes done of total and the time left for every runtime.
 - `models.row.unmeasured-is-dash` — **[OK]** (#6588; `activity.resources.everything-measured` owns it) what nothing
