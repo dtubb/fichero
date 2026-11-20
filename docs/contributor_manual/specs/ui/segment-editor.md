@@ -629,7 +629,7 @@ See section 7.2 below for what exists. The design:
   readings, order and children; the change is a new version, undoable, with the old shape kept in history; a box can be turned
   back into a polygon by editing its points. Tests: one polygon gives its box; three selected give three boxes; id, text and
   order unchanged; undo restores the polygon.
-  *Built (2026-11-20):* the engine half: `segment.convert_to_box` (the plain bounding rectangle; all or nothing, one undo,
+  *Built 2026-11-20:* the engine half: `segment.convert_to_box` (the plain bounding rectangle; all or nothing, one undo,
   a stale version refuses all; `fichero-server/tests/unit/api/test_segment_convert_to_box.py`). *Not built:* the menus, the
   shortcut and the fit-ink form. Needs an on-screen check.
 - `segment-editor.convert-level` — **[GAP]** (#6740; app + engine; owner 2026-11-19) a region can become a line and a line a
