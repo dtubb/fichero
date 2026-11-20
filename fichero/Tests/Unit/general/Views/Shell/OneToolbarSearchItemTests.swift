@@ -1,6 +1,6 @@
 #if os(macOS)
-@testable import Fichero
 import AppKit
+@testable import Fichero
 import SwiftUI
 import Testing
 
