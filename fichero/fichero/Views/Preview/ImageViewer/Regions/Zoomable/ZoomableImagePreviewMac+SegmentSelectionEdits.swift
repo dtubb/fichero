@@ -122,6 +122,12 @@ extension ZoomableImagePreview {
         runSegmentEdit(SegmentEdit.addBaseline(selectedSegments(documentId)), documentId: documentId, name: "Add Baseline")
     }
 
+    /// CONVERT TO BOX (`segment-editor.convert-to-box`, ⌥⌘B): the selected polygons become their bounding rectangles, one ⌘Z.
+    func convertSelectedToBox() {
+        guard let documentId else { return }
+        runSegmentEdit(SegmentEdit.convertToBox(selectedSegments(documentId)), documentId: documentId, name: "Convert to Box")
+    }
+
     /// SPLIT the one selected line where it was last clicked (`segment-editor.split-at-a-point`, ⌘⇧K).
     func splitSelectedLineAtLastPoint() {
         guard let documentId, let line = selectedSegments(documentId).first, let pressed = pointerFeed.latest?.point else { return }

@@ -208,6 +208,18 @@ extension SegmentEdit {
         ))
     }
 
+    /// CONVERT TO BOX (`segment-editor.convert-to-box`): each selected segment that has a polygon becomes its
+    /// bounding rectangle, in one `segment.convert_to_box` and one undo. A segment that is already a box is left out.
+    static func convertToBox(_ segments: [Segment]) -> Result<Call, Refusal> {
+        let polygons = segments.filter { ($0.anchor.polygon?.count ?? 0) >= 3 }
+        guard !polygons.isEmpty else { return .failure(.tooFew) }
+        guard let versions = versions(of: polygons) else { return .failure(.versionUnknown) }
+        return .success(Call(
+            action: "segment.convert_to_box",
+            params: .convertToBox(SegmentCutWordsRequest(segmentIds: polygons.map(\.id), expectedVersions: versions))
+        ))
+    }
+
     /// What Cut Words says when it could not cut every line: how many it left, and that they need a reading or ink.
     static func cutWordsNotice(made: Int, leftAlone: Int) -> String? {
         guard leftAlone > 0 else { return nil }
@@ -275,7 +287,7 @@ extension SegmentEdit.Params {
         case .knife(let params): params
         case .simplify(let params): params
         case .cutWords(let params): params
-        case .addBaseline(let params), .cutCharacters(let params): params
+        case .addBaseline(let params), .cutCharacters(let params), .convertToBox(let params): params
         case .sequence(let params): params
         case .translate(let params): params
         case .moveCut(let params): params

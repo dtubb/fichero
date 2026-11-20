@@ -179,6 +179,7 @@ extension ZoomableImagePreview {
             selectionHasBaselines: selectionHasBaselines, redraw: { redrawSelectedOutlines() },
             splitAtPoint: { splitSelectedLineAtLastPoint() },
             simplify: { simplifySelectedSegments() },
+            convertToBox: { convertSelectedToBox() },
             cutWords: { cutWordsOnSelectedLines() },
             cutCharacters: { cutCharactersInSelectedWords() },
             hasBrokenWords: windowState?.brokenWords.isEmpty == false,

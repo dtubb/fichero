@@ -252,6 +252,7 @@ extension ZoomableImagePreview {
                 if selectionHasBaselines {
                     Button("Redraw Outline from Baseline") { redrawSelectedOutlines() }
                 }
+                Button("Convert to Box") { convertSelectedToBox() }
                 Button(
                     selection.count == 1 ? "Delete Region" : "Delete \(selection.count) Regions",
                     role: .destructive

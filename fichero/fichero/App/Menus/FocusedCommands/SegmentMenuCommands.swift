@@ -22,6 +22,8 @@ struct SegmentMenuTarget {
     var splitAtPoint: () -> Void = {}
     /// Simplify Outline: fewer points on the selection's outlines and baselines.
     var simplify: () -> Void = {}
+    /// Convert to Box (⌥⌘B): the selected polygons become their bounding rectangles.
+    var convertToBox: () -> Void = {}
     /// Cut Words (⇧⌘W): the selected lines' readings cut into word segments.
     var cutWords: () -> Void = {}
     /// Cut Characters: the selected words cut into characters at their positions (`segment-editor.cut-characters`).
@@ -78,6 +80,9 @@ struct SegmentMenuContent: View {
             .disabled(!Self.canSplitAtPoint(selected: count, hasBaselines: target?.selectionHasBaselines == true))
         // No chord yet: the spec's ⌥⌘S is the markup row's (`PreviewMarkupToolsRow`).
         Button("Simplify Outline") { target?.simplify() }
+            .disabled(count == 0)
+        Button("Convert to Box") { target?.convertToBox() }
+            .keyboardShortcut("b", modifiers: [.command, .option])
             .disabled(count == 0)
         Button("Add Baseline") { target?.addBaseline() }
             .disabled(count == 0 || target?.selectionHasBaselines != false)
