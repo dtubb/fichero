@@ -334,6 +334,9 @@ targets are at least 44 pt.
   *Tests:* `fichero-server/tests/unit/api/test_segment_simplify.py` (the preview);
   `fichero/Tests/Unit/general/Views/Source/SegmentSimplifyTests.swift` (`theSlider`, `thePreviewPaths`);
   `fichero/Tests/Unit/general/Views/Preview/SegmentEditingModeTests.swift` (⌫ on a pressed point).
+  *Built note (2026-11-20):* a tolerance far above the outline's size still leaves three outline points and two baseline
+  points; several segments simplify as one action and one undo restores all; one stale version refuses the whole simplify
+  and changes nothing (`fichero-server/tests/unit/api/test_segment_simplify_edges.py`). Needs an on-screen check.
 
 ### Drawing
 
