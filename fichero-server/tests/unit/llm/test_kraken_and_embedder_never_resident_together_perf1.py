@@ -66,3 +66,42 @@ def test_the_embedder_waits_while_the_page_gate_is_held(clean, monkeypatch):
             embeddings._get_shared_embedder("m", "/nowhere")
     finally:
         kraken_runtime._INFERENCE_LOCK.release()
+
+
+def test_a_kraken_load_and_an_embedder_load_at_once_do_not_deadlock(clean, monkeypatch):
+    """A holds the page gate and loads a Kraken model (releasing the idle embedder); B loads the embedder meanwhile.
+    B only tries the gate without waiting, so it raises `MemoryShortError`; neither thread waits on the other."""
+    import threading
+
+    embeddings._EMBEDDER_CACHE["m"] = _Embedder()
+    kraken_runtime._RESIDENT["recognize"] = ("other", object())  # B sees Kraken resident
+    monkeypatch.setattr(embed_process, "load_text_embedding", lambda *a: pytest.fail("loaded beside Kraken"))
+    in_load, b_done = threading.Event(), threading.Event()
+    outcome: dict[str, object] = {}
+
+    def kraken_side():
+        with kraken_runtime._INFERENCE_LOCK:
+            def load():
+                in_load.set()
+                b_done.wait(5)  # the gate is held while the embedder thread runs
+                return object()
+
+            kraken_runtime._resident_locked("segment", "blla", load)
+        outcome["a"] = "done"
+
+    def embedder_side():
+        in_load.wait(5)
+        try:
+            embeddings._get_shared_embedder("m", "/nowhere")
+        except MemoryShortError:
+            outcome["b"] = "short"
+        finally:
+            b_done.set()
+
+    threads = [threading.Thread(target=kraken_side), threading.Thread(target=embedder_side)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(5)
+    assert not any(thread.is_alive() for thread in threads), "a thread is stuck: deadlock"
+    assert outcome == {"a": "done", "b": "short"}
