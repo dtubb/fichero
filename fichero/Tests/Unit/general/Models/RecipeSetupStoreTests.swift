@@ -386,6 +386,20 @@ struct RecipeSetupStoreTests {
         #expect(store.recipe == nil && store.errorMessage == nil)
     }
 
+    /// WHY (#6744): after a recipe edit the folder menu's steps stayed the old ones until the project reopened.
+    @Test("a successful save reads the steps to run again from the saved recipe")
+    func saveRefreshesRedoSteps() async {
+        defer { RecipesMockURLProtocol.requestHandler = nil }
+        let store = makeStore { request in
+            if request.httpMethod == "PUT" { return Self.reply(request, 200, #"{"answers":null,"recipe":null}"#) }
+            return Self.reply(
+                request, 200, #"{"answers":null,"recipe":null,"redo_steps":[{"steps":["regions"],"name":"Find Regions"}]}"#)
+        }
+        #expect(store.redoSteps.isEmpty)
+        #expect(await store.save())
+        #expect(store.redoSteps.map(\.name) == ["Find Regions"])
+    }
+
     /// WHY: saving writes the answers under the engine's field names, with the
     /// ingest mode in the engine's lowercase form, plus the proposed recipe. A
     /// renamed key or an upper-case "MOVE" would be saved but never read back

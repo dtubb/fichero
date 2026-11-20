@@ -296,6 +296,7 @@ final class RecipeSetupStore {
             )
             switch try await client.api.saveProjectSetupApiRecipesProjectPut(headers: .init(), body: .json(body)) {
             case .ok:
+                await loadRedoSteps()  // the steps a folder can run again are the saved recipe's, read now (#6744)
                 return true
             case .unprocessableContent(let error):
                 errorMessage = (try? error.body.json)?.detail?.description ?? "The engine refused to save this setup"
