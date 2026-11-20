@@ -24,6 +24,14 @@ struct WorkflowStartFailureTests {
         #expect(RunStartWords.alertTitle(for: ChainRunWords.noProject) == "Couldn't Start the Run")
     }
 
+    @Test("a batch run with no library or a workflow not in it is a start failure with its own words")
+    func batchRefusals() {
+        for words in [RunStartWords.noLibrary, RunStartWords.notRunnableHere] {
+            #expect(RunStartWords.alertTitle(for: words) == "Couldn't Start the Run")
+        }
+        #expect(RunStartWords.noLibrary != RunStartWords.notRunnableHere)
+    }
+
     @Test("an import's failure keeps the import title")
     func importStays() {
         #expect(RunStartWords.alertTitle(for: "Import failed: disk full") == "Import Error")

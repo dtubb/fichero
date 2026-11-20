@@ -9,6 +9,8 @@ enum RunStartWords {
     static let importTitle = "Import Error"
 
     static let noSelection = "Select one or more documents before running a workflow."
+    static let noLibrary = "No project is open, so the workflow cannot run."
+    static let notRunnableHere = "This workflow is not in this project's library, so it cannot run here. Reopen the menu and choose it again."
     static let workflowPrefix = "Workflow failed to start: "
 
     /// A workflow that did not start, with the engine's own words when it gave them.
@@ -20,7 +22,7 @@ enum RunStartWords {
     static func alertTitle(for message: String?) -> String {
         guard let message else { return importTitle }
         if message.hasPrefix(ChainRunWords.lostTrackPrefix) { return lostTrackTitle }
-        let starts = [noSelection, workflowPrefix, ChainRunWords.noProject, ChainRunWords.engineCannot, "Chain failed to start: "]
+        let starts = [noSelection, noLibrary, notRunnableHere, workflowPrefix, ChainRunWords.noProject, ChainRunWords.engineCannot, "Chain failed to start: "]
         return starts.contains(where: { message.hasPrefix($0) }) ? title : importTitle
     }
 }
