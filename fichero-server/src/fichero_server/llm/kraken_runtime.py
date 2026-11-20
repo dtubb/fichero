@@ -1057,6 +1057,7 @@ def _kraken_call_once(op: Callable[[], _T]) -> _T:
 
     forbid_in_get("a Kraken read")
     require_installed()
+    _shim_cross_for_2d()
     outcome: list[object] = []
     # Read here, on the job's own thread: the thread below is new and has no job. A page of a run the person started
     # goes flat out; the Mac on battery slows it (#5819, `activity.throttle.use-means-slower`).
@@ -2159,6 +2160,7 @@ def train_recognition(argv: list[str], out: Path, *, on_batch: Callable[[], None
     Not under `_INFERENCE_LOCK`: training runs for hours and steps aside at a batch boundary for a
     page a person waits for, which needs that lock; it runs as a job on the local-model lane, so
     no other heavy model loads beside it."""
+    _shim_cross_for_2d()
     import kraken.train as kraken_train
     from kraken.ketos import cli
     from kraken.ketos.recognition import train
@@ -2201,9 +2203,38 @@ def polygonal_environment_available() -> bool:
 
 def calculate_polygonal_environment(*args: Any, **kwargs: Any) -> Any:
     """Kraken's `calculate_polygonal_environment`, behind the seam (only this module imports kraken)."""
+    _shim_cross_for_2d()
     from kraken.lib.segmentation import calculate_polygonal_environment as _calculate
 
     return _calculate(*args, **kwargs)
+
+
+class _NumpyWith2dCross:
+    """`numpy` as `kraken.lib.segmentation` sees it, with `cross` accepting 2-D vectors: numpy 2.5 refuses them, kraken 7.1.1
+    crosses them for every baseline of more than two points and swallows the error into an empty reading (#6750)."""
+
+    def __getattr__(self, name: str) -> Any:
+        import numpy
+
+        return getattr(numpy, name)
+
+    @staticmethod
+    def cross(a: Any, b: Any, *args: Any, **kwargs: Any) -> Any:
+        import numpy
+
+        a, b = numpy.asarray(a), numpy.asarray(b)
+        if a.shape[-1] == 2 and b.shape[-1] == 2:  # the z of the 3-D cross
+            return a[..., 0] * b[..., 1] - a[..., 1] * b[..., 0]
+        return numpy.cross(a, b, *args, **kwargs)
+
+
+def _shim_cross_for_2d() -> None:
+    """Install the 2-D cross product in kraken's segmentation module, once."""
+    import numpy
+    from kraken.lib import segmentation
+
+    if segmentation.np is numpy:
+        segmentation.np = _NumpyWith2dCross()
 
 
 __all__ = [
