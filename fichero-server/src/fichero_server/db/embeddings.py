@@ -1302,6 +1302,14 @@ class DatabaseEmbeddingMixin:
         from fichero_server.core.no_model_in_get import embed_query_in_get, forbid_in_get, in_get
 
         if role == "query" and in_get():  # a GET embeds its own query, within a bound
+            import sys
+
+            from fichero_server.core.no_model_in_get import QueryEmbeddingBusy
+
+            kraken = sys.modules.get("fichero_server.llm.kraken_runtime")
+            if kraken is not None and kraken._RESIDENT and not _EMBEDDER_CACHE:
+                # loading the embedder would unload Kraken (never beside it), and a GET unloads nothing
+                raise QueryEmbeddingBusy("The search model is busy: a transcription model is loaded. Try the search again in a moment.")
             return embed_query_in_get(lambda: self._embed_text_now(text, role))
         forbid_in_get("an embedding")
         return self._embed_text_now(text, role)
