@@ -1576,8 +1576,8 @@ A read-only code map found the workspace feature is **already LIVE**, not a stub
   `workspaces.persist-applied-list` in §Behaviors D. The legacy `paneKindOverrides` WRITE side is
   now dead too (its live consumer, `SplitCommandRouting`, is deleted) — the `Codable` field stays,
   decode-only, for an old snapshot that has it.
-- **Dead flags:** `ToolbarVisibilityPlan.showSplitMenu/showLayoutsMenu` (decode-only) and
-  `LayoutMode.keyboardShortcut` (unbound metadata) — delete on the way through.
+- **Dead flags:** `LayoutMode.keyboardShortcut` (unbound metadata) — delete on the way through.
+  `ToolbarVisibilityPlan` is deleted; a saved snapshot's old `toolbar` key is ignored on decode.
 
 ## The built-in workspaces — v2 SHIPPED 2026-09-16 (FIVE, ⌘⌥1–5)
 
