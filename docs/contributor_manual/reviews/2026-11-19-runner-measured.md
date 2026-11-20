@@ -53,6 +53,41 @@ Every measured model loaded once per run: no per-page reload.
 Run the matrix under the shipped engine's Python so MLX VLM, Whisper and YOLO are measured:
 `PYTHONPATH=fichero-server/src python3 scripts/runtime_matrix.py --python <the app bundle's Python> --out matrix.json`.
 
+## Kraken on 7 real archive pages (iMac M4, 2026-11-19)
+
+Handwritten and printed pages, 3000 x 2000 to 3264 x 2448 px, one fresh process per row. "Default" is Kraken as it was,
+"banded" is 32-row convolutions (shipped), "banded + height 1200" also lowers the network height from 1800 to 1200.
+
+| Page | Variant | s/page | Peak RSS MB | Lines |
+|---|---|---|---|---|
+| 1 | default | 7.44 | 5,515 | 17 |
+| 1 | banded | 6.19 | 3,338 | 17 |
+| 1 | banded + height 1200 | 3.05 | 1,871 | 17 |
+| 2 | default | 6.79 | 7,719 | 22 |
+| 2 | banded | 6.66 | 3,572 | 22 |
+| 2 | banded + height 1200 | 3.36 | 1,890 | 22 |
+| 3 | default | 10.85 | 7,165 | 105 |
+| 3 | banded | 10.69 | 3,178 | 105 |
+| 3 | banded + height 1200 | 6.27 | 1,774 | 116 |
+| 4 | default | 9.60 | 7,145 | 104 |
+| 4 | banded | 9.63 | 3,176 | 104 |
+| 4 | banded + height 1200 | 5.38 | 1,780 | 126 |
+| 5 | default | 10.05 | 7,119 | 104 |
+| 5 | banded | 9.97 | 3,180 | 104 |
+| 5 | banded + height 1200 | 5.65 | 1,782 | 120 |
+| 6 | default | 3.13 | 4,092 | 43 |
+| 6 | banded | 3.13 | 1,994 | 43 |
+| 6 | banded + height 1200 | 1.53 | 1,200 | 50 |
+| 7 | default | 4.65 | 4,153 | 42 |
+| 7 | banded | 4.63 | 2,033 | 42 |
+| 7 | banded + height 1200 | 2.54 | 1,168 | 36 |
+
+- **Banded 32 rows** keeps the line count on all 7 pages, cuts the peak from 4.1 to 7.7 GB down to 2.0 to 3.6 GB, and is
+  the same speed or faster. It is the default.
+- **Network height 1200** halves the time and brings the peak to about 1.8 GB, but the line count changes on 5 of 7 pages
+  (105 to 116, 104 to 126, 104 to 120, 43 to 50, 42 to 36). It is not a default. It becomes an opt-in "fast, less exact"
+  setting for small Macs, in the Models window (models-window lane); not built here.
+
 ## Not measured, not done: issues to file
 
 No GitHub token reaches a worker, so these are written here for the manager to file (milestone `recipes-run`).
@@ -61,9 +96,9 @@ No GitHub token reaches a worker, so these are written here for the manager to f
    iMac, the M4 Air and the M1 Air; MLX failures are top priority.
 2. **Kraken recognise has no reader on either Mac**, so its load time, per-page time and memory are unmeasured. Install a
    reader in the model store and run the matrix.
-3. **Kraken segment 7.0 to 7.4 s per page, 3.8 GB (1.9 GB banded) a portrait page**: does it fit the 8 GB M1 Air? Run the
-   matrix with the real-size page on it. Network height 1200 would halve a spread again and save about 40 % of the time,
-   but polygons grow 35 %; it needs a check on real handwriting before use (not done).
+3. **Kraken segment 7.0 to 7.4 s per page**: does the banded 2.0 to 3.6 GB fit the 8 GB M1 Air? Run the matrix with the
+   real-size page on it. The opt-in "fast, less exact" network height 1200 setting (Models window, models-window lane) is
+   to build: the real pages above show it changes line counts, so it is never the default.
 4. **Kraken in a seed-forked child**: the memory leaves after a run and a runaway page can be killed (the line vectoriser
    is unbounded on noisy pages, kraken issue #765). Medium work.
 5. **Smaller embedder** (fp16 or int8): saves up to 1 GB, costs a re-embed of every library.
