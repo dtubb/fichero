@@ -113,12 +113,13 @@ struct StatusIslandToolbarItem: View {
                 .font(.body)
                 .foregroundStyle(status.isError ? AnyShapeStyle(.red) : AnyShapeStyle(.primary))
                 .lineLimit(1)
-                .truncationMode(.tail)
+                .truncationMode(.middle)
+                .help(status.text)
         }
             // The width `StatusIslandMessage.budget` was derived from (#4366).
             // Named rather than inlined so the two cannot drift: widen the
             // island and the budget test tells you to re-derive the character
-            // count. `truncationMode` stays as a backstop for a pathological
+            // count. `truncationMode(.middle)` (keeps the extension; the full text is the tooltip) stays as a backstop for a pathological
             // glyph run — it is not the length policy.
             .frame(minWidth: 40, maxWidth: StatusIslandMessage.declaredMaxWidth)
             // Breathing room inside the glass capsule (Daniel, 2026-08-29:
