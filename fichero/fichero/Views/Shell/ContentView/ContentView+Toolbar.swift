@@ -95,34 +95,25 @@ extension ContentView {
         ToolbarItem(id: ContentToolbarID.activityVerbs, placement: Self.leadingPlacement) {
             ActivityRunControlsBar()
         }
-        if toolbarVisibility.showNavigation {
-            ToolbarItem(id: ContentToolbarID.navigationBack, placement: Self.leadingPlacement) {
-                Button {
-                    navigateBack()
-                } label: {
-                    Label("Back", systemImage: ToolbarSymbols.navigateBack)
-                }
-                .help("Back (⌘')")
-                .disabled(!navigationHistory.canGoBack)
+        ToolbarItem(id: ContentToolbarID.navigationBack, placement: Self.leadingPlacement) {
+            Button {
+                navigateBack()
+            } label: {
+                Label("Back", systemImage: ToolbarSymbols.navigateBack)
             }
-
-            ToolbarItem(id: ContentToolbarID.navigationForward, placement: Self.leadingPlacement) {
-                Button {
-                    navigateForward()
-                } label: {
-                    Label("Forward", systemImage: ToolbarSymbols.navigateForward)
-                }
-                .help("Forward (⌘⇧')")
-                .disabled(!navigationHistory.canGoForward)
-            }
+            .help("Back (⌘')")
+            .disabled(!navigationHistory.canGoBack)
         }
-    }
 
-    /// The app-wide toolbar configuration this window renders (2026-08-31).
-    /// Read here rather than stored on `ContentView` so the view's value size
-    /// stays where ViewValueSizeTests pinned it.
-    var toolbarVisibility: ToolbarVisibilityPlan {
-        WindowWorkspaceStore.shared.toolbarVisibility
+        ToolbarItem(id: ContentToolbarID.navigationForward, placement: Self.leadingPlacement) {
+            Button {
+                navigateForward()
+            } label: {
+                Label("Forward", systemImage: ToolbarSymbols.navigateForward)
+            }
+            .help("Forward (⌘⇧')")
+            .disabled(!navigationHistory.canGoForward)
+        }
     }
 
     /// TRAILING zone: the iOS inspector toggle, and nothing else. Every iOS width, docked or not: an iPad's docked

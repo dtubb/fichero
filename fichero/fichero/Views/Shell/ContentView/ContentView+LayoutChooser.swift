@@ -101,7 +101,7 @@ extension ContentView {
     /// split, workspaces and layouts into ONE Workspaces button"). It was
     /// three toolbar items; it is now four sections of one menu — Layouts
     /// (which panes show), Split (new tab / split the focused pane), the
-    /// built-in and saved arrangements, and the Toolbar Buttons submenu.
+    /// built-in and saved arrangements.
     /// Nothing that was reachable before is gone.
     ///
     /// A workspace now carries the TOOLBAR too: which optional buttons show,
