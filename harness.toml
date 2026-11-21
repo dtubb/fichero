@@ -528,6 +528,7 @@ reviewer_fast = { provider = "claude-code", model = "sonnet", context = 200000 }
 opus_lanes = ["lane-sharing", "lane-qwen", "lane-qwen2"]  # lane-qwen: Opus reviews every Qwen batch (owner 2026-11-07, #6380)
 reviewer_paths = ["fichero-builder/", "scripts/harness_", "scripts/lane_ready_check.sh", "harness.toml"]
 spec-writer = { provider = "claude-code", model = "opus" }
+haiku-trial = { provider = "claude-code", model = "haiku" }  # owner 2026-11-21 (B11): Haiku trial on SwiftLint/ruff batches and tests for existing code, 20 steps a kind, measured against Sonnet
 helper = { provider = "claude-code", model = "haiku" }
 manager = { provider = "claude-code", model = "haiku" }  # reads alerts and answers them (dev-workflows.run.loop-roles)
 researcher = { provider = "claude-code", model = "sonnet" }
