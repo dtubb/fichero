@@ -2776,7 +2776,7 @@ Jobs and chains
   `tests/unit/workflows/test_statements_dates_not_subjects.py`.
 - `source.extract.no-english-verb-on-another-language` — **[PARTIAL]** (#6771) a name saved with no statement of its own gets no
   invented English "is" (or "is a person") on a page that is not English (`extractors._synthesize_svo_fallback`,
-  `copula`). Built for a page whose language the detector names; a page it cannot name is
+  `copula`). Built: for a page whose language the detector names. Not built: a page it cannot name is
   counted as English (`kg.statements.no-invented-english`). *Test:* `tests/unit/workflows/test_svo_fallback.py::TestNoEnglishVerbOnAnotherLanguage`.
 - `kg.entity.list-under-a-document-is-its-own` — **[OK]** the entities listed under a document are those its claims
   are about (each claim's subject) and those named on its pages, and an entity with no page scope that a claim
