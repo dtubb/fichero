@@ -218,6 +218,84 @@ seven ground-truth files imported, the free name-finder run on one page: 17 name
   exporter (`profile.views.plain-text-and-duckdb`). Today `plain-text` is a format the page
   harness reads and refuses to write (`FormatCannotWrite`).
 
+## Build order
+
+Stage 1 is the export review's ranked fixes (review-export, section 4), in rank order; fix 9 is
+two steps. Stage 2 gives each older issue a line in this spec's Behaviors section still cites one
+step. Several behaviours live in `../source/formats-and-training.md` and `../source/iiif.md`,
+which have no Build order of their own; their steps are here, the milestone's one home. Engine
+tests sit under `fichero-server/tests/unit/`; Swift tests under `fichero/Tests/Unit/general/`.
+
+### Stage 1 — A page leaves whole and comes back the same
+
+#### Step 1.1 — ALTO writes outlines; every writer names what it drops (built) (#6799, #6800)
+- Behaviours: `source.format.alto-out-outlines`, `source.format.loss-report`, `source.format.undeclared-losses-are-declared`
+- Tests: fichero-server/tests/unit/api/test_alto_writes_outlines_6799.py, fichero-server/tests/unit/core/test_export_names_what_it_drops_6800.py, fichero-server/tests/unit/core/test_library_round_trip_6800.py
+- Size: S
+
+#### Step 1.2 — Segment type and confidence reach the writers (#6801)
+- Behaviours: `source.format.kind-raw-out`, `source.format.confidence-out`
+- Tests: fichero-server/tests/unit/formats/test_type_and_confidence_reach_the_writers_6801.py
+- Depends on: 1.1
+- Size: M
+
+#### Step 1.3 — Re-importing our own export derives nothing twice (#6803)
+- Behaviours: `source.format.reimport-adds-no-reading`
+- Tests: fichero-server/tests/unit/formats/test_reimport_adds_no_reading_6803.py
+- Size: S
+
+#### Step 1.4 — An IIIF export a viewer can open (#6806, #5326)
+- Behaviours: `iiif.export.ids-are-absolute-and-resolve`, `iiif.export.every-line-with-its-outline`, `iiif.export.maker-is-the-readings`, `iiif.export.says-what-it-is`
+- Tests: fichero-server/tests/unit/api/test_iiif_export_a_viewer_can_open_6806.py
+- Size: M
+
+#### Step 1.5 — The page built once, in a few queries (#6804)
+- Behaviours: `source.format.export-cost`
+- Tests: fichero-server/tests/unit/core/test_page_built_once_in_few_queries_6804.py
+- Depends on: 1.2
+- Size: M
+
+#### Step 1.6 — Who made it, in the file; import restores a person's authorship (#6802)
+- Behaviours: `source.format.who-made-it-out`, `source.format.round-trip-through-a-library`, `source.format.alto-out`
+- Tests: fichero-server/tests/unit/core/test_who_made_it_round_trips_6802.py
+- Depends on: 1.5
+- Size: M
+
+#### Step 1.7 — Names and statements with their maker (#6805, #5603)
+- Behaviours: `export.statements-say-what-made-them`, `source.format.names-in-every-tei`
+- Tests: fichero-server/tests/unit/core/test_names_and_statements_with_their_maker_6805.py
+- Depends on: 1.6
+- Size: M
+
+#### Step 1.8 — Text exports keep the lines and draw the signs (#5502, #4935)
+- Behaviours: `export.text-exports-keep-the-lines`, `export.text-exports-draw-the-editorial-signs`
+- Tests: fichero-server/tests/unit/core/test_text_exports_keep_lines_and_signs.py
+- Depends on: 1.1
+- Size: S
+
+#### Step 1.9 — A page as plain text (#6439)
+- Behaviours: `export.plain-text-page`
+- Tests: fichero-server/tests/unit/formats/test_plain_text_page_writer.py
+- Size: S
+
+#### Step 1.10 — Names, statements and mentions as CSV with CSVW (#6439)
+- Behaviours: `export.csv-of-names-and-statements`
+- Tests: fichero-server/tests/unit/core/test_csv_with_csvw_of_names_and_statements.py
+- Depends on: 1.7
+- Size: S
+
+### Stage 2 — The older issues this spec's Behaviors still cite
+
+#### Step 2.1 — A test pins which export routes the app reaches (#4873)
+- Behaviours: `export.app-wires-word-and-per-document-markdown-only`
+- Tests: fichero/Tests/Unit/general/App/ReaderExportReachabilityTests.swift
+- Size: S
+
+#### Step 2.2 — File ▸ Export's titles and reveal pinned; document ids fetched in pages (#3305)
+- Behaviours: `export.error-title-and-success-feedback-accurate`
+- Tests: fichero/Tests/Unit/general/App/FileMenuExportFeedbackTests.swift
+- Size: S
+
 ## PASS 2 — the fold (legacy milestones #14 and #212, 25 issues, selected by NUMBER)
 
 Every body read fresh. None redirect to a DIFFERENT existing spec; the shapes below are fits,

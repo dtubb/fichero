@@ -479,9 +479,9 @@ skipped. What did not hold is the lines below. `→ #N` names the issue that tra
   pages in ALTO, 16 of 17 in PAGE XML and in TEI (the seventeenth is `source.format.reimport-adds-no-reading`). **Does
   not hold** for who made what: a person's five readings come back as five "machine-made, not
   chosen" lines, and TEI's `sourceDesc` changes from the maker to the imported file's name, so the
-  second file differs from the first in every format. Whether a file Fichero wrote may restore a
-  person's authorship on import is an open question (below); until it is ruled the first export
-  names the loss.
+  second file differs from the first in every format. Ruled 2026-11-21 (the owner, #6802): an
+  import restores a person's authorship persistently; until it is built the first export names
+  the loss.
 - `source.format.reimport-adds-no-reading` — **[BROKEN]** (#4943, → #6803) importing a file
   Fichero exported adds no reading the file does not hold. Today a line whose reading carries
   abbreviation markup gets a plain reading derived at import (`formats/abbreviation_markup.py`),
@@ -525,6 +525,8 @@ Open questions from the review of 2026-11-20:
    (it carries `fichero-source` and `fichero-pass`)? The rule that a file never claims a person's
    judgement says no; an identical round trip says yes. A middle course: restore it only when the
    library already holds that reading by that person, and say "claimed by the file" otherwise.
+   **Ruled 2026-11-21 (the owner, #6802):** an import restores a person's authorship persistently
+   (`source.format.round-trip-through-a-library`).
 2. SegmOnto in PAGE XML: `custom="structure {type:…;}"` (what eScriptorium and Transkribus
    read) alone, or also `TextRegion@type` where PAGE's own list has a match?
 
