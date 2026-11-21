@@ -123,11 +123,12 @@ Three rules follow, and most of what is wrong today breaks one of them.
   no date; the document inspector does not draw one.
 - `kg.render.where-is-on-the-statement` — **[PARTIAL]** (#5032, #6773) the same for the place a
   statement happened at: drawn with the statement, as a link to the place's card when the place
-  is a known name. Built: each neighbourhood edge carries the claim's free-text place (`place`,
+  is a known name. The inline editor has no place field, so a wrong place cannot be corrected
+  where it is seen. Built: each neighbourhood edge carries the claim's free-text place (`place`,
   from `claim_location`) and `place_entity_id` when that text is a known name or alias. Tests:
   `fichero-server/tests/unit/kg/test_neighborhood_edge_carries_time_and_place.py`::test_a_place_that_is_not_a_known_name_has_no_entity_link.
-  Not built: no surface draws the place with the statement; the inline editor has no place
-  field, so a wrong place cannot be corrected where it is seen.
+  Not built: no surface draws the place with the statement, and the inline editor has no place
+  field.
 - `kg.render.dates-are-not-a-kind-of-name` — **[BROKEN]** (→ #5008, #6774) no list of names
   has a "Dates" group. Today the document inspector's knowledge section groups by kind with a
   synthetic `date` kind made by the engine for statements whose subject is a date
