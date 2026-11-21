@@ -16,6 +16,8 @@
 > spec schedules), `kg-interactions.md`, `hermeneutic-layer.md`, `../explore/networks.md`,
 > `../explore/time.md`, `../explore/place.md`, `../source/cataloguing.md` and the names and
 > statements steps in `../source/models-chains-and-projects.md`.
+> **Revised 2026-11-20:** section J and Stage 8 added (the training set, the scorers and the trainers for the names,
+> statements and linking models, read against the code, with a first measurement on a Mac).
 > Tags: **[OK]** built and tested · **[PARTIAL]** built, partly proven or partly wired ·
 > **[GAP]** intended, never built · **[BROKEN]** code contradicts the line.
 
@@ -462,6 +464,173 @@ The owner asked (2026-11-07) how Fichero should find names, relations, coreferen
 - `kg.compare.link-prediction-is-a-suggestion` — **[GAP]** (#6386) engine. The PyKEEN link predictor that exists (`knowledge/pykeen_predictor.py`, TransE by default, RotatE as a second card) suggests missing edges into the review queue only (`kg.claim.review-queue`), each with its score and the statements it rests on, and never writes an edge; its suggestions are scored on held-out edges of the check set (hits at 10). Acceptance: predicted edges appear as review-queue rows with score and evidence and no claim row exists until a person accepts one; hits at 10 is reported on the held-out edges.
 - `kg.compare.winner-is-distilled-and-bundled-by-licence` — **[GAP]** (#6385, #6386) engine. For each of the four tasks the best LLM labels on the project's pages are distilled into a small tuned model where the comparison shows a small model within the band of the LLM (`distill.job.any-model-job`, `distill.adopt.within-bar`); a candidate is bundled with the app only when its licence class allows it (`source.model.licence-class`; a GPL or AGPL checkpoint carries its sheet as the YOLO cards do, `prep.licence.agpl-stated-on-the-card`) and otherwise stays a download the person chooses; the comparison tables (per task, per text class) are kept in `recipes/seed/measured-defaults.yaml` beside the readers' rows (`recipe-designer.md` Step 8.1's table, the same provenance fields). Acceptance: a task whose small student is within the band of the LLM on held-out pages is offered as the distilled card; a candidate with a non-open licence is never in the bundle manifest (`scripts/check_engine_imports_bundled.py`'s list) and is offered as a download with its sheet; the measured-defaults file holds one row per candidate per task per text class with its provenance.
 
+### J. Teaching the names, statements and linking models: the set, the labels, the scorers, the trainers (#5536, #5545, #6385, #6386)
+
+The loop is `compute/distillation.md`'s (teach, correct, train, evaluate, run anywhere, publish), and it is not restated
+here. This section says what that loop needs for the three knowledge-graph steps and does not have: which corrections
+are ground truth, the one file a training set is, how each step is scored, and which small models are trained where.
+Read against the code on 2026-11-20. What exists: a name is a mention with a span in the page's text
+(`workflows/tools/extractors.write_mentions`, read back by `export_service.record_mentions`); a person's rulings on a
+mention are kept per span (placed or fixed: `MENTION_CORRECTED_BY`; taken away: `MENTIONS_REFUSED`, the routes
+`/mentions/repoint` and `/mentions/respan` in `api/routes/entity/entities.py`); an entity and a claim each carry a
+review state (`EntityCurationState`, `ClaimCurationState`); every merge, split and authority link is an audit row
+(`EntityMergeAudit`); the step's offer says in words that no trainer exists (`recipes/train_offers.WAYS`,
+`recipes/jobs.DISTIL`: names "not built yet", statements "not built yet", vectors "nothing to distil"). What does not
+exist: any code that turns those rulings into a training set, any scorer for names, statements or links (the evaluation
+job scores readers by CER and nothing else, `training/evaluation.py`), any trainer for a tagger or a language model
+(the only LoRA trainer is the vision one, `training/hf_vision_lora_train.py`), and any mark that says a page's names
+were checked through.
+
+**A first measurement (2026-11-20, by hand, on an M4 Mac with 24 GB; no Fichero code, because none exists).** It proves
+the pipeline runs and what it costs; it does not show how good any model is, because the labels were a model's and no
+person checked them. 72 transcribed English diary pages (about 700 characters each), split by volume: 48 to train on
+(three volumes), 8 to stop on (a fourth), 16 held out (a fifth). The teacher was an open 7-billion-parameter language
+model at 4 bits under MLX; the kinds were person, place, organization and date; the scorer was the strict one of
+`kg.teach.names-scorer`.
+
+| | Result | Time | Memory | Size |
+| --- | --- | --- | --- | --- |
+| Teacher labels 72 pages | 916 names returned, 60 (6.6%) not written on the page as returned and so not usable; 1,008 mentions kept | 10.7 s a page (20 tokens a second); 13 minutes in all | 4.8 GB | 4.3 GB download |
+| spaCy's stock small English pipeline, as shipped, on the 16 held-out pages | F1 0.18 against the teacher (precision 0.17, recall 0.20) | 0.016 s a page | 0.6 GB | 15 MB |
+| spaCy trained from that pipeline on the 48 pages (679 mentions), 30 passes, best pass kept by the 8 validation pages | F1 0.48 (precision 0.51, recall 0.46); person 0.45, place 0.56, organization 0.24 on 21, date 0.50 on 15 | 41 s to train on the CPU | 0.6 GB | 15 MB |
+| spaCy trained from nothing on the same pages | F1 0.47; organization 0.00 on 21 | 30 s | 0.6 GB | 4 MB |
+| A 1.5-billion-parameter open language model at 4 bits, asked with no training | F1 0.27 (precision 0.59, recall 0.18); 7 of 16 answers could not be read as a list | 4.0 s a page | 1.4 GB | 0.9 GB download |
+| The same model with a LoRA adapter (8 layers, 0.17% of its weights, 150 steps of 2 pages) under MLX's trainer | F1 0.55 (precision 0.61, recall 0.50); person 0.62, place 0.62; 2 of 16 answers unreadable; 29 of 165 names (18%) not written on the page | 5.4 minutes to train; 3.3 s a page to run | 5.0 GB while training, 1.6 GB to run | a 22 MB adapter |
+
+What it shows for the design: (1) both trainers run on a Mac in minutes inside 5 GB, so `kg.teach.spacy-trained-on-this-mac`
+and `kg.teach.extractor-lora-on-this-mac` need no machine elsewhere to start; (2) on 48 pages the adapter beats the tagger by
+seven points and costs two hundred times the seconds a page, which is the trade `kg.teach.cheapest-as-good-is-offered` must
+put in front of a person, and 48 pages is too few to settle it; (3) three of 679 spans did not fall on spaCy's token
+edges and were dropped, so the count must be on the manifest (`kg.teach.one-set-three-writers`); (4) a small model taught by
+an adapter still returns names that are not on the page (18%) and answers that are not a list (2 of 16), so grounding
+and a counted refusal come before scoring (`kg.teach.teacher-names-must-stand-on-the-page`); (5) organization and date
+had 21 and 15 held-out mentions and their figures differ by up to 24 points between the two tagger runs, which is why a kind under 20
+mentions is not judged (`kg.teach.names-scorer`); (6) the error table was the useful output: after training the tagger's
+errors were 68 missed, 48 invented, 33 wrong boundary, 8 wrong kind. Not measured: anything against a person's
+corrections, HTR text with its errors, Spanish, statements, linking, a Hugging Face Job, a cluster.
+
+- `kg.teach.precision-from-review-decisions` — **[GAP]** (#5545) engine. Before any check set exists, the engine
+  answers, per maker (provider, model, prompt version, run) and per kind of name, how many of its names a person
+  verified, rejected or merged away, and how many of its statements a person curated or rejected: the precision of each
+  maker on what was reviewed, with the count reviewed beside it and the words "of the reviewed, not of all" on every
+  figure. It reads the review states and the attribution chain that exist; it needs no new data. It is not recall and
+  never stands in for the check set. *Test (to write):* test_precision_from_review_decisions.py (two makers, one with
+  8 verified and 2 rejected names, one unreviewed: 0.80 on 10 for the first, "not reviewed" for the second).
+- `kg.teach.page-is-checked-for-names` — **[GAP]** (#5545) engine and app. A page counts as ground truth for names
+  only when a person has marked its names checked: every name on it is confirmed or placed and what is left is not a
+  name. A tagger learns "not a name" from every word that carries no label, so a page with three confirmed names of
+  twenty teaches it to miss seventeen; pages with some names confirmed and no mark are never in a training or
+  held-out set, and the set says how many were left out for it. The mark is per page and per kind of work (names;
+  statements, separately), names who made it and when, and is cleared in words when the page's text changes under it
+  (a correction of the reading after the mark). The check set of `kg.names.measured` is the pages that carry the mark.
+  No such mark exists today. *Test (to write):* test_page_checked_for_names.py (an unmarked page with confirmed names
+  is left out and counted; a marked page is in; correcting its reading clears the mark and says so).
+- `kg.teach.names-set-from-corrections` — **[GAP]** (#5536) engine. One builder writes the names set from the
+  checked pages: for each page its standing text (`actions/page_text_cache.standing_text`) and its mentions as spans
+  (start, end, kind, entity) from the one mention reader (`export_service.record_mentions`), leaving out names a
+  person rejected and spans a person took away, and never including a name with no place on the page (an unanchored
+  mention is counted and left out). Overlapping spans keep the longer. The set is split by document (a folder or a
+  volume), never by page within one, into train, validation and held-out, and the held-out pages are the ones no
+  candidate saw (`training.set.held-out-picked-across-folder`). The set is one file of lines, each
+  `{"id", "document", "split", "text_class", "text", "spans": [[start, end, kind, entity_id]]}`, with a manifest
+  beside it: the pass each page's text came from, counts per kind and per split, and what was left out and why. The
+  same pages and rulings give the same file. *Test (to write):* test_names_set_from_corrections.py (a fixture project
+  with two folders: spans read back at their offsets; a rejected name and a refused span absent; an unanchored name
+  counted; no document on both sides of the split; a second build is byte-identical).
+- `kg.teach.one-set-three-writers` — **[GAP]** (#5536, #6385) engine. Every trainer reads that one file through a
+  writer, and no trainer has a set of its own: spaCy's binary documents (a span that does not fall on token edges is
+  dropped and counted on the manifest, never silently); chat lines for a language model (the page as the question, the
+  names as a list of exact text and kind as the answer, the prompt the registry's versioned one,
+  `kg.names.prompt-is-versioned`); tokens with begin and inside tags for a token classifier on Hugging Face. Both text
+  classes are written when the page has both (the corrected reading and the raw reading it was corrected from, the
+  spans carried across by `actions/highlight_reanchor`'s re-anchoring), because the model will run on raw readings.
+  *Test (to write):* test_names_set_writers.py (the three forms of one fixture set agree on every span that survives;
+  the dropped count is on the manifest).
+- `kg.teach.teacher-names-must-stand-on-the-page` — **[PARTIAL]** (#5488, #5337) engine. A teacher's name becomes a
+  lesson only where its text is found on the page as written; one that is not is kept unanchored with its reason and
+  never enters a set, and the share a teacher lost this way is on its run and its card, because a teacher that
+  rewrites spellings teaches nothing. Built: the anchoring and the reason (`write_mentions`, `NAME_NOT_WRITTEN`). Not
+  built: the share per run, and a teacher run for names as a step with a sample (`distill.loop.teacher-any-step`).
+  *Test (to write):* test_teacher_names_grounded_share.py (a fake teacher returns ten names, two respelled: eight
+  mentions, two unanchored, "2 of 10 not on the page" on the run).
+- `kg.teach.names-scorer` — **[GAP]** (#5545) engine. One function scores names for every candidate, in the bake-off
+  and after training (`training.eval.names-precision-recall` is this line's figure): a predicted mention is right when
+  its start, its end and its kind all match a checked one; precision, recall and F1 per kind and over all, each with
+  the number of checked mentions it rests on, and a kind with fewer than 20 checked mentions reads "too few to judge"
+  and is never ranked on. Beside the strict figures, the same three counting any overlap with the right kind, so a
+  boundary habit is told from a miss. The spread of F1 over three held-out splits is the names noise band, as the
+  readers' is (`training.regression.noise-band-one-number`). *Test (to write):* test_names_scorer.py (a perfect, a
+  boundary-off-by-one, a wrong-kind and an empty prediction each give their known figures; a kind with five
+  mentions reads too few).
+- `kg.teach.names-error-table` — **[GAP]** (#5545) engine. With every names score comes a table of what went wrong,
+  each row with its count and three examples a person can open on the page: the wrong kind (the right stretch, named a
+  place when it is a person); the wrong boundary (a title or an office taken into the name, a surname cut); invented
+  (a stretch that overlaps no checked name: a role, a common noun, a date); missed entirely; and, for a language
+  model, a name it returned that is not written on the page. The table is per kind and per text class, kept with the
+  run, and is what the step card shows under the figures (`training.errors.*` in
+  `compute/training-and-evaluation.md` is the readers' form of the same idea). *Test (to write):*
+  test_names_error_table.py (one fixture page with one error of each kind: five rows of one, each with its example).
+- `kg.teach.spacy-trained-on-this-mac` — **[GAP]** (#5536) engine. The names trainer for a tagger is spaCy, trained
+  whole on this Mac as a job in the local machine-learning lane (`compute.tune.on-this-mac`), from the language's
+  stock pipeline when one is installed and from an empty one otherwise, with the project's kinds as its labels; it
+  stops on the validation pages, not on a fixed count of passes; the pipeline it writes lands in the model store as a
+  folder the step can be pinned to (`knowledge/spacy_ner._stored_path`, `runtime.spacy.pin-is-honoured`) with a card
+  that names its set, its base, its seed and its scores; it is offered only above the threshold the offer names
+  (`recipes/train_offers.WAYS` loses its "no spaCy trainer" sentence) and is never the step's model until the gate
+  passes it and a person takes it (`distill.gate.one-rule`). The same script runs as a Hugging Face Job and on a
+  cluster with no change (`compute.tune.one-trainer-three-places`); it needs no accelerator. *Test (to write):*
+  test_spacy_names_trainer.py (a twelve-page fixture set trains on CPU in the test, the pipeline loads from the store
+  by its pin, its card holds set, base and scores; a set under the threshold is refused in words).
+- `kg.teach.extractor-lora-on-this-mac` — **[GAP]** (#5240, #6385; → #NEW "A small language model taught to find
+  names and statements: LoRA with mlx-lm on this Mac, the same set as a PEFT job elsewhere") engine. A small open
+  language model is taught to answer the names prompt (and, from the statements set, the statements prompt) by an
+  adapter: on an Apple-silicon Mac with MLX's trainer as a job in the local lane, on Hugging Face Jobs or a cluster
+  with the transformers trainer the vision LoRA uses (`training/hf_vision_lora_train.py`), from the same chat lines.
+  Its answers go through the same grounding as any model's (a name not on the page is dropped and counted;
+  `kg.statements.grounded`) before they are scored. The adapter lands as a model the step can choose, merged and
+  converted as the vision student is (`training/mlx_landing.py`, `compute.tune.convert-for-mlx`). It is offered when
+  the tagger's score on the held-out pages is below the teacher's by more than the bar, never by default: it is the
+  costlier student. *Test (to write):* test_extractor_lora_set_and_landing.py (a recording stand-in for the trainer:
+  the chat lines it is given match the set; the adapter it returns lands with a card; an answer naming a string not
+  on the page is dropped before scoring).
+- `kg.teach.statements-set-and-scorer` — **[GAP]** (#5545, #5637, #6386) engine. The statements set is the claims a
+  person curated on pages marked checked for statements, each as subject, verb and object with their spans and the
+  entities they resolve to; rejected claims are kept as counted wrong answers. A predicted statement is right when its
+  subject and object fall on the checked statement's spans (or resolve to the same entities) and its verb is the same
+  after the normaliser the claims table uses; precision is always reported; recall only on pages marked checked for
+  statements, and where there are none the figure reads "precision only". The error table names: a wrong subject, a
+  wrong object, a wrong verb, an invented statement, a statement about a date or a role as if it were a person
+  (`kg.statements.grounded` already refuses the ungrounded ones before scoring). `kg.statements.measured` and
+  `kg.compare.relations-candidates-on-the-check-set` use this scorer and no other. *Test (to write):*
+  test_statements_set_and_scorer.py (five curated and two rejected claims on a fixture page: a candidate repeating a
+  rejected claim loses precision; a page not marked gives precision only).
+- `kg.teach.linking-set-and-scorer` — **[GAP]** (#6386, #6280) engine. The linking set is read from decisions that
+  already exist: every merge a person made is a pair that is one thing; every split, undone merge and rejected
+  proposal is a pair that is two; every authority link a person confirmed is a name with its record
+  (`EntityMergeAudit`, the resolution rules). A resolver (the folder pass's rules, an embedder with a threshold, a
+  language model asked) is scored on held-out pairs by precision and recall of the pairs it would propose, and a
+  linker by the share of names whose first candidate is the confirmed record and the share it rightly leaves
+  unlinked. The two similarity thresholds the writer uses (`knowledge/entity_vectors.py`, 0.92 and 0.75) are
+  constants that were never measured; where an embedder is used to propose at all (`kg.resolve.folder-pass` rules it
+  out as a source of merges), its threshold is the one this scorer finds for the project and is shown with the
+  figure. Teaching an embedder on these pairs is the vectors row of `compute/distillation.md` and is not scheduled before the scorer
+  shows the stock embedder losing to the rules. *Test (to write):* test_linking_set_and_scorer.py (three merges, one
+  split and one rejected proposal: five pairs with their truth; a resolver proposing the split pair loses precision).
+- `kg.teach.cheapest-as-good-is-offered` — **[GAP]** (#5941, #6385) engine. For each of the three steps the
+  candidates measured on the same held-out pages are listed with score, the seconds a page takes here, the memory
+  they hold and the cost of the whole project, and the one offered is the cheapest whose score is within the noise
+  band of the best (the readers' rule, `recipes/bakeoff.recommend`, with the names scorer in place of CER); the
+  sentence says so ("as good as the hosted model on 40 pages, free, 0.02 s a page"). A person may choose any other.
+  *Test (to write):* test_names_cheapest_as_good.py (a tagger within the band of a hosted model is offered; one
+  outside it is listed, not offered).
+- `kg.teach.runs-anywhere-and-is-published` — **[GAP]** (#5971, #5240) engine. A trained tagger is a folder that runs
+  wherever the engine runs, the remote runner included; an adapter runs under MLX on a Mac and under transformers
+  elsewhere, and its card names both builds (`compute.engine.same-card-resolves-by-platform`). Publishing either to
+  the person's Hugging Face account is the one publishing path (`compute/jobs-and-fine-tuning.md` Stage 2): private
+  unless the person says otherwise each time, with the card's set counts, scores per kind and error table, and never
+  the pages or the names themselves unless the project's rights allow it. *Test (to write):*
+  test_names_model_card_for_publishing.py (the card of a trained tagger holds counts and scores and no page text).
+
 ## Build order
 
 ### Stage 0 — Check what is running today
@@ -623,7 +792,7 @@ Order: the check set gains the HTR text beside the clean text per page (the page
 - Depends on: 6.1
 - Size: M
 
-Order: the span export from resolved proposals; the `tune-names` job on the one trainer (spaCy here on 8 GB, GLiNER small here, else Hugging Face); the measure beside stock and LLM; the offer at the threshold through Teach a model's page. The spaCy trainer #5536 names is this step.
+Order: the span export from resolved proposals; the `tune-names` job on the one trainer (spaCy here on 8 GB, GLiNER small here, else Hugging Face); the measure beside stock and LLM; the offer at the threshold through Teach a model's page. The spaCy trainer #5536 names is this step. The span export, the scorer and the spaCy trainer themselves are Stage 8's Steps 8.2 to 8.4 (section J); this step is the recipe step that starts them and the offer.
 
 - test (to write): `test_tune_names_step.py` in fichero-server/tests/unit/training/ (the span set from 300 corrections; the fake trainer's tagger measured beside the other two; the default unchanged until taken; the offer at the threshold)
 
@@ -662,6 +831,61 @@ Order: the span export from resolved proposals; the `tune-names` job on the one 
 Nothing of Stages 6 and 7 is for the Monday build. The order inside each is engine first; the app shows the figures where the step card already shows the readers' (`recipe-designer.md` Step 6.1's measure table).
 
 - test (to write): `test_kg_winners_distilled.py` in fichero-server/tests/unit/recipes/ (predicted edges as review rows with score and evidence; hits at 10; the student within the band offered; the non-open candidate out of the bundle manifest and offered as a download; the measured-defaults rows)
+
+### Stage 8 — Teaching the names, statements and linking models (#5536, #5545, #6386)
+
+Section J's behaviours, engine first. Steps 8.1 to 8.3 need nothing from Stages 6 and 7 and make their bake-offs
+possible: the names scorer of Step 8.3 is the scorer Steps 1.4 and 6.1 call, and Step 8.4 is the trainer Step 6.2
+starts. Each step is one builder step of at most 25 files.
+
+#### Step 8.1 — precision from the review decisions that exist (#5545)
+- Behaviours: `kg.teach.precision-from-review-decisions`
+- Tests: test_precision_from_review_decisions.py (not yet written)
+- Size: S
+
+- test (to write): `test_precision_from_review_decisions.py` in fichero-server/tests/unit/kg/ (per maker and kind: verified, rejected, merged and the precision on the reviewed, with its count; an unreviewed maker reads "not reviewed"; the same for curated and rejected statements)
+
+#### Step 8.2 — a page marked checked for names; the names set, one file with a manifest (#5545, #5536)
+- Behaviours: `kg.teach.page-is-checked-for-names`, `kg.teach.names-set-from-corrections`, `kg.teach.teacher-names-must-stand-on-the-page`
+- Tests: fichero-server/tests/unit/workflows/test_entity_reject_survives_reimport.py, test_page_checked_for_names.py (not yet written), test_names_set_from_corrections.py (not yet written), test_teacher_names_grounded_share.py (not yet written)
+- Depends on: 8.1
+- Size: M
+
+Order: the mark as a route with its audit row and its clearing when the page's text changes; the builder over `record_mentions`; the split by document; the manifest; the share of a run's names that do not stand on the page.
+
+#### Step 8.3 — the names scorer and its error table, through the one comparison path (#5545)
+- Behaviours: `kg.teach.names-scorer`, `kg.teach.names-error-table`, `kg.teach.cheapest-as-good-is-offered`
+- Tests: test_names_scorer.py (not yet written), test_names_error_table.py (not yet written), test_names_cheapest_as_good.py (not yet written)
+- Depends on: 8.2
+- Size: M
+
+#### Step 8.4 — the set's three writers and the spaCy trainer as a job on this Mac (#5536)
+- Behaviours: `kg.teach.one-set-three-writers`, `kg.teach.spacy-trained-on-this-mac`
+- Tests: fichero-server/tests/unit/knowledge/test_one_spacy_pipeline_per_model_5370.py, test_names_set_writers.py (not yet written), test_spacy_names_trainer.py (not yet written)
+- Depends on: 8.3
+- Size: M
+
+Order: the writers; the job kind beside `train-on-this-mac` with the gentle callbacks (`training/local.Gentle`); landing in the model store with a card; the offer's sentence and threshold (`recipes/train_offers.WAYS`, `recipes/jobs.DISTIL`).
+
+#### Step 8.5 — statements: the set from curated and rejected claims, the scorer (#5545, #5637)
+- Behaviours: `kg.teach.statements-set-and-scorer`
+- Tests: fichero-server/tests/unit/knowledge/test_svo_quality.py, test_statements_set_and_scorer.py (not yet written)
+- Depends on: 8.3
+- Size: M
+
+#### Step 8.6 — linking: the pairs from merges, splits and confirmed links, the scorer, the measured threshold (#6386, #6280)
+- Behaviours: `kg.teach.linking-set-and-scorer`
+- Tests: fichero-server/tests/unit/kg/test_models_propose_merges_to_spec.py, test_linking_set_and_scorer.py (not yet written)
+- Depends on: 8.3
+- Size: M
+
+#### Step 8.7 — a small language model taught by an adapter, here and elsewhere; the card for publishing (#5240, #5971)
+- Behaviours: `kg.teach.extractor-lora-on-this-mac`, `kg.teach.runs-anywhere-and-is-published`
+- Tests: fichero-server/tests/unit/training/test_vision_lora_trainer.py, test_extractor_lora_set_and_landing.py (not yet written), test_names_model_card_for_publishing.py (not yet written)
+- Depends on: 8.4, 8.5
+- Size: M
+
+Order: the MLX trainer as a job in the local lane with its memory read before it starts (`training.fit.by-memory-before-start`); the same chat lines as a Hugging Face Job; grounding before scoring; landing; the card.
 
 ## Test matrix (legs this surface touches)
 
