@@ -809,6 +809,9 @@ no-LLM, and the same abstract representation the render reads.
 
 ## Migration — the ordered deliveries (Fabel review, `fabel-kg-readable`, 2026-09-18)
 
+The builder's steps for these deliveries are the `## Build order` of `kg-paragraph-realisation.md`
+(milestone kg-readable-representation, #6835 to #6846); this list keeps the history and the rulings.
+
 Principle: **one renderer, in the engine; the app draws what it is given.** Each delivery ships
 alone, with its own tests. Wrong subject first, because it's the cheapest fix with the largest
 visible payoff.

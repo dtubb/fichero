@@ -644,18 +644,18 @@ the behaviour's words before the change.
 
 ### Stage 1 — Honest figures (engine)
 
-#### Step 1.1 — The source of a figure is true; unmeasured is absent (→ #6761)
+#### Step 1.1 — The source of a figure is true; unmeasured is absent (#6761)
 - Behaviours: `kg.confidence.source-is-true`, `kg.confidence.no-made-up-figure`, `kg.confidence.model-says-so-is-not-a-figure`
 - Tests: to write: `test_confidence_source_is_true.py` in fichero-server/tests/unit/kg/, `test_no_model_stated_confidence.py` in fichero-server/tests/unit/kg/
 - Size: M
 
-#### Step 1.2 — Three questions, three fields: corroboration never raises extraction confidence; a decision is not a number (→ #6764, → #6765)
+#### Step 1.2 — Three questions, three fields: corroboration never raises extraction confidence; a decision is not a number (#6764, #6765)
 - Behaviours: `kg.confidence.three-questions-apart`, `kg.confidence.decision-is-a-state`, `kg.confidence.contradiction-is-kept`, `kg.confidence.corrections-override`
 - Tests: to write: `test_corroboration_is_not_extraction_confidence.py` in fichero-server/tests/unit/kg/, `test_demote_keeps_the_figure.py` in fichero-server/tests/unit/kg/
 - Depends on: 1.1
 - Size: M
 
-#### Step 1.3 — A mention keeps its score; a proposal and a link keep theirs (→ #6762, #1675)
+#### Step 1.3 — A mention keeps its score; a proposal and a link keep theirs (#6762, #1675)
 - Behaviours: `kg.confidence.name-and-mention`, `kg.confidence.merge-proposal`, `kg.confidence.authority-link`, `kg.prov.every-row-has-a-maker`
 - Tests: to write: `test_mention_keeps_its_score.py` in fichero-server/tests/unit/kg/, `test_link_keeps_candidate_confidence.py` in fichero-server/tests/unit/kg/
 - Depends on: 1.1
@@ -663,12 +663,12 @@ the behaviour's words before the change.
 
 ### Stage 2 — Dates and places are qualifiers, never nodes
 
-#### Step 2.1 — No date is a node or a name: the literal classified, the gate asks the dates parser, the repair lists (→ #6768)
+#### Step 2.1 — No date is a node or a name: the literal classified, the gate asks the dates parser, the repair lists (#6768)
 - Behaviours: `kg.graph.dates-are-never-nodes`, `kg.qualifier.qualifiers-are-not-edges`
 - Tests: to write: `test_dates_are_never_nodes.py` in fichero-server/tests/unit/kg/, `test_name_gate_refuses_written_dates.py` in fichero-server/tests/unit/knowledge/, `GraphModelDateLiteralTests.swift` in fichero/Tests/Unit/general/Views/Library/
 - Size: M
 
-#### Step 2.2 — Where a date and a place come from, with the level named; real month ends (→ #6767)
+#### Step 2.2 — Where a date and a place come from, with the level named; real month ends (#6767)
 - Behaviours: `kg.qualifier.where-a-date-comes-from`, `kg.qualifier.where-a-place-comes-from`, `kg.qualifier.month-ends-are-real-dates`
 - Tests: to write: `test_statement_date_ladder.py` in fichero-server/tests/unit/kg/, `test_month_range_ends_on_a_real_day.py` in fichero-server/tests/unit/kg/
 - Depends on: 2.1
@@ -688,25 +688,25 @@ the behaviour's words before the change.
 
 ### Stage 3 — Measured figures and what they drive
 
-#### Step 3.1 — Decisions exported as labels; the measured precision of each maker and kind (→ #6763)
+#### Step 3.1 — Decisions exported as labels; the measured precision of each maker and kind (#6763)
 - Behaviours: `kg.confidence.decisions-are-labels`, `kg.confidence.statement`, `kg.confidence.date-and-place`
 - Tests: to write: `test_decisions_export_as_labels.py` in fichero-server/tests/unit/kg/, `test_maker_priors_from_check_set.py` in fichero-server/tests/unit/kg/
 - Depends on: 1.1, 1.3
 - Size: M
 
-#### Step 3.2 — The fit from score to probability, its reliability table, token probabilities as a score (→ #6763)
+#### Step 3.2 — The fit from score to probability, its reliability table, token probabilities as a score (#6763)
 - Behaviours: `kg.confidence.calibrated-on-the-check-set`, `kg.confidence.token-probabilities`
 - Tests: to write: `test_confidence_fit_from_check_set.py` in fichero-server/tests/unit/kg/
 - Depends on: 3.1
 - Size: M
 
-#### Step 3.3 — Makers agree and disagree (→ #6764)
+#### Step 3.3 — Makers agree and disagree (#6764)
 - Behaviours: `kg.confidence.makers-agree`, `kg.confidence.makers-disagree`, `kg.confidence.reviewer-model-has-its-own-figure`
 - Tests: to write: `test_makers_agree_and_disagree.py` in fichero-server/tests/unit/kg/
 - Depends on: 3.2
 - Size: M
 
-#### Step 3.4 — Two thresholds per kind, set from the fit; the constants go (→ #6766)
+#### Step 3.4 — Two thresholds per kind, set from the fit; the constants go (#6766)
 - Behaviours: `kg.confidence.two-thresholds-per-kind`, `kg.confidence.what-is-never-automatic`, `kg.confidence.thresholds-replace-the-constants`
 - Tests: to write: `test_thresholds_from_the_fit.py` in fichero-server/tests/unit/kg/, `test_no_threshold_makes_a_decision.py` in fichero-server/tests/unit/kg/
 - Depends on: 3.2
@@ -726,13 +726,13 @@ the behaviour's words before the change.
 
 ### Stage 4 — Authorities and search
 
-#### Step 4.1 — Consent per authority and type; candidates scored by evidence (→ #6769, #4757, #4758)
+#### Step 4.1 — Consent per authority and type; candidates scored by evidence (#6769, #4757, #4758)
 - Behaviours: `kg.authority.per-type-and-per-source-consent`, `kg.authority.candidate-confidence`, `kg.authority.known-set`, `kg.authority.nothing-leaves-unasked`, `kg.authority.confirm-and-refuse`
 - Tests: to write: `test_authority_candidates_by_evidence.py` in fichero-server/tests/unit/kg/, `test_authority_consent_per_type.py` in fichero-server/tests/unit/kg/
 - Depends on: 1.3
 - Size: M
 
-#### Step 4.2 — Offline copies and the gazetteer fetchers (→ #6769, #5123)
+#### Step 4.2 — Offline copies and the gazetteer fetchers (#6769, #5123)
 - Behaviours: `kg.authority.offline-copies`, `kg.authority.fetchers`
 - Tests: to write: `test_authority_offline_snapshot_import.py` in fichero-server/tests/unit/kg/
 - Depends on: 4.1
@@ -744,13 +744,13 @@ the behaviour's words before the change.
 - Depends on: 4.2
 - Size: M
 
-#### Step 4.4 — One search in the engine: folded names, authority names, meaning, filters (→ #6770, #4604)
+#### Step 4.4 — One search in the engine: folded names, authority names, meaning, filters (#6770, #4604)
 - Behaviours: `kg.search.one-field`, `kg.search.filters-are-the-lens`
 - Tests: to write: `test_kg_search_folds_and_filters.py` in fichero-server/tests/unit/api/
 - Depends on: 4.3
 - Size: M
 
-#### Step 4.5 — The search field and "what connects" in the app (→ #6770, #5551)
+#### Step 4.5 — The search field and "what connects" in the app (#6770, #5551)
 - Behaviours: `kg.search.what-connects-two-names`
 - Tests: to write: `KGSearchFieldTests.swift` in fichero/Tests/Unit/general/Views/Library/
 - Depends on: 4.4

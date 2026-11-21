@@ -17,8 +17,8 @@
 > `kg-rendering.md`; the statements themselves are `kg-entities-and-statements.md`.
 > Tags: **[OK]** built and tested · **[PARTIAL]** built, partly proven or partly wired ·
 > **[GAP]** intended, never built · **[BROKEN]** code contradicts the line.
-> `→ #NEW-n` marks an issue this review asks the manager to file (listed at the end); the plain
-> number beside it is the open issue that tracks the line until then.
+> `→ #N` names the issue filed for the line from this review (listed at the end); the plain
+> number beside it is the older open issue that also tracks it.
 
 ## Intent (the design)
 
@@ -487,18 +487,18 @@ the behaviour's words before the change. Stages 1 to 3 change the engine only.
 
 ### Stage 1 — Say only what is held, and keep every clause's statement
 
-#### Step 1.1 — The evaluation set and its scorer, red (→ #6846)
+#### Step 1.1 — The evaluation set and its scorer, red (#6846)
 - Behaviours: `kg.para.eval-set`, `kg.para.pass-bar`
 - Tests: to write: `test_paragraph_eval_set.py` in fichero-server/tests/unit/knowledge/
 - Size: M
 
-#### Step 1.2 — Rejected and merged statements are never said; mentions are a list (→ #6835)
+#### Step 1.2 — Rejected and merged statements are never said; mentions are a list (#6835)
 - Behaviours: `kg.para.rejected-never-stated`, `kg.para.mentions-are-a-list`
 - Tests: to write: `test_paragraph_selection.py` in fichero-server/tests/unit/knowledge/
 - Depends on: 1.1
 - Size: S
 
-#### Step 1.3 — Clauses and segments on the route; the exact faithfulness test (→ #6836)
+#### Step 1.3 — Clauses and segments on the route; the exact faithfulness test (#6836)
 - Behaviours: `kg.para.clause-carries-claim-ids`, `kg.para.every-character-has-an-origin`, `kg.para.every-statement-is-said-once`, `kg.para.deterministic`, `kg.para.proposed-is-marked`
 - Tests: to write: `test_paragraph_trace.py` in fichero-server/tests/unit/knowledge/, `test_routes_kg_paragraph_clauses.py` in fichero-server/tests/unit/api/
 - Depends on: 1.2
@@ -512,25 +512,25 @@ the behaviour's words before the change. Stages 1 to 3 change the engine only.
 
 ### Stage 2 — When, where, how sure
 
-#### Step 2.1 — A language's table is a data file; seams (→ #6842)
+#### Step 2.1 — A language's table is a data file; seams (#6842)
 - Behaviours: `kg.para.table-is-data`, `kg.para.no-table-is-verbatim`, `kg.para.seams`
 - Tests: to write: `test_paragraph_tables.py` in fichero-server/tests/unit/knowledge/
 - Depends on: 1.3
 - Size: M
 
-#### Step 2.2 — Dates at the level held, and the order they give (→ #6837)
+#### Step 2.2 — Dates at the level held, and the order they give (#6837)
 - Behaviours: `kg.para.date-at-stored-level`, `kg.para.date-bound-and-about`, `kg.para.date-leads-the-sentence`, `kg.para.order-by-time`
 - Tests: to write: `test_paragraph_dates.py` in fichero-server/tests/unit/knowledge/
 - Depends on: 2.1
 - Size: M
 
-#### Step 2.3 — Places, said once, with their basis (→ #6838)
+#### Step 2.3 — Places, said once, with their basis (#6838)
 - Behaviours: `kg.para.place-stated-once`, `kg.para.place-says-its-basis`, `kg.para.place-links-its-name`
 - Tests: to write: `test_paragraph_places.py` in fichero-server/tests/unit/knowledge/
 - Depends on: 2.1
 - Size: S
 
-#### Step 2.4 — Doubt as attribution, sources in words, disputes in one sentence (→ #6839)
+#### Step 2.4 — Doubt as attribution, sources in words, disputes in one sentence (#6839)
 - Behaviours: `kg.para.doubt-is-attribution`, `kg.para.no-figure-no-hedge`, `kg.para.sources-are-counted-in-words`, `kg.para.dispute-states-both`, `kg.para.person-decision-is-plain`
 - Tests: to write: `test_paragraph_doubt.py` in fichero-server/tests/unit/knowledge/
 - Depends on: 2.1
@@ -538,25 +538,25 @@ the behaviour's words before the change. Stages 1 to 3 change the engine only.
 
 ### Stage 3 — Reads like prose
 
-#### Step 3.1 — Units: one statement from many sources; one passage, one sentence (→ #6840)
+#### Step 3.1 — Units: one statement from many sources; one passage, one sentence (#6840)
 - Behaviours: `kg.para.same-statement-one-clause`, `kg.para.one-passage-one-sentence`
 - Tests: to write: `test_paragraph_units.py` in fichero-server/tests/unit/knowledge/
 - Depends on: 2.2
 - Size: S
 
-#### Step 3.2 — Only neighbours join, and each keeps its date and place (→ #6841)
+#### Step 3.2 — Only neighbours join, and each keeps its date and place (#6841)
 - Behaviours: `kg.para.run-is-neighbours`, `kg.para.run-keeps-each-date`
 - Tests: to write: `test_paragraph_runs.py` in fichero-server/tests/unit/knowledge/
 - Depends on: 3.1
 - Size: M
 
-#### Step 3.3 — The name once, then an attested short form or nothing (→ #6843)
+#### Step 3.3 — The name once, then an attested short form or nothing (#6843)
 - Behaviours: `kg.para.name-once`, `kg.para.short-name-is-attested`
 - Tests: to write: `test_paragraph_names.py` in fichero-server/tests/unit/knowledge/
 - Depends on: 2.1
 - Size: S
 
-#### Step 3.4 — Re-centring through frames, with agreement (→ #6844, → #6845)
+#### Step 3.4 — Re-centring through frames, with agreement (#6844, #6845)
 - Behaviours: `kg.para.recentre-by-frame`, `kg.para.frame-needs-agreement`, `kg.para.gender-is-evidence`
 - Tests: to write: `test_paragraph_frames.py` in fichero-server/tests/unit/knowledge/
 - Depends on: 3.3
