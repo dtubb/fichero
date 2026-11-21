@@ -972,7 +972,7 @@ def _save_pdf_text_layer_geometry(
         return
     try:
         artifact = pdf_text_layer_artifact(page_doc.id, pdf_doc, page_index)
-        geometry = artifact.ocr_geometry
+        geometry = artifact.ocr_geometry  # raw-geometry-ok: the text-layer artifact this function just built, before any conversion
         db.save(artifact)
         # The text layer becomes the page's own pass now, not at the next open (#5222 part 2).
         # Never raises: a page that cannot convert keeps its artifact and waits for the next open.
