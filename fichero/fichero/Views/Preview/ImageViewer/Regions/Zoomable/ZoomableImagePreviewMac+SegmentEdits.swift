@@ -335,12 +335,13 @@ extension ZoomableImagePreview {
     }
 
     /// CUT every line the Knife's stroke crosses (`segment-editor.split-knife`): one `segment.split` with the
-    /// stroke and the versions of the page's lines it reaches, one ⌘Z. The engine says which lines it left alone.
+    /// stroke and the versions of the shown pass's lines it reaches, one ⌘Z. The engine says which lines it left alone.
     func knifeCut(_ stroke: [[Double]]) {
         if refusesEditOnMappedRendition() { return }
         guard let documentId, let store = segmentEditStore else { return }
         runSegmentEdit(
-            SegmentEdit.knife(stroke, over: store.segments(documentId: documentId)), documentId: documentId, name: "Cut Lines"
+            SegmentEdit.knife(stroke, over: store.segments(documentId: documentId), onPass: ocrGeometryPassId),
+            documentId: documentId, name: "Cut Lines"
         ) { result in
             windowState?.segmentNotice = SegmentEdit.knifeNotice(
                 cut: result.resultListCounts["splits"] ?? 0, leftAlone: result.resultListCounts["left_alone"] ?? 0
