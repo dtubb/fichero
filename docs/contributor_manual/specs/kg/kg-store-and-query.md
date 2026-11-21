@@ -249,7 +249,7 @@ makes extraction slow. The 744 tests of `tests/unit/kg`, `tests/unit/knowledge` 
   regression breaks. Built: `tests/perf/test_entity_list_perf.py` (1,000 names, 2,000 statements)
   and `tests/perf/test_entity_detail_perf.py` (10,000 names, 60,000 statements, one name).
   Report-only, no ceiling yet, at 50,000 statements / 12,500 names: statements list and counts
-  (`test_claims_list_and_counts_at_project_size` in `test_entity_list_perf.py`),
+  (`tests/perf/test_kg_claims_list_perf.py`),
   `tests/perf/test_kg_neighbourhood_perf.py`, `tests/perf/test_kg_graph_build_perf.py`. Not
   built: path, a ceiling on the four report-only cases, and the 50,000-page run on the build
   machine.
@@ -269,7 +269,7 @@ makes extraction slow. The 744 tests of `tests/unit/kg`, `tests/unit/knowledge` 
 
 #### Step 1.2 — The ratchet at project size
 - Behaviours: `kg.scale.ratchet-at-project-size`
-- Tests: test_kg_neighbourhood_perf.py, test_kg_graph_build_perf.py, fichero-server/tests/perf/test_entity_list_perf.py
+- Tests: test_kg_neighbourhood_perf.py, test_kg_graph_build_perf.py, test_kg_claims_list_perf.py
 - Size: S
 
 ### Stage 2 — The link table, and filters in the database
