@@ -314,19 +314,6 @@ targets are at least 44 pt.
   the whole selection one image pixel, ⇧ ten, ⌥⇧ a hundred; with a pressed point, the point
   alone (built). A held key gathers into one action, committed when the key is released or
   after half a second of stillness (`undo.typing.commit-is-one-step` applied to keys).
-- `segment-editor.convert-to-box` — **[PARTIAL]** (#6736, owner 2026-11-19; app + engine) **Convert to Box** (Edit › Segments ▸,
-  ⌥⌘B, and the page's context menu on a selection) replaces each selected polygon with its axis-aligned bounding rectangle:
-  one `segment.convert_to_box` for the whole selection, one undo, the old polygon kept in the segment's history. Id, kind,
-  baseline, order and children are untouched. A segment that is already a box is left out; a selection of only boxes is
-  refused with the reason. *Tests:* `test_segment_convert_to_box.py`; `SegmentConvertToBoxTests.swift`.
-  *Not built:* the toolbar shape-menu entry; **Convert to Box (fit ink)**, the rectangle of the ink inside the polygon.
-- `segment-editor.convert-level` — **[PARTIAL]** (#6740, owner 2026-11-19; app + engine) **Convert to Line** and **Convert to
-  Region** (Edit › Segments ▸, the page's context menu, and the segment list's row menu) change the level of each selected
-  segment: one `segment.convert_level` for the whole selection, one undo. Id, shape, text, readings, parent and order position
-  stay. A region made a line without a baseline gets one across its box in the middle of its lower third. A region with child
-  lines is refused with the reason (ungroup it first); a segment already at the level is left out, and a selection of only
-  those is refused. *Tests:* `test_segment_convert_level.py`; `SegmentConvertLevelTests.swift`. *Not built:* merging a region's
-  child lines' text into the one line; a line staying as the one child line of the new region; an editable baseline prompt.
 - `segment-editor.make-region-from-lines` — **[PARTIAL]** (#6737, owner 2026-11-19; app + engine) **Make Region from Lines**
   (Edit › Segments ▸, ⌘G, and the page's context menu on two or more selected segments) makes one new region whose box is the
   union of the lines' shapes and moves the lines into it as its children, in their reading order (`segment.group_lines`;
@@ -664,8 +651,11 @@ See section 7.2 below for what exists. The design:
   back into a polygon by editing its points. Tests: one polygon gives its box; three selected give three boxes; id, text and
   order unchanged; undo restores the polygon.
   *Built 2026-11-20:* the engine half: `segment.convert_to_box` (the plain bounding rectangle; all or nothing, one undo,
-  a stale version refuses all; `fichero-server/tests/unit/api/test_segment_convert_to_box.py`). *Not built:* the menus, the
-  shortcut and the fit-ink form. Needs an on-screen check.
+  a stale version refuses all; `fichero-server/tests/unit/api/test_segment_convert_to_box.py`). *Built note (#6736):* Edit ›
+  Segments ▸ Convert to Box (⌥⌘B) and the page's context menu on a selection send one `segment.convert_to_box` for the
+  selection's segments that have a polygon; a segment that is already a box is left out, and a selection of only boxes is
+  refused with the reason (`SegmentConvertToBoxTests.swift`). *Not built:* the toolbar shape-menu entry and the fit-ink form.
+  Needs an on-screen check.
 - `segment-editor.convert-level` — **[PARTIAL]** (#6740; app + engine; owner 2026-11-19) a region can become a line and a line a
   region. Convert to Line on a region keeps its shape, text and order position and computes a baseline (or draws one from its
   box, the lower third, editable); a region with child lines asks whether to merge their text into the one line, in order, or
@@ -675,7 +665,10 @@ See section 7.2 below for what exists. The design:
   each direction keeps shape, text and order; a region with children asks; undo restores.
   *Built 2026-11-20:* the engine half: `segment.convert_level` (region to line with a baseline along the lower third; line to
   region; a region holding lines is refused with the reason; one undo; `fichero-server/tests/unit/api/test_segment_convert_level.py`).
-  *Not built:* the menus, the merge-their-text choice and the one-child-line option. Needs an on-screen check.
+  *Built note (#6740):* Convert to Line and Convert to Region (Edit › Segments ▸, the page's context menu, and the segment
+  list's row menu) send one `segment.convert_level` for the selection's segments not already at that level; a selection of
+  only those is refused with the reason (`SegmentConvertLevelTests.swift`). *Not built:* the merge-their-text choice, the
+  one-child-line option and an editable baseline prompt. Needs an on-screen check.
 - `segment-editor.list-drag-reorder` — **[PARTIAL]** (#6739; app + engine; owner 2026-11-19; extends
   `segment-editor.reassign-by-drag`, which covers dropping into a region) in the segment list, dragging also reorders, as in a
   Finder or Mail outline. Dropping between rows shows a thin insertion line with a circle at its left end, indented to the
