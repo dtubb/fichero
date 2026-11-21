@@ -10,7 +10,7 @@ import VisionKit
 // (FicheroApp_iOS.swift) as the `setup:` view of `BackendRootGate`, after this
 // type was split out for file_length.
 struct RemoteConnectionSetupView: View {
-    @Environment(AppState.self) private var appState
+    @Environment(AppState.self) var appState
     @Environment(LibraryManager.self) private var libraryManager
     @Environment(MobileCaptureQueueStore.self) private var captureQueue
 
@@ -26,8 +26,9 @@ struct RemoteConnectionSetupView: View {
     @State private var pickedHost: HostChoices.Found?
     @State private var didAutoPresentScanner = false
     @State private var showingManualEntry = false
-    @State private var isPairing = false
-    @State private var errorMessage: String?
+    @State var isPairing = false
+    @State var errorMessage: String?
+    @State var ownMacs: [OwnDevicesItem] = []
     /// A failed pairing, as the one alert (`sharing.alerts.one-alert-per-failure`).
     @State private var failurePrompt: FailureAlertPrompt?
     /// The host that asked who this device is (Step 8.9), and the link to pair again with the person.
@@ -42,6 +43,7 @@ struct RemoteConnectionSetupView: View {
 
     var body: some View {
         connectView.failureAlert($failurePrompt)
+        .ownMacsLoading(into: $ownMacs, error: $errorMessage)
         .personSignInAlert(host: $signInHost) { person in
             guard let fields = signInFields else { return }
             Task {
@@ -98,6 +100,7 @@ struct RemoteConnectionSetupView: View {
     private var connectView: some View {
         NavigationStack {
             List {
+                OwnMacsSection(macs: ownMacs, isConnecting: isPairing, onSelect: connectOwnMac)
                 DiscoveredMacsSection(
                     discovery: discovery,
                     isPairing: isPairing,
