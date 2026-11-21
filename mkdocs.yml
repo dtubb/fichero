@@ -440,6 +440,7 @@ nav:
               - Builder Console (proposed): contributor_manual/specs/harness/builder-console.md
               - Performance Sweep (draft): contributor_manual/specs/harness/performance-sweep.md
               - Performance Sweep review: contributor_manual/specs/harness/performance-sweep-REVIEW.md
+              - App and Engine Speed, budgets and scenarios (draft): contributor_manual/specs/harness/app-engine-performance.md
               - Builder as a Mac App (draft): contributor_manual/specs/harness/builder-mac-app.md
               - Issues, Milestones & Labels (proposed): contributor_manual/specs/harness/issues-and-labels.md
               - Engine Startup & Shutdown Lifecycle: contributor_manual/specs/harness/engine-startup-lifecycle.md
