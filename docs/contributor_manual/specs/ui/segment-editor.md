@@ -240,6 +240,9 @@ targets are at least 44 pt.
   (`WindowState.letGoOfKnifeKey`). *Not built:* the Pencil.
   *Owner 2026-11-19 (#6734):* drawing a cut across a segment currently splits and saves nothing; the cut must split each
   segment it crosses into two, saved and undoable, with a test that drives the commit path. *Not built.*
+  *Owner 2026-11-21 (#6734):* the Knife offers lines AND regions: a stroke across a region splits its polygon in two as
+  it splits a line at its baseline. *Not built:* the engine cuts only segments with a baseline (`segment.split` with
+  `cut_path`), so the app sends a region as `no-baseline` today; no region polygon is split.
   *Tests:* `test_segment_split_knife.py`
   (two crossings, graze, rtl, vertical; the undo takes the `cut` mark off the line again, 2026-11-14, as a version
   snapshot carries no metadata); `KnifeStrokeTests.swift` (the stroke is sent once,
