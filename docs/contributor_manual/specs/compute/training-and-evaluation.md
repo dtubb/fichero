@@ -322,8 +322,8 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
 - `training.propose.names-tagger` — **[GAP]** (#5536, #5556) the names row trains spaCy on confirmed mentions
   on this Mac or on Hugging Face, or a Create ML word tagger, and is scored by precision and recall per kind. The set it
   trains on, the trainer and the pages that count are `kg.teach.names-set-from-corrections`,
-  `kg.teach.spacy-trained-on-this-mac` and `kg.teach.page-is-checked-for-names` (`kg/kg-entities-and-statements.md`,
-  section J); this line is the row on the sheet.
+  `kg.teach.spacy-trained-on-this-mac` and `kg.teach.page-is-checked-for-names` (`kg/kg-confidence-and-provenance.md`,
+  section K); this line is the row on the sheet.
 - `training.set.held-out-picked-across-folder` — **[GAP]** (#5441) Fichero picks the held-out pages across
   the folder — stratified by hand, page kind and sub-folder where known, at least two pages, a stated
   share — lists them on the sheet, lets the person swap one, and never picks a page any candidate trained
