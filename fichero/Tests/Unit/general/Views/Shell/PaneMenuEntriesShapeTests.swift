@@ -10,7 +10,7 @@ final class PaneMenuEntriesShapeTests: XCTestCase {
         let menu = try AppSource.code("Views/Shell/PaneHead/PaneChromeMenu.swift")
         let head = try AppSource.code("Views/Shell/PaneHead/PaneHead.swift")
         XCTAssertTrue(menu.contains("struct PaneMenuEntries: View"))
-        XCTAssertTrue(menu.contains("PaneMenuEntries(splitActions: splitActions"), "the + no longer renders the shared entries")
+        XCTAssertTrue(menu.contains("viewAs: viewAs, splitActions: splitActions"), "the + no longer renders the shared entries")
         XCTAssertTrue(head.contains(".contextMenu {\n                PaneMenuEntries("), "the head lost its right-click menu")
         XCTAssertTrue(menu.contains("Label(\"Pin Pane\""), "pane menu lost Pin Pane")
     }

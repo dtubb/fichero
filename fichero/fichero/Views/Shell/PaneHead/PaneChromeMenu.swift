@@ -28,6 +28,7 @@ extension EnvironmentValues {
 }
 
 struct PaneChromeMenu: View {
+    var viewAs: AnyView?
     var splitActions: SplitAxisActions?
     var isPinned: Binding<Bool>?
     var closeTitle: String?
@@ -36,9 +37,11 @@ struct PaneChromeMenu: View {
     @Environment(\.paneLeafId) private var leafId
 
     var body: some View {
-        if splitActions != nil || isPinned != nil || onClose != nil || kindSwitcher != nil || leafId != nil {
+        if viewAs != nil || splitActions != nil || isPinned != nil || onClose != nil || kindSwitcher != nil || leafId != nil {
             Menu {
-                PaneMenuEntries(splitActions: splitActions, isPinned: isPinned, closeTitle: closeTitle, onClose: onClose)
+                PaneMenuEntries(
+                    viewAs: viewAs, splitActions: splitActions, isPinned: isPinned, closeTitle: closeTitle, onClose: onClose
+                )
             } label: {
                 // The pane's own icon with a chevron, never a + (owner 2026-11-13), so the head still says what it shows.
                 HStack(spacing: 2) {
@@ -57,8 +60,10 @@ struct PaneChromeMenu: View {
 }
 
 /// The pane menu's rows, shared by the head's button and its right-click so both list the same entries in the
-/// same order (`panes.chrome.one-pane-menu`): Pane ▸, Split Right ▸, Split Below ▸, Focus on Pane, Pin, Close.
+/// same order (`panes.chrome.one-pane-menu`): Pane ▸, View As ▸, Split Right ▸, Split Below ▸, Focus on Pane, Pin, Close.
 struct PaneMenuEntries: View {
+    /// View As ▸, the pane's own views (`PaneViewChooser`); nil for a head without a view chooser.
+    var viewAs: AnyView?
     var splitActions: SplitAxisActions?
     var isPinned: Binding<Bool>?
     var closeTitle: String?
@@ -88,8 +93,9 @@ struct PaneMenuEntries: View {
                     }
                 }
             }
-            Divider()
         }
+        if let viewAs { viewAs }
+        if kindSwitcher != nil || viewAs != nil { Divider() }
         if let actions = splitActions {
             // Each a submenu of kinds: splitting ADDS that pane beside or below in one step (`panes.head.one-menu-button`).
             Menu("Split Right") {

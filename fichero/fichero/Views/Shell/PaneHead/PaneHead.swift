@@ -130,6 +130,7 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
             // The same list as the + (`panes.chrome.one-pane-menu`): right-click anywhere on the head row.
             .contextMenu {
                 PaneMenuEntries(
+                    viewAs: viewAsMenu,
                     splitActions: canSplit ? splitAxisActions : nil,
                     isPinned: isPinned,
                     closeTitle: showsClose ? (isInSplit ? "Close This Split" : "Close Pane") : nil,
@@ -196,6 +197,9 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
     private var identityCapsule: some View {
         capsule { selector() }
     }
+
+    /// The pane menu's View As ▸: the head's own view chooser's list, when it has one (`panes.head.one-menu-button`).
+    private var viewAsMenu: AnyView? { (selector() as? PaneViewChooser)?.viewAsMenu }
 
     /// Adaptive (ruling 2026-08-23): the full chain when the pane is wide
     /// enough, ONLY the leaf when it isn't — never a mid-string ellipsis.
@@ -442,6 +446,7 @@ extension PaneHead {
     @ViewBuilder
     private var chromeControls: some View {
         PaneChromeMenu(
+            viewAs: viewAsMenu,
             splitActions: canSplit ? splitAxisActions : nil,
             isPinned: isPinned,
             closeTitle: showsClose ? (isInSplit ? "Close This Split" : "Close Pane") : nil,

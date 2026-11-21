@@ -175,50 +175,65 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
             .fixedSize(horizontal: true, vertical: false)
     }
 
+    /// The rows of the view menu, shared by the head's chooser and the pane menu's View As ▸.
+    @ViewBuilder
+    private var lensMenuItems: some View {
+        if lensSections.isEmpty {
+            Picker("View", selection: $lens) {
+                ForEach(lenses) { option in
+                    Label(lensTitle(option), systemImage: lensIcon(option)).tag(option)
+                }
+            }
+            .pickerStyle(.inline)
+        } else {
+            // Plain checkmarked Buttons, not inline Pickers: each
+            // inline Picker drew its OWN separator chrome inside the
+            // section, so every group rendered with a stray line
+            // under its header (Daniel, 2026-08-29: "a line between
+            // each group — weird").
+            ForEach(Array(lensSections.enumerated()), id: \.offset) { _, section in
+                Section(section.0) {
+                    ForEach(section.1) { option in
+                        Button {
+                            lens = option
+                        } label: {
+                            // Icon AND tick together (#4880: "every
+                            // row with its icon, a tick on the
+                            // current view") — the checkmark no
+                            // longer replaces the row's own glyph.
+                            lensRow(option)
+                        }
+                    }
+                }
+            }
+        }
+        // The pane's own extra rows — the reader's "Showing" submenu
+        // of representations and artifacts. Below a divider, so the
+        // lens list above stays the same list it always was.
+        if let extraLensMenu {
+            Divider()
+            extraLensMenu()
+        }
+    }
+
     private func lensMenuContent<L: View>(@ViewBuilder label: () -> L) -> some View {
         Menu {
-                if lensSections.isEmpty {
-                    Picker("View", selection: $lens) {
-                        ForEach(lenses) { option in
-                            Label(lensTitle(option), systemImage: lensIcon(option)).tag(option)
-                        }
-                    }
-                    .pickerStyle(.inline)
-                } else {
-                    // Plain checkmarked Buttons, not inline Pickers: each
-                    // inline Picker drew its OWN separator chrome inside the
-                    // section, so every group rendered with a stray line
-                    // under its header (Daniel, 2026-08-29: "a line between
-                    // each group — weird").
-                    ForEach(Array(lensSections.enumerated()), id: \.offset) { _, section in
-                        Section(section.0) {
-                            ForEach(section.1) { option in
-                                Button {
-                                    lens = option
-                                } label: {
-                                    // Icon AND tick together (#4880: "every
-                                    // row with its icon, a tick on the
-                                    // current view") — the checkmark no
-                                    // longer replaces the row's own glyph.
-                                    lensRow(option)
-                                }
-                            }
-                        }
-                    }
-                }
-                // The pane's own extra rows — the reader's "Showing" submenu
-                // of representations and artifacts. Below a divider, so the
-                // lens list above stays the same list it always was.
-                if let extraLensMenu {
-                    Divider()
-                    extraLensMenu()
-                }
+            lensMenuItems
         } label: {
             label()
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
     }
+}
+
+/// A head's view chooser that hands its view list to the pane menu as View As ▸ (`panes.head.one-menu-button`).
+protocol PaneViewChooser {
+    var viewAsMenu: AnyView { get }
+}
+
+extension PaneKindSelector: PaneViewChooser {
+    var viewAsMenu: AnyView { AnyView(Menu("View As") { lensMenuItems }) }
 }
 
 /// The selector's own metric, kept out of `PaneHeadMetrics` because it is a

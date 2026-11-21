@@ -36,4 +36,25 @@ struct PaneMenuTests {
         #expect(menu.contains("Label(\"Pin Pane\", systemImage: \"pin\")"))
         #expect(!menu.contains("\"Unpin Pane\""), "a checked toggle needs no second title")
     }
+
+    @Test("View As ▸ is the pane's own view list, in the menu after Pane ▸ and before the splits (#6741)")
+    func viewAsInTheMenu() throws {
+        let selector = PaneKindSelector(
+            kindTitle: "Items", kindIcon: "list.bullet", currentKind: .library,
+            lenses: ViewDisplayMode.allCases, lensTitle: { $0.label }, lensIcon: { $0.icon },
+            lens: .constant(ViewDisplayMode.allCases[0])
+        )
+        #expect((selector as Any) is PaneViewChooser, "the head's view chooser does not hand its list to the menu")
+        let kinds = try AppSource.code("Views/Shell/PaneHead/PaneKindSelector.swift")
+        #expect(kinds.contains("Menu(\"View As\")"))
+        let controls = try AppSource.code("Views/Shell/PaneHead/PreviewHeadControls.swift")
+        #expect(controls.contains("extension PreviewHeadSelectorGroup: PaneViewChooser"))
+        let head = try AppSource.code("Views/Shell/PaneHead/PaneHead.swift")
+        #expect(head.components(separatedBy: "viewAs: viewAsMenu").count - 1 == 2, "the button and the right-click both list it")
+        let menu = try AppSource.code("Views/Shell/PaneHead/PaneChromeMenu.swift")
+        let pane = try #require(menu.range(of: "Menu(\"Pane\")"))
+        let viewAs = try #require(menu.range(of: "if let viewAs { viewAs }"))
+        let split = try #require(menu.range(of: "Menu(\"Split Right\")"))
+        #expect(pane.lowerBound < viewAs.lowerBound && viewAs.lowerBound < split.lowerBound)
+    }
 }

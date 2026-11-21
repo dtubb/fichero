@@ -87,6 +87,10 @@ struct PreviewHeadSelectorGroup: View {
     }
 }
 
+extension PreviewHeadSelectorGroup: PaneViewChooser {
+    var viewAsMenu: AnyView { selector.viewAsMenu }
+}
+
 /// The head's top-right lenses: the zoom-cluster toggle, and the renditions
 /// menu.
 struct PreviewHeadLensControls: View {
