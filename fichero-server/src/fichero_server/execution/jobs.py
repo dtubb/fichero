@@ -2001,12 +2001,13 @@ def cancel_waiting(db: "Database", job_id: str) -> None:
 
 
 def enqueue_many(
-    db: "Database", kind: str, subjects: list[str], *, started_by: str = "automatic"
+    db: "Database", kind: str, subjects: list[str], *, started_by: str = "automatic", held: bool = False
 ) -> list[Future]:
     """`enqueue` for many subjects in a few statements (an import queues thousands of pages
     inside its own transaction, where a statement per page would be felt). Returns one future
     per subject, resolved with the job's result when it finishes in this process; a job finished
-    after a restart resolves nothing (nobody is waiting on it any more)."""
+    after a restart resolves nothing (nobody is waiting on it any more). `held`: a new row is made paused with the
+    quit's reason, for the launch alert's Continue (`stopped_at_quit`), and starts nothing."""
     if not subjects:
         return []
     _ensure(db)
@@ -2030,12 +2031,15 @@ def enqueue_many(
         rows = [(str(uuid.uuid4()), subject) for subject in chunk]
         ids.update((subject, job_id) for job_id, subject in rows)
         db.execute(
-            "INSERT INTO jobs (id, kind, subject, model, state, attempts, started_by, created_at) VALUES "
-            + ", ".join("(?, ?, ?, ?, 'waiting', 0, ?, ?)" for _ in rows),
+            "INSERT INTO jobs (id, kind, subject, model, state, reason, attempts, started_by, created_at) VALUES "
+            + ", ".join("(?, ?, ?, ?, ?, ?, 0, ?, ?)" for _ in rows),
             [
                 value
                 for job_id, subject in rows
-                for value in (job_id, kind, subject, model, started_by, now)
+                for value in (
+                    job_id, kind, subject, model, "paused" if held else "waiting", QUIT_REASON if held else None,
+                    started_by, now,
+                )
             ],
         )
     futures = [_scheduler.watch(ids[subject]) for subject in subjects if subject in ids]
@@ -4285,7 +4289,8 @@ def stopped_at_quit(db: "Database") -> list[dict[str, Any]]:
 def continue_after_quit(db: "Database", ids: list[str] | None) -> list[str]:
     """The person's Continue on the launch alert: the chosen rows the quit stopped (all of them when `ids` is None) are
     let go, the stored pause lifted through each kind's own resume (`pause_job`), and the lane woken. Returns the ids."""
-    stopped = [row["id"] for row in stopped_at_quit(db)]
+    stopped_rows = stopped_at_quit(db)
+    stopped = [row["id"] for row in stopped_rows]
     chosen = stopped if ids is None else [i for i in ids if i in stopped]
     for job_id in chosen:
         db.execute("UPDATE jobs SET reason = NULL WHERE id = ? AND state = 'paused'", [job_id])  # not "stopped" any more
@@ -4293,6 +4298,9 @@ def continue_after_quit(db: "Database", ids: list[str] | None) -> list[str]:
     if chosen:
         key = _key(db)
         db.add_after_commit_hook(lambda: _scheduler.wake(key))
+        from fichero_server.importers.derivatives import arm_released_pages
+
+        arm_released_pages(db, [r for r in stopped_rows if r["id"] in chosen])
     return chosen
 
 
@@ -6168,7 +6176,8 @@ def failed_since(db, kind: str, subject: str, since) -> bool:
 def queue_state(db, own_kinds: list[str], since=None) -> str | None:
     """What the job table says about a queue made of `own_kinds`: "moving" while page work of ours on a model or
     image lane runs behind it (a workflow, batch or far-side row does not count); "over" when its jobs have all
-    ended, one failed since `since`, and none waits or runs; else None."""
+    ended, one failed since `since`, and none waits or runs; "held" when none waits or runs and some are paused (what a
+    quit left, or a person's pause: Continue or Resume lets them go); else None."""
     marks = ", ".join("?" for _ in own_kinds)
     running = [
         r[0]
@@ -6199,6 +6208,15 @@ def queue_state(db, own_kinds: list[str], since=None) -> str | None:
         is not None
     ):
         return "over"
+    if (
+        db.execute_fetchone(
+            f"SELECT 1 FROM jobs WHERE kind IN ({marks}) AND state IN ('waiting', 'running') LIMIT 1", own_kinds
+        )
+        is None
+        and db.execute_fetchone(f"SELECT 1 FROM jobs WHERE kind IN ({marks}) AND state = 'paused' LIMIT 1", own_kinds)
+        is not None
+    ):
+        return "held"
     return None
 
 
