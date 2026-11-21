@@ -1006,7 +1006,7 @@ The umbrella's speed trial (slice 12) is the gate and is not restated. This file
   (`moved_children`; `test_segment_split_knife.py::TestWords`). *Built 2026-11-21:* a word the stroke divides is split
   between the parts, each piece under the part it lies in (`line_cut.pieces_in_parts`), and the answer names it in
   `split_words`; a word the stroke names is split as a line is and each piece moves to the part holding its centre; one
-  undo makes every word whole again under the line (`test_segment_split_knife.py::TestWords`).
+  undo makes every word whole again under the line (`fichero-server/tests/unit/api/test_segment_split_knife.py::TestWords`).
 - `segment-editor.edge.merge-across-passes` — **[OK]** (engine) refused in words by
   `SegmentPassMismatchError`; the app offers nothing across passes but a match. Pinned by
   `fichero-server/tests/unit/api/test_segments_matches_forwarding.py`.
