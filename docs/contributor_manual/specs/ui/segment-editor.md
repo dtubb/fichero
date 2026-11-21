@@ -663,10 +663,14 @@ See section 7.2 below for what exists. The design:
   (`GET /api/segments/document/{doc_id}`), and one undo takes it back there
   (`fichero-server/tests/unit/api/test_segment_every_tool_saves_and_undoes.py`). *Not built:* a test per tool that drives
   the app's gesture to its commit; the Order tool and the Select Brush are not in that file. Needs an on-screen check.
-- `segment-editor.one-active-tool` — **[GAP]** (#6734; app; owner 2026-11-19) the toolbar is one choice: exactly one tool shows
+- `segment-editor.one-active-tool` — **[PARTIAL]** (#6734; app; owner 2026-11-19) the toolbar is one choice: exactly one tool shows
   as active, and picking another, by click or key, moves the highlight. Today Select stays highlighted beside the tool just
   picked and still handles the drag, which may be why the brushes seem to do nothing. Test: choosing each tool leaves only
   that tool active, in the model and in the toolbar.
+  *Built 2026-11-20:* the model half, as `segment-editor.one-tool`: `chooseSegmentTool` leaves exactly one flag tool chosen
+  and Select empty, another tool or its key moves the choice, putting it down returns to Select
+  (`fichero/Tests/Unit/general/Views/Preview/SegmentToolChoiceTests.swift`). *Not built:* a test that reads the highlight
+  from the toolbar itself. Needs an on-screen check.
 - `segment-editor.expand-one-axis` — **[PARTIAL]** (#6735; app) owner ruling 2026-11-21: dragging a handle with ⇧ held changes
   one axis, chosen by the way the drag first moves; the other edges stay; without ⇧ the drag is as before; one undoable move; lines
   and regions both. *Built note (needs an on-screen check):* `BoxResize.axis`, `resized(axis:)` and `handleResize`;
