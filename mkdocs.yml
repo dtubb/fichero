@@ -476,6 +476,7 @@ nav:
               - Formats & Training: contributor_manual/specs/source/formats-and-training.md
               - Maps & Georeference: contributor_manual/specs/source/maps-and-georeference.md
               - Models, Chains & Projects: contributor_manual/specs/source/models-chains-and-projects.md
+              - Readers (kinds, the reader a script gets, what is measured, DRAFT): contributor_manual/specs/source/readers.md
               - Recipe Designer: contributor_manual/specs/source/recipe-designer.md
               - Checking a Layer's Proposals: contributor_manual/specs/source/checking.md
               - Panes (what each pane shows): contributor_manual/specs/source/panes.md
