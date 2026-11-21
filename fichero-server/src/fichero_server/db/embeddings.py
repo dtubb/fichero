@@ -547,7 +547,9 @@ def split_text_passages(
     overlap_chars = max(0, min(overlap_chars, max_chars // 2))
 
     source = text or ""
-    length = len(source)
+    # Trailing whitespace is never part of a passage; counting it in the length kept the loop going one
+    # character at a time inside the overlap once the last passage was cut (#6780).
+    length = len(source.rstrip())
     passages: list[EmbeddableUnit] = []
     start = 0
 
