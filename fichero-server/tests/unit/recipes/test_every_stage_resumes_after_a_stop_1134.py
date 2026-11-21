@@ -277,8 +277,9 @@ def test_catalogue_lost_with_the_engine_then_resumed_describes_each_folder_once(
     monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())
     db.execute("UPDATE jobs SET state = 'running' WHERE id = ? AND state IN ('running', 'failed')", [job_id])
     jobs.resume(db)
-    r = client.post(f"/api/activity/jobs/{job_id}/retry")
-    assert r.status_code in (200, 409), r.text
+    assert jobs.row_state(db, job_id) == "paused", "the open holds the run; nothing runs until the person chooses"
+    r = client.post("/api/activity/stopped-at-quit/continue", json={"ids": [job_id]})  # the launch alert's Continue
+    assert r.status_code == 200 and job_id in r.json()["continued_ids"], r.text
     run = _finished(client, job_id)
 
     assert run["state"] == "done", run
@@ -311,15 +312,25 @@ def test_read_lost_with_the_engine_then_started_again_reads_each_page_once(clien
     execution_runner._running_workflows.clear()  # the engine's memory of its workflow runs went with it
     mark_interrupted_runs(db)  # what opening the project does first: the run the dead engine left is marked interrupted
     monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())
+    import collections
+
+    from fichero_server.workflows.tools import vision_base
+
+    class NewEnginesGate(vision_base._KrakenPageGate):  # the gate's count and line are its class's
+        _inside, in_flight, _queue, _queue_guard = 0, 0, collections.deque(), threading.Lock()
+
+    # In this process the dead engine's pages still hold and wait at the Kraken page gate; a new engine's gate is empty.
+    monkeypatch.setattr(vision_base, "_KRAKEN_PAGE_GATE", NewEnginesGate())
+    monkeypatch.setattr(vision_base._KrakenPageGate, "in_flight", 0)
     db.execute("UPDATE jobs SET state = 'running' WHERE id = ? AND state IN ('running', 'failed')", [job_id])
     jobs.resume(db)
-    r = client.post(f"/api/activity/jobs/{job_id}/retry")
-    assert r.status_code in (200, 409), r.text
-    # A workflow run the engine's death cut off ends as interrupted, with its pages not done kept: the run says so and Start again
-    # reads those pages (`activity.durable.interrupted-run-offers-the-rest`).
-    assert _finished(client, job_id)["state"] in ("failed", "done")
-    again = _start(client)
-    run = _finished(client, again)
+    # A run the engine's death cut off is held at the open, paused, never failed; the launch alert's Continue resumes it
+    # from its last finished page, with no second Start (owner ruling 2026-11-21, #6732).
+    assert jobs.row_state(db, job_id) == "paused", "the open holds the run; nothing runs until the person chooses"
+    r = client.post("/api/activity/stopped-at-quit/continue", json={"ids": [job_id]})
+    assert r.status_code == 200, r.text
+    assert job_id in r.json()["continued_ids"], r.text
+    run = _finished(client, job_id)
 
     assert run["state"] == "done", run
     after = calls[1:]  # the first call died before it read: that page is read again, once; every other page once
