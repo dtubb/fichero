@@ -51,7 +51,7 @@ _ORDER_ACTIONS = frozenset({
 _MEMBERSHIP_ACTIONS = frozenset({
     "segment.create", "segment.create_many", "segment.delete", "segment.undelete",
     "segment.merge", "segment.unmerge", "segment.split", "segment.unsplit", "segment.unsplit_many",
-    "segment.cut_words", "segment.uncut_words",
+    "segment.cut_words", "segment.uncut_words", "segment.convert_level",
     "segment.uncombine", "segment.restore_version", "segment.restore_versions",
     # A re-parent moves the lines' order entries among their new region's (`segment-editor.reassign-by-drag`).
     "segment.reparent",
