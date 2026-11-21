@@ -34,6 +34,7 @@ REPO = Path(__file__).resolve().parents[1]
 STEPS = {"segment": ["find-lines"], "regions": ["find-regions"], "read": ["read-a-line"]}
 PLACES = ("local", "mlx", "google-dry")
 ENDED = ("done", "failed", "cancelled")
+STALL_MINUTES = 5.0  # no page done for this long ends the soak red: a run that stopped moving is never polled forever
 PROJECT_PAGES = 5000
 MAX_HOURS_FOR_5000 = 10.0
 LEAK_MB_PER_HOUR = 100.0  # engine+children RSS growth after warm-up that counts as a leak
@@ -139,8 +140,13 @@ def projected_hours(samples: list[dict[str, Any]], pages: int = PROJECT_PAGES, d
 
 
 def judge(samples: list[dict[str, Any]], total: int, *, resume: dict[str, Any] | None, down_minutes: float = 0.0,
-          leak_mb_per_hour: float = LEAK_MB_PER_HOUR, rss_bound_mb: float = RSS_BOUND_MB) -> dict[str, Any]:
+          leak_mb_per_hour: float = LEAK_MB_PER_HOUR, rss_bound_mb: float = RSS_BOUND_MB, stalled: bool = False) -> dict[str, Any]:
     reds = account_problems(samples, total)
+    if samples and samples[-1]["state"] in ("failed", "cancelled"):
+        reds.append(f"the run ended {samples[-1]['state']} with {samples[-1]['done']} of {total} pages done")
+    if stalled:
+        reds.append(f"no progress for {STALL_MINUTES:g} minutes: the run stopped moving at {samples[-1]['done']} of {total} pages "
+                    f"(state {samples[-1]['state']})")
     if resume and resume.get("problem"):
         reds.append(resume["problem"])
     slope = leak_slope_mb_per_hour(samples)
@@ -247,6 +253,7 @@ class Engine:
         raise RuntimeError(f"no recipe from {', '.join(RECIPE_PURPOSES)} has the step {', '.join(want)}")
 
     def prepare(self, images: list[Path], place: str, steps: str, batch: int = 100) -> None:
+        images = unique_uploads(images, self.root / "upload")
         self.cli("library", "create", str(self.library))
         self.cli("recipes", "put-places", "--places", "this-mac,cloud" if place == "google-dry" else "this-mac")
         for i in range(0, len(images), batch):
@@ -263,18 +270,43 @@ class Engine:
 # ── The soak ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 
+def unique_uploads(images: list[Path], dest: Path) -> list[Path]:
+    """Links in `dest` to the images, one name each: a name met again (the same file name in another folder) is
+    prefixed with its folder, then a counter, so the import never sees two files of one name."""
+    dest.mkdir(parents=True, exist_ok=True)
+    taken: set[str] = set()
+    out: list[Path] = []
+    for image in images:
+        name = image.name
+        if name in taken:
+            name = f"{image.parent.name}_{image.name}"
+        n = 1
+        while name in taken:
+            n += 1
+            name = f"{image.parent.name}_{n}_{image.name}"
+        taken.add(name)
+        (dest / name).symlink_to(image.resolve())
+        out.append(dest / name)
+    return out
+
+
 def soak(engine: Any, job_id: str, total: int, *, kill_at: int | None, every: float, hours: float,
          clock: Callable[[], float] = time.monotonic, sleep: Callable[[float], None] = time.sleep) -> dict[str, Any]:
     """Poll the run every `every` seconds; kill and restart the engine once `kill_at` pages are done. Returns samples, resume and down minutes."""
     t0, samples, resume, down = clock(), [], None, 0.0
-    killed = False
+    killed, stalled = False, False
+    best, moved_at = -1, clock()
     while True:
         minute = (clock() - t0) / 60
         s = reading(engine.status(job_id), minute=minute, rss_mb=engine.rss_mb(), swap_mb=parse_swap_mb(sh(["/usr/sbin/sysctl", "-n", "vm.swapusage"])),
                     previous=samples[-1] if samples else None)
         samples.append(s)
+        if s["done"] > best:
+            best, moved_at = s["done"], clock()
         if s["state"] in ENDED or minute > hours * 60:
-            return {"samples": samples, "resume": resume, "down_minutes": down}
+            return {"samples": samples, "resume": resume, "down_minutes": down, "stalled": False}
+        if (clock() - moved_at) / 60 >= STALL_MINUTES:
+            return {"samples": samples, "resume": resume, "down_minutes": down, "stalled": True}
         if kill_at is not None and not killed and s["done"] >= kill_at:
             killed, before, gone = True, s, clock()
             engine.kill()
@@ -283,6 +315,7 @@ def soak(engine: Any, job_id: str, total: int, *, kill_at: int | None, every: fl
             after = reading(engine.status(job_id), minute=(clock() - t0) / 60, rss_mb=engine.rss_mb(), swap_mb=None, previous=None)
             samples.append(after)
             resume = resume_check(before, after)
+            moved_at = clock()  # the minutes the engine was down are not a stall
         sleep(every)
 
 
@@ -317,7 +350,7 @@ def main(argv: list[str] | None = None) -> int:
                     raise RuntimeError(f"Start queued no run: {json.dumps(started)[:400]}")
                 got = soak(engine, job_id, len(images), kill_at=a.kill_at, every=a.every, hours=a.hours)
                 report = {"pages": len(images), "steps": a.steps, "place": a.place, "samples": got["samples"], "resume": got["resume"], "cost": None,
-                          "verdict": judge(got["samples"], len(images), resume=got["resume"], down_minutes=got["down_minutes"])}
+                          "verdict": judge(got["samples"], len(images), resume=got["resume"], down_minutes=got["down_minutes"], stalled=got["stalled"])}
         except RuntimeError as exc:
             print(f"soak could not run: {exc}", file=sys.stderr)
             return 2

@@ -224,3 +224,56 @@ def test_swap_is_read_with_sysctl_by_absolute_path(monkeypatch):
     monkeypatch.setattr(sr, "sh", lambda argv: seen.append(argv) or "")
     sr.soak(FakeEngine([100]), "job", 100, kill_at=None, every=0, hours=1, sleep=lambda _s: None)
     assert ["/usr/sbin/sysctl", "-n", "vm.swapusage"] in seen
+
+
+# ── runner-soak soak-3: a run that ends badly or stops moving ends the soak (#6732) ──────────────────────────
+
+
+def test_a_run_that_ends_failed_or_cancelled_is_red_whatever_its_pages():
+    for state in ("failed", "cancelled"):
+        v = sr.judge(_samples([10, 40], last_state=state), 100, resume=None)
+        assert not v["ok"] and any(state in r for r in v["reds"]), v
+
+
+class StuckEngine(FakeEngine):
+    """Pages done never move (a run paused or stalled): the soak must give up by itself."""
+
+    def status(self, _job):
+        return _status(40, self.total, state="paused")
+
+
+def test_no_progress_for_five_minutes_ends_the_soak_red_instead_of_polling_on(monkeypatch):
+    monkeypatch.setattr(sr, "sh", lambda _a: "")
+    now = [0.0]
+
+    def clock():
+        return now[0]
+
+    def sleep(seconds):
+        now[0] += seconds
+
+    got = sr.soak(StuckEngine([]), "job", 100, kill_at=None, every=60, hours=14, clock=clock, sleep=sleep)
+    assert got["samples"][-1]["minute"] <= 6.1, "the soak polled past five minutes of no progress"
+    v = sr.judge(got["samples"], 100, resume=None, stalled=got["stalled"])
+    assert got["stalled"] and not v["ok"] and any("no progress" in r for r in v["reds"]), v
+
+
+def test_a_run_that_keeps_moving_is_never_called_stalled(monkeypatch):
+    monkeypatch.setattr(sr, "sh", lambda _a: "")
+    now = [0.0]
+    got = sr.soak(FakeEngine(list(range(0, 100, 5)) + [100]), "job", 100, kill_at=None, every=240, hours=14,
+                  clock=lambda: now[0], sleep=lambda s: now.__setitem__(0, now[0] + s))
+    assert not got["stalled"]
+
+
+def test_files_with_the_same_name_from_different_folders_get_unique_upload_names(tmp_path):
+    pages = []
+    for rel in ("box1/001.png", "box2/001.png", "box2/002.png", "box1/sub/001.png"):
+        f = tmp_path / "src" / rel
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_bytes(rel.encode())
+        pages.append(f)
+    ups = sr.unique_uploads(pages, tmp_path / "up")
+    names = [u.name for u in ups]
+    assert len(set(names)) == 4 and "002.png" in names
+    assert [u.read_bytes() for u in ups] == [p.read_bytes() for p in pages]
