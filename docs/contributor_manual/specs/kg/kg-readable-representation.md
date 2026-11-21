@@ -8,7 +8,10 @@
 > **Scope boundary:** this specs HOW the readable representation is BUILT — a deterministic,
 > background, backend NLG pipeline over the existing KG. It is NOT the document inspector
 > (`kg-entity-inspector.md`), which is the display *interface*; that surface consumes what this
-> produces. Two hard constraints: (1) **NO LLM generation anywhere in the path** — rendering is
+> produces. **The pipeline itself, stage by stage, with its output shape, its date, place and
+> doubt rules, its evaluation set and its build order, is `kg-paragraph-realisation.md`
+> (2026-11-21, from the graph-to-text review); this spec keeps the rulings, the claim editor,
+> the source reveal and the Reader pane.** Two hard constraints: (1) **NO LLM generation anywhere in the path** — rendering is
 > 100% deterministic from stored claims (the current `narrative_v1` LLM prompt "makes it up" and
 > is the thing being replaced); (2) **any language**, not just Spanish/English.
 
@@ -339,7 +342,11 @@ often the wrong subject; not multilingual.
   re-centred ONLY when its verb has an INVERSE entry in that language's table; otherwise it keeps
   its TRUE subject — never a false sentence. No inverse-phrasing table exists anywhere yet (this
   is stage 4, `kg.read.lexicalisation` below) — until it does, re-centring MUST fall back to the
-  true subject, which is a smaller, immediate fix distinct from building the table.
+  true subject, which is a smaller, immediate fix distinct from building the table. Not built:
+  the full safety rule (a frame for the verb, nothing but a preposition before the name in the
+  object, a slot for anything after it, a form that agrees) is `kg.para.recentre-by-frame`
+  and `kg.para.frame-needs-agreement` (→ #NEW-10); measured 2026-11-21, 0 of 4 object
+  statements are re-centred today, 1 of 4 with frames and no gender held, 3 of 4 with it.
 - `kg.read.render-uses-claim-subject` — **[OK]** (b6052b42a, interim — the app's loop now states each claim's own subject via the same resolver the claim rows use; pinned by `EntityClickthroughTests.objectSideClaimRendersTrueSubject`, `EntityClickthroughTests.noSentenceContainsThePronoun`, `EntityClickthroughTests.emptySubjectClaimsAreSkipped`; the loop itself retires with the Reader rendition). Before the fix: (RENDER layer specifically, the largest and
   cheapest of three wrong-subject causes — fix first) `EntityDigestView.swift:663`'s ternary
   never reads the claim's own subject; `ClaimLine.swift:54` on the SAME screen gets it right
@@ -485,18 +492,29 @@ and tested, reachable from no screen.
   (`readable.py:46`) selects "any mention" (subject, object, or named) for an entity; splitting
   by ROLE (subject/object/mention, distinct sections) is new work tracked under the entry
   composer (`kg.read.biography` below), not this stage. Pinned: 4 tests in
-  `test_readable_representation.py` (content-determination suite).
+  `test_readable_representation.py` (content-determination suite). Not built: measured
+  2026-11-21, selection reads neither `curation_state`, `epistemic_status` nor
+  `merged_into_id`, so a statement a person rejected is printed as fact, and a mention-only
+  statement is narrated; see `kg.para.rejected-never-stated` and `kg.para.mentions-are-a-list`
+  (→ #NEW-1).
 - `kg.read.order.chronological` — **[PARTIAL] — engine-only** (#4648) as before, plus: confirmed
   built as a pure function and unit-pinned (`readable.py:89`, d8afa61e6, 1e6661b45, 6 tests);
   "unwired" is the SAME gap `kg.read.one-renderer` names, carried forward to the entry composer.
+  Not built: measured 2026-11-21, the date orders the sentences and is never printed (0 of 18
+  dated statements), and a bound sorts as if exact; see section C of
+  `kg-paragraph-realisation.md` (→ #NEW-3).
 - `kg.read.order.by-source` — **[PARTIAL] — engine-only** (#4648) same as chronological above.
-- `kg.read.aggregation-keeps-objects` — **[OK]** (#4649) `render_aggregation` lists every distinct
+- `kg.read.aggregation-keeps-objects` — **[PARTIAL]** (#4649, #4648, → #NEW-7) `render_aggregation` lists every distinct
   object and place, joined by the language's own conjunction, and never prints a bare count.
   Pinned by `test_readable_representation.py::test_realises_aggregated_objects_and_places_in_spanish`
   and `test_readable_representation.py::test_realises_aggregated_objects_and_places_in_english`
   (#4649 closed 2026-09-26; a bare test name is not a citation rule (d) can resolve). `render_aggregation` still returns a
   bare `str` by design: the claim ids travel on `Aggregation.claim_ids` and onto the composed
-  sentence (see `kg.read.every-sentence-sourced`).
+  sentence (see `kg.read.every-sentence-sourced`). Not built: measured 2026-11-21, the entry
+  path (`render_entry`, the only caller a route has) does not call `render_aggregation`; its own
+  `_render_group_sentence` keeps the objects and drops every place and every date, and joins
+  same-verb statements from anywhere in the list. The rules are now
+  `kg.para.run-is-neighbours` and `kg.para.run-keeps-each-date` (`kg-paragraph-realisation.md`).
 - `kg.read.every-sentence-sourced` — **[OK]** (#4840 closed 2026-09-26) every rendered sentence carries
   at least one claim id through to the click target, and provenance now survives aggregation:
   `Aggregation.claim_ids` (`readable.py:123`) keeps every contributing claim, in order, so a
@@ -514,18 +532,25 @@ and tested, reachable from no screen.
   date ("1933-01-31T13:30 Left in a plane") is rendered truthfully as stored, so the fault is in
   extraction or storage, not here; and the engine composer is not the only renderer of the
   entity card's biography (`kg.read.one-renderer`), so whether this fix reaches the card the
-  maintainer saw is unverified.
+  maintainer saw is unverified. Not built: measured 2026-11-21, the route's own path
+  (`render_entry`) does not pass through `render_aggregation`, so it still prints the doubled
+  word, and makes no Spanish contraction ("de el"); see `kg.para.seams` (→ #NEW-8).
 - `kg.read.referring-expressions` — **[PARTIAL] — engine-only, and orphaned** (#4651)
   `referring_expression` (`readable.py:144`) is BUILT (a surname heuristic: "Asprilla", "Cruz"
   for "María de la Cruz") but stage 6 (`render_aggregation`/realisation) NEVER CALLS it
   (`:185` on). The app's live renderer doesn't use referring expressions either — it uses
-  literal "they".
+  literal "they". Not built: measured 2026-11-21, the full name is printed in 17 of 18
+  sentences; and the last-word rule gives the wrong surname for a name with two. The rules are
+  now `kg.para.name-once` and `kg.para.short-name-is-attested` (→ #NEW-9).
 - `kg.read.lexicalisation` — **[MISSING]** (#4650) stage 4 — an (event-type, role) pair → a verb
   phrase in the claim's language, via a per-language table including the INVERSE map
   (`kg.read.recentred-on-page-entity` depends on this) and notarial first→third-person formulas.
   Not started (`readable.py:20-21` says so in its own docstring). **The per-language `inverse`
   map is seeded from verbs that actually occur most frequently in the maintainer's own
   libraries — a read-only frequency count through the running app, not an invented verb list.**
+  Not built: the table as one data file per language is `kg.para.table-is-data` (→ #NEW-8);
+  the inverse entry is a frame with a slot for the rest of the object and forms per gender,
+  `kg.para.recentre-by-frame` and `kg.para.frame-needs-agreement` (→ #NEW-10).
 - `kg.read.biography` — **[PARTIAL] — the read route now exists** (#4750, cc2da29ae) the entry
   composer has a real, tested read endpoint: `GET /api/kg/entities/{id}/readable` returns
   `{entity_id, paragraph, sentences[]}`, each sentence carrying its text, offsets into the
@@ -552,7 +577,9 @@ and tested, reachable from no screen.
   always the linked sources. **Today's app shows a bare "×N"**
   (`EntityDigestView.swift:407-412`) — the exact device the 2026-09-12 ruling says misleads (a
   bare number reads as an invented score); words ("three sources agree") are the fix, not a
-  redesign.
+  redesign. Not built: the ordered rules (a person's decision, a dispute, sources in words, a
+  single unsure source, no hedge from an unmeasured figure) are section E of
+  `kg-paragraph-realisation.md` (→ #NEW-5).
 - `kg.read.clean-triples-before-render` — **[GAP]** (#3808) as before, the raw SVO/KVO triples a
   representation reads from are noisy — repeated near-duplicate labels for the same
   entity/predicate, ungrouped multi-participant events. **Partly already mitigated**: dedup and
@@ -586,7 +613,8 @@ and tested, reachable from no screen.
   asserted: (i) a click always shows the VERBATIM source passage, highlighted; (ii) the claim
   panel shows the stored subject/verb/object exactly as extracted, beside the rendered sentence,
   so a re-voicing can be inspected against its source; (iii) a vocabulary-closure test asserts
-  every word in a rendered sentence comes from one of the three sources above. None of the three
+  every word in a rendered sentence comes from one of the three sources above (its exact form,
+  per character and per segment, is `kg.para.every-character-has-an-origin`, → #NEW-2). None of the three
   exist yet.
 - `kg.read.cite-to-segment` — **[PARTIAL]** (#4652, → #974) a citation resolves not just to a
   document/page but to the **page SEGMENT** (the bbox/region the claim was extracted from).
@@ -640,6 +668,10 @@ and tested, reachable from no screen.
   slow, not pre-emptively.
 
 ## Build: the Reiter & Dale NLG pipeline (six small, testable Python stages)
+
+**2026-11-21:** the buildable form of this section (seven stages, the route's output, the
+behaviours with their tests, the evaluation set and the builder steps) is
+`kg-paragraph-realisation.md`. What follows is kept as the record of the first design.
 
 The classic NLG pipeline decomposes into six stages, and **each is a small pure function with its
 own unit test** — which is exactly why this whole feature is headless-testable:
@@ -905,6 +937,11 @@ visible payoff.
   instead.
 
 ## Open questions
+
+Seven further questions from the graph-to-text review of 2026-11-21 (a model for smoothness;
+one passage, one sentence; where a statement that keeps its true subject sits; the date
+normalised or as written; gender for agreement; two languages in one paragraph; who writes the
+inverse frames) are in `kg-paragraph-realisation.md`, "Open questions for the owner".
 
 Copied from the Fabel review's design questions (section 7) with its recommendations. The
 manager is proceeding on each recommendation unless the creative director says otherwise, with

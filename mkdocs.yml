@@ -460,6 +460,7 @@ nav:
               - Project Gazetteer & Canonical Names: contributor_manual/specs/kg/project-gazetteer-and-names.md
               - KG Entity Inspector: contributor_manual/specs/kg/kg-entity-inspector.md
               - KG Interactions & Standards: contributor_manual/specs/kg/kg-interactions.md
+              - KG Paragraph Realisation (draft): contributor_manual/specs/kg/kg-paragraph-realisation.md
               - KG Readable Representation: contributor_manual/specs/kg/kg-readable-representation.md
               - KG Rendering: contributor_manual/specs/kg/kg-rendering.md
               - KG Tables: contributor_manual/specs/kg/kg-tables.md
