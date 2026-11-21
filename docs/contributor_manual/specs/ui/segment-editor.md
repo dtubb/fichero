@@ -1015,7 +1015,10 @@ The umbrella's speed trial (slice 12) is the gate and is not restated. This file
   sequence follow the line's resolved direction: "before the cut" is the right part of a
   right-to-left line and the upper part of a vertical one (`estimated_cut` already does this
   for the proportional case). *Built (2026-11-13):* the knife (`test_segment_split_knife.py`, rtl and
-  vertical). *Not built:* the word cut and the order sequence.
+  vertical). *Built 2026-11-21:* the word cut from the ink (an rtl line's first word is its right-hand piece, a
+  vertical line's its top piece) and the order sequence (`segment.cut_words` puts a line's new words in the reading
+  order in the sequence they are read; `test_segment_cut_words.py::TestDirections`). *Not built:* the word cut from
+  positions on an rtl line (it takes the ink instead).
 
 ## 7.2 — Does Fichero keep Kraken's per-character positions today?
 
