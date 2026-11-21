@@ -6167,16 +6167,19 @@ class Database(DatabaseEmbeddingMixin):
         return list(vector) if vector is not None else None
 
     def search_vectors(
-        self, table_name: str, query_vector: list[float], limit: int = 10
+        self, table_name: str, query_vector: list[float], limit: int = 10, *, where: str | None = None
     ) -> list[dict]:
-        """Search LanceDB table by vector similarity."""
+        """Search LanceDB table by vector similarity. `where` keeps only the rows it matches before the nearest `limit`
+        are taken."""
         if table_name not in self._lance_tables():
             return []
 
         table = self.lance.open_table(table_name)
         self.assert_vector_table_model_compatible(table_name)
-        results = table.search(query_vector).limit(limit).to_list()
-        return results
+        query = table.search(query_vector)
+        if where:
+            query = query.where(where, prefilter=True)
+        return query.limit(limit).to_list()
 
     # =========================================================================
     # Embedding Convenience Methods
@@ -6955,6 +6958,43 @@ class Database(DatabaseEmbeddingMixin):
             boosted.update(claim.source_ids or [])
         return boosted
 
+    def _search_scope(self, filters: dict | None) -> tuple[str | None, set[str] | None]:
+        """The search's scope as a Lance `where` on the passage rows and the page ids it allows (None: any page), so the
+        scope is applied before the candidates are cut (#6781): the folder and everything under it, the written-date
+        range (a page with no written date is outside any range), and the doc and file type.
+
+        ponytail: the folder and date scopes are an id list in the `where`; past tens of thousands of pages in one scope,
+        store the folder path and written date on the passage rows and filter on those columns instead."""
+        filters = filters or {}
+        ids: set[str] | None = None
+        if filters.get("folder_id"):
+            ids = self._collect_folder_descendants(str(filters["folder_id"]))
+        if "date_jdn_from" in filters or "date_jdn_to" in filters:
+            rows = self._execute(
+                """
+                SELECT id FROM documents
+                WHERE date_jdn IS NOT NULL
+                  AND ($from IS NULL OR coalesce(date_jdn_end, date_jdn) >= $from)
+                  AND ($to IS NULL OR date_jdn <= $to)
+                """,
+                {
+                    "from": int(filters["date_jdn_from"]) if "date_jdn_from" in filters else None,
+                    "to": int(filters["date_jdn_to"]) if "date_jdn_to" in filters else None,
+                },
+                fetch="all",
+            )
+            dated = {row[0] for row in rows}
+            ids = dated if ids is None else ids & dated
+        clauses = []
+        if ids is not None:
+            quoted = ", ".join("'" + str(i).replace("'", "''") + "'" for i in sorted(ids))
+            clauses.append(f"document_id IN ({quoted})" if quoted else "false")
+        for column in ("doc_type", "file_type"):
+            if column in filters:
+                value = str(getattr(filters[column], "value", filters[column]))
+                clauses.append(f"{column} = '" + value.replace("'", "''") + "'")
+        return (" AND ".join(clauses) or None), ids
+
     def search(
         self,
         query: str,
@@ -7020,6 +7060,7 @@ class Database(DatabaseEmbeddingMixin):
         }
 
         try:
+            scope_where, scope_ids = self._search_scope(filters)
             # Initialize results storage
             semantic_results = []
             fulltext_results = []
@@ -7047,6 +7088,7 @@ class Database(DatabaseEmbeddingMixin):
                         EMBEDDINGS_TABLE,
                         query_vector,
                         max(limit * 4, offset + limit * 2),
+                        where=scope_where,
                     )
 
                     # Convert to SearchResult, filter by score
@@ -7140,8 +7182,11 @@ class Database(DatabaseEmbeddingMixin):
                         candidate_limit = max(limit * 4, offset + limit * 2)
                         raw_fulltext_hits: list[dict] = []
                         if not use_fuzzy_match:
+                            fts_query = table.search(query, query_type="fts", fts_columns="text")
+                            if scope_where:
+                                fts_query = fts_query.where(scope_where, prefilter=True)
                             raw_fulltext_hits = (
-                                table.search(query, query_type="fts", fts_columns="text")
+                                fts_query
                                 .select(
                                     self._lance_select_existing_fields(
                                         table,
@@ -7205,6 +7250,8 @@ class Database(DatabaseEmbeddingMixin):
                             # ponytail: fuzzy matching and zero-hit accent edge cases still
                             # use the old corpus scan until we can index folded text.
                             all_docs = table.to_pandas()
+                            if scope_ids is not None:
+                                all_docs = all_docs[all_docs["document_id"].isin(scope_ids)]
                             normalised_text = all_docs["text"].astype(str).map(_fold_for_search)
                             mask = (
                                 _fuzzy_contains_any_term(normalised_text, folded_terms)
@@ -7322,6 +7369,7 @@ class Database(DatabaseEmbeddingMixin):
                     uncovered_ids = [
                         row[0] for row in candidate_id_rows
                         if row[0] not in embedded_doc_ids
+                        and (scope_ids is None or row[0] in scope_ids)
                     ]
 
                     if uncovered_ids:
