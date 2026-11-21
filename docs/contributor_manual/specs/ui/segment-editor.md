@@ -383,11 +383,11 @@ targets are at least 44 pt.
   message on the page. The tool row calls it **Line Brush** ("paint along a line of writing to make a line") and the Brush
   **Select Brush** ("brush over segments to select them").
 
-- `segment-editor.one-tool` — **[BUILT]** (#6734, owner 2026-11-19) the tool row is one choice: exactly one tool is active
+- `segment-editor.one-tool` — **[OK]** (#6734, owner 2026-11-19) the tool row is one choice: exactly one tool is active
   and shown. The Knife, Marker, Order, Select Brush and Line Brush leave Select empty while chosen (`chooseSegmentTool`);
   choosing another tool, its key, Return (Order) or Esc moves the choice, and putting a tool down returns to Select.
   Every refused or failed tool edit says why on the page. *Tests:*
-  `fichero/Tests/Unit/general/Views/Source/SegmentToolChoiceTests.swift`.
+  `fichero/Tests/Unit/general/Views/Preview/SegmentToolChoiceTests.swift`.
 
 ### Lines and baselines
 
