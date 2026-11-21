@@ -465,6 +465,7 @@ nav:
               - KG Rendering: contributor_manual/specs/kg/kg-rendering.md
               - KG Tables: contributor_manual/specs/kg/kg-tables.md
               - KG Store & Query (draft): contributor_manual/specs/kg/kg-store-and-query.md
+              - Reconstruct the Record (cross-archive check set and graph, DRAFT): contributor_manual/specs/kg/reconstruct-the-record.md
           - Source:
               - Source Model (foundation): contributor_manual/specs/source/source-model.md
               - Survey of the Field: contributor_manual/specs/source/source-survey.md
@@ -481,6 +482,7 @@ nav:
               - Maps & Georeference: contributor_manual/specs/source/maps-and-georeference.md
               - Models, Chains & Projects: contributor_manual/specs/source/models-chains-and-projects.md
               - Readers (kinds, the reader a script gets, what is measured, DRAFT): contributor_manual/specs/source/readers.md
+              - Read Any Hand (blind benchmark, calibration, DRAFT): contributor_manual/specs/source/read-any-hand.md
               - Recipe Designer: contributor_manual/specs/source/recipe-designer.md
               - Checking a Layer's Proposals: contributor_manual/specs/source/checking.md
               - Panes (what each pane shows): contributor_manual/specs/source/panes.md
@@ -550,6 +552,7 @@ nav:
               - Reviewing Names & Statements (draft): contributor_manual/specs/ui/review-names-and-statements.md
               - Reading Markup & Annotations: contributor_manual/specs/ui/reading-markup-annotations.md
               - Research: contributor_manual/specs/ui/research.md
+              - Research Operations (steps, brief, adapters, drivers, DRAFT): contributor_manual/specs/ui/research-operations.md
               - Search: contributor_manual/specs/ui/search.md
               - Sidebar CRUD: contributor_manual/specs/ui/sidebar-crud.md
               - Undo Everywhere: contributor_manual/specs/ui/undo-everywhere.md
