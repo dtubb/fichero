@@ -473,7 +473,7 @@ Spec-change: owner 2026-11-20.
   the same lane, each with its own tests. Today `check_tool.diff_bound` only refuses with the count. Acceptance: a
   batch of two commits whose sum is over the bound becomes two steps that each pass the bound; one commit over the
   bound alone is a question for the manager, never a silent pass. Serves: reliable, with little supervision.
-- `local.removed-tree-is-not-a-moved-tree` [BUILT] (#6589) — the check that no tree outside a step's own moved reads a tree
+- `local.removed-tree-is-not-a-moved-tree` [OK] (#6589) — the check that no tree outside a step's own moved reads a tree
   that was removed since the step started (a landed lane's cleanup) as removed, and says nothing: `queue.tree_check` skips
   a path that no longer exists, and a landed lane's tree is not snapshotted (test
   `fichero-builder/tests/test_loop.py::test_a_step_that_moves_another_lanes_tree_or_the_jail_root_alerts`). Acceptance: a tree
