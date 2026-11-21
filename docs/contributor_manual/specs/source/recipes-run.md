@@ -775,12 +775,14 @@ The behaviours this adds:
   union over its steps. Measured before the fix: Find Lines read "3 pages, 75.5 s" for 5 pages and 44 s of work
   around a 31 s pause; after a kill, "1 page, 22.1 s" for 5 pages; the run's `seconds` read 177.6 and 275.3
   against 208 and 317 s of running.
-- `recipes-run.timing.every-step-timed` — **[PARTIAL]** (#6215, #6809) every step that ran carries `timing`,
+- `recipes-run.timing.every-step-timed` — **[OK]** (#6215, #6809;
+  `fichero-server/tests/unit/recipes/test_step_timings_across_a_pause.py`) every step that ran carries `timing`,
   Leave Out and Make vectors for search included, and the row says its pages while it runs. Measured: Search took
   25 to 394 s with no `timing` and the row words "Running step make-a-vector: 0 of 1 folder done" throughout
-  (a step id, which `recipes-run.journey.progress-in-words` forbids, #6091). Built: Search is timed by its embed
-  jobs (`embed_jobs` on the step; `fichero-server/tests/unit/recipes/test_step_timings_across_a_pause.py`). Not yet:
-  Leave Out has no job and no `timing`, and the Search row's words.
+  (a step id, which `recipes-run.journey.progress-in-words` forbids, #6091). Code: Search is timed by its embed
+  jobs (`embed_jobs` on the step) and `recipes/runner.py` `_run_embed` says "Making vectors for search: 2 of 3
+  pages" on the run's row; Leave Out, which makes no job, keeps each run on the step (`spans`, from
+  `recipes/leave_out.py` `run_step`) and `recipes/run_view.py` `_timings` times it from them.
 - `recipes-run.timing.plan-says-time-from-measured-pages` — **[GAP]** (#4951, #6052, #6810) Start's plan says
   how long each step will take on these pages once this Mac has finished pages of that step's model
   (`estimate.runs[].seconds`, with its basis), and the run keeps that figure beside what it measured
@@ -972,7 +974,7 @@ together, `recipes-run.memory.one-heavy-model-in-sequence`); this step rewrites 
 
 #### Step 5.3 — Timings a person can multiply: the page's job, the whole step, every step (#6809, #6215)
 - Behaviours: `recipes-run.timing.page-time-is-the-page-job`, `recipes-run.timing.survives-pause-and-restart`, `recipes-run.timing.every-step-timed`
-- Tests: fichero-server/tests/unit/recipes/test_step_timings_recorded.py, test_step_timings_across_a_pause.py (not yet written)
+- Tests: fichero-server/tests/unit/recipes/test_step_timings_recorded.py, test_step_timings_across_a_pause.py
 - Depends on: 3.2
 - Size: M
 
