@@ -433,15 +433,19 @@ The two indexes are fast; nearly all of the time is what is done around them.
   the engine being killed. Should: the scan never reads vectors, and the cases it serves move into the
   index (`search.match.same-with-or-without-other-hits`). Test to write:
   test_zero_hit_query_reads_no_vectors.py in `fichero-server/tests/unit/search/`.
-- `search.scope.narrows-before-ranking` — **[BROKEN]** (#4236, → #6781) a search in This Folder ranks
-  the whole project, keeps the best 200 passages, and only then drops what is outside the folder. A
+- `search.scope.narrows-before-ranking` — **[PARTIAL]** (#4236, → #6781) a search in This Folder ranked
+  the whole project, kept the best 200 passages, and only then dropped what is outside the folder. A
   folder of 50 pages that all hold the word returned 30 to 43 of them in a 300-page project, 3 in a
   20,000-page one, and none at 5,000 and 50,000 pages: the header says 0 results for a word the folder is
-  full of. Date and type filters are applied the same way. Should: the scope (folder and its subfolders,
+  full of. Date and type filters were applied the same way. Should: the scope (folder and its subfolders,
   one document, one page, a selection, a date range) is given to both indexes as a filter, so a scoped
   search searches only the scope and its count is the scope's count. This is also the engine half of the
-  Page, Document and Selection scopes of `search.scope-menu`. Test to write:
-  test_scoped_search_finds_everything_in_scope.py in `fichero-server/tests/unit/search/`.
+  Page, Document and Selection scopes of `search.scope-menu`. Built: `Database._search_scope` turns the
+  folder and everything under it, the written-date range (`date_jdn_from`, `date_jdn_to`) and the doc
+  and file type into a `where` that both the vector and the full-text leg apply before the candidate
+  cut; pinned: `fichero-server/tests/unit/search/test_scoped_search_finds_everything_in_scope.py`. Not
+  built: the Page, Document and Selection scopes; the created-date filter (`date_from`, `date_to`) is
+  still applied after the cut, since passage rows carry no created date.
 - `search.results.one-row-per-page` — **[BROKEN]** (#4604, → #6784) Full Text returns a page once for
   each passage that matched (hybrid and semantic keep one). Measured: 9 repeats in 22 rows at 50,000
   pages; on real text one page three times in the first three rows. Should: one row a page, carrying its
