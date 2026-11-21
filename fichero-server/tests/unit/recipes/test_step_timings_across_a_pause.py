@@ -128,3 +128,19 @@ def test_the_search_row_says_its_pages_in_words(db, monkeypatch):
     assert said == ["Making vectors for search: 2 of 3 pages"]
     assert runner.doing_words({"job": "make-a-vector", "card": "embed"}) == "Making vectors for search"
 
+
+def test_leave_out_is_timed(db, monkeypatch, no_account):
+    """Leave Out makes no job: its run on each batch is kept on the step (`spans`), and timed from it."""
+    from fichero_server.recipes import leave_out
+
+    clock = iter([T0, T0 + timedelta(seconds=4)])
+    monkeypatch.setattr(leave_out, "utc_now", lambda: next(clock))
+    monkeypatch.setattr(leave_out, "leave_out_pages", lambda *_a, **_k: {"pages": 2})
+    scratch: dict = {}
+    assert leave_out.run_step(db, ["a", "b"], "run", scratch) == (None, "done", None)
+    spans = scratch["spans"] + [[(T0 + timedelta(seconds=30)).isoformat(), (T0 + timedelta(seconds=32)).isoformat(), 2]]
+    out = asyncio.run(run_view.with_accounts(db, _status([
+        {"steps": ["leave-out"], "card": "leave-out", "state": "done", "child_id": None, "spans": spans}])))
+    t = out["steps"][0]["timing"]
+    assert (t.pages_done, t.seconds, t.seconds_per_page) == (4, 6.0, 1.5)
+    assert out["seconds"] == 6.0

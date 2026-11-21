@@ -181,10 +181,22 @@ def step_timing(started: Optional[datetime], ended: Optional[datetime], work: li
     return timing, spans
 
 
+def _kept_timing(kept: list[list[Any]]) -> tuple[StepTiming, list[tuple[datetime, datetime]]]:
+    """A step with no job (Leave Out) timed from the runs it kept on the step (`spans`: [started, ended, pages]); each
+    run's time is shared over its pages."""
+    from fichero_server.core.timeutil import ensure_utc
+
+    spans = [(ensure_utc(datetime.fromisoformat(a)), ensure_utc(datetime.fromisoformat(b))) for a, b, _n in kept]
+    pages = [(b - a).total_seconds() / n for (a, b), (_a, _b, n) in zip(spans, kept) for _ in range(n)]
+    return StepTiming(started_at=min(a for a, _b in spans), ended_at=max(b for _a, b in spans),
+                      seconds=round(_union_seconds(spans), 1), pages_done=len(pages),
+                      seconds_per_page=round(statistics.median(pages), 1) if pages else None), spans
+
+
 def _timings(db: Any, status: dict[str, Any]) -> tuple[Optional[float], dict[int, StepTiming]]:
     """The run's seconds and each step's timing, by the step's place in the run, from the rows: each batch's job and the
     page jobs under it (`recipes-run.timing.page-time-is-the-page-job`, `survives-pause-and-restart`, #6809); Search, from
-    its embed jobs (`embed_jobs`). The run's seconds: the time any of its steps ran. Bookkeeping: a library that cannot be
+    its embed jobs (`embed_jobs`); Leave Out, from the runs it kept (`spans`). The run's seconds: the time any of its steps ran. Bookkeeping: a library that cannot be
     read gives none, never a failed status."""
     from fichero_server.core.timeutil import utc_now
     from fichero_server.execution import jobs
@@ -203,6 +215,9 @@ def _timings(db: Any, status: dict[str, Any]) -> tuple[Optional[float], dict[int
         for i, roots in roots_of.items():
             timed = [b for b in roots if b["child_id"] in times]
             if not timed:
+                if kept := status["steps"][i].get("spans"):  # a step with no job: the runs it kept (Leave Out)
+                    out[i], spans = _kept_timing(kept)
+                    run_spans += spans
                 continue
             starts = [times[b["child_id"]][0] for b in timed if times[b["child_id"]][0] is not None]
             ends = [times[b["child_id"]][1] for b in timed]
