@@ -47,6 +47,9 @@ def test_the_lock_keeps_one_cv2_and_no_linux_gpu_package():
     # Ultralytics declares opencv-python (a second cv2 beside the engine's headless build) and nvidia-ml-py (Linux GPUs):
     # the bundle installs it --no-deps for that reason, and the lock leaves both out the same way.
     packages = _lock_packages()
+    assert "ultralytics" in packages, "uv.lock has no ultralytics: run `uv lock` in fichero-server"
+    ultralytics_deps = {d["name"] for d in packages["ultralytics"].get("dependencies", [])}
+    assert not ultralytics_deps & {"opencv-python", "nvidia-ml-py"}
     assert "opencv-python" not in packages
     assert "nvidia-ml-py" not in packages
     assert "opencv-python-headless" in packages

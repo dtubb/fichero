@@ -40,6 +40,7 @@ def test_the_stock_model_finds_regions_on_a_real_page(tmp_path, monkeypatch):
 
     regions = yolo_runtime.detect_regions(PAGE)
 
+    assert yolo_runtime._DEVICES[yolo_runtime.DEFAULT_MODEL] in {"mps", "cpu"}  # the device it measured (#5370)
     assert regions, "the stock model found no region on a printed text page"
     labels = set(yolo_runtime._LOADED[yolo_runtime.DEFAULT_MODEL].names.values())  # DocLayNet's: Text, Title, ...
     for r in regions:
