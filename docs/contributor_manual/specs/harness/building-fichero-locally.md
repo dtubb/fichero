@@ -475,8 +475,10 @@ Spec-change: owner 2026-11-20.
   bound alone is a question for the manager, never a silent pass. Serves: reliable, with little supervision.
 - `local.removed-tree-is-not-a-moved-tree` [OK] (#6589) — the check that no tree outside a step's own moved reads a tree
   that was removed since the step started (a landed lane's cleanup) as removed, and says nothing: `queue.tree_check` skips
-  a path that no longer exists, and a landed lane's tree is not snapshotted (test
-  `fichero-builder/tests/test_loop.py::test_a_step_that_moves_another_lanes_tree_or_the_jail_root_alerts`). Acceptance: a tree
+  a path that no longer exists, and a landed lane's tree is not snapshotted (tests
+  `fichero-builder/tests/test_loop.py::test_a_tree_removed_during_the_step_did_not_move_by_a_stray_write` and
+  `fichero-builder/tests/test_loop.py::test_a_landed_lanes_worktree_is_not_in_the_snapshot_list`; a tree that changed
+  still alerts in `fichero-builder/tests/test_loop.py::test_a_step_that_moves_another_lanes_tree_or_the_jail_root_alerts`). Acceptance: a tree
   snapped at the start and removed by `dev-workflows.run.loop-cleanup` raises no alert; a tree whose head or status
   changed still does. Serves: reliable.
 - `local.dismiss-never-parks-in-flight` [PARTIAL] (#6589) — dismissing an alert never parks a step that is being worked
