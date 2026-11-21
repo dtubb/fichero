@@ -378,7 +378,7 @@ read of the calling loop before it can be called fully resolved.
   (`search.embedding-model-only-while-needed`). Measured: the first semantic search after a release took
   7.5 s on the M1, later ones 0.1 to 0.3 s on 18 pages.
 - `search.scale.passages-end-cleanly` — **[PARTIAL]** (#1833, → #6780) a page whose text ends in a space
-  or a line break was cut into its real passages and then about 70 more, each one character shorter than
+  or a line break is cut into its real passages and then about 70 more, each one character shorter than
   the last (80, 79, 78 … characters of the page's tail): the cutter steps one character at a time once
   the remaining text is all inside the overlap. Measured on real diary pages of about 1,000 characters:
   67 to 73 rows a page where 3 are right; 786 of the 861 rows of the 18-page project were such tails.
@@ -386,7 +386,9 @@ read of the calling loop before it can be called fully resolved.
   took 6 s), twenty times the disk and scan, repeated rows for one page in full-text results, and tail
   scraps at the top of semantic results (a three-letter query scored 0.91 against a scrap). Should: a
   page's passages never number more than its length divided by the step, plus one; the tail is one
-  passage. Built: the cutter leaves trailing whitespace out of the length, so a page is cut into the
+  passage. Test to write: test_passages_of_text_ending_in_whitespace.py in
+  `fichero-server/tests/unit/db/`; and a one-time re-embed of pages whose row count is over the bound.
+  Built: the cutter leaves trailing whitespace out of the length, so a page is cut into the
   same passages with or without it; pinned:
   `fichero-server/tests/unit/db/test_passages_of_text_ending_in_whitespace.py`. Rows already written:
   `Database.tail_passage_scan` counts the pages and tail rows without writing, and
@@ -433,14 +435,16 @@ The two indexes are fast; nearly all of the time is what is done around them.
   the engine being killed. Should: the scan never reads vectors, and the cases it serves move into the
   index (`search.match.same-with-or-without-other-hits`). Test to write:
   test_zero_hit_query_reads_no_vectors.py in `fichero-server/tests/unit/search/`.
-- `search.scope.narrows-before-ranking` — **[PARTIAL]** (#4236, → #6781) a search in This Folder ranked
-  the whole project, kept the best 200 passages, and only then dropped what is outside the folder. A
+- `search.scope.narrows-before-ranking` — **[PARTIAL]** (#4236, → #6781) a search in This Folder ranks
+  the whole project, keeps the best 200 passages, and only then drops what is outside the folder. A
   folder of 50 pages that all hold the word returned 30 to 43 of them in a 300-page project, 3 in a
   20,000-page one, and none at 5,000 and 50,000 pages: the header says 0 results for a word the folder is
-  full of. Date and type filters were applied the same way. Should: the scope (folder and its subfolders,
+  full of. Date and type filters are applied the same way. Should: the scope (folder and its subfolders,
   one document, one page, a selection, a date range) is given to both indexes as a filter, so a scoped
   search searches only the scope and its count is the scope's count. This is also the engine half of the
-  Page, Document and Selection scopes of `search.scope-menu`. Built: `Database._search_scope` turns the
+  Page, Document and Selection scopes of `search.scope-menu`. Test to write:
+  test_scoped_search_finds_everything_in_scope.py in `fichero-server/tests/unit/search/`.
+  Built: `Database._search_scope` turns the
   folder and everything under it, the written-date range (`date_jdn_from`, `date_jdn_to`) and the doc
   and file type into a `where` that both the vector and the full-text leg apply before the candidate
   cut; pinned: `fichero-server/tests/unit/search/test_scoped_search_finds_everything_in_scope.py`. Not
