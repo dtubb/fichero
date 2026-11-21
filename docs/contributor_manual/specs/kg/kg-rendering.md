@@ -243,7 +243,7 @@ Three rules follow, and most of what is wrong today breaks one of them.
   visible node only, and there is no history (`KGFocusState`).
 - `kg.render.structured-query-is-for-experts` — **[OK]** the SPARQL console is its own window
   under the Project menu (`PageAndProjectMenuCommands.swift`, `SPARQLConsoleView.swift`). It is
-  the expert's way, not the reader's.
+  the expert's way, not the reader's. Tests: `fichero/Tests/Unit/general/App/MenuTerminologyBoundaryTests.swift`::testProjectMenuDeclaresTheStageSectionsInRecipeOrder.
 
 ### F. Asking, and citations in answers
 
