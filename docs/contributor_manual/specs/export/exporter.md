@@ -187,9 +187,9 @@ seven ground-truth files imported, the free name-finder run on one page: 17 name
 21 mentions). The six emitters ran in 60 to 250 ms each over 68 documents. The page formats
 (ALTO, PAGE XML, TEI) and their round trips are measured in
 `../source/formats-and-training.md` ("Measured on a library"); IIIF in `../source/iiif.md`.
-`→ #NEW-n` marks an issue the manager is asked to file.
+`→ #N` names the issue that tracks the fix (milestone export-roundtrip).
 
-- `export.statements-say-what-made-them` — **[PARTIAL]** (#5603, → #NEW-7) every exported name and statement
+- `export.statements-say-what-made-them` — **[PARTIAL]** (#5603, → #6805) every exported name and statement
   says what made it (provider and model, or the person), where it stands (page, line, character
   span), how sure, and whether a person has reviewed it. **Built:** the record stream's claim
   record carries `provider`, `model`, the page-text span, the line and reading when it has one,

@@ -358,7 +358,7 @@ Rules for every format
   `::test_a_format_with_a_schema_has_a_third_party_file_to_export` and
   `::test_every_real_file_re_exports_valid`. To show the guard is not vacuous, both cases were
   shown firing against a throwaway format with no schema and one with a schema but no real file.
-- `source.format.loss-report` — **[PARTIAL]** (#4943, → #NEW-2; pinned by `tests/unit/formats/test_pagexml_round_trip.py::TestTheLossesAreDeclaredNotDiscovered::test_several_readings_survive_but_WHICH_ONE_COUNTS_is_reported_lost`) every export states what it could not carry.
+- `source.format.loss-report` — **[PARTIAL]** (#4943, → #6800; pinned by `tests/unit/formats/test_pagexml_round_trip.py::TestTheLossesAreDeclaredNotDiscovered::test_several_readings_survive_but_WHICH_ONE_COUNTS_is_reported_lost`) every export states what it could not carry.
   **Measured 2026-11-20 on a library page (see "Measured on a library" below): five things leave
   no trace in the report.** ALTO drops every outline (`formats/alto.py::write` writes
   `HPOS`/`VPOS`/`WIDTH`/`HEIGHT` and never a `Shape`) and every editorial fact; PAGE XML and ALTO
@@ -382,7 +382,7 @@ what the loss report named), one for each format that goes both ways:
   A later reader should not conclude that PAGE XML carries everything. Pinned by
   `tests/unit/formats/test_pagexml_round_trip.py` (11 tests) and, against a file another tool wrote,
   `test_pagexml_real_file.py::TestWritingItBackDeclaresWhatItLost::test_the_losses_are_the_ones_we_declared_and_nothing_silent`.
-- `source.format.round-trip-alto` — **[PARTIAL]** (#4943, → #NEW-1) the ALTO round trip holds, now that the xlink
+- `source.format.round-trip-alto` — **[PARTIAL]** (#4943, → #6799) the ALTO round trip holds, now that the xlink
   schema ALTO imports is vendored (#5082). Structure, nesting, words, their text, a BCP 47 language
   and boxes to a pixel of the declared page; script, direction and alternative readings are named by
   the writer and subtracted, because ALTO carries geometry and text and little else. Pinned by
@@ -445,14 +445,14 @@ imported into a fresh page and exported again. What held: **51 of 51 exports are
 published schemas** (the vendored ALTO, PAGE and xlink files are the published ones, byte for byte
 bar line endings); reading order, baselines, nesting, text, `&` and `<` survive; the same page
 exported twice is the same bytes; `tests/unit/formats` and `tests/unit/export` are 531 passed, 5
-skipped. What did not hold is the lines below. `→ #NEW-n` marks an issue the manager is asked to
-file.
-- `source.format.alto-out-outlines` — **[GAP]** (#4943, → #NEW-1) an ALTO export writes a
+skipped. What did not hold is the lines below. `→ #N` names the issue that tracks the fix
+(milestone export-roundtrip).
+- `source.format.alto-out-outlines` — **[GAP]** (#4943, → #6799) an ALTO export writes a
   segment's outline as `Shape/Polygon` when it has one, on blocks, lines and strings, beside the
   box ALTO requires; a re-import reads the same points back. Today the writer writes boxes only
   (0 `Polygon` elements in 10 exports of 1,044 Kraken lines and in 6 re-exports of ALTO files that
   arrived with 124 to 148 line polygons each), and says nothing.
-- `source.format.kind-raw-out` — **[GAP]** (#4943, #6749, → #NEW-3) a segment's own type
+- `source.format.kind-raw-out` — **[GAP]** (#4943, #6749, → #6801) a segment's own type
   (`Segment.kind_raw`: a SegmOnto zone or line type, a layout model's label, Kraken's region type)
   is written in each format's own place: ALTO as a declared `OtherTag` the element references,
   PAGE XML as `custom="structure {type:…;}"`, TEI as `@type` on the zone. A type the file itself
@@ -461,18 +461,18 @@ file.
   ALTO with their 4 to 6 zone types and 133 to 155 references each, and to PAGE XML and TEI with
   none; the Transkribus page's 48 structure types reach PAGE XML and neither ALTO nor TEI; a Kraken
   pass's region type (`text`) reaches no file. None of it is in a loss report.
-- `source.format.confidence-out` — **[GAP]** (#4943, → #NEW-3) a shape's confidence and a
+- `source.format.confidence-out` — **[GAP]** (#4943, → #6801) a shape's confidence and a
   reading's confidence go out where the format has a place (PAGE `Coords@conf` and
   `TextEquiv@conf`, ALTO `String@WC`, TEI `@cert`), and are a named loss where it has none. Today
   only a cut word's confidence is written (`page_export.py::CUT_FACTS`); 0 of 30 PAGE exports
   carry a `conf`.
-- `source.format.who-made-it-out` — **[GAP]** (#4943, → #NEW-4) a file says what made the pass and
+- `source.format.who-made-it-out` — **[GAP]** (#4943, → #6802) a file says what made the pass and
   whether each line's reading is a person's or a machine's: ALTO `Processing` steps, PAGE
   `Metadata/Creator` and a per-line mark, TEI `respStmt` with `@resp` on the line. Today PAGE and
   TEI name the pass's maker only (`kraken:blla` on a page whose five readings a person typed), ALTO
   names nobody (0 `Processing` elements), and the count of unreviewed machine lines is the only
   per-reading fact (`fichero-machine-made-lines`).
-- `source.format.round-trip-through-a-library` — **[PARTIAL]** (#4943, #6439, → #NEW-4) export, import into a
+- `source.format.round-trip-through-a-library` — **[PARTIAL]** (#4943, #6439, → #6802) export, import into a
   fresh page, export again gives the same file but for the two ids (`fichero-source`,
   `fichero-pass`), less what the loss report named. **Holds** for geometry, order and text once the ids and the maker are set aside: 17 of 17
   pages in ALTO, 16 of 17 in PAGE XML and in TEI (the seventeenth is `source.format.reimport-adds-no-reading`). **Does
@@ -481,20 +481,20 @@ file.
   second file differs from the first in every format. Whether a file Fichero wrote may restore a
   person's authorship on import is an open question (below); until it is ruled the first export
   names the loss.
-- `source.format.reimport-adds-no-reading` — **[BROKEN]** (#4943, → #NEW-5) importing a file
+- `source.format.reimport-adds-no-reading` — **[BROKEN]** (#4943, → #6803) importing a file
   Fichero exported adds no reading the file does not hold. Today a line whose reading carries
   abbreviation markup gets a plain reading derived at import (`formats/abbreviation_markup.py`),
   the export writes both, and the next import derives a third: one page of 48 segments went from 85 readings to
   122 in one round trip through PAGE XML (110 through TEI), its PAGE file from 541 to 692 lines,
   and which reading counts flipped from the marked-up one to the plain one.
-- `source.format.undeclared-losses-are-declared` — **[BROKEN]** (#4943, → #NEW-2) until the lines
+- `source.format.undeclared-losses-are-declared` — **[BROKEN]** (#4943, → #6800) until the lines
   above are built, each writer names what it drops: ALTO the outlines, the editorial facts, the
   names and dates on a line, the segment types and confidences it was not handed; PAGE XML the
   names and dates, and editorial facts other than `unclear` (this last one it already names).
   Measured: a line with a `deleted` and an `unclear` fact exports to TEI as `<del>` and
   `<unclear>` (valid), to PAGE XML with the `unclear` in `custom` and the deletion named lost, and
   to ALTO with neither and no loss named.
-- `source.format.export-cost` — **[GAP]** (#4943, → #NEW-6) a page's export costs time in step
+- `source.format.export-cost` — **[GAP]** (#4943, → #6804) a page's export costs time in step
   with its file, not its row count times a lookup. Measured: writing and validating take 3 to 5 ms
   a page; building the page (`page_export.py::page_from_library`) takes 130 to 900 ms, a median of
   4 ms a segment, because readings, counting and editorial facts are looked up one segment at a
@@ -502,7 +502,7 @@ file.
   pages in three formats is about 35 minutes. Target: the page built once for every format asked
   for, readings and facts read for the page in one query each, under 100 ms for a 150-line page.
   The first TEI export in a process also waits 7 to 8 s for the schema to compile.
-- `source.format.names-in-every-tei` — **[PARTIAL]** (#5603, → #NEW-7) every name and date the
+- `source.format.names-in-every-tei` — **[PARTIAL]** (#5603, → #6805) every name and date the
   record holds on the page is written inline in TEI with its entity, what found it and how sure.
   Today only a mention anchored to a line is written (2 of the 21 mentions the free name-finder
   made on one page; the other 19 carry a page-text span and no segment), as
@@ -527,7 +527,7 @@ Each format (one import and one export behaviour each)
   `mm10`. Normalised coordinates are unit-free (the page declares its size in the same unit); a
   non-pixel page reports **no** pixel grid rather than a wrong one, and an unknown unit is refused
   rather than assumed.
-- `source.format.alto-out` — **[PARTIAL]** (#4943, → #NEW-1, → #NEW-2): the writer emits and validates against **ALTO 4.4**,
+- `source.format.alto-out` — **[PARTIAL]** (#4943, → #6799, → #6800): the writer emits and validates against **ALTO 4.4**,
   the latest release (ruled 2026-09-27), declaring it (`SCHEMAVERSION` and the schema file, since
   4.x shares one namespace), and names what it cannot carry. (Measured 2026-11-20: valid against
   the published 4.4 schema on all 17 library pages; it does not write outlines, `Processing`, or
