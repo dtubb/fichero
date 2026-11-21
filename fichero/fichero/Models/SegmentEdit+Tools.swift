@@ -315,13 +315,13 @@ struct SegmentCutWordsRequest: Encodable, Equatable {
     enum CodingKeys: String, CodingKey { case segmentIds = "segment_ids", expectedVersions = "expected_versions" }
 }
 
-/// `segment.convert_level`: the segments to change, the level they take (`line` or `region`), and the versions read.
+/// `segment.convert_level`: the segments to change, the level they take (`to_kind`: `line` or `region`), and the versions read.
 struct SegmentConvertLevelRequest: Encodable, Equatable {
     let segmentIds: [String]
     let level: String
     let expectedVersions: [String: Int]
 
-    enum CodingKeys: String, CodingKey { case segmentIds = "segment_ids", level = "to", expectedVersions = "expected_versions" }
+    enum CodingKeys: String, CodingKey { case segmentIds = "segment_ids", level = "to_kind", expectedVersions = "expected_versions" }
 }
 
 /// `segment.ungroup_region`: one region, at the version the caller read.

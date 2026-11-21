@@ -33,7 +33,8 @@ struct SegmentConvertLevelTests {
         let call = try SegmentEdit.convertLevel(three, to: "line").get()
         let params = try body(call)
         #expect(call.action == "segment.convert_level")
-        #expect(params["to"] as? String == "line")
+        #expect(params["to_kind"] as? String == "line")
+        #expect(params["to"] == nil)
         #expect(params["segment_ids"] as? [String] == ["a", "b", "c"])
         #expect(params["expected_versions"] as? [String: Int] == ["a": 2, "b": 5, "c": 1])
     }
