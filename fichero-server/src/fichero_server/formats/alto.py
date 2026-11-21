@@ -523,6 +523,7 @@ def write(page: SourcePage, report: LossReport) -> bytes:
             parent_el, f"{{{ALTO_NS_V4}}}{element_name}", **attrs
         )
         by_ref[ref] = element
+        report.note_marks_not_written(segment, "ALTO")
         # The outline beside the box ALTO requires (#6799), as the element's first child, where the
         # schema puts `Shape`. A polygon that is only the box's four corners is not written:
         # ALTO's `Shape` is "the bounding shape of a block, if it is not rectangular".

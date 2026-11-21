@@ -701,6 +701,7 @@ def write(page: SourcePage, report: LossReport) -> bytes:
         # report exists to make impossible. Writing it back is the fix; declaring it
         # as a loss would have been settling for honest data destruction.
         custom = str(segment.foreign.get("custom") or "")
+        report.note_marks_not_written(segment, "PAGE XML", facts=False)  # its `unclear` facts are below
         facts = segment.foreign.get(_EDITORIAL_FACTS)
         if facts is not None:
             # The library's editorial facts are the record (#5179): the file's own `unclear` marks

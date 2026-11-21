@@ -282,6 +282,20 @@ class LossReport:
                 return
         self.losses.append(Loss(what, count, why))
 
+    def note_marks_not_written(self, segment: PageSegment, fmt: str, facts: bool = True) -> None:
+        """Name the editorial facts (when `facts`) and the record's names and dates a library export
+        handed this segment, for a writer with no place for them (#6800). The keys are where
+        `page_export.page_from_library` puts them (`formats.tei.EDITORIAL_FACTS`, `.RECORD_MARKS`),
+        repeated here so a writer does not load the TEI module."""
+        if facts:
+            for fact in segment.foreign.get("editorial:facts") or []:
+                self.note(f"a '{fact['kind']}' editorial mark", 1,
+                          f"{fmt} has no place for an editorial mark on a reading")
+        marks = segment.foreign.get("record:marks") or []
+        if marks:
+            self.note("names and dates", len(marks),
+                      f"{fmt} has no place for a name or a date standing on a line (TEI writes them inline)")
+
     @property
     def lost(self) -> set[str]:
         """The `what`s, for a round trip to subtract."""
