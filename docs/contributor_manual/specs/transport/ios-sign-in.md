@@ -84,25 +84,24 @@ way it arrived, gets its own session the Mac can revoke, and nothing is ever rea
 
 ### B. Method 1 — your own devices sign in by themselves (off by default)
 
-- `signin.own.mac-writes-the-keychain-item` — **[PARTIAL]** (#6568) with the switch on, the Mac writes ONE synchronizable Keychain
+- `signin.own.mac-writes-the-keychain-item` — **[OK]** (#6568) with the switch on, the Mac writes ONE synchronizable Keychain
   item (`kSecAttrSynchronizable`, the shared access group, `AfterFirstUnlock`, no user-presence prompt) holding: the engine id,
   the Mac's name, its addresses (`.ts.net` first, then `.local` with its SPKI pin), and a per-enrollment secret the engine
   minted for this purpose and stores only as a hash (`POST /api/pair/enroll` already exchanges such a secret for a device
   token; nothing mints it today, `library-sharing.md` `sharing.synced-device-pairs-by-host-code`). The item is rewritten
   whenever an address changes and deleted when the switch goes off. Never the owner key, never a session.
   Acceptance: the item's payload has those fields and nothing else. *Test:* `OwnDevicesKeychainItemTests.swift` (the shape),
-  `test_enrollment_secret_is_minted_hashed_and_revoked_to_spec.py`. **Built in the engine:** `PUT /api/pair/own-devices` (Unix socket, owner) mints the 32-byte secret, stored only as a hash, retiring earlier ones; test `test_enrollment_secret_is_minted_hashed_and_revoked_to_spec.py`. **Not built** in Swift, which needs a compile: writing the Keychain item and the shape test.
-- `signin.own.ios-finds-it-and-connects` — **[GAP]** (#6568) an iPhone or iPad on the same Apple ID, with iCloud Keychain on,
+  `test_enrollment_secret_is_minted_hashed_and_revoked_to_spec.py`. **Built in the engine:** `PUT /api/pair/own-devices` (Unix socket, owner) mints the 32-byte secret, stored only as a hash, retiring earlier ones; test `test_enrollment_secret_is_minted_hashed_and_revoked_to_spec.py`. **Built in Swift:** `OwnDevicesItem` (the four fields, `.ts.net` first), `OwnDevicesKeychain` and the Settings › Sharing › Advanced switch, which writes the item, deletes it when off and rewrites it when an address changes (`PUT /api/pair/own-devices` also names the engine); tests `OwnDevicesConnectTests.swift`, `test_enroll_makes_one_device_per_redeem_to_spec.py`.
+- `signin.own.ios-finds-it-and-connects` — **[OK]** (#6568) an iPhone or iPad on the same Apple ID, with iCloud Keychain on,
   finds the item on launch (and on foreground), shows the Mac by name under "Your Macs", dials its addresses in turn
   (`sharing.client-tries-every-address`), redeems the enrollment secret for ITS OWN device token (`/api/pair/enroll`, named
   "Daniel's iPhone") and opens the library; nothing is typed. With no item it shows the other methods. A device enrols once
   (its token is kept in its own Keychain, not synced); it never re-enrols while its token works.
-  Acceptance: a fresh iPhone opens the library with zero taps past the row. *Test:* `OwnDevicesConnectTests.swift` with a
-  fake Keychain reader, `test_enroll_makes_one_device_per_redeem_to_spec.py` (not yet written).
-- `signin.own.setting-says-the-trade-off` — **[GAP]** (#6568) the switch's caption says, in plain words, that any device
+  Acceptance: a fresh iPhone opens the library with zero taps past the row. *Test:* `OwnDevicesConnectTests.swift` (the dial, with a fake enroll),
+  `test_enroll_makes_one_device_per_redeem_to_spec.py` (`/api/pair/enroll` takes no token). The iOS "Your Macs" section reads the items on launch and on foreground.
+- `signin.own.setting-says-the-trade-off` — **[OK]** (#6568) the switch's caption says, in plain words, that any device
   signed into this Apple ID can open this Mac's libraries without asking, so it should stay off on a shared Apple ID; the
-  words are pinned by test. Acceptance: the caption names the Apple ID trade-off. *Test:* `SignInOptionsSwitchesTests.swift`
-  (not yet written).
+  words are pinned by test. Acceptance: the caption names the Apple ID trade-off. *Test:* `OwnDevicesConnectTests.swift` (`theSwitchCaptionNamesTheAppleIDTradeOff`).
 - `signin.own.off-ends-enrolment-not-devices` — **[PARTIAL]** (#6568) turning the switch off deletes the item and retires the
   enrollment secret (a later redeem is refused as a bad code, learning nothing); devices already enrolled keep their own
   sessions until revoked, and the Devices list says which came this way. Turning it on again mints a NEW secret.
