@@ -320,6 +320,13 @@ targets are at least 44 pt.
   baseline, order and children are untouched. A segment that is already a box is left out; a selection of only boxes is
   refused with the reason. *Tests:* `test_segment_convert_to_box.py`; `SegmentConvertToBoxTests.swift`.
   *Not built:* the toolbar shape-menu entry; **Convert to Box (fit ink)**, the rectangle of the ink inside the polygon.
+- `segment-editor.convert-level` — **[PARTIAL]** (#6740, owner 2026-11-19; app + engine) **Convert to Line** and **Convert to
+  Region** (Edit › Segments ▸, the page's context menu, and the segment list's row menu) change the level of each selected
+  segment: one `segment.convert_level` for the whole selection, one undo. Id, shape, text, readings, parent and order position
+  stay. A region made a line without a baseline gets one across its box in the middle of its lower third. A region with child
+  lines is refused with the reason (ungroup it first); a segment already at the level is left out, and a selection of only
+  those is refused. *Tests:* `test_segment_convert_level.py`; `SegmentConvertLevelTests.swift`. *Not built:* merging a region's
+  child lines' text into the one line; a line staying as the one child line of the new region; an editable baseline prompt.
 - `segment-editor.make-region-from-lines` — **[PARTIAL]** (#6737, owner 2026-11-19; app + engine) **Make Region from Lines**
   (Edit › Segments ▸, ⌘G, and the page's context menu on two or more selected segments) makes one new region whose box is the
   union of the lines' shapes and moves the lines into it as its children, in their reading order (`segment.group_lines`;
