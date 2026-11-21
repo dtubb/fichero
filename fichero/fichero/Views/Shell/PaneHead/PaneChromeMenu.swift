@@ -60,7 +60,7 @@ struct PaneChromeMenu: View {
 }
 
 /// The pane menu's rows, shared by the head's button and its right-click so both list the same entries in the
-/// same order (`panes.chrome.one-pane-menu`): Pane ▸, View As ▸, Split Right ▸, Split Below ▸, Focus on Pane, Pin, Close.
+/// same order (`panes.chrome.one-pane-menu`): Pane ▸, View As ▸, Pane Options ▸, Split Right ▸, Split Below ▸, Focus on Pane, Pin, Close.
 struct PaneMenuEntries: View {
     /// View As ▸, the pane's own views (`PaneViewChooser`); nil for a head without a view chooser.
     var viewAs: AnyView?
@@ -95,7 +95,22 @@ struct PaneMenuEntries: View {
             }
         }
         if let viewAs { viewAs }
-        if kindSwitcher != nil || viewAs != nil { Divider() }
+        if offersFont, let fontStore {
+            // Pane Options ▸: only what this kind has (`panes.head.one-menu-button`); a Reader's Font today.
+            Menu("Pane Options") {
+                Menu("Font") {
+                    Button("Automatic") { Task { await fontStore.choose(nil, steps: windowSteps) } }
+                    ForEach(BundledFonts.shared.familyNames, id: \.self) { name in
+                        Button {
+                            Task { await fontStore.choose(name, steps: windowSteps) }
+                        } label: {
+                            if fontStore.family == name { Label(name, systemImage: "checkmark") } else { Text(name) }
+                        }
+                    }
+                }
+            }
+        }
+        if kindSwitcher != nil || viewAs != nil || (offersFont && fontStore != nil) { Divider() }
         if let actions = splitActions {
             // Each a submenu of kinds: splitting ADDS that pane beside or below in one step (`panes.head.one-menu-button`).
             Menu("Split Right") {
@@ -121,19 +136,6 @@ struct PaneMenuEntries: View {
             // Checked while pinned (`panes.head.one-menu-button`); the head has no pin button of its own.
             Toggle(isOn: isPinned) {
                 Label("Pin Pane", systemImage: "pin")
-            }
-        }
-        if offersFont, let fontStore {
-            Divider()
-            Menu("Font") {
-                Button("Automatic") { Task { await fontStore.choose(nil, steps: windowSteps) } }
-                ForEach(BundledFonts.shared.familyNames, id: \.self) { name in
-                    Button {
-                        Task { await fontStore.choose(name, steps: windowSteps) }
-                    } label: {
-                        if fontStore.family == name { Label(name, systemImage: "checkmark") } else { Text(name) }
-                    }
-                }
             }
         }
         if let onClose, let closeTitle {

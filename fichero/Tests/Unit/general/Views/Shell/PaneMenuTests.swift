@@ -57,4 +57,15 @@ struct PaneMenuTests {
         let split = try #require(menu.range(of: "Menu(\"Split Right\")"))
         #expect(pane.lowerBound < viewAs.lowerBound && viewAs.lowerBound < split.lowerBound)
     }
+
+    @Test("Pane Options ▸ holds the kind's own options (Font), after View As ▸ and before the splits (#6741)")
+    func paneOptionsHoldsFont() throws {
+        let menu = try AppSource.code("Views/Shell/PaneHead/PaneChromeMenu.swift")
+        let viewAs = try #require(menu.range(of: "if let viewAs { viewAs }"))
+        let options = try #require(menu.range(of: "Menu(\"Pane Options\")"), "the menu has no Pane Options submenu")
+        let font = try #require(menu.range(of: "Menu(\"Font\")"))
+        let split = try #require(menu.range(of: "Menu(\"Split Right\")"))
+        #expect(viewAs.lowerBound < options.lowerBound && options.lowerBound < split.lowerBound)
+        #expect(options.lowerBound < font.lowerBound && font.lowerBound < split.lowerBound, "Font is not inside Pane Options")
+    }
 }
