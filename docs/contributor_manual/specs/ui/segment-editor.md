@@ -247,12 +247,11 @@ targets are at least 44 pt.
   its baseline's middle (a line the stroke crosses inside a cut region moves, it is not cut again); a stroke that does
   not cut through leaves the region alone (`grazed`); one action, one undo (`segment.unsplit_many`). The app offers the
   shown pass's regions with its lines (`SegmentEdit.knife`).
-  *Tests:* `test_segment_split_knife.py` (`TestRegions`: a region becomes two with the right lines in each, undo restores it, a short stroke leaves it)
-  and `KnifeStrokeTests.regionsAreOffered`;
-  `test_segment_split_knife.py`
-  (two crossings, graze, rtl, vertical; the undo takes the `cut` mark off the line again, 2026-11-14, as a version
-  snapshot carries no metadata); `KnifeStrokeTests.swift` (the stroke is sent once,
-  in the drawn frame, with versions; `aTapOfKChoosesTheKnife`).
+  *Tests:* `fichero-server/tests/unit/api/test_segment_split_knife.py` (two crossings, graze, rtl, vertical; the undo
+  takes the `cut` mark off the line again, 2026-11-14, as a version snapshot carries no metadata; `TestRegions`: a region
+  becomes two with the right lines in each, undo restores it, a short stroke leaves it) and
+  `fichero/Tests/Unit/general/Views/Source/KnifeStrokeTests.swift` (the stroke is sent once, in the drawn frame, with
+  versions; `aTapOfKChoosesTheKnife`; `regionsAreOffered`).
 - `segment-editor.split-at-a-point` — **[OK]** (→ #4941; app) with one line selected, ⌘⇧K splits it under the
   pointer (a vertical cut through that point at right angles to the baseline), for the common
   case where a stroke is more than is needed; the same engine call with a two-point `cut_path`.
