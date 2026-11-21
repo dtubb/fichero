@@ -953,8 +953,11 @@ The umbrella's speed trial (slice 12) is the gate and is not restated. This file
   *Built (2026-11-13):* `segment.create` and `segment.update` store a self-crossing polygon as the
   outer boundary of the area it covers (`line_join.simple_outline`), mark the row
   `outline_simplified` and answer `simplified: true`; a merge's outline is traced from a raster and
-  is simple by construction. *Not built:* the validator's report on imported ones, `update_many`.
-  *Tests:* `test_segment_self_intersecting.py`.
+  is simple by construction. *Built 2026-11-21:* the validator names an imported crossing outline
+  (`self-crossing`; `test_segments_validate.py::test_a_self_crossing_outline_written_by_an_import_is_named`), and
+  `segment.update_many` takes no shape (its items are attributes only), so it cannot write one. *Not built:* the app
+  offering Redraw from Baseline beside the finding (the export sheet names it, `PageExportRunner.swift`). Needs an
+  on-screen check. *Tests:* `test_segment_self_intersecting.py`.
 - `segment-editor.edge.empty-region` — **[PARTIAL]** (→ #4941; engine + app) a region with no lines is kept (a person
   may draw into it), drawn with its label only, and listed by the validator as empty before export.
   *Built (2026-11-13):* the validator lists it (`empty-region`). *Not built:* the label-only drawing.
