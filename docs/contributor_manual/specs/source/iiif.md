@@ -508,19 +508,18 @@ In, by reference:
 - `iiif.import.as-a-job` — **[OK]** the import is one job in Activity (`import-iiif`, the network lane) that says how far
   it is and what it did; pinned by
   `fichero-server/tests/unit/importers/test_iiif_source_5671.py::test_the_import_is_a_job_and_a_bound_folder_refreshes`.
-- `iiif.fetch.only-safe-public-urls` — **[GAP]** (#5324 → #6921) every address fetched for a IIIF source (manifest,
+- `iiif.fetch.only-safe-public-urls` — **[OK]** (#5324 → #6921) every address fetched for a IIIF source (manifest,
   collection, image, annotation page, and each redirect) is https, on a public host, with no
   credentials in it, by the one check every other fetch uses (`security/url_security.py::is_safe_url`);
-  a manifest larger than 64 MB is refused. Today the route checks only that the pasted link
-  starts with `https://` (`import_from_iiif`); the addresses inside the manifest, the image
-  services and redirects are fetched unchecked (`media/iiif_fetch.py::urllib_get`).
+  a manifest larger than 64 MB is refused. *Built, pinned by
+  `fichero-server/tests/unit/importers/test_iiif_fetch_is_safe_and_polite.py`: `media/iiif_engine.py::safe_get` checks every address and
+  each redirect with `is_safe_url`, and `media/iiif_fetch.py::urllib_get_once` refuses a body over 64 MB.*
 - `iiif.fetch.polite-per-host` — **[PARTIAL]** (#5671 → #6921) one fetcher serves the engine: at most four requests in
   flight to a host, at most two of them background work; `429` and `503` slow the whole host for
   the `Retry-After`; failures back off with jitter; the User-Agent names Fichero. *Built:
-  `PoliteFetcher` (two per host, backoff, `Retry-After`, the User-Agent). Not built: ONE fetcher
-  (viewing, steps and each import make their own: `db/storage.py::_IIIF_FETCHER`,
-  `iiif_source.py::_FETCHER`, `parse_iiif_url`), so the per-host limit is per caller; the
-  split between what a person is looking at and background work.*
+  `media/iiif_engine.py::engine_fetcher` (one `PoliteFetcher` for viewing, steps and imports: four per host,
+  backoff, `Retry-After`, the User-Agent). Not built: the split between what a person is looking at and
+  background work.*
 - `iiif.fetch.unreachable-host-is-remembered` — **[GAP]** (#5324 → #6921) a host that did not answer is not asked again
   for 60 seconds; requests for it in that minute fail at once with the same reason. Today each
   thumbnail tries three times with a 60 second timeout each.
