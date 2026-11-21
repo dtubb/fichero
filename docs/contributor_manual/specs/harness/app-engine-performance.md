@@ -67,7 +67,7 @@ One table, so a budget always names its scenario. The engine scenarios extend th
 | W15 | Reader: open a long text, type ten characters, select a line | one text of 100,000 characters |
 | W16 | Segment editor: open the page, drag one handle for two seconds | W13's 5,000-shape page |
 | W17 | Inspector: step through 20 items with the arrow keys, 10 a second | the 5,000-page folder |
-| W18 | Search: type a six-letter word at five characters a second | the 5,000-page library |
+| W18 | Search: type a six-letter word at five characters a second, press Return | the 5,000-page library |
 | W19 | Live window resize for two seconds with a 5,000-row list showing | the 5,000-page folder |
 
 ## Behaviors
@@ -157,8 +157,7 @@ One table, so a budget always names its scenario. The engine scenarios extend th
 
 - `speed.boundary.calls-per-action-are-held` **[GAP]** (#6600 → #NEW-10) — the number of requests and the bytes
   received for one user action are counted by a test and may only fall. Budgets: select a folder, **2 requests and
-  150 KB**; select an item, **3 requests**; one typed character in search, **at most 1 request, none while one is in
-  flight**; the Activity pane, **1 request per update and none when nothing changed**; launch to the front library
+  150 KB**; select an item, **3 requests**; one typed character in search, **no request**; Return, **2 requests**; the Activity pane, **1 request per update and none when nothing changed**; launch to the front library
   listed, **12 requests**. A mock URL protocol that records every request (the pattern of `EntityServiceTransportTests`) is enough, so
   this needs no engine. Test (to write): the new RequestsPerActionTests file in fichero/Tests/Unit/general/Perf.
 - `speed.boundary.listing-asks-for-a-page` **[GAP]** (#5260 → #NEW-11) — the app asks for the rows on screen and the
@@ -200,16 +199,27 @@ One table, so a budget always names its scenario. The engine scenarios extend th
 - `speed.app.segment-editor-with-5000-shapes` **[GAP]** (#6600 → #NEW-16) — W16: the page draws within **500 ms** of
   its shapes arriving; a drag tick costs under **16 ms** and re-draws only the shape being dragged. Test (to write):
   the new SegmentEditorScaleTests file in fichero/Tests/Unit/general/Views/Segments.
-- `speed.app.activity-updates-only-what-changed` **[GAP]** (#6178 → #NEW-17) — W10: 200 streamed updates re-run only
-  the rows that changed, and an update that changes nothing writes nothing to the store. Test (to write):
-  the new ActivityUpdateChurnTests file in fichero/Tests/Unit/general/Models.
-- `speed.app.inspector-follows-the-selection` **[GAP]** (#6600 → #NEW-18) — W17: the inspector shows the last item
-  within **150 ms** of the last key; a fetch for an item no longer selected is cancelled; stepping through 20 items
-  sends at most 20 inspector requests and usually fewer. Test (to write): `RequestsPerActionTests` (the W17 case).
-- `speed.app.search-keeps-up-with-typing` **[GAP]** (#6600 → #NEW-19) — W18: a keystroke never waits on a request; at
-  most one search is in flight and a newer query cancels the older; results for the final text appear within
-  **300 ms** of the last key at 5,000 pages (it needs `speed.engine.search-without-vectors-is-indexed`). Test (to
-  write): the new SearchTypingTests file in fichero/Tests/Unit/general/Models.
+- `speed.app.activity-updates-only-what-changed` **[PARTIAL]** (#6178 → #NEW-17) — W10: 200 streamed updates re-run
+  only the rows that changed, and an update that changes nothing writes nothing to the store. Built: the store
+  compares before it writes (`fichero/fichero/Models/ActivityStore.swift`, `if backgroundJobs != snapshot.jobs`), and
+  the jobs read runs every 2 s, or every 30 s when no window can be seen. Not built: one changed job replaces the whole
+  `backgroundJobs` array, so every row that reads it re-runs every 2 s during a run; no test counts it. Test (to
+  write): the new ActivityUpdateChurnTests file in fichero/Tests/Unit/general/Models.
+- `speed.app.inspector-follows-the-selection` **[PARTIAL]** (#6600 → #NEW-18) — W17: the inspector shows the last
+  item within **150 ms** of the last key; a fetch for an item no longer selected is cancelled; one selection sends
+  at most **3 requests**. Built: each section loads in a `.task(id:)`, which cancels when the selection moves. Not
+  built: every section asks for itself (51 `.task(id:)` sites under `Views/Inspector`; a selected segment starts one
+  load each for its making, signs, editorial, hands, statements and groups sections), so one click is many requests,
+  and nothing counts them. Test (to write): the new RequestsPerActionTests file in fichero/Tests/Unit/general/Perf
+  (the W17 case).
+- `speed.app.search-keeps-up-with-typing` **[GAP]** (#6600 → #NEW-19) — W18: a typed character re-runs only the
+  search field and sends nothing; Return sends one search and at most one batch for the hits not already loaded; a
+  newer query's results replace an older one's; results appear within **300 ms** of Return at 5,000 pages (it needs
+  `speed.engine.search-without-vectors-is-indexed`). Built: the search runs on Return, a superseded query is dropped
+  and the hits are fetched in one batch (`fichero/fichero/Views/Shell/ContentView/ContentView+SearchResults.swift`).
+  Not built: the field's text is `@State` on the root view (`fichero/fichero/Views/Shell/ContentView/ContentView.swift`,
+  `toolbarSearchText`), so each key re-runs `ContentView`'s body; and nothing times Return to results. Test (to write):
+  the new SearchTypingTests file in fichero/Tests/Unit/general/Models.
 - `speed.app.window-resizes-smoothly` **[GAP]** (#6548) — W19: no frame over **33 ms** during a live resize with
   5,000 rows listed. *Measured* before (#6548): frames averaging 88 to 371 ms. Test: named in #6548.
 
@@ -226,7 +236,7 @@ One table, so a budget always names its scenario. The engine scenarios extend th
   3. **Nightly, not per batch:** the 50,000 corpus, W15–W19 under `xctrace` (Time Profiler, SwiftUI, Hangs,
      Allocations), memray on W11, and py-spy on the one machine where the owner allowed it.
   A scenario that did not run is `not-run` with its reason, never green (`perf-sweep.rung.not-run-is-visible`). Never
-  on the manager's Mac. Test (to write): fichero-builder/tests/test_perf_rung.py, case test_the_batch_rung_picks_scenarios_by_the_paths_a_batch_touches.
+  on the manager's Mac. Test: a new case in the builder's test_perf_rung file, test_the_batch_rung_picks_scenarios_by_the_paths_a_batch_touches.
 
 ## Budgets in one table
 
@@ -250,7 +260,7 @@ One table, so a budget always names its scenario. The engine scenarios extend th
 | Segment editor | W16 | 500 ms draw; 16 ms a tick | not measured | Time Profiler; SwiftUI | `SegmentEditorScaleTests` |
 | Activity pane | W10 | only changed rows re-run | not measured | SwiftUI template | `ActivityUpdateChurnTests` |
 | Inspector | W17 | 150 ms after the last key | not measured | signpost `inspector load` | `RequestsPerActionTests` |
-| Search typing | W18 | 300 ms after the last key; 1 in flight | not measured | signpost `search keystroke → results` | `SearchTypingTests` |
+| Search typing | W18 | a key re-runs only the field; 300 ms from Return | not measured | signpost `search keystroke → results` | `SearchTypingTests` |
 | Window resize | W19 | 33 ms a frame | 88–371 ms (#6548) | Time Profiler + Hangs | #6548's test |
 
 ## Build order
