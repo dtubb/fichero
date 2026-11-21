@@ -29,10 +29,11 @@ enum OwnDevicesConnect {
     static func needsEnrolment(engineID: String, hasToken: (String) -> Bool) -> Bool { !hasToken(engineID) }
 
     /// Dials each address in turn and returns the first that enrols. A refused secret stops at once; any other error moves on.
-    static func connect(
+    /// Runs on the caller's actor (`nonisolated(nonsending)`), so the caller's main-actor closure is never sent.
+    nonisolated(nonsending) static func connect(
         _ item: OwnDevicesItem,
         deviceName: String,
-        enroll: (OwnDevicesItem.Address, String, String) async throws -> (token: String, expiresAt: Date)
+        enroll: nonisolated(nonsending) (OwnDevicesItem.Address, String, String) async throws -> (token: String, expiresAt: Date)
     ) async throws -> Enrolled {
         let addresses = OwnDevicesItem.ordered(item.addresses)
         guard !addresses.isEmpty else { throw Failure.noAddress(item.macName) }

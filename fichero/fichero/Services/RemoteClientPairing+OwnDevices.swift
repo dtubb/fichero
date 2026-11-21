@@ -8,7 +8,8 @@ extension RemoteClientPairing {
     /// Nothing is typed.
     @MainActor
     static func enrollOwnMac(_ item: OwnDevicesItem, deviceName: String) async throws -> URL {
-        let keySignIn: ((OwnDevicesItem.Address) async throws -> String)? = try OwnerKeyStore().loadExisting().map { key in
+        let keySignIn: (nonisolated(nonsending) (OwnDevicesItem.Address) async throws -> String)?
+            = try OwnerKeyStore().loadExisting().map { key in
             { (address: OwnDevicesItem.Address) async throws -> String in
                 let url = try validatedRemoteURL(from: address.url, allowLocalhost: false, requireSecureTransportForRemote: true)
                 let pin = try address.spki.map(RemoteCertificatePinning.validatedSPKIPin)

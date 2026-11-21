@@ -11,11 +11,12 @@ enum OwnDevicesKeyDial {
 
     /// `keySignIn` is nil when this device holds no synced key. Any error other than a 401 moves to the next address;
     /// when no address signs in by key, the enrolment runs and its own error is the one thrown.
-    static func connect(
+    /// Runs on the caller's actor (`nonisolated(nonsending)`), so the caller's main-actor closures are never sent.
+    nonisolated(nonsending) static func connect(
         _ item: OwnDevicesItem,
         deviceName: String,
-        keySignIn: ((OwnDevicesItem.Address) async throws -> String)?,
-        enroll: (OwnDevicesItem.Address, String, String) async throws -> (token: String, expiresAt: Date)
+        keySignIn: (nonisolated(nonsending) (OwnDevicesItem.Address) async throws -> String)?,
+        enroll: nonisolated(nonsending) (OwnDevicesItem.Address, String, String) async throws -> (token: String, expiresAt: Date)
     ) async throws -> Outcome {
         if let keySignIn {
             dial: for address in OwnDevicesItem.ordered(item.addresses) {
