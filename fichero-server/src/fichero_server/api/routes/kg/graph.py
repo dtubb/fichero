@@ -380,6 +380,13 @@ class NeighborhoodEdge(BaseModel):
     claim_type: str | None = None
     epistemic_status: str | None = None
     confidence: float | None = None
+    # The statement's when and where (#6773): the claim's normalised span and its free-text place,
+    # with the place's entity id when that text is a known name or alias.
+    time_start: str | None = None
+    time_end: str | None = None
+    time_precision: str | None = None
+    place: str | None = None
+    place_entity_id: str | None = None
 
 
 class NeighborhoodResponse(BaseModel):
@@ -480,6 +487,7 @@ def neighborhood_impl(
                         target_is_entity=True,
                         predicate=verb,
                         claim=claim,
+                        name_to_id=name_to_id,
                     ))
                 # Edge 2: subject → other-entity-in-same-claim (when
                 # the claim mentions multiple entities and the object
@@ -499,6 +507,7 @@ def neighborhood_impl(
                             target_is_entity=True,
                             predicate=verb,
                             claim=claim,
+                            name_to_id=name_to_id,
                         ))
                     # If the claim had ONLY this entity and a literal
                     # object, emit an edge to the literal so the viz
@@ -513,6 +522,7 @@ def neighborhood_impl(
                             target_is_entity=False,
                             predicate=verb,
                             claim=claim,
+                            name_to_id=name_to_id,
                         ))
         frontier = next_frontier
         if not frontier:
@@ -991,8 +1001,10 @@ def _make_edge(
     target_is_entity: bool,
     predicate: str,
     claim,
+    name_to_id: dict[str, str],
 ) -> NeighborhoodEdge:
-    """Build a NeighborhoodEdge from a claim row, copying source provenance."""
+    """Build a NeighborhoodEdge from a claim row, copying source provenance, when and where."""
+    place = (claim.claim_location or "").strip() or None
     return NeighborhoodEdge(
         source_id=source_id,
         target_id=target_id,
@@ -1017,4 +1029,9 @@ def _make_edge(
             else str(claim.epistemic_status) if claim.epistemic_status else None
         ),
         confidence=claim.confidence,
+        time_start=claim.time_start,
+        time_end=claim.time_end,
+        time_precision=claim.time_precision,
+        place=place,
+        place_entity_id=name_to_id.get(place.lower()) if place else None,
     )

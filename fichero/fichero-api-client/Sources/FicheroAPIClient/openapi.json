@@ -84833,6 +84833,31 @@
             "type": "number",
             "nullable": true,
             "title": "Confidence"
+          },
+          "time_start": {
+            "type": "string",
+            "nullable": true,
+            "title": "Time Start"
+          },
+          "time_end": {
+            "type": "string",
+            "nullable": true,
+            "title": "Time End"
+          },
+          "time_precision": {
+            "type": "string",
+            "nullable": true,
+            "title": "Time Precision"
+          },
+          "place": {
+            "type": "string",
+            "nullable": true,
+            "title": "Place"
+          },
+          "place_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Place Entity Id"
           }
         },
         "type": "object",
