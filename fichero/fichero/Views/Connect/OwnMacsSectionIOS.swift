@@ -43,7 +43,9 @@ private struct OwnMacsLoading: ViewModifier {
     func body(content: Content) -> some View {
         content.task(id: scenePhase) {
             guard scenePhase == .active else { return }
-            do { macs = try OwnDevicesKeychain().readAll() } catch { self.error = "Could not read your Macs from iCloud Keychain (\(error))." }
+            do { macs = try OwnDevicesKeychain().readAll() } catch {
+                self.error = "Could not read your Macs from iCloud Keychain (\(error))."
+            }
         }
     }
 }

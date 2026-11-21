@@ -388,8 +388,7 @@ private extension RemoteConnectionSetupView {
             person: person,
             altURLs: fields.altURLs
         )
-        // Repoint the app-level client at the freshly-paired host; adopt +
-        // reload fire once in the ready transition (#3113), not here.
+        // Repoint the client at the new host; adopt + reload fire in the ready transition (#3113).
         appState.reconfigureGeneratedClientsForCurrentHost()
         await onConnected()
         if !appState.isBackendRunning {
