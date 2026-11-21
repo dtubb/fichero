@@ -230,7 +230,7 @@ struct SegmentInspectorView: View {
         let runner = SegmentEditRunner(actionsService: actionsService, store: store)
         let windowSteps = windowSteps
         Task {
-            try? await runner.run(call, documentId: documentId, actionName: "Set Segment", steps: windowSteps)
+            _ = try? await runner.run(call, documentId: documentId, actionName: "Set Segment", steps: windowSteps)
             // The rows describe the lines as they are now (Mixed becomes one value once they agree).
             await reloadText()
         }
