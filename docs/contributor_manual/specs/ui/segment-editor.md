@@ -651,6 +651,9 @@ See section 7.2 below for what exists. The design:
   over audit ids (`undo.window`, `source.editor.system-undo`); a refused undo says why in words
   (`undo.refusal.in-words`). *Built:* for move, delete, draw, reshape. *Not built:* for every
   tool here; the coalescing rules above.
+  *Built 2026-11-21:* in the engine, redo (the undo of the undo) of a Marker segment, a Line Brush line, Convert to Box and
+  Convert Level makes the same edit again, and undo after it ends where the first undo did
+  (`fichero-server/tests/unit/api/test_segment_redo_of_drawn_and_converted.py`). Needs an on-screen check.
 - `segment-editor.every-tool-works` — **[PARTIAL]** (#6734; app + engine; owner 2026-11-19) every tool in the segment toolbar
   (select, box, lasso, knife, combine, order, select brush, line brush, and the rest) does its job on a real page, and its
   result is saved (survives a reload) and undoable. Walked once per tool, with a test per tool that drives its gesture and
