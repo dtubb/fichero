@@ -743,9 +743,12 @@ See section 7.2 below for what exists. The design:
   `<MetadataItem>` per segment and the package sidecar; a merged or split segment's forwarding
   notes to the sidecar only. *Built:* ALTO and PAGE lines, words, order, loss report; and
   (2026-11-13) the cut's source and confidence: PAGE `custom` (`cut {source:ctc; confidence:0.82;}`),
-  ALTO `WC` with the source named in the loss report (`page_export.CUT_FACTS`). *Not built:*
-  glyphs, hOCR's cut, per-segment provenance. *Tests:* `test_cuts_in_page_and_alto.py`;
-  `test_segment_cut_words.py::TestExport`.
+  ALTO `WC` with the source named in the loss report (`page_export.CUT_FACTS`).
+  *Built 2026-11-21:* glyphs: a character segment goes into its word's ALTO `String` as a `Glyph` (one character as
+  `CONTENT`, `GC` from the cut's confidence, the cut's source reported lost; a character with no single-character
+  reading is reported), and the ALTO reader takes a `Glyph` back as a character; PAGE already wrote `Glyph`.
+  *Not built:* hOCR's cut, per-segment provenance. *Tests:* `test_cuts_in_page_and_alto.py`;
+  `test_segment_cut_words.py::TestExport`; `fichero-server/tests/unit/formats/test_glyphs_in_page_and_alto.py`.
 - `segment-editor.coordinates-one-frame` — **[PARTIAL]** (→ #5382; engine + app; ties to `../source/image-enhancement.md`)
   the page a person draws on may be an enhanced or deskewed image; what is **stored** is always
   fractions of the upright photograph (`prep.image.one-upright-frame`, `current_image.py`). The
