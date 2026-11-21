@@ -147,3 +147,19 @@ def test_the_loop_publishes_the_owners_spend_and_models_for_the_jailed_run(tmp_p
     with pytest.raises(ValueError, match="unknown keys"):
         queue.publish_rules(tmp_path, feed)
     assert json.loads((feed / "rules.json").read_text()) == doc, "a bad table never replaces the last good copy"
+
+
+def test_live_spend_sums_other_sessions_fresh_files_of_today_only(tmp_path):
+    """local.perf.day-cap-counts-live-sessions (#6871): every other live session's running cost counts, a stale or
+    yesterday's file does not, nor the run's own."""
+    import json
+    import os
+    d = tmp_path / "live"
+    d.mkdir()
+    for name, usd, day in (("a", 1.5, "2026-11-21"), ("b", 2.0, "2026-11-21"), ("me", 9.0, "2026-11-21"),
+                           ("old", 7.0, "2026-11-20"), ("dead", 5.0, "2026-11-21")):
+        (d / f"{name}.json").write_text(json.dumps({"usd": usd, "day": day}))
+    os.utime(d / "dead.json", (1000.0, 1000.0))
+    now = (d / "a.json").stat().st_mtime + 10
+    assert watcher.live_spend(d, "2026-11-21", "me", now) == 3.5
+    assert watcher.live_spend(tmp_path / "none", "2026-11-21", "me", now) == 0

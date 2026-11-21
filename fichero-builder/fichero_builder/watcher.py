@@ -4,6 +4,7 @@ decide handoff, park, alert or nothing. Plain functions, no process control here
 Caps come from `harness.toml [spend]`; a missing cap or an unknown price REFUSES to start (audit 2026-11-01 H6)."""
 from __future__ import annotations
 
+import json
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -106,6 +107,22 @@ def cost_of(state: dict, spend: Spend, model: str) -> float:
 def spent_today(rows: list[dict], today: str) -> float:
     """Sum of the journal's `cost` rows dated `today` (YYYY-MM-DD)."""
     return sum(float(r.get("usd", 0)) for r in rows if r.get("event") == "cost" and str(r.get("ts", "")).startswith(today))
+
+
+LIVE_STALE_S = 300  # ponytail: a crashed run's live file stops counting after this; a pid check is the upgrade
+
+
+def live_spend(d, today: str, exclude: str, now: float) -> float:
+    """local.perf.day-cap-counts-live-sessions (#6871): the running cost of every other live session, from the files
+    `<d>/<name>.json` = {"usd", "day"} each run rewrites every tick; only today's, changed within LIVE_STALE_S, not `exclude`'s."""
+    total = 0.0
+    for f in Path(d).glob("*.json") if Path(d).is_dir() else ():
+        if f.stem == exclude or now - f.stat().st_mtime > LIVE_STALE_S:
+            continue
+        doc = json.loads(f.read_text())
+        if doc.get("day") == today:
+            total += float(doc.get("usd", 0))
+    return total
 
 
 def assess(state: dict, spend: Spend, model: str, *, spent_today: float, silent_for_s: float) -> list[str]:

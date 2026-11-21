@@ -169,6 +169,25 @@ def rules_of(root, rules, role: str) -> watcher.Spend:
     return spend
 
 
+def _live(name: str, usd: float | None) -> Path:
+    """This run's running cost for the other runs' day cap (#6871), rewritten whole each tick; None removes it."""
+    f = journal.STATE / "live" / f"{name}.json"
+    if usd is None:
+        f.unlink(missing_ok=True)
+        return f
+    f.parent.mkdir(parents=True, exist_ok=True)
+    tmp = f.with_suffix(f".{os.getpid()}.tmp")
+    tmp.write_text(json.dumps({"usd": round(usd, 4), "day": time.strftime("%Y-%m-%d")}))
+    tmp.replace(f)
+    return f
+
+
+def _spent_today(name: str) -> float:
+    """Today's journal cost rows plus every other live session's running cost (#6871)."""
+    today = time.strftime("%Y-%m-%d")  # the journal stamps rows with the wall clock
+    return watcher.spent_today(journal.read(), today) + watcher.live_spend(journal.STATE / "live", today, name, time.time())
+
+
 def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = "claude", tmux_session: str = "harness",
         tick_s: float = 30.0, procs: Procs, out=print, done=DONE, handoff=None, max_generations: int = 20, feed=None, seq: int = 0, role: str = "",
         rules=None) -> str:
@@ -190,6 +209,10 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
         for b in bad:
             out("builder run refuses: " + b)
         return "refused"
+    if (spent := _spent_today(name)) >= spend.day_usd:
+        journal.append("watch", task=name, what=f"park: today's spend {spent:.2f} USD reached the cap {spend.day_usd:.2f} before the start")
+        out(f"{name}: parked before the start, today's spend {spent:.2f} of {spend.day_usd:.2f} USD")
+        return "parked"
     handoff = Path(handoff) if handoff else Path(worktree) / "HANDOFF.md"
     register(name, worktree, handoff, model, spend.window, tmux_session, handoff_tokens=watcher.threshold(spend))
     gen = 1
@@ -235,9 +258,8 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
                 journal.append("watch", task=name, what=f"alert: rules unreadable: {e}"[:300])
                 out(f"{name}: rules unreadable, keeping the last caps: {e}")
             rules_bad = True
-        today = time.strftime("%Y-%m-%d")  # the journal stamps rows with the wall clock
-        decisions = watcher.assess(state, spend, model, spent_today=watcher.spent_today(journal.read(), today),
-                                   silent_for_s=now - last_change)
+        _live(name, watcher.cost_of(state, spend, model))
+        decisions = watcher.assess(state, spend, model, spent_today=_spent_today(name), silent_for_s=now - last_change)
         for d in decisions:
             kind_of = d.split(":")[0]  # one row per kind of decision, not one per tick
             if kind_of not in told:
@@ -308,6 +330,7 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
             journal.append("cost", task=name, model=model, usd=round(watcher.cost_of(state, spend, model), 4),
                            tokens=state.get("tokens", 0), turns=state.get("turns", 0), seconds=int(now - started), end="handoff",
                            generation=gen, **label, **reading_of(first_commit))
+            _live(name, 0.0)  # the cost row now holds it; the successor starts from nothing
             gen += 1
             b = Path(worktree) / f".builder-brief-{name}-{gen}.txt"
             b.write_text(successor_brief(name, gen, worktree, handoff))
@@ -322,5 +345,6 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
     journal.append("cost", task=name, model=model, usd=round(watcher.cost_of(state, spend, model), 4),
                    tokens=state.get("tokens", 0), turns=state.get("turns", 0), seconds=int(procs.now() - started), end=end,
                    generation=gen, **label, **reading_of(first_commit))
+    _live(name, None)
     out(f"{name}: {end}")
     return end

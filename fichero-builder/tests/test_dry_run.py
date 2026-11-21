@@ -458,3 +458,47 @@ def test_unreadable_rules_mid_run_alert_once_and_keep_the_last_figures(root):
     watch = [e["what"] for e in journal.read() if e["event"] == "watch"]
     assert len([w for w in watch if w.startswith("alert: rules unreadable")]) == 1
     assert watch[-1] == "park: today's spend 3.00 USD reached the cap 2.00", "the last figures still hold"
+
+
+def _live(name, usd):
+    import json
+    import time
+    d = journal.STATE / "live"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f"{name}.json").write_text(json.dumps({"usd": usd, "day": time.strftime("%Y-%m-%d")}))
+
+
+def test_three_live_sessions_near_the_cap_keep_a_fourth_from_starting(root):
+    """local.perf.day-cap-counts-live-sessions (#6871): the day cap counts the running cost of the sessions still going."""
+    for n in ("a", "b", "c"):
+        _live(n, 1.7)
+    fake = Fake([HEALTHY])
+    assert run.run(root, root / "wt", root / "b.txt", name="d", procs=fake.procs, out=lambda s: None) == "parked"
+    assert not hasattr(fake, "started")
+    assert [e["what"] for e in journal.read()] == ["park: today's spend 5.10 USD reached the cap 5.00 before the start"]
+
+
+def test_a_tick_parks_when_the_others_live_cost_and_its_own_reach_the_cap_and_the_own_file_goes_at_the_end(root):
+    import json
+    _live("a", 3.0)
+    seen = []
+
+    class Watch(Fake):
+        def read(self):
+            f = journal.STATE / "live" / "w.json"
+            seen.append(json.loads(f.read_text())["usd"] if f.exists() else None)
+            return super().read()
+    fake = Watch([HEALTHY, {**HEALTHY, "cost_usd": 1.0}, {**HEALTHY, "cost_usd": 2.5}])
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None) == "parked"
+    assert seen[1:3] == [0.015, 1.0], "each tick writes the run's running cost"
+    assert any(e.get("what") == "park: today's spend 5.50 USD reached the cap 5.00" for e in journal.read())
+    assert not (journal.STATE / "live" / "w.json").exists() and (journal.STATE / "live" / "a.json").exists()
+
+
+def test_a_stale_live_file_does_not_hold_back_a_start(root):
+    import os
+    _live("crashed", 9.0)
+    os.utime(journal.STATE / "live" / "crashed.json", (1000.0, 1000.0))
+    fake = Fake([HEALTHY])
+    assert run.run(root, root / "wt", root / "b.txt", name="d", procs=fake.procs, out=lambda s: None) == "gone"
+    assert hasattr(fake, "started")
