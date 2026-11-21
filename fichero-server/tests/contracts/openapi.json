@@ -86018,6 +86018,11 @@
             "type": "boolean",
             "title": "Enabled"
           },
+          "engine_id": {
+            "type": "string",
+            "title": "Engine Id",
+            "description": "this engine's id: the account of the Keychain item the Mac writes or deletes"
+          },
           "enrollment_secret": {
             "type": "string",
             "nullable": true,
@@ -86027,7 +86032,8 @@
         },
         "type": "object",
         "required": [
-          "enabled"
+          "enabled",
+          "engine_id"
         ],
         "title": "OwnDevicesResponse"
       },

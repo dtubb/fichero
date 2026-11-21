@@ -36,3 +36,15 @@ def test_a_wrong_secret_is_401_with_no_token(harness):
     _secret(harness)
     answer = harness.remote().post("/api/pair/enroll", json={"enrollment_secret": "nope", "device_name": "iPhone"})
     assert answer.status_code == 401
+
+
+def test_turning_it_on_names_the_engine_for_the_keychain_item(harness):
+    from fichero_server.api.routes.auth import accounts as accounts_route
+
+    harness.app_db.create_user(
+        username="owner", display_name="Owner", password_hash=accounts.hash_password("a chosen one"), is_owner=True
+    )
+    on = mac_app_client(harness).put("/api/pair/own-devices", json={"enabled": True}).json()
+    assert on["engine_id"] == accounts_route._engine_id(harness.app_db)
+    off = mac_app_client(harness).put("/api/pair/own-devices", json={"enabled": False}).json()
+    assert off["engine_id"] == on["engine_id"]  # the Mac deletes the item it wrote under that id

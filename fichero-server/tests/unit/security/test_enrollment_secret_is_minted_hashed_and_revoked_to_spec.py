@@ -39,7 +39,7 @@ def test_off_then_a_redeem_of_the_old_secret_is_401_and_enrolled_devices_stay(ha
     secret = mac_app_client(harness).put(ROUTE, json={"enabled": True}).json()["enrollment_secret"]
     device = _redeem(harness, secret).json()
     off = mac_app_client(harness).put(ROUTE, json={"enabled": False})
-    assert off.status_code == 200 and off.json() == {"enabled": False, "enrollment_secret": None}
+    assert off.status_code == 200 and off.json() == {"enabled": False, "engine_id": off.json()["engine_id"], "enrollment_secret": None} and off.json()["engine_id"]
     assert _redeem(harness, secret).status_code == 401
     assert harness.app_db.get_device(device["device_id"]) is not None
 
