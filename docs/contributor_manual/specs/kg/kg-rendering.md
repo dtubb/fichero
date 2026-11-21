@@ -116,13 +116,18 @@ Three rules follow, and most of what is wrong today breaks one of them.
   as a sentence, a row or an edge, its date is drawn with it, in one form: the date as written
   when there is one, else the normalised span, with a mark when it was inferred. Built: the
   Claims table has a Date column and the inline editor edits start, end and precision
-  (`ClaimPatchFields.inline`). Not built: the neighbourhood edge carries no time or place field
-  at all (`NeighborhoodEdge`), so the graph cannot label an edge with its date; the entity
-  card's sentences carry no date; the document inspector does not draw one.
-- `kg.render.where-is-on-the-statement` — **[GAP]** (#5032, #6773) the same for the place a
+  (`ClaimPatchFields.inline`); each neighbourhood edge carries the claim's `time_start`,
+  `time_end` and `time_precision` (`NeighborhoodEdge`, `api/routes/kg/graph.py`). Tests:
+  `fichero-server/tests/unit/kg/test_neighborhood_edge_carries_time_and_place.py`::test_an_edge_carries_its_statements_when_and_where_and_links_a_known_place.
+  Not built: the graph does not label an edge with its date; the entity card's sentences carry
+  no date; the document inspector does not draw one.
+- `kg.render.where-is-on-the-statement` — **[PARTIAL]** (#5032, #6773) the same for the place a
   statement happened at: drawn with the statement, as a link to the place's card when the place
-  is a known name. The inline editor has no place field, so a wrong place cannot be corrected
-  where it is seen.
+  is a known name. Built: each neighbourhood edge carries the claim's free-text place (`place`,
+  from `claim_location`) and `place_entity_id` when that text is a known name or alias. Tests:
+  `fichero-server/tests/unit/kg/test_neighborhood_edge_carries_time_and_place.py`::test_a_place_that_is_not_a_known_name_has_no_entity_link.
+  Not built: no surface draws the place with the statement; the inline editor has no place
+  field, so a wrong place cannot be corrected where it is seen.
 - `kg.render.dates-are-not-a-kind-of-name` — **[BROKEN]** (→ #5008, #6774) no list of names
   has a "Dates" group. Today the document inspector's knowledge section groups by kind with a
   synthetic `date` kind made by the engine for statements whose subject is a date
@@ -144,7 +149,8 @@ Three rules follow, and most of what is wrong today breaks one of them.
   the focus node's card lists its statements, and the count of them is a badge on the node. It
   is not drawn as a node. Built: no node for the phrase, and the count of such statements per
   subject (`literalStatementCounts`) drawn as a badge beside the node. Not built: the edge label
-  with its date, which waits for the time and place fields on `NeighborhoodEdge` (#6773).
+  with its date; the time and place fields are on `NeighborhoodEdge`, the graph does not draw
+  them yet (#6773).
   Tests: `fichero/Tests/Unit/general/Views/Library/GraphSimulationNamesOnlyTests.swift`::aStatementWithALiteralObjectIsCountedOnItsSubject.
 
 ### B. One mark for sure and unsure, and correcting in place
@@ -319,7 +325,7 @@ under `fichero/Tests/Unit/general/Views/`; engine tests under `fichero-server/te
 
 #### Step 1.1 — Graph draws names only; an edge carries its when and where (#6772, #6773)
 - Behaviours: `kg.render.date-is-never-a-node`, `kg.render.when-is-on-the-statement`, `kg.render.where-is-on-the-statement`, `kg.render.an-object-that-is-not-a-name-stays-in-the-sentence`
-- Tests: `test_neighborhood_edge_carries_time_and_place.py` in fichero-server/tests/unit/kg/ (to write), Library/GraphSimulationNamesOnlyTests.swift
+- Tests: `test_neighborhood_edge_carries_time_and_place.py` in fichero-server/tests/unit/kg/, Library/GraphSimulationNamesOnlyTests.swift
 - Size: M
 
 #### Step 1.2 — Answer citations open the passage; no score as a percentage (#6778, #1828)
