@@ -523,6 +523,13 @@ def write(page: SourcePage, report: LossReport) -> bytes:
             parent_el, f"{{{ALTO_NS_V4}}}{element_name}", **attrs
         )
         by_ref[ref] = element
+        # The outline beside the box ALTO requires (#6799), as the element's first child, where the
+        # schema puts `Shape`. A polygon that is only the box's four corners is not written:
+        # ALTO's `Shape` is "the bounding shape of a block, if it is not rectangular".
+        points = _outline(segment.polygon, attrs, width, height)
+        if points:
+            shape = etree.SubElement(element, f"{{{ALTO_NS_V4}}}Shape")
+            etree.SubElement(shape, f"{{{ALTO_NS_V4}}}Polygon", POINTS=points)
 
         if segment.language:
             # ALTO wants a BCP 47 tag. A language NAME (which is what the engine
@@ -665,6 +672,22 @@ def _in_first_order(page: SourcePage) -> list[PageSegment]:
     seen = {id(s) for s in out}
     out.extend([s for s in page.segments if id(s) not in seen])
     return out
+
+
+def _outline(polygon: list[list[float]] | None, attrs: dict, width: float, height: float) -> str | None:
+    """`Polygon@POINTS` ("x1,y1 x2,y2 ...", the form the schema recommends) in whole units, or
+    None when there is no polygon or it is the element's own box."""
+    if not polygon or len(polygon) < 3:
+        return None
+    pixels = [(int(round(x * width)), int(round(y * height))) for x, y in polygon]
+    if "HPOS" in attrs and len(pixels) == 4:
+        # Within one unit of a corner, because HPOS and WIDTH are each rounded on their own.
+        x0, y0 = int(attrs["HPOS"]), int(attrs["VPOS"])
+        x1, y1 = x0 + int(attrs["WIDTH"]), y0 + int(attrs["HEIGHT"])
+        corners = ((x0, y0), (x1, y0), (x1, y1), (x0, y1))
+        if all(any(abs(px - cx) <= 1 and abs(py - cy) <= 1 for cx, cy in corners) for px, py in pixels):
+            return None
+    return " ".join(f"{x},{y}" for x, y in pixels)
 
 
 def _bounds(polygon: list[list[float]] | None) -> list[float] | None:
