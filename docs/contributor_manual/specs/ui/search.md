@@ -377,8 +377,8 @@ read of the calling loop before it can be called fully resolved.
   (about 1.5 GB loaded) runs in its own process and is released after ten idle minutes
   (`search.embedding-model-only-while-needed`). Measured: the first semantic search after a release took
   7.5 s on the M1, later ones 0.1 to 0.3 s on 18 pages.
-- `search.scale.passages-end-cleanly` — **[BROKEN]** (#1833, → #6780) a page whose text ends in a space
-  or a line break is cut into its real passages and then about 70 more, each one character shorter than
+- `search.scale.passages-end-cleanly` — **[PARTIAL]** (#1833, → #6780) a page whose text ends in a space
+  or a line break was cut into its real passages and then about 70 more, each one character shorter than
   the last (80, 79, 78 … characters of the page's tail): the cutter steps one character at a time once
   the remaining text is all inside the overlap. Measured on real diary pages of about 1,000 characters:
   67 to 73 rows a page where 3 are right; 786 of the 861 rows of the 18-page project were such tails.
@@ -386,8 +386,14 @@ read of the calling loop before it can be called fully resolved.
   took 6 s), twenty times the disk and scan, repeated rows for one page in full-text results, and tail
   scraps at the top of semantic results (a three-letter query scored 0.91 against a scrap). Should: a
   page's passages never number more than its length divided by the step, plus one; the tail is one
-  passage. Test to write: test_passages_of_text_ending_in_whitespace.py in
-  `fichero-server/tests/unit/db/`; and a one-time re-embed of pages whose row count is over the bound.
+  passage. Built: the cutter leaves trailing whitespace out of the length, so a page is cut into the
+  same passages with or without it; pinned:
+  `fichero-server/tests/unit/db/test_passages_of_text_ending_in_whitespace.py`. Rows already written:
+  `Database.tail_passage_scan` counts the pages and tail rows without writing, and
+  `Database.remove_tail_passages(confirm=True)` deletes only those rows, leaving the passages the cutter
+  makes now, so nothing is embedded again; pinned:
+  `fichero-server/tests/unit/db/test_tail_passage_rows_are_found_then_removed.py`. Not built: a route or
+  menu item that runs the scan and offers the removal on an existing project.
 - `search.embedding.estimate-is-measured` — **[BROKEN]** (#4302, → #6792) the time estimate for
   embedding a project assumes 6 passages a second for bge-m3. Measured on the M1 at the engine's
   background priority: 0.6 to 1.6 a second (18 Greek passages in 29 s, 6 Spanish in 6 s). The figure should be the machine's own measured rate
