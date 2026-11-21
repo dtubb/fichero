@@ -335,7 +335,7 @@ final class AdaptiveShellPolicyTests: XCTestCase {
 
     func testToolbarSearchStaysBesideContentTitle() throws {
         let toolbarSource = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
-        guard let principalRange = toolbarSource.range(of: "var principalToolbarContent: some ToolbarContent") else {
+        guard let principalRange = toolbarSource.range(of: "var principalToolbarContent: some WindowToolbarContent") else {
             XCTFail("principal toolbar content missing")
             return
         }

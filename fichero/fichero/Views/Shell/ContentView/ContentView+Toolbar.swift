@@ -31,7 +31,21 @@ enum ContentToolbarID {
     // com.apple.SwiftUI.search; a separate identity so the two never collide
     // (#3163's crash class).
     static let searchOptions = "fichero.searchOptions"
+    /// The Mac window's one customizable toolbar (View ▸ Customize Toolbar…, #6730): every Mac window `.toolbar` site
+    /// names this id, so the system sheet lists the items of all of them.
+    static let customizableToolbar = "fichero.toolbar"
+    /// The Sidebar/Chat pair drawn in the sidebar column's own toolbar section.
+    static let sidebarColumnButtons = "fichero.sidebarColumnButtons"
 }
+
+/// What the window's toolbar builders return. On macOS it is `CustomizableToolbarContent`, which `toolbar(id:)`
+/// requires, so an item without an id does not compile there. iOS keeps `ToolbarContent`: its `ToolbarItemGroup` and
+/// `DefaultToolbarItem` are not customizable.
+#if os(macOS)
+typealias WindowToolbarContent = CustomizableToolbarContent
+#else
+typealias WindowToolbarContent = ToolbarContent
+#endif
 
 // MARK: - Toolbar Content
 //
@@ -43,7 +57,7 @@ enum ContentToolbarID {
 extension ContentView {
     // MARK: Zoned toolbar (Mail-style)
     @ToolbarContentBuilder
-    var mainToolbarContent: some ToolbarContent {
+    var mainToolbarContent: some WindowToolbarContent {
         leadingToolbarContent
     }
 
@@ -62,7 +76,7 @@ extension ContentView {
 
     /// Internal, not private: on iOS the content column's bar carries it (`detailToolbarContent`, #6563).
     @ToolbarContentBuilder
-    var leadingToolbarContent: some ToolbarContent {
+    var leadingToolbarContent: some WindowToolbarContent {
         // Engine status now lives in the center status island (hosted inside
         // the `ContentToolbarID.breadcrumb` principal item, #4519) beside the
         // title, not here in the leading zone.
@@ -143,7 +157,7 @@ extension ContentView {
     /// toolbar item, which is a worse answer than not declaring the zone.
     #if !os(macOS)
     @ToolbarContentBuilder
-    var trailingToolbarContent: some ToolbarContent {
+    var trailingToolbarContent: some WindowToolbarContent {
         // Workspaces in a capsule of its own, then the Inspector toggle, then search at the far right (owner,
         // 2026-11-13). iPadOS keeps the bar's "…" overflow button with search and draws the item before them in the
         // same capsule: no spacer, placement or pin parted the Inspector toggle from search.
@@ -174,7 +188,7 @@ extension ContentView {
     #endif
 
     @ToolbarContentBuilder
-    var contentPaneToolbarContent: some ToolbarContent {
+    var contentPaneToolbarContent: some WindowToolbarContent {
         // The preview/reading pane toggles only make sense in the multi-pane
         // reading workspace. In the compact (iPhone) flow the reader is a single
         // navigation stack, not split panes, so the toggles do nothing and are
@@ -287,7 +301,7 @@ extension ContentView {
     }
 
     @ToolbarContentBuilder
-    var principalToolbarContent: some ToolbarContent {
+    var principalToolbarContent: some WindowToolbarContent {
         // The breadcrumb lozenge + fixed 220pt search field is Mac/iPad window
         // chrome. At compact width (iPhone) it overflows the nav bar, so it's
         // dropped — the nav title carries the context and search moves to the

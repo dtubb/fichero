@@ -12,7 +12,7 @@ extension ContentView {
     /// Internal (not private): referenced from `detailColumn` in
     /// ContentView+RootLayout.swift — `private` is file-scoped.
     @ToolbarContentBuilder
-    var detailToolbarContent: some ToolbarContent {
+    var detailToolbarContent: some WindowToolbarContent {
         // Back/Forward, and the Sidebar/Chat pair while the sidebar is hidden: the Mac draws these from the split
         // view's own toolbar, which an iPad's bars ignore (#6563).
         #if os(iOS)
@@ -65,26 +65,11 @@ extension ContentView {
                 // toolbar contributions when a column is hidden, so the
                 // toggle remains visible even when the inspector is closed
                 // — same mechanism as the sidebar-section buttons (#2309).
-                .toolbar {
-                    // The Mac's place for it; iOS draws it in the content's bar (#6561, `InspectorToggleHome`).
-                    if showInspectorToggle && inspectorToggleHome == .inspectorColumn {
-                        ToolbarItem(id: ContentToolbarID.inspectorToggle, placement: .primaryAction) {
-                            inspectorToggleButton
-                        }
-                    }
-                    // THE search item, right of the inspector toggle
-                    // (Daniel, 2026-08-23 kept its position). ONE item
-                    // (#5024): on the Mac the native field carries its
-                    // options in its magnifier menu. iOS keeps the system
-                    // item with the options loupe beside it (UIKit has no
-                    // magnifier menu). See ContentView+ToolbarSearch.swift.
-                    // iOS draws its search item in the content's bar, far right (#6563): this column has no bar there.
-                    #if os(macOS)
-                    ToolbarItem(id: ContentToolbarID.search, placement: .primaryAction) {
-                        toolbarSearchItem
-                    }
-                    #endif
-                }
+                #if os(macOS)
+                .toolbar(id: ContentToolbarID.customizableToolbar) { inspectorColumnToolbarContent }
+                #else
+                .toolbar { inspectorColumnToolbarContent }
+                #endif
             #endif
         } else {
             // Compact width (iPhone): the adaptive presenter routes the
@@ -94,6 +79,29 @@ extension ContentView {
             // owns the stack-vs-docked choice outside this builder.
             detailView
         }
+    }
+
+    /// The docked inspector column's toolbar items.
+    @ToolbarContentBuilder
+    private var inspectorColumnToolbarContent: some WindowToolbarContent {
+        // The Mac's place for it; iOS draws it in the content's bar (#6561, `InspectorToggleHome`).
+        if showInspectorToggle && inspectorToggleHome == .inspectorColumn {
+            ToolbarItem(id: ContentToolbarID.inspectorToggle, placement: .primaryAction) {
+                inspectorToggleButton
+            }
+        }
+        // THE search item, right of the inspector toggle
+        // (Daniel, 2026-08-23 kept its position). ONE item
+        // (#5024): on the Mac the native field carries its
+        // options in its magnifier menu. iOS keeps the system
+        // item with the options loupe beside it (UIKit has no
+        // magnifier menu). See ContentView+ToolbarSearch.swift.
+        // iOS draws its search item in the content's bar, far right (#6563): this column has no bar there.
+        #if os(macOS)
+        ToolbarItem(id: ContentToolbarID.search, placement: .primaryAction) {
+            toolbarSearchItem
+        }
+        #endif
     }
 }
 

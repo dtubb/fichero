@@ -270,7 +270,11 @@ extension ContentView {
             // 2026-08-30: Preview.app's markup bar, window-scoped.
             .safeAreaInset(edge: .top, spacing: 0) { annotationBarInset }
             // No recipe-run strip along the bottom (owner 2026-11-13): a run is Activity's, not the main window's.
+            #if os(macOS)
+            .toolbar(id: ContentToolbarID.customizableToolbar) { detailToolbarContent }
+            #else
             .toolbar { detailToolbarContent }
+            #endif
             // The content-pane external drop (#4184), scoped to `detailColumn`
             // specifically — never the sidebar. Scope was the ONLY reason
             // #4184's `.onDrop` was reverted: it had been applied to the whole
@@ -440,7 +444,7 @@ extension ContentView {
         // The Mac's window toolbar draws items attached to the split view itself; an iPad's bars do not, so on iOS the
         // same leading items are in the content column's bar instead (`detailToolbarContent`, #6563).
         #if !os(iOS)
-        .toolbar { mainToolbarContent }
+        .toolbar(id: ContentToolbarID.customizableToolbar) { mainToolbarContent }
         #endif
         .onChange(of: viewSettings.previewMode) { _, newPreviewMode in
             handlePreviewModeChange(newPreviewMode)
