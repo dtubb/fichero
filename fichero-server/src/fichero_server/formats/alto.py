@@ -34,6 +34,7 @@ and any further named order is a declared loss.
 
 from __future__ import annotations
 
+import unicodedata
 from typing import Any
 
 from fichero_server.formats import register
@@ -75,6 +76,7 @@ ELEMENT_KINDS: dict[str, str] = {
     "TextBlock": "region",
     "TextLine": "line",
     "String": "word",
+    "Glyph": "character",
     "Illustration": "picture",
     "GraphicalElement": "graphic",
     "ComposedBlock": "region",
@@ -88,6 +90,7 @@ KIND_ELEMENTS: dict[str, str] = {
     "region": "TextBlock",
     "line": "TextLine",
     "word": "String",
+    "character": "Glyph",
     "picture": "Illustration",
     "graphic": "GraphicalElement",
 }
@@ -508,6 +511,12 @@ def write(page: SourcePage, report: LossReport) -> bytes:
             )
             continue
         ref = segment.ref or f"s{index}"
+        content = segment.readings[0][1] if segment.readings else ""
+        if segment.kind == "character" and len(unicodedata.normalize("NFC", content)) != 1:
+            # `Glyph@CONTENT` is one character, required (`segment-editor.export-carries-every-edit`).
+            report.note("characters", 1, "ALTO's Glyph holds exactly one character; a character segment with no "
+                                         "reading, or a reading of more than one character, has no Glyph to go in")
+            continue
         parent_el = by_ref.get(segment.parent_ref or "")
         if parent_el is None:
             # A block belongs directly under `PrintSpace`; only a line or a word has a
@@ -528,6 +537,14 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                 WIDTH=str(int(round(rect[2] * width))),
                 HEIGHT=str(int(round(rect[3] * height))),
             )
+        if segment.kind == "character":
+            attrs["CONTENT"] = unicodedata.normalize("NFC", content)
+            cut = segment.foreign.get("fichero:cut")
+            if cut:
+                if cut.get("confidence") is not None:
+                    attrs["GC"] = f"{float(cut['confidence']):.2f}"
+                report.note("how a character was cut", 1, "ALTO has no place for a cut's source (recogniser, ink "
+                                                          "gaps, a person); PAGE XML keeps it in custom")
         if segment.kind == "word":
             # `String@CONTENT` is REQUIRED (#5130): an untranscribed word -- the ordinary
             # state of a segmented page nobody has read yet -- is written `CONTENT=""`,
@@ -686,6 +703,8 @@ def _implicit_parents(
             f"{{{ALTO_NS_V4}}}{name}",
             ID=implicit_id,
             HPOS="0", VPOS="0", WIDTH=str(int(width)), HEIGHT=str(int(height)),
+            # A String's CONTENT is required; an empty one reads back as no reading.
+            **({"CONTENT": ""} if name == "String" else {}),
         )
         by_ref[implicit_id] = parent_el
     report.note(
