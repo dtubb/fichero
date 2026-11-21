@@ -6,6 +6,12 @@ from fichero_server.db import Database
 from fichero_server.models.knowledge import KnowledgeClaim
 
 
+def _db(tmp_path) -> Database:
+    db = Database(tmp_path / "t.duckdb")
+    db.schedule_claim_embedding = lambda claim: None  # the embedding model is not what these tests are about
+    return db
+
+
 def _rows(db: Database, claim_id: str) -> set[tuple]:
     return set(
         db.conn.execute(
@@ -15,7 +21,7 @@ def _rows(db: Database, claim_id: str) -> set[tuple]:
 
 
 def test_save_writes_one_row_per_name_with_page_and_role(tmp_path):
-    db = Database(tmp_path / "t.duckdb")
+    db = _db(tmp_path)
     claim = KnowledgeClaim(
         text="a met b", entity_ids=["a", "b"], subject_entity_id="a", source_page_label="7"
     )
@@ -25,7 +31,7 @@ def test_save_writes_one_row_per_name_with_page_and_role(tmp_path):
 
 
 def test_resave_replaces_the_rows(tmp_path):
-    db = Database(tmp_path / "t.duckdb")
+    db = _db(tmp_path)
     claim = KnowledgeClaim(text="x", entity_ids=["a", "b"])
     db.save(claim)
     claim.entity_ids = ["c"]
@@ -35,7 +41,7 @@ def test_resave_replaces_the_rows(tmp_path):
 
 
 def test_save_many_and_delete(tmp_path):
-    db = Database(tmp_path / "t.duckdb")
+    db = _db(tmp_path)
     claims = [KnowledgeClaim(text=f"c{i}", entity_ids=["a", f"n{i}"]) for i in range(3)]
     db.save_many(claims, new=True)
     assert all(len(_rows(db, c.id)) == 2 for c in claims)
@@ -46,7 +52,7 @@ def test_save_many_and_delete(tmp_path):
 
 
 def test_failed_statement_write_leaves_no_rows(tmp_path):
-    db = Database(tmp_path / "t.duckdb")
+    db = _db(tmp_path)
     claim = KnowledgeClaim(text="x", entity_ids=["a"])
     db.save(claim)
     try:
@@ -60,7 +66,7 @@ def test_failed_statement_write_leaves_no_rows(tmp_path):
 
 
 def test_table_has_no_index(tmp_path):
-    db = Database(tmp_path / "t.duckdb")
+    db = _db(tmp_path)
     db.save(KnowledgeClaim(text="x", entity_ids=["a"]))
     assert db.conn.execute("SELECT count(*) FROM duckdb_indexes() WHERE table_name = 'kg_mentions'").fetchone()[0] == 0
     assert db.conn.execute("SELECT count(*) FROM duckdb_constraints() WHERE table_name = 'kg_mentions'").fetchone()[0] == 0
