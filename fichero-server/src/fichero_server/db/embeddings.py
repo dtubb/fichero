@@ -232,6 +232,21 @@ class leased_embedder:  # noqa: N801 -- used as `with leased_embedder(...)`, lik
         _start_releaser()
 
 
+def _tail_row_ids(rows: list[dict]) -> list[str]:
+    """Ids of the tail rows the cutter wrote before #6780 for text ending in whitespace: after a page's last passage, one
+    row per character of the overlap, each ending where that passage ends. The cutter's passage ends only grow, so of the
+    rows of one page and scope that share an end, all but the one starting first are tails."""
+    seen: set[tuple] = set()
+    tails: list[str] = []
+    for row in sorted((r for r in rows if r.get("char_end") is not None), key=lambda r: r["char_start"]):
+        key = (row["document_id"], row["embedding_scope"], row["char_end"])
+        if key in seen:
+            tails.append(row["id"])
+        else:
+            seen.add(key)
+    return tails
+
+
 def embedder_loaded() -> bool:
     """Whether an embedding model is in memory now: false before the first embed and after an idle release."""
     with _EMBEDDER_CACHE_LOCK:
@@ -858,12 +873,16 @@ class DatabaseEmbeddingMixin:
                 return set()
             quoted = ", ".join("'" + str(doc_id).replace("'", "''") + "'" for doc_id in wanted)
             rows = (self.lance.open_table(EMBEDDINGS_TABLE).search().where(f"document_id IN ({quoted})")
-                    .limit(sum(len(u) for u in wanted.values()) + len(wanted) + 64).to_list())
+                    .limit(sum(len(u) + 128 for u in wanted.values())).to_list())
         except Exception:  # noqa: BLE001 -- cannot tell: not current, so it is embedded (never skipped on a guess)
             return set()
         by_doc: dict[str, dict[Any, tuple]] = {}
         for row in rows:
             by_doc.setdefault(row.get("document_id"), {})[row.get("id")] = (row.get("text"), row.get(EMBEDDING_MODEL_ID_FIELD))
+        tail_ids = set(_tail_row_ids(rows))  # rows from the cutter before #6780 are not a reason to embed the page again
+        for doc_rows in by_doc.values():
+            for tail_id in tail_ids & doc_rows.keys():
+                del doc_rows[tail_id]
         model = self._get_embedding_model_id()
         return {doc_id for doc_id, units in wanted.items()
                 if len(by_doc.get(doc_id, {})) == len(units)
@@ -910,16 +929,9 @@ class DatabaseEmbeddingMixin:
         columns = ["id", "document_id", "embedding_scope", "char_start", "char_end"]
         table = self.lance.open_table(EMBEDDINGS_TABLE)
         rows = table.search().select(columns).limit(max(1, table.count_rows())).to_list()
-        seen: set[tuple] = set()
-        tails: list[str] = []
-        pages: set[str] = set()
-        for row in sorted((r for r in rows if r.get("char_end") is not None), key=lambda r: r["char_start"]):
-            key = (row["document_id"], row["embedding_scope"], row["char_end"])
-            if key in seen:
-                tails.append(row["id"])
-                pages.add(row["document_id"])
-            else:
-                seen.add(key)
+        tails = _tail_row_ids(rows)
+        by_id = {r["id"]: r["document_id"] for r in rows}
+        pages = {by_id[i] for i in tails}
         return sorted(pages), tails
 
     def tail_passage_scan(self) -> dict[str, Any]:

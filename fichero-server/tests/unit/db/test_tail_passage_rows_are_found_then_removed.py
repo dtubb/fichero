@@ -91,3 +91,16 @@ def test_removal_leaves_exactly_the_passages_the_cutter_makes_now(db_with_tails)
     assert sorted(r["id"] for r in _rows(db, "page-clean")) == clean_rows
     assert db.embedding_is_current(clean)
     assert db.tail_passage_scan()["pages"] == []
+
+
+def test_a_page_with_old_tail_rows_is_current_and_is_not_embedded_again(db_with_tails) -> None:
+    db, junk, _clean, real, tails = db_with_tails
+    assert tails > 60
+
+    with patch.object(db, "_embed_texts", side_effect=AssertionError("embedded again")) as embed_texts:
+        assert db.embedding_is_current(junk)
+        assert db.embed_unless_current(junk).reason == "unchanged"
+        assert db.embed_many_unless_current([junk]) == (1, 0, 1)
+
+    embed_texts.assert_not_called()
+    assert len(_rows(db, "page-junk")) == real + tails
