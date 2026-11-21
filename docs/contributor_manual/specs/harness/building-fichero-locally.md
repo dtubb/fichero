@@ -3669,7 +3669,7 @@ scratch dirs in one morning. The journal is 46.6 MB and 83% of it is loop tick r
   number of lines the session file gives it; the last line of a message wins. Today `session.parse_session` adds the usage
   of every assistant line, and a Claude Code file writes one line per content block (measured: 25,962 lines for 17,530
   messages, cost 1.89 times high). Test: an owed test in fichero-builder/tests/test_session.py (one message on three
-  lines costs once; a Pi file is unchanged). (#6589) → #NEW-1
+  lines costs once; a Pi file is unchanged). (#6589) → #6870
 - `local.perf.caps-reread-each-tick` [BROKEN] — the watcher reads `[spend]` at every tick from the one rules file the
   loop reads, and a park checks the current figure first. Today `run.run` loads it once and keeps it for every
   generation. Test: an owed test in fichero-builder/tests/test_watcher.py (a raised cap reaches a running session on
@@ -3677,62 +3677,62 @@ scratch dirs in one morning. The journal is 46.6 MB and 83% of it is loop tick r
 - `local.perf.day-cap-counts-live-sessions` [BROKEN] — the day's spend is the finished sessions' rows plus the running
   cost of every live session, so the cap holds with any number of workers. Today `watcher.spent_today` sums finished
   rows only and each worker adds its own session (measured overshoot: 30 to 115 USD, three times). Test: an owed test
-  in fichero-builder/tests/test_watcher.py (three live sessions; the third parks before the cap). (#6589) → #NEW-2
+  in fichero-builder/tests/test_watcher.py (three live sessions; the third parks before the cap). (#6589) → #6871
 - `local.perf.expected-red-runs-once` [BROKEN] — a red is run again on another runner only where the rung expects
   green; the base run of red-on-base is never retried, and the first reachable runner counts as the first. Today
   `check_tool._run` retries any red whenever the first-listed runner did not run it. Test: an owed test in
-  fichero-builder/tests/test_remote_list.py. (#6589) → #NEW-3
+  fichero-builder/tests/test_remote_list.py. (#6589) → #6872
 - `local.perf.red-on-base-one-base-run` [GAP] — the base tree runs every changed test file in one pytest command per
   runner and the result is read per file. Today `check_tool.red_on_base` runs one command per file. Test: an owed test
-  in fichero-builder/tests/test_build_check.py (three files, one command, a per-file verdict). (#6589) → #NEW-4
+  in fichero-builder/tests/test_build_check.py (three files, one command, a per-file verdict). (#6589) → #6873
 - `local.perf.guards-alongside-red-on-base` [GAP] — the guards rung runs at the same time as red-on-base (they read
   different scratch trees); the first red still ends the ladder. Test: an owed test in
-  fichero-builder/tests/test_build_check.py. (#6589) → #NEW-4
+  fichero-builder/tests/test_build_check.py. (#6589) → #6873
 - `local.perf.cheap-rungs-at-done` [GAP] — at a worker's DONE the loop runs pinned-checks, ready and diff-bound before
   any chain starts; a red is told to the live session in the same tick, with no alert and no ladder slot. Test: an owed
   test in fichero-builder/tests/test_loop.py (a DONE with a bad trailer gets its finding in the same tick). (#6589)
-  → #NEW-5
+  → #6874
 - `local.perf.verdict-remembered` [GAP] — a ladder verdict is kept for its base, head, pinned copy and approvals; the
   same four start no second ladder, and a DONE at an unchanged red head gets the old finding. Today
   `check_tool.ladder_over` refuses only an empty range. Test: an owed test in fichero-builder/tests/test_loop.py.
-  (#6589) → #NEW-6
+  (#6589) → #6875
 - `local.perf.rungs-keyed-by-tree` [GAP] — a rung that reads only the tree keeps its result by the tree's hash, so an
   amend that changes only commit messages re-runs `ready` alone. Test: an owed test in
-  fichero-builder/tests/test_build_check.py (same tree, new sha, one rung runs). (#6589) → #NEW-7
+  fichero-builder/tests/test_build_check.py (same tree, new sha, one rung runs). (#6589) → #6876
 - `local.perf.pinned-checks-own-commits` [BROKEN] — pinned-checks judges the lane's own commits (from its merge base
   with the land branch), and a commit pushed by hand moves the pinned copy like a landing does. Today a base commit
   that changed the rules file reds every lane behind it. Test: an owed test in fichero-builder/tests/test_presubmit.py.
   → #6853
 - `local.perf.approve-survives-rebase` [BROKEN] — an approve is bound to the test file and its change, and holds at the
   next head and after a rebase while that change is the same. Today it is bound to one head. Test: an owed test in
-  fichero-builder/tests/test_approve_resume.py. (#6589) → #NEW-8
+  fichero-builder/tests/test_approve_resume.py. (#6589) → #6877
 - `local.perf.ladder-slots-follow-runners` [GAP] — ladders run as many at once as there are reachable runners, and two
   batches that share a file take turns only on the build rung. Today the count is a fixed setting and sharing a file
-  serialises the whole ladder. Test: an owed test in fichero-builder/tests/test_heavy_lock.py. (#6589) → #NEW-9
+  serialises the whole ladder. Test: an owed test in fichero-builder/tests/test_heavy_lock.py. (#6589) → #6878
 - `local.perf.every-wait-is-a-row` [GAP] — a queued step that does not start writes one row saying why (no worker slot
   and who holds them, paused, no chain slot), and a session whose step is blocked or checking holds no start slot.
   Today `queue.tick_lane` returns without a row in two of those cases. Test: an owed test in
-  fichero-builder/tests/test_step_state.py. (#6589) → #NEW-10
+  fichero-builder/tests/test_step_state.py. (#6589) → #6879
 - `local.perf.disk-floor-one-alert-sweeps-first` [BROKEN] — under the disk floor the loop sweeps first, then raises one
   alert naming the free space and the lanes held, and writes one row an hour. Today it writes a row per lane each time
   the figure changes and raises no alert (699 rows in one night). Test: an owed test in
   fichero-builder/tests/test_loop.py. → #6852
 - `local.perf.remote-run-leaves-no-scratch` [BROKEN] — a test run sent to a runner makes no scratch dir on the builder's
   machine. Today `check_tool._remote_run` builds a local env, which makes a home dir and a base dir, drops both keys and
-  removes neither. Test: an owed test in fichero-builder/tests/test_no_home_litter.py. (#6589) → #NEW-11
+  removes neither. Test: an owed test in fichero-builder/tests/test_no_home_litter.py. (#6589) → #6880
 - `local.perf.landed-lane-litter-removed` [GAP] — when a lane's last step has landed and its patches are kept, its
   scratch dir, its derived data and any pytest base temp dir older than the retain time are listed, then removed. Test:
-  an owed test in fichero-builder/tests/test_scratch_sweep.py. (#6589) → #NEW-12
+  an owed test in fichero-builder/tests/test_scratch_sweep.py. (#6589) → #6881
 - `local.perf.reviewer-spend-recorded` [GAP] — each review writes one cost row (model, tokens, cost, seconds, head).
   Today the reviewer runs with no session file and no row. Test: an owed test in
-  fichero-builder/tests/test_status_page.py. (#6379) → #NEW-13
+  fichero-builder/tests/test_status_page.py. (#6379) → #6882
 - `local.perf.successor-brief-names-its-place` [GAP] — a successor's brief carries the last commit, the files in flight
   with line numbers and the open findings, and a started session lists the code-index tool or the prompt does not name
   it. Today `run.successor_brief` points at the handoff file only. Test: an owed test in
-  fichero-builder/tests/test_codemap.py. (#6589) → #NEW-14
+  fichero-builder/tests/test_codemap.py. (#6589) → #6883
 - `local.perf.tick-rows-out-of-journal` [BROKEN] — the loop's heartbeat is one small file rewritten each tick, not a
   journal row listing every lane, and a reader that needs one kind of event does not parse the whole journal. Test: an
-  owed test in fichero-builder/tests/test_journal.py. (#6589) → #NEW-15
+  owed test in fichero-builder/tests/test_journal.py. (#6589) → #6884
 - `local.perf.start-sets-no-global-git-config` [BROKEN] — a worker start sets its git identity and its trust of the
   worktree for that worktree only, so two starts in one tick cannot meet on one lock. Today `start_tool.prepare` writes
   the worker user's global config. Test: an owed test in fichero-builder/tests/test_jail_git.py. → #6854
@@ -3865,24 +3865,24 @@ Sessions and the wall:
   rows are read back each tick, and the lane's commits are fetched from the host. Today `queue.real_procs.start` runs
   `sudo -u` on the loop's own Mac and every path is local. Test: an owed test in
   fichero-builder/tests/test_jail_home.py (a fake ssh: a start on a second host, a message delivered, a DONE row
-  read back, the head fetched). (#6589) → #NEW-1
+  read back, the head fetched). (#6589) → #6885
 - `local.scale.every-host-has-the-wall` [GAP] — a session host or a check runner with no jail user, a failed read
   probe or no worker login is refused with a row, and nothing falls back to that Mac's own user; a test run sent to a
   runner runs as the jail user there. Today `check_tool._remote_run` runs worker-written tests as the ssh user, on Macs
   that hold that user's own account. Test: an owed test in fichero-builder/tests/test_jail_home.py (a host with no
-  jail user refuses; the remote command line starts as the jail user). (#6589) → #NEW-2
+  jail user refuses; the remote command line starts as the jail user). (#6589) → #6886
 - `local.scale.host-capacity-is-declared` [GAP] — each machine declares how many sessions, how many check slots and
   whether it builds; a start past the count, or on a host whose free memory is under its floor, waits with a row naming
   the host. Today `[machines]` holds an ssh name, a dir and a disk floor, and the counts are `[queue] workers`,
   `[loop] lanes` and `[check] parallel` for the whole pool. Test: an owed test in
   fichero-builder/tests/test_heavy_lock.py (a third session on a host of two waits with a row; a host under its
-  memory floor starts none). (#6356) → #NEW-3
+  memory floor starts none). (#6356) → #6887
 - `local.scale.checks-go-to-the-least-busy-runner` [GAP] — a rung sent away goes to the runner with a free check slot
   and the fewest running, and a machine runs as many heavy jobs at once as it declares. Today `check_tool._run` takes
   the first reachable runner in the list and `_remote_heavy` holds one lock per machine, so red-on-base ran for 23 h
   of its 79 h of wall. A second machine may be a build runner, each with its own derived data. Test: an owed test in
   fichero-builder/tests/test_remote_list.py (two runs at once land on two runners; a runner of two slots runs two). This
-  extends `local.perf.ladder-slots-follow-runners`. (#6356) → #NEW-3
+  extends `local.perf.ladder-slots-follow-runners`. (#6356) → #6887
 
 Landing:
 
@@ -3891,46 +3891,46 @@ Landing:
   combined head and pushes once; every member's landing steps (issues, pinned copy, jail root) then run for it. Today
   `work.after_run` lands each lane by itself and `landed.fast_forward` refuses any head the base moved under. Test: an
   owed test in fichero-builder/tests/test_landed_verb.py (three green lanes, one ladder, one push, three landed rows).
-  (#6589) → #NEW-4
+  (#6589) → #6888
 - `local.scale.train-ladder-judges-the-difference` [GAP] — the train's ladder runs every guard and every package suite
   on the combined head, and a test or guard that is red on the train's base too is inherited: one row and one issue,
   never a red train. Today the suites and the skipped guards run only after a milestone, and that run was red all eight
   times in the week. Test: an owed test in fichero-builder/tests/test_landed_verb.py (a test red on base and head does not
-  red the train and is named once). (#6589) → #NEW-4
+  red the train and is named once). (#6589) → #6888
 - `local.scale.red-train-halves` [GAP] — a red train is split in two and each half runs as its own train until the
   member that reds it is alone; that member goes back to its worker with the finding and the others land. Test: an owed
   test in fichero-builder/tests/test_landed_verb.py (four members, the third red: three land, one fix brief).
-  (#6589) → #NEW-5
+  (#6589) → #6889
 - `local.scale.lane-check-keeps-its-base` [GAP] — a lane's own check runs on the base the lane was built on and is not
   run again because the land branch moved; only the train rebases. A READY verdict carries onto the train when the
   member's commits have the same diff and message hashes and nothing landed since touches its files; otherwise the train
   reviews the rebased range. Today `land_tool.range_key` holds the base, so every move is a new check and a new review
   (96 in the week). Test: an owed test in fichero-builder/tests/test_landed_verb.py (a disjoint base move keeps the verdict;
-  an overlapping one asks for a review). (#6589) → #NEW-5
+  an overlapping one asks for a review). (#6589) → #6889
 - `local.scale.generated-files-are-made-at-compose` [PARTIAL] — a conflict that lies only in generated files is never
   a person's: the train takes the base's copy, and regenerates every generated file once on the combined head. Built:
   `work.do_rebase` re-bakes the two contract identity files named in `[check] generated`, and `work.regen` runs
   `[check] regen` after a clean rebase. Left: the other generated files (the three contract copies, the MCP tools, the
   engine embed list) still abort a rebase, and regeneration runs once per lane, not once per train. Test: an owed test
   in fichero-builder/tests/test_landed_verb.py (two members that each add a route compose without a conflict).
-  (#4705) → #NEW-7
+  (#4705) → #6891
 - `local.scale.exclusive-areas` [GAP] — the rules file names areas by path, and marks some exclusive (the rules file,
   the docs nav, a spec that many lanes edit); a lane names its areas when it is queued, and two lanes that share an
   exclusive area do not run at once: the second waits with a row. Test: an owed test in
   fichero-builder/tests/test_loop.py (two lanes on one exclusive area: one starts, one row says why the other waits).
-  (#6589) → #NEW-8
+  (#6589) → #6892
 
 Cadence:
 
 - `local.scale.rungs-have-a-cadence` [GAP] — the rules file gives each rung one cadence (done, step, train, daily,
   nightly) and the table above is the default. Today `check_tool._run_ladder` runs every rung at every check. Test: an
   owed test in fichero-builder/tests/test_build_check.py (a rung set to train does not run in a lane check and runs in
-  the train's). (#6589) → #NEW-6
+  the train's). (#6589) → #6890
 - `local.scale.later-red-finds-its-landing` [GAP] — each train writes one row naming its members and their commit
   ranges in order; a red at a daily or nightly cadence is bisected over the trains since the last green, then over that
   train's members, running only the red rung or test, and the member's lane gets one fix step. Nothing is reverted
   without the manager. Test: an owed test in fichero-builder/tests/test_landed_verb.py (a red planted in the fifth of eight
-  trains is found in at most six runs). (#6589) → #NEW-6
+  trains is found in at most six runs). (#6589) → #6890
 
 The manager:
 
@@ -3941,12 +3941,12 @@ The manager:
   model tier takes it with the findings before a person does). Today each is an alert: 53 runner-down, 40 rebase, 18
   outside-tree, and 236 answers of `retry`. Acceptance: alerts per landing is in the nightly report, with a target of
   0.5. Test: an owed test in fichero-builder/tests/test_loop.py (each class leaves a row and no alert).
-  (#6589) → #NEW-9
+  (#6589) → #6893
 - `local.scale.inherited-red-blocks-no-lane` [GAP] — a test the lane did not change that is red on its base and on its
   head is not the lane's: the check goes on, the test is put on a known-reds list with one issue, and the entry ends
   when the land branch is green for it. Today one red test on the land branch reds every lane's green run. Test: an
   owed test in fichero-builder/tests/test_build_check.py (a base-red test in an unchanged file leaves the lane green
-  and one known-red row). (#6856) → #NEW-10
+  and one known-red row). (#6856) → #6894
 
 Cheap models:
 
@@ -3957,7 +3957,7 @@ Cheap models:
   joins the cheapest model's list after 20 measured steps cost less per landing than the tier above. Today one
   `[models] builder` serves every step. Test: an owed test in fichero-builder/tests/test_model_config.py (a kind maps
   to its role and bound; two reds move the step up a tier). This needs `agent-profiles.worker.small` and
-  `local.perf.cheap-rungs-at-done`. (#6625) → #NEW-11
+  `local.perf.cheap-rungs-at-done`. (#6625) → #6895
 
 ### Judged not worth building
 
