@@ -243,7 +243,8 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
   `WindowWorkspaceTests`. View ▸ Customize Toolbar: every Mac window `.toolbar` site is
   `.toolbar(id: ContentToolbarID.customizableToolbar)` and every builder it calls returns
   `CustomizableToolbarContent` on macOS. *Test:*
-  `fichero/Tests/Unit/general/Views/Shell/CustomizableToolbarTests.swift::macSitesAreCustomizable`, `::buildersAreCustomizableOnMac`.
+  `fichero/Tests/Unit/general/Views/Shell/CustomizableToolbarTests.swift::buildersAreCustomizableOnMac`, `::aliasIsCustomizableOnMac`.
+  No test proves that the sites use `toolbar(id:)`.
 - `shell.search.always-visible-with-scope` — **[PARTIAL]** (#6729; owner 2026-11-19) search is one field
   in the toolbar; its magnifier menu has a **Search Scope** section with a check on the current scope,
   and the placeholder names it ("Search this page", "Search this document", "Search this folder", "Search this
@@ -715,10 +716,10 @@ the browse→read flow down the centre.
   are submenus of kinds that add the chosen kind in one step; View As ▸ lists the pane's views after Pane ▸; Pane Options ▸
   holds the Reader's Font. *Not built:* Show ▸ (Source's overlays, still Preview's What to show) and Order ▸ (Layout Order)
   under Pane Options; removing the head's left view chooser, which today also names what is shown (#6458). *Tests:*
-  `fichero/Tests/Unit/general/Views/Shell/PaneMenuTests.swift::pinLivesInTheMenu`,
   `fichero/Tests/Unit/general/Views/Shell/PaneMenuTests.swift::viewAsInTheMenu`,
-  `fichero/Tests/Unit/general/Views/Shell/PaneMenuTests.swift::paneOptionsHoldsFont`,
-  `fichero/Tests/Unit/general/Models/PaneSplitAddsKindTests.swift::splitAddsTheChosenKind`.
+  `fichero/Tests/Unit/general/Models/PaneSplitAddsKindTests.swift::splitAddsTheChosenKind`,
+  `fichero/Tests/Unit/general/Views/Shell/PaneMenuEntriesShapeTests.swift::testNoPinButtonNoSecondPinTitleNoOneStepSplit`.
+  No test proves the menu's order, Pin Pane being a toggle, or Font sitting under Pane Options.
 - `panes.head.kind-switcher-everywhere` — **[PARTIAL]** (#4706; Reader fixed d8621ecc3, pinned by
   `PaneHeadKindSwitcherParityTests`; Chat follows → #4705 increment 6) every pane head
   that renders a leaf kind mounts the kind selector, so ANY pane can become a Library, Source or
