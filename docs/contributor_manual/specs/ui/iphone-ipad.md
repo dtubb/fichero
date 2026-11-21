@@ -145,7 +145,7 @@ what the shell already uses. For an outbox that survives being offline, Mail's O
   connected edge calls `resumePendingUploads`; `fichero/Tests/Unit/general/Models/MobileCaptureQueueTests.swift` and its
   siblings). It promises nothing else offline: no project of its own, no reading, no search. Owed: the same capture can
   be imported twice (#5884); capture is not offered before the first pairing.
-- `ios.offline.says-what-it-is` — **[GAP]** (#6754) a phone opened with no connection says "Not connected to <Mac>" and
+- `ios.offline.says-what-it-is` — **[GAP]** (#6754; its own issue → #6868) a phone opened with no connection says "Not connected to <Mac>" and
   that captures will wait, in place of an empty project. Today the workspace is drawn over the device's own empty
   reference with the recovery bar above it. Test (not yet written): with `ios.project.never-its-own-path`.
 - `ios.offline.last-seen-pages` — **[GAP]** (#3278) pages and lists already seen are kept for reading with no connection.
@@ -230,7 +230,7 @@ what the shell already uses. For an outbox that survives being offline, Mail's O
 
 ## Build order
 
-#### Step 1.1 — The first project reference is the Mac's (#6754)
+#### Step 1.1 — The first project reference is the Mac's (#6754, #6868)
 - Behaviours: `ios.project.never-its-own-path`, `ios.offline.says-what-it-is`
 - Tests: PairedLaunchLibraryTests.swift
 - Size: M
@@ -241,13 +241,13 @@ what the shell already uses. For an outbox that survives being offline, Mail's O
 - Depends on: 1.1
 - Size: S
 
-#### Step 1.3 — One way to choose a project, remembered
+#### Step 1.3 — One way to choose a project, remembered (#6796, #6797)
 - Behaviours: `ios.project.one-way-to-choose`, `ios.project.pairing-with-several-asks-which`
 - Tests: IOSProjectChoiceTests.swift, PairingChoosesAProjectTests.swift
 - Depends on: 1.2
 - Size: M
 
-#### Step 1.4 — Every address of the link is a fallback
+#### Step 1.4 — Every address of the link is a fallback (#6798)
 - Behaviours: `ios.connect.falls-back-to-the-macs-other-address`
 - Tests: PairingRecordsEveryAddressTests.swift
 - Size: M
