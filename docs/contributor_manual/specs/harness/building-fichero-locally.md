@@ -559,7 +559,10 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   This replaces "left alone while its branch has not moved" in `dev-workflows.rollout.dry-run`. Today the loop in
   `fichero-builder/fichero_builder/run.py` counts `unsaid` only when the head moved, and `watcher.assess` in
   `fichero-builder/fichero_builder/watcher.py` alerts only on a session that is not idle; a small-model worker sat idle
-  on a question for an hour and a half on 2026-11-21. Test (owed): `test_dry_run.py`, an idle worker with an unmoved
+  on a question for an hour and a half on 2026-11-21. The signal comes from Claude Code's own `Stop` hook, not from
+  reading the tmux window: the worker's settings.json the builder writes carries a `Stop` hook, which receives the turn's
+  `last_assistant_message` and writes it to the lane's feed when it has no DONE or handoff line. An adapter whose harness
+  has no such hook falls back to the window. Test (owed): `test_dry_run.py`, an idle worker with an unmoved
   branch and a last line ending in a question mark is one alert in one tick; one with no question is nudged, then
   alerted. Serves: reliable.
 - `local.disk.thin-snapshots-before-holding` [GAP] (#6589) — before the loop holds a new lane for disk, it frees what
@@ -625,7 +628,9 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
 - `local.models.effort-per-role` [GAP] (#6589) — a `[models]` role row may carry `effort = "low" | "medium" | "high"`,
   and the worker, reviewer or spec writer started on that role runs at that level: low for lint and mechanical
   batches, medium for workers, high for reviewers and spec writers. The adapter passes it in the form its harness
-  takes; an adapter that cannot take a level says so, and a row asking it for one refuses the start as a question.
+  takes. For Claude Code that is `"effortLevel"` in the settings.json the builder writes for the worker (the same level
+  as the `--effort` flag and the `CLAUDE_CODE_EFFORT_LEVEL` variable, which win over it; the builder sets neither, so
+  the row decides). Claude Code takes `low`, `medium`, `high` and `xhigh` there; an adapter that cannot take a level says so, and a row asking it for one refuses the start as a question.
   Any other value refuses the rules file. A row with no `effort` starts the command it starts today, byte for byte,
   and the run's `worker` row records the level. Today `models.Model` holds provider, model and context, and
   `start_tool` builds the Claude Code command with `--model` alone. Test (owed): `test_model_config.py` and
