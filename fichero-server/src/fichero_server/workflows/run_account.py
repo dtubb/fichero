@@ -35,6 +35,11 @@ INTERRUPTED_PREFIX = "Interrupted: the engine stopped"
 #: A recipe's step run cut off by the engine's stop: the recipe run, taken up again, reads its pages not done itself, so the
 #: step run offers no second run (`recipes-run.journey.resume-after-crash`, #5357).
 RECIPE_CARRIES_ON = "its recipe run carries on from its checkpoint"
+#: How a run's record and rows read when the engine stopped under it and its checkpoint holds it for the person's Resume
+#: (owner 2026-11-21: interrupted runs resume from the launch alert; `held_at_open`).
+HELD_PREFIX = "Paused: the engine stopped"
+#: The rest of a held run's words: what its Resume does.
+HELD_RESUMES = "Resume carries on from its last finished page"
 #: How a run's reason starts when its project was closed while it ran (#5608).
 CLOSED_PREFIX = "Interrupted: the project was closed"
 #: The words the older open-time sweep wrote (`workflows/activity_store._STALE_RUN_ERROR`).
@@ -377,17 +382,22 @@ def closing_runs(db: Any) -> list[str]:
     return closing
 
 
+def _has_checkpoint(db: Any, thread_id: str) -> bool:
+    """Whether a run has a checkpoint to go on from; False while the checkpoint table does not exist yet."""
+    from fichero_server.db import activity_queries
+
+    try:
+        return activity_queries.has_root_checkpoint(db, thread_id)
+    except Exception:  # noqa: BLE001 -- no checkpoint table yet: nothing to resume from
+        return False
+
+
 def _resumable_after_close(db: Any, thread_id: str) -> bool:
     """Whether a run its project's close stops can be paused and resumed (#6596): it has a checkpoint to go on from,
     and it is not a recipe's step run, which its recipe run carries on itself (`RECIPE_CARRIES_ON`)."""
-    from fichero_server.db import activity_queries
     from fichero_server.execution import jobs
 
-    try:
-        saved = activity_queries.has_root_checkpoint(db, thread_id)
-    except Exception:  # noqa: BLE001 -- no checkpoint table yet: nothing to resume from
-        return False
-    return saved and jobs.parent_kind(db, thread_id) != "run-a-recipe"
+    return _has_checkpoint(db, thread_id) and jobs.parent_kind(db, thread_id) != "run-a-recipe"
 
 
 def closed_mid_run(thread_id: str) -> bool:
@@ -400,8 +410,42 @@ def run_started(thread_id: str) -> None:
     _CLOSED_MID_RUN.pop(thread_id, None)
 
 
+def held_at_open(error: str | None) -> bool:
+    """Whether a paused run's error says the open held it for the launch alert (`mark_interrupted_runs`): a run of its own,
+    not a recipe's step run, which its recipe run's row stands for (one alert item per run)."""
+    return bool(error) and error.startswith(HELD_PREFIX) and not error.endswith(RECIPE_CARRIES_ON)
+
+
+def _hold(db: Any, thread_id: str, ended: datetime | None) -> None:
+    """Hold a run the engine's stop cut off, that has a checkpoint: its record and rows `paused` with `HELD_PREFIX` words, to
+    wait for the person's Resume (owner 2026-11-21). A recipe's step run says its recipe run carries it on, and the recipe's
+    row notes it as the run to adopt (`awaiting`), so the recipe's Resume resumes it and no page is read twice."""
+    import json
+
+    from fichero_server.db import activity_records as records
+    from fichero_server.execution import jobs
+
+    words = f"{stopped_at_words(ended, HELD_PREFIX)}; {HELD_RESUMES}"
+    parent = jobs.parent_of(db, thread_id)
+    if parent is not None and jobs.parent_kind(db, thread_id) == "run-a-recipe":
+        words += f"; {RECIPE_CARRIES_ON}"
+        detail = json.loads(jobs.read_job(db, parent)["detail"] or "{}")
+        running = [i for i, step in enumerate(detail.get("steps") or []) if step.get("state") == "running"]
+        if running:
+            # ponytail: two steps running beside each other note only the first; the other's pages start again in a new run
+            # (their done pages stay done, `ran_on`). Noting each is the upgrade.
+            cards = detail.get("runs") or []
+            card = cards[running[0]] if running[0] < len(cards) else {}
+            detail["awaiting"] = {"card": card.get("id"), "child": thread_id}
+            jobs.save_detail(db, parent, json.dumps(detail))
+    records.update_run(db, thread_id, {"status": "paused", "error": words})
+    jobs.pause_run_rows(db, thread_id, words)
+
+
 def mark_interrupted_runs(db: Any) -> list[str]:
-    """On opening a project, every run this engine did not finish is marked interrupted (#5555): its record
+    """On opening a project, a run this engine did not finish that has a checkpoint is HELD (`_hold`): paused, listed by the
+    launch alert, resumed from its last finished page only when the person says so (owner 2026-11-21). Every other run this
+    engine did not finish is marked interrupted (#5555): its record
     and its job row say "Interrupted: the engine stopped at HH:MM, before this run finished", the time being
     the last work the run recorded; a run whose project was closed while it ran says "Interrupted: the
     project was closed at HH:MM, before this run finished", the time of the close (#5608). Its checkpoint is
@@ -426,6 +470,10 @@ def mark_interrupted_runs(db: Any) -> list[str]:
             heard = [t for t in (jobs.last_heard(db, thread_id), started_at) if t is not None]
             ended = max(ensure_utc(t) for t in heard) if heard else None
             words = stopped_at_words(ended)
+            if _has_checkpoint(db, thread_id):
+                _hold(db, thread_id, ended)
+                forget(thread_id)
+                continue
         reason = f"{words}, before this run finished"
         if jobs.parent_kind(db, thread_id) == "run-a-recipe":
             reason += f"; {RECIPE_CARRIES_ON}"
@@ -437,6 +485,6 @@ def mark_interrupted_runs(db: Any) -> list[str]:
     return marked
 
 
-__all__ = ["CLOSED_PREFIX", "INTERRUPTED_PREFIX", "RECIPE_CARRIES_ON", "PageFailure", "RunAccount", "RunOffer", "build_account",
-           "closed_mid_run", "closing_runs", "forget", "mark_interrupted_runs", "run_account", "run_started",
+__all__ = ["CLOSED_PREFIX", "HELD_PREFIX", "HELD_RESUMES", "INTERRUPTED_PREFIX", "RECIPE_CARRIES_ON", "PageFailure", "RunAccount", "RunOffer", "build_account",
+           "closed_mid_run", "closing_runs", "forget", "held_at_open", "mark_interrupted_runs", "run_account", "run_started",
            "stopped_at_words"]

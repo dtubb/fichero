@@ -2282,12 +2282,14 @@ async def list_stopped_at_quit(db: Database = Depends(get_library_database)) -> 
     `POST /api/activity/stopped-at-quit/continue`."""
     from fichero_server.execution import jobs as job_queue
     from fichero_server.execution.runner import QUIT_PAUSED_ERROR
+    from fichero_server.workflows.run_account import held_at_open
 
     items = [StoppedAtQuitItem(**row) for row in await asyncio.to_thread(job_queue.stopped_at_quit, db)]
     store = get_activity_tracker(str(db.path)).store
     listed = {i.id for i in items}
     for run in await store.list_workflow_runs(statuses=["paused"], limit=500):
-        if run.error == QUIT_PAUSED_ERROR and await asyncio.to_thread(job_queue.parent_of, db, run.thread_id) not in listed:
+        # the quit paused it, or the open held it (#6732); a run under a listed row is that row's own step (#6807)
+        if (run.error == QUIT_PAUSED_ERROR or held_at_open(run.error)) and await asyncio.to_thread(job_queue.parent_of, db, run.thread_id) not in listed:
             items.append(StoppedAtQuitItem(id=run.thread_id, kind="workflow", name=run.workflow_name or "Workflow run",
                                            started_at=_utc(run.started_at)))
     return StoppedAtQuitResponse(items=items, count=len(items))

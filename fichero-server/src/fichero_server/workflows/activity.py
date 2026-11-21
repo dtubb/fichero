@@ -25,6 +25,7 @@ from fichero_server.workflows.activity_types import (
     ActivityStats,
     ActivityType,
 )
+from fichero_server.workflows import run_account
 from fichero_server.workflows.activity_store import ActivityStore
 
 logger = logging.getLogger(__name__)
@@ -727,8 +728,10 @@ async def resume_quit_paused_runs(store: Any, db: Any, thread_ids: list[str] | N
     """Carry on the runs the last quit paused (#5357, `activity.run.quit-pauses`) THAT THE PERSON CHOSE (`thread_ids`,
     from the launch alert's Continue, `activity.launch.nothing-starts-one-alert`): the launch itself resumes nothing
     (owner 2026-11-13; `thread_ids` None), the runs stay paused with the quit's marker for the alert to list. A run a
-    person paused is never resumed here. The marker is cleared first, so a later pause is not taken for a quit; a resume
-    that fails leaves the run paused with the reason as its error. Returns the thread ids resumed."""
+    person paused is never resumed here. A run the open held after the engine stopped under it (`run_account.held_at_open`)
+    is resumed the same way. The marker is cleared first, so a later pause is not taken for a quit; a resume that fails
+    leaves a quit-paused run paused with the reason as its error, and FAILS a held one with that reason, its rows and
+    documents settled (owner 2026-11-21: only a resume that cannot proceed is failed). Returns the thread ids resumed."""
     if thread_ids is None:
         return []
     from fichero_server.api.routes.workflow_execution import core  # noqa: PLC0415
@@ -738,17 +741,34 @@ async def resume_quit_paused_runs(store: Any, db: Any, thread_ids: list[str] | N
 
     resumed: list[str] = []
     for run in await store.list_workflow_runs(statuses=["paused"], limit=500):
-        if run.thread_id not in thread_ids or run.error != QUIT_PAUSED_ERROR or _running_workflows.get(
+        held = run_account.held_at_open(run.error)
+        if run.thread_id not in thread_ids or not (run.error == QUIT_PAUSED_ERROR or held) or _running_workflows.get(
                 run.thread_id, {}).get("status") in ("accepted", "running"):  # winding down here: not yet resumable
             continue
         await store.update_workflow_run(run.thread_id, error="Resumed after the app reopened")
         try:
             await core.resume_workflow(run.thread_id, None, db=db)
-        except Exception as exc:  # noqa: BLE001 -- the run stays paused and says why; the launch goes on
-            await store.update_workflow_run(run.thread_id, error=f"Could not resume after the app reopened: {exc}")
+        except Exception as exc:  # noqa: BLE001 -- the run says why; the launch goes on
+            if held:
+                await asyncio.to_thread(_fail_held_run, db, run.thread_id, f"Could not resume after the engine stopped: {exc}")
+            else:
+                await store.update_workflow_run(run.thread_id, error=f"Could not resume after the app reopened: {exc}")
             continue
         resumed.append(run.thread_id)
     return resumed
+
+
+def _fail_held_run(db: Any, thread_id: str, reason: str) -> None:
+    """A held run whose resume cannot proceed ends failed with `reason`: its record, its rows, and its documents released."""
+    from fichero_server.execution import jobs  # noqa: PLC0415
+    from fichero_server.workflows import activity_store  # noqa: PLC0415
+
+    activity_store.mark_run_failed(db, thread_id, reason)
+    jobs.fail_run_rows(db, thread_id, reason)
+    run_account.forget(thread_id)
+    from fichero_server.execution.runner import on_background_loop  # noqa: PLC0415
+
+    on_background_loop(_settle_recovered_run_documents([thread_id], str(db.path)))
 
 
 async def _resume_quit_paused_bg(tracker: "ActivityTracker", db_path: str) -> None:
