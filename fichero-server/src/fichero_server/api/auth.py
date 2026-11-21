@@ -67,6 +67,7 @@ _UNAUTHENTICATED_PATHS = frozenset(
         "/api/auth/invites/redeem",
         "/api/pair",
         "/api/pair/sign-in",
+        "/api/pair/enroll",
         "/openapi.json",
         "/docs",
         "/redoc",

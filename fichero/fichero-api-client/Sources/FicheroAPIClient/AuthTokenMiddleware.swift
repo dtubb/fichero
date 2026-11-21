@@ -50,6 +50,8 @@ public struct AuthTokenMiddleware: ClientMiddleware {
         "/api/pair",
         // A person signs a device in with no code (Step 8.9): no local token may go to the remote host.
         "/api/pair/sign-in",
+        // A fresh device of the owner redeems the synced enrollment secret with no token (signin.own.ios-finds-it-and-connects).
+        "/api/pair/enroll",
         "/openapi.json",
         "/docs",
         "/redoc"
