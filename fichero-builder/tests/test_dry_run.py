@@ -75,16 +75,14 @@ def test_a_healthy_worker_that_ends_leaves_one_worker_row_and_one_cost_row(root)
     assert cost["usd"] == round(2000 * 3 / 1e6, 4) and cost["turns"] == 2 and cost["end"] == "gone"
 
 
-def test_the_session_cap_parks_and_stops_the_worker(root):
-    """Since 2026-11-02 the session cap hands off (ie-lane2 was parked mid-step with uncommitted work); the day cap parks."""
+def test_session_spend_alone_neither_hands_off_nor_stops_the_worker(root):
+    """Owner ruling B2 (2026-11-21): the dollar session cap is gone; only the day cap and the context limit end a session."""
     fake = Fake([HEALTHY, {**HEALTHY, "cost_usd": 1.0}, HEALTHY])
-    said, told = [], []
+    told = []
     fake.procs.tell = lambda pane, words: told.append(words)
-    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=said.append) == "gone"
-    assert fake.stopped == [], "not stopped: told to hand off"
-    watch = [e["what"] for e in journal.read() if e["event"] == "watch"]
-    assert watch == ["handoff: session spend 1.00 USD reached the cap 1.00"]
-    assert any("session spend" in t and "successor" in t for t in told), "the worker is told why and to hand off"
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None) == "gone"
+    assert fake.stopped == [] and told == []
+    assert [e["what"] for e in journal.read() if e["event"] == "watch"] == []
 
 
 def test_yesterdays_spend_does_not_count_but_todays_does(root):

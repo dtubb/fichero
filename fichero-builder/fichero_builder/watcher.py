@@ -17,8 +17,8 @@ class Spend:
     window: int = 200_000          # the model's context window, tokens
     handoff_at: float = 0.85       # hand off when the latest prompt reaches this share of the window
     handoff_tokens: int = 0        # or at this many tokens, when set (dev-workflows.run.loop-handoff-tokens: a 1M window cost 17M tokens a lane)
-    session_usd: float = 0.0       # 0 = no cap declared = refuse to start
-    day_usd: float = 0.0
+    session_usd: float = 0.0       # read and ignored: owner ruling B2 (2026-11-21) dropped the dollar session cap
+    day_usd: float = 0.0           # 0 = no cap declared = refuse to start
     silent_s: int = 1800           # a session file unchanged this long while not idle = alert
     prices: dict = field(default_factory=dict)  # model name or prefix -> [usd per M input tokens, usd per M output tokens]
 
@@ -72,8 +72,8 @@ def price_for(model: str, spend: Spend):
 def refusals(spend: Spend, kind: str, model: str) -> list[str]:
     """Every reason not to start a worker of this kind and model; empty = go."""
     out = []
-    if spend.session_usd <= 0 or spend.day_usd <= 0:
-        out.append("harness.toml [spend] must set session_usd and day_usd above 0: no cap, no start")
+    if spend.day_usd <= 0:
+        out.append("harness.toml [spend] must set day_usd above 0: no cap, no start")
     if kind != "pi" and price_for(model, spend) is None:  # a Pi session file carries its own price per turn
         out.append(f"harness.toml [spend].prices has no price for {model!r}: unknown price, no start")
     return out
@@ -106,10 +106,8 @@ def assess(state: dict, spend: Spend, model: str, *, spent_today: float, silent_
     elif state.get("error") and not state.get("transient"):
         out.append(f"park: provider error: {state['error'][:120]}")
     cost = cost_of(state, spend, model)
-    if spent_today + cost >= spend.day_usd:  # only the day cap parks (dev-workflows.run.loop-session-cap-hands-off)
+    if spent_today + cost >= spend.day_usd:  # the only dollar cap: owner ruling B2 (2026-11-21) dropped the session cap
         out.append(f"park: today's spend {spent_today + cost:.2f} USD reached the cap {spend.day_usd:.2f}")
-    elif cost >= spend.session_usd:  # a fresh session continues from the tree, as at the context handoff
-        out.append(f"handoff: session spend {cost:.2f} USD reached the cap {spend.session_usd:.2f}")
     elif state.get("context", 0) >= threshold(spend):
         out.append(f"handoff: context {state['context']} of {threshold(spend) if spend.handoff_tokens else spend.window}")
     if not state.get("idle") and state.get("started") and silent_for_s >= spend.silent_s:

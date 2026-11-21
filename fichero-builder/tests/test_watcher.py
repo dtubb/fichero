@@ -68,12 +68,17 @@ def test_handoff_at_the_share_of_the_window():
     assert watcher.assess({**STATE, "context": 850}, SPEND, "sonnet", spent_today=0, silent_for_s=0) == ["handoff: context 850 of 1000"]
 
 
-def test_the_session_cap_then_the_day_cap_park():
-    """Since 2026-11-02 (dev-workflows.run.loop-session-cap-hands-off) the session cap hands off; only the day cap parks."""
-    out = watcher.assess({**STATE, "cost_usd": 5.0}, SPEND, "sonnet", spent_today=0, silent_for_s=0)
-    assert out == ["handoff: session spend 5.00 USD reached the cap 5.00"]
+def test_only_the_day_cap_parks_and_session_spend_alone_never_ends_a_session():
+    """Owner ruling B2 (2026-11-21): no dollar session cap; a session ends on the day cap and the context limit only."""
+    assert watcher.assess({**STATE, "cost_usd": 15.0}, SPEND, "sonnet", spent_today=0, silent_for_s=0) == []
     out = watcher.assess({**STATE, "cost_usd": 1.0}, SPEND, "sonnet", spent_today=19.5, silent_for_s=0)
     assert out == ["park: today's spend 20.50 USD reached the cap 20.00"]
+
+
+def test_a_day_cap_alone_lets_a_worker_start():
+    """Owner ruling B2: `session_usd` is no longer required (still accepted, so an older rules file loads)."""
+    assert watcher.refusals(watcher.Spend(day_usd=20.0, prices=PRICES), "claude", "sonnet") == []
+    assert any("no cap, no start" in r for r in watcher.refusals(watcher.Spend(session_usd=5.0, prices=PRICES), "claude", "sonnet"))
 
 
 def test_a_quota_refusal_or_a_lasting_error_parks_but_a_transient_one_does_not():
