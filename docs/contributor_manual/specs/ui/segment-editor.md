@@ -219,7 +219,7 @@ targets are at least 44 pt.
   once, `segment-editor.every-edit-lands-at-once`), and lighting only the kept region's lines.
   *Tests:* `test_segment_merge_lines.py::TestMergeRegions`;
   `fichero/Tests/Unit/general/Views/Source/SegmentJoinTests.swift::mergedRegionsFlashTheOrder`.
-- `segment-editor.split-knife` — **[PARTIAL]** (→ #4941; app + engine; refines `source.editor.cut`) a Knife stroke, a
+- `segment-editor.split-knife` — **[OK]** (→ #4941; app + engine; refines `source.editor.cut`) a Knife stroke, a
   polyline drawn across one or many lines, splits every line it crosses at the crossing: the
   engine (`segment.split` gains `cut_path`, points in the frame of the image drawn on) cuts each
   outline along the stroke, cuts each baseline where the stroke crosses it, and gives each part
@@ -241,9 +241,15 @@ targets are at least 44 pt.
   *Owner 2026-11-19 (#6734):* drawing a cut across a segment currently splits and saves nothing; the cut must split each
   segment it crosses into two, saved and undoable, with a test that drives the commit path. *Not built.*
   *Owner 2026-11-21 (#6734):* the Knife offers lines AND regions: a stroke across a region splits its polygon in two as
-  it splits a line at its baseline. *Not built:* the engine cuts only segments with a baseline (`segment.split` with
-  `cut_path`), so the app sends a region as `no-baseline` today; no region polygon is split.
-  *Tests:* `test_segment_split_knife.py`
+  it splits a line at its baseline. *Built (2026-11-21):* `segment.split` with `cut_path` cuts a named region's polygon
+  along the stroke into the pieces it leaves (`media/line_cut.cut_region`); the first piece keeps the region's id, the
+  others are new regions after it in the reading order, and each line of the region goes whole with the piece holding
+  its baseline's middle (a line the stroke crosses inside a cut region moves, it is not cut again); a stroke that does
+  not cut through leaves the region alone (`grazed`); one action, one undo (`segment.unsplit_many`). The app offers the
+  shown pass's regions with its lines (`SegmentEdit.knife`).
+  *Tests:* `test_segment_split_knife.py` (`TestRegions`: a region becomes two with the right lines in each, undo restores it, a short stroke leaves it)
+  and `KnifeStrokeTests.regionsAreOffered`;
+  `test_segment_split_knife.py`
   (two crossings, graze, rtl, vertical; the undo takes the `cut` mark off the line again, 2026-11-14, as a version
   snapshot carries no metadata); `KnifeStrokeTests.swift` (the stroke is sent once,
   in the drawn frame, with versions; `aTapOfKChoosesTheKnife`).
