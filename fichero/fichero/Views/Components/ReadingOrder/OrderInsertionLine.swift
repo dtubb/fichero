@@ -12,3 +12,14 @@ struct OrderInsertionLine: View {
         .accessibilityHidden(true)
     }
 }
+
+#if DEBUG
+#Preview("Between two rows") {
+    VStack(alignment: .leading, spacing: 4) {
+        Text("line 1")
+        Text("line 2").overlay(alignment: .top) { OrderInsertionLine().offset(y: -3) }
+    }
+    .padding()
+    .frame(width: 240)
+}
+#endif
