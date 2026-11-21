@@ -469,7 +469,10 @@ entities/claims), not a small demo table. What's missing:
   (`KnowledgeGraphSupport`: person/place/org/event/concept/date), not one flat glyph.
 - `kg.view.pagination` [MISSING at 10k] (#4643) — the table loads up to 25 000 client-side; at
   10k+ push filter/scope to the list endpoint (`filter.pushdown`) and page, so memory and
-  first-paint stay bounded.
+  first-paint stay bounded. The engine half (the list routes filter, sort and page in the database,
+  and say the total) is `kg.query.filter-runs-in-the-database` and
+  `kg.query.pages-are-stable-and-counted` in `kg-store-and-query.md`: measured 2026-11-20, the
+  statements list takes 3.2 s for its first 200 rows at 50,000 statements whatever the page size.
 - `kg.view.filter-bar-at-bottom` — **[PARTIAL]** (#4856 still open) the Entities and Claims
   tables draw NO filter bar of their own any more (c98abbfa7 superseded the earlier "bar at the
   bottom" ruling): the filter text, type menu and add control live in the ONE shared bottom footer

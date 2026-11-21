@@ -463,6 +463,7 @@ nav:
               - KG Readable Representation: contributor_manual/specs/kg/kg-readable-representation.md
               - KG Rendering: contributor_manual/specs/kg/kg-rendering.md
               - KG Tables: contributor_manual/specs/kg/kg-tables.md
+              - KG Store & Query (draft): contributor_manual/specs/kg/kg-store-and-query.md
           - Source:
               - Source Model (foundation): contributor_manual/specs/source/source-model.md
               - Survey of the Field: contributor_manual/specs/source/source-survey.md
