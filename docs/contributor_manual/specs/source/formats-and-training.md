@@ -382,15 +382,13 @@ what the loss report named), one for each format that goes both ways:
   A later reader should not conclude that PAGE XML carries everything. Pinned by
   `tests/unit/formats/test_pagexml_round_trip.py` (11 tests) and, against a file another tool wrote,
   `test_pagexml_real_file.py::TestWritingItBackDeclaresWhatItLost::test_the_losses_are_the_ones_we_declared_and_nothing_silent`.
-- `source.format.round-trip-alto` — **[PARTIAL]** (#4943, → #6799) the ALTO round trip holds, now that the xlink
+- `source.format.round-trip-alto` — **[OK]** (#4943, #6799) the ALTO round trip holds, now that the xlink
   schema ALTO imports is vendored (#5082). Structure, nesting, words, their text, a BCP 47 language
   and boxes to a pixel of the declared page; script, direction and alternative readings are named by
   the writer and subtracted, because ALTO carries geometry and text and little else. Pinned by
-  `tests/unit/formats/test_alto.py::TestTheAltoRoundTrip` (5 tests).
-  **Not held for outlines (measured 2026-11-20):** a Kraken line whose outline has a median of 71
-  points comes back from an ALTO round trip as a 4-point box, and the loss report names nothing.
-  ALTO 4 has `Shape/Polygon` on blocks, lines and strings; the reader already reads it
-  (`formats/alto.py::_read_page`), the writer does not write it. See `source.format.alto-out-outlines`.
+  `tests/unit/formats/test_alto.py::TestTheAltoRoundTrip` (5 tests). Outlines held since #6799
+  (measured 2026-11-20, before it: a Kraken line whose outline has a median of 71 points came back as
+  a 4-point box, with nothing named); see `source.format.alto-out-outlines`.
 - `source.format.round-trip-tei` — **[GAP]** (#4945) the TEI round trip holds.
 - `source.format.round-trip-hocr` — **[OK]** (→ #4944) the HOCR round trip holds, to a pixel of the
   page's own declared `bbox`, with hOCR's own properties written back rather than declared lost.
@@ -447,11 +445,14 @@ bar line endings); reading order, baselines, nesting, text, `&` and `<` survive;
 exported twice is the same bytes; `tests/unit/formats` and `tests/unit/export` are 531 passed, 5
 skipped. What did not hold is the lines below. `→ #N` names the issue that tracks the fix
 (milestone export-roundtrip).
-- `source.format.alto-out-outlines` — **[GAP]** (#4943, → #6799) an ALTO export writes a
+- `source.format.alto-out-outlines` — **[OK]** (#4943, #6799) an ALTO export writes a
   segment's outline as `Shape/Polygon` when it has one, on blocks, lines and strings, beside the
-  box ALTO requires; a re-import reads the same points back. Today the writer writes boxes only
-  (0 `Polygon` elements in 10 exports of 1,044 Kraken lines and in 6 re-exports of ALTO files that
-  arrived with 124 to 148 line polygons each), and says nothing.
+  box ALTO requires; a re-import reads the same points back. A four-point outline within one unit
+  of its box corners is not written: the box says it. Pinned by
+  `tests/unit/api/test_alto_writes_outlines_6799.py` (3 tests: a 71-point Kraken line back to half a
+  pixel, 124 of the eScriptorium file's 125 outlines written, a box written as a box). Measured
+  2026-11-20, before #6799: 0 `Polygon` elements in 10 exports of 1,044 Kraken lines and in 6
+  re-exports of ALTO files that arrived with 124 to 148 line polygons each.
 - `source.format.kind-raw-out` — **[GAP]** (#4943, #6749, → #6801) a segment's own type
   (`Segment.kind_raw`: a SegmOnto zone or line type, a layout model's label, Kraken's region type)
   is written in each format's own place: ALTO as a declared `OtherTag` the element references,
@@ -487,13 +488,23 @@ skipped. What did not hold is the lines below. `→ #N` names the issue that tra
   the export writes both, and the next import derives a third: one page of 48 segments went from 85 readings to
   122 in one round trip through PAGE XML (110 through TEI), its PAGE file from 541 to 692 lines,
   and which reading counts flipped from the marked-up one to the plain one.
-- `source.format.undeclared-losses-are-declared` — **[BROKEN]** (#4943, → #6800) until the lines
+- `source.format.undeclared-losses-are-declared` — **[PARTIAL]** (#4943, → #6800) until the lines
   above are built, each writer names what it drops: ALTO the outlines, the editorial facts, the
   names and dates on a line, the segment types and confidences it was not handed; PAGE XML the
   names and dates, and editorial facts other than `unclear` (this last one it already names).
-  Measured: a line with a `deleted` and an `unclear` fact exports to TEI as `<del>` and
+  Measured 2026-11-20: a line with a `deleted` and an `unclear` fact exported to TEI as `<del>` and
   `<unclear>` (valid), to PAGE XML with the `unclear` in `custom` and the deletion named lost, and
-  to ALTO with neither and no loss named.
+  to ALTO with neither and no loss named. **Built:** ALTO, hOCR and YOLO name each editorial fact
+  and the names and dates on a line, PAGE XML the names and dates
+  (`formats/harness.py::LossReport.note_marks_not_written`; pinned by
+  `tests/unit/core/test_export_names_what_it_drops_6800.py`, 5 tests); ALTO writes the outlines
+  (`source.format.alto-out-outlines`). A library page exported as ALTO, PAGE XML and TEI, imported
+  into a fresh page and read out again keeps its kinds, text, shapes to a pixel, editorial facts and
+  names, less what the report named (`tests/unit/core/test_library_round_trip_6800.py`, 3 tests).
+  **Not built:** the segment types and confidences, which no writer is handed (`PageSegment` has no
+  field for them: `source.format.kind-raw-out`, `source.format.confidence-out`, → #6801); and TEI's
+  names, which a TEI re-import does not make into mentions while the TEI report names no loss
+  (not compared by that test).
 - `source.format.export-cost` — **[GAP]** (#4943, → #6804) a page's export costs time in step
   with its file, not its row count times a lookup. Measured: writing and validating take 3 to 5 ms
   a page; building the page (`page_export.py::page_from_library`) takes 130 to 900 ms, a median of
@@ -527,12 +538,14 @@ Each format (one import and one export behaviour each)
   `mm10`. Normalised coordinates are unit-free (the page declares its size in the same unit); a
   non-pixel page reports **no** pixel grid rather than a wrong one, and an unknown unit is refused
   rather than assumed.
-- `source.format.alto-out` — **[PARTIAL]** (#4943, → #6799, → #6800): the writer emits and validates against **ALTO 4.4**,
+- `source.format.alto-out` — **[PARTIAL]** (#4943, #6799, → #6800, → #6801, → #6802): the writer emits and validates against **ALTO 4.4**,
   the latest release (ruled 2026-09-27), declaring it (`SCHEMAVERSION` and the schema file, since
   4.x shares one namespace), and names what it cannot carry. (Measured 2026-11-20: valid against
-  the published 4.4 schema on all 17 library pages; it does not write outlines, `Processing`, or
-  tags for a type the file did not bring, and does not name outlines, editorial facts or names as
-  lost: `source.format.alto-out-outlines`, `source.format.undeclared-losses-are-declared`.) `Page@LANG`, which 4.4 added, is
+  the published 4.4 schema on all 17 library pages; it did not write outlines, `Processing`, or
+  tags for a type the file did not bring, and did not name outlines, editorial facts or names as
+  lost. Since #6799 and #6800 it writes outlines and names the editorial facts and names it drops:
+  `source.format.alto-out-outlines`, `source.format.undeclared-losses-are-declared`. `Processing`
+  and the types are still missing: `source.format.who-made-it-out`, `source.format.kind-raw-out`.) `Page@LANG`, which 4.4 added, is
   written when it is a BCP 47 tag and is no longer a loss
   (`test_alto.py::TestARealHebrewExportStatesItsLanguageWhereAltoDoesNotAllowIt::test_the_page_language_is_written_back_in_4_4_and_is_no_longer_a_loss`).
   An **untranscribed** word or line is written `CONTENT=""` and not left without `String`. The schema
