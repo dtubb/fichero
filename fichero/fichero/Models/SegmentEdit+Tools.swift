@@ -22,15 +22,18 @@ extension SegmentEdit {
     /// fractions), with the versions of every line of the shown pass (`passId`) whose box it reaches; the engine
     /// refuses lines of two passes in one stroke. The engine decides which it crosses: a line it only grazes is left
     /// alone and named in the answer. Lines with no baseline or no version are not offered; a stroke that reaches no
-    /// line, or a click with no length, sends nothing.
+    /// line, or a click with no length, sends nothing, and one that reaches only lines with no baseline is refused as
+    /// `.noBaseline` (`segment-editor.edge.no-baseline`).
     static func knife(_ stroke: [[Double]], over lines: [Segment], onPass passId: String?) -> Result<Call, Refusal> {
         guard stroke.count >= 2, let reach = bounds(of: stroke) else { return .failure(.tooFew) }
         let reached = lines.filter { line in
-            guard line.passId == passId, hasBaseline(line), let rect = line.anchor.rect, rect.count >= 4 else { return false }
+            guard line.passId == passId, let rect = line.anchor.rect, rect.count >= 4 else { return false }
             return rect[0] <= reach[2] && reach[0] <= rect[0] + rect[2] && rect[1] <= reach[3] && reach[1] <= rect[1] + rect[3]
         }
         guard !reached.isEmpty else { return .failure(.tooFew) }
-        let versioned = reached.filter { $0.version != nil }
+        let cuttable = reached.filter(hasBaseline)
+        guard !cuttable.isEmpty else { return .failure(.noBaseline) }
+        let versioned = cuttable.filter { $0.version != nil }
         guard !versioned.isEmpty, let versions = versions(of: versioned) else { return .failure(.versionUnknown) }
         return .success(Call(
             action: "segment.split",

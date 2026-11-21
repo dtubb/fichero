@@ -69,6 +69,8 @@ struct KnifeStrokeTests {
             == .failure(.tooFew))
         #expect(SegmentEdit.knife(stroke, over: [line("unsaved", version: nil, rect: [0.1, 0.2, 0.8, 0.05])], onPass: "imported")
             == .failure(.versionUnknown))
+        #expect(SegmentEdit.knife(stroke, over: [noBaseline], onPass: "imported") == .failure(.noBaseline),
+                "a stroke over box-drawn lines only says they have no baseline (`segment-editor.edge.no-baseline`)")
     }
 
     @Test("only the shown pass's lines are offered: the engine refuses a stroke over lines of two passes (#6734)")
