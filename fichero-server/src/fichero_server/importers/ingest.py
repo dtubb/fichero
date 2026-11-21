@@ -927,6 +927,22 @@ def _log_embed_summary(
 PDF_TEXT_GEOMETRY_ARTIFACT = "text_geometry"
 
 
+def pdf_text_layer_artifact(page_id: str, pdf_doc: Any, page_index: int) -> Artifact:
+    """The page's text-layer geometry as an unsaved artifact (#4418): every word and its rectangle in page fractions,
+    zero boxes for a page with no text layer. Raises when PyMuPDF cannot read the page."""
+    from fichero_server.media.ocr_geometry import from_pymupdf_page
+
+    geometry = from_pymupdf_page(pdf_doc[page_index], page_index=page_index)
+    return Artifact(
+        document_id=page_id,
+        artifact_type=PDF_TEXT_GEOMETRY_ARTIFACT,
+        content=geometry.text,
+        data={"box_count": len(geometry.boxes)},
+        ocr_geometry=geometry,
+        provider="pymupdf",
+    )
+
+
 def _save_pdf_text_layer_geometry(
     page_doc: Document,
     pdf_doc: Any,
@@ -955,19 +971,9 @@ def _save_pdf_text_layer_geometry(
     if pdf_doc is None:
         return
     try:
-        from fichero_server.media.ocr_geometry import from_pymupdf_page
-
-        geometry = from_pymupdf_page(pdf_doc[page_index], page_index=page_index)
-        db.save(
-            Artifact(
-                document_id=page_doc.id,
-                artifact_type=PDF_TEXT_GEOMETRY_ARTIFACT,
-                content=geometry.text,
-                data={"box_count": len(geometry.boxes)},
-                ocr_geometry=geometry,
-                provider="pymupdf",
-            )
-        )
+        artifact = pdf_text_layer_artifact(page_doc.id, pdf_doc, page_index)
+        geometry = artifact.ocr_geometry
+        db.save(artifact)
         # The text layer becomes the page's own pass now, not at the next open (#5222 part 2).
         # Never raises: a page that cannot convert keeps its artifact and waits for the next open.
         if geometry.boxes:

@@ -5779,6 +5779,49 @@
         }
       }
     },
+    "/api/segments/document/{doc_id}/text-layer": {
+      "post": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Text Layer Segments",
+        "description": "A PDF page's regions, lines and words as segments from its own text layer, with no model run\n(`segment-editor.pdf.segments-from-the-text-layer`). The geometry the import saved is used; where it is missing the\nPDF is read again and saved. The segments are the page's text-layer pass, made by the same conversion as an import's.\nA page whose pass exists keeps it and gets nothing added; a page with no text layer gets no segments and the answer\nsays so. 404 for an unknown page, 422 for a page not split from a PDF, 409 when the PDF is not on this Mac.",
+        "operationId": "text_layer_segments_api_segments_document__doc_id__text_layer_post",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TextLayerSegments"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/segments/document/{doc_id}/doubtful": {
       "get": {
         "tags": [
@@ -104748,6 +104791,35 @@
           "kind"
         ],
         "title": "TextDifferenceResponse"
+      },
+      "TextLayerSegments": {
+        "properties": {
+          "pass_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Pass Id",
+            "description": "The page's text-layer pass; null when the page has no text layer."
+          },
+          "made": {
+            "type": "boolean",
+            "title": "Made",
+            "description": "True when this call made the pass; false when it was already there or there is no text layer."
+          },
+          "said": {
+            "type": "string",
+            "nullable": true,
+            "title": "Said",
+            "description": "The one line a page with no text layer says; null otherwise."
+          }
+        },
+        "type": "object",
+        "required": [
+          "pass_id",
+          "made",
+          "said"
+        ],
+        "title": "TextLayerSegments",
+        "description": "What `POST /api/segments/document/{doc_id}/text-layer` did."
       },
       "TextRegionSpan": {
         "properties": {

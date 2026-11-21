@@ -609,6 +609,61 @@ class DoubtfulLine(BaseModel):
     reasons: list[str] = []
 
 
+#: `segment-editor.pdf.segments-from-the-text-layer`: what a page with no text layer (a scan) answers, in one line.
+NO_TEXT_LAYER = "No text layer on this page; find lines to make segments"
+
+
+class TextLayerSegments(BaseModel):
+    """What `POST /api/segments/document/{doc_id}/text-layer` did."""
+
+    pass_id: Optional[str] = Field(description="The page's text-layer pass; null when the page has no text layer.")
+    made: bool = Field(description="True when this call made the pass; false when it was already there or there is no text layer.")
+    said: Optional[str] = Field(description="The one line a page with no text layer says; null otherwise.")
+
+
+@router.post("/document/{doc_id}/text-layer", response_model=TextLayerSegments)
+@off_loop
+def text_layer_segments(doc_id: str, db: Database = Depends(get_library_database_for_write)) -> TextLayerSegments:
+    """A PDF page's regions, lines and words as segments from its own text layer, with no model run
+    (`segment-editor.pdf.segments-from-the-text-layer`). The geometry the import saved is used; where it is missing the
+    PDF is read again and saved. The segments are the page's text-layer pass, made by the same conversion as an import's.
+    A page whose pass exists keeps it and gets nothing added; a page with no text layer gets no segments and the answer
+    says so. 404 for an unknown page, 422 for a page not split from a PDF, 409 when the PDF is not on this Mac."""
+    from pathlib import Path
+
+    import fitz
+
+    from fichero_server.db.storage import resolve_source
+    from fichero_server.importers.ingest import PDF_TEXT_GEOMETRY_ARTIFACT, pdf_text_layer_artifact
+    from fichero_server.maintenance.project_conversion import convert_new_results
+
+    page = db.get(Document, doc_id)
+    if page is None:
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+    meta = page.metadata or {}
+    parent = db.get(Document, meta["pdf_parent_id"]) if meta.get("pdf_parent_id") else None
+    if parent is None or not isinstance(meta.get("page_number"), int):
+        raise HTTPException(status_code=422, detail=f"{doc_id} is not a page of a PDF: it has no text layer to read")
+    layers = db.query(Artifact, document_id=doc_id, artifact_type=PDF_TEXT_GEOMETRY_ARTIFACT)
+    layer = max(layers, key=lambda row: (row.created_at, row.id)) if layers else None
+    if layer is None:
+        path = resolve_source(parent, library_root=Path(db.path).parent)
+        if path is None or not path.is_file():
+            raise HTTPException(status_code=409, detail=f"the PDF of {doc_id} is not on this Mac, so its text layer cannot be read")
+        with fitz.open(str(path)) as pdf:
+            layer = pdf_text_layer_artifact(doc_id, pdf, meta["page_number"] - 1)
+        db.save(layer)
+    if layer.ocr_geometry is None or not layer.ocr_geometry.boxes:
+        return TextLayerSegments(pass_id=None, made=False, said=NO_TEXT_LAYER)
+    if layer.geometry_superseded_by_pass_id:
+        return TextLayerSegments(pass_id=layer.geometry_superseded_by_pass_id, made=False, said=None)
+    outcome = convert_new_results(db, doc_id)
+    converted = db.get(Artifact, layer.id).geometry_superseded_by_pass_id
+    if converted is None:
+        raise HTTPException(status_code=500, detail=f"the text layer of {doc_id} did not become segments ({outcome}); the engine log says why")
+    return TextLayerSegments(pass_id=converted, made=True, said=None)
+
+
 class DoubtfulLines(BaseModel):
     document_id: str
     pass_id: Optional[str] = None

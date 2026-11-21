@@ -8159,6 +8159,14 @@ def fichero_segments_preview_simplify(
     return _rt.call("GET", f"/api/segments/document/{doc_id}/simplify-preview", params={"segment_ids": segment_ids, "tolerance": tolerance})
 
 
+def fichero_segments_text_layer(
+    *,
+    doc_id: Annotated[str, Field(description='Doc Id')],
+) -> Any:
+    "Text Layer Segments\n\nA PDF page's regions, lines and words as segments from its own text layer, with no model run\n(`segment-editor.pdf.segments-from-the-text-layer`). The geometry the import saved is used; where it is missing the\nPDF is read again and saved. The segments are the page's text-layer pass, made by the same conversion as an import's.\nA page whose pass exists keeps it and gets nothing added; a page with no text layer gets no segments and the answer\nsays so. 404 for an unknown page, 422 for a page not split from a PDF, 409 when the PDF is not on this Mac.\n\nRoute: POST /api/segments/document/{doc_id}/text-layer (toolset `segments`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", f"/api/segments/document/{doc_id}/text-layer")
+
+
 def fichero_segments_validate_document(
     *,
     doc_id: Annotated[str, Field(description='Doc Id')],
@@ -10575,6 +10583,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_segments_list_document_matches", "segments", "GET", "/api/segments/document/{doc_id}/matches", fichero_segments_list_document_matches),
     GeneratedTool("fichero_segments_on_a_rendition", "segments", "GET", "/api/segments/document/{doc_id}/on-rendition/{rendition_id}", fichero_segments_on_a_rendition),
     GeneratedTool("fichero_segments_preview_simplify", "segments", "GET", "/api/segments/document/{doc_id}/simplify-preview", fichero_segments_preview_simplify),
+    GeneratedTool("fichero_segments_text_layer", "segments", "POST", "/api/segments/document/{doc_id}/text-layer", fichero_segments_text_layer),
     GeneratedTool("fichero_segments_validate_document", "segments", "GET", "/api/segments/document/{doc_id}/validate", fichero_segments_validate_document),
     GeneratedTool("fichero_segments_get_document_text", "segments", "GET", "/api/segments/document/{document_id}/text", fichero_segments_get_document_text),
     GeneratedTool("fichero_segments_propose_match", "segments", "POST", "/api/segments/matches", fichero_segments_propose_match),

@@ -11754,6 +11754,18 @@
         "response_model": "SimplifyPreview"
       },
       {
+        "method": "POST",
+        "path": "/segments/document/{doc_id}/text-layer",
+        "operation_id": "text_layer_segments_api_segments_document__doc_id__text_layer_post",
+        "summary": "Text Layer Segments",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "TextLayerSegments"
+      },
+      {
         "method": "GET",
         "path": "/segments/document/{doc_id}/validate",
         "operation_id": "validate_document_segments_api_segments_document__doc_id__validate_get",
