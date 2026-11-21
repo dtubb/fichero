@@ -761,15 +761,18 @@ The behaviours this adds:
   says "Kraken is reading a page; the search model waits for it to finish". `llm/kraken_runtime.py`
   `release_for_the_embedder` raises `MemoryShortError` so the lane tries again later; the embed outcome now names it
   `memory_short` and `actions/page_text_cache.py` `_reembed` raises it again, which the lane turns into waiting.
-- `recipes-run.timing.page-time-is-the-page-job` — **[BROKEN]** (#6215, #6809) a step's `seconds_per_page` is
+- `recipes-run.timing.page-time-is-the-page-job` — **[OK]** (#6215, #6809;
+  `fichero-server/tests/unit/recipes/test_step_timings_across_a_pause.py`) a step's `seconds_per_page` is
   the median of its pages' own work, the time their jobs ran, not the time they stood in the fan-out waiting
-  for the one model lane; the summary's "Slowest step" line uses the same figure. Measured: 59 to 140 s a page
-  said, 5.3 to 22.6 s a page done (the table above); five pages said to take 88.2 s each finished in 127 s.
-  Code: `recipes/run_view.py` `page_seconds` reads the workflow timeline's file entries; the job rows hold the
-  true figure (`execution/jobs.py` `finished_seconds`).
-- `recipes-run.timing.survives-pause-and-restart` — **[BROKEN]** (#6215, #6809) a step's `pages_done`,
+  for the one model lane; the summary's "Slowest step" line uses the same figure. Measured before the fix: 59 to
+  140 s a page said, 5.3 to 22.6 s a page done (the table above); five pages said to take 88.2 s each finished in
+  127 s. Code: `recipes/run_view.py` `_timings` reads each step's page jobs from the jobs table
+  (`execution/jobs.py` `work_under`) and sums a page's done jobs; the workflow timeline is no longer read.
+- `recipes-run.timing.survives-pause-and-restart` — **[OK]** (#6215, #6809;
+  `fichero-server/tests/unit/recipes/test_step_timings_across_a_pause.py`) a step's `pages_done`,
   `seconds` and the run's `seconds` cover the whole step across a Pause, a kill and a Continue: pages done before
-  count, time paused or dead does not. Measured: Find Lines read "3 pages, 75.5 s" for 5 pages and 44 s of work
+  count, time paused or dead does not. A step's seconds is the union of its page jobs' run spans, the run's the
+  union over its steps. Measured before the fix: Find Lines read "3 pages, 75.5 s" for 5 pages and 44 s of work
   around a 31 s pause; after a kill, "1 page, 22.1 s" for 5 pages; the run's `seconds` read 177.6 and 275.3
   against 208 and 317 s of running.
 - `recipes-run.timing.every-step-timed` — **[GAP]** (#6215, #6809) every step that ran carries `timing`,
