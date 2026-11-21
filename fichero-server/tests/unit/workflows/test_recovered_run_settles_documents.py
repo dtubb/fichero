@@ -10,9 +10,10 @@ permanent spinner on a document that could never be re-run.
 
 ``completion.py`` states the contract as "EVERY terminal path must call this
 (#4315)". Process death was the one terminal path where it was skipped, and it
-is the path that produced the reported incident. These tests pin that the sweep
-now settles documents too, that it settles EXACTLY the dead run's set, and that
-it never touches a run this process is still executing.
+is the path that produced the reported incident. These tests pin that a run
+with a checkpoint is left for the open to resume (manager 2026-11-21 ruling),
+that settling a dead run releases EXACTLY its set, and that the sweep never
+touches a run this process is still executing.
 """
 
 from __future__ import annotations
@@ -119,8 +120,9 @@ def _processing_doc(db, name: str) -> Document:
 
 
 class TestRecoveredRunReleasesDocuments:
-    def test_killed_run_releases_its_documents(self, library, store):
-        """The reported failure: NER run dies mid-extraction, document stranded."""
+    def test_killed_run_with_a_checkpoint_is_left_for_the_resume(self, library, store):
+        """A killed run that saved a checkpoint is not flipped by the sweep: the open resumes it from that
+        checkpoint (manager 2026-11-21 ruling: interrupted runs resume), so its documents stay processing for it."""
         doc = _processing_doc(library.db, "marshall-page-004.pdf")
         asyncio.run(_save_run(store, "t-dead", "running"))
         asyncio.run(_write_checkpoint(library.db_path, "t-dead", [doc.id]))
@@ -128,7 +130,18 @@ class TestRecoveredRunReleasesDocuments:
         tracker = SimpleNamespace(store=store)
         asyncio.run(activity._recover_stale_runs_bg(tracker, library.db_path))
 
-        assert asyncio.run(store.get_workflow_run("t-dead")).status == "failed"
+        assert asyncio.run(store.get_workflow_run("t-dead")).status == "running"
+        assert library.db.get(Document, doc.id).status == Status.processing
+
+    def test_killed_run_that_cannot_resume_releases_its_documents(self, library, store):
+        """The reported failure: NER run dies mid-extraction, document stranded. A run the open fails (its resume
+        refused) is settled by the same step (`_settle_recovered_run_documents`)."""
+        doc = _processing_doc(library.db, "marshall-page-004.pdf")
+        asyncio.run(_save_run(store, "t-dead", "running"))
+        asyncio.run(_write_checkpoint(library.db_path, "t-dead", [doc.id]))
+
+        asyncio.run(activity._settle_recovered_run_documents(["t-dead"], library.db_path))
+
         after = library.db.get(Document, doc.id)
         assert after.status == Status.pending, (
             "a document stranded by a killed run must be released, not left "
@@ -141,8 +154,7 @@ class TestRecoveredRunReleasesDocuments:
         asyncio.run(_save_run(store, "t-dead", "running"))
         asyncio.run(_write_checkpoint(library.db_path, "t-dead", [doc.id]))
 
-        tracker = SimpleNamespace(store=store)
-        asyncio.run(activity._recover_stale_runs_bg(tracker, library.db_path))
+        asyncio.run(activity._settle_recovered_run_documents(["t-dead"], library.db_path))
 
         provenance = library.db.get(Document, doc.id).workflow_runs
         assert provenance, "a recovered run must leave provenance on its documents"
@@ -162,8 +174,7 @@ class TestRecoveredRunReleasesDocuments:
         asyncio.run(_save_run(store, "t-dead", "running"))
         asyncio.run(_write_checkpoint(library.db_path, "t-dead", [parent.id]))
 
-        tracker = SimpleNamespace(store=store)
-        asyncio.run(activity._recover_stale_runs_bg(tracker, library.db_path))
+        asyncio.run(activity._settle_recovered_run_documents(["t-dead"], library.db_path))
 
         assert library.db.get(Document, parent.id).status == Status.pending
         assert library.db.get(Document, child.id).status == Status.pending
@@ -179,8 +190,7 @@ class TestSettlementIsScopedToTheDeadRun:
         asyncio.run(_save_run(store, "t-dead", "running"))
         asyncio.run(_write_checkpoint(library.db_path, "t-dead", [mine.id]))
 
-        tracker = SimpleNamespace(store=store)
-        asyncio.run(activity._recover_stale_runs_bg(tracker, library.db_path))
+        asyncio.run(activity._settle_recovered_run_documents(["t-dead"], library.db_path))
 
         assert library.db.get(Document, mine.id).status == Status.pending
         assert library.db.get(Document, theirs.id).status == Status.processing, (
@@ -272,8 +282,7 @@ class TestSettlementEdgeCases:
             completion, "settle_documents_for_dead_run", _explode_for_bad
         )
 
-        tracker = SimpleNamespace(store=store)
-        asyncio.run(activity._recover_stale_runs_bg(tracker, library.db_path))
+        asyncio.run(activity._settle_recovered_run_documents(["t-bad", "t-good"], library.db_path))
 
         assert library.db.get(Document, good.id).status == Status.pending, (
             "one unsettleable run must not stop the sweep settling the rest"

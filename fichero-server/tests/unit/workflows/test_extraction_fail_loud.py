@@ -351,6 +351,30 @@ class TestZombieRunRecovery:
         )
 
     @pytest.mark.asyncio
+    async def test_a_zombie_with_a_checkpoint_is_left_for_the_open_to_resume(
+        self, tmp_path: Path
+    ) -> None:
+        """A run the engine died under that saved a checkpoint is not flipped: the open resumes it from that
+        checkpoint (manager 2026-11-21 ruling: interrupted runs resume). One without a checkpoint is still failed."""
+        from datetime import datetime, timezone, timedelta
+        from fichero_server.workflows.activity_store import ActivityStore
+        from fichero_server.workflows.checkpointer import AsyncDuckDBCheckpointer
+
+        store = ActivityStore(str(tmp_path / "activity.db"))
+        two_hours_ago = datetime.now(timezone.utc) - timedelta(hours=2)
+        for tid in ("saved-zombie", "unsaved-zombie"):
+            await store.save_workflow_run(thread_id=tid, workflow_id="wf", workflow_name="Read",
+                                          started_at=two_hours_ago)
+        AsyncDuckDBCheckpointer.from_db_path(store.db.path)  # its tables
+        store.db.execute("INSERT INTO checkpoints (thread_id, checkpoint_id) VALUES ('saved-zombie', 'c1')")
+
+        recovered = await store.recover_stale_runs(max_age_hours=1)
+
+        assert recovered == ["unsaved-zombie"]
+        assert (await store.get_workflow_run("saved-zombie")).status == "running"
+        assert (await store.get_workflow_run("unsaved-zombie")).status == "failed"
+
+    @pytest.mark.asyncio
     async def test_recover_stale_runs_noop_when_no_zombies(
         self, tmp_path: Path
     ) -> None:
