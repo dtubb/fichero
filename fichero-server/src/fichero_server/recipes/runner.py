@@ -575,7 +575,7 @@ def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
 
             forget_provider_pause(awaited)
             _resume_step_run(db, awaited, job_id)
-            jobs.pause_stored(db, job_id, False, state)  # a recipe the quit held is let go; a waiting one is untouched
+            jobs.pause_stored(db, job_id, False, state)  # a recipe the quit or the open held (paused, #6732) is let go to adopt it; a waiting one is untouched
             document_tree.release_waiting_job(db, job_id, clear_reason=True)
             jobs.wake_lane(db)
             return jobs._job_row(db, job_id)[1]
