@@ -264,7 +264,8 @@ until re-mounted and tested against the new location.
   `authorityLinkButton`/`EntityAuthorityLinkSheet` is the only place that ever could. Coupled
   to Wikidata enrichment (`kg/kg-enrichment.md`, → #4759) — the enrichment sheet's own
   comment says it builds on the authority link, so the two should re-mount together, not
-  independently.
+  independently. Where it re-mounts: the entity card, as `kg.render.authority-link-is-confirmed-or-rejected`
+  and `kg.render.enrichment-is-reachable-from-the-card`, built in `kg-rendering.md` Step 1.3.
 - `kg.entity.claims-grouped-by-source` — **[GAP]** (→ #4828) group an entity's claims by their
   source document (`EntitySourceGroupsView.swift`, the `sourceGroupsMode` toggle in
   `EntityDetailView+Claims.swift`).
