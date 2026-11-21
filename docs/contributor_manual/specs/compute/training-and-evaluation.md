@@ -469,13 +469,19 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
   `fichero-server/tests/unit/workflows/test_transcription_accuracy.py` and
   `fichero-server/tests/unit/recipes/test_bakeoff_readers.py`
   (`test_every_candidate_is_scored_by_the_one_cer_on_the_same_pages`).
-- `training.eval.policies-named` — **[PARTIAL]** (#5441) each figure names its policy; the four shipped
-  policies are built; `graphemic` (long s, u/v, i/j folded) and `expanded` (the project's abbreviation
-  table) are not, and no table ships.
+- `training.eval.policies-named` — **[PARTIAL]** (#5441) each figure names its policy; five policies ship
+  (re-read 2026-11-20: `diplomatic`, `layout-insensitive`, `lenient`, `accent-blind` and `catmus-as-written`, which
+  folds u/v and i/j and decomposes diacritics, `fichero-server/src/fichero_server/workflows/transcription_accuracy.py`
+  `POLICIES`); the long s is not folded by any, `expanded` (the project's abbreviation table) is not built, and no
+  table ships. Which policy RANKS is `readers.bakeoff.policy-follows-the-convention` (`source/readers.md`).
 - `training.eval.wer-beside-cer` — **[PARTIAL]** (#5545) WER is reported beside CER under the same policy by
-  the one word edit distance; built in the reasons A/B only
-  (`fichero-server/src/fichero_server/training/reasons_ab.py` `_word_edits`); not in the evaluation job,
-  the bake-off or the card.
+  the one word edit distance. Built (re-read 2026-11-20): the evaluation job counts a page's word errors
+  (`fichero-server/src/fichero_server/training/evaluation.py` `word_errors`, `wer_over`) and the bake-off's row
+  carries `wer` (`fichero-server/tests/unit/recipes/test_bakeoff_contenders_5660.py`
+  `test_apple_vision_reads_the_same_pages_scored_by_cer_and_wer`); the reasons A/B has its own
+  (`fichero-server/src/fichero_server/training/reasons_ab.py` `_word_edits`). Not built: the words are split on
+  whitespace as written, under no named policy (so case and punctuation always count), and two word edit distances
+  exist where the line asks for one.
 - `training.eval.not-read-is-not-100` — **[OK]** (#5531) a candidate that returned no text or too little is
   "not read" with why, one that read too few pages "not measured", and neither sums as 100% error or wins.
   Built: `fichero-server/src/fichero_server/training/evaluation.py` `judge_page`, `measured`,
