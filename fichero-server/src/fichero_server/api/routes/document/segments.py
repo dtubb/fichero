@@ -628,7 +628,7 @@ def text_layer_segments(doc_id: str, db: Database = Depends(get_library_database
     (`segment-editor.pdf.segments-from-the-text-layer`). The geometry the import saved is used; where it is missing the
     PDF is read again and saved. The segments are the page's text-layer pass, made by the same conversion as an import's.
     A page whose pass exists keeps it and gets nothing added; a page with no text layer gets no segments and the answer
-    says so. 404 for an unknown page, 422 for a page not split from a PDF, 409 when the PDF is not on this Mac."""
+    says so. 404 for an unknown page, 422 for a provisional id or a page not split from a PDF, 409 when the PDF is not on this Mac."""
     from pathlib import Path
 
     import fitz
@@ -637,6 +637,7 @@ def text_layer_segments(doc_id: str, db: Database = Depends(get_library_database
     from fichero_server.importers.ingest import PDF_TEXT_GEOMETRY_ARTIFACT, pdf_text_layer_artifact
     from fichero_server.maintenance.project_conversion import convert_new_results
 
+    _assert_not_provisional_http(doc_id, what="doc_id")
     page = db.get(Document, doc_id)
     if page is None:
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
