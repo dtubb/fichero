@@ -235,52 +235,52 @@ tests sit under `fichero-server/tests/unit/`; Swift tests under `fichero/Tests/U
 
 #### Step 1.2 — Segment type and confidence reach the writers (#6801)
 - Behaviours: `source.format.kind-raw-out`, `source.format.confidence-out`
-- Tests: fichero-server/tests/unit/formats/test_type_and_confidence_reach_the_writers_6801.py
+- Tests: `test_type_and_confidence_reach_the_writers_6801.py` in fichero-server/tests/unit/formats/ (to write)
 - Depends on: 1.1
 - Size: M
 
 #### Step 1.3 — Re-importing our own export derives nothing twice (#6803)
 - Behaviours: `source.format.reimport-adds-no-reading`
-- Tests: fichero-server/tests/unit/formats/test_reimport_adds_no_reading_6803.py
+- Tests: `test_reimport_adds_no_reading_6803.py` in fichero-server/tests/unit/formats/ (to write)
 - Size: S
 
 #### Step 1.4 — An IIIF export a viewer can open (#6806, #5326)
 - Behaviours: `iiif.export.ids-are-absolute-and-resolve`, `iiif.export.every-line-with-its-outline`, `iiif.export.maker-is-the-readings`, `iiif.export.says-what-it-is`
-- Tests: fichero-server/tests/unit/api/test_iiif_export_a_viewer_can_open_6806.py
+- Tests: `test_iiif_export_a_viewer_can_open_6806.py` in fichero-server/tests/unit/api/ (to write)
 - Size: M
 
 #### Step 1.5 — The page built once, in a few queries (#6804)
 - Behaviours: `source.format.export-cost`
-- Tests: fichero-server/tests/unit/core/test_page_built_once_in_few_queries_6804.py
+- Tests: `test_page_built_once_in_few_queries_6804.py` in fichero-server/tests/unit/core/ (to write)
 - Depends on: 1.2
 - Size: M
 
 #### Step 1.6 — Who made it, in the file; import restores a person's authorship (#6802)
 - Behaviours: `source.format.who-made-it-out`, `source.format.round-trip-through-a-library`, `source.format.alto-out`
-- Tests: fichero-server/tests/unit/core/test_who_made_it_round_trips_6802.py
+- Tests: `test_who_made_it_round_trips_6802.py` in fichero-server/tests/unit/core/ (to write)
 - Depends on: 1.5
 - Size: M
 
 #### Step 1.7 — Names and statements with their maker (#6805, #5603)
 - Behaviours: `export.statements-say-what-made-them`, `source.format.names-in-every-tei`
-- Tests: fichero-server/tests/unit/core/test_names_and_statements_with_their_maker_6805.py
+- Tests: `test_names_and_statements_with_their_maker_6805.py` in fichero-server/tests/unit/core/ (to write)
 - Depends on: 1.6
 - Size: M
 
 #### Step 1.8 — Text exports keep the lines and draw the signs (#5502, #4935)
 - Behaviours: `export.text-exports-keep-the-lines`, `export.text-exports-draw-the-editorial-signs`
-- Tests: fichero-server/tests/unit/core/test_text_exports_keep_lines_and_signs.py
+- Tests: `test_text_exports_keep_lines_and_signs.py` in fichero-server/tests/unit/core/ (to write)
 - Depends on: 1.1
 - Size: S
 
 #### Step 1.9 — A page as plain text (#6439)
 - Behaviours: `export.plain-text-page`
-- Tests: fichero-server/tests/unit/formats/test_plain_text_page_writer.py
+- Tests: `test_plain_text_page_writer.py` in fichero-server/tests/unit/formats/ (to write)
 - Size: S
 
 #### Step 1.10 — Names, statements and mentions as CSV with CSVW (#6439)
 - Behaviours: `export.csv-of-names-and-statements`
-- Tests: fichero-server/tests/unit/core/test_csv_with_csvw_of_names_and_statements.py
+- Tests: `test_csv_with_csvw_of_names_and_statements.py` in fichero-server/tests/unit/core/ (to write)
 - Depends on: 1.7
 - Size: S
 
@@ -288,12 +288,12 @@ tests sit under `fichero-server/tests/unit/`; Swift tests under `fichero/Tests/U
 
 #### Step 2.1 — A test pins which export routes the app reaches (#4873)
 - Behaviours: `export.app-wires-word-and-per-document-markdown-only`
-- Tests: fichero/Tests/Unit/general/App/ReaderExportReachabilityTests.swift
+- Tests: `ReaderExportReachabilityTests.swift` in fichero/Tests/Unit/general/App/ (to write)
 - Size: S
 
 #### Step 2.2 — File ▸ Export's titles and reveal pinned; document ids fetched in pages (#3305)
 - Behaviours: `export.error-title-and-success-feedback-accurate`
-- Tests: fichero/Tests/Unit/general/App/FileMenuExportFeedbackTests.swift
+- Tests: `FileMenuExportFeedbackTests.swift` in fichero/Tests/Unit/general/App/ (to write)
 - Size: S
 
 ## PASS 2 — the fold (legacy milestones #14 and #212, 25 issues, selected by NUMBER)

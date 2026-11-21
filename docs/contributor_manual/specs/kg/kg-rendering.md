@@ -319,75 +319,75 @@ under `fichero/Tests/Unit/general/Views/`; engine tests under `fichero-server/te
 
 #### Step 1.1 — Graph draws names only; an edge carries its when and where (#6772, #6773)
 - Behaviours: `kg.render.date-is-never-a-node`, `kg.render.when-is-on-the-statement`, `kg.render.where-is-on-the-statement`, `kg.render.an-object-that-is-not-a-name-stays-in-the-sentence`
-- Tests: fichero-server/tests/unit/kg/test_neighborhood_edge_carries_time_and_place.py, Library/GraphSimulationNamesOnlyTests.swift
+- Tests: `test_neighborhood_edge_carries_time_and_place.py` in fichero-server/tests/unit/kg/ (to write), Library/GraphSimulationNamesOnlyTests.swift
 - Size: M
 
 #### Step 1.2 — Answer citations open the passage; no score as a percentage (#6778, #1828)
 - Behaviours: `kg.render.answer-cites-pages`, `kg.render.citation-opens-the-passage`, `kg.render.score-is-not-shown-as-certainty`
-- Tests: Chat/DocumentSourceDecodesPageAndSpanTests.swift, Chat/CitationOpensThePassageTests.swift
+- Tests: `DocumentSourceDecodesPageAndSpanTests.swift` in Chat/ (to write), `CitationOpensThePassageTests.swift` in Chat/ (to write)
 - Size: M
 
 #### Step 1.3 — Authority card on the entity inspector (#4828, #5123, #4759)
 - Behaviours: `kg.render.card-shows-authority-fields`, `kg.render.authority-link-is-confirmed-or-rejected`, `kg.render.enrichment-is-reachable-from-the-card`, `kg.render.authority-is-a-link-in-the-table`
-- Tests: fichero-server/tests/unit/kg/test_entity_authority_fields_are_typed.py, Inspector/EntityCardAuthoritySectionTests.swift
+- Tests: `test_entity_authority_fields_are_typed.py` in fichero-server/tests/unit/kg/ (to write), `EntityCardAuthoritySectionTests.swift` in Inspector/ (to write)
 - Size: M
 
 #### Step 1.4 — When and Where on the entity card; marks open their statement (#6776, #5037)
 - Behaviours: `kg.render.timeline-and-map-for-a-name`, `kg.render.timeline-and-map-for-a-project`, `kg.render.a-mark-opens-its-statement`, `kg.render.view-names-say-what-they-are`, `kg.render.views-are-one-click-in-the-reader`
-- Tests: Library/KGTimelineMarkOpensItsStatementTests.swift, Inspector/EntityCardWhenAndWhereTests.swift
+- Tests: `KGTimelineMarkOpensItsStatementTests.swift` in Library/ (to write), `EntityCardWhenAndWhereTests.swift` in Inspector/ (to write)
 - Size: M
 
 #### Step 1.5 — Search shows names and statements as their own rows (#4604)
 - Behaviours: `kg.render.search-results-group-by-kind`
-- Tests: Library/SearchResultsGroupByKindTests.swift
+- Tests: `SearchResultsGroupByKindTests.swift` in Library/ (to write)
 - Size: M
 
 ### Stage 2 — Finding in the graph, kinds, one mark, and access
 
 #### Step 2.1 — "Show in Graph" opens a graph; find field, Back, and a path between two names (#6777)
 - Behaviours: `kg.render.show-in-graph-shows-a-graph`, `kg.render.graph-has-a-find-field`, `kg.render.path-between-two-names`
-- Tests: Library/ShowInGraphOpensTheGraphTests.swift, Library/KGFocusHistoryTests.swift, Library/GraphPathBetweenTwoNamesTests.swift
+- Tests: `ShowInGraphOpensTheGraphTests.swift` in Library/ (to write), `KGFocusHistoryTests.swift` in Library/ (to write), `GraphPathBetweenTwoNamesTests.swift` in Library/ (to write)
 - Depends on: 1.1
 - Size: M
 
 #### Step 2.2 — A kinds control, a person-first focus, and no Dates group (#6774, #5008)
 - Behaviours: `kg.render.graph-shows-chosen-kinds`, `kg.render.first-focus-is-a-person`, `kg.render.dates-are-not-a-kind-of-name`
-- Tests: Library/GraphKindsControlTests.swift, fichero-server/tests/unit/kg/test_inspector_has_no_date_kind.py
+- Tests: `GraphKindsControlTests.swift` in Library/ (to write), `test_inspector_has_no_date_kind.py` in fichero-server/tests/unit/kg/ (to write)
 - Depends on: 1.1
 - Size: M
 
 #### Step 2.3 — One engine-decided sure-or-unsure mark on every surface, and a "corrected by" mark (#6775, #1765)
 - Behaviours: `kg.render.unsure-looks-the-same-everywhere`, `kg.render.bands-come-from-the-engine`, `kg.render.a-correction-is-shown-as-kept`
-- Tests: fichero-server/tests/unit/kg/test_statement_band_comes_from_the_engine.py, Inspector/StatementMarkIsOneFunctionTests.swift
+- Tests: `test_statement_band_comes_from_the_engine.py` in fichero-server/tests/unit/kg/ (to write), `StatementMarkIsOneFunctionTests.swift` in Inspector/ (to write)
 - Size: M
 
 #### Step 2.4 — The graph as a keyboard and VoiceOver list (#6779, #4464)
 - Behaviours: `kg.render.graph-is-usable-without-a-pointer`
-- Tests: Library/GraphAccessibleListTests.swift
+- Tests: `GraphAccessibleListTests.swift` in Library/ (to write)
 - Size: M
 
 ### Stage 3 — The older issues the review cites
 
 #### Step 3.1 — Authority places reach the map and life dates the timeline (#5123)
 - Behaviours: `kg.render.authority-places-reach-the-map`, `kg.render.authority-dates-reach-the-timeline`
-- Tests: Library/KGMapPlotsAuthorityPlacesTests.swift, Library/KGTimelineDrawsLifeDatesTests.swift
+- Tests: `KGMapPlotsAuthorityPlacesTests.swift` in Library/ (to write), `KGTimelineDrawsLifeDatesTests.swift` in Library/ (to write)
 - Depends on: 1.3
 - Size: S
 
 #### Step 3.2 — Correct a statement and find a name from where it is seen (#4833, #1789)
 - Behaviours: `kg.render.correct-where-you-see-it`, `kg.render.find-a-name-from-anywhere`
-- Tests: Inspector/CorrectWhereYouSeeItTests.swift, Reader/FindInProjectFromALitNameTests.swift
+- Tests: `CorrectWhereYouSeeItTests.swift` in Inspector/ (to write), `FindInProjectFromALitNameTests.swift` in Reader/ (to write)
 - Depends on: 2.1
 - Size: M
 
 #### Step 3.3 — Ask says it gives pages and offers "Answer from these pages" (#5029)
 - Behaviours: `kg.render.ask-names-what-it-does`
-- Tests: Library/AskSaysWhatItSearchedTests.swift
+- Tests: `AskSaysWhatItSearchedTests.swift` in Library/ (to write)
 - Size: S
 
 #### Step 3.4 — Knowledge-graph calls go through typed generated paths (#4526)
 - Behaviours: `kg.render.one-typed-path-to-the-engine`
-- Tests: fichero/Tests/Unit/general/Services/KGServicesUseTypedPathsTests.swift
+- Tests: `KGServicesUseTypedPathsTests.swift` in fichero/Tests/Unit/general/Services/ (to write)
 - Size: M
 - Past 25 files, the builder splits it by area into commits: entity services, curation service,
   then the views that parse metadata.

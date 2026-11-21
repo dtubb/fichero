@@ -514,7 +514,7 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
   pages it is 3.5 million calls, 800,000 of them on the source volume, which on a volume that answers in a few
   milliseconds is the many-minute stall seen in a stall dump on 2026-11-20. The app asks at open and again each
   time a folder is selected (`LocateOriginalsPresenter` and `MissingOriginalsNotice`,
-  `fichero/Views/Library/LocateOriginals.swift`), and the answer lists every missing id, which the app searches as
+  `fichero/fichero/Views/Library/LocateOriginals.swift`), and the answer lists every missing id, which the app searches as
   an array for each cell (`OriginalsStore.isMissing`). Test to add: 500 linked pages in 5 folders are checked with
   at most one filesystem call a page and one listing a folder, counted; a volume that is not there is one call.
 

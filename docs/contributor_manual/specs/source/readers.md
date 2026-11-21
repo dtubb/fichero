@@ -275,7 +275,7 @@ cut (`crop_line`) and instruction; the page requests send the page reduced to 1,
 - `readers.memory.one-line-at-a-time-everywhere` — **[PARTIAL]** (#5854, #6752) every line reader's default batch is
   one and is a setting. Built for Kraken (`source.read.batch-of-one`,
   `tests/unit/llm/test_kraken_batch_bounded_5758.py`); re-measured 2026-11-20: batch 8 is four times the memory for the
-  LSTM readers and no faster. Not built for TrOCR (`readers.kinds.trocr-is-measured-and-bounded`).
+  LSTM readers and no faster. TrOCR's batch is still the fixed 8 (`readers.kinds.trocr-is-measured-and-bounded`, [GAP]).
 - `readers.memory.guard-knows-the-reader` — **[GAP]** (#6212 → #6819) the memory a Kraken page asks for before it starts
   counts the reader, from its measured peak (`readers.catalogue.card-memory-is-measured`); today the guard is sized for the
   line finder (`kraken_runtime.kraken_need_bytes`: 0.5 GB plus 0.6 GB a megapixel of the network's input) and a
@@ -379,7 +379,7 @@ cut (`crop_line`) and instruction; the page requests send the page reduced to 1,
 
 #### Step 3.3 — The corpus measure in the perf suite: CER on lines and page, order kept, seconds a page, peak memory per script and reader (#6865, #6823)
 - Behaviours: `readers.page.order-is-scored`
-- Tests: fichero-server/tests/perf/test_readers_corpus_measure_perf.py (run on purpose, not in a gate: needs the corpus on the test machine; writes the baseline the steps above are judged against)
+- Tests: `test_readers_corpus_measure_perf.py` in fichero-server/tests/perf/ (to write) (run on purpose, not in a gate: needs the corpus on the test machine; writes the baseline the steps above are judged against)
 - Depends on: 3.1
 - Size: M
 
