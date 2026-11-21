@@ -425,15 +425,35 @@ extension PaneHead {
     /// (the pane menu, tools) folds into a "…" overflow menu, then the pane's own controls join it. Close and the
     /// kind switcher (the identity capsule) never fold, and the crumbs degrade on their own ladder, so the
     /// head's narrowest form is that essential set -- it never holds the window wider than it.
+    /// The pane's own controls (the Source pane's zoom) are an island of their own beside the menu's island
+    /// (`panes.head.one-menu-button`, #6741); once everything is folded, one island holds the "…".
     /// AnyView per rung is load-bearing (the #4331 rule, as the crumb ladder).
     private var controlsCapsule: some View {
-        capsule {
-            ViewThatFits(in: .horizontal) {
-                AnyView(HStack(spacing: 6) { inRowControls; chromeControls })
-                AnyView(HStack(spacing: 6) { inRowControls; overflowMenu { chromeControls } })
-                AnyView(overflowMenu { controls(); chromeControls })
-            }
+        ViewThatFits(in: .horizontal) {
+            AnyView(HStack(spacing: PaneHeadMetrics.capsuleSpacing) {
+                toolsIsland
+                menuIsland { chromeControls }
+            })
+            AnyView(HStack(spacing: PaneHeadMetrics.capsuleSpacing) {
+                toolsIsland
+                menuIsland { overflowMenu { chromeControls } }
+            })
+            AnyView(menuIsland { overflowMenu { controls(); chromeControls } })
         }
+    }
+
+    /// The pane's own controls in their island; none when the pane has no controls.
+    @ViewBuilder
+    private var toolsIsland: some View {
+        if Controls.self != EmptyView.self {
+            capsule { inRowControls }
+        }
+    }
+
+    /// The pane menu's island, reported to the test probe.
+    private func menuIsland<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        capsule { HStack(spacing: 6) { content() } }
+            .reportsFrame(PaneHeadMetrics.menuIslandIdentifier, to: onPartFrame)
     }
 
     /// The pane's own controls sitting in the row (not folded), reported to the test probe.
@@ -514,6 +534,8 @@ enum PaneHeadMetrics {
     static let overflowIdentifier = "PaneHeadOverflow"
     /// The pane's own controls while they sit in the row (the test probe's key, #5213).
     static let controlsIdentifier = "PaneHeadControls"
+    /// The pane menu's island (the test probe's key, #6741).
+    static let menuIslandIdentifier = "PaneHeadMenuIsland"
 }
 
 extension View {
