@@ -508,42 +508,5 @@ Design content carried into this spec; files kept, listed here per program instr
 
 ## Review 2026-11-20: asking the project a question (measured)
 
-> Run through the real chat route on a scratch project of 18 real transcribed pages (never a real
-> project), with the on-device text model and the shipped search model, on a 16 GB M1 laptop; three
-> statements and two names were added by hand. `→ #NEW-Sn` marks an issue the manager is asked to file
-> (the list is in the search review). What Ask means in the search field is `search.ask.*` in
-> `search.md`.
-
-Four questions were asked. The page that holds the answer was the first source for all three questions
-that have one (score 1.0, the next page at about 0.5). One answer was right and short (a hotel's name,
-with the day's heading, 2.9 s). Two were the page copied out rather than an answer (8.3 s and 9.9 s),
-and one of those left out the half of the question that asked when. The question with no answer in the
-pages got "no mention" five times over, with five sources listed (6.0 s).
-
-- `research.chat.finds-the-page` — **[PARTIAL]** (#1828) a chat turn searches the project (hybrid, no
-  floor, five pages), adds the statements on those pages and one step further through their names, and
-  refuses to answer if the search itself fails. Measured: the right page first, three times of three.
-  Not built: it is reachable only in a dev build (`/api/chat` is a dev-tier route).
-- `research.chat.answers-from-the-passage` — **[BROKEN]** (#1828, → #6789) the model is given the
-  first 1,000 characters of each page found, not the passage that matched, so an answer further down a
-  long page is never seen; the source's excerpt is likewise the page's first 200 characters. Should: the
-  matched passages, with a little either side. Test to write: test_chat_context_is_the_matched_passage.py
-  in `fichero-server/tests/unit/api/`.
-- `research.chat.a-citation-opens-its-passage` — **[BROKEN]** (#4723, → #6789) the model is told to
-  cite "Document 1, Document 2 …" by the order of what it was given, pages and statements in one
-  numbering; the reply's sources list holds pages only, so "Document 5" in an answer was a statement and
-  matched nothing in the list. A source carries the page's id, name, excerpt and score, and no passage
-  offsets, segment or statement id. Should: each cited thing in an answer is a link to the page at the
-  passage, or to the statement, and the reply carries what the link needs.
-- `research.chat.says-not-found-once` — **[BROKEN]** (#1828, → #6789) when nothing in the project
-  answers, the reply repeats "no mention" for each page it was handed and lists those pages as sources.
-  Should: one sentence, and no sources, when no page stands above the project's floor
-  (`search.hybrid.floor-is-the-projects-own`).
-- `research.chat.names-the-model-that-answered` — **[BROKEN]** (#5368, → #6789) the reply says the
-  model was "auto/auto" when none was named in the request. Should: the provider and model that ran.
-- `research.chat.answers-the-question` — **[GAP]** (#1828, → #6789) an answer is a few sentences in
-  the question's language that answer each part asked, or say which part the pages do not answer; it is
-  not the page copied out. Held by a small set of questions with known answers over the test pages, run
-  against the on-device model when it is present. Test to write: test_chat_answers_known_questions.py
-  in `fichero-server/tests/integration/`.
-
+Moved to `ui/search.md` section L, with its ids, so the search milestone's Build order holds the
+chat fixes (#6789) in one spec.

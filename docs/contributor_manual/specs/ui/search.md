@@ -411,7 +411,8 @@ The two indexes are fast; nearly all of the time is what is done around them.
   more than 300 MB of memory. Measured: 5.5 to 7.4 s, and 7.7 GB. The perf test that should hold this
   (`fichero-server/tests/perf/test_search_workload_perf.py`) seeds 200 pages with no text, no vectors and
   no graph, so it cannot see any of it. Test to write: the same file seeds 5,000 pages with passages,
-  given vectors, names and statements, and holds a budget scaled from this one.
+  given vectors, names and statements, and holds a budget scaled from this one. Ruling P4 (owner
+  2026-11-21): the budget is held on the 8 GB M1.
 - `search.scale.cost-does-not-grow-with-the-graph` — **[BROKEN]** (#1833, → #6782) every search, of any
   type, reads every name in the project to widen the query with aliases, then every statement and every
   name again to mark which hits they touch (`_expand_query_with_entity_aliases`,
@@ -474,7 +475,8 @@ Measured on the real pages (rank of the right page; 18 pages, default settings):
   whether some other page holds the query as a whole word. Should: one stored, folded copy of the text
   (case, accents, points, compatibility forms: the fold of `histnorm.accent-insensitive-search`) indexed
   by word and by short character runs, so starts of words, unspaced scripts and unpointed typing are
-  index hits, always. Test to write: test_prefix_and_unpointed_hits_survive_other_hits.py in
+  index hits, always. Ruling P3 (owner 2026-11-21): the folded copy is stored for each page and the
+  database's own index is built over it. Test to write: test_prefix_and_unpointed_hits_survive_other_hits.py in
   `fichero-server/tests/unit/search/`.
 - `search.match.reading-levels` — **[GAP]** (#3312, #3321) the index holds one text a page (the page's
   standing text). A search cannot be told to match the letters as written, the normalised reading, or
@@ -648,6 +650,46 @@ the system's, shared by every app, so an app holds no model in memory.
 Not adopted: the project's pages are not given to system Spotlight (#4167, closed as not planned);
 research data stays in the project, and the project's own index is the only one.
 
+### L. Chat: asking the project a question (moved from `research.md`, 2026-11-21)
+
+> Run through the real chat route on a scratch project of 18 real transcribed pages (never a real
+> project), with the on-device text model and the shipped search model, on a 16 GB M1 laptop; three
+> statements and two names were added by hand. `→ #N` names the issue filed from the search review.
+> What Ask means in the search field is `search.ask.*` above.
+
+Four questions were asked. The page that holds the answer was the first source for all three questions
+that have one (score 1.0, the next page at about 0.5). One answer was right and short (a hotel's name,
+with the day's heading, 2.9 s). Two were the page copied out rather than an answer (8.3 s and 9.9 s),
+and one of those left out the half of the question that asked when. The question with no answer in the
+pages got "no mention" five times over, with five sources listed (6.0 s).
+
+- `research.chat.finds-the-page` — **[PARTIAL]** (#1828) a chat turn searches the project (hybrid, no
+  floor, five pages), adds the statements on those pages and one step further through their names, and
+  refuses to answer if the search itself fails. Measured: the right page first, three times of three.
+  Not built: it is reachable only in a dev build (`/api/chat` is a dev-tier route).
+- `research.chat.answers-from-the-passage` — **[BROKEN]** (#1828, → #6789) the model is given the
+  first 1,000 characters of each page found, not the passage that matched, so an answer further down a
+  long page is never seen; the source's excerpt is likewise the page's first 200 characters. Should: the
+  matched passages, with a little either side. Test to write: test_chat_context_is_the_matched_passage.py
+  in `fichero-server/tests/unit/api/`.
+- `research.chat.a-citation-opens-its-passage` — **[BROKEN]** (#4723, → #6789) the model is told to
+  cite "Document 1, Document 2 …" by the order of what it was given, pages and statements in one
+  numbering; the reply's sources list holds pages only, so "Document 5" in an answer was a statement and
+  matched nothing in the list. A source carries the page's id, name, excerpt and score, and no passage
+  offsets, segment or statement id. Should: each cited thing in an answer is a link to the page at the
+  passage, or to the statement, and the reply carries what the link needs.
+- `research.chat.says-not-found-once` — **[BROKEN]** (#1828, → #6789) when nothing in the project
+  answers, the reply repeats "no mention" for each page it was handed and lists those pages as sources.
+  Should: one sentence, and no sources, when no page stands above the project's floor
+  (`search.hybrid.floor-is-the-projects-own`).
+- `research.chat.names-the-model-that-answered` — **[BROKEN]** (#5368, → #6789) the reply says the
+  model was "auto/auto" when none was named in the request. Should: the provider and model that ran.
+- `research.chat.answers-the-question` — **[GAP]** (#1828, → #6789) an answer is a few sentences in
+  the question's language that answer each part asked, or say which part the pages do not answer; it is
+  not the page copied out. Held by a small set of questions with known answers over the test pages, run
+  against the on-device model when it is present. Test to write: test_chat_answers_known_questions.py
+  in `fichero-server/tests/integration/`.
+
 ### Open questions (for the owner)
 
 1. Should the start of a word always match (typing "dredg" finds "dredges"), or only with a star?
@@ -657,6 +699,156 @@ research data stays in the project, and the project's own index is the only one.
    only in chat?
 4. Undated pages in a date search: left out and counted (proposed), or shown last?
 5. Is the system's small embedding model worth a measured trial for iPad and 8 GB Macs?
+
+## Build order
+
+Stage 1 is the search review's ranked fixes (section 5 of the 2026-11-20 review), in rank order; a fix
+with more than five behaviours is two steps. Stage 2 holds the older issues of milestone `search` that a
+line here still cites. Engine tests sit under `fichero-server/tests/`, Swift tests under
+`fichero/Tests/Unit/general/`.
+
+### Stage 1 — The review's fixes: correct, then fast, then honest
+
+#### Step 1.1 — A page's passages end where its text ends (#6780)
+- Behaviours: `search.scale.passages-end-cleanly`
+- Tests: fichero-server/tests/unit/db/test_passages_of_text_ending_in_whitespace.py
+- Size: S
+
+#### Step 1.2 — The scope narrows before ranking; the 5,000-page scoped test runs in time (#6781, #6867, #4236)
+- Behaviours: `search.scope.narrows-before-ranking`, `search.zero-results-for-visible-text`, `search.scope-menu`, `search.scope.two-of-five`
+- Tests: fichero-server/tests/unit/search/test_scoped_search_finds_everything_in_scope.py, fichero-server/tests/unit/db/test_embed_many_deletes_rows_in_one_call.py
+- Size: M
+
+#### Step 1.3 — Search stops reading the whole graph; a real 5,000-page perf test (#6782)
+- Behaviours: `search.scale.budget`, `search.scale.cost-does-not-grow-with-the-graph`
+- Tests: fichero-server/tests/unit/search/test_search_reads_only_the_rows_it_needs.py, fichero-server/tests/perf/test_search_workload_perf.py
+- Size: M
+
+#### Step 1.4 — No whole-table read; one folded copy with the database's index (#6783, #3321)
+- Behaviours: `search.scale.no-whole-table-read`, `search.match.same-with-or-without-other-hits`, `search.match.scripts-measured`
+- Tests: fichero-server/tests/unit/search/test_zero_hit_query_reads_no_vectors.py, fichero-server/tests/unit/search/test_prefix_and_unpointed_hits_survive_other_hits.py
+- Size: M
+
+#### Step 1.5 — Ask tells the truth: its filters come from the question, its model from Settings, its graph leg runs (#6785, #6786, #6791)
+- Behaviours: `search.ask.invents-no-filter`, `search.ask.a-date-means-the-date-written`, `search.graph.date-range`, `search.ask.uses-the-chosen-text-model`, `search.graph.names-lead-to-their-pages`
+- Tests: fichero-server/tests/unit/search/test_compiled_filters_come_from_the_question.py, fichero-server/tests/unit/search/test_compile_uses_the_app_text_default.py, fichero-server/tests/unit/search/test_search_date_range_overlap.py
+- Size: M
+
+#### Step 1.6 — One row per page and a true total (#6784)
+- Behaviours: `search.results.one-row-per-page`, `search.results.total-is-true`
+- Tests: fichero-server/tests/unit/search/test_fulltext_one_row_per_page.py
+- Size: S
+
+#### Step 1.7 — Hybrid keeps clear meaning hits above the project's own floor, in two bands (#6787, #1782, #4119)
+- Behaviours: `search.hybrid.meaning-survives-a-weak-keyword-hit`, `search.hybrid.floor-is-the-projects-own`, `search.adopt.two-bands`, `search.exact-match-boost`, `search.real-relevance-signal-exists`
+- Tests: fichero-server/tests/unit/search/test_hybrid_keeps_clear_semantic_hits.py, fichero/Tests/Unit/general/Views/SearchResultBandRowTests.swift
+- Size: M
+
+#### Step 1.8 — Chat answers from the matched passages with citations that map to sources (#6789, #4723, #1828)
+- Behaviours: `research.chat.answers-from-the-passage`, `research.chat.a-citation-opens-its-passage`, `research.chat.says-not-found-once`, `research.chat.names-the-model-that-answered`, `research.chat.answers-the-question`
+- Tests: fichero-server/tests/unit/api/test_chat_context_is_the_matched_passage.py, fichero-server/tests/unit/api/test_chat_citations_map_to_sources.py, fichero-server/tests/integration/test_chat_answers_known_questions.py
+- Size: M
+
+#### Step 1.9 — Ask in the search field answers above the rows, from the chat route (#6789, #5029)
+- Behaviours: `search.ask.answers-with-cited-pages`, `search.ask.turns-a-question-into-a-search`, `research.chat.finds-the-page`
+- Tests: fichero-server/tests/unit/api/test_chat_route_is_not_dev_only.py, fichero/Tests/Unit/general/Views/AskAnswerAboveRowsTests.swift
+- Depends on: 1.8
+- Size: M
+
+#### Step 1.10 — Statement search in the engine: who, what, where, when; a date is a span (#6788)
+- Behaviours: `search.graph.who-what-where-when`, `search.graph.a-date-is-a-span`, `search.graph.scope-with-words-means-both`, `search.graph.with-words-and-meaning`, `search.graph.own-route`
+- Tests: fichero-server/tests/unit/search/test_statement_search_four_parts.py
+- Size: M
+
+#### Step 1.11 — Statement search in the app: the four-part row and the prefixes; `dates:` reads the record (#6788, #5597)
+- Behaviours: `search.query-syntax-prefixes`, `search.graph.dates-read-the-record`
+- Tests: fichero/Tests/Unit/general/Views/StatementSearchRowTests.swift, fichero-server/tests/unit/search/test_dates_prefix_reads_the_record.py
+- Depends on: 1.10
+- Size: M
+
+#### Step 1.12 — A saved search has a name and keeps its scope and filters (#6790, #4114)
+- Behaviours: `search.saved.rename-keeps-the-query`, `search.saved.keeps-scope-and-filters`, `search.smart-folders-as-sidebar-folders`
+- Tests: fichero/Tests/Unit/general/Views/SavedSearchRenameKeepsTheQueryTests.swift
+- Depends on: 1.2
+- Size: M
+
+#### Step 1.13 — The embedding time estimate is the measured rate (#6792, #4302)
+- Behaviours: `search.embedding.estimate-is-measured`
+- Tests: fichero-server/tests/unit/search/test_embed_estimate_is_measured.py
+- Size: S
+
+#### Step 1.14 — A vector index and smaller vectors past about 500,000 rows (#6793)
+- Behaviours: `search.scale.vector-index-when-large`
+- Tests: fichero-server/tests/perf/test_vector_index_when_large.py
+- Depends on: 1.4
+- Size: M
+
+#### Step 1.15 — Keyword results first, meaning when ready; a measured trial of the system embedder (#6794)
+- Behaviours: `search.adopt.keyword-now-meaning-when-ready`, `search.adopt.system-embedder-as-small-tier`
+- Tests: fichero/Tests/Unit/general/Views/KeywordFirstResultsTests.swift
+- Depends on: 1.7
+- Size: M
+
+### Stage 2 — The older issues of milestone `search`
+
+#### Step 2.1 — The search field is always visible and ⌘F finds (#6729)
+- Behaviours: `search.always-visible`, `search.keyboard.command-f-finds`
+- Tests: fichero/Tests/Unit/general/Views/SearchFieldAlwaysVisibleTests.swift
+- Depends on: 1.2
+- Size: S
+
+#### Step 2.2 — A hit opens its page at the passage, with the region lit (#5744, #4604)
+- Behaviours: `search.anchor-carries-page-id`, `search.click-result-to-highlighted-region`
+- Tests: fichero-server/tests/unit/search/test_search_anchor_page_id.py, fichero/Tests/Unit/general/Views/SearchHitLightsTheRegionTests.swift
+- Size: M
+
+#### Step 2.3 — Old spellings and reading levels in the folded copy (#3313, #3312)
+- Behaviours: `search.match.old-spellings`, `search.match.reading-levels`
+- Tests: fichero-server/tests/unit/search/test_old_spellings_fold_alike.py
+- Depends on: 1.4
+- Size: M
+
+#### Step 2.4 — Results load as you scroll under one toolbar button; images are results (#5028, #5024, #4118)
+- Behaviours: `search.results-load-as-you-scroll`, `search.one-toolbar-button-with-the-kind-menu`, `search.images-artifacts-as-first-class-results`
+- Tests: fichero/Tests/Unit/general/Views/SearchResultsLoadAsYouScrollTests.swift, fichero-server/tests/unit/search/test_artifacts_are_search_results.py
+- Size: M
+
+#### Step 2.5 — The search model: chosen at the Search step, changed by a re-embed run, failing out loud, built when idle (#6249, #6144, #6122, #4395, #5820)
+- Behaviours: `search.embedding.chosen-at-project-creation`, `search.embedding.choices-come-from-the-engine`, `search.embedding.change-is-a-re-embed-run`, `search.embedding-failure-honesty`, `search.adopt.index-when-idle`
+- Tests: fichero/Tests/Unit/general/Models/EmbeddingChangeStoreTests.swift, fichero-server/tests/unit/db/test_embedding_chosen_per_project_6122.py
+- Size: M
+
+#### Step 2.6 — A failed index build is a failed job; the built-in library has one name (#5315, #4891)
+- Behaviours: `search.index-build-failure-is-a-failed-job`, `search.built-in-library-has-one-name`
+- Tests: fichero-server/tests/unit/search/test_index_build_failure_is_a_failed_job.py
+- Size: S
+
+#### Step 2.7 — Related terms and related documents (#4604, #4606)
+- Behaviours: `search.query-expansion-related-terms`, `search.find-related-documents`
+- Tests: fichero-server/tests/unit/search/test_related_terms_and_documents.py
+- Size: M
+
+#### Step 2.8 — Passages and the graph in one ranking (#1833, #1824)
+- Behaviours: `search.passage-chunking-kg-fusion-ranking`, `search.unify-retrieval-as-one-index`
+- Tests: fichero-server/tests/unit/search/test_one_ranking_over_passages_and_graph.py
+- Depends on: 1.10
+- Size: M
+
+#### Step 2.9 — One search across the open libraries (#4110)
+- Behaviours: `search.all-libraries-fanout`
+- Tests: fichero-server/tests/unit/search/test_all_libraries_fanout.py
+- Size: M
+
+#### Step 2.10 — Reading tools: concordance, the vector-space view, the Reader's graph view (#1812, #878)
+- Behaviours: `search.corpus-linguistics-tools`, `search.vector-space-visualization`, `search.reader-graph-view-restored`
+- Tests: fichero-server/tests/unit/search/test_kwic_concordance.py, fichero/Tests/Unit/general/Views/VectorSpaceViewTests.swift
+- Size: M
+
+#### Step 2.11 — A real archive search seen in the app closes the residue issues (#4604, #4236, #4118, #4119, #4114)
+- Behaviours: `search.residue-issues-stay-open`
+- Tests: fichero-server/tests/unit/api/test_routes_search.py
+- Depends on: 2.10
+- Size: S
 
 ## Behavior counts
 
