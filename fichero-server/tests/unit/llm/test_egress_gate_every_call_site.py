@@ -179,6 +179,7 @@ ALLOWED = {
     "llm/script_coverage.py::_http_get_bytes": _OWN_FETCH,
     "loaders/iiif_loader.py::load": _FETCHES_THE_SOURCE,
     "media/iiif_fetch.py::urllib_get": _FETCHES_THE_SOURCE,
+    "media/iiif_fetch.py::urllib_get_once": _FETCHES_THE_SOURCE,
     "recipes/htr_united.py::_fetch_catalogue": _OWN_FETCH,
     "workflows/activity_models.py::reachable": _PROBES_AN_ADDRESS,
 }

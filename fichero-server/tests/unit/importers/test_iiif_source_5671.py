@@ -14,6 +14,7 @@ from io import BytesIO
 import pytest
 
 from fichero_server.importers import iiif_source
+from fichero_server.media import iiif_engine
 from fichero_server.media.iiif_fetch import PoliteFetcher
 from fichero_server.models import Document
 from tests.unit.importers.test_iiif_by_reference import HOST, FakeIIIFServer, _manifest3
@@ -102,7 +103,7 @@ def test_the_import_is_a_job_and_a_bound_folder_refreshes(client, db, monkeypatc
 
     manifest = _manifest3("job", 3)
     server = FakeIIIFServer({manifest["id"]: manifest})
-    monkeypatch.setattr(iiif_fetch, "urllib_get", server.get)
+    monkeypatch.setattr(iiif_fetch, "urllib_get_once", server.get)
 
     started = client.post("/api/iiif/import", json={"url": manifest["id"]})
     assert started.status_code == 200, started.text
@@ -134,7 +135,7 @@ def test_a_step_fetches_a_remote_page_at_its_size_once_into_a_bounded_cache(db, 
     Image.new("RGB", (240, 360), (230, 225, 210)).save(buf, format="JPEG")
     asked = []
     fetcher = PoliteFetcher(get=lambda url, t: asked.append(url) or (200, {}, buf.getvalue()))
-    monkeypatch.setattr(iiif_source, "_FETCHER", fetcher)
+    monkeypatch.setattr(iiif_engine, "_FETCHER", fetcher)
     doc = Document(name="f. 1", metadata={"iiif_service": f"{HOST}/img/vol/1", "iiif_type": "Canvas"})
     package = tmp_path / "Lib.fichero"
 
@@ -159,4 +160,4 @@ def test_a_step_fetches_a_remote_page_at_its_size_once_into_a_bounded_cache(db, 
 
 @pytest.fixture(autouse=True)
 def _fresh_fetcher(monkeypatch):
-    monkeypatch.setattr(iiif_source, "_FETCHER", None)
+    monkeypatch.setattr(iiif_engine, "_FETCHER", None)

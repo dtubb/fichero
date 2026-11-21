@@ -1031,9 +1031,9 @@ def parse_iiif_url(url: str, *, fetcher: Any | None = None, max_manifests: int |
     A collection's manifests (and nested collections) are fetched one by one, politely
     (`media.iiif_fetch.PoliteFetcher`); `max_manifests` stops early, for a sample before a whole archive.
     """
-    from fichero_server.media.iiif_fetch import PoliteFetcher, urllib_get
+    from fichero_server.media.iiif_engine import engine_fetcher
 
-    fetcher = fetcher or PoliteFetcher(get=urllib_get)
+    fetcher = fetcher or engine_fetcher()
 
     def load(ref: str) -> dict[str, Any]:
         return json.loads(fetcher.fetch(ref).decode("utf-8"))

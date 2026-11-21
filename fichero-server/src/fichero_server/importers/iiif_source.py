@@ -122,18 +122,14 @@ def _run(db: Any, subject: str) -> dict[str, Any]:
 # --- a step's image ---------------------------------------------------------------------------------------------
 
 
-_FETCHER = None
-
-
 def step_image(doc: Any, package: Path, *, longest: int = STEP_LONGEST, fetcher: Any = None) -> Path | None:
     """A page imported by reference, fetched at the size a step reads it (the Image API's resize), kept in the
     bounded cache; None when it has no service or the server cannot be reached (the step then says the page could
     not be fetched)."""
-    global _FETCHER
     service = (doc.metadata or {}).get("iiif_service") if isinstance(doc.metadata, dict) else None
     if not service:
         return None
-    from fichero_server.media.iiif_fetch import FetchFailed, PoliteFetcher, image_url, urllib_get
+    from fichero_server.media.iiif_fetch import FetchFailed, image_url
 
     cache = package / "storage" / "iiif-steps" / str(longest)
     dest = cache / doc.id[:2].lower() / f"{doc.id}.jpg"
@@ -141,9 +137,9 @@ def step_image(doc: Any, package: Path, *, longest: int = STEP_LONGEST, fetcher:
         os.utime(dest)  # recently used: kept longest
         return dest
     if fetcher is None:
-        if _FETCHER is None:
-            _FETCHER = PoliteFetcher(get=urllib_get, retries=3)
-        fetcher = _FETCHER
+        from fichero_server.media.iiif_engine import engine_fetcher
+
+        fetcher = engine_fetcher()
     try:
         data = fetcher.fetch(image_url(str(service), longest=longest))
     except (FetchFailed, OSError):

@@ -134,3 +134,31 @@ def urllib_get(url: str, timeout: float) -> tuple[int, dict[str, str], bytes]:
             return response.status, {k.lower(): v for k, v in response.headers.items()}, response.read()
     except urllib.error.HTTPError as exc:
         return exc.code, {k.lower(): v for k, v in (exc.headers or {}).items()}, b""
+
+
+#: The most a IIIF manifest, collection or image answer may be before the fetch is refused (64 MB).
+MAX_BODY = 64 * 1024 * 1024
+
+
+def urllib_get_once(url: str, timeout: float) -> tuple[int, dict[str, str], bytes]:
+    """Like `urllib_get`, but a redirect is returned (status and `location`), not followed, so the caller can
+    check the next address; a body over `MAX_BODY` is refused with `FetchFailed`."""
+    import urllib.error
+    import urllib.request
+
+    from fichero_server.core.tls import https_context  # noqa: PLC0415
+
+    class _NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):  # noqa: ANN002, ANN003
+            return None
+
+    opener = urllib.request.build_opener(_NoRedirect, urllib.request.HTTPSHandler(context=https_context()))
+    request = urllib.request.Request(url, headers={"User-Agent": "Fichero (IIIF reader; +https://tubb.ca/apps/fichero)"})
+    try:
+        with opener.open(request, timeout=timeout) as response:  # noqa: S310 -- https only, checked by the caller
+            body = response.read(MAX_BODY + 1)
+            if len(body) > MAX_BODY:
+                raise FetchFailed(url, None, f"refused: the answer is larger than {MAX_BODY // 1024**2} MB")
+            return response.status, {k.lower(): v for k, v in response.headers.items()}, body
+    except urllib.error.HTTPError as exc:
+        return exc.code, {k.lower(): v for k, v in (exc.headers or {}).items()}, b""

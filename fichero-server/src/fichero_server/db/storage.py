@@ -275,11 +275,6 @@ def _display_path(doc_id: str, package_path: Path | None = None) -> Path:
     return thumb_dir / prefix / f"{doc_id}_display.jpg"
 
 
-#: The fetcher for viewing pages imported by reference over IIIF; one per engine, so the per-host
-#: limits hold across every page being viewed. Replaced in tests.
-_IIIF_FETCHER = None
-
-
 def iiif_page_image(doc: "Document", package_path: Path | None = None) -> Path | None:
     """A page imported by reference over IIIF, fetched once at display size into this library's storage
     (`storage/iiif/`), so its thumbnail and display can be made. None when the document has no IIIF
@@ -287,7 +282,6 @@ def iiif_page_image(doc: "Document", package_path: Path | None = None) -> Path |
 
     Only previews use this: a reading job fetches its own image, at the size its reader needs, off the Mac.
     """
-    global _IIIF_FETCHER
     service = (doc.metadata or {}).get("iiif_service") if isinstance(doc.metadata, dict) else None
     if not service:
         return None
@@ -295,12 +289,11 @@ def iiif_page_image(doc: "Document", package_path: Path | None = None) -> Path |
     dest = base / "iiif" / doc.id[:2].lower() / f"{doc.id}.jpg"
     if dest.exists():
         return dest
-    from fichero_server.media.iiif_fetch import FetchFailed, PoliteFetcher, image_url, urllib_get
+    from fichero_server.media.iiif_engine import engine_fetcher
+    from fichero_server.media.iiif_fetch import FetchFailed, image_url
 
-    if _IIIF_FETCHER is None:
-        _IIIF_FETCHER = PoliteFetcher(get=urllib_get, retries=2)
     try:
-        data = _IIIF_FETCHER.fetch(image_url(str(service), longest=max(settings.display_size)))
+        data = engine_fetcher().fetch(image_url(str(service), longest=max(settings.display_size)))
     except (FetchFailed, OSError) as exc:
         logger.warning("No IIIF image for %s from %s: %s", doc.id, service, exc)
         return None

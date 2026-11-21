@@ -116,12 +116,13 @@ def test_a_page_is_fetched_once_at_display_size_when_it_is_viewed(tmp_path, monk
     from PIL import Image
 
     from fichero_server.db import storage
+    from fichero_server.media import iiif_engine
     from fichero_server.media.iiif_fetch import PoliteFetcher
 
     buf = BytesIO()
     Image.new("RGB", (800, 1200), (230, 225, 210)).save(buf, format="JPEG")
     asked: list[str] = []
-    monkeypatch.setattr(storage, "_IIIF_FETCHER", PoliteFetcher(get=lambda url, t: asked.append(url) or (200, {}, buf.getvalue())))
+    monkeypatch.setattr(iiif_engine, "_FETCHER", PoliteFetcher(get=lambda url, t: asked.append(url) or (200, {}, buf.getvalue())))
     doc = Document(name="f. 1", metadata={"iiif_service": f"{HOST}/img/vol1/1", "iiif_type": "Canvas"})
     package = tmp_path / "Lib.fichero"
 
