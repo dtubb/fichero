@@ -984,15 +984,15 @@ def _action_order_move(db: Database, params: ReadingOrderMoveParams, ctx: Action
 def _action_order_restore_places(db: Database, params: ReadingOrderRestorePlacesParams, ctx: ActionContext):
     """The inverse of `reading_order.move`: entries put back at the positions and parents recorded."""
     order = _live_order(db, params.order_id)
-    in_order = {row.id for row in db.query(ReadingOrderEntry, order_id=order.id)}
+    in_order = {row.id: row for row in db.query(ReadingOrderEntry, order_id=order.id)}
     for entry_id, place in params.places.items():
         if place.parent_entry_id is not None and (place.parent_entry_id == entry_id or place.parent_entry_id not in in_order):
             raise HTTPException(
                 status_code=422, detail=f"entry {entry_id} cannot sit under {place.parent_entry_id}: not another entry of this order")
     before: dict[str, dict] = {}
     for entry_id, place in params.places.items():
-        row = db.get(ReadingOrderEntry, entry_id)
-        if row is None or row.order_id != order.id:
+        row = in_order.get(entry_id)
+        if row is None:
             continue
         before[row.id] = {"position": row.position, "parent_entry_id": row.parent_entry_id}
         row.position = place.position

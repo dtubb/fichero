@@ -104,3 +104,27 @@ def test_restore_places_refuses_a_bad_place_and_writes_nothing(db):
         assert refused.value.status_code == 422
     assert (db.get(ReadingOrderEntry, first.id).position, db.get(ReadingOrderEntry, second.id).position,
             db.get(ReadingOrderEntry, first.id).parent_entry_id) == before
+
+
+def test_restore_places_puts_entries_back_without_fetching_each_entry_again(db, monkeypatch):
+    from fichero_server.models.reading_orders import ReadingOrderEntry
+
+    order_id, region, (a, b, *_rest) = _lines_page(db)
+    entries = {row.segment_id: row for row in db.query(ReadingOrderEntry, order_id=order_id)}
+    first, second = entries[a], entries[b]
+    fetched = []
+    get = db.get
+
+    def spy(model, key, *args, **kwargs):
+        if model is ReadingOrderEntry:
+            fetched.append(key)
+        return get(model, key, *args, **kwargs)
+
+    monkeypatch.setattr(db, "get", spy)
+    _restore(db, order_id, {first.id: {"position": second.position, "parent_entry_id": first.parent_entry_id},
+                            second.id: {"position": first.position, "parent_entry_id": second.parent_entry_id}})
+    monkeypatch.undo()
+
+    assert fetched == []
+    assert (db.get(ReadingOrderEntry, first.id).position, db.get(ReadingOrderEntry, second.id).position) == (
+        second.position, first.position)
