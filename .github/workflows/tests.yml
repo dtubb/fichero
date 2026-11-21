@@ -21,8 +21,8 @@ jobs:
     timeout-minutes: 60
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: fichero-server/uv.lock
@@ -48,7 +48,7 @@ jobs:
     timeout-minutes: 90
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build and test (scheme Dev Local, macOS)
         run: |
           set -o pipefail
