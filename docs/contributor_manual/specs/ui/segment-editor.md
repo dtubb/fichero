@@ -639,7 +639,7 @@ See section 7.2 below for what exists. The design:
   line stays as the one child line of the new region. Both are in the Segment menu, the context menu and the segment list's row
   menu; they work on many at once; each is a new version, undoable; readings and ids are kept where the level allows. Tests:
   each direction keeps shape, text and order; a region with children asks; undo restores.
-- `segment-editor.list-drag-reorder` — **[GAP]** (#6739; app + engine; owner 2026-11-19; extends
+- `segment-editor.list-drag-reorder` — **[PARTIAL]** (#6739; app + engine; owner 2026-11-19; extends
   `segment-editor.reassign-by-drag`, which covers dropping into a region) in the segment list, dragging also reorders, as in a
   Finder or Mail outline. Dropping between rows shows a thin insertion line with a circle at its left end, indented to the
   level it will land at, and the dragged segments move to that place in the reading order and under that parent. Dropping on
@@ -647,6 +647,9 @@ See section 7.2 below for what exists. The design:
   relative order. The change is saved to the current reading order as a new version, undoable, and the page's order numbers
   update at once. Tests: a drop between rows reorders; a drop on a region nests; a multi-row drag keeps relative order; undo
   restores.
+  *Built 2026-11-20:* the engine half: `reading_order.move` (entries to a place under a parent, relative order kept, one undo
+  by `reading_order.restore_places`; `fichero-server/tests/unit/api/test_reading_order_move.py`). *Not built:* the list's drop
+  lines and highlight. Needs an on-screen check.
 - `segment-editor.shortcuts-for-everything` — **[GAP]** (→ #4941; app; refines `source.editor.keyboard-complete`) every
   verb in this file is in the menu bar under Segment with its shortcut, in the context menu of a
   segment, and on the pane head; the map below is the one list, and
