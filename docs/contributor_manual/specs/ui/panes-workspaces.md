@@ -906,6 +906,14 @@ the browse→read flow down the centre.
 
 ### D. Workspaces
 
+> **One word, one meaning (owner 2026-11-21; `research.md` section I).** In this spec, and in everything a person
+> reads, a **workspace** is a window's saved pane layout: the Workspaces menu, the five built-ins, Save Current as
+> Workspace…. The folder marked `is_workspace` that holds a line of research, and the chat saved as one, are a
+> **research folder** and belong to `research.md`. `panes.workspace.crud-contract` below is about that folder's
+> curated items, not a layout; it keeps its id and its tests here and is the same routes
+> `research.workspace-curated-items-crud` names (that line said not built until 2026-11-21; it is built).
+> `panes.workspace.save`, `panes.workspace.reopen` and `workspaces.persist-applied-list` are the layout.
+
 - `panes.workspace.crud-contract` — **[OK]** (verify-close candidate; TL-2's original ask, filed
   before this backend existed) a workspace's `curated_items` support atomic add/remove/reorder
   and resolve their aliases to full objects, library-canonical (never copied). Built:
@@ -962,12 +970,19 @@ the browse→read flow down the centre.
   full-height preview); the sidebar+chat left column and full-height right source hold, but the exact
   centre split described here is the Browse/Read arrangement, not a distinct "Mail" default. Pinned:
   `BuiltInWorkspaceLayoutTests` (Read is the default; one library leaf over reader, beside preview).
-- `panes.chat.below-sidebar` — **[BROKEN]** (→ #4705 increment 6) the chat history and its input live in the left
+- `panes.chat.below-sidebar` — **[PARTIAL]** (→ #4705 increment 6) the chat history and its input live in the left
   sidebar beneath the folder tree, in a collapsible split region; the input is attached to
-  the chat history. Today the chat prompt sits at the bottom of the centre column, under the
-  image/reader, rather than under the chat text.
-- `panes.chat.collapsible-split` — **[GAP]** (→ #4705 increment 6) the sidebar↔chat divider drags to resize and
-  collapses the chat region when only navigating.
+  the chat history. *Built (checked 2026-11-21; this line said the prompt sat under the image, which is no longer so):*
+  the one chat mount is below the tree with its composer under its messages
+  (`ContentView.sidebarContent`, `Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift:53-78`; `chatSurface`,
+  `Views/Shell/ContentView/Layout/ContentView+PaneSpecs.swift:478-488`), and stands alone when the tree is hidden.
+  *Not built:* chat as a kind a pane can be switched to (`PaneSpec.Kind.selectableKinds` leaves `.chat` out,
+  `m2p.chat-single-mount`); no test of the placement beyond `fichero/Tests/Unit/general/Views/ChatMountTests.swift`.
+  Research stays here (owner 2026-11-21): it gets no window of its own; the chat's chrome is `research.ux.chat-head-and-bar`.
+- `panes.chat.collapsible-split` — **[PARTIAL]** (→ #4705 increment 6) the sidebar↔chat divider drags to resize and
+  collapses the chat region when only navigating. *Built (checked 2026-11-21):* the divider resizes and its height is kept
+  per window (`ResizableDivider`, `ContentView+SidebarLayout.swift:57-63`); the region is shown and hidden by the
+  Sidebar/Chat pair. *Not built:* collapsing by dragging the divider to the bottom.
 - `panes.library.horizontal-icon-strip` — **[BROKEN/GAP]** (#4732, #1856 — now folded onto this
   milestone, same duplicate request) the library browser renders as a
   horizontal thumbnail strip (icon/list, Mail message-list style) at the top of the centre
