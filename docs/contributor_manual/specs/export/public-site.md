@@ -27,7 +27,8 @@ on. The same publishing works for any archive; a regional court and civil archiv
 - **A page per person and per place** from the name list and gazetteer: the forms used, the
   documents and passages that mention them, dates as attested, places on a map.
 - **A page per document**: its catalogue entry (fields only, `catalogue.entry-shows-not-tells`), the
-  page images through IIIF (the institution's server, or Fichero's level 0 tiles), and the
+  page images through IIIF (the institution's server, or Fichero's level 0 tiles:
+  `../source/iiif.md`, `iiif.publish.static`), and the
   transcription beside them, with what is uncertain marked as such.
 - **Show, not tell.** No AI-written summaries or interpretations on the public site; prose is
   rendered from facts.
@@ -40,7 +41,7 @@ recorded death, or dead within the last 25, unless their family consents), and s
 the rights record restricts. Withheld material is absent, not blanked: no name, no count, no
 hint (the ruling of 2026-09-28 that a deny hides).
 
-**Kept up to date.** The site is a published folder (`iiif.folder.published`) whose export is
+**Kept up to date.** The site is a published folder (`iiif.folder.published`, `../source/iiif.md`) whose export is
 synced: corrections, new pages and confirmed links re-export only what they touched, and the site
 is rebuilt and deployed (GitHub Pages, Netlify, or an institution's server).
 
