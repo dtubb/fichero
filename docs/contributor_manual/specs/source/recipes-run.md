@@ -822,6 +822,26 @@ The behaviours this adds:
   two and 3 min 13 s in all (1.2 to 5 s each later), and Activity warned "Processing imported pages stalled at 0
   of 10" (`importers/derivatives.py`, no completion in 60 s). The guess itself was right.
 
+Left by the review and the 2026-11-19 runner measure, filed by the audit of 2026-11-21:
+
+- `recipes-run.memory.kraken-in-its-own-child` — **[GAP]** (#6861; after #6860's figures) Kraken reads in a
+  seed-forked child of the engine, as the search model does (`db/embed_process.py`), so its memory leaves when a run
+  ends and a page that runs away (the line vectoriser is unbounded on a noisy page, kraken issue #765) is killed with its
+  child, failing that page in words, never the engine. A smaller search model (fp16 or int8, up to 1 GB less) is the
+  same issue's second half; it costs a re-embed of every library, so it waits for the owner's choice on #6861.
+  Source: `docs/contributor_manual/reviews/2026-11-19-runner-measured.md`, issues 4 and 5.
+- `recipes-run.timing.search-step-measured-on-a-quiet-mac` — **[GAP]** (#6863) the Search step's time a page is
+  measured on a Mac with nothing else running, so the figure belongs to the code and not the machine. Measured under
+  load (section 14): 25 s for 5 pages on one run, then 132 s and 394 s for 5 and 3 pages, with the embedder's runtime
+  still starting after minutes. Acceptance: the step's `timing` from three runs of the same 5 pages on a quiet Mac,
+  written into section 14's table.
+- `recipes-run.journey.reader-candidates-fit-the-script` — **[GAP]** (#6863) Set Up lists as reader candidates for a
+  project only the readers for its script: a fresh Latin-script project on the review's Mac listed about 60, Hebrew,
+  Arabic, Kuzushiji and a segmentation model among them (bug 5 of the 2026-11-19 report, still there on 2026-11-20).
+- `recipes-run.control.paused-reads-one-word` — **[GAP]** (#6863) after a person's Pause the recipe run and its step's
+  run say the same state. Today `runner-reliability.md` section 2 has the step settle `paused` while the recipe run
+  reads `waiting`. Which of the two words both use is not ruled; the lane that owns the pause path proposes it.
+
 ## Changes to existing behaviours
 
 1. **Resume after a crash resumes in place.** `activity.durable.lease-not-fail` (P) and
@@ -916,7 +936,7 @@ Not changed: the batch loop and its checkpoints (`source.recipe.batch-at-archive
 
 ### Stage 5 — What the review of 2026-11-20 measured (section 14)
 
-#### Step 5.1 — Continue after a quit adopts the paused step; the run's row keeps its count (#6584)
+#### Step 5.1 — Continue after a quit adopts the paused step; the run's row keeps its count (#6807, #6584)
 - Behaviours: `recipes-run.restart.continue-adopts-the-paused-step`, `recipes-run.restart.run-row-counts-pages-after-restart`
 - Tests: test_continue_after_quit_adopts_the_step_run.py (not yet written), fichero-server/tests/unit/jobs/test_durable_5357.py
 - Depends on: 4.2
@@ -931,18 +951,22 @@ engine restart flips to failed: this step is the quit path and the double start,
   mid Find Lines lists one row; Continue resumes the paused step run and starts no second one; each page holds one pass
   of lines; the run's row reads N of N pages, never the sum of its step runs; the step list says paused, not running)
 
-#### Step 5.2 — A page's embed waits for Kraken, never fails (#6186)
+#### Step 5.2 — A page's embed waits for Kraken, never fails (#6808, #6862, #6186)
 - Behaviours: `recipes-run.order.embed-waits-for-kraken-never-fails`
-- Tests: test_embed_waits_for_kraken.py (not yet written), fichero-server/tests/unit/recipes/test_embed_once_after_reading_6186.py
+- Tests: test_embed_waits_for_kraken.py (not yet written), fichero-server/tests/unit/recipes/test_embed_once_after_reading_6186.py, fichero-server/tests/unit/jobs/test_one_model_at_a_time_on_the_lane.py
 - Size: S
 
 `actions/page_text_cache.py` `_reembed` lets `MemoryShortError` through (or defers the job itself), so the lane runs the
 embed after the reading; a Read-only run ends with its pages embedded from their new text.
 
+#6862: `test_one_model_at_a_time_on_the_lane.py::test_an_embed_during_a_kraken_run_unloads_nothing` is red at its base
+and asserts the search model beside Kraken, the rule the owner reversed on 2026-11-19 (the two are never resident
+together, `recipes-run.memory.one-heavy-model-in-sequence`); this step rewrites it to that rule: the embed waits.
+
 - test (to write): `test_embed_waits_for_kraken.py` in fichero-server/tests/unit/recipes/ (Kraken resident and a page in
   flight: the embed job goes back to waiting with the reason in words, runs when the page ends, and no row reads failed)
 
-#### Step 5.3 — Timings a person can multiply: the page's job, the whole step, every step (#6215)
+#### Step 5.3 — Timings a person can multiply: the page's job, the whole step, every step (#6809, #6215)
 - Behaviours: `recipes-run.timing.page-time-is-the-page-job`, `recipes-run.timing.survives-pause-and-restart`, `recipes-run.timing.every-step-timed`
 - Tests: fichero-server/tests/unit/recipes/test_step_timings_recorded.py, test_step_timings_across_a_pause.py (not yet written)
 - Depends on: 3.2
@@ -956,7 +980,7 @@ and the Search row counts its pages in words.
   one-wide lane: the figure is each job's own time; a pause in the middle: 5 of 5 pages and no paused time; a step run
   ended by a kill and a second one: both counted; Search and Leave Out carry timing)
 
-#### Step 5.4 — Start says the time, from this Mac's finished pages (#4951)
+#### Step 5.4 — Start says the time, from this Mac's finished pages (#6810, #4951)
 - Behaviours: `recipes-run.timing.plan-says-time-from-measured-pages`
 - Tests: fichero-server/tests/unit/recipes/test_routes_for_the_volume.py, fichero-server/tests/unit/recipes/test_start_plan.py
 - Depends on: 5.3
@@ -966,7 +990,7 @@ First the one-line fault: `recipes/routes.py` asks `finished_seconds` for the re
 (`kraken:<id>`). Then `estimate.runs[].seconds` with its basis in `recipes/start.py`, kept on the run for
 `designer.run.predicted-then-measured`.
 
-#### Step 5.5 — Start on chosen pages says those pages; a stopped redo says what it left; nothing to run is refused (#6744, #6170)
+#### Step 5.5 — Start on chosen pages says those pages; a stopped redo says what it left; nothing to run is refused (#6811, #6744, #6170)
 - Behaviours: `recipes-run.journey.start-on-pages-answers-for-those-pages`, `recipes-run.journey.stopped-redo-says-what-it-left`, `recipes-run.journey.start-with-nothing-to-run-is-refused`, `recipes-run.control.waiting-names-the-run-in-words`
 - Tests: fichero-server/tests/unit/recipes/test_step_rerun_on_folder.py, test_start_on_chosen_pages.py (not yet written)
 - Size: M
@@ -978,7 +1002,7 @@ and `recipes/run_view.py` (a redo run's summary and `missed` from this run's own
   and the step's note names them; a redo stopped after 2 says 2 read again, names the other 2, and its offer reads them;
   a step-only Start with every page done answers 422 with the plan's sentence; the waiting words hold no job id)
 
-#### Step 5.6 — The runs list answers while a run reads; the engine quits when asked (#6178)
+#### Step 5.6 — The runs list answers while a run reads; the engine quits when asked (#6812, #6813, #6178)
 - Behaviours: `recipes-run.engine.runs-list-answers-while-a-run-goes`, `recipes-run.engine.quits-when-asked`
 - Tests: fichero-server/tests/unit/core/test_loop_lag_activity_polls.py, test_runs_list_stays_fast.py (not yet written)
 - Depends on: 1.3
@@ -988,7 +1012,7 @@ and `recipes/run_view.py` (a redo run's summary and `missed` from this run's own
   list reads no ended run's timeline twice and answers without waiting on the writer; `get_document` does its read off
   the loop; a terminate signal with a forked embedder child ends both inside the deadline)
 
-#### Step 5.7 — "Not sure" does not hold the import (#6078)
+#### Step 5.7 — "Not sure" does not hold the import (#6814, #6078)
 - Behaviours: `recipes-run.engine.not-sure-does-not-starve-the-import`
 - Tests: test_not_sure_guess_is_bounded.py (not yet written), fichero-server/tests/unit/importers/test_thumbnail_cost_bounded_6193.py
 - Size: S
@@ -996,6 +1020,39 @@ and `recipes/run_view.py` (a redo run's summary and `missed` from this run's own
 - test (to write): `test_not_sure_guess_is_bounded.py` in fichero-server/tests/unit/recipes/ (the quick read works on a
   reduced picture with a deadline per page and says "could not tell" past it; it runs as a row a person can see; a
   thumbnail queued beside it finishes inside its bound)
+
+### Stage 6 — What the audit of 2026-11-21 filed (the 2026-11-19 runner measure and the review's leftovers)
+
+#### Step 6.1 — Every runtime measured on each Mac; the matrix knows the Mac's memory (#6860)
+- Behaviours: `runner.measured.runtime-matrix`
+- Tests: fichero-server/tests/unit/scripts/test_runtime_matrix.py
+- Size: M
+
+`runner.measured.runtime-matrix` is in `compute/runner-reliability.md`. The code half: `scripts/runtime_matrix.py`
+reads the Mac's memory with `/usr/sbin/sysctl` by its full path, so `ram_gb` is never `None` when `sysctl` is not on
+PATH (a test with an empty PATH). The measuring half is a manager or remote-runner step, not a worker's (workers cannot
+reach the measuring Macs): run the matrix with `--python` on each Mac for MLX vision, Whisper, YOLO and Kraken recognise
+with a reader installed, Kraken segment on a real-size page on the 8 GB Mac, and write the figures into
+`reviews/2026-11-19-runner-measured.md`.
+
+#### Step 6.2 — Kraken in its own child; the smaller search model (#6861)
+- Behaviours: `recipes-run.memory.kraken-in-its-own-child`
+- Tests: test_kraken_in_its_own_child.py (not yet written)
+- Depends on: 6.1
+- Size: M
+
+- test (to write): `test_kraken_in_its_own_child.py` in fichero-server/tests/unit/llm/ (a fake Kraken child: a run's
+  end leaves no child holding the model; a page past its deadline kills the child, fails that page in words, and the
+  next page reads in a new child; the parent imports no Kraken model)
+
+#### Step 6.3 — Search measured on a quiet Mac; reader candidates for the project's script; one word for a paused run (#6863)
+- Behaviours: `recipes-run.timing.search-step-measured-on-a-quiet-mac`, `recipes-run.journey.reader-candidates-fit-the-script`, `recipes-run.control.paused-reads-one-word`
+- Tests: fichero-server/tests/unit/recipes/test_step_timings_recorded.py, test_reader_candidates_fit_the_script.py (not yet written), fichero-server/tests/unit/recipes/test_recipe_pause_5933.py
+- Depends on: 5.3
+- Size: M
+
+The quiet re-measure is a manager step on a measuring Mac (the figures go into section 14's table); the reader list and
+the paused word are engine work. The word waits on the pause lane's proposal (`recipes-run.control.paused-reads-one-word`).
 
 ## Test matrix
 
