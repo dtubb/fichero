@@ -12,9 +12,7 @@ final class PaneMenuEntriesShapeTests: XCTestCase {
         XCTAssertTrue(menu.contains("struct PaneMenuEntries: View"))
         XCTAssertTrue(menu.contains("PaneMenuEntries(splitActions: splitActions"), "the + no longer renders the shared entries")
         XCTAssertTrue(head.contains(".contextMenu {\n                PaneMenuEntries("), "the head lost its right-click menu")
-        for label in ["\"Pin Pane\"", "\"Unpin Pane\""] {
-            XCTAssertTrue(menu.contains(label), "pane menu lost \(label)")
-        }
+        XCTAssertTrue(menu.contains("Label(\"Pin Pane\""), "pane menu lost Pin Pane")
     }
 
     func testCloseIsOnePath() throws {

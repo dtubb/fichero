@@ -25,4 +25,15 @@ struct PaneMenuTests {
         #expect(PaneMenuEntries.focusTitle(leaf: mine, focused: other) == "Focus on Pane")
         #expect(PaneMenuEntries.focusTitle(leaf: nil, focused: nil) == "Focus on Pane")
     }
+
+    @Test("the head has no pin button; the menu's Pin Pane is a toggle, checked while pinned (#6741)")
+    func pinLivesInTheMenu() throws {
+        let head = try AppSource.code("Views/Shell/PaneHead/PaneHead.swift")
+        let menu = try AppSource.code("Views/Shell/PaneHead/PaneChromeMenu.swift")
+        #expect(!head.contains("pinToggle"), "the head still places its own pin button")
+        #expect(!head.contains("paneHeadPinToggle"))
+        #expect(menu.contains("Toggle(isOn: isPinned)"), "Pin Pane is not a checked toggle")
+        #expect(menu.contains("Label(\"Pin Pane\", systemImage: \"pin\")"))
+        #expect(!menu.contains("\"Unpin Pane\""), "a checked toggle needs no second title")
+    }
 }

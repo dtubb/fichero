@@ -417,37 +417,8 @@ extension PaneHead {
         }
     }
 
-    /// Pin, as a one-click TOGGLE in the head rather than a row inside the
-    /// "+" menu (Daniel, 2026-09-02: with horizontal/vertical splits "there
-    /// is no way to pin a pane to what it currently shows" — there was, two
-    /// clicks deep behind a plus sign that reads as "add a split"). Pinning
-    /// is a mode the pane is IN, so it needs a control that shows its state
-    /// without being opened. Lives here, in the shared chrome, so every pane
-    /// that supplies a pin binding gets it — reader and preview alike.
-    @ViewBuilder
-    private var pinToggle: some View {
-        if let isPinned {
-            Button {
-                isPinned.wrappedValue.toggle()
-            } label: {
-                Image(systemName: isPinned.wrappedValue ? "pin.fill" : "pin")
-                    .foregroundStyle(
-                        isPinned.wrappedValue ? Color.accentColor : Color.secondary
-                    )
-            }
-            .paneBarButtonStyle()
-            .accessibilityIdentifier("paneHeadPinToggle")
-            .accessibilityLabel(isPinned.wrappedValue
-                ? "Unpin this pane — follow selection"
-                : "Pin this pane to what it is showing")
-            .help(isPinned.wrappedValue
-                ? "Pinned — click to follow the selection again"
-                : "Pin this pane to what it is showing")
-        }
-    }
-
     /// The controls, collapsing like a macOS toolbar when the pane is narrow (#5213): first the shared chrome
-    /// (pin, split, tools) folds into a "…" overflow menu, then the pane's own controls join it. Close and the
+    /// (the pane menu, tools) folds into a "…" overflow menu, then the pane's own controls join it. Close and the
     /// kind switcher (the identity capsule) never fold, and the crumbs degrade on their own ladder, so the
     /// head's narrowest form is that essential set -- it never holds the window wider than it.
     /// AnyView per rung is load-bearing (the #4331 rule, as the crumb ladder).
@@ -467,11 +438,9 @@ extension PaneHead {
             .reportsFrame(PaneHeadMetrics.controlsIdentifier, to: onPartFrame)
     }
 
-    /// Shared chrome, automatic: the pin TOGGLE (when the pane supplies its state), the split "+" (from the
-    /// environment), and the tools row's toggle.
+    /// Shared chrome, automatic: the pane menu (Pin Pane is in it, #6741) and the tools row's toggle.
     @ViewBuilder
     private var chromeControls: some View {
-        pinToggle
         PaneChromeMenu(
             splitActions: canSplit ? splitAxisActions : nil,
             isPinned: isPinned,

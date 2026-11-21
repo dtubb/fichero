@@ -126,11 +126,9 @@ struct PaneMenuEntries: View {
             }
         }
         if let isPinned {
-            Button {
-                isPinned.wrappedValue.toggle()
-            } label: {
-                Label(isPinned.wrappedValue ? "Unpin Pane" : "Pin Pane",
-                      systemImage: isPinned.wrappedValue ? "pin.slash" : "pin")
+            // Checked while pinned (`panes.head.one-menu-button`); the head has no pin button of its own.
+            Toggle(isOn: isPinned) {
+                Label("Pin Pane", systemImage: "pin")
             }
         }
         if offersFont, let fontStore {

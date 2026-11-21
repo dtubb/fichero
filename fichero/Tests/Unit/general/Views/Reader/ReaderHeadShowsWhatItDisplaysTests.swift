@@ -189,23 +189,21 @@ struct ReaderHeadShowsWhatItDisplaysTests {
         #expect(pane.contains("self.readerTableExportControl"))
     }
 
-    // MARK: - 3. Pin is a visible toggle in the shared pane chrome
+    // MARK: - 3. Pin lives in the pane menu (#6741; the head's own pin button is gone)
 
-    @Test("pin is a one-click toggle in the pane head, not a row inside the + menu")
-    func pinIsAHeadToggle() throws {
+    @Test("pin is a checked toggle in the pane menu, not a button in the head")
+    func pinIsInThePaneMenu() throws {
         let head = try source(paneHeadPath)
-        #expect(head.contains("private var pinToggle: some View"))
-        #expect(head.contains("accessibilityIdentifier(\"paneHeadPinToggle\")"))
-        #expect(
-            head.contains("pinToggle"),
-            "The toggle must actually be placed in the controls capsule."
-        )
+        #expect(!head.contains("pinToggle"))
+        #expect(!head.contains("accessibilityIdentifier(\"paneHeadPinToggle\")"))
+        let chrome = try source(chromeMenuPath)
+        #expect(chrome.contains("Toggle(isOn: isPinned)"))
     }
 
     @Test("the pane head's + is the pane menu: split, pin and close from one place (2026-10-17)")
     func splitMenuIsThePaneMenu() throws {
-        // The pane menu carries Pin Pane / Unpin Pane beside split and close (bc06da6c4), and the head's pin toggle
-        // shows the same state from the same binding, so the two cannot disagree about whether the pane is pinned.
+        // The pane menu carries Pin Pane, checked while pinned, beside split and close (bc06da6c4, #6741); the head's
+        // button and its right-click pass the same binding.
         let chrome = try source(chromeMenuPath)
         #expect(chrome.contains("var isPinned: Binding<Bool>?"))
         let head = try source(paneHeadPath)
