@@ -35,7 +35,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from fichero_builder import brief_tool, check_tool, codemap, jail, journal, land_tool, models, nightly, work
+from fichero_builder import brief_tool, check_tool, codemap, jail, journal, land_tool, models, nightly, watcher, work
 
 ROUNDS, RESTARTS = 2, 2
 DISPATCH: list = [()]  # [loop].dispatch: external lanes the loop runs itself, as managed worker lanes (#6466); the verb sets it
@@ -1474,6 +1474,37 @@ def reload_rules(root) -> None:
     apply_loop_cfg(cfg)
 
 
+def publish_rules(root, feed) -> None:
+    """local.perf.caps-reread-each-tick (#6851): a lane's run reads its caps from `<feed>/rules.json` every tick, because its --root is
+    a pinned copy and the owner's own override is unreadable to the jail user. Written from the live rules file, checked first (a bad
+    table raises and leaves the last good copy), then renamed into place, readable by all."""
+    doc = {"spend": watcher.table(root), "models": models.load(root)}
+    watcher.parse(doc["spend"])
+    tmp = Path(feed) / ".rules.json.tmp"  # the feed is the owner's 0755 folder: no worker can plant this name
+    tmp.write_text(json.dumps(doc))
+    tmp.chmod(0o644)
+    tmp.replace(Path(feed) / "rules.json")
+
+
+PUBLISH_ERR = [""]  # the last publish failure told, so a bad rules file gives one row, not one a tick
+
+
+def publish_all(root, out=print) -> None:
+    """Every lane with a live feed gets the current rules; a failure is told once and the lanes keep their last copy."""
+    for lane in load():
+        if not lane.get("feed") or not Path(lane["feed"]).is_dir():
+            continue
+        try:
+            publish_rules(root, lane["feed"])
+        except (OSError, ValueError) as e:
+            if str(e) != PUBLISH_ERR[0]:
+                journal.append("rules", state="warning", detail=f"rules.json not published, the lanes keep their last caps: {e}"[:300])
+                out(f"rules.json not published: {e}")
+            PUBLISH_ERR[0] = str(e)
+            return
+    PUBLISH_ERR[0] = ""
+
+
 def apply_loop_cfg(cfg: dict) -> None:
     global ROUNDS
     ROUNDS = int(cfg.get("rounds", ROUNDS))
@@ -1519,6 +1550,7 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
     while True:
         if root:
             reload_rules(root)  # #6589
+            publish_all(root, out)  # #6851
         if heartbeat:  # after a reboot the lanes' sessions come back in new panes (run.loop-launchd)
             for m in repane():
                 out(m)
@@ -1891,9 +1923,11 @@ def real_procs(root) -> Procs:
         (feed / "brief.txt").write_text(Path(a.brief).read_text())  # #6466: the brief lives under the owner's state dir, which the worker cannot read
         (feed / "brief.txt").chmod(0o644)
         a.brief = str(feed / "brief.txt")
+        publish_rules(root, feed)  # #6851: the run's caps, from the live rules, re-read by it every tick
         codemap.provide_all(root)
         role = lane.get("role", "")  # a lane's [models] role: its model and window; no role = [models].builder
-        cmd = work.run_cmd(a, models.for_role(mdl, role).model if role else builder, "--feed", feed, "--seq", lane["seq"], *(("--role", role) if role else ()))
+        cmd = work.run_cmd(a, models.for_role(mdl, role).model if role else builder, "--feed", feed, "--seq", lane["seq"], "--rules", feed / "rules.json",
+                           *(("--role", role) if role else ()))
         log = open(Path(j.workroot) / f"run-{lane['id']}.log", "ab")  # #6466: a start that fails is read here, not lost to /dev/null (the workroot is where the owner may write)
         # #6589: its own session, so launchd's kill of the loop job (kickstart -k) never reaches the worker's tmux server
         return subprocess.Popen([j.sudo, "-n", "-H", "-u", j.user, "sh", "-c", f"cd {q(j.workroot)} && {cmd}"],

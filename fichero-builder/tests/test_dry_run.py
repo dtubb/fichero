@@ -410,3 +410,51 @@ def test_the_real_redeliver_presses_enter_when_the_words_sit_in_the_box_and_type
     calls.clear()
     p.redeliver("%3", words)
     assert [c[-1] for c in calls if c[1] == "send-keys"][0] == words
+
+
+def _rules(path, day_usd):
+    import json
+    path.write_text(json.dumps({"spend": {"day_usd": day_usd, "window": 1000, "prices": {"sonnet": [3, 15]}}, "models": {}}))
+
+
+def test_a_raised_cap_in_the_published_rules_reaches_a_running_session_on_the_next_tick(root):
+    """local.perf.caps-reread-each-tick (#6851): the run reads `--rules` every tick; a cap raised after the start counts."""
+    rules = root / "rules.json"
+    _rules(rules, 2)
+
+    class Raised(Fake):
+        def read(self):
+            if self.t == 30:
+                _rules(rules, 50)  # the owner raises the cap while the worker runs
+            return super().read()
+    fake = Raised([HEALTHY, {**HEALTHY, "cost_usd": 3.0}, {**HEALTHY, "cost_usd": 4.0}])
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None, rules=rules) == "gone"
+    assert fake.stopped == [] and not [e for e in journal.read() if e["event"] == "watch"]
+
+
+def test_a_lowered_cap_in_the_root_rules_parks_on_the_next_tick(root):
+    """Without `--rules` the run reads the root's rules file every tick."""
+    class Lowered(Fake):
+        def read(self):
+            if self.t == 30:
+                (root / "harness.toml").write_text(TOML.replace("day_usd = 5", "day_usd = 2"))
+            return super().read()
+    fake = Lowered([HEALTHY, {**HEALTHY, "cost_usd": 3.0}, HEALTHY])
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None) == "parked"
+    assert any("reached the cap 2.00" in e.get("what", "") for e in journal.read())
+
+
+def test_unreadable_rules_mid_run_alert_once_and_keep_the_last_figures(root):
+    rules = root / "rules.json"
+    _rules(rules, 2)
+
+    class Broken(Fake):
+        def read(self):
+            if self.t == 30:
+                rules.write_text("{not json")
+            return super().read()
+    fake = Broken([HEALTHY, HEALTHY, {**HEALTHY, "cost_usd": 3.0}])
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None, rules=rules) == "parked"
+    watch = [e["what"] for e in journal.read() if e["event"] == "watch"]
+    assert len([w for w in watch if w.startswith("alert: rules unreadable")]) == 1
+    assert watch[-1] == "park: today's spend 3.00 USD reached the cap 2.00", "the last figures still hold"

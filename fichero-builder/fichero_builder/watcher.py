@@ -40,10 +40,20 @@ def local_file(root) -> Path | None:
 
 def load(root) -> Spend:
     """`<root>/harness.toml` [spend]; no table = the zero caps, which refuse. Unknown keys and bad prices refuse."""
+    return parse(table(root))
+
+
+def table(root) -> dict:
+    """The raw [spend] table of `<root>/harness.toml` with this machine's own override merged over it."""
     f = Path(root) / "harness.toml"
     t = tomllib.loads(f.read_text()).get("spend", {}) if f.is_file() else {}
     if (local := local_file(root)) is not None:  # this machine's own caps (manager 2026-11-02)
         t = {**t, **tomllib.loads(local.read_text()).get("spend", {})}
+    return t
+
+
+def parse(t: dict) -> Spend:
+    """A raw [spend] table as a Spend; unknown keys and bad prices raise ValueError."""
     if unknown := sorted(set(t) - KEYS):
         raise ValueError(f"harness.toml [spend]: unknown keys {unknown}")
     prices = t.get("prices", {})

@@ -156,8 +156,22 @@ def successor_brief(name: str, gen: int, worktree, handoff) -> str:
             f"update {handoff}, and end your turn with the exact line {HANDOFF_READY}. When every item is done, end with the DONE line.")
 
 
+def rules_of(root, rules, role: str) -> watcher.Spend:
+    """The caps now (local.perf.caps-reread-each-tick, #6851): from `rules` (the JSON the queue's loop publishes into the feed,
+    `{"spend": <raw [spend]>, "models": <[models]>}`) when given, else from `<root>/harness.toml`; with a role, its window."""
+    if rules:
+        doc = json.loads(Path(rules).read_text())
+        spend, mdl = watcher.parse(doc["spend"]), doc["models"]
+    else:
+        spend, mdl = watcher.load(root), models.load(root) if role else {}
+    if role:  # a lane's model role: its window, and the share of it where the handoff fires, are the role's (the absolute mark is the default role's)
+        spend = dataclasses.replace(spend, window=models.for_role(mdl, role).context, handoff_tokens=0)
+    return spend
+
+
 def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = "claude", tmux_session: str = "harness",
-        tick_s: float = 30.0, procs: Procs, out=print, done=DONE, handoff=None, max_generations: int = 20, feed=None, seq: int = 0, role: str = "") -> str:
+        tick_s: float = 30.0, procs: Procs, out=print, done=DONE, handoff=None, max_generations: int = 20, feed=None, seq: int = 0, role: str = "",
+        rules=None) -> str:
     """Start, then watch until the worker is done (idle, its last text ends with the brief's `DONE <sha>` line, and the
     worktree's HEAD is that sha and has moved from the start: a worker's words alone never end a run),
     parked (a cap or a provider refusal) or gone. Returns the end as a word.
@@ -166,10 +180,10 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
     handoff file (`<worktree>/HANDOFF.md` unless given); the successor is the same name, generation plus one.
     `feed` (the queue's long-running lane, a folder only the owner writes): a good DONE ends the step, not the session: one
     `step` row (task, seq, sha, moved) for the owner, then the worker idles until `msg-<seq+1>.txt` appears and is typed into
-    the same pane, or `stop` appears (end "lane-done")."""
-    spend = watcher.load(root)
-    if role:  # a lane's model role: its window, and the share of it where the handoff fires, are the role's (the absolute mark is the default role's)
-        spend = dataclasses.replace(spend, window=models.for_role(models.load(root), role).context, handoff_tokens=0)
+    the same pane, or `stop` appears (end "lane-done").
+    `rules` (the queue's `<feed>/rules.json`): the caps are read from it at every tick, never from `root`; an unreadable read keeps
+    the last figures and says so once."""
+    spend = rules_of(root, rules, role)
     label = {"role": role} if role else {}  # the journal rows of a role's worker say which role
     bad = watcher.refusals(spend, kind, model)
     if bad:
@@ -187,6 +201,7 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
     told: set[str] = set()
     state: dict = {}
     base0, first_commit = base, None
+    rules_bad = False  # the last read of the rules failed (one alert per spell)
     unsaid, nudged = 0, False  # ticks idle with the branch moved and no good DONE line (defect 2: a worker that commits and never says it)
     outstanding, sent_turn = True, -1  # feed: a step is out; and the turn it went in at, so the last step's DONE text is not read as this one's
     # #6589 2026-11-20: a DONE counts only if printed after THIS message was delivered: a prompt arrived since it was sent (the session
@@ -213,6 +228,13 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
         if not procs.alive(pane):
             end = "gone"
             break
+        try:
+            spend, rules_bad = rules_of(root, rules, role), False
+        except (OSError, ValueError, KeyError, models.Question) as e:
+            if not rules_bad:
+                journal.append("watch", task=name, what=f"alert: rules unreadable: {e}"[:300])
+                out(f"{name}: rules unreadable, keeping the last caps: {e}")
+            rules_bad = True
         today = time.strftime("%Y-%m-%d")  # the journal stamps rows with the wall clock
         decisions = watcher.assess(state, spend, model, spent_today=watcher.spent_today(journal.read(), today),
                                    silent_for_s=now - last_change)
