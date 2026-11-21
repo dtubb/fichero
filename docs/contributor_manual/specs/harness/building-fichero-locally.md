@@ -473,9 +473,10 @@ Spec-change: owner 2026-11-20.
   the same lane, each with its own tests. Today `check_tool.diff_bound` only refuses with the count. Acceptance: a
   batch of two commits whose sum is over the bound becomes two steps that each pass the bound; one commit over the
   bound alone is a question for the manager, never a silent pass. Serves: reliable, with little supervision.
-- `local.removed-tree-is-not-a-moved-tree` [GAP] (#6589) — the check that no tree outside a step's own moved reads a tree
-  that was removed since the step started (a landed lane's cleanup) as removed, and says nothing. Today `queue.trees`
-  reads a missing path as `unreadable` and `queue.tree_check` raises the alert for any difference. Acceptance: a tree
+- `local.removed-tree-is-not-a-moved-tree` [BUILT] (#6589) — the check that no tree outside a step's own moved reads a tree
+  that was removed since the step started (a landed lane's cleanup) as removed, and says nothing: `queue.tree_check` skips
+  a path that no longer exists, and a landed lane's tree is not snapshotted (test
+  `fichero-builder/tests/test_loop.py::test_a_step_that_moves_another_lanes_tree_or_the_jail_root_alerts`). Acceptance: a tree
   snapped at the start and removed by `dev-workflows.run.loop-cleanup` raises no alert; a tree whose head or status
   changed still does. Serves: reliable.
 - `local.dismiss-never-parks-in-flight` [PARTIAL] (#6589) — dismissing an alert never parks a step that is being worked
@@ -1347,7 +1348,7 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
   milestones are read from GitHub again after each landing and every 15 minutes (test
   `fichero-builder/tests/test_status_page.py::test_console_tiles_come_from_origin_an_owned_milestone_has_no_start_and_the_spec_twin_is_one_row`).
   Remote checks (manager 2026-11-02, the Pro CPU-bound): `[check].remote` refuses a host under `[check].remote_min_free_gb`
-  (default 5) free as unreachable (an alert, the run here); `[check].remote_guards` (off by default: the guards call git and the
+  (default 5) free, the smaller of its base dir and its `/tmp` (pytest writes there; #6589, test `fichero-server/tests/unit/workflows/test_check_tool.py::test_the_remote_free_space_probe_takes_the_smaller_of_the_base_dir_and_tmp`), as unreachable (an alert, the run here); `[check].remote_guards` (off by default: the guards call git and the
   shipped tree has none) sends the guards too; the build rung stays on the Pro. A registered maintainer lane (`queue add
   --maintainer`, the harness builder's) runs its checks `--maintainer`. An import-only change to a test file owes no red, like a
   data-only one (test `fichero-server/tests/unit/workflows/test_check_tool.py::test_an_import_only_change_to_a_test_file_owes_no_red`).
