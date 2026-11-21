@@ -5317,6 +5317,36 @@ def _knife_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
     planned: list[tuple[Segment, list[SegmentSplitPart], bool, dict, list[list[Segment]]]] = []
     left_alone: list[dict] = []
     for row in rows:
+        if row.kind == "region":
+            # `segment-editor.split-knife` (regions): the polygon is cut along the stroke; each of its lines goes with
+            # the part holding its baseline's middle. A stroke that does not cut through leaves the region alone.
+            if row.anchor is None or row.anchor.rendition_id:
+                left_alone.append({"segment_id": row.id, "reason": "another-image"})
+                continue
+            polygons = line_cut.cut_region(line_join.outline_of(row.anchor) or [], stroke)
+            if polygons is None:
+                left_alone.append({"segment_id": row.id, "reason": "grazed"})
+                continue
+            region_children: list[list[Segment]] = [[] for _ in polygons]
+            for child in shapes:
+                if child.parent_segment_id != row.id or child.id in params.expected_versions:
+                    continue
+                if child.baseline and len(child.baseline) >= 2:
+                    middle = line_cut.point_along(child.baseline, 0.5)[0]
+                else:
+                    x0, y0, x1, y1 = line_join.bounds(line_join.outline_of(child.anchor) or polygons[0])
+                    middle = [(x0 + x1) / 2, (y0 + y1) / 2]
+                region_children[line_cut.part_holding(middle, polygons)].append(child)
+            region_parts = []
+            for polygon in polygons:
+                x0, y0, x1, y1 = line_join.bounds(polygon)
+                region_parts.append(SegmentSplitPart(
+                    anchor=row.anchor.model_copy(update={
+                        "polygon": polygon, "rect": [x0, y0, x1 - x0, y1 - y0], "shapes": None,
+                    }),
+                ))
+            planned.append((row, region_parts, False, {}, region_children))
+            continue
         if not row.baseline or len(row.baseline) < 2:
             # `segment-editor.edge.no-baseline`: said, never guessed around.
             left_alone.append({"segment_id": row.id, "reason": "no-baseline"})
