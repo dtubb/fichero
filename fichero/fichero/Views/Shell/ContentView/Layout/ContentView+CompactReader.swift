@@ -64,14 +64,22 @@ extension ContentView {
         )
     }
 
-    /// Push the resolved leaf into `pushedReaderDocument` (#2666). Writing real
-    /// @State — instead of feeding `.navigationDestination(item:)` a computed
-    /// Binding — is what makes the push fire reliably on selection change.
+    /// Puts the resolved leaf on the path as its item (#2666, #6944). A leaf that resolves to nothing pops nothing:
+    /// only Back removes a pushed item.
     private func syncPushedReaderDocument() {
-        let leaf = compactReaderLeaf()
-        if pushedReaderDocument?.id != leaf?.id {
+        guard let leaf = compactReaderLeaf() else { return }
+        if pushedReaderDocument?.id != leaf.id {
             pushedReaderDocument = leaf
         }
+        windowState.compactPath.open(item: leaf.id)
+    }
+
+    /// The path's binding for the stack: a pop writes a shorter path back.
+    private var compactPathBinding: Binding<[CompactStep]> {
+        Binding(
+            get: { windowState.compactPath.steps },
+            set: { windowState.compactPath.set($0) }
+        )
     }
 
     /// Compact (iPhone) library/search reader stack (#2551). The list is the
@@ -82,7 +90,7 @@ extension ContentView {
     /// `centerContentRouting` — `private` is file-scoped.
     @ViewBuilder
     var compactLibraryReaderStack: some View {
-        NavigationStack {
+        NavigationStack(path: compactPathBinding) {
             // AnyView is load-bearing (#4331): this iPhone-only stack sits at the
             // deepest point of the shell's getter chain — erasing here keeps the
             // compact path's composed type inside the iOS 1MB main-stack budget
@@ -95,40 +103,17 @@ extension ContentView {
                 #if !os(macOS)
                 .navigationBarTitleDisplayMode(.inline)
                 #endif
-                // Drive the push from real @State (#2666). Selection changes
-                // recompute the leaf; popping (Back / back-swipe) sets the item
-                // to nil, which clears the selection so the list returns clean.
-                .navigationDestination(item: $pushedReaderDocument) { doc in
-                    previewView
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        // The pushed reader is the "reader tab" #4416 named:
-                        // `doc.name` for a page is the upload temp filename.
-                        .navigationTitle(DocumentTitle.displayName(for: doc))
-                        #if !os(macOS)
-                        // A pushed reader is a detail screen: keep the title bar
-                        // compact (inline) rather than the default large title.
-                        .navigationBarTitleDisplayMode(.inline)
-                        #endif
-                        .toolbar { compactDocumentStepToolbar(from: .source) }
-                        // ponytail: full edge-swipe paging between pipeline stages
-                        // is deferred. Back (NavigationStack) returns to the list,
-                        // and EditorView already hosts SwipeSiblingNavigator for
-                        // two/three-finger sibling paging. Add explicit
-                        // stage-to-stage swiping later if wanted. (#2551)
-                }
-                // Reader and Info push on top of the file (#6566); Back pops to it.
-                .navigationDestination(isPresented: Bindable(windowState).compactReaderPushed) {
-                    compactStepScreen(.reader)
-                }
-                .navigationDestination(isPresented: Bindable(windowState).compactInfoPushed) {
-                    compactStepScreen(.info)
+                // One typed destination for every pushed screen (#6944): destinations declared per screen on one
+                // view present at the same depth and replace each other.
+                .navigationDestination(for: CompactStep.self) { step in
+                    compactScreen(step)
                 }
                 .onChange(of: browserSelection) { _, _ in syncPushedReaderDocument() }
                 .onChange(of: detailDocument) { _, _ in syncPushedReaderDocument() }
-                .onChange(of: pushedReaderDocument) { _, newValue in
+                // Back past the item clears the selection so the list returns clean.
+                .onChange(of: windowState.compactPath.itemId) { _, newValue in
                     if newValue == nil {
-                        windowState.compactReaderPushed = false
-                        windowState.compactInfoPushed = false
+                        pushedReaderDocument = nil
                         detailDocument = nil
                         browserSelection = []
                     }
@@ -151,12 +136,31 @@ extension ContentView {
             ForEach(step.next, id: \.self) { target in
                 Button(target.title) {
                     switch target {
-                    case .reader: windowState.compactReaderPushed = true
-                    case .info: windowState.compactInfoPushed = true
+                    case .reader: windowState.compactPath.push(.reader)
+                    case .info: windowState.compactPath.push(.info)
                     case .source: break
                     }
                 }
             }
+        }
+    }
+
+    /// The screen a path step shows. A folder step is not pushed yet (`ios.nav.folders-push`, #6945).
+    @ViewBuilder
+    private func compactScreen(_ step: CompactStep) -> some View {
+        switch step {
+        case .item:
+            previewView
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // `doc.name` for a page is the upload temp filename (#4416).
+                .navigationTitle(pushedReaderDocument.map(DocumentTitle.displayName(for:)) ?? "")
+                #if !os(macOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                .toolbar { compactDocumentStepToolbar(from: .source) }
+        case .reader: compactStepScreen(.reader)
+        case .info: compactStepScreen(.info)
+        case .folder: EmptyView()
         }
     }
 
