@@ -223,6 +223,11 @@ pages (`activity.recipe-run.stop-reaches-its-step`, `fichero-server/tests/unit/j
   are requeued (#6203, section 8 below).
   *Seen in the dogfood (23:26Z):* the interrupted run resumed itself at once and fanned its 58 pages out
   again (ruling 2: resume at once, gently; `recipes-run.restart.resumes-at-once-gently`).
+  **Since #6584 (owner 2026-11-13) the open starts nothing:** the run is paused, "Stopped when Fichero quit", and carries on
+  when the person presses Continue (`activity.launch.nothing-starts-one-alert`). *Checked 2026-11-20 on real pages:* killed
+  with 4 of 5 pages' lines found, the run came back paused, its step run ended "Interrupted … its recipe run carries on
+  from its checkpoint", and Continue found lines on the 1 page left and went on to Read; a QUIT mid-step did the step
+  twice (`recipes-run.restart.continue-adopts-the-paused-step`, section 14).
 - `recipes-run.journey.run-again-on-what-was-missed` — **[PARTIAL]** (#6170; `source.recipe.run-again-on-what-was-missed` (P)
   owns it) after a restart, a crash or a Stop the recipe says what it did not finish and offers one action,
   Run again on what was missed, which runs only what is not done. *Built (engine):* a finished run's summary carries
@@ -479,7 +484,9 @@ replaces the Kraken figure before #6212 is coded.
   the live half) a lane holder is a RUNNING row with a live worker thread of this engine; a row left
   running by a dead process holds no lane after the restart, so the next job of that kind in any project
   starts within one claim cycle. Test: fichero-server/tests/unit/jobs/test_lanes_released_per_project.py.
-- `recipes-run.restart.resumes-at-once-gently` — **[OK]** (#6216; ruling 2) an interrupted run resumes
+- `recipes-run.restart.resumes-at-once-gently` — **[PARTIAL]** (#6216, #6584; ruling 2) **the "by itself" half is superseded
+  (owner 2026-11-13, #6584): the open pauses what was left and the person's Continue starts it; the gentle minute stands**
+  (seen 2026-11-20: "Waiting: resuming after a restart: one page at a time for a minute" after Continue). As written: an interrupted run resumes
   by itself on the next open (nothing waits for a person), and for the first minute after an engine
   start every lane admits ONE page at a time whatever the gate would allow, so a Mac that has just
   recovered from paging or a kill is not thrown back into it; the grey line says "resuming after a
@@ -700,6 +707,114 @@ The behaviours:
   `fichero-server/tests/unit/workflows/test_credit_stop_6675.py`, `fichero/Tests/Unit/general/Models/CreditPausePromptTests.swift`.
   Built: `llm/retry.py` `_pause_the_run_for_credit`, `ProviderCreditStopError`, `ActivityStore.askAboutCredit`.
 
+### 14. Measured on real pages (review 2026-11-20): what a run says must match what it did
+
+Thirteen public test-corpus pages (medieval Spanish and Old French manuscripts, JPEG, 0.5 to 3 MB) in three folders
+of a fresh project, on a 16 GB Apple-silicon laptop that other work was loading at the time, engine driven
+through the HTTP surface the CLI uses, Kraken's line finder and two Kraken readers, nothing sent anywhere. Eight
+recipe runs: a whole-folder Start with a Pause and a Resume, a kill of the engine mid-step, a quit mid-step, a
+Stop mid-step, the Read step run again on chosen pages and on two folders at once, and a reader swapped on the step.
+
+What held: Pause landed in 2 to 5 s and Resume carried on in the same step run without finding a page's lines
+twice; Stop landed inside 5 s and kept the 2 pages read; after a kill, Continue found lines on the 1 page not
+done and nothing else; a second Start waited for the first in words; a page read by another reader counted as not
+done for the new one; the reader Set Up picked read 4 pages at 2.4 to 3.6% character error against the
+corpus's own transcriptions (published: 3.9%).
+
+What the figures were, beside what the run said:
+
+| Step (5 pages unless said) | Wall | Its page jobs, median | The run's `seconds_per_page` |
+|---|---|---|---|
+| Find lines | 44 s unpaused | 13.0 s | 11.2 (3 of the 5 pages counted, after a pause) |
+| Read each line, reader A, small pages | 90 to 127 s | 22.6 s | 59.0 to 88.2 |
+| Read each line, reader A, large two-column pages | 203 to 208 s | 22.6 s | 125.9 to 139.6 |
+| Read each line, reader B (6 to 8% error) | 97 s | 5.3 s | 68.9 |
+| Make vectors for search | 25 s, 44 s, 132 s, 394 s (3 pages) | 5.6 s | none recorded |
+
+The behaviours this adds:
+
+- `recipes-run.restart.continue-adopts-the-paused-step` — **[BROKEN]** (#6584, → #NEW-1) after a quit, the launch
+  list names a recipe run ONCE: its step's run that the quit paused is part of it, never a second row, and the
+  embeds the recipe will do at its end are not listed beside it; Continue resumes that step's run from its
+  checkpoint and the recipe adopts it, as a person's Resume does (`_adopt_step_run`). Measured: the list held 5
+  rows for one run (the recipe, its Find Lines run, 3 embeds); Continue on all of them resumed the paused Find
+  Lines run AND the recipe started Find Lines again, so each of the 3 pages got two passes of lines (24+24,
+  43+43, 39+39); the reader read one pass, and the run ended `done` saying "Read 0 of 3 pages · 106 lines have
+  no reading", with no `missed` offer. Code: `execution/jobs.py` `stopped_at_quit`, `continue_after_quit`;
+  `api/routes/system/activity.py` `list_stopped_at_quit`, `continue_after_quit` (adds the paused workflow runs);
+  `recipes/runner.py` records the run a recipe waits on (`awaiting`) only in `_park`, a person's pause; a quit leaves none.
+- `recipes-run.restart.run-row-counts-pages-after-restart` — **[BROKEN]** (#6584, → #NEW-1) after a restart the
+  run's row and its live row keep the page count they had: measured, the run's row read "4 of 5" before the
+  kill and "5 of 11" after Continue (every step run's total added up), the live row "0 of 0", and the run's step
+  list said Find Lines `running` while the run was paused.
+- `recipes-run.order.embed-waits-for-kraken-never-fails` — **[BROKEN]** (#6186, → #NEW-2) a page's embed that meets
+  Kraken reading waits and runs afterwards; it never ends failed. Measured: 6 of 22 `make-a-vector`
+  jobs, each queued by a fresh reading of a page, ended `failed` with the row words "Something went wrong in Fichero"; the log
+  says "Kraken is reading a page; the search model waits for it to finish". `llm/kraken_runtime.py`
+  `release_for_the_embedder` raises `MemoryShortError` so the lane tries again later, and
+  `actions/page_text_cache.py` `_reembed` wraps it in a `RuntimeError`, which the lane counts as a failure. A
+  run of the Read step alone has no Search step after it, so those pages keep the vector of their old text
+  until the next open embeds what is pending.
+- `recipes-run.timing.page-time-is-the-page-job` — **[BROKEN]** (#6215, → #NEW-3) a step's `seconds_per_page` is
+  the median of its pages' own work, the time their jobs ran, not the time they stood in the fan-out waiting
+  for the one model lane; the summary's "Slowest step" line uses the same figure. Measured: 59 to 140 s a page
+  said, 5.3 to 22.6 s a page done (the table above); five pages said to take 88.2 s each finished in 127 s.
+  Code: `recipes/run_view.py` `page_seconds` reads the workflow timeline's file entries; the job rows hold the
+  true figure (`execution/jobs.py` `finished_seconds`).
+- `recipes-run.timing.survives-pause-and-restart` — **[BROKEN]** (#6215, → #NEW-3) a step's `pages_done`,
+  `seconds` and the run's `seconds` cover the whole step across a Pause, a kill and a Continue: pages done before
+  count, time paused or dead does not. Measured: Find Lines read "3 pages, 75.5 s" for 5 pages and 44 s of work
+  around a 31 s pause; after a kill, "1 page, 22.1 s" for 5 pages; the run's `seconds` read 177.6 and 275.3
+  against 208 and 317 s of running.
+- `recipes-run.timing.every-step-timed` — **[GAP]** (#6215, → #NEW-3) every step that ran carries `timing`,
+  Leave Out and Make vectors for search included, and the row says its pages while it runs. Measured: Search took
+  25 to 394 s with no `timing` and the row words "Running step make-a-vector: 0 of 1 folder done" throughout
+  (a step id, which `recipes-run.journey.progress-in-words` forbids, #6091).
+- `recipes-run.timing.plan-says-time-from-measured-pages` — **[GAP]** (#4951, #6052, → #NEW-4) Start's plan says
+  how long each step will take on these pages once this Mac has finished pages of that step's model
+  (`estimate.runs[].seconds`, with its basis), and the run keeps that figure beside what it measured
+  (`designer.run.predicted-then-measured`). Today the plan carries cost alone (`recipes/start.py`); the run says
+  "about 2 min left" in its words only (`estimate_seconds_left` is null on the step's account). Measured: after 5
+  pages read by the step's reader, `GET /api/recipes/routes` still said the time on this Mac was unknown:
+  `recipes/routes.py` `default_models` passes the reader as the plan names it (`kraken-…`) and the job rows
+  store it with its runtime (`kraken:kraken-…`), so `measured_seconds_per_page` finds no row.
+- `recipes-run.journey.start-on-pages-answers-for-those-pages` — **[BROKEN]** (#6744, #6170, → #NEW-5) a Start on
+  chosen pages (`documents`) answers with those pages' counts and the run's steps carry those pages' notes.
+  Measured: a Start on 4 pages answered `pages: 10` and "runs again on all 10 pages"; while it read 3 pages its
+  step's note said "already done on all 10 pages; nothing to run". `api/routes/system/recipes.py`
+  `_action_start` plans the whole project (`_start_plan(db, params.folder_id, …)`) and hands the pages to
+  `runner.enqueue` alone.
+- `recipes-run.journey.stopped-redo-says-what-it-left` — **[BROKEN]** (#6170, → #NEW-5) a run that ran a step
+  AGAIN and was stopped counts its own work: the summary says how many pages this run read again, and `missed`
+  names the pages it did not reach, with an offer that reads them again. Measured: stopped after 2 of 4 pages,
+  the summary said "Read 4 of 4 pages" (the older readings counted), `missed.words` "1 page not done" (2 were
+  not), `missed.documents` all 4 pages, and the offer is a plain Start, which finds every page done and reads
+  nothing.
+- `recipes-run.journey.start-with-nothing-to-run-is-refused` — **[BROKEN]** (#6744, → #NEW-5) a Start whose plan
+  has nothing to run is refused in one sentence (the plan's own "already done on all N pages; nothing to run"),
+  as the route's contract says; it queues no run. Measured: a Start on the Read step alone, all pages read,
+  answered 200 and listed a run that ended `done` in 0.1 s.
+- `recipes-run.control.waiting-names-the-run-in-words` — **[BROKEN]** (#6091, → #NEW-5) a run that waits for
+  another says which in a person's words (its folder or its start time). Measured: "Waiting for the recipe
+  run <the run's id> to finish: recipe runs go one at a time".
+- `recipes-run.engine.runs-list-answers-while-a-run-goes` — **[BROKEN]** (#6178, → #NEW-6) the list of runs and one
+  run's status answer inside a second while a run reads. Measured over 20 polls during a 5-page reading, 7 runs
+  in the project: `GET /api/recipes/project/runs` median 1.3 s, a tenth of them 14 s or more, the worst 20.2 s;
+  `GET /api/activity/jobs` 0.13 s, 0.39 s at worst; the engine logged "slow poll recipes.recipe_runs" up to
+  20,153 ms. `recipes/run_view.py` `_timings` reads every run's stored timeline on every poll. Seen with it,
+  once: the loop held 14.1 s by `get_document` waiting for the transaction gate on the loop
+  (`api/routes/document/documents.py`), and once 30 s or more while Kraken's models were let go for the embedder
+  (`release_resident_models`, the collection).
+- `recipes-run.engine.quits-when-asked` — **[BROKEN]** (#5357, → #NEW-7) the engine ends within 10 s of a
+  terminate signal whatever it holds. Measured: once in 6 s mid-step ("2 job thread(s) still finishing"), and once
+  not at all after 45 s, idle after a run, with a forked child of 1.6 GB still there; both had to be killed.
+- `recipes-run.engine.not-sure-does-not-starve-the-import` — **[BROKEN]** (#6078, #6193, → #NEW-8) Set Up's "Not
+  sure" (the language worked out from three pages by a quick read, `recipes/language_guess.py`) answers in
+  seconds, or is a job with a row and words, and the import's thumbnails go on beside it. Measured: the assemble
+  call took 169 s with nothing shown; the 10 thumbnails queued at the same moment took 107 s each for the first
+  two and 3 min 13 s in all (1.2 to 5 s each later), and Activity warned "Processing imported pages stalled at 0
+  of 10" (`importers/derivatives.py`, no completion in 60 s). The guess itself was right.
+
 ## Changes to existing behaviours
 
 1. **Resume after a crash resumes in place.** `activity.durable.lease-not-fail` (P) and
@@ -713,6 +828,12 @@ The behaviours:
 3. **Thumbnails-first is bounded.** `activity.lane.thumbnails-first` (P) holds heavy work for a project's
    thumbnails; with `recipes-run.restart.requeues-unfinished` and `recipes-run.engine.thumbnails-cheap-and-off-the-lane`
    that hold is at most a minute after a restart and never a deadlock.
+4. **A step's time a page is its job's time.** `recipes-run.timing.per-step-recorded` reads the median from the workflow
+   timeline's file entries; section 14 measured those at three to six times the page's own job, so
+   `recipes-run.timing.page-time-is-the-page-job` moves the figure to the job rows, and
+   `recipes-run.timing.survives-pause-and-restart` makes it cover the whole step. The summary's "Slowest step" line follows.
+5. **Continue after a quit is the recipe's Resume.** `activity.launch.nothing-starts-one-alert` lists and continues the
+   recipe run and its paused step run as two rows; `recipes-run.restart.continue-adopts-the-paused-step` makes them one.
 
 Not changed: the batch loop and its checkpoints (`source.recipe.batch-at-archive-scale`,
 `source.recipe.batch-checkpoint`); the step-major order inside a batch; the one throttle rule
@@ -785,6 +906,89 @@ Not changed: the batch loop and its checkpoints (`source.recipe.batch-at-archive
 - Tests: fichero-server/tests/unit/jobs/test_durable_5357.py, fichero-server/tests/unit/recipes/test_recipe_pause_5933.py, fichero-server/tests/unit/recipes/test_step_rerun_on_folder.py
 - Depends on: 1.1
 - Size: M
+
+### Stage 5 — What the review of 2026-11-20 measured (section 14)
+
+#### Step 5.1 — Continue after a quit adopts the paused step; the run's row keeps its count (#6584)
+- Behaviours: `recipes-run.restart.continue-adopts-the-paused-step`, `recipes-run.restart.run-row-counts-pages-after-restart`
+- Tests: test_continue_after_quit_adopts_the_step_run.py (not yet written), fichero-server/tests/unit/jobs/test_durable_5357.py
+- Depends on: 4.2
+- Size: M
+
+Engine only: `execution/jobs.py` (`stopped_at_quit`, `continue_after_quit`), `api/routes/system/activity.py`
+(`list_stopped_at_quit`, `continue_after_quit`), `recipes/runner.py` (the quit records the awaited run as `_park` does;
+the run's row counts the batch's pages, not every step run's total). Beside the runner-soak lane's fix for a run an
+engine restart flips to failed: this step is the quit path and the double start, not that flip.
+
+- test (to write): `test_continue_after_quit_adopts_the_step_run.py` in fichero-server/tests/unit/recipes/ (a recipe quit
+  mid Find Lines lists one row; Continue resumes the paused step run and starts no second one; each page holds one pass
+  of lines; the run's row reads N of N pages, never the sum of its step runs; the step list says paused, not running)
+
+#### Step 5.2 — A page's embed waits for Kraken, never fails (#6186)
+- Behaviours: `recipes-run.order.embed-waits-for-kraken-never-fails`
+- Tests: test_embed_waits_for_kraken.py (not yet written), fichero-server/tests/unit/recipes/test_embed_once_after_reading_6186.py
+- Size: S
+
+`actions/page_text_cache.py` `_reembed` lets `MemoryShortError` through (or defers the job itself), so the lane runs the
+embed after the reading; a Read-only run ends with its pages embedded from their new text.
+
+- test (to write): `test_embed_waits_for_kraken.py` in fichero-server/tests/unit/recipes/ (Kraken resident and a page in
+  flight: the embed job goes back to waiting with the reason in words, runs when the page ends, and no row reads failed)
+
+#### Step 5.3 — Timings a person can multiply: the page's job, the whole step, every step (#6215)
+- Behaviours: `recipes-run.timing.page-time-is-the-page-job`, `recipes-run.timing.survives-pause-and-restart`, `recipes-run.timing.every-step-timed`
+- Tests: fichero-server/tests/unit/recipes/test_step_timings_recorded.py, test_step_timings_across_a_pause.py (not yet written)
+- Depends on: 3.2
+- Size: M
+
+`recipes/run_view.py` (`page_seconds`, `_timings`, the "Slowest step" line) reads each page's job row; a step's
+`pages_done` and `seconds` add up its step runs across a pause, a kill and a Continue; Leave Out and Search get `timing`
+and the Search row counts its pages in words.
+
+- test (to write): `test_step_timings_across_a_pause.py` in fichero-server/tests/unit/recipes/ (two pages at once on a
+  one-wide lane: the figure is each job's own time; a pause in the middle: 5 of 5 pages and no paused time; a step run
+  ended by a kill and a second one: both counted; Search and Leave Out carry timing)
+
+#### Step 5.4 — Start says the time, from this Mac's finished pages (#4951)
+- Behaviours: `recipes-run.timing.plan-says-time-from-measured-pages`
+- Tests: fichero-server/tests/unit/recipes/test_routes_for_the_volume.py, fichero-server/tests/unit/recipes/test_start_plan.py
+- Depends on: 5.3
+- Size: M
+
+First the one-line fault: `recipes/routes.py` asks `finished_seconds` for the reader as the job rows store it
+(`kraken:<id>`). Then `estimate.runs[].seconds` with its basis in `recipes/start.py`, kept on the run for
+`designer.run.predicted-then-measured`.
+
+#### Step 5.5 — Start on chosen pages says those pages; a stopped redo says what it left; nothing to run is refused (#6744, #6170)
+- Behaviours: `recipes-run.journey.start-on-pages-answers-for-those-pages`, `recipes-run.journey.stopped-redo-says-what-it-left`, `recipes-run.journey.start-with-nothing-to-run-is-refused`, `recipes-run.control.waiting-names-the-run-in-words`
+- Tests: fichero-server/tests/unit/recipes/test_step_rerun_on_folder.py, test_start_on_chosen_pages.py (not yet written)
+- Size: M
+
+`api/routes/system/recipes.py` (`_action_start`, `start_project`: the plan over the chosen pages), `recipes/runner.py`
+and `recipes/run_view.py` (a redo run's summary and `missed` from this run's own pages; the offer carries `redo`).
+
+- test (to write): `test_start_on_chosen_pages.py` in fichero-server/tests/unit/recipes/ (4 pages of 10: the answer says 4
+  and the step's note names them; a redo stopped after 2 says 2 read again, names the other 2, and its offer reads them;
+  a step-only Start with every page done answers 422 with the plan's sentence; the waiting words hold no job id)
+
+#### Step 5.6 — The runs list answers while a run reads; the engine quits when asked (#6178)
+- Behaviours: `recipes-run.engine.runs-list-answers-while-a-run-goes`, `recipes-run.engine.quits-when-asked`
+- Tests: fichero-server/tests/unit/core/test_loop_lag_activity_polls.py, test_runs_list_stays_fast.py (not yet written)
+- Depends on: 1.3
+- Size: M
+
+- test (to write): `test_runs_list_stays_fast.py` in fichero-server/tests/unit/recipes/ (20 ended runs and one live: the
+  list reads no ended run's timeline twice and answers without waiting on the writer; `get_document` does its read off
+  the loop; a terminate signal with a forked embedder child ends both inside the deadline)
+
+#### Step 5.7 — "Not sure" does not hold the import (#6078)
+- Behaviours: `recipes-run.engine.not-sure-does-not-starve-the-import`
+- Tests: test_not_sure_guess_is_bounded.py (not yet written), fichero-server/tests/unit/importers/test_thumbnail_cost_bounded_6193.py
+- Size: S
+
+- test (to write): `test_not_sure_guess_is_bounded.py` in fichero-server/tests/unit/recipes/ (the quick read works on a
+  reduced picture with a deadline per page and says "could not tell" past it; it runs as a row a person can see; a
+  thumbnail queued beside it finishes inside its bound)
 
 ## Test matrix
 
