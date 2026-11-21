@@ -265,9 +265,13 @@ filters Activity by `model:`.
 - `models.manage.add-a-model` — **[GAP]** (#6588, #5460, #6747, owner 2026-11-19) the window adds a model: search Hugging
   Face or a provider (`models.search.is-the-finder`), then download it to the models folder (#6747), with its progress in
   Activity (`models.row.download-reports-bytes`).
-- `models.manage.delete-a-model` — **[GAP]** (#6588, #6747, owner 2026-11-19) the window deletes a downloaded model's files
+- `models.manage.delete-a-model` — **[PARTIAL]** (#6588, #6747, owner 2026-11-19) the window deletes a downloaded model's files
   (the bookmark stays), says how much disk it frees, and asks first when a recipe uses it (open question 3), with the
-  deletion shown in Activity.
+  deletion shown in Activity. **Built:** the engine half of asking first: `DELETE /api/local-models/{model_type}/{model_id}`
+  with a library open answers 409 naming the steps of its recipe whose model is this one (`recipes.discovery.steps_using_model`,
+  the whole id, never a part of one), and deletes with `?confirm=true`; tested in
+  `fichero-server/tests/unit/api/test_delete_model_names_its_steps_6588.py`. **Not built:** the window, its Delete verb, the
+  disk it frees, Choose for… (open question 3's recommendation) and the row in Activity.
 
 ### B2. Run settings per model (owner 2026-11-19)
 
@@ -373,9 +377,14 @@ the surface those two lines describe, `models.row.account-from-a-probe` is their
   1,800 px on this Mac's 8 GB", from `runtime.kraken.page-shrinks-to-fit`; "Auto: GPU",
   `runtime.pytorch.device-chosen`), a changed value is kept per model per place, a value that cannot run here is refused
   in words, Reset returns to Auto, and every run records the settings it used. The engine owns the settings, their
-  bounds and the defaults (one read and one audited, undoable write); the window draws what it is given. Built: none
-  as settings; the engine sets Kraken's threads from the plan (`llm/kraken_runtime.py` `threads_each`) and YOLO's device
-  from availability (`llm/yolo_runtime.py` `_device`). *Test (to write):* test_model_run_settings.py in
+  bounds and the defaults (one read and one audited, undoable write); the window draws what it is given. **Built:** for
+  Kraken only, `GET /api/activity/models/run-settings/{runtime}` answers `defaults` (each knob's engine value on this Mac
+  and its reason, `llm/model_run_settings.py` `defaults`) and `script_heights` (the line finder's network height and base
+  per script, #6752, read-only, `script_heights`), tested in `fichero-server/tests/unit/llm/test_model_run_settings_6588.py`;
+  the engine still sets Kraken's threads from the plan (`llm/kraken_runtime.py` `threads_each`) and YOLO's device from
+  availability (`llm/yolo_runtime.py` `_device`). **Not built:** the Inspector's
+  Run Settings, Kraken's largest image side and precision (`models.settings.run-knobs-image-size-precision`), the YOLO, MLX
+  and cloud knobs, Reset, and the run's record of the settings it used. *Test (to write):* test_model_run_settings.py in
   fichero-server/tests/unit/api/ (the settings a Kraken, a YOLO and a cloud card offer; a refused value; Reset; the
   run's record), and ModelRunSettingsTests.swift (the rows drawn from the answer).
 
@@ -478,3 +487,5 @@ the surface those two lines describe, `models.row.account-from-a-probe` is their
 2. **Does the HF monthly cap stay in Settings with the cloud caps, or move with the token?** Recommended: stays (a cap is
    a preference); the window shows it read-only on the Hugging Face Jobs row.
 3. **Delete a model that a step's default names?** Recommended: refuse with the step named and offer Choose for….
+   Built so far (engine, #6588): the delete answers 409 naming the steps and deletes with `?confirm=true`; Choose for… is
+   not built. The question stays open for the owner: whether "delete anyway" stays offered beside Choose for….
