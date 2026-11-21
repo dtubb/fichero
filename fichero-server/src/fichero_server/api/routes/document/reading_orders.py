@@ -891,12 +891,19 @@ class ReadingOrderMoveParams(BaseModel):
     after_segment_id: Optional[str] = None
 
 
+class RestorePlace(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    position: float
+    parent_entry_id: Optional[str] = None
+
+
 class ReadingOrderRestorePlacesParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     order_id: str
-    #: {entry_id: {"position": float, "parent_entry_id": str | None}} as they were.
-    places: dict[str, dict]
+    #: {entry_id: place} as they were.
+    places: dict[str, RestorePlace]
 
 
 def _invert_restore_places(before, after, ctx: ActionContext):
@@ -926,17 +933,21 @@ def _action_order_move(db: Database, params: ReadingOrderMoveParams, ctx: Action
     moved = [by_segment[segment_id] for segment_id in moved_ids]
     parent_entry_id = by_segment[params.parent_segment_id].id if params.parent_segment_id else None
     by_id = {row.id: row for row in by_segment.values()}
+    moved_entry_ids = {row.id for row in moved}
     cursor, hops = parent_entry_id, 0
     while cursor is not None and hops < 64:
-        if cursor in {row.id for row in moved}:
+        if cursor in moved_entry_ids:
             raise HTTPException(status_code=422, detail="a segment cannot be moved into itself or something it holds")
         cursor = by_id[cursor].parent_entry_id
         hops += 1
-    others = [row for row in entries_in_sequence(db, order.id, parent_entry_id=parent_entry_id) if row.id not in {m.id for m in moved}]
+    others = sorted(
+        (row for row in by_id.values() if row.parent_entry_id == parent_entry_id and row.id not in moved_entry_ids),
+        key=lambda row: (row.position, row.id),
+    )
     cut = 0
     if params.after_segment_id:
         after = by_segment[params.after_segment_id]
-        if after.parent_entry_id != parent_entry_id or after.id in {m.id for m in moved}:
+        if after.parent_entry_id != parent_entry_id or after.id in moved_entry_ids:
             raise HTTPException(status_code=422, detail="after_segment_id is not at the level they are dropped on")
         cut = next(i for i, row in enumerate(others) if row.id == after.id) + 1
     sequence = others[:cut] + moved + others[cut:]
@@ -973,14 +984,19 @@ def _action_order_move(db: Database, params: ReadingOrderMoveParams, ctx: Action
 def _action_order_restore_places(db: Database, params: ReadingOrderRestorePlacesParams, ctx: ActionContext):
     """The inverse of `reading_order.move`: entries put back at the positions and parents recorded."""
     order = _live_order(db, params.order_id)
+    in_order = {row.id for row in db.query(ReadingOrderEntry, order_id=order.id)}
+    for entry_id, place in params.places.items():
+        if place.parent_entry_id is not None and (place.parent_entry_id == entry_id or place.parent_entry_id not in in_order):
+            raise HTTPException(
+                status_code=422, detail=f"entry {entry_id} cannot sit under {place.parent_entry_id}: not another entry of this order")
     before: dict[str, dict] = {}
     for entry_id, place in params.places.items():
         row = db.get(ReadingOrderEntry, entry_id)
         if row is None or row.order_id != order.id:
             continue
         before[row.id] = {"position": row.position, "parent_entry_id": row.parent_entry_id}
-        row.position = place["position"]
-        row.parent_entry_id = place.get("parent_entry_id")
+        row.position = place.position
+        row.parent_entry_id = place.parent_entry_id
         row.version += 1
         db.save(row)
     spec = ChangeSpec(

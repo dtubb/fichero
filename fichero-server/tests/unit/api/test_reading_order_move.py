@@ -79,3 +79,28 @@ def test_an_after_row_at_another_level_or_a_segment_not_in_the_order_is_refused(
     with pytest.raises(HTTPException) as missing:
         _move(db, order_id, ["f" * 32], parent_segment_id=region.id)
     assert missing.value.status_code == 404
+
+
+def _restore(db, order_id, places):
+    return registry.invoke(db, "reading_order.restore_places", {"order_id": order_id, "places": places}, _person())
+
+
+def test_restore_places_refuses_a_bad_place_and_writes_nothing(db):
+    from pydantic import ValidationError
+
+    from fichero_server.models.reading_orders import ReadingOrderEntry
+
+    order_id, region, (a, b, *_rest) = _lines_page(db)
+    entries = {row.segment_id: row for row in db.query(ReadingOrderEntry, order_id=order_id)}
+    first, second = entries[a], entries[b]
+    before = (first.position, second.position, first.parent_entry_id)
+    for bad in ({"position": "x"}, {"position": None}, {}, {"position": 1.0, "extra": 1}):
+        with pytest.raises(ValidationError):
+            _restore(db, order_id, {first.id: bad})
+    for parent in (second.id, "nope"):
+        with pytest.raises(HTTPException) as refused:
+            _restore(db, order_id, {second.id: {"position": 9.0, "parent_entry_id": parent},
+                                    first.id: {"position": 8.0, "parent_entry_id": first.parent_entry_id}})
+        assert refused.value.status_code == 422
+    assert (db.get(ReadingOrderEntry, first.id).position, db.get(ReadingOrderEntry, second.id).position,
+            db.get(ReadingOrderEntry, first.id).parent_entry_id) == before
