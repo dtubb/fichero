@@ -60,13 +60,25 @@ extension ReadingOrderList {
         return true
     }
 
-    /// A drop on a row that takes nothing in: the ONE dragged line takes this row's place in the order, one audited move,
-    /// one ⌘Z (the List has no `.onMove`: it would take the drag, #6577). Several lines at once: no.
+    /// A drop on a row that takes nothing in: the dragged rows (one or several, in their list order) go just before this
+    /// row, where the insertion line showed, as ONE `reading_order.move` and one ⌘Z (`segment-editor.list-drag-reorder`;
+    /// the List has no `.onMove`: it would take the drag, #6577). Why it failed is said under the list.
     func reordered(_ ids: [String], to targetId: String) -> Bool {
-        guard let store, ids.count == 1, let id = ids.first, id != targetId,
-              let target = store.shown.firstIndex(where: { $0.segmentId == targetId }),
-              store.shown.contains(where: { $0.segmentId == id }) else { return false }
-        Task { await record(store.move(id, to: target), in: store) }
+        guard let store, let orderId = store.orderId, let documentStore, let actionsService = actionStore?.actionsService,
+              case .success(let call) = ReadingOrderMove.move(
+                  orderId: orderId, entries: store.shown, moving: ids, before: targetId, parentSegmentId: parentSegmentId
+              ) else { return false }
+        let steps = windowSteps, documentId = documentId
+        Task {
+            do {
+                try await SegmentEditRunner(actionsService: actionsService, store: documentStore).run(
+                    call, documentId: documentId, actionName: "Move in Reading Order", steps: steps
+                )
+                createNote = nil
+            } catch {
+                createNote = "The rows were not moved: \(error.localizedDescription)"
+            }
+        }
         return true
     }
 
@@ -91,7 +103,10 @@ extension ReadingOrderList {
                 return dropped(ids, onto: segmentId) || reordered(ids, to: segmentId)
             }, isTargeted: { targeting in
                 if targeting, canTake(segmentId) { dropTarget = segmentId } else if dropTarget == segmentId { dropTarget = nil }
+                // A row that takes nothing in shows where the drop lands: a line with a circle, just above it.
+                if targeting, !canTake(segmentId) { insertBefore = segmentId } else if insertBefore == segmentId { insertBefore = nil }
             })
+            .overlay(alignment: .top) { if insertBefore == segmentId { OrderInsertionLine() } }
     }
 
     func rowContent(_ segmentId: String, at index: Int) -> some View {

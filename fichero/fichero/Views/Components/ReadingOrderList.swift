@@ -58,8 +58,7 @@ struct ReadingOrderList: View {
         self.filter = filter
         self.rowAccessory = rowAccessory
         self.rowFooter = rowFooter
-        // A store handed in (a preview's, over a fixture transport) is used as is; otherwise the
-        // library's service makes one.
+        // A store handed in (a preview's) is used as is; otherwise the library's service makes one.
         _store = State(initialValue: store)
     }
 
@@ -78,8 +77,9 @@ struct ReadingOrderList: View {
     @State var renaming: String?
     @State var draft = ""
     @FocusState var renameFocused: Bool
-    /// The region a drag is over, lit as a drop target.
+    /// The region a drag is over (a drop target) and the row a drop would land above (an insertion line).
     @State var dropTarget: String?
+    @State var insertBefore: String?
 
     var body: some View {
         VStack(spacing: 0) {

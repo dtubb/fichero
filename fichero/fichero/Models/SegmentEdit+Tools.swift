@@ -344,6 +344,7 @@ extension SegmentEdit.Params {
         case .ungroupRegion(let params): params
         case .convertLevel(let params): params
         case .sequence(let params): params
+        case .moveInOrder(let params): params
         case .translate(let params): params
         case .moveCut(let params): params
         case .update, .baseline, .create, .delete, .merge, .updateMany: payload

@@ -84,6 +84,27 @@ enum ReadingOrderMove {
         ))
     }
 
+    /// A DROP of several rows just before `targetId` in the segment list (`segment-editor.list-drag-reorder`): ONE
+    /// `reading_order.move`, one undo, the rows in their list order whatever order the drag named them in. Every dragged
+    /// row must be in this level; a drop where they already are sends nothing.
+    static func move(
+        orderId: String, entries: [Entry], moving ids: [String], before targetId: String, parentSegmentId: String? = nil
+    ) -> Result<SegmentEdit.Call, Refusal> {
+        let dragged = Set(ids)
+        guard !dragged.isEmpty, dragged.isSubset(of: entries.map(\.segmentId)) else { return .failure(.notInThisOrder) }
+        guard entries.contains(where: { $0.segmentId == targetId }) else { return .failure(.targetOutOfRange) }
+        guard !dragged.contains(targetId) else { return .failure(.alreadyThere) }
+        let moved = entries.map(\.segmentId).filter(dragged.contains)
+        var others = entries.map(\.segmentId).filter { !dragged.contains($0) }
+        let cut = others.firstIndex(of: targetId) ?? 0
+        let after = cut == 0 ? nil : others[cut - 1]
+        others.insert(contentsOf: moved, at: cut)
+        guard others != entries.map(\.segmentId) else { return .failure(.alreadyThere) }
+        return .success(SegmentEdit.Call(action: "reading_order.move", params: .moveInOrder(ReadingOrderMoveRequest(
+            orderId: orderId, segmentIds: moved, parentSegmentId: parentSegmentId, afterSegmentId: after
+        ))))
+    }
+
     /// A KEYBOARD move: the same one call as a drag (ruled 2026-09-27, Q5: reordering by
     /// drag-and-drop AND by keys, with one behaviour in the Reader, the Inspector and the
     /// Segments pane -- one implementation, never three).

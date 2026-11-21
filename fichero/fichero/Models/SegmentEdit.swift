@@ -47,6 +47,8 @@ enum SegmentEdit {
         case ungroupRegion(SegmentUngroupRegionRequest)
         /// Order by clicking (`reading_order.sequence`).
         case sequence(ReadingOrderSequenceRequest)
+        /// Rows dropped between rows of the segment list (`reading_order.move`).
+        case moveInOrder(ReadingOrderMoveRequest)
         /// The selection moved by one offset (`segment.translate`).
         case translate(SegmentTranslateRequest)
         /// A cut mark moved (`segment.move_cut`).
