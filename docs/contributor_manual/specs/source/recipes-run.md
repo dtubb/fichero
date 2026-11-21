@@ -754,14 +754,13 @@ The behaviours this adds:
   run's row and its live row keep the page count they had: measured, the run's row read "4 of 5" before the
   kill and "5 of 11" after Continue (every step run's total added up), the live row "0 of 0", and the run's step
   list said Find Lines `running` while the run was paused.
-- `recipes-run.order.embed-waits-for-kraken-never-fails` — **[BROKEN]** (#6186, #6808) a page's embed that meets
-  Kraken reading waits and runs afterwards; it never ends failed. Measured: 6 of 22 `make-a-vector`
+- `recipes-run.order.embed-waits-for-kraken-never-fails` — **[OK]** (#6186, #6808;
+  `fichero-server/tests/unit/jobs/test_embed_waits_for_kraken.py`) a page's embed that meets
+  Kraken reading waits and runs afterwards; it never ends failed. Measured before the fix: 6 of 22 `make-a-vector`
   jobs, each queued by a fresh reading of a page, ended `failed` with the row words "Something went wrong in Fichero"; the log
   says "Kraken is reading a page; the search model waits for it to finish". `llm/kraken_runtime.py`
-  `release_for_the_embedder` raises `MemoryShortError` so the lane tries again later, and
-  `actions/page_text_cache.py` `_reembed` wraps it in a `RuntimeError`, which the lane counts as a failure. A
-  run of the Read step alone has no Search step after it, so those pages keep the vector of their old text
-  until the next open embeds what is pending.
+  `release_for_the_embedder` raises `MemoryShortError` so the lane tries again later; the embed outcome now names it
+  `memory_short` and `actions/page_text_cache.py` `_reembed` raises it again, which the lane turns into waiting.
 - `recipes-run.timing.page-time-is-the-page-job` — **[BROKEN]** (#6215, #6809) a step's `seconds_per_page` is
   the median of its pages' own work, the time their jobs ran, not the time they stood in the fan-out waiting
   for the one model lane; the summary's "Slowest step" line uses the same figure. Measured: 59 to 140 s a page
