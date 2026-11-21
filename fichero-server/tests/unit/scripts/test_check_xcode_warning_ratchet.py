@@ -178,3 +178,20 @@ def test_the_guards_rung_run_names_no_bundle_and_is_skipped_not_blind(tmp_path):
     r = subprocess.run(["python3", str(SCRIPT), "--platform", "mac", "--bundle", str(tmp_path / "gone.xcresult")],
                        cwd=str(tmp_path), capture_output=True, text=True, timeout=60)
     assert r.returncode == 2 and "BLIND" in r.stderr
+
+
+def test_swiftlint_violations_are_left_to_their_own_ratchet(tmp_path):
+    """A SwiftLint result in the build ("... Violation: ... (rule)") is not an Xcode warning kind; a compiler warning still is."""
+    import importlib.util, json
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[4]
+    spec = importlib.util.spec_from_file_location("xr", root / "scripts" / "check_xcode_warning_ratchet.py")
+    xr = importlib.util.module_from_spec(spec); spec.loader.exec_module(xr)
+    bundle = tmp_path / "b.json"
+    bundle.write_text(json.dumps({"warnings": [
+        {"message": "Line Length Violation: Line should be 120 characters or less; currently it has 128 characters (line_length)",
+         "sourceURL": "file:///x/A.swift#StartingLineNumber=3", "issueType": "Swift Compiler Warning"},
+        {"message": "'foo' is deprecated: use bar", "sourceURL": "file:///x/B.swift#StartingLineNumber=9",
+         "issueType": "Deprecation"}]}))
+    rows = xr.read_warnings(bundle, None, "mac")
+    assert [r["message"] for r in rows] == ["'foo' is deprecated: use bar"]

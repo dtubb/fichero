@@ -81,6 +81,11 @@ def normalise_kind(message: str, issue_type: str = "") -> str:
     return NUMBER.sub("_", message).strip()
 
 
+# SwiftLint reports into the build as warnings ending "(rule_name)"; its own ratchet (check_swiftlint_warning_ratchet.py)
+# holds them per rule, so this one skips them rather than counting each rule twice against a zero baseline.
+SWIFTLINT_LINE = re.compile(r"Violation: .*\([a-z_]+\)\s*$")
+
+
 def _row(platform, message, file, line, issue_type="") -> dict:
     return {"platform": platform, "kind": normalise_kind(message, issue_type), "file": file, "line": line, "message": message}
 
@@ -134,9 +139,9 @@ def read_log(path, platform: str) -> list[dict]:
 def read_warnings(bundle, log, platform: str) -> list[dict]:
     """The bundle when there is one; else the log; neither is BLIND, never an empty green."""
     if bundle and Path(bundle).exists():
-        return read_bundle(bundle, platform)
+        return [r for r in read_bundle(bundle, platform) if not SWIFTLINT_LINE.search(r["message"])]
     if log and Path(log).is_file():
-        return read_log(log, platform)
+        return [r for r in read_log(log, platform) if not SWIFTLINT_LINE.search(r["message"])]
     raise Blind("no result bundle and no build log to read")
 
 
