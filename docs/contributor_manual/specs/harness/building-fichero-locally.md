@@ -633,6 +633,82 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   unchanged; `effort = "max"` refuses. Serves: builds Fichero (the same work for fewer tokens).
 
 
+### K. Small models: cheaper and faster, and as reliable (owner 2026-11-21)
+
+The owner asked what else would let Qwen3-Coder and other small models carry more of the work (paraphrased). The
+records of 2026-11-14 to 2026-11-21 were read for it. What they say: 182 Sonnet sessions cost a median 1.60 USD
+metered and 124 Opus sessions a median 11.07; no session in the week ran on a small model, so nothing yet measures
+one; the model is set for a lane, whatever its steps are; of 903 commits landed in the week, 261 changed only docs or
+specs, 107 only tests and 25 only data or generated files (44% together); 50 of 306 sessions ended with no commit; a
+session read a median 1.5 million tokens (cache reads counted) over 33 turns before its first commit; and on 2026-11-21
+52 fix rounds went to workers, 14 of them for a `ready` or diff-bound red a local command reports in seconds. Only what
+those numbers support is below. Already specified, and not repeated: escalation (§ C), the per-model comparison
+(`dev-workflows.ledger.comparison-view`), the short brief and the diff bound for each role (`agent-profiles.worker.small`),
+a review that reads only new commits (`dev-workflows.tool.check`), and a verdict kept for an unchanged range (the
+performance review of 2026-11-21). The rebase already runs before the check. Spec-change: manager 2026-11-21.
+
+- `local.small.step-kind-is-recorded` [GAP] (#6116) — every step has a kind, decided by rule from the files and tests its
+  brief names and never by a model: `docs` (only docs and specs), `tests` (only test files), `lint` (a lint or warnings
+  batch), `mechanical` (only data and generated files, or a rename), `feature` (anything else), and `design` (a spec to
+  write, or anything `local.must-escalate` names). The kind is on the step's record, its `queue` rows and the `cost`
+  row of every session that worked on it, so the comparison can be read for each kind. A brief that names no files is
+  `feature`. Today `queue.add` in `fichero-builder/fichero_builder/queue.py` keeps the step, brief, issues and waits,
+  and the `cost` row in `fichero-builder/fichero_builder/run.py` carries the task and the model. Test (owed):
+  `test_queue_verb.py`, a brief naming two test files is `tests`; one naming a spec and a source file is `feature`; the
+  kind is on the cost row. Serves: local, builds Fichero.
+- `local.small.kind-has-its-lane-and-role` [GAP] (#6116) — a kind can be given to a cheaper role, by measurement. A
+  `[models.kinds]` row names a role for a kind; `builder milestone` and `builder steps` then place steps of that kind on
+  the kind's own lane, whose worker runs on that role. The worker stays one long-running session for its lane (§ A):
+  the lane changes, never the model inside a lane. A row is a trial until it has passed: a trial takes at most one step
+  in five of its kind, and it passes when the comparison shows at least 20 landed steps of that kind on that role with
+  no more fix rounds a landed step, and no lower share of first checks green, than the lane's own role (`builder ledger
+  --compare --kind K` writes one `kind-passed` or `kind-failed` row; a failed kind goes back to the lane's role). A step
+  on a kind lane that meets an escalation trigger (`local.escalation-triggers`) goes back to its milestone's lane with
+  the failed diff and the findings. No row means today's behaviour. Today the role is the lane's
+  (`lane["role"]` in `queue.add`) and is chosen by hand with `--role`. Test (owed): `test_queue_verb.py` and
+  `test_milestone_verb.py`, a `tests` step goes to the kind lane on its role; a trial takes one in five; a kind with no
+  `kind-passed` row is never past trial; a step red twice at one rung returns. Serves: local, builds Fichero.
+- `local.small.worker-prechecks-before-done` [GAP] (#6116) — a managed worker ends a step with one command, not a line it
+  composes. The brief's DONE instruction names it. Run in the worker's own tree, inside the jail, with no network, it
+  checks in under a minute: the trailer on each new commit, the pinned ready lint, the role's diff bound, the linter
+  over the changed files, and the tests the brief names. Green, it prints `DONE <sha>` for the worker to end its turn
+  on. Red, it prints the findings in the form of `local.small.fix-brief-has-one-form` and no DONE line. The ladder
+  still judges everything afterwards; this only stops a red a script could have told the worker. Today
+  `builder precheck` runs on the owner's side, as the caller (`dev-workflows.run.presubmit-lints`, item 8), and a
+  managed worker has only the brief's sentence about the DONE line. Test (owed): `test_presubmit.py`, a tree with a bad
+  trailer prints the finding and no DONE line; a clean tree prints the line with its head; the command opens no
+  socket. Serves: reliable, local.
+- `local.small.fix-brief-has-one-form` [GAP] (#6116) — every finding sent to a worker has the same fields in the same
+  order: `RUNG`, `HEAD`, `FILE:LINE`, `SAID` (at most 20 lines of the check's own output), `FIX` (the exact command,
+  when the check printed one), `RERUN` (the command that shows it green) and `END` (the command of
+  `local.small.worker-prechecks-before-done`). One block for each finding, nothing before the first block, 60 lines at
+  most, the rest in a file the last line names. A reviewer's NOT READY is cut into the same blocks, one for each
+  finding. Today the fix briefs the loop writes in `queue.py` (the step's `resume_brief`) are the check's tail and a
+  sentence, different for each kind of red. Test (owed): `test_loop.py`, a guards red, a build red and a NOT READY each
+  become blocks with every field in order; a 200-line output is cut to the cap and names its file. Serves: reliable.
+- `local.small.brief-carries-the-symbols` [PARTIAL] (#6116) — a step brief gives a small model its place in the code, so
+  it does not search for it. For each file the brief names, the brief lists the symbols the step's spec bullets cite
+  and the tests named, each with its first and last line from the code map, 40 lines at most; a brief queued by hand
+  with `queue add` gets the same list as one `builder milestone` wrote. The measure is the `reading` row: the median
+  tokens before a first commit, for each model, is in the nightly report, and the target is half of the week's 1.5
+  million. Built: a milestone brief's where list gives each file found by the step's words with the first twelve
+  symbols of its outline and a line each (`milestone.write_briefs` and `codemap.outlines`; test
+  `fichero-builder/tests/test_milestone_verb.py::test_the_where_list_is_the_spec_the_designs_directory_and_the_files_found_by_the_steps_words_with_their_outlines`).
+  Left: the symbols the spec bullets cite come first, the spans, the list on a hand-queued brief, and the measure in
+  the report; an owed test in `test_codemap.py` (a step citing two functions lists both with spans; the list never
+  passes the cap). Serves: local.
+- `local.spend.metered-provider-needs-a-cap` [GAP] (#6116) — no session starts on a provider that bills by use unless
+  that provider has a cap. `[spend].metered` lists such providers (OpenRouter is the first) and `[spend.week_usd]`
+  gives each a weekly figure in USD; a listed provider with no figure refuses the rules file, and a role on it
+  refuses to start. Every `cost` row names its provider; the watcher adds the week's rows for the provider and parks a
+  session that would pass the cap, with one alert. A subscription login is not metered and keeps the session and day
+  caps it has. Today `watcher.Spend` in `fichero-builder/fichero_builder/watcher.py` has a session cap and a day cap for
+  all models together, the `cost` row names no provider, and the 50 USD a week for OpenRouter is a stop rule for a
+  person to watch. Test (owed): `test_watcher.py` and `test_model_config.py`, a metered provider with no figure
+  refuses; a session parks when the week's rows reach the figure; a subscription session is not counted.
+  Serves: reliable (no spend without a cap), local.
+
+
 ### From `dev-workflows.md` — Behaviours
 
 
@@ -3549,6 +3625,12 @@ done by hand (this file, its review and report). The absorbed specs' own build o
 - Tests: fichero-builder/tests/test_trailer.py, fichero-builder/tests/test_model_config.py
 - Size: S
 
+#### Step 1.5 — no metered provider without a weekly cap
+- Behaviours: `local.spend.metered-provider-needs-a-cap`
+- Tests: fichero-builder/tests/test_watcher.py (the week's rows reach the figure and the session parks), fichero-builder/tests/test_model_config.py (a metered provider with no figure refuses)
+- Depends on: 1.1
+- Size: S
+
 ### Stage 2 — the gates
 
 #### Step 2.1 — the four [BROKEN] behaviours are fixed first
@@ -3688,6 +3770,24 @@ done by hand (this file, its review and report). The absorbed specs' own build o
 - Tests: fichero-builder/tests/test_rung_stats.py (new cases)
 - Depends on: 4.1
 - Size: M
+
+#### Step 4.3 — a step has a kind, and a kind earns a cheaper role by measurement
+- Behaviours: `local.small.step-kind-is-recorded`, `local.small.kind-has-its-lane-and-role`
+- Tests: fichero-builder/tests/test_queue_verb.py (the kind by rule, on the cost row; one trial step in five), fichero-builder/tests/test_milestone_verb.py (a routed kind is placed on its lane)
+- Depends on: 1.5
+- Size: M
+
+#### Step 4.4 — the worker checks before it says DONE, and every finding has one form
+- Behaviours: `local.small.worker-prechecks-before-done`, `local.small.fix-brief-has-one-form`
+- Tests: fichero-builder/tests/test_presubmit.py (a bad trailer prints a finding and no DONE line; no socket), fichero-builder/tests/test_loop.py (three kinds of red become blocks with every field)
+- Depends on: 2.14
+- Size: M
+
+#### Step 4.5 — the brief carries the symbols and their lines
+- Behaviours: `local.small.brief-carries-the-symbols`
+- Tests: fichero-builder/tests/test_codemap.py (two cited functions with spans; the cap)
+- Depends on: 4.3
+- Size: S
 
 ### Stage 5 — the loop moves onto LangGraph
 
