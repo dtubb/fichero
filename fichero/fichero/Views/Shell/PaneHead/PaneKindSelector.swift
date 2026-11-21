@@ -228,6 +228,7 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
 }
 
 /// A head's view chooser that hands its view list to the pane menu as View As ▸ (`panes.head.one-menu-button`).
+@MainActor
 protocol PaneViewChooser {
     var viewAsMenu: AnyView { get }
 }
