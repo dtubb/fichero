@@ -714,11 +714,13 @@ the browse→read flow down the centre.
   check follows the kind. Related: `menus.toolbar.panes-shown-from-the-menus`.
   *Built (#6741):* Pin Pane is a checked toggle in the menu and the head's pin button is gone; Split Right ▸ and Split Below ▸
   are submenus of kinds that add the chosen kind in one step; View As ▸ lists the pane's views after Pane ▸; Pane Options ▸
-  holds the Reader's Font. *Not built:* Show ▸ (Source's overlays, still Preview's What to show) and Order ▸ (Layout Order)
+  holds the Reader's Font; a pane's own controls (the Source pane's zoom, full screen, renditions, Pass) sit in an island of
+  their own beside the menu's island. *Not built:* Show ▸ (Source's overlays, still Preview's What to show) and Order ▸ (Layout Order)
   under Pane Options; removing the head's left view chooser, which today also names what is shown (#6458). *Tests:*
   `fichero/Tests/Unit/general/Views/Shell/PaneMenuTests.swift::viewAsInTheMenu`,
   `fichero/Tests/Unit/general/Models/PaneSplitAddsKindTests.swift::splitAddsTheChosenKind`,
-  `fichero/Tests/Unit/general/Views/Shell/PaneMenuEntriesShapeTests.swift::testNoPinButtonNoSecondPinTitleNoOneStepSplit`.
+  `fichero/Tests/Unit/general/Views/Shell/PaneMenuEntriesShapeTests.swift::testNoPinButtonNoSecondPinTitleNoOneStepSplit`,
+  `fichero/Tests/Unit/general/Views/PaneHeadCollapsesTests.swift::testAWideHeadPutsItsToolsInAnIslandBesideTheMenusIsland`.
   No test proves the menu's order, Pin Pane being a toggle, or Font sitting under Pane Options.
 - `panes.head.kind-switcher-everywhere` — **[PARTIAL]** (#4706; Reader fixed d8621ecc3, pinned by
   `PaneHeadKindSwitcherParityTests`; Chat follows → #4705 increment 6) every pane head
