@@ -4326,6 +4326,23 @@ class SegmentCutWordsParams(BaseModel):
 MACHINE_CUT_SOURCES = ("ctc", "ink-gap")
 
 
+def _words_in_reading_sequence(db: Database, word_ids: list[str]) -> None:
+    """`segment-editor.edge.rtl-vertical`: one line's new words, given in the order they are read, take the places
+    page order gave them in each order, in that sequence. Page order runs left to right, so a right-to-left line's
+    first word was placed last."""
+    from fichero_server.models.reading_orders import ReadingOrderEntry
+
+    by_order: dict[str, list[ReadingOrderEntry]] = {}
+    for word_id in word_ids:
+        for entry in db.query(ReadingOrderEntry, segment_id=word_id):
+            by_order.setdefault(entry.order_id, []).append(entry)
+    for entries in by_order.values():
+        for entry, position in zip(entries, sorted(entry.position for entry in entries)):
+            if entry.position != position:
+                entry.position = position
+                db.save(entry)
+
+
 def _invert_cut_words(before, after, ctx: ActionContext):
     """Reads ONLY `after`: the words this cut made go, the machine's words it replaced come back."""
     if not after or not (after.get("made") or after.get("replaced")):
@@ -4448,6 +4465,7 @@ def _action_cut_words(db: Database, params: SegmentCutWordsParams, ctx: ActionCo
             replaced.append(child.id)
         replaced_entries.extend(remove_segment_entries(db, [child.id for child in machine]))
         kept_outlines = [o for o in (line_join.outline_of(child.anchor) for child in kept) if o]
+        cut_here: list[str] = []
         for (start, end), polygon, piece, sure in words:
             wx0, wy0, wx1, wy1 = line_join.bounds(polygon)
             centre = ((wx0 + wx1) / 2, (wy0 + wy1) / 2)
@@ -4466,6 +4484,8 @@ def _action_cut_words(db: Database, params: SegmentCutWordsParams, ctx: ActionCo
                              "cut_from_representation_id": source_id, "reading_span": [start, end]}
             db.save(word)
             made[word.id] = word.version
+            cut_here.append(word.id)
+        _words_in_reading_sequence(db, cut_here)
 
     touched = [*made, *replaced]
     spec = ChangeSpec(
