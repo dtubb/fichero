@@ -15,9 +15,8 @@
 > No milestone is declared yet; the manager names one when the spec is approved.
 >
 > Tags: **[OK]** built and checked in the code · **[PARTIAL]** built in part, or built and not
-> reachable · **[GAP]** not built · **[BROKEN]** the code contradicts the line. `→ #NEW-n` marks
-> an issue the manager has still to file (listed at the end); the number before it is the open
-> issue it belongs under until then.
+> reachable · **[GAP]** not built · **[BROKEN]** the code contradicts the line. The issues
+> filed from this review (milestone kg-rendering) are listed at the end.
 
 ## Intent (the design)
 
@@ -93,7 +92,7 @@ Three rules follow, and most of what is wrong today breaks one of them.
 
 ### A. Dates and places are qualifiers, not nodes
 
-- `kg.render.date-is-never-a-node` — **[BROKEN]** (#5032, → #NEW-1) the graph draws names only. Today a
+- `kg.render.date-is-never-a-node` — **[BROKEN]** (#5032, #6772) the graph draws names only. Today a
   statement whose object is not a known name comes back from the engine as an edge to
   `literal:<object phrase>` (`api/routes/kg/graph.py`, "always keep literal-object edges"), and
   `GraphSimulation.buildNodes` (`GraphModel.swift`) adds a node for each one. Measured on a
@@ -102,52 +101,52 @@ Three rules follow, and most of what is wrong today breaks one of them.
   dates. The literal nodes are grey circles, the same mark as an entity of kind Other
   (`drawNodes`, `ForceDirectedGraphView+Render.swift`), and they are not counted against the
   neighbour limit.
-- `kg.render.literal-node-tap-is-safe` — **[BROKEN]** (#5032, → #NEW-1) choosing any mark in the graph
+- `kg.render.literal-node-tap-is-safe` — **[BROKEN]** (#5032, #6772) choosing any mark in the graph
   never produces an error. Today `handleTap` focuses the tapped node's id whatever it is; for a
   literal node the graph then asks the engine for the neighbourhood of `literal:…`, the engine
   answers 404 ("Entity not found", measured), and the graph is replaced by an error line.
-- `kg.render.when-is-on-the-statement` — **[PARTIAL]** (#5032, → #NEW-2) wherever a statement is drawn
+- `kg.render.when-is-on-the-statement` — **[PARTIAL]** (#5032, #6773) wherever a statement is drawn
   as a sentence, a row or an edge, its date is drawn with it, in one form: the date as written
   when there is one, else the normalised span, with a mark when it was inferred. Built: the
   Claims table has a Date column and the inline editor edits start, end and precision
   (`ClaimPatchFields.inline`). Not built: the neighbourhood edge carries no time or place field
   at all (`NeighborhoodEdge`), so the graph cannot label an edge with its date; the entity
   card's sentences carry no date; the document inspector does not draw one.
-- `kg.render.where-is-on-the-statement` — **[GAP]** (#5032, → #NEW-2) the same for the place a
+- `kg.render.where-is-on-the-statement` — **[GAP]** (#5032, #6773) the same for the place a
   statement happened at: drawn with the statement, as a link to the place's card when the place
   is a known name. The inline editor has no place field, so a wrong place cannot be corrected
   where it is seen.
-- `kg.render.dates-are-not-a-kind-of-name` — **[BROKEN]** (→ #5008, → #NEW-3) no list of names
+- `kg.render.dates-are-not-a-kind-of-name` — **[BROKEN]** (→ #5008, #6774) no list of names
   has a "Dates" group. Today the document inspector's knowledge section groups by kind with a
   synthetic `date` kind made by the engine for statements whose subject is a date
   (`api/routes/document/inspector.py`; `EntityKind.date`, `KnowledgeGraphSupport.swift`), so
   dates sit as rows beside People and Places. The intended drawing: those statements are listed
   under their real subject with the date as the qualifier; the document's dates are offered as
   a small timeline strip at the head of the section, each mark opening its statement.
-- `kg.render.graph-shows-chosen-kinds` — **[GAP]** (#5032, → #NEW-3; the control is
+- `kg.render.graph-shows-chosen-kinds` — **[GAP]** (#5032, #6774; the control is
   `explore.network.kinds-of-node`) the graph has a kinds control (People, Places,
   Organisations, Events, Keywords) and remembers it. Today the legend lists kinds and filters
   nothing; the comment in `ForceDirectedGraphView.swift` says kinds are filtered "upstream",
   and its one host passes every entity of the document. The default is people, organisations
   and places; events and keywords are off until asked for.
-- `kg.render.first-focus-is-a-person` — **[GAP]** (#5032, → #NEW-3) with nothing chosen, the graph
+- `kg.render.first-focus-is-a-person` — **[GAP]** (#5032, #6774) with nothing chosen, the graph
   opens on the document's most connected person, else its most connected name. Today it opens
   on the first entity in the list whatever its kind (`load()`, `entities.first`).
-- `kg.render.an-object-that-is-not-a-name-stays-in-the-sentence` — **[GAP]** (#5032, → #NEW-1) a
+- `kg.render.an-object-that-is-not-a-name-stays-in-the-sentence` — **[GAP]** (#5032, #6772) a
   statement whose object is a phrase ("sold a share of the mine") is still seen from the graph:
   the focus node's card lists its statements, and the count of them is a badge on the node. It
   is not drawn as a node.
 
 ### B. One mark for sure and unsure, and correcting in place
 
-- `kg.render.unsure-looks-the-same-everywhere` — **[PARTIAL]** (#1765, → #NEW-4) one vocabulary on
+- `kg.render.unsure-looks-the-same-everywhere` — **[PARTIAL]** (#1765, #6775) one vocabulary on
   every surface: confirmed by a person, read by a model (with its band), inferred, rejected.
   Built: the approval badge and confidence band on inspector claim rows
   (`EntityKindRow+ClaimBlock.swift`, `ClaimCurationBadge.swift`), Confidence and Provenance
   columns in the Claims table, solid and hollow marks on the timeline and map. Not built: the
   entity card's biography sentences, the graph's edges and the Reader's lit names carry no
   mark at all, though the edge payload already has `confidence` and `epistemic_status`.
-- `kg.render.bands-come-from-the-engine` — **[PARTIAL]** (#1765, → #NEW-4) where the line between low,
+- `kg.render.bands-come-from-the-engine` — **[PARTIAL]** (#1765, #6775) where the line between low,
   medium and high falls, and what counts as inferred, is the engine's answer. Today the app
   holds the thresholds (`ConfidenceBand.band`, 0.4 and 0.75) and the stated-or-inferred rule
   (`KGTemporal.provenance`, `KGSpatial.provenance`), which is logic in the app.
@@ -156,7 +155,7 @@ Three rules follow, and most of what is wrong today breaks one of them.
   the inspector digest and the Claims table's Edit (`InlineClaimEditor`, `EditClaimSheet`).
   Not built: from the entity card's biography on iPhone, from a graph edge, from a timeline
   mark or a map pin.
-- `kg.render.a-correction-is-shown-as-kept` — **[GAP]** (#1765, → #NEW-4) after a person corrects a
+- `kg.render.a-correction-is-shown-as-kept` — **[GAP]** (#1765, #6775) after a person corrects a
   statement, it is drawn as theirs (the confirmed mark, their name and the day on hover or
   long-press) and the earlier reading is one step away. The engine records this
   (`workflows/curation_guard`, called from the claim patch route); no reachable view draws who
@@ -196,15 +195,15 @@ Three rules follow, and most of what is wrong today breaks one of them.
 - `kg.render.timeline-and-map-for-a-project` — **[GAP]** (→ #5037; owned by
   `explore.time.timeline-of-any-set`, `explore.place.map-of-any-set`) the Entities and Claims
   collections can be seen as a timeline and as a map.
-- `kg.render.a-mark-opens-its-statement` — **[BROKEN]** (#5037, → #NEW-5) choosing a mark on the
+- `kg.render.a-mark-opens-its-statement` — **[BROKEN]** (#5037, #6776) choosing a mark on the
   timeline or a pin on the map selects that statement and offers its page. Today both only
   select the statement's first entity (`KGTimelineView.handleTap`, `KGMapView` pin tap); the
   timeline picks the nearest mark by date alone, so a tap in an empty stretch still selects
   something.
-- `kg.render.view-names-say-what-they-are` — **[BROKEN]** (#5037, → #NEW-5) the Graph view's help text
+- `kg.render.view-names-say-what-they-are` — **[BROKEN]** (#5037, #6776) the Graph view's help text
   names a web renderer the view no longer uses, and the Map view's help text says "a visual
   canvas" for what is a geographic map (`KGSurfaceTab.helpText`).
-- `kg.render.views-are-one-click-in-the-reader` — **[PARTIAL]** (#5037, → #NEW-5) Graph, Timeline and
+- `kg.render.views-are-one-click-in-the-reader` — **[PARTIAL]** (#5037, #6776) Graph, Timeline and
   Map are offered where the Reader's other views are chosen, under the same names everywhere.
   Built: the Reader's view chooser lists them (`ReaderLens`, `ReadingPaneView.readerSelector`),
   and the View menu's Add View items do too. Not the same names: the chooser says "Node Graph"
@@ -222,13 +221,13 @@ Three rules follow, and most of what is wrong today breaks one of them.
   Project" lists every page that mentions it. Built: the card's title and the Entities tab's
   context menu (`EntitySearchState`). Not built: from a lit name in the Reader text, a graph
   node, a table row.
-- `kg.render.show-in-graph-shows-a-graph` — **[BROKEN]** (#5037, → #NEW-6) "Show in Graph" opens a
+- `kg.render.show-in-graph-shows-a-graph` — **[BROKEN]** (#5037, #6777) "Show in Graph" opens a
   graph focused on that name. Today it opens the Entities table
   (`ContentView+RootLayout.swift`, `graphRevealRequestToken`).
-- `kg.render.path-between-two-names` — **[GAP]** (#5037, → #NEW-6) with two names selected, "How Are
+- `kg.render.path-between-two-names` — **[GAP]** (#5037, #6777) with two names selected, "How Are
   These Connected" draws the shortest chain of statements between them, each link opening its
   page. The engine route exists (`/api/kg/graph/path`); `kgGraphPath` has no caller.
-- `kg.render.graph-has-a-find-field` — **[GAP]** (#5037, → #NEW-6) the graph has a find field that
+- `kg.render.graph-has-a-find-field` — **[GAP]** (#5037, #6777) the graph has a find field that
   refocuses on a name; a focus history gives Back and Forward. Today refocus is by tapping a
   visible node only, and there is no history (`KGFocusState`).
 - `kg.render.structured-query-is-for-experts` — **[OK]** the SPARQL console is its own window
@@ -241,15 +240,15 @@ Three rules follow, and most of what is wrong today breaks one of them.
   question into a search (`runTransientSearch(compile:)`) and shows what it searched for. It
   gives pages, not an answer. Intended: the field says so, and offers "Answer from these
   pages", which opens the chat on the result set (built: `openChatWithSearchResults`).
-- `kg.render.answer-cites-pages` — **[GAP]** (→ #1828, → #NEW-7) each claim in an answer carries
+- `kg.render.answer-cites-pages` — **[GAP]** (→ #1828, #6778) each claim in an answer carries
   a numbered citation; the Sources list under it names, for each, the document, the page and
   the quoted passage. Today `DocumentSource` holds a document id, a name, an excerpt and a
   score, with no page, segment or span, and the list shows the name and a percentage.
-- `kg.render.citation-opens-the-passage` — **[GAP]** (#1828, → #NEW-7) choosing a citation opens the
+- `kg.render.citation-opens-the-passage` — **[GAP]** (#1828, #6778) choosing a citation opens the
   page with the passage lit in the text and on the image, through the same request a statement
   uses (`ClaimSourceNavigationRequest`). Today a source row is not a control; the Cited ledger
   (`SourcesLedgerView.swift`) is text only.
-- `kg.render.score-is-not-shown-as-certainty` — **[GAP]** (#1828, → #NEW-7) a retrieval score is not
+- `kg.render.score-is-not-shown-as-certainty` — **[GAP]** (#1828, #6778) a retrieval score is not
   drawn as a percentage beside a source. It reads as "how true", which it is not.
 
 ### G. Structure
@@ -259,7 +258,7 @@ Three rules follow, and most of what is wrong today breaks one of them.
   knowledge-graph services send 104 hand-written paths with untyped bodies
   (`EntityService+*.swift`, `KGCurationService.swift`), and views parse metadata dictionaries
   themselves (`EntityTableRow`, `EntityStore+Authority`).
-- `kg.render.graph-is-usable-without-a-pointer` — **[GAP]** (#4464, → #NEW-8) the graph's nodes and
+- `kg.render.graph-is-usable-without-a-pointer` — **[GAP]** (#4464, #6779) the graph's nodes and
   edges are reachable by keyboard and by VoiceOver, with a list of the same nodes as the
   fallback. Today it is one drawn canvas with tap targets and nothing else.
 
@@ -300,19 +299,19 @@ spec asks for.
 2. Events: a node by default, or off until asked for? This spec says off.
 3. Should a keyword (concept) ever be a graph node? This spec says only when asked for.
 
-## Issues to file (not yet filed)
+## Issues filed (milestone kg-rendering)
 
-- #NEW-1 graph draws object phrases, dates among them, as nodes; tapping one breaks the graph.
-- #NEW-2 a statement's when and where are not carried on graph edges or drawn on sentences;
+- #6772 graph draws object phrases, dates among them, as nodes; tapping one breaks the graph.
+- #6773 a statement's when and where are not carried on graph edges or drawn on sentences;
   the inline editor has no place.
-- #NEW-3 the graph has no kinds control and opens on an arbitrary entity; the document
+- #6774 the graph has no kinds control and opens on an arbitrary entity; the document
   inspector lists Dates as a kind.
-- #NEW-4 one sure-or-unsure mark for every surface, decided by the engine; a correction is
+- #6775 one sure-or-unsure mark for every surface, decided by the engine; a correction is
   drawn as kept.
-- #NEW-5 timeline and map marks do not open their statement; view help text is wrong; the
+- #6776 timeline and map marks do not open their statement; view help text is wrong; the
   views have two sets of names.
-- #NEW-6 "Show in Graph" opens a table; no path between two names; no find or history in the
+- #6777 "Show in Graph" opens a table; no path between two names; no find or history in the
   graph.
-- #NEW-7 answer sources carry no page or passage and are not clickable; a score is drawn as a
+- #6778 answer sources carry no page or passage and are not clickable; a score is drawn as a
   percentage.
-- #NEW-8 the graph is not reachable by keyboard or VoiceOver.
+- #6779 the graph is not reachable by keyboard or VoiceOver.
