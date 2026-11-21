@@ -267,7 +267,7 @@ cut (`crop_line`) and instruction; the page requests send the page reduced to 1,
   40 to 72% wrong while every line is read at 2 to 10%. The corpus measure the module's own note asks for now
   exists: order by regions where the finder gives a region a column, and adopt a learned order (the 2026 segmentation
   base carries one) where the cut finds no gutter.
-- `readers.page.order-is-scored` — **[GAP]** (#6080 → #6823) the test corpus scores reading order as a figure (the share
+- `readers.page.order-is-scored` — **[GAP]** (#6080 → #6823, #6865) the test corpus scores reading order as a figure (the share
   of ground-truth neighbours kept in order) per set, in the perf baseline, so a change to the order rule is measured.
 
 ### Memory and batching
@@ -318,47 +318,47 @@ cut (`crop_line`) and instruction; the page requests send the page reduced to 1,
 
 ### Stage 1 — The catalogue says what was measured
 
-#### Step 1.1 — Cards carry the corpus measurement; Fraktur and nastaliq get PP-OCRv6; the specialists are seeded (#6752)
+#### Step 1.1 — Cards carry the corpus measurement; Fraktur and nastaliq get PP-OCRv6; the specialists are seeded (#6817, #6818, #6752)
 - Behaviours: `readers.catalogue.measured-per-script`, `readers.catalogue.ppocr-first-then-the-specialist`, `readers.catalogue.fraktur-and-nastaliq-get-ppocr`, `readers.catalogue.not-usable-is-said`
 - Tests: fichero-server/tests/unit/recipes/test_reader_choice_for_scripts_to_spec.py (extended: the ten measured scripts each get the reader measured best; `Aran` and `Latf` get PP-OCRv6; Armenian and Greek minuscule say "train"), fichero-server/tests/unit/recipes/test_fraktur_gets_a_reader_5516.py (extended), fichero-server/tests/unit/recipes/test_recipe_cards_to_spec.py
 - Size: M
 
-#### Step 1.2 — Measured memory on every reader card, read by the small-Mac rule and the page guard (#6752)
+#### Step 1.2 — Measured memory on every reader card, read by the small-Mac rule and the page guard (#6819, #6752)
 - Behaviours: `readers.catalogue.card-memory-is-measured`, `readers.memory.guard-knows-the-reader`, `readers.memory.wide-line-shapes-are-bounded`
 - Tests: fichero-server/tests/unit/recipes/test_reader_fit_5516.py (extended: an 8 GB Mac is not offered a reader measured over 6 GB), fichero-server/tests/unit/llm/test_kraken_guard_sized_by_the_page_perf1.py (extended: the reader's peak is counted)
 - Depends on: 1.1
 - Size: M
 
-#### Step 1.3 — The line finder's measured defaults reach every run (#6752)
+#### Step 1.3 — The line finder's measured defaults reach every run (#6751, #6752)
 - Behaviours: `readers.catalogue.segmenter-defaults-are-applied`
 - Tests: fichero-server/tests/unit/llm/test_kraken_script_defaults_6752.py (extended: a Hebrew page's run loads the 2026 base at 1200)
 - Size: S
 
 ### Stage 2 — The comparison measures what a Mac pays
 
-#### Step 2.1 — Seconds and peak memory per candidate; the cheapest among equals is the faster and smaller (#5582)
+#### Step 2.1 — Seconds and peak memory per candidate; the cheapest among equals is the faster and smaller (#6820, #5582)
 - Behaviours: `readers.bakeoff.time-and-memory-beside-error`, `readers.bakeoff.cheapest-among-equals-on-a-mac`
 - Tests: fichero-server/tests/unit/training/test_evaluation_job.py (extended: a row keeps load seconds, read seconds and peak bytes), fichero-server/tests/unit/recipes/test_reader_tiers_recommendation_5922.py (extended: two free readers in the band, the faster is named and the sentence says why)
 - Size: M
 
-#### Step 2.2 — Every kind takes part: TrOCR, a Kraken reader on the Hub, a trained reader; every measured specialist (#5533)
+#### Step 2.2 — Every kind takes part: TrOCR, a Kraken reader on the Hub, a trained reader; every measured specialist (#6821, #5533)
 - Behaviours: `readers.kinds.one-table`, `readers.kinds.trocr-is-measured-and-bounded`, `readers.bakeoff.every-measured-specialist-takes-part`, `readers.memory.one-line-at-a-time-everywhere`
 - Tests: fichero-server/tests/unit/recipes/test_bakeoff_readers.py (extended: a `trocr`, a `kraken_hf` and a `trained` pin each get a family and are scored), fichero-server/tests/unit/recipes/test_trocr_runs_here_5981.py (extended: the batch is the run setting)
 - Size: M
 
-#### Step 2.3 — The whole page beside the given lines (#5441)
+#### Step 2.3 — The whole page beside the given lines (#6822, #5441)
 - Behaviours: `readers.bakeoff.the-whole-page-is-measured`
 - Tests: fichero-server/tests/unit/recipes/test_bakeoff_readers.py (extended: three figures a row; interleaved columns show as a page figure far from the matched one)
 - Depends on: 2.1
 - Size: M
 
-#### Step 2.4 — The policy that fits the project; the batch and the line shapes said on the row (#5441)
+#### Step 2.4 — The policy that fits the project; the batch and the line shapes said on the row (#6825, #5441)
 - Behaviours: `readers.bakeoff.policy-follows-the-convention`, `readers.bakeoff.batch-does-not-change-the-answer`, `readers.bakeoff.imported-line-shapes-are-said`
 - Tests: fichero-server/tests/unit/workflows/test_transcription_accuracy.py (extended), fichero-server/tests/unit/training/test_evaluation_job.py (extended: the row names the batch and where the line shapes came from)
 - Depends on: 2.3
 - Size: M
 
-#### Step 2.5 — A vision model's row: answers that ran on, answers not readable, measured memory and speed kept on the card (#5722)
+#### Step 2.5 — A vision model's row: answers that ran on, answers not readable, measured memory and speed kept on the card (#6824, #5722)
 - Behaviours: `readers.vlm.answer-that-runs-on-is-not-read`, `readers.vlm.unreadable-answers-are-counted`, `readers.vlm.memory-is-the-measured-peak`, `readers.vlm.speed-on-this-mac-is-on-the-card`
 - Tests: fichero-server/tests/unit/recipes/test_bakeoff_not_read.py (extended: an answer three times the reference is not read, with why), fichero-server/tests/unit/recipes/test_bakeoff_granularity_5722.py (extended: the count of unreadable answers), fichero-server/tests/unit/llm/test_mlx_fit_estimate_5641.py (extended: a measured peak replaces the estimate)
 - Depends on: 2.1
@@ -366,15 +366,21 @@ cut (`crop_line`) and instruction; the page requests send the page reduced to 1,
 
 ### Stage 3 — The page a person reads
 
-#### Step 3.1 — Columns read one after the other, and the order is a measured figure (#6080)
-- Behaviours: `readers.page.columns-are-read-one-after-the-other`, `readers.page.order-is-scored`
+#### Step 3.1 — Columns read one after the other (#6823, #6080)
+- Behaviours: `readers.page.columns-are-read-one-after-the-other`
 - Tests: fichero-server/tests/unit/media/test_layout_order.py (extended with the three measured page layouts as box fixtures: line-by-line across two columns, half a column at a time, right-to-left columns)
 - Size: M
 
-#### Step 3.2 — Page-level OCR models read the page; the prompt names the material; Apple's card says what it reads (#5980)
+#### Step 3.2 — Page-level OCR models read the page; the prompt names the material; Apple's card says what it reads (#6826, #6824, #5980)
 - Behaviours: `readers.kinds.page-reader-reads-the-page`, `readers.kinds.prompt-names-the-material`, `readers.kinds.apple-vision-says-what-it-reads`, `readers.vlm.asked-the-way-it-reads-best`
 - Tests: fichero-server/tests/unit/recipes/test_bakeoff_granularity_5722.py (extended: a page reader's request is one page picture), fichero-server/tests/unit/llm/test_line_reader_refusal.py (extended: the prompt for print says print)
 - Depends on: 2.2
+- Size: M
+
+#### Step 3.3 — The corpus measure in the perf suite: CER on lines and page, order kept, seconds a page, peak memory per script and reader (#6865, #6823)
+- Behaviours: `readers.page.order-is-scored`
+- Tests: fichero-server/tests/perf/test_readers_corpus_measure_perf.py (run on purpose, not in a gate: needs the corpus on the test machine; writes the baseline the steps above are judged against)
+- Depends on: 3.1
 - Size: M
 
 ## Test matrix
