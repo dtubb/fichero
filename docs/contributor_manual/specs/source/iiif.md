@@ -496,7 +496,7 @@ an issue the review asks the manager to file (milestone iiif); the number before
 existing issue the work sits under.
 
 In, by reference:
-- `iiif.import.by-reference` — **[PARTIAL]** (#5324, #5671 → #NEW-12) a pasted manifest or collection link adds its
+- `iiif.import.by-reference` — **[PARTIAL]** (#5324, #5671 → #6932) a pasted manifest or collection link adds its
   canvases as pages at once, without downloading their images. *Built: `POST /api/iiif/import`
   and `fichero import-iiif --iiif <URL>` read Presentation 2 or 3 (measured on both) and keep
   each canvas's id, Image API service and size, fetching only manifests
@@ -508,40 +508,40 @@ In, by reference:
 - `iiif.import.as-a-job` — **[OK]** the import is one job in Activity (`import-iiif`, the network lane) that says how far
   it is and what it did; pinned by
   `fichero-server/tests/unit/importers/test_iiif_source_5671.py::test_the_import_is_a_job_and_a_bound_folder_refreshes`.
-- `iiif.fetch.only-safe-public-urls` — **[GAP]** (#5324 → #NEW-1) every address fetched for a IIIF source (manifest,
+- `iiif.fetch.only-safe-public-urls` — **[GAP]** (#5324 → #6921) every address fetched for a IIIF source (manifest,
   collection, image, annotation page, and each redirect) is https, on a public host, with no
   credentials in it, by the one check every other fetch uses (`security/url_security.py::is_safe_url`);
   a manifest larger than 64 MB is refused. Today the route checks only that the pasted link
   starts with `https://` (`import_from_iiif`); the addresses inside the manifest, the image
   services and redirects are fetched unchecked (`media/iiif_fetch.py::urllib_get`).
-- `iiif.fetch.polite-per-host` — **[PARTIAL]** (#5671 → #NEW-1) one fetcher serves the engine: at most four requests in
+- `iiif.fetch.polite-per-host` — **[PARTIAL]** (#5671 → #6921) one fetcher serves the engine: at most four requests in
   flight to a host, at most two of them background work; `429` and `503` slow the whole host for
   the `Retry-After`; failures back off with jitter; the User-Agent names Fichero. *Built:
   `PoliteFetcher` (two per host, backoff, `Retry-After`, the User-Agent). Not built: ONE fetcher
   (viewing, steps and each import make their own: `db/storage.py::_IIIF_FETCHER`,
   `iiif_source.py::_FETCHER`, `parse_iiif_url`), so the per-host limit is per caller; the
   split between what a person is looking at and background work.*
-- `iiif.fetch.unreachable-host-is-remembered` — **[GAP]** (#5324 → #NEW-1) a host that did not answer is not asked again
+- `iiif.fetch.unreachable-host-is-remembered` — **[GAP]** (#5324 → #6921) a host that did not answer is not asked again
   for 60 seconds; requests for it in that minute fail at once with the same reason. Today each
   thumbnail tries three times with a 60 second timeout each.
-- `iiif.import.collection-is-a-tree` — **[BROKEN]** (#5671 → #NEW-2) a manifest becomes a folder bound to its own URL
+- `iiif.import.collection-is-a-tree` — **[BROKEN]** (#5671 → #6922) a manifest becomes a folder bound to its own URL
   with its canvases as its pages; a collection becomes a folder whose manifests are child
   folders and whose collections are child folders of folders. Today every canvas of every
   manifest is a sibling page in one folder (`iiif_import.py::_remote_canvas_node` takes the
   collection as parent): measured, three manuscripts as 1,629 pages in one folder.
-- `iiif.import.collection-appears-at-once` — **[GAP]** (#5671 → #NEW-2) a collection's member folders are made from its
+- `iiif.import.collection-appears-at-once` — **[GAP]** (#5671 → #6922) a collection's member folders are made from its
   own list (one request), marked not read yet; the job then reads manifests one at a time, a
   folder the person opens first; a stopped job resumes at the first folder not read.
-- `iiif.import.sample-reads-only-its-manifests` — **[BROKEN]** (#5671 → #NEW-2) a sample of N manifests fetches the
+- `iiif.import.sample-reads-only-its-manifests` — **[BROKEN]** (#5671 → #6922) a sample of N manifests fetches the
   collections on the way to them and those N manifests, nothing else (depth first). Today every
   sub-collection is fetched before any manifest: measured, 103 requests for a sample of two.
-- `iiif.import.metadata-once` — **[BROKEN]** (#5325 → #NEW-3) a manifest's label, summary, metadata pairs, date, rights,
+- `iiif.import.metadata-once` — **[BROKEN]** (#5325 → #6923) a manifest's label, summary, metadata pairs, date, rights,
   required statement, provider, homepage and see-also links are stored once, on its folder; a
   page stores only its own canvas facts and stays under 600 bytes of metadata. Today the
   manifest's metadata and rights are copied onto every page (`parse_iiif_url`,
   `iiif_manifest_metadata`, `iiif_rights`): measured, 3.1 KB a page. Pages imported before this
   keep working: a reader takes the folder's facts first and the page's copy when the folder has none.
-- `iiif.import.ranges-are-structure` — **[GAP]** (#5324 → #NEW-4) a manifest's ranges become sub-folders when every
+- `iiif.import.ranges-are-structure` — **[GAP]** (#5324 → #6924) a manifest's ranges become sub-folders when every
   canvas is in at most one lowest range, the pages inside in order and the rest at the top;
   otherwise the pages stay flat and the ranges are kept on the folder as an outline. Presentation
   2 `structures` and 3 `structures` both. `structures` is not read today.
@@ -561,15 +561,15 @@ In, by reference:
   canvases no longer listed are counted and kept; pinned by
   `fichero-server/tests/unit/importers/test_iiif_source_5671.py`. Not built: a withdrawn page
   marked as such; a scheduled refresh.*
-- `iiif.refresh.unchanged-costs-one-request` — **[GAP]** (#5671 → #NEW-5) refreshing a manifest that has not changed
+- `iiif.refresh.unchanged-costs-one-request` — **[GAP]** (#5671 → #6925) refreshing a manifest that has not changed
   makes one request (conditional when the source gave a validator) and no write: the folder
   keeps the validator and a hash of the manifest's content. Today a refresh parses everything
   and rewrites the folder; a collection's refresh fetches every manifest again.
-- `iiif.refresh.changes-are-listed` — **[GAP]** (#5325 → #NEW-5) a refresh says what it found, in the job and on the
+- `iiif.refresh.changes-are-listed` — **[GAP]** (#5325 → #6925) a refresh says what it found, in the job and on the
   folder: canvases added, withdrawn (marked, with the date; the mark is lifted if the source lists
   one again), reordered (the pages follow the source's order), and changed in label, size or
   image service (updated in place). Today only added and no-longer-listed are counted.
-- `iiif.rights-travel` — **[PARTIAL]** (#5325 → #NEW-3) the manifest's rights, required statement and provider are
+- `iiif.rights-travel` — **[PARTIAL]** (#5325 → #6923) the manifest's rights, required statement and provider are
   stored, shown in the Inspector and carried into every export. *Built: rights and the required
   statement are stored and written into the page's exported manifest; pinned by
   `fichero-server/tests/unit/importers/test_iiif_by_reference.py`. Not built: `provider`; a
@@ -587,14 +587,14 @@ In, by reference:
   million; opening a folder of a million pages.*
 
 Seeing a remote page:
-- `iiif.view.fetches-what-is-shown` — **[PARTIAL]** (#5324 → #NEW-6) a remote page is drawn from region and size
+- `iiif.view.fetches-what-is-shown` — **[PARTIAL]** (#5324 → #6926) a remote page is drawn from region and size
   requests for what is on screen, through the bounded cache; no file path is ever involved; local
   and remote pages answer one storage call (pixels for a page, a region and a size; ruled
   2026-10-04). *Built: the first look fetches the whole page once at display size
   (`db/storage.py::iiif_page_image`); pinned by
   `fichero-server/tests/unit/importers/test_iiif_by_reference.py::test_a_page_is_fetched_once_at_display_size_when_it_is_viewed`.
   Not built: the one storage call; any size but the display size; any region.*
-- `iiif.view.thumbnail-at-thumbnail-size` — **[GAP]** (#5324 → #NEW-7) a remote page's thumbnail is fetched at thumbnail
+- `iiif.view.thumbnail-at-thumbnail-size` — **[GAP]** (#5324 → #6927) a remote page's thumbnail is fetched at thumbnail
   size: the canvas's own `thumbnail` when it is at least 256 px on its longer side, else
   `full/!512,512/0/default.jpg`; the display size is never fetched to make a thumbnail. Today
   the thumbnail is cut from a display-size fetch: measured, 205 KB a page where 26 KB would do.
@@ -603,34 +603,34 @@ Seeing a remote page:
   preview (measured: storage empty after an import of 225); pinned by
   `fichero-server/tests/unit/importers/test_iiif_by_reference.py`. Not built: the cache's bound
   (`iiif.cache.one-bounded-cache`).*
-- `iiif.view.screen-size-in-standing-sizes` — **[GAP]** (#5324, #6572 → #NEW-6) the Preview and the Reader ask for a
+- `iiif.view.screen-size-in-standing-sizes` — **[GAP]** (#5324, #6572 → #6926) the Preview and the Reader ask for a
   page at the pane's pixel size rounded up to 1,024, 1,600 or 2,200 px on the longer side, never
   more than the page has; a pane resized within one standing size fetches nothing.
-- `iiif.view.prefetches-neighbours` — **[GAP]** (#5324 → #NEW-9) while a remote page is shown, the page before and
+- `iiif.view.prefetches-neighbours` — **[GAP]** (#5324 → #6929) while a remote page is shown, the page before and
   the page after are fetched at the same standing size, as background work, and abandoned if
   the person moves on before they start.
-- `iiif.view.respects-the-services-limits` — **[GAP]** (#5324 → #NEW-8) a service's `info.json` is read once, the
+- `iiif.view.respects-the-services-limits` — **[GAP]** (#5324 → #6928) a service's `info.json` is read once, the
   first time a page needs more than a thumbnail, and kept with the page's service: real size,
   `sizes`, `tiles`, the maximums, the level. Fichero asks for explicit sizes, never `max` or
   `full` as a size (measured: one server refuses `max`, one answers it upscaled to 10,000 px),
   never more than the real size, and of a level 0 service only what it lists. The size of what
   came back is read and kept; a service that returns less than asked is remembered as capped at
   that size. `info.json` is never read today.
-- `iiif.view.zoom-asks-for-regions` — **[GAP]** (#5324, #5031 → #NEW-8) zooming a remote page past its screen size
+- `iiif.view.zoom-asks-for-regions` — **[GAP]** (#5324, #5031 → #6928) zooming a remote page past its screen size
   fetches only the visible region, on the service's tile grid at the scale factor at or above
   the zoom, each tile once.
-- `iiif.cache.one-bounded-cache` — **[PARTIAL]** (#5324 → #NEW-6) everything fetched from a remote service is in one
+- `iiif.cache.one-bounded-cache` — **[PARTIAL]** (#5324 → #6926) everything fetched from a remote service is in one
   cache under the project's storage, keyed by its request, capped at a share of free disk with a
   floor (ruled 2026-10-04), least recently used out first; a file younger than the source's
   `Cache-Control` age is not asked for again, an older one is revalidated. *Built: the step
   images' cache and its eviction (`iiif_source.py::_evict`, 10 percent of free disk, floor 1 GB).
   Not built: the viewing cache has no bound (`storage/iiif/` is never evicted); two caches, keyed
   by page, so a second size of a page cannot be kept; freshness.*
-- `iiif.offline-is-said` — **[BROKEN]** (#5324 → #NEW-9) a remote page with any size cached shows it, scaled; with
+- `iiif.offline-is-said` — **[BROKEN]** (#5324 → #6929) a remote page with any size cached shows it, scaled; with
   nothing cached it answers `503` with the reason `remote_unreachable`, and the app shows a
   placeholder that says the page is remote and cannot be reached now. Today the answer is `404`
   "no recorded file for this page" (measured), which is false, and the cell is blank.
-- `iiif.keep-local-copy` — **[GAP]** (#5324 → #NEW-10) a source (collection, manifest or page) can be kept locally: Fichero
+- `iiif.keep-local-copy` — **[GAP]** (#5324 → #6930) a source (collection, manifest or page) can be kept locally: Fichero
   says how much it will download (the sizes of five sample images times the page count), then
   fetches each full image once, politely, as a job, and stores it as a normal rendition; the
   page then works offline and is never evicted. (The old downloading loader,
@@ -649,21 +649,21 @@ Steps on a remote page:
   (`iiif_source.py::step_image`, from `workflows/tools/sources.py::_resolve_abs_path`); pinned
   by `fichero-server/tests/unit/importers/test_iiif_source_5671.py`. Not built: a step asking a
   size of its own; a failed fetch saying why (the reason is dropped, the step gets an empty path).*
-- `iiif.run.assembles-when-capped` — **[GAP]** (#5324 → #NEW-8) when a service returns less than a step asked for and
+- `iiif.run.assembles-when-capped` — **[GAP]** (#5324 → #6928) when a service returns less than a step asked for and
   the image has more, the page is fetched as the fewest regions that reach the asked size
   (2 × 2 at a 1,200 px cap for a 2,400 px read) and joined; the join is what the step reads and
   what the provenance names. Measured: a step asking 2,400 px of a 6,460 px page was given
   1,200 × 850 and read that.
-- `iiif.run.records-pixels-seen` — **[PARTIAL]** (#5324 → #NEW-11) a model run on a remote page records the image
+- `iiif.run.records-pixels-seen` — **[PARTIAL]** (#5324 → #6931) a model run on a remote page records the image
   request (or requests), the size that came back, the service's validator and a hash of the
   bytes in its provenance. *Built for remote runs: the runner names the exact Image API request
   and the size it read as the PAGE file's `imageFilename`/`imageWidth`/`imageHeight`, kept as the
   pass's evidence; pinned by `fichero-server/tests/unit/remote_read/test_reading_at_scale.py`.
   Not built: a step on this Mac recording any of it; the validator and the hash anywhere.*
-- `iiif.run.same-pixels-are-not-read-twice` — **[GAP]** (#5324 → #NEW-11) for a remote page the input a result is
+- `iiif.run.same-pixels-are-not-read-twice` — **[GAP]** (#5324 → #6931) for a remote page the input a result is
   kept against is the canvas, the request and the validator (the bytes' hash when the source
   gives no validator), so a page evicted and fetched again is not run again by the same model.
-- `iiif.change-is-detected` — **[GAP]** (#5325 → #NEW-11) when a cached image is revalidated and the validator or the
+- `iiif.change-is-detected` — **[GAP]** (#5325 → #6931) when a cached image is revalidated and the validator or the
   bytes differ, the page says its image changed and the segments drawn on the old image are
   flagged for checking.
 - `iiif.scale.remote-runs-fetch-from-source` — **[PARTIAL]** (#5324, #5240) a step run on a cluster, GPU service or
@@ -721,7 +721,7 @@ Out:
   id); ranges written back.*
 
 Server:
-- `iiif.serve.image-api` — **[PARTIAL]** (#5327 → #NEW-13) the engine answers Image API 3.0 at level 2 for local pages:
+- `iiif.serve.image-api` — **[PARTIAL]** (#5327 → #6933) the engine answers Image API 3.0 at level 2 for local pages:
   regions `full`, `square`, pixels and `pct:`; sizes `max`, `w,`, `,h`, `w,h`, `!w,h`; rotation
   0, 90, 180, 270; `default`, `color`, `gray`; `jpg` and `png`; an `info.json` with `@context`,
   an absolute `id` that answers, `sizes` (the standing sizes) and `tiles` (512 px, scale factors
@@ -730,46 +730,46 @@ Server:
   (`api/routes/ingest/iiif.py::_serve_iiif_image`, `get_image_info`). Not built: 3.0; `!w,h`,
   `pct:`, `square`, a right rotation (measured: `500`, `500`, not square, squeezed); a valid
   `info.json` (`context` for `@context`, an `@id` that answers `404`); `sizes`.*
-- `iiif.serve.image-size-is-the-originals` — **[BROKEN]** (#5327 → #NEW-13) `info.json` gives the size of the page's
+- `iiif.serve.image-size-is-the-originals` — **[BROKEN]** (#5327 → #6933) `info.json` gives the size of the page's
   original (or of the edited page), regions are cut from it, and that size never changes. Today
   the image answered from is whichever of the display copy, the thumbnail or the original is
   found first (`_get_image_path`): measured, a 6,000 × 8,000 page is 6,000 × 8,000 until its
   display copy is made and 1,650 × 2,200 after, in `info.json` and in the manifest's canvas.
-- `iiif.serve.bad-requests-are-400` — **[BROKEN]** (#5327 → #NEW-13) a request the Image API does not allow or this server
+- `iiif.serve.bad-requests-are-400` — **[BROKEN]** (#5327 → #6933) a request the Image API does not allow or this server
   does not support (an unknown region or size form, upscaling without `^`, a region outside the
   image, an unknown format) is a `400` with a sentence; a region partly outside is clipped.
   Today these are `500`, or answered wrongly (a region past the edge is padded with black).
-- `iiif.serve.answers-are-cacheable` — **[GAP]** (#5327 → #NEW-13) every image, `info.json` and manifest answer carries
+- `iiif.serve.answers-are-cacheable` — **[GAP]** (#5327 → #6933) every image, `info.json` and manifest answer carries
   an `ETag` and a `Cache-Control`, and a matching `If-None-Match` is a `304`. None does today
   (the storage routes do).
-- `iiif.serve.fast-enough-for-a-screen` — **[GAP]** (#6572 → #NEW-14) on the build Mac, for a 48-megapixel JPEG page: a
+- `iiif.serve.fast-enough-for-a-screen` — **[GAP]** (#6572 → #6934) on the build Mac, for a 48-megapixel JPEG page: a
   whole-image size at or under the display copy answers in 50 ms or less (it is made from the
   nearest larger copy the Mac keeps); a 512 px tile answers in 200 ms or less the first time and
   20 ms or less again (tiles are kept in the bounded cache; a JPEG is decoded at a reduced scale
   when the scale factor allows). Measured today: 300 ms for a 200 px picture and 170 ms for
   every tile, every time.
-- `iiif.serve.presentation` — **[PARTIAL]** (#5327 → #NEW-15) the library tree is served as Presentation 3.0: the
+- `iiif.serve.presentation` — **[PARTIAL]** (#5327 → #6935) the library tree is served as Presentation 3.0: the
   library and a folder of folders as collections, a folder of pages and a document as manifests,
   at `/api/iiif/collection/{id}` and `/api/iiif/manifest/{id}`; a by-reference page's canvas
   keeps the source's id and service; the old `/api/iiif/iiif/…` addresses keep answering.
   *Built: one manifest per document. Not built: folders, collections, the library, the new addresses.*
-- `iiif.serve.release-tier` — **[GAP]** (#5327 → #NEW-12) importing from IIIF and the image and presentation routes are
+- `iiif.serve.release-tier` — **[GAP]** (#5327 → #6932) importing from IIIF and the image and presentation routes are
   in every build that has sharing, not only a dev build (`scripts/gen_feature_tiers.py`'s source;
   today `'/api/iiif': 'dev'`). The menu item is not shown where the route is not.
-- `iiif.serve.only-what-may-be-read` — **[GAP]** (#5327 → #NEW-15) only what the asking account may read is served;
+- `iiif.serve.only-what-may-be-read` — **[GAP]** (#5327 → #6935) only what the asking account may read is served;
   withheld material is absent from manifests and a `404` from the image service; the routes take
   the same token as every other route.
-- `iiif.serve.no-own-toggle` — **[GAP]** (#5327 → #NEW-15) the IIIF server is part of sharing and has no separate switch
+- `iiif.serve.no-own-toggle` — **[GAP]** (#5327 → #6935) the IIIF server is part of sharing and has no separate switch
   (sharing and multi-user stay the only two toggles, `../transport/library-sharing.md`).
-- `iiif.client.asks-at-screen-size` — **[GAP]** (#6572 → #NEW-16) on an iPhone, an iPad or a second Mac, a page from
+- `iiif.client.asks-at-screen-size` — **[GAP]** (#6572 → #6936) on an iPhone, an iPad or a second Mac, a page from
   a shared library is asked for at the pane's standing size (the thumbnail shows meanwhile), and
   the neighbouring pages at the same size. Today every pane is sent the 2,200 px display copy
   (`Services/StorageService.swift`, `GET /api/storage/display/{id}`); measured on the public
   sources, a 1,024 px picture is a fifth of the bytes of a 2,200 px one.
-- `iiif.client.tiles-when-zoomed` — **[GAP]** (#6572, #5031 → #NEW-16) zoomed past the picture it holds, the Preview
+- `iiif.client.tiles-when-zoomed` — **[GAP]** (#6572, #5031 → #6936) zoomed past the picture it holds, the Preview
   (on the Mac and on the devices) asks the engine for the visible tiles at the needed scale and
   draws them over the picture, with no jump and the segments still in register.
-- `iiif.serve.remote-pages-for-own-devices` — **[PROPOSED]** (#5327 → #NEW-17; Open question 6) a by-reference page
+- `iiif.serve.remote-pages-for-own-devices` — **[PROPOSED]** (#5327 → #6937; Open question 6) a by-reference page
   asked for by a signed-in account of the library is answered through the same image route from
   the Mac's cache, fetched from the source if need be; an anonymous viewer and every exported or
   published manifest get the source's own service. Today the storage routes already send a
@@ -777,7 +777,7 @@ Server:
 - `iiif.folder.published` — **[GAP]** (#5327, #3177) a folder can be published as a IIIF collection (served when the
   library is shared, written in a static export); putting a document in publishes it, taking it
   out unpublishes it; withheld material stays out.
-- `iiif.publish.static` — **[GAP]** (#3177 → #NEW-18) the static-site export writes, for each local page, a level 0
+- `iiif.publish.static` — **[GAP]** (#3177 → #6938) the static-site export writes, for each local page, a level 0
   `info.json` naming exactly the `sizes` and `tiles` written, those files at their Image API
   paths, and the same manifests and annotation pages with the site's address as base, all made
   by the builder the server uses; a by-reference page is not tiled and points at its source.
