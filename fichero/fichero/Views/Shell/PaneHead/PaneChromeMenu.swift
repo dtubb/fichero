@@ -57,7 +57,7 @@ struct PaneChromeMenu: View {
 }
 
 /// The pane menu's rows, shared by the head's button and its right-click so both list the same entries in the
-/// same order (`panes.chrome.one-pane-menu`): Pane ▸, Split, Focus on Pane, Pin, Close.
+/// same order (`panes.chrome.one-pane-menu`): Pane ▸, Split Right ▸, Split Below ▸, Focus on Pane, Pin, Close.
 struct PaneMenuEntries: View {
     var splitActions: SplitAxisActions?
     var isPinned: Binding<Bool>?
@@ -91,29 +91,15 @@ struct PaneMenuEntries: View {
             Divider()
         }
         if let actions = splitActions {
-            // ADDITIONS only (Daniel, 2026-08-23): the "+" never
-            // removes a split — the pane's X collapses it. A row
-            // shows only while its toggle ADDS: thirds are a
-            // single-axis affair, so a 2×2 grid offers neither.
-            let grid = actions.hasVertical && actions.hasHorizontal
-            if actions.verticalCount == 1 || (actions.verticalCount == 2 && !grid) {
-                Button {
-                    actions.onToggleVertical()
-                } label: {
-                    Label(
-                        actions.hasVertical ? "Add Third Vertical Pane" : "Split Vertical",
-                        systemImage: ToolbarSymbols.splitVertical
-                    )
+            // Each a submenu of kinds: splitting ADDS that pane beside or below in one step (`panes.head.one-menu-button`).
+            Menu("Split Right") {
+                ForEach(PaneSpec.Kind.selectableKinds, id: \.rawValue) { kind in
+                    Button { actions.onSplitRight(kind) } label: { Label(kind.title, systemImage: kind.icon) }
                 }
             }
-            if actions.horizontalCount == 1 || (actions.horizontalCount == 2 && !grid) {
-                Button {
-                    actions.onToggleHorizontal()
-                } label: {
-                    Label(
-                        actions.hasHorizontal ? "Add Third Horizontal Pane" : "Split Horizontal",
-                        systemImage: ToolbarSymbols.splitHorizontal
-                    )
+            Menu("Split Below") {
+                ForEach(PaneSpec.Kind.selectableKinds, id: \.rawValue) { kind in
+                    Button { actions.onSplitBelow(kind) } label: { Label(kind.title, systemImage: kind.icon) }
                 }
             }
         }
