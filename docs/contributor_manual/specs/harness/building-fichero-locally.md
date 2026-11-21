@@ -1394,12 +1394,13 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
   hours with no hand step; every step either lands or ends as an alert row with evidence, never as silence; the heartbeat has no
   gap longer than three ticks. Manual: the maintainer reads only `builder status` and the alerts for the six hours, and the
   journal is attached to the issue.
-- `dev-workflows.run.loop-session-cap-hands-off` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated; ie-lane2 was
-  parked mid-step with uncommitted work at the session cap) — reaching `[spend].session_usd` does what the context handoff does:
-  the session ends and a fresh one starts on the same step with "continue from the tree: the step, its brief and the commits so
-  far"; uncommitted work stays in the worktree. Only `[spend].day_usd` parks. Test (a file of that name exists; whether it covers this behaviour is owed a check, Phase 0): `fichero-builder/tests/test_loop.py`
-  (a session over its cap gets a successor on the same step; over the day cap the lane parks with an alert).
-  **Built** 2026-11-02: `watcher.assess` gives `handoff: session spend` at the session cap and parks only at the day cap; `builder run` tells the worker why and to hand off, and the successor starts as at the context mark. Tests `fichero-builder/tests/test_watcher.py::test_the_session_cap_then_the_day_cap_park`, `fichero-builder/tests/test_dry_run.py::test_the_session_cap_parks_and_stops_the_worker` (names kept from before). Not yet: a real lane at its cap.
+- `dev-workflows.run.loop-session-cap-hands-off` [OK] (#6116; owner ruling B2 2026-11-21, which retires the session cap the manager
+  approved on 2026-11-02) — there is no dollar session cap: session spend alone never ends or hands off a session. A session
+  ends at the context limit (a handoff) or at `[spend].day_usd` (a park); `[spend].session_usd` is read and ignored.
+  **Built** 2026-11-21: `watcher.assess` gives no session-spend handoff and `watcher.refusals` needs only `day_usd`. Tests
+  `fichero-builder/tests/test_watcher.py::test_only_the_day_cap_parks_and_session_spend_alone_never_ends_a_session`,
+  `fichero-builder/tests/test_watcher.py::test_a_day_cap_alone_lets_a_worker_start`,
+  `fichero-builder/tests/test_dry_run.py::test_session_spend_alone_neither_hands_off_nor_stops_the_worker`. (#6871)
 - `dev-workflows.run.loop-handoff-tokens` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated; ie-lane2 used 17M tokens for
   three steps on a 1M window) — the handoff threshold is an absolute token count, `[spend].handoff_tokens` (175000, owner 2026-11-02), not a share
   of the window; a session whose context passes it hands off. Test (a file of that name exists; whether it covers this behaviour is owed a check, Phase 0): `fichero-builder/tests/test_watcher.py` (a session
@@ -3649,6 +3650,14 @@ Disk: the worker root holds 22 to 24 GB, of which about 12 GB is never removed (
 pytest base temp dirs three weeks old, lane trees the owner's user cannot read). The remote test path made 509 small
 scratch dirs in one morning. The journal is 46.6 MB and 83% of it is loop tick rows.
 
+### Owner rulings on spend (2026-11-21)
+
+- B1: once the spend meter counts a message once (#6870), the caps are real dollars. Its 25 USD a session is retired by B2.
+- B2: there is no dollar session cap. A session ends on the day cap and the context limit only; `[spend].session_usd` is
+  read and ignored.
+- B3: reviewer spend counts against the day cap, once `local.perf.reviewer-spend-recorded` (#6882) writes its rows.
+- B5: the day cap is 300 USD.
+
 ### The ten largest wastes, in order
 
 1. The spend meter counts an API message once per content block, so every cap fires at about half its figure.
@@ -3665,19 +3674,29 @@ scratch dirs in one morning. The journal is 46.6 MB and 83% of it is loop tick r
 
 ### Behaviours
 
-- `local.perf.spend-counts-a-message-once` [BROKEN] — a session's tokens and cost count each API message once, whatever
-  number of lines the session file gives it; the last line of a message wins. Today `session.parse_session` adds the usage
-  of every assistant line, and a Claude Code file writes one line per content block (measured: 25,962 lines for 17,530
-  messages, cost 1.89 times high). Test: an owed test in fichero-builder/tests/test_session.py (one message on three
-  lines costs once; a Pi file is unchanged). (#6589) → #6870
-- `local.perf.caps-reread-each-tick` [BROKEN] — the watcher reads `[spend]` at every tick from the one rules file the
-  loop reads, and a park checks the current figure first. Today `run.run` loads it once and keeps it for every
-  generation. Test: an owed test in fichero-builder/tests/test_watcher.py (a raised cap reaches a running session on
-  the next tick). → #6851
-- `local.perf.day-cap-counts-live-sessions` [BROKEN] — the day's spend is the finished sessions' rows plus the running
-  cost of every live session, so the cap holds with any number of workers. Today `watcher.spent_today` sums finished
-  rows only and each worker adds its own session (measured overshoot: 30 to 115 USD, three times). Test: an owed test
-  in fichero-builder/tests/test_watcher.py (three live sessions; the third parks before the cap). (#6589) → #6871
+- `local.perf.spend-counts-a-message-once` [OK] — a session's tokens and cost count each API message once, whatever
+  number of lines the session file gives it; the last line of a message wins. **Built** 2026-11-21: `session.parse_session`
+  keeps one usage per `message.id`, the last line's (before, it added every assistant line, and a Claude Code file writes one
+  line per content block: 25,962 lines for 17,530 messages, cost 1.89 times high). Tests
+  `fichero-builder/tests/test_session.py::test_a_claude_code_message_written_as_one_line_per_block_costs_once`; a Pi file is unchanged:
+  `fichero-builder/tests/test_session.py::test_cost_parser_on_a_redacted_real_pi_session`. (#6589) → #6870
+- `local.perf.caps-reread-each-tick` [OK] — the watcher reads `[spend]` at every tick from the one rules file the
+  loop reads, and a park checks the current figure first. **Built** 2026-11-21: the loop publishes the owner's `[spend]` and
+  `[models]` as `<feed>/rules.json` every tick and starts a run with `--rules` naming it; `run.run` reads it (or the root's
+  rules file when none is named) at the start and at every tick, and an unreadable read keeps the last figures with one
+  alert. Tests `fichero-builder/tests/test_dry_run.py::test_a_raised_cap_in_the_published_rules_reaches_a_running_session_on_the_next_tick`,
+  `fichero-builder/tests/test_dry_run.py::test_a_lowered_cap_in_the_root_rules_parks_on_the_next_tick`,
+  `fichero-builder/tests/test_dry_run.py::test_unreadable_rules_mid_run_alert_once_and_keep_the_last_figures`,
+  `fichero-builder/tests/test_watcher.py::test_the_loop_publishes_the_owners_spend_and_models_for_the_jailed_run`. → #6851
+- `local.perf.day-cap-counts-live-sessions` [OK] — the day's spend is the finished sessions' rows plus the running
+  cost of every live session, so the cap holds with any number of workers. **Built** 2026-11-21: each run rewrites
+  `<state>/live/<name>.json` with its running cost every tick, zeroes it at a handoff and removes it at its end; the spend a
+  run checks, before its start and at every tick, is today's cost rows plus every other run's live file of today changed in
+  the last 300 s (before, finished rows only: measured overshoot 30 to 115 USD, three times). Tests
+  `fichero-builder/tests/test_watcher.py::test_live_spend_sums_other_sessions_fresh_files_of_today_only`,
+  `fichero-builder/tests/test_dry_run.py::test_three_live_sessions_near_the_cap_keep_a_fourth_from_starting`,
+  `fichero-builder/tests/test_dry_run.py::test_a_tick_parks_when_the_others_live_cost_and_its_own_reach_the_cap_and_the_own_file_goes_at_the_end`,
+  `fichero-builder/tests/test_dry_run.py::test_a_stale_live_file_does_not_hold_back_a_start`. (#6589) → #6871
 - `local.perf.expected-red-runs-once` [BROKEN] — a red is run again on another runner only where the rung expects
   green; the base run of red-on-base is never retried, and the first reachable runner counts as the first. Today
   `check_tool._run` retries any red whenever the first-listed runner did not run it. Test: an owed test in
@@ -4271,7 +4290,7 @@ The steps of "Performance and waste", cheapest and largest saving first. Each is
 
 #### Step 10.1 — the spend meter is right, live and whole
 - Behaviours: `local.perf.spend-counts-a-message-once`, `local.perf.caps-reread-each-tick`, `local.perf.day-cap-counts-live-sessions`
-- Tests: fichero-builder/tests/test_session.py, fichero-builder/tests/test_watcher.py
+- Tests: fichero-builder/tests/test_session.py, fichero-builder/tests/test_watcher.py, fichero-builder/tests/test_dry_run.py
 - Size: S
 
 #### Step 10.2 — red-on-base at half the time
