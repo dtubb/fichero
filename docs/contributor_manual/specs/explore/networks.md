@@ -44,6 +44,11 @@ sources.
 - Engine analysis with no app surface: centrality, PageRank, communities, components,
   triangles, clustering, paths, traversal, neighbourhood, structural similarity; link
   prediction (pykeen). None takes a time argument.
+  Measured 2026-11-20 (`../kg/kg-store-and-query.md`): each of these reads the whole statements
+  table per call or per change (3 to 4 s at 50,000 statements, 16 to 20 s at 500,000), and
+  traversal fails once the project holds a statement-to-statement link
+  (`kg.query.traverse-reads-real-links`). A network view is built on the store that spec
+  describes, after its Stage 2.
 - Claims carry dates, confidence, `created_by` and a source anchor. `created_by` is not yet
   truthful for machine claims (→ #4868, → #4869).
 - RDF export (Turtle, JSON-LD) and a SPARQL console exist. **No GEXF or GraphML exporter.**
