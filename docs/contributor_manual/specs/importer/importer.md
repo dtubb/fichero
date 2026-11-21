@@ -518,6 +518,84 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
   an array for each cell (`OriginalsStore.isMissing`). Test to add: 500 linked pages in 5 folders are checked with
   at most one filesystem call a page and one listing a folder, counted; a volume that is not there is one call.
 
+## Build order
+
+From the review of 2026-11-20 ("Import and derivatives at scale" above), its ranked fixes in rank order, one step each.
+
+### Stage 1 — Import at 5,000 pages (the review's ranked fixes)
+
+#### Step 1.1 — Held is not stalled; no twin rows at open (#6827, #6209)
+- Behaviours: `importer.resume.held-queue-is-not-stalled`, `importer.resume.no-twin-rows-at-open`
+- Tests: test_held_queue_is_not_stalled.py (not yet written), fichero-server/tests/unit/jobs/test_durable_5357.py
+- Size: M
+
+`importers/derivatives.py`, `execution/jobs.py`, `db/manager.py`: `queue_state` answers held when a queue's live rows
+are all paused; the open's re-queue runs after `jobs.resume`, held, and arms nothing; Continue arms the count from the
+job table; the open queries pending ids, not whole documents.
+
+#### Step 1.2 — Which originals are missing: one call a page (#6828, #6733)
+- Behaviours: `importer.originals.missing-check-is-bounded`
+- Tests: test_missing_originals_is_bounded.py (not yet written), fichero-server/tests/unit/importers/test_locate_originals_5672.py
+- Size: M
+
+`importers/relink.py`, `db/storage.py`, `security/path_security.py`, the route, `OriginalsStore.swift`,
+`LocateOriginals.swift`. Test: counted filesystem calls for 500 pages in 5 folders (at most 505); one call for a
+volume that is not there.
+
+#### Step 1.3 — An import survives a quit (#6829, #739)
+- Behaviours: `importer.resume.jobs-are-queued-with-each-batch`, `importer.resume.an-interrupted-import-is-offered-again`
+- Tests: test_import_survives_a_quit.py (not yet written)
+- Depends on: 1.1
+- Size: M
+
+`api/routes/ingest/core.py`, `importers/ingest.py`, `importers/derivatives.py`. Test: killed after batch 3, every saved
+page has a thumbnail row; the launch alert lists the import; Continue finishes it with no page twice.
+
+#### Step 1.4 — Continue in one statement; one alert item per queue (#6830, #6584)
+- Behaviours: `importer.resume.launch-alert-is-one-row-per-queue`
+- Tests: test_continue_is_one_statement.py (not yet written)
+- Size: S
+
+`execution/jobs.py`, `api/routes/system/activity.py`, the alert view. Test: 10,000 paused rows continue in under a
+second; the list answers one item.
+
+#### Step 1.5 — Uploads of one name both import (#6831, #4579)
+- Behaviours: `importer.same-name.files-from-different-folders-both-import`
+- Tests: test_same_named_uploads_import.py (not yet written)
+- Size: S
+
+`api/routes/document/documents.py` (`import_files_together`, `import_dropped_set`), `importers/interchange_pairing.py`.
+
+#### Step 1.6 — A linked file is read once; a re-drop skips by size and date (#6832, #739)
+- Behaviours: `importer.scale.a-linked-file-is-read-once`, `importer.resumable-redrop-skips-without-reading`, `importer.resumable-content-hash-skip`
+- Tests: test_a_linked_file_is_read_once.py (not yet written), fichero-server/tests/unit/importers/test_ingest_dedup_scope.py
+- Size: S
+
+`importers/ingest.py`. Test: counted reads equal the folder's bytes; a re-drop reads none.
+
+#### Step 1.7 — No embed job for a page without text; Prepare pages counts thumbnails (#6833, #5954)
+- Behaviours: `importer.scale.no-embed-job-for-a-page-without-text`, `importer.scale.prepare-pages-counts-what-lands`
+- Tests: fichero-server/tests/unit/api/test_post_ingest_derivatives.py
+- Size: S
+
+`importers/derivatives.py`. Tests: an image import queues no embed row; the count moves with thumbnails.
+
+#### Step 1.8 — The edited-image cache is bounded (#6834, #1590)
+- Behaviours: `importer.scale.edited-image-cache-is-bounded`
+- Tests: test_edited_image_cache_is_bounded.py (not yet written)
+- Size: M
+
+`db/storage.py`, the edit actions. Test: three edits leave one file.
+
+#### Step 1.9 — The import load leg (#6864, #4203)
+- Behaviours: `importer.scale.five-thousand-pages-budget`
+- Tests: test_import_soak.py (not yet written), fichero-server/tests/unit/scripts/test_soak_run_6732.py
+- Depends on: 1.1, 1.3
+- Size: M
+
+A script like `scripts/soak_run.py` for import only: 500 pages, a kill mid-import and one mid-thumbnails, checked
+against the budget in `importer.scale.five-thousand-pages-budget`. Its nightly run on the M4 is the manager's.
+
 ## Out of scope (pointed at with arrows)
 
 - **What a workflow does to a node once it exists** (transcription, extraction, chains) —
