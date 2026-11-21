@@ -501,3 +501,7 @@ Design content carried into this spec; files kept, listed here per program instr
 
 ## Triaged from the backlog (2026-10-04)
 - `research.uitest.click-around-plan-save` — **[GAP]** (#4727) an XCUITest opens a chat, takes the Plan invitation, Save as Workspace, and sees the Plan tab list tasks (research.planpromotestoworkspace).
+
+## Triaged from the render review (2026-11-20)
+
+- `research.answer-citations-open-the-passage` — **[GAP]** (#1828) see `kg/kg-rendering.md` section F: an answer's Sources list names a document and a score, carries no page or passage (`DocumentSource`), and its rows are not controls (`MessageCard.sourcesView`); the Cited ledger is text only (`SourcesLedgerView`).
