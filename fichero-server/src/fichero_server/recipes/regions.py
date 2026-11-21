@@ -308,7 +308,10 @@ def _find_on(db: Any, doc: Any, path: str, width: int, height: int, provider: st
     else:
         from fichero_server.workflows.tools.vision_base import page_direction
 
-        found = detect_regions(path, model)
+        # Through the model lane, as a Kraken page is (#5525): it takes its turn with the other heavy models.
+        found = jobs.run_on_lane_blocking(
+            library, "find-regions", doc.id, model=f"yolo:{model}", parent_id=run_id, run_id=run_id,
+            fn=lambda path=path: detect_regions(path, model))
         if cut:  # the crop's fractions are put back as fractions of the whole image
             from dataclasses import replace
 
