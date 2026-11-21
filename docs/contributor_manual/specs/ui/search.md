@@ -377,7 +377,7 @@ read of the calling loop before it can be called fully resolved.
   (about 1.5 GB loaded) runs in its own process and is released after ten idle minutes
   (`search.embedding-model-only-while-needed`). Measured: the first semantic search after a release took
   7.5 s on the M1, later ones 0.1 to 0.3 s on 18 pages.
-- `search.scale.passages-end-cleanly` — **[BROKEN]** (#1833, → #NEW-S1) a page whose text ends in a space
+- `search.scale.passages-end-cleanly` — **[BROKEN]** (#1833, → #6780) a page whose text ends in a space
   or a line break is cut into its real passages and then about 70 more, each one character shorter than
   the last (80, 79, 78 … characters of the page's tail): the cutter steps one character at a time once
   the remaining text is all inside the overlap. Measured on real diary pages of about 1,000 characters:
@@ -388,7 +388,7 @@ read of the calling loop before it can be called fully resolved.
   page's passages never number more than its length divided by the step, plus one; the tail is one
   passage. Test to write: test_passages_of_text_ending_in_whitespace.py in
   `fichero-server/tests/unit/db/`; and a one-time re-embed of pages whose row count is over the bound.
-- `search.embedding.estimate-is-measured` — **[BROKEN]** (#4302, → #NEW-S13) the time estimate for
+- `search.embedding.estimate-is-measured` — **[BROKEN]** (#4302, → #6792) the time estimate for
   embedding a project assumes 6 passages a second for bge-m3. Measured on the M1 at the engine's
   background priority: 0.6 to 1.6 a second (18 Greek passages in 29 s, 6 Spanish in 6 s). The figure should be the machine's own measured rate
   (kept from its last run), said as an estimate. Test to write: test_embed_estimate_uses_measured_rate.py
@@ -406,27 +406,27 @@ Measured, M4 desktop, warm, best of three, model time left out (the query vector
 
 The two indexes are fast; nearly all of the time is what is done around them.
 
-- `search.scale.budget` — **[BROKEN]** (#4604, → #NEW-S3) at 50,000 pages a keyword search answers in
+- `search.scale.budget` — **[BROKEN]** (#4604, → #6782) at 50,000 pages a keyword search answers in
   under 0.3 s and a semantic or hybrid one in under 1 s once the model is loaded, and a search adds no
   more than 300 MB of memory. Measured: 5.5 to 7.4 s, and 7.7 GB. The perf test that should hold this
   (`fichero-server/tests/perf/test_search_workload_perf.py`) seeds 200 pages with no text, no vectors and
   no graph, so it cannot see any of it. Test to write: the same file seeds 5,000 pages with passages,
   given vectors, names and statements, and holds a budget scaled from this one.
-- `search.scale.cost-does-not-grow-with-the-graph` — **[BROKEN]** (#1833, → #NEW-S3) every search, of any
+- `search.scale.cost-does-not-grow-with-the-graph` — **[BROKEN]** (#1833, → #6782) every search, of any
   type, reads every name in the project to widen the query with aliases, then every statement and every
   name again to mark which hits they touch (`_expand_query_with_entity_aliases`,
   `enrich_search_results_with_kg`). Measured: reading all statements alone takes 0.46 s, 1.6 s and 4.8 s
   at the three sizes, and it is done on each search. Should: aliases are looked up by folded name in an
   index, and statements are fetched for the pages on the result page only. Test to write:
   test_search_reads_only_the_rows_it_needs.py in `fichero-server/tests/unit/search/` (counts rows read).
-- `search.scale.no-whole-table-read` — **[BROKEN]** (#3321, → #NEW-S4) when the text index finds nothing
+- `search.scale.no-whole-table-read` — **[BROKEN]** (#3321, → #6783) when the text index finds nothing
   for a word (a typing slip, the start of a word, a word inside a longer token), and for every fuzzy
   search, the whole passage table, vectors included, is read into memory and scanned. Measured: 43 s and
   about 3.5 GB more memory at 50,000 pages for one mistyped word; fuzzy 111 s. On a 16 GB laptop that is
   the engine being killed. Should: the scan never reads vectors, and the cases it serves move into the
   index (`search.match.same-with-or-without-other-hits`). Test to write:
   test_zero_hit_query_reads_no_vectors.py in `fichero-server/tests/unit/search/`.
-- `search.scope.narrows-before-ranking` — **[BROKEN]** (#4236, → #NEW-S2) a search in This Folder ranks
+- `search.scope.narrows-before-ranking` — **[BROKEN]** (#4236, → #6781) a search in This Folder ranks
   the whole project, keeps the best 200 passages, and only then drops what is outside the folder. A
   folder of 50 pages that all hold the word returned 30 to 43 of them in a 300-page project, 3 in a
   20,000-page one, and none at 5,000 and 50,000 pages: the header says 0 results for a word the folder is
@@ -435,16 +435,16 @@ The two indexes are fast; nearly all of the time is what is done around them.
   search searches only the scope and its count is the scope's count. This is also the engine half of the
   Page, Document and Selection scopes of `search.scope-menu`. Test to write:
   test_scoped_search_finds_everything_in_scope.py in `fichero-server/tests/unit/search/`.
-- `search.results.one-row-per-page` — **[BROKEN]** (#4604, → #NEW-S5) Full Text returns a page once for
+- `search.results.one-row-per-page` — **[BROKEN]** (#4604, → #6784) Full Text returns a page once for
   each passage that matched (hybrid and semantic keep one). Measured: 9 repeats in 22 rows at 50,000
   pages; on real text one page three times in the first three rows. Should: one row a page, carrying its
   best passage and how many passages matched. Test to write: test_fulltext_one_row_per_page.py in
   `fichero-server/tests/unit/search/`.
-- `search.results.total-is-true` — **[BROKEN]** (#4604, → #NEW-S5) the total a search reports is the
+- `search.results.total-is-true` — **[BROKEN]** (#4604, → #6784) the total a search reports is the
   number of candidates kept, which is never more than four times the page size: a word on thousands of
   pages says 200. Should: the true count of matching pages when it is cheap (keyword), else "more than
   N", never a ceiling shown as a count. Test: the same file as above.
-- `search.scale.vector-index-when-large` — **[GAP]** (#1833, → #NEW-S14) scanning every vector is right
+- `search.scale.vector-index-when-large` — **[GAP]** (#1833, → #6793) scanning every vector is right
   at these sizes (214 ms for 296,458 rows) and exact. Past about 500,000 rows the table gets an
   approximate index, rebuilt when a tenth of the rows are new, and vectors are kept at half or quarter
   size (the int8 switch exists and is off). Not needed before the fixes above. Test to write:
@@ -467,7 +467,7 @@ Measured on the real pages (rank of the right page; 18 pages, default settings):
 | a question in words | 1 | 1 | 1 |
 | nonsense | none | 7 pages at 0.68 to 0.69 | none |
 
-- `search.match.same-with-or-without-other-hits` — **[BROKEN]** (#3321, → #NEW-S4) the start of a word,
+- `search.match.same-with-or-without-other-hits` — **[BROKEN]** (#3321, → #6783) the start of a word,
   a word inside a longer token (a line in a script written without spaces is one token), and a pointed
   Hebrew or Arabic word typed without points are found only by the slow scan, and the scan runs only
   when the index found nothing at all for the query. So the same word is found or not depending on
@@ -491,13 +491,13 @@ Measured on the real pages (rank of the right page; 18 pages, default settings):
   Hybrid on the real pages. Not measured: pointed text typed unpointed, right-to-left snippets on
   screen, scripts written without spaces. Pinned in part:
   `fichero-server/tests/unit/search/test_search_fold_unicode.py`.
-- `search.hybrid.meaning-survives-a-weak-keyword-hit` — **[BROKEN]** (#1782, → #NEW-S8) when any page
+- `search.hybrid.meaning-survives-a-weak-keyword-hit` — **[BROKEN]** (#1782, → #6787) when any page
   matches a query word, hybrid shows only the keyword pages and drops pages found by meaning alone.
   Measured: an English question about a Spanish deed ranked the deed second by meaning (0.85) and hybrid
   returned one English page that shared two common words, and not the deed. Should: a page found by
   meaning alone stays, under the keyword pages, when its score stands clear of the project's own floor
   (below). Test to write: test_hybrid_keeps_clear_semantic_hits.py in `fichero-server/tests/unit/search/`.
-- `search.hybrid.floor-is-the-projects-own` — **[BROKEN]** (#4119, → #NEW-S8) the default floor of 0.55
+- `search.hybrid.floor-is-the-projects-own` — **[BROKEN]** (#4119, → #6787) the default floor of 0.55
   does nothing with this model: nonsense scores 0.68 to 0.69 and right answers 0.79 to 0.85, a band
   0.15 wide. Should: the floor is measured for the project (the scores of a few random passages against
   the query, or kept from the last searches), and a hit is shown as found by meaning only when it stands
@@ -518,21 +518,21 @@ search route is not called by the app.
   surname, one for a place typed without its accent. Pinned:
   `fichero-server/tests/unit/search/test_search_reads_the_record.py`,
   `fichero-server/tests/unit/search/test_search_query_parser.py`.
-- `search.graph.scope-with-words-means-both` — **[BROKEN]** (#4604, → #NEW-S9) a name prefix with other
+- `search.graph.scope-with-words-means-both` — **[BROKEN]** (#4604, → #6788) a name prefix with other
   words (`person:"A B" contract`) is not "pages where A B is written that are about a contract": the
   prefix is taken out and the words are searched alone. Measured: a page with no mention of the person
   came back. Should: prefixes narrow (which pages), words and meaning rank (in what order).
 - `search.graph.dates-read-the-record` — **[GAP]** (#5597, #5008) `dates:1935` matches only inside
   extraction artifacts, as letters. Measured: nothing found in a project with two statements dated in
   1935 on pages headed with 1935 dates.
-- `search.graph.date-range` — **[PARTIAL]** (#3322, → #NEW-S6) the engine can keep only pages whose
+- `search.graph.date-range` — **[PARTIAL]** (#3322, → #6785) the engine can keep only pages whose
   written date span overlaps a range (day numbers, so any calendar; a page dated to a year overlaps any
   range touching that year; undated pages are left out), `date_jdn_from` and `date_jdn_to`. Nothing in
   the app sends it, it is applied after the candidate cut (`search.scope.narrows-before-ranking`), no
   test names it, and a statement's own dates (`time_start`, `time_end`, `time_precision`) cannot be
   searched at all. Test to write: test_search_date_range_overlap.py in
   `fichero-server/tests/unit/search/`.
-- `search.graph.who-what-where-when` — **[GAP]** (#4604, → #NEW-S9) one question in four parts, any of
+- `search.graph.who-what-where-when` — **[GAP]** (#4604, → #6788) one question in four parts, any of
   them empty: who (a name or alias, or a kind of name), did what (the verb or the words of the
   statement, folded, by meaning if nothing matches as written), where (a place, and the places inside
   it), when (a date or a range). The answer is statements, each with its page and the segment it stands
@@ -540,24 +540,24 @@ search route is not called by the app.
   four boxes under it; kept as a saved search like any other. It reads the statement and name tables
   through indexes, never the whole graph (`search.scale.cost-does-not-grow-with-the-graph`). Tests to
   write: test_statement_search_four_parts.py in `fichero-server/tests/unit/search/`.
-- `search.graph.a-date-is-a-span` — **[GAP]** (#5008, → #NEW-S9) every date searched or matched is a
+- `search.graph.a-date-is-a-span` — **[GAP]** (#5008, → #6788) every date searched or matched is a
   span with a precision: "1935" is the whole year, "March 1935" the month, "about 1930" a span with a
   stated margin, "before 1940" open at one end. A match is an overlap; closer and tighter spans rank
   first; a date that is inferred or disputed says so on the row; undated statements and pages are never
   silently dropped: they are counted and offered apart ("212 undated"). The same rule as
   `explore.time.a-date-is-a-span`.
-- `search.graph.with-words-and-meaning` — **[GAP]** (#1824, → #NEW-S9) how the three combine, in one
+- `search.graph.with-words-and-meaning` — **[GAP]** (#1824, → #6788) how the three combine, in one
   rule: the graph parts and the scope NARROW (which pages and statements may be shown); words and
   meaning RANK inside what is left; when no graph part is given, the graph only helps rank (today's
   Semantic + Graph). A row says each way it was found (word, meaning, name, statement), as it does now.
-- `search.graph.names-lead-to-their-pages` — **[BROKEN]** (#1833, → #NEW-S7) the step that follows the
+- `search.graph.names-lead-to-their-pages` — **[BROKEN]** (#1833, → #6786) the step that follows the
   names nearest a query to the pages of their statements, so a page is found though its text never has
   the word, never runs: it reads the name hits as objects and they are plain records, so each one fails
   and is skipped, with one warning in the log per search
   (`fichero-server/src/fichero_server/api/routes/search/core.py`, `enhanced_search`, the graph leg). Its
   test passes because it only checks the hit if the hit is there. Test to write: the existing graph-leg
   test asserts the page is found by the graph, with no condition.
-- `search.graph.own-route` — **[PARTIAL]** (#2571, → #NEW-S9) `GET /api/kg/search` looks for letters in
+- `search.graph.own-route` — **[PARTIAL]** (#2571, → #6788) `GET /api/kg/search` looks for letters in
   every name, statement, note and annotation by reading them all, lower-cased but not folded (an
   accented name is missed unless an alias is plain); it is off below the beta tier and nothing in the
   app calls it. It becomes the statement search above or goes.
@@ -571,23 +571,23 @@ sources; it is a dev-tier feature, off in a release build, and the search field 
 - `search.ask.turns-a-question-into-a-search` — **[PARTIAL]** (#5029) built and shown ("Searched: …");
   measured with the on-device model: 3.1 s, and 7.0 s the first time, on the M1; the right page first
   for both questions tried. The defects are the next three lines.
-- `search.ask.invents-no-filter` — **[BROKEN]** (#5029, → #NEW-S6) a question with no date in it came
+- `search.ask.invents-no-filter` — **[BROKEN]** (#5029, → #6785) a question with no date in it came
   back with the date range of the example in the model's instructions (a month in 1948), and with
   "entities" that are just the question's nouns. Should: a filter is kept only if its words are in the
   question (checked in code, not asked of the model); the instructions carry no copyable example date.
   Test to write: test_compiled_filters_come_from_the_question.py in
   `fichero-server/tests/unit/retrieval/`.
-- `search.ask.a-date-means-the-date-written` — **[BROKEN]** (#3322, → #NEW-S6) a date range taken from a
+- `search.ask.a-date-means-the-date-written` — **[BROKEN]** (#3322, → #6785) a date range taken from a
   question is compared with the day the page was imported, and passage hits carry no such day, so the
   filter does nothing: "in January 1935" narrows nothing and says it did. Should: it becomes the
   written-date range of `search.graph.date-range`, shown as a part of the search that can be removed.
-- `search.ask.uses-the-chosen-text-model` — **[BROKEN]** (#5368, → #NEW-S12) the model that turns the
+- `search.ask.uses-the-chosen-text-model` — **[BROKEN]** (#5368, → #6791) the model that turns the
   question into a search is looked up among provider rows in the project's database, where there are
   none, so it is always the on-device model whatever Settings says (chat reads the app's default
   correctly). In an engine run from source the on-device bridge is also looked for one folder too high
   and reported missing. Test to write: test_compile_uses_the_app_text_default.py in
   `fichero-server/tests/unit/retrieval/`.
-- `search.ask.answers-with-cited-pages` — **[GAP]** (#1828, → #NEW-S10) Ask in the search field gives a
+- `search.ask.answers-with-cited-pages` — **[GAP]** (#1828, → #6789) Ask in the search field gives a
   short answer above the result rows: written from the passages that matched (and the statements on
   those pages), each sentence followed by the page it rests on, which opens at that passage; "not found
   in these pages" and no sources when nothing stands above the floor; the model that answered is named;
@@ -611,11 +611,11 @@ the sidebar; clicking it runs it again.
   (`fichero/Tests/Unit/general/Views/Library/SearchScopeAndOptionsMenuTests.swift`); This Page, This
   Document, a selection and Everywhere are not, and wait on `search.scope.narrows-before-ranking` and
   `search.all-libraries-fanout`.
-- `search.saved.rename-keeps-the-query` — **[BROKEN]** (#4114, → #NEW-S11) renaming a saved search
+- `search.saved.rename-keeps-the-query` — **[BROKEN]** (#4114, → #6790) renaming a saved search
   replaces its query with the new name (`SavedSearchService.renameSavedSearch`): a saved search has no
   name of its own. Should: a name and a query, two fields. Test to write: a case in
   SavedSearchRenameTests.swift under `fichero/Tests/Unit/general/`.
-- `search.saved.keeps-scope-and-filters` — **[GAP]** (#4114, → #NEW-S11) a saved search keeps its
+- `search.saved.keeps-scope-and-filters` — **[GAP]** (#4114, → #6790) a saved search keeps its
   words, type and sort, not its scope or filters (the engine has the field; the app sends none), and it
   is always run as Ask whatever it was saved as. Should: it runs as it was saved.
 - `search.keyboard.command-f-finds` — **[PARTIAL]** (#6729) one comment says ⌘F is the search field and
@@ -630,17 +630,17 @@ embedding index together and returns one ranked list; an app asks for ranked res
 bands of confidence rather than raw scores; changed items are re-indexed one at a time; the models are
 the system's, shared by every app, so an app holds no model in memory.
 
-- `search.adopt.two-bands` — **[GAP]** (#4119, → #NEW-S8) adopt: results come in two named bands,
+- `search.adopt.two-bands` — **[GAP]** (#4119, → #6787) adopt: results come in two named bands,
   matches (the words, a name, or a statement were found) and related (found by meaning, above the
   project's floor), with no percentage on a row; the raw score stays in Why this result.
 - `search.adopt.index-when-idle` — **[PARTIAL]** (#5820) already the design: a page is embedded after
   it is read, a changed page after a quiet spell, at background priority
   (`fichero-server/tests/unit/jobs/test_reembed_waits_for_a_quiet_period_5360.py`). Adopt the rest: bulk
   embedding goes faster when the Mac is idle and on power, and waits on battery.
-- `search.adopt.keyword-now-meaning-when-ready` — **[GAP]** (#4302, → #NEW-S15) adopt: keyword results
+- `search.adopt.keyword-now-meaning-when-ready` — **[GAP]** (#4302, → #6794) adopt: keyword results
   are shown at once and the pages found by meaning join when the model has loaded (7.5 s after an idle
   spell on the M1), instead of the whole search waiting; and a search never unloads a running reader.
-- `search.adopt.system-embedder-as-small-tier` — **[GAP]** (#4302, → #NEW-S15) to try, not yet to build:
+- `search.adopt.system-embedder-as-small-tier` — **[GAP]** (#4302, → #6794) to try, not yet to build:
   the system's own sentence-embedding model as a second, small choice of search model for iPad, iPhone
   and 8 GB Macs. It costs no memory of the app's and no download, and it could stay loaded beside
   Kraken. Against it: it is weaker on old spelling and has one model per script family, where bge-m3

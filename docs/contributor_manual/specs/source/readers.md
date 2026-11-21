@@ -13,7 +13,7 @@
 > THREE things: the list of reader kinds and what each can be asked; the reader a script starts with, from measurement;
 > and what a comparison of readers must measure beside the error rate (time, memory, the whole page).
 > Tags: **[OK]** built and pinned · **[PARTIAL]** exists in part · **[GAP]** designed, not built · **[BROKEN]** built and
-> contradicting the line. Every non-[OK] line cites an issue; "→ #NEW" marks one the manager files.
+> contradicting the line. Every non-[OK] line cites an issue; "→ #N" names the issue filed for the line.
 
 ## Intent (the design)
 
@@ -164,14 +164,14 @@ cut (`crop_line`) and instruction; the page requests send the page reduced to 1,
 
 ### The kinds of reader
 
-- `readers.kinds.one-table` — **[PARTIAL]** (#5533, #5981) every kind of reader the engine can run is one row of one
+- `readers.kinds.one-table` — **[PARTIAL]** (#5533, #5981 → #6821) every kind of reader the engine can run is one row of one
   list with what it is asked (a line on its baseline, a line's picture, a region's lines, a page), and every row can
   be read with in a recipe AND measured by the bake-off. Built: Kraken (LSTM and PP-OCRv6), Apple Vision, MLX and cloud
   vision models, in both (`tests/unit/recipes/test_bakeoff_readers.py`, `tests/unit/recipes/test_bakeoff_granularity_5722.py`).
   Not built: the bake-off gives no place to a TrOCR pin, a Kraken reader on the Hub or a reader Fichero trained
   (`bakeoff._family` and `_reader_of` answer nothing for `trocr`, `kraken_hf` and `trained` pins, checked 2026-11-20),
   so a reader the recipe can run cannot be compared.
-- `readers.kinds.trocr-is-measured-and-bounded` — **[GAP]** (#5981 → #NEW) TrOCR takes part in the bake-off as its own
+- `readers.kinds.trocr-is-measured-and-bounded` — **[GAP]** (#5981 → #6821) TrOCR takes part in the bake-off as its own
   kind, reads through `trocr_runtime.read_lines` there as in a run, and its batch is a run setting with the Kraken
   default of one (today a fixed 8 in `economy_htr.trocr_transcribe_lines`, with no knob in `model_run_settings.KNOBS`).
 - `readers.kinds.page-reader-reads-the-page` — **[GAP]** (#5980) a page-level OCR model is given the page's picture
@@ -179,7 +179,7 @@ cut (`crop_line`) and instruction; the page requests send the page reduced to 1,
   step. Today "asked by page" is every line's picture in one request (`evaluation.requests_for`), which such a model
   was not made for. Measured (the table above): a 0.9B page reader reads Fraktur print at 4.6% for the whole page,
   in order, where the line reader's page comes out 26% wrong; on a hand it reads 28 to 99%, so it is a print reader.
-- `readers.kinds.prompt-names-the-material` — **[GAP]** (#5533 → #NEW) the instruction to a vision model says what the
+- `readers.kinds.prompt-names-the-material` — **[GAP]** (#5533 → #6826) the instruction to a vision model says what the
   page is from the project's answers (print, typescript or a hand; the script; the direction). Today it always says
   "a photographed handwritten page" (`line_reader.PROMPT`), for a newspaper too.
 - `readers.kinds.apple-vision-says-what-it-reads` — **[PARTIAL]** (#5715) Apple Vision is offered for the languages
@@ -190,7 +190,7 @@ cut (`crop_line`) and instruction; the page requests send the page reduced to 1,
 
 ### The reader a script starts with
 
-- `readers.catalogue.measured-per-script` — **[GAP]** (#6752) a card carries, per script and material, the error
+- `readers.catalogue.measured-per-script` — **[GAP]** (#6752 → #6817) a card carries, per script and material, the error
   measured on the test corpus (pages the model did not train on where that is known), with the date and the pages; the
   rules read THAT before the card's published average (`assemble._rank_key` reads `cer_published` only), and Set Up
   says "measured 3.0% on medieval Spanish bookhand" as the reason.
@@ -202,17 +202,17 @@ cut (`crop_line`) and instruction; the page requests send the page reduced to 1,
   (10.5281/zenodo.21788405, Apache-2.0; half the time a line, 1 to 9 points worse). The printed Arabic-script, printed Syriac and printed Greek
   readers are not seeded: they read manuscripts at 60 to 85%. Today: three Kraken readers
   (`recipes/seed/cards.yaml`); the rest are found only online.
-- `readers.catalogue.fraktur-and-nastaliq-get-ppocr` — **[BROKEN]** (#5516, #6752) Fraktur print starts with the reader
+- `readers.catalogue.fraktur-and-nastaliq-get-ppocr` — **[BROKEN]** (#5516, #6752 → #6818) Fraktur print starts with the reader
   measured best on it and a nastaliq page is offered a reader. Today (rules run on the seed cards 2026-11-20): Fraktur
   gets McCATMuS first (measured 24% against 1.6% for PP-OCRv6, whose card does not list `Latf`), and `Aran` gets "no
   model fits" (`assemble._OTHER_STYLES` refuses an `Arab` card) though PP-OCRv6 reads nastaliq print at 6.3% and a
   nastaliq hand at 18%. The fix is on the card (it lists `Latf` and `Aran`, each with its measurement), not a new rule.
-- `readers.catalogue.not-usable-is-said` — **[GAP]** (#6752 → #NEW) where the best measured reader for a script is
+- `readers.catalogue.not-usable-is-said` — **[GAP]** (#6752 → #6817) where the best measured reader for a script is
   worse than a bar (30% CER), the plan says so before anything runs ("no reader reads this hand yet: 57% on Greek
   minuscule; correct some pages and train") and offers the train path first. Today PP-OCRv6 is proposed for Armenian
   (82% on the 2026-11-19 corpus), Greek minuscule (57%) and the notarial hand (64%) with its 3.9% published average
   as the reason.
-- `readers.catalogue.card-memory-is-measured` — **[BROKEN]** (#6752, #6212 → #NEW) a reader's card states the peak
+- `readers.catalogue.card-memory-is-measured` — **[BROKEN]** (#6752, #6212 → #6819) a reader's card states the peak
   memory measured reading a page at the engine's batch, and the rule that keeps a reader off a small Mac
   (`assemble._refusal`, `memory_gb` against the Mac's memory less 2 GB) reads it. Today every Kraken reader's card
   says 1.0 GB; measured at batch 1: PP-OCRv6 medium 1.2 to 2.2, the LSTM readers 1.4 to 5.7, Tridis 4.1 to
@@ -225,49 +225,49 @@ cut (`crop_line`) and instruction; the page requests send the page reduced to 1,
 
 ### What a comparison measures
 
-- `readers.bakeoff.time-and-memory-beside-error` — **[PARTIAL]** (#6710, #6212 → #NEW) each candidate's row carries
+- `readers.bakeoff.time-and-memory-beside-error` — **[PARTIAL]** (#6710, #6212 → #6820) each candidate's row carries
   seconds a page (the model's load apart from the reading), and the peak memory of the reading, measured in the run,
   beside CER and WER. Built: the seconds, load included (`evaluation.speed`, `tests/unit/training/test_evaluation_job.py`).
   Not built: no memory is measured or kept; the load is not apart.
-- `readers.bakeoff.cheapest-among-equals-on-a-mac` — **[BROKEN]** (#5582 → #NEW) among readers within the noise band
+- `readers.bakeoff.cheapest-among-equals-on-a-mac` — **[BROKEN]** (#5582 → #6820) among readers within the noise band
   of the best, the recommendation is the cheapest, and for readers that cost nothing "cheapest" is the faster, then
   the one needing less memory, and never one whose measured peak does not fit this Mac. Today `bakeoff.recommend`
   compares price, then local, then CER: of two free readers inside the band it names the lower CER even when the
   other is fifty times faster (checked 2026-11-20). The table's order (`_rank`, `training.ab.fixed-order`) already
   breaks ties by speed and size; the recommendation does not follow it.
-- `readers.bakeoff.every-measured-specialist-takes-part` — **[GAP]** (#5533 → #NEW) every seeded reader measured for the
+- `readers.bakeoff.every-measured-specialist-takes-part` — **[GAP]** (#5533 → #6821) every seeded reader measured for the
   project's script and material takes part (they read a page in seconds); the limit of two a kind stays for the slow
   kinds (MLX, cloud). Today `PER_KIND = 2` for Kraken too, so of five Latin-script readers the rules' order admits
   two, and the reader that would have won (LECTAUREP at 2.0% on the register) may not be one of them.
-- `readers.bakeoff.the-whole-page-is-measured` — **[GAP]** (#5441, #6080 → #NEW) beside the error on given lines, the
+- `readers.bakeoff.the-whole-page-is-measured` — **[GAP]** (#5441, #6080 → #6822) beside the error on given lines, the
   bake-off measures the page as a run would make it (the project's line finder, the reader, the reading order)
   against the page's checked text, and shows three figures: on given lines, the page text, and the page with its
   lines matched (so a bad order is told from bad reading). `training.eval.lines-found` scores the finder alone; this
   line scores the chain. Today only given lines are read (`evaluation.read_with_kraken`).
-- `readers.bakeoff.policy-follows-the-convention` — **[GAP]** (#5441 → #NEW) the ranking uses the policy that matches
+- `readers.bakeoff.policy-follows-the-convention` — **[GAP]** (#5441 → #6825) the ranking uses the policy that matches
   how the project's checked text is written, and the row shows every policy. A reader trained to a convention is not
   ranked down for it: the same reading scores 25% under the default policy and 7% without case and punctuation
   (PP-OCRv6 on the hand-filled register). Today the rank is always `layout-insensitive` (`evaluation.evaluate`,
   `ranked_by`); the per-policy figures are kept (`training.eval.policies-named`).
-- `readers.bakeoff.batch-does-not-change-the-answer` — **[GAP]** (#6752 → #NEW) a reader's text for a line is the same
+- `readers.bakeoff.batch-does-not-change-the-answer` — **[GAP]** (#6752 → #6825) a reader's text for a line is the same
   at any batch size, or the bake-off and the run use the same one and say which. Measured through the engine: PP-OCRv6
   on one page, 63.7% at batch 1 and 67.2% at batch 8 (padding to the widest line changes the reading). The engine's
   default is one in both places; a person's batch setting changes a run and not the stored measurement.
-- `readers.bakeoff.imported-line-shapes-are-said` — **[GAP]** (#5441 → #NEW) when the checked lines' shapes were
+- `readers.bakeoff.imported-line-shapes-are-said` — **[GAP]** (#5441 → #6825) when the checked lines' shapes were
   imported (drawn by another tool) the row says so, because the reading and the memory follow the shape: on the
   notarial page the imported shapes read at 64% and peaked at 2.1 to 10.7 GB; Kraken's own lines on the same page read
   at 41% in 2.2 GB.
 
 ### The whole page
 
-- `readers.page.columns-are-read-one-after-the-other` — **[BROKEN]** (#6080) a two-column page's transcript reads the
+- `readers.page.columns-are-read-one-after-the-other` — **[BROKEN]** (#6080 → #6823) a two-column page's transcript reads the
   first column to its foot, then the second (right to left: the right column first). Built: an XY-cut order
   (`media/layout_order.py` `order_payload`, `tests/unit/media/test_layout_order.py`). Measured on nine two-column pages
   of three sets: four came out across the columns (line by line, or half a column at a time), so the page text is
   40 to 72% wrong while every line is read at 2 to 10%. The corpus measure the module's own note asks for now
   exists: order by regions where the finder gives a region a column, and adopt a learned order (the 2026 segmentation
   base carries one) where the cut finds no gutter.
-- `readers.page.order-is-scored` — **[GAP]** (#6080 → #NEW) the test corpus scores reading order as a figure (the share
+- `readers.page.order-is-scored` — **[GAP]** (#6080 → #6823) the test corpus scores reading order as a figure (the share
   of ground-truth neighbours kept in order) per set, in the perf baseline, so a change to the order rule is measured.
 
 ### Memory and batching
@@ -276,29 +276,29 @@ cut (`crop_line`) and instruction; the page requests send the page reduced to 1,
   one and is a setting. Built for Kraken (`source.read.batch-of-one`,
   `tests/unit/llm/test_kraken_batch_bounded_5758.py`); re-measured 2026-11-20: batch 8 is four times the memory for the
   LSTM readers and no faster. Not built for TrOCR (`readers.kinds.trocr-is-measured-and-bounded`).
-- `readers.memory.guard-knows-the-reader` — **[GAP]** (#6212 → #NEW) the memory a Kraken page asks for before it starts
+- `readers.memory.guard-knows-the-reader` — **[GAP]** (#6212 → #6819) the memory a Kraken page asks for before it starts
   counts the reader, from its measured peak (`readers.catalogue.card-memory-is-measured`); today the guard is sized for the
   line finder (`kraken_runtime.kraken_need_bytes`: 0.5 GB plus 0.6 GB a megapixel of the network's input) and a
   reading of given lines asks 2.5 GB cold, 0.8 GB with the models loaded, whatever the reader: a reader that peaks at
   10.7 GB is let in on 2.5.
-- `readers.memory.wide-line-shapes-are-bounded` — **[GAP]** (#6212 → #NEW) a line whose outline is far taller than its
+- `readers.memory.wide-line-shapes-are-bounded` — **[GAP]** (#6212 → #6819) a line whose outline is far taller than its
   writing (an imported shape, a merged line) is read from a bounded cut, so one page cannot take ten times the
   memory of its neighbours. Cause to confirm in the build: the LSTM readers' line extractor on the notarial page's
   shapes.
 
 ### Vision-language models on a Mac
 
-- `readers.vlm.asked-the-way-it-reads-best` — **[GAP]** (#5722, #5980) a vision-language model is measured asked by the
+- `readers.vlm.asked-the-way-it-reads-best` — **[GAP]** (#5722, #5980 → #6824) a vision-language model is measured asked by the
   page PICTURE as well as by line pictures, and the recipe keeps the way that measured best per material; a card's
   `lines_per_request` limits the line requests, never the page picture. Today a card that states `lines_per_request`
   is never tried by page (`evaluation.granularities_for`), and "by page" is line pictures in one request. The cost,
   measured: the catalogue's medieval-Latin model answers no line request in the form asked (0 of 120) and reads the
   page picture at 12.4%; a 3B general model reads print at 4.0% by page and 55% by lines.
-- `readers.vlm.answer-that-runs-on-is-not-read` — **[GAP]** (#5441 → #NEW) a page whose answer is many times longer than
+- `readers.vlm.answer-that-runs-on-is-not-read` — **[GAP]** (#5441 → #6824) a page whose answer is many times longer than
   its reference (three times) is "not read: the answer ran on (N characters against M)", as a too-short one is
   (`training.eval.not-read-is-not-100`); it is never summed. Today `evaluation.judge_page` judges only too little text
   (`READ_SHARE`), so one looping page puts a reader at 600% or more.
-- `readers.vlm.unreadable-answers-are-counted` — **[GAP]** (#5722 → #NEW) a row says how many requests came back as
+- `readers.vlm.unreadable-answers-are-counted` — **[GAP]** (#5722 → #6824) a row says how many requests came back as
   something other than the list asked for ("14 of 30 answers not readable"), beside its CER. Today those lines are
   empty readings inside the CER (`evaluation.read_with_vision` says why only when EVERY answer failed).
 - `readers.vlm.memory-is-the-measured-peak` — **[PARTIAL]** (#5641) a local model's memory on its card is the peak

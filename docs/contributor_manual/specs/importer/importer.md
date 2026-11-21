@@ -406,7 +406,7 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
   table above meets the import, memory and disk figures at 500 and 2,000 pages. *Not met:* the first thumbnail waits
   for the last file (`importer.resume.jobs-are-queued-with-each-batch`). *Not built:* a load leg that holds these
   numbers; the 100,000-file target of #4203 is not measured.
-- `importer.scale.a-linked-file-is-read-once` — **[GAP]** (→ #NEW-6; nearest #4203) a link import reads each file's
+- `importer.scale.a-linked-file-is-read-once` — **[GAP]** (→ #6832; nearest #4203) a link import reads each file's
   bytes once and asks the disk about it a handful of times. Today each file is read three times and asked about 32
   times (measured on 100 files, 390 MB: 2.99 times the bytes read, 25.8 `stat`, 6.3 `lstat`, 3 opens per file):
   `ingest_folder` hashes it for the skip test (`_file_checksum`), `ingest_file` hashes it again as the
@@ -420,17 +420,17 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
   was completed by a second drop in 59.5 s with no page twice and its 1,602 folders made once. *Not built:* the
   skip reads every byte of every file already imported to hash it; a file whose path, size and date match what was
   recorded is skipped without a read (today only an online-only cloud file is skipped that way).
-- `importer.scale.no-embed-job-for-a-page-without-text` — **[GAP]** (→ #NEW-7; nearest #5954) a page with no text gets
+- `importer.scale.no-embed-job-for-a-page-without-text` — **[GAP]** (→ #6833; nearest #5954) a page with no text gets
   no embed job: its thumbnail landing is what ends `pending`. Today every image gets one (`queue_derivatives`:
   `embed_queued = queued`), which embeds nothing, costs 48 ms a page on the embed lane (24 s per 500 pages, at over
   one core) and is the only thing that turns the page from `pending` to `completed` (`_embed_stage`,
   `importers/derivatives.py`).
-- `importer.scale.prepare-pages-counts-what-lands` — **[PARTIAL]** (→ #NEW-7; nearest #5954) the "Prepare pages" row
+- `importer.scale.prepare-pages-counts-what-lands` — **[PARTIAL]** (→ #6833; nearest #5954) the "Prepare pages" row
   counts a page when its thumbnail lands, so the count moves through the whole wait. *Built:* the row's stages
   carry their own counts (`queue_stages`, `importers/derivatives.py`). *Not built:* the row's own count moves only
   when an embed job ends (`_progress_tick` is called from `_embed_stage` alone), so it reads 0 of N for the whole
   thumbnail stage (83 s at 500 pages, about 15 min at 5,000) and then runs to N in seconds.
-- `importer.scale.edited-image-cache-is-bounded` — **[GAP]** (→ #NEW-8; nearest #1590) an edited page's picture is
+- `importer.scale.edited-image-cache-is-bounded` — **[GAP]** (→ #6834; nearest #1590) an edited page's picture is
   made once per saved edit, off the request, and the copy of an earlier edit is removed when a later one is saved.
   Today `resolve_edited_source` (`db/storage.py`) writes a full-size PNG of the edited page into the project, inside
   the thumbnail or display request that first asks for it, one file per version of the edit chain, and nothing
@@ -443,7 +443,7 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
 
 ### A quit or a crash in the middle
 
-- `importer.resume.held-queue-is-not-stalled` — **[BROKEN]** (→ #NEW-1; nearest #6584, #6209) after a restart the
+- `importer.resume.held-queue-is-not-stalled` — **[BROKEN]** (→ #6827; nearest #6584, #6209) after a restart the
   pages whose thumbnails and embeds wait for Continue are shown as held, counted from where they were, and are
   never called stalled. Today, measured twice: the engine was killed at 1,000 of 2,000 files; at the next open
   `resume_pending_derivatives` (`db/manager.py`) queued the 1,000 pending pages and armed the in-memory queue at
@@ -455,18 +455,18 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
   (`db.query(Document, status=pending)`) to do this. The run-resume half is its own work (`runner.soak.*`).
   Test to add: open a library whose pages are pending and whose rows are paused; no queue is armed and no stall is
   said after the deadline; after Continue the count starts at the thumbnails already made.
-- `importer.resume.jobs-are-queued-with-each-batch` — **[GAP]** (→ #NEW-3; nearest #739) a page's thumbnail job is
+- `importer.resume.jobs-are-queued-with-each-batch` — **[GAP]** (→ #6829; nearest #739) a page's thumbnail job is
   written in the transaction that saves the page, batch by batch, so thumbnails start while the folder is still
   coming in and a quit leaves no page without its job. Today `import_folder_impl` (`api/routes/ingest/core.py`)
   calls `queue_derivatives` once, after the last file: killed at 1,000 of 2,000, the project held 1,000 pending
   pages and no job row, and at 5,000 pages the first thumbnail comes about 4.5 minutes after the drop.
-- `importer.resume.an-interrupted-import-is-offered-again` — **[GAP]** (→ #NEW-3; nearest #739) an import a quit or
+- `importer.resume.an-interrupted-import-is-offered-again` — **[GAP]** (→ #6829; nearest #739) an import a quit or
   crash cut off is remembered in the project and offered at the next open with the rest of what the quit stopped:
   "Import of Box 3 stopped at 1,000 of 2,000 files", Continue or Dismiss. Today the task lives only in the engine's
   memory (`_tasks`, `api/routes/ingest/core.py`): after the restart nothing says the folder is half in, and the
   half that is in looks like a whole folder. Dropping it again completes it
   (`importer.resumable-redrop-skips-without-reading`), if the person knows to.
-- `importer.resume.launch-alert-is-one-row-per-queue` — **[GAP]** (→ #NEW-4; nearest #6584) what the quit stopped
+- `importer.resume.launch-alert-is-one-row-per-queue` — **[GAP]** (→ #6830; nearest #6584) what the quit stopped
   is listed as one item for the import's queue ("Prepare pages, 1,000 pages"), and Continue is one statement however
   many pages it holds. Today `stopped_at_quit` (`execution/jobs.py`) answers one item per page job (1,998 items and
   323 KB for 1,000 pages) and `continue_after_quit` updates them one at a time: 18.9 s for 1,998 rows and 24.9 s for
@@ -479,7 +479,7 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
 
 ### Files of one name
 
-- `importer.same-name.files-from-different-folders-both-import` — **[BROKEN]** (→ #NEW-5; nearest #4579) files of the
+- `importer.same-name.files-from-different-folders-both-import` — **[BROKEN]** (→ #6831; nearest #4579) files of the
   same name from different folders all come in, each a page of its own keeping its name, by every way in. A layout
   file that could belong to two images of one name pairs with neither and is listed as unpaired with that reason; a
   name never refuses the whole drop. Today the answer depends on the way in. A folder drop and a drop by path take
@@ -502,7 +502,7 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
   in 35.5 s with the disk's used space unchanged but for the thumbnails; the stored path is relative to the
   project, so a renamed project still finds them
   (`fichero-server/tests/unit/importers/test_ingest_package_paths.py`).
-- `importer.originals.missing-check-is-bounded` — **[BROKEN]** (→ #NEW-2; nearest #6733) asking which originals are
+- `importer.originals.missing-check-is-bounded` — **[BROKEN]** (→ #6828; nearest #6733) asking which originals are
   missing costs one listing per source folder (or one `stat` per page), reads only each page's id and recorded
   paths, answers a volume that is not mounted with one question for all its pages, gives up on a volume that does
   not answer within 10 seconds and says so, and is asked once per open and after a relink, not on every folder

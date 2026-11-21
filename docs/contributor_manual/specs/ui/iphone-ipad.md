@@ -91,7 +91,7 @@ what the shell already uses. For an outbox that survives being offline, Mail's O
   `ios.project.problem-is-shown` with Choose Project. The Mac's half (what its engine allows after a restart) belongs to
   `sharing.guest-addresses-the-hosts-library`; this line is the phone's half. Test (not yet written):
   `ReconnectReloadsTheProjectTests.swift`.
-- `ios.project.one-way-to-choose` — **[BROKEN]** (#6124, its CRUD review; its own issue → #NEW-1) the phone has ONE way to change project: a list of the
+- `ios.project.one-way-to-choose` — **[BROKEN]** (#6124, its CRUD review; its own issue → #6796) the phone has ONE way to change project: a list of the
   projects the paired Mac shares with this device (the Mac's own answer, `GET /api/authz/libraries`), and choosing one
   makes it the remembered project, loads it, and it is the one shown at the next launch. Today there are two controls with
   the same books glyph in the same bar: **Libraries** (`FicheroApp_iOS.swift`, the chooser over the saved paired-Mac
@@ -101,7 +101,7 @@ what the shell already uses. For an outbox that survives being offline, Mail's O
   without a word, and it is forgotten at the next launch. Test (not yet written):
   `IOSProjectChoiceTests.swift` (a choice writes the remembered path; `mayLoad` then
   allows it; the first reference of the next launch has it).
-- `ios.project.pairing-with-several-asks-which` — **[GAP]** (#3371; its own issue → #NEW-2) pairing with a Mac that shares more than one
+- `ios.project.pairing-with-several-asks-which` — **[GAP]** (#3371; its own issue → #6797) pairing with a Mac that shares more than one
   project, by a code or a nearby Mac (no project in the link), ends on the same list and the person picks. Today
   `PairingSequence.confirmLibrary` returns `.choose`, the device row is discarded on the Mac after its code was spent, and
   the phone is told to ask for a new link from the project it wants (`RemoteClientPairing.pairAndPersistHost`). Test (not
@@ -125,7 +125,7 @@ what the shell already uses. For an outbox that survives being offline, Mail's O
   refused before anything is loaded, and the phone names both versions and says to update
   (`AppState.acceptHealth`, `ContractCompatibility`, `fichero/Tests/Unit/general/Transport/ContractCompatibilityTests.swift`).
   Owed: the sentence is shown as "unreachable", with Reconnect, which cannot help.
-- `ios.connect.falls-back-to-the-macs-other-address` — **[BROKEN]** (#3098, closed as built; its own issue → #NEW-3) a phone
+- `ios.connect.falls-back-to-the-macs-other-address` — **[BROKEN]** (#3098, closed as built; its own issue → #6798) a phone
   paired at home on the Mac's local name keeps working on Tailscale away from home, and back, with no re-pairing: every
   address the pairing link carried is an address the phone may fall back to, with the one device credential. Today the
   fallback list (`PairedHostEndpointStore`, `Models/PairedHostEndpoints.swift`) holds only addresses that have already

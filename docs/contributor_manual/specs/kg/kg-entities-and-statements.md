@@ -601,7 +601,7 @@ corrections, HTR text with its errors, Spanish, statements, linking, a Hugging F
   cluster with no change (`compute.tune.one-trainer-three-places`); it needs no accelerator. *Test (to write):*
   test_spacy_names_trainer.py (a twelve-page fixture set trains on CPU in the test, the pipeline loads from the store
   by its pin, its card holds set, base and scores; a set under the threshold is refused in words).
-- `kg.teach.extractor-lora-on-this-mac` — **[GAP]** (#5240, #6385; → #NEW "A small language model taught to find
+- `kg.teach.extractor-lora-on-this-mac` — **[GAP]** (#5240, #6385; → #6795 "A small language model taught to find
   names and statements: LoRA with mlx-lm on this Mac, the same set as a PEFT job elsewhere") engine. A small open
   language model is taught to answer the names prompt (and, from the statements set, the statements prompt) by an
   adapter: on an Apple-silicon Mac with MLX's trainer as a job in the local lane, on Hugging Face Jobs or a cluster

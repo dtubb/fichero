@@ -345,7 +345,7 @@ often the wrong subject; not multilingual.
   true subject, which is a smaller, immediate fix distinct from building the table. Not built:
   the full safety rule (a frame for the verb, nothing but a preposition before the name in the
   object, a slot for anything after it, a form that agrees) is `kg.para.recentre-by-frame`
-  and `kg.para.frame-needs-agreement` (→ #NEW-10); measured 2026-11-21, 0 of 4 object
+  and `kg.para.frame-needs-agreement` (→ #6844); measured 2026-11-21, 0 of 4 object
   statements are re-centred today, 1 of 4 with frames and no gender held, 3 of 4 with it.
 - `kg.read.render-uses-claim-subject` — **[OK]** (b6052b42a, interim — the app's loop now states each claim's own subject via the same resolver the claim rows use; pinned by `EntityClickthroughTests.objectSideClaimRendersTrueSubject`, `EntityClickthroughTests.noSentenceContainsThePronoun`, `EntityClickthroughTests.emptySubjectClaimsAreSkipped`; the loop itself retires with the Reader rendition). Before the fix: (RENDER layer specifically, the largest and
   cheapest of three wrong-subject causes — fix first) `EntityDigestView.swift:663`'s ternary
@@ -496,15 +496,15 @@ and tested, reachable from no screen.
   2026-11-21, selection reads neither `curation_state`, `epistemic_status` nor
   `merged_into_id`, so a statement a person rejected is printed as fact, and a mention-only
   statement is narrated; see `kg.para.rejected-never-stated` and `kg.para.mentions-are-a-list`
-  (→ #NEW-1).
+  (→ #6835).
 - `kg.read.order.chronological` — **[PARTIAL] — engine-only** (#4648) as before, plus: confirmed
   built as a pure function and unit-pinned (`readable.py:89`, d8afa61e6, 1e6661b45, 6 tests);
   "unwired" is the SAME gap `kg.read.one-renderer` names, carried forward to the entry composer.
   Not built: measured 2026-11-21, the date orders the sentences and is never printed (0 of 18
   dated statements), and a bound sorts as if exact; see section C of
-  `kg-paragraph-realisation.md` (→ #NEW-3).
+  `kg-paragraph-realisation.md` (→ #6837).
 - `kg.read.order.by-source` — **[PARTIAL] — engine-only** (#4648) same as chronological above.
-- `kg.read.aggregation-keeps-objects` — **[PARTIAL]** (#4649, #4648, → #NEW-7) `render_aggregation` lists every distinct
+- `kg.read.aggregation-keeps-objects` — **[PARTIAL]** (#4649, #4648, → #6841) `render_aggregation` lists every distinct
   object and place, joined by the language's own conjunction, and never prints a bare count.
   Pinned by `test_readable_representation.py::test_realises_aggregated_objects_and_places_in_spanish`
   and `test_readable_representation.py::test_realises_aggregated_objects_and_places_in_english`
@@ -534,23 +534,23 @@ and tested, reachable from no screen.
   entity card's biography (`kg.read.one-renderer`), so whether this fix reaches the card the
   maintainer saw is unverified. Not built: measured 2026-11-21, the route's own path
   (`render_entry`) does not pass through `render_aggregation`, so it still prints the doubled
-  word, and makes no Spanish contraction ("de el"); see `kg.para.seams` (→ #NEW-8).
+  word, and makes no Spanish contraction ("de el"); see `kg.para.seams` (→ #6842).
 - `kg.read.referring-expressions` — **[PARTIAL] — engine-only, and orphaned** (#4651)
   `referring_expression` (`readable.py:144`) is BUILT (a surname heuristic: "Asprilla", "Cruz"
   for "María de la Cruz") but stage 6 (`render_aggregation`/realisation) NEVER CALLS it
   (`:185` on). The app's live renderer doesn't use referring expressions either — it uses
   literal "they". Not built: measured 2026-11-21, the full name is printed in 17 of 18
   sentences; and the last-word rule gives the wrong surname for a name with two. The rules are
-  now `kg.para.name-once` and `kg.para.short-name-is-attested` (→ #NEW-9).
+  now `kg.para.name-once` and `kg.para.short-name-is-attested` (→ #6843).
 - `kg.read.lexicalisation` — **[MISSING]** (#4650) stage 4 — an (event-type, role) pair → a verb
   phrase in the claim's language, via a per-language table including the INVERSE map
   (`kg.read.recentred-on-page-entity` depends on this) and notarial first→third-person formulas.
   Not started (`readable.py:20-21` says so in its own docstring). **The per-language `inverse`
   map is seeded from verbs that actually occur most frequently in the maintainer's own
   libraries — a read-only frequency count through the running app, not an invented verb list.**
-  Not built: the table as one data file per language is `kg.para.table-is-data` (→ #NEW-8);
+  Not built: the table as one data file per language is `kg.para.table-is-data` (→ #6842);
   the inverse entry is a frame with a slot for the rest of the object and forms per gender,
-  `kg.para.recentre-by-frame` and `kg.para.frame-needs-agreement` (→ #NEW-10).
+  `kg.para.recentre-by-frame` and `kg.para.frame-needs-agreement` (→ #6844).
 - `kg.read.biography` — **[PARTIAL] — the read route now exists** (#4750, cc2da29ae) the entry
   composer has a real, tested read endpoint: `GET /api/kg/entities/{id}/readable` returns
   `{entity_id, paragraph, sentences[]}`, each sentence carrying its text, offsets into the
@@ -579,7 +579,7 @@ and tested, reachable from no screen.
   bare number reads as an invented score); words ("three sources agree") are the fix, not a
   redesign. Not built: the ordered rules (a person's decision, a dispute, sources in words, a
   single unsure source, no hedge from an unmeasured figure) are section E of
-  `kg-paragraph-realisation.md` (→ #NEW-5).
+  `kg-paragraph-realisation.md` (→ #6839).
 - `kg.read.clean-triples-before-render` — **[GAP]** (#3808) as before, the raw SVO/KVO triples a
   representation reads from are noisy — repeated near-duplicate labels for the same
   entity/predicate, ungrouped multi-participant events. **Partly already mitigated**: dedup and
@@ -614,7 +614,7 @@ and tested, reachable from no screen.
   panel shows the stored subject/verb/object exactly as extracted, beside the rendered sentence,
   so a re-voicing can be inspected against its source; (iii) a vocabulary-closure test asserts
   every word in a rendered sentence comes from one of the three sources above (its exact form,
-  per character and per segment, is `kg.para.every-character-has-an-origin`, → #NEW-2). None of the three
+  per character and per segment, is `kg.para.every-character-has-an-origin`, → #6836). None of the three
   exist yet.
 - `kg.read.cite-to-segment` — **[PARTIAL]** (#4652, → #974) a citation resolves not just to a
   document/page but to the **page SEGMENT** (the bbox/region the claim was extracted from).

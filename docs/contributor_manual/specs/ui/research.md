@@ -524,24 +524,24 @@ pages got "no mention" five times over, with five sources listed (6.0 s).
   floor, five pages), adds the statements on those pages and one step further through their names, and
   refuses to answer if the search itself fails. Measured: the right page first, three times of three.
   Not built: it is reachable only in a dev build (`/api/chat` is a dev-tier route).
-- `research.chat.answers-from-the-passage` — **[BROKEN]** (#1828, → #NEW-S10) the model is given the
+- `research.chat.answers-from-the-passage` — **[BROKEN]** (#1828, → #6789) the model is given the
   first 1,000 characters of each page found, not the passage that matched, so an answer further down a
   long page is never seen; the source's excerpt is likewise the page's first 200 characters. Should: the
   matched passages, with a little either side. Test to write: test_chat_context_is_the_matched_passage.py
   in `fichero-server/tests/unit/api/`.
-- `research.chat.a-citation-opens-its-passage` — **[BROKEN]** (#4723, → #NEW-S10) the model is told to
+- `research.chat.a-citation-opens-its-passage` — **[BROKEN]** (#4723, → #6789) the model is told to
   cite "Document 1, Document 2 …" by the order of what it was given, pages and statements in one
   numbering; the reply's sources list holds pages only, so "Document 5" in an answer was a statement and
   matched nothing in the list. A source carries the page's id, name, excerpt and score, and no passage
   offsets, segment or statement id. Should: each cited thing in an answer is a link to the page at the
   passage, or to the statement, and the reply carries what the link needs.
-- `research.chat.says-not-found-once` — **[BROKEN]** (#1828, → #NEW-S10) when nothing in the project
+- `research.chat.says-not-found-once` — **[BROKEN]** (#1828, → #6789) when nothing in the project
   answers, the reply repeats "no mention" for each page it was handed and lists those pages as sources.
   Should: one sentence, and no sources, when no page stands above the project's floor
   (`search.hybrid.floor-is-the-projects-own`).
-- `research.chat.names-the-model-that-answered` — **[BROKEN]** (#5368, → #NEW-S10) the reply says the
+- `research.chat.names-the-model-that-answered` — **[BROKEN]** (#5368, → #6789) the reply says the
   model was "auto/auto" when none was named in the request. Should: the provider and model that ran.
-- `research.chat.answers-the-question` — **[GAP]** (#1828, → #NEW-S10) an answer is a few sentences in
+- `research.chat.answers-the-question` — **[GAP]** (#1828, → #6789) an answer is a few sentences in
   the question's language that answer each part asked, or say which part the pages do not answer; it is
   not the page copied out. Held by a small set of questions with known answers over the test pages, run
   against the on-device model when it is present. Test to write: test_chat_answers_known_questions.py

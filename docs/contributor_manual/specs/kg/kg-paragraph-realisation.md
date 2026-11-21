@@ -190,20 +190,20 @@ They go in `test_paragraph_*.py` files beside
 
 ### A. What is said
 
-- `kg.para.rejected-never-stated` — **[BROKEN]** (#4647, → #NEW-1) a statement a person
+- `kg.para.rejected-never-stated` — **[BROKEN]** (#4647, → #6835) a statement a person
   rejected (`curation_state` or `epistemic_status` is `rejected`) or that was merged into
   another (`merged_into_id`) is in no sentence and no list. Today `render_entry` reads none of
   the three and printed the rejected statement of the evaluation set as fact. Test (to write):
   `test_a_rejected_or_merged_statement_is_never_stated`.
-- `kg.para.mentions-are-a-list` — **[PARTIAL]** (#4647, → #NEW-1) a statement in which the page
+- `kg.para.mentions-are-a-list` — **[PARTIAL]** (#4647, → #6835) a statement in which the page
   name is neither subject nor object is not in the paragraph; it is in `also_mentioned_in`,
   in the paragraph's order. Built: the role (`_entity_role`). Not built: the list; today the
   sentence is in the paragraph. Test (to write): `test_a_mention_is_listed_not_narrated`.
-- `kg.para.proposed-is-marked` — **[GAP]** (#4750, → #NEW-2) each clause says whether a person
+- `kg.para.proposed-is-marked` — **[GAP]** (#4750, → #6836) each clause says whether a person
   has reviewed its statement: `state` is `reviewed` when every statement of the clause is
   curated or confirmed, else `proposed`. The app draws the one mark `kg-rendering.md` names;
   the paragraph's words do not change. Test (to write): `test_a_clause_says_proposed_or_reviewed`.
-- `kg.para.every-statement-is-said-once` — **[PARTIAL]** (#4750, → #NEW-2) every selected
+- `kg.para.every-statement-is-said-once` — **[PARTIAL]** (#4750, → #6836) every selected
   statement's id is in exactly one clause, and no clause is without one. Built: every sentence
   carries its ids
   (`fichero-server/tests/unit/knowledge/test_readable_representation.py::test_render_entry_every_sentence_carries_its_claim_id`).
@@ -211,25 +211,25 @@ They go in `test_paragraph_*.py` files beside
 
 ### B. Every clause keeps its statement
 
-- `kg.para.clause-carries-claim-ids` — **[GAP]** (#4841, → #NEW-2) a sentence that states more
+- `kg.para.clause-carries-claim-ids` — **[GAP]** (#4841, → #6836) a sentence that states more
   than one unit has one clause per unit, each with its own offsets and its own statement ids, so
   a click on "the sale of a farm" in a joined sentence opens that statement and no other. A
   word that joins clauses (a conjunction, a shared date) belongs to the sentence and names
   every statement it joins. Test (to write): `test_a_joined_sentence_has_one_clause_per_unit`.
-- `kg.para.every-character-has-an-origin` — **[GAP]** (#4841, → #NEW-2) every letter and digit
+- `kg.para.every-character-has-an-origin` — **[GAP]** (#4841, → #6836) every letter and digit
   of the paragraph lies in a segment whose origin is a field of one of the clause's own
   statements, a name of an entity one of them links, or an entry of the sentence language's
   table; `paragraph[start:end]` of a `claim:` segment is a substring of that field as stored,
   but for the first letter's case and a contraction the table lists. This is the exact form of
   `kg.read.vocabulary-closure`. Test (to write): `test_every_character_traces_to_its_origin`.
-- `kg.para.deterministic` — **[PARTIAL]** (#4652, → #NEW-2) the same statements give the same
+- `kg.para.deterministic` — **[PARTIAL]** (#4652, → #6836) the same statements give the same
   bytes whatever order the store returns them in, and no model is called. Built: a full sort
   key and a pure function
   (`fichero-server/tests/unit/knowledge/test_readable_representation.py::test_render_entry_ordering_is_stable_across_repeated_calls`).
   Not built: a test that shuffles the input and one that fails if any model client is called.
   Tests (to write): `test_shuffled_input_gives_the_same_paragraph`,
   `test_no_model_is_called`.
-- `kg.para.edit-re-renders-the-clause` — **[GAP]** (#4833, → #NEW-2) correcting a statement
+- `kg.para.edit-re-renders-the-clause` — **[GAP]** (#4833, → #6836) correcting a statement
   changes the text of its clause and of no clause that does not share a sentence with it; the
   editor is given the statement, never the sentence's text, and nothing accepts edited prose.
   Test (to write): `test_patching_one_statement_changes_only_its_sentence`.
@@ -252,19 +252,19 @@ held, never finer. A statement with no stored level is said to the year.
 | worked out, not read (`basis` inferred) | the date, then "(fecha inferida)" | the date, then "(date inferred)" |
 | none | under "Sin fecha conocida:" at the end | under "Undated:" at the end |
 
-- `kg.para.date-at-stored-level` — **[GAP]** (#6773, → #NEW-3) every dated statement's clause
+- `kg.para.date-at-stored-level` — **[GAP]** (#6773, → #6837) every dated statement's clause
   states its date in the sentence's language at the level held: a year-level statement stored
   as 1 January never reads as a day; a month never gains a day. Today no sentence has a date
   (0 of 18). Test (to write): `test_each_level_reads_as_its_row_of_the_table`.
-- `kg.para.date-bound-and-about` — **[GAP]** (#6773, → #NEW-3) a bound and an approximate date
+- `kg.para.date-bound-and-about` — **[GAP]** (#6773, → #6837) a bound and an approximate date
   read as the table's rows, and a date whose basis is `inferred` is followed by the table's
   "inferred" words; a bound is never said as a date. Test (to write):
   `test_a_bound_and_an_about_date_never_read_as_exact`.
-- `kg.para.date-leads-the-sentence` — **[GAP]** (#4648, → #NEW-3) a sentence of one unit opens
+- `kg.para.date-leads-the-sentence` — **[GAP]** (#4648, → #6837) a sentence of one unit opens
   with its date, so the paragraph reads as a chronology and consecutive sentences do not open
   with the name; in a joined sentence each object's date follows it in brackets.
   Test (to write): `test_a_single_unit_sentence_opens_with_its_date`.
-- `kg.para.order-by-time` — **[PARTIAL]** (#4648, → #NEW-3) units are ordered by the earliest
+- `kg.para.order-by-time` — **[PARTIAL]** (#4648, → #6837) units are ordered by the earliest
   bound of their date, then source document, then position in it, then id; undated units come
   last under the table's "undated" words; `ordering=source` orders by document, page and
   offset. Built: order by date
@@ -274,19 +274,19 @@ held, never finer. A statement with no stored level is said to the year.
 
 ### D. Where
 
-- `kg.para.place-stated-once` — **[GAP]** (#6773, → #NEW-4) a statement's place
+- `kg.para.place-stated-once` — **[GAP]** (#6773, → #6838) a statement's place
   (`claim_location`, else its first place value's label) is said in its clause unless the
   object already says it; a place that qualifies several clauses of one sentence is said once
   and its segment names every statement it qualifies. Today no place is said unless the object
   holds it (0 of 6). The prototype named only some of the statements on a shared place, which
   is why this line says "every". Test (to write): `test_a_place_is_said_once_and_names_all_it_qualifies`.
-- `kg.para.place-says-its-basis` — **[GAP]** (#6773, → #NEW-4) a place read in the statement's
+- `kg.para.place-says-its-basis` — **[GAP]** (#6773, → #6838) a place read in the statement's
   own sentence is said plainly; a place that is only where the document was drawn up
   (`basis` source-anchored) is said as the document's place, in the table's words, never as
   where the event happened; an inferred place carries the table's "inferred" words; a place
   given relative to another is said as written. Test (to write):
   `test_a_documents_place_is_not_said_as_the_events_place`.
-- `kg.para.place-links-its-name` — **[GAP]** (#6773, → #NEW-4) when the place is a known name,
+- `kg.para.place-links-its-name` — **[GAP]** (#6773, → #6838) when the place is a known name,
   `place.entity_id` holds it so the app can open that name. Test (to write):
   `test_a_known_place_carries_its_entity_id`.
 
@@ -303,49 +303,49 @@ Doubt is decided in this order, and the first rule that fits is the only one use
 | 5 | one document, and it is tentative or its measured band is low | ", al parecer," / ", apparently," and "(una sola fuente)" / "(one source only)" | `one_source_unsure` |
 | 6 | anything else | said plainly | `none` |
 
-- `kg.para.doubt-is-attribution` — **[GAP]** (#4751, → #NEW-5) rule 5: a single-source statement
+- `kg.para.doubt-is-attribution` — **[GAP]** (#4751, → #6839) rule 5: a single-source statement
   that is tentative, or whose confidence has the source `measured` and falls in the engine's
   low band, is never said as plain fact; it takes the table's hedge and its one-source words.
   Test (to write): `test_a_single_unsure_statement_is_hedged_and_attributed`.
-- `kg.para.no-figure-no-hedge` — **[GAP]** (#4751, → #NEW-5) a confidence that was not measured
+- `kg.para.no-figure-no-hedge` — **[GAP]** (#4751, → #6839) a confidence that was not measured
   (no source, or `default`) changes no word: the stored 0.5 a statement is born with is not a
   doubt (`kg.confidence.no-made-up-figure`). No number is ever printed. Test (to write):
   `test_an_unmeasured_figure_changes_no_word`.
-- `kg.para.sources-are-counted-in-words` — **[GAP]** (#4751, → #NEW-5) rule 4: the count is of
+- `kg.para.sources-are-counted-in-words` — **[GAP]** (#4751, → #6839) rule 4: the count is of
   distinct source documents, in words from the table up to twelve, and `sources` holds the
   number. Test (to write): `test_two_documents_read_as_two_sources`.
-- `kg.para.dispute-states-both` — **[GAP]** (#4751, → #NEW-5) rule 3: two statements joined by
+- `kg.para.dispute-states-both` — **[GAP]** (#4751, → #6839) rule 3: two statements joined by
   a `contradicts` link are one sentence that says what they share once and what differs twice,
   each with the table's attribution, in source order ("… el 14 de marzo de 1702 según una
   fuente y en 1704 según otra"); neither is dropped or preferred. Only a stored link makes a
   dispute; the renderer never infers one. Test (to write):
   `test_a_dispute_is_one_sentence_with_both_readings`.
-- `kg.para.person-decision-is-plain` — **[GAP]** (#4751, → #NEW-5) rule 2 outranks 3 to 5: a
+- `kg.para.person-decision-is-plain` — **[GAP]** (#4751, → #6839) rule 2 outranks 3 to 5: a
   statement a person confirmed carries no hedge whatever its figure. Test (to write):
   `test_a_confirmed_statement_is_never_hedged`.
 
 ### F. Fewer, better sentences
 
-- `kg.para.same-statement-one-clause` — **[PARTIAL]** (#3808, → #NEW-6) statements with the same
+- `kg.para.same-statement-one-clause` — **[PARTIAL]** (#3808, → #6840) statements with the same
   subject entity, verb, object, date and language are one unit and one clause naming all of
   them. Built: identical objects are listed once and every id kept
   (`fichero-server/tests/unit/knowledge/test_readable_representation.py::test_render_entry_merge_keeps_every_source_claim_id_in_order`).
   Not built: the date in the key (today two sources with different dates collapse into one
   sentence that says neither). Test (to write):
   `test_same_statement_different_date_is_two_units`.
-- `kg.para.one-passage-one-sentence` — **[GAP]** (#3808, → #NEW-6) two statements with the same
+- `kg.para.one-passage-one-sentence` — **[GAP]** (#3808, → #6840) two statements with the same
   subject entity and verb that rest on the SAME stretch of one page (the same character
   range), one with a plain object and one whose object opens with a preposition, are said as
   one clause pair, the plain object first, with no conjunction between them ("vendió una casa
   a …"). Anything less than the same stretch stays two sentences, as ruled for #4836. This
   narrows that ruling and waits on the owner's answer (question 2). Test (to write):
   `test_two_halves_of_one_passage_are_one_sentence_and_never_coordinated`.
-- `kg.para.run-is-neighbours` — **[BROKEN]** (#4648, → #NEW-7) only units next to each other in
+- `kg.para.run-is-neighbours` — **[BROKEN]** (#4648, → #6841) only units next to each other in
   the paragraph's order, with the same subject entity, verb, language and doubt, join into one
   sentence, four at most. Today `aggregate_claims` joins every same-verb statement of the
   whole list into the place of the first, so a sentence dated 1741 holds an act of 1745 ahead
   of acts of 1744. Test (to write): `test_only_neighbours_in_order_join`.
-- `kg.para.run-keeps-each-date` — **[BROKEN]** (#4648, → #NEW-7) in a joined sentence each
+- `kg.para.run-keeps-each-date` — **[BROKEN]** (#4648, → #6841) in a joined sentence each
   object is followed by its own date and place in brackets ("… del testamento de … (1741,
   …) y de la venta de … (9 de mayo de 1743, …)"), each object its own clause. Today the
   dates and places of joined statements are dropped. Test (to write):
@@ -353,36 +353,36 @@ Doubt is decided in this order, and the first rule that fits is the only one use
 
 ### G. Words
 
-- `kg.para.table-is-data` — **[GAP]** (#4650, → #NEW-8) a language's joining words, date
+- `kg.para.table-is-data` — **[GAP]** (#4650, → #6842) a language's joining words, date
   patterns, month names, doubt words, number words, prepositions, contractions and frames are
   one data file per language in the engine's resources, validated on load; the code holds no
   language's words. Today two small dictionaries in
   `fichero-server/src/fichero_server/knowledge/readable.py` hold three words each. Test (to
   write): `test_a_language_is_added_by_a_file_alone`.
-- `kg.para.no-table-is-verbatim` — **[PARTIAL]** (#4650, → #NEW-8) a sentence in a language
+- `kg.para.no-table-is-verbatim` — **[PARTIAL]** (#4650, → #6842) a sentence in a language
   with no table is the statement's stored subject, verb and object and nothing else, with its
   year in digits in brackets; it joins nothing and takes no word from another language. Built:
   such a statement is never merged (`_is_solo_claim`). Not built: the year. Test (to write):
   `test_a_language_without_a_table_takes_no_borrowed_word`.
-- `kg.para.seams` — **[BROKEN]** (#5008, → #NEW-8) at the seam of verb and object a
+- `kg.para.seams` — **[BROKEN]** (#5008, → #6842) at the seam of verb and object a
   preposition is said once, and the table's contractions are made (Spanish de + el, a + el);
   in a joined Spanish sentence the verb's preposition is repeated before each object. Today
   the said-once rule is in `render_aggregation`, which the entry path does not call, so the
   route still prints the doubled word. Tests (to write):
   `test_the_entry_path_says_a_preposition_once`, `test_spanish_contractions_at_the_seam`.
-- `kg.para.name-once` — **[GAP]** (#4651, → #NEW-9) the page name is given in full in the first
+- `kg.para.name-once` — **[GAP]** (#4651, → #6843) the page name is given in full in the first
   sentence. After it, while the page name stays the subject: a language whose table says the
   subject may be left out (Spanish) leaves it out; any other uses the short name. After a
   sentence whose subject is someone else, the next uses the short name. Today the full name
   is printed in every sentence (17 times in 18). Test (to write):
   `test_the_full_name_is_given_once`.
-- `kg.para.short-name-is-attested` — **[BROKEN]** (#4651, → #NEW-9) the short name is the
+- `kg.para.short-name-is-attested` — **[BROKEN]** (#4651, → #6843) the short name is the
   shortest of the entity's own recorded names that is made of words of the canonical name, has
   two words or more, and is no other entity's name in the project; with none, the full name.
   It is never computed from a token: `referring_expression` takes the last word, which for a
   Spanish name with two surnames is the mother's. No pronoun is used while no gender is held.
   Test (to write): `test_a_short_name_is_always_a_recorded_name`.
-- `kg.para.recentre-by-frame` — **[GAP]** (#4837, → #NEW-10) a statement whose object is the
+- `kg.para.recentre-by-frame` — **[GAP]** (#4837, → #6844) a statement whose object is the
   page name is said with the page name as subject only when: the verb, folded, has a frame in
   the language's table; what stands before the name in the object is nothing or one of the
   table's prepositions; and what stands after it is nothing or the frame has a slot for it
@@ -390,12 +390,12 @@ Doubt is decided in this order, and the first rule that fits is the only one use
   its true subject, in its place in the order, with the page name in its short form. The
   clause is `revoiced` and its frame's words have a `table:` origin. Test (to write):
   `test_an_object_statement_is_recentred_only_through_a_frame`.
-- `kg.para.frame-needs-agreement` — **[GAP]** (#4837, → #NEW-10) a frame lists the forms it has
+- `kg.para.frame-needs-agreement` — **[GAP]** (#4837, → #6844) a frame lists the forms it has
   (one for all, or one per gender and number); a frame with only gendered forms is used only
   when the page name's grammatical gender is held, else the true subject is kept. Measured:
   of four object statements, one is re-centred with no gender held and three with it.
   Test (to write): `test_a_gendered_frame_waits_for_a_held_gender`.
-- `kg.para.gender-is-evidence` — **[GAP]** (#4837, → #NEW-11) a person's grammatical gender,
+- `kg.para.gender-is-evidence` — **[GAP]** (#4837, → #6845) a person's grammatical gender,
   for agreement only, is a value on the name with its basis and source like any other: set by a
   person, or read from an agreeing word the page itself uses of them; never guessed from a
   given name. Test (to write): `test_gender_is_never_guessed_from_a_name`.
@@ -414,13 +414,13 @@ Doubt is decided in this order, and the first rule that fits is the only one use
 
 ## The evaluation set and its pass bar
 
-- `kg.para.eval-set` — **[GAP]** (#4841, → #NEW-12) a synthetic set, no archive data, lives
+- `kg.para.eval-set` — **[GAP]** (#4841, → #6846) a synthetic set, no archive data, lives
   with the engine's test fixtures as rows shaped like the engine's: at least three invented
   names (a person, a place, an organisation), 20 statements or more each, and every case in
   "Measured" above, in Spanish and English, plus one language with no table. A case seen wrong
   on a real paragraph is added as an invented row before it is fixed. Test (to write):
   `test_the_evaluation_set_covers_every_case`.
-- `kg.para.pass-bar` — **[GAP]** (#4841, → #NEW-12) a scorer reads the route's answer for each
+- `kg.para.pass-bar` — **[GAP]** (#4841, → #6846) a scorer reads the route's answer for each
   name of the set and the test fails unless, exactly:
 
 | Measure | Bar |
@@ -476,18 +476,18 @@ the behaviour's words before the change. Stages 1 to 3 change the engine only.
 
 ### Stage 1 — Say only what is held, and keep every clause's statement
 
-#### Step 1.1 — The evaluation set and its scorer, red (→ #NEW-12)
+#### Step 1.1 — The evaluation set and its scorer, red (→ #6846)
 - Behaviours: `kg.para.eval-set`, `kg.para.pass-bar`
 - Tests: to write: `test_paragraph_eval_set.py` in fichero-server/tests/unit/knowledge/
 - Size: M
 
-#### Step 1.2 — Rejected and merged statements are never said; mentions are a list (→ #NEW-1)
+#### Step 1.2 — Rejected and merged statements are never said; mentions are a list (→ #6835)
 - Behaviours: `kg.para.rejected-never-stated`, `kg.para.mentions-are-a-list`
 - Tests: to write: `test_paragraph_selection.py` in fichero-server/tests/unit/knowledge/
 - Depends on: 1.1
 - Size: S
 
-#### Step 1.3 — Clauses and segments on the route; the exact faithfulness test (→ #NEW-2)
+#### Step 1.3 — Clauses and segments on the route; the exact faithfulness test (→ #6836)
 - Behaviours: `kg.para.clause-carries-claim-ids`, `kg.para.every-character-has-an-origin`, `kg.para.every-statement-is-said-once`, `kg.para.deterministic`, `kg.para.proposed-is-marked`
 - Tests: to write: `test_paragraph_trace.py` in fichero-server/tests/unit/knowledge/, `test_routes_kg_paragraph_clauses.py` in fichero-server/tests/unit/api/
 - Depends on: 1.2
@@ -495,25 +495,25 @@ the behaviour's words before the change. Stages 1 to 3 change the engine only.
 
 ### Stage 2 — When, where, how sure
 
-#### Step 2.1 — A language's table is a data file; seams (→ #NEW-8)
+#### Step 2.1 — A language's table is a data file; seams (→ #6842)
 - Behaviours: `kg.para.table-is-data`, `kg.para.no-table-is-verbatim`, `kg.para.seams`
 - Tests: to write: `test_paragraph_tables.py` in fichero-server/tests/unit/knowledge/
 - Depends on: 1.3
 - Size: M
 
-#### Step 2.2 — Dates at the level held, and the order they give (→ #NEW-3)
+#### Step 2.2 — Dates at the level held, and the order they give (→ #6837)
 - Behaviours: `kg.para.date-at-stored-level`, `kg.para.date-bound-and-about`, `kg.para.date-leads-the-sentence`, `kg.para.order-by-time`
 - Tests: to write: `test_paragraph_dates.py` in fichero-server/tests/unit/knowledge/
 - Depends on: 2.1
 - Size: M
 
-#### Step 2.3 — Places, said once, with their basis (→ #NEW-4)
+#### Step 2.3 — Places, said once, with their basis (→ #6838)
 - Behaviours: `kg.para.place-stated-once`, `kg.para.place-says-its-basis`, `kg.para.place-links-its-name`
 - Tests: to write: `test_paragraph_places.py` in fichero-server/tests/unit/knowledge/
 - Depends on: 2.1
 - Size: S
 
-#### Step 2.4 — Doubt as attribution, sources in words, disputes in one sentence (→ #NEW-5)
+#### Step 2.4 — Doubt as attribution, sources in words, disputes in one sentence (→ #6839)
 - Behaviours: `kg.para.doubt-is-attribution`, `kg.para.no-figure-no-hedge`, `kg.para.sources-are-counted-in-words`, `kg.para.dispute-states-both`, `kg.para.person-decision-is-plain`
 - Tests: to write: `test_paragraph_doubt.py` in fichero-server/tests/unit/knowledge/
 - Depends on: 2.1
@@ -521,25 +521,25 @@ the behaviour's words before the change. Stages 1 to 3 change the engine only.
 
 ### Stage 3 — Reads like prose
 
-#### Step 3.1 — Units: one statement from many sources; one passage, one sentence (→ #NEW-6)
+#### Step 3.1 — Units: one statement from many sources; one passage, one sentence (→ #6840)
 - Behaviours: `kg.para.same-statement-one-clause`, `kg.para.one-passage-one-sentence`
 - Tests: to write: `test_paragraph_units.py` in fichero-server/tests/unit/knowledge/
 - Depends on: 2.2
 - Size: S
 
-#### Step 3.2 — Only neighbours join, and each keeps its date and place (→ #NEW-7)
+#### Step 3.2 — Only neighbours join, and each keeps its date and place (→ #6841)
 - Behaviours: `kg.para.run-is-neighbours`, `kg.para.run-keeps-each-date`
 - Tests: to write: `test_paragraph_runs.py` in fichero-server/tests/unit/knowledge/
 - Depends on: 3.1
 - Size: M
 
-#### Step 3.3 — The name once, then an attested short form or nothing (→ #NEW-9)
+#### Step 3.3 — The name once, then an attested short form or nothing (→ #6843)
 - Behaviours: `kg.para.name-once`, `kg.para.short-name-is-attested`
 - Tests: to write: `test_paragraph_names.py` in fichero-server/tests/unit/knowledge/
 - Depends on: 2.1
 - Size: S
 
-#### Step 3.4 — Re-centring through frames, with agreement (→ #NEW-10, → #NEW-11)
+#### Step 3.4 — Re-centring through frames, with agreement (→ #6844, → #6845)
 - Behaviours: `kg.para.recentre-by-frame`, `kg.para.frame-needs-agreement`, `kg.para.gender-is-evidence`
 - Tests: to write: `test_paragraph_frames.py` in fichero-server/tests/unit/knowledge/
 - Depends on: 3.3
@@ -570,7 +570,7 @@ the behaviour's words before the change. Stages 1 to 3 change the engine only.
    model only reorders, joins and smooths; a checker refuses any output whose clauses do not
    map back) is real, and no local model was on the review machine to measure it. This spec
    says no model, as the spec of 2026-09-10 does. If wanted later it is an experiment on the
-   evaluation set behind the same pass bar, never the default (→ #NEW-13 only on a yes).
+   evaluation set behind the same pass bar, never the default (→ NEW-13 (owner question 1), not filed).
 2. **One passage, one sentence.** May the patient and the recipient of one act be said together
    when both statements rest on the same stretch of the page (`kg.para.one-passage-one-sentence`)?
    It narrows the ruling made for #4836 that a prepositional object never joins anything.
@@ -600,16 +600,16 @@ the behaviour's words before the change. Stages 1 to 3 change the engine only.
 
 ## Issues to file (milestone kg-readable-representation)
 
-- NEW-1: the paragraph states rejected and merged-away statements as fact, and narrates mention-only ones; filter them and return the mention list.
-- NEW-2: the readable route returns clauses and segments (claim ids, origin, state) with the exact every-character-has-an-origin test and a shuffled-input test.
-- NEW-3: the paragraph states each statement's date at the level held (day, month, year, span, about, bound, inferred), leads with it, and puts undated last.
-- NEW-4: the paragraph states each statement's place once, with its basis, and links a known place.
-- NEW-5: doubt in the paragraph: the six ordered rules (person's decision, dispute, sources in words, single unsure source), and no hedge from an unmeasured figure.
-- NEW-6: units: the same statement from several sources is one clause (date in the key); two halves of one passage are one sentence.
-- NEW-7: only neighbouring units join, four at most, and each joined object keeps its own date and place.
-- NEW-8: a language's table is one data file (joining words, dates, doubt words, prepositions, contractions, frames); seams fixed on the entry path ("at at", "de el").
-- NEW-9: the name in full once, then an attested short name or a left-out subject; the last-word surname rule is removed.
-- NEW-10: re-centring through per-verb frames with a slot for the rest of the object and forms per gender; no frame, no re-centring.
-- NEW-11: a person's grammatical gender as a value with basis and source, for agreement only, never guessed from a name.
-- NEW-12: the synthetic evaluation set and the scorer with its pass bar, as an engine test.
-- NEW-13 (only if the owner says yes to question 1): measure a small local model as a smoothing pass on the evaluation set behind the pass bar.
+- #6835 (NEW-1): the paragraph states rejected and merged-away statements as fact, and narrates mention-only ones; filter them and return the mention list.
+- #6836 (NEW-2): the readable route returns clauses and segments (claim ids, origin, state) with the exact every-character-has-an-origin test and a shuffled-input test.
+- #6837 (NEW-3): the paragraph states each statement's date at the level held (day, month, year, span, about, bound, inferred), leads with it, and puts undated last.
+- #6838 (NEW-4): the paragraph states each statement's place once, with its basis, and links a known place.
+- #6839 (NEW-5): doubt in the paragraph: the six ordered rules (person's decision, dispute, sources in words, single unsure source), and no hedge from an unmeasured figure.
+- #6840 (NEW-6): units: the same statement from several sources is one clause (date in the key); two halves of one passage are one sentence.
+- #6841 (NEW-7): only neighbouring units join, four at most, and each joined object keeps its own date and place.
+- #6842 (NEW-8): a language's table is one data file (joining words, dates, doubt words, prepositions, contractions, frames); seams fixed on the entry path ("at at", "de el").
+- #6843 (NEW-9): the name in full once, then an attested short name or a left-out subject; the last-word surname rule is removed.
+- #6844 (NEW-10): re-centring through per-verb frames with a slot for the rest of the object and forms per gender; no frame, no re-centring.
+- #6845 (NEW-11): a person's grammatical gender as a value with basis and source, for agreement only, never guessed from a name.
+- #6846 (NEW-12): the synthetic evaluation set and the scorer with its pass bar, as an engine test.
+- NEW-13 (owner question 1), not filed: measure a small local model as a smoothing pass on the evaluation set behind the pass bar.
