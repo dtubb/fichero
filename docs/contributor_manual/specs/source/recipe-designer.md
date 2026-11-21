@@ -1535,7 +1535,7 @@ Written for the builder 2026-11-07 (spec-writer). **Built:** the routes' figures
 
 - test (to write): `test_ready_totals.py`, `test_run_predicted_measured.py`, `test_run_cap_stops.py` in fichero-server/tests/unit/recipes/ (the sum against the route; predicted then measured; the stop's words; the offer row)
 
-#### Step 12.2 — A swapped model says its own name; one id for a place (#5612, #6173)
+#### Step 12.2 — A swapped model says its own name; one id for a place (#6815, #6816, #5612, #6173)
 - Behaviours: `designer.step.swapped-model-says-its-own-name`, `designer.place.one-id-for-a-place`, `designer.place.per-step-place-covers-every-place`
 - Tests: test_use_candidate_renames_the_step.py (not yet written), fichero-server/tests/unit/recipes/test_start_plan.py
 - Size: S
