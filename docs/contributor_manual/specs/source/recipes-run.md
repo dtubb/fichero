@@ -228,6 +228,13 @@ pages (`activity.recipe-run.stop-reaches-its-step`, `fichero-server/tests/unit/j
   with 4 of 5 pages' lines found, the run came back paused, its step run ended "Interrupted … its recipe run carries on
   from its checkpoint", and Continue found lines on the 1 page left and went on to Read; a QUIT mid-step did the step
   twice (`recipes-run.restart.continue-adopts-the-paused-step`, section 14).
+  *Red on 2026-11-20, both runs of two:* `test_start_stop_restart_resumes.py`
+  (`test_lost_with_the_engine_then_resumed_skips_what_is_done_and_finishes`) and
+  `test_every_stage_resumes_after_a_stop_1134.py`
+  (`test_catalogue_lost_with_the_engine_then_resumed_describes_each_folder_once`): each stands in for a restart with
+  `jobs.resume`, then presses Retry on the run's row, and the run stays paused, "Stopped when Fichero quit". They were
+  written for the resume-by-itself rule; either Retry on a row the open paused must let it go, as Continue does, or the
+  tests press Continue. Until one is done these two pins of this section do not hold.
 - `recipes-run.journey.run-again-on-what-was-missed` — **[PARTIAL]** (#6170; `source.recipe.run-again-on-what-was-missed` (P)
   owns it) after a restart, a crash or a Stop the recipe says what it did not finish and offers one action,
   Run again on what was missed, which runs only what is not done. *Built (engine):* a finished run's summary carries
