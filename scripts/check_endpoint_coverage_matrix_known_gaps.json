@@ -310,5 +310,6 @@
   "POST /api/activity/models/unload-idle": "the window's model management (#6588): engine first, reached through the generated CLI and MCP; the Models window that calls it is not built yet",
   "GET /api/activity/models/run-settings/{runtime}": "the window's model management (#6588): engine first, reached through the generated CLI and MCP; the Models window that calls it is not built yet",
   "PUT /api/activity/models/run-settings/{runtime}": "the window's model management (#6588): engine first, reached through the generated CLI and MCP; the Models window that calls it is not built yet",
-  "PUT /api/pair/own-devices": "the own-devices enrollment secret (#6568): Unix-socket only, the Mac's own app calls it; the app's switch is not built, and a CLI or MCP caller is refused 403 by design"
+  "PUT /api/pair/own-devices": "the own-devices enrollment secret (#6568): Unix-socket only, the Mac's own app calls it; the app's switch is not built, and a CLI or MCP caller is refused 403 by design",
+  "POST /api/segments/document/{doc_id}/text-layer": "a PDF page's segments from its text layer (#6664): engine first, reached through the generated CLI; the app's call is not built (segment-editor.pdf.segments-from-the-text-layer is PARTIAL)"
 }
