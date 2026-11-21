@@ -678,8 +678,11 @@ See section 7.2 below for what exists. The design:
   update at once. Tests: a drop between rows reorders; a drop on a region nests; a multi-row drag keeps relative order; undo
   restores.
   *Built 2026-11-20:* the engine half: `reading_order.move` (entries to a place under a parent, relative order kept, one undo
-  by `reading_order.restore_places`; `fichero-server/tests/unit/api/test_reading_order_move.py`). *Not built:* the list's drop
-  lines and highlight. Needs an on-screen check.
+  by `reading_order.restore_places`; `fichero-server/tests/unit/api/test_reading_order_move.py`). *Built 2026-11-21:* the list
+  half: a drop on a row that is not a region sends the dragged rows, in list order, as one `reading_order.move` just before
+  that row, and the row shows the insertion line with its circle (`ReadingOrderMove.move`, `OrderListDropReorderTests.swift`).
+  *Not built:* the line's indent to a deeper level (a drop lands in the level the list shows), a drop above or below a
+  region row (a drop on one nests). Needs an on-screen check.
 - `segment-editor.shortcuts-for-everything` — **[GAP]** (→ #4941; app; refines `source.editor.keyboard-complete`) every
   verb in this file is in the menu bar under Segment with its shortcut, in the context menu of a
   segment, and on the pane head; the map below is the one list, and
