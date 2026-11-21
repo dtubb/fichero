@@ -531,6 +531,7 @@ nav:
               - Models and Compute Window (draft): contributor_manual/specs/ui/models-and-compute-window.md
               - Automation: contributor_manual/specs/ui/automation.md
               - Catalogue Table: contributor_manual/specs/ui/catalogue-table.md
+              - iPhone and iPad: contributor_manual/specs/ui/iphone-ipad.md
               - Library View Modes: contributor_manual/specs/ui/library-view-modes.md
               - Menus & Commands: contributor_manual/specs/ui/menus-and-commands.md
               - Modes → Panes: contributor_manual/specs/ui/modes-to-panes.md
