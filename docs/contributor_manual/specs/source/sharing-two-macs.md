@@ -174,7 +174,7 @@ An **address** here is one `https://<name>:<port>` the host can be reached at. T
   4. **Local network permission (iOS)** — see `sharing.ios-local-network-permission`.
   5. **Certificate** — -1200/-1202: pin mismatch: "*host* showed a different security key than the link. This may be a different Mac with the same name. Scan or paste a new link from *host*." Name mismatch (SAN): "*host*'s security certificate doesn't name the address in the link. Turn Sharing off and on on *host* so it makes a new one."
   6. **Code** — 401 `invalid or expired pairing code`: "That code was used or has expired (codes last 10 minutes). Make a new one on *host*."; 429: "Too many tries. Wait a minute."
-  7. **Person** — 401 `person required`: "This library uses accounts. Enter your username and password."
+  7. **Person** — 401 `person required`: "*host* uses accounts. Enter the username and password of your account on *host*."
   8. **Version** — `contractMismatch`: "*host* runs Fichero 2026.10.27 and this Mac 2026.10.28. Update the older one." (both versions named; `sharing.version-mismatch-says-which-side`)
   9. **Library** — `libraryPathNotConfirmed`: "*host* didn't give this device that project. Ask for a new link."
   10. **Stopped** — the host stopped sharing / revoked this device: `sharing.stopped`, `sharing.revoked` words from `library-sharing.md`.

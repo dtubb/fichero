@@ -73,4 +73,10 @@ struct PairingFailureWordsTests {
         #expect(PairingFailure.from(status: 401, detail: "missing or invalid Authorization header") == .deviceForgotten)
         #expect(PairingFailure.from(status: 429, detail: "") == .tooManyTries)
     }
+
+    /// #6746: the phone's sign-in names the Mac and says whose username and password it wants.
+    @Test func theSignInSentenceNamesTheMacAndTheAccount() {
+        let sentence = PairingFailure.personRequired.sentence(context)
+        #expect(sentence == "macbook-air-m1 uses accounts. Enter the username and password of your account on macbook-air-m1.")
+    }
 }

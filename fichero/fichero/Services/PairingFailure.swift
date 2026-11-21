@@ -114,7 +114,7 @@ enum PairingFailure: CaseIterable, Equatable, Error {
         case .tooManyTries:
             return "Too many tries. Wait a minute."
         case .personRequired:
-            return "This library uses accounts. Enter your username and password."
+            return "\(host) uses accounts. Enter the username and password of your account on \(host)."
         case .versionMismatch:
             return Self.versionSentence(context)
         case .libraryNotGiven:
