@@ -5785,7 +5785,7 @@
           "segments"
         ],
         "summary": "Text Layer Segments",
-        "description": "A PDF page's regions, lines and words as segments from its own text layer, with no model run\n(`segment-editor.pdf.segments-from-the-text-layer`). The geometry the import saved is used; where it is missing the\nPDF is read again and saved. The segments are the page's text-layer pass, made by the same conversion as an import's.\nA page whose pass exists keeps it and gets nothing added; a page with no text layer gets no segments and the answer\nsays so. 404 for an unknown page, 422 for a page not split from a PDF, 409 when the PDF is not on this Mac.",
+        "description": "A PDF page's regions, lines and words as segments from its own text layer, with no model run\n(`segment-editor.pdf.segments-from-the-text-layer`). The geometry the import saved is used; where it is missing the\nPDF is read again and saved. The segments are the page's text-layer pass, made by the same conversion as an import's.\nA page whose pass exists keeps it and gets nothing added; a page with no text layer gets no segments and the answer\nsays so. 404 for an unknown page, 422 for a provisional id or a page not split from a PDF, 409 when the PDF is not on this Mac.",
         "operationId": "text_layer_segments_api_segments_document__doc_id__text_layer_post",
         "parameters": [
           {

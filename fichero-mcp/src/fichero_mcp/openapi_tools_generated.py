@@ -8163,7 +8163,7 @@ def fichero_segments_text_layer(
     *,
     doc_id: Annotated[str, Field(description='Doc Id')],
 ) -> Any:
-    "Text Layer Segments\n\nA PDF page's regions, lines and words as segments from its own text layer, with no model run\n(`segment-editor.pdf.segments-from-the-text-layer`). The geometry the import saved is used; where it is missing the\nPDF is read again and saved. The segments are the page's text-layer pass, made by the same conversion as an import's.\nA page whose pass exists keeps it and gets nothing added; a page with no text layer gets no segments and the answer\nsays so. 404 for an unknown page, 422 for a page not split from a PDF, 409 when the PDF is not on this Mac.\n\nRoute: POST /api/segments/document/{doc_id}/text-layer (toolset `segments`; changes data, as the agent account when one exists)."
+    "Text Layer Segments\n\nA PDF page's regions, lines and words as segments from its own text layer, with no model run\n(`segment-editor.pdf.segments-from-the-text-layer`). The geometry the import saved is used; where it is missing the\nPDF is read again and saved. The segments are the page's text-layer pass, made by the same conversion as an import's.\nA page whose pass exists keeps it and gets nothing added; a page with no text layer gets no segments and the answer\nsays so. 404 for an unknown page, 422 for a provisional id or a page not split from a PDF, 409 when the PDF is not on this Mac.\n\nRoute: POST /api/segments/document/{doc_id}/text-layer (toolset `segments`; changes data, as the agent account when one exists)."
     return _rt.call("POST", f"/api/segments/document/{doc_id}/text-layer")
 
 
