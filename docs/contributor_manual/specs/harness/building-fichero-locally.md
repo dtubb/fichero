@@ -515,6 +515,124 @@ steps and disk use, not landings.
   `remote_min_free_gb` is skipped, and the nightly names its own `check_runner`. Left: which rung goes to which Mac is
   the list's order, not a placement by capability (`dev-workflows.pool.placement-and-fallback`). Serves: reliable.
 
+### J. What the day of 2026-11-21 showed (#6589)
+
+Fourteen lanes ran through a day and a night. Each line below is something the loop did wrong or could not do, read from
+that day's journal and placed in the code. The owner asked for them to be specified so the builder builds them
+(paraphrased). Caps read once per session, and the disk floor's rows and alert, are specified by the performance review of
+the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026-11-21.
+
+- `local.run.reexec-adopts-by-window-or-pid` [BROKEN] (#6589) — a loop that starts with no handle for a lane (a re-exec, a
+  crash, a login) adopts every session that is alive, and stops none. A session is alive when the tmux window the lane
+  recorded at its start still runs more than an idle shell, or when the process id it recorded is running. The loop
+  watches it again (a watcher that died is started again on the same session and feed), writes one `adopted` row, and
+  the step keeps its state. Only a lane with neither a live window nor a live process is queued again, and the lost-track
+  branch never ends a window that runs more than a shell: that is an alert with the window's id. Today
+  `queue.adopt_session` in `fichero-builder/fichero_builder/queue.py` adopts only when the lane still holds its feed path
+  and `pgrep` finds a `builder run` on that feed; any miss falls to `procs.stop` in `queue.tick_lane`, which writes the
+  stop marker, ends the lane's windows and queues the step again ("stopping the session this loop lost track of"). On
+  2026-11-21 that row was written fourteen times, five of them within two minutes of one re-exec while the sessions were
+  at work, and no `adopted` row was written all day. The lane does not record its window id or its process id at start.
+  Test (owed): `test_builder_restart.py`, a re-exec with five live windows and no watcher adopts five and stops none; a
+  live process id with a renamed window is adopted; a lane with neither is queued once. Serves: reliable.
+- `local.run.drain-expired-one-row` [BROKEN] (#6589) — when the wait for a re-exec passes its limit, the loop says so once
+  for each lane and head, and the re-exec then happens at the first tick with no chain running, before another chain
+  starts. Today the branch after `DRAIN_MAX_S` in `queue.tick_lane` appends a `drain-expired` row every time it is
+  reached and lets every chain start on the old code, so the quiet tick `queue.restart_due` waits for may never come:
+  725 `drain-expired` rows on 2026-11-21 against 9 `drain-held`, and about 35 minutes of them before the re-exec.
+  Test (owed): `test_loop_survives.py`, ten ticks past the limit write one row a lane and head, and the loop re-execs
+  after the running chain ends with a second batch still waiting. Serves: reliable.
+- `local.run.sent-needs-a-live-session` [GAP] (#6589) — a step is `sent` only while a session is at work on it. At every
+  tick the loop checks each `sent` step: the window runs more than a shell, and the session file has changed within
+  `[spend].silent_s` or the session is idle after a delivered message. A `sent` step that fails the check for two ticks
+  is one `queue` row `sent-no-session` and goes back to `queued` from its tree (counted as a restart, so the existing
+  limit still blocks a step that keeps losing its session); a `sent` step older than `[loop].sent_hours` (default 3)
+  with no row of its own in that time is one alert with retry and park. Today a live handle whose pane holds no agent
+  reaches `procs.row(lane) is None` in `queue.tick_lane` and returns, tick after tick, with no row; one step sat `sent`
+  that way for hours on 2026-11-21. Test (owed): `test_loop.py`, a `sent` step whose window runs a shell is queued again
+  after two ticks with one row; a quiet `sent` step past the limit alerts once. Serves: reliable.
+- `local.run.turn-ended-without-done-alerts` [GAP] (#6589) — a worker whose turn ends after a delivered message with no
+  DONE line and no handoff line is noticed within one tick, whether or not its branch moved. The watcher writes one
+  `watch` row `turn-ended-no-done` with the last 300 characters the worker wrote. When that text ends in a question, it
+  is one `question` alert for the manager (answer, send back, park), and the answer is told to the same session. When
+  it does not, the worker is nudged once with the exact line to end on, and two ticks later the same alert is raised.
+  This replaces "left alone while its branch has not moved" in `dev-workflows.rollout.dry-run`. Today the loop in
+  `fichero-builder/fichero_builder/run.py` counts `unsaid` only when the head moved, and `watcher.assess` in
+  `fichero-builder/fichero_builder/watcher.py` alerts only on a session that is not idle; a small-model worker sat idle
+  on a question for an hour and a half on 2026-11-21. Test (owed): `test_dry_run.py`, an idle worker with an unmoved
+  branch and a last line ending in a question mark is one alert in one tick; one with no question is nudged, then
+  alerted. Serves: reliable.
+- `local.disk.thin-snapshots-before-holding` [GAP] (#6589) — before the loop holds a new lane for disk, it frees what
+  the system's local backup snapshots pin and measures again. On macOS, space freed by a sweep stays held by local Time
+  Machine snapshots until they are thinned. Once in a low-disk episode, and at most once an hour, the loop runs
+  `tmutil thinlocalsnapshots / <bytes> 4` (no sudo; bytes from `[loop].disk_thin_gb`, default 8), writes one
+  `disk-thinned` row with the free space before and after, and holds the lane only if the floor is still not met. A
+  machine without `tmutil`, or a command that fails, is a row and the hold goes on as before. Today the hold in
+  `queue.tick_lane` reads `procs.free_gb` and returns; on 2026-11-21 it wrote 934 `disk-hold` rows, and the same command
+  run by hand freed 10 to 14 GB twice. Test (owed): `test_loop.py`, a fake thin that frees space lets the lane start
+  with one `disk-thinned` row; one that frees nothing holds; a second low reading within the hour does not thin again.
+  Serves: reliable, with little supervision.
+- `local.queue.add-refuses-a-repeated-brief` [GAP] (#6589) — two steps of one lane never share one brief. `queue add`
+  compares the brief's content with the kept brief of every step the lane has, landed or not, and refuses a repeat,
+  naming the step that has it. With `--continues <step>` it takes the repeat and appends to the kept copy what a
+  continuation needs: the commits the lane has landed since that step began (sha and subject), the files they
+  changed, and what is left (the text of `--left`, required with `--continues`). Today the `add` action of `queue.main`
+  copies the file to the manager's briefs folder under the lane and step and compares nothing; on 2026-11-21 five
+  continuation steps of one lane were queued on one file, and the worker, shown nothing new, said DONE with no commit.
+  Test (owed): `test_queue_verb.py`, a second step on the same text is refused with the first step's name; with
+  `--continues` and `--left` the kept brief ends with the landed commits and the left text; `--continues` with no
+  `--left` is refused. Serves: builds Fichero, reliable.
+- `local.queue.drop-takes-a-queued-step` [GAP] (#6589) — `builder queue drop --lane L --step S --text WHY` removes a step
+  that has not started: `queued` with no round, no head and no session, at the cursor or behind it. It writes the same
+  `dropped` row as for a parked step. A step in flight, blocked or landed is refused as before. Today `queue.reorder`
+  takes `drop` for a `parked` step only, so a step queued by mistake has to be parked first. Test (owed):
+  `test_queue_verb.py`, a queued step that never started is dropped with its reason in the row; a `sent` one is
+  refused. Serves: reliable.
+- `local.run.recorded-move-is-not-a-stray-write` [GAP] (#6589) — the check that no tree outside a step's own moved
+  excuses a move the loop or the manager made and recorded. A tree is excused when a `landed` row for the jail root, or
+  a `tree-moved` row naming the tree, the old head and the new head, was written since the step's snapshot; and the
+  jail root is excused without a row when it is clean and its new head is the land branch's tip on origin with the old
+  head an ancestor, which is what a refresh does and a stray write does not. The manager's hand refresh of the jail
+  root after a pushed rules change goes through a verb that writes the `tree-moved` row. A move that is still an alert
+  is one alert for the move, naming every step that saw it, not one a step. Today `queue.tree_check` excuses the jail
+  root only for a `landed` row of step `jail-root`; on 2026-11-21 one hand refresh, clean on both sides, raised seven
+  alerts, one for each live step. Test (owed): `test_loop.py`, a jail root fast-forwarded to origin's tip raises
+  nothing; a `tree-moved` row excuses its tree; a dirty or off-origin jail root is one alert for three steps.
+  Serves: reliable.
+- `local.autofix.loop-applies-the-printed-fix` [GAP] (#6589) — where a check prints the exact fix, the loop applies it
+  to a managed lane, commits and checks again; no worker is asked. The classes are opted in by name in
+  `[check].autofix` (an unknown name refuses the rules file). The fix runs in the lane's worktree as the worker, the
+  commit carries the lane's trailers and may touch only the files its class names (anything else is undone and the
+  red goes to the worker), and each is one `autofix` journal row: class, rung, head before and after, files. A class
+  is tried once for a head; the same red again goes to the worker as today. An external lane is never committed to:
+  its red names the fix. Every other red still goes to the worker. Built: the `Fix:` line for three of these reds
+  (`autofix.fix_hints` in `fichero-builder/fichero_builder/autofix.py`) and the regeneration after a rebase
+  (`dev-workflows.run.rebase-rebakes-generated`). Left: nothing applies a `Fix:` line; on 2026-11-21 52 fix briefs
+  went to workers (guards 14, build 10, ready 10, red-on-base 7, not READY 7, diff bound 4). Test (owed):
+  `test_autofix.py`, a red with a fix of a named class is one commit, one `autofix` row and a second check with no
+  message to the worker; a class not named, a second red at the fixed head, and an external lane each go the old
+  way. Serves: builds Fichero, reliable.
+- `local.autofix.classes` [GAP] (#6589) — the four first classes, each decided by the check's own output and nothing
+  else. `known-gaps-now-clean`: `scripts/check_endpoint_coverage_matrix.py` says entries of its known-gaps list are now
+  clean; the loop removes exactly those entries. `ratchet-baseline-lower`: a ratchet prints a count below its baseline;
+  the loop writes the lower number and never a higher one. `openapi-regen`: a contract guard says a generated copy is
+  stale; the loop runs the `[check].regen` lines and commits the tracked files they changed. `spec-change-trailer`:
+  `scripts/check_spec_acceptance.py` asks for a `Spec-change:` trailer; the loop adds one only when the step's brief
+  carries a `Spec-change:` line, copied word for word, because the trailer must name a ruling and a script cannot make
+  one up; with none in the brief the red is a question for the manager, not a fix brief. Test (owed):
+  `test_autofix.py`, one fixture red for each class gives the expected one-file commit; a baseline that would rise, an
+  entry the check did not name, and an acceptance red with no line in the brief change nothing. Serves: reliable.
+- `local.models.effort-per-role` [GAP] (#6589) — a `[models]` role row may carry `effort = "low" | "medium" | "high"`,
+  and the worker, reviewer or spec writer started on that role runs at that level: low for lint and mechanical
+  batches, medium for workers, high for reviewers and spec writers. The adapter passes it in the form its harness
+  takes; an adapter that cannot take a level says so, and a row asking it for one refuses the start as a question.
+  Any other value refuses the rules file. A row with no `effort` starts the command it starts today, byte for byte,
+  and the run's `worker` row records the level. Today `models.Model` holds provider, model and context, and
+  `start_tool` builds the Claude Code command with `--model` alone. Test (owed): `test_model_config.py` and
+  `test_adapters.py`, a row with `effort = "low"` puts the level in the start command; no row leaves the command
+  unchanged; `effort = "max"` refuses. Serves: builds Fichero (the same work for fewer tokens).
+
+
 ### From `dev-workflows.md` — Behaviours
 
 
@@ -3477,6 +3595,48 @@ done by hand (this file, its review and report). The absorbed specs' own build o
 - Behaviours: `local.scale.lanes-follow-the-landing-rate`, `local.scale.checks-run-on-other-macs`
 - Tests: fichero-builder/tests/test_loop.py, fichero-builder/tests/test_measure.py
 - Depends on: 2.2
+- Size: S
+
+#### Step 2.9 — a re-exec'd loop adopts every live session and stops none
+- Behaviours: `local.run.reexec-adopts-by-window-or-pid`, `local.run.drain-expired-one-row`
+- Tests: fichero-builder/tests/test_builder_restart.py (five live windows adopted, none stopped; a live pid adopted; neither queued once), fichero-builder/tests/test_loop_survives.py (one drain-expired row a lane and head; the re-exec after the running chain)
+- Depends on: 2.1
+- Size: S
+
+#### Step 2.10 — a sent step has a live session, and a turn that ends without DONE is seen in one tick
+- Behaviours: `local.run.sent-needs-a-live-session`, `local.run.turn-ended-without-done-alerts`
+- Tests: fichero-builder/tests/test_loop.py (a sent step on a shell is queued again; a quiet sent step alerts once), fichero-builder/tests/test_dry_run.py (a question alerts in one tick; no question is nudged then alerted), fichero-builder/tests/test_watcher.py
+- Depends on: 2.9
+- Size: M
+
+#### Step 2.11 — the loop thins local snapshots before it holds a lane for disk
+- Behaviours: `local.disk.thin-snapshots-before-holding`
+- Tests: fichero-builder/tests/test_loop.py (a thin that frees space starts the lane; one that frees nothing holds; once an hour)
+- Depends on: 2.1
+- Size: S
+
+#### Step 2.12 — `queue add` refuses a repeated brief; `queue drop` takes a step that never started
+- Behaviours: `local.queue.add-refuses-a-repeated-brief`, `local.queue.drop-takes-a-queued-step`
+- Tests: fichero-builder/tests/test_queue_verb.py (a repeat refused by name; `--continues` appends landed and left; a queued step dropped, a sent one refused)
+- Depends on: 2.1
+- Size: S
+
+#### Step 2.13 — a move the loop or the manager recorded is not a stray write
+- Behaviours: `local.run.recorded-move-is-not-a-stray-write`
+- Tests: fichero-builder/tests/test_loop.py (a fast-forward to origin's tip is silent; a `tree-moved` row excuses; a dirty root is one alert for three steps)
+- Depends on: 2.7
+- Size: S
+
+#### Step 2.14 — mechanical fix rounds by script
+- Behaviours: `local.autofix.loop-applies-the-printed-fix`, `local.autofix.classes`
+- Tests: fichero-builder/tests/test_autofix.py (one fixture red a class; the refusals), fichero-builder/tests/test_loop.py (the fix, the row and the second check with no message to the worker)
+- Depends on: 2.6
+- Size: M
+
+#### Step 2.15 — effort per role
+- Behaviours: `local.models.effort-per-role`
+- Tests: fichero-builder/tests/test_model_config.py, fichero-builder/tests/test_adapters.py
+- Depends on: 2.1
 - Size: S
 
 ### Stage 3 — state and reports
