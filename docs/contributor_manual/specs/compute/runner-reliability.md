@@ -380,8 +380,10 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
   real engine on a socket with a scratch state dir and library (never the app's), imports the images, starts the recipe and polls
   the run, recording per minute pages done, pages/hour, the RSS of the engine and its children, swap, failures by kind and model
   loads, into one JSON and a Markdown summary. `--kill-at N` kills the engine once N pages are done, starts it again and checks no
-  page fewer is done. `--place google-dry` never starts the run: it prints the plan's cost per 1000 pages. Exit 1 when a page is
-  lost or done twice (counted from the run's per-step account, as the API names no page ids), memory grows past 100 MB/hour after
+  page fewer is done. `--place google-dry` never starts the run: it prints the plan's cost per 1000 pages. Files with the same
+  name from different folders are uploaded under unique names, so none is dropped. Exit 1 when a page is
+  lost or done twice (counted from the run's per-step account, as the API names no page ids), the run ends failed or cancelled,
+  no page is done for 5 minutes (the report is written first, the soak never polls on), memory grows past 100 MB/hour after
   warm-up or the peak passes 5500 MB, or 5000 pages would take over 10 hours. Owed: the manager's run on the iMac and the 8 GB M1
   over 5000 real pages; a per-page ledger. *Test:* `fichero-server/tests/unit/scripts/test_soak_run_6732.py`.
 - `runner.soak.google-reading-efficiency` — **[OK]** (#6732) the cloud line reader, with a fake Gemini client and no spend, sends
