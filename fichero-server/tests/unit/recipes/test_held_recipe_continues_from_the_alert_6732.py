@@ -65,3 +65,24 @@ def test_continue_on_a_held_recipe_resumes_its_step_run_and_the_recipe_goes_to_w
     assert resumed == ["thread-held-step"], "the held step run is resumed from its checkpoint, no new run started"
     assert jobs.read_job(db, recipe)["state"] == "waiting", "the recipe is let go to adopt its step run's outcome"
 
+
+def test_a_step_run_that_cannot_resume_is_failed_so_the_recipe_does_not_park_for_ever(db, monkeypatch):
+    from fichero_server.api.routes.workflow_execution import core
+    from fichero_server.workflows.activity import get_activity_tracker
+
+    recipe = _recipe_with_a_running_step_run(db, "thread-held-broken")
+    _open_again(db)
+
+    async def resume_workflow(thread_id, *args, **kwargs):
+        raise RuntimeError("its checkpoint cannot be read")
+
+    monkeypatch.setattr(core, "resume_workflow", resume_workflow)
+    jobs.continue_after_quit(db, [recipe])
+    tracker_store = get_activity_tracker(str(db.path)).store
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline and asyncio.run(tracker_store.get_workflow_run("thread-held-broken")).status != "failed":
+        time.sleep(0.05)
+    run = asyncio.run(tracker_store.get_workflow_run("thread-held-broken"))
+    assert run.status == "failed", run.status
+    assert "its checkpoint cannot be read" in (run.error or "")
+    assert jobs.read_job(db, "thread-held-broken")["state"] == "failed"
