@@ -85,12 +85,11 @@ Checked in the code and run 2026-11-21 (unit tests: 46 passed across
   No image is fetched. Importing again adds only canvases whose id is not in the folder and counts
   the ones no longer listed. The app has File › Import from IIIF… and the folder's Inspector
   section with Refresh (`Views/Library/IIIFImport.swift`, `Models/IIIFImportStore.swift`).
-- **What that import does not do.** A collection is flattened: every canvas of every manifest
-  becomes a sibling page in ONE folder (`_remote_canvas_node` is given the collection as parent),
-  so there is no document per manifest. Ranges (`structures`) are not read. The manifest's
-  metadata is copied onto every page (`iiif_manifest_metadata`). Annotation pages on a remote
-  canvas are not read (`annotation_jobs=[]`). No fetch is checked against
-  `security/url_security.py` (`is_safe_url`); only the old loader does that.
+- **What that import does not do.** Ranges (`structures`) are not read. Annotation pages on a
+  remote canvas are not read (`annotation_jobs=[]`). A folder that holds the old flat import (every
+  canvas of a collection as a sibling page, the manifest's metadata copied onto each) is left as it is.
+  Every fetch goes through `media/iiif_engine.py::engine_fetcher`, which checks each address and
+  redirect with `is_safe_url`; a collection imports as a folder of manifest folders (`import_source`).
 - **Viewing.** The first time a page's thumbnail or display picture is asked for,
   `db/storage.py::iiif_page_image` fetches the whole image once at display size
   (`full/!2200,2200/0/default.jpg`) into `storage/iiif/`, and the thumbnail and display copies
@@ -236,8 +235,9 @@ viewer.
 - **Only public https addresses are fetched.** Every address a manifest names (a manifest, a
   collection, an image service, an annotation page) passes the same check as any other URL
   Fichero fetches (`security/url_security.py`): https, a public host, no credentials in the URL,
-  and the check is made again on every redirect. A manifest cannot make the engine ask for
-  something on this Mac or its network.
+  and the check is made again on every redirect. A manifest cannot name this Mac or its network as an
+  address. *Limit:* the check resolves the host and the connection resolves it again, so a hostile DNS
+  answer that changes between the two is not stopped; connecting to the checked address is not built.
 
 ### What has to be fetched, and when
 
@@ -523,23 +523,24 @@ In, by reference:
 - `iiif.fetch.unreachable-host-is-remembered` — **[GAP]** (#5324 → #6921) a host that did not answer is not asked again
   for 60 seconds; requests for it in that minute fail at once with the same reason. Today each
   thumbnail tries three times with a 60 second timeout each.
-- `iiif.import.collection-is-a-tree` — **[BROKEN]** (#5671 → #6922) a manifest becomes a folder bound to its own URL
+- `iiif.import.collection-is-a-tree` — **[PARTIAL]** (#5671 → #6922) a manifest becomes a folder bound to its own URL
   with its canvases as its pages; a collection becomes a folder whose manifests are child
-  folders and whose collections are child folders of folders. Today every canvas of every
-  manifest is a sibling page in one folder (`iiif_import.py::_remote_canvas_node` takes the
-  collection as parent): measured, three manuscripts as 1,629 pages in one folder.
+  folders and whose collections are child folders of folders. *Built:* `iiif_source.py::import_source`
+  makes one folder per collection and manifest, found again by IIIF id on a refresh; pinned by
+  `fichero-server/tests/unit/importers/test_iiif_by_reference.py::test_a_collection_imports_as_a_folder_of_folders_with_manifest_facts_stored_once`.
+  *Not built:* the two bullets below. Measured before: three manuscripts as 1,629 pages in one folder.
 - `iiif.import.collection-appears-at-once` — **[GAP]** (#5671 → #6922) a collection's member folders are made from its
   own list (one request), marked not read yet; the job then reads manifests one at a time, a
   folder the person opens first; a stopped job resumes at the first folder not read.
 - `iiif.import.sample-reads-only-its-manifests` — **[BROKEN]** (#5671 → #6922) a sample of N manifests fetches the
   collections on the way to them and those N manifests, nothing else (depth first). Today every
   sub-collection is fetched before any manifest: measured, 103 requests for a sample of two.
-- `iiif.import.metadata-once` — **[BROKEN]** (#5325 → #6923) a manifest's label, summary, metadata pairs, date, rights,
+- `iiif.import.metadata-once` — **[PARTIAL]** (#5325 → #6923) a manifest's label, summary, metadata pairs, date, rights,
   required statement, provider, homepage and see-also links are stored once, on its folder; a
-  page stores only its own canvas facts and stays under 600 bytes of metadata. Today the
-  manifest's metadata and rights are copied onto every page (`parse_iiif_url`,
-  `iiif_manifest_metadata`, `iiif_rights`): measured, 3.1 KB a page. Pages imported before this
-  keep working: a reader takes the folder's facts first and the page's copy when the folder has none.
+  page stores only its own canvas facts and stays under 600 bytes of metadata. *Built (#6922):* rights and
+  metadata pairs are on the manifest's folder only (was 3.1 KB a page); pinned by the test above and
+  `test_a_single_manifest_import_keeps_its_metadata_on_the_bound_folder`. *Not built (Step 1.3):* the other
+  facts on the folder and the 600 byte limit. Pages imported before this keep working: a reader takes the folder's facts first and the page's copy when the folder has none.
 - `iiif.import.ranges-are-structure` — **[GAP]** (#5324 → #6924) a manifest's ranges become sub-folders when every
   canvas is in at most one lowest range, the pages inside in order and the rest at the top;
   otherwise the pages stay flat and the ranges are kept on the folder as an outline. Presentation

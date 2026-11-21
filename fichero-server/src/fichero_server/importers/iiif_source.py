@@ -96,7 +96,8 @@ def import_source(db: Any, url: str, *, folder_id: str | None = None, name: str 
     folder = db.get(Document, folder.id)
     metadata = {**(folder.metadata or {}), "iiif_source": url, "iiif_refreshed_at": utc_now().isoformat(),
                 "iiif_canvases": len(listed), "iiif_withdrawn": withdrawn,
-                "iiif_rights": collection.get("metadata", {}).get("iiif_rights")}
+                **{k: v for k, v in collection.get("metadata", {}).items()
+                   if k in ("iiif_rights", "iiif_manifest_metadata", "iiif_type", "iiif_id")}}
     db.save(folder.model_copy(update={"metadata": metadata}))
     return {"folder_id": folder.id, "canvases": len(listed), "added": made, "already_here": len(listed) - made,
             "withdrawn": withdrawn, "manifests": parsed.manifests_seen, "warnings": parsed.warnings}

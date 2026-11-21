@@ -104,6 +104,7 @@ def test_the_import_is_a_job_and_a_bound_folder_refreshes(client, db, monkeypatc
     manifest = _manifest3("job", 3)
     server = FakeIIIFServer({manifest["id"]: manifest})
     monkeypatch.setattr(iiif_fetch, "urllib_get_once", server.get)
+    monkeypatch.setattr(iiif_engine, "refusal", lambda url: "")  # no DNS in a unit test
 
     started = client.post("/api/iiif/import", json={"url": manifest["id"]})
     assert started.status_code == 200, started.text

@@ -21,13 +21,8 @@ def refusal(url: str) -> str:
     """Why this address may not be fetched ('' when it may)."""
     if urllib.parse.urlsplit(url).scheme.lower() != "https":
         return "refused: only https addresses are fetched for IIIF"
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        ok, why = asyncio.run(is_safe_url(url))
-    else:  # called from a thread that has a loop: check on a thread of its own
-        with concurrent.futures.ThreadPoolExecutor(1) as pool:
-            ok, why = pool.submit(asyncio.run, is_safe_url(url)).result()
+    with concurrent.futures.ThreadPoolExecutor(1) as pool:  # a thread of its own: the caller may have a running loop
+        ok, why = pool.submit(asyncio.run, is_safe_url(url)).result()
     return "" if ok else f"refused: {why}"
 
 
@@ -47,6 +42,7 @@ def safe_get(url: str, timeout: float) -> tuple[int, dict[str, str], bytes]:
 
 
 def engine_fetcher() -> PoliteFetcher:
+    """The one fetcher the engine uses for every IIIF request."""
     global _FETCHER
     if _FETCHER is None:
         _FETCHER = PoliteFetcher(get=safe_get, per_host=PER_HOST, retries=3)

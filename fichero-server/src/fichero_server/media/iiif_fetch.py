@@ -141,16 +141,14 @@ MAX_BODY = 64 * 1024 * 1024
 
 
 def urllib_get_once(url: str, timeout: float) -> tuple[int, dict[str, str], bytes]:
-    """Like `urllib_get`, but a redirect is returned (status and `location`), not followed, so the caller can
-    check the next address; a body over `MAX_BODY` is refused with `FetchFailed`."""
+    """Like `urllib_get`, but a redirect is returned, not followed, and a body over `MAX_BODY` is refused."""
     import urllib.error
     import urllib.request
 
     from fichero_server.core.tls import https_context  # noqa: PLC0415
 
     class _NoRedirect(urllib.request.HTTPRedirectHandler):
-        def redirect_request(self, *args, **kwargs):  # noqa: ANN002, ANN003
-            return None
+        redirect_request = lambda *args, **kwargs: None  # noqa: E731, ANN002, ANN003
 
     opener = urllib.request.build_opener(_NoRedirect, urllib.request.HTTPSHandler(context=https_context()))
     request = urllib.request.Request(url, headers={"User-Agent": "Fichero (IIIF reader; +https://tubb.ca/apps/fichero)"})
