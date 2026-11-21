@@ -12,8 +12,10 @@ project's corrected regions fine-tune (`prep.yolo.fine-tune-from-corrected-regio
 
 from __future__ import annotations
 
+import logging
 import os
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -30,6 +32,10 @@ YOLO_SHA256: dict[str, str] = {"yolo-doclaynet-11n": "e34e0e60bcfa560e19a8d896d4
 
 _LOCK = threading.Lock()
 _LOADED: dict[str, object] = {}
+#: The device each loaded model detects on, measured on its first page (`runtime.pytorch.device-chosen`, #5370).
+_DEVICES: dict[str, str] = {}
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -135,10 +141,34 @@ def _model(model_id: str):
         return _LOADED[model_id]
 
 
-def _device() -> str:
+def _mps_available() -> bool:
     import torch
 
-    return "mps" if torch.backends.mps.is_available() else "cpu"
+    return torch.backends.mps.is_available()
+
+
+def _device() -> str:
+    return "mps" if _mps_available() else "cpu"
+
+
+def _measured_device(model_id: str, model, predict) -> str:
+    """The device this model detects faster on: with MPS available, one warm-up and one timed `predict` on each of
+    MPS and the CPU, on the first page, kept per model; without MPS, the CPU, unmeasured. Called under `_LOCK`."""
+    if model_id in _DEVICES:
+        return _DEVICES[model_id]
+    if not _mps_available():
+        _DEVICES[model_id] = "cpu"
+        return "cpu"
+    seconds = {}
+    for device in ("mps", "cpu"):
+        predict(model, device)  # warm-up: the first call on a device pays its setup
+        start = time.perf_counter()
+        predict(model, device)
+        seconds[device] = time.perf_counter() - start
+    chosen = min(seconds, key=seconds.get)
+    logger.info("YOLO %s detects on %s (a page: MPS %.3f s, CPU %.3f s)", model_id, chosen, seconds["mps"], seconds["cpu"])
+    _DEVICES[model_id] = chosen
+    return chosen
 
 
 def regions_from(names: dict[int, str], boxes: list[tuple[int, float, list[float]]],
@@ -157,8 +187,12 @@ def regions_from(names: dict[int, str], boxes: list[tuple[int, float, list[float
 def detect_regions(image_path: str | Path, model_id: str = DEFAULT_MODEL, *, confidence: float = 0.25) -> list[Region]:
     """The regions a layout model finds on one page image."""
     model = _model(model_id)
+
+    def predict(model, device):
+        return model.predict(str(image_path), imgsz=1024, conf=confidence, device=device, verbose=False)[0]
+
     with _LOCK:  # one page at a time through a loaded model
-        result = model.predict(str(image_path), imgsz=1024, conf=confidence, device=_device(), verbose=False)[0]
+        result = predict(model, _measured_device(model_id, model, predict))
     height, width = result.orig_shape
     boxes = [(int(b.cls), float(b.conf), b.xyxy[0].tolist()) for b in result.boxes]
     return regions_from(result.names, boxes, width, height)
