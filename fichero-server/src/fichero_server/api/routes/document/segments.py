@@ -5373,6 +5373,10 @@ def _knife_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
     left_alone: list[dict] = []
     rows = sorted(rows, key=lambda row: row.kind != "region")  # regions first: their lines move whole with them
     moved_with_region: set[str] = set()
+    #: Words the stroke divides that it does not name: (index of their line in `planned`, id, their parts).
+    word_cuts: list[tuple[int, str, list[tuple[int, SegmentSplitPart]]]] = []
+    #: Words the stroke names, each with the index of its line in `planned`.
+    named_children: dict[str, int] = {}
     for row in rows:
         if row.id in moved_with_region:
             continue
@@ -5439,14 +5443,24 @@ def _knife_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
                 baseline=piece,
                 reading_span=[bounds[index], bounds[index + 1]] if bounds else None,
             ))
-        # `segment-editor.edge.knife-through-words`: each word goes with the part its centre falls in.
+        # `segment-editor.edge.knife-through-words`: each word goes with the part its centre falls in, and a word
+        # the stroke divides is split there too (after the lines, below). A word named in the stroke is split as a
+        # line is; its pieces are then put on the parts they lie in.
         children_by_part: list[list[Segment]] = [[] for _ in polygons]
         for child in shapes:
-            if child.parent_segment_id != row.id or child.id in params.expected_versions:
+            if child.parent_segment_id != row.id:
+                continue
+            if child.id in params.expected_versions:
+                named_children[child.id] = len(planned)
                 continue
             child_outline = line_join.outline_of(child.anchor)
             if child_outline is None:
                 children_by_part[0].append(child)
+                continue
+            word_parts = _word_parts(child, child_outline, polygons, stroke)
+            if word_parts is not None:
+                word_cuts.append((len(planned), child.id, word_parts))
+                children_by_part[word_parts[0][0]].append(child)
                 continue
             x0, y0, x1, y1 = line_join.bounds(child_outline)
             children_by_part[line_cut.part_holding([(x0 + x1) / 2, (y0 + y1) / 2], polygons)].append(child)
@@ -5471,15 +5485,24 @@ def _knife_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
         kept_before = _divide_piece_spans(db, split, stroke)
         if kept_before is not None and split.get("kept_metadata") is None:
             split["kept_metadata"] = kept_before
-    touched = [segment_id for split in splits for segment_id in (split["kept_id"], *split["new_segment_ids"])]
+    word_splits = _split_crossed_words(db, planned, splits, word_cuts, named_children, ctx=ctx, audit_id=audit_id)
+    # The undo checks every row against these before it touches any, so they are the rows as this action leaves them
+    # (a word cut is moved by its line's split and changed by its own).
+    for split in (*splits, *word_splits):
+        split["versions"] = {sid: db.get(Segment, sid).version for sid in split["versions"]}
+        split["moved_children"] = {sid: db.get(Segment, sid).version for sid in split["moved_children"]}
+    touched = [
+        segment_id for split in (*splits, *word_splits) for segment_id in (split["kept_id"], *split["new_segment_ids"])
+    ]
     change_spec = ChangeSpec(
         audit_id=audit_id,
         domains=["segment"],
         target_ids=touched,
         before=None,
         after={
-            "splits": splits,
-            "versions": {key: value for split in splits for key, value in split["versions"].items()},
+            # The lines first: their undo moves the words back before the words' undo makes them whole.
+            "splits": [*splits, *word_splits],
+            "versions": {key: value for split in (*splits, *word_splits) for key, value in split["versions"].items()},
         },
         emit_type="segment.split",
         segment_ids=touched,
@@ -5491,9 +5514,78 @@ def _knife_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
             {key: split[key] for key in ("kept_id", "new_segment_ids", "representation_ids", "moved_children")}
             for split in splits
         ],
+        "split_words": [{key: split[key] for key in ("kept_id", "new_segment_ids")} for split in word_splits],
         "left_alone": left_alone,
     }
     return answer, change_spec
+
+
+def _word_parts(
+    word: Segment, outline: list[list[float]], polygons: list[list[list[float]]], stroke: list[list[float]],
+) -> list[tuple[int, SegmentSplitPart]] | None:
+    """A word of a line the knife cut, as (line part index, its piece) when the stroke divides it between the parts
+    (`segment-editor.edge.knife-through-words`); None when it lies in one part, or when it has a baseline the stroke
+    does not cut into as many pieces (it then goes whole with its centre)."""
+    from fichero_server.media import line_cut, line_join
+
+    pieces = line_cut.pieces_in_parts(outline, polygons)
+    if len(pieces) < 2:
+        return None
+    baselines: list[Any] = [None] * len(pieces)
+    if word.baseline and len(word.baseline) >= 2:
+        cuts = line_cut.crossings(word.baseline, stroke)
+        if len(cuts) != len(pieces) - 1:
+            return None
+        baselines = line_cut.baseline_pieces(word.baseline, cuts)
+    parts = []
+    for (index, polygon), baseline in zip(pieces, baselines):
+        x0, y0, x1, y1 = line_join.bounds(polygon)
+        parts.append((index, SegmentSplitPart(
+            anchor=word.anchor.model_copy(update={"polygon": polygon, "rect": [x0, y0, x1 - x0, y1 - y0], "shapes": None}),
+            baseline=baseline,
+        )))
+    return parts
+
+
+def _split_crossed_words(
+    db: Database, planned: list, splits: list[dict], word_cuts: list, named_children: dict[str, int],
+    *, ctx: ActionContext, audit_id: str,
+) -> list[dict]:
+    """`segment-editor.edge.knife-through-words`, after a knife split its lines: each word it divides split into
+    its pieces, each piece under the line part it lies in, and each piece of a word the stroke named and split as a
+    line moved to the part holding its centre. Answers the words' own split records."""
+    from fichero_server.media import line_cut, line_join
+
+    line_parts = [[split["kept_id"], *split["new_segment_ids"]] for split in splits]
+    word_splits = []
+    for line_index, word_id, parts in word_cuts:
+        split = _split_one(
+            db, db.get(Segment, word_id), [part for _index, part in parts], estimated=False,
+            readings_before_split={}, ctx=ctx, audit_id=audit_id,
+        )
+        for new_id, (part_index, _part) in zip(split["new_segment_ids"], parts[1:]):
+            piece = db.get(Segment, new_id)  # made in this action: it has no version before this one to keep
+            piece.parent_segment_id = line_parts[line_index][part_index]
+            db.save(piece)
+        word_splits.append(split)
+    for split in splits:
+        line_index = named_children.get(split["kept_id"])
+        if line_index is None:
+            continue
+        line_split = splits[line_index]
+        line_polygons = [part.anchor.polygon for part in planned[line_index][1]]
+        for piece_id in (split["kept_id"], *split["new_segment_ids"]):
+            piece = db.get(Segment, piece_id)
+            x0, y0, x1, y1 = line_join.bounds(line_join.outline_of(piece.anchor))
+            target = line_parts[line_index][line_cut.part_holding([(x0 + x1) / 2, (y0 + y1) / 2], line_polygons)]
+            if piece.parent_segment_id == target:
+                continue
+            if piece_id == split["kept_id"]:
+                snapshot_segment_version(db, piece, deleted=False, actor=ctx.actor, audit_id=audit_id)
+                line_split["moved_children"][piece_id] = piece.version
+            piece.parent_segment_id = target
+            db.save(piece)
+    return word_splits
 
 
 def _divide_piece_spans(db: Database, split: dict, stroke: list[list[float]]) -> dict[str, Any] | None:

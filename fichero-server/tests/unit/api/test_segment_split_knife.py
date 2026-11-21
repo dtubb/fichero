@@ -278,6 +278,59 @@ class TestWords:
         assert response.status_code == 200, response.text
         assert [db.get(Segment, word).parent_segment_id for word in words] == [line] * 4
 
+    def test_a_word_the_stroke_crosses_is_split_between_the_parts_and_undo_makes_it_whole(self, db, client):
+        doc, pass_id = _page(db, client)
+        line = _line(client, doc, pass_id, polygon=_box(0.1, 0.2, 0.8, 0.05), baseline=[[0.1, 0.24], [0.9, 0.24]])
+        response = client.post("/api/segments", json={
+            "document_id": doc.id, "pass_id": pass_id, "kind": "word", "parent_segment_id": line,
+            "anchor": {"document_id": doc.id, "rect": [0.45, 0.205, 0.1, 0.04]},
+        })
+        assert response.status_code == 200, response.text
+        word = response.json()["id"]
+
+        result = _knife(db, [line], [[0.5, 0.15], [0.5, 0.3]])
+
+        kept, rest = _parts(result, line)
+        [split_word] = result.result["split_words"]
+        assert split_word["kept_id"] == word
+        [piece] = split_word["new_segment_ids"]
+        assert db.get(Segment, word).parent_segment_id == kept
+        assert db.get(Segment, piece).parent_segment_id == rest
+        assert db.get(Segment, piece).kind == "word"
+        left, right = _xs(db, word), _xs(db, piece)
+        assert left[0] == pytest.approx(0.45, abs=3e-3) and left[1] == pytest.approx(0.5, abs=3e-3)
+        assert right[0] == pytest.approx(0.5, abs=3e-3) and right[1] == pytest.approx(0.55, abs=3e-3)
+
+        response = client.post(f"/api/actions/audit/{result.audit_id}/undo")
+        assert response.status_code == 200, response.text
+        whole = db.get(Segment, word)
+        assert whole.parent_segment_id == line
+        assert whole.anchor.rect == pytest.approx([0.45, 0.205, 0.1, 0.04])
+        assert db.get(Segment, piece).deleted_at is not None
+
+    def test_a_named_word_cut_with_its_line_puts_each_piece_on_the_part_it_lies_in(self, db, client):
+        doc, pass_id = _page(db, client)
+        line = _line(client, doc, pass_id, polygon=_box(0.1, 0.2, 0.8, 0.05), baseline=[[0.1, 0.24], [0.9, 0.24]])
+        response = client.post("/api/segments", json={
+            "document_id": doc.id, "pass_id": pass_id, "kind": "word", "parent_segment_id": line,
+            "anchor": {"document_id": doc.id, "polygon": _box(0.45, 0.205, 0.1, 0.04)},
+            "baseline": [[0.45, 0.24], [0.55, 0.24]],
+        })
+        assert response.status_code == 200, response.text
+        word = response.json()["id"]
+
+        result = _knife(db, [line, word], [[0.5, 0.15], [0.5, 0.3]])
+
+        kept, rest = _parts(result, line)
+        _word, piece = _parts(result, word)
+        assert db.get(Segment, word).parent_segment_id == kept
+        assert db.get(Segment, piece).parent_segment_id == rest
+        response = client.post(f"/api/actions/audit/{result.audit_id}/undo")
+        assert response.status_code == 200, response.text
+        assert db.get(Segment, word).parent_segment_id == line
+        assert _xs(db, word) == pytest.approx((0.45, 0.55), abs=3e-3)
+        assert db.get(Segment, piece).deleted_at is not None
+
 
 class TestRefusals:
     def test_a_changed_line_refuses_the_whole_stroke(self, db, client):
