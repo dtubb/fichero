@@ -150,16 +150,13 @@ struct ContentView: View {
     /// the folder tree.
     static let defaultPreferredCompactColumn: NavigationSplitViewColumn = .detail
     static let sidebarMinWidth: Double = 160
-    /// `nonisolated` (with `inspectorMaxWidth`): pure bounds read by the
-    /// nonisolated `restoredInspectorWidth` clamp and its off-main tests.
-    /// The inspector column carries the toolbar's search item (#6729): its minimum keeps the field whole.
+    /// `nonisolated` (with `inspectorMaxWidth`): pure bounds for the off-main clamp and tests.
+    /// The inspector column carries the toolbar search (#6729): its minimum keeps the field whole.
     nonisolated static let toolbarSearchMinWidth: Double = 120
     nonisolated static let inspectorToggleAllowance: Double = 140
     nonisolated static let inspectorMinWidth: Double = toolbarSearchMinWidth + inspectorToggleAllowance
-    /// Mac-native rule (#4287): the SPLITTER owns width within sane bounds and
-    /// inner content fills what it's given. 420 was an artificial ceiling that
-    /// forced text to wrap on wide windows; this cap exists only to stop a
-    /// drag from swallowing the whole window.
+    /// Mac-native rule (#4287): the SPLITTER owns width within sane bounds and inner content fills it;
+    /// this cap exists only to stop a drag from swallowing the whole window.
     nonisolated static let inspectorMaxWidth: Double = 800
     static let contentMinWidth: Double = 520
     static let contentMaxWidth: Double = 2200
