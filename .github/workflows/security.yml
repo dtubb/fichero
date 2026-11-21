@@ -24,10 +24,10 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
       - name: Read the rung's pins and osv switch from harness.toml
         id: cfg
         run: |
@@ -100,7 +100,7 @@ jobs:
           - { language: python, os: ubuntu-latest, build-mode: none }
           - { language: swift, os: macos-15, build-mode: none }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
