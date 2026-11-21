@@ -208,7 +208,7 @@ struct StrokeTarget {
 }
 
 /// Why a stroke could not be sent, in words for the page.
-enum StrokeRefusal: Equatable {
+enum StrokeRefusal: Error, Equatable {
     case noPass, notSaved
 
     var words: String {
