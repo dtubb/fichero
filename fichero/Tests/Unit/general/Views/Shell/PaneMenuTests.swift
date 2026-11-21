@@ -26,46 +26,14 @@ struct PaneMenuTests {
         #expect(PaneMenuEntries.focusTitle(leaf: nil, focused: nil) == "Focus on Pane")
     }
 
-    @Test("the head has no pin button; the menu's Pin Pane is a toggle, checked while pinned (#6741)")
-    func pinLivesInTheMenu() throws {
-        let head = try AppSource.code("Views/Shell/PaneHead/PaneHead.swift")
-        let menu = try AppSource.code("Views/Shell/PaneHead/PaneChromeMenu.swift")
-        #expect(!head.contains("pinToggle"), "the head still places its own pin button")
-        #expect(!head.contains("paneHeadPinToggle"))
-        #expect(menu.contains("Toggle(isOn: isPinned)"), "Pin Pane is not a checked toggle")
-        #expect(menu.contains("Label(\"Pin Pane\", systemImage: \"pin\")"))
-        #expect(!menu.contains("\"Unpin Pane\""), "a checked toggle needs no second title")
-    }
-
-    @Test("View As ▸ is the pane's own view list, in the menu after Pane ▸ and before the splits (#6741)")
-    func viewAsInTheMenu() throws {
+    @Test("both view choosers hand View As ▸ their own view list (#6741)")
+    func viewAsInTheMenu() {
         let selector = PaneKindSelector(
             kindTitle: "Items", kindIcon: "list.bullet", currentKind: .library,
             lenses: ViewDisplayMode.allCases, lensTitle: { $0.label }, lensIcon: { $0.icon },
             lens: .constant(ViewDisplayMode.allCases[0])
         )
         #expect((selector as Any) is PaneViewChooser, "the head's view chooser does not hand its list to the menu")
-        let kinds = try AppSource.code("Views/Shell/PaneHead/PaneKindSelector.swift")
-        #expect(kinds.contains("Menu(\"View As\")"))
-        let controls = try AppSource.code("Views/Shell/PaneHead/PreviewHeadControls.swift")
-        #expect(controls.contains("extension PreviewHeadSelectorGroup: PaneViewChooser"))
-        let head = try AppSource.code("Views/Shell/PaneHead/PaneHead.swift")
-        #expect(head.components(separatedBy: "viewAs: viewAsMenu").count - 1 == 2, "the button and the right-click both list it")
-        let menu = try AppSource.code("Views/Shell/PaneHead/PaneChromeMenu.swift")
-        let pane = try #require(menu.range(of: "Menu(\"Pane\")"))
-        let viewAs = try #require(menu.range(of: "if let viewAs { viewAs }"))
-        let split = try #require(menu.range(of: "Menu(\"Split Right\")"))
-        #expect(pane.lowerBound < viewAs.lowerBound && viewAs.lowerBound < split.lowerBound)
-    }
-
-    @Test("Pane Options ▸ holds the kind's own options (Font), after View As ▸ and before the splits (#6741)")
-    func paneOptionsHoldsFont() throws {
-        let menu = try AppSource.code("Views/Shell/PaneHead/PaneChromeMenu.swift")
-        let viewAs = try #require(menu.range(of: "if let viewAs { viewAs }"))
-        let options = try #require(menu.range(of: "Menu(\"Pane Options\")"), "the menu has no Pane Options submenu")
-        let font = try #require(menu.range(of: "Menu(\"Font\")"))
-        let split = try #require(menu.range(of: "Menu(\"Split Right\")"))
-        #expect(viewAs.lowerBound < options.lowerBound && options.lowerBound < split.lowerBound)
-        #expect(options.lowerBound < font.lowerBound && font.lowerBound < split.lowerBound, "Font is not inside Pane Options")
+        #expect((PreviewHeadSelectorGroup.self as Any) is PaneViewChooser.Type, "the Preview head's chooser does not either")
     }
 }

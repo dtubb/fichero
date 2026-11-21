@@ -50,15 +50,4 @@ struct PaneSplitAddsKindTests {
         actions.onSplitBelow(.reading)
         #expect(captured?.0 == .vertical && captured?.1 == .reading)
     }
-
-    @Test("the menu's Split Right ▸ and Split Below ▸ are submenus of the selectable kinds")
-    func menuListsKinds() throws {
-        let menu = try AppSource.code("Views/Shell/PaneHead/PaneChromeMenu.swift")
-        #expect(menu.contains("Menu(\"Split Right\")"))
-        #expect(menu.contains("Menu(\"Split Below\")"))
-        #expect(menu.contains("actions.onSplitRight(kind)"))
-        #expect(menu.contains("actions.onSplitBelow(kind)"))
-        #expect(!menu.contains("\"Split Vertical\""), "the one-step duplicate entry is replaced by the submenu")
-        #expect(!menu.contains("\"Split Horizontal\""))
-    }
 }

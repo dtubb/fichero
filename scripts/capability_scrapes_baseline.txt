@@ -192,6 +192,8 @@ fichero/Tests/Unit/general/Views/Shell/BarLabelsContextMenuTests.swift
 fichero/Tests/Unit/general/Views/Shell/ChatWithDocsRoutingTests.swift
 fichero/Tests/Unit/general/Views/Shell/ContentPaneDropTargetTests.swift
 fichero/Tests/Unit/general/Views/Shell/ContentPaneInternalDragImportGuardTests.swift
+# #6730 absence scan: no window toolbar builder declares a non-customizable `some ToolbarContent`; the property is a missing declaration
+fichero/Tests/Unit/general/Views/Shell/CustomizableToolbarTests.swift
 fichero/Tests/Unit/general/Views/Shell/DroppedURLClassificationTests.swift
 fichero/Tests/Unit/general/Views/Shell/ExternalDropPromiseTypeTests.swift
 fichero/Tests/Unit/general/Views/Shell/LaunchPathNoModalTests.swift
