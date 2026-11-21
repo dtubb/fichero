@@ -779,7 +779,7 @@ See section 7.2 below for what exists. The design:
 
 #### PDF pages (owner 2026-11-16 evening; #6664; first when segment work resumes)
 
-- `segment-editor.pdf.segments-from-the-text-layer` — **[GAP]** (#6664) a PDF page with a text layer
+- `segment-editor.pdf.segments-from-the-text-layer` — **[PARTIAL]** (#6664) a PDF page with a text layer
   gets regions, lines and words as segments built from the geometry the import already saved
   (#4418), mapped from PDF page coordinates to the page's rendition, with no model run and no
   network. They are ordinary segments: they carry their text as a reading, take every verb, and
@@ -787,6 +787,10 @@ See section 7.2 below for what exists. The design:
   text layer (a scan) gets no segments and says so in one line ("No text layer on this page;
   find lines to make segments"). Re-running never duplicates: an existing text-layer segment set
   is kept, not added again.
+  *Built 2026-11-21:* the engine half: `POST /api/segments/document/{doc_id}/text-layer` (the import's geometry, or
+  the PDF read again where it is missing; the same conversion as an import's; an existing set kept with nothing added; a
+  scan answers the one line; `fichero-server/tests/unit/api/test_pdf_text_layer_segments.py`). *Not built:* the app
+  calling it when a PDF page opens and showing the line. Needs an on-screen check.
 - `segment-editor.pdf.selection-highlights-on-the-page` — **[GAP]** (#6664; owner: clicking a
   segment line does not highlight it on the PDF) selecting a segment anywhere, in the Segments
   pane, the Inspector or a reading, highlights its shape on the rendered PDF page in the region's
