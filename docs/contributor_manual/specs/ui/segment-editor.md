@@ -984,10 +984,13 @@ The umbrella's speed trial (slice 12) is the gate and is not restated. This file
   go on onto the next line and Edit › Segments ▸ Join Broken Words joins each (one merge and one undo per word,
   `SegmentEdit.joinBrokenWord`). *Tests:* `fichero-server/tests/unit/api/test_segment_word_across_lines.py`;
   `fichero/Tests/Unit/general/Views/Segments/SegmentSimplifyTests.swift::brokenWords`.
-- `segment-editor.edge.knife-through-words` — **[PARTIAL]** (→ #4941; engine) a knife split of a line that already has
+- `segment-editor.edge.knife-through-words` — **[OK]** (→ #4941; engine) a knife split of a line that already has
   words assigns each word to the part its centre falls in and splits a word the stroke crosses.
   *Built (2026-11-13):* words go with the part holding their centre, and undo puts them back
-  (`moved_children`; `test_segment_split_knife.py::TestWords`). *Not built:* splitting a word the stroke crosses.
+  (`moved_children`; `test_segment_split_knife.py::TestWords`). *Built 2026-11-21:* a word the stroke divides is split
+  between the parts, each piece under the part it lies in (`line_cut.pieces_in_parts`), and the answer names it in
+  `split_words`; a word the stroke names is split as a line is and each piece moves to the part holding its centre; one
+  undo makes every word whole again under the line (`test_segment_split_knife.py::TestWords`).
 - `segment-editor.edge.merge-across-passes` — **[OK]** (engine) refused in words by
   `SegmentPassMismatchError`; the app offers nothing across passes but a match. Pinned by
   `fichero-server/tests/unit/api/test_segments_matches_forwarding.py`.
