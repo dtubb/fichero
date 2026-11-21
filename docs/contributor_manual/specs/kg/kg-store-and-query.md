@@ -116,20 +116,26 @@ makes extraction slow. The 744 tests of `tests/unit/kg`, `tests/unit/knowledge` 
   writes them through `Database.save_many`, new rows as a plain multi-row INSERT, so a
   transaction's memory stays small (`db/__init__.py::save_many`). Pinned:
   `tests/unit/db/test_new_rows_in_a_transaction_stay_small.py`.
-- `kg.store.link-table-is-derived` — **[GAP]** (#4975, #6755) one derived table, `kg_mentions`, holds
+- `kg.store.link-table-is-derived` — **[PARTIAL]** (#4975, #6755) one derived table, `kg_mentions`, holds
   one row per name on a statement: the name's id, the statement's id, the statement's page, and
   the role (subject, object, named). It has no index and no column a person edits. It is written
   in the same transaction as the statement it describes (the statement's old rows deleted, its new
-  rows inserted) and by nothing else. Code today: no such table; the link is the JSON list
-  `entity_ids`, searched with `LIKE '%"id"%'` (`db/__init__.py::knowledge_claim_entity_id_values`,
-  `knowledge_claims_for_entity_frontier`, `entity_document_link_rows`) or in Python.
-  *Test:* `test_kg_mentions_follow_the_statement.py` (not yet written).
-- `kg.store.link-table-rebuilds` — **[GAP]** (#6755, #5361) the link table can be thrown away:
+  rows inserted) and by nothing else. Built: `Database.save`, `save_many` and `delete` write it for a
+  statement, with the roles `subject` (the statement's `subject_entity_id`) and `named` (every other
+  id in `entity_ids`). Not built: the `object` role, which waits for the object's id on the statement
+  (`kg.store.edge-ends-are-ids`, #6756). The readers still use the JSON list `entity_ids`, searched
+  with `LIKE '%"id"%'` (`db/__init__.py::knowledge_claim_entity_id_values`,
+  `knowledge_claims_for_entity_frontier`, `entity_document_link_rows`) or in Python; moving them
+  is Step 2.2 and 2.3.
+  *Test:* `tests/unit/db/test_kg_mentions_follow_the_statement.py`.
+- `kg.store.link-table-rebuilds` — **[PARTIAL]** (#6755, #5361) the link table can be thrown away:
   the knowledge rebuild (`/api/kg/rebuild`, `knowledge/rebuild.py`) remakes it in one statement
   from the statements table, and a project whose link table is missing or whose statement count
   disagrees with it is rebuilt when it opens, as a background job that the Activity pane shows.
-  Code today: the rebuild remakes vectors, triples and predictions only.
-  *Test:* `test_rebuild_remakes_the_link_table.py` (not yet written).
+  Built: `rebuild_kg` remakes the table (`Database.rebuild_kg_mentions`) and reports its row count.
+  Not built: the rebuild at open and its Activity-pane job; the `/api/kg/rebuild` response does not
+  carry the row count.
+  *Test:* `tests/unit/db/test_rebuild_remakes_the_link_table.py`.
 - `kg.store.edge-ends-are-ids` — **[GAP]** (#6756, #5032) a statement that joins two names
   stores both ends as ids when it is written: `subject_entity_id` and the object's id among its
   roles. Code today: the graph ignores `subject_entity_id`; it reads the verb and the object's
