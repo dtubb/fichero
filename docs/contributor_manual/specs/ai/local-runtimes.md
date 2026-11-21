@@ -290,27 +290,31 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
   `source.model.tesseract-provider`, which owns the card; this line owns the bundling.
 - `runtime.yolo.none-yet` — **[PARTIAL]** (#4948, #4947, #5525) a YOLO-family detector has a card (the recipe's
   find-regions step, `prep.yolo.regions-card`), is downloaded on request (AGPL weights are never bundled) and runs
-  in process on the GPU (`llm/yolo_runtime.py`, `recipes/regions.py`; built 2026-10-10). *Not yet:* it runs in the
-  recipe's own job rather than as a job on the local ML lane, so it does not yet take its turn with the other
-  heavy models.
+  in process on the GPU (`llm/yolo_runtime.py`, `recipes/regions.py`; built 2026-10-10). **Built 2026-11-21:** a
+  YOLO page of find-regions runs as a job on the local ML lane, taking its turn with the other heavy models. *Test:*
+  `fichero-server/tests/unit/recipes/test_yolo_page_on_the_lane_5525.py`. *Not yet:* seen in the app.
   **[OK]** (#5654) its model is listed as Kraken's readers are: `GET /api/local-models?model_type=yolo` gives its
   size before it is downloaded (`YOLO_MODELS` carries the file's size, 5.6 MB; it said 0), and the models
   catalog (`GET /api/local-inference/catalog`, MCP `fichero_models_catalog`) lists it under the `yolo` provider
   type, downloaded or not, and deletes it. Tests: `fichero-server/tests/unit/api/test_yolo_size_and_catalog_5654.py`.
 
-- `runtime.yolo.imports-wherever-the-engine-runs` — **[GAP]** (#6675, #5525) Ultralytics imports, and a detector finds
+- `runtime.yolo.imports-wherever-the-engine-runs` — **[PARTIAL]** (#6675, #5525) Ultralytics imports, and a detector finds
   regions on a real page, in every Python the engine runs under: the app's bundle, the development and test environment,
-  and the runtime matrix's. Today Ultralytics is not a declared dependency and is in no lock file: it reaches a Python
-  only through the bundle step (`[tool.fichero.mlx_bundle]` in `fichero-server/pyproject.toml`, installed by
-  `scripts/install_mlx_into_engine_bundle.py`), which `scripts/setup_venv.sh` also runs and then checks by import. An
-  environment made any other way lacks it, and no test notices, because the detector and the trainer are stand-ins in
-  every test (`fichero-server/tests/unit/training/test_yolo_regions_training.py`); the runtime matrix
-  (`runner.measured.runtime-matrix`) found exactly that. The rule: one way to make the environment
+  and the runtime matrix's. **Built 2026-11-21:** Ultralytics is a declared engine dependency
+  (`ultralytics>=8.4.175` in `fichero-server/pyproject.toml`), locked in `fichero-server/uv.lock` at the bundle's pin
+  (`[tool.fichero.mlx_bundle]`), and the bundle step installs under the lock's constraints
+  (`scripts/install_mlx_into_engine_bundle.py`). Measured 2026-11-21 on a 16 GB M1 under the lock's environment with the
+  stock weights: the matrix's YOLO row ran ok, one load across two passes of the six sample pages, 5.2 s for the
+  first page, 0.20 s a page after, 773 MB peak RSS. *Not yet:* the bundle build under the lock's constraints, the
+  gate's refusal below, and the row on the 8 GB Mac. Before this, the detector and the trainer were stand-ins in every
+  test (`fichero-server/tests/unit/training/test_yolo_regions_training.py`), and the runtime matrix
+  (`runner.measured.runtime-matrix`) found Ultralytics missing from the gate venvs. The rule: one way to make the environment
   (`scripts/setup_venv.sh`), and the gate refuses to run the engine's tests in a Python where a bundled runtime does not
   import, naming the module and the command that fixes it; the matrix's YOLO row runs the real detector on the fixture
-  pages on the GPU, twice, with one load. *Test (to write):* test_yolo_runs_for_real.py in
-  fichero-server/tests/unit/llm/ (skipped with its reason only where the stock weights are not in the model store; an
-  import failure fails, never skips).
+  pages on the GPU, twice, with one load. *Test:*
+  `fichero-server/tests/unit/llm/test_yolo_runs_for_real.py` (skipped with its reason only where the stock weights are
+  not in the model store; an import failure fails at collection, never skips), and
+  `fichero-server/tests/unit/packaging/test_ultralytics_declared_6675.py`.
 
 ### C. Loading, residency and speed
 
@@ -375,8 +379,14 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
   explicit batch size, and an embed a person is waiting on (search right after import) runs at
   utility QoS; the Core ML execution provider and an int8 bge-m3 are measured against fp32 CPU
   before either is adopted.
-- `runtime.pytorch.device-chosen` — **[GAP]** (#5370) PyTorch work (PyKEEN, a YOLO detector) uses
-  MPS where it measures faster on the fixture and the CPU otherwise; nothing hard-codes the device.
+- `runtime.pytorch.device-chosen` — **[PARTIAL]** (#5370) PyTorch work (PyKEEN, a YOLO detector) uses
+  MPS where it measures faster on the fixture and the CPU otherwise; nothing hard-codes the device. **Built
+  2026-11-21 (YOLO detection):** on a model's first page, with MPS available, `yolo_runtime.detect_regions` times one
+  predict on MPS and one on the CPU after a warm-up on each, keeps the faster for that model and logs both (16 GB M1:
+  MPS 0.046 s, CPU 0.339 s a page). Without MPS it runs on the CPU. *Test:*
+  `fichero-server/tests/unit/llm/test_yolo_device_measured_5370.py`. *Not yet:* YOLO training
+  (`training/yolo_local.py`) still takes MPS whenever it is available, and PyKEEN is fixed to the CPU
+  (`knowledge/pykeen_predictor.py`).
 - `runtime.mlx.fit-estimate` — **[PARTIAL]** (#5641) before an MLX model loads, Fichero estimates what it
   needs: its weights, plus the KV cache for the step's context length (2 × layers × KV heads × head size × 2
   bytes per token, from the model's own config; a long page needs more), plus a fixed overhead (0.75 GB:
@@ -510,7 +520,7 @@ Engine first: the estimate and the five-step factor as a pure function with its 
 
 #### Step 2.1 — YOLO runs for real wherever the engine runs: imported, on the lane, on the right device (#5525)
 - Behaviours: `runtime.yolo.imports-wherever-the-engine-runs`, `runtime.yolo.none-yet`, `runtime.pytorch.device-chosen`
-- Tests: fichero-server/tests/unit/scripts/test_runtime_matrix.py, fichero-server/tests/unit/recipes/test_yolo_regions_card.py, test_yolo_runs_for_real.py (not yet written)
+- Tests: fichero-server/tests/unit/scripts/test_runtime_matrix.py, fichero-server/tests/unit/recipes/test_yolo_regions_card.py, fichero-server/tests/unit/llm/test_yolo_runs_for_real.py
 - Size: S
 
 The first step of the model loop's layout row (`compute/distillation.md` Stage 2). Built: the detector
