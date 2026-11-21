@@ -667,7 +667,9 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   actions show beside Show Details, and the rest are inside Show Details. Labels are readable and never cut off mid-word
   (the label shortens or the bar wraps). Test: a failure with repeated per-document actions renders each action once.
   *Built 2026-11-21:* each action once: `ActivityDetails.summary(of:)` keeps one entry per stage run and offer, in the
-  engine's order (*Test:* `fichero/Tests/Unit/general/Models/ActivityFailedOffersOnceTests.swift`). *Not built:* the cap of
+  engine's order (*Test:* `fichero/Tests/Unit/general/Models/ActivityFailedOffersOnceTests.swift`). The engine's run summary
+  lists each failed batch run and offer once, naming every step that carried it (`run_view.stage_failures`; *Test:*
+  `fichero-server/tests/unit/recipes/test_failed_stage_listed_once_6731.py`). *Not built:* the cap of
   two or three beside Show Details, and the labels: the app has no such bar since the recipe-run strip was removed (owner
   2026-11-13); the offers show in the Inspector's run summary, one per line.
 - `activity.runs.bulk-delete-in-background` — **[GAP]** (#6732; app + engine; owner 2026-11-19) deleting many runs at once is one
