@@ -498,8 +498,10 @@ See section 7.2 below for what exists. The design:
   `write_readings` passes them to `representation.create`, which keeps them on a machine's reading
   when there is one per character. `segment.split(at_offset)` cuts at the position and marks
   `cut: measured` (not for right-to-left lines yet: their positions run along the baseline as
-  drawn). *Not built:* the full-page read's writer, the app's `Reading` model. *Tests:*
-  `test_kraken_char_positions.py`.
+  drawn). *Built 2026-11-21:* the full-page read's writer: `recognize_to_geometry` keeps each line's positions on
+  its box (trimmed with the text), and converting the result into a pass puts them on the line's reading when there
+  is one per character (`fichero-server/tests/unit/llm/test_full_page_read_keeps_char_positions.py`).
+  *Not built:* the app's `Reading` model. *Tests:* `test_kraken_char_positions.py`.
 - `segment-editor.cut-words-from-positions` — **[PARTIAL]** (→ #5212; engine + app) **Cut Words** (⌘⇧W) on selected lines, or
   a page, derives word segments from the counting reading: each space in the text is a gap
   between two characters; the cut is the point on the baseline midway between the end of the
