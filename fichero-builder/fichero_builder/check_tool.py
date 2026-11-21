@@ -417,7 +417,7 @@ def _ship(root, cfg: Config, remote: str = "") -> str:
     if (root, remote) in _SHIPPED:
         return _SHIPPED[(root, remote)]
     host, _, base = remote.partition(":")
-    free = _ssh(host, f"df -g {base or '.'} | tail -1 | awk '{{print $4}}'", 30).stdout.decode().strip()
+    free = _ssh(host, f"df -g {base or '.'} /tmp | awk 'NR>1 {{print $4}}' | sort -n | head -1", 30).stdout.decode().strip()
     if free.isdigit() and int(free) < cfg.remote_min_free_gb:  # the iMac is 98% full: never fill it
         raise OSError(f"{host}: {free} GiB free, under {cfg.remote_min_free_gb:g}")
     mk = _ssh(host, f'mkdir -p {base or "."} && cd {base or "."} && d=$(mktemp -d "$PWD/run-XXXXXX") && echo "$d"', 30)
