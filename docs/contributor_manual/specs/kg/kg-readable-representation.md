@@ -648,7 +648,8 @@ and tested, reachable from no screen.
   deterministic biography (`EntityDigestView.swift:324-329`). The Swift wrapper
   (`generateKGEntityBiography`) has no in-app caller, but CLI/MCP/agents can reach the route —
   this is a live violation of the AI-as-instrument north star, not a theoretical one. **Retiring
-  it is the creative director's decision, explicitly not decided here** — see Open Questions.
+  it was ruled by the owner on 2026-11-21 (G7)**; the step that removes it is Step 1.4 of
+  `kg-paragraph-realisation.md` (`kg.para.no-model-in-the-path`).
   A future guard test must assert on CALLS (patch `llm.chat` to raise) and on PURITY (same input
   → same output), not on imports: `paragraph`/`readable` transitively import
   `fichero_server.llm` via the models package, so an import-based guard fails as written.
@@ -941,7 +942,8 @@ visible payoff.
 Seven further questions from the graph-to-text review of 2026-11-21 (a model for smoothness;
 one passage, one sentence; where a statement that keeps its true subject sits; the date
 normalised or as written; gender for agreement; two languages in one paragraph; who writes the
-inverse frames) are in `kg-paragraph-realisation.md`, "Open questions for the owner".
+inverse frames) are in `kg-paragraph-realisation.md`, "Open questions for the owner"; the owner
+answered all but the third on 2026-11-21 (G1 to G7).
 
 Copied from the Fabel review's design questions (section 7) with its recommendations. The
 manager is proceeding on each recommendation unless the creative director says otherwise, with
@@ -971,7 +973,8 @@ ONE exception (#8) that stays an open question FOR him specifically.
 7. **Answered** (answered: being built, #4834): Moved to an 'also mentioned in' list below the paragraph. **Merely-mentioned claims** (entity neither subject nor object, often placed there by the
    substring alias scan). *Recommendation (proceeding):* out of the paragraph, into an "also
    mentioned in" list below it.
-8. **The LLM biography endpoint (`/bio`).** *Recommendation:* retire it; label existing
+8. **Answered** (owner ruling 2026-11-21, G7: retire it; built by Step 1.4 of
+   `kg-paragraph-realisation.md`). **The LLM biography endpoint (`/bio`).** *Recommendation:* retire it; label existing
    model-written descriptions, never delete them. **This one stays open FOR THE CREATIVE
    DIRECTOR specifically — not proceeding on the recommendation without his ruling**, since it's
    a north-star/integrity call, not an implementation detail.

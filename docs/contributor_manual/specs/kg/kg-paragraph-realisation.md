@@ -254,7 +254,9 @@ held, never finer. A statement with no stored level is said to the year.
 
 - `kg.para.date-at-stored-level` — **[GAP]** (#6773, → #6837) every dated statement's clause
   states its date in the sentence's language at the level held: a year-level statement stored
-  as 1 January never reads as a day; a month never gains a day. Today no sentence has a date
+  as 1 January never reads as a day; a month never gains a day. The sentence says the date
+  normalised at that level; the form written on the page is kept in `date.as_written` and the
+  app shows it on hover (owner ruling 2026-11-21, G3). Today no sentence has a date
   (0 of 18). Test (to write): `test_each_level_reads_as_its_row_of_the_table`.
 - `kg.para.date-bound-and-about` — **[GAP]** (#6773, → #6837) a bound and an approximate date
   read as the table's rows, and a date whose basis is `inferred` is followed by the table's
@@ -267,7 +269,8 @@ held, never finer. A statement with no stored level is said to the year.
 - `kg.para.order-by-time` — **[PARTIAL]** (#4648, → #6837) units are ordered by the earliest
   bound of their date, then source document, then position in it, then id; undated units come
   last under the table's "undated" words; `ordering=source` orders by document, page and
-  offset. Built: order by date
+  offset. Sentences in Spanish and in English share this one chronology; there is no block per
+  language (owner ruling 2026-11-21, G5). Built: order by date
   (`fichero-server/tests/unit/knowledge/test_readable_representation.py::test_render_entry_orders_by_date_then_created_at_then_id`).
   Not built: the undated lead-in, the query value, the by-source order on the route.
   Test (to write): `test_undated_units_come_last_under_their_own_words`.
@@ -338,7 +341,8 @@ Doubt is decided in this order, and the first rule that fits is the only one use
   range), one with a plain object and one whose object opens with a preposition, are said as
   one clause pair, the plain object first, with no conjunction between them ("vendió una casa
   a …"). Anything less than the same stretch stays two sentences, as ruled for #4836. This
-  narrows that ruling and waits on the owner's answer (question 2). Test (to write):
+  narrows that ruling: the two halves of one act from the same passage may share one sentence
+  (owner ruling 2026-11-21, G2). Test (to write):
   `test_two_halves_of_one_passage_are_one_sentence_and_never_coordinated`.
 - `kg.para.run-is-neighbours` — **[BROKEN]** (#4648, → #6841) only units next to each other in
   the paragraph's order, with the same subject entity, verb, language and doubt, join into one
@@ -388,7 +392,9 @@ Doubt is decided in this order, and the first rule that fits is the only one use
   table's prepositions; and what stands after it is nothing or the frame has a slot for it
   ("nombró a … albacea" becomes "fue nombrada albacea por …"). Otherwise the statement keeps
   its true subject, in its place in the order, with the page name in its short form. The
-  clause is `revoiced` and its frame's words have a `table:` origin. Test (to write):
+  clause is `revoiced` and its frame's words have a `table:` origin. The first Spanish and
+  English frames are drafted by a worker from the project's 50 most frequent verbs and reviewed
+  by the owner before they ship (owner ruling 2026-11-21, G6). Test (to write):
   `test_an_object_statement_is_recentred_only_through_a_frame`.
 - `kg.para.frame-needs-agreement` — **[GAP]** (#4837, → #6844) a frame lists the forms it has
   (one for all, or one per gender and number); a frame with only gendered forms is used only
@@ -397,8 +403,9 @@ Doubt is decided in this order, and the first rule that fits is the only one use
   Test (to write): `test_a_gendered_frame_waits_for_a_held_gender`.
 - `kg.para.gender-is-evidence` — **[GAP]** (#4837, → #6845) a person's grammatical gender,
   for agreement only, is a value on the name with its basis and source like any other: set by a
-  person, or read from an agreeing word the page itself uses of them; never guessed from a
-  given name. Test (to write): `test_gender_is_never_guessed_from_a_name`.
+  person, or read from an agreeing word the page itself uses of them (a title, an adjective),
+  marked as read and naming that page as its source; never guessed from a given name (owner
+  ruling 2026-11-21, G4). Test (to write): `test_gender_is_never_guessed_from_a_name`.
 
 ### H. The app, and what stays out
 
@@ -410,7 +417,11 @@ Doubt is decided in this order, and the first rule that fits is the only one use
 - `kg.para.no-model-in-the-path` — **[PARTIAL]** (#4652) no stage calls a language model, on
   the device or off it, and no setting turns one on. Built: `render_entry` calls none. Not
   built: the guard test (`kg.para.deterministic`); the model-written biography route still
-  exists (`kg.read.no-llm`).
+  exists (`kg.read.no-llm`). No model smooths the prose (owner ruling 2026-11-21, G1), and the
+  model-written biography route is retired (G7): the route is removed, and the descriptions it
+  already wrote are labelled as model-written and kept for a person to keep or clear (the
+  migration risk in `kg-readable-representation.md`). Test (to write):
+  `test_no_route_writes_a_model_biography`.
 
 ## The evaluation set and its pass bar
 
@@ -493,6 +504,12 @@ the behaviour's words before the change. Stages 1 to 3 change the engine only.
 - Depends on: 1.2
 - Size: M
 
+#### Step 1.4 — The model-written biography route is retired; no model in the path (#4652)
+- Behaviours: `kg.para.no-model-in-the-path`
+- Tests: to write: `test_paragraph_no_model.py` in fichero-server/tests/unit/knowledge/
+- Depends on: 1.3
+- Size: S
+
 ### Stage 2 — When, where, how sure
 
 #### Step 2.1 — A language's table is a data file; seams (→ #6842)
@@ -548,7 +565,7 @@ the behaviour's words before the change. Stages 1 to 3 change the engine only.
 ### Stage 4 — The app draws it
 
 #### Step 4.1 — The Reader draws the engine's paragraph; a clause opens its statement (#4838, #4832)
-- Behaviours: `kg.para.app-draws-the-engines-paragraph`, `kg.para.edit-re-renders-the-clause`, `kg.para.no-model-in-the-path`
+- Behaviours: `kg.para.app-draws-the-engines-paragraph`, `kg.para.edit-re-renders-the-clause`
 - Tests: to write: `EntityParagraphClauseTests` in the app's unit tests, `test_paragraph_edit.py` in fichero-server/tests/unit/knowledge/
 - Depends on: 1.3
 - Size: M
@@ -566,28 +583,31 @@ the behaviour's words before the change. Stages 1 to 3 change the engine only.
 
 ## Open questions for the owner
 
-1. **A model for smoothness, ever?** The literature's hybrid (rules state the facts; a small
-   model only reorders, joins and smooths; a checker refuses any output whose clauses do not
-   map back) is real, and no local model was on the review machine to measure it. This spec
-   says no model, as the spec of 2026-09-10 does. If wanted later it is an experiment on the
-   evaluation set behind the same pass bar, never the default (→ NEW-13 (owner question 1), not filed).
-2. **One passage, one sentence.** May the patient and the recipient of one act be said together
-   when both statements rest on the same stretch of the page (`kg.para.one-passage-one-sentence`)?
-   It narrows the ruling made for #4836 that a prepositional object never joins anything.
+Answered by the owner on 2026-11-21 (rulings G1 to G7) except question 3; the behaviours above
+carry each answer.
+
+1. **A model for smoothness, ever?** Ruled (G1): no model smooths the prose for now. The
+   literature's hybrid (rules state the facts; a small model only reorders, joins and smooths; a
+   checker refuses any output whose clauses do not map back) stays an experiment on the
+   evaluation set behind the same pass bar, never the default (NEW-13 (owner question 1), not
+   filed).
+2. **One passage, one sentence.** Ruled (G2): the two halves of one act from the same passage
+   may share one sentence (`kg.para.one-passage-one-sentence`). It narrows the ruling made for
+   #4836 that a prepositional object never joins anything.
 3. **A statement that keeps its true subject: in its place in time, or after the rest?** An
    earlier answer put it after the re-centred run; this spec keeps it in date order, since
-   order by time is the ruled default. Which holds?
-4. **The date in the sentence: normalised, or as written?** `kg.render.when-is-on-the-statement`
-   says as written where there is one. A notarial date written out in words breaks a sentence
-   and cannot be compared by eye, so the paragraph says the normalised date at its level and
-   carries the written form in `date.as_written` for the app to show. Agreed?
-5. **Gender for agreement.** May a person's grammatical gender be read from an agreeing word on
-   the page (a title, an adjective), marked as inferred, or only set by a person? Without it
-   Spanish passives are not used and most object statements keep their true subject.
-6. **Two languages in one paragraph.** Sentences keep their source's language (ruled). In time
-   order they interleave. Keep one chronology, or one block per language?
-7. **The inverse frames.** A person writes each frame. Who writes the first Spanish and English
-   ones, from which list of the project's most frequent verbs, and who reviews them?
+   order by time is the ruled default. Which holds? (Open.)
+4. **The date in the sentence: normalised, or as written?** Ruled (G3): normalised at the level
+   held, with the written form on hover (`kg.para.date-at-stored-level`).
+5. **Gender for agreement.** Ruled (G4): a person's grammatical gender may be read from an
+   agreeing word on the page, marked and sourced, never guessed from a name
+   (`kg.para.gender-is-evidence`).
+6. **Two languages in one paragraph.** Ruled (G5): Spanish and English statements share one
+   chronology (`kg.para.order-by-time`).
+7. **The inverse frames.** Ruled (G6): a worker drafts the first inverse verb frames from the 50
+   most frequent verbs, and the owner reviews them (`kg.para.recentre-by-frame`).
+8. **The model-written biography route** (question 8 of `kg-readable-representation.md`).
+   Ruled (G7): retire it (`kg.para.no-model-in-the-path`, Step 1.4).
 
 ## Future (ideas, not scheduled)
 
