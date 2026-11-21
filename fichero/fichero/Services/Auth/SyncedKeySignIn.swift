@@ -1,4 +1,5 @@
 import CryptoKit
+import FicheroAPIClient
 import Foundation
 
 /// `multiuser.second-device-by-synced-key` (#2403): a device that holds the person's synced key, and no client row on this
@@ -25,16 +26,17 @@ nonisolated protocol KeySignInTransport: Sendable {
 
 actor SyncedKeySignIn {
     private let transport: KeySignInTransport
-    private let keys: OwnerKeyProviding
+    private let key: P256.Signing.PrivateKey
 
-    init(transport: KeySignInTransport, keys: OwnerKeyProviding) {
+    /// `key` is the synced key as loaded (`OwnerKeyStore.loadExisting`): a device without one has nothing to sign with,
+    /// and a key made here would be one no engine knows.
+    init(transport: KeySignInTransport, key: P256.Signing.PrivateKey) {
         self.transport = transport
-        self.keys = keys
+        self.key = key
     }
 
     /// Challenge, sign, sign in: no password and no pairing code. A refusal (an unknown or revoked key) is thrown as it came.
     func signIn(deviceName: String, host: String) async throws -> String {
-        let key = try keys.loadOrCreate()
         let pem = key.publicKey.pemRepresentation
         let challenge = try await transport.challenge(publicKeyPEM: pem)
         let message = KeySignInMessage.bytes(
@@ -44,6 +46,38 @@ actor SyncedKeySignIn {
         return try await transport.signIn(
             publicKeyPEM: pem, nonce: challenge.nonce, signature: signature.derRepresentation.base64EncodedString(),
             deviceName: deviceName, host: host)
+    }
+}
+
+/// The generated client behind `KeySignInTransport`. A refusal keeps its status: 401 is the engine refusing the key.
+nonisolated struct GeneratedKeySignInTransport: KeySignInTransport, @unchecked Sendable {
+    let client: FicheroClient
+
+    func challenge(publicKeyPEM: String) async throws -> SignInChallenge {
+        let response = try await client.api.keyChallengeApiAuthKeyChallengePost(body: .json(.init(publicKeyPem: publicKeyPEM)))
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.json
+            return SignInChallenge(nonce: body.nonce, expiresAt: body.expiresAt, engineID: body.engineId)
+        case .unprocessableContent:
+            throw SignInRefusal.refused(statusCode: 422)
+        case .undocumented(let statusCode, _):
+            throw SignInRefusal.refused(statusCode: statusCode)
+        }
+    }
+
+    func signIn(publicKeyPEM: String, nonce: String, signature: String, deviceName: String, host: String) async throws -> String {
+        let request = Components.Schemas.KeySignInRequest(
+            publicKeyPem: publicKeyPEM, nonce: nonce, signature: signature, client: .init(name: deviceName, host: host))
+        let response = try await client.api.signInByKeyApiAuthSignInByKeyPost(body: .json(request))
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.sessionToken
+        case .unprocessableContent:
+            throw SignInRefusal.refused(statusCode: 422)
+        case .undocumented(let statusCode, _):
+            throw SignInRefusal.refused(statusCode: statusCode)
+        }
     }
 }
 

@@ -7,11 +7,6 @@ import Testing
 private struct Sent { let pem: String, signature: String, device: String, host: String }
 
 struct SyncedKeySignInTests {
-    private struct Keys: OwnerKeyProviding {
-        let key: P256.Signing.PrivateKey
-        func loadOrCreate() throws -> P256.Signing.PrivateKey { key }
-    }
-
     private final class Transport: KeySignInTransport, @unchecked Sendable {
         var sent: Sent?
         func challenge(publicKeyPEM: String) async throws -> SignInChallenge {
@@ -31,7 +26,7 @@ struct SyncedKeySignInTests {
     @Test func theSignatureNamesTheKeyAndVerifiesWithIt() async throws {
         let key = P256.Signing.PrivateKey()
         let transport = Transport()
-        let token = try await SyncedKeySignIn(transport: transport, keys: Keys(key: key))
+        let token = try await SyncedKeySignIn(transport: transport, key: key)
             .signIn(deviceName: "Daniel's iPhone", host: "air.tail1234.ts.net")
         #expect(token == "session")
         let sent = try #require(transport.sent)
