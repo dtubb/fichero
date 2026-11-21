@@ -94,7 +94,7 @@ extension ContentView {
             options: toolbarSearchOptions,
             onSubmit: { runToolbarSearch($0) }
         )
-        .frame(minWidth: 120, idealWidth: 200, maxWidth: 280)
+        .frame(minWidth: CGFloat(ContentView.toolbarSearchMinWidth), idealWidth: 200, maxWidth: 280)
     }
     #else
     /// iOS: the search options as a titled submenu of the bar's overflow menu (#6563). They were a second loupe beside

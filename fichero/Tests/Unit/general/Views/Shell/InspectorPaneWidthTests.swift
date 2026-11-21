@@ -16,6 +16,15 @@ final class InspectorPaneWidthTests: XCTestCase {
         )
     }
 
+    /// #6729: the inspector column carries the toolbar's search item, so its minimum keeps that field whole:
+    /// the field's own minimum plus room for the inspector toggle beside it.
+    func testTheInspectorMinimumKeepsTheSearchFieldWhole() {
+        XCTAssertGreaterThanOrEqual(
+            ContentView.inspectorMinWidth,
+            ContentView.toolbarSearchMinWidth + ContentView.inspectorToggleAllowance
+        )
+    }
+
     func testRestoreClampUsesTheSplitterBoundsNotAHardcodedCap() {
         // The onAppear restore used to clamp to a stray hardcoded 400 —
         // TIGHTER than the splitter's own max — silently shrinking a

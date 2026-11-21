@@ -152,7 +152,10 @@ struct ContentView: View {
     static let sidebarMinWidth: Double = 160
     /// `nonisolated` (with `inspectorMaxWidth`): pure bounds read by the
     /// nonisolated `restoredInspectorWidth` clamp and its off-main tests.
-    nonisolated static let inspectorMinWidth: Double = 220
+    /// The inspector column carries the toolbar's search item (#6729): its minimum keeps the field whole.
+    nonisolated static let toolbarSearchMinWidth: Double = 120
+    nonisolated static let inspectorToggleAllowance: Double = 140
+    nonisolated static let inspectorMinWidth: Double = toolbarSearchMinWidth + inspectorToggleAllowance
     /// Mac-native rule (#4287): the SPLITTER owns width within sane bounds and
     /// inner content fills what it's given. 420 was an artificial ceiling that
     /// forced text to wrap on wide windows; this cap exists only to stop a
