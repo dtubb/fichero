@@ -116,7 +116,7 @@ makes extraction slow. The 744 tests of `tests/unit/kg`, `tests/unit/knowledge` 
   writes them through `Database.save_many`, new rows as a plain multi-row INSERT, so a
   transaction's memory stays small (`db/__init__.py::save_many`). Pinned:
   `tests/unit/db/test_new_rows_in_a_transaction_stay_small.py`.
-- `kg.store.link-table-is-derived` — **[GAP]** (#4975, → #NEW-1) one derived table, `kg_mentions`, holds
+- `kg.store.link-table-is-derived` — **[GAP]** (#4975, #6755) one derived table, `kg_mentions`, holds
   one row per name on a statement: the name's id, the statement's id, the statement's page, and
   the role (subject, object, named). It has no index and no column a person edits. It is written
   in the same transaction as the statement it describes (the statement's old rows deleted, its new
@@ -124,13 +124,13 @@ makes extraction slow. The 744 tests of `tests/unit/kg`, `tests/unit/knowledge` 
   `entity_ids`, searched with `LIKE '%"id"%'` (`db/__init__.py::knowledge_claim_entity_id_values`,
   `knowledge_claims_for_entity_frontier`, `entity_document_link_rows`) or in Python.
   *Test:* `test_kg_mentions_follow_the_statement.py` (not yet written).
-- `kg.store.link-table-rebuilds` — **[GAP]** (→ #NEW-1, #5361) the link table can be thrown away:
+- `kg.store.link-table-rebuilds` — **[GAP]** (#6755, #5361) the link table can be thrown away:
   the knowledge rebuild (`/api/kg/rebuild`, `knowledge/rebuild.py`) remakes it in one statement
   from the statements table, and a project whose link table is missing or whose statement count
   disagrees with it is rebuilt when it opens, as a background job that the Activity pane shows.
   Code today: the rebuild remakes vectors, triples and predictions only.
   *Test:* `test_rebuild_remakes_the_link_table.py` (not yet written).
-- `kg.store.edge-ends-are-ids` — **[GAP]** (→ #NEW-2, #5032) a statement that joins two names
+- `kg.store.edge-ends-are-ids` — **[GAP]** (#6756, #5032) a statement that joins two names
   stores both ends as ids when it is written: `subject_entity_id` and the object's id among its
   roles. Code today: the graph ignores `subject_entity_id`; it reads the verb and the object's
   TEXT from `metadata` (`knowledge/_common.py::extract_svo`) and finds the object by a lower-cased
@@ -165,7 +165,7 @@ makes extraction slow. The 744 tests of `tests/unit/kg`, `tests/unit/knowledge` 
   `epistemic_status`, `source_type` exist on the statements list, in Python; confidence and maker
   are returned on each row and cannot be asked for.
   *Test:* `test_kg_filters_by_confidence_and_maker.py` (not yet written).
-- `kg.query.counts-come-from-the-link-table` — **[GAP]** (#4975, → #NEW-3) statements per name (the names
+- `kg.query.counts-come-from-the-link-table` — **[GAP]** (#4975, #6757) statements per name (the names
   table's badge, "top names"), pages per name and names per page are GROUP BY questions over the
   link table. Code today: `/api/entities/top` and `/api/entities/claim-counts` fetch every
   statement's id list and count with `json.loads` in Python (64 ms at 50,000 statements, and the
@@ -180,7 +180,7 @@ makes extraction slow. The 744 tests of `tests/unit/kg`, `tests/unit/knowledge` 
 
 ### C. Neighbourhood, paths, traversal
 
-- `kg.query.neighbourhood-is-a-join` — **[GAP]** (→ #NEW-4, #5551) the neighbourhood of a name to
+- `kg.query.neighbourhood-is-a-join` — **[GAP]** (#6758, #5551) the neighbourhood of a name to
   1 or 2 hops is asked of the link table (the name's statements, then the other names on them,
   weighted by the count of statements), ranked and cut in SQL; only the neighbours and edges
   returned are hydrated. The answer is the same as today's for the same data. Code today:
@@ -188,7 +188,7 @@ makes extraction slow. The 744 tests of `tests/unit/kg`, `tests/unit/knowledge` 
   50,000 statements and 17 s at 500,000, whatever the name). *Test:*
   `test_neighbourhood_reads_only_its_rows.py` and a case in
   `test_kg_neighbourhood_perf.py` (not yet written).
-- `kg.query.traverse-reads-real-links` — **[BROKEN]** (#5551, → #NEW-5) `GET /api/kg/graph/traverse/{id}`
+- `kg.query.traverse-reads-real-links` — **[BROKEN]** (#5551, #6759) `GET /api/kg/graph/traverse/{id}`
   walks statement-to-statement links. Code: it reads `link.source_claim_id`,
   `link.target_claim_id` and `link.relation`, which `KnowledgeClaimLink` does not have (its fields
   are `claim_id`, `related_claim_id`, `relation_type`), so the route raises `AttributeError` as
@@ -204,7 +204,7 @@ makes extraction slow. The 744 tests of `tests/unit/kg`, `tests/unit/knowledge` 
   hop limit, a path over a scope, and an answer without building the whole graph (a recursive CTE
   over the link table: 7 ms at 50,000 statements).
   *Test:* `test_path_between_two_names.py` (not yet written).
-- `kg.query.walks-are-bounded` — **[GAP]** (#5551, → #NEW-4) every walk has a hop limit, a row limit and
+- `kg.query.walks-are-bounded` — **[GAP]** (#5551, #6758) every walk has a hop limit, a row limit and
   says when it was cut; none can run without end on a name that is on thousands of statements.
   Built today only for the neighbourhood (`truncated`).
 
@@ -215,7 +215,7 @@ makes extraction slow. The 744 tests of `tests/unit/kg`, `tests/unit/knowledge` 
   (`knowledge/graph.py::_build_cached`, `_cache_signature`). Pinned:
   `tests/unit/kg/test_kg_untested_symbols.py` (the key),
   `tests/unit/api/test_trash_full_graph_leaves_it_out_5406.py` (the Trash).
-- `kg.graph.built-from-rows-not-models` — **[GAP]** (→ #NEW-6, #5551) the cached graph is built
+- `kg.graph.built-from-rows-not-models` — **[GAP]** (#6760, #5551) the cached graph is built
   from the link table's rows (ids and counts) and the names' id, name and type, never by
   hydrating every statement into a model: 4.4 s and about 1 GB at 50,000 statements today for a
   graph of 12,500 nodes and 67,000 edges; 20 s and 8.5 GB at 500,000. *Test:* a case in `test_kg_graph_build_perf.py`
