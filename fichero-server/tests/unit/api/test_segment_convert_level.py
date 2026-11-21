@@ -89,3 +89,20 @@ def test_a_region_with_child_lines_on_a_second_selected_document_is_refused(db, 
 
     assert refused.value.status_code == 422 and region in refused.value.detail
     assert db.get(Segment, plain).kind == "region" and db.get(Segment, region).kind == "region"
+
+
+def test_the_child_check_reads_only_the_children_of_the_selected_regions(db, client, monkeypatch):
+    doc, pass_id = _page(db, client)
+    sid = _segment(client, doc, pass_id, kind="region", polygon=_box(0.1, 0.2, 0.6, 0.3))
+    whole_page = []
+    query = db.query
+
+    def spy(model, **filters):
+        if model is Segment and "document_id" in filters:
+            whole_page.append(filters)
+        return query(model, **filters)
+
+    monkeypatch.setattr(db, "query", spy)
+    _convert(db, [sid], "line")
+
+    assert db.get(Segment, sid).kind == "line" and whole_page == []

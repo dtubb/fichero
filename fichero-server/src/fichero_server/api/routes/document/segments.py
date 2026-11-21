@@ -3991,9 +3991,8 @@ def _action_convert_level(db: Database, params: SegmentConvertLevelParams, ctx: 
         not_regions = [row.id for row in rows if row.kind != "region"]
         if not_regions:
             raise HTTPException(status_code=422, detail=f"only a region becomes a line: {not_regions}")
-        parents = {child.parent_segment_id for document_id in {row.document_id for row in rows}
-                   for child in db.query(Segment, document_id=document_id)
-                   if child.deleted_at is None and child.parent_segment_id}
+        parents = {child.parent_segment_id for child in db.query_in(Segment, "parent_segment_id", [row.id for row in rows])
+                   if child.deleted_at is None}
         holding = [row.id for row in rows if row.id in parents]
         if holding:
             raise HTTPException(
