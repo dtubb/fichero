@@ -259,6 +259,32 @@ Out:
   fresh library or the original one, lands on the same canvases with the same segments and no
   duplicate pages.
 
+Measured 2026-11-20 (review; one Kraken-segmented page of 33 lines, five of them read by a person,
+its manifest and lines page built by `api/routes/ingest/iiif.py::build_iiif_manifest` and
+`::build_lines_annotation_page`; the IIIF unit tests are green). `→ #NEW-n` marks an issue the
+manager is asked to file.
+- `iiif.export.ids-are-absolute-and-resolve` — **[BROKEN]** (#5326, → #NEW-8) every `id` in an
+  exported manifest, canvas, annotation page and annotation is an absolute HTTP(S) URI, as
+  Presentation 3.0 requires, and the manifest's own `id` is the address it is served at. Today
+  every id is a bare path (`/api/iiif/iiif/…`, from `_iiif_base_url`), which a viewer that was
+  handed the file cannot resolve, and the manifest names itself `/api/iiif/iiif/{id}/manifest`
+  while the route that serves it is `/api/iiif/iiif/manifest/{id}`. A manifest written to a file
+  or a site takes its base from where it is published (`iiif.publish.static`).
+- `iiif.export.every-line-with-its-outline` — **[GAP]** (#5326, → #NEW-8) the lines page carries every
+  line of the working pass: its outline as an SVG selector when it has one (the box as the
+  `xywh` fallback), its baseline, and a body only when it has a reading. Today a line with no
+  reading is left out (5 annotations for 33 lines) and every target is `#xywh=` (a 71-point
+  outline becomes its bounding box); regions and words are not written.
+- `iiif.export.maker-is-the-readings` — **[BROKEN]** (#5326, → #NEW-8) an annotation's `creator` is who
+  or what made THAT reading. Today it is the pass's maker for every line
+  (`build_lines_annotation_page` reads `SegmentPass` once): the five lines a person typed say
+  `Software: kraken/kraken:blla`.
+- `iiif.export.says-what-it-is` — **[GAP]** (#5326) a local page's manifest carries the document's
+  catalogue fields as `metadata`, its rights and required statement
+  (`../source/rights-and-access.md`), and a `provider`. Today only a page imported by reference
+  carries rights (`iiif.rights-travel`); a local page's manifest has `label` and `items` and
+  nothing else.
+
 Server:
 - `iiif.serve.image-api` — **[PARTIAL]** (#5327) a shared library serves Image API 3.0 for local
   images, level 1 then level 2. **Built:** Image API 2.1 level 1, in the dev tier only.

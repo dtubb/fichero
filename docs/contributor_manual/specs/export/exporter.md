@@ -180,6 +180,44 @@ writer; an inferred fact is the output of a derivation activity (`prov:wasDerive
 second named context to carry either, since schema.org itself has no native attribution-vs-
 derivation vocabulary.
 
+### D2. Measured on a scratch library (review of 2026-11-20)
+
+Seventeen pages over ten real page images (Kraken lines, a person's reading on five lines of each,
+seven ground-truth files imported, the free name-finder run on one page: 17 names, 17 statements,
+21 mentions). The six emitters ran in 60 to 250 ms each over 68 documents. The page formats
+(ALTO, PAGE XML, TEI) and their round trips are measured in
+`../source/formats-and-training.md` ("Measured on a library"); IIIF in `../source/iiif.md`.
+`→ #NEW-n` marks an issue the manager is asked to file.
+
+- `export.statements-say-what-made-them` — **[PARTIAL]** (#5603, → #NEW-7) every exported name and statement
+  says what made it (provider and model, or the person), where it stands (page, line, character
+  span), how sure, and whether a person has reviewed it. **Built:** the record stream's claim
+  record carries `provider`, `model`, the page-text span, the line and reading when it has one,
+  and the "Found in" columns (`export_service.py::claim_record_columns`), so JSONL, Parquet and
+  the workbook's Claims sheet carry them; the design note above predates this. **Not built:** a
+  confidence, a review state and the person on the claim record; any of it on the entity record
+  (an entity says which documents, never what found it); the RDF export, which writes
+  `sourceDocument`, `sourceExcerpt` and one flat `confidence` (0.5 on all 17) and neither
+  provider, model nor a PROV term (170 triples, 0 `prov:`), so `profile.provenance.prov-o-on-everything`
+  (#6439) has nothing to stand on yet.
+- `export.csv-of-names-and-statements` — **[GAP]** (#6439) names, statements and mentions leave
+  as CSV with a CSVW description beside each (`profile.tables.csvw-and-parquet`). Today they leave
+  as JSONL, Parquet and three workbook sheets (Documents, Entities, Claims); the only CSV the
+  exporter writes is the catalogue sheet.
+- `export.text-exports-keep-the-lines` — **[BROKEN]** (#5502) a page's text in the Markdown folder
+  and the Word transcript keeps its lines. Today the Markdown folder writes a page as one paragraph, its lines joined by spaces: the
+  emitters read the page-text cache (`export_service.py::_document_text` reads
+  `Document.page_content`), where the lines are already joined, and not the lines of the working
+  pass. A 44-line page is one line of about 2,000 characters. The Word transcript reads the same
+  text.
+- `export.text-exports-draw-the-editorial-signs` — **[GAP]** (#4935) a text export draws editorial
+  facts with the project's signs (a deletion in ⟦ ⟧, `editorial/leiden.py::draw`), as the Reader
+  does; TEI writes them as elements. Today a line with a `deleted` fact exports to Markdown as its
+  bare letters: the reader of the file cannot tell struck text from standing text.
+- `export.plain-text-page` — **[GAP]** (#6439) one page exports as plain text through the page
+  exporter (`profile.views.plain-text-and-duckdb`). Today `plain-text` is a format the page
+  harness reads and refuses to write (`FormatCannotWrite`).
+
 ## PASS 2 — the fold (legacy milestones #14 and #212, 25 issues, selected by NUMBER)
 
 Every body read fresh. None redirect to a DIFFERENT existing spec; the shapes below are fits,
