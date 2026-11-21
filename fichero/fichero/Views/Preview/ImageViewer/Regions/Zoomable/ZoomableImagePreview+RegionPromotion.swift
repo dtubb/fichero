@@ -180,6 +180,8 @@ extension ZoomableImagePreview {
             splitAtPoint: { splitSelectedLineAtLastPoint() },
             simplify: { simplifySelectedSegments() },
             convertToBox: { convertSelectedToBox() },
+            convertToLine: { convertSelected(to: "line") },
+            convertToRegion: { convertSelected(to: "region") },
             makeRegion: { makeRegionFromSelectedLines() },
             ungroupRegion: { ungroupSelectedRegions() },
             cutWords: { cutWordsOnSelectedLines() },

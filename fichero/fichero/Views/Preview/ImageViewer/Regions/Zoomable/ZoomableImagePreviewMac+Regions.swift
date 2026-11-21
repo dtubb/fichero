@@ -253,6 +253,8 @@ extension ZoomableImagePreview {
                     Button("Redraw Outline from Baseline") { redrawSelectedOutlines() }
                 }
                 Button("Convert to Box") { convertSelectedToBox() }
+                Button("Convert to Line") { convertSelected(to: "line") }
+                Button("Convert to Region") { convertSelected(to: "region") }
                 if selection.count >= 2 {
                     Button("Make Region from Lines") { makeRegionFromSelectedLines() }
                 }

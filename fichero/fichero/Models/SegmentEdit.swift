@@ -40,6 +40,8 @@ enum SegmentEdit {
         case cutCharacters(SegmentCutWordsRequest)
         /// Convert to Box (`segment.convert_to_box`).
         case convertToBox(SegmentCutWordsRequest)
+        /// Convert to Line / Convert to Region (`segment.convert_level`).
+        case convertLevel(SegmentConvertLevelRequest)
         /// Make Region from Lines (`segment.group_lines`) and Ungroup Region (`segment.ungroup_region`).
         case groupLines(SegmentCutWordsRequest)
         case ungroupRegion(SegmentUngroupRegionRequest)

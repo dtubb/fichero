@@ -24,6 +24,9 @@ struct SegmentMenuTarget {
     var simplify: () -> Void = {}
     /// Convert to Box (⌥⌘B): the selected polygons become their bounding rectangles.
     var convertToBox: () -> Void = {}
+    /// Convert to Line / Convert to Region: the selection changes level (`segment-editor.convert-level`).
+    var convertToLine: () -> Void = {}
+    var convertToRegion: () -> Void = {}
     /// Make Region from Lines (⌘G) and Ungroup Region (no chord: ⇧⌘G shows or hides Items).
     var makeRegion: () -> Void = {}
     var ungroupRegion: () -> Void = {}
@@ -86,6 +89,10 @@ struct SegmentMenuContent: View {
             .disabled(count == 0)
         Button("Convert to Box") { target?.convertToBox() }
             .keyboardShortcut("b", modifiers: [.command, .option])
+            .disabled(count == 0)
+        Button("Convert to Line") { target?.convertToLine() }
+            .disabled(count == 0)
+        Button("Convert to Region") { target?.convertToRegion() }
             .disabled(count == 0)
         Button("Make Region from Lines") { target?.makeRegion() }
             .keyboardShortcut("g", modifiers: [.command])

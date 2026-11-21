@@ -128,6 +128,13 @@ extension ZoomableImagePreview {
         runSegmentEdit(SegmentEdit.convertToBox(selectedSegments(documentId)), documentId: documentId, name: "Convert to Box")
     }
 
+    /// CONVERT TO LINE / CONVERT TO REGION (`segment-editor.convert-level`): the selected segments take the level; one ⌘Z.
+    func convertSelected(to level: String) {
+        guard let documentId else { return }
+        let name = level == "line" ? "Convert to Line" : "Convert to Region"
+        runSegmentEdit(SegmentEdit.convertLevel(selectedSegments(documentId), to: level), documentId: documentId, name: name)
+    }
+
     /// MAKE REGION FROM LINES (`segment-editor.make-region-from-lines`, ⌘G): the selected lines become the children of one
     /// new region; one ⌘Z.
     func makeRegionFromSelectedLines() {

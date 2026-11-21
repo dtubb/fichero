@@ -220,6 +220,18 @@ extension SegmentEdit {
         ))
     }
 
+    /// CONVERT TO LINE / CONVERT TO REGION (`segment-editor.convert-level`): each selected segment not already at the level
+    /// `to` takes it, in one `segment.convert_level` and one undo. A segment already there is left out.
+    static func convertLevel(_ segments: [Segment], to level: String) -> Result<Call, Refusal> {
+        let changing = segments.filter { $0.kind != level }
+        guard !changing.isEmpty else { return .failure(.tooFew) }
+        guard let versions = versions(of: changing) else { return .failure(.versionUnknown) }
+        return .success(Call(
+            action: "segment.convert_level",
+            params: .convertLevel(SegmentConvertLevelRequest(segmentIds: changing.map(\.id), level: level, expectedVersions: versions))
+        ))
+    }
+
     /// MAKE REGION FROM LINES (`segment-editor.make-region-from-lines`): two or more selected segments become the children
     /// of one new region, in one `segment.group_lines` and one undo.
     static func groupLines(_ lines: [Segment]) -> Result<Call, Refusal> {
@@ -299,6 +311,15 @@ struct SegmentCutWordsRequest: Encodable, Equatable {
     enum CodingKeys: String, CodingKey { case segmentIds = "segment_ids", expectedVersions = "expected_versions" }
 }
 
+/// `segment.convert_level`: the segments to change, the level they take (`line` or `region`), and the versions read.
+struct SegmentConvertLevelRequest: Encodable, Equatable {
+    let segmentIds: [String]
+    let level: String
+    let expectedVersions: [String: Int]
+
+    enum CodingKeys: String, CodingKey { case segmentIds = "segment_ids", level = "to", expectedVersions = "expected_versions" }
+}
+
 /// `segment.ungroup_region`: one region, at the version the caller read.
 struct SegmentUngroupRegionRequest: Encodable, Equatable {
     let regionId: String
@@ -317,6 +338,7 @@ extension SegmentEdit.Params {
         case .cutWords(let params): params
         case .addBaseline(let params), .cutCharacters(let params), .convertToBox(let params), .groupLines(let params): params
         case .ungroupRegion(let params): params
+        case .convertLevel(let params): params
         case .sequence(let params): params
         case .translate(let params): params
         case .moveCut(let params): params
