@@ -13,7 +13,9 @@
 > Entities and Claims tables, CRUD, rules that survive re-import), `kg-entity-inspector.md` (one
 > entity in the Inspector), `kg-readable-representation.md` (the paragraph), `kg-enrichment.md`
 > (authorities, RDF), `project-gazetteer-and-names.md` (the authority lists, whose behaviours this
-> spec schedules), `kg-interactions.md`, `hermeneutic-layer.md`, `../explore/networks.md`,
+> spec schedules), `kg-confidence-and-provenance.md` (how sure each name, merge, statement, date,
+> place and authority link is, who made it, how figures combine, what a threshold may do, and
+> the search), `kg-interactions.md`, `hermeneutic-layer.md`, `../explore/networks.md`,
 > `../explore/time.md`, `../explore/place.md`, `../source/cataloguing.md` and the names and
 > statements steps in `../source/models-chains-and-projects.md`.
 > Tags: **[OK]** built and tested · **[PARTIAL]** built, partly proven or partly wired ·
@@ -127,9 +129,14 @@ native graph, timeline and map views.
   names are proposals into the canonical set and never the catalogue's names by themselves; a
   project where it measures well on the check set may choose it as the step's source; a tagger
   fine-tuned on the project's confirmed names (#5536) is measured the same way.
-- `kg.names.gate` — **[OK]** a name saved is somebody or somewhere: a whole-name date or a bare
-  role word is refused, a name is never trimmed, a role word never refuses a longer name
-  (`svo_quality.usable_entity_name`; `source.job.find-names.not-a-date-or-a-role`). *Test:*
+- `kg.names.gate` — **[PARTIAL]** (#5008, → #NEW-8 in `kg-confidence-and-provenance.md`) a name
+  saved is somebody or somewhere: a whole-name date or a bare role word is refused, a name is
+  never trimmed, a role word never refuses a longer name (`svo_quality.usable_entity_name`;
+  `source.job.find-names.not-a-date-or-a-role`). Built and tested for a date in figures. Not
+  built: a bare month name, a weekday, a century, a relative day and a date written out in words
+  all pass as names (probed 2026-11-20; two month names were stored as a person and an
+  organisation in a ten-page run of the tagger), which is one of the three ways a date reaches
+  the graph views as a node (`kg.graph.dates-are-never-nodes`). *Test:*
   `fichero-server/tests/unit/knowledge/test_name_quality.py`.
 - `kg.names.says-who-made-it` — **[PARTIAL]** (#4869, #4868) every entity and claim names its
   maker in its attribution chain: a run (provider, model, prompt version, run id, time), the
@@ -157,7 +164,8 @@ native graph, timeline and map views.
 - `kg.resolve.no-write-time-embedding-pairs` — **[BROKEN]** (#6280, #4842) the writer no
   longer queues an embedding-cosine or `SequenceMatcher` pair for every new name: the test box holds
   1,493 pending pairs for 2,885 names, most of them two people of one surname or two events
-  of one kind, and nobody can review that. The writer keeps the exact and alias matches; the
+  of one kind, and nobody can review that (still so on 2026-11-20: ten pages of the tagger queued
+  9 `similar_name` pairs for 123 names, scores 0.80 to 0.89). The writer keeps the exact and alias matches; the
   similar-name pairs it queued are withdrawn by the system (never marked rejected); proposals
   come from the folder pass below.
 - `kg.resolve.folder-pass` — **[GAP]** (#6280, #5107) after a names step on a folder (and on
@@ -223,7 +231,9 @@ native graph, timeline and map views.
   subject-less claims, never a claim whose subject slot holds the date; the timeline reads dates, the tables and the
   paragraph never show a date where a person should be; existing dated rows are converted by
   an audited, scan-first repair, never a batch rewrite. In the test box's Sonnet folder 36 of 75 claims
-  are such rows.
+  are such rows. Where a statement's date and place come from (its sentence, the page, the
+  document or folder, inferred), their form (as written, EDTF, calendar) and why no graph view
+  draws a date as a node are in `kg-confidence-and-provenance.md`, section H.
 - `kg.statements.object-role` — **[GAP]** (#3808, #5541) a statement's object carries a role
   where the extraction knows it (patient, recipient, place, instrument), seeded from the
   language's dependency labels and the prompt's fields, so a renderer and a query can ask who
@@ -232,8 +242,16 @@ native graph, timeline and map views.
 - `kg.statements.measured` — **[GAP]** (#5545, #5637) the bake-off compares the parser tier, a
   local model and a cloud model on the check set, precision and recall per statement, cost
   first; a prompt version is adopted only when it does not lose on the check set.
-- `kg.statements.no-invented-english` — **[OK]** a name with no statement gets no English "is"
-  on a page that is not English (`source.extract.no-english-verb-on-another-language`). *Test:*
+- `kg.statements.no-invented-english` — **[PARTIAL]** (#4914, → #NEW-11 in
+  `kg-confidence-and-provenance.md`) a name with no statement gets no English "is" on a page that
+  is not English (`source.extract.no-english-verb-on-another-language`). Built for a page whose
+  language the detector names. Not built: `_write_kg_rows` decides English from a detector run
+  on the first 2,000 characters of the excerpt it is handed (500 characters from the import
+  draft) and counts "could not tell" as English, without asking the document's recorded
+  language or the project's; on ten Spanish pages 10 of 123 names got "is a person", "is a
+  location" or "is a organization" (measured 2026-11-20). The page's resolved language
+  (`llm.language_policy.resolve_language`, which the draft already computes) decides, and
+  undetermined is never English. *Test:*
   `fichero-server/tests/unit/workflows/test_svo_fallback.py`.
 - `kg.statements.review` — **[PARTIAL]** (#4691, #4768, #5416) a statement is `unreviewed`,
   `shortlisted`, `curated` or `rejected`; a person curates from the Claims table and the lens,
