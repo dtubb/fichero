@@ -1482,6 +1482,22 @@ def forwards_to(db: Any, from_id: str, target_id: str) -> bool:
     return False
 
 
+def merged_from(db: Any, segment: Segment) -> list[str]:
+    """Every id merged into `segment`, directly or through an id merged into it, whose newest liveness note still
+    says merged (an undone merge's `restored` note takes it out), in the order the merges were written
+    (`segment-editor.provenance-on-every-segment`). Reads the document's merge notes once, then one note list per
+    merged id."""
+    notes = sorted(db.query(SegmentForwarding, document_id=segment.document_id, kind="merged"), key=_sequence_key)
+    candidates = list(dict.fromkeys(note.old_segment_id for note in notes))
+    target = {candidate: _merged_chain_target(db, candidate) for candidate in candidates}
+    found: list[str] = []
+    reach = {segment.id}
+    while new := [c for c in candidates if c not in reach and target[c] in reach]:
+        found.extend(new)
+        reach.update(new)
+    return found
+
+
 def pass_read_from_row(
     row: SegmentPass,
     *,

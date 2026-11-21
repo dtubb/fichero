@@ -98357,6 +98357,14 @@
             "type": "array",
             "title": "Trail",
             "default": []
+          },
+          "merged_from": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Merged From",
+            "default": []
           }
         },
         "type": "object",

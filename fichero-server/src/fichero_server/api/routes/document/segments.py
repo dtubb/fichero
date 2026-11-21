@@ -74,6 +74,7 @@ from fichero_server.models.segments import (
     forwards_to,
     grow_rect_by_half_tile,
     legacy_pass_id,
+    merged_from,
     pass_read_from_row,
     primary_live_segment_id,
     rects_intersect,
@@ -6606,6 +6607,9 @@ class SegmentDetailResponse(BaseModel):
     #: deleted-then-restored) and this is a DIFFERENT, live id.
     resolved_from_forwarding: bool = False
     trail: list[SegmentForwarding] = []
+    #: The ids merged into this segment, directly or through a segment merged into it, and not put back by an undo
+    #: since (`segment-editor.provenance-on-every-segment`).
+    merged_from: list[str] = []
 
 
 @router.get("/{segment_id}", response_model=SegmentDetailResponse)
@@ -6622,7 +6626,7 @@ async def get_segment(
         raise HTTPException(status_code=404, detail=f"Segment not found: {segment_id}")
     if row.deleted_at is None:
         [read] = _with_texts(db, [row], [segment_read_from_row(row)])
-        return SegmentDetailResponse(segment=read, resolved_from_forwarding=False)
+        return SegmentDetailResponse(segment=read, resolved_from_forwarding=False, merged_from=merged_from(db, row))
 
     resolved = resolve_segment(db, segment_id)
     live_id = primary_live_segment_id(resolved)
@@ -6639,4 +6643,5 @@ async def get_segment(
         segment=read,
         resolved_from_forwarding=(live_id != segment_id),
         trail=resolved.trail,
+        merged_from=merged_from(db, live_row),
     )
