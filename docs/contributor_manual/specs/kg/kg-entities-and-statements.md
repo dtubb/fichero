@@ -12,7 +12,7 @@
 > catalogue and shown. The detail specs stand and are cited, never restated: `kg-tables.md` (the
 > Entities and Claims tables, CRUD, rules that survive re-import), `kg-entity-inspector.md` (one
 > entity in the Inspector), `kg-readable-representation.md` (the paragraph), `kg-enrichment.md`
-> (authorities, RDF), `project-gazetteer-and-names.md` (the authority lists, whose behaviours this
+> (authorities, RDF), `kg-store-and-query.md` (how the two tables are kept and asked at scale), `project-gazetteer-and-names.md` (the authority lists, whose behaviours this
 > spec schedules), `kg-interactions.md`, `hermeneutic-layer.md`, `../explore/networks.md`,
 > `../explore/time.md`, `../explore/place.md`, `../source/cataloguing.md` and the names and
 > statements steps in `../source/models-chains-and-projects.md`.
@@ -444,7 +444,9 @@ values alone; never a batch rewrite of a person's work.
 - `kg.one.derived-stores-follow-the-record` — **[PARTIAL]** (#5361) the vector store, the
   triple file, the graph cache and the triangulation counts are derived and rebuildable from the
   two tables; built: the rebuild route; not built: re-derivation when a page's corrected text,
-  a merge or a decision changes what they were built from.
+  a merge or a decision changes what they were built from. The link table of names on
+  statements (`kg.store.link-table-is-derived`, `kg-store-and-query.md`) is one more derived
+  store under this rule.
 - `kg.one.app-has-two-stores` — **[PARTIAL]** (#4984, #3186) `EntityStore` and `ClaimStore`
   are the app's only holders of names and statements; built: the stores; not built: the
   Claims table and the Inspector's knowledge section reading them, the artifact store retired.

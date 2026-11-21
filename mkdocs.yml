@@ -461,6 +461,7 @@ nav:
               - KG Interactions & Standards: contributor_manual/specs/kg/kg-interactions.md
               - KG Readable Representation: contributor_manual/specs/kg/kg-readable-representation.md
               - KG Tables: contributor_manual/specs/kg/kg-tables.md
+              - KG Store & Query (draft): contributor_manual/specs/kg/kg-store-and-query.md
           - Source:
               - Source Model (foundation): contributor_manual/specs/source/source-model.md
               - Survey of the Field: contributor_manual/specs/source/source-survey.md
