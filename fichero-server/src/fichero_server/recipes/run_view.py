@@ -872,16 +872,14 @@ def _tail(db: Any, made: RecipeRunSummary, status: dict[str, Any], pages: list[s
     return ran
 
 
-async def summary(db: Any, job_id: str) -> RecipeRunSummary:
-    """The summary of one recipe run; LookupError when there is none."""
-    from fichero_server.recipes import runner, sorting
-
-    status = await with_accounts(db, await asyncio.to_thread(runner.status, db, job_id))  # reads the library's rows
-    pages, (names, dates, statements), (proposed, accepted, groups) = await asyncio.to_thread(_head, db, status)
+async def stage_failures(db: Any, steps: list[dict[str, Any]]) -> list[StageFailures]:
+    """Each workflow stage's failed pages with its offer, in step order, once per batch run and offer (#6731): two
+    steps that carried the same batch runs (lines, then read) give one entry naming both steps."""
     from fichero_server.workflows import run_account as accounts
 
     failed: list[StageFailures] = []
-    for step in status["steps"]:
+    listed: dict[tuple[str, Optional[str]], StageFailures] = {}
+    for step in steps:
         # Each batch the stage failed pages of, its run carried past (#5540), then the stage's own run.
         children = [b["child_id"] for b in step.get("failed_batches") or [] if b.get("child_id")]
         if step.get("child_id") and step["child_id"] not in children:
@@ -891,10 +889,24 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
                                              else await accounts.run_account(db, child))
             if account is None or not account.pages_failed:
                 continue
-            failed.append(StageFailures(steps=step["steps"], thread_id=child, pages_failed=account.pages_failed,
-                                        failures=account.failures,
-                                        offer=offer_words(step.get("job"), account.offer.label)
-                                        if account.offer else None))
+            offer = offer_words(step.get("job"), account.offer.label) if account.offer else None
+            if (same := listed.get((child, offer))) is not None:
+                same.steps.extend(s for s in step["steps"] if s not in same.steps)
+                continue
+            listed[(child, offer)] = StageFailures(steps=list(step["steps"]), thread_id=child,
+                                                   pages_failed=account.pages_failed, failures=account.failures,
+                                                   offer=offer)
+            failed.append(listed[(child, offer)])
+    return failed
+
+
+async def summary(db: Any, job_id: str) -> RecipeRunSummary:
+    """The summary of one recipe run; LookupError when there is none."""
+    from fichero_server.recipes import runner, sorting
+
+    status = await with_accounts(db, await asyncio.to_thread(runner.status, db, job_id))  # reads the library's rows
+    pages, (names, dates, statements), (proposed, accepted, groups) = await asyncio.to_thread(_head, db, status)
+    failed = await stage_failures(db, status["steps"])
     # The pages a stage left out as blank: not read by this run, whatever an earlier one gave them (#5705: "Read 92
     # of 92 pages" with 5 left out).
     blank = {e["page_id"] for step in status["steps"] for e in step.get("left_out") or []
