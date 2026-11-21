@@ -262,37 +262,37 @@ makes extraction slow. The 744 tests of `tests/unit/kg`, `tests/unit/knowledge` 
 
 ### Stage 1 — What is broken, and the numbers that keep it fixed
 
-#### Step 1.1 — Traverse and the contradiction graph read the link's real fields
+#### Step 1.1 — Traverse and the contradiction graph read the link's real fields (built) (#6759)
 - Behaviours: `kg.query.traverse-reads-real-links`
 - Tests: test_traverse_with_a_real_claim_link.py, fichero-server/tests/unit/kg/test_kg_untested_symbols.py
 - Size: S
 
-#### Step 1.2 — The ratchet at project size
+#### Step 1.2 — The ratchet at project size (#5261)
 - Behaviours: `kg.scale.ratchet-at-project-size`
 - Tests: test_kg_neighbourhood_perf.py, test_kg_graph_build_perf.py, test_kg_claims_list_perf.py
 - Size: S
 
 ### Stage 2 — The link table, and filters in the database
 
-#### Step 2.1 — The derived link table, written with the statement and rebuilt on demand
+#### Step 2.1 — The derived link table, written with the statement and rebuilt on demand (#6755, #5361)
 - Behaviours: `kg.store.link-table-is-derived`, `kg.store.link-table-rebuilds`
 - Tests: test_kg_mentions_follow_the_statement.py, test_rebuild_remakes_the_link_table.py
 - Depends on: 1.2
 - Size: M
 
-#### Step 2.2 — Lists page in SQL: filters, a stable sort, a total
+#### Step 2.2 — Lists page in SQL: filters, a stable sort, a total (#4975, #4643)
 - Behaviours: `kg.query.filter-runs-in-the-database`, `kg.query.pages-are-stable-and-counted`, `kg.query.one-name-costs-what-it-returns`
 - Tests: test_kg_lists_ask_the_database.py, test_kg_list_pages_never_repeat.py
 - Depends on: 2.1
 - Size: M
 
-#### Step 2.3 — Counts from the link table
+#### Step 2.3 — Counts from the link table (#6757)
 - Behaviours: `kg.query.counts-come-from-the-link-table`
 - Tests: test_entity_counts_from_the_link_table.py
 - Depends on: 2.1
 - Size: S
 
-#### Step 2.4 — The neighbourhood as a join; every walk bounded
+#### Step 2.4 — The neighbourhood as a join; every walk bounded (#6758, #5551)
 - Behaviours: `kg.query.neighbourhood-is-a-join`, `kg.query.walks-are-bounded`, `kg.scale.memory-stays-flat`
 - Tests: test_neighbourhood_reads_only_its_rows.py, test_kg_neighbourhood_perf.py, test_kg_reads_keep_memory_flat.py
 - Depends on: 2.1
@@ -300,19 +300,19 @@ makes extraction slow. The 744 tests of `tests/unit/kg`, `tests/unit/knowledge` 
 
 ### Stage 3 — Edges by id, paths, measures
 
-#### Step 3.1 — A statement's two ends are ids, set when it is written
+#### Step 3.1 — A statement's two ends are ids, set when it is written (#6756, #5032)
 - Behaviours: `kg.store.edge-ends-are-ids`
 - Tests: test_an_edge_joins_ids_never_spellings.py
 - Depends on: 2.1
 - Size: M
 
-#### Step 3.2 — The path between two names, bounded, with its evidence
+#### Step 3.2 — The path between two names, bounded, with its evidence (#5551, #5032)
 - Behaviours: `kg.query.path-is-bounded-and-shows-evidence`
 - Tests: test_path_between_two_names.py
 - Depends on: 3.1
 - Size: M
 
-#### Step 3.3 — The cached graph from rows; measures on a scope; derived stores say their age
+#### Step 3.3 — The cached graph from rows; measures on a scope; derived stores say their age (#6760, #6866)
 - Behaviours: `kg.graph.built-from-rows-not-models`, `kg.graph.measures-take-a-scope`, `kg.graph.derived-stores-say-their-age`
 - Tests: test_kg_graph_build_perf.py, fichero-server/tests/unit/kg/test_graph.py
 - Depends on: 3.1
@@ -320,13 +320,13 @@ makes extraction slow. The 744 tests of `tests/unit/kg`, `tests/unit/knowledge` 
 
 ### Stage 4 — Filters and tools
 
-#### Step 4.1 — Confidence and maker as filters; the tools page and count
+#### Step 4.1 — Confidence and maker as filters; the tools page and count (#5453, #6866)
 - Behaviours: `kg.query.confidence-and-maker-are-filters`, `kg.tools.answers-fit-an-agent`
 - Tests: test_kg_filters_by_confidence_and_maker.py, test_kg_tools_page_and_count.py
 - Depends on: 2.2, 3.2
 - Size: M
 
-#### Step 4.2 — The link table follows the mention (after Step 1.5 of the overview spec)
+#### Step 4.2 — The link table follows the mention (after Step 1.5 of the overview spec) (#5488)
 - Behaviours: `kg.store.mention-rows-carry-the-segment`
 - Tests: test_kg_mentions_follow_the_statement.py
 - Depends on: 2.1
