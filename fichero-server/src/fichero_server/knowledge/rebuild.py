@@ -35,7 +35,9 @@ def rebuild_kg(
 
     Returns a stats dict describing what was processed:
     ``{"entities": N, "claims": M, "entity_vectors_indexed": N,
-    "claim_vectors_indexed": M, "triples_written": K}``.
+    "claim_vectors_indexed": M, "triples_written": K, "kg_mentions": R}``.
+
+    The link table ``kg_mentions`` is remade first, from the statements table, on every call.
 
     Vectors path: rewrites the canonical entity + claim embedding tables
     from the DuckDB rows. Existing rows are replaced by id, so a partial
@@ -57,12 +59,15 @@ def rebuild_kg(
         "entity_vectors_indexed": 0,
         "claim_vectors_indexed": 0,
         "triples_written": 0,
+        "kg_mentions": 0,
     }
 
     entities = db.query(KnowledgeEntity)
     stats["entities"] = len(entities)
     claims = db.query(KnowledgeClaim)
     stats["claims"] = len(claims)
+
+    stats["kg_mentions"] = db.rebuild_kg_mentions()
 
     if vectors:
         try:
