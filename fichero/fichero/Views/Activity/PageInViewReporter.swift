@@ -13,7 +13,7 @@ struct PageInViewReporter: ViewModifier {
             guard let service else { return }
             try? await Task.sleep(for: PageInView.settle)
             while !Task.isCancelled {
-                try? await service.setForeground(client: client, items: items)
+                _ = try? await service.setForeground(client: client, items: items)
                 try? await Task.sleep(for: PageInView.heartbeat)
             }
         }

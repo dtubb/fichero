@@ -124,7 +124,7 @@ final class TrainedModelsStore {
     /// that same job (#5439, `training.model.error-beside-base`), by model id. Each comes from that model's card
     /// (`GET /api/evaluation/scores`), the entry with the evaluation's job id; nothing is worked out here.
     func loadCompared(_ modelId: String) async {
-        guard let model = inspected[modelId], let last = model.evaluationHistory.last.flatMap { Self.object($0) },
+        guard let model = inspected[modelId], let last = model.evaluationHistory.last.flatMap({ Self.object($0) }),
               let jobId = last["job_id"] as? String else { return }
         let reader: Operations.ModelScoresApiEvaluationScoresGet.Input.Query.ReaderPayload =
             model.kind == "kraken-reader" ? .kraken : .vision

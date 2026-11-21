@@ -312,7 +312,8 @@ struct SendLogsToMaintainerButton: View {
         func sharingService(_ sharingService: NSSharingService, didFailToShareItems items: [Any], error: Error) { remove() }
         private func remove() {
             try? FileManager.default.removeItem(at: folder)
-            SendLogsToMaintainerButton.cleanups.removeAll { $0 === self }
+            // AppKit calls the sharing delegate on the main thread; assumeIsolated traps if it ever does not.
+            MainActor.assumeIsolated { SendLogsToMaintainerButton.cleanups.removeAll { $0 === self } }
         }
     }
     /// Retained until the share ends: `NSSharingService.delegate` is weak.
