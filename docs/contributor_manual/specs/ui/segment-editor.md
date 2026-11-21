@@ -781,7 +781,10 @@ See section 7.2 below for what exists. The design:
   action's context, never from the client) and every change is a version with who and when
   (`source.segment.versioned-alone`); a merged line names the lines it came from; a cut names
   its source. The Inspector shows it; the Segments list can sort by it. *Built:* maker and
-  versions. *Not built:* the merged-from list on the row, the cut's source.
+  versions. *Built 2026-11-21:* `GET /api/segments/{segment_id}` answers `merged_from`, every id merged into the
+  segment directly or through a segment merged into it, an undone merge's id taken out
+  (`fichero-server/tests/unit/api/test_segment_merged_from.py`). *Not built:* the Inspector and the list row showing
+  the merged-from list, the cut's source on the row. Needs an on-screen check.
 
 
 #### PDF pages (owner 2026-11-16 evening; #6664; first when segment work resumes)
