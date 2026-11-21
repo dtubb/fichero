@@ -97,3 +97,15 @@ def test_failed_key_sign_ins_do_not_lock_the_macs_own_client_out(harness, monkey
         json={"client_id": first.id, "nonce": issued["nonce"], "signature": signature_for(key, first.id, issued)},
     )
     assert signed.status_code == 200, signed.text
+
+
+def test_failures_for_keys_nobody_holds_are_not_remembered(harness, monkeypatch):
+    # The key routes are reachable over TCP: keys nobody holds must not grow engine memory, as sign-in does for ids.
+    from fichero_server.api.routes.auth import accounts as routes
+
+    harness, _users, _key, _pem, _first = _setup(harness, monkeypatch)
+    before = dict(routes._key_sign_in_failures)
+    for _ in range(5):
+        other_key, other_pem = new_key()
+        assert _sign_in_status(harness, other_key, other_pem) == 401
+    assert routes._key_sign_in_failures == before

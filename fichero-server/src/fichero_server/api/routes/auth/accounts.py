@@ -1087,7 +1087,10 @@ def sign_in_by_key(body: KeySignInRequest, app_db: AppDatabase = Depends(get_app
     )
     user = app_db.get_user(holder.user_id) if ok else None
     if user is None or not user.active:
-        if _is_p256_public_key(body.public_key_pem):
+        # Only a key a live client holds is counted: this route is reachable over TCP and keys nobody holds must not
+        # grow this dict (the same rule as `sign_in`). ponytail: a per-source limit would also stop anyone who knows a
+        # held public key from locking out that key's sign-in for a minute.
+        if holder is not None:
             _key_sign_in_failures[key] = [*recent, now]
         raise _REFUSED
     mine = next(
