@@ -57,4 +57,34 @@ struct OwnDevicesConnectTests {
         #expect(!OwnDevicesConnect.needsEnrolment(engineID: "eng-1", hasToken: { $0 == "eng-1" }))
         #expect(OwnDevicesConnect.needsEnrolment(engineID: "eng-2", hasToken: { $0 == "eng-1" }))
     }
+
+    @Test func theMacWritesItsTailnetAddressFirstAndItsPinnedLocalOne() {
+        let made = OwnDevicesItem.make(engineID: "e", macName: "Air", secret: "s",
+                                       tailnetURL: tailnet.url, own: local)
+        #expect(made.addresses == [tailnet, local])
+        #expect(made.enrollmentSecret == "s" && made.engineID == "e" && made.macName == "Air")
+    }
+
+    @Test func aLocalAddressWithNoPinIsLeftOutAndNoTailnetLeavesOnlyThePinnedOne() {
+        let unpinned = OwnDevicesItem.make(engineID: "e", macName: "Air", secret: "s",
+                                           tailnetURL: tailnet.url, own: .init(url: local.url, spki: ""))
+        #expect(unpinned.addresses == [tailnet])
+        let noTailnet = OwnDevicesItem.make(engineID: "e", macName: "Air", secret: "s",
+                                            tailnetURL: nil, own: local)
+        #expect(noTailnet.addresses == [local])
+    }
+
+    @Test func theSwitchCaptionNamesTheAppleIDTradeOff() {
+        #expect(OwnDevicesSwitch.caption.contains("signed into this Apple ID"))
+        #expect(OwnDevicesSwitch.caption.contains("without asking"))
+        #expect(OwnDevicesSwitch.caption.contains("shared Apple ID"))
+    }
+
+    @Test func theSwitchStateIsKeptPerDefaultsSuite() throws {
+        let defaults = try #require(UserDefaults(suiteName: "OwnDevicesSwitchTests"))
+        defaults.removePersistentDomain(forName: "OwnDevicesSwitchTests")
+        #expect(!OwnDevicesSwitch.isOn(defaults))
+        OwnDevicesSwitch.remember(true, defaults)
+        #expect(OwnDevicesSwitch.isOn(defaults))
+    }
 }

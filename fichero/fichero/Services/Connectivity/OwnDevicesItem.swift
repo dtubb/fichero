@@ -30,6 +30,19 @@ struct OwnDevicesItem: Codable, Equatable {
         return unique.filter(isTailnet) + unique.filter { !isTailnet($0) }
     }
 
+    /// The item a Mac writes: its tailnet address (no pin, Tailscale's public certificate) and its own address with its
+    /// pin. A non-tailnet address with no pin is left out: a phone could not trust it.
+    static func make(engineID: String, macName: String, secret: String,
+                     tailnetURL: String?, own: Address?) -> OwnDevicesItem {
+        var addresses = [Address(url: tailnetURL ?? "", spki: nil)]
+        if let own, URL(string: own.url)?.host?.lowercased().hasSuffix(".ts.net") == true {
+            addresses.append(Address(url: own.url, spki: nil))
+        } else if let own, let pin = own.spki, !pin.isEmpty {
+            addresses.append(own)
+        }
+        return OwnDevicesItem(engineID: engineID, macName: macName, addresses: ordered(addresses), enrollmentSecret: secret)
+    }
+
     func encoded() throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = .sortedKeys
@@ -89,4 +102,15 @@ enum OwnDevicesConnect {
         }
         throw Failure.noAnswer(item.macName)
     }
+}
+
+/// `signin.own.setting-says-the-trade-off` (#6568): the Mac's switch, its words and where its state is kept.
+enum OwnDevicesSwitch {
+    static let label = "Sign in my own devices by themselves"
+    static let caption = "Any device signed into this Apple ID can open this Mac's libraries without asking. "
+        + "Leave it off on a shared Apple ID."
+    private static let key = "app.fichero.ownDevices.enabled"
+
+    static func isOn(_ defaults: UserDefaults = .standard) -> Bool { defaults.bool(forKey: key) }
+    static func remember(_ enabled: Bool, _ defaults: UserDefaults = .standard) { defaults.set(enabled, forKey: key) }
 }

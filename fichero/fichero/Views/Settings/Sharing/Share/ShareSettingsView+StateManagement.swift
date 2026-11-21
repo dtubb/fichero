@@ -117,6 +117,7 @@ extension ShareSettingsView {
         }
         // The engine answers `none` until Sharing is on and makes the forward after readiness: re-read, or the row stays stale (review N1).
         await refreshSharingState()
+        if ownDevicesOn { await publishOwnDevices(true) }  // an address may have changed: the item is rewritten
         // Sharing on with nothing shared asks which projects (#6366).
         if hostingEnabled, ShareWhichProjectsModel.opens(sharedCount: sharingState?.sharedLibraryCount) {
             activeSheet = .whichProjects
