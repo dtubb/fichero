@@ -133,7 +133,7 @@ native graph, timeline and map views.
   names are proposals into the canonical set and never the catalogue's names by themselves; a
   project where it measures well on the check set may choose it as the step's source; a tagger
   fine-tuned on the project's confirmed names (#5536) is measured the same way.
-- `kg.names.gate` — moved on 2026-11-21 to `kg-confidence-and-provenance.md` section H (id kept; Step 2.1, #6768).
+- Moved on 2026-11-21 to `kg-confidence-and-provenance.md` section H: `kg.names.gate` (id kept; Step 2.1, #6768).
 - `kg.names.says-who-made-it` — **[PARTIAL]** (#4869, #4868) every entity and claim names its
   maker in its attribution chain: a run (provider, model, prompt version, run id, time), the
   import draft (the tagger and pipeline, marked as draft), or a person (account and time); a
@@ -238,7 +238,7 @@ native graph, timeline and map views.
 - `kg.statements.measured` — **[GAP]** (#5545, #5637) the bake-off compares the parser tier, a
   local model and a cloud model on the check set, precision and recall per statement, cost
   first; a prompt version is adopted only when it does not lose on the check set.
-- `kg.statements.no-invented-english` — moved on 2026-11-21 to `kg-confidence-and-provenance.md` section A (id kept; Step 1.4, #6771).
+- Moved on 2026-11-21 to `kg-confidence-and-provenance.md` section A: `kg.statements.no-invented-english` (id kept; Step 1.4, #6771).
 - `kg.statements.review` — **[PARTIAL]** (#4691, #4768, #5416) a statement is `unreviewed`,
   `shortlisted`, `curated` or `rejected`; a person curates from the Claims table and the lens,
   single or multi-select, the table filters by state, and a machine actor is refused by
