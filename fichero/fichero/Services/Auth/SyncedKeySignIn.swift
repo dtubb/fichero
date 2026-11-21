@@ -95,4 +95,13 @@ enum SignInOptions {
         if hasPasskey { options.append(.passkey) }
         return options + [.qrCode, .password]
     }
+
+    /// The iPhone and iPad Connect screen's sections, in `order`. The silent key shows nothing, and the password is the
+    /// host's alert after a typed address (`personSignInAlert`), so neither is a section. The nearby list always shows,
+    /// with "Searching…" while it is empty.
+    /// ponytail: approval and passkey rows join here when those methods are built.
+    static func connectScreenRows(hasOwnMacs: Bool) -> [Option] {
+        order(hasSyncedKey: false, hasOwnMacs: hasOwnMacs, canApprove: false, nearbyMacs: true, hasPasskey: false)
+            .filter { $0 != .password }
+    }
 }
