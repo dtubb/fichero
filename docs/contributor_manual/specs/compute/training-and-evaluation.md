@@ -320,7 +320,10 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
   with its count and how many more it needs, in the readiness sentence's form (`bakeoff.readiness`); it is
   offered again when there are enough.
 - `training.propose.names-tagger` — **[GAP]** (#5536, #5556) the names row trains spaCy on confirmed mentions
-  on this Mac or on Hugging Face, or a Create ML word tagger, and is scored by precision and recall per kind.
+  on this Mac or on Hugging Face, or a Create ML word tagger, and is scored by precision and recall per kind. The set it
+  trains on, the trainer and the pages that count are `kg.teach.names-set-from-corrections`,
+  `kg.teach.spacy-trained-on-this-mac` and `kg.teach.page-is-checked-for-names` (`kg/kg-entities-and-statements.md`,
+  section J); this line is the row on the sheet.
 - `training.set.held-out-picked-across-folder` — **[GAP]** (#5441) Fichero picks the held-out pages across
   the folder — stratified by hand, page kind and sub-folder where known, at least two pages, a stated
   share — lists them on the sheet, lets the person swap one, and never picks a page any candidate trained
@@ -485,7 +488,10 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
   the lines it found with the step's reader against the checked text, so a finder that splits or merges lines shows in
   both. *Test (to write):* test_lines_found_score.py (a finder that merges two lines loses recall and CER).
 - `training.eval.names-precision-recall` — **[GAP]** (#5545, #5536) a names model is scored by precision,
-  recall and F1 per kind of name against confirmed mentions on held-out pages.
+  recall and F1 per kind of name against confirmed mentions on held-out pages. The scorer is ONE function, defined in
+  `kg.teach.names-scorer` (start, end and kind all match; the overlap figures beside; a kind with fewer than 20 checked
+  mentions is not judged), with its error table (`kg.teach.names-error-table`); statements and links are scored by
+  `kg.teach.statements-set-and-scorer` and `kg.teach.linking-set-and-scorer`.
 - `training.eval.fields-exact-and-cer` — **[GAP]** (#5545) a structured-fields model is scored by exact
   match per field and the CER of each field's text.
 - `training.eval.boundaries` — **[GAP]** (#5550) a document-finding model is scored by boundary precision
