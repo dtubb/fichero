@@ -651,13 +651,18 @@ See section 7.2 below for what exists. The design:
   over audit ids (`undo.window`, `source.editor.system-undo`); a refused undo says why in words
   (`undo.refusal.in-words`). *Built:* for move, delete, draw, reshape. *Not built:* for every
   tool here; the coalescing rules above.
-- `segment-editor.every-tool-works` — **[GAP]** (#6734; app + engine; owner 2026-11-19) every tool in the segment toolbar
+- `segment-editor.every-tool-works` — **[PARTIAL]** (#6734; app + engine; owner 2026-11-19) every tool in the segment toolbar
   (select, box, lasso, knife, combine, order, select brush, line brush, and the rest) does its job on a real page, and its
   result is saved (survives a reload) and undoable. Walked once per tool, with a test per tool that drives its gesture and
   commit path and checks the stored segments; both brushes fail that test today.
   *Built note (#7034, needs an on-screen check):* the Region tool in Edit Segments saves its dragged box as a polygon region on
   the shown pass with `segment.create`, selects it, one undo (`onDrawRegionBox`;
   `fichero/Tests/Unit/general/Views/Segments/DrawRegionPointerTests.swift` checks the hand-over, not the stored segment).
+  *Built 2026-11-21:* the engine half: the action each of Box, Marker, Line Brush, Knife, Combine, a drag's move and
+  delete sends through `POST /api/actions/invoke` is in the page read the app reloads with
+  (`GET /api/segments/document/{doc_id}`), and one undo takes it back there
+  (`fichero-server/tests/unit/api/test_segment_every_tool_saves_and_undoes.py`). *Not built:* a test per tool that drives
+  the app's gesture to its commit; the Order tool and the Select Brush are not in that file. Needs an on-screen check.
 - `segment-editor.one-active-tool` — **[GAP]** (#6734; app; owner 2026-11-19) the toolbar is one choice: exactly one tool shows
   as active, and picking another, by click or key, moves the highlight. Today Select stays highlighted beside the tool just
   picked and still handles the drag, which may be why the brushes seem to do nothing. Test: choosing each tool leaves only
