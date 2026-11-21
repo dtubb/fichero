@@ -438,7 +438,11 @@ def build_iiif_manifest(db: Database, doc: Document) -> dict[str, Any]:
                     "id": f"{_iiif_base_url(doc.id)}/manifest", "type": "Manifest",
                     "label": {"en": [doc.name or "Untitled"]}, "items": [remote],
                     "annotations": [{"id": f"/api/documents/{doc.id}/annotations.jsonld", "type": "AnnotationPage"}]}
-        rights = (doc.metadata or {}).get("iiif_rights") or {}
+        rights = (doc.metadata or {}).get("iiif_rights")
+        if not rights and doc.parent_id:  # the manifest's rights are stored once, on its folder
+            parent = db.get(Document, doc.parent_id)
+            rights = (parent.metadata or {}).get("iiif_rights") if parent else None
+        rights = rights or {}
         if rights.get("rights"):
             manifest["rights"] = rights["rights"]
         statement = rights.get("required_statement") or (

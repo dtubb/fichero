@@ -59,9 +59,11 @@ def test_a_thousand_canvas_manifest_becomes_a_thousand_pages_by_reference():
     meta = pages[41]["metadata"]
     assert meta["iiif_id"] == f"{HOST}/vol1/canvas/42" and meta["iiif_service"] == f"{HOST}/img/vol1/42"
     assert (meta["width"], meta["height"]) == (4000, 6000) and meta["by_reference"] is True
-    assert meta["iiif_rights"]["rights"].endswith("by-nc/4.0/")
-    assert meta["iiif_rights"]["required_statement"]["value"] == "Endangered Archives Programme"
-    assert meta["iiif_manifest_metadata"] == {"Reference": "EAP000/vol1"}
+    assert "iiif_rights" not in meta and "iiif_manifest_metadata" not in meta, "stored once, on the manifest's folder"
+    folder = parsed.nodes[0]["metadata"]
+    assert folder["iiif_rights"]["rights"].endswith("by-nc/4.0/")
+    assert folder["iiif_rights"]["required_statement"]["value"] == "Endangered Archives Programme"
+    assert folder["iiif_manifest_metadata"] == {"Reference": "EAP000/vol1"}
     assert pages[41]["images"][0]["source_path"] is None, "nothing local: the page is read by reference"
 
 
@@ -75,7 +77,7 @@ def test_a_collection_of_collections_is_followed_and_a_sample_stops_early():
     server = FakeIIIFServer({root["id"]: root, inner["id"]: inner, **{m["id"]: m for m in manifests}})
 
     whole = parse_iiif_url(root["id"], fetcher=PoliteFetcher(get=server.get))
-    assert whole.manifests_seen == 5 and len(whole.nodes) == 1 + 15
+    assert whole.manifests_seen == 5 and len([n for n in whole.nodes if n["node_type"] == "page"]) == 15
     sample = parse_iiif_url(root["id"], fetcher=PoliteFetcher(get=server.get), max_manifests=2)
     assert sample.manifests_seen == 2 and any("sample" in w for w in sample.warnings)
 
@@ -88,9 +90,10 @@ def test_presentation_2_manifests_are_read_too():
               "images": [{"resource": {"@id": f"{HOST}/v2/img/1/full/full/0/default.jpg", "service": {
                   "@id": f"{HOST}/v2/img/1", "profile": "http://iiif.io/api/image/2/level1.json"}}}]}]}]}
     server = FakeIIIFServer({v2["@id"]: v2})
-    (page,) = parse_iiif_url(v2["@id"], fetcher=PoliteFetcher(get=server.get)).nodes[1:]
+    parsed_v2 = parse_iiif_url(v2["@id"], fetcher=PoliteFetcher(get=server.get))
+    (page,) = parsed_v2.nodes[1:]
     assert page["metadata"]["iiif_service"] == f"{HOST}/v2/img/1"
-    assert page["metadata"]["iiif_rights"] == {"rights": "http://rightsstatements.org/vocab/InC/1.0/", "attribution": "Some Library"}
+    assert parsed_v2.nodes[0]["metadata"]["iiif_rights"] == {"rights": "http://rightsstatements.org/vocab/InC/1.0/", "attribution": "Some Library"}
 
 
 def test_importing_by_reference_creates_image_pages_and_fetches_no_image(client, db, tmp_path):
@@ -175,3 +178,32 @@ def test_a_manifest_exported_and_imported_again_lands_on_the_same_pages(client, 
                     fetcher=PoliteFetcher(get=server.get))
 
     assert sorted(p.metadata["iiif_id"] for p in pages()) == before  # the same canvases, none doubled
+
+
+def test_a_collection_imports_as_a_folder_of_folders_with_manifest_facts_stored_once(client, db):
+    """`iiif.import.collection-is-a-tree`, `iiif.import.metadata-once`: a 3-manifest collection makes 3 sub-folders,
+    one per manifest, each holding its own pages; the manifest's facts are on its folder only (one row per
+    manifest), never copied onto a page."""
+    from fichero_server.importers import iiif_source
+    from fichero_server.models import DocType
+
+    manifests = [_manifest3(f"vol{i}", 4) for i in range(1, 4)]
+    root = {"id": f"{HOST}/c/root", "type": "Collection", "label": {"en": ["EAP000"]},
+            "items": [{"id": m["id"], "type": "Manifest"} for m in manifests]}
+    server = FakeIIIFServer({root["id"]: root, **{m["id"]: m for m in manifests}})
+
+    done = iiif_source.import_source(db, root["id"], fetcher=PoliteFetcher(get=server.get, sleep=lambda s: None))
+
+    top = db.query(Document, parent_id=done["folder_id"])
+    assert len(top) == 3 and all(d.doc_type == DocType.folder for d in top), "one folder per manifest, no flat pages"
+    assert {d.metadata["iiif_id"] for d in top} == {m["id"] for m in manifests}
+    for sub in top:
+        assert len(db.query(Document, parent_id=sub.id)) == 4 and sub.metadata["iiif_source"] == sub.metadata["iiif_id"]
+    pages = [d for d in db.query(Document) if (d.metadata or {}).get("iiif_type") == "Canvas"]
+    assert len(pages) == 12 and not any("iiif_manifest_metadata" in p.metadata or "iiif_rights" in p.metadata for p in pages)
+    with_facts = [d for d in db.query(Document) if "iiif_manifest_metadata" in (d.metadata or {})]
+    assert len(with_facts) == len(manifests) == 3
+    assert with_facts[0].metadata["iiif_manifest_metadata"] == {"Reference": f"EAP000/{with_facts[0].name}"}
+
+    again = iiif_source.import_source(db, root["id"], fetcher=PoliteFetcher(get=server.get, sleep=lambda s: None))
+    assert again["added"] == 0 and len(db.query(Document, parent_id=done["folder_id"])) == 3
