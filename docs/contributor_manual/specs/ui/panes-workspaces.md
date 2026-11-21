@@ -251,8 +251,9 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
   This Project: the window searches one library, and a search across libraries does not exist yet. *Test:*
   `fichero/Tests/Unit/general/Views/Library/SearchScopeTests.swift`,
   `fichero/Tests/Unit/general/Views/Shell/OneToolbarSearchItemTests.swift::menuHoldsWhatTheSecondButtonOffered`.
-  **Not built:** the right inspector's minimum width keeping the field whole; a UI test that the field stays visible
-  and focusable (⌘F) with the inspector narrow or closed.
+  The right inspector's minimum width keeps the field whole (f0d4698eb8). *Test:*
+  `InspectorPaneWidthTests.swift::testTheInspectorMinimumKeepsTheSearchFieldWhole`.
+  **Not built:** a UI test that the field stays visible and focusable (⌘F) with the inspector narrow or closed.
 - `panes.claim.source-is-document` — **[OK]** (fixed b7be99143) the Claims Source column shows
   the document NAME (resolved over ALL loaded docs, not just the folder scope — the id-fallback
   bug), is **draggable** (shared `LibraryItemDrag` payload), and **clicks through** to the source
