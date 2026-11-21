@@ -1024,7 +1024,21 @@ class KeySignInRequest(BaseModel):
 
 
 _key_challenges: dict[str, tuple[str, int]] = {}  # nonce -> (key hash, expires_at): key sign-in, never a client id
+_key_challenges_by_key: dict[str, list[str]] = {}  # key hash -> its outstanding nonces, oldest first
+# In total, not per key: any valid key gets a challenge without a session, so new keys alone must not grow memory.
+MAX_KEY_CHALLENGES = 1024
 _key_sign_in_failures: dict[str, list[float]] = {}  # key hash -> failure times, apart from the clients' own counters
+
+
+def _drop_key_challenge(nonce: str) -> tuple[str, int] | None:
+    """Removes one challenge from both maps and returns it; None when it was not outstanding."""
+    issued = _key_challenges.pop(nonce, None)
+    if issued is not None:
+        mine = _key_challenges_by_key[issued[0]]
+        mine.remove(nonce)  # at most MAX_OUTSTANDING_CHALLENGES long
+        if not mine:
+            del _key_challenges_by_key[issued[0]]
+    return issued
 
 
 def _key_hash(public_key_pem: str) -> str:
@@ -1051,15 +1065,20 @@ def key_challenge(body: KeyChallengeRequest, app_db: AppDatabase = Depends(get_a
     if not _is_p256_public_key(body.public_key_pem):
         raise _REFUSED
     now = time.time()
-    for stale in [n for n, (_, exp) in _key_challenges.items() if exp <= now]:
-        del _key_challenges[stale]
+    # Every challenge has the same TTL, so insertion order is expiry order and the expired ones are at the front. If
+    # the clock steps back, an expired one can stay behind a live one; the total cap below still bounds the dict.
+    while _key_challenges and next(iter(_key_challenges.values()))[1] <= now:
+        _drop_key_challenge(next(iter(_key_challenges)))
     key = _key_hash(body.public_key_pem)
-    mine = [n for n, (k, _) in _key_challenges.items() if k == key]
+    mine = _key_challenges_by_key.get(key, [])
     for old in mine[: max(0, len(mine) - MAX_OUTSTANDING_CHALLENGES + 1)]:
-        del _key_challenges[old]
+        _drop_key_challenge(old)
+    while len(_key_challenges) >= MAX_KEY_CHALLENGES:
+        _drop_key_challenge(next(iter(_key_challenges)))  # the oldest goes: its device asks again
     nonce = secrets.token_urlsafe(32)
     expires_at = int(now) + CHALLENGE_TTL_SECONDS
     _key_challenges[nonce] = (key, expires_at)
+    _key_challenges_by_key.setdefault(key, []).append(nonce)
     return ChallengeResponse(
         nonce=nonce, expires_in=CHALLENGE_TTL_SECONDS, expires_at=expires_at, engine_id=_engine_id(app_db)
     )
@@ -1074,7 +1093,7 @@ def sign_in_by_key(body: KeySignInRequest, app_db: AppDatabase = Depends(get_app
     recent = [t for t in _key_sign_in_failures.get(key, []) if now - t < 60]
     if len(recent) >= SIGN_IN_FAILURES_PER_MINUTE:
         raise HTTPException(status_code=429, detail="too many failed sign-ins", headers={"Retry-After": "60"})
-    issued = _key_challenges.pop(body.nonce, None)  # single use, spent whether or not the signature is good
+    issued = _drop_key_challenge(body.nonce)  # single use, spent whether or not the signature is good
     holder = _key_holder(app_db, body.public_key_pem)
     ok = (
         issued is not None

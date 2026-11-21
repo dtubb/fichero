@@ -109,3 +109,33 @@ def test_failures_for_keys_nobody_holds_are_not_remembered(harness, monkeypatch)
         other_key, other_pem = new_key()
         assert _sign_in_status(harness, other_key, other_pem) == 401
     assert routes._key_sign_in_failures == before
+
+
+def test_outstanding_key_challenges_are_capped_in_total_and_indexed_per_key(harness, monkeypatch):
+    from fichero_server.api.routes.auth import accounts as routes
+
+    harness, _users, key, pem, _first = _setup(harness, monkeypatch)
+    monkeypatch.setattr(routes, "MAX_KEY_CHALLENGES", 4)
+    oldest = harness.client().post("/api/auth/key-challenge", json={"public_key_pem": pem}).json()
+    for _ in range(6):
+        assert harness.client().post("/api/auth/key-challenge", json={"public_key_pem": new_key()[1]}).status_code == 200
+    assert len(routes._key_challenges) <= 4
+    assert sum(len(n) for n in routes._key_challenges_by_key.values()) == len(routes._key_challenges)
+    # The oldest nonce was evicted, so even a correct signature over it is refused.
+    assert harness.client().post("/api/auth/sign-in-by-key", json=_body(key, pem, oldest)).status_code == 401
+
+
+def test_spent_and_expired_key_challenges_leave_the_per_key_index(harness, monkeypatch):
+    from fichero_server.api.routes.auth import accounts as routes
+
+    harness, _users, key, pem, _first = _setup(harness, monkeypatch)
+    for _ in range(3):
+        assert _sign_in(harness, key, pem).status_code == 200
+    key_hash = hashlib.sha256(pem.encode()).hexdigest()
+    assert key_hash not in routes._key_challenges_by_key
+    harness.client().post("/api/auth/key-challenge", json={"public_key_pem": pem})
+    later = routes.time.time() + routes.CHALLENGE_TTL_SECONDS + 1
+    monkeypatch.setattr(routes.time, "time", lambda: later)
+    harness.client().post("/api/auth/key-challenge", json={"public_key_pem": new_key()[1]})
+    assert key_hash not in routes._key_challenges_by_key
+    assert len(routes._key_challenges) == 1
