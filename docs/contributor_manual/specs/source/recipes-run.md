@@ -1108,6 +1108,8 @@ follows (paraphrased; each is a rule, not a proposal):
    (`recipes-run.memory.peak-ceiling-per-model-kind`, `recipes-run.memory.flat-over-pages`).
 2. **Resume at once after a crash, gently:** an interrupted run resumes by itself, one page at a time for
    the first minute after an engine start (`recipes-run.restart.resumes-at-once-gently`, #6216).
+   **Superseded in its "by itself" half** (owner 2026-11-13, #6584; ruled again 2026-11-21): an interrupted run is
+   held at open and offered in the launch alert; Continue there starts it, and the gentle first minute stands.
 3. **Show the gate:** the run's grey line says how many pages read at once and why, from the engine, no
    setting (`recipes-run.memory.gate-shown`, #6217).
 4. **Its own milestone:** the spec is APPROVED under `recipes-run`, created on approval; #6212, #6213,
