@@ -98,9 +98,33 @@ def test_the_search_step_keeps_its_embed_jobs(db, monkeypatch):
     from fichero_server.actions import page_text_cache
 
     _row(db, "run", "run-a-recipe", 0, None, state="running")
-    _row(db, "vec-1", "make-a-vector", 0, 4, subject="batch:1")
+    _row(db, "vec-1", "make-a-vector", 0, 4, subject="batch:1", detail=json.dumps({"documents": ["a"]}))
     monkeypatch.setattr(page_text_cache, "queue_reembed_batches", lambda *_a, **_k: ["vec-1"])
     monkeypatch.setattr(runner, "search_embedded", lambda *_a: None)
     scratch: dict = {}
     assert runner._run_embed(db, ["a"], "run", "person", scratch) == (None, "done", None)
     assert scratch["embed_jobs"] == ["vec-1"]
+
+
+def test_the_search_row_says_its_pages_in_words(db, monkeypatch):
+    """The run's row while Search runs: "Making vectors for search: 2 of 3 pages", never "Running step make-a-vector:
+    0 of 1 folder done" (a step id, `recipes-run.journey.progress-in-words`)."""
+    from fichero_server.actions import page_text_cache
+
+    _row(db, "run", "run-a-recipe", 0, None, state="running")
+    _row(db, "vec-1", "make-a-vector", 0, 4, subject="batch:1", detail=json.dumps({"documents": ["a", "b"]}))
+    _row(db, "vec-2", "make-a-vector", 4, None, subject="batch:2", state="running",
+         detail=json.dumps({"documents": ["c"]}))
+    monkeypatch.setattr(page_text_cache, "queue_reembed_batches", lambda *_a, **_k: ["vec-1", "vec-2"])
+    monkeypatch.setattr(runner, "search_embedded", lambda *_a: None)
+    said = []
+
+    def _poll(_seconds):  # the lane finishes the second batch while the run waits
+        said.append(jobs.read_job(db, "run")["reason"])
+        db.execute("UPDATE jobs SET state = 'done', finished_at = ? WHERE id = 'vec-2'", [T0 + timedelta(seconds=6)])
+
+    monkeypatch.setattr(runner.time, "sleep", _poll)
+    assert runner._run_embed(db, ["a", "b", "c"], "run", "person", {}) == (None, "done", None)
+    assert said == ["Making vectors for search: 2 of 3 pages"]
+    assert runner.doing_words({"job": "make-a-vector", "card": "embed"}) == "Making vectors for search"
+

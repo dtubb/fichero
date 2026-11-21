@@ -899,7 +899,8 @@ def _run_embed(db: Any, documents: list[str], parent: str, started_by: str,
     """Search: the embed job (`make-a-vector`, the one that follows every correction) queued for the pages in batches, as
     children of the recipe's row, and waited for (#5574, #5954). The jobs are kept on the step (`embed_jobs`), which
     times it (`recipes-run.timing.every-step-timed`, #6809)."""
-    from fichero_server.actions.page_text_cache import queue_reembed_batches
+    from fichero_server.actions.page_text_cache import REEMBED_KIND, queue_reembed_batches
+    from fichero_server.recipes.regions import progress_words
 
     # Pages in batches of 64, one job each (one forward pass and one append per batch, `runtime.embed.once-per-text-version`
     # #5954); a page already embedded from its current text is left alone inside the job.
@@ -907,10 +908,15 @@ def _run_embed(db: Any, documents: list[str], parent: str, started_by: str,
     for child in children:
         jobs.set_parent(db, child, parent)
     scratch["embed_jobs"] = children
+    said = None
     while True:
         if _stop_asked(parent):  # stopped (#5609): the run stops waiting; a page's embed job, which a correction
             return None, "cancelled", "Stopped by you"  # may share, is left to finish (it is cheap and kept)
         rows = [jobs.read_job(db, child) for child in children]
+        # The run's row says its pages in words, never the step's id (`recipes-run.journey.progress-in-words`, #6809).
+        done = sum(len(json.loads(r["detail"])["documents"]) for r in rows if r["state"] == "done")
+        if (words := f"{_DOING[REEMBED_KIND]}: {progress_words(done, len(documents))}") != said:
+            jobs.say(db, parent, said := words)
         if all(r["state"] in ("done", "failed", "cancelled") for r in rows):
             failed = [r for r in rows if r["state"] != "done"]
             if not failed:
@@ -2082,7 +2088,7 @@ PAGE_NOTED_JOBS = frozenset({"find-names-tag-words", "leave-out"})
 _DOING = {"find-lines": "Finding the lines", "leave-out": "Leaving out what is not writing", "read-a-line": "Reading each line",
           "read-a-page": "Reading the whole page", "correct": "Reviewing the reading", "find-names-tag-words": "Finding names",
           "find-statements": "Finding statements", "prepare-the-image": "Preparing the images",
-          "find-regions": "Finding regions", "split-pages": "Splitting the pages"}
+          "find-regions": "Finding regions", "split-pages": "Splitting the pages", "make-a-vector": "Making vectors for search"}
 _READERS = {"kraken": "Kraken", "apple": "Apple Vision", "spacy": "spaCy"}
 
 
