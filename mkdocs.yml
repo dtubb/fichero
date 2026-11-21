@@ -461,6 +461,7 @@ nav:
               - KG Entity Inspector: contributor_manual/specs/kg/kg-entity-inspector.md
               - KG Interactions & Standards: contributor_manual/specs/kg/kg-interactions.md
               - KG Readable Representation: contributor_manual/specs/kg/kg-readable-representation.md
+              - KG Rendering: contributor_manual/specs/kg/kg-rendering.md
               - KG Tables: contributor_manual/specs/kg/kg-tables.md
           - Source:
               - Source Model (foundation): contributor_manual/specs/source/source-model.md
