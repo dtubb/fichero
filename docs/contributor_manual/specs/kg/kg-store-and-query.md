@@ -247,9 +247,12 @@ makes extraction slow. The 744 tests of `tests/unit/kg`, `tests/unit/knowledge` 
 - `kg.scale.ratchet-at-project-size` — **[PARTIAL]** (#5261) the perf ratchet holds a case for each
   question in the table above at 5,000 pages (50,000 statements, 12,500 names), with a ceiling a
   regression breaks. Built: `tests/perf/test_entity_list_perf.py` (1,000 names, 2,000 statements)
-  and `tests/perf/test_entity_detail_perf.py` (10,000 names, 60,000 statements, one name). Not
-  built: statements list, neighbourhood, counts, graph build, path, and the 50,000-page run on the
-  build machine.
+  and `tests/perf/test_entity_detail_perf.py` (10,000 names, 60,000 statements, one name).
+  Report-only, no ceiling yet, at 50,000 statements / 12,500 names: statements list and counts
+  (`test_claims_list_and_counts_at_project_size` in `test_entity_list_perf.py`),
+  `tests/perf/test_kg_neighbourhood_perf.py`, `tests/perf/test_kg_graph_build_perf.py`. Not
+  built: path, a ceiling on the four report-only cases, and the 50,000-page run on the build
+  machine.
 - `kg.scale.memory-stays-flat` — **[GAP]** (#5261) a knowledge read grows the engine's memory by
   the size of its answer, not of the project: 1.2 GB peak at 5,000 pages today, 8.5 GB at 50,000,
   more than a 16 GB laptop can give the engine beside a model.
