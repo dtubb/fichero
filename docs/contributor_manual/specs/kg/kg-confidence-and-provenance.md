@@ -153,6 +153,16 @@ paid model was used).
   Agent, the page the Entity it was derived from), and a statement the project has not confirmed
   is exported as reified (an RDF 1.2 triple term or a named graph per source), never as a bare
   asserted triple.
+- `kg.statements.no-invented-english` — **[PARTIAL]** (#4914, #6771) a name with no statement gets no English "is" on a page that
+  is not English (`source.extract.no-english-verb-on-another-language`). Built: for a page whose
+  language the detector names. Not built: `_write_kg_rows` decides English from a detector run
+  on the first 2,000 characters of the excerpt it is handed (500 characters from the import
+  draft) and counts "could not tell" as English, without asking the document's recorded
+  language or the project's; on ten Spanish pages 10 of 123 names got "is a person", "is a
+  location" or "is a organization" (measured 2026-11-20). The page's resolved language
+  (`llm.language_policy.resolve_language`, which the draft already computes) decides, and
+  undetermined is never English. *Test:*
+  `fichero-server/tests/unit/workflows/test_svo_fallback.py`.
 
 ### B. What carries a confidence, and what the figure means
 
@@ -391,6 +401,15 @@ paid model was used).
   page dates with no actor as a row of their own; the graph's "as of" control filters edges by
   the same values. Built: `KGTimelineView` with solid and dashed from `confidence_source`. Not
   built: the basis as the reason, page dates, the "as of" control.
+- `kg.names.gate` — **[PARTIAL]** (#5008, #6768) a name
+  saved is somebody or somewhere: a whole-name date or a bare role word is refused, a name is
+  never trimmed, a role word never refuses a longer name (`svo_quality.usable_entity_name`;
+  `source.job.find-names.not-a-date-or-a-role`). Built: tested for a date in figures. Not
+  built: a bare month name, a weekday, a century, a relative day and a date written out in words
+  all pass as names (probed 2026-11-20; two month names were stored as a person and an
+  organisation in a ten-page run of the tagger), which is one of the three ways a date reaches
+  the graph views as a node (`kg.graph.dates-are-never-nodes`). *Test:*
+  `fichero-server/tests/unit/knowledge/test_name_quality.py`.
 
 ### I. Authorities: Wikidata, VIAF, Library of Congress, the gazetteers
 
@@ -661,10 +680,15 @@ the behaviour's words before the change.
 - Depends on: 1.1
 - Size: M
 
+#### Step 1.4 — No English "is" on a page whose language is not known (#6771)
+- Behaviours: `kg.statements.no-invented-english`
+- Tests: fichero-server/tests/unit/workflows/test_svo_fallback.py
+- Size: S
+
 ### Stage 2 — Dates and places are qualifiers, never nodes
 
 #### Step 2.1 — No date is a node or a name: the literal classified, the gate asks the dates parser, the repair lists (#6768)
-- Behaviours: `kg.graph.dates-are-never-nodes`, `kg.qualifier.qualifiers-are-not-edges`
+- Behaviours: `kg.graph.dates-are-never-nodes`, `kg.qualifier.qualifiers-are-not-edges`, `kg.names.gate`
 - Tests: to write: `test_dates_are_never_nodes.py` in fichero-server/tests/unit/kg/, `test_name_gate_refuses_written_dates.py` in fichero-server/tests/unit/knowledge/, `GraphModelDateLiteralTests.swift` in fichero/Tests/Unit/general/Views/Library/
 - Size: M
 
@@ -866,5 +890,6 @@ Order: the MLX trainer as a job in the local lane with its memory read before it
   offline gazetteer copies; the compiled-in coordinate table becomes a sourced file.
 - **#6770** Graph search: fold accents and old spellings, search authority names, one merged
   route, filters, and a door in the app (the mixed search has no caller there).
-- Also (in `kg-entities-and-statements.md`): **#6771** an English "is a person" statement is
-  written on a page whose language the detector could not name.
+- **#6771** an English "is a person" statement is written on a page whose language the detector
+  could not name (`kg.statements.no-invented-english`, moved here from
+  `kg-entities-and-statements.md`; Step 1.4).

@@ -133,15 +133,7 @@ native graph, timeline and map views.
   names are proposals into the canonical set and never the catalogue's names by themselves; a
   project where it measures well on the check set may choose it as the step's source; a tagger
   fine-tuned on the project's confirmed names (#5536) is measured the same way.
-- `kg.names.gate` — **[PARTIAL]** (#5008, #6768) a name
-  saved is somebody or somewhere: a whole-name date or a bare role word is refused, a name is
-  never trimmed, a role word never refuses a longer name (`svo_quality.usable_entity_name`;
-  `source.job.find-names.not-a-date-or-a-role`). Built: tested for a date in figures. Not
-  built: a bare month name, a weekday, a century, a relative day and a date written out in words
-  all pass as names (probed 2026-11-20; two month names were stored as a person and an
-  organisation in a ten-page run of the tagger), which is one of the three ways a date reaches
-  the graph views as a node (`kg.graph.dates-are-never-nodes`). *Test:*
-  `fichero-server/tests/unit/knowledge/test_name_quality.py`.
+- `kg.names.gate` — moved on 2026-11-21 to `kg-confidence-and-provenance.md` section H (id kept; Step 2.1, #6768).
 - `kg.names.says-who-made-it` — **[PARTIAL]** (#4869, #4868) every entity and claim names its
   maker in its attribution chain: a run (provider, model, prompt version, run id, time), the
   import draft (the tagger and pipeline, marked as draft), or a person (account and time); a
@@ -246,16 +238,7 @@ native graph, timeline and map views.
 - `kg.statements.measured` — **[GAP]** (#5545, #5637) the bake-off compares the parser tier, a
   local model and a cloud model on the check set, precision and recall per statement, cost
   first; a prompt version is adopted only when it does not lose on the check set.
-- `kg.statements.no-invented-english` — **[PARTIAL]** (#4914, #6771) a name with no statement gets no English "is" on a page that
-  is not English (`source.extract.no-english-verb-on-another-language`). Built: for a page whose
-  language the detector names. Not built: `_write_kg_rows` decides English from a detector run
-  on the first 2,000 characters of the excerpt it is handed (500 characters from the import
-  draft) and counts "could not tell" as English, without asking the document's recorded
-  language or the project's; on ten Spanish pages 10 of 123 names got "is a person", "is a
-  location" or "is a organization" (measured 2026-11-20). The page's resolved language
-  (`llm.language_policy.resolve_language`, which the draft already computes) decides, and
-  undetermined is never English. *Test:*
-  `fichero-server/tests/unit/workflows/test_svo_fallback.py`.
+- `kg.statements.no-invented-english` — moved on 2026-11-21 to `kg-confidence-and-provenance.md` section A (id kept; Step 1.4, #6771).
 - `kg.statements.review` — **[PARTIAL]** (#4691, #4768, #5416) a statement is `unreviewed`,
   `shortlisted`, `curated` or `rejected`; a person curates from the Claims table and the lens,
   single or multi-select, the table filters by state, and a machine actor is refused by
