@@ -901,6 +901,50 @@ class DatabaseEmbeddingMixin:
             stale = [doc for doc in wanted if doc.id not in current]
             return len(wanted) - len(stale), self.embed_many(stale) if stale else 0, len(wanted)
 
+    def _tail_passage_ids(self) -> tuple[list[str], list[str]]:
+        """(pages, row ids) of the tail rows the cutter wrote before #6780 for text ending in whitespace: after a page's
+        last passage, one row per character of the overlap, each ending where that passage ends. The cutter's passage ends
+        only grow, so of the rows of one page and scope that share an end, all but the one starting first are tails."""
+        if EMBEDDINGS_TABLE not in self._lance_tables():
+            return [], []
+        columns = ["id", "document_id", "embedding_scope", "char_start", "char_end"]
+        table = self.lance.open_table(EMBEDDINGS_TABLE)
+        rows = table.search().select(columns).limit(max(1, table.count_rows())).to_list()
+        seen: set[tuple] = set()
+        tails: list[str] = []
+        pages: set[str] = set()
+        for row in sorted((r for r in rows if r.get("char_end") is not None), key=lambda r: r["char_start"]):
+            key = (row["document_id"], row["embedding_scope"], row["char_end"])
+            if key in seen:
+                tails.append(row["id"])
+                pages.add(row["document_id"])
+            else:
+                seen.add(key)
+        return sorted(pages), tails
+
+    def tail_passage_scan(self) -> dict[str, Any]:
+        """The pages that carry tail rows from the cutter before #6780 and how many such rows there are. Reads only."""
+        pages, tails = self._tail_passage_ids()
+        return {"pages": pages, "tail_rows": len(tails)}
+
+    def remove_tail_passages(self, *, confirm: bool = False) -> dict[str, Any]:
+        """Delete the rows `tail_passage_scan` counts. The rows left are the ones the cutter makes now (the same ids, text
+        and offsets: the tails came after the last real passage), so no page is embedded again."""
+        if not confirm:
+            raise EmbeddingMigrationConfirmationError(
+                "Removing tail passage rows deletes vector rows; run tail_passage_scan first, then pass confirm=True."
+            )
+        with self._lance_lock:
+            pages, tails = self._tail_passage_ids()
+            table = self.lance.open_table(EMBEDDINGS_TABLE) if tails else None
+            for start in range(0, len(tails), 500):
+                quoted = ", ".join("'" + i.replace("'", "''") + "'" for i in tails[start : start + 500])
+                table.delete(f"id IN ({quoted})")
+        if tails:
+            self._invalidate_embedded_doc_ids_cache()
+            logger.warning("remove_tail_passages: deleted %d tail rows from %d pages (#6780)", len(tails), len(pages))
+        return {"pages": pages, "tail_rows": len(tails), "rows_removed": len(tails)}
+
     def embedding_stats(self) -> dict:
         """Get statistics about embeddings.
 
