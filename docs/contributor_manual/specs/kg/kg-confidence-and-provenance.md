@@ -17,7 +17,7 @@
 > `../explore/networks.md`, `../explore/time.md`, `../explore/place.md` (the controls).
 > Tags: **[OK]** built and tested · **[PARTIAL]** built, partly proven or partly wired ·
 > **[GAP]** intended, never built · **[BROKEN]** code contradicts the line.
-> `→ #NEW-n` marks an issue the manager is asked to file (listed at the end).
+> `→ #n` marks an issue filed for this spec (milestone kg-confidence-and-provenance, listed at the end).
 
 ## Intent (the design)
 
@@ -161,13 +161,13 @@ paid model was used).
   built: a figure that was measured: today it is a constant chosen in code (0.7 when a model
   returned both verb and object, 0.5 otherwise, 0.3 when the model called it rejected:
   `extractors._write_kg_rows`).
-- `kg.confidence.source-is-true` — **[BROKEN]** (#4869, → #NEW-1) `confidence_source` says what
+- `kg.confidence.source-is-true` — **[BROKEN]** (#4869, → #6761) `confidence_source` says what
   actually produced the figure. Today the writer stamps `llm` on rows no language model made:
   `_write_kg_rows` passes `confidence_origin="heuristic" if svo_synthesised else "llm"` whatever
   the provider, so 123 of the tagger's 133 measured rows read as a language model's. The closed
   vocabulary is `measured`, `rule`, `prior` and absent; a person's decision is a state, not a
   source.
-- `kg.confidence.no-made-up-figure` — **[BROKEN]** (#4751, → #NEW-1) nothing is stored as a confidence
+- `kg.confidence.no-made-up-figure` — **[BROKEN]** (#4751, → #6761) nothing is stored as a confidence
   that nobody measured. Today 0.5 is the default on `KnowledgeClaim.confidence`,
   `EvidentialDateRange.confidence`, `EvidentialPlace.confidence`,
   `AttributionStep.confidence` and `SourceSupport.support_confidence`, and 0.55 and 0.5 are
@@ -176,7 +176,7 @@ paid model was used).
   unmeasured row has NO confidence and shows no band (the app's `ConfidenceBand.recorded`
   already draws nothing for none). Stored rows are not rewritten: a row whose source is not one
   of the closed vocabulary reads as unmeasured.
-- `kg.confidence.name-and-mention` — **[GAP]** (→ #NEW-2, #6385) a name's mention carries the
+- `kg.confidence.name-and-mention` — **[GAP]** (→ #6762, #6385) a name's mention carries the
   tagger's or model's score and the confidence fitted from it; the name carries none of its own
   (a name is as sure as its best mention and its decision). Today `KnowledgeEntity` has no
   confidence field, `upsert_entity` takes none, and the score the taggers return
@@ -203,7 +203,7 @@ paid model was used).
 
 ### C. Where the figure comes from: the project's check set
 
-- `kg.confidence.calibrated-on-the-check-set` — **[GAP]** (#5545, #6385, #6386, → #NEW-3) the
+- `kg.confidence.calibrated-on-the-check-set` — **[GAP]** (#5545, #6385, #6386, → #6763) the
   check set of `kg.names.measured` (about ten corrected pages) plus every decision a person has
   made since (section E) is the labelled set. For each maker and kind (a tagger or a model and
   prompt version, per name type; statements; each merge method; each authority) the engine
@@ -212,7 +212,7 @@ paid model was used).
   with its expected calibration error and a ten-bin reliability table. A row's confidence is the
   fit's value for its score, else the prior, else absent. The table is kept with the run and
   shown on the step card and in Settings; it is refitted when the labelled set grows by a tenth.
-- `kg.confidence.model-says-so-is-not-a-figure` — **[PARTIAL]** (#6386, → #NEW-1) a language model's own stated
+- `kg.confidence.model-says-so-is-not-a-figure` — **[PARTIAL]** (#6386, → #6761) a language model's own stated
   certainty is never stored as a confidence: the prompts ask for none and the writer takes none
   from a model (`_write_kg_rows` reads `epistemic_status`, which is about the SOURCE's stance,
   and no confidence field). Built; not pinned by a test (Step 1.1 writes it).
@@ -222,7 +222,7 @@ paid model was used).
 
 ### D. Several makers, several sources: how figures combine
 
-- `kg.confidence.three-questions-apart` — **[BROKEN]** (#4751, → #NEW-4) extraction confidence,
+- `kg.confidence.three-questions-apart` — **[BROKEN]** (#4751, → #6764) extraction confidence,
   reading confidence and evidential weight are three fields and three displays. Today
   `_merge_corroborating_claim` adds 0.05 for each further source (to at most 0.2) onto
   `confidence`, relabels it `corroboration`, and copies the same number into
@@ -231,13 +231,13 @@ paid model was used).
   source; evidential weight is `corroboration_count`, `weighted_corroboration_count` and the
   triangulation band (`knowledge/triangulation.py`: two sources corroborated, three
   triangulated), shown as "three sources agree, one differs" (`kg.read.confidence-visible`).
-- `kg.confidence.makers-agree` — **[GAP]** (#6386, → #NEW-4) when two INDEPENDENT makers (the tagger
+- `kg.confidence.makers-agree` — **[GAP]** (#6386, → #6764) when two INDEPENDENT makers (the tagger
   and a model; two different models) produce the same mention (same stretch, same type) or the
   same statement (same subject, verb, object and line), the row keeps one attribution step per
   maker, each with its own confidence, and its confidence is the noisy-OR of them, capped at the
   best calibrated bin the check set has actually seen. Two runs of one model and prompt are one
   maker. Today a second maker is only noted (`add_attribution`); nothing combines.
-- `kg.confidence.makers-disagree` — **[GAP]** (→ #NEW-4, #1677) when makers disagree on one
+- `kg.confidence.makers-disagree` — **[GAP]** (→ #6764, #1677) when makers disagree on one
   stretch (a different type; a different object or date for the same subject and verb on the
   same line; one maker finds it and a stronger one, run on the same page, does not) nothing is
   averaged and nothing is silently dropped: the row is marked `disputed`, keeps each maker's
@@ -253,7 +253,7 @@ paid model was used).
 
 ### E. A person's decision outranks every figure, and is the ground truth
 
-- `kg.confidence.decision-is-a-state` — **[PARTIAL]** (#5416, → #NEW-5) verified, curated,
+- `kg.confidence.decision-is-a-state` — **[PARTIAL]** (#5416, → #6765) verified, curated,
   rejected, merged, linked and "not the same as" are states with who and when; the card shows
   "confirmed by a person" or "rejected", never 100% or 0%; a decided row is exempt from every
   threshold (a confirmed row is always shown, a rejected one never drawn). Built: the states,
@@ -266,7 +266,7 @@ paid model was used).
   that finds the old value again writes a proposal beside it, never over it
   (`_corrected_claim_for_incoming`, `kg.tables` rules). *Test:*
   `fichero-server/tests/unit/workflows/test_merge_dedup_curation_survival.py`.
-- `kg.confidence.decisions-are-labels` — **[PARTIAL]** (#5536, #6385, → #NEW-3) every decision
+- `kg.confidence.decisions-are-labels` — **[PARTIAL]** (#5536, #6385, → #6763) every decision
   is a labelled example for section C and for `tune-names`: a verified or rejected name is a
   span label of its type; an accepted or rejected pair is a matcher label; a curated or rejected
   statement and each corrected field is a statement label; a chosen or refused authority
@@ -299,7 +299,7 @@ paid model was used).
 
 ### G. The threshold drives what a machine may do alone
 
-- `kg.confidence.two-thresholds-per-kind` — **[GAP]** (→ #NEW-6, #6280) each project keeps, per
+- `kg.confidence.two-thresholds-per-kind` — **[GAP]** (→ #6766, #6280) each project keeps, per
   kind (names by type, statements, merges, authority links), a **keep** line and a **trust**
   line, set FROM the check set and never typed as a bare number: the trust line is the lowest
   score at which measured precision is at least the project's target (default 95 in 100), the
@@ -315,7 +315,7 @@ paid model was used).
   a person made or decided. Built: the writer proposes and never merges on similarity
   (`upsert_entity` stage 1.6 and after, #5409). Not built: the refusal of a machine actor on
   claim review (#5416).
-- `kg.confidence.thresholds-replace-the-constants` — **[BROKEN]** (#6280, #4842, → #NEW-6) the
+- `kg.confidence.thresholds-replace-the-constants` — **[BROKEN]** (#6280, #4842, → #6766) the
   cut-offs in code (0.78 for a string ratio in `_fuzzy_match_existing`, 0.92 and 0.75 for a
   cosine in `knowledge/entity_vectors.py`, 0.7 for a predicted link in
   `api/routes/kg/predictions.py`, 2 and 3 sources in triangulation) are not project settings and
@@ -325,7 +325,7 @@ paid model was used).
 
 ### H. A statement's date and place are its qualifiers
 
-- `kg.qualifier.where-a-date-comes-from` — **[PARTIAL]** (#5008, #4659, → #NEW-7) a statement's
+- `kg.qualifier.where-a-date-comes-from` — **[PARTIAL]** (#5008, #4659, → #6767) a statement's
   date is looked for in this order, and the level it came from is recorded on the value
   (`basis` and `source_field`): (1) the statement's own sentence (`asserted`, with its stretch);
   (2) the page's or entry's own dateline, the date the reading steps found for the page
@@ -348,7 +348,7 @@ paid model was used).
   `label`, `numbering` on `EvidentialDateRange`. Not built: EDTF, the calendar, any uncertainty
   but a "circa" found by a pattern, a date written out in words (the usual form in notarial
   text). `_range_from_date_text` reads only four digits with optional month and day.
-- `kg.qualifier.month-ends-are-real-dates` — **[BROKEN]** (#4364, → #NEW-7)
+- `kg.qualifier.month-ends-are-real-dates` — **[BROKEN]** (#4364, → #6767)
   `_entity_writer._range_from_date_text` ends every month on day 31 (a February or a 30-day
   month gets a date that does not exist), which a strict date parser downstream refuses.
 - `kg.qualifier.where-a-place-comes-from` — **[PARTIAL]** (#4600, #5597) a statement's place is
@@ -359,11 +359,11 @@ paid model was used).
   (`ungrounded_span`), level 3 from the document's description (`_first_source_place_anchor`),
   a geocoded point marked `inferred` with its source. Not built: the pointer (today
   `claim_location`, `claim_geo` and `place_values` are copies on the claim), level 2.
-- `kg.qualifier.qualifiers-are-not-edges` — **[PARTIAL]** (#5008, → #NEW-8) a date or a place of
+- `kg.qualifier.qualifiers-are-not-edges` — **[PARTIAL]** (#5008, → #6768) a date or a place of
   a statement is never a second statement, an entity or an edge: it is exported as a qualifier
   of the reified statement (Wikidata's model), drawn as a label on the edge and a position on
   the timeline or the map. Built: the fields on the claim. Broken today: see the next line.
-- `kg.graph.dates-are-never-nodes` — **[BROKEN]** (#5008, #4605, → #NEW-8) no graph view draws a
+- `kg.graph.dates-are-never-nodes` — **[BROKEN]** (#5008, #4605, → #6768) no graph view draws a
   date as a node, and no list of names holds one. Three ways a date becomes a node or a name
   today, each to close:
   1. **The literal leaf.** `api/routes/kg/graph.neighborhood_impl` emits an edge to
@@ -415,14 +415,14 @@ paid model was used).
   Library of Congress into `AuthoritySnapshot` rows; Wikidata statements by SPARQL or JSON-LD
   (`knowledge/wikidata_enrich.py`). Not built: any fetcher for GeoNames, Getty TGN, Pleiades or
   the World Historical Gazetteer, though links to them can be stored.
-- `kg.authority.offline-copies` — **[GAP]** (#5123, #5380, → #NEW-9) a project can hold an
+- `kg.authority.offline-copies` — **[GAP]** (#5123, #5380, → #6769) a project can hold an
   authority offline: a GeoNames country extract, a Pleiades or World Historical Gazetteer
   download, a Linked Places file, a spreadsheet of the archive's own authority list, imported
   once into the snapshot table with its licence and date, after which place lookup needs no
   network. The 40-name table compiled into `media/geo.py` becomes such a file, with a source
   and a licence, instead of coordinates in code. A snapshot shows when it was fetched and can
   be refreshed; a refresh never changes a chosen link.
-- `kg.authority.candidate-confidence` — **[GAP]** (#5123, → #NEW-9) a candidate's figure is
+- `kg.authority.candidate-confidence` — **[GAP]** (#5123, → #6769) a candidate's figure is
   built from evidence a person can read: the name form that matched (exact, folded, an alias,
   the old-spelling key), type agreement, date overlap (the record's life or existence dates
   against the statements' dates), place agreement (the record's country or parent against the
@@ -447,7 +447,7 @@ paid model was used).
 
 ### J. Searching the graph
 
-- `kg.search.one-field` — **[PARTIAL]** (#4604, #5725, → #NEW-10) one search field finds names
+- `kg.search.one-field` — **[PARTIAL]** (#4604, #5725, → #6770) one search field finds names
   and statements: a name by any of its forms with case, accents, punctuation and old spellings
   set aside (`dedupe.normalize_name`, `dedupe.spelling_key`), by an authority's other names once
   linked, and by meaning (the entity vectors); a statement by its words, its subject, its
@@ -473,18 +473,18 @@ the behaviour's words before the change.
 
 ### Stage 1 — Honest figures (engine)
 
-#### Step 1.1 — The source of a figure is true; unmeasured is absent (→ #NEW-1)
+#### Step 1.1 — The source of a figure is true; unmeasured is absent (→ #6761)
 - Behaviours: `kg.confidence.source-is-true`, `kg.confidence.no-made-up-figure`, `kg.confidence.model-says-so-is-not-a-figure`
 - Tests: to write: `test_confidence_source_is_true.py` in fichero-server/tests/unit/kg/, `test_no_model_stated_confidence.py` in fichero-server/tests/unit/kg/
 - Size: M
 
-#### Step 1.2 — Three questions, three fields: corroboration never raises extraction confidence; a decision is not a number (→ #NEW-4, → #NEW-5)
+#### Step 1.2 — Three questions, three fields: corroboration never raises extraction confidence; a decision is not a number (→ #6764, → #6765)
 - Behaviours: `kg.confidence.three-questions-apart`, `kg.confidence.decision-is-a-state`, `kg.confidence.contradiction-is-kept`, `kg.confidence.corrections-override`
 - Tests: to write: `test_corroboration_is_not_extraction_confidence.py` in fichero-server/tests/unit/kg/, `test_demote_keeps_the_figure.py` in fichero-server/tests/unit/kg/
 - Depends on: 1.1
 - Size: M
 
-#### Step 1.3 — A mention keeps its score; a proposal and a link keep theirs (→ #NEW-2, #1675)
+#### Step 1.3 — A mention keeps its score; a proposal and a link keep theirs (→ #6762, #1675)
 - Behaviours: `kg.confidence.name-and-mention`, `kg.confidence.merge-proposal`, `kg.confidence.authority-link`, `kg.prov.every-row-has-a-maker`
 - Tests: to write: `test_mention_keeps_its_score.py` in fichero-server/tests/unit/kg/, `test_link_keeps_candidate_confidence.py` in fichero-server/tests/unit/kg/
 - Depends on: 1.1
@@ -492,12 +492,12 @@ the behaviour's words before the change.
 
 ### Stage 2 — Dates and places are qualifiers, never nodes
 
-#### Step 2.1 — No date is a node or a name: the literal classified, the gate asks the dates parser, the repair lists (→ #NEW-8)
+#### Step 2.1 — No date is a node or a name: the literal classified, the gate asks the dates parser, the repair lists (→ #6768)
 - Behaviours: `kg.graph.dates-are-never-nodes`, `kg.qualifier.qualifiers-are-not-edges`
 - Tests: to write: `test_dates_are_never_nodes.py` in fichero-server/tests/unit/kg/, `test_name_gate_refuses_written_dates.py` in fichero-server/tests/unit/knowledge/, `GraphModelDateLiteralTests.swift` in fichero/Tests/Unit/general/Views/Library/
 - Size: M
 
-#### Step 2.2 — Where a date and a place come from, with the level named; real month ends (→ #NEW-7)
+#### Step 2.2 — Where a date and a place come from, with the level named; real month ends (→ #6767)
 - Behaviours: `kg.qualifier.where-a-date-comes-from`, `kg.qualifier.where-a-place-comes-from`, `kg.qualifier.month-ends-are-real-dates`
 - Tests: to write: `test_statement_date_ladder.py` in fichero-server/tests/unit/kg/, `test_month_range_ends_on_a_real_day.py` in fichero-server/tests/unit/kg/
 - Depends on: 2.1
@@ -517,25 +517,25 @@ the behaviour's words before the change.
 
 ### Stage 3 — Measured figures and what they drive
 
-#### Step 3.1 — Decisions exported as labels; the measured precision of each maker and kind (→ #NEW-3)
+#### Step 3.1 — Decisions exported as labels; the measured precision of each maker and kind (→ #6763)
 - Behaviours: `kg.confidence.decisions-are-labels`, `kg.confidence.statement`, `kg.confidence.date-and-place`
 - Tests: to write: `test_decisions_export_as_labels.py` in fichero-server/tests/unit/kg/, `test_maker_priors_from_check_set.py` in fichero-server/tests/unit/kg/
 - Depends on: 1.1, 1.3
 - Size: M
 
-#### Step 3.2 — The fit from score to probability, its reliability table, token probabilities as a score (→ #NEW-3)
+#### Step 3.2 — The fit from score to probability, its reliability table, token probabilities as a score (→ #6763)
 - Behaviours: `kg.confidence.calibrated-on-the-check-set`, `kg.confidence.token-probabilities`
 - Tests: to write: `test_confidence_fit_from_check_set.py` in fichero-server/tests/unit/kg/
 - Depends on: 3.1
 - Size: M
 
-#### Step 3.3 — Makers agree and disagree (→ #NEW-4)
+#### Step 3.3 — Makers agree and disagree (→ #6764)
 - Behaviours: `kg.confidence.makers-agree`, `kg.confidence.makers-disagree`, `kg.confidence.reviewer-model-has-its-own-figure`
 - Tests: to write: `test_makers_agree_and_disagree.py` in fichero-server/tests/unit/kg/
 - Depends on: 3.2
 - Size: M
 
-#### Step 3.4 — Two thresholds per kind, set from the fit; the constants go (→ #NEW-6)
+#### Step 3.4 — Two thresholds per kind, set from the fit; the constants go (→ #6766)
 - Behaviours: `kg.confidence.two-thresholds-per-kind`, `kg.confidence.what-is-never-automatic`, `kg.confidence.thresholds-replace-the-constants`
 - Tests: to write: `test_thresholds_from_the_fit.py` in fichero-server/tests/unit/kg/, `test_no_threshold_makes_a_decision.py` in fichero-server/tests/unit/kg/
 - Depends on: 3.2
@@ -555,13 +555,13 @@ the behaviour's words before the change.
 
 ### Stage 4 — Authorities and search
 
-#### Step 4.1 — Consent per authority and type; candidates scored by evidence (→ #NEW-9, #4757, #4758)
+#### Step 4.1 — Consent per authority and type; candidates scored by evidence (→ #6769, #4757, #4758)
 - Behaviours: `kg.authority.per-type-and-per-source-consent`, `kg.authority.candidate-confidence`, `kg.authority.known-set`, `kg.authority.nothing-leaves-unasked`, `kg.authority.confirm-and-refuse`
 - Tests: to write: `test_authority_candidates_by_evidence.py` in fichero-server/tests/unit/kg/, `test_authority_consent_per_type.py` in fichero-server/tests/unit/kg/
 - Depends on: 1.3
 - Size: M
 
-#### Step 4.2 — Offline copies and the gazetteer fetchers (→ #NEW-9, #5123)
+#### Step 4.2 — Offline copies and the gazetteer fetchers (→ #6769, #5123)
 - Behaviours: `kg.authority.offline-copies`, `kg.authority.fetchers`
 - Tests: to write: `test_authority_offline_snapshot_import.py` in fichero-server/tests/unit/kg/
 - Depends on: 4.1
@@ -573,13 +573,13 @@ the behaviour's words before the change.
 - Depends on: 4.2
 - Size: M
 
-#### Step 4.4 — One search in the engine: folded names, authority names, meaning, filters (→ #NEW-10, #4604)
+#### Step 4.4 — One search in the engine: folded names, authority names, meaning, filters (→ #6770, #4604)
 - Behaviours: `kg.search.one-field`, `kg.search.filters-are-the-lens`
 - Tests: to write: `test_kg_search_folds_and_filters.py` in fichero-server/tests/unit/api/
 - Depends on: 4.3
 - Size: M
 
-#### Step 4.5 — The search field and "what connects" in the app (→ #NEW-10, #5551)
+#### Step 4.5 — The search field and "what connects" in the app (→ #6770, #5551)
 - Behaviours: `kg.search.what-connects-two-names`
 - Tests: to write: `KGSearchFieldTests.swift` in fichero/Tests/Unit/general/Views/Library/
 - Depends on: 4.4
@@ -617,28 +617,28 @@ the behaviour's words before the change.
    `kg-entities-and-statements.md` and `../explore/networks.md`. If it is meant to be its own
    spec, this one is written to sit under it.
 
-## Issues to file (for the manager)
+## Issues filed (milestone kg-confidence-and-provenance)
 
-- **#NEW-1** Confidence source is false and defaults are made up: `llm` stamped on tagger rows;
+- **#6761** Confidence source is false and defaults are made up: `llm` stamped on tagger rows;
   0.5, 0.55, 0.7, 0.3 constants; unmeasured must be absent.
-- **#NEW-2** Names and mentions carry no confidence; the taggers' scores are dropped at
+- **#6762** Names and mentions carry no confidence; the taggers' scores are dropped at
   `upsert_entity`.
-- **#NEW-3** Calibration: priors and score-to-probability fits per maker and kind from the check
+- **#6763** Calibration: priors and score-to-probability fits per maker and kind from the check
   set and from decisions; decisions exported as labels.
-- **#NEW-4** Corroboration raises extraction confidence and overwrites the evidential field;
+- **#6764** Corroboration raises extraction confidence and overwrites the evidential field;
   makers that agree or disagree are not combined or flagged.
-- **#NEW-5** Demote rewrites a statement's confidence to at most 0.2: a decision stored as a
+- **#6765** Demote rewrites a statement's confidence to at most 0.2: a decision stored as a
   measurement.
-- **#NEW-6** Two thresholds per kind set from the fit; retire the constants in
+- **#6766** Two thresholds per kind set from the fit; retire the constants in
   `_fuzzy_match_existing`, `entity_vectors`, `predictions`, and the unused
   `probabilistic_scorer`.
-- **#NEW-7** Statement date and place ladder with the level named; page date stored on the
+- **#6767** Statement date and place ladder with the level named; page date stored on the
   statement; `_range_from_date_text` ends every month on day 31.
-- **#NEW-8** Dates drawn as graph nodes and stored as names: literal leaves, the name gate
+- **#6768** Dates drawn as graph nodes and stored as names: literal leaves, the name gate
   (month names, weekdays, centuries, dates in words), date-as-subject rows; a scan-first repair.
-- **#NEW-9** Authority candidates scored by evidence and type; consent per authority and type;
+- **#6769** Authority candidates scored by evidence and type; consent per authority and type;
   offline gazetteer copies; the compiled-in coordinate table becomes a sourced file.
-- **#NEW-10** Graph search: fold accents and old spellings, search authority names, one merged
+- **#6770** Graph search: fold accents and old spellings, search authority names, one merged
   route, filters, and a door in the app (the mixed search has no caller there).
-- Also (in `kg-entities-and-statements.md`): **#NEW-11** an English "is a person" statement is
+- Also (in `kg-entities-and-statements.md`): **#6771** an English "is a person" statement is
   written on a page whose language the detector could not name.

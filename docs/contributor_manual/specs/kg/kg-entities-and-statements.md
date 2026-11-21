@@ -129,7 +129,7 @@ native graph, timeline and map views.
   names are proposals into the canonical set and never the catalogue's names by themselves; a
   project where it measures well on the check set may choose it as the step's source; a tagger
   fine-tuned on the project's confirmed names (#5536) is measured the same way.
-- `kg.names.gate` — **[PARTIAL]** (#5008, → #NEW-8 in `kg-confidence-and-provenance.md`) a name
+- `kg.names.gate` — **[PARTIAL]** (#5008, → #6768 in `kg-confidence-and-provenance.md`) a name
   saved is somebody or somewhere: a whole-name date or a bare role word is refused, a name is
   never trimmed, a role word never refuses a longer name (`svo_quality.usable_entity_name`;
   `source.job.find-names.not-a-date-or-a-role`). Built and tested for a date in figures. Not
@@ -242,7 +242,7 @@ native graph, timeline and map views.
 - `kg.statements.measured` — **[GAP]** (#5545, #5637) the bake-off compares the parser tier, a
   local model and a cloud model on the check set, precision and recall per statement, cost
   first; a prompt version is adopted only when it does not lose on the check set.
-- `kg.statements.no-invented-english` — **[PARTIAL]** (#4914, → #NEW-11 in
+- `kg.statements.no-invented-english` — **[PARTIAL]** (#4914, → #6771 in
   `kg-confidence-and-provenance.md`) a name with no statement gets no English "is" on a page that
   is not English (`source.extract.no-english-verb-on-another-language`). Built for a page whose
   language the detector names. Not built: `_write_kg_rows` decides English from a detector run
