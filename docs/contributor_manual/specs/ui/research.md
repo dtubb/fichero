@@ -607,7 +607,6 @@ are in Future.
 #### Step 1.1 — Research lives in the main window: the mode and the old surfaces go
 - Behaviours: `research.lives-in-the-main-window`, `research.ux.old-surfaces-deleted`, `research.project-is-sidebar-node`, `research.plan-tab-is-only-plan-surface`
 - Tests: fichero/Tests/Unit/general/Views/Shell/LibraryPaneNeverMountsModeSurfaceTests.swift, fichero/Tests/Unit/general/Views/Shell/ViewModeNormalizationTests.swift, ResearchFolderSelectionTests.swift, ResearchOldSurfacesGoneTests.swift
-- Depends on: none
 - Size: M
 
 The `.research` arm of `contentView`, the mode, its menu entry and saved selection, the three old views and `ChatViewToolbar` deleted; the chat below the sidebar takes its folder from the selected research folder. `ResearchTasksPane` is kept, mounted nowhere but chat's Plan view until Step 2.1. About 14 files.
@@ -711,3 +710,35 @@ The Staged folder, the rule that a model's account writes imports only there (th
 - Size: M
 
 The Changes view over the audit rows, Undo and Undo Pass on the window's stack, the card's Undo. About 14 files.
+
+### Stage 4 — Carried from before 2026-11-21 (not part of the UX update; listed so every open line has a step)
+
+#### Step 4.1 — Pin what is built and unpinned (#4798)
+- Behaviours: `research.one-surface-named-research`, `research.chat-context-aware`, `research.browser-pane-trust-boundary`, `research.knowledge-tab-not-browsable`, `research.compare-folds-into-chat`
+- Tests: fichero/Tests/Unit/general/Views/Chat/ChatViewBoundaryTests.swift, fichero/Tests/Unit/general/Views/Chat/ChatAttachContextTests.swift, fichero/Tests/Unit/general/Views/Shell/ChatWithDocsRoutingTests.swift
+- Depends on: 1.2
+- Size: S
+
+Tests only, after Step 1.2 has removed the Compare and Knowledge views, so what is pinned is what stays.
+
+#### Step 4.2 — Chat in any pane, and the browser's home (`modes-to-panes.md` increments 6 and 5c; #4041, #4809)
+- Behaviours: `research.chat-single-mount`, `research.embedded-browser-home-surface`
+- Tests: fichero/Tests/Unit/general/Views/ChatMountTests.swift, fichero/Tests/Unit/general/Views/Chat/ChatViewBoundaryTests.swift
+- Depends on: 1.2
+- Size: M
+
+Built from `modes-to-panes.md`, which owns both; listed here so this spec's lines have a step.
+
+#### Step 4.3 — The agent's other tools (#3093, #509, #270, #5760, #821)
+- Behaviours: `research.canvas-actions-are-agent-tools`, `research.mcp-servers-configurable-in-app`, `research.mcp-semantic-spatial-tools`, `mcp.client.tools-reach-a-workflow`, `research.apple-fm-tool-callback`
+- Tests: fichero-server/tests/unit/actions/test_chat_tools_canvas_allowlist.py, fichero-server/tests/unit/mcp/test_mcp_client_round_trip.py
+- Depends on: 3.5
+- Size: M
+
+#### Step 4.4 — Later: the watchlist and a tuned local model (#1870, #1813)
+- Behaviours: `research.watchlist-not-built`, `research.finetune-local-paleography-model`
+- Tests: test_research_watchlist.py
+- Depends on: 3.5
+- Size: M
+
+Not scheduled; each needs its own design before a brief is cut.
