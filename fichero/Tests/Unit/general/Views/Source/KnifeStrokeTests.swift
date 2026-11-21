@@ -85,6 +85,25 @@ struct KnifeStrokeTests {
         #expect(SegmentEdit.knife(stroke, over: lines, onPass: nil) == .failure(.tooFew), "no pass shown, nothing to cut")
     }
 
+    @Test("the Knife offers the shown pass's regions as well as its lines; a region needs no baseline (#6734)")
+    func regionsAreOffered() throws {
+        let stroke: [[Double]] = [[0.05, 0.3], [0.95, 0.3]]
+        let region = Segment(
+            id: "region", provisional: false, documentId: "page-1", passId: "imported", kind: "region", kindRaw: nil,
+            version: 4, provenanceKind: .externalImport,
+            anchor: SourceAnchorValue(generated: Components.Schemas.SourceAnchorOutput(documentId: "page-1", rect: [0.1, 0.1, 0.8, 0.4])),
+            baseline: nil, text: nil, confidence: nil, language: nil, script: nil, direction: nil,
+            sourceArtifactId: nil, boxIndex: 0, pageIndex: nil, metadata: nil
+        )
+        let params = try json(SegmentEdit.knife(stroke, over: [
+            region, line("inside", version: 2, rect: [0.15, 0.25, 0.7, 0.1])
+        ], onPass: "imported").get())
+        #expect(params["expected_versions"] as? [String: Int] == ["region": 4, "inside": 2])
+        let far: [[Double]] = [[0.05, 0.8], [0.95, 0.8]]
+        #expect(SegmentEdit.knife(far, over: [region], onPass: "imported") == .failure(.tooFew),
+                "a stroke that reaches no region or line says so")
+    }
+
     @Test("a slow drag is thinned before it is sent, and still ends where it was let go")
     func thinned() {
         let drag = (0...100).map { [0.5, 0.2 + Double($0) * 0.0001] }
