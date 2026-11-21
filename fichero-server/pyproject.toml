@@ -460,7 +460,22 @@ dependencies = [
     # thumbnail and no error — the wrong-but-silent shape.
     "pillow-heif>=1.1.0",
     "iso639-lang",  # ISO 639-3 language names: setup's language search (recipes/names.py)
+    # YOLO region finding (#6675, #5525): declared so the lock, and every environment made from it, imports it. A floor,
+    # as every shipped dependency is; the lock holds the version `[tool.fichero.mlx_bundle]` installs into the app
+    # (tests/unit/packaging/test_ultralytics_declared_6675.py).
+    "ultralytics>=8.4.175",
 ]
+
+# Ultralytics declares opencv-python (a second cv2 beside opencv-python-headless) and nvidia-ml-py (Linux GPUs); the
+# bundle installs it --no-deps for that reason, and the lock leaves both out by a marker no supported Python meets.
+[tool.uv]
+override-dependencies = [
+    "opencv-python; python_version < '3'",
+    "nvidia-ml-py; python_version < '3'",
+]
+# Ultralytics brings torchvision into the lock: held at the `[tool.fichero.kraken_bundle]` pin, which matches the locked
+# torch, so the Kraken step finds the version it installs already there.
+constraint-dependencies = ["torchvision==0.29.0"]
 
 [project.optional-dependencies]
 kg = [

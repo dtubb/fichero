@@ -9,9 +9,11 @@ call is constrained to the bundle's own pins, a bundle distribution may not chan
 the interpreter must match the bundle's Python. `[tool.fichero.mlx_bundle]` in pyproject.toml is the one
 list: `missing_packages` resolve normally, then `no_deps_packages` go in `--no-deps`.
 
-Runs after the Kraken step in `preflight-embedded-engine.sh`.
+Runs after the Kraken step in `preflight-embedded-engine.sh`, which also passes the lock's exported constraints
+(`build/lock-constraints.txt`): a package the lock knows (Ultralytics' matplotlib, polars, torchvision, #6675) is then
+installed at the lock's version, the one `bundle_matches_lock.py` checks.
 
-    <project-python> scripts/install_mlx_into_engine_bundle.py <path-to-app_packages>
+    <project-python> scripts/install_mlx_into_engine_bundle.py <path-to-app_packages> [<lock-constraints.txt>]
 """
 
 from __future__ import annotations
@@ -36,7 +38,11 @@ def _table() -> dict:
         return tomllib.load(fh)["tool"]["fichero"]["mlx_bundle"]
 
 
-def install(app_packages: Path) -> int:
+#: What the bundle must hold after the step.
+NEEDED = ("mlx", "mlx-lm", "mlx-vlm", "mlx-whisper", "ultralytics", "rubicon-objc", "rembg", "rawpy", "pypdf", "av")
+
+
+def install(app_packages: Path, lock_constraints: Path | None = None) -> int:
     if not app_packages.is_dir():
         print(f"error: not a directory: {app_packages}", file=sys.stderr)
         return 1
@@ -53,6 +59,9 @@ def install(app_packages: Path) -> int:
     with tempfile.TemporaryDirectory() as tmp:
         constraints = Path(tmp) / "mlx-bundle-constraints.txt"
         _write_constraints_file(app_packages, constraints)
+        if lock_constraints is not None:
+            with constraints.open("a", encoding="utf-8") as fh:
+                fh.write(lock_constraints.read_text(encoding="utf-8"))
         _run_pip(app_packages, list(table["missing_packages"]), constraints=constraints)
         for pinned in table["no_deps_packages"]:
             _run_pip(app_packages, ["--no-deps", pinned], constraints=constraints)
@@ -63,7 +72,7 @@ def install(app_packages: Path) -> int:
         print(f"error: installing MLX changed {sorted(changed)} or duplicated {sorted(duplicated)} in the bundle; "
               "fix the pins in [tool.fichero.mlx_bundle], never let pip replace a bundle package", file=sys.stderr)
         return 3
-    for needed in ("mlx", "mlx-lm", "mlx-vlm", "mlx-whisper", "ultralytics", "rubicon-objc", "rembg", "rawpy", "pypdf", "av"):
+    for needed in NEEDED:
         if needed not in after:
             print(f"error: {needed} is not in the bundle after install", file=sys.stderr)
             return 5
@@ -72,10 +81,10 @@ def install(app_packages: Path) -> int:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 2:
+    if len(argv) not in (2, 3):
         print(__doc__, file=sys.stderr)
         return 1
-    return install(Path(argv[1]))
+    return install(Path(argv[1]), Path(argv[2]) if len(argv) == 3 else None)
 
 
 if __name__ == "__main__":
