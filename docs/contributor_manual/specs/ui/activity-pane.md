@@ -7,7 +7,7 @@
 > automatic work), the pane and the window (the table, the Inspector, the verbs, the sidebar, the Models tree, the log, the graphs),
 > and what every row says. It does NOT own: how work fails, pauses and goes on, the failure kinds, the one alert and the bug report
 > (`compute/runner-reliability.md`); a recipe run's journey from Start to the summary (`source/recipes-run.md`); designing a recipe and
-> the Set Up screens (`source/recipe-designer.md`); the Models and Compute window, every model and place with its account
+> the Set Up screens (`source/recipe-designer.md`); the Models and Cluster window, every model and place with its account
 > (`ui/models-and-compute-window.md`); the workflow editor and the workflow bar (`ui/workflows.md`).
 >
 > Design-led (Testing Constitution). **Status: DRAFT** (2026-11-08, Fable). THE Activity spec; the former Activity spec (APPROVED 2026-10-27: the one job model, the window, lanes, durability, automatic work) was merged into it on 2026-11-18 (the carried section below). Also a companion and of `panes-workspaces.md` (the pane and workspace system). This file holds only the DELTA the owner asked for on 2026-11-08: Activity becomes a PANE KIND; the generic Activity window is that pane plus the existing Inspector; one hierarchical table with disclosure triangles, grouped by run or by file over the same data; several versions of one step as siblings; history kept and filterable; Run Automatically a setting. Everything the big spec already pins (the job model, the one-bar row, the groups, the details view's content, lanes, retries) stays as written there and is cited, not restated. Menu items and chords go through the one command table of `menus-and-commands.md` (#6435).
@@ -661,6 +661,18 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   Continue, Retry; Show Details selects the row so the Inspector shows its fix); the row draws the word in a small bordered
   button (`docs/assets/activity-pane/pane-fix-buttons.png`). *Test:* `fichero/Tests/Unit/general/Models/ActivityErrorRowTests.swift`
   extended (`everyActionHasAWord`).
+- `activity.failure.bar-one-button-per-action` — **[GAP]** (#6731; app; owner 2026-11-19; ties to the one dialogue per cause of
+  #6354) the bar shown when a recipe run fails offers each distinct action once, deduplicated by action and target: a run
+  that failed on 149, 137 and 112 pages shows one button for each of those three, not each twice. At most two or three
+  actions show beside Show Details, and the rest are inside Show Details. Labels are readable and never cut off mid-word
+  (the label shortens or the bar wraps). Test: a failure with repeated per-document actions renders each action once.
+- `activity.runs.bulk-delete-in-background` — **[GAP]** (#6732; app + engine; owner 2026-11-19) deleting many runs at once is one
+  engine call that returns at once and finishes in the background, and while it works the Activity polls stay under 500 ms.
+  Reading a run's step records queries only the documents the run names (never every document in the library), with a test
+  that counts the rows read. Reading a run's job tree takes under a second on a library of this size (measured; an index or a
+  limit if not). A slow or busy engine never closes the window: the app's own log says why if it quits, and a crash report
+  or a log line exists whenever it does. Seen with a large batch on a library on an external volume, where the engine stalled
+  for 23 s and was shut down by its host.
 - `activity.pane.one-undo-per-action` — **[PARTIAL]** (#6599, #6588, #6583; open question 7) ONE person's action is ONE step on the
   window's Undo stack, whatever it spans: rows of several projects, runs and jobs together, Archive Finished… and Archive
   Failed included; a run's Delete is undoable like a job's (`workflow_run.delete` gains `workflow_run.undelete`). Until a
@@ -898,7 +910,7 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   a cluster job or a place shows them; the Models tree's rows show memory; the Graph view draws them over time. What nothing
   measures is "—", never 0. Acceptance: an embedder loaded shows its resident megabytes; Kraken shows "~2.5 GB (estimated)";
   a cluster job of 40 min queued and 12 min run reads both. *Test:* `fichero-server/tests/unit/api/test_activity_models_6588.py`
-  extended, `test_cluster_job_times_6588.py`. *Built 2026-11-16:* a remote read stamps each shard when it is sent, first seen running and seen ended, and its status answers `times` (time queued and time run summed over its shards, node hours, and cost where the target has a price), drawn in the run's Inspector ("40 min queued · 12 min run · 0.2 node-hours"); the Models answer carries `this_mac` (memory used of its total from the kernel's share free, the processor's last-minute load over its cores, each lane's jobs running of its width), drawn on This Mac's row under Where with the busy lanes in its help; each model's memory as before. *Not yet:* `loaded_at` (nothing records when a model loaded); the Inspector of a model or a place; the Graph view of them over time; a cluster's own report of node hours and cost (Slurm's accounting); seen on screen. *Test:* `fichero-server/tests/unit/remote_read/test_cluster_job_times_6588.py`, `test_activity_models_6588.py` (`test_this_mac_is_measured_or_says_it_is_not`), `ActivityResourcesMeasuredTests.swift`.
+  extended, `test_cluster_job_times_6588.py`. *Built 2026-11-16:* a remote read stamps each shard when it is sent, first seen running and seen ended, and its status answers `times` (time queued and time run summed over its shards, node hours, and cost where the target has a price), drawn in the run's Inspector ("40 min queued · 12 min run · 0.2 node-hours"); the Models answer carries `this_mac` (memory used of its total from the kernel's share free, the processor's last-minute load over its cores, each lane's jobs running of its width), drawn on This Mac's row under Where with the busy lanes in its help; each model's memory as before. *Not yet:* `loaded_at` (nothing records when a model loaded); the Inspector of a model or a place; the Graph view of them over time; a cluster's own report of node hours and cost (Slurm's accounting); seen on screen. *Test:* `fichero-server/tests/unit/remote_read/test_cluster_job_times_6588.py`, `test_activity_models_6588.py` (`test_this_mac_is_measured_or_says_it_is_not`), `ActivityResourcesMeasuredTests.swift`. *Built 2026-11-20:* (#6745) `models_held` also lists each loaded YOLO layout model, with no size (nothing measures it); test `test_a_loaded_kraken_and_yolo_model_are_listed_loaded_6745`.
 
 ## The one job model, the lanes, the throttle, durability and automatic work (carried from the former Activity spec, merged 2026-11-18)
 
@@ -2288,8 +2300,8 @@ and node, not by job); a retry action for failed pages.
   needs, switching models only between groups and unloading the old one only when the next does not fit beside it (`activity.lane.one-model-at-a-time`, the later ruling; Apple and spaCy never evict). Built: queued jobs
   for the model last used run before any other model's (`fichero-server/tests/unit/jobs/test_job_queue.py`), Kraken pages
   included, named by reader (`kraken:<reader id>`); leaving Kraken for another heavy model frees
-  Kraken's resident models first; the embedder is a light model (runs beside the big ones, never "the loaded model"), so a
-  Kraken page after an embed does not free it (memory pressure does, when it must); a
+  Kraken's resident models first; the embedder is never "the loaded model" but is never loaded beside Kraken either: a Kraken load frees an idle embedder
+  and waits while an embed holds it, and an embed's load frees Kraken's resident models and waits while a page runs; a
   background job for another heavy model waits for 20 s of quiet on the loaded one, so bursts do
   not swap models page by page, while work a person waits for switches at once
   (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). The quiet spell is not the only hold (#5846,
@@ -2392,8 +2404,8 @@ and node, not by job); a retry action for failed pages.
   query text, one short vector, and nothing else: `GET /api/kg/claim-search?q=`, `GET /api/kg/entities/semantic?q=` (and
   `/api/search`) answer with a query embedding. The embed is bounded (`QUERY_EMBED_SECONDS`, 5 s): if the embedder is busy
   or cold past the bound the GET answers 503 in words ("The search model is busy …, try again"), never hangs; the late embed
-  finishes on its own thread and the next GET finds the model loaded. It never loads, unloads or waits on a heavy model
-  (Kraken, MLX, a VLM): the embedder is the small model that runs beside them. A passage embed (`role="passage"`, the batch
+  finishes on its own thread and the next GET finds the model loaded. It never unloads a heavy model; when Kraken is loaded the embedder is not
+  loaded beside it, so a search during a Kraken run answers the 503 "the search model is busy". A passage embed (`role="passage"`, the batch
   `_embed_texts`) stays refused. Pinned by `fichero-server/tests/unit/api/test_get_embeds_its_own_query.py` (a answers,
   b busy answers in words within the bound, c the loaded heavy model is still loaded).
 - `activity.read.get-keeps-kraken-and-lane-refused` — **[OK]** Kraken, recognise and `run_on_lane` stay refused in every GET
@@ -2476,10 +2488,10 @@ and node, not by job); a retry action for failed pages.
   only when the next one does not fit beside it (the throttle's one memory rule: Kraken's need is its small working need
   while its models are resident, else the cold figure, a served model's own size); when both fit they stay loaded
   together, and the engine log says which (`model-lane: keep … loaded beside …`, or the unload with the memory it
-  needed). Small models (the embedder, spaCy) run beside the big ones and are never "the loaded model"; Apple Vision is
+  needed). Small models (spaCy) run beside the big ones and are never "the loaded model", the embedder never loads beside Kraken (owner 2026-11-19); Apple Vision is
   built in, takes no lane and evicts nothing. Pinned by
-  `fichero-server/tests/unit/jobs/test_one_model_at_a_time_on_the_lane.py` (vision work and an embed during a Kraken run
-  unload nothing; a VLM and Kraken that both fit stay loaded; when they do not, ten interleaved pages cause at most two
+  `fichero-server/tests/unit/jobs/test_one_model_at_a_time_on_the_lane.py` (vision work during a Kraken run
+  unloads nothing; an embed during a Kraken run waits for it and unloads nothing; a VLM and Kraken that both fit stay loaded; when they do not, ten interleaved pages cause at most two
   swaps; embed, Kraken and a VLM interleaved load each heavy model once; a person's job for another model goes at the
   next page boundary and its pages follow it). Find Regions' Kraken segmenter is a lane job too (`find-regions` for `kraken:blla`, one per page, hanging under the recipe run's own row so the run's tree, its starter and its Stop are the page's: an automatic run's segmenter pages do not rank or hold as a person's; a job already running on the lane runs such a call in place), not work on the recipes lane's own thread beside whatever the lane has loaded (Fable runner review #5, 2026-10-19; `test_the_segmenter_runs_through_the_model_lane_not_beside_it` in `fichero-server/tests/unit/recipes/test_regions_one_pass_5689.py`). The bookkeeping half of #5 (loaded model set only by heavy families, a switch releasing only on memory need) was ALREADY on the chain: see this entry. Not pinned by a test: the short grace after a model's last page, a page a run has taken up but not yet queued counting as queued, and the `model-lane: keep … loaded beside …` log line.
 - `activity.summary.counts-in-two-queries` — **[OK]** (#6001; retagged 2026-10-28, its test passes) a recipe run's summary (`recipes/run_view.summary`, behind Activity's recipe block and `GET /api/recipes/project/runs/{id}`) takes the reading counts of all its pages (pages fully read, lines unread and why, lines seen blank, pages read nothing) from TWO set-based reads of the run's pages (their lines and their readings, `db.query_in`), not from one or two queries per page per count: today it makes about ten database calls a page, each through the connection's transaction gate, so a 200-page run takes the gate over two thousand times a poll, queueing behind the writers (Kraken saves, a kept-text export, an import). A page with no lines keeps its own check. The numbers do not change. *Test:* `fichero-server/tests/unit/recipes/test_run_summary_counts_6001.py`.

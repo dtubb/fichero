@@ -150,13 +150,13 @@ struct ContentView: View {
     /// the folder tree.
     static let defaultPreferredCompactColumn: NavigationSplitViewColumn = .detail
     static let sidebarMinWidth: Double = 160
-    /// `nonisolated` (with `inspectorMaxWidth`): pure bounds read by the
-    /// nonisolated `restoredInspectorWidth` clamp and its off-main tests.
-    nonisolated static let inspectorMinWidth: Double = 220
-    /// Mac-native rule (#4287): the SPLITTER owns width within sane bounds and
-    /// inner content fills what it's given. 420 was an artificial ceiling that
-    /// forced text to wrap on wide windows; this cap exists only to stop a
-    /// drag from swallowing the whole window.
+    /// `nonisolated` (with `inspectorMaxWidth`): pure bounds for the off-main clamp and tests.
+    /// The inspector column carries the toolbar search (#6729): its minimum keeps the field whole.
+    nonisolated static let toolbarSearchMinWidth: Double = 120
+    nonisolated static let inspectorToggleAllowance: Double = 140
+    nonisolated static let inspectorMinWidth: Double = toolbarSearchMinWidth + inspectorToggleAllowance
+    /// Mac-native rule (#4287): the SPLITTER owns width within sane bounds and inner content fills it;
+    /// this cap exists only to stop a drag from swallowing the whole window.
     nonisolated static let inspectorMaxWidth: Double = 800
     static let contentMinWidth: Double = 520
     static let contentMaxWidth: Double = 2200
@@ -763,10 +763,10 @@ struct ContentView: View {
     @State var transientSearchLimit: Int = ContentView.transientSearchPageSize
     /// Folder the user was browsing when the search ran (#4107/S3) — offered
     /// as a scope alongside the whole library in the results bar.
-    @State var transientSearchContextFolder: TransientSearchFolder?
+    @State var transientSearchTargets = SearchScopeTargets()
     /// Whether the active search is scoped to the context folder (true) or
     /// the whole library (false, the default).
-    @State var transientSearchScopeIsFolder = false
+    @State var transientSearchScope = SearchScope.project
     // The DISPLAY NAME of the library the showing results actually came
     // from (Daniel, 2026-09-01: the chrome named a different library than
     // the results). `runTransientSearch` resolves its library with a

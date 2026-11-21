@@ -35,6 +35,11 @@ PIN_FORMS = (
     frozenset({"role"}),
     # A YOLO layout model by its catalogue name (`yolo_runtime.YOLO_MODELS`), as the shipped card pins it (#5525).
     frozenset({"yolo"}),
+    # A Kraken reader or a TrOCR model hosted on Hugging Face, as discovery pins it (`discovery._kraken_hub_card`,
+    # `_trocr_hub_card`; the revision is the commit the listing was read at).
+    frozenset({"kraken_hf"}),
+    frozenset({"kraken_hf", "revision"}),
+    frozenset({"trocr"}),
 )
 
 #: Keys that would make a recipe carry code, credentials or capabilities. Refused anywhere.
@@ -73,7 +78,7 @@ def _check_model(label: str, model: Any, out: list[str]) -> None:
         # Said in words, never as the pin's keys (#5664 onboarding: "the model ['yolo'] is not pinned …").
         out.append(f"{label}: its model is not named in a way Fichero knows. Name it by a Hugging Face "
                    "repository and revision, a Zenodo DOI, a spaCy package and version, a Kraken model and "
-                   "version, Tesseract data, a built-in, a YOLO layout model, a provider and model, or a role")
+                   "version, a Kraken or TrOCR model on Hugging Face, Tesseract data, a built-in, a YOLO layout model, a provider and model, or a role")
 
 
 def _check_not_gone(label: str, model: Any, out: list[str]) -> None:

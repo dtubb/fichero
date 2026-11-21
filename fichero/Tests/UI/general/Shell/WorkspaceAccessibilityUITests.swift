@@ -130,12 +130,12 @@ final class WorkspaceAccessibilityUITests: FicheroUISessionTests {
             // composed panes mounted with the labelled chrome the ruling requires.
             // Every built-in includes a preview and/or reader pane, which carry a
             // PaneHead; on the applied path each leaf's head close button is
-            // labelled "Close pane"/"Close this split" and the pin is
+            // labelled "Pane menu" and the pin is
             // `paneHeadPinToggle`.
             XCTAssertTrue(
                 accessiblePaneHeadControlExists(timeout: 8),
                 "After applying \"\(workspace.title)\" no labelled pane-head control "
-                + "(paneHeadPinToggle / \"Close pane\" / \"Close this split\") was found — "
+                + "(paneHeadPinToggle / \"Pane menu\") was found — "
                 + "the composed panes did not mount accessible head chrome "
                 + "(spec panes.one-renderer + §\"Accessibility is first-class\")."
             )
@@ -143,13 +143,10 @@ final class WorkspaceAccessibilityUITests: FicheroUISessionTests {
     }
 
     /// True if any labelled pane-head affordance exists — the pin toggle
-    /// (identifier `paneHeadPinToggle`) or a head close button (accessibilityLabel
-    /// beginning "Close", i.e. "Close pane" / "Close this split").
+    /// (identifier `paneHeadPinToggle`) or the pane menu button (accessibilityLabel "Pane menu").
     private func accessiblePaneHeadControlExists(timeout: TimeInterval) -> Bool {
         let pin = app.buttons["paneHeadPinToggle"].firstMatch
         if pin.waitForExistence(timeout: timeout) { return true }
-        let close = app.buttons
-            .matching(NSPredicate(format: "label BEGINSWITH %@", "Close")).firstMatch
-        return close.exists
+        return app.menuButtons["Pane menu"].firstMatch.exists
     }
 }

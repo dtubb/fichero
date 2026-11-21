@@ -81,6 +81,7 @@ import logging
 import os
 import threading
 import uuid
+import weakref
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -123,16 +124,17 @@ ARRANGE_KIND = "arrange-folder"
 ARRANGING_ACTIONS = frozenset({"document.move", "document.update", "document.restore", "document.create"})
 #: Who arranges, in the audit: the files move because the project changed, not by a person's hand.
 ARRANGER = "Fichero, keeping the folder arranged"
-_ENSURED: set[str] = set()
+#: The databases whose tables are made. By object, not by path: a try's scratch copy is deleted and made again at the
+#: same path, and the new database has none of them (#6733).
+_ENSURED: weakref.WeakSet = weakref.WeakSet()
 
 
 def _ensure(db: Any) -> None:
-    key = str(db.path)
-    if key in _ENSURED:
+    if db in _ENSURED:
         return
     for statement in _SCHEMA:
         db.execute(statement)
-    _ENSURED.add(key)
+    _ENSURED.add(db)
 
 
 def _sha(data: bytes) -> str:

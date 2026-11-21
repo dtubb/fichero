@@ -48,5 +48,5 @@ def test_a_jail_command_runs_from_the_workroot_never_the_callers_cwd_and_the_pli
     assert seen["cwd"] == str(state / "wr")
     monkeypatch.undo()
     monkeypatch.setattr(journal, "STATE", state / "s")
-    loop = plistlib.loads(queue.launch_agents(state, state / "la", state=state / "s")[0].read_bytes())
+    loop = plistlib.loads(queue.launch_agents(state, state / "la", state=state / "s", branch="main")[0].read_bytes())
     assert loop["WorkingDirectory"] == str(state / "s"), "the owner's state dir, never a checkout the jail user cannot read"

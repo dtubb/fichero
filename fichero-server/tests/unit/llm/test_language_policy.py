@@ -312,3 +312,11 @@ def test_detection_with_no_answer_records_examined_not_english():
     assert doc["language"] is None
     assert doc["language_meta"]["status"] == STATUS_UNKNOWN
     assert doc["language_meta"]["source"] == SOURCE_DETECTED
+
+
+@pytest.mark.parametrize("script", ["Aran", "Syre", "Syrj", "Syrn", "Rohg"])
+def test_a_right_to_left_script_variant_derives_right_to_left_6733(script):
+    """#6733 item 7: nastaliq, the Syriac styles and Hanifi Rohingya are written right to left, like their parents."""
+    from fichero_server.llm.language_policy import resolve_direction
+
+    assert resolve_direction(script=script).language == "rtl"

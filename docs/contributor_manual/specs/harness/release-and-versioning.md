@@ -104,7 +104,7 @@ The logic lives in `scripts/release_guard.py` (one subcommand per point) so it i
   each TestFlight archive and each export, free space is checked against
   `FICHERO_RELEASE_MIN_FREE_GB` (default 15). Short, it thins Time Machine local snapshots once
   (`tmutil thinlocalsnapshots / 40000000000 4`) and re-checks; still short, it refuses with the
-  stage and the numbers. It never deletes DerivedData, DMGs or any other file. Was: default 20 GB; the owner set 15 GB on 2026-11-14 (#6590). *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
+  stage and the numbers. It never deletes DerivedData, DMGs or any other file. (Deleting a published release's local files is `release.build.local-artifacts-deleted-once-published`, after the publish, never here.) Was: default 20 GB; the owner set 15 GB on 2026-11-14 (#6590). *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
 - `release.update.build-number-bumped-and-above-published` — **[OK]** a run that builds a DMG
   always stamps a new build number, pinned `FICHERO_RELEASE_VERSION` or not: one above both the
   local `CURRENT_PROJECT_VERSION` and every published build (the live appcast's
@@ -148,6 +148,23 @@ The logic lives in `scripts/release_guard.py` (one subcommand per point) so it i
   `release/<date>`, never `main`), opens the `release/<date>` → `main` PR with `gh`, and texts
   the summary table. The release-docs preflight still applies: a morning with no
   `RELEASE_NOTES.md` section for the day stops there and texts the failure. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py` covers the lock, the commit count, the publish gate, the publish hand-off (`guard publish` records Publish from `publish-release.sh`'s exit status) and, running the script itself against a stub guard, a count that fails stopping the run with a text. Not yet tested: the PR step, the preflight stop, the lock taken before its trap.
+
+- `release.nightly.reliable-publish` — **[GAP]** (#6726; owner 2026-11-19) every night a dev DMG (GitHub, Sparkle, the site) and an iOS
+  TestFlight build publish, and a Mac TestFlight build once signing is set up on the DMG host, run by a launchd job calling the
+  builder's deterministic release-all and daily-builds, with no model tokens; a model is brought in only when a stage is red,
+  and then a text says what is red. Stages, in order: (1) before the freeze, check every build machine (reachable, awake, free
+  disk at or above the floor), pick one, and text the owner at 22:00 if none can run; (2) a per-machine sweep before the build
+  frees space (DerivedData untouched for 7 days, build trees of commits already landed, device-support folders for iOS versions
+  older than the newest two, old DMGs except the newest published and the last two, package caches past their size cap, and
+  local Time Machine snapshots after files are removed), never the release's own DerivedData or the newest DMGs, keeps a floor
+  (40 GB proposed), and texts when it cannot reach it; the release's disk check counts snapshots; (3) the verify stage runs
+  with the engine importable and from the release candidate, not the live builder checkout; (4) a red stage texts what is red
+  at once, and an unpublished DMG is never silent; (5) the red goes to the manager, who fixes it, and the nightly resumes from
+  the failed stage instead of starting over. Cheaper runs: the Mac DMG and the iOS archive build in parallel on two Macs and
+  publish when both are green; the separate iOS compile preflight is skipped when the same run archives iOS; the engine bundle
+  is reused when the lock file and engine sources are unchanged since the last good build; Xcode builds incrementally in a kept
+  DerivedData on the build Mac; one notarization covers the DMG with the app inside. Also open: the main branch's pull
+  request and merge scripted. Test owed per stage.
 
 ## Release notes — two artifacts, different owners
 
@@ -355,12 +372,71 @@ while any box is open.
 
 ### Release defaults (owner, 2026-11-14, #6590)
 
-- `release.lane.notes-auto-generated` — **[OK]** when `RELEASE_NOTES.md` has no `## <version>` section, or `CHANGELOG.md` no entry for the day, `release_guard.py auto-notes` writes them (#6728) from the record since the newest `v*` tag that is not `v<version>`, grouped by milestone (the sections are specified in `release-channels-and-feature-tiers.md`, "Release notes"); `release-all.sh` runs it before the stamp and before the release-docs preflight, with the version from `set-release-version.sh --print-version`. The stamp only checks that `RELEASE_NOTES.md` has a `## <version>` section and fails when it does not; it never retitles another section. A hand-written section is never touched, and a hand-written `## Unreleased` in `CHANGELOG.md` becomes the day's entry. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
+- `release.lane.notes-auto-generated` — **[OK]** when `RELEASE_NOTES.md` has no `## <version>` section, or `CHANGELOG.md` no entry for the day, `release_guard.py auto-notes` writes them (#6728) from the record since the newest `v*` tag that is not `v<version>`, with an intro that says "since <that last release>", grouped by milestone (the sections are specified in `release-channels-and-feature-tiers.md`, "Release notes"); `release-all.sh` runs it before the stamp and before the release-docs preflight, with the version from `set-release-version.sh --print-version`. The stamp only checks that `RELEASE_NOTES.md` has a `## <version>` section and fails when it does not; it never retitles another section. A hand-written section is never touched, and a hand-written `## Unreleased` in `CHANGELOG.md` becomes the day's entry. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
 - `release.lane.daily-builds-dev-dmg-only` — **[OK]** the morning release runs `release-all.sh --dev` and builds one DMG, the dev tier, named `Fichero.dmg` (a single-tier run always names its DMG `Fichero.dmg`); the two-DMG default stays for a hand run. That DMG is published on the `dev` Sparkle channel only (`FICHERO_RELEASE_CHANNEL=dev`: its appcast item carries `<sparkle:channel>dev</sparkle:channel>`, no channel-less item is written), so Alpha, Beta and Release installs are never offered it (`release-channels-and-feature-tiers.md`, "One feed, two channels"). `FICHERO_MORNING_ARGS` can change the flags. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
 - `release.queue.two-workers` — **[OK]** `harness.toml` `[queue] workers = 2`. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
 - `release.lane.site-deploy-triggers-netlify` — **[OK]** `deploy-site.sh` posts to the Netlify build hook in `FICHERO_NETLIFY_BUILD_HOOK` after the push (unset: it says so and relies on the push). *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
 - `release.lane.live-appcast-verified` — **[OK]** the run texts success for the publish only after `release_guard.py verify-appcast` finds the new build in the live appcast (retried for `FICHERO_APPCAST_WAIT_MINUTES`, default 10); if it never appears, Publish is FAILED. *Test:* `fichero-server/tests/unit/scripts/test_release_guard.py`.
 - `release.lane.notarize-poll-failed-call-not-in-progress` — **[OK]** in `notarize.sh` a `notarytool info` call that fails or returns no status is never read as "In Progress": the poll switches to the App Store Connect API key, and gives up after 5 failed calls in a row. Test: `fichero-server/tests/unit/scripts/test_notarize_poll.py`.
+
+### Builds and disk (owner, 2026-11-19 and 2026-11-20, #6589)
+
+A full disk stopped the night of 2026-11-19 more than once: each lane's checkout held its own app build and its own
+engine build, and every release left its DMGs, archives and staging folders behind. The rulings below (paraphrased)
+make the nightly the only build and give every byte it writes an owner that deletes it. Here "build" means a packaged
+app (a DMG or an archive); the compile rung of a check (`dev-workflows.run.build-incremental`) is a check and stays.
+Spec-change: owner 2026-11-20.
+
+- `release.build.nightly-is-the-only-build` — **[PARTIAL]** (#6589) the one packaged build is the nightly dev release
+  (`dev-workflows.run.nightly-build`, `dev-workflows.run.release-stages`). The builder never makes a dev build for a
+  lane or for a landing. A dev build made by hand on request stays (`builder build --dev`, `dev-workflows.tool.build`).
+  Built: the loop starts no dev build after a landing (`fichero-builder/fichero_builder/queue.py`; the nightly replaced
+  it). Left: no test holds it, the console still offers a build action
+  (`fichero-builder/fichero_builder/console.py`), and `builder verify-all` builds a dev DMG after a green verify when
+  asked to. Acceptance: no loop tick and no lane verb starts `release-all.sh` or `builder build`; only the nightly
+  agent and a person's own command do.
+- `release.build.release-holds-the-heavy-lock` — **[GAP]** (#6589) a release takes the heavy lock
+  (`dev-workflows.run.heavy-lock`) on each Mac it builds on, for the whole of its build stages, and does not yield it:
+  no check's compile, no dev build and no second release builds through it. Today the stages in
+  `fichero-builder/fichero_builder/release_run.py` call `scripts/release-all.sh` with no heavy lock, and
+  `builder build --dev` holds it for the compile only and yields to a waiting check. The release's own lock (a second
+  release run exits at once) stays. Acceptance: with a release stage running, a check that needs the compile waits and
+  its row names the release; a release that finds the lock held waits, with a row, and does not build beside it.
+- `release.build.local-artifacts-deleted-once-published` — **[GAP]** (#6589) once a release is verified on GitHub (the
+  asset is there and `release.lane.live-appcast-verified` is green), its local DMGs, archives, export folders and
+  staging are deleted, and so are those of every older release, on every Mac that built or smoked it. GitHub is the
+  copy. Nothing is deleted before the verify, and a failed publish deletes nothing. Was: releases never deleted a DMG
+  (owner 2026-11-13); the disk check of `release.lane.disk-checked-before-heavy-stages` still deletes none. Today
+  `release-all.sh` removes an archive or export folder only just before it writes the same one again, and the `sweep`
+  stage removes its own clone folders. Acceptance: after a green publish no DMG, archive or export folder of this or
+  an older release is left under the build folders of any release Mac, and a `release` row lists what was removed and
+  the space freed; after a red publish every file is still there.
+- `release.build.one-engine-build-per-mac` — **[GAP]** (#6589) each Mac keeps one engine (Briefcase) build, shared by every
+  checkout on it and keyed by the engine's sources and lock file, in place of a copy in every checkout. A checkout
+  whose key matches uses it; one writer at a time rebuilds it. Today each checkout builds and keeps its own
+  (`scripts/release-all.sh`, `scripts/build-release.sh`). Acceptance: two checkouts at the same engine sources build
+  the engine once and the second reuses it; a changed lock file rebuilds it once.
+- `release.build.disk-floor-before-a-lane-and-a-stage` — **[PARTIAL]** (#6589) free disk is checked against a floor before
+  a lane starts and before each release stage. Built: the release stages
+  (`release.lane.disk-checked-before-heavy-stages`), the nightly's choice of a Mac over `--floor-gb`
+  (`fichero-builder/fichero_builder/release_run.py`), and a check runner under its floor is skipped
+  (`fichero-builder/fichero_builder/measure.py`). Left: the loop starts a lane, and makes its worktree, without reading
+  free disk. Acceptance: under the floor a lane's step stays `queued` with one row that names the free space and the
+  floor; it starts by itself when the disk is back over it.
+- `release.build.snapshots-thinned-before-refusing` — **[PARTIAL]** (#6589) on a full Mac, Time Machine local snapshots
+  keep deleted files on disk, so deleting frees nothing until they are thinned. A floor check that falls short thins
+  them once and reads free space again before it refuses. Built: the release disk check and the `sweep` stage on the
+  Mac that runs it. Left: the lane floor above, and the other Macs of a release. Acceptance: as for
+  `release.lane.disk-checked-before-heavy-stages`, for the lane floor and on each release Mac.
+- `release.build.indexes-and-caches-pruned` — **[GAP]** (#6589) what a worktree leaves outside itself is removed with it:
+  its code index, its derived build data and its entry in any tool's per-folder cache. Package caches (the Python and
+  Swift package caches) are pruned nightly to what the current lock files name. Today
+  `dev-workflows.run.loop-cleanup` removes the worktree and its branch only. Acceptance: after a lane's tree is
+  removed no index or build folder names its path; the nightly prune is a row with the space freed.
+- `release.build.nightly-report-lists-build-folders` — **[GAP]** (#6589) the nightly report lists, per Mac, free disk and
+  the size of each build folder (derived data, engine build, release staging, DMGs, check trees, worktrees), largest
+  first, so growth is seen the morning it starts. Acceptance: the report of a night has one size line per build
+  folder per reachable Mac, and an unreachable Mac is named as not read.
 
 ## Triaged from the backlog (2026-10-04)
 - `release.license-hygiene` — **[GAP]** (#4610) zeroconf LGPL, pillow-heif codec wheels, PythonKit branch pin, undeclared whisper and the NOTICE inventory are resolved so the SBOM is accurate.

@@ -1,8 +1,10 @@
-# UI — The Models and Compute window — Design Spec (#6588, #4307)
+# UI — The Models and Cluster window — Design Spec (#6588, #4307)
+
+> Named Models and Cluster by the owner (2026-11-19; it was Models and Compute). The file name and the `models.*` ids stay.
 
 > Milestone: ai-settings (until the hygiene in `reviews/2026-11-18-runner-reliability-plan.md` renames it; the window's
 > issues are filed there and in `activity`)
-> Manual: TBD — a "Models and Compute" section: what the window shows (every model and place, what is installed and
+> Manual: TBD — a "Models and Cluster" section: what the window shows (every model and place, what is installed and
 > loaded, what each costs, what is running on it now), what you can do there (download, unload, delete, add a key, add a
 > Mac or a cluster, start a training), and what stays in Settings.
 >
@@ -13,9 +15,10 @@
 > and `compute/runner-reliability.md` (what a row says when its work fails). This file holds the DELTA: the things that
 > are about MODELS and PLACES leave Settings and become ONE window in Activity's style; Settings keeps preferences.
 >
-> **Owns / Does not own.** This spec OWNS the Models and Compute window: every model and place as a row with its state,
+> **Owns / Does not own.** This spec OWNS the Models and Cluster window: every model and place as a row with its state,
 > account, memory, what uses it now and what failed on it, the verbs on them (download, unload, delete, add a key, add a Mac or
-> a cluster, test), and what leaves Settings. It does NOT own: the Activity rows and the one job model (`ui/activity-pane.md`);
+> a cluster, test), what leaves Settings, the UI of the model loop for each recipe step (section F; the loop itself is
+> `compute/distillation.md`'s) and each model's run settings (section G). It does NOT own: the Activity rows and the one job model (`ui/activity-pane.md`);
 > how a failure on a model or place is classified, paused or alerted (`compute/runner-reliability.md`); which model and place a
 > step chooses, egress and the caps (`ai/where-models-run.md`); a recipe run (`source/recipes-run.md`); choosing a model in Set
 > Up (`source/recipe-designer.md`).
@@ -35,6 +38,12 @@ use right now**: the same list `GET /api/recipes/candidates` offers Set Up, so w
 can reach. They act there: search, bookmark, download, download again, unload, delete, use for a step, add a key to a
 provider, connect a Mac or a cluster, test a connection, start or watch a training. Settings keeps what is a preference
 (whether cloud is allowed, the caps, the defaults per kind of work); the window holds what is a thing with a state.
+
+**It is also where a person works the model loop** (the owner's goal of 2026-11-19; `compute/distillation.md`): for
+each step of the open project's recipe, one row says which model does the step and where, what taught it, how much
+corrected work there is, which trained candidates exist and whether each beat the current model, and offers the next
+thing to do: run with a teacher, train, evaluate, use, publish. The same sheet and the same jobs as everywhere else; the
+window adds no second way to train.
 
 It lives beside Activity and shares its bones: the same `NavigationSplitView` (a source list, the one table, the
 Inspector), the same toolbar conventions, the same verb list where a verb applies, the same graphs pane. The engine's
@@ -73,7 +82,7 @@ one list `GET /api/activity/models` (`workflows/activity_models.py`, built for A
 | Run Automatically, the speed control (#6023) | **Settings** (Activity's) | preferences |
 
 Settings › AI after the move is one pane: Allow cloud (and the images rule), the caps, the defaults, the download
-location, and one button "Models and Compute…" that opens the window.
+location, and one button "Models and Cluster…" that opens the window.
 
 ## The window
 
@@ -91,6 +100,8 @@ model, a provider without credit, a place not reachable), remembered per window:
   Models, Whisper, YOLO and OpenCV), Models (every downloaded model, by runtime), Trained here.
 - **Places** — Cloud (one item per provider row: OpenRouter, OpenAI, Anthropic, Google, Hugging Face's router, …),
   Remote (another Mac by name, each cluster, Hugging Face Jobs).
+- **Recipe steps** (when a project is open) — one row per step of its recipe, the model loop's state for that step
+  (section F).
 - **Work** — Running now (every model with a page or call in flight, from Activity's rows), Failed today (every failure
   whose cause is a model or a place, from `failure.kind`), Downloads.
 
@@ -197,12 +208,12 @@ filters Activity by `model:`.
   Set Up's finder with "Searching online…" (`ModelFinderStore.searchOnline`); not built: the window's Search field and its
   Found item) the window's search IS the recipe finder's job: one search, one kept result, one card shape; nothing is
   searched twice and no second catalogue exists.
-- `models.bookmark.kept-not-added` — **[GAP]** (#5460, #6588) a found card is BOOKMARKED, never "added": Bookmark keeps
+- `models.bookmark.kept-not-added` — **[PARTIAL]** (#5460, #6588) a found card is BOOKMARKED, never "added": Bookmark keeps
   the card in the one kept list (`discovery/`, a `bookmarked` mark beside `found_for`) without downloading it, so it
   survives the next search letting it go; Download fetches a bookmarked card; Remove Bookmark lets it go when it is not
   downloaded and not used by a step; a card a step uses cannot lose its bookmark. *Test (to write, in
   `fichero-server/tests/unit/recipes/`):* a bookmarked card outlives a search that no longer finds it; a card a step uses
-  refuses Remove Bookmark with the step named.
+  refuses Remove Bookmark with the step named. **Built:** `discovery.bookmark` / `remove_bookmark` and `keep_hub` keeping a bookmarked card, tested in `fichero-server/tests/unit/recipes/test_bookmark_kept_not_added_5460.py`; **Not built:** the route, the bookmark glyph and the Download of a bookmarked card.
 - `models.window.shows-what-a-recipe-can-reach` — **[GAP]** (#6588, #5976, #5974) the default item, Usable now, is
   exactly the set of cards Set Up could give a step this minute (`GET /api/recipes/candidates`, every step, filtered to
   `runs_here` true or a reachable `runs_on` with a key and credit); a card that cannot run says why in the finder's own
@@ -227,11 +238,11 @@ filters Activity by `model:`.
   against free memory and pressure, the rule `settings.local-model-refused-before-it-loads` already applies at load), and
   what would have to be unloaded for it to fit. *Test (to write, in `fichero-server/tests/unit/api/`):* with memory injected,
   never the machine's, a model under free memory reads "Yes", one over it "No" naming what to unload.
-- `models.row.account-from-a-probe` — **[BROKEN]** (#5369, #4303, #5367; `keys.status-sees-supplied-keys`,
+- `models.row.account-from-a-probe` — **[PARTIAL]** (#5369, #4303, #5367; `keys.status-sees-supplied-keys`,
   `runtime.status-from-the-endpoint`) a place's Account column comes from the same lookup a call uses (keys the app
   supplies included) and from a real probe; today key status ignores app-supplied keys and no Swift code reads the
   runtimes endpoint, so a row can read ready with nothing behind it. *Test (to write, in `fichero-server/tests/unit/api/`):* a
-  stub probe that refuses gives "Not reachable"; an app-supplied key reads Ready; no key reads Needs key.
+  stub probe that refuses gives "Not reachable"; an app-supplied key reads Ready; no key reads Needs key. **Built:** `places()` in `GET /api/activity/models` carries `account` (another Mac from a probe of its address, a cloud provider from `llm.get_api_key`, a cluster null), tested in `fichero-server/tests/unit/api/test_activity_models_6588.py::test_a_places_account_comes_from_a_probe_and_the_key_a_call_uses`; **Not built:** no Swift code reads it, and the probe is a reachability check of the address, not a model-list request.
 - `models.row.credit-and-limits` — **[GAP]** (#6675, #6354) a provider that answered no credit, a key limit or a rate
   limit shows it in Account in the provider's words (redacted), with the dead mark's seconds left and the calls in flight
   of its cap; the row's button is Open provider page; the paused runs are listed under Using now with Continue.
@@ -239,14 +250,46 @@ filters Activity by `model:`.
 - `models.row.using-now-and-last-failed` — **[GAP]** (#6588, #6354) Using now lists the Activity rows in flight on this
   model or place; Last failed shows the newest `failure` on it today with its fix button; Show in Activity filters by it.
   *Test:* `ModelsRowActivityTiesTests.swift`.
-- `models.row.what-unloading-gives-back` — **[GAP]** (#4987, #4999) This Mac's Inspector lists each resident model with
+- `models.row.what-unloading-gives-back` — **[PARTIAL]** (#4987, #4999) This Mac's Inspector lists each resident model with
   its memory and the one button Unload idle models, which calls `release_idle_models` and shows what was freed.
   *Test (to write, in `fichero-server/tests/unit/api/`):* the route frees the idle embedder and answers its name; a model with a
-  page in flight is kept.
+  page in flight is kept. **Built:** `POST /api/activity/models/unload-idle` calls `release_idle_models` and answers what it freed by name, tested in `fichero-server/tests/unit/api/test_activity_models_6588.py::test_unload_idle_models_frees_the_idle_and_keeps_a_model_with_a_page_in_flight`; **Not built:** the Inspector's list of resident models and the button. The route and its action `activity.unload_idle_models` are the owner's (the Mac's models are shared by every project; `owner_only`, app scope), tested in `test_model_run_settings_6588.py::test_the_mac_wide_model_writes_are_the_owners`.
 - `models.row.download-reports-bytes` — **[PARTIAL]** (#6592; `activity.download.says-bytes-and-time-left` owns it) a
   Downloads row says bytes done of total and the time left for every runtime.
 - `models.row.unmeasured-is-dash` — **[OK]** (#6588; `activity.resources.everything-measured` owns it) what nothing
   measures is "—", never 0. *Test:* `fichero-server/tests/unit/api/test_activity_models_6588.py`.
+
+- `models.manage.load-and-unload` — **[GAP]** (#6588, owner 2026-11-19) the window loads a downloaded model into memory now
+  and unloads a loaded one (one model, not only the idle ones), refused with the reason when it does not fit
+  (`models.row.fits-here`); the work happens as a row in Activity.
+- `models.manage.add-a-model` — **[GAP]** (#6588, #5460, #6747, owner 2026-11-19) the window adds a model: search Hugging
+  Face or a provider (`models.search.is-the-finder`), then download it to the models folder (#6747), with its progress in
+  Activity (`models.row.download-reports-bytes`).
+- `models.manage.delete-a-model` — **[GAP]** (#6588, #6747, owner 2026-11-19) the window deletes a downloaded model's files
+  (the bookmark stays), says how much disk it frees, and asks first when a recipe uses it (open question 3), with the
+  deletion shown in Activity.
+
+### B2. Run settings per model (owner 2026-11-19)
+
+The Inspector of a local model has a Run settings section: each knob with the engine's own value shown as the default and
+what the setting costs this Mac (memory from the engine's per-page figure; time per page "—" until measured). Unset is the
+engine's rule; a value out of range is refused with the range, never clamped.
+
+- `models.settings.run-knobs` — **[PARTIAL]** (#6588; built: `llm/model_run_settings.py`, `GET`/`PUT
+  /api/activity/models/run-settings/{runtime}`, and Kraken reading them) for Kraken, the knobs the engine has: pages at once
+  (the cap `page_fan_out` still bounds by free memory), threads a page, lines per batch (`reader_batch_size`) and device
+  (auto / CPU / GPU; `FICHERO_COMPUTE_DEVICE` still wins). Not built: the Inspector section; the other local runtimes
+  (MLX, spaCy, Whisper, YOLO) have no such knob in the engine yet. *Tests:*
+  `fichero-server/tests/unit/llm/test_model_run_settings_6588.py`. Writing them (the `PUT` and the action `models.set_run_settings`) is the owner's, since they apply to every project and `device` overrides the owner's compute preference; reading them needs a signed-in person.
+- `models.settings.run-knobs-image-size-precision` — **[GAP]** (#6588) Kraken's maximum image size and its precision
+  (32-bit or 16-bit): the engine has no such knob today (`kraken_runtime.py` reads neither), so each needs the engine rule
+  first, with a test that the page is scaled or the reader runs at that precision.
+- `models.settings.run-knobs-default-per-mac` — **[GAP]** (#6588, runner-perf's measurements) the default each knob shows
+  is the value measured best on this Mac's class (cores, memory), not only the engine's formula; the time cost beside each
+  setting is that measurement. Owed until runner-perf has measured.
+- `models.settings.run-knobs-cost-shown` — **[PARTIAL]** (#6588; built: the route's `cost.memory_bytes`, tested for pages
+  at once) each setting shows what it asks of this Mac before it is applied; not built: the Inspector's display, and
+  `seconds_per_page` (null).
 
 ### C. Places
 
@@ -277,8 +320,8 @@ the surface those two lines describe, `models.row.account-from-a-probe` is their
 
 - `models.trained.are-rows` — **[GAP]** (#5439, #5440; `compute/training-and-evaluation.md` owns the training) a model
   trained here or on a cluster is a row under This Mac › Trained here with its held-out scores, provenance and where it
-  can run, and Choose for… sets it for a step; Train a Model… stays on the folder's context menu and the training's row is
-  Activity's.
+  can run, and Choose for… sets it for a step; Train… on a step's row and Train a Model… on a folder's context menu open
+  the same sheet, and the training's row is Activity's.
 - `models.ground-truth.counts` — **[GAP]** (#5119, #5446; the mark, the rule and the sidebar's Ground Truth smart folders
   are `source/ground-truth.md`'s) a trained model's Inspector says how many ground-truth lines and pages it was trained
   on and when the set was last added to, the same count the sidebar's Ground Truth › Lines folder shows; the set itself
@@ -288,12 +331,53 @@ the surface those two lines describe, `models.row.account-from-a-probe` is their
 
 - `models.settings.keeps-preferences` — **[GAP]** (#4307, #4665) Settings › AI is one pane: Allow cloud and the images
   rule, the monthly and daily caps, the defaults per kind of work (the shared model row over the window's one list), the
-  download location, and "Models and Compute…"; the providers list, the local models, the runtimes, the clusters and the
+  download location, and "Models and Cluster…"; the providers list, the local models, the runtimes, the clusters and the
   HF token leave it. *Test:* `AISettingsAfterTheMoveTests.swift` (the pane has those controls and no provider rows).
 - `models.settings.one-download-location` — **[GAP]** (#5460) one path field in Settings where models are kept; the
   window shows it read-only on This Mac's row with the space used, and Reveal in Finder opens it.
 - `models.settings.deep-links-still-land` — **[GAP]** (#6354) the alert's `open-settings` with `settings.ai.providers`
   opens the window on that provider's row with the key field focused; `settings.ai.localModels` opens This Mac › Models.
+
+### F. The model loop, per recipe step
+
+- `models.loop.steps-are-rows` — **[GAP]** (#5941, #6588) with a project open, Recipe steps lists each step of its
+  recipe as a row drawn from the engine's one answer (`distill.loop.one-answer-per-step`): the step; its model and place
+  now; its teacher, if one ran; its ground truth in the step's unit ("312 pages of lines corrected, 40 since the last
+  training"); its newest candidate with the gate's verdict in words; and a state the person can act on ("Enough to
+  train", "Training, epoch 3 of 20", "Candidate is not better: kept, not used", "Published, private"). A step that
+  cannot be trained says so, with why. The window computes none of it. *Test (to write):* ModelLoopRowTests.swift
+  (rows from a stub answer: each state's words; nothing shown that the answer lacks).
+- `models.loop.verbs` — **[GAP]** (#5941, #5440) a step row's verbs, each the existing action and nothing new: **Run
+  with a Teacher…** (the step's run on a chosen sample and hosted model, `distill.loop.teacher-any-step`, with its cost
+  first); **Train…** (the one start sheet, `compute.tune.start-sheet`, with the places compared,
+  `training.place.compared`); **Evaluate** (the evaluation job, `distill.eval.job`); **Use for This Step** (enabled
+  only when the gate passed; otherwise the button's help says the verdict); **Publish…** (the publish sheet,
+  `compute.publish.is-separate-and-asked-again`); **Show Corrections** (the step's ground truth in the library). The
+  row's one button is the next of these the state allows. *Test (to write):* ModelLoopRowTests.swift (the one button per
+  state; Use disabled with the verdict when the gate did not pass).
+- `models.loop.verdict-in-the-inspector` — **[GAP]** (#4951, #5439) a candidate's Inspector shows it beside the step's
+  current model on the same held-out pages: both scores, the pages, the noise band, speed, peak memory and cost per
+  page, and the verdict in words (`distill.gate.one-rule`); a candidate that lost stays a row, marked Not Better, and
+  can be deleted. *Test (to write):* ModelLoopRowTests.swift.
+- `models.loop.published-state` — **[GAP]** (#5971) a trained model's row says where it is kept (In This Project, On
+  This Mac, Published with the repository and Private, Gated or Public), and Not for Release where its training data
+  forbids release, in which case Publish… is disabled with that reason (`compute.model.never-publishable-stays-so`).
+  *Test (to write):* ModelLoopRowTests.swift.
+
+### G. A model's run settings
+
+- `models.run-settings.per-model` — **[GAP]** (#6588, #6351, #5370) a model's Inspector has Run Settings for the place
+  it runs on, showing only what its runtime has: Kraken, the largest image side, lines at once, device, threads and
+  precision; YOLO, image size, pages at once, device and confidence; an MLX model, the quantised build, the largest image
+  side, context and output length; a cloud model, calls at once. Each shows the measured default with its reason ("Auto:
+  1,800 px on this Mac's 8 GB", from `runtime.kraken.page-shrinks-to-fit`; "Auto: GPU",
+  `runtime.pytorch.device-chosen`), a changed value is kept per model per place, a value that cannot run here is refused
+  in words, Reset returns to Auto, and every run records the settings it used. The engine owns the settings, their
+  bounds and the defaults (one read and one audited, undoable write); the window draws what it is given. Built: none
+  as settings; the engine sets Kraken's threads from the plan (`llm/kraken_runtime.py` `threads_each`) and YOLO's device
+  from availability (`llm/yolo_runtime.py` `_device`). *Test (to write):* test_model_run_settings.py in
+  fichero-server/tests/unit/api/ (the settings a Kraken, a YOLO and a cloud card offer; a refused value; Reset; the
+  run's record), and ModelRunSettingsTests.swift (the rows drawn from the answer).
 
 ## Build order
 
@@ -343,6 +427,20 @@ the surface those two lines describe, `models.row.account-from-a-probe` is their
 - Behaviours: `models.trained.are-rows`, `models.ground-truth.counts`, `models.settings.keeps-preferences`, `models.settings.one-download-location`, `models.settings.deep-links-still-land`
 - Tests: fichero/Tests/Unit/general/Views/RunFailureAlertTests.swift (the `open-settings` deep link lands on the window; a Swift test of the slimmed Settings pane to write)
 - Depends on: 2.1, 3.1
+- Size: M
+
+### Stage 5 — The model loop and run settings (written 2026-11-19; after `compute/distillation.md` Stage 2, Step 2.3)
+
+#### Step 5.1 — Recipe steps as rows with their loop state and verbs (#5941)
+- Behaviours: `models.loop.steps-are-rows`, `models.loop.verbs`, `models.loop.verdict-in-the-inspector`, `models.loop.published-state`
+- Tests: ModelLoopRowTests.swift (not yet written)
+- Depends on: 4.1
+- Size: M
+
+#### Step 5.2 — A model's run settings, owned by the engine, drawn in the Inspector (#6588)
+- Behaviours: `models.run-settings.per-model`
+- Tests: test_model_run_settings.py (not yet written), ModelRunSettingsTests.swift (not yet written)
+- Depends on: 1.1
 - Size: M
 
 ## Test matrix

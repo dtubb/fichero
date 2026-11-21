@@ -3901,6 +3901,131 @@ def _action_simplify(db: Database, params: SegmentSimplifyParams, ctx: ActionCon
     return {"segment_ids": simplified_ids, "versions": after_versions}, spec
 
 
+class SegmentConvertToBoxParams(BaseModel):
+    """`segment-editor.convert-to-box`: each segment's outline becomes its bounding rectangle."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    segment_ids: list[str] = Field(min_length=1, description="The segments to turn into boxes.")
+    expected_versions: dict[str, int] = Field(description="Each segment's version as last read, {segment_id: version}; a changed segment is refused.")
+
+
+@action(
+    "segment.convert_to_box",
+    SegmentConvertToBoxParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_many_via_previous_version,
+)
+def _action_convert_to_box(db: Database, params: SegmentConvertToBoxParams, ctx: ActionContext):
+    """Replace each segment's polygon with the axis-aligned rectangle that bounds it (`segment-editor.convert-to-box`);
+    id, text, order, children and baseline are untouched. One action, one undo, all or nothing. A segment with no
+    polygon (a box already, or none) is refused rather than silently skipped."""
+    _refuse_repeated_ids(params.segment_ids)
+    rows: list[Segment] = []
+    for segment_id in params.segment_ids:
+        _assert_not_provisional_http(segment_id, what="segment_id")
+        rows.append(_live_current_row(db, segment_id, _require_expected_version(params.expected_versions, segment_id)))
+    no_outline = [row.id for row in rows if row.anchor is None or not row.anchor.polygon]
+    if no_outline:
+        raise HTTPException(status_code=422, detail=f"no outline to turn into a box: {no_outline}")
+
+    audit_id = uuid.uuid4().hex
+    after_versions = []
+    for row in rows:
+        xs, ys = [p[0] for p in row.anchor.polygon], [p[1] for p in row.anchor.polygon]
+        x0, y0, x1, y1 = min(xs), min(ys), max(xs), max(ys)
+        snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        row.anchor = row.anchor.model_copy(update={
+            "polygon": [[x0, y0], [x1, y0], [x1, y1], [x0, y1]], "rect": [x0, y0, x1 - x0, y1 - y0], "shapes": None,
+        })
+        row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_and_tile_from_anchor(row.anchor)
+        db.save(row)
+        after_versions.append({"segment_id": row.id, "version": row.version})
+
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=[row.id for row in rows],
+        before=None,
+        after={"versions": after_versions},
+        emit_type="segment.updated",
+        segment_ids=[row.id for row in rows],
+        pass_ids=sorted({row.pass_id for row in rows}),
+        document_ids=sorted({row.document_id for row in rows}),
+    )
+    return {"segment_ids": [row.id for row in rows], "versions": after_versions}, spec
+
+
+class SegmentConvertLevelParams(BaseModel):
+    """`segment-editor.convert-level`: a region becomes a line, or a line a region."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    segment_ids: list[str] = Field(min_length=1, description="The segments to convert.")
+    to_kind: Literal["line", "region"] = Field(description="The level they become.")
+    expected_versions: dict[str, int] = Field(description="Each segment's version as last read, {segment_id: version}; a changed segment is refused.")
+
+
+@action(
+    "segment.convert_level",
+    SegmentConvertLevelParams,
+    domains=["segment"],
+    undoable=True,
+    invert=_invert_many_via_previous_version,
+)
+def _action_convert_level(db: Database, params: SegmentConvertLevelParams, ctx: ActionContext):
+    """Change each segment's kind (`segment-editor.convert-level`); shape, id, readings and order entries are kept.
+    A region becomes a line with a baseline along the lower third of its box; a line keeps its baseline as a region.
+    A region that holds lines is refused (merging their text is not built), as is a segment already at that level.
+    One action, one undo, all or nothing."""
+    _refuse_repeated_ids(params.segment_ids)
+    rows: list[Segment] = []
+    for segment_id in params.segment_ids:
+        _assert_not_provisional_http(segment_id, what="segment_id")
+        rows.append(_live_current_row(db, segment_id, _require_expected_version(params.expected_versions, segment_id)))
+    already = [row.id for row in rows if row.kind == params.to_kind]
+    if already:
+        raise HTTPException(status_code=422, detail=f"already a {params.to_kind}: {already}")
+    if params.to_kind == "line":
+        not_regions = [row.id for row in rows if row.kind != "region"]
+        if not_regions:
+            raise HTTPException(status_code=422, detail=f"only a region becomes a line: {not_regions}")
+        parents = {child.parent_segment_id for child in db.query_in(Segment, "parent_segment_id", [row.id for row in rows])
+                   if child.deleted_at is None}
+        holding = [row.id for row in rows if row.id in parents]
+        if holding:
+            raise HTTPException(
+                status_code=422, detail=f"these regions hold lines, so they cannot become one line: {holding}")
+    elif any(row.kind != "line" for row in rows):
+        raise HTTPException(status_code=422, detail="only a line becomes a region")
+
+    audit_id = uuid.uuid4().hex
+    after_versions = []
+    for row in rows:
+        snapshot_segment_version(db, row, deleted=False, actor=ctx.actor, audit_id=audit_id)
+        row.kind = params.to_kind
+        row.doc_kind = f"{row.document_id}:{row.kind}"
+        if params.to_kind == "line" and not row.baseline:
+            y = row.bbox_y + row.bbox_h * 2 / 3
+            row.baseline = [[row.bbox_x, y], [row.bbox_x + row.bbox_w, y]]
+        db.save(row)
+        after_versions.append({"segment_id": row.id, "version": row.version})
+
+    spec = ChangeSpec(
+        audit_id=audit_id,
+        domains=["segment"],
+        target_ids=[row.id for row in rows],
+        before=None,
+        after={"versions": after_versions},
+        emit_type="segment.updated",
+        segment_ids=[row.id for row in rows],
+        pass_ids=sorted({row.pass_id for row in rows}),
+        document_ids=sorted({row.document_id for row in rows}),
+    )
+    return {"segment_ids": [row.id for row in rows], "versions": after_versions}, spec
+
+
 def _simplified_shapes(
     db: Database, rows: list[Segment], tolerance: float,
 ) -> list[tuple[Segment, list[list[float]] | None, list[list[float]] | None]]:

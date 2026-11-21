@@ -139,10 +139,14 @@ struct FocusedStartRecipeButton: View {
         store.runFirstPages = nil  // the menu's Start is the whole project, not a first-pages run left on Ready (#6295)
         if store.startPlan == nil || store.startPlanFolderId != nil || wasLimited { await store.loadStartPlan() }
         guard store.canStart else {
+            RunRefusalAlert.show(RunRefusalAlert.words(startError: store.errorMessage, planRefusals: store.startPlan?.refusals ?? []))
             setUpProjectAction?.run()
             return
         }
-        guard await store.start() else { return }
+        guard await store.start() else {
+            RunRefusalAlert.show(RunRefusalAlert.words(startError: store.errorMessage, planRefusals: []))
+            return
+        }
         // Land on the run Start queued, as setup's Start does (#5576).
         #if os(macOS)
         if let selection = FirstRunWindow.startedRunSelection(jobId: store.startedRunJobId, projectId: projectId) {
@@ -177,6 +181,21 @@ enum RecipeFolderScope {
         if let only = selection.first { return isFolder(only) ? only : nil }
         if let shownFolderId, isFolder(shownFolderId) { return shownFolderId }
         return nil
+    }
+
+    /// The pages "Run a Step Again" runs on for a selection of folders and items (#6744): a page is itself, a
+    /// folder is every page under it at any depth, each once. The engine's `documents` takes pages, never folders.
+    static func redoPages(selection: Set<String>, in documents: [Document]) -> [String] {
+        let children = WorkflowRunTargetResolver.childrenIndex(of: documents)
+        var pages: [String] = []
+        var seen: Set<String> = []
+        for document in documents where selection.contains(document.id) {
+            let ids = document.docType == .folder
+                ? WorkflowRunTargetResolver.descendantFileIDs(of: document.id, childrenByParent: children)
+                : [document.id]
+            for id in ids where seen.insert(id).inserted { pages.append(id) }
+        }
+        return pages
     }
 }
 
@@ -216,7 +235,13 @@ struct RunRecipeOnFolderMenuItem: View {
     private func run(folderId: String, library: LibraryManager.LibraryReference, redo: [String] = []) async {
         let store = library.recipeSetupStore
         await store.loadStartPlan(folderId: folderId)
-        guard store.canStart, await store.start(folderId: folderId, redo: redo) else {
+        guard store.canStart else {
+            RunRefusalAlert.show(RunRefusalAlert.words(startError: store.errorMessage, planRefusals: store.startPlan?.refusals ?? []))
+            setUp(library)
+            return
+        }
+        guard await store.start(folderId: folderId, redo: redo) else {
+            RunRefusalAlert.show(RunRefusalAlert.words(startError: store.errorMessage, planRefusals: []))
             setUp(library)
             return
         }

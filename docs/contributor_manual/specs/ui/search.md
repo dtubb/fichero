@@ -127,6 +127,16 @@ read of the calling loop before it can be called fully resolved.
   transient state in the app answers to, replacing a dedicated "Done" button — verified by
   direct code read (`ContentView+ToolbarSearch.swift`'s `SearchEscapeDismiss` modifier), no
   dedicated pinning test found for this specific gesture.
+- `search.always-visible` — **[GAP]** (#6729; app; owner 2026-11-19) search is always visible in the main window. The right
+  inspector has a minimum width that keeps its search field whole, so a narrow inspector never squeezes the field out of
+  view; when the inspector is closed or too narrow the same field and menu move to the toolbar, so closing the inspector
+  keeps search. Test (UI): narrow the inspector to its minimum and close it; the search field stays visible and focusable
+  with ⌘F.
+- `search.scope-menu` — **[GAP]** (#6729; app; owner 2026-11-19) search has a scope: This Page, This Document, This Folder,
+  This Project, Everywhere (all open projects). It is a third section, Search Scope, of the same menu that already holds
+  Search Kind (Ask / Keyword) and Search Type (Full Text / Semantic / Semantic + Graph), with a check on the current scope.
+  It defaults to the narrowest sensible scope for the current selection, and the field's placeholder shows it (for example
+  "Search this document"). Ties to the search milestone; the always-visible field is its entry point.
 - `search.ask-keyword-native-scopes` — **[OK]** (superseded by the #5024 ruling: `search.one-toolbar-button-with-the-kind-menu`) Ask/Keyword are native `.searchScopes`, shown
   only while the field is presented, not a separate always-visible control. Pinned:
   `ToolbarSearchRoutingTests` (`testToolbarSearchRoutesToATransientSearchWithNoSavedSearch`,

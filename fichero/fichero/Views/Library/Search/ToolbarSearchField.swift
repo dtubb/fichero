@@ -50,6 +50,7 @@ struct ToolbarSearchField: NSViewRepresentable {
         if field.stringValue != text { field.stringValue = text }
         // Rebuilt every update so the checkmarks follow the state.
         field.searchMenuTemplate = options.nsMenu
+        field.placeholderString = options.scopePlaceholder
     }
 
     @MainActor
@@ -89,11 +90,12 @@ extension SearchFieldOptionsMenu {
             menu.addItem(Self.item(title, isOn: mode == kind) { $mode.wrappedValue = kind })
         }
 
-        if let contextFolder {
-            menu.addItem(.separator())
-            menu.addItem(.sectionHeader(title: "Look In"))
-            menu.addItem(Self.item(libraryName, isOn: !scopeIsFolder) { $scopeIsFolder.wrappedValue = false })
-            menu.addItem(Self.item(contextFolder.trail, isOn: scopeIsFolder) { $scopeIsFolder.wrappedValue = true })
+        menu.addItem(.separator())
+        menu.addItem(.sectionHeader(title: Self.scopeSectionTitle))
+        for option in targets.offered {
+            let item = Self.item(option.title, isOn: targets.effective(scope) == option) { $scope.wrappedValue = option }
+            item.toolTip = targets.node(for: option)?.trail
+            menu.addItem(item)
         }
 
         menu.addItem(.separator())

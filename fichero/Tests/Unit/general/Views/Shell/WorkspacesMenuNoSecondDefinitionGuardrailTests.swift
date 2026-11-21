@@ -20,4 +20,13 @@ struct WorkspacesMenuNoSecondDefinitionGuardrailTests {
             #expect(!source.contains("var toolbarButtonsMenu"), "\(path) must not re-declare this")
         }
     }
+
+    /// #6730: which toolbar buttons show is the standard Customize Toolbar's; the Workspaces menu has no submenu for it.
+    @Test("the Workspaces menu has no Toolbar Buttons submenu")
+    func noToolbarButtonsSubmenu() throws {
+        let source = try AppSource.code("App/Menus/WorkspacesMenuBody.swift")
+        #expect(!source.contains("Toolbar Buttons"))
+        #expect(!source.contains("toolbarItemToggle"))
+        #expect(!source.contains("setToolbarVisibility"))
+    }
 }

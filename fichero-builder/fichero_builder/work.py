@@ -585,7 +585,7 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
             if not step("check", bool(r.get("ok")), f"failed: {r.get('failed') or '-'}"):
                 if r.get("failed") == "red-on-base" and "needs-approval" in _tail(r):  # a refusal, not a red test: the manager's call
                     return {**no("red-on-base", f"red-on-base at {head[:9]}: {_tail(r).replace('needs-approval', '').strip()[-300:]}", _tail(r), ladder),
-                            "approvals": ["approve_red"]}
+                            "approvals": ["approve_red"], "judged": head}
                 if r.get("failed") == "pinned-checks" and "needs-maintainer" in _tail(r):
                     # ONE alert for every reason the refusal lists, and one approve carries them all (manager 2026-11-02: an approve
                     # re-ran with maintainer only and refused again on the weakened tests it had already listed)
@@ -595,7 +595,7 @@ def after_run(a, repo: str, branch: str, reviewer: str, stage=lambda name: None)
                     diff = state / f"pinned-{a.name}.diff"
                     diff.write_text(_git(repo, "diff", r_since(repo, branch), head, "--", *paths).stdout)
                     kind = "needs-maintainer" if "maintainer" in approvals else "weakened-tests" if "approve_weakened" in approvals else "pinned-new"
-                    return {**no(kind, f"pinned-checks at {head[:9]}: {t[-300:]}", t, str(diff)), "approvals": approvals}
+                    return {**no(kind, f"pinned-checks at {head[:9]}: {t[-300:]}", t, str(diff)), "approvals": approvals, "judged": head}
                 if r.get("failed") == "guards":
                     # a guard reads an allowlist beside itself (a .json under a check path): pinned, it judges head's routes against the
                     # OLD list, so a batch that changes the list can never pass. The manager's approve, by file name, lays head's copy over it.

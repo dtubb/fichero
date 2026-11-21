@@ -11,12 +11,10 @@ import SwiftUI
 ///
 /// **Grammar, left → right:**
 /// ```
-/// [✕ · kind ▾ lens ▾]        [ breadcrumb ]        [view controls · ⋯]
-///  identity capsule            where you are         what you can do
+/// [ lens ▾ ]        [ breadcrumb ]        [view controls · pane menu]
+///  identity capsule     where you are         what you can do
 /// ```
-/// Close sits with the selector because both are about the pane's IDENTITY —
-/// what it is and whether it exists — while the right capsule is about its
-/// CONTENT. The breadcrumb takes the flexible middle and truncates from the
+/// Close and the kind choice are in the pane menu at the right (#6741). The breadcrumb takes the flexible middle and truncates from the
 /// LEADING edge, because a deep path's tail ("… › Inbox › 1933") is the part
 /// that identifies it; the head of the path is the part you can infer.
 ///
@@ -193,24 +191,10 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
         splitAxisActions.map { $0.hasVertical || $0.hasHorizontal } ?? false
     }
 
+    /// The pane's working selector (view menu). The close X and the kind menu left this side: Close Pane and
+    /// Pane ▸ live in the pane menu at the right (#6741).
     private var identityCapsule: some View {
-        capsule {
-            HStack(spacing: 6) {
-                if showsClose {
-                    Button {
-                        closePane()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.caption.weight(.semibold))
-                    }
-                    .paneBarButtonStyle()
-                    .accessibilityLabel(isInSplit ? "Close this split" : "Close pane")
-                    .help(isInSplit ? "Close this split" : "Close this pane")
-                    Divider().frame(height: PaneHeadMetrics.dividerHeight)
-                }
-                selector()
-            }
-        }
+        capsule { selector() }
     }
 
     /// Adaptive (ruling 2026-08-23): the full chain when the pane is wide
@@ -226,7 +210,7 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
                 ViewThatFits(in: .horizontal) {
                     // Degradation ladder (Daniel, 2026-08-23): ancestors to
                     // ICONS → middle ancestors to an ellipsis → leaf name →
-                    // leaf icon alone. X and + never yield their space.
+                    // leaf icon alone. The pane menu never yields its space.
                     // AnyView per rung is LOAD-BEARING (the #4331 rule): five
                     // menu-bearing candidates composed one generic type deep
                     // enough to stall on metadata instantiation.

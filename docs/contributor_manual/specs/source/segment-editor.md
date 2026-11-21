@@ -1290,6 +1290,15 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   set agrees.
   (Today a redo of a segment edit is refused as stale: the shared undo route replays the
   original request. The editor cannot ship without this.)
+  **Built** 2026-11-20 (checked): the "still owed" sentence above is out of date for the version check: `segment.merge` and
+  `segment.split` take `expected_versions`, an undo of a split is refused (409) when a part was edited since and
+  deletes nothing, an undo of a merge is refused when the kept segment changed since, and a merge naming a stale
+  member is refused (`fichero-server/tests/unit/api/test_segment_undo_refuses_after_others_edit.py`). Parts of a
+  redone split still get new ids. Not seen in the app.
+  *Built note (2026-11-20):* redo of a delete, of a group move (`segment.translate`) and of a simplify does the edit
+  again, and undo after the redo ends where the first undo ended; a redo of a group move is refused (409) and moves
+  nothing when another writer changed a member since
+  (`fichero-server/tests/unit/api/test_segment_redo_of_delete_translate_simplify.py`). Not seen in the app.
 - `source.editor.system-undo` — **[PARTIAL]** (#4941) ⌘Z and ⇧⌘Z undo and redo editor actions through the action
   pass. (Rule (i) flags `test_artifact_regions_edit.py` as mentioning this id: that file pins the
   ENGINE half added for it — the route now names its audit row — and asserts nothing about ⌘Z,
@@ -1465,6 +1474,18 @@ What exists today, read from the code on 2026-09-28 and not yet run to confirm:
   membership is left to the engine's `SegmentPassMismatchError` rather than copied here. No menu
   item or key calls it yet, and "lines grouped into a region" needs a create-parent verb that does
   not exist on any surface.
+  **Make Region from Lines (#6737, owner 2026-11-19):** with several lines selected, Segment ▸ Make Region
+  from Lines (⌘G, also the context menu of a multi-selection) makes a new region whose box is the union of
+  the lines' boxes and moves those lines into it as its children, in their current reading order. Lines
+  that already sit in a region get the new region nested in it; when every line of the old region is
+  selected the new region replaces it, asked once. Segment ▸ Ungroup Region (⇧⌘G) is the reverse: the
+  lines go back to the parent and the region is removed. The new region is selected, takes the default
+  region type, and its type can be changed at once. One new version, one undo; never a second command
+  beside the code's existing New Region from Selection path
+  (`SegmentEditingMode`, `ZoomableImagePreviewMac+Regions`): the work starts by finding why a person could
+  not find or use it (where it shows, when it is enabled, whether it parents the lines) and extends it.
+  *Not built.* Tests owed: three lines make one region with three children and the right box; order kept;
+  undo restores; ungroup restores.
 - `source.editor.set-kind` — **[PARTIAL]** (#4941) the selection's kind (and furniture or text) can be set.
   **The plan is built (2026-09-27), the verb is not.** `SegmentEditCommand.plan` turns an
   attribute and a `SegmentSelection` into the `segment.update` requests to send, and refuses
@@ -1830,6 +1851,17 @@ level with a colour per element type and lets the user choose which levels to sh
 a parent's outline visible under its children. This design keeps the nesting and takes the colour
 from the region instead of the role.
 
+- `source.editor.colour.stroke-per-level` — **[PROPOSED]** (#6738; open choice for the owner: the stroke table below,
+  as proposed, or a different weight and dash for each level) regions, lines, baselines, words and characters are
+  all drawn solid today, so the hierarchy is hard to read. Proposed: a region a 2.5 pt solid stroke with a faint
+  fill tint and a small corner label with its type; a line a 1.5 pt solid stroke, no fill; a baseline a thin
+  solid line, not a box, with small end ticks; a word a 1 pt dashed stroke; a character a hairline dotted stroke.
+  The colour per level stays, and is not the only cue: weight and dash carry the level too, for accessibility.
+  Focus on selection: a selected region shows its lines and words at full strength and everything outside it
+  fades; a selected line fades its sibling lines. Detail by zoom: words draw only once zoomed in enough to read
+  them, characters closer still. The What to Show switches (`source.editor.two-switches`, #6674) keep deciding
+  each level's visibility. *Not built.* Tests owed: each level's stroke style from the overlay model; the fade on
+  selection; the zoom thresholds.
 - `source.editor.colour.region-hue` — **[PARTIAL]** (#5426) every region on a page is drawn in its own
   palette hue, a fixed hash of the region's id (owner 2026-11-08), so deleting or adding another region
   never recolours it; two regions can share a hue (the palette has 12); its lines, words and letters take that

@@ -23,3 +23,11 @@ def test_the_plans_step_menus_use_the_same_labels():
 
 def test_a_runs_progress_says_what_each_step_is_doing():
     assert {j: runner._DOING[j] for j in DOING} == DOING
+
+
+def test_a_kraken_step_names_its_model_6745():
+    """#6745: 'Finding the lines with Kraken (blla)', the model beside the reader, for the owner who saw only a stage name."""
+    assert runner.doing_words({"job": "find-lines", "provider": "kraken", "model": "blla"}) == "Finding the lines with Kraken (blla)"
+    assert runner.doing_words({"job": "find-lines", "provider": "kraken", "model": "models/blla.mlmodel"}) == "Finding the lines with Kraken (blla.mlmodel)"
+    assert runner.doing_words({"job": "find-lines", "provider": "kraken"}) == "Finding the lines with Kraken"
+    assert runner.doing_words({"job": "read-a-line", "provider": "apple", "model": "apple-vision"}) == "Reading each line with Apple Vision"

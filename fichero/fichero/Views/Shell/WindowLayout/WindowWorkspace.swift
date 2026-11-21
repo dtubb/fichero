@@ -54,55 +54,6 @@ struct PaneVisibilityPlan: Codable, Equatable, Sendable {
     var isValid: Bool { showLibraryPane || showPreviewPane || showReaderPane }
 }
 
-/// Which of the window toolbar's OPTIONAL items are on show (Daniel,
-/// 2026-08-31: "can it control the top toolbar buttons to show, and can we
-/// have some defaults?").
-///
-/// The toolbar is BUILT by `ContentView+Toolbar`, so visibility is decided
-/// declaratively there — SwiftUI exposes no API for reading or writing an
-/// `NSToolbar`'s user customisation set, and reaching into its private
-/// defaults would be exactly the hack this app does not ship. Only items a
-/// window can live without appear here: the Workspaces menu itself is always
-/// present, so a plan can never hide the control that restores the rest.
-struct ToolbarVisibilityPlan: Codable, Equatable, Sendable {
-    /// Back/forward history buttons (the navigation zone).
-    var showNavigation: Bool = true
-    /// The Library/Preview/Reader/Chat pane-toggle group.
-    var showPaneToggles: Bool = true
-    /// LEGACY, decode-only (Daniel, 2026-09-01). Split/New Tab and Layouts
-    /// stopped being toolbar items of their own when they became sections of
-    /// the Workspaces menu, so nothing gates on these any more. They stay in
-    /// the shape so workspaces saved before the merge still decode, and so a
-    /// round-trip of an old file does not silently drop keys.
-    var showSplitMenu: Bool = true
-    var showLayoutsMenu: Bool = true
-
-    /// Everything on — what a fresh window gets.
-    static let everything = ToolbarVisibilityPlan()
-
-    /// The reading-desk toolbar: panes and history, none of the arranging
-    /// controls (they stay reachable from the Workspaces menu and View menu).
-    static let minimal = ToolbarVisibilityPlan(
-        showNavigation: true,
-        showPaneToggles: true,
-        showSplitMenu: false,
-        showLayoutsMenu: false
-    )
-}
-
-extension ToolbarVisibilityPlan {
-    /// Lenient decode: a workspace saved before an item existed keeps that
-    /// item ON rather than failing the whole catalog (the alternative is a
-    /// nil catalog and a user's saved layouts silently gone).
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        showNavigation = try container.decodeIfPresent(Bool.self, forKey: .showNavigation) ?? true
-        showPaneToggles = try container.decodeIfPresent(Bool.self, forKey: .showPaneToggles) ?? true
-        showSplitMenu = try container.decodeIfPresent(Bool.self, forKey: .showSplitMenu) ?? true
-        showLayoutsMenu = try container.decodeIfPresent(Bool.self, forKey: .showLayoutsMenu) ?? true
-    }
-}
-
 /// Everything a saved workspace restores about a window's arrangement.
 /// Widths are points; `splits` is keyed by the pane-slot ids the live layout
 /// already uses (the `"<slot>-<kind>"` split keys).
@@ -121,8 +72,6 @@ struct WindowLayoutSnapshot: Codable, Equatable, Sendable {
     var splits: [String: PaneSplitCounts] = [:]
     var viewDisplayMode: String
     var layoutMode: String
-    /// Which optional toolbar buttons the arrangement shows (2026-08-31).
-    var toolbar: ToolbarVisibilityPlan = .everything
     /// The window-level workflow bar — chrome, like the panes, so a
     /// "Cataloguing" arrangement can bring it with it.
     var showWorkflowBar: Bool = false
@@ -143,7 +92,7 @@ struct WindowLayoutSnapshot: Codable, Equatable, Sendable {
 }
 
 extension WindowLayoutSnapshot {
-    /// Lenient decode, for the same reason `ToolbarVisibilityPlan`'s is:
+    /// Lenient decode, so that
     /// fields added after a workspace was saved fall back to their defaults
     /// instead of throwing away every saved layout the user has.
     init(from decoder: Decoder) throws {
@@ -160,9 +109,6 @@ extension WindowLayoutSnapshot {
         ) ?? [:]
         viewDisplayMode = try container.decode(String.self, forKey: .viewDisplayMode)
         layoutMode = try container.decode(String.self, forKey: .layoutMode)
-        toolbar = try container.decodeIfPresent(
-            ToolbarVisibilityPlan.self, forKey: .toolbar
-        ) ?? .everything
         showWorkflowBar = try container.decodeIfPresent(Bool.self, forKey: .showWorkflowBar) ?? false
         showAnnotationBar = try container.decodeIfPresent(
             Bool.self, forKey: .showAnnotationBar) ?? false

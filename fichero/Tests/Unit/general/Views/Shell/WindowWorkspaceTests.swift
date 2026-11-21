@@ -223,9 +223,8 @@ final class WindowWorkspaceTests: XCTestCase {
 
     // MARK: - Toolbar visibility (Daniel, 2026-08-31)
 
-    func testSnapshotCarriesTheToolbarConfigurationThroughJSON() throws {
+    func testSnapshotCarriesTheWorkflowBarThroughJSON() throws {
         var original = snapshot()
-        original.toolbar = .minimal
         original.showWorkflowBar = true
         var catalog = WindowWorkspaceCatalog()
         catalog.save(name: "Desk", layout: original)
@@ -233,7 +232,6 @@ final class WindowWorkspaceTests: XCTestCase {
         let restored = try XCTUnwrap(
             WindowWorkspaceCatalog.decoded(from: catalog.encoded())
         )
-        XCTAssertEqual(restored.workspaces.first?.layout.toolbar, .minimal)
         XCTAssertEqual(restored.workspaces.first?.layout.showWorkflowBar, true)
     }
 
@@ -245,23 +243,15 @@ final class WindowWorkspaceTests: XCTestCase {
             + #""showLibraryPane":true,"showPreviewPane":true,"#
             + #""showReaderPane":true,"showChatPane":true}"#
         let legacy = #"{"panes":"# + panes
-            + #","libraryPaneWidth":320,"readerPaneWidth":200,"chatPaneWidth":300,"#
+            + #","toolbar":{"showNavigation":false},"libraryPaneWidth":320,"readerPaneWidth":200,"chatPaneWidth":300,"#
             + #""viewDisplayMode":"Icon","layoutMode":"Widescreen"}"#
         let decoded = try JSONDecoder().decode(
             WindowLayoutSnapshot.self,
             from: Data(legacy.utf8)
         )
-        XCTAssertEqual(decoded.toolbar, .everything)
         XCTAssertFalse(decoded.showWorkflowBar)
         XCTAssertTrue(decoded.paneKindOverrides.isEmpty)
         XCTAssertTrue(decoded.splits.isEmpty)
-    }
-
-    func testMinimalToolbarKeepsNavigationAndPanesAndDropsTheArrangingMenus() {
-        XCTAssertTrue(ToolbarVisibilityPlan.minimal.showNavigation)
-        XCTAssertTrue(ToolbarVisibilityPlan.minimal.showPaneToggles)
-        XCTAssertFalse(ToolbarVisibilityPlan.minimal.showSplitMenu)
-        XCTAssertFalse(ToolbarVisibilityPlan.minimal.showLayoutsMenu)
     }
 
     // The built-in workspaces are now the v2 PaneList compositions

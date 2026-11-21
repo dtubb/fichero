@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - The ONE Workspaces menu definition (#4968)
 
 /// Everything the View menu's "Workspaces ▸" flyout and the toolbar's Workspaces menu show —
-/// built-in layouts, saved workspaces, Save, Split, and the Toolbar Buttons submenu — defined
+/// built-in layouts, saved workspaces, Save and Split — defined
 /// ONCE and rendered by both, so they cannot drift into two different lists the way #4968 found
 /// them (different wording, shortcuts in only one, Split enabled in one and not the other, no
 /// checkmark on the active saved workspace in one).
@@ -126,10 +126,6 @@ struct WorkspacesMenuBody: View {
             .help(splitHelp(axis: .horizontal))
             .disabled(commands?.canSplitFocusedLeaf != true)
         }
-
-        Divider()
-
-        toolbarButtonsMenu
     }
 
     /// #4968: names WHICH pane a Split command acts on, using the focused pane's kind when the
@@ -168,46 +164,5 @@ struct WorkspacesMenuBody: View {
         case .activity: "Activity"
         case .activityGraphs: "Activity Graphs"
         }
-    }
-
-    /// #4968: real and kept, given a clearer sense of scope in its help text — this toggles which
-    /// OPTIONAL toolbar buttons show (`ToolbarVisibilityPlan.showNavigation`/`.showPaneToggles`,
-    /// read at `ContentView+Toolbar.swift:62` and `:167`), an app-wide setting
-    /// (`WindowWorkspaceStore.shared.toolbarVisibility`), not a per-window one — which is why it
-    /// needs no `commands` at all and can never be "disabled" by a lack of window focus.
-    private var toolbarButtonsMenu: some View {
-        let plan = WindowWorkspaceStore.shared.toolbarVisibility
-        return Menu("Toolbar Buttons") {
-            toolbarItemToggle("Back and Forward", \.showNavigation)
-            toolbarItemToggle("Pane Toggles", \.showPaneToggles)
-            Divider()
-            Button("Show All Buttons") {
-                WindowWorkspaceStore.shared.setToolbarVisibility(.everything)
-            }
-            .disabled(plan == .everything)
-            .help("Put every optional toolbar button back")
-        }
-        .help("Choose which optional buttons the window's toolbar shows")
-    }
-
-    private func toolbarItemToggle(
-        _ title: String,
-        _ field: WritableKeyPath<ToolbarVisibilityPlan, Bool>
-    ) -> some View {
-        let store = WindowWorkspaceStore.shared
-        let isOn = store.toolbarVisibility[keyPath: field]
-        return Button {
-            var next = store.toolbarVisibility
-            next[keyPath: field] = !isOn
-            store.setToolbarVisibility(next)
-        } label: {
-            if isOn {
-                Label(title, systemImage: "checkmark")
-                    .labelStyle(.titleAndIcon)
-            } else {
-                Text(title)
-            }
-        }
-        .help(isOn ? "Hide \(title) in the toolbar" : "Show \(title) in the toolbar")
     }
 }

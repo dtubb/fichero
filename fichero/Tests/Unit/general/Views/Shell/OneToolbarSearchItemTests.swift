@@ -1,6 +1,6 @@
 #if os(macOS)
-@testable import Fichero
 import AppKit
+@testable import Fichero
 import SwiftUI
 import Testing
 
@@ -20,23 +20,23 @@ struct OneToolbarSearchItemTests {
     @MainActor
     final class SearchState {
         var mode: SearchFieldMode = .ask
-        var scopeIsFolder = false
+        var scope = SearchScope.project
         var searchType = SearchRetrievalTier.semantic.requestValue
         var saves = 0
     }
 
     private static func options(
         _ state: SearchState,
-        folder: TransientSearchFolder? = nil,
+        targets: SearchScopeTargets = SearchScopeTargets(),
         reviewed: Int? = nil,
         canSave: Bool = false
     ) -> SearchFieldOptionsMenu {
         SearchFieldOptionsMenu(
             mode: Binding(get: { state.mode }, set: { state.mode = $0 }),
-            scopeIsFolder: Binding(get: { state.scopeIsFolder }, set: { state.scopeIsFolder = $0 }),
+            scope: Binding(get: { state.scope }, set: { state.scope = $0 }),
             searchType: Binding(get: { state.searchType }, set: { state.searchType = $0 }),
             libraryName: "Marshall Diaries",
-            contextFolder: folder,
+            targets: targets,
             reviewedEntityCount: reviewed,
             canSave: canSave,
             onSave: { state.saves += 1 }
@@ -98,10 +98,17 @@ struct OneToolbarSearchItemTests {
     func menuHoldsWhatTheSecondButtonOffered() throws {
         let state = SearchState()
         let folder = TransientSearchFolder(id: "f1", name: "1885", path: ["Diaries", "1885"])
-        let menu = Self.options(state, folder: folder, canSave: true).nsMenu
+        let targets = SearchScopeTargets(folder: folder)
+        let menu = Self.options(state, targets: targets, canSave: true).nsMenu
 
-        try Self.choose("Diaries ▸ 1885", in: menu)
-        #expect(state.scopeIsFolder)
+        try Self.choose("This Folder", in: menu)
+        #expect(state.scope == .folder)
+        // The section is named, the current scope is checked, and the field says what it searches (#6729).
+        let checked = Self.options(state, targets: targets, canSave: false).nsMenu
+        #expect(checked.items.contains { $0.isSectionHeader && $0.title == "Search Scope" })
+        #expect(try Self.item("This Folder", in: checked).state == .on)
+        #expect(try Self.item("This Project", in: checked).state == .off)
+        #expect(Self.options(state, targets: targets, canSave: false).scopePlaceholder == "Search this folder")
 
         try Self.choose(SearchRetrievalTier.fulltext.title, in: menu)
         #expect(state.searchType == SearchRetrievalTier.fulltext.requestValue)
@@ -117,7 +124,8 @@ struct OneToolbarSearchItemTests {
     func absentAndDeadRowsAreHonest() throws {
         let state = SearchState()
         let menu = Self.options(state, reviewed: 0).nsMenu
-        #expect(!menu.items.contains { $0.title == "Marshall Diaries" })
+        #expect(!menu.items.contains { $0.title == "This Folder" })
+        #expect(Self.options(state, reviewed: 0).scopePlaceholder == "Search this project")
         #expect(!menu.items.contains { $0.title == "Save Search" })
         let graph = try Self.item(SearchRetrievalTier.semanticGraph.title, in: menu)
         #expect(!graph.isEnabled)

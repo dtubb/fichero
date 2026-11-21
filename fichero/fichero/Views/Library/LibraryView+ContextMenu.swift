@@ -282,6 +282,14 @@ extension LibraryView {
         ) {
             RunRecipeOnFolderMenuItem(folderId: recipeFolder, library: activeLibraryReference)
         }
+        // A step run again on several folders, a parent folder, or selected items, as one run (#6744).
+        let redoSelection = selection.contains(document.id) ? selection : [document.id]
+        if redoSelection.count > 1 || document.docType != .folder {
+            RunStepAgainOnSelectionMenu(
+                pages: RecipeFolderScope.redoPages(selection: redoSelection, in: documentStore.sidebarDocuments),
+                library: activeLibraryReference
+            )
+        }
     }
 
     // Image stack/group (#3535): combine 2+ selected images into ONE

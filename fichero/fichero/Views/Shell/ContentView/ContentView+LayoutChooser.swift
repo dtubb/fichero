@@ -101,7 +101,7 @@ extension ContentView {
     /// split, workspaces and layouts into ONE Workspaces button"). It was
     /// three toolbar items; it is now four sections of one menu — Layouts
     /// (which panes show), Split (new tab / split the focused pane), the
-    /// built-in and saved arrangements, and the Toolbar Buttons submenu.
+    /// built-in and saved arrangements.
     /// Nothing that was reachable before is gone.
     ///
     /// A workspace now carries the TOOLBAR too: which optional buttons show,
@@ -114,7 +114,7 @@ extension ContentView {
         // FocusedValue). The two can no longer differ in items, wording, order, shortcuts or
         // enabled state, because they are the same view rendering the same input shape.
         Menu {
-            // iOS: Show/Hide Items, Source and Reader first (`PaneToggleHome`, #6563); nothing on the Mac.
+            // The panes, each checked while visible (#6730).
             paneToggleMenuSection
             WorkspacesMenuBody(commands: windowLayoutCommands)
         } label: {
@@ -154,11 +154,9 @@ extension ContentView {
     /// divider a few points should not un-check the workspace you are in.
     private func isActive(
         _ workspace: SavedWindowWorkspace,
-        panes: PaneVisibilityPlan,
-        toolbar: ToolbarVisibilityPlan
+        panes: PaneVisibilityPlan
     ) -> Bool {
         workspace.layout.panes == panes
-            && workspace.layout.toolbar == toolbar
             && workspace.layout.showWorkflowBar == showWorkflowBar
             && workspace.layout.showAnnotationBar == showAnnotationBar
     }
@@ -202,7 +200,6 @@ extension ContentView {
             chatPaneWidth: chatPaneWidth,
             viewDisplayMode: viewDisplayMode.rawValue,
             layoutMode: currentLayoutMode.rawValue,
-            toolbar: WindowWorkspaceStore.shared.toolbarVisibility,
             showWorkflowBar: showWorkflowBar,
             showAnnotationBar: showAnnotationBar,
             // #4686: the ACTUAL composition, not a re-derivation of the legacy Bools above —
@@ -255,11 +252,6 @@ extension ContentView {
         // 2026-09-20): `PaneSplitCoordinator` is gone (see `SplittablePane.swift`) — an old
         // snapshot that still carries split counts decodes fine (the field stays `Codable`,
         // decode-only) and its counts are simply never acted on, same as `paneKindOverrides`.
-        // Toolbar last, and outside the animation: it is app-wide chrome, not
-        // this window's geometry, and re-laying the NSToolbar mid-animation is
-        // exactly the kind of churn #3163 taught us to keep off the critical
-        // path.
-        WindowWorkspaceStore.shared.setToolbarVisibility(snapshot.toolbar)
     }
 
     private func applyPaneVisibilityPlan(_ plan: PaneVisibilityPlan) {
@@ -315,10 +307,7 @@ extension ContentView {
             // #4968: the toolbar's own `isActive` check, now reachable from either menu so the
             // active-workspace checkmark stops being a toolbar-only feature.
             isWorkspaceActive: { workspace in
-                isActive(
-                    workspace, panes: currentPaneVisibilityPlan,
-                    toolbar: WindowWorkspaceStore.shared.toolbarVisibility
-                )
+                isActive(workspace, panes: currentPaneVisibilityPlan)
             },
             // Slice E (#4965): the focused Library leaf's own explicit layout, if any — same
             // shape as `focusedPaneKindForSplit` above, cheaply available from the model already

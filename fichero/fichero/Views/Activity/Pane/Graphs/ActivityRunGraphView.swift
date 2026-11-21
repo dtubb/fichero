@@ -18,9 +18,11 @@ struct ActivityRunGraphView: View {
         VStack(alignment: .leading, spacing: 18) {
             ForEach(runs) { run in
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(run.recipe).font(.headline)
-                        + Text(run.when.map { "  \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "")
-                        .font(.caption).foregroundColor(.secondary)
+                    HStack(alignment: .firstTextBaseline, spacing: 0) {
+                        Text(run.recipe).font(.headline)
+                        Text(run.when.map { "  \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "")
+                            .font(.caption).foregroundColor(.secondary)
+                    }
                     HStack(spacing: 6) {
                         ForEach(Array(run.nodes.enumerated()), id: \.element.id) { index, node in
                             if index > 0 {

@@ -427,3 +427,17 @@ extension WorkflowBarPolicy {
         return trimmed.isEmpty ? nil : trimmed
     }
 }
+
+extension WorkflowBarPolicy.SelectionSnapshot {
+    /// The snapshot with workflow rows taken out of the browser selection and the detail rung (#4961): a workflow selected
+    /// to open its editor is never the scope of a run, which the engine refused as "resolved to 0 processable files".
+    var withoutWorkflowRows: Self {
+        var copy = self
+        copy.browserSelection = browserSelection.filter { !WorkflowBarPolicy.isWorkflowRowId($0) }
+        if let detail = detailDocumentId, WorkflowBarPolicy.isWorkflowRowId(detail) {
+            copy.detailDocumentId = nil
+            copy.detailDocumentName = nil
+        }
+        return copy
+    }
+}

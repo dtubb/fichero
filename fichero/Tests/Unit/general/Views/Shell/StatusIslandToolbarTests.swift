@@ -341,6 +341,14 @@ struct StatusIslandToolbarTests {
         #expect(!island.contains("ActivityStatusToolbarItem("))
     }
 
+    @Test("a long selection name truncates in the middle and carries the full text as a tooltip (#6743)")
+    func islandTruncatesInTheMiddleWithTooltip() throws {
+        let island = try Self.appSource("Views/Shell/Toolbar/StatusIslandToolbarItem.swift")
+        #expect(island.contains(".truncationMode(.middle)"))
+        #expect(!island.contains(".truncationMode(.tail)"))
+        #expect(island.contains(".help(status.text)"))
+    }
+
     @Test("the activity status popover opens the Activity window")
     func activityStatusOpensActivityWindow() throws {
         let source = try Self.appSource("Views/Shell/Toolbar/ActivityStatusToolbarItem.swift")

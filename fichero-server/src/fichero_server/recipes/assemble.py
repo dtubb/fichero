@@ -108,6 +108,7 @@ FICHERO_DOES_IT: dict[str, tuple[dict[str, str], tuple[str, ...]]] = {
 }
 
 #: Jobs whose model must know the project's language (section 8, rule 3).
+READ_JOBS = frozenset({"read-a-line", "read-a-page"})
 LANGUAGE_JOBS = frozenset({"correct", "translate-transliterate-normalise", "find-names-tag-words",
                            "find-statements", "make-a-vector"})
 #: Of those, the ones where a model that lacks the language would rewrite it into another.
@@ -323,14 +324,34 @@ def offered_to_compare(card: Card, material: str) -> bool:
     return material in card.compare_on and bool(card.material) and material not in card.material
 
 
+#: Nastaliq is never read by a naskh card (`source.recipe.no-other-style-substitute`, #4951): a style apart from its parent.
+_OTHER_STYLES = frozenset({"Aran"})
+
+
+#: Scripts that mark a card as a Japanese or Korean reader: its Han is not Chinese (`no-cross-script-reader`).
+_NOT_CHINESE = frozenset({"Hira", "Kana", "Hrkt", "Jpan", "Hang", "Kore"})
+
+
+def _card_covers(card: Card, script: str) -> bool:
+    """Whether a card states `script`, its parent, or (for Latin) Fraktur."""
+    assert card.scripts is not None
+    if script in card.scripts:
+        return True
+    if script == "Latn":
+        return "Latf" in card.scripts
+    if script in _OTHER_STYLES or _PARENT.get(script) not in card.scripts:
+        return False
+    return not (script in {"Hans", "Hant"} and card.scripts & _NOT_CHINESE)
+
+
 def _refusal(job: str, card: Card, a: Answers, material: str) -> tuple[str, str] | None:
     """(code, raw reason) for why `card` cannot do `job` for this project, or None if it may."""
     if job not in card.jobs:
         return "no-model-for-job", "its card does not name this job"
-    # Fraktur and Gaelic type are Latin: a Latin reader fits them (#5516), the exact one ranking first. Han variants
-    # stay apart (`no-cross-script-reader`: a Japanese card never reads Traditional or Simplified Chinese).
-    if card.scripts is not None and not all(x in card.scripts or (x in _LATIN_VARIANTS and "Latn" in card.scripts)
-                                            for x in a.scripts):
+    # A variant is read by its parent's card (Traditional Han by Han, nastaliq by Arabic, Estrangela by Syriac, Fraktur
+    # and Gaelic type by Latin), the exact one ranking first; a Latin project also takes a Fraktur card (#6733). Han
+    # variants stay apart from Japanese (`no-cross-script-reader`: a Japanese card never reads Chinese).
+    if card.scripts is not None and not all(_card_covers(card, x) for x in a.scripts):
         return "no-model-for-script", "its card does not cover the project's script"
     if job in LANGUAGE_JOBS and card.languages is not None and not (a.languages <= card.languages):
         return "no-model-for-language", "its card does not list the project's language"
@@ -583,8 +604,8 @@ def _material_rank(card: Card, material: str) -> int:
 
 def _rank_key(card: Card, material: str, a: Answers | None = None) -> tuple:
     """The fixed order (section 8, `source.recipe.script-reader-first`): a measurement on the project's pages in
-    bands of the project's noise band (one point until measured) first; then a reader made for the project's
-    script before a generic one; then one whose card states the material, then one that states none; then the published CER in one-point bands, so a published
+    bands of the project's noise band (one point until measured) first; then the period, then a card that states another material last, then a reader made for the project's script before a
+    generic one, then the languages, then a card that states the material before one that states none; then the published CER in one-point bands, so a published
     CER only ranks cards of the same script tier and material; then a model already on this Mac before one to
     download (`source.onboard.auto.installed-model-first`, #5583), local before remote, cheaper, faster, lower
     carbon, trainable, smaller, and the card id so ties are deterministic. Without answers (the bake-off's own
@@ -594,10 +615,13 @@ def _rank_key(card: Card, material: str, a: Answers | None = None) -> tuple:
     published = int((card.cer_published if card.cer_published is not None else 1.0) * 100)
     return (
         measured,
-        0 if made_for_script(card, a) else 1,
-        # Fit before a card's own average (#5516): the languages, then the period, then the material.
-        _language_rank(card, a),
+        # Fit before a card's own average (#5516): the period and the material, then the script it was made for.
         _period_rank(card, a),
+        _material_rank(card, material) == 2,  # another material falls below the script; "states none" does not
+        # A reader that states no script is unknown, never a match for every script (#6733).
+        1 if card.scripts is None and a is not None and a.scripts and READ_JOBS & card.jobs else 0,
+        0 if made_for_script(card, a) else 1,
+        _language_rank(card, a),
         _material_rank(card, material),
         published,
         1 if card.installed is False else 0,

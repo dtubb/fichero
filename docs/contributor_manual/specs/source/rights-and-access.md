@@ -195,7 +195,7 @@ Rulings.
   `POST /api/chains/presets/paleography` is refused to anyone but the owner (reads stay open); the MLX runtime, a model, a paired machine or
   the list of libraries is not changed by an editor or viewer (`POST /api/library` included, review 8 item 6; H9, `sharing.owner-only-asserted-in-the-action`).
   The gate holds at the action too, not only at the route: `provider.*`, `document.relink_originals` and its undo, `library.release`,
-  `library.unicode_merge`, `model.download`, `import.file`, `import.folder`, `import.xlsx` and `kg.set_external_authority_enabled` are `owner_only`
+  `library.unicode_merge`, `model.download`, `import.file`, `import.folder`, `import.xlsx`, `kg.set_external_authority_enabled`, `models.set_run_settings` and `activity.unload_idle_models` are `owner_only`
   (the app's owner), so `POST /api/actions/invoke`, MCP and chat cannot reach them with library write alone; a guard
   (`test_an_owner_only_route_has_no_open_action_twin_6325`) fails when an owner-only route's action is open.
   The routes that rank or draw the whole library (`POST` and `GET /api/search/explain`, `GET /view/kg/global`, `POST /api/multilingual/entities/search`)

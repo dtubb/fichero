@@ -165,8 +165,8 @@ def test_a_stale_heartbeat_is_one_alert_per_silence_and_a_fresh_one_is_none(stat
 
 def test_the_launch_agents_keep_the_loop_alive_and_run_the_watchdog_every_three_ticks(state):
     import plistlib
-    paths = queue.launch_agents(state, state / "la", state=state / "s", tick_s=30)
-    loop, hb, _console = (plistlib.loads(p.read_bytes()) for p in paths)
+    paths = queue.launch_agents(state, state / "la", state=state / "s", tick_s=30, branch="main")
+    loop, hb, _console, _release = (plistlib.loads(p.read_bytes()) for p in paths)
     assert loop["KeepAlive"] is True
     assert loop["ProgramArguments"][1:4] == ["-m", "fichero_builder", "loop"] and "--state" in loop["ProgramArguments"]
     assert hb["StartInterval"] == 90 and hb["ProgramArguments"][1:4] == ["-m", "fichero_builder", "heartbeat"] and "KeepAlive" not in hb
@@ -211,40 +211,88 @@ def test_builder_done_on_an_external_lane_lands_it_and_no_worker_is_started(stat
     assert cli.main(["done", "m1", "abc", "--state", str(journal.STATE)]) == 1 and "no external lane" in capsys.readouterr().out
 
 
-def test_a_step_that_moves_another_lanes_tree_or_the_jail_root_alerts(state):
+def _dirs(tmp_path):
+    out = []
+    for n in ("jail-root", "m2"):
+        (tmp_path / n).mkdir()
+        out.append(str(tmp_path / n))
+    return out
+
+
+def test_a_step_that_moves_another_lanes_tree_or_the_jail_root_alerts(state, tmp_path):
+    JR, W2 = _dirs(tmp_path)
     """run.loop-machine-checked: after a step's DONE the jail root and every quiet lane's worktree are unmoved and clean as
     they were when it started; a moved one is an alert naming it, and the step itself still lands."""
     lane(state)
-    queue.add("m2", "/w/m2", "2.1", str(state / "b1.1"), [9])
+    queue.add("m2", W2, "2.1", str(state / "b1.1"), [9])
     lanes = queue.load()
     lanes[1]["paused"] = True  # quiet: its own worker never starts
     queue.save(lanes)
-    world = {"/jail/root": "r1 clean", "/w/m2": "a1 clean"}
+    world = {JR: "r1 clean", W2: "a1 clean"}
     fake = Fake()
-    fake.procs.jail_root, fake.procs.trees = "/jail/root", lambda paths: {p: world[p] for p in paths}
+    fake.procs.jail_root, fake.procs.trees = JR, lambda paths: {p: world[p] for p in paths}
     base_start = fake.procs.start
 
     def start(lane_, step):  # m1's worker commits in m2's tree on its first step
         if step["step"] == "1.1":
-            world["/w/m2"] = "a2 dirty 1234"
+            world[W2] = "a2 dirty 1234"
         return base_start(lane_, step)
     fake.procs.start = start
     queue.run(fake.procs, workers_n=1, push=False, out=lambda s: None)
     (a,) = _alerts()
-    assert a["lane"] == "m1" and a["step"] == "1.1" and "/w/m2: a1 clean -> a2 dirty 1234" in a["what"] and "/jail/root" not in a["what"]
+    assert a["lane"] == "m1" and a["step"] == "1.1" and f"{W2}: a1 clean -> a2 dirty 1234" in a["what"] and JR not in a["what"]
     assert steps()["1.1"]["state"] == "landed" and steps()["1.2"]["state"] == "landed", "an alert, not a stop"
     assert "trees" not in steps()["1.1"], "the snapshot is spent at the check"
 
 
-def test_a_landing_meanwhile_excuses_the_jail_root_and_a_busy_lane_is_not_checked(state):
+def test_a_tree_removed_during_the_step_did_not_move_by_a_stray_write(state, tmp_path):
+    """#6589 2026-11-20: another lane's worktree removed while the step ran read 'clean -> unreadable clean' and alerted."""
     lane(state)
-    queue.add("m2", "/w/m2", "2.1", str(state / "b1.1"), [9])
-    world = {"/jail/root": "r1 clean", "/w/m2": "a1 clean"}
+    gone = tmp_path / "wt-gone"
+    gone.mkdir()
+    queue.add("m2", str(gone), "2.1", str(state / "b1.1"), [9])
+    lanes = queue.load()
+    lanes[1]["paused"] = True
+    queue.save(lanes)
+    world = {str(gone): "a1 clean"}
     fake = Fake()
-    fake.procs.jail_root, fake.procs.trees = "/jail/root", lambda paths: {p: world[p] for p in paths}
+    fake.procs.trees = lambda paths: {p: world[p] if os.path.isdir(p) else "unreadable clean" for p in paths}
+    base_start = fake.procs.start
+
+    def start(lane_, step):
+        if step["step"] == "1.1":
+            gone.rmdir()
+        return base_start(lane_, step)
+    fake.procs.start = start
+    queue.run(fake.procs, workers_n=1, push=False, out=lambda s: None)
+    assert _alerts() == []
+
+
+def test_a_landed_lanes_worktree_is_not_in_the_snapshot_list(state, tmp_path):
+    lane(state)
+    queue.add("m2", str(tmp_path), "2.1", str(state / "b1.1"), [9])
+    lanes = queue.load()
+    lanes[1]["steps"][0]["state"] = "landed"
+    lanes[1]["cursor"] = 1
+    queue.save(lanes)
+    fake = Fake()
+    assert str(tmp_path) not in queue._others(queue.load()[0], {}, fake.procs)
+    lanes = queue.load()
+    lanes[1]["steps"][0]["state"], lanes[1]["cursor"] = "queued", 0
+    queue.save(lanes)
+    assert str(tmp_path) in queue._others(queue.load()[0], {}, fake.procs), "a queued lane stays in"
+
+
+def test_a_landing_meanwhile_excuses_the_jail_root_and_a_busy_lane_is_not_checked(state, tmp_path):
+    JR, W2 = _dirs(tmp_path)
+    lane(state)
+    queue.add("m2", W2, "2.1", str(state / "b1.1"), [9])
+    world = {JR: "r1 clean", W2: "a1 clean"}
+    fake = Fake()
+    fake.procs.jail_root, fake.procs.trees = JR, lambda paths: {p: world[p] for p in paths}
 
     def row(lane_):  # by the DONE, another landing has refreshed the root and m2's own worker has committed
-        world["/jail/root"], world["/w/m2"] = "r2 clean", "a2 clean"
+        world[JR], world[W2] = "r2 clean", "a2 clean"
         journal.append("landed", sha="x" * 40, step="jail-root", ok=True, detail="root fast-forwarded")
         return {"moved": True} if lane_["seq"] in fake.seqs else None
     fake.procs.row = row
@@ -1633,3 +1681,85 @@ def test_a_snapshot_a_later_batch_is_using_is_not_removed(state, tmp_path):
     queue.save(lanes)
     queue.clean_up(queue.load()[0], "origin/integration")
     assert land.exists(), "the tree no longer holds this step's head"
+
+
+def test_a_worker_step_with_no_commits_over_origin_is_blocked_never_landed(state):
+    """#6589 2026-11-20: catalogue-1 was marked landed with nothing done. `already-landed` is for an external lane's
+    batch whose commits are on origin; a worker lane's step with no commits is a block."""
+    lane(state)
+    fake = Fake(chains={"1.1": [{"ok": False, "kind": "already-landed", "why": "the worktree has no commits over origin/integration"}]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert steps()["1.1"]["state"] == "blocked" and fake.landed_calls == [] and queue.load()[0]["cursor"] == 0
+    assert "no commits" in steps()["1.1"]["why"]
+
+
+def test_an_approved_red_on_base_is_remembered_for_its_head_and_the_same_head_is_not_blocked_again(state):
+    """#6589 2026-11-20: runner-soak was blocked 3x at one head for the same red-on-base. After an approve, the same head and
+    the same kind go on by themselves, once; the alert is not raised again."""
+    lane(state)
+    full = "ab12cd34e" + "5" * 31  # the real refusal carries no "head" key: the ladder's head is "judged", the alert names its first 9
+    red = {"ok": False, "kind": "red-on-base", "why": f"red-on-base at {full[:9]}: NOT RED ON BASE: fichero-builder/tests/test_x.py passes", "judged": full}
+    fake = Fake(chains={"1.1": [dict(red), dict(red)]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    (a,) = _alerts()
+    assert queue.answer(a["id"], "approve")[0] == 0
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert steps()["1.1"]["state"] == "landed" and len(_alerts()) == 1, "the second red at the same head raised no alert"
+    assert [r for r in journal.read() if r["event"] == "queue" and r.get("state") == "auto-approve"]
+
+
+def test_a_new_lane_does_not_start_under_the_disk_floor_and_the_row_says_why(state, monkeypatch):
+    """#6589 2026-11-20 item 5: the Mac filled up under new lanes; under [loop].disk_floor_gb nothing new starts."""
+    lane(state)
+    fake = Fake()
+    fake.procs.free_gb = lambda: 12.0
+    monkeypatch.setattr(queue, "DISK_FLOOR_GB", [30.0])
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    assert fake.starts == [] and steps()["1.1"]["state"] == "queued"
+    rows = [r for r in journal.read() if r["event"] == "queue" and r.get("state") == "disk-hold"]
+    assert len(rows) == 1 and "12" in rows[0]["detail"] and "30" in rows[0]["detail"]
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    assert len([r for r in journal.read() if r.get("state") == "disk-hold"]) == 1, "one row per reason, not a row a tick"
+    fake.procs.free_gb = lambda: 80.0
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    assert fake.starts, "above the floor it starts"
+
+
+def test_removing_a_lanes_tree_drops_its_jcodemunch_index(state, tmp_path):
+    fake, wt, land, repo, g = _cleanup_world(state, tmp_path)
+    dropped = []
+    fake.procs.drop_index = dropped.append
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    assert not wt.exists() and dropped == [str(land), str(wt)]
+
+
+def test_the_workers_uv_cache_is_pruned_once_a_week(state):
+    fake = Fake()
+    calls = []
+    fake.procs.uv_prune = lambda: calls.append(1) or (0, "pruned")
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    assert len(calls) == 1 and [r["state"] for r in journal.read() if r["event"] == "uv-prune"] == ["done"]
+    (journal.STATE / queue.UV_PRUNE).write_text(f"{time.time() - 8 * 86400}\n")
+    queue.tick(fake.procs, {}, workers_n=1, push=False, out=lambda s: None)
+    assert len(calls) == 2
+
+
+def test_a_step_red_only_on_the_file_bound_gets_a_split_brief_and_the_next_step_brings_part2_back(state):
+    """#6589 2026-11-20 item 6: a batch over the file bound is not blocked: the worker keeps the core (<= the bound) on the lane
+    branch and the rest on <lane>-part2; the next step's brief tells it to bring part2 back."""
+    lane(state)
+    over = {"ok": False, "kind": "red", "why": "the check is red at h1 (failed: diff-bound)", "findings": "failed rung: diff-bound\ndiff bound: 40 files, over 25"}
+    fake = Fake(chains={"1.1": [over]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    split = fake.sent[0]
+    assert "40 files" in split and "at most 25 files" in split and "m1-part2" in split and "git branch -f m1-part2 HEAD" in split
+    assert steps()["1.1"]["state"] == "landed" and steps()["1.2"]["state"] == "landed" and _alerts() == []
+    assert "m1-part2" in fake.sent[1] and "brief 1.2" in fake.sent[1], "the next step is told to bring part2 back"
+
+
+def test_any_other_red_still_gets_the_plain_fix_brief(state):
+    lane(state)
+    fake = Fake(chains={"1.1": [{"ok": False, "kind": "red", "why": "pytest red", "findings": "failed rung: pytest\nt1 failed"}]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert "part2" not in fake.sent[0] and "t1 failed" in fake.sent[0]

@@ -523,5 +523,7 @@
   "PATCH /api/export/kept/{export_id}": "batch-21 (#6588): Choose Folder and Keep up to date on a kept export are audited (export.update) but have no inverse yet; the app's Undo for them is not built",
   "POST /api/activity/pause-all": "batch-22 (#6588, activity.window.run-controls): the window's global run controls; Pause All and Continue All undo each other by the other button, Stop All has no inverse (a stopped run is Retried, not undone)",
   "POST /api/activity/continue-all": "batch-22 (#6588, activity.window.run-controls): the window's global run controls; Pause All and Continue All undo each other by the other button, Stop All has no inverse (a stopped run is Retried, not undone)",
-  "POST /api/activity/stop-all": "batch-22 (#6588, activity.window.run-controls): the window's global run controls; Pause All and Continue All undo each other by the other button, Stop All has no inverse (a stopped run is Retried, not undone)"
+  "POST /api/activity/stop-all": "batch-22 (#6588, activity.window.run-controls): the window's global run controls; Pause All and Continue All undo each other by the other button, Stop All has no inverse (a stopped run is Retried, not undone)",
+  "POST /api/activity/models/unload-idle": "#6588 (models.row.what-unloading-gives-back): unloading is not undone; the model loads again on its next use",
+  "PUT /api/activity/models/run-settings/{runtime}": "#6588 (models.settings.run-knobs): the action records before and after, but no inverse is registered; the window that would offer Undo is not built yet"
 }

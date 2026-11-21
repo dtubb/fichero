@@ -298,6 +298,20 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
   catalog (`GET /api/local-inference/catalog`, MCP `fichero_models_catalog`) lists it under the `yolo` provider
   type, downloaded or not, and deletes it. Tests: `fichero-server/tests/unit/api/test_yolo_size_and_catalog_5654.py`.
 
+- `runtime.yolo.imports-wherever-the-engine-runs` — **[GAP]** (#6675, #5525) Ultralytics imports, and a detector finds
+  regions on a real page, in every Python the engine runs under: the app's bundle, the development and test environment,
+  and the runtime matrix's. Today Ultralytics is not a declared dependency and is in no lock file: it reaches a Python
+  only through the bundle step (`[tool.fichero.mlx_bundle]` in `fichero-server/pyproject.toml`, installed by
+  `scripts/install_mlx_into_engine_bundle.py`), which `scripts/setup_venv.sh` also runs and then checks by import. An
+  environment made any other way lacks it, and no test notices, because the detector and the trainer are stand-ins in
+  every test (`fichero-server/tests/unit/training/test_yolo_regions_training.py`); the runtime matrix
+  (`runner.measured.runtime-matrix`) found exactly that. The rule: one way to make the environment
+  (`scripts/setup_venv.sh`), and the gate refuses to run the engine's tests in a Python where a bundled runtime does not
+  import, naming the module and the command that fixes it; the matrix's YOLO row runs the real detector on the fixture
+  pages on the GPU, twice, with one load. *Test (to write):* test_yolo_runs_for_real.py in
+  fichero-server/tests/unit/llm/ (skipped with its reason only where the stock weights are not in the model store; an
+  import failure fails, never skips).
+
 ### C. Loading, residency and speed
 
 - `runtime.kraken.model-stays-loaded` — **[PARTIAL]** (#5370) the segmenter and each reader are
@@ -493,6 +507,19 @@ Engine first: the estimate and the five-step factor as a pure function with its 
 
 - test (to write): `test_kraken_shrink_to_fit.py` in fichero-server/tests/unit/llm/ (the five-row factor table from available bytes and page size; no decode before the decision; the rendition row; lines within 2 px of a full-size read; checksum unchanged; reuse of the file)
 - test (to write): `ReadAtReducedSizeRowTests.swift` in fichero/Tests/Unit/general/Views/Inspector/ (the row's words from a rendition's steps row; the action enabled only when the estimate fits; the run summary count)
+
+#### Step 2.1 — YOLO runs for real wherever the engine runs: imported, on the lane, on the right device (#5525)
+- Behaviours: `runtime.yolo.imports-wherever-the-engine-runs`, `runtime.yolo.none-yet`, `runtime.pytorch.device-chosen`
+- Tests: fichero-server/tests/unit/scripts/test_runtime_matrix.py, fichero-server/tests/unit/recipes/test_yolo_regions_card.py, test_yolo_runs_for_real.py (not yet written)
+- Size: S
+
+The first step of the model loop's layout row (`compute/distillation.md` Stage 2). Built: the detector
+(`llm/yolo_runtime.py`: pinned and hashed weights, MPS else CPU, loaded once), the find-regions step
+(`recipes/regions.py`), training from a person's regions on this Mac (`training/yolo_local.py`). Left: the import made
+certain in every environment; find-regions as a job on the local ML lane, taking its turn with the other heavy models;
+the device chosen by measurement on the fixture, not by availability alone; the matrix's YOLO row green on the 8 GB
+Mac. Acceptance: the runtime matrix on the smallest Mac reports YOLO ok, one load across two passes, with seconds a
+page and peak memory.
 
 ## Test matrix
 

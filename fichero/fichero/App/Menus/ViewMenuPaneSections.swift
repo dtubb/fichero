@@ -14,15 +14,11 @@ struct InspectorButton: View {
     }
 
     var body: some View {
-        Button {
-            showInspector?.wrappedValue.toggle()
-        } label: {
-            Label(
-                isVisible ? "Hide Inspector" : "Show Inspector",
-                systemImage: "sidebar.right"
-            )
+        Toggle(isOn: Binding(get: { isVisible }, set: { showInspector?.wrappedValue = $0 })) {
+            Label("Inspector", systemImage: "sidebar.right")
         }
         .keyboardShortcut("i", modifiers: [.command, .control])
+        .help("Show Inspector (⌃⌘I)")
         .disabled(showInspector == nil)
     }
 }
@@ -44,23 +40,20 @@ struct PaneVisibilitySection: View {
         Section("Panes") {
             PaneToggleButton(
                 binding: showDocumentGrid,
-                showLabel: ItemsPane.showLabel,
-                hideLabel: ItemsPane.hideLabel,
-                icon: "books.vertical",
+                title: PaneMenuEntry.items.title,
+                icon: PaneMenuEntry.items.systemImage,
                 shortcut: KeyboardShortcut("g", modifiers: [.command, .shift])
             )
             PaneToggleButton(
                 binding: showDocumentCanvas,
-                showLabel: SourcePane.showLabel,
-                hideLabel: SourcePane.hideLabel,
-                icon: "doc.richtext",
+                title: PaneMenuEntry.source.title,
+                icon: PaneMenuEntry.source.systemImage,
                 shortcut: nil
             )
             PaneToggleButton(
                 binding: showReadingPane,
-                showLabel: "Show Reader",
-                hideLabel: "Hide Reader",
-                icon: "text.book.closed",
+                title: PaneMenuEntry.reader.title,
+                icon: PaneMenuEntry.reader.systemImage,
                 shortcut: nil
             )
             ShowMiniToolbarToggle()
@@ -101,8 +94,8 @@ extension FocusedValues {
 /// focused window's binding and disables when no window publishes it.
 struct PaneToggleButton: View {
     let binding: Binding<Bool>?
-    let showLabel: String
-    let hideLabel: String
+    /// The pane's name; the check says whether it shows (#6730).
+    let title: String
     let icon: String
     let shortcut: KeyboardShortcut?
 
@@ -111,10 +104,8 @@ struct PaneToggleButton: View {
     }
 
     var body: some View {
-        Button {
-            binding?.wrappedValue.toggle()
-        } label: {
-            Label(isVisible ? hideLabel : showLabel, systemImage: icon)
+        Toggle(isOn: Binding(get: { isVisible }, set: { binding?.wrappedValue = $0 })) {
+            Label(title, systemImage: icon)
         }
         .keyboardShortcut(shortcut)
         .disabled(binding == nil)

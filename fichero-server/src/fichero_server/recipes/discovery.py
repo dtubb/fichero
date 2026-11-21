@@ -763,11 +763,11 @@ def _harvest() -> dict[str, dict[str, Any]]:
 
 def _row(record: Any) -> dict[str, Any] | None:
     """A repository record as discovery keeps it, or None when it is not a Kraken recognition model."""
+    from fichero_server.llm.kraken_runtime import is_kraken_recognition_record
+
+    if not is_kraken_recognition_record(record):
+        return None
     keywords = list(getattr(record, "keywords", None) or [])
-    if getattr(record, "software_name", None) != "kraken" and "kraken_pytorch" not in keywords:
-        return None
-    if "recognition" not in (getattr(record, "model_type", None) or []):
-        return None
     metrics = getattr(record, "metrics", None) or {}
     published = getattr(record, "publication_date", None)
     return {
@@ -873,6 +873,20 @@ def _row_scripts(row: dict[str, Any]) -> frozenset[str]:
     return covered_scripts(scripts)
 
 
+def _row_period(row: dict[str, Any]) -> tuple[int, int] | None:
+    """The years a record's own words name ("15th century", "16th-17th centuries", "1650-1700"), the union of
+    every period it names, or None when it names none: the rules rank a reader made for another period lower."""
+    text = " ".join([row.get("summary", ""), row.get("description", ""), *row.get("keywords", [])])
+    spans: list[tuple[int, int]] = []
+    for m in _PERIOD.finditer(text):
+        found = [int(n) for n in re.findall(r"\b(\d{1,4})(?:st|nd|rd|th)?\b", m.group(0))]
+        if m.group(0)[:1].isdigit() and len(found) and found[0] < 100:
+            spans.append(((found[0] - 1) * 100 + 1, found[-1] * 100))
+        elif len(found) == 2:
+            spans.append((min(found), max(found)))
+    return (min(s[0] for s in spans), max(s[1] for s in spans)) if spans else None
+
+
 def _row_material(row: dict[str, Any]) -> frozenset[str]:
     """The material a record's own words name ("printed", "manuscripts", "typewritten"), or none: the rules
     rank a reader whose card states the asked material first (`source.recipe.script-reader-first`, #5593)."""
@@ -911,7 +925,7 @@ def repository_cards(rows: list[dict[str, Any]], seed: tuple[Card, ...] | list[C
         out.append(Card(
             id=f"kraken:zenodo/{row['doi']}@pinned", pin={"zenodo": row["doi"]}, jobs=frozenset({"read-a-line"}),
             scripts=_row_scripts(row) or None, languages=langs, material=_row_material(row),
-            open_licence=_is_open(row["licence"]), size_gb=round(gib(row["size_bytes"]), 4),
+            period=_row_period(row), open_licence=_is_open(row["licence"]), size_gb=round(gib(row["size_bytes"]), 4),
             trainable=True, cer_published=cer if matches else None, licence=row["licence"],
             note=row["summary"] or row["doi"], source="kraken-repository", offered_because=why,
         ))
@@ -1592,7 +1606,7 @@ def keep_hub(cards: list[Card], languages: frozenset[str], left_out: int = 0) ->
     for repo, row in list(found.items()):
         if repo not in found_now:
             row["found_for"] = sorted(set(row.get("found_for") or ()) - languages)
-            if not row["found_for"]:
+            if not row["found_for"] and not row.get("bookmarked"):  # a bookmarked card outlives the search (#5460)
                 del found[repo]
     for card in cards:
         key, repo = _hub_key(card), _hub_repo(card)
@@ -1605,14 +1619,49 @@ def keep_hub(cards: list[Card], languages: frozenset[str], left_out: int = 0) ->
                        "material": sorted(card.material), "licence": card.licence, "note": card.note,
                        "offered_because": card.offered_because, "size_gb": card.size_gb,
                        "runs_here": card.runs_here, "cannot_run_because": card.cannot_run_because,
-                       "runs_on": card.runs_on, "found_for": sorted({*before.get("found_for", []), *languages}), "found_at": now}
+                       "runs_on": card.runs_on, "found_for": sorted({*before.get("found_for", []), *languages}), "found_at": now,
+                       **({"bookmarked": True} if before.get("bookmarked") else {})}
     left = dict(data.get("left_out") or {})
     left[_languages_key(languages)] = left_out
+    _write_hub({"found": found, "left_out": left})
+
+
+def _write_hub(data: dict[str, Any]) -> None:
     folder = _store_root()
     folder.mkdir(parents=True, exist_ok=True)
     tmp = folder / f".{HUB_FILE}.tmp"
-    tmp.write_text(json.dumps({"found": found, "left_out": left}, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
     tmp.replace(folder / HUB_FILE)
+
+
+class BookmarkInUse(Exception):
+    """A card a step uses keeps its bookmark; the message names the steps."""
+
+
+def bookmark(key: str) -> None:
+    """Keep a found card (`models.bookmark.kept-not-added`, #5460): it stays in the kept list without being downloaded, and a
+    later search that does not find it leaves it. KeyError for a card no search found."""
+    data = _hub_file()
+    found = cached_hub()
+    found[key]["bookmarked"] = True  # KeyError: nothing to keep
+    _write_hub({**data, "found": found})
+
+
+def remove_bookmark(key: str, recipe: dict[str, Any] | None) -> None:
+    """Let a bookmark go. Refused (BookmarkInUse, naming the steps) while a step of `recipe` (the open project's) has this
+    card as its chosen model. A card no search finds now leaves the list with its bookmark."""
+    data = _hub_file()
+    found = cached_hub()
+    row = found[key]
+    card_ids = {f"mlx:hf/{row.get('repo') or key}@main", f"remote:hf/{row.get('repo') or key}@main",
+                f"hf:hf/{row.get('repo') or key}@main", str(row.get("id") or "")}
+    steps = sorted({str(o.get("step")) for o in (recipe or {}).get("overrides") or [] if o.get("card") in card_ids})
+    if steps:
+        raise BookmarkInUse(f"{row.get('note') or key} is the model of step {', '.join(steps)}: choose another for it first")
+    row.pop("bookmarked", None)
+    if not row.get("found_for"):
+        del found[key]
+    _write_hub({**data, "found": found})
 
 
 def _hub_key(card: Card) -> str:

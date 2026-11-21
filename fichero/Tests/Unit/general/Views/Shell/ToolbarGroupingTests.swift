@@ -71,34 +71,37 @@ struct ToolbarGroupingTests {
     /// bare `[1]` on a split whose separator had left the file, and an Array
     /// bounds trap in a test kills the whole host — every test after it in
     /// run order reports failed (the 2026-08-04 whole-suite red).
-    @Test("the three pane toggles are one group")
-    func paneTogglesAreOneGroup() throws {
+    @Test("the toolbar has no Hide Items, Hide Source or Hide Reader buttons")
+    func toolbarHasNoPaneToggles() throws {
         let source = try Self.toolbarSource
-        let parts = source.components(separatedBy: "ToolbarItemGroup(")
-        try #require(
-            parts.count == 2,
-            "expected exactly one ToolbarItemGroup — the three-pane control — found \(parts.count - 1)"
-        )
-        // Bound the group at the next ToolbarItem so membership means "inside
-        // THIS builder", not "later in the file". The search toggle (#4521)
-        // is deliberately its own item, never a fourth member.
-        let group = parts[1].components(separatedBy: "ToolbarItem(").first ?? parts[1]
-        // …and the members are inside it, in column order. The labels flip
-        // Show/Hide (Daniel, 2026-08-29: Buttons, not accent-filled Toggles —
-        // "changing colors — that's a bad UX"; the WORDS carry the state).
-        let library = group.range(of: "libraryPaneToggleButton")
-        let preview = group.range(of: "SourcePane.hideLabel : SourcePane.showLabel")
-        let reading = group.range(of: "\"Hide Reader\" : \"Show Reader\"")
-        let chat = group.range(of: "\"Hide Chat\" : \"Show Chat\"")
-        #expect(library != nil)
-        #expect(preview != nil)
-        #expect(reading != nil)
-        #expect(chat != nil)
-        if let library, let preview, let reading, let chat {
-            #expect(library.lowerBound < preview.lowerBound)
-            #expect(preview.lowerBound < reading.lowerBound)
-            #expect(reading.lowerBound < chat.lowerBound)
+        for gone in ["libraryPaneToggleButton", "ItemsPane.hideLabel", "SourcePane.hideLabel", "Hide Reader", "Show Reader"] {
+            #expect(!source.contains(gone), Comment(rawValue: "the toolbar still carries \(gone)"))
         }
+    }
+
+    /// Which panes show is the Workspaces menu's and View ▸ Panes' to say (#6730): each pane is a checked item.
+    @Test("the Workspaces menu lists every pane with a check that follows its visibility, both ways")
+    func workspacesMenuChecksFollowVisibility() throws {
+        let menu = try Self.appSource("Views/Shell/ContentView/ContentView+PaneToggleMenu.swift")
+        #expect(menu.contains("Toggle(isOn: Binding("))
+        #expect(menu.contains("PaneMenuEntry.allCases"))
+        let shown = PaneVisibility(grid: true, canvas: false, reading: true)
+        let hidden = PaneVisibility(grid: false, canvas: true, reading: false)
+        #expect(PaneMenuEntry.items.isChecked(shown, inspector: false))
+        #expect(!PaneMenuEntry.source.isChecked(shown, inspector: false))
+        #expect(PaneMenuEntry.reader.isChecked(shown, inspector: false))
+        #expect(PaneMenuEntry.inspector.isChecked(shown, inspector: true))
+        #expect(!PaneMenuEntry.items.isChecked(hidden, inspector: false))
+        #expect(PaneMenuEntry.source.isChecked(hidden, inspector: false))
+        #expect(!PaneMenuEntry.reader.isChecked(hidden, inspector: false))
+        #expect(!PaneMenuEntry.inspector.isChecked(hidden, inspector: false))
+    }
+
+    @Test("View > Panes lists the same panes, each checked")
+    func viewMenuChecksPanes() throws {
+        let view = try Self.appSource("App/Menus/ViewMenuPaneSections.swift")
+        #expect(view.contains("Toggle(isOn:"))
+        #expect(!view.contains("Hide Reader"))
     }
 
     /// #4407 dissolved the window-level sort/filter group entirely: the

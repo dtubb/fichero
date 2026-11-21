@@ -42,7 +42,7 @@ struct InspectorNoReadingSection: View {
         let store = SegmentStore.shared(for: segmentService)
         let documentId = documentId
         let afterChange = afterChange
-        try? await AuditedAction.run(
+        _ = try? await AuditedAction.run(
             "representation.create",
             params: NewReadingParams(
                 documentId: documentId, segmentId: segmentId, kind: "transcription", content: content,

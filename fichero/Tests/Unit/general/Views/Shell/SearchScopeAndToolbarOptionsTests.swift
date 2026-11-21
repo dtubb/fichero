@@ -94,7 +94,7 @@ struct SearchScopeAndToolbarOptionsTests {
         )
         let body = String(button.prefix(900))
         #expect(body.contains("mode: searchFieldModeBinding"))
-        #expect(body.contains("scopeIsFolder: $transientSearchScopeIsFolder"))
+        #expect(body.contains("scope: $transientSearchScope"))
         #expect(body.contains("searchType: $transientSearchType"))
         #expect(body.contains("libraryName: searchChromeLibraryName"))
     }

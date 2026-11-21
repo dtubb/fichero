@@ -1107,6 +1107,7 @@
 		};
 		SBX00042F27F36000EC9EE1 /* Strip Sparkle Info.plist Keys */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			name = "Strip Sparkle Info.plist Keys";
 			shellPath = /bin/sh;
 			shellScript = (
@@ -1157,6 +1158,7 @@
 		};
 		SBX00052F27F36000EC9EE1 /* Validate App Store Bundle */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			name = "Validate App Store Bundle";
 			shellPath = /bin/sh;
 			shellScript = (

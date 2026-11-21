@@ -581,6 +581,22 @@ _WANTED: contextvars.ContextVar[dict[str, str | None]] = contextvars.ContextVar(
     "kraken_wanted", default={"segment": "blla", "read": None})
 
 
+#: The page the next segmentation reads, in megapixels of the network's input (`network_megapixels`); None: not known.
+_PAGE_MEGAPIXELS: contextvars.ContextVar[float | None] = contextvars.ContextVar("kraken_page_megapixels", default=None)
+
+#: Kraken's blla scales every page to this height, whatever the scan's size (kraken/blla.mlmodel input spec).
+_NETWORK_HEIGHT = 1800
+#: Measured 2026-11-19 (iMac M4, convolutions banded): peak = 0.5 GB + 0.6 GB per megapixel of the network's input
+#: (a portrait page 1.9 GB, a two-page spread 3.4 GB).
+_NETWORK_BASE_BYTES = int(0.5 * 1024**3)
+_NETWORK_BYTES_PER_MEGAPIXEL = int(0.6 * 1024**3)
+
+
+def network_megapixels(width: int, height: int) -> float:
+    """The network's input in megapixels for a `width` x `height` page: Kraken scales the height to 1800 and keeps the ratio."""
+    return width * _NETWORK_HEIGHT / height * _NETWORK_HEIGHT / 1e6
+
+
 def kraken_models_resident() -> bool:
     """Whether every model the next call will use is in memory now, with the key it will ask for: the call loads
     nothing (a held line finder with no reader, or another reader, still loads one)."""
@@ -593,6 +609,10 @@ def kraken_need_bytes() -> int:
     that IS the next Kraken page only: the page guard, the page fan-out, the reader's batch and `model_need` for a
     loaded Kraken. NOT the shared floor other heavy work asks (`throttle.heavy_work_need_bytes` stays cold)."""
     cold = _kraken_memory_need_bytes()
+    megapixels = _PAGE_MEGAPIXELS.get()
+    if megapixels is not None and not os.environ.get(_MEMORY_NEED_ENV_VAR):  # the page's own size, not the flat figure
+        working = int(_NETWORK_BYTES_PER_MEGAPIXEL * megapixels)
+        return max(_RESIDENT_WORKING_NEED_BYTES, working) if kraken_models_resident() else _NETWORK_BASE_BYTES + working
     return min(cold, _RESIDENT_WORKING_NEED_BYTES) if kraken_models_resident() else cold
 
 
@@ -901,6 +921,27 @@ def threads_each(cores: int, pages_at_once: int) -> int:
     return max(1, cores // max(1, pages_at_once))
 
 
+def _run_setting(knob: str) -> Any:
+    """What the person set for Kraken in the Models window (`models.settings.run-knobs`); None when unset."""
+    from fichero_server.llm.model_run_settings import run_settings
+
+    return run_settings("kraken")[knob]
+
+
+def reading_threads(cores: int, pages_at_once: int) -> int:
+    """The threads each page reads on: the person's setting, else `threads_each`."""
+    return _run_setting("threads") or threads_each(cores, pages_at_once)
+
+
+def reading_device() -> str:
+    """The reader's device: the environment's override, else the person's Kraken setting, else the global preference."""
+    from fichero_server.core.compute_preferences import DEVICES, compute_preferences
+
+    if os.environ.get("FICHERO_COMPUTE_DEVICE", "").strip().lower() in DEVICES:
+        return compute_preferences()["device"]
+    return _run_setting("device") or compute_preferences()["device"]
+
+
 #: torch's threads as the Kraken seam last set them, and the torch they were set on: one pool for the whole process, so
 #: every page inside reads on it, and it is set again only when the plan changes (#6229).
 _THREADS_NOW: int | None = None
@@ -944,7 +985,7 @@ def pages_at_once_and_why(person: bool) -> tuple[int, str | None]:
     cores, source = cores_available()
     if not is_a_mac_pipeline_host(source):
         return 1, "this machine reads one page at a time"
-    n = page_fan_out(min(cores, PAGES_AT_ONCE_GATE_5929))
+    n = page_fan_out(_run_setting("pages_at_once") or min(cores, PAGES_AT_ONCE_GATE_5929))
     return n, None if n > 1 else "the free memory holds one page"
 
 
@@ -1037,17 +1078,20 @@ def _kraken_call_once(op: Callable[[], _T]) -> _T:
 
     forbid_in_get("a Kraken read")
     require_installed()
+    _shim_cross_for_2d()
     outcome: list[object] = []
     # Read here, on the job's own thread: the thread below is new and has no job. A page of a run the person started
     # goes flat out; the Mac on battery slows it (#5819, `activity.throttle.use-means-slower`).
     jobs_module = sys.modules.get("fichero_server.execution.jobs")
     person = bool(jobs_module and jobs_module.current_job_is_a_persons())
     wanted = _WANTED.get()  # likewise: the thread below starts with no context
+    page_megapixels = _PAGE_MEGAPIXELS.get()
     allowed = pages_at_once(person)  # two for a person's run when memory holds two, else one
 
     def _throttled() -> None:
         global _THREADS_NOW, _THREADS_SET_ON
         _WANTED.set(wanted)
+        _PAGE_MEGAPIXELS.set(page_megapixels)
         _PAGE.clear()  # this page's notes: each page's own thread keeps its own
         try:
             # #4987 "know before running": checked INSIDE the lock, before
@@ -1070,7 +1114,7 @@ def _kraken_call_once(op: Callable[[], _T]) -> _T:
             from fichero_server.execution.throttle import decide
 
             priority, qos, cores = set_page_priority(person)
-            threads = threads_each(cores, allowed)
+            threads = reading_threads(cores, allowed)
             _PAGE.update(priority=priority, qos=qos, threads=threads, person=person, throttle=decide(person).action)
             _note_threads_chosen(threads, allowed)
             # The other thread pools (OpenMP, the BLAS libraries) read these when torch first loads, so they are
@@ -1284,6 +1328,7 @@ def _resident_locked(kind: str, key: str, load: Callable[[], object]) -> object:
     if held is not None and held[0] == key:
         return held[1]
     _RESIDENT.pop(kind, None)  # drop the old one before loading its replacement
+    _release_the_embedder()
     # One line per load, countable with the unloads (`model-lane:`), so a reload per page shows (#5846).
     logger.info("model-lane: load kraken %s %s (%s)", kind, key,
                 "replacing the one held" if held is not None else "none held")
@@ -1293,6 +1338,30 @@ def _resident_locked(kind: str, key: str, load: Callable[[], object]) -> object:
         model = load()
     _RESIDENT[kind] = (key, model)
     return model
+
+
+def _release_the_embedder() -> None:
+    """The embedder and Kraken are never loaded together (owner rule 2026-11-19): free the embedder before a Kraken
+    model loads; while an embed holds it, wait (a `MemoryShortError`, so the lane runs the page again later)."""
+    embeddings = sys.modules.get("fichero_server.db.embeddings")
+    if embeddings is None:
+        return
+    embeddings.release_idle_embedders(idle_seconds=0, reason="Kraken loads")
+    if embeddings._EMBEDDER_CACHE:
+        raise KrakenMemoryUnavailableError("An embed is using the search model; Kraken waits for it to finish.")
+
+
+def release_for_the_embedder() -> None:
+    """The other half: free Kraken's resident models before the embedder loads. While a page is running (the gate is
+    held or a run has pages in flight) raise `MemoryShortError` so the embed waits."""
+    if not _RESIDENT:
+        return
+    if _a_run_has_pages_in_flight() or not _INFERENCE_LOCK.acquire(blocking=False):
+        raise MemoryShortError("Kraken is reading a page; the search model waits for it to finish.")
+    try:
+        release_resident_models("the embedder loads")
+    finally:
+        _INFERENCE_LOCK.release()
 
 
 def release_resident_models(reason: str = "unspecified") -> None:
@@ -1354,7 +1423,7 @@ def reader_batch_size() -> int:
     """How many lines the reader sends through at once: one (#5854, `source.read.batch-of-one`). A batch pads every
     line crop to the widest in it: on a 33-line page batch 1 took 3.0 s, 8 took 5.5 s, 16 took 43.5 s (M4). Memory
     could only ever shrink it below one, so it no longer enters (#5758's bound is met by one line at a time)."""
-    return 1
+    return _run_setting("batch_size") or 1
 
 
 #: What each page read at once holds beyond the model: its image, the segmenter's maps, the lines' crops (measured
@@ -1375,25 +1444,82 @@ def _reader_config(config_cls: Callable[..., object]) -> object:
     """The reader's device, as the person chose (`torch_accelerator`: auto is the CPU, #5529). Kraken's
     "auto" was slower than either per page (measured 2026-10-03 on a Sergio notebook half-page:
     auto 28 s, CPU 13 s, MPS 11 s, with the model already loaded)."""
-    from fichero_server.core.compute_preferences import compute_preferences, torch_accelerator
+    from fichero_server.core.compute_preferences import torch_accelerator
 
     # num_line_workers=0: Kraken's default (2) extracts lines in a multiprocessing Pool, whose semaphore the
     # app sandbox refuses ("[Errno 1] Operation not permitted"), so every reader failed in the app and worked
     # in a terminal (2026-10-10). 0 is Kraken's own in-process path; training already runs with --workers 0.
-    config = config_cls(accelerator=torch_accelerator(compute_preferences()["device"]), device=1, num_line_workers=0)
+    config = config_cls(accelerator=torch_accelerator(reading_device()), device=1, num_line_workers=0)
     if hasattr(config, "batch_size"):  # bounded by the memory the Mac has now, not Kraken's own default (#5758)
         config.batch_size = reader_batch_size()
     return config
 
 
-def _segmenter() -> object:
-    """Kraken's built-in baseline line finder, loaded once."""
+def _segmenter(base_path: str | None = None) -> object:
+    """Kraken's line finder, loaded once: the built-in blla base, or (with `base_path`) the newer 2026 base (zenodo
+    22879549, #6751), which `TorchVGSLModel.load_model` cannot read (KeyError 'hyper_params') and
+    `kraken.tasks.SegmentationTaskModel` can. Both are banded; a different base replaces the resident one."""
     from importlib import resources
 
-    from kraken.lib import vgsl
+    def load() -> object:
+        if base_path is None:
+            from kraken.lib import vgsl
 
-    return _resident("segment", "blla", lambda: vgsl.TorchVGSLModel.load_model(
-        resources.files("kraken").joinpath("blla.mlmodel")))
+            model = vgsl.TorchVGSLModel.load_model(resources.files("kraken").joinpath("blla.mlmodel"))
+            _band_convolutions(model, _SEGMENTER_BAND_ROWS)
+        else:
+            from kraken.tasks import SegmentationTaskModel
+
+            model = SegmentationTaskModel.load_model(base_path)
+            if not _band_convolutions(getattr(model, "model", model), _SEGMENTER_BAND_ROWS):
+                raise KrakenSegmentationError(f"No convolution to band in the segmentation base {base_path}.")
+        return model
+
+    return _resident("segment", base_path or "blla", load)
+
+
+#: Output rows each 3x3 / 7x7 convolution of the line finder computes at once. Measured 2026-11-19 on a portrait page
+#: (M4): 32 rows peak 1.9 GB against 3.8 GB unbanded, 16 and 64 rows were larger, the lines and polygons identical.
+_SEGMENTER_BAND_ROWS = 32
+
+
+class _BandedConv:
+    """The same convolution done `rows` output rows at a time, so torch's im2col buffer is a band's, not the page's."""
+
+    def __new__(cls, conv: object, rows: int) -> object:
+        import torch
+        import torch.nn.functional as functional
+
+        class Banded(torch.nn.Module):
+            def __init__(self) -> None:
+                super().__init__()
+                self.conv, self.rows = conv, rows
+
+            def forward(self, x):
+                c = self.conv
+                (kh, _kw), (sh, _sw), (ph, pw) = c.kernel_size, c.stride, c.padding
+                x = functional.pad(x, (pw, pw, ph, ph))
+                out_h = (x.shape[2] - kh) // sh + 1
+                parts = [functional.conv2d(x[:, :, r * sh:(min(r + self.rows, out_h) - 1) * sh + kh, :],
+                                           c.weight, c.bias, stride=c.stride)
+                         for r in range(0, out_h, self.rows)]
+                return torch.cat(parts, dim=2)
+
+        return Banded()
+
+
+def _band_convolutions(model: object, rows: int) -> int:
+    """Wrap every non-1x1, non-dilated `Conv2d` in the model's layers (`layer.co`) so it runs in bands of `rows`
+    output rows; the arithmetic is the same, so the output is. Returns how many were wrapped."""
+    import torch
+
+    wrapped = 0
+    for layer in model.nn.children():
+        co = getattr(layer, "co", None)
+        if isinstance(co, torch.nn.Conv2d) and co.kernel_size != (1, 1) and co.dilation == (1, 1):
+            layer.co = _BandedConv(co, rows)
+            wrapped += 1
+    return wrapped
 
 
 def _line_confidence(record: object) -> float | None:
@@ -1507,6 +1633,7 @@ def segment_lines(
         raise KrakenSegmentationError("No image path was supplied for this page; the engine could not resolve its source file.")
     caller = run_call or _kraken_call
     token = _WANTED.set({"segment": "blla"})
+    size_token = _PAGE_MEGAPIXELS.set(_page_megapixels(image_path))
     try:
         return caller(lambda: _segment_raw(image_path, direction))
     except (KrakenRuntimeMissingError, KrakenMemoryUnavailableError, ModelWorkInGet):  # a GET's refusal keeps its own words
@@ -1519,6 +1646,20 @@ def segment_lines(
         raise KrakenSegmentationError(f"Kraken segmentation failed: {exc}") from exc
     finally:
         _WANTED.reset(token)
+        _PAGE_MEGAPIXELS.reset(size_token)
+
+
+def _page_megapixels(page: str | Path) -> float | None:
+    """The page's network input in megapixels, from the file's header; None when it cannot be read (the flat figure then
+    applies, and the segmentation itself reports the unreadable file)."""
+    from PIL import Image
+
+    try:
+        with Image.open(page) as image:  # the header only: `upright_size` turns it by the EXIF orientation
+            width, height = upright_size(image)
+    except (OSError, ValueError):
+        return None
+    return network_megapixels(width, height) if width and height else None
 
 
 def recognize_lines(
@@ -1647,6 +1788,15 @@ def recognition_display_name(model_id: str) -> str:
     return f"the reader from Kraken's repository (record {match.group(1)})" if match else "the Kraken reader"
 
 
+def is_kraken_recognition_record(record: object) -> bool:
+    """Whether a repository record is a Kraken recognition model: the one test the listing (`discovery._row`) and the
+    download share, so a reader the finder offers is one the download accepts (#6733)."""
+    keywords = list(getattr(record, "keywords", None) or [])
+    if getattr(record, "software_name", None) != "kraken" and "kraken_pytorch" not in keywords:
+        return False
+    return "recognition" in (getattr(record, "model_type", None) or [])
+
+
 def download_recognition_model(
     model_id: str,
     home: Path | None = None,
@@ -1683,12 +1833,13 @@ def download_recognition_model(
         from htrmopo import get_description
 
         record = get_description(str(spec["doi"]))
-        if "recognition" not in (getattr(record, "model_type", None) or []) or \
-                getattr(record, "software_name", None) != "kraken":
+        if not is_kraken_recognition_record(record):
             raise ValueError(f"{spec['doi']} is not a Kraken recognition model in Kraken's repository")
     # Each reader in its own folder: in one shared folder their metadata.json and README.md overwrote
     # each other, and "the newest .mlmodel anywhere" picked ANOTHER reader when this one ships as
     # .safetensors (Kraken 7's format) -- PP-OCRv6 resolved to McCATMuS (2026-10-03).
+    if run_call is None:
+        require_installed()  # a reader is of no use without Kraken: said first, before any folder is made
     data_home = recognition_data_home(home) / model_id
     data_home.mkdir(parents=True, exist_ok=True)
 
@@ -1722,8 +1873,7 @@ def download_recognition_model(
     else:
         # A download is not Kraken work: it never takes Kraken's lock or its memory check (it used to, through
         # `_kraken_call`, so a page being read held up the download and the other way round). A reader is
-        # of no use without Kraken, so its absence is still said first.
-        require_installed()
+        # of no use without Kraken, so its absence is said first (above, before the folder is made).
         _fetch()
 
     found = [p for p in data_home.rglob("*") if p.suffix in (".mlmodel", ".safetensors")]
@@ -2040,6 +2190,7 @@ def train_recognition(argv: list[str], out: Path, *, on_batch: Callable[[], None
     Not under `_INFERENCE_LOCK`: training runs for hours and steps aside at a batch boundary for a
     page a person waits for, which needs that lock; it runs as a job on the local-model lane, so
     no other heavy model loads beside it."""
+    _shim_cross_for_2d()
     import kraken.train as kraken_train
     from kraken.ketos import cli
     from kraken.ketos.recognition import train
@@ -2082,9 +2233,38 @@ def polygonal_environment_available() -> bool:
 
 def calculate_polygonal_environment(*args: Any, **kwargs: Any) -> Any:
     """Kraken's `calculate_polygonal_environment`, behind the seam (only this module imports kraken)."""
+    _shim_cross_for_2d()
     from kraken.lib.segmentation import calculate_polygonal_environment as _calculate
 
     return _calculate(*args, **kwargs)
+
+
+class _NumpyWith2dCross:
+    """`numpy` as `kraken.lib.segmentation` sees it, with `cross` accepting 2-D vectors: numpy 2.5 refuses them, kraken 7.1.1
+    crosses them for every baseline of more than two points and swallows the error into an empty reading (#6750)."""
+
+    def __getattr__(self, name: str) -> Any:
+        import numpy
+
+        return getattr(numpy, name)
+
+    @staticmethod
+    def cross(a: Any, b: Any, *args: Any, **kwargs: Any) -> Any:
+        import numpy
+
+        a, b = numpy.asarray(a), numpy.asarray(b)
+        if a.shape[-1] == 2 and b.shape[-1] == 2:  # the z of the 3-D cross
+            return a[..., 0] * b[..., 1] - a[..., 1] * b[..., 0]
+        return numpy.cross(a, b, *args, **kwargs)
+
+
+def _shim_cross_for_2d() -> None:
+    """Install the 2-D cross product in kraken's segmentation module, once."""
+    import numpy
+    from kraken.lib import segmentation
+
+    if segmentation.np is numpy:
+        segmentation.np = _NumpyWith2dCross()
 
 
 __all__ = [

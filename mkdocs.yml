@@ -449,6 +449,7 @@ nav:
               - Git / Worktree / GitHub Workflow: contributor_manual/specs/harness/git-worktree-workflow.md
               - Release & Versioning: contributor_manual/specs/harness/release-and-versioning.md
               - Version & Contract Integrity: contributor_manual/specs/harness/version-and-contract-integrity.md
+              - GitHub CI & Security Tools: contributor_manual/specs/harness/github-ci.md
               - Code Organisation (draft): contributor_manual/specs/harness/code-organization.md
               - Release Channels & Feature Tiers (draft): contributor_manual/specs/harness/release-channels-and-feature-tiers.md
           - KG:
@@ -610,6 +611,10 @@ nav:
           - Runner Reliability Review (2026-11-18): contributor_manual/reviews/2026-11-18-runner-reliability.md
           - Runner Reliability Plan (2026-11-18): contributor_manual/reviews/2026-11-18-runner-reliability-plan.md
           - Runner Review 2, security, speed, tokens, Kraken, training (2026-11-18): contributor_manual/reviews/2026-11-18-runner-review-2.md
+          - The Model Loop on Every Recipe Step, review and build order (2026-11-19): contributor_manual/reviews/2026-11-19-distil-every-step-review.md
+          - The Model Loop, issues to file (2026-11-19): contributor_manual/reviews/2026-11-19-distil-issues.md
+          - Runner, measured on two Macs (2026-11-19): contributor_manual/reviews/2026-11-19-runner-measured.md
+          - CI Review, GitHub Actions and Xcode Cloud (2026-11-20): contributor_manual/reviews/2026-11-20-ci-review.md
           - Sidebar/UX Verify-and-Close Checklist: contributor_manual/verify-checklists/sidebar-ux-verify.md
       - UI Map: contributor_manual/ui-map.md
       - API Reference: contributor_manual/api-reference/index.md

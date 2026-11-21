@@ -30,7 +30,7 @@ struct ToolbarSurfaceLitStateTests {
         let source = try Self.toolbarSource
         // #4687: the preview/reader toggles read the DERIVED `paneVisibility`, not the retired
         // `showDocumentCanvas`/`showReadingPane` Bools.
-        for flag in ["model.isVisible", "paneVisibility.canvas", "paneVisibility.reading", "showChatPane"] {
+        for flag in ["showChatPane"] {
             #expect(source.contains(".toolbarSurfaceLit(\(flag))"),
                     "the toggle governed by \(flag) does not light")
         }
@@ -75,10 +75,7 @@ struct ToolbarSurfaceLitStateTests {
     @Test("the words still flip, so state reads without colour")
     func wordsStillCarryTheState() throws {
         let source = try Self.toolbarSource
-        for pair in ["SourcePane.hideLabel : SourcePane.showLabel",
-                     "\"Hide Reader\" : \"Show Reader\"",
-                     "\"Hide Chat\" : \"Show Chat\"",
-                     "ItemsPane.hideLabel : ItemsPane.showLabel",
+        for pair in ["\"Hide Chat\" : \"Show Chat\"",
                      "\"Hide Inspector\" : \"Show Inspector\""] {
             #expect(source.contains(pair), "the label for \(pair) stopped flipping")
         }

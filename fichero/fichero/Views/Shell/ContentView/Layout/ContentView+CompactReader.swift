@@ -109,16 +109,26 @@ extension ContentView {
                         // compact (inline) rather than the default large title.
                         .navigationBarTitleDisplayMode(.inline)
                         #endif
+                        .toolbar { compactDocumentStepToolbar(from: .source) }
                         // ponytail: full edge-swipe paging between pipeline stages
                         // is deferred. Back (NavigationStack) returns to the list,
                         // and EditorView already hosts SwipeSiblingNavigator for
                         // two/three-finger sibling paging. Add explicit
                         // stage-to-stage swiping later if wanted. (#2551)
                 }
+                // Reader and Info push on top of the file (#6566); Back pops to it.
+                .navigationDestination(isPresented: Bindable(windowState).compactReaderPushed) {
+                    compactStepScreen(.reader)
+                }
+                .navigationDestination(isPresented: Bindable(windowState).compactInfoPushed) {
+                    compactStepScreen(.info)
+                }
                 .onChange(of: browserSelection) { _, _ in syncPushedReaderDocument() }
                 .onChange(of: detailDocument) { _, _ in syncPushedReaderDocument() }
                 .onChange(of: pushedReaderDocument) { _, newValue in
                     if newValue == nil {
+                        windowState.compactReaderPushed = false
+                        windowState.compactInfoPushed = false
                         detailDocument = nil
                         browserSelection = []
                     }
@@ -132,6 +142,40 @@ extension ContentView {
                 // reader reflects the selection" an invariant, not an event.
                 .onAppear { syncPushedReaderDocument() }
         }
+    }
+
+    /// The bar buttons that push the steps `from` offers (#6566).
+    @ToolbarContentBuilder
+    func compactDocumentStepToolbar(from step: CompactDocumentStep) -> some ToolbarContent {
+        ToolbarItemGroup(placement: .primaryAction) {
+            ForEach(step.next, id: \.self) { target in
+                Button(target.title) {
+                    switch target {
+                    case .reader: windowState.compactReaderPushed = true
+                    case .info: windowState.compactInfoPushed = true
+                    case .source: break
+                    }
+                }
+            }
+        }
+    }
+
+    /// The Reader and Info screens pushed from the file: the shell's own reading pane and inspector.
+    @ViewBuilder
+    private func compactStepScreen(_ step: CompactDocumentStep) -> some View {
+        Group {
+            switch step {
+            case .reader: AnyView(widescreenReadingPane())
+            case .info: AnyView(inspectorView)
+            case .source: EmptyView()
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .navigationTitle(step.title)
+        #if !os(macOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+        .toolbar { compactDocumentStepToolbar(from: step) }
     }
 
     /// Compact (iPhone) list→detail stack for the inner-sidebar modes

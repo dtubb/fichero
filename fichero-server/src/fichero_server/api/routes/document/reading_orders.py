@@ -879,6 +879,138 @@ def _action_order_restore_positions(db: Database, params: ReadingOrderRestorePos
     return {"order_id": order.id, "restored": len(before)}, spec
 
 
+class ReadingOrderMoveParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    order_id: str
+    #: The dragged segments in the relative order they keep.
+    segment_ids: list[str] = Field(min_length=1)
+    #: The segment whose children they become; none, the top level of the order.
+    parent_segment_id: Optional[str] = None
+    #: They read right after this segment at the target level; none, first.
+    after_segment_id: Optional[str] = None
+
+
+class RestorePlace(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    position: float
+    parent_entry_id: Optional[str] = None
+
+
+class ReadingOrderRestorePlacesParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    order_id: str
+    #: {entry_id: place} as they were.
+    places: dict[str, RestorePlace]
+
+
+def _invert_restore_places(before, after, ctx: ActionContext):
+    if not after or not after.get("places_before"):
+        return None
+    return ("reading_order.restore_places", {"order_id": after["order_id"], "places": after["places_before"]})
+
+
+@action(
+    "reading_order.move",
+    ReadingOrderMoveParams,
+    domains=["reading_order"],
+    undoable=True,
+    invert=_invert_restore_places,
+)
+def _action_order_move(db: Database, params: ReadingOrderMoveParams, ctx: ActionContext):
+    """A drag in the segment list (`segment-editor.list-drag-reorder`): the dragged segments' entries move to a place
+    under a parent, keeping their relative order; the target level is numbered 1, 2, 3 ... again. All or nothing,
+    ONE action, one undo."""
+    order = _live_order(db, params.order_id)
+    by_segment = {row.segment_id: row for row in db.query(ReadingOrderEntry, order_id=order.id)}
+    moved_ids = list(dict.fromkeys(params.segment_ids))
+    named = moved_ids + [s for s in (params.parent_segment_id, params.after_segment_id) if s]
+    missing = [segment_id for segment_id in named if segment_id not in by_segment]
+    if missing:
+        raise HTTPException(status_code=404, detail=f"segments the order does not hold: {missing}")
+    moved = [by_segment[segment_id] for segment_id in moved_ids]
+    parent_entry_id = by_segment[params.parent_segment_id].id if params.parent_segment_id else None
+    by_id = {row.id: row for row in by_segment.values()}
+    moved_entry_ids = {row.id for row in moved}
+    cursor, hops = parent_entry_id, 0
+    while cursor is not None and hops < 64:
+        if cursor in moved_entry_ids:
+            raise HTTPException(status_code=422, detail="a segment cannot be moved into itself or something it holds")
+        cursor = by_id[cursor].parent_entry_id
+        hops += 1
+    others = sorted(
+        (row for row in by_id.values() if row.parent_entry_id == parent_entry_id and row.id not in moved_entry_ids),
+        key=lambda row: (row.position, row.id),
+    )
+    cut = 0
+    if params.after_segment_id:
+        after = by_segment[params.after_segment_id]
+        if after.parent_entry_id != parent_entry_id or after.id in moved_entry_ids:
+            raise HTTPException(status_code=422, detail="after_segment_id is not at the level they are dropped on")
+        cut = next(i for i, row in enumerate(others) if row.id == after.id) + 1
+    sequence = others[:cut] + moved + others[cut:]
+
+    before: dict[str, dict] = {}
+    for row, position in zip(sequence, renumbered(len(sequence))):
+        if row.position != position or row.parent_entry_id != parent_entry_id:
+            before[row.id] = {"position": row.position, "parent_entry_id": row.parent_entry_id}
+            row.position = position
+            row.parent_entry_id = parent_entry_id
+            row.version += 1
+            db.save(row)
+    spec = ChangeSpec(
+        domains=["reading_order"],
+        target_ids=[order.id],
+        before={"order_id": order.id},
+        after={"order_id": order.id, "moved": len(before), "places_before": before},
+        emit_type="reading_order.changed",
+        segment_ids=[row.segment_id for row in moved],
+        pass_ids=[order.pass_id],
+        document_ids=[order.document_id],
+    )
+    return {"order_id": order.id, "moved": len(before)}, spec
+
+
+@action(
+    "reading_order.restore_places",
+    ReadingOrderRestorePlacesParams,
+    domains=["reading_order"],
+    undoable=True,
+    invert=_invert_restore_places,
+    redo_via_own_invert=True,
+)
+def _action_order_restore_places(db: Database, params: ReadingOrderRestorePlacesParams, ctx: ActionContext):
+    """The inverse of `reading_order.move`: entries put back at the positions and parents recorded."""
+    order = _live_order(db, params.order_id)
+    in_order = {row.id: row for row in db.query(ReadingOrderEntry, order_id=order.id)}
+    for entry_id, place in params.places.items():
+        if place.parent_entry_id is not None and (place.parent_entry_id == entry_id or place.parent_entry_id not in in_order):
+            raise HTTPException(
+                status_code=422, detail=f"entry {entry_id} cannot sit under {place.parent_entry_id}: not another entry of this order")
+    before: dict[str, dict] = {}
+    for entry_id, place in params.places.items():
+        row = in_order.get(entry_id)
+        if row is None:
+            continue
+        before[row.id] = {"position": row.position, "parent_entry_id": row.parent_entry_id}
+        row.position = place.position
+        row.parent_entry_id = place.parent_entry_id
+        row.version += 1
+        db.save(row)
+    spec = ChangeSpec(
+        domains=["reading_order"],
+        target_ids=[order.id],
+        before={"order_id": order.id},
+        after={"order_id": order.id, "restored": len(before), "places_before": before},
+        emit_type="reading_order.changed",
+        pass_ids=[order.pass_id],
+        document_ids=[order.document_id],
+    )
+    return {"order_id": order.id, "restored": len(before)}, spec
+
+
 class ReadingOrderDeleteParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

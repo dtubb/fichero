@@ -152,3 +152,39 @@ def test_a_smoke_on_another_machine_clones_the_sha_and_copies_the_built_app_over
     assert "scripts/smoke-release-embedded-backend.sh" in s3
     with pytest.raises(ValueError, match="needs a local build_machine"):
         nightly.real_runners(tmp_path, nightly.Cfg((22, 0), (0, 0), "m4", "imac", "m4", "dev", 1), "integration", tmp_path)
+
+
+def test_after_the_publish_the_releases_are_cleared_and_the_text_lists_the_build_folder_sizes(state):
+    """#6589 2026-11-20: a release on GitHub is deleted locally (DMGs, archives, staging) and the nightly report lists build-folder sizes."""
+    n = Night()
+    n.runners.cleanup = n.part("cleanup")
+    n.runners.sizes = lambda: "3.4G build/releases"
+    assert nightly.run_night(CFG, n.runners, "a" * 40, "2026-11-17", n.alerts.append) is True
+    assert [c[0] for c in n.calls][-2:] == ["publish", "cleanup"]
+    assert n.texts == ["try aaaaaaa\nBuild folders:\n3.4G build/releases"] and n.alerts == []
+
+
+def test_nothing_is_cleared_while_the_release_is_not_published(state):
+    n = Night(publish=1)
+    n.runners.cleanup = n.part("cleanup")
+    nightly.run_night(CFG, n.runners, "a" * 40, "2026-11-17", n.alerts.append)
+    assert "cleanup" not in [c[0] for c in n.calls]
+
+
+def test_a_failed_clear_is_a_row_and_never_unpublishes_the_night(state):
+    n = Night(cleanup=1)
+    n.runners.cleanup = n.part("cleanup")
+    assert nightly.run_night(CFG, n.runners, "a" * 40, "2026-11-17", n.alerts.append) is True
+    assert [r["state"] for r in journal.read() if r["event"] == "nightly"][-2:] == ["cleanup-red", "published"] and n.alerts == []
+
+
+def test_the_real_clear_removes_the_trees_releases_and_the_loops_old_dmgs_and_the_sizes_are_du(monkeypatch, tmp_path):
+    seen = []
+    monkeypatch.setattr(nightly, "_on", lambda machine, script, timeout: seen.append((machine, script)) or (0, "1G x"))
+    monkeypatch.setattr(nightly.subprocess, "run", lambda *a, **k: type("P", (), {"returncode": 0, "stdout": "git@x:o/r.git\n", "stderr": ""})())
+    r = nightly.real_runners(tmp_path, CFG, "integration", tmp_path / "s")
+    r.cleanup("c" * 40)
+    r.sizes()
+    clear, size = seen
+    assert f"rm -rf {tmp_path}/s/nightly/dmg/build/releases" in clear[1] and f"{tmp_path}/build/releases" in clear[1]
+    assert "du -sh" in size[1] and f"{tmp_path}/s/nightly/dmg/build" in size[1]

@@ -2,9 +2,16 @@
 """Measure every runtime the engine has, on this Mac, with real models (`runner.measured.runtime-matrix`).
 
     PYTHONPATH=fichero-server/src python3 scripts/runtime_matrix.py [--out matrix.json] [--only NAME ...]
-                                                                    [--remote hf-jobs|cluster]
+                                                                    [--python PATH | --engine-app APP] [--remote hf-jobs|cluster]
 
-Each runtime runs a fixed sample of 5 public test-fixture page images through the engine's own entry point, twice in a
+`--python PATH` runs every runtime under that interpreter, for a Mac whose dev venv lacks mlx_vlm, mlx_whisper or
+ultralytics: pass the shipped engine's Python (inside the app bundle, its Resources python), with PYTHONPATH as above.
+`--engine-app <the built engine .app>` does the same from the app bundle: its bundled Python and its
+Contents/Resources/app_packages on PYTHONPATH (where ultralytics, mlx_vlm and mlx_whisper ship). YOLO also needs its
+weights downloaded to the model store (the app's download-model job), else its row says so.
+The sample is the 5 fixtures plus one A4 page at 300 dpi built at run time; the embedder runs offline.
+
+Each runtime runs a fixed sample of public test-fixture page images through the engine's own entry point, twice in a
 row. Per runtime: ran ok or failed (the failure kind and words from the engine's kinds table), seconds per page (the
 first page, which pays the cold load, apart), the peak RSS of the process that ran it, and how many times its model was
 LOADED across the two passes (1 is right; 2 or more means it unloads between pages). Each runtime runs in a fresh
@@ -35,12 +42,15 @@ FIXTURES = REPO / "test-fixtures" / "files"
 SAMPLE = ("sample.png", "sample.jpg", "sample_text_page1.png", "sample_text_page2.png", "sample.webp")
 AUDIO = "sample.wav"
 TEXT = "Mr. Davidson wrote to Mrs. Hale in Boston on 4 May 1861 about the ship."
+REAL_PAGE = "page_a4_300dpi.png"
 PASSES = 2
 WORKER_TIMEOUT_SECONDS = 1800
 
 #: Loads counted in this process, by the model's name (kraken, spaCy and the embedder report through the engine's own
 #: `model_load`; YOLO and MLX through their libraries' constructors).
 LOADS: dict[str, int] = {}
+#: The interpreter each isolated worker runs under (`--python`); None: this one.
+WORKER_PYTHON: str | None = None
 
 
 @dataclass
@@ -92,6 +102,53 @@ def measure(runtime: Runtime, pages: list[Path], *, passes: int = PASSES,
     return {**row, "status": "ok", "pages": len(work), "passes": passes, "first_page_s": round(times[0], 3),
             "per_page_s": round(sum(rest) / len(rest), 3) if rest else None,
             "loads": None if before is None or after is None else after - before}
+
+
+def footprint_mb() -> float | None:
+    """This process's physical footprint now (what Activity Monitor calls Memory), beside the peak RSS, which on macOS
+    leaves out compressed and GPU-held pages; None when it cannot be read."""
+    sys.path.insert(0, str(REPO / "fichero-server" / "src"))
+    try:
+        from fichero_server.execution.throttle import footprint_bytes
+
+        value = footprint_bytes(os.getpid())
+    except ImportError:
+        return None
+    return None if value is None else round(value / 1048576, 1)
+
+
+def real_size_page(folder: Path) -> Path:
+    """An A4 page at 300 dpi (2480 x 3508) of rendered print, 40 lines: Kraken scales every page to 1800 rows, so the
+    fixtures (100 to 900 px wide) measured upscaled thumbnails. Built on the first call, reused after."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    path = folder / REAL_PAGE
+    if path.exists():
+        return path
+    image = Image.new("L", (2480, 3508), 255)
+    draw = ImageDraw.Draw(image)
+    font = ImageFont.load_default(size=48)
+    for line in range(40):
+        draw.text((220, 250 + line * 78), f"{line + 1:02d}  {TEXT}  {TEXT[:30]}", fill=0, font=font)
+    folder.mkdir(parents=True, exist_ok=True)
+    image.save(path)
+    return path
+
+
+def sample_pages(folder: Path) -> list[Path]:
+    return [FIXTURES / name for name in SAMPLE] + [real_size_page(folder)]
+
+
+def engine_app_python(app: Path) -> tuple[Path, Path]:
+    """The shipped engine's interpreter and its `app_packages` folder (where `ultralytics`, `mlx_vlm` and `mlx_whisper` are
+    installed), found from the engine app bundle. Exits naming what is missing."""
+    contents = app / "Contents"
+    pythons = sorted(contents.glob("Frameworks/Python.framework/Versions/3.*/bin/python3.*"))
+    packages = contents / "Resources" / "app_packages"
+    if not pythons or not packages.is_dir():
+        raise SystemExit(f"--engine-app {app}: no bundled Python (Contents/Frameworks/Python.framework/Versions/3.x/bin) "
+                         "or no Contents/Resources/app_packages in it")
+    return pythons[-1], packages
 
 
 def peak_rss_mb() -> float:
@@ -321,9 +378,10 @@ def run_matrix(runtimes: list[Runtime], pages: list[Path], *, isolate: bool, scr
         if not isolate:
             row = measure(runtime, pages)
             row["peak_rss_mb"] = peak_rss_mb() if row["status"] != "unavailable" else None
+            row["footprint_mb"] = footprint_mb() if row["status"] != "unavailable" else None
             rows.append(row)
             continue
-        command = [sys.executable, str(Path(__file__).resolve()), "--worker", runtime.name]
+        command = [WORKER_PYTHON or sys.executable, str(Path(__file__).resolve()), "--worker", runtime.name]
         try:
             done = subprocess.run(command, capture_output=True, text=True, timeout=WORKER_TIMEOUT_SECONDS, check=False)
             rows.append(json.loads(done.stdout.strip().splitlines()[-1]))
@@ -336,7 +394,8 @@ def run_matrix(runtimes: list[Runtime], pages: list[Path], *, isolate: bool, scr
 def table(report: dict) -> str:
     m = report["machine"]
     lines = [f"Mac: {m['chip']}, {m['ram_gb']} GB, macOS {m['macos']}, {m['free_memory_mb']} MB free at start", "",
-             "| runtime | result | first page s | s/page | peak RSS MB | loads | words |", "|---|---|---|---|---|---|---|"]
+             "| runtime | result | first page s | s/page | peak RSS MB | footprint MB | loads | words |",
+             "|---|---|---|---|---|---|---|---|"]
 
     def cell(value: object) -> str:
         return "-" if value is None else str(value)
@@ -346,7 +405,7 @@ def table(report: dict) -> str:
         flag = f"{loads} (unloads between pages)" if isinstance(loads, int) and loads > 1 else cell(loads)
         words = " ".join(str(w) for w in (r.get("kind"), r.get("words"), r.get("note")) if w)
         lines.append(f"| {r['runtime']} | {r['status']} | {cell(r.get('first_page_s'))} | {cell(r.get('per_page_s'))} "
-                     f"| {cell(r.get('peak_rss_mb'))} | {flag} | {words.replace('|', '/')} |")
+                     f"| {cell(r.get('peak_rss_mb'))} | {cell(r.get('footprint_mb'))} | {flag} | {words.replace('|', '/')} |")
     return "\n".join(lines)
 
 
@@ -366,6 +425,9 @@ def scratch_environment(root: Path) -> None:
     os.environ["FICHERO_BASE_PATH"] = str(root / "state")
     # The embedder's model runs in a child process by default, which this process's peak RSS does not see.
     os.environ["FICHERO_EMBED_IN_PROCESS"] = "1"
+    # fastembed downloads a model it lacks; that download was timed as the embedder's load (116 s, 2026-11-19). Offline,
+    # a missing model is a failed row with the library's words, never a number.
+    os.environ["HF_HUB_OFFLINE"] = "1"
     (root / "state").mkdir(parents=True, exist_ok=True)
     (root / "library").mkdir(parents=True, exist_ok=True)
 
@@ -375,16 +437,32 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, default=Path("runtime-matrix.json"))
     parser.add_argument("--only", nargs="*", default=[], help="runtime names to measure (default: all)")
     parser.add_argument("--remote", choices=["hf-jobs", "cluster"], help="dry-run a remote place, never a job")
+    parser.add_argument("--python", type=Path, help="run every runtime under this interpreter (the shipped engine's Python, "
+                        "which has mlx_vlm, mlx_whisper and ultralytics); default: this one")
+    parser.add_argument("--engine-app", type=Path, help="the built engine app: run every runtime under its "
+                        "bundled Python with its app_packages, so YOLO, MLX VLM and Whisper run as shipped")
     parser.add_argument("--worker", help="internal: measure this one runtime and print its row as JSON")
     args = parser.parse_args(argv)
+    global WORKER_PYTHON
+    if args.engine_app:
+        if args.python:
+            parser.error("--engine-app and --python are two ways to name the interpreter: give one")
+        python, packages = engine_app_python(args.engine_app)
+        WORKER_PYTHON = str(python)
+        os.environ["PYTHONPATH"] = os.pathsep.join(p for p in (str(packages), os.environ.get("PYTHONPATH")) if p)
+    elif args.python:
+        if not args.python.is_file():
+            parser.error(f"--python {args.python}: no such interpreter")
+        WORKER_PYTHON = str(args.python)
     with tempfile.TemporaryDirectory(prefix="runtime-matrix-") as tmp:
         scratch_environment(Path(tmp))
         install_load_counters()
-        pages = [FIXTURES / name for name in SAMPLE]
+        pages = sample_pages(Path(tmp) / "pages")
         runtimes = [r for r in real_runtimes() if not args.only or r.name in args.only]
         if args.worker:
             row = measure(next(r for r in runtimes if r.name == args.worker), pages)
             row["peak_rss_mb"] = peak_rss_mb() if row["status"] != "unavailable" else None
+            row["footprint_mb"] = footprint_mb() if row["status"] != "unavailable" else None
             print(json.dumps(row))
             return 0
         report = build_report(runtimes, pages, isolate=True, remote=args.remote)

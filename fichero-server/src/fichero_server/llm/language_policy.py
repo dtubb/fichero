@@ -947,7 +947,9 @@ DIRECTIONS: tuple[str, ...] = (
 #: script absent from here derives `ltr`, which is what an unlabelled page gets
 #: today, and any level can override it.
 _RTL_SCRIPTS = frozenset(
-    {"Arab", "Hebr", "Syrc", "Thaa", "Nkoo", "Samr", "Mand", "Armi", "Phnx", "Adlm"}
+    {"Arab", "Hebr", "Syrc", "Thaa", "Nkoo", "Samr", "Mand", "Armi", "Phnx", "Adlm",
+     # Variants of the above and Hanifi Rohingya (#6733): nastaliq, the Syriac styles.
+     "Aran", "Syre", "Syrj", "Syrn", "Rohg"}
 )
 
 #: Scripts that MAY be written vertically. They resolve `ltr` all the same,

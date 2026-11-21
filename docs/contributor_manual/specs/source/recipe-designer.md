@@ -617,7 +617,9 @@ from a step (`source.find.choose-a-model-opens-the-finder` (P), `source.onboard.
 - `designer.filter.fit-first` [PARTIAL] (#6052) — script, language, period and material are filters,
   applied before the rank as today: a candidate made for another script is out; one made for another
   period is listed under "Other periods", never ranked among the fits. A benchmark row never lifts a
-  candidate past these filters.
+  candidate past these filters. Tests: `fichero-server/tests/unit/recipes/test_period_and_material_rank_before_script_6733.py`,
+  `fichero-server/tests/unit/recipes/test_a_card_stating_no_script_ranks_below_a_matched_one_6733.py`,
+  `fichero-server/tests/unit/recipes/test_script_variants_match_their_parent_6733.py`.
 - `designer.filter.coverage-band` [MISSING] (#6052) — a text or vision-language model's Loove coverage
   for the project's languages and scripts, and a Kraken codec against the glyph inventory, become a
   `Card.coverage` band (covered · unknown · poor) at discovery; the heuristic coverage is "unknown".

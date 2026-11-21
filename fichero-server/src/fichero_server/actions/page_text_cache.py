@@ -44,12 +44,14 @@ _ORDER_ACTIONS = frozenset({
     "reading_order.place", "reading_order.restore_place", "reading_order.remove",
     # Order by clicking and its undo (`segment-editor.order-by-clicking`).
     "reading_order.sequence", "reading_order.restore_positions",
+    # A drag in the segment list and its undo (`segment-editor.list-drag-reorder`).
+    "reading_order.move", "reading_order.restore_places",
 })
 
 _MEMBERSHIP_ACTIONS = frozenset({
     "segment.create", "segment.create_many", "segment.delete", "segment.undelete",
     "segment.merge", "segment.unmerge", "segment.split", "segment.unsplit", "segment.unsplit_many",
-    "segment.cut_words", "segment.uncut_words",
+    "segment.cut_words", "segment.uncut_words", "segment.convert_level",
     "segment.uncombine", "segment.restore_version", "segment.restore_versions",
     # A re-parent moves the lines' order entries among their new region's (`segment-editor.reassign-by-drag`).
     "segment.reparent",

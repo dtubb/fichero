@@ -85,7 +85,7 @@ extension ContentView {
         // beside the retrieval-type handler on the container that is mounted
         // for exactly as long as a search is presented. Changing WHERE a
         // search looks is a new request, not a client-side filter.
-        .onChange(of: transientSearchScopeIsFolder) { _, _ in
+        .onChange(of: transientSearchScope) { _, _ in
             transientSearchLimit = Self.transientSearchPageSize
             Task { @MainActor in
                 await runTransientSearch(query)
@@ -254,8 +254,8 @@ extension ContentView {
     /// library by its display name — never a name carried over from
     /// whichever library was open before.
     private var searchScopeName: String {
-        if transientSearchScopeIsFolder, let folder = transientSearchContextFolder {
-            return "“\(folder.shortLabel)”"
+        if let node = transientSearchTargets.node(for: transientSearchTargets.effective(transientSearchScope)) {
+            return "“\(node.shortLabel)”"
         }
         // The library the RESULTS came from — the same value the toolbar
         // island shows, so the two cannot disagree.
@@ -265,7 +265,7 @@ extension ContentView {
     /// Every control the row used to carry, behind one loupe.
     ///
     /// The bindings are the SAME state the request is built from
-    /// (`runTransientSearch` reads `transientSearchScopeIsFolder` and
+    /// (`runTransientSearch` reads `transientSearchScope` and
     /// `transientSearchType`; `runToolbarSearch` reads `searchFieldMode`), so
     /// the menu cannot show a setting the next search will not honour. The
     /// menu body itself is `SearchFieldOptionsMenu` in
@@ -276,10 +276,10 @@ extension ContentView {
     private func searchFieldOptionsMenu(store: SearchStore) -> some View {
         SearchFieldOptionsMenuButton(
             mode: searchFieldModeBinding,
-            scopeIsFolder: $transientSearchScopeIsFolder,
+            scope: $transientSearchScope,
             searchType: $transientSearchType,
             libraryName: searchChromeLibraryName,
-            contextFolder: transientSearchContextFolder,
+            targets: transientSearchTargets,
             // What the knowledge graph actually has (Daniel, 2026-09-02:
             // "with no graph or garbage entities the graph must be OFF").
             // `nil` when no response has reported it — the rung stays

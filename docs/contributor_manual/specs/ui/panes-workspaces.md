@@ -232,7 +232,28 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
   (`.library && !isKGLibrarySelection`), so Entities/Claims hid every toggle AND the recovery
   menu. Fix: pure `showsPaneToggles(sidebarMode:compactFlow:)` (drops isKG) + `showsWorkspacesMenu`
   (compact-only); Workspaces menu moved to its own un-gated conditional. Pinned:
-  `ToolbarTogglePolicyTests`.
+  `ToolbarTogglePolicyTests`. **Rewritten for #6730 (owner 2026-11-19):** the toolbar has no Hide
+  Items, Hide Source or Hide Reader buttons. The Workspaces menu's first section and View ▸ Panes list
+  Items, Source, Reader and the Inspector as checked toggles (`PaneMenuEntry`); a check follows the
+  pane's visibility both ways and toggling changes the current workspace; the shortcuts stay. The
+  Workspaces menu has no Toolbar Buttons submenu, and `ToolbarVisibilityPlan` is deleted (a saved
+  snapshot's old `toolbar` key is ignored on decode). Only an iPhone keeps a Chat button in the bar.
+  *Test:* `fichero/Tests/Unit/general/Views/Shell/ToolbarGroupingTests.swift::toolbarHasNoPaneToggles`, `::workspacesMenuChecksFollowVisibility`,
+  `::viewMenuChecksPanes`, `WorkspacesMenuNoSecondDefinitionGuardrailTests.noToolbarButtonsSubmenu`,
+  `WindowWorkspaceTests`. *Not built:* View ▸ Customize Toolbar (`.toolbar(id:)` customization).
+- `shell.search.always-visible-with-scope` — **[PARTIAL]** (#6729; owner 2026-11-19) search is one field
+  in the toolbar; its magnifier menu has a **Search Scope** section with a check on the current scope,
+  and the placeholder names it ("Search this page", "Search this document", "Search this folder", "Search this
+  project", "Search everywhere"). **Built (manager ruling 2026-11-20):** the menu offers This Page, This Document,
+  This Folder, This Project and Everywhere; a node scope appears only when the window has that node (the page read,
+  its document, the browsed folder), and the engine call carries that node's id as `folder_id` (the engine expands
+  it to the node and everything under it). This Project sends no filter. Everywhere currently sends the same call as
+  This Project: the window searches one library, and a search across libraries does not exist yet. *Test:*
+  `fichero/Tests/Unit/general/Views/Library/SearchScopeTests.swift`,
+  `fichero/Tests/Unit/general/Views/Shell/OneToolbarSearchItemTests.swift::menuHoldsWhatTheSecondButtonOffered`.
+  The right inspector's minimum width keeps the field whole (f0d4698eb8). *Test:*
+  `InspectorPaneWidthTests.swift::testTheInspectorMinimumKeepsTheSearchFieldWhole`.
+  **Not built:** a UI test that the field stays visible and focusable (⌘F) with the inspector narrow or closed.
 - `panes.claim.source-is-document` — **[OK]** (fixed b7be99143) the Claims Source column shows
   the document NAME (resolved over ALL loaded docs, not just the folder scope — the id-fallback
   bug), is **draggable** (shared `LibraryItemDrag` payload), and **clicks through** to the source
@@ -672,6 +693,21 @@ the browse→read flow down the centre.
   split collapses by one before the leaf is removed. Pinned:
   `Tests/Unit/general/Models/PaneListTests.swift` ("closing a pane removes ONLY that pane…",
   "…collapses to the survivor — the row does not disappear") + `PaneInstanceIndependenceTests`.
+- `panes.head.one-menu-button` — **[GAP]** (#6741; app; owner 2026-11-19, refined the same day; spec-change: owner) every pane's
+  head has, on its right, one button whose icon is the pane's kind (a photograph for Source, a list for Items, a book for
+  Reader, a numbered list for Layout Order, and so on), and its menu is the same in every pane and in this order: Pane ▸ (the
+  kinds with their icons, a check on the current one); View As ▸ (the kind's own views: Items has Icon, List, Table, Columns,
+  Sheet, Cards, Timeline, Calendar, Map, Canvas and Space; Source has Read, List, Table, Icons and Canvas), which replaces the
+  separate Read menu and the view lists inside the kind menu; Pane options ▸ (only what this kind has: Font ▸ for Reader,
+  the overlays under Show ▸ for Source, Order ▸ for Layout Order); Split Right ▸ and Split Below ▸, each a submenu of kinds, so
+  splitting adds that pane beside or below in one step; Focus on Pane; Pin Pane, checked while on; Close Pane. The left side
+  has no close X and no kind menu: only the pane's working tools (back and forward, the order picker and the like), each in its
+  own island. The rule behind it: a pane's tools (zoom, navigation, order picker) live in islands of their own, and the
+  kind-icon menu holds only pane management. The Source pane's zoom keeps its own small island beside the menu button, and
+  Pin moves into the menu. Keyboard shortcuts stay; the kind still shows quietly in the menu's Pane ▸ check, the window title
+  and the tooltip. Tests: one menu per pane, same order everywhere; each item acts on its own pane; Split ▸ a kind adds that
+  pane; closing, splitting and pinning from the menu match today's buttons; the head has no X and no kind menu; the Pane ▸
+  check follows the kind. Related: `menus.toolbar.panes-shown-from-the-menus`.
 - `panes.head.kind-switcher-everywhere` — **[PARTIAL]** (#4706; Reader fixed d8621ecc3, pinned by
   `PaneHeadKindSwitcherParityTests`; Chat follows → #4705 increment 6) every pane head
   that renders a leaf kind mounts the kind selector, so ANY pane can become a Library, Source or
@@ -1137,8 +1173,10 @@ also show the path (`ContentView+RootLayout.swift:311-317`).
   and view pickers sit at the head's left (`PaneHead`, `PaneKindSelector`) and What to show sits in Preview's footer.
   *Built (2026-11-14):* the button is the pane's kind icon with a chevron (no +); the menu, and the head's
   right-click, list Pane ▸ (the kinds, the current one ticked), Split, Focus on Pane (Leave Focus while that pane is in
-  Focus), Pin, Close (`PaneMenuEntries`). *Not built:* Show as ▸ and What to Show ▸ in the menu, Link…, removing the
-  head's ✕, kind and view pickers and pin button (the UI tests still find the ✕), and a Preview showing a page
+  Focus), Pin, Close (`PaneMenuEntries`). *Built (#6741):* the head's ✕ and kind picker are gone (`PaneHead.identityCapsule` holds the view
+  chooser only); Pane ▸ and Close Pane in the menu replace them, and the two UI tests that clicked the ✕ open the
+  menu. *Not built:* Show as ▸ and What to Show ▸ in the menu (the view chooser stays at the left), Split Right ▸ /
+  Below ▸ as submenus of kinds, Link…, removing the pin button, and a Preview showing a page
   focused from the menu opening the page reader as ⌃⌘R does (it shows the pane alone). *Tests:*
   `fichero/Tests/Unit/general/Views/Shell/PaneMenuTests.swift`.
 - `panes.chrome.head-keeps-only-what-moves` — **[GAP]** (#5435; ruled by the owner 2026-11-13) with the pane menu on
@@ -1576,8 +1614,8 @@ A read-only code map found the workspace feature is **already LIVE**, not a stub
   `workspaces.persist-applied-list` in §Behaviors D. The legacy `paneKindOverrides` WRITE side is
   now dead too (its live consumer, `SplitCommandRouting`, is deleted) — the `Codable` field stays,
   decode-only, for an old snapshot that has it.
-- **Dead flags:** `ToolbarVisibilityPlan.showSplitMenu/showLayoutsMenu` (decode-only) and
-  `LayoutMode.keyboardShortcut` (unbound metadata) — delete on the way through.
+- **Dead flags:** `LayoutMode.keyboardShortcut` (unbound metadata) — delete on the way through.
+  `ToolbarVisibilityPlan` is deleted; a saved snapshot's old `toolbar` key is ignored on decode.
 
 ## The built-in workspaces — v2 SHIPPED 2026-09-16 (FIVE, ⌘⌥1–5)
 

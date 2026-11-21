@@ -692,3 +692,13 @@ def test_a_kraken_model_loads_once_and_is_replaced_not_stacked() -> None:
     assert loads == ["a", "b"] and list(kraken_runtime._RESIDENT) == ["read"]
     kraken_runtime.release_resident_models()
     assert kraken_runtime._RESIDENT == {}
+
+
+def test_a_download_without_kraken_makes_no_directory(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """The refusal comes before anything is created: the reader's folder used to be made first, in the real state
+    directory when no home was given (perf-1 red-on-base)."""
+    monkeypatch.setattr(kraken_runtime, "is_installed", lambda: False)
+
+    with pytest.raises(KrakenRuntimeMissingError):
+        kraken_runtime.download_recognition_model("kraken-mccatmus", home=tmp_path)
+    assert list(tmp_path.iterdir()) == []

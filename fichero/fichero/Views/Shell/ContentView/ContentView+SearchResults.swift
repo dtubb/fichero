@@ -122,8 +122,8 @@ extension ContentView {
         libraryToolbarState.userChoseSortDuringSearch = false
         transientSearchLimit = Self.transientSearchPageSize
         // Saved searches are library-wide; never inherit a stale folder scope.
-        transientSearchContextFolder = nil
-        transientSearchScopeIsFolder = false
+        transientSearchTargets = SearchScopeTargets()
+        transientSearchScope = .project
         // Apply the search's stored parameters (#4112/S8) — for THIS run and
         // the re-runs that belong to it (Load More, an options change, a
         // re-sort), never beyond them. A saved fulltext search used to leave
@@ -165,7 +165,7 @@ extension ContentView {
             )
         }
         chromeUX.resultsLibraryName = library.displayName
-        let folderId = transientSearchScopeIsFolder ? transientSearchContextFolder?.id : nil
+        let folderId = transientSearchTargets.engineFolderId(for: transientSearchScope)
         await store.performSearch(
             query: query,
             limit: transientSearchLimit,
@@ -400,8 +400,8 @@ extension ContentView {
         libraryToolbarState.userChoseSortDuringSearch = false
         libraryToolbarState.searchIsActive = false
         transientSearchLimit = Self.transientSearchPageSize
-        transientSearchContextFolder = nil
-        transientSearchScopeIsFolder = false
+        transientSearchTargets = SearchScopeTargets()
+        transientSearchScope = .project
         chromeUX.readerFindQuery = ""
         chromeUX.resultsLibraryName = nil
         restoreDefaultRetrievalTier()

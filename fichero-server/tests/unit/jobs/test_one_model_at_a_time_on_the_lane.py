@@ -71,12 +71,15 @@ def test_vision_work_during_a_kraken_run_unloads_nothing_and_does_not_wait_for_t
     assert lane.swaps == [] and jobs._scheduler.lanes["local-ml"].loaded_model == "kraken:blla"
 
 
-def test_an_embed_during_a_kraken_run_unloads_nothing(db, lane):
+def test_an_embed_during_a_kraken_run_waits_for_it_and_unloads_nothing(db, lane):
     jobs.enqueue(db, KRAKEN, "k-hold")
     assert _wait_for(lambda: "k-hold" in lane.ran)
     jobs.enqueue(db, EMBED, "e1")
-    assert _wait_for(lambda: "e1" in lane.ran)  # beside Kraken, on its own lane
-    assert lane.swaps == [] and jobs._scheduler.lanes["local-ml"].loaded_model == "kraken:blla"
+    time.sleep(0.5)
+    assert "e1" not in lane.ran  # the embedder never loads beside Kraken: it waits
+    lane.gate.set()  # the Kraken page ends
+    assert _wait_for(lambda: "e1" in lane.ran)
+    assert lane.swaps == []
 
 
 def test_a_vlm_and_kraken_that_both_fit_stay_loaded_together(db, lane, monkeypatch):

@@ -166,3 +166,19 @@ def test_auto_embed_with_no_loop_inside_a_get_queues_the_backfill_instead_of_los
         thread.start()
         thread.join(10)
     assert outcome == ["returned"] and queued == [(db, what)]
+
+
+def test_a_get_with_kraken_resident_and_no_embedder_says_busy_and_unloads_nothing(monkeypatch):
+    from fichero_server.db import embeddings
+    from fichero_server.llm import kraken_runtime
+
+    resident = {"segmenter": ("k", object())}
+    monkeypatch.setattr(kraken_runtime, "_RESIDENT", resident)
+    monkeypatch.setattr(embeddings, "_EMBEDDER_CACHE", {})
+    db = _FakeDb()
+    with no_model_in_get.marked_get("/api/kg/claim-search"):
+        with pytest.raises(HTTPException) as refused:
+            search_claims_semantic_impl(db=db, q="who sold the mill")
+    assert refused.value.status_code == 503 and "busy" in refused.value.detail
+    assert kraken_runtime._RESIDENT is resident and list(resident) == ["segmenter"]
+    assert db.embedded == []

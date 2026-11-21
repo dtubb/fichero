@@ -94,7 +94,7 @@ def test_the_route_answers_the_list(client, db, monkeypatch):
     answer = client.get("/api/activity/models")
     assert answer.status_code == 200, answer.text
     assert any(m["provider"] == "Kraken" for m in answer.json()["models"])
-    assert answer.json()["places"][0] == {"place": "this-mac", "provider": "This Mac"}
+    assert answer.json()["places"][0] == {"place": "this-mac", "provider": "This Mac", "account": "ready"}
 
 
 def test_this_mac_is_measured_or_says_it_is_not(client, db, monkeypatch):
@@ -143,3 +143,112 @@ def test_a_request_with_many_remote_calls_reads_the_provider_list_once(db, app_d
 
     assert sum(m["calls_today"] for m in found if m["place"] == "remote") == 10
     assert len(reads) == 1
+
+
+def test_a_loaded_kraken_and_yolo_model_are_listed_loaded_6745(db, monkeypatch):
+    """#6745: with Kraken blla and the YOLO layout model in memory, the engine's held list names both, and the Models
+    answer lists each as loaded on this Mac."""
+    import sys
+
+    from fichero_server.execution import models_held
+    from fichero_server.llm import kraken_runtime, yolo_runtime
+
+    jobs._ensure(db)
+    monkeypatch.setitem(kraken_runtime._RESIDENT, "segment", ("blla", object()))
+    monkeypatch.setitem(yolo_runtime._LOADED, "yolo-doclaynet-11n", object())
+    monkeypatch.setitem(sys.modules, "fichero_server.llm.yolo_runtime", yolo_runtime)
+    held = models_held.models_held()
+    assert {"Kraken", "YOLO layout"} <= {h["kind"] for h in held}
+
+    found = {(m["provider"], m["name"]): m for m in activity_models.models(db, held=held, installed=[])}
+    assert found[("Kraken", "blla")]["loaded"] and found[("Kraken", "blla")]["place"] == "this-mac"
+    assert found[("YOLO layout", "yolo-doclaynet-11n")]["loaded"]
+
+
+def test_a_places_account_comes_from_a_probe_and_the_key_a_call_uses(app_db, monkeypatch):
+    """`models.row.account-from-a-probe` (#5369, #4303, #5367): another Mac reads Not reachable when its probe refuses,
+    a cloud provider reads Ready with an app-supplied key and Needs key without one; a cluster nothing probes is None."""
+    from fichero_server.models import Provider, ProviderType
+    from fichero_server.security import provider_keys
+
+    app_db.save_provider(Provider(id="p-remote", name="Studio", provider_type=ProviderType("ollama"),
+                                  api_base="http://studio.example:11434"))
+    app_db.save_provider(Provider(id="p-cloud", name="Claude", provider_type=ProviderType("anthropic")))
+    app_db.set_setting("hpc.clusters", json.dumps({"acenet": {"cluster_id": "acenet", "name": "ACENET"}}))
+    monkeypatch.setattr("fichero_server.llm.get_api_key", lambda provider: provider_keys.supplied_api_key(provider))
+    seen = []
+
+    def refusing(url):
+        seen.append(url)
+        return False
+
+    def account(listed, provider):
+        return next(p["account"] for p in listed if p["provider"] == provider)
+
+    provider_keys.forget_api_key("anthropic")
+    listed = activity_models.places(probe=refusing)
+    assert account(listed, "studio.example") == "not-reachable" and seen == ["http://studio.example:11434"]
+    assert account(listed, "Anthropic") == "needs-key"
+    assert account(listed, "ACENET") is None, "what nothing probes is None, never Ready"
+    assert account(listed, "This Mac") == "ready"
+    provider_keys.supply_api_key("anthropic", "sk-ant-test")
+    try:
+        assert account(activity_models.places(probe=lambda url: True), "Anthropic") == "ready"
+        assert account(activity_models.places(probe=lambda url: True), "studio.example") == "ready"
+    finally:
+        provider_keys.forget_api_key("anthropic")
+
+
+def test_unload_idle_models_frees_the_idle_and_keeps_a_model_with_a_page_in_flight(client, db, monkeypatch):
+    """`models.row.what-unloading-gives-back` (#4987, #4999): the route calls `release_idle_models`, answers what it freed by
+    name, and a Kraken reader with a page in flight is kept."""
+    import sys
+    import threading
+    import types
+
+    released = []
+    runtime = types.SimpleNamespace(_RESIDENT={"catmus": object()}, _INFERENCE_LOCK=threading.Lock(),
+                                    release_resident_models=lambda reason: released.append(reason))
+    embeddings = types.SimpleNamespace(release_idle_embedders=lambda idle_seconds, reason: ["nomic-embed"])
+    monkeypatch.setitem(sys.modules, "fichero_server.llm.kraken_runtime", runtime)
+    monkeypatch.setitem(sys.modules, "fichero_server.db.embeddings", embeddings)
+    monkeypatch.setattr(jobs, "_kraken_pages_in_flight", lambda: True)
+
+    busy = client.post("/api/activity/models/unload-idle")
+    assert busy.status_code == 200, busy.text
+    assert busy.json()["freed"] == ["nomic-embed"] and released == [], "the idle embedder goes, the reading Kraken stays"
+
+    monkeypatch.setattr(jobs, "_kraken_pages_in_flight", lambda: False)
+    idle = client.post("/api/activity/models/unload-idle")
+    assert idle.json()["freed"] == ["Kraken", "nomic-embed"] and released == ["memory is tight"]
+
+
+def test_a_poll_checks_each_remote_mac_at_once_and_keeps_the_answer_for_a_while(app_db, monkeypatch):
+    """The Models poll (every ten seconds) never waits on one Mac after another, and never re-checks an address inside its
+    cache window (review of window-1)."""
+    import threading
+    import time
+
+    import httpx
+    from fichero_server.models import Provider, ProviderType
+
+    for n in range(3):
+        app_db.save_provider(Provider(id=f"p{n}", name=f"Mac{n}", provider_type=ProviderType("ollama"),
+                                      api_base=f"http://mac{n}.example:11434"))
+    calls = []
+    gate = threading.Barrier(3, timeout=5)
+
+    def slow_get(url, timeout):
+        calls.append(url)
+        gate.wait()  # all three must be in flight together, else the barrier times out
+        raise httpx.ConnectError("asleep")
+
+    monkeypatch.setattr(httpx, "get", slow_get)
+    activity_models._reach_cache.clear()
+    started = time.monotonic()
+    listed = activity_models.places()
+    assert [p["account"] for p in listed if p["place"] == "remote"] == ["not-reachable"] * 3
+    assert len(calls) == 3 and time.monotonic() - started < 4
+    activity_models.places()
+    assert len(calls) == 3, "the second poll reads the cached answers"
+    activity_models._reach_cache.clear()
