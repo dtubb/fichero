@@ -188,15 +188,13 @@ makes extraction slow. The 744 tests of `tests/unit/kg`, `tests/unit/knowledge` 
   50,000 statements and 17 s at 500,000, whatever the name). *Test:*
   `test_neighbourhood_reads_only_its_rows.py` and a case in
   `test_kg_neighbourhood_perf.py` (not yet written).
-- `kg.query.traverse-reads-real-links` — **[BROKEN]** (#5551, #6759) `GET /api/kg/graph/traverse/{id}`
-  walks statement-to-statement links. Code: it reads `link.source_claim_id`,
-  `link.target_claim_id` and `link.relation`, which `KnowledgeClaimLink` does not have (its fields
-  are `claim_id`, `related_claim_id`, `relation_type`), so the route raises `AttributeError` as
-  soon as the project holds one link; `knowledge/graph.py::contradiction_subgraph` fails the same
-  way, and its test passes only because it hands in a stand-in with the wrong field names
-  (`tests/unit/kg/test_kg_untested_symbols.py`). The route also reads the whole statements table
-  once per node visited. *Test:* `test_traverse_with_a_real_claim_link.py` (not yet
-  written), on a real `Database`.
+- `kg.query.traverse-reads-real-links` — **[OK]** (#5551, #6759) `GET /api/kg/graph/traverse/{id}`
+  walks statement-to-statement links. Code: the route and
+  `knowledge/graph.py::contradiction_subgraph` read the fields `KnowledgeClaimLink` has
+  (`claim_id`, `related_claim_id`, `relation_type`); the stand-in in
+  `tests/unit/kg/test_kg_untested_symbols.py` is a `KnowledgeClaimLink`. The route still reads
+  the whole statements table once per node visited (`kg.query.walks-are-bounded`). *Test:*
+  `tests/unit/kg/test_traverse_with_a_real_claim_link.py`, on a real `Database`.
 - `kg.query.path-is-bounded-and-shows-evidence` — **[PARTIAL]** (#5551, #5032) "how are these two
   connected" answers the shortest chain up to a stated number of hops, in either direction, each
   hop with the statements that make it. Built: `GET /api/kg/graph/path` over the cached directed
