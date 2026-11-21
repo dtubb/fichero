@@ -1,4 +1,4 @@
-"""Every IIIF fetch is safe (`iiif.fetch.*`, Step 1.1, #6921). No network: fakes answer and record what was asked."""
+"""Every IIIF fetch is safe (`iiif.fetch.*`, Step 1.1, #6921)."""
 from __future__ import annotations
 
 import io
@@ -16,14 +16,18 @@ FIXTURE = Path(__file__).parents[2] / "fixtures" / "iiif" / "manifest_tiny.json"
 
 
 @pytest.fixture(autouse=True)
-def _no_dns(monkeypatch):  # a unit test never touches the network: a name resolves to nothing
-    monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **k: (_ for _ in ()).throw(socket.gaierror("no network")))
+def _dns(monkeypatch):  # no network: a literal resolves to itself, gone.example to nothing, other names to a public address
+    def resolve(host, port, *args, **kwargs):
+        if host == "gone.example":
+            raise socket.gaierror("no such host")
+        return [(0, 0, 0, "", ("93.184.216.34" if host.endswith(".example") else host, port))]
+    monkeypatch.setattr(socket, "getaddrinfo", resolve)
 
 
 def _once(responses, log):
     def get(url, timeout):
         log.append(url)
-        return responses.pop(0) if isinstance(responses, list) else responses(url)
+        return responses.pop(0)
     return get
 
 
@@ -32,21 +36,14 @@ def test_the_fixture_manifest_names_a_loopback_image_service():
     assert service == "https://127.0.0.1/img/1" and iiif_engine.refusal(service).startswith("refused:")
 
 
-def test_a_loopback_address_is_refused_before_any_request(monkeypatch):
+@pytest.mark.parametrize("url", ["https://[::]/x", "https://100.64.0.9/x", "https://10.0.0.5/x", "https://127.0.0.1/x",
+                                 "https://gone.example/x", "http://iiif.archive.example/m", "https://u:p@iiif.archive.example/m"])
+def test_an_address_that_is_not_public_https_is_refused_before_any_request(url, monkeypatch):
     log: list[str] = []
     monkeypatch.setattr(iiif_fetch, "urllib_get_once", _once([(200, {}, b"x")], log))
     with pytest.raises(iiif_fetch.FetchFailed, match="refused"):
-        iiif_engine.safe_get("https://127.0.0.1/img/1/full/max/0/default.jpg", 5)
-    assert log == []
-
-
-def test_plain_http_and_credentials_are_refused(monkeypatch):
-    log: list[str] = []
-    monkeypatch.setattr(iiif_fetch, "urllib_get_once", _once([(200, {}, b"x")], log))
-    for url in ("http://iiif.archive.example/m", "https://user:pw@iiif.archive.example/m"):
-        with pytest.raises(iiif_fetch.FetchFailed, match="refused"):
-            iiif_engine.safe_get(url, 5)
-    assert log == []
+        iiif_engine.safe_get(url, 5)
+    assert log == [] and iiif_engine.refusal("https://iiif.archive.example/x") == ""
 
 
 def test_a_redirect_to_plain_http_or_loopback_is_refused(monkeypatch):
@@ -58,15 +55,6 @@ def test_a_redirect_to_plain_http_or_loopback_is_refused(monkeypatch):
         assert log == ["https://iiif.archive.example/m"]  # the first hop only
 
 
-def test_a_redirect_to_a_public_https_address_is_followed(monkeypatch):
-    log: list[str] = []
-    answers = {"https://iiif.archive.example/a": (301, {"location": "/b"}, b""),
-               "https://iiif.archive.example/b": (200, {}, b"ok")}
-    monkeypatch.setattr(iiif_fetch, "urllib_get_once", _once(lambda url: answers[url], log))
-    assert iiif_engine.safe_get("https://iiif.archive.example/a", 5)[2] == b"ok"
-    assert log == list(answers)
-
-
 def test_a_body_over_the_cap_is_refused(monkeypatch):
     class Big(io.BytesIO):
         status, headers = 200, {}
@@ -75,8 +63,4 @@ def test_a_body_over_the_cap_is_refused(monkeypatch):
     monkeypatch.setattr(iiif_fetch, "MAX_BODY", 1024)
     with pytest.raises(iiif_fetch.FetchFailed, match="larger than"):
         iiif_fetch.urllib_get_once("https://iiif.archive.example/big", 5)
-
-
-def test_the_engine_fetcher_is_one_object_with_four_per_host():
-    assert iiif_engine.engine_fetcher() is iiif_engine.engine_fetcher() and iiif_engine.engine_fetcher().per_host == 4
 

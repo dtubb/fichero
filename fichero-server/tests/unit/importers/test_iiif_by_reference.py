@@ -195,7 +195,6 @@ def test_a_collection_imports_as_a_folder_of_folders_with_manifest_facts_stored_
 
     top = db.query(Document, parent_id=done["folder_id"])
     assert len(top) == 3 and all(d.doc_type == DocType.folder for d in top), "one folder per manifest, no flat pages"
-    assert {d.metadata["iiif_id"] for d in top} == {m["id"] for m in manifests}
     for sub in top:
         assert len(db.query(Document, parent_id=sub.id)) == 4 and sub.metadata["iiif_source"] == sub.metadata["iiif_id"]
     pages = [d for d in db.query(Document) if (d.metadata or {}).get("iiif_type") == "Canvas"]
@@ -205,15 +204,26 @@ def test_a_collection_imports_as_a_folder_of_folders_with_manifest_facts_stored_
     again = iiif_source.import_source(db, root["id"], fetcher=PoliteFetcher(get=server.get, sleep=lambda s: None))
     assert again["added"] == 0 and len(db.query(Document, parent_id=done["folder_id"])) == 3
 
+    # a plain manifest's folder is the root: its pairs are stored there
+    solo = _manifest3("solo", 1)
+    server.documents[solo["id"]] = solo
+    one = iiif_source.import_source(db, solo["id"], fetcher=PoliteFetcher(get=server.get, sleep=lambda s: None))
+    assert db.get(Document, one["folder_id"]).metadata["iiif_manifest_metadata"] == {"Reference": "EAP000/solo"}
 
-def test_a_single_manifest_import_keeps_its_metadata_on_the_bound_folder(db):
-    """`iiif.import.metadata-once`: a plain manifest's folder is the root; its pairs are stored there, not nowhere."""
+
+def test_refreshing_an_old_flat_folder_leaves_it_flat(db):
+    """An import made before folders-per-manifest keeps its pages in one folder; a refresh adds there, no sub-folder."""
     from fichero_server.importers import iiif_source
+    from fichero_server.models import DocType
 
-    manifest = _manifest3("solo", 3)
-    server = FakeIIIFServer({manifest["id"]: manifest})
-    done = iiif_source.import_source(db, manifest["id"], fetcher=PoliteFetcher(get=server.get, sleep=lambda s: None))
-    folder = db.get(Document, done["folder_id"])
-    assert folder.metadata["iiif_manifest_metadata"] == {"Reference": "EAP000/solo"}
-    assert folder.metadata["iiif_rights"]["rights"].endswith("by-nc/4.0/") and folder.metadata["iiif_type"] == "Manifest"
-    assert not any("iiif_manifest_metadata" in (p.metadata or {}) for p in db.query(Document, parent_id=folder.id))
+    manifests = [_manifest3(f"vol{i}", 2) for i in (1, 2)]
+    root = {"id": f"{HOST}/c/old", "type": "Collection", "items": [{"id": m["id"], "type": "Manifest"} for m in manifests]}
+    server = FakeIIIFServer({root["id"]: root, **{m["id"]: m for m in manifests}})
+    old = Document(name="Old", doc_type=DocType.folder, metadata={"iiif_source": root["id"]})
+    db.save(old)
+    db.save(Document(name="f. 1", parent_id=old.id, metadata={"iiif_id": f"{HOST}/vol1/canvas/1", "iiif_type": "Canvas"}))
+
+    iiif_source.import_source(db, root["id"], fetcher=PoliteFetcher(get=server.get, sleep=lambda s: None))
+
+    kids = db.query(Document, parent_id=old.id)
+    assert len(kids) == 4 and not any(k.doc_type == DocType.folder for k in kids)

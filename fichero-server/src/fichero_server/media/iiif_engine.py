@@ -1,40 +1,44 @@
-"""The engine's one IIIF fetcher (`source/iiif.md`, `iiif.fetch.*`): every address and redirect is checked with
-`is_safe_url` and must be https, bodies are capped at 64 MB, four requests per host, 429/503 retried
-(`media.iiif_fetch.PoliteFetcher`). A refusal is a `FetchFailed` carrying a sentence."""
+"""The engine's one IIIF fetcher (`source/iiif.md`, `iiif.fetch.*`): every address and redirect must be https, with no
+credentials, on a name that resolves only to global addresses; bodies are capped at 64 MB, four requests per host,
+429/503 retried (`media.iiif_fetch.PoliteFetcher`). A refusal is a `FetchFailed` carrying a sentence."""
 from __future__ import annotations
 
-import asyncio
-import concurrent.futures
+import ipaddress
+import socket
 import urllib.parse
 
 from fichero_server.media import iiif_fetch
 from fichero_server.media.iiif_fetch import FetchFailed, PoliteFetcher
-from fichero_server.security.url_security import is_safe_url
 
-PER_HOST = 4
 MAX_REDIRECTS = 5
-_REDIRECTS = {301, 302, 303, 307, 308}
 _FETCHER: PoliteFetcher | None = None
 
 
 def refusal(url: str) -> str:
-    """Why this address may not be fetched ('' when it may)."""
-    if urllib.parse.urlsplit(url).scheme.lower() != "https":
+    """Why this address may not be fetched ('' when it may): not https, credentials, no resolution, or any non-global address."""
+    parts = urllib.parse.urlsplit(url)
+    if parts.scheme.lower() != "https" or not parts.hostname:
         return "refused: only https addresses are fetched for IIIF"
-    with concurrent.futures.ThreadPoolExecutor(1) as pool:  # a thread of its own: the caller may have a running loop
-        ok, why = pool.submit(asyncio.run, is_safe_url(url)).result()
-    return "" if ok else f"refused: {why}"
+    if parts.username or parts.password:
+        return "refused: an address with credentials in it"
+    try:
+        found = {info[4][0].split("%")[0] for info in socket.getaddrinfo(parts.hostname, parts.port or 443)}
+    except socket.gaierror:
+        return f"refused: {parts.hostname} does not resolve"
+    if not found or not all(ipaddress.ip_address(a).is_global for a in found):
+        return f"refused: {parts.hostname} is not a public address"
+    return ""
 
 
 def safe_get(url: str, timeout: float) -> tuple[int, dict[str, str], bytes]:
-    """A `Getter` that checks the address, and each redirect's address, before asking."""
+    """A `Getter` that checks each address, redirects included, before asking."""
     current = url
     for _ in range(MAX_REDIRECTS + 1):
         why = refusal(current)
         if why:
             raise FetchFailed(current, None, why)
         status, headers, body = iiif_fetch.urllib_get_once(current, timeout)
-        if status in _REDIRECTS and headers.get("location"):
+        if status in (301, 302, 303, 307, 308) and headers.get("location"):
             current = urllib.parse.urljoin(current, headers["location"])
             continue
         return status, headers, body
@@ -45,5 +49,5 @@ def engine_fetcher() -> PoliteFetcher:
     """The one fetcher the engine uses for every IIIF request."""
     global _FETCHER
     if _FETCHER is None:
-        _FETCHER = PoliteFetcher(get=safe_get, per_host=PER_HOST, retries=3)
+        _FETCHER = PoliteFetcher(get=safe_get, per_host=4, retries=3)
     return _FETCHER

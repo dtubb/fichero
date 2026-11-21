@@ -85,11 +85,9 @@ Checked in the code and run 2026-11-21 (unit tests: 46 passed across
   No image is fetched. Importing again adds only canvases whose id is not in the folder and counts
   the ones no longer listed. The app has File › Import from IIIF… and the folder's Inspector
   section with Refresh (`Views/Library/IIIFImport.swift`, `Models/IIIFImportStore.swift`).
-- **What that import does not do.** Ranges (`structures`) are not read. Annotation pages on a
-  remote canvas are not read (`annotation_jobs=[]`). A folder that holds the old flat import (every
-  canvas of a collection as a sibling page, the manifest's metadata copied onto each) is left as it is.
-  Every fetch goes through `media/iiif_engine.py::engine_fetcher`, which checks each address and
-  redirect with `is_safe_url`; a collection imports as a folder of manifest folders (`import_source`).
+- **What that import does not do.** Ranges (`structures`) and annotation pages on a remote canvas are not read.
+  A folder holding the old flat import (a collection's canvases as sibling pages) is left as it is. Every fetch
+  goes through `media/iiif_engine.py::engine_fetcher`; a collection imports as a folder of manifest folders.
 - **Viewing.** The first time a page's thumbnail or display picture is asked for,
   `db/storage.py::iiif_page_image` fetches the whole image once at display size
   (`full/!2200,2200/0/default.jpg`) into `storage/iiif/`, and the thumbnail and display copies
@@ -233,11 +231,10 @@ viewer.
   ones that match a catalogue field (title, date, language, extent, shelfmark, creator) also fill
   it (`cataloguing.md`), so the Catalogue table and search see them.
 - **Only public https addresses are fetched.** Every address a manifest names (a manifest, a
-  collection, an image service, an annotation page) passes the same check as any other URL
-  Fichero fetches (`security/url_security.py`): https, a public host, no credentials in the URL,
-  and the check is made again on every redirect. A manifest cannot name this Mac or its network as an
-  address. *Limit:* the check resolves the host and the connection resolves it again, so a hostile DNS
-  answer that changes between the two is not stopped; connecting to the checked address is not built.
+  collection, an image service, an annotation page) passes one check
+  (`media/iiif_engine.py::refusal`): https, no credentials in the URL, a name that resolves, and every
+  address it resolves to global (not loopback, private, shared 100.64/10 or unspecified); it is made again on every redirect. A manifest cannot name this Mac or its network as an
+  address. *Limit:* the connection resolves the host again after the check, so a DNS answer that changes in between is not stopped.
 
 ### What has to be fetched, and when
 
@@ -509,11 +506,10 @@ In, by reference:
   it is and what it did; pinned by
   `fichero-server/tests/unit/importers/test_iiif_source_5671.py::test_the_import_is_a_job_and_a_bound_folder_refreshes`.
 - `iiif.fetch.only-safe-public-urls` — **[OK]** (#5324 → #6921) every address fetched for a IIIF source (manifest,
-  collection, image, annotation page, and each redirect) is https, on a public host, with no
-  credentials in it, by the one check every other fetch uses (`security/url_security.py::is_safe_url`);
-  a manifest larger than 64 MB is refused. *Built, pinned by
-  `fichero-server/tests/unit/importers/test_iiif_fetch_is_safe_and_polite.py`: `media/iiif_engine.py::safe_get` checks every address and
-  each redirect with `is_safe_url`, and `media/iiif_fetch.py::urllib_get_once` refuses a body over 64 MB.*
+  collection, image, annotation page, and each redirect) is https, with no credentials, on a name
+  that resolves only to global addresses; a manifest larger than 64 MB is refused. *Built, pinned by
+  `fichero-server/tests/unit/importers/test_iiif_fetch_is_safe_and_polite.py`: `media/iiif_engine.py::safe_get` checks every
+  address and redirect, and `media/iiif_fetch.py::urllib_get_once` refuses a body over 64 MB.*
 - `iiif.fetch.polite-per-host` — **[PARTIAL]** (#5671 → #6921) one fetcher serves the engine: at most four requests in
   flight to a host, at most two of them background work; `429` and `503` slow the whole host for
   the `Retry-After`; failures back off with jitter; the User-Agent names Fichero. *Built:
@@ -538,8 +534,7 @@ In, by reference:
 - `iiif.import.metadata-once` — **[PARTIAL]** (#5325 → #6923) a manifest's label, summary, metadata pairs, date, rights,
   required statement, provider, homepage and see-also links are stored once, on its folder; a
   page stores only its own canvas facts and stays under 600 bytes of metadata. *Built (#6922):* rights and
-  metadata pairs are on the manifest's folder only (was 3.1 KB a page); pinned by the test above and
-  `test_a_single_manifest_import_keeps_its_metadata_on_the_bound_folder`. *Not built (Step 1.3):* the other
+  metadata pairs are on the manifest's folder only (was 3.1 KB a page); pinned by the test above. *Not built (Step 1.3):* the other
   facts on the folder and the 600 byte limit. Pages imported before this keep working: a reader takes the folder's facts first and the page's copy when the folder has none.
 - `iiif.import.ranges-are-structure` — **[GAP]** (#5324 → #6924) a manifest's ranges become sub-folders when every
   canvas is in at most one lowest range, the pages inside in order and the rest at the top;

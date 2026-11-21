@@ -64,14 +64,20 @@ def import_source(db: Any, url: str, *, folder_id: str | None = None, name: str 
     elif (folder.metadata or {}).get("iiif_source") != url:
         folder = folder.model_copy(update={"metadata": {**(folder.metadata or {}), "iiif_source": url}})
         db.save(folder)
-    # One folder per collection and per manifest, found again by its IIIF id so a refresh makes none twice; what the
-    # source says about a manifest is stored on its folder only.
+    # One folder per collection and manifest, found again by IIIF id on a refresh; a folder already holding the old
+    # flat import (pages directly in it) stays flat.
+    top = [d for d in db.query(Document, parent_id=folder.id) if d.deleted_at is None]
+    flat = any(d.doc_type != DocType.folder and (d.metadata or {}).get("iiif_id") for d in top)
     folder_of = {collection["external_id"]: folder.id}
+    subs = {} if flat else {(d.parent_id, (d.metadata or {}).get("iiif_id")): d
+                            for d in db.query(Document, doc_type=DocType.folder) if d.deleted_at is None}
     for node in groups[1:]:
         parent_id = folder_of[node["parent_external_id"]]
         meta = node["metadata"]
-        sub = next((d for d in db.query(Document, parent_id=parent_id, doc_type=DocType.folder)
-                    if d.deleted_at is None and (d.metadata or {}).get("iiif_id") == meta["iiif_id"]), None)
+        if flat:
+            folder_of[node["external_id"]] = folder.id
+            continue
+        sub = subs.get((parent_id, meta["iiif_id"]))
         if sub is None:
             facts = {k: meta[k] for k in ("iiif_type", "iiif_id", "iiif_rights", "iiif_manifest_metadata",
                                           "by_reference") if k in meta}
@@ -80,6 +86,7 @@ def import_source(db: Any, url: str, *, folder_id: str | None = None, name: str 
             sub = Document(name=node.get("name") or "IIIF", doc_type=DocType.folder, parent_id=parent_id,
                            metadata=facts)
             db.save(sub)
+            subs[(parent_id, meta["iiif_id"])] = sub
         folder_of[node["external_id"]] = sub.id
     have = {(d.metadata or {}).get("iiif_id") for fid in set(folder_of.values())
             for d in db.query(Document, parent_id=fid) if d.deleted_at is None and d.doc_type != DocType.folder}
