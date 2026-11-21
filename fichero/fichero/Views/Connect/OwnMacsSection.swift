@@ -31,6 +31,27 @@ struct OwnMacsSection: View {
         }
     }
 }
+
+#Preview {
+    List {
+        OwnMacsSection(
+            macs: [
+                OwnDevicesItem(
+                    engineID: "engine-studio", macName: "Studio Mac",
+                    addresses: [
+                        .init(url: "https://studio-mac.example-tailnet.ts.net", spki: nil),
+                        .init(url: "https://studio-mac.local:8443", spki: "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
+                    ],
+                    enrollmentSecret: "preview-secret"),
+                OwnDevicesItem(
+                    engineID: "engine-laptop", macName: "Laptop",
+                    addresses: [.init(url: "https://laptop.example-tailnet.ts.net", spki: nil)],
+                    enrollmentSecret: "preview-secret")
+            ],
+            isConnecting: false,
+            onSelect: { _ in })
+    }
+}
 #endif
 
 #if os(iOS) || os(visionOS)

@@ -35,4 +35,11 @@ struct ConnectQRCard: View {
         .listRowInsets(EdgeInsets(top: 18, leading: 18, bottom: 14, trailing: 18))
     }
 }
+
+#Preview {
+    List {
+        Section("Ready") { ConnectQRCard(isPairing: false) }
+        Section("Pairing") { ConnectQRCard(isPairing: true) }
+    }
+}
 #endif
