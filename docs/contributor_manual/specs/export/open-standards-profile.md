@@ -33,7 +33,7 @@ One row per layer: what is exported, the standard it speaks, the existing piece 
 |---|---|---|---|
 | `ro-crate-metadata.json` | RO-Crate 1.1 (JSON-LD, schema.org) | nothing (the one new emitter, over `iter_export_records`) | every view reads it for ids and parts |
 | `images/` | the files, or IIIF Image API 3 URLs by reference | the library's originals and renditions; `iiif.export.points-at-original` | the site's tiles (level 0), thumbnails |
-| `iiif/` | Presentation 3 manifests and collections | `GET /api/iiif/iiif/manifest/{document_id}` (per document; folders not built) | the site's viewer, "Copy IIIF Link" |
+| `iiif/` | Presentation 3 manifests and collections | `GET /api/iiif/iiif/manifest/{document_id}` (per document; folders, collections and absolute ids not built: `../source/iiif.md`, `iiif.serve.presentation`) | the site's viewer, "Copy IIIF Link" |
 | `annotations/` | W3C Web Annotation pages | `GET /api/iiif/iiif/lines/{document_id}` (working pass's lines; other readings, notes, claims not built) | the site's transcription beside the image |
 | `graph/` | RDF: JSON-LD (schema.org context) + PROV-O | `GET /kg/export/rdf` (entities, claims; no attribution today) | person and place pages, SPARQL elsewhere |
 | `tables/` | CSVW (CSV + `csv-metadata.json`) and Parquet | `export_parquet` through DuckDB; the record stream's columns | the catalogue workbook, Excel, the HF dataset |
