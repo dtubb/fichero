@@ -184,7 +184,7 @@ paging. The screens, in order:
 
 #### The drill-down
 
-- `ios.nav.one-path` — **[BROKEN]** (#6566, closed as built; its own issue → #NEW-1) the iPhone's navigation is ONE `NavigationStack` with
+- `ios.nav.one-path` — **[BROKEN]** (#6566, closed as built; its own issue → #6944) the iPhone's navigation is ONE `NavigationStack` with
   ONE ordered path of typed steps held on the window (`WindowState`): `folder(id)` any number of times, then at most one
   `item(id)`. Every push and every Back is a change to that path, so the path can be tested with no view. Today the stack
   has no path: `compactLibraryReaderStack` (`Views/Shell/ContentView/Layout/ContentView+CompactReader.swift:85`) declares
@@ -209,7 +209,7 @@ paging. The screens, in order:
   the tap. Not proven to be the cause of #6567; the path rule removes both, because with a path a pushed item is popped
   only by Back. Acceptance (UI test, real root view, seeded project): from a folder, tap an image → the item view's
   Source page exists and the image element still exists 5 s later, with the Mac's answers delayed by 3 s.
-- `ios.nav.folders-push` — **[BROKEN]** (#5964; its own issue → #NEW-2) a folder tapped in a folder's list PUSHES that folder's screen, and Back
+- `ios.nav.folders-push` — **[BROKEN]** (#5964; its own issue → #6945) a folder tapped in a folder's list PUSHES that folder's screen, and Back
   returns to the folder it was tapped in. Today a folder tap at compact width re-roots the SAME screen
   (`LibraryView+Selection.swift:250-256` → `navigateToDocument`, `ContentView+SourceNavigation.swift:9-13`: it sets the
   view mode and the sidebar's selection, and pushes nothing), so however deep the person is, the system Back leaves the
@@ -218,7 +218,7 @@ paging. The screens, in order:
   both re-roots the list and is pushed as a file, because the leaf rule excludes only `docType == .folder`,
   `ContentView+CompactReader.swift:47`). Acceptance: Sidebar → folder A → subfolder B → Back shows A's list (B's row
   there) → Back shows the sidebar. Tests: `CompactPathTests.swift`, `IOSDrillDownUITests.swift`.
-- `ios.nav.sidebar-drills` — **[BROKEN]** (#5964; its own issue → #NEW-3; owner 2026-11-21) on the iPhone the sidebar never expands a row in
+- `ios.nav.sidebar-drills` — **[BROKEN]** (#5964; its own issue → #6946; owner 2026-11-21) on the iPhone the sidebar never expands a row in
   place: no disclosure triangle, no child rows under a folder. A tap on a project or a folder pushes that folder's screen
   (`ios.nav.folders-push`); its subfolders and items are there. Today the iPhone gets the Mac's tree unchanged: every
   folder row with children is a `DisclosureGroup` (`Views/Sidebar/ItemRow/SidebarItemRow+Presentation+Body.swift:174`),
@@ -232,11 +232,11 @@ paging. The screens, in order:
   element with the disclosure trait exists in the sidebar on an iPhone; tapping a folder shows a screen titled with the
   folder's name whose Back button is the sidebar. Tests: `SidebarPhoneRowsTests.swift` (the phone's row list for a
   seeded tree has no expandable row and no source row), `IOSDrillDownUITests.swift`.
-- `ios.nav.back-is-one-step` — **[BROKEN]** (#5964; → #NEW-2) Back, and the edge swipe, pop exactly one screen: item view → its
+- `ios.nav.back-is-one-step` — **[BROKEN]** (#5964; → #6945) Back, and the edge swipe, pop exactly one screen: item view → its
   folder → the folder above → … → the sidebar. Leaving the item view clears the list's selection so the same row can be
   tapped again. Today Back from a nested folder goes to the sidebar (`ios.nav.folders-push`) and "Back" from Reader or
   Info is never reached (`ios.nav.one-path`). Tests: `CompactPathTests.swift` (Back from every depth).
-- `ios.nav.phone-in-every-orientation` — **[BROKEN]** (#2408; its own issue → #NEW-6) an iPhone uses the drill-down in portrait and in
+- `ios.nav.phone-in-every-orientation` — **[BROKEN]** (#2408; its own issue → #6949) an iPhone uses the drill-down in portrait and in
   landscape; turning the phone keeps the screen, the page and the place. Today the drill-down is chosen by
   `horizontalSizeClass == .compact` alone (`Views/Shell/ShellLayoutPolicy.swift:20-26`; no source reads the device
   idiom), and a large iPhone in landscape reports a regular width: the window switches to the Mac's pane row, the stack
@@ -251,7 +251,7 @@ paging. The screens, in order:
 
 #### The item view: pages you swipe between
 
-- `ios.item.pages` — **[GAP]** (#6566; → #NEW-4; owner 2026-11-21) the item view is a horizontal paged container with four
+- `ios.item.pages` — **[GAP]** (#6566; → #6947; owner 2026-11-21) the item view is a horizontal paged container with four
   pages, in this order: **Source** (the image or the PDF page), **Reader** (its text), **Segments** (the page with its
   segments and the selected segment's text), **Info** (the Inspector's sections for the item). The order is the order of
   the work: look, read, check the pieces, then the facts; it is also the Mac's pane order. More pages are added at the
@@ -263,38 +263,38 @@ paging. The screens, in order:
   seeded letter, or the empty sentence for the photograph; Segments lists the seeded letter's three lines; Info shows
   the item's name and kind. Tests: `ItemPagesTests.swift` (the page list and order; the empty sentence per kind),
   `IOSItemPagesUITests.swift`.
-- `ios.item.swipe-changes-page` — **[GAP]** (#6566; → #NEW-4) a horizontal swipe moves one page; at the first page a swipe from
+- `ios.item.swipe-changes-page` — **[GAP]** (#6566; → #6947) a horizontal swipe moves one page; at the first page a swipe from
   the screen's left edge is Back, anywhere else it does nothing; at the last page a swipe left does nothing. Acceptance:
   from Source, three swipes left show Reader, Segments, Info in turn and a fourth changes nothing; three swipes right
   return to Source; an edge swipe on Source pops to the folder. Tests: `IOSItemPagesUITests.swift`.
-- `ios.item.header-says-where` — **[GAP]** (#6566; → #NEW-4) the bar's centre holds one small segmented header, Source · Reader ·
+- `ios.item.header-says-where` — **[GAP]** (#6566; → #6947) the bar's centre holds one small segmented header, Source · Reader ·
   Segments · Info, with the showing page selected; a tap on a name goes to that page with no swipe. It is the only title
   the item view has (`ios.titles.once-at-most`). It replaces the Reader and Info bar buttons of #6566
   (`compactDocumentStepToolbar`, `ContentView+CompactReader.swift:150-163`), which are removed with `CompactDocumentStep`.
   On the narrowest phone at the largest text size the header shows glyphs with the names as accessibility labels.
   Tests: `ItemPagesTests.swift` (header selection follows the page and the reverse), `IOSItemPagesUITests.swift` (tap
   Info from Source).
-- `ios.item.page-is-remembered-per-window` — **[GAP]** (#6566; → #NEW-4; a default the owner may change, Open question 4) the
+- `ios.item.page-is-remembered-per-window` — **[GAP]** (#6566; → #6947; a default the owner may change, Open question 4) the
   page last used is remembered for the WINDOW, not per item: a person reading through a folder in the Reader opens the
   next item in the Reader. It lasts while the app runs; a fresh launch starts on Source. Per-item memory was considered
   and not chosen: it makes the page the person lands on depend on what they did to that item last week. Tests:
   `ItemPagesTests.swift`.
-- `ios.item.zoom-wins-over-paging` — **[GAP]** (#6566; → #NEW-4) on the Source page a picture at fit pages with a horizontal
+- `ios.item.zoom-wins-over-paging` — **[GAP]** (#6566; → #6947) on the Source page a picture at fit pages with a horizontal
   swipe; a zoomed picture pans, and a horizontal drag NEVER changes page while it is zoomed, even at the picture's edge
   (the paged container's scrolling is off while the zoom is above fit). Pinch and double-tap zoom as they do now
   (`Views/Preview/ImageViewer/ZoomableImagePreviewIOS.swift`); double-tap again returns to fit, where swiping pages
   again; the header works at any zoom. Acceptance: pinch to 2×, drag left three times: still Source; double-tap; swipe
   left: Reader. Tests: `IOSItemPagesUITests.swift`.
-- `ios.item.segments-own-their-gestures` — **[GAP]** (#6566; → #NEW-4; Open question 5) on the Segments page a drag belongs to
+- `ios.item.segments-own-their-gestures` — **[GAP]** (#6566; → #6947; Open question 5) on the Segments page a drag belongs to
   the page (select, and later the editor's tools), so a swipe does not change page there: the person leaves Segments by
   the header or by Back. On the phone the page first ships as look-and-select (tap a segment, read its text below); the
   drawing tools (Brush, Knife, Marker, Order) stay on the Mac and the iPad until the owner asks for them on the phone.
   Tests: `IOSItemPagesUITests.swift` (a horizontal drag on Segments leaves Segments showing).
-- `ios.item.next-and-previous-item` — **[GAP]** (#6566; → #NEW-4; Open question 6) the sideways swipe is taken by the pages, so
+- `ios.item.next-and-previous-item` — **[GAP]** (#6566; → #6947; Open question 6) the sideways swipe is taken by the pages, so
   the next and previous item in the folder are two buttons at the bottom of the item view (and VoiceOver actions), which
   replace the item in place: the path's last step changes, nothing is pushed, Back still returns to the folder, and the
   page stays the same page. Tests: `CompactPathTests.swift`.
-- `ios.item.voiceover-reaches-every-page` — **[GAP]** (#6566; → #NEW-4) with VoiceOver on, every page is reachable without the
+- `ios.item.voiceover-reaches-every-page` — **[GAP]** (#6566; → #6947) with VoiceOver on, every page is reachable without the
   swipe gesture: the header is a tab group whose four tabs are named and say "selected" and "1 of 4"; the paged
   container is adjustable (swipe up or down moves a page) and answers the three-finger scroll; changing page moves the
   VoiceOver focus to the new page's first element and announces its name. Tests: `IOSItemPagesUITests.swift` (the four
@@ -302,7 +302,7 @@ paging. The screens, in order:
 
 #### Names and titles
 
-- `ios.titles.once-at-most` — **[BROKEN]** (#4416; its own issue → #NEW-5; owner 2026-11-21) every iPhone and iPad screen shows its name once
+- `ios.titles.once-at-most` — **[BROKEN]** (#4416; its own issue → #6948; owner 2026-11-21) every iPhone and iPad screen shows its name once
   at most. Today, by the code: the folder's list has the name in the bar (`.navigationTitle(toolbarTitle)`, set on both
   the split view, `ContentView+RootLayout.swift:386`, and the stack's root, `ContentView+CompactReader.swift:94`) and again
   in the Items pane's own head inside the view (`showsPaneHead`, on by default, `Views/Library/LibraryView+Body.swift:137`;
@@ -322,7 +322,7 @@ paging. The screens, in order:
   `Views/Sidebar/SidebarView+ObservedChain.swift:41`, so that Back button has no words). Acceptance: on each of the
   screens above, the folder's or item's name appears as at most one static text; each Back button has a non-empty label.
   Tests: `IOSTitlesUITests.swift`; `CompactTitlesTests.swift` (the title and back-title per path step).
-- `ios.source.no-dead-open-button` — **[BROKEN]** (#1881; its own issue → #NEW-7) the phone offers no button that cannot work. The editor's
+- `ios.source.no-dead-open-button` — **[BROKEN]** (#1881; its own issue → #6950) the phone offers no button that cannot work. The editor's
   header shows "Open with default app" on iOS, which opens a file URL built from the item's path ON THE MAC
   (`EditorView.swift:119-127`, `openWithDefault` :318); on a phone it opens nothing. It goes with the header row.
   Tests: `IOSTitlesUITests.swift` (no such button on the item view).
@@ -336,12 +336,12 @@ paging. The screens, in order:
   mark, never an empty white view, and after 3 s says it is still loading from the named Mac. The list has a spinner
   with words (`LibraryView+FilterAndBatch.swift:294-297`); the page's spinner landed with #6559; neither names the Mac or
   the wait. Screen-sized images and tiles are #6572 (`ios.ipad.page-images-fit-the-screen`), for the phone too.
-- `ios.a11y.text-sizes` — **[PARTIAL]** (#3686; its own issue → #NEW-8) the drill-down's screens follow the system text size up to the
+- `ios.a11y.text-sizes` — **[PARTIAL]** (#3686; its own issue → #6951) the drill-down's screens follow the system text size up to the
   accessibility sizes: rows grow, nothing is cut off without a way to read it. By the code 71 text styles under `Views/`
   are fixed point sizes (16 of them in the Items views, 27 in the shell) and four places use a scaled metric. Not seen at
   any size. Tests: `IOSTitlesUITests.swift` run at the largest accessibility size (every row's name is hittable and not
   truncated to nothing).
-- `ios.a11y.rows-say-what-a-tap-does` — **[PARTIAL]** (#5763; → #NEW-8) a row's VoiceOver words are its name, its kind and what
+- `ios.a11y.rows-say-what-a-tap-does` — **[PARTIAL]** (#5763; → #6951) a row's VoiceOver words are its name, its kind and what
   a double tap does ("opens the folder", "opens the page"). Rows and tiles have a combined label and a selected trait
   (`Views/Library/LibraryViewComponents.swift:351-355`, `LibraryThumbnailViews.swift:292-296`); the hint on touch says
   only "Double tap and hold for actions", and a folder row in the sidebar reads "expanded" or "collapsed", which goes
