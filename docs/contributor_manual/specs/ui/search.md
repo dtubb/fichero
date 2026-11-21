@@ -1,6 +1,6 @@
 # Search — Design Spec (#TBD)
 
-> Milestone: search
+> Milestone: search-correct-and-fast (the 2026-11-20 review's fixes, #6780-#6794 and #6867, in this spec's Build order); the older issues sit in milestone `search`
 > Manual: TBD — the user manual's Library section needs "Searching your library": one field,
 > top right, with Ask/Keyword scopes and a Hybrid/Semantic/Full-Text method in the results
 > Options menu; results are ordinary library rows you can sort, filter, and open like any other.

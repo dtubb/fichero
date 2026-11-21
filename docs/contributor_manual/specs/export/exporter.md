@@ -1,7 +1,7 @@
 # Exporter — Design Spec
 
-> Milestone: export-pipeline
-> (GitHub #316 — deliberately NOT named "exporter"/"Exporter": that collides case-insensitively
+> Milestone: export-roundtrip (the 2026-11-20 review's fixes, #6799-#6806, in this spec's Build order); the older
+> issues sit in milestone export-pipeline (GitHub #316 — deliberately NOT named "exporter"/"Exporter": that collides case-insensitively
 > with legacy milestone #14, "Exporter")
 > Manual: TBD — the user manual needs an "Exporting your library" section: what Export as
 > Markdown/Word do per-document from the Reader, what the Eleventy static-site export produces

@@ -12,12 +12,12 @@
 2. `image-enhancement` — the one product lane tonight (Step 1.1 landed first). Spec: source/image-enhancement.md
 3. `Sharing & Pairing — Dead-Simple UX` — spec APPROVED with 27 steps; rename the milestone to `sharing-two-macs` when triage runs. Spec: source/sharing-two-macs.md
 4. `recipe-designer` — wide onboarding; the recipe phases R1–R5 go into its build order first. Spec: source/wide-onboarding.md
-5. `recipes-run` — running things and watching them: a recipe run from Start to the summary. Spec: source/recipes-run.md; how any run fails, pauses and goes on: compute/runner-reliability.md
+5. `recipes-run` — running things and watching them: a recipe run from Start to the summary. Spec: source/recipes-run.md (how any run fails, pauses and goes on: compute/runner-reliability.md)
 6. `activity` — running things and watching them: the Activity pane and window, the one job model. Spec: ui/activity-pane.md
 7. `workflows` — running things and watching them: the workflow editor and bar. Spec: ui/workflows.md
 8. `workflow-node-config` — running things and watching them. Spec: ui/workflow-node-config.md
 9. `source-model` — the data model and getting material in
-10. `importer` — the data model and getting material in
+10. `importer` — the data model and getting material in. Spec: importer/importer.md
 11. `undo-trash-rollback` — the data model and getting material in
 12. `panes-workspaces` — the shell
 13. `modes-to-panes` — the shell
@@ -26,26 +26,32 @@
 16. `menus-and-commands` — the shell
 17. `preview-surface` — the shell
 18. `reader-view` — the shell
-19. `kg-tables` — knowledge and finding
-20. `kg-readable-representation` — knowledge and finding
-21. `kg-entity-inspector` — knowledge and finding
-22. `kg-enrichment` — knowledge and finding
-23. `search` — knowledge and finding
-24. `explore` — knowledge and finding
-25. `research` — knowledge and finding
-26. `ai-settings` — engine and providers
-27. `remote-compute` — engine and providers
-28. `transport-http-uds` — engine and providers
-29. `engine-startup-lifecycle` — engine and providers
-30. `audited-action-layer` — engine and providers
-31. `observable-data-layer` — engine and providers
-32. `export-pipeline` — output
-33. `historical-text-normalization` — output
-34. `test-environment-contract` — testing and release
-35. `ui-testing-strategy` — testing and release
-36. `ui-test-harness` — testing and release
-37. `release-and-versioning` — testing and release
-38. `cloud-permission-and-spend` — caps in Settings, images to the cloud, a refusal with a way through. Spec: ai/cloud-permission-and-spend.md
+19. `kg-store-and-query` — knowledge and finding: one link table of names, statement ends as ids, counts in SQL, bounded walks (2026-11-20 review). Spec: kg/kg-store-and-query.md
+20. `kg-confidence-and-provenance` — knowledge and finding: what a confidence means, where it came from, the extractor taught on this Mac (2026-11-20 review). Spec: kg/kg-confidence-and-provenance.md
+21. `kg-rendering` — knowledge and finding: the graph drawn, inspected and read (2026-11-20 review). Spec: kg/kg-rendering.md
+22. `search-correct-and-fast` — knowledge and finding: search that finds what it says and answers in time (2026-11-20 review). Spec: ui/search.md
+23. `export-roundtrip` — output: what is exported comes back on import (2026-11-20 review). Spec: export/exporter.md
+24. `readers-measured` — getting material in: each reader measured per script, the default chosen from the measures (2026-11-20 review). Spec: source/readers.md
+25. `kg-tables` — knowledge and finding
+26. `kg-readable-representation` — knowledge and finding; the buildable steps sit in the realisation spec, the rulings stay in kg/kg-readable-representation.md. Spec: kg/kg-paragraph-realisation.md
+27. `kg-entity-inspector` — knowledge and finding
+28. `kg-enrichment` — knowledge and finding
+29. `search` — knowledge and finding
+30. `explore` — knowledge and finding
+31. `research` — knowledge and finding
+32. `ai-settings` — engine and providers
+33. `remote-compute` — engine and providers
+34. `transport-http-uds` — engine and providers
+35. `engine-startup-lifecycle` — engine and providers
+36. `audited-action-layer` — engine and providers
+37. `observable-data-layer` — engine and providers
+38. `export-pipeline` — output
+39. `historical-text-normalization` — output
+40. `test-environment-contract` — testing and release
+41. `ui-testing-strategy` — testing and release
+42. `ui-test-harness` — testing and release
+43. `release-and-versioning` — testing and release
+44. `cloud-permission-and-spend` — caps in Settings, images to the cloud, a refusal with a way through. Spec: ai/cloud-permission-and-spend.md
 
 ## Parked
 

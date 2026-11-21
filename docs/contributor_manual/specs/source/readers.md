@@ -1,6 +1,6 @@
 # Readers — which exist, which one a script gets, and how they are measured — Design Spec (#6752)
 
-> Milestone: recipes-run (the catalogue and the measured defaults, #6752); the bake-off's lines also sit in `recipe-designer` and `remote-compute`
+> Milestone: readers-measured (the 2026-11-20 review's fixes, #6817-#6826 and #6865, in this spec's Build order); the catalogue and the measured defaults, #6752, sit in `recipes-run`; the bake-off's lines also sit in `recipe-designer` and `remote-compute`
 > Manual: TBD — a "Which reader reads my pages" section: the kinds of reader, the reader a script starts with and why,
 > what the bake-off measures (error, time, memory) and what "as good as the best, and cheapest" means on a Mac.
 >

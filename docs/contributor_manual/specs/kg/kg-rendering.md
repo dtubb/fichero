@@ -1,5 +1,6 @@
 # KG Rendering — what a name, a statement, its when and its where look like — Design Spec
 
+> Milestone: kg-rendering
 > Manual: TBD — the knowledge-graph part of the user manual needs one section that says what a
 > reader sees: a card for a name, a sentence for a statement, a date and a place as part of the
 > sentence, a timeline and a map for many of them, and how to get from any of these to the page.
@@ -11,8 +12,6 @@
 > `explore/place.md` and `explore/networks.md`; search is `ui/search.md`; chat is
 > `ui/research.md`. This spec does not repeat them. It holds the rules they share and the
 > research flows that cross them, and it tags each by what the code does today.
->
-> No milestone is declared yet; the manager names one when the spec is approved.
 >
 > Tags: **[OK]** built and checked in the code · **[PARTIAL]** built in part, or built and not
 > reachable · **[GAP]** not built · **[BROKEN]** the code contradicts the line. The issues
