@@ -105,7 +105,7 @@ way it arrived, gets its own session the Mac can revoke, and nothing is ever rea
 - `signin.own.off-ends-enrolment-not-devices` — **[PARTIAL]** (#6568) turning the switch off deletes the item and retires the
   enrollment secret (a later redeem is refused as a bad code, learning nothing); devices already enrolled keep their own
   sessions until revoked, and the Devices list says which came this way. Turning it on again mints a NEW secret.
-  Acceptance: off, then a redeem of the old secret is 401. *Test:* `test_enrollment_secret_is_minted_hashed_and_revoked_to_spec.py`. **Built in the engine:** off retires the secret and a redeem is 401, enrolled devices keep their tokens, on again mints a new one (same test file). **Not built:** the Swift switch deleting the item, and the Devices list's method words.
+  Acceptance: off, then a redeem of the old secret is 401. *Test:* `test_enrollment_secret_is_minted_hashed_and_revoked_to_spec.py`. **Built in the engine:** off retires the secret and a redeem is 401, enrolled devices keep their tokens, on again mints a new one (same test file). **Built in Swift:** the Mac's switch, off, deletes the item after the engine retires the secret (`ShareSettingsView+OwnDevices.swift`; no Swift test). **Not built:** the Devices list's method words.
 - `signin.own.secret-is-rate-limited-and-rotates` — **[GAP]** (#6568) the enrollment secret is 32 random bytes, redeemed only
   over TLS to the Mac's own listeners, rate-limited like `POST /api/pair` (`PAIRING_RATE_LIMIT`), rotated by the Mac every 30
   days (the item is rewritten; enrolled devices are untouched) and on every revoke of a self-enrolled device. Acceptance: a
