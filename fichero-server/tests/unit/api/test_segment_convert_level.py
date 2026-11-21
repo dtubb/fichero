@@ -75,3 +75,17 @@ def test_a_segment_already_at_that_level_is_refused(db, client):
     with pytest.raises(HTTPException) as refused:
         _convert(db, [sid], "region")
     assert refused.value.status_code == 422
+
+
+def test_a_region_with_child_lines_on_a_second_selected_document_is_refused(db, client):
+    first_doc, first_pass = _page(db, client)
+    second_doc, second_pass = _page(db, client)
+    plain = _segment(client, first_doc, first_pass, kind="region", polygon=_box(0.05, 0.7, 0.9, 0.2))
+    region = _segment(client, second_doc, second_pass, kind="region", polygon=_box(0.05, 0.1, 0.9, 0.5))
+    _segment(client, second_doc, second_pass, polygon=_box(0.1, 0.2, 0.8, 0.05), parent=region)
+
+    with pytest.raises(HTTPException) as refused:
+        _convert(db, [plain, region], "line")
+
+    assert refused.value.status_code == 422 and region in refused.value.detail
+    assert db.get(Segment, plain).kind == "region" and db.get(Segment, region).kind == "region"
