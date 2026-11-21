@@ -1006,7 +1006,7 @@ class EmbedOutcome:
     #: Reasons that mean the LIBRARY is broken rather than this document being
     #: unsuitable. A run seeing these should stop and say so, not continue
     #: producing an unembedded corpus.
-    INFRASTRUCTURE_REASONS = ("embedding_failed", "embedder_unavailable")
+    INFRASTRUCTURE_REASONS = ("embedding_failed", "embedder_unavailable", "memory_short")
 
     @property
     def is_infrastructure_failure(self) -> bool:
@@ -6542,10 +6542,14 @@ class Database(DatabaseEmbeddingMixin):
                 if isinstance(e, EmbedderUnavailable) else "Search is not indexing new pages: embedding fails",
             )
 
+            from fichero_server.execution.throttle import MemoryShortError
+
             self.last_embed_outcome = EmbedOutcome(
                 embedded=False,
                 # The model could not be loaded or answer: the queue waits and says why, it does not count pages failed.
-                reason="embedder_unavailable" if isinstance(e, EmbedderUnavailable) else "embedding_failed",
+                # Memory short (Kraken reading, #6808) is its own reason, so the re-embed job can wait for it.
+                reason="embedder_unavailable" if isinstance(e, EmbedderUnavailable)
+                else "memory_short" if isinstance(e, MemoryShortError) else "embedding_failed",
                 document_id=doc.id,
                 error=str(e),
             )

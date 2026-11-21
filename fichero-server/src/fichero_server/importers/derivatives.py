@@ -702,7 +702,7 @@ def _embed_document_tree(
 
                     raise EmbedderUnavailable(getattr(outcome, "error", None) or "The search model is not available.")
                 # 'unsupported'/'empty' style outcomes are not failures.
-                if reason in (None, "embedding_failed", "error"):
+                if reason in (None, "embedding_failed", "memory_short", "error"):
                     failures += 1
             else:
                 embedded += 1

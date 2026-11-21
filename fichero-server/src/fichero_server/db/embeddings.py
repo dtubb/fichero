@@ -847,8 +847,9 @@ class DatabaseEmbeddingMixin:
             return set(units_by_doc_id)
         except (RuntimeError, ValueError, OSError, MemoryError) as exc:
             from fichero_server.db.embed_process import EmbedderUnavailable
+            from fichero_server.execution.throttle import MemoryShortError
 
-            if isinstance(exc, EmbedderUnavailable):  # no model to retry page by page: the caller waits for it (#6218)
+            if isinstance(exc, (EmbedderUnavailable, MemoryShortError)):  # page by page meets the same: the caller waits (#6218, #6808)
                 raise
             logger.warning("Failed to batch-embed %d document(s): %s", len(docs), exc)
             embedded_ids: set[str] = set()
