@@ -13,11 +13,7 @@ On the engine machine, from the repo:
 
 The launcher obtains a Tailscale certificate, keeps the engine on loopback TLS, starts `tailscale serve` proxying to `127.0.0.1:8765`, and advertises the certificate pin to paired clients. `tailscale serve status` shows the generated tailnet URL; the engine itself still only sees a loopback service.
 
-Create a one-time iPhone/iPad pairing link by naming the library explicitly:
-
-    scripts/create_tailscale_pairing_link.sh "$HOME/Documents/My Library.fichero"
-
-Paste the emitted `fichero://pair?...` link into **Connect → Manual link** before it expires. It contains a short-lived pairing code and certificate pin — do not publish it. Remote CLI or MCP clients need a paired device credential, not the Mac’s bootstrap token:
+Create a one-time iPhone/iPad pairing link on the Mac in **Settings → Sharing → Add Device** (it carries the tailnet address when Tailscale is running). Paste the link into **Connect → Manual link** before it expires. It contains a short-lived pairing code and certificate pin — do not publish it. Remote CLI or MCP clients need a paired device credential, not the Mac’s bootstrap token:
 
     export FICHERO_API_URL=https://<engine-name>.<tailnet-name>.ts.net
     export FICHERO_API_KEY=<remote-token>
