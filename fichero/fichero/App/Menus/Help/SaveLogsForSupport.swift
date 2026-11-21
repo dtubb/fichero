@@ -313,7 +313,9 @@ struct SendLogsToMaintainerButton: View {
         private func remove() {
             try? FileManager.default.removeItem(at: folder)
             // AppKit calls the sharing delegate on the main thread; assumeIsolated traps if it ever does not.
-            MainActor.assumeIsolated { SendLogsToMaintainerButton.cleanups.removeAll { $0 === self } }
+            // The closure captures the Sendable identifier, not self, which is not Sendable.
+            let id = ObjectIdentifier(self)
+            MainActor.assumeIsolated { SendLogsToMaintainerButton.cleanups.removeAll { ObjectIdentifier($0) == id } }
         }
     }
     /// Retained until the share ends: `NSSharingService.delegate` is weak.
