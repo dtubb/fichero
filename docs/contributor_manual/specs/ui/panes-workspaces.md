@@ -243,7 +243,7 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
   `WindowWorkspaceTests`. View ▸ Customize Toolbar: every Mac window `.toolbar` site is
   `.toolbar(id: ContentToolbarID.customizableToolbar)` and every builder it calls returns
   `CustomizableToolbarContent` on macOS. *Test:*
-  `fichero/Tests/Unit/general/Views/Shell/CustomizableToolbarTests.swift::buildersAreCustomizableOnMac`, `::aliasIsCustomizableOnMac`.
+  `fichero/Tests/Unit/general/Views/Shell/CustomizableToolbarTests.swift::aliasIsCustomizableOnMac`.
   No test proves that the sites use `toolbar(id:)`.
 - `shell.search.always-visible-with-scope` — **[PARTIAL]** (#6729; owner 2026-11-19) search is one field
   in the toolbar; its magnifier menu has a **Search Scope** section with a check on the current scope,
