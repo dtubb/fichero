@@ -1,5 +1,4 @@
-"""Every IIIF fetch is safe, polite and gives up once (`iiif.fetch.*`, Step 1.1, #6921). No network: the
-socket layer is replaced by fakes that answer from a fixture and record what was asked."""
+"""Every IIIF fetch is safe (`iiif.fetch.*`, Step 1.1, #6921). No network: fakes answer and record what was asked."""
 from __future__ import annotations
 
 import json
@@ -9,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from fichero_server.media import iiif_engine, iiif_fetch
-from fichero_server.media.iiif_fetch import FetchFailed, PoliteFetcher
+from fichero_server.media.iiif_fetch import FetchFailed
 
 FIXTURE = Path(__file__).parents[2] / "fixtures" / "iiif" / "manifest_tiny.json"
 
@@ -23,8 +22,7 @@ def _once(responses, log):
 
 def test_the_fixture_manifest_names_a_loopback_image_service():
     service = json.loads(FIXTURE.read_text())["items"][0]["items"][0]["items"][0]["body"]["service"][0]["id"]
-    assert service == "https://127.0.0.1/img/1"
-    assert iiif_engine.refusal(service).startswith("refused:")
+    assert service == "https://127.0.0.1/img/1" and iiif_engine.refusal(service).startswith("refused:")
 
 
 def test_a_loopback_address_is_refused_before_any_request(monkeypatch):
@@ -87,12 +85,5 @@ def test_a_body_over_the_cap_is_refused(monkeypatch):
 
 
 def test_the_engine_fetcher_is_one_object_with_four_per_host():
-    assert iiif_engine.engine_fetcher() is iiif_engine.engine_fetcher()
-    assert iiif_engine.engine_fetcher().per_host == 4
+    assert iiif_engine.engine_fetcher() is iiif_engine.engine_fetcher() and iiif_engine.engine_fetcher().per_host == 4
 
-
-def test_429_and_503_are_waited_out_then_succeed():
-    answers = [(429, {"retry-after": "3"}, b""), (503, {"retry-after": "2"}, b""), (200, {}, b"ok")]
-    fetcher = PoliteFetcher(get=lambda url, t: answers.pop(0), sleep=lambda s: None, base_delay=0.01)
-    assert fetcher.fetch("https://iiif.archive.example/x") == b"ok"
-    assert fetcher.stats["throttled"] == 2

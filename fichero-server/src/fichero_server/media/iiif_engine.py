@@ -1,10 +1,6 @@
-"""The engine's one IIIF fetcher (`source/iiif.md`, `iiif.fetch.only-safe-public-urls`, `iiif.fetch.polite-per-host`).
-
-Viewing a page, a step's image and an import all fetch through `engine_fetcher()`: every address (and every
-redirect) is https on a public host with no credentials (`security.url_security.is_safe_url`), a body over 64 MB is
-refused, at most four requests are in flight to a host, and 429/503 are retried with backoff honouring Retry-After
-(`media.iiif_fetch.PoliteFetcher`). A refusal is a `FetchFailed` carrying a sentence.
-"""
+"""The engine's one IIIF fetcher (`source/iiif.md`, `iiif.fetch.*`): every address and redirect is checked with
+`is_safe_url` and must be https, bodies are capped at 64 MB, four requests per host, 429/503 retried
+(`media.iiif_fetch.PoliteFetcher`). A refusal is a `FetchFailed` carrying a sentence."""
 from __future__ import annotations
 
 import asyncio
