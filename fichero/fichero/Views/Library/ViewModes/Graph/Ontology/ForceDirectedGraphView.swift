@@ -284,7 +284,7 @@ struct ForceDirectedGraphView: View {
         // to render when nothing is selected. With the focus-neighborhood
         // model the global "draw all entities in a circle" is gone —
         // graph mode shows ONE focus + its k-hop neighbors. (#976/#977)
-        guard let focusId = selectedEntityId
+        guard let focusId = selectedEntityId.flatMap(GraphSimulation.entityFocusId(forTapped:))
                 ?? entities.compactMap(\.id).first else {
             sim.nodes = []
             sim.edges = []

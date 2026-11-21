@@ -64,6 +64,12 @@ extension ForceDirectedGraphView {
             }
             let label = Text(node.name).font(.caption2).foregroundColor(.primary)
             ctx.draw(label, at: CGPoint(x: pos.x, y: pos.y + radius + 7), anchor: .top)
+            // Statements whose object is not a name (a date, a phrase) are no node;
+            // their count sits on the subject (#6772).
+            if let count = sim.literalStatementCounts[node.id] {
+                let badge = Text("\(count)").font(.caption2.monospacedDigit()).foregroundColor(.secondary)
+                ctx.draw(badge, at: CGPoint(x: pos.x + radius + 3, y: pos.y - radius), anchor: .bottomLeading)
+            }
         }
     }
 
@@ -92,9 +98,9 @@ extension ForceDirectedGraphView {
         // Hit radius is in simulation space — divide by scale so the tap
         // target stays a constant ~18pt of screen space.
         let hitRadius: CGFloat = 18 / scale
-        // Node hit-test first — clicking a node refocuses.
+        // Node hit-test first — clicking a node refocuses. A `literal:` id is never a focus (#6772).
         var bestNode: (id: String, dist: CGFloat)?
-        for node in sim.nodes {
+        for node in sim.nodes where GraphSimulation.entityFocusId(forTapped: node.id) != nil {
             let dx = node.position.x - local.x
             let dy = node.position.y - local.y
             let dist = sqrt(dx * dx + dy * dy)
