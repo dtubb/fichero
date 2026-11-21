@@ -151,7 +151,7 @@ class TestRecoveredRunReleasesDocuments:
         asyncio.run(activity.resume_quit_paused_runs(store, library.db, ["t-dead"]))
         assert resumed == ["t-dead"]
 
-    def test_killed_run_that_cannot_resume_releases_its_documents(self, library, store):
+    def test_killed_run_releases_its_documents(self, library, store):
         """The reported failure: NER run dies mid-extraction, document stranded. A run the open fails (its resume
         refused) is settled by the same step (`_settle_recovered_run_documents`)."""
         doc = _processing_doc(library.db, "marshall-page-004.pdf")
