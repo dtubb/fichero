@@ -770,8 +770,12 @@ See section 7.2 below for what exists. The design:
   or confirmed by a person are included as PAGE `Word` / `Glyph` so a recogniser trained on
   them learns the alignment; a corrected region set is a YOLO label
   (`prep.yolo.fine-tune-from-corrected-regions`); a machine's cut no person touched is left
-  out by default (`source.train.human-checked-by-default`). *Built:* the line set. *Not built:*
-  words, glyphs and regions in it.
+  out by default (`source.train.human-checked-by-default`). *Built:* the line set.
+  *Built 2026-11-21:* the set (a full PAGE export) carries regions, words and glyphs; a word or glyph whose `custom`
+  names a machine's cut (`cut {source:ctc|ink-gap}`) is left out (`kraken_set.drop_flagged_lines`), a person's cut
+  and a word no cut made stay (`fichero-server/tests/unit/training/test_training_set_keeps_a_persons_cuts.py`).
+  *Not built:* an option to include a machine's cuts, the manifest counting the cuts left out, the YOLO label from
+  corrected regions.
 - `segment-editor.provenance-on-every-segment` — **[PARTIAL]** (→ #4923; engine) every segment says who made it
   (`created_by`, `provenance_kind`: model and run, or person, set by the engine from the
   action's context, never from the client) and every change is a version with who and when
