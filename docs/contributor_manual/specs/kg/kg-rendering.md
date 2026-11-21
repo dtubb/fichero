@@ -92,8 +92,13 @@ Three rules follow, and most of what is wrong today breaks one of them.
 
 ### A. Dates and places are qualifiers, not nodes
 
-- `kg.render.date-is-never-a-node` — **[BROKEN]** (#5032, #6772) the graph draws names only. Today a
-  statement whose object is not a known name comes back from the engine as an edge to
+- `kg.render.date-is-never-a-node` — **[PARTIAL]** (#5032, #6772, #6768) the graph draws names only.
+  Built: `GraphSimulation.buildNodes` makes no node for an id with the `literal:` prefix and keeps
+  no edge to one. The app filters on that id prefix until the engine marks literal edges itself
+  (#6768, not on main when this was written); the neighbour limit still does not count literal
+  edges, which is the engine half. Tests: `fichero/Tests/Unit/general/Views/Library/GraphSimulationNamesOnlyTests.swift`::rebuildMakesNoNodeForALiteral,
+  `fichero/Tests/Unit/general/Views/Inspector/KnowledgeGraphInspectorSectionTests.swift::testEpistemologyReducerDropsSubjectToLiteralEdge`.
+  Was: a statement whose object is not a known name comes back from the engine as an edge to
   `literal:<object phrase>` (`api/routes/kg/graph.py`, "always keep literal-object edges"), and
   `GraphSimulation.buildNodes` (`GraphModel.swift`) adds a node for each one. Measured on a
   scratch project: one person with five statements (three with a date as object, one with a
@@ -101,8 +106,11 @@ Three rules follow, and most of what is wrong today breaks one of them.
   dates. The literal nodes are grey circles, the same mark as an entity of kind Other
   (`drawNodes`, `ForceDirectedGraphView+Render.swift`), and they are not counted against the
   neighbour limit.
-- `kg.render.literal-node-tap-is-safe` — **[BROKEN]** (#5032, #6772) choosing any mark in the graph
-  never produces an error. Today `handleTap` focuses the tapped node's id whatever it is; for a
+- `kg.render.literal-node-tap-is-safe` — **[OK]** (#5032, #6772) choosing any mark in the graph
+  never produces an error. Built: the tap hit-test skips `literal:` ids, `entityFocusId(forTapped:)`
+  returns no focus for one, and `load()` ignores a literal `selectedEntityId`, so the graph never
+  asks the engine for a `literal:` neighbourhood. Tests: `fichero/Tests/Unit/general/Views/Library/GraphSimulationNamesOnlyTests.swift`::aTappedLiteralIdNeverBecomesTheFocus.
+  Was: `handleTap` focuses the tapped node's id whatever it is; for a
   literal node the graph then asks the engine for the neighbourhood of `literal:…`, the engine
   answers 404 ("Entity not found", measured), and the graph is replaced by an error line.
 - `kg.render.when-is-on-the-statement` — **[PARTIAL]** (#5032, #6773) wherever a statement is drawn
@@ -132,10 +140,13 @@ Three rules follow, and most of what is wrong today breaks one of them.
 - `kg.render.first-focus-is-a-person` — **[GAP]** (#5032, #6774) with nothing chosen, the graph
   opens on the document's most connected person, else its most connected name. Today it opens
   on the first entity in the list whatever its kind (`load()`, `entities.first`).
-- `kg.render.an-object-that-is-not-a-name-stays-in-the-sentence` — **[GAP]** (#5032, #6772) a
+- `kg.render.an-object-that-is-not-a-name-stays-in-the-sentence` — **[PARTIAL]** (#5032, #6772, #6773) a
   statement whose object is a phrase ("sold a share of the mine") is still seen from the graph:
   the focus node's card lists its statements, and the count of them is a badge on the node. It
-  is not drawn as a node.
+  is not drawn as a node. Built: no node for the phrase, and the count of such statements per
+  subject (`literalStatementCounts`) drawn as a badge beside the node. Not built: the edge label
+  with its date, which waits for the time and place fields on `NeighborhoodEdge` (#6773).
+  Tests: `fichero/Tests/Unit/general/Views/Library/GraphSimulationNamesOnlyTests.swift`::aStatementWithALiteralObjectIsCountedOnItsSubject.
 
 ### B. One mark for sure and unsure, and correcting in place
 
