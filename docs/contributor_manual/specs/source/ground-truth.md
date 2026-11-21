@@ -87,7 +87,11 @@ model's verdict never overrules it. Imported transcriptions (PAGE, ALTO, TEI) ar
   `fichero-server/tests/unit/training/test_train_on_the_persons_corrections_5700.py` (extend: the three grains, one rule).
 - `truth.mark.on-a-reading` — **[GAP]** (#4947; `source.reading.ground-truth-is-a-reading` owns the data model) a person
   marks a reading as ground truth (`PUT /api/segments/{id}/readings/{reading_id}/ground-truth`, an undoable action with
-  the person and the time), and a correction or a chosen reading is marked by that act. *Test (to write):* marking a
+  the person and the time), and a correction or a chosen reading is marked by that act. Ruled 2026-11-21 (owner): the
+  person is anyone correcting as they work (the owner, a student, a research assistant), and what they started from does
+  not matter: a model's transcription corrected by hand is a person's reading; no figure waits on a paid expert. The
+  blind-hands benchmark reads this mark (`hands.truth.reference-is-a-persons-or-says-so`, `source/read-any-hand.md`).
+  *Test (to write):* marking a
   reading makes the line count for the person set; a model's write never sets the flag.
 - `truth.mark.on-a-region` — **[GAP]** (#5525) a region or table segment is marked ground truth the same way; the YOLO set
   (`training/yolo_set.py` `persons_regions`) reads the mark beside provenance `human`.

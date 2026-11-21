@@ -327,7 +327,10 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
 - `training.set.held-out-picked-across-folder` — **[GAP]** (#5441) Fichero picks the held-out pages across
   the folder — stratified by hand, page kind and sub-folder where known, at least two pages, a stated
   share — lists them on the sheet, lets the person swap one, and never picks a page any candidate trained
-  on. Today the person names them (`distill.eval.held-out-checked-pages`).
+  on. Today the person names them (`distill.eval.held-out-checked-pages`). Ruled 2026-11-21 (owner): the share is one
+  in ten, drawn silently as the person corrects and never trained on; the picker is built as
+  `hands.heldout.one-in-ten-silently` (`source/read-any-hand.md`, Step 1.1), and this line keeps the sheet that lists
+  the pages and lets the person swap one.
 - `training.set.held-out-never-trained` — **[OK]** (#5398) a held-out page is never written to the set nor
   sent. Built: `fichero-server/src/fichero_server/training/kraken_set.py`; tested in
   `fichero-server/tests/unit/training/test_kraken_training_set.py`

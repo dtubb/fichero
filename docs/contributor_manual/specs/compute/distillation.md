@@ -368,7 +368,9 @@ Tests for `distill.reasoning.*` and `distill.set.keeps-reasons`:
   only low-confidence pieces to the teacher or to a person, recording where each piece went.
 - `distill.cascade.calibrated` — **[GAP]** (#5338) routing uses confidence calibrated on held-out
   pages (temperature scaling by default), and the calibration error is shown; a student whose
-  error is above the project's limit is not routed on.
+  error is above the project's limit is not routed on. The fit, its error and the bands a person sees are
+  `hands.calib.fitted-per-hand-and-shown` and `hands.calib.four-bands-in-the-reader` (`source/read-any-hand.md`,
+  Stage 1; owner 2026-11-21: measurement moves up); this line keeps the routing rule and is built on that fit.
 - `distill.queue.uncertainty-first` — **[GAP]** (#5338) the correction queue can be
   ordered by the student's uncertainty and by teacher–student disagreement.
 - `distill.teachers.agreement` — **[GAP]** (#5338) agreement between several teachers can
