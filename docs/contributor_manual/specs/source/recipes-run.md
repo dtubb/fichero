@@ -740,7 +740,7 @@ What the figures were, beside what the run said:
 
 The behaviours this adds:
 
-- `recipes-run.restart.continue-adopts-the-paused-step` — **[BROKEN]** (#6584, #6807) after a quit, the launch
+- `recipes-run.restart.continue-adopts-the-paused-step` — **[BROKEN]** (#6584, → #6807) after a quit, the launch
   list names a recipe run ONCE: its step's run that the quit paused is part of it, never a second row, and the
   embeds the recipe will do at its end are not listed beside it; Continue resumes that step's run from its
   checkpoint and the recipe adopts it, as a person's Resume does (`_adopt_step_run`). Measured: the list held 5
@@ -750,7 +750,7 @@ The behaviours this adds:
   no reading", with no `missed` offer. Code: `execution/jobs.py` `stopped_at_quit`, `continue_after_quit`;
   `api/routes/system/activity.py` `list_stopped_at_quit`, `continue_after_quit` (adds the paused workflow runs);
   `recipes/runner.py` records the run a recipe waits on (`awaiting`) only in `_park`, a person's pause; a quit leaves none.
-- `recipes-run.restart.run-row-counts-pages-after-restart` — **[BROKEN]** (#6584, #6807) after a restart the
+- `recipes-run.restart.run-row-counts-pages-after-restart` — **[BROKEN]** (#6584, → #6807) after a restart the
   run's row and its live row keep the page count they had: measured, the run's row read "4 of 5" before the
   kill and "5 of 11" after Continue (every step run's total added up), the live row "0 of 0", and the run's step
   list said Find Lines `running` while the run was paused.
@@ -783,7 +783,7 @@ The behaviours this adds:
   jobs (`embed_jobs` on the step) and `recipes/runner.py` `_run_embed` says "Making vectors for search: 2 of 3
   pages" on the run's row; Leave Out, which makes no job, keeps each run on the step (`spans`, from
   `recipes/leave_out.py` `run_step`) and `recipes/run_view.py` `_timings` times it from them.
-- `recipes-run.timing.plan-says-time-from-measured-pages` — **[GAP]** (#4951, #6052, #6810) Start's plan says
+- `recipes-run.timing.plan-says-time-from-measured-pages` — **[GAP]** (#4951, #6052, → #6810) Start's plan says
   how long each step will take on these pages once this Mac has finished pages of that step's model
   (`estimate.runs[].seconds`, with its basis), and the run keeps that figure beside what it measured
   (`designer.run.predicted-then-measured`). Today the plan carries cost alone (`recipes/start.py`); the run says
@@ -791,26 +791,26 @@ The behaviours this adds:
   pages read by the step's reader, `GET /api/recipes/routes` still said the time on this Mac was unknown:
   `recipes/routes.py` `default_models` passes the reader as the plan names it (`kraken-…`) and the job rows
   store it with its runtime (`kraken:kraken-…`), so `measured_seconds_per_page` finds no row.
-- `recipes-run.journey.start-on-pages-answers-for-those-pages` — **[BROKEN]** (#6744, #6170, #6811) a Start on
+- `recipes-run.journey.start-on-pages-answers-for-those-pages` — **[BROKEN]** (#6744, #6170, → #6811) a Start on
   chosen pages (`documents`) answers with those pages' counts and the run's steps carry those pages' notes.
   Measured: a Start on 4 pages answered `pages: 10` and "runs again on all 10 pages"; while it read 3 pages its
   step's note said "already done on all 10 pages; nothing to run". `api/routes/system/recipes.py`
   `_action_start` plans the whole project (`_start_plan(db, params.folder_id, …)`) and hands the pages to
   `runner.enqueue` alone.
-- `recipes-run.journey.stopped-redo-says-what-it-left` — **[BROKEN]** (#6170, #6811) a run that ran a step
+- `recipes-run.journey.stopped-redo-says-what-it-left` — **[BROKEN]** (#6170, → #6811) a run that ran a step
   AGAIN and was stopped counts its own work: the summary says how many pages this run read again, and `missed`
   names the pages it did not reach, with an offer that reads them again. Measured: stopped after 2 of 4 pages,
   the summary said "Read 4 of 4 pages" (the older readings counted), `missed.words` "1 page not done" (2 were
   not), `missed.documents` all 4 pages, and the offer is a plain Start, which finds every page done and reads
   nothing.
-- `recipes-run.journey.start-with-nothing-to-run-is-refused` — **[BROKEN]** (#6744, #6811) a Start whose plan
+- `recipes-run.journey.start-with-nothing-to-run-is-refused` — **[BROKEN]** (#6744, → #6811) a Start whose plan
   has nothing to run is refused in one sentence (the plan's own "already done on all N pages; nothing to run"),
   as the route's contract says; it queues no run. Measured: a Start on the Read step alone, all pages read,
   answered 200 and listed a run that ended `done` in 0.1 s.
-- `recipes-run.control.waiting-names-the-run-in-words` — **[BROKEN]** (#6091, #6811) a run that waits for
+- `recipes-run.control.waiting-names-the-run-in-words` — **[BROKEN]** (#6091, → #6811) a run that waits for
   another says which in a person's words (its folder or its start time). Measured: "Waiting for the recipe
   run <the run's id> to finish: recipe runs go one at a time".
-- `recipes-run.engine.runs-list-answers-while-a-run-goes` — **[BROKEN]** (#6178, #6812) the list of runs and one
+- `recipes-run.engine.runs-list-answers-while-a-run-goes` — **[BROKEN]** (#6178, → #6812) the list of runs and one
   run's status answer inside a second while a run reads. Measured over 20 polls during a 5-page reading, 7 runs
   in the project: `GET /api/recipes/project/runs` median 1.3 s, a tenth of them 14 s or more, the worst 20.2 s;
   `GET /api/activity/jobs` 0.13 s, 0.39 s at worst; the engine logged "slow poll recipes.recipe_runs" up to
@@ -818,10 +818,10 @@ The behaviours this adds:
   once: the loop held 14.1 s by `get_document` waiting for the transaction gate on the loop
   (`api/routes/document/documents.py`), and once 30 s or more while Kraken's models were let go for the embedder
   (`release_resident_models`, the collection).
-- `recipes-run.engine.quits-when-asked` — **[BROKEN]** (#5357, #6813) the engine ends within 10 s of a
+- `recipes-run.engine.quits-when-asked` — **[BROKEN]** (#5357, → #6813) the engine ends within 10 s of a
   terminate signal whatever it holds. Measured: once in 6 s mid-step ("2 job thread(s) still finishing"), and once
   not at all after 45 s, idle after a run, with a forked child of 1.6 GB still there; both had to be killed.
-- `recipes-run.engine.not-sure-does-not-starve-the-import` — **[BROKEN]** (#6078, #6193, #6814) Set Up's "Not
+- `recipes-run.engine.not-sure-does-not-starve-the-import` — **[BROKEN]** (#6078, #6193, → #6814) Set Up's "Not
   sure" (the language worked out from three pages by a quick read, `recipes/language_guess.py`) answers in
   seconds, or is a job with a row and words, and the import's thumbnails go on beside it. Measured: the assemble
   call took 169 s with nothing shown; the 10 thumbnails queued at the same moment took 107 s each for the first

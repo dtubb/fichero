@@ -973,16 +973,16 @@ only; the run's side is `recipes-run.md` section 14). The reader Set Up chose fo
 by hand through `use-candidate`, read them at 6 to 8% in 5.3 s a page, and the plan then counted every page as not
 done for the new reader, as it should. Start's plan gave each step's cost and no time. Three faults of the choosing:
 
-- `designer.step.swapped-model-says-its-own-name` [BROKEN] (#5612, #6815) — after Use This One the step names
+- `designer.step.swapped-model-says-its-own-name` [BROKEN] (#5612, → #6815) — after Use This One the step names
   the model now on it. Measured: `POST /api/recipes/project/steps/use-candidate` set the step's `model` and `card`
   to the new reader and left `model_name` and `model_link` saying the old one, so Ready names a reader the run
   does not use. The plan's run and the run's row said the new reader.
-- `designer.place.one-id-for-a-place` [BROKEN] (#6173, #6816) — a place has one id on every route. Measured:
+- `designer.place.one-id-for-a-place` [BROKEN] (#6173, → #6816) — a place has one id on every route. Measured:
   Hugging Face Jobs is `hf-jobs` in a candidate's `places` (`step_choices`), `huggingface-jobs` in
   `POST /api/recipes/project/steps/place` (which refuses `hf-jobs`), and `huggingface` in
   `GET /api/recipes/places`; the step then carries `place: huggingface-jobs` beside `runs_on: this-mac`, and a
   plan with nothing left to run says nothing of why it stays on this Mac.
-- `designer.place.per-step-place-covers-every-place` [MISSING] (#5238, #6173, #6816) — a step can be put on
+- `designer.place.per-step-place-covers-every-place` [MISSING] (#5238, #6173, → #6816) — a step can be put on
   any place the person allowed: this Mac, another Mac of theirs, Hugging Face Jobs, the cluster, a cloud model.
   Today the route takes this Mac or Hugging Face Jobs, for the Read step alone (`recipes/start.py`
   `set_step_place`); a cloud model is a model choice, the cluster a project binding, another Mac nothing yet.
