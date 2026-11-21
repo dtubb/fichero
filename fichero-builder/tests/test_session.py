@@ -77,3 +77,23 @@ def test_rate_limit_is_read_from_error_shapes_never_from_prose(tmp_path):
     assert session.parse_session(p)["rate_limited"] is True
     _write(p, [USER, prose, USER, err, USER, END])
     assert session.parse_session(p)["rate_limited"] is False, "only the latest turn counts"
+
+
+def test_a_claude_code_message_written_as_one_line_per_block_costs_once(tmp_path):
+    """local.perf.spend-counts-a-message-once (#6870): Claude Code writes one line per content block and repeats the
+    message's usage on each; the message counts once, by message.id, and its last line wins."""
+    from fichero_builder import watcher
+
+    def line(mid, block, out_tokens):
+        return {"type": "assistant", "message": {"id": mid, "role": "assistant", "model": "claude-sonnet-4-5", "stop_reason": None,
+                "usage": {"input_tokens": 10, "cache_creation_input_tokens": 1000, "cache_read_input_tokens": 50000, "output_tokens": out_tokens},
+                "content": [block]}}
+    p = tmp_path / "cc.jsonl"
+    _write(p, [line("msg_1", {"type": "text", "text": "looking"}, 5),
+               line("msg_1", {"type": "tool_use", "name": "Read", "input": {}}, 80),
+               line("msg_1", {"type": "tool_use", "name": "Bash", "input": {}}, 100)])
+    s = session.parse_session(p)
+    assert (s["tokens"], s["fresh"], s["cache_write"], s["cache_read"]) == (51110, 10, 1000, 50000)
+    spend = watcher.Spend(day_usd=1.0, prices={"sonnet": [3, 15]})
+    assert round(watcher.cost_of(s, spend, s["model"]), 6) == round((1010 * 3 + 50000 * 0.3 + 100 * 15) / 1e6, 6)
+    assert s["tool_calls"] == {"Read": 1, "Bash": 1}, "each block is still read"
