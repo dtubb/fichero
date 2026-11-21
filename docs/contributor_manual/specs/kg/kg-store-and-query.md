@@ -49,7 +49,7 @@ tools); `fichero-server/tests/perf/`.
   to. Looked at again if property-graph queries enter DuckDB's core.
 - **A separate graph store.** Not adopted: a second store breaks "one source of truth", needs its
   own crash recovery and sharing rules, and the measured cost of the SQL form leaves nothing for
-  it to win at this size. The one embedded candidate of note was archived by its makers in 2025.
+  it to win at this size.
 - **networkx** stays for what has no SQL form: centrality, communities, PageRank over a SCOPE,
   on a cached graph that is built from link rows, never from hydrated models.
 - **Apple's on-device index (Core Spotlight and the semantic index behind it).** Its format is
