@@ -18,7 +18,9 @@ for _ in $(seq 1 120); do
   sleep 1
 done
 [ -s "$READY" ] || { echo "harness engine never printed its ready line" >&2; exit 3; }
-TEST_RUNNER_FICHERO_FORCE_UDS_PATH="$SOCK" xcodebuild test \
+# The tests launch the app with this socket and this seeded project (the iOS launch needs a paired project).
+LIBRARY="$("$PY" -c 'import json,sys; print(json.loads(open(sys.argv[1]).readline())["library"])' "$READY")"
+TEST_RUNNER_FICHERO_FORCE_UDS_PATH="$SOCK" TEST_RUNNER_FICHERO_UITEST_LIBRARY="$LIBRARY" xcodebuild test \
   -project fichero/fichero.xcodeproj -scheme "Fichero (Dev Local)" \
   -destination "$DEST" -testPlan fichero-ui-ios \
   CODE_SIGNING_ALLOWED=NO -skipPackagePluginValidation
