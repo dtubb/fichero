@@ -569,6 +569,11 @@ routes and a project opened through the database manager.
   back to waiting and carry on, as before (`activity.durable.poison-item`); a recipe run carries on and
   skips the pages its steps already did. Not built: the interrupted run is not resumed in place from its
   checkpoint (`activity.durable.lease-not-fail`); its pages not done are read by a new run.
+  *Changed 2026-11-21 (#6732, owner: interrupted runs resume from the launch alert):* only a run with no checkpoint is
+  marked interrupted as above. A run with a checkpoint is held: its record and rows `paused`, "Paused: the engine stopped
+  at HH:MM; Resume carries on from its last finished page", its documents not settled; the launch alert lists it and its
+  Continue resumes the same run in place (`activity.launch.nothing-starts-one-alert`). A resume that cannot proceed ends
+  it failed with the reason. *Test:* `fichero-server/tests/unit/api/test_interrupted_run_held_at_open_6732.py`.
 - `compute.run.interrupted-on-close` — **[OK]** (#5608) a project closed while one of a recipe's step runs is in flight
   (its pages waiting for a lane, or reading) ends that run as interrupted, said with when: on the project's
   next open its record, its row and its steps' rows in Activity, and its account say "Interrupted: the
