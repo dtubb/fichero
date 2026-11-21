@@ -295,12 +295,17 @@ starting a new one.
   indicator — multi-user/agent-session presence has no toolbar surface yet.
 - `panes.status-island.message-budget` — **[PARTIAL]** (implemented and tested; #4366 still
   open pending close) every island message reads
-  completely at the island's real width; nothing the app authors truncates mid-word. Verified
+  completely at the island's real width; no message the app authors truncates mid-word. The one
+  exception is a name: the selected item's and the open folder's names are cut in the middle,
+  keeping their start and their end (the page number, `_001`), because the end is what tells
+  pages apart (#6743). Verified
   at HEAD: `StatusIslandMessage.budget`/`.declaredMaxWidth`, `.authoredMessages` (the
-  app-authored strings held to budget by test) and `.shortForm(_:)` (a named, tested seam
-  that clips an OS/backend string on a word boundary, never a silent SwiftUI clip) all exist
-  exactly as asked (`StatusIslandToolbarItem.swift:156-215`). Pinned:
-  `StatusIslandMessageBudgetTests`.
+  app-authored strings held to budget by test), `.shortForm(_:)` (a named, tested seam
+  that clips an OS/backend string on a word boundary, never a silent SwiftUI clip) and
+  `.itemName(_:)` (the middle cut for item and folder names, which may fall inside a word) all
+  exist (`StatusIslandToolbarItem.swift:156-222`). Pinned:
+  `StatusIslandMessageBudgetTests`, the middle cut by
+  `StatusIslandMessageBudgetTests::aLongItemNameKeepsItsEnd`.
 - `panes.status-island.errors-are-short-and-typed` — **[PARTIAL]** (#4269) the content area
   never shows raw error text (NSError descriptions, domains, codes, URLs); the island shows a
   short human sentence, and clicking it reveals the full technical text plus a one-click
