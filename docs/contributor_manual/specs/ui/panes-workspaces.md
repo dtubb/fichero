@@ -696,7 +696,7 @@ the browse→read flow down the centre.
   split collapses by one before the leaf is removed. Pinned:
   `Tests/Unit/general/Models/PaneListTests.swift` ("closing a pane removes ONLY that pane…",
   "…collapses to the survivor — the row does not disappear") + `PaneInstanceIndependenceTests`.
-- `panes.head.one-menu-button` — **[GAP]** (#6741; app; owner 2026-11-19, refined the same day; spec-change: owner) every pane's
+- `panes.head.one-menu-button` — **[PARTIAL]** (#6741; app; owner 2026-11-19, refined the same day; spec-change: owner) every pane's
   head has, on its right, one button whose icon is the pane's kind (a photograph for Source, a list for Items, a book for
   Reader, a numbered list for Layout Order, and so on), and its menu is the same in every pane and in this order: Pane ▸ (the
   kinds with their icons, a check on the current one); View As ▸ (the kind's own views: Items has Icon, List, Table, Columns,
@@ -711,6 +711,14 @@ the browse→read flow down the centre.
   and the tooltip. Tests: one menu per pane, same order everywhere; each item acts on its own pane; Split ▸ a kind adds that
   pane; closing, splitting and pinning from the menu match today's buttons; the head has no X and no kind menu; the Pane ▸
   check follows the kind. Related: `menus.toolbar.panes-shown-from-the-menus`.
+  *Built (#6741):* Pin Pane is a checked toggle in the menu and the head's pin button is gone; Split Right ▸ and Split Below ▸
+  are submenus of kinds that add the chosen kind in one step; View As ▸ lists the pane's views after Pane ▸; Pane Options ▸
+  holds the Reader's Font. *Not built:* Show ▸ (Source's overlays, still Preview's What to show) and Order ▸ (Layout Order)
+  under Pane Options; removing the head's left view chooser, which today also names what is shown (#6458). *Tests:*
+  `fichero/Tests/Unit/general/Views/Shell/PaneMenuTests.swift::pinLivesInTheMenu`,
+  `fichero/Tests/Unit/general/Views/Shell/PaneMenuTests.swift::viewAsInTheMenu`,
+  `fichero/Tests/Unit/general/Views/Shell/PaneMenuTests.swift::paneOptionsHoldsFont`,
+  `fichero/Tests/Unit/general/Models/PaneSplitAddsKindTests.swift::splitAddsTheChosenKind`.
 - `panes.head.kind-switcher-everywhere` — **[PARTIAL]** (#4706; Reader fixed d8621ecc3, pinned by
   `PaneHeadKindSwitcherParityTests`; Chat follows → #4705 increment 6) every pane head
   that renders a leaf kind mounts the kind selector, so ANY pane can become a Library, Source or
@@ -1178,8 +1186,9 @@ also show the path (`ContentView+RootLayout.swift:311-317`).
   right-click, list Pane ▸ (the kinds, the current one ticked), Split, Focus on Pane (Leave Focus while that pane is in
   Focus), Pin, Close (`PaneMenuEntries`). *Built (#6741):* the head's ✕ and kind picker are gone (`PaneHead.identityCapsule` holds the view
   chooser only); Pane ▸ and Close Pane in the menu replace them, and the two UI tests that clicked the ✕ open the
-  menu. *Not built:* Show as ▸ and What to Show ▸ in the menu (the view chooser stays at the left), Split Right ▸ /
-  Below ▸ as submenus of kinds, Link…, removing the pin button, and a Preview showing a page
+  menu. *Built (#6741):* Show as ▸ (as View As ▸), Split Right ▸ / Below ▸ as submenus of kinds, and Pin in the menu
+  with the head's pin button removed (`panes.head.one-menu-button`). *Not built:* What to Show ▸ in the menu, removing the
+  view chooser at the left, Link…, and a Preview showing a page
   focused from the menu opening the page reader as ⌃⌘R does (it shows the pane alone). *Tests:*
   `fichero/Tests/Unit/general/Views/Shell/PaneMenuTests.swift`.
 - `panes.chrome.head-keeps-only-what-moves` — **[GAP]** (#5435; ruled by the owner 2026-11-13) with the pane menu on
