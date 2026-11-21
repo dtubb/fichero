@@ -329,9 +329,11 @@ class TestRegions:
     def test_a_stroke_across_a_region_makes_two_regions_each_with_its_own_lines(self, db, client):
         region, (upper, lower) = self._region(db, client)
 
-        result = _knife(db, [region], [[0.05, 0.3], [0.95, 0.3]])
+        # The app offers the region and its lines together: the lines move whole, they are not cut.
+        result = _knife(db, [region, upper, lower], [[0.05, 0.3], [0.95, 0.3]])
 
         first, second = _parts(result, region)
+        assert [split["kept_id"] for split in result.result["splits"]] == [region]
         assert first == region
         assert db.get(Segment, first).kind == db.get(Segment, second).kind == "region"
         assert db.get(Segment, second).deleted_at is None

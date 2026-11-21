@@ -5316,7 +5316,11 @@ def _knife_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
     vertical, rungs = _lines_are_vertical(shapes, document), direction_rungs(db, document)
     planned: list[tuple[Segment, list[SegmentSplitPart], bool, dict, list[list[Segment]]]] = []
     left_alone: list[dict] = []
+    rows = sorted(rows, key=lambda row: row.kind != "region")  # regions first: their lines move whole with them
+    moved_with_region: set[str] = set()
     for row in rows:
+        if row.id in moved_with_region:
+            continue
         if row.kind == "region":
             # `segment-editor.split-knife` (regions): the polygon is cut along the stroke; each of its lines goes with
             # the part holding its baseline's middle. A stroke that does not cut through leaves the region alone.
@@ -5329,7 +5333,7 @@ def _knife_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
                 continue
             region_children: list[list[Segment]] = [[] for _ in polygons]
             for child in shapes:
-                if child.parent_segment_id != row.id or child.id in params.expected_versions:
+                if child.parent_segment_id != row.id:
                     continue
                 if child.baseline and len(child.baseline) >= 2:
                     middle = line_cut.point_along(child.baseline, 0.5)[0]
@@ -5337,6 +5341,7 @@ def _knife_split(db: Database, params: SegmentSplitParams, ctx: ActionContext):
                     x0, y0, x1, y1 = line_join.bounds(line_join.outline_of(child.anchor) or polygons[0])
                     middle = [(x0 + x1) / 2, (y0 + y1) / 2]
                 region_children[line_cut.part_holding(middle, polygons)].append(child)
+                moved_with_region.add(child.id)
             region_parts = []
             for polygon in polygons:
                 x0, y0, x1, y1 = line_join.bounds(polygon)
