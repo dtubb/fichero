@@ -170,8 +170,11 @@ way it arrived, gets its own session the Mac can revoke, and nothing is ever rea
 - `signin.password-comes-last` — **[PARTIAL]** (#6568; order ruled in `multiuser.password-comes-last`; sign-in route built,
   `sharing.people.sign-in-without-a-code`) the iOS sign-in screen offers, in order: your own Macs (method 1), nearby Macs to
   approve (method 2), a passkey (method 3), the QR, and last a username and password; the password fields use
-  `textContentType` username/password so the Passwords app offers to save them. Not built: the order and the AutoFill hints.
-  *Test:* `SignInOptionsOrderTests.swift` (not yet written).
+  `textContentType` username/password so the Passwords app offers to save them. Built: the Connect screen draws its
+  sections from `SignInOptions.connectScreenRows` (Your Macs, nearby Macs, the QR), and the password is the host's alert
+  after a typed address, with `textContentType` `.username` and `.password` (`PersonSignInAlert.swift`). Not built: the
+  approval and passkey rows (methods 2 and 3 are not built).
+  *Test:* `SignInOptionsOrderTests.swift` (the order; the AutoFill hints have no test).
 
 ### F. Failed sign-ins
 
