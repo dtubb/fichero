@@ -3,19 +3,9 @@ import SwiftUI
 import Testing
 
 /// #6730 (the owner's comment, 2026-11-19): which toolbar buttons show is View ▸ Customize Toolbar…, not a Workspaces
-/// submenu. Every window toolbar builder returns `some WindowToolbarContent`, which is `CustomizableToolbarContent` on
-/// macOS, so the `.toolbar(id:)` sites that call them compile only with customizable items.
+/// submenu. Every window toolbar builder returns `some WindowToolbarContent`; on macOS that is
+/// `CustomizableToolbarContent`, so a builder with an item that has no id fails to compile at its `.toolbar(id:)` site.
 struct CustomizableToolbarTests {
-    @Test("no window toolbar builder declares a non-customizable some ToolbarContent", arguments: [
-        "Views/Shell/ContentView/ContentView+Toolbar.swift",
-        "Views/Shell/ContentView/ContentView+SidebarButtons.swift",
-        "Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"
-    ])
-    func buildersAreCustomizableOnMac(path: String) throws {
-        let source = try AppSource.code(path)
-        #expect(!source.contains("some ToolbarContent"), "\(path) still declares a non-customizable builder")
-    }
-
     @Test("WindowToolbarContent is CustomizableToolbarContent on macOS")
     func aliasIsCustomizableOnMac() {
         #if os(macOS)
