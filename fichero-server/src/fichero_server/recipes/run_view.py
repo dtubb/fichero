@@ -126,68 +126,95 @@ class StepTiming(BaseModel):
         "last's end, its pages' median over all of them"))
 
 
-def page_seconds(progress_timeline: Optional[dict]) -> list[float]:
-    """Each page's own time in a workflow run's stored timeline: its file entries that finished, by page, summed over the
-    run's nodes. A file's time counts from its slot (`execution.runner.file_duration_ms`), never the fan-out's start."""
+def _page_times(work: list[tuple[Any, ...]]) -> list[float]:
+    """Each page's own seconds in a step's page jobs (`jobs.work_under`): the jobs that ended done, summed by page; a
+    batch of embeds (`make-a-vector`) shares its time over its pages."""
+    import json
+
+    from fichero_server.actions.page_text_cache import BATCH_PREFIX, REEMBED_KIND
+    from fichero_server.core.timeutil import ensure_utc
+
     by_page: dict[str, float] = {}
-    for e in (progress_timeline or {}).get("steps") or []:
-        if e.get("type") == "file" and e.get("status") == "success" and isinstance(e.get("duration_ms"), (int, float)):
-            key = str(e.get("page_id") or e.get("document_id") or e.get("file_path"))  # a page in a document: its own id
-            by_page[key] = by_page.get(key, 0.0) + e["duration_ms"] / 1000
+    for kind, subject, started, finished, state, detail in work:
+        if state != "done" or started is None or finished is None:
+            continue
+        took = (ensure_utc(finished) - ensure_utc(started)).total_seconds()
+        pages = json.loads(detail)["documents"] if kind == REEMBED_KIND and subject.startswith(BATCH_PREFIX) else [subject]
+        for page in pages:
+            by_page[page] = by_page.get(page, 0.0) + took / len(pages)
     return list(by_page.values())
 
 
-def step_timing(started: Optional[datetime], ended: Optional[datetime], pages: list[float],
-                now: datetime) -> StepTiming:
+def _spans(work: list[tuple[Any, ...]], now: datetime) -> list[tuple[datetime, datetime]]:
+    """The time a step's page jobs ran: each started job to its end, a running one to now; a waiting or paused job, which
+    has not ended, adds nothing."""
     from fichero_server.core.timeutil import ensure_utc
 
-    seconds = None if started is None else round((ensure_utc(ended or now) - ensure_utc(started)).total_seconds(), 1)
-    return StepTiming(started_at=started, ended_at=ended, seconds=seconds, pages_done=len(pages),
-                      seconds_per_page=round(statistics.median(pages), 1) if pages else None)
+    return [(ensure_utc(started), ensure_utc(finished or now)) for _k, _s, started, finished, state, _d in work
+            if started is not None and (finished is not None or state == "running")]
 
 
-def _timings(db: Any, status: dict[str, Any]) -> tuple[Optional[float], dict[str, StepTiming]]:
-    """The run's seconds and each step's timing, by its job, from the rows: the jobs table and a workflow step's stored
-    timeline (#6215). Bookkeeping: a library that cannot be read gives none, never a failed status."""
-    import json
+def _union_seconds(spans: list[tuple[datetime, datetime]]) -> float:
+    """The length of the union of these spans: two pages run at once count once, a pause between them not at all."""
+    total, end = 0.0, None
+    for start, stop in sorted(spans):
+        if end is None or start > end:
+            total, end = total + (stop - start).total_seconds(), stop
+        elif stop > end:
+            total, end = total + (stop - end).total_seconds(), stop
+    return total
 
+
+def step_timing(started: Optional[datetime], ended: Optional[datetime], work: list[tuple[Any, ...]],
+                now: datetime) -> tuple[StepTiming, list[tuple[datetime, datetime]]]:
+    """A step's (or a batch's) timing from its row's span and its page jobs, with the spans its seconds count. Its
+    seconds: the time its page jobs ran; a step with no page jobs (names), its row's span."""
+    from fichero_server.core.timeutil import ensure_utc
+
+    spans = _spans(work, now)
+    if not spans and started is not None:
+        spans = [(ensure_utc(started), ensure_utc(ended or now))]
+    pages = _page_times(work)
+    timing = StepTiming(started_at=started, ended_at=ended,
+                        seconds=round(_union_seconds(spans), 1) if spans else None, pages_done=len(pages),
+                        seconds_per_page=round(statistics.median(pages), 1) if pages else None)
+    return timing, spans
+
+
+def _timings(db: Any, status: dict[str, Any]) -> tuple[Optional[float], dict[int, StepTiming]]:
+    """The run's seconds and each step's timing, by the step's place in the run, from the rows: each batch's job and the
+    page jobs under it (`recipes-run.timing.page-time-is-the-page-job`, `survives-pause-and-restart`, #6809); Search, from
+    its embed jobs (`embed_jobs`). The run's seconds: the time any of its steps ran. Bookkeeping: a library that cannot be
+    read gives none, never a failed status."""
     from fichero_server.core.timeutil import utc_now
     from fichero_server.execution import jobs
-    from fichero_server.db import activity_records as records
 
     try:
-        jobs_of = {s["child_id"]: [b for b in s.get("batch_jobs") or [] if b.get("child_id")]
-                   or [{"folder": None, "child_id": s["child_id"]}] for s in status["steps"] if s.get("child_id")}
-        cards = {s["child_id"]: s.get("card") for s in status["steps"] if s.get("child_id")}
-        batch_ids = [b["child_id"] for bs in jobs_of.values() for b in bs]
-        times = jobs.times(db, [status["job_id"], *batch_ids])
+        roots_of = {i: [b for b in s.get("batch_jobs") or [] if b.get("child_id")]
+                    or ([{"folder": None, "child_id": s["child_id"]}] if s.get("child_id") else [])
+                    + [{"folder": None, "child_id": j} for j in s.get("embed_jobs") or []]
+                    for i, s in enumerate(status["steps"])}
+        ids = [b["child_id"] for bs in roots_of.values() for b in bs]
+        times = jobs.times(db, ids)
+        work = jobs.work_under(db, ids)  # one read for every batch of every step
         now = utc_now()
 
-        wf = list(dict.fromkeys(b["child_id"] for c, bs in jobs_of.items() if cards[c] == "workflow" for b in bs))
-        timelines = records.progress_timelines(db, wf)  # one read for every batch of every step
-
-        def pages_of(child: str, card: Any) -> list[float]:
-            timeline = timelines.get(child) if card == "workflow" else None
-            timeline = json.loads(timeline) if isinstance(timeline, str) and timeline else timeline
-            return page_seconds(timeline if isinstance(timeline, dict) else None)
-
-        out = {}
-        for child, batches in jobs_of.items():
-            timed = [(b, times[b["child_id"]], pages_of(b["child_id"], cards[child]))
-                     for b in batches if b["child_id"] in times]
+        out, run_spans = {}, []
+        for i, roots in roots_of.items():
+            timed = [b for b in roots if b["child_id"] in times]
             if not timed:
                 continue
-            starts = [t[0] for _b, t, _p in timed if t[0] is not None]
-            ends = [t[1] for _b, t, _p in timed]
-            step = step_timing(min(starts) if starts else None, None if None in ends else max(ends),
-                               [x for _b, _t, p in timed for x in p], now)
-            if len(timed) > 1:  # one batch is the step itself
-                step.batches = [step_timing(*t, p, now).model_copy(update={"folder": b.get("folder"), "job_id": b["child_id"]})
-                                for b, t, p in timed]
-            step.cost_usd = jobs.cost_under(db, [b["child_id"] for b, _t, _p in timed], times)  # a finished batch: read once
-            out[child] = step
-        run = times.get(status["job_id"])
-        return (step_timing(*run, [], now).seconds if run else None), out
+            starts = [times[b["child_id"]][0] for b in timed if times[b["child_id"]][0] is not None]
+            ends = [times[b["child_id"]][1] for b in timed]
+            step, spans = step_timing(min(starts) if starts else None, None if None in ends else max(ends),
+                                      [w for b in timed for w in work[b["child_id"]]], now)
+            if len(timed) > 1 and not status["steps"][i].get("embed_jobs"):  # one batch is the step itself
+                step.batches = [step_timing(*times[b["child_id"]], work[b["child_id"]], now)[0].model_copy(
+                    update={"folder": b.get("folder"), "job_id": b["child_id"]}) for b in timed]
+            step.cost_usd = jobs.cost_under(db, [b["child_id"] for b in timed], times)  # a finished batch: read once
+            out[i] = step
+            run_spans += spans
+        return (round(_union_seconds(run_spans), 1) if run_spans else None), out
     except Exception as exc:  # noqa: BLE001
         logger.debug("no timings for run %s: %s", status.get("job_id"), exc)
         return None, {}
@@ -313,11 +340,11 @@ async def with_accounts(db: Any, status: dict[str, Any]) -> dict[str, Any]:
 
     status["seconds"], timings = await asyncio.to_thread(_timings, db, status)  # the rows: off the loop (#6178)
     running = None
-    for step in status["steps"]:
+    for i, step in enumerate(status["steps"]):
         step["account"] = None
         step["failure"] = await _step_failure(db, step)
-        if step.get("child_id") in timings:
-            step["timing"] = timings[step["child_id"]]
+        if i in timings:
+            step["timing"] = timings[i]
         if step.get("card") == "workflow" and step.get("child_id"):
             step["account"] = await run_account(db, step["child_id"])
             if step["account"] is not None and step["account"].offer is not None:

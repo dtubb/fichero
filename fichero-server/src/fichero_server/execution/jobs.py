@@ -1738,6 +1738,32 @@ def cost_under(
     return cost if calls and priced and cost else None
 
 
+def work_under(db: "Database", job_ids: list[str]) -> dict[str, list[tuple[Any, ...]]]:
+    """Each job's page jobs, in one read: the first rows under it (or the job itself) whose kind is not a run's, as
+    `tree` counts a page; never a page job's own children. Each row: (kind, subject, started_at, finished_at, state,
+    detail). `recipes-run.timing.page-time-is-the-page-job` (#6809)."""
+    _ensure(db)
+    ids = [i for i in dict.fromkeys(job_ids) if i]
+    if not ids:
+        return {}
+    runs = ", ".join("?" * len(RUN_KINDS))
+    # ponytail: every page row of the run's steps on each poll, as the stored timelines were; remember a finished
+    # job's rows as `cost_under` does if a poll of a very large run grows slow.
+    rows = db.execute_fetchall(
+        f"WITH RECURSIVE t AS (SELECT id AS root, id, kind, subject, started_at, finished_at, state, detail FROM jobs "
+        f"WHERE id IN ({', '.join('?' * len(ids))}) "
+        "UNION ALL SELECT t.root, j.id, j.kind, j.subject, j.started_at, j.finished_at, j.state, j.detail "
+        f"FROM jobs j JOIN t ON j.parent_id = t.id WHERE t.kind IN ({runs})) "
+        f"SELECT root, kind, subject, started_at, finished_at, state, detail FROM t WHERE kind NOT IN ({runs})",
+        [*ids, *RUN_KINDS, *RUN_KINDS],
+        committed=True,
+    )
+    out: dict[str, list[tuple[Any, ...]]] = {i: [] for i in ids}
+    for root, *row in rows:
+        out[root].append(tuple(row))
+    return out
+
+
 def say(db: "Database", job_id: str, reason: str) -> None:
     """A job's reason in words, as it goes (a run downloading its pages from iCloud, #5669)."""
     db.execute("UPDATE jobs SET reason = ? WHERE id = ?", [reason or None, job_id])

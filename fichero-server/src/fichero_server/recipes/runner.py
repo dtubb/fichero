@@ -894,9 +894,11 @@ def _wait(db: Any, child: str, parent: str) -> tuple[str, str, str | None]:
         time.sleep(_CHECK_POLL_SECONDS)
 
 
-def _run_embed(db: Any, documents: list[str], parent: str, started_by: str) -> tuple[str | None, str, str | None]:
+def _run_embed(db: Any, documents: list[str], parent: str, started_by: str,
+               scratch: dict[str, Any]) -> tuple[str | None, str, str | None]:
     """Search: the embed job (`make-a-vector`, the one that follows every correction) queued for the pages in batches, as
-    children of the recipe's row, and waited for (#5574, #5954)."""
+    children of the recipe's row, and waited for (#5574, #5954). The jobs are kept on the step (`embed_jobs`), which
+    times it (`recipes-run.timing.every-step-timed`, #6809)."""
     from fichero_server.actions.page_text_cache import queue_reembed_batches
 
     # Pages in batches of 64, one job each (one forward pass and one append per batch, `runtime.embed.once-per-text-version`
@@ -904,6 +906,7 @@ def _run_embed(db: Any, documents: list[str], parent: str, started_by: str) -> t
     children = queue_reembed_batches(db, documents, started_by=started_by)
     for child in children:
         jobs.set_parent(db, child, parent)
+    scratch["embed_jobs"] = children
     while True:
         if _stop_asked(parent):  # stopped (#5609): the run stops waiting; a page's embed job, which a correction
             return None, "cancelled", "Stopped by you"  # may share, is left to finish (it is cheap and kept)
@@ -1983,7 +1986,7 @@ def _run_card(db: Any, card: dict[str, Any], documents: list[str], kinds: dict[s
     elif card["card"] == "publish":
         child, state, why = _run_publish(db, card, job_id)
     elif card["card"] == "embed":
-        child, state, why = _run_embed(db, documents, job_id, started_by)
+        child, state, why = _run_embed(db, documents, job_id, started_by, scratch)
     else:
         child, state, why = _run_export(db, card, documents)
     return child, state, why
