@@ -120,9 +120,21 @@ def _processing_doc(db, name: str) -> Document:
 
 
 class TestRecoveredRunReleasesDocuments:
-    def test_killed_run_with_a_checkpoint_is_left_for_the_resume(self, library, store):
-        """A killed run that saved a checkpoint is not flipped by the sweep: the open resumes it from that
-        checkpoint (manager 2026-11-21 ruling: interrupted runs resume), so its documents stay processing for it."""
+    def test_killed_run_with_a_checkpoint_is_held_until_resume(self, library, store, monkeypatch):
+        """A killed run that saved a checkpoint is HELD by the sweep (owner 2026-11-21: interrupted runs resume from the
+        launch alert): the engine's `paused` state with the held words, never failed and never still `running`. Its
+        documents are not released: they stay `processing`, the run's to finish (a document has no paused state).
+        Nothing runs until the alert's Resume names it."""
+        from fichero_server.api.routes.workflow_execution import core
+        from fichero_server.execution.runner import _running_workflows
+        from fichero_server.workflows import run_account
+
+        resumed: list[str] = []
+
+        async def _resume(thread_id, *_args, **_kwargs):
+            resumed.append(thread_id)
+
+        monkeypatch.setattr(core, "resume_workflow", _resume)
         doc = _processing_doc(library.db, "marshall-page-004.pdf")
         asyncio.run(_save_run(store, "t-dead", "running"))
         asyncio.run(_write_checkpoint(library.db_path, "t-dead", [doc.id]))
@@ -130,8 +142,14 @@ class TestRecoveredRunReleasesDocuments:
         tracker = SimpleNamespace(store=store)
         asyncio.run(activity._recover_stale_runs_bg(tracker, library.db_path))
 
-        assert asyncio.run(store.get_workflow_run("t-dead")).status == "running"
+        run = asyncio.run(store.get_workflow_run("t-dead"))
+        assert run.status == "paused"
+        assert run_account.held_at_open(run.error), run.error
         assert library.db.get(Document, doc.id).status == Status.processing
+        assert resumed == [] and "t-dead" not in _running_workflows, "nothing runs before the person's Resume"
+
+        asyncio.run(activity.resume_quit_paused_runs(store, library.db, ["t-dead"]))
+        assert resumed == ["t-dead"]
 
     def test_killed_run_that_cannot_resume_releases_its_documents(self, library, store):
         """The reported failure: NER run dies mid-extraction, document stranded. A run the open fails (its resume

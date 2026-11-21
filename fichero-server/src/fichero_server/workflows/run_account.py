@@ -442,6 +442,20 @@ def _hold(db: Any, thread_id: str, ended: datetime | None) -> None:
     jobs.pause_run_rows(db, thread_id, words)
 
 
+def hold_interrupted_runs(db: Any, live: tuple[str, ...]) -> None:
+    """The tracker's sweep holds what the open would (`_hold`): a run a dead engine left running or accepted, not `live`
+    here, not stopped by its project's close, with a checkpoint (owner 2026-11-21). The sweep fails the rest."""
+    from fichero_server.execution import jobs
+    from fichero_server.workflows import activity_store
+
+    for thread_id, started_at in activity_store.unfinished_runs(db):
+        if thread_id in live or thread_id in _CLOSED_MID_RUN or not _has_checkpoint(db, thread_id):
+            continue
+        heard = [t for t in (jobs.last_heard(db, thread_id), started_at) if t is not None]
+        _hold(db, thread_id, max(ensure_utc(t) for t in heard) if heard else None)
+        forget(thread_id)
+
+
 def mark_interrupted_runs(db: Any) -> list[str]:
     """On opening a project, a run this engine did not finish that has a checkpoint is HELD (`_hold`): paused, listed by the
     launch alert, resumed from its last finished page only when the person says so (owner 2026-11-21). Every other run this
@@ -485,6 +499,6 @@ def mark_interrupted_runs(db: Any) -> list[str]:
     return marked
 
 
-__all__ = ["CLOSED_PREFIX", "HELD_PREFIX", "HELD_RESUMES", "INTERRUPTED_PREFIX", "RECIPE_CARRIES_ON", "PageFailure", "RunAccount", "RunOffer", "build_account",
+__all__ = ["CLOSED_PREFIX", "HELD_PREFIX", "HELD_RESUMES", "hold_interrupted_runs", "INTERRUPTED_PREFIX", "RECIPE_CARRIES_ON", "PageFailure", "RunAccount", "RunOffer", "build_account",
            "closed_mid_run", "closing_runs", "forget", "held_at_open", "mark_interrupted_runs", "run_account", "run_started",
            "stopped_at_words"]
