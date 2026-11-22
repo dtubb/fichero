@@ -1711,6 +1711,9 @@ def carry_approvals(step: dict, repo: str, base_ref: str, auto) -> bool:
     those files is empty. A named file whose diff changed, an approval kind not bound to files, or no named file: no carry.
     True when it carried (one `auto` row; the step's approved_head moves)."""
     old, new, named = step.get("approved_head", ""), step.get("head", ""), list(step.get("approved_tests") or [])
+    if not old:  # approved while a worker lane's step had no head (#6589 2026-11-21): the head its alert judged stands in for it
+        old = next((h for j in (step.get("approved_for") or {}) if (h := subprocess.run(["git", "-c", "safe.directory=*", "-C", repo, "rev-parse", "--verify", "-q", f"{j}^{{commit}}"],
+                                                                                   capture_output=True, text=True).stdout.strip())), "")
     flags = {k for k in (*CARRYABLE, "approve_pinned_new", "maintainer") if step.get(k)}
     if not old or not new or old == new or not flags:
         return False  # nothing to carry
