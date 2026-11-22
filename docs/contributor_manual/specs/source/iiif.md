@@ -685,7 +685,7 @@ Out:
   of its working pass's lines (`GET /api/iiif/iiif/lines/{id}`), read through the one page
   exporter; pinned by `fichero-server/tests/unit/api/test_iiif_segments_as_annotations.py`. Not
   built: other readings, notes and claims as their own labelled pages.*
-- `iiif.export.ids-are-absolute-and-resolve` — **[BROKEN]** (#5326, #6806) every `id` in an exported manifest, canvas,
+- `iiif.export.ids-are-absolute-and-resolve` — **[OK]** (#5326, #6806) every `id` in an exported manifest, canvas,
   annotation page and annotation is an absolute HTTP(S) URI, as Presentation 3.0 requires, and
   the manifest's own `id` is the address it is served at. Today every id is a bare path
   (`/api/iiif/iiif/…`, from `_iiif_base_url`), and the manifest names itself
@@ -693,14 +693,17 @@ Out:
   `/api/iiif/iiif/manifest/{id}` (measured again 2026-11-21: its own id answers `404`). A served
   manifest takes its base from the request; one written to a file or a site takes it from where
   it is published (`iiif.publish.static`).
-- `iiif.export.every-line-with-its-outline` — **[GAP]** (#5326, #6806) the lines page carries every line of the working
+  **Built:** (#6806; `fichero-server/tests/unit/api/test_iiif_export_a_viewer_can_open_6806.py`) the served manifest, lines page and local image service take their base from the request, the manifest's `id` is the address that answers, and `info.json` carries an absolute id. **Not built:** a manifest written to a file or a site.
+- `iiif.export.every-line-with-its-outline` — **[PARTIAL]** (#5326, #6806) the lines page carries every line of the working
   pass: its outline as an SVG selector when it has one (the box as the `xywh` fallback), its
   baseline, and a body only when it has a reading. Today a line with no reading is left out
   (5 annotations for 33 lines, measured 2026-11-20) and every target is `#xywh=`; regions and
   words are not written.
-- `iiif.export.maker-is-the-readings` — **[BROKEN]** (#5326, #6806) an annotation's `creator` is who or what made THAT
+  **Built:** (#6806; `fichero-server/tests/unit/api/test_iiif_export_a_viewer_can_open_6806.py`) every line is an annotation, with an SVG selector when it has an outline and `xywh` otherwise, its baseline in canvas pixels (a `baseline` key, not a Web Annotation term), and a body only when it has a reading. **Not built:** regions and words.
+- `iiif.export.maker-is-the-readings` — **[OK]** (#5326, #6806) an annotation's `creator` is who or what made THAT
   reading. Today it is the pass's maker for every line (`build_lines_annotation_page` reads
   `SegmentPass` once): lines a person typed say the segmenter made them.
+  **Built:** (#6806; `fichero-server/tests/unit/api/test_iiif_export_a_viewer_can_open_6806.py`) each annotation's `creator` is the maker of its own reading (a person, or the provider and model); a line with no reading has none.
 - `iiif.export.says-what-it-is` — **[GAP]** (#5326) a local page's manifest carries the document's catalogue fields as
   `metadata`, its rights and required statement (`../source/rights-and-access.md`), and a
   `provider`; a by-reference page's manifest also carries the source manifest's `metadata` and

@@ -244,9 +244,9 @@ tests sit under `fichero-server/tests/unit/`; Swift tests under `fichero/Tests/U
 - Tests: fichero-server/tests/unit/formats/test_reimport_adds_no_reading_6803.py
 - Size: S
 
-#### Step 1.4 — An IIIF export a viewer can open (#6806, #5326)
+#### Step 1.4 — An IIIF export a viewer can open (built) (#6806, #5326)
 - Behaviours: `iiif.export.ids-are-absolute-and-resolve`, `iiif.export.every-line-with-its-outline`, `iiif.export.maker-is-the-readings`, `iiif.export.says-what-it-is`
-- Tests: `test_iiif_export_a_viewer_can_open_6806.py` in fichero-server/tests/unit/api/ (to write)
+- Tests: fichero-server/tests/unit/api/test_iiif_export_a_viewer_can_open_6806.py
 - Size: M
 
 #### Step 1.5 — The page built once, in a few queries (#6804)
