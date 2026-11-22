@@ -457,15 +457,15 @@ The two indexes are fast; nearly all of the time is what is done around them.
   cut; pinned: `fichero-server/tests/unit/search/test_scoped_search_finds_everything_in_scope.py`. Not
   built: the Page, Document and Selection scopes; the created-date filter (`date_from`, `date_to`) is
   still applied after the cut, since passage rows carry no created date.
-- `search.results.one-row-per-page` — **[BROKEN]** (#4604, → #6784) Full Text returns a page once for
-  each passage that matched (hybrid and semantic keep one). Measured: 9 repeats in 22 rows at 50,000
-  pages; on real text one page three times in the first three rows. Should: one row a page, carrying its
-  best passage and how many passages matched. Test to write: test_fulltext_one_row_per_page.py in
-  `fichero-server/tests/unit/search/`.
+- `search.results.one-row-per-page` — **[OK]** (#4604, → #6784) Full Text returns a page once: the row
+  carries its best passage and `metadata.passages_matched`, the number of matched passages kept among the
+  candidates. Hybrid and semantic already kept one. Pinned: `fichero-server/tests/unit/search/test_fulltext_one_row_per_page.py`.
 - `search.results.total-is-true` — **[BROKEN]** (#4604, → #6784) the total a search reports is the
   number of candidates kept, which is never more than four times the page size: a word on thousands of
   pages says 200. Should: the true count of matching pages when it is cheap (keyword), else "more than
-  N", never a ceiling shown as a count. Test: the same file as above.
+  N", never a ceiling shown as a count. Built: a Full Text search sets `total_is_lower_bound` in its
+  stats when the candidate cut was reached, and `has_more` is then true; pinned in the same file as
+  above. Not built: the true count, and the client showing "more than N".
 - `search.scale.vector-index-when-large` — **[GAP]** (#1833, → #6793) scanning every vector is right
   at these sizes (214 ms for 296,458 rows) and exact. Past about 500,000 rows the table gets an
   approximate index, rebuilt when a tenth of the rows are new, and vectors are kept at half or quarter
