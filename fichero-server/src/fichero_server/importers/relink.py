@@ -97,9 +97,7 @@ def _present_by_listing(db: Any, package: Path, within: set[str] | None) -> tupl
     from fichero_server.security import path_security
 
     candidates: dict[str, list[tuple[str, str]]] = {}
-    for doc_id, raw in db.execute_fetchall(
-        "SELECT id, path FROM documents WHERE deleted_at IS NULL AND doc_type <> 'folder' AND path IS NOT NULL"
-    ):
+    for doc_id, raw in db.page_paths():
         if (within is not None and doc_id not in within) or not Path(raw).is_absolute():
             continue  # not in scope, or the project's own copy
         candidates.setdefault(str(Path(raw).parent), []).append((doc_id, raw))

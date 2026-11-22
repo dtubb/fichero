@@ -1989,6 +1989,13 @@ class Database(DatabaseEmbeddingMixin):
         caller's `reading_committed` it reads what was committed (#6178)."""
         return self._execute(sql, params, fetch="all", committed=committed)
 
+    def page_paths(self) -> list[tuple[str, str]]:
+        """(id, recorded path) of every live page that records a path, folders left out: the two columns the
+        missing-originals check needs, without reading whole documents (#6828)."""
+        return self.execute_fetchall(
+            "SELECT id, path FROM documents WHERE deleted_at IS NULL AND doc_type <> 'folder' AND path IS NOT NULL"
+        )
+
     def execute_fetchone(self, sql: str, params: Any | None = None, *, committed: bool = False):
         """Execute + ``fetchone`` atomically under the lock (#2508); ``committed`` as `execute_fetchall`."""
         return self._execute(sql, params, fetch="one", committed=committed)
