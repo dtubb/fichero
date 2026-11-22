@@ -10,22 +10,23 @@ from fichero_server.models.knowledge import EntityType, KnowledgeClaim, Knowledg
 
 
 def _seed(db):
-    db.save(KnowledgeEntity(id="e-pedro", canonical_name="Pedro", entity_type=EntityType.person))
-    db.save(KnowledgeEntity(id="e-ana", canonical_name="Ana", entity_type=EntityType.person))
-    db.save(KnowledgeEntity(id="e-quito", canonical_name="Quito", entity_type=EntityType.location))
-    db.save(KnowledgeClaim(
-        id="c-dated", text="Pedro married Ana in Quito in 1820.", source_document_id="doc-1",
-        entity_ids=["e-pedro"], metadata={"verb": "married", "object": "Ana"},
-        time_start="1820-01-01", time_end="1820-12-31", time_precision="year", claim_location="Quito",
-    ))
-    db.save(KnowledgeClaim(
-        id="c-bare", text="Pedro wrote to Ana.", source_document_id="doc-1",
-        entity_ids=["e-pedro"], metadata={"verb": "wrote to", "object": "Ana"},
-    ))
-    db.save(KnowledgeClaim(
-        id="c-unknown-place", text="Pedro met Ana at the mill.", source_document_id="doc-1",
-        entity_ids=["e-pedro"], metadata={"verb": "met", "object": "Ana"}, claim_location="the mill",
-    ))
+    with db.defer_embeddings():
+        db.save(KnowledgeEntity(id="e-pedro", canonical_name="Pedro", entity_type=EntityType.person))
+        db.save(KnowledgeEntity(id="e-ana", canonical_name="Ana", entity_type=EntityType.person))
+        db.save(KnowledgeEntity(id="e-quito", canonical_name="Quito", entity_type=EntityType.location))
+        db.save(KnowledgeClaim(
+            id="c-dated", text="Pedro married Ana in Quito in 1820.", source_document_id="doc-1",
+            entity_ids=["e-pedro"], metadata={"verb": "married", "object": "Ana"},
+            time_start="1820-01-01", time_end="1820-12-31", time_precision="year", claim_location="Quito",
+        ))
+        db.save(KnowledgeClaim(
+            id="c-bare", text="Pedro wrote to Ana.", source_document_id="doc-1",
+            entity_ids=["e-pedro"], metadata={"verb": "wrote to", "object": "Ana"},
+        ))
+        db.save(KnowledgeClaim(
+            id="c-unknown-place", text="Pedro met Ana at the mill.", source_document_id="doc-1",
+            entity_ids=["e-pedro"], metadata={"verb": "met", "object": "Ana"}, claim_location="the mill",
+        ))
 
 
 def _edges_by_claim(client):
