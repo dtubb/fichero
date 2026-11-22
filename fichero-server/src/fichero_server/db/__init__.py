@@ -2696,6 +2696,23 @@ class Database(DatabaseEmbeddingMixin):
                 f"DELETE FROM kg_mentions WHERE claim_id IN ({', '.join('?' for _ in batch)})", batch
             )
 
+    def entity_claim_counts(self, *, limit: int | None = None, entity_type: str | None = None) -> list[tuple[str, int]]:
+        """Statements per name from `kg_mentions`, most first (ties by id); with `limit` or `entity_type`, only names that have an entity row."""
+        self._ensure_kg_mentions()
+        sql = "SELECT m.entity_id, COUNT(DISTINCT m.claim_id) AS n FROM kg_mentions m"
+        params: list[Any] = []
+        if limit is not None or entity_type is not None:
+            sql += " JOIN knowledgeentitys e ON e.id = m.entity_id"
+            if entity_type is not None:
+                sql += " WHERE e.entity_type = ?"
+                params.append(entity_type)
+        sql += " GROUP BY m.entity_id ORDER BY n DESC, m.entity_id"
+        if limit is not None:
+            sql += " LIMIT ?"
+            params.append(limit)
+        with self._lock:
+            return [(str(r[0]), int(r[1])) for r in self.conn.execute(sql, params).fetchall()]
+
     def rebuild_kg_mentions(self) -> int:
         """Throw the link table away and remake it from the statements table in one statement; returns its row count."""
         from fichero_server.models.knowledge import KnowledgeClaim

@@ -1432,35 +1432,9 @@ async def top_entities(
     Optional `entity_type` filter (people / places / organizations
     / dates / events / other) restricts the cloud to one kind.
     """
-    try:
-        raw_entity_id_values = db.knowledge_claim_entity_id_values()
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("top-entities lookup failed: %s", exc)
-        return TopEntityListResponse(items=[], count=0)
-
-    import json as _json
-    from collections import Counter
-
-    counter: Counter[str] = Counter()
-    for raw in raw_entity_id_values:
-        if not raw:
-            continue
-        try:
-            ids = _json.loads(raw) if isinstance(raw, str) else raw
-        except (TypeError, ValueError):
-            logger.warning("top-entities: malformed entity_ids payload: %r", raw)
-            continue
-        if isinstance(ids, list):
-            for eid in ids:
-                if isinstance(eid, str) and eid:
-                    counter[eid] += 1
-
-    if not counter:
-        return TopEntityListResponse(items=[], count=0)
-
     type_filter = entity_type.value if entity_type else None
     out: list[TopEntityRow] = []
-    for eid, count in counter.most_common(limit * 2 if type_filter else limit):
+    for eid, count in db.entity_claim_counts(limit=limit, entity_type=type_filter):
         ent = db.get(KnowledgeEntity, eid)
         if ent is None:
             continue
@@ -1470,8 +1444,6 @@ async def top_entities(
             if hasattr(kind_val, "value")
             else (str(kind_val) if kind_val else None)
         )
-        if type_filter and kind_str != type_filter:
-            continue
         out.append(
             TopEntityRow(
                 entity_id=ent.id,
@@ -1481,8 +1453,6 @@ async def top_entities(
                 claim_count=count,
             )
         )
-        if len(out) >= limit:
-            break
     return TopEntityListResponse(items=out, count=len(out))
 
 
@@ -1495,30 +1465,7 @@ async def entity_claim_counts(
     Tallies how many KnowledgeClaims reference each entity_id across the
     library, using the same entity_ids array column approach as /entities/top.
     """
-    import json as _json
-    from collections import Counter
-
-    counter: Counter[str] = Counter()
-    try:
-        raw_entity_id_values = db.knowledge_claim_entity_id_values()
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("entity-claim-counts lookup failed: %s", exc)
-        return ClaimCountsResponse(counts={})
-
-    for raw in raw_entity_id_values:
-        if not raw:
-            continue
-        try:
-            ids = _json.loads(raw) if isinstance(raw, str) else raw
-        except (TypeError, ValueError):
-            logger.warning("entity-claim-counts: malformed entity_ids payload: %r", raw)
-            continue
-        if isinstance(ids, list):
-            for eid in ids:
-                if isinstance(eid, str) and eid:
-                    counter[eid] += 1
-
-    return ClaimCountsResponse(counts=dict(counter))
+    return ClaimCountsResponse(counts=dict(db.entity_claim_counts()))
 
 
 @router.get(
