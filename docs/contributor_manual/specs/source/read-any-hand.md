@@ -209,7 +209,8 @@ After Stage 0 the lane stands: the benchmark reruns on every adopted reader and 
 ### C. The held-out split in a working project
 
 - `hands.heldout.one-in-ten-silently` — **[GAP]** (#5441 → #6969) one in ten of a person's decisions is held out as
-  they work. For readings the unit is the page: the first time a correction lands on a page the engine draws from a
+  they work (owner 2026-11-21: one in ten is chosen per page for readings, so a page's lines are never in both
+  training and test; per decision for names, pairs and claims). For readings the unit is the page: the first time a correction lands on a page the engine draws from a
   hash of the page id and a per-project salt, and a page drawn held-out has every line held out, then and later.
   Nothing in the app marks it, asks about it or changes what the person can do with it. A page a person names as
   held out (`distill.eval.held-out-checked-pages`) stays so; a page any adopted model was already trained on is never
@@ -332,10 +333,11 @@ The review queue ordered by what a correction would teach is `distill.queue.unce
 
 ### I. Sharing what was learned
 
-- `hands.share.adapters-by-consent` — **[PROPOSED]** (#5343; open question 2) a project may publish a hand's adapter
-  with its card, licence and curve, so a later project with a near hand starts further along its curve; lines are
-  shared only where their licence is open; a corpus ruled local stays local.
-- `hands.share.open-benchmark-and-board` — **[PROPOSED]** (#5343; open question 2) the open part of the benchmark and
+- `hands.share.adapters-by-consent` — **[GAP]** (#5343; owner 2026-11-21) trained per-hand adapters may be reused
+  across projects: a project may publish a hand's adapter with its card, licence and curve, so a later project with a
+  near hand starts further along its curve. Actual lines are shared only from openly licensed material; a corpus
+  ruled local stays local.
+- `hands.share.open-benchmark-and-board` — **[GAP]** (#5343; owner 2026-11-21) the open part of the benchmark and
   its board are published with the manifest version, the scorer and the blind stamps.
 
 ## Lines this spec amends (cited, not copied)
@@ -451,10 +453,16 @@ report of Step 0.2. The tests run with a fake provider and spend nothing. About 
 - Depends on: 2.1
 - Size: M
 
-### Stage 3 — The open release (the quarter after; waits on open question 2)
+### Stage 3 — The open release (the quarter after)
 
-`hands.share.adapters-by-consent` and `hands.share.open-benchmark-and-board` are cut into steps when the owner has
-answered what may be pooled.
+#### Step 3.1 — Adapters are reused across projects; the open benchmark and board
+- Behaviours: `hands.share.adapters-by-consent`, `hands.share.open-benchmark-and-board`
+- Tests: test_adapter_sharing.py (to write), test_open_release_licence.py (to write)
+- Depends on: 2.5
+- Size: M
+
+Per the owner's answer: adapters pool across projects; lines only from openly licensed material, and a corpus ruled
+local is refused by the publish step; the open benchmark and board go out with the manifest version and the scorer.
 
 ## Test matrix
 
@@ -468,10 +476,10 @@ answered what may be pooled.
 
 ## Open questions for the owner
 
-1. **The unit of "one in ten" for readings.** This spec draws per page (every line of a drawn page is held out),
+1. **Answered** (owner 2026-11-21): per page for readings; per decision for names, pairs and claims. **The unit of "one in ten" for readings.** This spec draws per page (every line of a drawn page is held out),
    because lines of one page leak into each other. The other reading is one corrected line in ten. Recommended: per
    page.
-2. **What may be pooled across projects?** (a) Nothing; (b) adapters only, per consenting project; (c) lines too,
+2. **Answered** (owner 2026-11-21): (b) adapters only, and lines only from openly licensed material. **What may be pooled across projects?** (a) Nothing; (b) adapters only, per consenting project; (c) lines too,
    where their licence is open. Recommended: (b) now and (c) for open-licensed material; a corpus ruled local stays
    local. Section I waits on this.
 3. **The two private hands.** Their held-out pages need about 400 corrected lines each. Recommended: whoever is
