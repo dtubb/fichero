@@ -558,7 +558,7 @@ w2 = { side = "engine", corpus = "perf-trial-page", budget_s = 1800, outputs = [
 w3 = { side = "engine", corpus = "perf-trial-samples", budget_s = 300, outputs = ["library", "log"], driver = [
   "pytest fichero-server/tests/perf/test_search_workload_perf.py"] }
 w4 = { side = "engine", corpus = "perf-trial-samples", budget_s = 3600, outputs = ["library", "log"], driver = [
-  "pytest fichero-server/tests/perf/test_entity_list_perf.py fichero-server/tests/perf/test_entity_detail_perf.py"] }
+  "pytest fichero-server/tests/perf/test_entity_list_perf.py fichero-server/tests/perf/test_entity_detail_perf.py fichero-server/tests/perf/test_kg_claims_list_perf.py fichero-server/tests/perf/test_kg_graph_build_perf.py fichero-server/tests/perf/test_kg_neighbourhood_perf.py"] }
 w5 = { side = "engine", corpus = "perf-trial-samples", budget_s = 300, outputs = ["library", "log"], driver = [
   "python scripts/perf_activity_store_5645.py"] }
 w6 = { side = "app", corpus = "perf-trial-samples", budget_s = 120, outputs = ["library", "log", "trace"], driver = "FICHERO_PERF_WORKLOAD=w6" }
