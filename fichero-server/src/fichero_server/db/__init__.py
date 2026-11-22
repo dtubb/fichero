@@ -2656,11 +2656,20 @@ class Database(DatabaseEmbeddingMixin):
         with self._lock:
             if "kg_mentions" in self._tables_created:
                 return
+            existed = self.conn.execute(
+                "SELECT count(*) FROM information_schema.tables WHERE table_name = 'kg_mentions'"
+            ).fetchone()[0]
             self.conn.execute(
                 "CREATE TABLE IF NOT EXISTS kg_mentions ("
                 "entity_id VARCHAR, claim_id VARCHAR, page VARCHAR, role VARCHAR)"
             )
             self._tables_created.add("kg_mentions")
+            has_claims = self.conn.execute(
+                "SELECT count(*) FROM information_schema.tables WHERE table_name = 'knowledgeclaims'"
+            ).fetchone()[0]
+            if not existed and has_claims:
+                # a library whose statements were saved before the table existed
+                self.rebuild_kg_mentions()
 
     @staticmethod
     def _kg_mention_rows(claim: Any) -> list[tuple[str, str, str | None, str]]:

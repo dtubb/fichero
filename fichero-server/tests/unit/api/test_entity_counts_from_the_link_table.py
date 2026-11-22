@@ -45,3 +45,14 @@ def test_top_skips_a_name_with_no_entity_row_and_still_fills_the_limit(client, d
     _claims(db, ["ghost"], ["ghost"], [a.id])
     body = client.get("/api/entities/top?limit=1").json()
     assert [(r["entity_id"], r["claim_count"]) for r in body["items"]] == [(a.id, 1)]
+
+
+def test_a_library_saved_before_the_table_existed_is_counted(client, db):
+    a, b = _entity(db, "A"), _entity(db, "B")
+    for ids in ([a.id], [a.id, b.id]):
+        db.save(KnowledgeClaim(text="c", source_document_id="d", entity_ids=ids))
+    db.conn.execute("DROP TABLE kg_mentions")
+    db._tables_created.discard("kg_mentions")
+    counts = client.get("/api/entities/claim-counts").json()["counts"]
+    assert counts == {a.id: 2, b.id: 1}
+
