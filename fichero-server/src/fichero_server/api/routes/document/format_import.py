@@ -770,7 +770,11 @@ def write_page_into_library(
 
     readings: list[ContentRepresentation] = []
     for ref, segment in order:
-        for kind, text in segment.readings:
+        for position, (kind, text) in enumerate(segment.readings):
+            # A file Fichero wrote says a person made the line's first reading: the import restores
+            # that person as its maker (`source.format.round-trip-through-a-library`). Every other
+            # reading is the file's.
+            person = segment.reading_maker if position == 0 and segment.reading_maker and segment.reading_maker["type"] == "Person" else None
             readings.append(
                 ContentRepresentation(
                     document_id=document_id,
@@ -782,8 +786,8 @@ def write_page_into_library(
                     source_anchor=SourceAnchor(
                         document_id=document_id, granularity=segment.kind
                     ),
-                    provenance_kind=imported,
-                    created_by=ctx.actor or None,
+                    provenance_kind=ProvenanceKind.human if person else imported,
+                    created_by=person["name"] if person else ctx.actor or None,
                 )
             )
     readings.extend(_expanded_readings(readings, {ids_by_ref[ref]: segment for ref, segment in order}))
@@ -940,7 +944,9 @@ def _expanded_readings(readings: list[ContentRepresentation], segments: dict[str
             continue
         out.append(reading.model_copy(update={
             "id": uuid.uuid4().hex, "content": opened, "level": "expanded",
-            "derived_from_representation_id": reading.id}))
+            "derived_from_representation_id": reading.id,
+            **({"provenance_kind": ProvenanceKind.external_import, "created_by": None}
+               if reading.provenance_kind == ProvenanceKind.human else {})}))
     return out
 
 

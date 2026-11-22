@@ -39,6 +39,25 @@ SCHEMA_DIR = Path(__file__).parent / "schemas"
 # ---------------------------------------------------------------------------
 
 
+def maker_by(maker: dict[str, str]) -> str:
+    """`person` or `machine`: how a file says who made a reading (`PageSegment.reading_maker`)."""
+    return "person" if maker["type"] == "Person" else "machine"
+
+
+def maker_id(maker: dict[str, str]) -> str:
+    """An id for a maker mark in a file's own declarations: one per kind and name."""
+    import hashlib
+
+    return f"fichero-maker-{maker_by(maker)}-{hashlib.sha1(maker['name'].encode()).hexdigest()[:8]}"
+
+
+def maker_from(by: str, name: str | None) -> dict[str, str] | None:
+    """The `reading_maker` a file's mark says; None when it names nobody."""
+    if not name:
+        return None
+    return {"type": "Person" if by == "person" else "Software", "name": name}
+
+
 def xml_id(raw: str) -> str:
     """A value usable as `xs:ID` / `xs:IDREF`, derived from one of ours.
 

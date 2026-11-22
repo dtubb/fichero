@@ -43,6 +43,9 @@ from fichero_server.formats.harness import (
     LossReport,
     PageOrder,
     PageSegment,
+    maker_by,
+    maker_from,
+    maker_id,
     SourcePage,
     xml_id,
 )
@@ -292,6 +295,17 @@ def _read_page(root: Any, page_el: Any, unit: str) -> SourcePage:
             # `BT25436` does) and resolved where it can be, so the label survives the library.
             segment.foreign["alto:TAGREFS"] = element.get("TAGREFS")
             declared = [{"ID": ref, **tags[ref]} for ref in element.get("TAGREFS").split() if ref in tags]
+            # Who made the line's first reading is a tag of Fichero's own (`_maker_tag`), not the file's.
+            made = [t for t in declared if str(t.get("LABEL") or "").startswith(MAKER_LABEL)]
+            if made:
+                segment.reading_maker = maker_from(made[0]["LABEL"][len(MAKER_LABEL):], made[0].get("DESCRIPTION"))
+                gone = {t["ID"] for t in made}
+                declared = [t for t in declared if t["ID"] not in gone]
+                kept = " ".join(ref for ref in element.get("TAGREFS").split() if ref not in gone)
+                if kept:
+                    segment.foreign["alto:TAGREFS"] = kept
+                else:
+                    del segment.foreign["alto:TAGREFS"]
             if declared:
                 segment.foreign["alto:tags"] = declared
         if kind == "line" and element.get("BASELINE") and width and height:
@@ -321,6 +335,19 @@ def _read_page(root: Any, page_el: Any, unit: str) -> SourcePage:
 
 #: A tag declaration's attributes besides ID (`TagType`).
 TAG_ATTRIBUTES = ("TYPE", "LABEL", "DESCRIPTION", "URI")
+
+
+#: The `LABEL` of the `OtherTag` that says who made a line's first reading: `maker:person` or `maker:machine`,
+#: the name in `DESCRIPTION`.
+MAKER_LABEL = "maker:"
+
+
+def _maker_tag(segment: PageSegment) -> dict | None:
+    if not (segment.reading_maker and segment.readings):
+        return None
+    by, name = maker_by(segment.reading_maker), segment.reading_maker["name"]
+    return {"ID": maker_id(segment.reading_maker), "element": "OtherTag", "LABEL": MAKER_LABEL + by,
+            "DESCRIPTION": name}
 
 
 def _tags_of(segment: PageSegment) -> list[dict]:
@@ -381,11 +408,15 @@ def write(page: SourcePage, report: LossReport) -> bytes:
     )
     for name, value in page.identity.items():  # what this file is (#4952): ALTO's identifiers
         etree.SubElement(source, f"{{{ALTO_NS_V4}}}fileIdentifier", fileIdentifierLocation=name).text = value
+    if page.producer:  # what made the page's pass (`source.format.who-made-it-out`)
+        processing = etree.SubElement(description, f"{{{ALTO_NS_V4}}}Processing", ID="fichero-pass")
+        software = etree.SubElement(processing, f"{{{ALTO_NS_V4}}}processingSoftware")
+        etree.SubElement(software, f"{{{ALTO_NS_V4}}}softwareName").text = page.producer
 
     # The tag declarations the segments carry, once each, in the order first met (#5138).
     declared_tags: dict[str, dict] = {}
     for segment in page.segments:
-        for tag in _tags_of(segment):
+        for tag in [*_tags_of(segment), *filter(None, [_maker_tag(segment)])]:
             declared_tags.setdefault(tag["ID"], tag)
     if declared_tags:
         tags_el = etree.SubElement(root, f"{{{ALTO_NS_V4}}}Tags")
@@ -516,8 +547,9 @@ def write(page: SourcePage, report: LossReport) -> bytes:
         if element_name == "ComposedBlock" and segment.foreign.get("alto:TYPE"):
             attrs["TYPE"] = str(segment.foreign["alto:TYPE"])
         refs = [tag["ID"] for tag in _tags_of(segment)]
-        if refs:
-            attrs["TAGREFS"] = " ".join(xml_id(ref) for ref in refs)
+        listed = [*refs, *[t["ID"] for t in filter(None, [_maker_tag(segment)])]]
+        if listed:
+            attrs["TAGREFS"] = " ".join(xml_id(ref) for ref in listed)
         undeclared = len(str(segment.foreign.get("alto:TAGREFS", "")).split()) - len(refs)
         if undeclared > 0:
             report.note(

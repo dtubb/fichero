@@ -22,6 +22,7 @@ from __future__ import annotations
 import re
 from functools import lru_cache
 from typing import Any
+from urllib.parse import quote, unquote
 
 from fichero_server.formats import register
 from fichero_server.formats.harness import (
@@ -31,6 +32,8 @@ from fichero_server.formats.harness import (
     PageOrder,
     PageSegment,
     SourcePage,
+    maker_by,
+    maker_from,
     xml_id,
 )
 from fichero_server.formats.validation import parse
@@ -441,6 +444,10 @@ def read(data: bytes) -> SourcePage:
                 # has still said it.
                 segment.foreign["readingDirection"] = direction
         custom = (element.get("custom") or "").replace(DERIVED_COORDS_CUSTOM, "").strip()
+        made = _MAKER_CUSTOM.search(custom)
+        if made:
+            segment.reading_maker = maker_from(made["by"], unquote(made["name"]))
+            custom = _MAKER_CUSTOM.sub("", custom).strip()
         if custom:
             segment.foreign["custom"] = custom
         # A cell's place in its table. Kept because the model has no field for it yet
@@ -532,6 +539,8 @@ def _merge_custom_order(page: SourcePage, indexed: list[tuple[int, int, str]]) -
 #: repeated here so writing PAGE does not load the TEI module).
 _EDITORIAL_FACTS = "editorial:facts"
 _UNCLEAR_CUSTOM = re.compile(r"unclear\s*\{[^}]*\}")
+#: Who made a line's first reading, in PAGE's own `custom` grammar: `fichero-maker {by:person; name:Ana%20Ruiz;}`.
+_MAKER_CUSTOM = re.compile(r"fichero-maker\s*\{by:(?P<by>person|machine);\s*name:(?P<name>[^;}]*);\}")
 
 
 def write(page: SourcePage, report: LossReport) -> bytes:
@@ -724,6 +733,10 @@ def write(page: SourcePage, report: LossReport) -> bytes:
         if segment.kind_raw and "structure" not in custom:
             # The type the file itself stated keeps its own form (kept in `custom` from import).
             custom = " ".join(filter(None, [custom, f"structure {{type:{segment.kind_raw};}}"]))
+        if segment.reading_maker and segment.readings:
+            custom = " ".join(filter(None, [
+                custom, f"fichero-maker {{by:{maker_by(segment.reading_maker)}; "
+                        f"name:{quote(segment.reading_maker['name'], safe='')};}}"]))
         cut = segment.foreign.get("fichero:cut")
         if cut:
             # How a word was cut (`segment-editor.export-carries-every-edit`), in PAGE's own `custom` grammar.

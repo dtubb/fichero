@@ -53,6 +53,9 @@ from fichero_server.formats.harness import (
     PageOrder,
     PageSegment,
     SourcePage,
+    maker_by,
+    maker_from,
+    maker_id,
 )
 from fichero_server.formats.validation import parse
 
@@ -340,6 +343,7 @@ def read_pages(data: bytes) -> list[SourcePage]:
 
         header_xml = etree.tostring(header, encoding="unicode")
     stated_makers = _responsibilities(header)
+    makers = _reading_makers(header)
     text_el = next((c for c in root if _tag(c) == "text"), None)
 
     pages: list[dict[str, Any]] = []
@@ -373,6 +377,9 @@ def read_pages(data: bytes) -> list[SourcePage]:
             segment.foreign["xml:lang"] = raw
         segment.direction = _direction_in(element.get("style"))
         facs = (element.get("facs") or "").lstrip("#")
+        resp = (element.get("resp") or "").lstrip("#")
+        if kind == "line" and resp in makers:
+            segment.reading_maker = makers[resp]
         page["segments"].append(segment)
         page.setdefault("facs", {})[segment.ref] = facs
         return segment
@@ -728,6 +735,24 @@ def read_pages(data: bytes) -> list[SourcePage]:
     return out
 
 
+#: A `<respStmt xml:id="fichero-maker-person-…">` says who made the reading of the lines whose `<lb resp>` names it.
+MAKER_ID_PREFIX = "fichero-maker-"
+
+
+def _reading_makers(header: Any) -> dict[str, dict[str, str]]:
+    """The reading makers a header declares, by `xml:id` (`source.format.who-made-it-out`)."""
+    out: dict[str, dict[str, str]] = {}
+    if header is None:
+        return out
+    for stmt in header.iter(f"{{{TEI_NS}}}respStmt"):
+        stmt_id = stmt.get(_XML_ID) or ""
+        name = next((" ".join("".join(n.itertext()).split()) for n in stmt if _tag(n) == "name"), "")
+        by = stmt_id[len(MAKER_ID_PREFIX):].split("-")[0]
+        if stmt_id.startswith(MAKER_ID_PREFIX) and by in ("person", "machine") and name:
+            out[stmt_id] = maker_from(by, name)
+    return out
+
+
 def _responsibilities(header: Any) -> str | None:
     """Who the FILE says made it (#5150): its `<respStmt>`s, `resp: name, name; resp: name`, in
     the header's order -- the Digital Genji names three transcribers, an encoder and an advisor.
@@ -736,6 +761,8 @@ def _responsibilities(header: Any) -> str | None:
         return None
     by_resp: dict[str, list[str]] = {}
     for stmt in header.iter(f"{{{TEI_NS}}}respStmt"):
+        if (stmt.get(_XML_ID) or "").startswith(MAKER_ID_PREFIX):
+            continue
         resp = next((c for c in stmt if _tag(c) == "resp"), None)
         role = " ".join("".join(resp.itertext()).split()) if resp is not None else ""
         names = [" ".join("".join(n.itertext()).split()) for n in stmt if _tag(n) in ("name", "persName", "orgName")]
@@ -1018,6 +1045,8 @@ def write(page: SourcePage, report: LossReport) -> bytes:
 
     def write_line(container: Any, line: PageSegment) -> None:
         lb = etree.SubElement(container, q("lb"))
+        if line.reading_maker and line.readings:
+            lb.set("resp", "#" + maker_id(line.reading_maker))
         if line.foreign.get(PAGE_ZONE) and (line.rect or line.polygon):
             page_zone_for(line)
         else:
@@ -1304,6 +1333,7 @@ def _header(page: SourcePage, report: LossReport, root: Any) -> Any:
         if _header_validates(candidate):
             root.append(candidate)
             _write_identity(page, candidate, q)
+            _declare_makers(page, candidate, q, report)
             return candidate
         report.note(
             "teiHeader",
@@ -1321,7 +1351,27 @@ def _header(page: SourcePage, report: LossReport, root: Any) -> Any:
     source = etree.SubElement(file_desc, q("sourceDesc"))
     etree.SubElement(source, q("p")).text = page.producer or "Born digital in Fichero"
     _write_identity(page, header, q)
+    _declare_makers(page, header, q, report)
     return header
+
+
+def _declare_makers(page: SourcePage, header: Any, q: Any, report: LossReport) -> None:
+    """One `<respStmt>` in the title statement for each maker a line's `<lb resp>` names
+    (`source.format.who-made-it-out`)."""
+    from lxml import etree
+
+    makers = {maker_id(s.reading_maker): s.reading_maker for s in page.segments if s.reading_maker and s.readings}
+    if not makers:
+        return
+    title_stmt = next(iter(header.iter(q("titleStmt"))), None)
+    if title_stmt is None:
+        report.note("who made each reading", len(makers), "the header this page was read with has no <titleStmt> to declare them in")
+        return
+    for stmt_id, maker in makers.items():
+        stmt = etree.SubElement(title_stmt, q("respStmt"))
+        stmt.set("{http://www.w3.org/XML/1998/namespace}id", stmt_id)
+        etree.SubElement(stmt, q("resp")).text = f"reading made by a {maker_by(maker)}"
+        etree.SubElement(stmt, q("name")).text = maker["name"]
 
 
 def _write_identity(page: SourcePage, header: Any, q: Any) -> None:
