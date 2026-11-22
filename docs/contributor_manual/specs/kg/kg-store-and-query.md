@@ -126,7 +126,7 @@ makes extraction slow. The 744 tests of `tests/unit/kg`, `tests/unit/knowledge` 
   (`kg.store.edge-ends-are-ids`, #6756). The readers still use the JSON list `entity_ids`, searched
   with `LIKE '%"id"%'` (`db/__init__.py::knowledge_claim_entity_id_values`,
   `knowledge_claims_for_entity_frontier`, `entity_document_link_rows`) or in Python; moving them
-  is Step 2.2 and 2.3.
+  is Step 2.2 and 2.3. Was: no such table; the link was the JSON list `entity_ids` alone.
   *Test:* `tests/unit/db/test_kg_mentions_follow_the_statement.py`.
 - `kg.store.link-table-rebuilds` — **[PARTIAL]** (#6755, #5361) the link table can be thrown away:
   the knowledge rebuild (`/api/kg/rebuild`, `knowledge/rebuild.py`) remakes it in one statement
@@ -134,7 +134,7 @@ makes extraction slow. The 744 tests of `tests/unit/kg`, `tests/unit/knowledge` 
   disagrees with it is rebuilt when it opens, as a background job that the Activity pane shows.
   Built: `rebuild_kg` remakes the table (`Database.rebuild_kg_mentions`) and reports its row count.
   Not built: the rebuild at open and its Activity-pane job; the `/api/kg/rebuild` response does not
-  carry the row count.
+  carry the row count. Was: the rebuild remade vectors, triples and predictions only.
   *Test:* `tests/unit/db/test_rebuild_remakes_the_link_table.py`.
 - `kg.store.edge-ends-are-ids` — **[GAP]** (#6756, #5032) a statement that joins two names
   stores both ends as ids when it is written: `subject_entity_id` and the object's id among its
