@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from fichero_server.api.change_stream import emit_change
 from fichero_server.models import Artifact, DocType, Document
 from fichero_server.models.knowledge import KnowledgeEntity
 from tests.unit.recipes.test_recipe_execution_to_spec import (  # noqa: F401  (fixtures)
@@ -168,6 +169,8 @@ def test_source_recipe_done_is_not_redone__correcting_and_finding_names_can_tell
     db.save(Artifact(document_id=second.id, artifact_type="transcription_review", model="another/model",
                      content="otro"))
     db.save(KnowledgeEntity(canonical_name="Juan", source_document_ids=[second.id]))
+    # The plan is kept until the library announces a change (#6446); a run's end announces, a bare db.save does not.
+    emit_change(str(db.path.parent), type="artifact.created")
 
     cards = {c["job"]: c for c in client.get("/api/recipes/project/start").json()["runs"]}
     assert (cards["correct"]["done"], cards["correct"]["of"]) == (1, 2), \
