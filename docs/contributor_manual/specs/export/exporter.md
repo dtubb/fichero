@@ -239,9 +239,9 @@ tests sit under `fichero-server/tests/unit/`; Swift tests under `fichero/Tests/U
 - Depends on: 1.1
 - Size: M
 
-#### Step 1.3 — Re-importing our own export derives nothing twice (#6803)
+#### Step 1.3 — Re-importing our own export derives nothing twice (built) (#6803)
 - Behaviours: `source.format.reimport-adds-no-reading`
-- Tests: `test_reimport_adds_no_reading_6803.py` in fichero-server/tests/unit/formats/ (to write)
+- Tests: fichero-server/tests/unit/formats/test_reimport_adds_no_reading_6803.py
 - Size: S
 
 #### Step 1.4 — An IIIF export a viewer can open (#6806, #5326)

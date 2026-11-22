@@ -486,12 +486,13 @@ skipped. What did not hold is the lines below. `→ #N` names the issue that tra
   second file differs from the first in every format. Ruled 2026-11-21 (the owner, #6802): an
   import restores a person's authorship persistently; until it is built the first export names
   the loss.
-- `source.format.reimport-adds-no-reading` — **[BROKEN]** (#4943, → #6803) importing a file
+- `source.format.reimport-adds-no-reading` — **[PARTIAL]** (#4943, → #6803) importing a file
   Fichero exported adds no reading the file does not hold. Today a line whose reading carries
   abbreviation markup gets a plain reading derived at import (`formats/abbreviation_markup.py`),
   the export writes both, and the next import derives a third: one page of 48 segments went from 85 readings to
   122 in one round trip through PAGE XML (110 through TEI), its PAGE file from 541 to 692 lines,
   and which reading counts flipped from the marked-up one to the plain one.
+  **Built:** (#6803; `tests/unit/formats/test_reimport_adds_no_reading_6803.py`) a reading the file holds that equals a line's opened text is marked as the derived one and no other is added; two round trips through PAGE XML and TEI keep the readings. **Not built:** TEI has no place for a reading's level, so the derived reading comes back from TEI as a written one; which reading counts is not compared.
 - `source.format.undeclared-losses-are-declared` — **[PARTIAL]** (#4943, → #6800) until the lines
   above are built, each writer names what it drops: ALTO the outlines, the editorial facts, the
   names and dates on a line, the segment types and confidences it was not handed; PAGE XML the
