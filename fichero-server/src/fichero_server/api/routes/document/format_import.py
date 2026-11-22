@@ -910,7 +910,7 @@ def _expanded_readings(readings: list[ContentRepresentation], segments: dict[str
     from fichero_server.formats.abbreviation_markup import apply_page_custom, expanded, has_markup
 
     marked = any(has_markup(r.content) for r in readings if r.kind == "transcription")
-    out = []
+    candidates = []
     for reading in readings:
         if reading.kind != "transcription" or reading.level is not None:
             continue
@@ -920,9 +920,27 @@ def _expanded_readings(readings: list[ContentRepresentation], segments: dict[str
         else:
             opened = expanded(reading.content, marked=marked)
         if opened.strip() and opened != reading.content:
-            out.append(reading.model_copy(update={
-                "id": uuid.uuid4().hex, "content": opened, "level": "expanded",
-                "derived_from_representation_id": reading.id}))
+            candidates.append((reading, opened))
+    # A file Fichero exported already holds the opened text as a second reading of the line
+    # (`source.format.reimport-adds-no-reading`): that reading is the derived one, marked as such, and
+    # nothing is derived from it or beside it.
+    held = {}
+    for reading, opened in candidates:
+        twin = next((r for r in readings if r is not reading and r.segment_id == reading.segment_id
+                     and r.kind == "transcription" and r.level is None and r.content == opened), None)
+        if twin is not None:
+            held[id(twin)] = reading
+    out = []
+    for reading, opened in candidates:
+        if id(reading) in held:
+            continue
+        twin = next((t for t in readings if held.get(id(t)) is reading), None)
+        if twin is not None:
+            twin.level, twin.derived_from_representation_id = "expanded", reading.id
+            continue
+        out.append(reading.model_copy(update={
+            "id": uuid.uuid4().hex, "content": opened, "level": "expanded",
+            "derived_from_representation_id": reading.id}))
     return out
 
 
