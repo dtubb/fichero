@@ -573,13 +573,16 @@ search route is not called by the app.
   rule: the graph parts and the scope NARROW (which pages and statements may be shown); words and
   meaning RANK inside what is left; when no graph part is given, the graph only helps rank (today's
   Semantic + Graph). A row says each way it was found (word, meaning, name, statement), as it does now.
-- `search.graph.names-lead-to-their-pages` — **[BROKEN]** (#1833, → #6786) the step that follows the
+- `search.graph.names-lead-to-their-pages` — **[BUILT]** (#1833, → #6786) the step that follows the
   names nearest a query to the pages of their statements, so a page is found though its text never has
   the word, never runs: it reads the name hits as objects and they are plain records, so each one fails
   and is skipped, with one warning in the log per search
   (`fichero-server/src/fichero_server/api/routes/search/core.py`, `enhanced_search`, the graph leg). Its
   test passes because it only checks the hit if the hit is there. Test to write: the existing graph-leg
   test asserts the page is found by the graph, with no condition.
+  Built: the graph leg reads the entity hits as the plain records they are; pinned by
+  test_graph_leg_finds_the_page_of_a_named_entity.py. (The older graph-leg case in test_routes_search.py
+  still has an `if via == graph` condition and needs the embedding model.)
 - `search.graph.own-route` — **[PARTIAL]** (#2571, → #6788) `GET /api/kg/search` looks for letters in
   every name, statement, note and annotation by reading them all, lower-cased but not folded (an
   accented name is missed unless an alias is plain); it is off below the beta tier and nothing in the
@@ -594,22 +597,29 @@ sources; it is a dev-tier feature, off in a release build, and the search field 
 - `search.ask.turns-a-question-into-a-search` — **[PARTIAL]** (#5029) built and shown ("Searched: …");
   measured with the on-device model: 3.1 s, and 7.0 s the first time, on the M1; the right page first
   for both questions tried. The defects are the next three lines.
-- `search.ask.invents-no-filter` — **[BROKEN]** (#5029, → #6785) a question with no date in it came
+- `search.ask.invents-no-filter` — **[PARTIAL]** (#5029, → #6785) a question with no date in it came
   back with the date range of the example in the model's instructions (a month in 1948), and with
   "entities" that are just the question's nouns. Should: a filter is kept only if its words are in the
   question (checked in code, not asked of the model); the instructions carry no copyable example date.
   Test to write: test_compiled_filters_come_from_the_question.py in
   `fichero-server/tests/unit/retrieval/`.
-- `search.ask.a-date-means-the-date-written` — **[BROKEN]** (#3322, → #6785) a date range taken from a
+  Built: a filter is kept only if the question states it (checked in code); the instructions carry no
+  digits; pinned by test_compiled_filters_come_from_the_question.py. Not built: entities that are only the
+  question's nouns are checked just to be in the question.
+- `search.ask.a-date-means-the-date-written` — **[PARTIAL]** (#3322, → #6785) a date range taken from a
   question is compared with the day the page was imported, and passage hits carry no such day, so the
   filter does nothing: "in January 1935" narrows nothing and says it did. Should: it becomes the
   written-date range of `search.graph.date-range`, shown as a part of the search that can be removed.
-- `search.ask.uses-the-chosen-text-model` — **[BROKEN]** (#5368, → #6791) the model that turns the
+  Built: the route sends the written-date range (`date_jdn_from`, `date_jdn_to`). Not built: showing it
+  as a part of the search that can be removed (app side).
+- `search.ask.uses-the-chosen-text-model` — **[BUILT]** (#5368, → #6791) the model that turns the
   question into a search is looked up among provider rows in the project's database, where there are
   none, so it is always the on-device model whatever Settings says (chat reads the app's default
   correctly). In an engine run from source the on-device bridge is also looked for one folder too high
   and reported missing. Test to write: test_compile_uses_the_app_text_default.py in
   `fichero-server/tests/unit/retrieval/`.
+  Built: the compiler reads the app's text default; a source run finds the bridge; pinned by
+  test_compile_uses_the_app_text_default.py.
 - `search.ask.answers-with-cited-pages` — **[GAP]** (#1828, → #6789) Ask in the search field gives a
   short answer above the result rows: written from the passages that matched (and the statements on
   those pages), each sentence followed by the page it rests on, which opens at that passage; "not found
