@@ -17,8 +17,8 @@
 > Activity and the runner. It does not restate the lines those specs own: it cites them, and section "Lines this spec
 > amends" says which it changes.
 > Tags: **[OK]** built and pinned · **[PARTIAL]** exists in part · **[GAP]** designed, not built · **[BROKEN]** built and
-> contradicting the line · **[PROPOSED]** waits on an owner's answer. Every non-[OK] line cites an issue; "→ #NEW-Hn" is an
-> issue the manager is asked to file on this milestone.
+> contradicting the line · **[PROPOSED]** waits on an owner's answer. Every non-[OK] line cites an issue; "→ #N" is an
+> issue filed on this milestone.
 
 ## Ruled 2026-11-21 (owner; paraphrased)
 
@@ -162,7 +162,7 @@ After Stage 0 the lane stands: the benchmark reruns on every adopted reader and 
 
 ### A. The benchmark
 
-- `hands.bench.manifest-is-fixed-and-versioned` — **[GAP]** (#5441 → #NEW-H1) the benchmark is one manifest file with a
+- `hands.bench.manifest-is-fixed-and-versioned` — **[GAP]** (#5441 → #6966) the benchmark is one manifest file with a
   version: per hand its script, period, licence, whether its pages may leave this Mac, the page ids of its adaptation
   pool and of its held-out pages, and the manuscript each page belongs to. A script refuses a manifest in which a
   manuscript has pages on both sides, a hand has no held-out page, or a page has no licence. The committed manifest
@@ -170,7 +170,7 @@ After Stage 0 the lane stands: the benchmark reruns on every adopted reader and 
   repository, and a guard refuses a commit that names one. A changed page list is a new version; figures of two
   versions are never shown in one column. *Test (to write):* test_blind_hands_manifest.py (a manuscript on both sides
   refuses; a missing licence refuses; a private id in the committed file refuses).
-- `hands.bench.learning-curve-at-five-points` — **[GAP]** (#5441 → #NEW-H2) per hand and configuration the round
+- `hands.bench.learning-curve-at-five-points` — **[GAP]** (#5441 → #6967) per hand and configuration the round
   measures the page error with 0, 50, 100, 200 and 400 corrected lines from the adaptation pool. The subsets are
   nested (the 50 are among the 100, and so on) and drawn by a seed kept in the report, so two configurations learn
   from the same lines. A hand whose pool holds fewer lines than a point reports that point as "not measured: N lines
@@ -178,23 +178,23 @@ After Stage 0 the lane stands: the benchmark reruns on every adopted reader and 
   (`training.eval.one-scorer`); the figure on given lines is kept beside it, as
   `readers.bakeoff.the-whole-page-is-measured` rules for the bake-off. *Test (to write):* test_blind_hands_curve.py
   (nested subsets from one seed; a short pool gives "not measured"; a fake reader's known errors give the known curve).
-- `hands.bench.round-report-is-one-table` — **[GAP]** (#5441 → #NEW-H2) a round writes one machine-readable file and
+- `hands.bench.round-report-is-one-table` — **[GAP]** (#5441 → #6967) a round writes one machine-readable file and
   one page a person reads: per hand and configuration the five points, lines-to-target, trusted coverage, calibration
   error, seconds a page, peak memory, the reference kind and the manifest version, with the commit and the seed. It
   holds no page text and no line picture of a hand that may not leave this Mac. *Test (to write):*
   test_blind_hands_report.py (the table's columns; a private hand's row carries figures and no text).
-- `hands.bench.blind-round-is-scored-once` — **[GAP]** (#5441 → #NEW-H7) each quarter a hand is added whose held-out
+- `hands.bench.blind-round-is-scored-once` — **[GAP]** (#5441 → #6968) each quarter a hand is added whose held-out
   pages no configuration has been run on. Its first scoring is stamped blind with the commit it ran at; any later
   scoring of that hand is stamped "not blind", and only blind rows count in a published comparison. *Test (to
   write):* test_blind_round_once.py (a second scoring of the same hand and version is stamped not blind).
-- `hands.bench.runs-as-a-standing-job` — **[GAP]** (#5441 → #NEW-H7) after Stage 0 a round is a job in the one job model
+- `hands.bench.runs-as-a-standing-job` — **[GAP]** (#5441 → #6968) after Stage 0 a round is a job in the one job model
   (`ui/activity-pane.md`), started on purpose or when a reader is adopted or a base is added, resumable, with its
   report kept on the model's node beside its evaluations (`distill.eval.stored-on-the-model-node`). It never runs in a
   gate: it needs the corpus on the machine. *Test (to write):* test_blind_round_is_a_job.py.
 
 ### B. Ground truth for the benchmark
 
-- `hands.truth.reference-is-a-persons-or-says-so` — **[GAP]** (#4947 → #NEW-H1) a held-out page's reference is the
+- `hands.truth.reference-is-a-persons-or-says-so` — **[GAP]** (#4947 → #6966) a held-out page's reference is the
   reading a person made or confirmed, by `made_by_a_person` and no other rule, whoever the person is and whatever
   text they started from: a model's transcription corrected by hand counts once every line of the page was corrected
   or confirmed (`truth.mark.on-a-reading`, `truth.mark.on-a-page`). Where no person checked the page, a frontier
@@ -202,13 +202,13 @@ After Stage 0 the lane stands: the benchmark reruns on every adopted reader and 
   (`distill.measure.against-people`), and it is never summed or averaged with person-checked rows. No figure depends
   on a paid expert. *Test (to write):* test_blind_hands_reference_kind.py (a model-checked page is never in a
   person-checked mean; a half-corrected page is not person-checked).
-- `hands.truth.every-figure-says-its-reference` — **[GAP]** (#4947 → #NEW-H1) every figure this spec defines carries
+- `hands.truth.every-figure-says-its-reference` — **[GAP]** (#4947 → #6966) every figure this spec defines carries
   the count of person-checked and of model-checked lines behind it, and a figure resting on fewer than 100 lines or
   two pages (the bake-off's own floor, `recipes/bakeoff.py` `MIN_LINES`, `MIN_PAGES`) is shown as "too few to say".
 
 ### C. The held-out split in a working project
 
-- `hands.heldout.one-in-ten-silently` — **[GAP]** (#5441 → #NEW-H5) one in ten of a person's decisions is held out as
+- `hands.heldout.one-in-ten-silently` — **[GAP]** (#5441 → #6969) one in ten of a person's decisions is held out as
   they work. For readings the unit is the page: the first time a correction lands on a page the engine draws from a
   hash of the page id and a per-project salt, and a page drawn held-out has every line held out, then and later.
   Nothing in the app marks it, asks about it or changes what the person can do with it. A page a person names as
@@ -216,12 +216,12 @@ After Stage 0 the lane stands: the benchmark reruns on every adopted reader and 
   drawn. This is the automatic picker `training.set.held-out-picked-across-folder` asks for, with the share ruled.
   *Test (to write):* test_held_out_one_in_ten.py (1,000 pages give 100 within the binomial band; the same page draws
   the same way twice; a trained-on page is never drawn; no response of a correction route says which way it fell).
-- `hands.heldout.fit-half-and-report-half` — **[GAP]** (#5441 → #NEW-H5) held-out pages are cut in two by the same
+- `hands.heldout.fit-half-and-report-half` — **[GAP]** (#5441 → #6969) held-out pages are cut in two by the same
   hash. Calibration, thresholds and the noise band are fitted on the fit half only; every figure shown or published
   comes from the report half only. With fewer than two pages in either half the figure is "too few to say".
   *Test (to write):* test_held_out_two_halves.py (a fit never reads a report-half page; a figure never reads a
   fit-half page).
-- `hands.heldout.every-builder-refuses` — **[GAP]** (#5441 → #NEW-H5) every builder of something a model learns from
+- `hands.heldout.every-builder-refuses` — **[GAP]** (#5441 → #6969) every builder of something a model learns from
   refuses a held-out page: the Kraken and vision training sets (built, `training.set.held-out-never-trained`), the
   YOLO set, the rescoring tables of section F, prompt examples, and a set packed for another place. One function
   answers "is this page held out" and a guard finds no builder that does not call it. *Test (to write):*
@@ -229,11 +229,11 @@ After Stage 0 the lane stands: the benchmark reruns on every adopted reader and 
 
 ### D. The two figures
 
-- `hands.metric.lines-to-target` — **[GAP]** (#5441 → #NEW-H2) lines-to-target is the smallest number of corrected
+- `hands.metric.lines-to-target` — **[GAP]** (#5441 → #6967) lines-to-target is the smallest number of corrected
   lines at which the page error on the report half is at or under 10%, and the same for 5%, interpolated between the
   measured points; where 400 lines do not reach it the figure is "not reached at 400 (N%)". *Test (to write):*
   test_lines_to_target.py (a known curve gives the known figure; a flat curve gives "not reached").
-- `hands.metric.trusted-coverage` — **[GAP]** (#5338 → #NEW-H3) trusted coverage is the largest share of the report
+- `hands.metric.trusted-coverage` — **[GAP]** (#5338 → #6970) trusted coverage is the largest share of the report
   half's lines, taken in order of confidence, whose pooled character error is 2% or less; the whole risk-coverage
   curve is kept beside it. A reader with no confidence has no trusted coverage, said as that. *Test (to write):*
   test_trusted_coverage.py (a confidence that ranks perfectly gives the share of lines under 2%; a random one gives
@@ -246,58 +246,58 @@ error by `readers.bakeoff.time-and-memory-beside-error`. Those lines are theirs 
 
 ### E. Calibration
 
-- `hands.calib.stored-confidence-is-measured` — **[GAP]** (#5894 → #NEW-H3) Stage 0 measures what is already stored,
+- `hands.calib.stored-confidence-is-measured` — **[GAP]** (#5894 → #6970) Stage 0 measures what is already stored,
   with no fit: for each hand, the line confidence a Kraken reader wrote against that line's error, and the agreement
   of two readers against error, each as AUROC (right against wrong lines at 10% line error), a ten-bin reliability
   table and a risk-coverage curve. This is the measurement `source.recipe.certainty-is-calibrated` asks for. *Test (to
   write):* test_stored_confidence_reliability.py (the maths on made-up lines).
-- `hands.calib.fitted-per-hand-and-shown` — **[GAP]** (#5338 → #NEW-H6) a reader's character confidences are pooled to
+- `hands.calib.fitted-per-hand-and-shown` — **[GAP]** (#5338 → #6971) a reader's character confidences are pooled to
   the word and the line and mapped to a probability by a fit on the fit half, per hand and reader (temperature
   scaling; isotonic from 500 lines up). The fit, its expected calibration error on the report half and its ten-bin
   table are kept with the reader's evaluation and shown on its card. A reading written after the fit carries the
   probability beside the raw figure, and a refit never rewrites a reading: it is a new mapping with its date. This is
   the fit `distill.cascade.calibrated` routes on. *Test (to write):* test_calibration_fit.py (an over-confident fake
   reader is brought within 0.03; the fit never reads the report half).
-- `hands.calib.four-bands-in-the-reader` — **[GAP]** (#5338 → #NEW-H8) the Reader tints each word by one of four bands
+- `hands.calib.four-bands-in-the-reader` — **[GAP]** (#5338 → #6972) the Reader tints each word by one of four bands
   of calibrated probability (trusted, likely, unsure, not read), with the bands' bounds and this hand's calibration
   error in the legend; one key moves to the next unsure word and one to the previous; the tint is a layer that can be
   turned off and is never the only signal (a mark as well as a colour). A reader with no fit shows no bands and says
   why. *Test (to write):* ReaderConfidenceBandsTests.swift (band from probability; no fit, no tint; the next-unsure
   command's order).
-- `hands.calib.agreement-of-two-readers` — **[GAP]** (#5894 → #NEW-H11) where a line reader and a page-level vision
+- `hands.calib.agreement-of-two-readers` — **[GAP]** (#5894 → #6973) where a line reader and a page-level vision
   model both read a page, their agreement per line (aligned by the one scorer) is stored as a second signal and
   fitted as the first is; the two are combined only by a fit on the fit half, never by a constant. A reading for the
   same page, model and prompt is reused, never run again. *Test (to write):* test_two_reader_agreement.py.
 
 ### F. The reader that learns a hand
 
-- `hands.adapter.per-hand-on-the-measured-base` — **[GAP]** (#5337 → #NEW-H9) a hand gets an adapter: the
+- `hands.adapter.per-hand-on-the-measured-base` — **[GAP]** (#5337 → #6974) a hand gets an adapter: the
   measured-best base for its script fine-tuned on the hand's corrected lines, trained on this Mac or another place
   (`compute.job.*`), measured on the report half and adopted only past the noise band
   (`source.train.adopt-only-past-the-noise-band`). Its card carries the base, the line count, the curve point it
   stands at and the calibration fit. *Test (to write):* test_hand_adapter_card.py.
-- `hands.index.nearest-hand-starts-the-new-one` — **[GAP]** (#5341 → #NEW-H10) line pictures are embedded and a new
+- `hands.index.nearest-hand-starts-the-new-one` — **[GAP]** (#5341 → #6975) line pictures are embedded and a new
   hand starts from the adapter of the nearest known hand in the project (and, where shared, beyond it), not from its
   script label; the choice and its distance are on the reading's maker. The same vectors are
   `xcorpus.link.same-hand`'s. *Test (to write):* test_hand_index_start.py (two fake hands; a page nearer the second
   starts from the second's adapter).
-- `hands.context.the-corpus-rescoring` — **[GAP]** (#5337 → #NEW-H10) a line reader's candidate readings are rescored
+- `hands.context.the-corpus-rescoring` — **[GAP]** (#5337 → #6975) a line reader's candidate readings are rescored
   with the project's own formulae and name list (`kg/project-gazetteer-and-names.md`), built only from text a person
   accepted and never from a held-out page; the rescored reading names the table's version, and the raw reading is
   kept. *Test (to write):* test_corpus_rescoring.py (a name on the list wins a tie; a held-out page adds nothing to
   the table).
-- `hands.student.page-vision-on-a-large-mac` — **[GAP]** (#5337 → #NEW-H12) a page-level vision student (a 7B-class
+- `hands.student.page-vision-on-a-large-mac` — **[GAP]** (#5337 → #6976) a page-level vision student (a 7B-class
   model with a low-rank adapter) is trained on a large-memory Mac from a frontier teacher's readings that a person
   or a check passed (`distill.licence.teacher-terms`), asked by the page, and measured on the benchmark as any
   configuration is. *Test (to write):* test_vision_student_on_the_benchmark.py.
 
 ### G. In the app
 
-- `hands.app.train-offer-shows-the-curve` — **[GAP]** (#5440 → #NEW-H13) the Train offer says where the hand stands
+- `hands.app.train-offer-shows-the-curve` — **[GAP]** (#5440 → #6977) the Train offer says where the hand stands
   on its curve and what more lines should buy, from this hand's measured points or, before it has any, the nearest
   hand's: the count of corrected lines, the page error now, and the expected error after a named number more. An
   estimate is labelled as one. *Test (to write):* test_train_offer_curve.py.
-- `hands.app.folder-says-its-trusted-share` — **[GAP]** (#5338 → #NEW-H13) a folder's Inspector says what share of its
+- `hands.app.folder-says-its-trusted-share` — **[GAP]** (#5338 → #6977) a folder's Inspector says what share of its
   lines are in the trusted band at 2%, by reader; search matches an unsure word through its stored alternatives and
   marks the hit as resting on an unsure reading. *Test (to write):* test_trusted_share_of_a_folder.py.
 
@@ -306,18 +306,18 @@ The review queue ordered by what a correction would teach is `distill.queue.unce
 
 ### H. Stage 0's fences
 
-- `hands.stage0.no-product-code-scratch-only` — **[GAP]** (#5441 → #NEW-H1) Stage 0 adds scripts under
+- `hands.stage0.no-product-code-scratch-only` — **[GAP]** (#5441 → #6966) Stage 0 adds scripts under
   `scripts/blind_hands/`, their tests and a report, and nothing else: no route, model, migration, recipe step or app
   file. Every script refuses to start unless the engine's base path is a fresh scratch directory it was given, so it
   can never open a person's library, and it calls the engine's own functions (the line finder, the readers, the one
   scorer), never a copy of them. *Test (to write):* test_blind_hands_refuses_a_real_library.py (no scratch path
   refuses; a path holding a library the script did not make refuses).
-- `hands.ceiling.open-pages-only` — **[GAP]** (#5368 → #NEW-H4) the ceiling run sends a page to a cloud model only when
+- `hands.ceiling.open-pages-only` — **[GAP]** (#5368 → #6978) the ceiling run sends a page to a cloud model only when
   its manifest row has an open licence and says the page may leave this Mac; a non-commercial or private hand refuses
   before any request is built, and the private manifest is never loaded by this script. The run goes through the one
   egress gate under a scratch project that said yes to the cloud. *Test (to write):* test_ceiling_open_pages_only.py
   (a private row and a non-commercial row each refuse with no request made).
-- `hands.ceiling.cap-is-enforced-by-the-script` — **[GAP]** (#5368 → #NEW-H4) the ceiling run has a cap of 25 USD that
+- `hands.ceiling.cap-is-enforced-by-the-script` — **[GAP]** (#5368 → #6978) the ceiling run has a cap of 25 USD that
   the script enforces: before each request it prices the request from a committed price table (an unpriced model
   refuses), adds it to a ledger file, and stops before the request that would pass the cap, exiting with "stopped at
   the cap: N of M pages read". The ledger survives a restart and counts every earlier run, so a rerun cannot spend
@@ -325,7 +325,7 @@ The review queue ordered by what a correction would teach is `distill.queue.unce
   returned by the provider replaces the estimate in the ledger. No flag raises the cap: it is a constant changed by a
   commit. *Test (to write):* test_ceiling_cap_stops_the_run.py (the request that would pass the cap is not made; a
   second start with a full ledger makes none; an unpriced model refuses).
-- `hands.stage0.go-rule-is-in-the-report` — **[GAP]** (#5441 → #NEW-H2) the Stage 0 report ends with the two tests and
+- `hands.stage0.go-rule-is-in-the-report` — **[GAP]** (#5441 → #6967) the Stage 0 report ends with the two tests and
   their answers: some configuration brings the notarial hand to under 15% page error with 400 lines or fewer; and
   confidence separates right lines from wrong at AUROC 0.85 or better. With both met it says go; otherwise it names
   the one that failed and the figure it reached. *Test (to write):* test_blind_hands_go_rule.py.

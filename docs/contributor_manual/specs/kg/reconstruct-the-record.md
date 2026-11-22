@@ -18,7 +18,7 @@
 > from it; and the three things only a cross-archive graph has (identity across archives, events, and the gaps the
 > surviving record implies). It is also where `xcorpus.*` lines get their build steps: that spec has none.
 > Tags: **[OK]** built and pinned · **[PARTIAL]** exists in part · **[GAP]** designed, not built · **[BROKEN]** built and
-> contradicting the line. Every non-[OK] line cites an issue; "→ #NEW-Rn" is an issue the manager is asked to file on
+> contradicting the line. Every non-[OK] line cites an issue; "→ #N" is an issue filed on
 > this milestone.
 
 ## Ruled 2026-11-21 (owner; paraphrased)
@@ -154,52 +154,52 @@ and never seeds a search. Until a hand has a fit, figures say "reading not yet m
 
 ### A. The check set
 
-- `record.check.is-read-from-decisions` — **[GAP]** (#5545 → #NEW-R1) the check set is the decisions of the six kinds in
+- `record.check.is-read-from-decisions` — **[GAP]** (#5545 → #6979) the check set is the decisions of the six kinds in
   the design's table, each with who decided, when, the stretch or the pair it is about and the archive of each side,
   read from the states and audit rows a person's actions already leave and from no second store. A model's write is
   never a decision. One function returns the set for a project and a kind, and every scorer and every fit calls it.
   *Test (to write):* test_check_set_from_decisions.py (three merges, one split, one rejected proposal and one
   cross-archive accept give six pair rows with their truth; a machine actor's accept is not in the set).
-- `record.check.seeded-with-hard-cases` — **[GAP]** (#5545 → #NEW-R1) a script draws the pairs a person is asked to
+- `record.check.seeded-with-hard-cases` — **[GAP]** (#5545 → #6979) a script draws the pairs a person is asked to
   decide for version 0: 200 cross-archive pairs, a third near the matcher's line, a third sharing a spelling key and
   differing in context, a third at random, with the draw's seed kept. The person answers same, different or cannot
   tell in the review surface (`ui/review-names-and-statements.md`), and "cannot tell" is a kept answer that is counted
   and scored as neither. *Test (to write):* test_check_set_seed_draw.py (the three thirds; the seed repeats the draw).
-- `record.check.one-in-ten-held-out` — **[GAP]** (#5545 → #NEW-R2) one in ten of a person's decisions of each kind is
+- `record.check.one-in-ten-held-out` — **[GAP]** (#5545 → #6980) one in ten of a person's decisions of each kind is
   held out by a hash of the decision id and a per-project salt, silently: no response, row or view says which. A
   held-out decision is never in a training set, a threshold fit's report half, or a prompt; held-out decisions are
   cut into a fit half and a report half as `hands.heldout.fit-half-and-report-half` cuts pages. Under 50 held-out
   decisions of a kind no figure of that kind is shown, and the app says "N of 50 checked". *Test (to write):*
   test_check_set_held_out.py (1,000 decisions give 100 within the binomial band; a trainer's set has none of them;
   49 decisions show no figure).
-- `record.check.open-part-is-a-fixture` — **[GAP]** (#5341 → #NEW-R1) the open part of the check set (pairs and
+- `record.check.open-part-is-a-fixture` — **[GAP]** (#5341 → #6979) the open part of the check set (pairs and
   parallel passages from open-licensed sets, with their licences) is a committed fixture the tests run on, and is the
   fixture `explore/connections-across-corpora.md`'s test matrix asks for. No decision from a person's library is ever
   written to the repository. *Test (to write):* test_check_set_open_fixture.py.
-- `record.check.model-answers-are-labelled` — **[GAP]** (#5545 → #NEW-R2) where a frontier model, not a person, answered
+- `record.check.model-answers-are-labelled` — **[GAP]** (#5545 → #6980) where a frontier model, not a person, answered
   a pair or a statement, the row is labelled model-checked, its figures are called agreement and are never summed
   with person-checked ones, and the call obeys the library's cloud answer (`llm/egress.py` `require_project_yes`).
   *Test (to write):* test_check_set_model_checked_is_apart.py.
 
 ### B. The measures and the gate
 
-- `record.measure.pairs-and-clusters` — **[GAP]** (#5545 → #NEW-R3) a matcher is scored on the report half by pairwise
+- `record.measure.pairs-and-clusters` — **[GAP]** (#5545 → #6981) a matcher is scored on the report half by pairwise
   precision and recall and by B-cubed precision and recall, for pairs inside an archive and across archives
   separately, per method and version. The inside-archive pair set and its scorer are `kg.teach.linking-set-and-scorer`;
   this line adds the cross-archive cut and the cluster measure. *Test (to write):* test_pairs_and_clusters_scorer.py
   (one giant cluster scores high pairwise recall and low B-cubed precision).
-- `record.measure.statements-stand-on-their-stretch` — **[GAP]** (#5545 → #NEW-R3) the report gives, per extractor and
+- `record.measure.statements-stand-on-their-stretch` — **[GAP]** (#5545 → #6981) the report gives, per extractor and
   version, the share of statements whose quoted stretch is on the page it names (after whitespace and diacritic
   normalisation), the share a person judged right, and the share that are a bare mention. *Test (to write):*
   test_statements_report.py.
-- `record.measure.events-grouped` — **[GAP]** (#5545 → #NEW-R6) for each checked event the report gives the share of
+- `record.measure.events-grouped` — **[GAP]** (#5545 → #6982) for each checked event the report gives the share of
   its statements a method grouped together and the share of the method's group that belongs to it. *Test (to
   write):* test_events_scorer.py.
-- `record.measure.date-and-place-against-the-written` — **[GAP]** (#5545 → #NEW-R4) a method that proposes a document's
+- `record.measure.date-and-place-against-the-written` — **[GAP]** (#5545 → #6983) a method that proposes a document's
   date or place is scored on documents whose written date and place a person confirmed, with those hidden from the
   method: the median error in years and the share within five and within twenty-five; the share of places right at
   the gazetteer's level. *Test (to write):* test_date_and_place_scorer.py.
-- `record.measure.one-report-and-a-gate` — **[GAP]** (#5545, #6278 → #NEW-R3) each run of a method writes one report
+- `record.measure.one-report-and-a-gate` — **[GAP]** (#5545, #6278 → #6981) each run of a method writes one report
   row with the method, its version (the prompt version of `kg.names.prompt-is-versioned` where a model was asked), the
   counts and the figures. A method's proposals are offered by default in a project only once its report-half figure
   passes the project's bar; before that they are offered only when asked for and say "not yet measured here". No
@@ -208,39 +208,39 @@ and never seeds a search. Until a hand has a fit, figures say "reading not yet m
 
 ### C. Across archives
 
-- `record.link.blocked-then-scored-on-context` — **[GAP]** (#3323 → #NEW-R5) cross-archive candidates are blocked by
+- `record.link.blocked-then-scored-on-context` — **[GAP]** (#3323 → #6984) cross-archive candidates are blocked by
   spelling key, authority record and transliteration (`histnorm.entities.cross-script-candidates`), then scored on
   shared context: overlapping dates, places in common, roles and co-occurring people, each named in the proposal's
   evidence with the stretch it came from. The work is one bounded query per block, never every pair
   (`kg/kg-store-and-query.md` section C). *Test (to write):* test_cross_archive_candidates.py (two archives of
   made-up names: the shared-context pair outranks the same-name stranger).
-- `record.link.same-as-joins-and-never-merges` — **[GAP]** (#5341 → #NEW-R5) an accepted cross-archive identity is a
+- `record.link.same-as-joins-and-never-merges` — **[GAP]** (#5341 → #6984) an accepted cross-archive identity is a
   typed same-as link between two names that stay two records in their own archives. The neighbourhood, the tables
   and a path follow it and say they did; undoing it separates what it joined; a rejected pair is remembered. No
   action merges two records across archives. *Test (to write):* test_same_as_across_archives.py (accept, read through,
   undo; the two records' ids never change).
-- `record.event.groups-statements-and-keeps-contradiction` — **[GAP]** (#5032 → #NEW-R6) an event is a node grouping
+- `record.event.groups-statements-and-keeps-contradiction` — **[GAP]** (#5032 → #6982) an event is a node grouping
   statements from one source or several, with a time-span and a place taken from their qualifiers and the evidence
   under each; statements that contradict stay in it side by side (`knowledge/triangulation.py`). A method's event is a
   proposal a person accepts; a person can make one by hand from a selection of statements. *Test (to write):*
   test_event_groups_statements.py.
-- `record.gap.implied-records-are-inferences` — **[GAP]** (#5032 → #NEW-R7) the graph lists what the surviving record
+- `record.gap.implied-records-are-inferences` — **[GAP]** (#5032 → #6985) the graph lists what the surviving record
   implies is missing (a number absent from a series, an act cited and not held, a role with no second trace), each as
   an inference naming the claims it rests on and the rule that found it, never as a statement. A person can dismiss
   one, or make it a lead in a research folder (`research.ops.learn.kg-proposes-terms`, `ui/research-operations.md`).
   *Test (to write):* test_implied_gaps.py (a series 1 to 10 without 7 lists 7 once, with the nine claims it rests on).
-- `record.date.proposed-from-parallels` — **[GAP]** (#5341 → #NEW-R4) an undated document gets a proposed date range and
+- `record.date.proposed-from-parallels` — **[GAP]** (#5341 → #6983) an undated document gets a proposed date range and
   place from its nearest dated parallels (shared formulae, names and hand), shown with the parallels as evidence and
   stored as a qualifier with the basis `inferred` (`kg/kg-confidence-and-provenance.md` section H), never as a written
   date. *Test (to write):* test_date_from_parallels.py.
 
 ### D. Resting on the reading
 
-- `record.confidence.capped-by-the-reading` — **[GAP]** (#6763 → #NEW-R8) a name's or a statement's confidence is never
+- `record.confidence.capped-by-the-reading` — **[GAP]** (#6763 → #6986) a name's or a statement's confidence is never
   above the calibrated confidence of the words it rests on (`hands.calib.fitted-per-hand-and-shown`); where the hand
   has no fit yet, the figure carries "reading not yet measured" and is exempt from no threshold. *Test (to write):*
   test_confidence_capped_by_reading.py.
-- `record.confidence.unsure-readings-seed-nothing` — **[GAP]** (#6763 → #NEW-R8) a name read from words in the unsure
+- `record.confidence.unsure-readings-seed-nothing` — **[GAP]** (#6763 → #6986) a name read from words in the unsure
   or not-read band is not a candidate for a cross-archive link, an event or an implied gap, and never seeds a search
   term; the proposal list says how many names were left out for this. *Test (to write):*
   test_unsure_names_are_not_candidates.py.
