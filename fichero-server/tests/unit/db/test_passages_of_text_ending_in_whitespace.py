@@ -38,3 +38,18 @@ def test_text_ending_in_whitespace_is_cut_into_its_real_passages(tail: str) -> N
     for passage in passages:
         assert passage.text == text[passage.anchor.char_start : passage.anchor.char_end]
     assert passages[-1].anchor.char_end == len(_DIARY_PAGE)
+
+
+def _numbered_page(n_words: int) -> str:
+    return " ".join(f"word{i}." for i in range(n_words))
+
+
+@pytest.mark.parametrize("tail", [" ", "\n", "\n\n", "  \n \t"])
+@pytest.mark.parametrize("n_words", [30, 150])
+def test_trailing_whitespace_adds_no_passages(tail: str, n_words: int) -> None:
+    text = _numbered_page(n_words)
+    bare = split_text_passages(text, document_id="d")
+    padded = split_text_passages(text + tail, document_id="d")
+    assert [(u.anchor.char_start, u.anchor.char_end) for u in padded] == [
+        (u.anchor.char_start, u.anchor.char_end) for u in bare
+    ]
