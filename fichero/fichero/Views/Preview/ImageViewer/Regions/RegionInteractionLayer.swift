@@ -83,6 +83,9 @@ struct RegionInteractionLayer: View {
     /// Commit a drawn polygon or baseline: (its kind, its points). Nil: the Shape tool drags boxes only.
     var onDrawShapeCommit: ((SegmentShapes.DrawKind, [[Double]]) -> Void)?
     var onDrawBox: (([Double]) -> Void)?
+    /// The Region tool's dragged box while editing segments: the host saves it as a region on the shown pass (`segment.create`).
+    /// Nil: the box stays a marquee.
+    var onDrawRegionBox: (([Double]) -> Void)?
     /// Commit a Knife stroke (K held): its points, in the page's fractions. Nil: no Knife here.
     var onKnifeCommit: (([[Double]]) -> Void)?
     /// Commit a Marker stroke (M held or the Marker chosen): its points in the page's fractions, and whether it closed.
@@ -528,6 +531,8 @@ extension RegionInteractionLayer {
             onAnnotate?(box)
         } else if isWordSelecting {
             selectWords(inBand: box)
+        } else if isAddingRegion, drawsSegments, let onDrawRegionBox {
+            onDrawRegionBox(box)
         } else if isAddingRegion {
             marquees?.add(
                 box, documentId: documentId, imagePixelSize: imagePixelSize
