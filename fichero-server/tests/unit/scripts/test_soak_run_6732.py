@@ -121,12 +121,15 @@ class FakeEngine:
     def start(self):
         self.log.append("start")
 
+    def resume_held(self):
+        self.log.append("resume")
+
 
 def test_kill_at_kills_once_restarts_and_checks_the_run_carried_on(monkeypatch):
     monkeypatch.setattr(sr, "sh", lambda _a: "")
     engine = FakeEngine([10, 40, 40, 70, 100])  # the 40 after the restart is the resumed count
     got = sr.soak(engine, "job", 100, kill_at=40, every=0, hours=1, sleep=lambda _s: None)
-    assert engine.log == ["kill", "start"] and got["resume"]["problem"] is None
+    assert engine.log == ["kill", "start", "resume"] and got["resume"]["problem"] is None
     assert sr.judge(got["samples"], 100, resume=got["resume"], down_minutes=got["down_minutes"])["ok"]
 
 
