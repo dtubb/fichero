@@ -730,16 +730,6 @@ def evaluate(db: Any, job_id: str, request: EvaluationRunRequest, planned: dict[
         if i == len(queue) and not trial_done:
             trial_done = True
             queue += _trial_candidates(models, queue, request)
-    measured_at = datetime.now(timezone.utc).isoformat()
-    for m in models:
-        record_on_card(m["model"], m["reader"], {
-            "job_id": job_id, "measured_at": measured_at, "checked": request.checked, "trust": trust,
-            "definition": CER_DEFINITION, "pages": [p["document_id"] for p in pages], "role": m["role"],
-            "scores": m["scores"], "per_page": m["per_page"], "speed": m["speed"], "measured": m["measured"],
-            "pages_read": m["pages_read"], "pages_total": m["pages_total"], "why": m["why"],
-            "lines": sum(p["lines"] for p in m["per_page"] if p.get("read", True)),
-            "granularity": m["granularity"], "lines_per_request": m["lines_per_request"],
-            "compared_with": list(dict.fromkeys(o["model"] for o in models if o["model"] != m["model"]))})
     ranked = sorted((m for m in models if m["measured"] and m["scores"][DEFAULT_POLICY_NAME]["cer"] is not None),
                     key=lambda m: m["scores"][DEFAULT_POLICY_NAME]["cer"])
     # One model asked three ways is still one candidate: a winner needs two models.
@@ -749,11 +739,50 @@ def evaluate(db: Any, job_id: str, request: EvaluationRunRequest, planned: dict[
         from fichero_server.recipes.project import write_noise_band
 
         write_noise_band(Path(db.path).parent, band, pages=ranked[0]["pages_read"], model=ranked[0]["model"])
+    verdicts = gate_trained(models, Path(db.path).parent)
+    measured_at = datetime.now(timezone.utc).isoformat()
+    for m in models:
+        record_on_card(m["model"], m["reader"], {
+            "job_id": job_id, "measured_at": measured_at, "checked": request.checked, "trust": trust,
+            "definition": CER_DEFINITION, "pages": [p["document_id"] for p in pages], "role": m["role"],
+            "scores": m["scores"], "per_page": m["per_page"], "speed": m["speed"], "measured": m["measured"],
+            "pages_read": m["pages_read"], "pages_total": m["pages_total"], "why": m["why"],
+            "lines": sum(p["lines"] for p in m["per_page"] if p.get("read", True)),
+            "granularity": m["granularity"], "lines_per_request": m["lines_per_request"],
+            "verdict": verdicts.get(m["model"]),
+            "compared_with": list(dict.fromkeys(o["model"] for o in models if o["model"] != m["model"]))})
     return {"stopped": False, "measured_at": measured_at, "definition": CER_DEFINITION, "trust": trust,
             "noise_band": band,
             "ranked_by": DEFAULT_POLICY_NAME, "best": None if no_best else ranked[0]["model"],
             "best_granularity": None if no_best else ranked[0]["granularity"],
             "no_best_why": no_best, "models": models}
+
+
+def gate_trained(models: list[dict[str, Any]], library: Path) -> dict[str, dict[str, Any]]:
+    """Each trained Kraken reader's verdict against the best out-of-the-box Kraken reader measured on the same pages
+    (`distill.gate.one-rule`), with the project's noise band. Too few pages, or nothing to compare with: not measured."""
+    from fichero_server.recipes.project import read_noise_band
+    from fichero_server.training import gate
+    from fichero_server.workflows.transcription_accuracy import DEFAULT_POLICY_NAME
+
+    def cer(m: dict[str, Any]) -> float | None:
+        return m["scores"][DEFAULT_POLICY_NAME]["cer"] if m["measured"] else None
+
+    others = [m for m in models if m["role"] == "out of the box" and m["reader"] == "kraken" and cer(m) is not None]
+    current = min(others, key=cer, default=None)
+    band = read_noise_band(library)["value"]
+    found: dict[str, dict[str, Any]] = {}
+    for m in models:
+        if m["role"] != "trained" or m["reader"] != "kraken":
+            continue
+        if m["pages_read"] < NOISE_MIN_PAGES:
+            found[m["model"]] = gate.not_measured(
+                f"{_plural(m['pages_read'], 'held-out page')} read; a reader is judged from {NOISE_MIN_PAGES} up")
+        elif current is None:
+            found[m["model"]] = gate.not_measured("no downloadable reader was measured on the same pages")
+        else:
+            found[m["model"]] = gate.verdict(cer(m), cer(current), band=band, pages=m["pages_read"])
+    return found
 
 
 def words(result: dict[str, Any], pages: int) -> str:
@@ -815,7 +844,9 @@ def adopt_trained(db: Any, result: dict[str, Any]) -> dict[str, Any] | None:
     gain = base["scores"][policy]["cer"] - cer
     said = (f"{trained['model']} CER {cer:.3f} against {base['model']} {base['scores'][policy]['cer']:.3f} "
             f"({policy}, {trained['pages_read']} held-out pages)")
-    if gain <= band:
+    from fichero_server.training import gate
+
+    if gate.verdict(cer, base["scores"][policy]["cer"], band=band, pages=trained["pages_read"])["verdict"] != gate.BETTER:
         return {"adopted": None, "gain": round(gain, 6), "noise_band": band,
                 "why": (f"{said}: not adopted, the gain {gain:+.4f} is within the project's noise band ({band})"
                         if gain > 0 else f"{said}: not adopted, {base['model']} reads these pages as well or better")}

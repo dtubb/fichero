@@ -137,3 +137,77 @@ def test_the_card_names_the_teacher_in_words(db, notebook, tmp_path, monkeypatch
 
     _, reader = _trained_and_landed(db, notebook, tmp_path, monkeypatch)
     assert kr.trained_reader_card(reader)["taught_by"] == TEACHER
+
+
+# --- the gate before a reader can be offered ------------------------------------------------------------------
+
+@pytest.mark.parametrize(("trained", "current", "verdict", "words"), [
+    (0.05, 0.08, "better", "better by 3.0 points on 40 pages"),
+    (0.079, 0.08, "too close", "too close to call"),
+    (0.09, 0.08, "worse", "worse: kept, not offered"),
+    (None, 0.08, "not measured", "not measured: no held-out corrected pages"),
+])
+def test_the_gate_gives_one_of_four_verdicts_in_the_specs_words(trained, current, verdict, words):
+    from fichero_server.training import gate
+
+    got = gate.verdict(trained, current, band=0.005, pages=40)
+    assert got["verdict"] == verdict and got["words"] == words
+
+
+def test_a_worse_reader_is_inside_the_band_only_when_it_is_close(db):
+    """WHY: 'too close to call' is both ways inside the band; a reader worse by more is 'worse', not 'close'."""
+    from fichero_server.training import gate
+
+    assert gate.verdict(0.083, 0.08, band=0.005, pages=20)["verdict"] == "too close"
+    assert gate.verdict(0.0851, 0.08, band=0.005, pages=20)["verdict"] == "worse"
+
+
+def test_the_evaluation_writes_the_verdict_on_the_trained_readers_card_entry(db, notebook, tmp_path, monkeypatch):
+    """WHY: a landed reader is not offered as a replacement until a card says it is better; with no verdict it is
+    `not measured`. The trained reader reads perfectly, the base drops a character a line: better."""
+    from fichero_server.execution import jobs
+    from fichero_server.llm import kraken_runtime
+    from fichero_server.training import evaluation
+    from tests.unit.training.test_evaluation_job import BASE, Readers, _base_installed
+
+    base_path = _base_installed(tmp_path)  # on this Mac before landing: the evaluation is planned at landing
+    job_id, reader = _trained_and_landed(db, notebook, tmp_path, monkeypatch)
+    monkeypatch.setattr(evaluation, "NOISE_MIN_PAGES", 1)  # one held-out page here; the floor is 15 for real
+    fake = Readers(trained_path=kraken_runtime.recognition_model_path(reader))
+    monkeypatch.setattr(kraken_runtime, "read_given_lines", fake)
+    eval_id = training_job.status(db, job_id)["held_out_score"]["evaluation_job_id"]
+    subject = db.execute_fetchone("SELECT subject FROM jobs WHERE id = ?", [eval_id])[0]
+    evaluation.register_job_kinds()
+    jobs.KINDS[evaluation.KIND].run(db, subject)
+
+    assert base_path in fake.read, "the base reader was measured on the same page"
+    (entry,) = evaluation.model_evaluations(reader, "kraken")
+    assert entry["verdict"]["verdict"] == "better" and "points on 1 page" in entry["verdict"]["words"], BASE
+    (base_entry,) = evaluation.model_evaluations(BASE, "kraken")
+    assert base_entry["verdict"] is None
+
+
+def test_too_few_held_out_pages_are_not_measured_in_words(db, notebook, tmp_path, monkeypatch):
+    from fichero_server.execution import jobs
+    from fichero_server.llm import kraken_runtime
+    from fichero_server.training import evaluation
+    from tests.unit.training.test_evaluation_job import Readers, _base_installed
+
+    _base_installed(tmp_path)
+    job_id, reader = _trained_and_landed(db, notebook, tmp_path, monkeypatch)
+    monkeypatch.setattr(kraken_runtime, "read_given_lines", Readers(trained_path=kraken_runtime.recognition_model_path(reader)))
+    eval_id = training_job.status(db, job_id)["held_out_score"]["evaluation_job_id"]
+    evaluation.register_job_kinds()
+    jobs.KINDS[evaluation.KIND].run(db, db.execute_fetchone("SELECT subject FROM jobs WHERE id = ?", [eval_id])[0])
+
+    (entry,) = evaluation.model_evaluations(reader, "kraken")
+    assert entry["verdict"]["verdict"] == "not measured" and "1 held-out page" in entry["verdict"]["words"]
+
+
+def test_the_catalogue_says_a_readers_verdict_or_that_it_has_none(db, notebook, tmp_path, monkeypatch):
+    """WHY: the verdict is the gate a person sees before choosing the reader; none yet is said, never left blank."""
+    from fichero_server.llm.local_model_catalog import kraken_catalog_entries
+
+    _, reader = _trained_and_landed(db, notebook, tmp_path, monkeypatch)
+    (entry,) = [e for e in kraken_catalog_entries() if e.model_id == reader]
+    assert "Not measured: no verdict yet, so it is not offered as a replacement." in entry.note
