@@ -1067,6 +1067,11 @@ held now, by place (this Mac, remote, cloud) and provider, loaded or not, workin
 any other state is answered unchanged. A page a workflow run handed in, a training on Hugging Face,
 or work already waiting again is refused (`409`, with the reason).
 
+`GET /api/activity/models/run-settings/{runtime}` reads the run settings of a local runtime (`models.settings.run-knobs`, #6588)
+and what they cost this Mac; `PUT` on the same path sets a knob (a value) or un-sets it (null), the others keep their value, and
+a value out of range is `422`. `POST /api/activity/models/unload-idle` is Unload Idle Models (`models.row.what-unloading-gives-back`,
+#4987): it lets go of every model the engine holds and nothing is using, and answers what was freed by name.
+
 `GET /api/documents/run-history?ids=<id>&ids=<id>` says what has been run on each document (#5434):
 its job rows (pictures, embeddings, names, line finding, page reads) and the workflow runs recorded
 on it, newest first, with the model and provider as recorded, the outcome, an absolute UTC time and a

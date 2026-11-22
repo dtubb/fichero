@@ -55,7 +55,8 @@ def test_no_job_is_left_running_after_the_engine_died(client, db, test_package, 
         row = jobs.read_job(db, job_id)
         assert (row["state"], row["reason"]) == ("paused", jobs.QUIT_REASON), (job_id, row)
     listed = {j["id"]: j for j in client.get("/api/activity/jobs").json()["jobs"]}
-    assert {i["id"] for i in client.get("/api/activity/stopped-at-quit").json()["items"]} >= {page, download, recipe, poisoned}
+    # a thumbnail page is listed under its queue's one item (`importer.resume.launch-alert-is-one-row-per-queue`)
+    assert {i["id"] for i in client.get("/api/activity/stopped-at-quit").json()["items"]} >= {"derivatives", download, recipe, poisoned}
     run = listed[thread]
     assert run["state"] == "failed" and run["reason"].startswith("Interrupted: the engine stopped at"), run
 

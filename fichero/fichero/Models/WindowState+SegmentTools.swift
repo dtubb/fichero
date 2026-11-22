@@ -2,7 +2,35 @@ import Foundation
 
 /// The segment editor's held keys and tool state transitions (#6582): Knife, Marker, Brush and Paint
 /// held or armed, Order clicks, the Simplify slider's release and the order overlay's flash.
+/// The segment editor's tools that are armed by a flag rather than by `activeMarkupTool`.
+enum SegmentFlagTool: Equatable {
+    case knife, marker, order, brush, paint
+}
+
 extension WindowState {
+    /// The one flag tool chosen now, nil when none is. At most one flag is ever true: `chooseSegmentTool` is the only way
+    /// the tool row, the keys and Esc change them.
+    var activeSegmentTool: SegmentFlagTool? {
+        if knifeArmed { return .knife }
+        if markerArmed { return .marker }
+        if orderArmed { return .order }
+        if brushArmed { return .brush }
+        if paintArmed { return .paint }
+        return nil
+    }
+
+    /// Choose one segment tool, or none (Select): exactly one is active and shown (#6734). A flag tool leaves
+    /// `activeMarkupTool` empty, so the row does not also show Select and Select does not take the drag; putting a tool
+    /// down returns to Select.
+    func chooseSegmentTool(_ tool: SegmentFlagTool?) {
+        activeMarkupTool = tool == nil ? .select : nil  // its didSet puts every flag down; the flags are set after
+        knifeArmed = tool == .knife
+        markerArmed = tool == .marker
+        orderArmed = tool == .order
+        brushArmed = tool == .brush
+        paintArmed = tool == .paint
+    }
+
     /// K pressed in Edit Segments: the Knife held, for a stroke or for a tap.
     func pressKnifeKey() {
         knifeHeld = true
@@ -13,9 +41,7 @@ extension WindowState {
     /// as the tool row's Knife does, until another tool is chosen or Esc.
     func letGoOfKnifeKey() {
         if knifeHeld, !knifeStrokedWhileHeld {
-            if activeMarkupTool != .select { activeMarkupTool = .select }  // no didSet flip of the tool just chosen
-            markerArmed = false
-            knifeArmed = true
+            chooseSegmentTool(.knife)
         }
         knifeHeld = false
         knifeStrokedWhileHeld = false
@@ -30,9 +56,7 @@ extension WindowState {
     /// M let go: after a stroke the Marker goes back; a tap chooses it.
     func letGoOfMarkerKey() {
         if markerHeld, !markerStrokedWhileHeld {
-            if activeMarkupTool != .select { activeMarkupTool = .select }  // no didSet flip of the tool just chosen
-            knifeArmed = false
-            markerArmed = true
+            chooseSegmentTool(.marker)
         }
         markerHeld = false
         markerStrokedWhileHeld = false
@@ -47,10 +71,7 @@ extension WindowState {
     /// B let go: after a stroke the Brush goes back; a tap chooses it.
     func letGoOfBrushKey() {
         if brushHeld, !brushStrokedWhileHeld {
-            if activeMarkupTool != .select { activeMarkupTool = .select }  // no didSet flip of the tool just chosen
-            knifeArmed = false
-            markerArmed = false
-            brushArmed = true
+            chooseSegmentTool(.brush)
         }
         brushHeld = false
         brushStrokedWhileHeld = false

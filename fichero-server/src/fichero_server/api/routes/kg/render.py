@@ -103,12 +103,21 @@ class ReadableSentence(BaseModel):
     revoiced: bool
 
 
+class AlsoMentionedIn(BaseModel):
+    """A statement that names the entity without being about it: listed, never narrated."""
+
+    claim_id: str
+    text: str
+    document_id: str | None = None
+
+
 class EntityReadableResponse(BaseModel):
     """One entity's readable entry: a paragraph plus its sentence breakdown."""
 
     entity_id: str
     paragraph: str
     sentences: list[ReadableSentence]
+    also_mentioned_in: list[AlsoMentionedIn] = []
 
 
 @bio_router.get(
@@ -135,19 +144,20 @@ async def get_entity_readable(
     # Imported here, not at module load: a broken knowledge/readable.py must cost this route, not the engine's
     # start (#4875, `engine.readable-py-import-is-a-startup-single-point-of-failure`).
     try:
-        from fichero_server.knowledge.readable import render_entry
+        from fichero_server.knowledge.readable import render_entry_with_mentions
     except ImportError as exc:
         raise HTTPException(
             status_code=503,
             detail=f"The readable paragraph is unavailable: fichero_server.knowledge.readable did not load ({exc}).",
         ) from exc
 
-    sentences = render_entry(db, entity_id)
+    sentences, mentions = render_entry_with_mentions(db, entity_id)
     paragraph = " ".join(s["text"] for s in sentences)
     return EntityReadableResponse(
         entity_id=entity_id,
         paragraph=paragraph,
         sentences=[ReadableSentence(**s) for s in sentences],
+        also_mentioned_in=[AlsoMentionedIn(**m) for m in mentions],
     )
 
 

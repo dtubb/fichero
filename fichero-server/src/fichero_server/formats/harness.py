@@ -39,6 +39,25 @@ SCHEMA_DIR = Path(__file__).parent / "schemas"
 # ---------------------------------------------------------------------------
 
 
+def maker_by(maker: dict[str, str]) -> str:
+    """`person` or `machine`: how a file says who made a reading (`PageSegment.reading_maker`)."""
+    return "person" if maker["type"] == "Person" else "machine"
+
+
+def maker_id(maker: dict[str, str]) -> str:
+    """An id for a maker mark in a file's own declarations: one per kind and name."""
+    import hashlib
+
+    return f"fichero-maker-{maker_by(maker)}-{hashlib.sha256(maker['name'].encode()).hexdigest()[:16]}"
+
+
+def maker_from(by: str, name: str | None) -> dict[str, str] | None:
+    """The `reading_maker` a file's mark says; None when it names nobody."""
+    if not name:
+        return None
+    return {"type": "Person" if by == "person" else "Software", "name": name}
+
+
 def xml_id(raw: str) -> str:
     """A value usable as `xs:ID` / `xs:IDREF`, derived from one of ours.
 
@@ -122,6 +141,16 @@ class PageSegment:
     ref: str | None = None
     #: Nesting, by `ref`: a line inside a region.
     parent_ref: str | None = None
+    #: The segment's own type as its source named it (`Segment.kind_raw`: a SegmOnto zone or line
+    #: type, a layout model's label), beside the tidy `kind`.
+    kind_raw: str | None = None
+    #: A machine's confidence in the SHAPE, 0 to 1 (`Segment.confidence`); None when none was given.
+    confidence: float | None = None
+    #: A machine's confidence in the reading written first, 0 to 1; None when none was given.
+    reading_confidence: float | None = None
+    #: Who made the reading written first, as `{"type": "Person" | "Software", "name": ...}`; None when
+    #: there is no reading or it names no maker.
+    reading_maker: dict[str, str] | None = None
     #: Anything the format stated that the model has no field for, kept verbatim
     #: (`source.format.keeps-unrecognised`).
     foreign: dict[str, Any] = field(default_factory=dict)
@@ -281,6 +310,29 @@ class LossReport:
                 self.losses.append(Loss(what, existing.count + count, why))
                 return
         self.losses.append(Loss(what, count, why))
+
+    def note_confidence_not_written(self, segment: PageSegment, fmt: str, *, shape: bool = True,
+                                    reading: bool = True) -> None:
+        """Name the confidences a library export handed this segment, for the parts of a writer with no
+        place for them (#6801)."""
+        if shape and segment.confidence is not None:
+            self.note("a shape's confidence", 1, f"{fmt} has no place for the confidence of a shape")
+        if reading and segment.reading_confidence is not None:
+            self.note("a reading's confidence", 1, f"{fmt} has no place for the confidence of a reading")
+
+    def note_marks_not_written(self, segment: PageSegment, fmt: str, facts: bool = True) -> None:
+        """Name the editorial facts (when `facts`) and the record's names and dates a library export
+        handed this segment, for a writer with no place for them (#6800). The keys are where
+        `page_export.page_from_library` puts them (`formats.tei.EDITORIAL_FACTS`, `.RECORD_MARKS`),
+        repeated here so a writer does not load the TEI module."""
+        if facts:
+            for fact in segment.foreign.get("editorial:facts") or []:
+                self.note(f"a '{fact['kind']}' editorial mark", 1,
+                          f"{fmt} has no place for an editorial mark on a reading")
+        marks = segment.foreign.get("record:marks") or []
+        if marks:
+            self.note("names and dates", len(marks),
+                      f"{fmt} has no place for a name or a date standing on a line (TEI writes them inline)")
 
     @property
     def lost(self) -> set[str]:

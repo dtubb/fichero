@@ -1,7 +1,7 @@
 # Exporter — Design Spec
 
-> Milestone: export-pipeline
-> (GitHub #316 — deliberately NOT named "exporter"/"Exporter": that collides case-insensitively
+> Milestone: export-roundtrip (the 2026-11-20 review's fixes, #6799-#6806, in this spec's Build order); the older
+> issues sit in milestone export-pipeline (GitHub #316 — deliberately NOT named "exporter"/"Exporter": that collides case-insensitively
 > with legacy milestone #14, "Exporter")
 > Manual: TBD — the user manual needs an "Exporting your library" section: what Export as
 > Markdown/Word do per-document from the Reader, what the Eleventy static-site export produces
@@ -179,6 +179,122 @@ writer; an inferred fact is the output of a derivation activity (`prov:wasDerive
 `prov:Activity`) — the RDF export's schema.org context would need its own extension or a
 second named context to carry either, since schema.org itself has no native attribution-vs-
 derivation vocabulary.
+
+### D2. Measured on a scratch library (review of 2026-11-20)
+
+Seventeen pages over ten real page images (Kraken lines, a person's reading on five lines of each,
+seven ground-truth files imported, the free name-finder run on one page: 17 names, 17 statements,
+21 mentions). The six emitters ran in 60 to 250 ms each over 68 documents. The page formats
+(ALTO, PAGE XML, TEI) and their round trips are measured in
+`../source/formats-and-training.md` ("Measured on a library"); IIIF in `../source/iiif.md`.
+`→ #N` names the issue that tracks the fix (milestone export-roundtrip).
+
+- `export.statements-say-what-made-them` — **[PARTIAL]** (#5603, → #6805) every exported name and statement
+  says what made it (provider and model, or the person), where it stands (page, line, character
+  span), how sure, and whether a person has reviewed it. **Built:** the record stream's claim
+  record carries `provider`, `model`, the page-text span, the line and reading when it has one,
+  and the "Found in" columns (`export_service.py::claim_record_columns`), so JSONL, Parquet and
+  the workbook's Claims sheet carry them; the design note above predates this. **Not built:** a
+  confidence, a review state and the person on the claim record; any of it on the entity record
+  (an entity says which documents, never what found it); the RDF export, which writes
+  `sourceDocument`, `sourceExcerpt` and one flat `confidence` (0.5 on all 17) and neither
+  provider, model nor a PROV term (170 triples, 0 `prov:`), so `profile.provenance.prov-o-on-everything`
+  (#6439) has nothing to stand on yet.
+- `export.csv-of-names-and-statements` — **[GAP]** (#6439) names, statements and mentions leave
+  as CSV with a CSVW description beside each (`profile.tables.csvw-and-parquet`). Today they leave
+  as JSONL, Parquet and three workbook sheets (Documents, Entities, Claims); the only CSV the
+  exporter writes is the catalogue sheet.
+- `export.text-exports-keep-the-lines` — **[BROKEN]** (#5502) a page's text in the Markdown folder
+  and the Word transcript keeps its lines. Today the Markdown folder writes a page as one paragraph, its lines joined by spaces: the
+  emitters read the page-text cache (`export_service.py::_document_text` reads
+  `Document.page_content`), where the lines are already joined, and not the lines of the working
+  pass. A 44-line page is one line of about 2,000 characters. The Word transcript reads the same
+  text.
+- `export.text-exports-draw-the-editorial-signs` — **[GAP]** (#4935) a text export draws editorial
+  facts with the project's signs (a deletion in ⟦ ⟧, `editorial/leiden.py::draw`), as the Reader
+  does; TEI writes them as elements. Today a line with a `deleted` fact exports to Markdown as its
+  bare letters: the reader of the file cannot tell struck text from standing text.
+- `export.plain-text-page` — **[GAP]** (#6439) one page exports as plain text through the page
+  exporter (`profile.views.plain-text-and-duckdb`). Today `plain-text` is a format the page
+  harness reads and refuses to write (`FormatCannotWrite`).
+
+## Build order
+
+Stage 1 is the export review's ranked fixes (review-export, section 4), in rank order; fix 9 is
+two steps. Stage 2 gives each older issue a line in this spec's Behaviors section still cites one
+step. Several behaviours live in `../source/formats-and-training.md` and `../source/iiif.md`,
+which have no Build order of their own; their steps are here, the milestone's one home. Engine
+tests sit under `fichero-server/tests/unit/`; Swift tests under `fichero/Tests/Unit/general/`.
+
+### Stage 1 — A page leaves whole and comes back the same
+
+#### Step 1.1 — ALTO writes outlines; every writer names what it drops (built) (#6799, #6800)
+- Behaviours: `source.format.alto-out-outlines`, `source.format.loss-report`, `source.format.undeclared-losses-are-declared`
+- Tests: fichero-server/tests/unit/api/test_alto_writes_outlines_6799.py, fichero-server/tests/unit/core/test_export_names_what_it_drops_6800.py, fichero-server/tests/unit/core/test_library_round_trip_6800.py
+- Size: S
+
+#### Step 1.2 — Segment type and confidence reach the writers (built for PAGE XML, ALTO and TEI) (#6801)
+- Behaviours: `source.format.kind-raw-out`, `source.format.confidence-out`
+- Tests: fichero-server/tests/unit/formats/test_type_and_confidence_reach_the_writers_6801.py
+- Depends on: 1.1
+- Size: M
+
+#### Step 1.3 — Re-importing our own export derives nothing twice (built) (#6803)
+- Behaviours: `source.format.reimport-adds-no-reading`
+- Tests: fichero-server/tests/unit/formats/test_reimport_adds_no_reading_6803.py
+- Size: S
+
+#### Step 1.4 — An IIIF export a viewer can open (built) (#6806, #5326)
+- Behaviours: `iiif.export.ids-are-absolute-and-resolve`, `iiif.export.every-line-with-its-outline`, `iiif.export.maker-is-the-readings`, `iiif.export.says-what-it-is`
+- Tests: fichero-server/tests/unit/api/test_iiif_export_a_viewer_can_open_6806.py
+- Size: M
+
+#### Step 1.5 — The page built once, in a few queries (partly built) (#6804)
+- Behaviours: `source.format.export-cost`
+- Tests: fichero-server/tests/unit/core/test_page_built_once_in_few_queries_6804.py
+- Depends on: 1.2
+- Size: M
+
+#### Step 1.6 — Who made it, in the file; import restores a person's authorship (#6802) (partly built)
+- Behaviours: `source.format.who-made-it-out`, `source.format.round-trip-through-a-library`, `source.format.alto-out`
+- Tests: `fichero-server/tests/unit/core/test_who_made_it_round_trips_6802.py`
+- Depends on: 1.5
+- Size: M
+
+#### Step 1.7 — Names and statements with their maker (#6805, #5603)
+- Behaviours: `export.statements-say-what-made-them`, `source.format.names-in-every-tei`
+- Tests: `test_names_and_statements_with_their_maker_6805.py` in fichero-server/tests/unit/core/ (to write)
+- Depends on: 1.6
+- Size: M
+
+#### Step 1.8 — Text exports keep the lines and draw the signs (#5502, #4935)
+- Behaviours: `export.text-exports-keep-the-lines`, `export.text-exports-draw-the-editorial-signs`
+- Tests: `test_text_exports_keep_lines_and_signs.py` in fichero-server/tests/unit/core/ (to write)
+- Depends on: 1.1
+- Size: S
+
+#### Step 1.9 — A page as plain text (#6439)
+- Behaviours: `export.plain-text-page`
+- Tests: `test_plain_text_page_writer.py` in fichero-server/tests/unit/formats/ (to write)
+- Size: S
+
+#### Step 1.10 — Names, statements and mentions as CSV with CSVW (#6439)
+- Behaviours: `export.csv-of-names-and-statements`
+- Tests: `test_csv_with_csvw_of_names_and_statements.py` in fichero-server/tests/unit/core/ (to write)
+- Depends on: 1.7
+- Size: S
+
+### Stage 2 — The older issues this spec's Behaviors still cite
+
+#### Step 2.1 — A test pins which export routes the app reaches (#4873)
+- Behaviours: `export.app-wires-word-and-per-document-markdown-only`
+- Tests: `ReaderExportReachabilityTests.swift` in fichero/Tests/Unit/general/App/ (to write)
+- Size: S
+
+#### Step 2.2 — File ▸ Export's titles and reveal pinned; document ids fetched in pages (#3305)
+- Behaviours: `export.error-title-and-success-feedback-accurate`
+- Tests: `FileMenuExportFeedbackTests.swift` in fichero/Tests/Unit/general/App/ (to write)
+- Size: S
 
 ## PASS 2 — the fold (legacy milestones #14 and #212, 25 issues, selected by NUMBER)
 

@@ -287,8 +287,8 @@ def traverse(
 
         # Walk claim-to-claim links one hop further.
         for link in db.query(KnowledgeClaimLink):
-            if link.source_claim_id == current_id and link.target_claim_id not in visited:
-                target = db.get(KnowledgeClaim, link.target_claim_id)
+            if link.claim_id == current_id and link.related_claim_id not in visited:
+                target = db.get(KnowledgeClaim, link.related_claim_id)
                 if target is None:
                     continue
                 visited.add(target.id)
@@ -296,21 +296,13 @@ def traverse(
                     id=target.id, type="claim", label=target.text[:120],
                     depth=current_depth + 1,
                     metadata={
-                        "relation": (
-                            link.relation.value
-                            if hasattr(link.relation, "value")
-                            else str(link.relation)
-                        ),
+                        "relation": link.relation_type.value,
                     },
                 ))
                 queue.append((target.id, current_depth + 1))
                 edges.append(TraverseEdge(
                     source=current_id, target=target.id,
-                    type=(
-                        link.relation.value
-                        if hasattr(link.relation, "value")
-                        else str(link.relation)
-                    ),
+                    type=link.relation_type.value,
                     depth=current_depth + 1,
                 ))
 

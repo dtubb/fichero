@@ -61,9 +61,9 @@ struct PaneList: Codable, Sendable, Hashable {
 
     /// Split the single pane with `id` along `axis` — replace it with a split of [the pane, a fresh
     /// duplicate] — leaving every OTHER pane untouched (spec panes.split.focused-only). The
-    /// per-instance split: splitting one pane never splits the others.
-    func splittingLeaf(_ id: UUID, axis: SplitAxis) -> PaneList {
-        PaneList(nodes.map { $0.splittingLeaf(id, axis: axis) })
+    /// per-instance split: splitting one pane never splits the others. `adding` a kind: `PaneNode.splittingLeaf`.
+    func splittingLeaf(_ id: UUID, axis: SplitAxis, adding newKind: PaneKind? = nil) -> PaneList {
+        PaneList(nodes.map { $0.splittingLeaf(id, axis: axis, adding: newKind) })
     }
 
     /// Change the KIND of the single pane with `id` (spec panes.head.kind-switch) — turn a reader

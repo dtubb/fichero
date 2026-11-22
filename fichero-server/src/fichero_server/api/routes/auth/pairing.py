@@ -26,7 +26,7 @@ from fichero_server.security import accounts
 from fichero_server.actions import ActionContext, ChangeSpec, action, registry
 from fichero_server.actions.registry import ActionRefused
 from fichero_server.api.auth import app_action_context, _has_proxy_origin_headers, _rate_limit_scope_from_request, _use_multiuser_auth, actor_from_request, ensure_owner_account
-from fichero_server.api.routes.auth.accounts import _current_session_user
+from fichero_server.api.routes.auth.accounts import _audit, _current_session_user, _engine_id
 from fichero_server.db import Database
 from fichero_server.db.app import AppDatabase, get_app_db
 from fichero_server.models import AccountUser, ActionAudit, Device
@@ -1189,6 +1189,39 @@ def enroll_device(
     except HTTPException:
         _record_pair_attempt(request, now)
         raise
+
+
+class OwnDevicesRequest(BaseModel):
+    enabled: bool
+
+
+class OwnDevicesResponse(BaseModel):
+    enabled: bool
+    engine_id: str = Field(description="this engine's id: the account of the Keychain item the Mac writes or deletes")
+    enrollment_secret: str | None = Field(default=None, description="the new secret, shown once; none when turned off")
+
+
+@router.put("/own-devices", response_model=OwnDevicesResponse)
+def set_own_devices(
+    request: Request,
+    body: OwnDevicesRequest,
+    app_db: AppDatabase = Depends(get_app_database),
+) -> OwnDevicesResponse:
+    """`signin.own.*` (#6568): on mints a NEW 32-byte enrollment secret for the owner (stored only as a hash) and
+    retires every earlier one; off retires them all. Only this Mac's own app, over its Unix socket, may."""
+    if request.scope.get("fichero.transport") != "uds":
+        raise HTTPException(status_code=403, detail="only this Mac's own app can change sign-in options")
+    owner = _pairing_user(request, app_db)
+    if not owner.is_owner:
+        raise HTTPException(status_code=403, detail="only the owner can change sign-in options")
+    _audit(request, app_db, "pair.own_devices", owner.id, enabled=body.enabled)
+    app_db.revoke_enrollment_secrets()
+    engine_id = _engine_id(app_db)
+    if not body.enabled:
+        return OwnDevicesResponse(enabled=False, engine_id=engine_id)
+    secret = secrets.token_urlsafe(32)
+    app_db.create_enrollment_secret(user_id=owner.id, token_hash=accounts.hash_token(secret))
+    return OwnDevicesResponse(enabled=True, engine_id=engine_id, enrollment_secret=secret)
 
 
 @router.get("/devices", response_model=DeviceListResponse)

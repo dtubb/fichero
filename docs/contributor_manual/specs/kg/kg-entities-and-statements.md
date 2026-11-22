@@ -12,10 +12,16 @@
 > catalogue and shown. The detail specs stand and are cited, never restated: `kg-tables.md` (the
 > Entities and Claims tables, CRUD, rules that survive re-import), `kg-entity-inspector.md` (one
 > entity in the Inspector), `kg-readable-representation.md` (the paragraph), `kg-enrichment.md`
-> (authorities, RDF), `project-gazetteer-and-names.md` (the authority lists, whose behaviours this
-> spec schedules), `kg-interactions.md`, `hermeneutic-layer.md`, `../explore/networks.md`,
+> (authorities, RDF), `kg-store-and-query.md` (how the two tables are kept and asked at scale),
+> `project-gazetteer-and-names.md` (the authority lists, whose behaviours this
+> spec schedules), `kg-confidence-and-provenance.md` (how sure each name, merge, statement, date,
+> place and authority link is, who made it, how figures combine, what a threshold may do, and
+> the search), `kg-interactions.md`, `hermeneutic-layer.md`, `../explore/networks.md`,
 > `../explore/time.md`, `../explore/place.md`, `../source/cataloguing.md` and the names and
 > statements steps in `../source/models-chains-and-projects.md`.
+> **Revised 2026-11-20:** section J and Stage 8 added (the training set, the scorers and the trainers for the names,
+> statements and linking models, read against the code, with a first measurement on a Mac). On 2026-11-21 both moved to
+> `kg-confidence-and-provenance.md` (section K and Stage 8).
 > Tags: **[OK]** built and tested · **[PARTIAL]** built, partly proven or partly wired ·
 > **[GAP]** intended, never built · **[BROKEN]** code contradicts the line.
 
@@ -127,10 +133,7 @@ native graph, timeline and map views.
   names are proposals into the canonical set and never the catalogue's names by themselves; a
   project where it measures well on the check set may choose it as the step's source; a tagger
   fine-tuned on the project's confirmed names (#5536) is measured the same way.
-- `kg.names.gate` — **[OK]** a name saved is somebody or somewhere: a whole-name date or a bare
-  role word is refused, a name is never trimmed, a role word never refuses a longer name
-  (`svo_quality.usable_entity_name`; `source.job.find-names.not-a-date-or-a-role`). *Test:*
-  `fichero-server/tests/unit/knowledge/test_name_quality.py`.
+- Moved on 2026-11-21 to `kg-confidence-and-provenance.md` section H: `kg.names.gate` (id kept; Step 2.1, #6768).
 - `kg.names.says-who-made-it` — **[PARTIAL]** (#4869, #4868) every entity and claim names its
   maker in its attribution chain: a run (provider, model, prompt version, run id, time), the
   import draft (the tagger and pipeline, marked as draft), or a person (account and time); a
@@ -159,7 +162,8 @@ native graph, timeline and map views.
   1,493 pending pairs for 2,885 names, most of them two people of one surname or two events
   of one kind, and nobody can review that. The writer keeps the exact and alias matches; the
   similar-name pairs it queued are withdrawn by the system (never marked rejected); proposals
-  come from the folder pass below.
+  come from the folder pass below. Not built: still so on 2026-11-20 (ten pages of the tagger
+  queued 9 `similar_name` pairs for 123 names, scores 0.80 to 0.89).
 - `kg.resolve.folder-pass` — **[GAP]** (#6280, #5107) after a names step on a folder (and on
   demand for any folder or box) a resolution pass over that scope proposes GROUPS of names that
   are likely one person, place or organisation, by evidence in this order: the same name
@@ -223,7 +227,9 @@ native graph, timeline and map views.
   subject-less claims, never a claim whose subject slot holds the date; the timeline reads dates, the tables and the
   paragraph never show a date where a person should be; existing dated rows are converted by
   an audited, scan-first repair, never a batch rewrite. In the test box's Sonnet folder 36 of 75 claims
-  are such rows.
+  are such rows. Not built: where a statement's date and place come from (its sentence, the page, the
+  document or folder, inferred), their form (as written, EDTF, calendar) and why no graph view
+  draws a date as a node are specified in `kg-confidence-and-provenance.md`, section H.
 - `kg.statements.object-role` — **[GAP]** (#3808, #5541) a statement's object carries a role
   where the extraction knows it (patient, recipient, place, instrument), seeded from the
   language's dependency labels and the prompt's fields, so a renderer and a query can ask who
@@ -232,9 +238,7 @@ native graph, timeline and map views.
 - `kg.statements.measured` — **[GAP]** (#5545, #5637) the bake-off compares the parser tier, a
   local model and a cloud model on the check set, precision and recall per statement, cost
   first; a prompt version is adopted only when it does not lose on the check set.
-- `kg.statements.no-invented-english` — **[OK]** a name with no statement gets no English "is"
-  on a page that is not English (`source.extract.no-english-verb-on-another-language`). *Test:*
-  `fichero-server/tests/unit/workflows/test_svo_fallback.py`.
+- Moved on 2026-11-21 to `kg-confidence-and-provenance.md` section A: `kg.statements.no-invented-english` (id kept; Step 1.4, #6771).
 - `kg.statements.review` — **[PARTIAL]** (#4691, #4768, #5416) a statement is `unreviewed`,
   `shortlisted`, `curated` or `rejected`; a person curates from the Claims table and the lens,
   single or multi-select, the table filters by state, and a machine actor is refused by
@@ -444,7 +448,9 @@ values alone; never a batch rewrite of a person's work.
 - `kg.one.derived-stores-follow-the-record` — **[PARTIAL]** (#5361) the vector store, the
   triple file, the graph cache and the triangulation counts are derived and rebuildable from the
   two tables; built: the rebuild route; not built: re-derivation when a page's corrected text,
-  a merge or a decision changes what they were built from.
+  a merge or a decision changes what they were built from. The link table of names on
+  statements (`kg.store.link-table-is-derived`, `kg-store-and-query.md`) is one more derived
+  store under this rule.
 - `kg.one.app-has-two-stores` — **[PARTIAL]** (#4984, #3186) `EntityStore` and `ClaimStore`
   are the app's only holders of names and statements; built: the stores; not built: the
   Claims table and the Inspector's knowledge section reading them, the artifact store retired.
@@ -461,6 +467,10 @@ The owner asked (2026-11-07) how Fichero should find names, relations, coreferen
 - `kg.compare.linking-candidates-on-the-check-set` — **[GAP]** (#6386, #6385 item 6) engine. Linking an entity to an authority record (`knowledge/authorities.py`'s canonical URIs: Wikidata, the gazetteers, the authority files): GLiNER-Linker with reranking, ReFinED, BLINK and GENRE, and plain Wikidata and authority-file lookups are scored on the check set's confirmed links (accuracy at 1, and the share left unlinked when nothing fits), clean and HTR; a link is a proposed `same_as` per type (`kg.attr.links-proposed-per-type`, Step 3.3), confirmed by a person, and the existing Wikidata enrichment (`knowledge/wikidata_enrich.py`) then runs on confirmed links only. Acceptance: on a fixture with confirmed links each candidate's accuracy and unlinked share are reported; every link a candidate makes is a proposal row, none written as fact; enrichment runs for a confirmed link and not for a proposed one.
 - `kg.compare.link-prediction-is-a-suggestion` — **[GAP]** (#6386) engine. The PyKEEN link predictor that exists (`knowledge/pykeen_predictor.py`, TransE by default, RotatE as a second card) suggests missing edges into the review queue only (`kg.claim.review-queue`), each with its score and the statements it rests on, and never writes an edge; its suggestions are scored on held-out edges of the check set (hits at 10). Acceptance: predicted edges appear as review-queue rows with score and evidence and no claim row exists until a person accepts one; hits at 10 is reported on the held-out edges.
 - `kg.compare.winner-is-distilled-and-bundled-by-licence` — **[GAP]** (#6385, #6386) engine. For each of the four tasks the best LLM labels on the project's pages are distilled into a small tuned model where the comparison shows a small model within the band of the LLM (`distill.job.any-model-job`, `distill.adopt.within-bar`); a candidate is bundled with the app only when its licence class allows it (`source.model.licence-class`; a GPL or AGPL checkpoint carries its sheet as the YOLO cards do, `prep.licence.agpl-stated-on-the-card`) and otherwise stays a download the person chooses; the comparison tables (per task, per text class) are kept in `recipes/seed/measured-defaults.yaml` beside the readers' rows (`recipe-designer.md` Step 8.1's table, the same provenance fields). Acceptance: a task whose small student is within the band of the LLM on held-out pages is offered as the distilled card; a candidate with a non-open licence is never in the bundle manifest (`scripts/check_engine_imports_bundled.py`'s list) and is offered as a download with its sheet; the measured-defaults file holds one row per candidate per task per text class with its provenance.
+
+### J. Teaching the names, statements and linking models (#5536, #5545, #6385, #6386)
+
+Moved on 2026-11-21 to `kg-confidence-and-provenance.md` section K (the `kg.teach.*` behaviours, ids kept) and its Stage 8.
 
 ## Build order
 
@@ -623,7 +633,7 @@ Order: the check set gains the HTR text beside the clean text per page (the page
 - Depends on: 6.1
 - Size: M
 
-Order: the span export from resolved proposals; the `tune-names` job on the one trainer (spaCy here on 8 GB, GLiNER small here, else Hugging Face); the measure beside stock and LLM; the offer at the threshold through Teach a model's page. The spaCy trainer #5536 names is this step.
+Order: the span export from resolved proposals; the `tune-names` job on the one trainer (spaCy here on 8 GB, GLiNER small here, else Hugging Face); the measure beside stock and LLM; the offer at the threshold through Teach a model's page. The spaCy trainer #5536 names is this step. The span export, the scorer and the spaCy trainer themselves are Stage 8's Steps 8.2 to 8.4 (section J); this step is the recipe step that starts them and the offer.
 
 - test (to write): `test_tune_names_step.py` in fichero-server/tests/unit/training/ (the span set from 300 corrections; the fake trainer's tagger measured beside the other two; the default unchanged until taken; the offer at the threshold)
 
@@ -662,6 +672,10 @@ Order: the span export from resolved proposals; the `tune-names` job on the one 
 Nothing of Stages 6 and 7 is for the Monday build. The order inside each is engine first; the app shows the figures where the step card already shows the readers' (`recipe-designer.md` Step 6.1's measure table).
 
 - test (to write): `test_kg_winners_distilled.py` in fichero-server/tests/unit/recipes/ (predicted edges as review rows with score and evidence; hits at 10; the student within the band offered; the non-open candidate out of the bundle manifest and offered as a download; the measured-defaults rows)
+
+### Stage 8 — moved
+
+Steps 8.1 to 8.7 are in `kg-confidence-and-provenance.md` Stage 8 (numbers kept, #5536, #5545, #6386, #6795).
 
 ## Test matrix (legs this surface touches)
 

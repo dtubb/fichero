@@ -2110,6 +2110,23 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("key-challenge")
+    def auth_key_challenge_post(
+        ctx: typer.Context,
+        public_key_pem: str = typer.Option(..., '--public-key-pem', help='Public Key Pem.'),
+    ) -> None:
+        """Key Challenge (POST /api/auth/key-challenge)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/key-challenge"
+            params = None
+            payload = _build_json_payload({
+                "public_key_pem": public_key_pem,
+            }, {
+                "public_key_pem": {'type': 'string', 'maxLength': 2000, 'minLength': 1, 'title': 'Public Key Pem', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("register-local-client")
     def auth_register_local_client_post(
         ctx: typer.Context,
@@ -2337,6 +2354,32 @@ def register_generated_openapi_commands(
                 "client_id": {'type': 'string', 'title': 'Client Id', 'x-cli-required': True},
                 "nonce": {'type': 'string', 'title': 'Nonce', 'x-cli-required': True},
                 "signature": {'type': 'string', 'title': 'Signature', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("sign-in-by-key")
+    def auth_sign_in_by_key_post(
+        ctx: typer.Context,
+        client: str = typer.Option(..., '--client', help='DeviceClientBody. JSON.'),
+        nonce: str = typer.Option(..., '--nonce', help='Nonce.'),
+        public_key_pem: str = typer.Option(..., '--public-key-pem', help='Public Key Pem.'),
+        signature: str = typer.Option(..., '--signature', help='Signature.'),
+    ) -> None:
+        """Sign In By Key (POST /api/auth/sign-in-by-key)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/sign-in-by-key"
+            params = None
+            payload = _build_json_payload({
+                "client": client,
+                "nonce": nonce,
+                "public_key_pem": public_key_pem,
+                "signature": signature,
+            }, {
+                "client": {'properties': {'name': {'type': 'string', 'maxLength': 120, 'minLength': 1, 'title': 'Name'}, 'host': {'type': 'string', 'maxLength': 120, 'title': 'Host', 'default': ''}}, 'type': 'object', 'required': ['name'], 'title': 'DeviceClientBody', 'x-cli-required': True},
+                "nonce": {'type': 'string', 'maxLength': 200, 'minLength': 1, 'title': 'Nonce', 'x-cli-required': True},
+                "public_key_pem": {'type': 'string', 'maxLength': 2000, 'minLength': 1, 'title': 'Public Key Pem', 'x-cli-required': True},
+                "signature": {'type': 'string', 'maxLength': 2000, 'minLength': 1, 'title': 'Signature', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -11704,6 +11747,7 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         model_type: str = typer.Argument(..., help='Model Type'),
         model_id: str = typer.Argument(..., help='Model Id'),
+        confirm: Optional[bool] = typer.Option(None, '--confirm/--no-confirm', help='Confirm.'),
         yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
     ) -> None:
         """Delete Model (DELETE /api/local-models/{model_type}/{model_id})."""
@@ -11711,7 +11755,9 @@ def register_generated_openapi_commands(
             typer.confirm("Delete local-models?", abort=True)
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/local-models/{model_type}/{model_id}"
-            params = None
+            params = {
+                "confirm": confirm,
+            }
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
@@ -13119,6 +13165,23 @@ def register_generated_openapi_commands(
         """Set Multiuser (PUT /api/pair/multiuser)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/pair/multiuser"
+            params = None
+            payload = _build_json_payload({
+                "enabled": enabled,
+            }, {
+                "enabled": {'type': 'boolean', 'title': 'Enabled', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("set-own-devices")
+    def pair_set_own_devices_put(
+        ctx: typer.Context,
+        enabled: bool = typer.Option(..., '--enabled/--no-enabled', help='Enabled.'),
+    ) -> None:
+        """Set Own Devices (PUT /api/pair/own-devices)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/pair/own-devices"
             params = None
             payload = _build_json_payload({
                 "enabled": enabled,

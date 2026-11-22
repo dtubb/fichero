@@ -964,6 +964,14 @@ def fichero_auth_revoke_invite(
     return _rt.call("POST", f"/api/auth/invites/{invite_id}/revoke")
 
 
+def fichero_auth_key_challenge(
+    *,
+    public_key_pem: Annotated[str, Field(description='Public Key Pem.')],
+) -> Any:
+    'Key Challenge\n\n`multiuser.second-device-by-synced-key`: a nonce for any valid P-256 key, whether or not it is registered, so the\nanswer does not say who holds a key; the sign-in refuses an unknown one. Counted apart from client sign-ins.\n\nRoute: POST /api/auth/key-challenge (toolset `auth`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/auth/key-challenge", json=_rt.body({"public_key_pem": public_key_pem}))
+
+
 def fichero_auth_register_local_client(
     *,
     public_key_pem: Annotated[str, Field(description='Public Key Pem.')],
@@ -1074,6 +1082,17 @@ def fichero_auth_sign_in(
 ) -> Any:
     'Sign In\n\nRoute: POST /api/auth/sign-in (toolset `auth`; changes data, as the agent account when one exists).'
     return _rt.call("POST", "/api/auth/sign-in", json=_rt.body({"client_id": client_id, "nonce": nonce, "signature": signature}))
+
+
+def fichero_auth_sign_in_by_key(
+    *,
+    client: Annotated[dict[str, Any], Field(description='DeviceClientBody.')],
+    nonce: Annotated[str, Field(description='Nonce.')],
+    public_key_pem: Annotated[str, Field(description='Public Key Pem.')],
+    signature: Annotated[str, Field(description='Signature.')],
+) -> Any:
+    'Sign In By Key\n\nSign in with a trusted key from a device the engine has not seen: on the first success the engine registers a new\n`device` client (named by the device, same key, same person); a repeat from the same device reuses that row.\n\nRoute: POST /api/auth/sign-in-by-key (toolset `auth`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/auth/sign-in-by-key", json=_rt.body({"client": client, "nonce": nonce, "public_key_pem": public_key_pem, "signature": signature}))
 
 
 def fichero_authz_access_matrix(
@@ -5576,9 +5595,10 @@ def fichero_local_models_delete(
     *,
     model_type: Annotated[str, Field(description='Model Type')],
     model_id: Annotated[str, Field(description='Model Id')],
+    confirm: Annotated[Optional[bool], Field(description='Confirm')] = None,
 ) -> Any:
-    'Delete Model\n\nDelete a downloaded model.\n\nArgs:\n    model_type: "whisper" or "embeddings"\n    model_id: Model identifier\n\nRoute: DELETE /api/local-models/{model_type}/{model_id} (toolset `local-models`; changes data, as the agent account when one exists).'
-    return _rt.call("DELETE", f"/api/local-models/{model_type}/{model_id}")
+    'Delete Model\n\nDelete a downloaded model.\n\nArgs:\n    model_type: "whisper" or "embeddings"\n    model_id: Model identifier\n    confirm: with a project open, a model a step of its recipe uses is refused (409, the steps named) until true\n        (`models.manage.delete-a-model`, #6588)\n\nRoute: DELETE /api/local-models/{model_type}/{model_id} (toolset `local-models`; changes data, as the agent account when one exists).'
+    return _rt.call("DELETE", f"/api/local-models/{model_type}/{model_id}", params={"confirm": confirm})
 
 
 def fichero_locations_resolve(
@@ -6212,6 +6232,14 @@ def fichero_pairing_set_multiuser(
 ) -> Any:
     "Set Multiuser\n\nSet the persisted Multi-user switch through the audited action layer (#5751); the Settings\nswitch, the CLI and MCP share this route. Only a request over the engine's Unix socket may (the Mac's own app, its\nstart-up credential, no key session needed); any TCP request is refused, an owner session included\n(`multiuser.owner-session-sets-the-switch`, owner ruling 2026-11-12).\nApp-wide, so no library header is needed (`sharing.multiuser-switch-needs-no-library`): the audit row goes to the\nglobal library package, as the known-library registry's actions do; the Settings window sends no library.\n\nRoute: PUT /api/pair/multiuser (toolset `pairing`; changes data, as the agent account when one exists)."
     return _rt.call("PUT", "/api/pair/multiuser", json=_rt.body({"enabled": enabled}))
+
+
+def fichero_pairing_set_own_devices(
+    *,
+    enabled: Annotated[bool, Field(description='Enabled.')],
+) -> Any:
+    "Set Own Devices\n\n`signin.own.*` (#6568): on mints a NEW 32-byte enrollment secret for the owner (stored only as a hash) and\nretires every earlier one; off retires them all. Only this Mac's own app, over its Unix socket, may.\n\nRoute: PUT /api/pair/own-devices (toolset `pairing`; changes data, as the agent account when one exists)."
+    return _rt.call("PUT", "/api/pair/own-devices", json=_rt.body({"enabled": enabled}))
 
 
 def fichero_pairing_sharing_state(
@@ -9805,6 +9833,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_auth_create_invite", "auth", "POST", "/api/auth/invites", fichero_auth_create_invite),
     GeneratedTool("fichero_auth_redeem_invite", "auth", "POST", "/api/auth/invites/redeem", fichero_auth_redeem_invite),
     GeneratedTool("fichero_auth_revoke_invite", "auth", "POST", "/api/auth/invites/{invite_id}/revoke", fichero_auth_revoke_invite),
+    GeneratedTool("fichero_auth_key_challenge", "auth", "POST", "/api/auth/key-challenge", fichero_auth_key_challenge),
     GeneratedTool("fichero_auth_register_local_client", "auth", "POST", "/api/auth/local-clients/register", fichero_auth_register_local_client),
     GeneratedTool("fichero_auth_request_local_client", "auth", "POST", "/api/auth/local-clients/request", fichero_auth_request_local_client),
     GeneratedTool("fichero_auth_list_local_client_requests", "auth", "GET", "/api/auth/local-clients/requests", fichero_auth_list_local_client_requests),
@@ -9819,6 +9848,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_auth_list_sessions", "auth", "GET", "/api/auth/sessions", fichero_auth_list_sessions),
     GeneratedTool("fichero_auth_revoke_session", "auth", "POST", "/api/auth/sessions/{session_id}/revoke", fichero_auth_revoke_session),
     GeneratedTool("fichero_auth_sign_in", "auth", "POST", "/api/auth/sign-in", fichero_auth_sign_in),
+    GeneratedTool("fichero_auth_sign_in_by_key", "auth", "POST", "/api/auth/sign-in-by-key", fichero_auth_sign_in_by_key),
     GeneratedTool("fichero_authz_access_matrix", "authz", "GET", "/api/authz/access-matrix", fichero_authz_access_matrix),
     GeneratedTool("fichero_authz_list_accessible_libraries", "authz", "GET", "/api/authz/libraries", fichero_authz_list_accessible_libraries),
     GeneratedTool("fichero_authz_get_library_snapshot", "authz", "GET", "/api/authz/library", fichero_authz_get_library_snapshot),
@@ -10347,6 +10377,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_pairing_list_invites", "pairing", "GET", "/api/pair/invites", fichero_pairing_list_invites),
     GeneratedTool("fichero_pairing_revoke_invite", "pairing", "DELETE", "/api/pair/invites/{invite_id}", fichero_pairing_revoke_invite),
     GeneratedTool("fichero_pairing_set_multiuser", "pairing", "PUT", "/api/pair/multiuser", fichero_pairing_set_multiuser),
+    GeneratedTool("fichero_pairing_set_own_devices", "pairing", "PUT", "/api/pair/own-devices", fichero_pairing_set_own_devices),
     GeneratedTool("fichero_pairing_sharing_state", "pairing", "GET", "/api/pair/sharing", fichero_pairing_sharing_state),
     GeneratedTool("fichero_pairing_sign_in_device", "pairing", "POST", "/api/pair/sign-in", fichero_pairing_sign_in_device),
     GeneratedTool("fichero_pairing_detected_tailnet", "pairing", "GET", "/api/pair/tailnet", fichero_pairing_detected_tailnet),

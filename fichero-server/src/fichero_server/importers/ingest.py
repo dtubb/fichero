@@ -1404,6 +1404,7 @@ def ingest_folder(
     db: "Database | None" = None,
     package_path: Path | None = None,
     skip_paths: "set[Path] | None" = None,
+    on_saved: "Callable[[list[Document]], None] | None" = None,
 ) -> list[Document]:
     """Ingest all files from a folder.
 
@@ -1432,6 +1433,10 @@ def ingest_folder(
         skip_paths: Files NOT to ingest as documents -- a layout file paired with its
             image (#5132, `interchange_pairing`), which becomes a pass on that image
             instead of a text document of raw XML.
+
+        on_saved: Called inside the transaction that saves a batch (or a single file's page) with the saved
+            documents, so a caller can write their job rows in the same transaction (#6829): a quit leaves
+            no saved page without them.
 
     Returns:
         List of created Documents
@@ -1549,7 +1554,10 @@ def ingest_folder(
             return
         batch, pending_links = pending_links, []
         try:
-            db.save_many([doc for doc, _, _ in batch])
+            with db.transaction():
+                db.save_many([doc for doc, _, _ in batch])
+                if on_saved is not None:
+                    on_saved([doc for doc, _, _ in batch])
             saved = batch
         except Exception as batch_exc:
             # Preserve per-file failure isolation if one unexpected row rejects
@@ -1561,6 +1569,8 @@ def ingest_folder(
                 try:
                     with db.transaction():
                         db.save(item[0])
+                        if on_saved is not None:
+                            on_saved([item[0]])
                     saved.append(item)
                 except Exception as save_exc:
                     logger.error("Could not persist %s: %s", item[0].name, save_exc)
@@ -1705,6 +1715,8 @@ def ingest_folder(
                         raise RuntimeError(
                             f"File changed while being ingested: {file_path}"
                         )
+                    if on_saved is not None:
+                        on_saved([doc])
 
                 # Same retain-light rule as the batch path above.
                 documents.append(_retained_copy(doc))

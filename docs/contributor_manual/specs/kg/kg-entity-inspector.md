@@ -264,7 +264,8 @@ until re-mounted and tested against the new location.
   `authorityLinkButton`/`EntityAuthorityLinkSheet` is the only place that ever could. Coupled
   to Wikidata enrichment (`kg/kg-enrichment.md`, → #4759) — the enrichment sheet's own
   comment says it builds on the authority link, so the two should re-mount together, not
-  independently.
+  independently. Where it re-mounts: the entity card, as `kg.render.authority-link-is-confirmed-or-rejected`
+  and `kg.render.enrichment-is-reachable-from-the-card`, built in `kg-rendering.md` Step 1.3.
 - `kg.entity.claims-grouped-by-source` — **[GAP]** (→ #4828) group an entity's claims by their
   source document (`EntitySourceGroupsView.swift`, the `sourceGroupsMode` toggle in
   `EntityDetailView+Claims.swift`).
@@ -274,11 +275,15 @@ until re-mounted and tested against the new location.
   should drive the LIBRARY view to the documents that mention it (entity-as-filter) — the
   reverse direction of `kg.entity.select.focuses` above (which goes library-selection →
   entity-focus); this is entity-focus → library-filter, not yet built.
-- `kg.entity.map-tab.plots-locations` — **[GAP]** (#1780, #1754) a Map tab plotting
-  place-typed entities geographically, inferring country/region from the documents when not
-  explicit; the reading/WebKit view's Timeline (temporal) is the sibling gap, also unbuilt.
-  Depends on `kg-enrichment.md`'s `kg.enrich.geocode-place-entities` for the underlying
-  coordinates — this behavior is the UI side of plotting them, not the geocoding itself.
+- `kg.entity.map-tab.plots-locations` — **[PARTIAL]** (#1780, #1754, → #5037; retagged 2026-11-20
+  from [GAP] after reading the code) a Map tab plotting placed statements geographically, and
+  its sibling Timeline. Built: `KGMapView` and `KGTimelineView`
+  (`Views/Library/ViewModes/Graph/`) read `claimGeo` and `timeStart` from claims and draw stated
+  values solid and inferred ones hollow. Their one host is the Reader's view of ONE document
+  (`DocumentKGSurface.swift`); nothing mounts them for an entity or in this inspector, and a
+  place entity's own coordinates are not plotted. Depends on `kg-enrichment.md`'s
+  `kg.enrich.geocode-place-entities` for coordinates. How the entity card should carry When
+  and Where: `kg-rendering.md` section D.
 - `kg.entity.map-tab.temporal-geo-filter` — **[GAP]** (#1203) extends the Map tab above with
   sort-by-date and filter-by-time-range controls once the tab itself exists.
 - `kg.entity.detail-uses-semantic-fonts` — **[GAP]** (#4388) the entity detail view renders a

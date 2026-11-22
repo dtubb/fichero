@@ -377,15 +377,15 @@ def contradiction_subgraph(
     # Nodes: every claim referenced by any link.
     relevant_links = [
         link for link in db.query(KnowledgeClaimLink)
-        if link.relation == ClaimRelationType.contradicts
+        if link.relation_type == ClaimRelationType.contradicts
     ]
     if not relevant_links:
         return g
 
     claim_ids = set()
     for link in relevant_links:
-        claim_ids.add(link.source_claim_id)
-        claim_ids.add(link.target_claim_id)
+        claim_ids.add(link.claim_id)
+        claim_ids.add(link.related_claim_id)
     for claim_id in claim_ids:
         claim = db.get(KnowledgeClaim, claim_id)
         if claim is None:
@@ -393,7 +393,7 @@ def contradiction_subgraph(
         g.add_node(claim_id, text=claim.text[:160])
 
     for link in relevant_links:
-        g.add_edge(link.source_claim_id, link.target_claim_id, weight=1)
+        g.add_edge(link.claim_id, link.related_claim_id, weight=1)
 
     return g
 

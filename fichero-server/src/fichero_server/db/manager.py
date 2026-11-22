@@ -387,9 +387,6 @@ class DatabaseManager:
                 # never embedded, invisible to semantic search. Re-queue them
                 # on open; the stages are idempotent (thumbnail is ensure-
                 # style, embed skips already-embedded rows).
-                if os.environ.get("FICHERO_SKIP_DERIVATIVE_RESUME") != "1":
-                    resume_pending_derivatives(db, package_path)
-
                 # Runs the engine did not finish are marked interrupted, said with when (#5555): here,
                 # on every open, not left to the activity tracker's sweep, which is skipped when the
                 # tracker is first made off an event loop (and a ghost run then said "running" for good).
@@ -417,6 +414,11 @@ class DatabaseManager:
                     sync_folder.rescan(db, hold=True)  # held for the launch alert: nothing starts by itself (#6584)
                 except Exception:
                     logger.exception("Could not resume the library's jobs")
+
+                # After `jobs.resume`, so a page whose job the quit left running is a held row to reuse, not a twin
+                # (`importer.resume.no-twin-rows-at-open`); the rows it adds are held for Continue.
+                if os.environ.get("FICHERO_SKIP_DERIVATIVE_RESUME") != "1":
+                    resume_pending_derivatives(db, package_path)
 
                 # Run logs from before #5711 move into lines in the background, never at open.
                 try:

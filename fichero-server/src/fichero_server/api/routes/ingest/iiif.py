@@ -11,7 +11,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fichero_server.models.anchors import AnchorSpace
 from fichero_server.api.routes.document.renditions import IMAGE_MEDIA_TYPES
 from fastapi.responses import FileResponse
@@ -110,11 +110,11 @@ def _document_or_404(db: Database, document_id: str) -> Document:
     return doc
 
 
-def _iiif_base_url(document_id: str) -> str:
-    return f"/api/iiif/iiif/{document_id}"
+def _iiif_base_url(document_id: str, base: str) -> str:
+    return f"{base}/api/iiif/iiif/{document_id}"
 
 
-def _iiif_canvas_id(document_id: str, rendition_id: str | None = None) -> str:
+def _iiif_canvas_id(document_id: str, rendition_id: str | None = None, base: str = "") -> str:
     """The canvas an annotation's coordinates belong to.
 
     Was hard-coded to `/canvas/1` for every annotation on every document
@@ -128,8 +128,8 @@ def _iiif_canvas_id(document_id: str, rendition_id: str | None = None) -> str:
     is the honest answer for a coordinate whose frame was never recorded.
     """
     if rendition_id:
-        return f"{_iiif_base_url(document_id)}/canvas/{rendition_id}"
-    return f"{_iiif_base_url(document_id)}/canvas/1"
+        return f"{_iiif_base_url(document_id, base)}/canvas/{rendition_id}"
+    return f"{_iiif_base_url(document_id, base)}/canvas/1"
 
 
 def _annotation_motivation(kind: AnnotationKind) -> str:
@@ -362,13 +362,13 @@ def _dedupe_annotations(*groups: list[Annotation]) -> list[Annotation]:
     return rows
 
 
-def _by_reference_canvas(doc: Document) -> dict[str, Any] | None:
+def _by_reference_canvas(doc: Document, base: str) -> dict[str, Any] | None:
     """A page that came in by reference, painted from the archive's own image and service exactly
     as the archive published them; nothing is re-hosted (`iiif.export.points-at-original`)."""
     meta = doc.metadata or {}
     if not meta.get("by_reference") or not meta.get("iiif_image"):
         return None
-    canvas_id = meta.get("iiif_id") or _iiif_canvas_id(doc.id)
+    canvas_id = meta.get("iiif_id") or _iiif_canvas_id(doc.id, base=base)
     body: dict[str, Any] = {"id": meta["iiif_image"], "type": "Image",
                             "format": meta.get("iiif_image_format") or "image/jpeg",
                             "width": meta.get("width"), "height": meta.get("height")}
@@ -377,68 +377,82 @@ def _by_reference_canvas(doc: Document) -> dict[str, Any] | None:
     return {
         "id": canvas_id, "type": "Canvas", "label": {"en": [doc.name or "Canvas 1"]},
         "width": meta.get("width"), "height": meta.get("height"),
-        "annotations": [{"id": _lines_page_url(doc.id), "type": "AnnotationPage"}],
+        "annotations": [{"id": _lines_page_url(doc.id, base), "type": "AnnotationPage"}],
         "items": [{"id": f"{canvas_id}/page/1", "type": "AnnotationPage", "items": [{
             "id": f"{canvas_id}/painting/1", "type": "Annotation", "motivation": "painting",
             "body": body, "target": canvas_id}]}],
     }
 
 
-def _lines_page_url(doc_id: str) -> str:
-    return f"/api/iiif/iiif/lines/{doc_id}"
+def _lines_page_url(doc_id: str, base: str) -> str:
+    return f"{base}/api/iiif/iiif/lines/{doc_id}"
 
 
-def build_lines_annotation_page(db: Database, doc: Document, canvas_id: str, width: int, height: int) -> dict[str, Any]:
+def build_lines_annotation_page(db: Database, doc: Document, canvas_id: str, width: int, height: int,
+                                base: str) -> dict[str, Any]:
     """The working pass's lines as IIIF annotations on the canvas (`iiif.export.segments-as-annotations`):
-    each the counting reading's text, language and maker, at line granularity, placed in the
+    each the counting reading's text, language and maker (the reading's own, not the pass's), at line
+    granularity, with the line's outline when it has one, placed in the
     CANVAS's pixels (Fichero keeps coordinates normalised, so a remote page's lines land on the
     archive's own image whatever size was fetched). Read through the one page exporter
     (`page_from_library`), so the pass and reading chosen are the ones every format writes."""
-    from fichero_server.models.segments import SegmentPass
     from fichero_server.page_export import ExportRefused, page_from_library
 
     try:
         page, choices = page_from_library(db, doc.id)
     except ExportRefused:
-        return {"@context": "http://www.w3.org/ns/anno.jsonld", "id": _lines_page_url(doc.id),
+        return {"@context": "http://www.w3.org/ns/anno.jsonld", "id": _lines_page_url(doc.id, base),
                 "type": "AnnotationPage", "items": []}
-    made = db.get(SegmentPass, choices.pass_id) if choices.pass_id else None
-    maker = None
-    if made is not None:
-        human = str(getattr(made.provenance_kind, "value", made.provenance_kind)) == "human"
-        maker = {"type": "Person" if human else "Software",
-                 "name": (made.actor if human else "/".join(p for p in (made.provider, made.model) if p)) or made.name}
     items = []
     for index, seg in enumerate(page.segments):
         points = seg.polygon or ([[seg.rect[0], seg.rect[1]], [seg.rect[0] + seg.rect[2], seg.rect[1] + seg.rect[3]]]
                                  if seg.rect else None)
-        if seg.kind != "line" or not seg.readings or not points:
+        if seg.kind != "line" or not points:
             continue
         xs, ys = [p[0] for p in points], [p[1] for p in points]
         x, y = round(min(xs) * width), round(min(ys) * height)
         w, h = round((max(xs) - min(xs)) * width), round((max(ys) - min(ys)) * height)
-        body: dict[str, Any] = {"type": "TextualBody", "value": seg.readings[0][1], "format": "text/plain"}
-        language = seg.language or doc.language
-        if language:
-            body["language"] = language
+        if seg.polygon:
+            svg_points = " ".join(f"{round(px * width)},{round(py * height)}" for px, py in seg.polygon)
+            target: Any = {"type": "SpecificResource", "source": canvas_id, "selector": {
+                "type": "SvgSelector",
+                "value": f'<svg xmlns="http://www.w3.org/2000/svg"><polygon points="{svg_points}"/></svg>'}}
+        else:
+            target = f"{canvas_id}#xywh={x},{y},{w},{h}"
         item: dict[str, Any] = {"id": f"{canvas_id}/line/{seg.ref or index}", "type": "Annotation",
-                                "motivation": "supplementing", "textGranularity": "line",
-                                "body": body, "target": f"{canvas_id}#xywh={x},{y},{w},{h}"}
-        if maker:
-            item["creator"] = maker
+                                "motivation": "supplementing", "textGranularity": "line", "target": target}
+        if seg.readings:
+            body: dict[str, Any] = {"type": "TextualBody", "value": seg.readings[0][1], "format": "text/plain"}
+            language = seg.language or doc.language
+            if language:
+                body["language"] = language
+            item["body"] = body
+            if seg.reading_maker:
+                item["creator"] = seg.reading_maker
+        if seg.baseline:
+            item["baseline"] = [[round(px * width), round(py * height)] for px, py in seg.baseline]
         items.append(item)
     return {"@context": ["http://www.w3.org/ns/anno.jsonld", "http://iiif.io/api/extension/text-granularity/context.json"],
-            "id": _lines_page_url(doc.id), "type": "AnnotationPage", "items": items}
+            "id": _lines_page_url(doc.id, base), "type": "AnnotationPage", "items": items}
 
 
-def build_iiif_manifest(db: Database, doc: Document) -> dict[str, Any]:
-    remote = _by_reference_canvas(doc)
+def _manifest_url(doc_id: str, base: str) -> str:
+    """Where the manifest route serves it (`GET /api/iiif/iiif/manifest/{id}`), so its own id resolves."""
+    return f"{base}/api/iiif/iiif/manifest/{doc_id}"
+
+
+def build_iiif_manifest(db: Database, doc: Document, base: str) -> dict[str, Any]:
+    remote = _by_reference_canvas(doc, base)
     if remote is not None:
         manifest = {"@context": "http://iiif.io/api/presentation/3/context.json",
-                    "id": f"{_iiif_base_url(doc.id)}/manifest", "type": "Manifest",
+                    "id": _manifest_url(doc.id, base), "type": "Manifest",
                     "label": {"en": [doc.name or "Untitled"]}, "items": [remote],
-                    "annotations": [{"id": f"/api/documents/{doc.id}/annotations.jsonld", "type": "AnnotationPage"}]}
-        rights = (doc.metadata or {}).get("iiif_rights") or {}
+                    "annotations": [{"id": f"{base}/api/documents/{doc.id}/annotations.jsonld", "type": "AnnotationPage"}]}
+        rights = (doc.metadata or {}).get("iiif_rights")
+        if not rights and doc.parent_id:  # the manifest's rights are stored once, on its folder
+            parent = db.get(Document, doc.parent_id)
+            rights = (parent.metadata or {}).get("iiif_rights") if parent else None
+        rights = rights or {}
         if rights.get("rights"):
             manifest["rights"] = rights["rights"]
         statement = rights.get("required_statement") or (
@@ -454,11 +468,10 @@ def build_iiif_manifest(db: Database, doc: Document) -> dict[str, Any]:
             status_code=404, detail=f"No image available for document: {doc.id}"
         )
     width, height = _get_image_dimensions(image_path)
-    base_url = _iiif_base_url(doc.id)
-    manifest_url = f"{base_url}/manifest"
-    annotation_page_url = f"/api/documents/{doc.id}/annotations.jsonld"
+    base_url = _iiif_base_url(doc.id, base)
+    annotation_page_url = f"{base}/api/documents/{doc.id}/annotations.jsonld"
     canvas = {
-        "id": _iiif_canvas_id(doc.id),
+        "id": _iiif_canvas_id(doc.id, base=base),
         "type": "Canvas",
         "label": {"en": [doc.name or "Canvas 1"]},
         "width": width,
@@ -486,17 +499,17 @@ def build_iiif_manifest(db: Database, doc: Document) -> dict[str, Any]:
                                 }
                             ],
                         },
-                        "target": _iiif_canvas_id(doc.id),
+                        "target": _iiif_canvas_id(doc.id, base=base),
                     }
                 ],
             }
         ],
-        "annotations": [{"id": _lines_page_url(doc.id), "type": "AnnotationPage"},
+        "annotations": [{"id": _lines_page_url(doc.id, base), "type": "AnnotationPage"},
                         {"id": annotation_page_url, "type": "AnnotationPage"}],
     }
     manifest = {
         "@context": "http://iiif.io/api/presentation/3/context.json",
-        "id": manifest_url,
+        "id": _manifest_url(doc.id, base),
         "type": "Manifest",
         "label": {"en": [doc.name or "Untitled"]},
         "items": [canvas],
@@ -609,6 +622,7 @@ def _serve_iiif_image(
 )
 async def get_image_info(
     identifier: str,
+    request: Request,
     db: Database = Depends(get_library_database),
 ) -> ImageInfoResponse:
     """Get IIIF image information."""
@@ -623,7 +637,7 @@ async def get_image_info(
     width, height = _get_image_dimensions(image_path)
 
     # Build base URL
-    base_url = f"/api/iiif/{identifier}"
+    base_url = _iiif_base_url(identifier, str(request.base_url).rstrip("/"))
 
     return ImageInfoResponse(
         context=IIIF_CONTEXT,
@@ -687,20 +701,23 @@ async def serve_iiif_image(
 )
 async def get_lines_annotation_page(
     document_id: str,
+    request: Request,
     db: Database = Depends(get_library_database),
 ) -> dict[str, Any]:
     doc = _document_or_404(db, document_id)
+    base = str(request.base_url).rstrip("/")
     meta = doc.metadata or {}
     if meta.get("by_reference"):
-        canvas_id, width, height = meta.get("iiif_id") or _iiif_canvas_id(doc.id), meta.get("width"), meta.get("height")
+        canvas_id, width, height = (meta.get("iiif_id") or _iiif_canvas_id(doc.id, base=base),
+                                    meta.get("width"), meta.get("height"))
     else:
         image_path = _get_image_path(doc, db.path.parent)
         if not image_path:
             raise HTTPException(status_code=404, detail=f"No image available for document: {doc.id}")
-        (width, height), canvas_id = _get_image_dimensions(image_path), _iiif_canvas_id(doc.id)
+        (width, height), canvas_id = _get_image_dimensions(image_path), _iiif_canvas_id(doc.id, base=base)
     if not width or not height:
         raise HTTPException(status_code=404, detail=f"The canvas size of document {doc.id} is not known")
-    return build_lines_annotation_page(db, doc, canvas_id, int(width), int(height))
+    return build_lines_annotation_page(db, doc, canvas_id, int(width), int(height), base)
 
 
 @router.get(
@@ -710,11 +727,12 @@ async def get_lines_annotation_page(
 )
 async def get_iiif_manifest(
     document_id: str,
+    request: Request,
     db: Database = Depends(get_library_database),
 ) -> dict[str, Any]:
     """Get IIIF manifest for document."""
     doc = _document_or_404(db, document_id)
-    return build_iiif_manifest(db, doc)
+    return build_iiif_manifest(db, doc, str(request.base_url).rstrip("/"))
 
 
 @router.get(

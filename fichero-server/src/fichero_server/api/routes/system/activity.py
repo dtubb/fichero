@@ -1771,6 +1771,8 @@ class RunSettingsParams(BaseModel):
 class RunSettingsResponse(BaseModel):
     settings: dict[str, Any] = Field(description="every knob of the runtime; null where the engine's own rule applies")
     cost: dict[str, Any] = Field(description="memory_bytes the settings ask of this Mac; seconds_per_page null (not measured)")
+    defaults: dict[str, dict[str, Any]] = Field(default_factory=dict, description="per knob, what Auto means on this Mac now: `value` and `reason`")
+    script_heights: dict[str, Any] = Field(default_factory=dict, description="the line finder's measured network height and base per script (read-only)")
 
 
 def _run_settings_answer(runtime: str) -> RunSettingsResponse:
@@ -1780,7 +1782,8 @@ def _run_settings_answer(runtime: str) -> RunSettingsResponse:
         values = mrs.run_settings(runtime)
     except KeyError:
         raise HTTPException(status_code=404, detail=f"No run settings for {runtime}") from None
-    return RunSettingsResponse(settings=values, cost=mrs.cost(runtime, values))
+    return RunSettingsResponse(settings=values, cost=mrs.cost(runtime, values), defaults=mrs.defaults(runtime),
+                               script_heights=mrs.script_heights())
 
 
 @router.get("/models/run-settings/{runtime}", response_model=RunSettingsResponse,

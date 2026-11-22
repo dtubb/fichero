@@ -186,6 +186,19 @@ struct StatusIslandMessageBudgetTests {
         #expect(shortened.hasSuffix("…"))
     }
 
+    /// #6743: an item's name is cut in the middle so the page number at its end still shows.
+    @Test("a long item name is cut mid-string and keeps its last characters")
+    func aLongItemNameKeepsItsEnd() {
+        let name = "1947 Víctor M Hurtado contra la Compañía del Ferrocarril de Antioquia_001"
+        let shortened = StatusIslandMessage.itemName(name)
+        #expect(shortened.count <= StatusIslandMessage.budget)
+        #expect(shortened.hasPrefix("1947 Víctor"))
+        #expect(shortened.hasSuffix("Antioquia_001"))
+        #expect(shortened.contains("…"))
+        #expect(!shortened.hasSuffix("…"))
+        #expect(StatusIslandMessage.itemName("Short name_001") == "Short name_001")
+    }
+
     @Test("shortening is idempotent")
     func shorteningIsIdempotent() {
         let once = StatusIslandMessage.shortForm(String(repeating: "word ", count: 40))

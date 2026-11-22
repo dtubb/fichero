@@ -159,18 +159,27 @@ def queue_derivatives(
     # either group may go first) and is not counted in `_progress_add`'s total: its
     # per-document visibility is its job row and the `nlp_error` field.
     queued_jobs = (
-        jobs.enqueue_many(db, THUMBNAIL_KIND, queued)
-        + jobs.enqueue_many(db, EMBED_KIND, embed_queued)
-        + jobs.enqueue_many(db, NLP_KIND, nlp_queued)
+        jobs.enqueue_many(db, THUMBNAIL_KIND, queued, held=not arrived)
+        + jobs.enqueue_many(db, EMBED_KIND, embed_queued, held=not arrived)
+        + jobs.enqueue_many(db, NLP_KIND, nlp_queued, held=not arrived)
     )
 
     def committed() -> None:
-        if queued:
+        # The open's rows are held for Continue: no queue is counted until it lets them go (`arm_released_pages`).
+        if queued and arrived:
             _progress_add(library, len(queued), db_path=str(db.path))
         futures.extend(queued_jobs)
 
     db.add_after_commit_hook(committed)
     return futures
+
+
+def arm_released_pages(db: "Database", rows: list[dict]) -> None:
+    """Continue on the launch alert let these held rows go: the queue's count is armed with the pages they name
+    (a page with a thumbnail row and an embed row is one page)."""
+    pages = {r["subject"] for r in rows if r["kind"] in (THUMBNAIL_KIND, EMBED_KIND)}
+    if pages:
+        _progress_add(str(Path(db.path).parent), len(pages), db_path=str(db.path))
 
 
 def _library_db(library: str) -> "Database":
@@ -496,6 +505,8 @@ def _arm_stall_watchdog(library: str) -> None:
             if said == "moving":
                 _arm_stall_watchdog(library)
                 return
+            if said == "held":  # paused rows wait for a person's Continue or Resume; the next tick that moves re-arms
+                return
             if said == "over":
                 with _progress_lock:
                     _progress.pop(library, None)
@@ -702,7 +713,7 @@ def _embed_document_tree(
 
                     raise EmbedderUnavailable(getattr(outcome, "error", None) or "The search model is not available.")
                 # 'unsupported'/'empty' style outcomes are not failures.
-                if reason in (None, "embedding_failed", "error"):
+                if reason in (None, "embedding_failed", "memory_short", "error"):
                     failures += 1
             else:
                 embedded += 1

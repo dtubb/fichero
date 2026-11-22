@@ -3,7 +3,7 @@
 `_expand_query_with_entity_aliases` and `_entity_bonus_doc_ids` swallow any
 exception and degrade gracefully (raw terms / no boost). That graceful path is
 correct, but it used to be SILENT — masking a real KG/DB fault. These tests force
-the failure path (monkeypatch `db.all` to raise) and assert the method still
+the failure path (monkeypatch the row readers, `_entities_named_by` and `_rows_where`, to raise) and assert the method still
 degrades AND emits a warning.
 """
 
@@ -17,7 +17,7 @@ def _boom(*_args, **_kwargs):
 
 
 def test_query_expansion_warns_on_failure(db, monkeypatch, caplog):
-    monkeypatch.setattr(db, "all", _boom)
+    monkeypatch.setattr(db, "_entities_named_by", _boom)
     with caplog.at_level(logging.WARNING):
         terms, entity_ids = db._expand_query_with_entity_aliases("popayán")
     # Degrades to the raw terms with no entity ids...
@@ -31,7 +31,7 @@ def test_query_expansion_warns_on_failure(db, monkeypatch, caplog):
 
 
 def test_entity_bonus_warns_on_failure(db, monkeypatch, caplog):
-    monkeypatch.setattr(db, "all", _boom)
+    monkeypatch.setattr(db, "_rows_where", _boom)
     with caplog.at_level(logging.WARNING):
         boosted = db._entity_bonus_doc_ids({"entity-1"})
     assert boosted == set()

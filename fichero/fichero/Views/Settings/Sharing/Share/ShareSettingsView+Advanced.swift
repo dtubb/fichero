@@ -78,6 +78,14 @@ extension ShareSettingsView {
                     }
                 }
                 .disabled(isApplyingChange || !EngineConfig.engineIsLocal)
+
+                Toggle(isOn: ownDevicesBinding) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(OwnDevicesSwitch.label)
+                        Text(OwnDevicesSwitch.caption).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                .disabled(isApplyingChange || !EngineConfig.engineIsLocal || !hostingEnabled)
             }
         }
     }

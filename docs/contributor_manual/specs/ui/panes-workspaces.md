@@ -240,7 +240,11 @@ itself works (committed c4a22c2b5). The rest are the workspace/pane defects to p
   snapshot's old `toolbar` key is ignored on decode). Only an iPhone keeps a Chat button in the bar.
   *Test:* `fichero/Tests/Unit/general/Views/Shell/ToolbarGroupingTests.swift::toolbarHasNoPaneToggles`, `::workspacesMenuChecksFollowVisibility`,
   `::viewMenuChecksPanes`, `WorkspacesMenuNoSecondDefinitionGuardrailTests.noToolbarButtonsSubmenu`,
-  `WindowWorkspaceTests`. *Not built:* View ▸ Customize Toolbar (`.toolbar(id:)` customization).
+  `WindowWorkspaceTests`. View ▸ Customize Toolbar: every Mac window `.toolbar` site is
+  `.toolbar(id: ContentToolbarID.customizableToolbar)` and every builder it calls returns
+  `CustomizableToolbarContent` on macOS. *Test:*
+  `fichero/Tests/Unit/general/Views/Shell/CustomizableToolbarTests.swift::aliasIsCustomizableOnMac`.
+  No test proves that the sites use `toolbar(id:)`.
 - `shell.search.always-visible-with-scope` — **[PARTIAL]** (#6729; owner 2026-11-19) search is one field
   in the toolbar; its magnifier menu has a **Search Scope** section with a check on the current scope,
   and the placeholder names it ("Search this page", "Search this document", "Search this folder", "Search this
@@ -291,12 +295,17 @@ starting a new one.
   indicator — multi-user/agent-session presence has no toolbar surface yet.
 - `panes.status-island.message-budget` — **[PARTIAL]** (implemented and tested; #4366 still
   open pending close) every island message reads
-  completely at the island's real width; nothing the app authors truncates mid-word. Verified
+  completely at the island's real width; no message the app authors truncates mid-word. The one
+  exception is a name: the selected item's and the open folder's names are cut in the middle,
+  keeping their start and their end (the page number, `_001`), because the end is what tells
+  pages apart (#6743). Verified
   at HEAD: `StatusIslandMessage.budget`/`.declaredMaxWidth`, `.authoredMessages` (the
-  app-authored strings held to budget by test) and `.shortForm(_:)` (a named, tested seam
-  that clips an OS/backend string on a word boundary, never a silent SwiftUI clip) all exist
-  exactly as asked (`StatusIslandToolbarItem.swift:156-215`). Pinned:
-  `StatusIslandMessageBudgetTests`.
+  app-authored strings held to budget by test), `.shortForm(_:)` (a named, tested seam
+  that clips an OS/backend string on a word boundary, never a silent SwiftUI clip) and
+  `.itemName(_:)` (the middle cut for item and folder names, which may fall inside a word) all
+  exist (`StatusIslandToolbarItem.swift:156-222`). Pinned:
+  `StatusIslandMessageBudgetTests`, the middle cut by
+  `StatusIslandMessageBudgetTests::aLongItemNameKeepsItsEnd`.
 - `panes.status-island.errors-are-short-and-typed` — **[PARTIAL]** (#4269) the content area
   never shows raw error text (NSError descriptions, domains, codes, URLs); the island shows a
   short human sentence, and clicking it reveals the full technical text plus a one-click
@@ -693,7 +702,7 @@ the browse→read flow down the centre.
   split collapses by one before the leaf is removed. Pinned:
   `Tests/Unit/general/Models/PaneListTests.swift` ("closing a pane removes ONLY that pane…",
   "…collapses to the survivor — the row does not disappear") + `PaneInstanceIndependenceTests`.
-- `panes.head.one-menu-button` — **[GAP]** (#6741; app; owner 2026-11-19, refined the same day; spec-change: owner) every pane's
+- `panes.head.one-menu-button` — **[PARTIAL]** (#6741; app; owner 2026-11-19, refined the same day; spec-change: owner) every pane's
   head has, on its right, one button whose icon is the pane's kind (a photograph for Source, a list for Items, a book for
   Reader, a numbered list for Layout Order, and so on), and its menu is the same in every pane and in this order: Pane ▸ (the
   kinds with their icons, a check on the current one); View As ▸ (the kind's own views: Items has Icon, List, Table, Columns,
@@ -708,6 +717,16 @@ the browse→read flow down the centre.
   and the tooltip. Tests: one menu per pane, same order everywhere; each item acts on its own pane; Split ▸ a kind adds that
   pane; closing, splitting and pinning from the menu match today's buttons; the head has no X and no kind menu; the Pane ▸
   check follows the kind. Related: `menus.toolbar.panes-shown-from-the-menus`.
+  *Built (#6741):* Pin Pane is a checked toggle in the menu and the head's pin button is gone; Split Right ▸ and Split Below ▸
+  are submenus of kinds that add the chosen kind in one step; View As ▸ lists the pane's views after Pane ▸; Pane Options ▸
+  holds the Reader's Font; a pane's own controls (the Source pane's zoom, full screen, renditions, Pass) sit in an island of
+  their own beside the menu's island. *Not built:* Show ▸ (Source's overlays, still Preview's What to show) and Order ▸ (Layout Order)
+  under Pane Options; removing the head's left view chooser, which today also names what is shown (#6458). *Tests:*
+  `fichero/Tests/Unit/general/Views/Shell/PaneMenuTests.swift::viewAsInTheMenu`,
+  `fichero/Tests/Unit/general/Models/PaneSplitAddsKindTests.swift::splitAddsTheChosenKind`,
+  `fichero/Tests/Unit/general/Views/Shell/PaneMenuEntriesShapeTests.swift::testNoPinButtonNoSecondPinTitleNoOneStepSplit`,
+  `fichero/Tests/Unit/general/Views/PaneHeadCollapsesTests.swift::testAWideHeadPutsItsToolsInAnIslandBesideTheMenusIsland`.
+  No test proves the menu's order, Pin Pane being a toggle, or Font sitting under Pane Options.
 - `panes.head.kind-switcher-everywhere` — **[PARTIAL]** (#4706; Reader fixed d8621ecc3, pinned by
   `PaneHeadKindSwitcherParityTests`; Chat follows → #4705 increment 6) every pane head
   that renders a leaf kind mounts the kind selector, so ANY pane can become a Library, Source or
@@ -887,6 +906,14 @@ the browse→read flow down the centre.
 
 ### D. Workspaces
 
+> **One word, one meaning (owner 2026-11-21; `research.md` section I).** In this spec, and in everything a person
+> reads, a **workspace** is a window's saved pane layout: the Workspaces menu, the five built-ins, Save Current as
+> Workspace…. The folder marked `is_workspace` that holds a line of research, and the chat saved as one, are a
+> **research folder** and belong to `research.md`. `panes.workspace.crud-contract` below is about that folder's
+> curated items, not a layout; it keeps its id and its tests here and is the same routes
+> `research.workspace-curated-items-crud` names (that line said not built until 2026-11-21; it is built).
+> `panes.workspace.save`, `panes.workspace.reopen` and `workspaces.persist-applied-list` are the layout.
+
 - `panes.workspace.crud-contract` — **[OK]** (verify-close candidate; TL-2's original ask, filed
   before this backend existed) a workspace's `curated_items` support atomic add/remove/reorder
   and resolve their aliases to full objects, library-canonical (never copied). Built:
@@ -943,12 +970,19 @@ the browse→read flow down the centre.
   full-height preview); the sidebar+chat left column and full-height right source hold, but the exact
   centre split described here is the Browse/Read arrangement, not a distinct "Mail" default. Pinned:
   `BuiltInWorkspaceLayoutTests` (Read is the default; one library leaf over reader, beside preview).
-- `panes.chat.below-sidebar` — **[BROKEN]** (→ #4705 increment 6) the chat history and its input live in the left
+- `panes.chat.below-sidebar` — **[PARTIAL]** (→ #4705 increment 6) the chat history and its input live in the left
   sidebar beneath the folder tree, in a collapsible split region; the input is attached to
-  the chat history. Today the chat prompt sits at the bottom of the centre column, under the
-  image/reader, rather than under the chat text.
-- `panes.chat.collapsible-split` — **[GAP]** (→ #4705 increment 6) the sidebar↔chat divider drags to resize and
-  collapses the chat region when only navigating.
+  the chat history. *Built (checked 2026-11-21; this line said the prompt sat under the image, which is no longer so):*
+  the one chat mount is below the tree with its composer under its messages
+  (`ContentView.sidebarContent`, `Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift:53-78`; `chatSurface`,
+  `Views/Shell/ContentView/Layout/ContentView+PaneSpecs.swift:478-488`), and stands alone when the tree is hidden.
+  *Not built:* chat as a kind a pane can be switched to (`PaneSpec.Kind.selectableKinds` leaves `.chat` out,
+  `m2p.chat-single-mount`); no test of the placement beyond `fichero/Tests/Unit/general/Views/ChatMountTests.swift`.
+  Research stays here (owner 2026-11-21): it gets no window of its own; the chat's chrome is `research.ux.chat-head-and-bar`.
+- `panes.chat.collapsible-split` — **[PARTIAL]** (→ #4705 increment 6) the sidebar↔chat divider drags to resize and
+  collapses the chat region when only navigating. *Built (checked 2026-11-21):* the divider resizes and its height is kept
+  per window (`ResizableDivider`, `ContentView+SidebarLayout.swift:57-63`); the region is shown and hidden by the
+  Sidebar/Chat pair. *Not built:* collapsing by dragging the divider to the bottom.
 - `panes.library.horizontal-icon-strip` — **[BROKEN/GAP]** (#4732, #1856 — now folded onto this
   milestone, same duplicate request) the library browser renders as a
   horizontal thumbnail strip (icon/list, Mail message-list style) at the top of the centre
@@ -1175,8 +1209,9 @@ also show the path (`ContentView+RootLayout.swift:311-317`).
   right-click, list Pane ▸ (the kinds, the current one ticked), Split, Focus on Pane (Leave Focus while that pane is in
   Focus), Pin, Close (`PaneMenuEntries`). *Built (#6741):* the head's ✕ and kind picker are gone (`PaneHead.identityCapsule` holds the view
   chooser only); Pane ▸ and Close Pane in the menu replace them, and the two UI tests that clicked the ✕ open the
-  menu. *Not built:* Show as ▸ and What to Show ▸ in the menu (the view chooser stays at the left), Split Right ▸ /
-  Below ▸ as submenus of kinds, Link…, removing the pin button, and a Preview showing a page
+  menu. *Built (#6741):* Show as ▸ (as View As ▸), Split Right ▸ / Below ▸ as submenus of kinds, and Pin in the menu
+  with the head's pin button removed (`panes.head.one-menu-button`). *Not built:* What to Show ▸ in the menu, removing the
+  view chooser at the left, Link…, and a Preview showing a page
   focused from the menu opening the page reader as ⌃⌘R does (it shows the pane alone). *Tests:*
   `fichero/Tests/Unit/general/Views/Shell/PaneMenuTests.swift`.
 - `panes.chrome.head-keeps-only-what-moves` — **[GAP]** (#5435; ruled by the owner 2026-11-13) with the pane menu on

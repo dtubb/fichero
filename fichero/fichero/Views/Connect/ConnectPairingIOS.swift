@@ -10,7 +10,7 @@ import VisionKit
 // (FicheroApp_iOS.swift) as the `setup:` view of `BackendRootGate`, after this
 // type was split out for file_length.
 struct RemoteConnectionSetupView: View {
-    @Environment(AppState.self) private var appState
+    @Environment(AppState.self) var appState
     @Environment(LibraryManager.self) private var libraryManager
     @Environment(MobileCaptureQueueStore.self) private var captureQueue
 
@@ -26,8 +26,9 @@ struct RemoteConnectionSetupView: View {
     @State private var pickedHost: HostChoices.Found?
     @State private var didAutoPresentScanner = false
     @State private var showingManualEntry = false
-    @State private var isPairing = false
-    @State private var errorMessage: String?
+    @State var isPairing = false
+    @State var errorMessage: String?
+    @State var ownMacs: [OwnDevicesItem] = []
     /// A failed pairing, as the one alert (`sharing.alerts.one-alert-per-failure`).
     @State private var failurePrompt: FailureAlertPrompt?
     /// The host that asked who this device is (Step 8.9), and the link to pair again with the person.
@@ -42,6 +43,7 @@ struct RemoteConnectionSetupView: View {
 
     var body: some View {
         connectView.failureAlert($failurePrompt)
+        .ownMacsLoading(into: $ownMacs, error: $errorMessage)
         .personSignInAlert(host: $signInHost) { person in
             guard let fields = signInFields else { return }
             Task {
@@ -98,121 +100,13 @@ struct RemoteConnectionSetupView: View {
     private var connectView: some View {
         NavigationStack {
             List {
-                DiscoveredMacsSection(
-                    discovery: discovery,
-                    isPairing: isPairing,
-                    onSelectHost: { host in
-                        pickedHost = HostChoices.Found(name: host.displayName, publicURL: host.reachableURL)
-                        errorMessage = nil
-                        if supportsCameraScanner {
-                            showingScanner = true
-                        } else {
-                            errorMessage = "Camera scanning is unavailable on this device."
-                        }
-                    }
-                )
-
-                if let pickedHost {
-                    Section {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Pairing with \(pickedHost.name)")
-                                if let address = pickedHost.publicURL {
-                                    Text(address).font(.caption).foregroundStyle(.secondary)
-                                }
-                            }
-                            Spacer()
-                            Button("Clear") { self.pickedHost = nil }
-                                .disabled(isPairing)
-                        }
-                    }
-                }
-
-                Section {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 22)
-                            .fill(Color.accentColor.opacity(0.08))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 22)
-                                    .stroke(Color.accentColor.opacity(0.18), lineWidth: 1)
-                            )
-                        if isPairing {
-                            ProgressView("Connecting…")
-                        } else {
-                            VStack(spacing: 14) {
-                                Image("Engine")
-                                    .resizable()
-                                    .interpolation(.high)
-                                    .scaledToFit()
-                                    .frame(width: 112, height: 112)
-                                    .accessibilityHidden(true)
-
-                                Image(systemName: "qrcode.viewfinder")
-                                    .font(.system(size: 34))
-                                    .foregroundStyle(Color.accentColor)
-                                    .accessibilityHidden(true)
-                            }
-                        }
-                    }
-                    .frame(height: 220)
-                    .listRowInsets(EdgeInsets(top: 18, leading: 18, bottom: 14, trailing: 18))
-
-                    Button {
-                        if supportsCameraScanner {
-                            showingScanner = true
-                        } else {
-                            errorMessage = "Camera scanning is unavailable on this device."
-                        }
-                    } label: {
-                        Label("Scan QR Code", systemImage: "qrcode.viewfinder")
-                            .frame(maxWidth: .infinity, minHeight: 46)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(isPairing)
-
-                    // Fallback/debug pairing (#2350): paste an invite link or QR
-                    // text. Primary path on visionOS (camera scanning unavailable)
-                    // and a rescue on iPhone/iPad when the camera can't be used.
-                    Button {
-                        showingManualEntry = true
-                    } label: {
-                        Label("Enter Link Manually", systemImage: "link")
-                            .frame(maxWidth: .infinity, minHeight: 46)
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(isPairing)
-
-                    #if os(visionOS)
-                    Button { pickerSource = .library } label: {
-                        Label("Capture Document", systemImage: "photo.on.rectangle")
-                            .frame(maxWidth: .infinity, minHeight: 46)
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(isPairing)
-                    #else
-                    Button {
-                        if supportsDocumentScanner {
-                            showingDocumentScanner = true
-                        } else {
-                            pickerSource = .camera
-                        }
-                    } label: {
-                        Label("Capture Document", systemImage: "doc.viewfinder")
-                            .frame(maxWidth: .infinity, minHeight: 46)
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(isPairing)
-                    #endif
-
-                    if let errorMessage {
-                        Text(errorMessage)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-                    if let captureError {
-                        Text(captureError)
-                            .font(.caption)
-                            .foregroundStyle(.red)
+                // signin.password-comes-last: the sections in the ruled order; the password is the host's alert, last.
+                ForEach(SignInOptions.connectScreenRows(hasOwnMacs: !ownMacs.isEmpty), id: \.self) { row in
+                    switch row {
+                    case .ownMacs: OwnMacsSection(macs: ownMacs, isConnecting: isPairing, onSelect: connectOwnMac)
+                    case .nearbyMacs: nearbyMacsSections
+                    case .qrCode: qrSection
+                    default: EmptyView()
                     }
                 }
 
@@ -231,6 +125,102 @@ struct RemoteConnectionSetupView: View {
             }
             .navigationTitle("Connect to Fichero on Mac")
             .onAppear { discovery.start() }
+        }
+    }
+
+    @ViewBuilder private var nearbyMacsSections: some View {
+        DiscoveredMacsSection(
+            discovery: discovery,
+            isPairing: isPairing,
+            onSelectHost: { host in
+                pickedHost = HostChoices.Found(name: host.displayName, publicURL: host.reachableURL)
+                errorMessage = nil
+                if supportsCameraScanner {
+                    showingScanner = true
+                } else {
+                    errorMessage = "Camera scanning is unavailable on this device."
+                }
+            }
+        )
+
+        if let pickedHost {
+            Section {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Pairing with \(pickedHost.name)")
+                        if let address = pickedHost.publicURL {
+                            Text(address).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer()
+                    Button("Clear") { self.pickedHost = nil }
+                        .disabled(isPairing)
+                }
+            }
+        }
+    }
+
+    private var qrSection: some View {
+        Section {
+            ConnectQRCard(isPairing: isPairing)
+
+            Button {
+                if supportsCameraScanner {
+                    showingScanner = true
+                } else {
+                    errorMessage = "Camera scanning is unavailable on this device."
+                }
+            } label: {
+                Label("Scan QR Code", systemImage: "qrcode.viewfinder")
+                    .frame(maxWidth: .infinity, minHeight: 46)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isPairing)
+
+            // Fallback/debug pairing (#2350): paste an invite link or QR
+            // text. Primary path on visionOS (camera scanning unavailable)
+            // and a rescue on iPhone/iPad when the camera can't be used.
+            Button {
+                showingManualEntry = true
+            } label: {
+                Label("Enter Link Manually", systemImage: "link")
+                    .frame(maxWidth: .infinity, minHeight: 46)
+            }
+            .buttonStyle(.bordered)
+            .disabled(isPairing)
+
+            #if os(visionOS)
+            Button { pickerSource = .library } label: {
+                Label("Capture Document", systemImage: "photo.on.rectangle")
+                    .frame(maxWidth: .infinity, minHeight: 46)
+            }
+            .buttonStyle(.bordered)
+            .disabled(isPairing)
+            #else
+            Button {
+                if supportsDocumentScanner {
+                    showingDocumentScanner = true
+                } else {
+                    pickerSource = .camera
+                }
+            } label: {
+                Label("Capture Document", systemImage: "doc.viewfinder")
+                    .frame(maxWidth: .infinity, minHeight: 46)
+            }
+            .buttonStyle(.bordered)
+            .disabled(isPairing)
+            #endif
+
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+            if let captureError {
+                Text(captureError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
         }
     }
 
@@ -385,8 +375,7 @@ private extension RemoteConnectionSetupView {
             person: person,
             altURLs: fields.altURLs
         )
-        // Repoint the app-level client at the freshly-paired host; adopt +
-        // reload fire once in the ready transition (#3113), not here.
+        // Repoint the client at the new host; adopt + reload fire in the ready transition (#3113).
         appState.reconfigureGeneratedClientsForCurrentHost()
         await onConnected()
         if !appState.isBackendRunning {

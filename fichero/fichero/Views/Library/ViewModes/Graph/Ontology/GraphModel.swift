@@ -154,6 +154,9 @@ final class GraphSimulation {
     var edges: [GraphEdge] = []
     /// Precomputed degree (number of edges) per node id, rebuilt in `rebuild(from:)`.
     var nodeDegrees: [String: Int] = [:]
+    /// Statements whose object is not a name (a date, a phrase), counted per subject id.
+    /// Drawn as a badge on the subject; the object is never a node (#6772).
+    var literalStatementCounts: [String: Int] = [:]
     private var startTime: Date = .now
     private var lastTick: Date = .now
 
@@ -164,6 +167,11 @@ final class GraphSimulation {
         let nodeIds = Set(newNodes.map(\.id))
         edges = buildEdges(from: response, allowedNodeIds: nodeIds)
         nodes = newNodes
+        var literals: [String: Int] = [:]
+        for edge in response.edges where !Self.isEntityId(edge.targetId) {
+            literals[edge.sourceId, default: 0] += 1
+        }
+        literalStatementCounts = literals
         // Precompute degree per node so drawNodes can scale radius without
         // filtering edges on every frame.
         var deg: [String: Int] = [:]
@@ -188,15 +196,13 @@ final class GraphSimulation {
             position: .zero,
             velocity: .zero
         ))
-        // Peripheral nodes = entity neighbors, THEN a leaf node for every SVO
-        // object that never resolved to an entity ("His Party"). Without the
-        // leaves the reducer drops a subject→literal edge (its target isn't an
-        // allowed node id) and a focus whose only claim points at a literal
-        // renders as a lone dot — the statement the user opened the graph to
-        // see never appears. Literals are LEAVES, not entities (kind == nil),
-        // so the SVO fact shows without a phrase becoming a first-class entity.
+        // Peripheral nodes = entity neighbours only. An SVO object that never
+        // resolved to a name (a date, "His Party") is no node: the reducer drops
+        // its edge and `literalStatementCounts` counts it on the subject (#6772).
+        // ponytail: filtered here by the engine's `literal:` id prefix until the
+        // engine classifies literals itself (#6768).
         var peripheral: [(id: String, name: String, kind: Components.Schemas.EntityTypeOutput?)] = []
-        for neighbor in response.neighbors.prefix(maxNeighbors) {
+        for neighbor in response.neighbors.filter({ Self.isEntityId($0.id) }).prefix(maxNeighbors) {
             peripheral.append((
                 id: neighbor.id,
                 name: neighbor.canonicalName,
@@ -204,13 +210,6 @@ final class GraphSimulation {
                     Components.Schemas.EntityTypeOutput(rawValue: $0)
                 }
             ))
-        }
-        var seenIds = Set(peripheral.map(\.id))
-        seenIds.insert(response.focusEntityId)
-        for edge in response.edges where !edge.targetIsEntity {
-            guard !seenIds.contains(edge.targetId) else { continue }
-            seenIds.insert(edge.targetId)
-            peripheral.append((id: edge.targetId, name: edge.targetLabel, kind: nil))
         }
         let count = max(peripheral.count, 1)
         let radius: CGFloat = 220
@@ -225,6 +224,16 @@ final class GraphSimulation {
             ))
         }
         return newNodes
+    }
+
+    /// The id a tap may focus: a name's id, never a `literal:` object, whose
+    /// neighbourhood the engine answers with 404 (#6772).
+    static func entityFocusId(forTapped id: String) -> String? {
+        isEntityId(id) ? id : nil
+    }
+
+    private static func isEntityId(_ id: String) -> Bool {
+        !id.hasPrefix("literal:")
     }
 
     private func buildEdges(

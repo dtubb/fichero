@@ -1006,7 +1006,7 @@ class EmbedOutcome:
     #: Reasons that mean the LIBRARY is broken rather than this document being
     #: unsuitable. A run seeing these should stop and say so, not continue
     #: producing an unembedded corpus.
-    INFRASTRUCTURE_REASONS = ("embedding_failed", "embedder_unavailable")
+    INFRASTRUCTURE_REASONS = ("embedding_failed", "embedder_unavailable", "memory_short")
 
     @property
     def is_infrastructure_failure(self) -> bool:
@@ -1988,6 +1988,13 @@ class Database(DatabaseEmbeddingMixin):
         """Execute + ``fetchall`` atomically under the lock (#2508). ``committed``: this is a read, and under a
         caller's `reading_committed` it reads what was committed (#6178)."""
         return self._execute(sql, params, fetch="all", committed=committed)
+
+    def page_paths(self) -> list[tuple[str, str]]:
+        """(id, recorded path) of every live page that records a path, folders left out: the two columns the
+        missing-originals check needs, without reading whole documents (#6828)."""
+        return self.execute_fetchall(
+            "SELECT id, path FROM documents WHERE deleted_at IS NULL AND doc_type <> 'folder' AND path IS NOT NULL"
+        )
 
     def execute_fetchone(self, sql: str, params: Any | None = None, *, committed: bool = False):
         """Execute + ``fetchone`` atomically under the lock (#2508); ``committed`` as `execute_fetchall`."""
@@ -6167,16 +6174,19 @@ class Database(DatabaseEmbeddingMixin):
         return list(vector) if vector is not None else None
 
     def search_vectors(
-        self, table_name: str, query_vector: list[float], limit: int = 10
+        self, table_name: str, query_vector: list[float], limit: int = 10, *, where: str | None = None
     ) -> list[dict]:
-        """Search LanceDB table by vector similarity."""
+        """Search LanceDB table by vector similarity. `where` keeps only the rows it matches before the nearest `limit`
+        are taken."""
         if table_name not in self._lance_tables():
             return []
 
         table = self.lance.open_table(table_name)
         self.assert_vector_table_model_compatible(table_name)
-        results = table.search(query_vector).limit(limit).to_list()
-        return results
+        query = table.search(query_vector)
+        if where:
+            query = query.where(where, prefilter=True)
+        return query.limit(limit).to_list()
 
     # =========================================================================
     # Embedding Convenience Methods
@@ -6220,6 +6230,17 @@ class Database(DatabaseEmbeddingMixin):
             safe_value = value.replace("'", "''") if value else ""
             table = self.lance.open_table(EMBEDDINGS_TABLE)
             table.delete(f"{field} = '{safe_value}'")
+        self._invalidate_embedded_doc_ids_cache()
+
+    def _delete_embedding_rows_for_documents(self, document_ids: list[str]) -> None:
+        """Delete the embedding rows of several documents with one ``where`` (one Lance delete, not one per document)."""
+        if not document_ids:
+            return
+        quoted = ", ".join("'" + str(doc_id).replace("'", "''") + "'" for doc_id in document_ids)
+        with self._lance_lock:
+            if EMBEDDINGS_TABLE not in self._lance_tables():
+                return
+            self.lance.open_table(EMBEDDINGS_TABLE).delete(f"document_id IN ({quoted})")
         self._invalidate_embedded_doc_ids_cache()
 
     def save_embedding(
@@ -6539,10 +6560,14 @@ class Database(DatabaseEmbeddingMixin):
                 if isinstance(e, EmbedderUnavailable) else "Search is not indexing new pages: embedding fails",
             )
 
+            from fichero_server.execution.throttle import MemoryShortError
+
             self.last_embed_outcome = EmbedOutcome(
                 embedded=False,
                 # The model could not be loaded or answer: the queue waits and says why, it does not count pages failed.
-                reason="embedder_unavailable" if isinstance(e, EmbedderUnavailable) else "embedding_failed",
+                # Memory short (Kraken reading, #6808) is its own reason, so the re-embed job can wait for it.
+                reason="embedder_unavailable" if isinstance(e, EmbedderUnavailable)
+                else "memory_short" if isinstance(e, MemoryShortError) else "embedding_failed",
                 document_id=doc.id,
                 error=str(e),
             )
@@ -6780,7 +6805,7 @@ class Database(DatabaseEmbeddingMixin):
             return results
 
         try:
-            from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
+            from fichero_server.models.knowledge import KnowledgeEntity
         except Exception as exc:  # noqa: BLE001
             logger.debug("KG models unavailable during search enrichment: %s", exc)
             return results
@@ -6791,8 +6816,10 @@ class Database(DatabaseEmbeddingMixin):
             return results
 
         try:
-            claims = self.all(KnowledgeClaim)
-            entities = self.all(KnowledgeEntity)
+            claims = self._claims_of_documents(doc_ids)
+            entities = self._rows_by_ids(
+                KnowledgeEntity, "id", sorted({eid for c in claims for eid in self._claim_entity_ids(c)})
+            )
         except Exception as exc:  # noqa: BLE001
             logger.debug("KG lookup failed during search enrichment: %s", exc)
             return results
@@ -6820,18 +6847,7 @@ class Database(DatabaseEmbeddingMixin):
             if not relevant_doc_ids:
                 continue
 
-            entity_ids = {
-                entity_id
-                for entity_id in [
-                    *claim.entity_ids,
-                    claim.subject_entity_id,
-                    claim.speaker_entity_id,
-                    claim.subject_of_inquiry_entity_id,
-                    claim.scribe_entity_id,
-                    claim.editor_entity_id,
-                ]
-                if entity_id
-            }
+            entity_ids = self._claim_entity_ids(claim)
             matched_entity_ids = {
                 entity_id for entity_id in entity_ids if _entity_matches(entity_id)
             }
@@ -6860,6 +6876,93 @@ class Database(DatabaseEmbeddingMixin):
             result.kg_entity_ids = sorted(matched_entities_by_doc[result.document_id])
         return results
 
+    @staticmethod
+    def _claim_entity_ids(claim: Any) -> set[str]:
+        """Every entity id a claim names: its list and its subject, speaker, inquiry, scribe and editor."""
+        return {
+            entity_id
+            for entity_id in [
+                *(claim.entity_ids or []),
+                claim.subject_entity_id,
+                claim.speaker_entity_id,
+                claim.subject_of_inquiry_entity_id,
+                claim.scribe_entity_id,
+                claim.editor_entity_id,
+            ]
+            if entity_id
+        }
+
+    def _rows_where(self, model: Type[T], where: str, params: list[Any]) -> list[T]:
+        """The rows of `model` matching a trusted `where` (bound `params`), hydrated; no other row is read into a model."""
+        self._ensure_table(model)
+        rows, columns = self._execute_fetch_with_columns(f"SELECT * FROM {self._sql_table_name(model)} WHERE {where}", params)
+        return [m for row in rows if (m := self._hydrate_row(model, columns, row)) is not None]
+
+    def _rows_by_ids(self, model: Type[T], column: str, ids: list[str]) -> list[T]:
+        """The rows of `model` whose `column` is one of `ids`."""
+        if not ids:
+            return []
+        if not _VALID_IDENTIFIER.match(column):
+            raise ValueError(f"Invalid column name: {column}")
+        return self._rows_where(model, f"{column} IN (SELECT unnest(?))", [list(ids)])
+
+    def _claims_of_documents(self, doc_ids: set[str]) -> list[Any]:
+        """The claims whose source document, or one of whose source ids, is in `doc_ids`.
+
+        ponytail: the database still scans the claim table's two source columns to find them; an index on the source
+        id replaces the scan once a library holds more claims than that scan can read in a search's time."""
+        from fichero_server.models.knowledge import KnowledgeClaim
+
+        ids = sorted(doc_ids)
+        return self._rows_where(
+            KnowledgeClaim,
+            "source_document_id IN (SELECT unnest(?)) OR list_has_any(from_json(source_ids, '[\"VARCHAR\"]'), ?)",
+            [ids, ids],
+        )
+
+    def _entities_named_by(self, terms: list[str]) -> list[Any]:
+        """The entities whose name or an alias is a whole-word match of one of `terms` (folded), hydrated; the match runs
+        inside the database over the name columns, so no other entity is read into a model.
+
+        ponytail: the database still scans the entity table's name columns on each search; a folded-name index replaces
+        the scan once a library's entities outgrow that scan."""
+        from fichero_server.models.knowledge import KnowledgeEntity
+
+        self._ensure_table(KnowledgeEntity)
+        self._register_entity_name_match()
+        rows, _cols = self._execute_fetch_with_columns(
+            f"SELECT id FROM {self._sql_table_name(KnowledgeEntity)} "
+            "WHERE fichero_entity_names_match(canonical_name, aliases, ?)",
+            [json.dumps(terms)],
+        )
+        return self._rows_by_ids(KnowledgeEntity, "id", [r[0] for r in rows])
+
+    def _register_entity_name_match(self) -> None:
+        """Give the connection `fichero_entity_names_match(canonical_name, aliases_json, terms_json)`: true when a term
+        equals a folded surface or, at three characters or more, is a whole word inside it."""
+        if getattr(self, "_entity_match_conn", None) is self.conn:
+            return
+
+        def _match(canonical: str | None, aliases_json: str | None, terms_json: str) -> bool:
+            terms = json.loads(terms_json)
+            surfaces = [canonical, *(json.loads(aliases_json) if aliases_json else [])]
+            for surface in surfaces:
+                folded = _fold_for_search(surface or "")
+                if not folded:
+                    continue
+                for term in terms:
+                    if term == folded or (len(term) >= 3 and len(folded) >= 3 and f" {term} " in f" {folded} "):
+                        return True
+            return False
+
+        with self._lock:
+            try:
+                self.conn.create_function("fichero_entity_names_match", _match, null_handling="special")
+            except duckdb.Error as exc:
+                if "already" not in str(exc).lower():
+                    raise
+        self._entity_match_conn = self.conn
+
     def _expand_query_with_entity_aliases(self, query: str) -> tuple[list[str], set[str]]:
         """Expand a query with canonical + alias forms from matching entities."""
         terms = _search_match_terms(query)
@@ -6867,9 +6970,7 @@ class Database(DatabaseEmbeddingMixin):
             return [], set()
 
         try:
-            from fichero_server.models.knowledge import KnowledgeEntity
-
-            entities = self.all(KnowledgeEntity)
+            entities = self._entities_named_by(terms)
         except Exception as exc:  # noqa: BLE001
             # Degrade to the raw terms, but don't hide WHY alias expansion is
             # off — a silent empty here masks a real KG/DB fault (#2507).
@@ -6925,7 +7026,15 @@ class Database(DatabaseEmbeddingMixin):
         try:
             from fichero_server.models.knowledge import KnowledgeClaim
 
-            claims = self.all(KnowledgeClaim)
+            ids = sorted(matched_entity_ids)
+            in_ids = "IN (SELECT unnest(?))"
+            claims = self._rows_where(
+                KnowledgeClaim,
+                f"list_has_any(from_json(entity_ids, '[\"VARCHAR\"]'), ?) OR subject_entity_id {in_ids} "
+                f"OR speaker_entity_id {in_ids} OR subject_of_inquiry_entity_id {in_ids} "
+                f"OR scribe_entity_id {in_ids} OR editor_entity_id {in_ids}",
+                [ids] * 6,
+            )
         except Exception as exc:  # noqa: BLE001
             # Rank without the entity boost, but surface the fault rather than
             # silently returning no boosted docs (#2507).
@@ -6954,6 +7063,43 @@ class Database(DatabaseEmbeddingMixin):
                 boosted.add(claim.source_document_id)
             boosted.update(claim.source_ids or [])
         return boosted
+
+    def _search_scope(self, filters: dict | None) -> tuple[str | None, set[str] | None]:
+        """The search's scope as a Lance `where` on the passage rows and the page ids it allows (None: any page), so the
+        scope is applied before the candidates are cut (#6781): the folder and everything under it, the written-date
+        range (a page with no written date is outside any range), and the doc and file type.
+
+        ponytail: the folder and date scopes are an id list in the `where`; past tens of thousands of pages in one scope,
+        store the folder path and written date on the passage rows and filter on those columns instead."""
+        filters = filters or {}
+        ids: set[str] | None = None
+        if filters.get("folder_id"):
+            ids = self._collect_folder_descendants(str(filters["folder_id"]))
+        if "date_jdn_from" in filters or "date_jdn_to" in filters:
+            rows = self._execute(
+                """
+                SELECT id FROM documents
+                WHERE date_jdn IS NOT NULL
+                  AND ($from IS NULL OR coalesce(date_jdn_end, date_jdn) >= $from)
+                  AND ($to IS NULL OR date_jdn <= $to)
+                """,
+                {
+                    "from": int(filters["date_jdn_from"]) if "date_jdn_from" in filters else None,
+                    "to": int(filters["date_jdn_to"]) if "date_jdn_to" in filters else None,
+                },
+                fetch="all",
+            )
+            dated = {row[0] for row in rows}
+            ids = dated if ids is None else ids & dated
+        clauses = []
+        if ids is not None:
+            quoted = ", ".join("'" + str(i).replace("'", "''") + "'" for i in sorted(ids))
+            clauses.append(f"document_id IN ({quoted})" if quoted else "false")
+        for column in ("doc_type", "file_type"):
+            if column in filters:
+                value = str(getattr(filters[column], "value", filters[column]))
+                clauses.append(f"{column} = '" + value.replace("'", "''") + "'")
+        return (" AND ".join(clauses) or None), ids
 
     def search(
         self,
@@ -7020,6 +7166,7 @@ class Database(DatabaseEmbeddingMixin):
         }
 
         try:
+            scope_where, scope_ids = self._search_scope(filters)
             # Initialize results storage
             semantic_results = []
             fulltext_results = []
@@ -7047,6 +7194,7 @@ class Database(DatabaseEmbeddingMixin):
                         EMBEDDINGS_TABLE,
                         query_vector,
                         max(limit * 4, offset + limit * 2),
+                        where=scope_where,
                     )
 
                     # Convert to SearchResult, filter by score
@@ -7140,8 +7288,11 @@ class Database(DatabaseEmbeddingMixin):
                         candidate_limit = max(limit * 4, offset + limit * 2)
                         raw_fulltext_hits: list[dict] = []
                         if not use_fuzzy_match:
+                            fts_query = table.search(query, query_type="fts", fts_columns="text")
+                            if scope_where:
+                                fts_query = fts_query.where(scope_where, prefilter=True)
                             raw_fulltext_hits = (
-                                table.search(query, query_type="fts", fts_columns="text")
+                                fts_query
                                 .select(
                                     self._lance_select_existing_fields(
                                         table,
@@ -7203,8 +7354,18 @@ class Database(DatabaseEmbeddingMixin):
                                 )
                         else:
                             # ponytail: fuzzy matching and zero-hit accent edge cases still
-                            # use the old corpus scan until we can index folded text.
-                            all_docs = table.to_pandas()
+                            # scan the passage text until we can index folded text; the scan never reads vectors.
+                            all_docs = table.to_lance().to_table(
+                                columns=self._lance_select_existing_fields(
+                                    table,
+                                    [
+                                        "document_id", "id", "text", "name", "doc_type", "file_type", "created_at",
+                                        "updated_at", "embedding_scope", "passage_id", "page_id", "char_start", "char_end",
+                                    ],
+                                )
+                            ).to_pandas()
+                            if scope_ids is not None:
+                                all_docs = all_docs[all_docs["document_id"].isin(scope_ids)]
                             normalised_text = all_docs["text"].astype(str).map(_fold_for_search)
                             mask = (
                                 _fuzzy_contains_any_term(normalised_text, folded_terms)
@@ -7322,6 +7483,7 @@ class Database(DatabaseEmbeddingMixin):
                     uncovered_ids = [
                         row[0] for row in candidate_id_rows
                         if row[0] not in embedded_doc_ids
+                        and (scope_ids is None or row[0] in scope_ids)
                     ]
 
                     if uncovered_ids:

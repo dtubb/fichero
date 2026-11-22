@@ -8,6 +8,7 @@ Models are stored in ~/Library/Application Support/Fichero/models/
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from fichero_server.actions.registry import ChangeSpec, action, started_by_for
+from fichero_server.api.library_header import optional_library_path
 from pydantic import BaseModel
 
 from fichero_server.models import (
@@ -264,18 +265,31 @@ def download_model(
 
 
 @router.delete("/{model_type}/{model_id:path}", response_model=DeleteModelResponse)
-def delete_model(model_type: str, model_id: str) -> DeleteModelResponse:
+def delete_model(model_type: str, model_id: str, request: Request, confirm: bool = False) -> DeleteModelResponse:
     """Delete a downloaded model.
 
     Args:
         model_type: "whisper" or "embeddings"
         model_id: Model identifier
+        confirm: with a project open, a model a step of its recipe uses is refused (409, the steps named) until true
+            (`models.manage.delete-a-model`, #6588)
     """
     from fichero_server.llm.local_models import LocalModelManager
 
     if model_type not in ("whisper", "embeddings", "spacy"):
         raise HTTPException(status_code=400, detail=f"Unknown model type: {model_type}")
 
+    library_path = optional_library_path(request)
+    if library_path and not confirm:
+        from pathlib import Path as _Path
+
+        from fichero_server.recipes.discovery import steps_using_model
+        from fichero_server.recipes.project import read_project_setup
+
+        steps = steps_using_model(model_id, read_project_setup(_Path(library_path))["recipe"])
+        if steps:
+            raise HTTPException(status_code=409, detail=f"{model_id} is the model of step {', '.join(steps)}; "
+                                "choose another for it first, or delete it anyway")
     mgr = LocalModelManager()
     from fichero_server.llm.local_models import BundledModel
 

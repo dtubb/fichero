@@ -123,3 +123,31 @@ def test_the_mac_wide_model_writes_are_the_owners(app_db, monkeypatch):
     with pytest.raises(HTTPException) as editor:
         accounts._require_owner_or_bootstrap(request)
     assert editor.value.status_code == 403
+
+
+def test_each_knob_names_the_engines_own_default_and_its_reason(app_db, monkeypatch):
+    """`models.run-settings.per-model` (#6588): the value Auto means and why, per knob; a saved knob does not change it."""
+    monkeypatch.delenv("FICHERO_COMPUTE_DEVICE", raising=False)
+    monkeypatch.setattr(kraken_runtime, "pages_at_once_and_why", lambda person: (1, "the free memory holds one page"))
+    monkeypatch.setattr("fichero_server.core.cores.cores_available", lambda: (8, "performance"))
+    mrs.save_run_settings("kraken", {"threads": 3})
+    got = mrs.defaults("kraken")
+    assert set(got) == set(mrs.KNOBS["kraken"])
+    assert got["pages_at_once"] == {"value": 1, "reason": "the free memory holds one page"}
+    assert got["threads"]["value"] == 8 and "cores" in got["threads"]["reason"]
+    assert got["batch_size"]["value"] == 1 and got["batch_size"]["reason"]
+    assert got["device"] == {"value": "auto", "reason": got["device"]["reason"]} and got["device"]["reason"]
+
+
+def test_the_line_finders_height_per_script_is_listed_read_only(app_db):
+    heights = mrs.script_heights()
+    assert heights["default"] == {"height": 1800, "base": "bundled"}
+    assert heights["scripts"]["Hebr"] == {"height": 1200, "base": "2026"}
+    assert heights["scripts"]["Newa"]["height"] == 300
+
+
+def test_the_route_answers_the_defaults_and_the_heights(client, app_db):
+    got = client.get("/api/activity/models/run-settings/kraken").json()
+    assert set(got["defaults"]) == set(mrs.KNOBS["kraken"])
+    assert got["defaults"]["batch_size"]["value"] == 1
+    assert got["script_heights"]["scripts"]["Arab"]["height"] == 1200

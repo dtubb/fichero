@@ -1482,6 +1482,16 @@
       },
       {
         "method": "POST",
+        "path": "/auth/key-challenge",
+        "operation_id": "key_challenge_api_auth_key_challenge_post",
+        "summary": "Key Challenge",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "KeyChallengeRequest",
+        "response_model": "ChallengeResponse"
+      },
+      {
+        "method": "POST",
         "path": "/auth/local-clients/register",
         "operation_id": "register_local_client_api_auth_local_clients_register_post",
         "summary": "Register Local Client",
@@ -1622,6 +1632,16 @@
         "path_params": [],
         "query_params": [],
         "request_model": "SignInRequest",
+        "response_model": "SignInResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/auth/sign-in-by-key",
+        "operation_id": "sign_in_by_key_api_auth_sign_in_by_key_post",
+        "summary": "Sign In By Key",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "KeySignInRequest",
         "response_model": "SignInResponse"
       }
     ],
@@ -8190,7 +8210,13 @@
           "model_type",
           "model_id"
         ],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "confirm",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
         "request_model": null,
         "response_model": "fichero_server__models__DeleteModelResponse"
       }
@@ -9044,6 +9070,16 @@
         "query_params": [],
         "request_model": "MultiuserRequest",
         "response_model": "SharingStateResponse"
+      },
+      {
+        "method": "PUT",
+        "path": "/pair/own-devices",
+        "operation_id": "set_own_devices_api_pair_own_devices_put",
+        "summary": "Set Own Devices",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "OwnDevicesRequest",
+        "response_model": "OwnDevicesResponse"
       },
       {
         "method": "GET",

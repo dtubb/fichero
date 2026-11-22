@@ -25,4 +25,15 @@ struct PaneMenuTests {
         #expect(PaneMenuEntries.focusTitle(leaf: mine, focused: other) == "Focus on Pane")
         #expect(PaneMenuEntries.focusTitle(leaf: nil, focused: nil) == "Focus on Pane")
     }
+
+    @Test("both view choosers hand View As ▸ their own view list (#6741)")
+    func viewAsInTheMenu() {
+        let selector = PaneKindSelector(
+            kindTitle: "Items", kindIcon: "list.bullet", currentKind: .library,
+            lenses: ViewDisplayMode.allCases, lensTitle: { $0.label }, lensIcon: { $0.icon },
+            lens: .constant(ViewDisplayMode.allCases[0])
+        )
+        #expect((selector as Any) is PaneViewChooser, "the head's view chooser does not hand its list to the menu")
+        #expect((PreviewHeadSelectorGroup.self as Any) is PaneViewChooser.Type, "the Preview head's chooser does not either")
+    }
 }

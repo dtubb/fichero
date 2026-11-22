@@ -519,6 +519,10 @@ def _reembed(db: Any, document_id: str) -> None:
             from fichero_server.importers.derivatives import wait_for_the_search_model
 
             wait_for_the_search_model(db, outcome.error or "The search model is not ready yet")
+        if not outcome and outcome.reason == "memory_short":  # Kraken is reading: the lane runs the page again later (#6808)
+            from fichero_server.execution.throttle import MemoryShortError
+
+            raise MemoryShortError(outcome.error)
         if not outcome and outcome.is_infrastructure_failure:  # the job fails, so Activity shows it
             raise RuntimeError(f"Could not embed {document_id}: {outcome.error}")
 

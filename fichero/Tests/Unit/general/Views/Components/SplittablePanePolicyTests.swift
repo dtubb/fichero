@@ -40,7 +40,7 @@ final class SplittablePanePolicyTests: XCTestCase {
     /// copy — so `PaneHead`'s close button always falls through to the
     /// real per-leaf close for a pane reached through this hook.
     func testModelSplitHookNeverReportsAnActiveSplit() {
-        let hook = PaneModelSplitHook(split: { _ in })
+        let hook = PaneModelSplitHook(split: { _, _ in })
         let actions = hook.splitAxisActions()
         XCTAssertFalse(actions.hasVertical)
         XCTAssertFalse(actions.hasHorizontal)
@@ -55,7 +55,7 @@ final class SplittablePanePolicyTests: XCTestCase {
     /// of siding.
     func testModelSplitHookMapsSplittablePaneAxisVocabularyOntoPaneList() {
         var capturedAxis: SplitAxis?
-        let hook = PaneModelSplitHook(split: { capturedAxis = $0 })
+        let hook = PaneModelSplitHook(split: { axis, _ in capturedAxis = axis })
         let actions = hook.splitAxisActions()
 
         actions.onToggleVertical()
@@ -74,7 +74,7 @@ final class SplittablePanePolicyTests: XCTestCase {
     func testInPaneSplitActionProducesANewModelLeafNotASecondViewOfTheSameOne() {
         let paneId = UUID()
         var list = PaneList([.leaf(id: paneId, kind: .reading, scope: .current, config: .none)])
-        let hook = PaneModelSplitHook(split: { axis in
+        let hook = PaneModelSplitHook(split: { axis, _ in
             list = list.splittingLeaf(paneId, axis: axis)
         })
         let actions = hook.splitAxisActions()

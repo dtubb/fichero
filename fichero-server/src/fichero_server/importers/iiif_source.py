@@ -51,9 +51,11 @@ def import_source(db: Any, url: str, *, folder_id: str | None = None, name: str 
 
     say("Reading the IIIF source")
     parsed = parse_iiif_url(url, fetcher=fetcher, max_manifests=max_manifests)
-    collection, canvases = parsed.nodes[0], parsed.nodes[1:]
+    groups = [n for n in parsed.nodes if n["node_type"] == "group"]
+    canvases = [n for n in parsed.nodes if n["node_type"] == "page"]
     if not canvases:
         raise ValueError(f"No canvases found at {url}")
+    collection = groups[0]
     folder = db.get(Document, folder_id) if folder_id else bound_folder(db, url)
     if folder is None:
         folder = Document(name=name or collection.get("name") or _label_text(collection) or "IIIF",
@@ -62,12 +64,37 @@ def import_source(db: Any, url: str, *, folder_id: str | None = None, name: str 
     elif (folder.metadata or {}).get("iiif_source") != url:
         folder = folder.model_copy(update={"metadata": {**(folder.metadata or {}), "iiif_source": url}})
         db.save(folder)
-    have = {(d.metadata or {}).get("iiif_id") for d in db.query(Document, parent_id=folder.id) if d.deleted_at is None}
+    # One folder per collection and manifest, found again by IIIF id on a refresh; a folder already holding the old
+    # flat import (pages directly in it) stays flat.
+    top = [d for d in db.query(Document, parent_id=folder.id) if d.deleted_at is None]
+    flat = any(d.doc_type != DocType.folder and (d.metadata or {}).get("iiif_id") for d in top)
+    folder_of = {collection["external_id"]: folder.id}
+    subs = {} if flat else {(d.parent_id, (d.metadata or {}).get("iiif_id")): d
+                            for d in db.query(Document, doc_type=DocType.folder) if d.deleted_at is None}
+    for node in groups[1:]:
+        parent_id = folder_of[node["parent_external_id"]]
+        meta = node["metadata"]
+        if flat:
+            folder_of[node["external_id"]] = folder.id
+            continue
+        sub = subs.get((parent_id, meta["iiif_id"]))
+        if sub is None:
+            facts = {k: meta[k] for k in ("iiif_type", "iiif_id", "iiif_rights", "iiif_manifest_metadata",
+                                          "by_reference") if k in meta}
+            if meta["iiif_type"] == "Manifest":
+                facts["iiif_source"] = meta["iiif_id"]
+            sub = Document(name=node.get("name") or "IIIF", doc_type=DocType.folder, parent_id=parent_id,
+                           metadata=facts)
+            db.save(sub)
+            subs[(parent_id, meta["iiif_id"])] = sub
+        folder_of[node["external_id"]] = sub.id
+    have = {(d.metadata or {}).get("iiif_id") for fid in set(folder_of.values())
+            for d in db.query(Document, parent_id=fid) if d.deleted_at is None and d.doc_type != DocType.folder}
     listed = {c["metadata"]["iiif_id"] for c in canvases}
     fresh = [c for c in canvases if c["metadata"]["iiif_id"] not in have]
     total, made = len(fresh), 0
     for start in range(0, total, BATCH):
-        made += db.save_many([Document.model_validate({**document_payload(node, folder.id),
+        made += db.save_many([Document.model_validate({**document_payload(node, folder_of[node["parent_external_id"]]),
                                                       "sequence": node.get("sequence"),
                                                       "page_label": node.get("page_label")})
                               for node in fresh[start:start + BATCH]], new=True)
@@ -76,7 +103,8 @@ def import_source(db: Any, url: str, *, folder_id: str | None = None, name: str 
     folder = db.get(Document, folder.id)
     metadata = {**(folder.metadata or {}), "iiif_source": url, "iiif_refreshed_at": utc_now().isoformat(),
                 "iiif_canvases": len(listed), "iiif_withdrawn": withdrawn,
-                "iiif_rights": collection.get("metadata", {}).get("iiif_rights")}
+                **{k: v for k, v in collection.get("metadata", {}).items()
+                   if k in ("iiif_rights", "iiif_manifest_metadata", "iiif_type", "iiif_id")}}
     db.save(folder.model_copy(update={"metadata": metadata}))
     return {"folder_id": folder.id, "canvases": len(listed), "added": made, "already_here": len(listed) - made,
             "withdrawn": withdrawn, "manifests": parsed.manifests_seen, "warnings": parsed.warnings}
@@ -122,18 +150,14 @@ def _run(db: Any, subject: str) -> dict[str, Any]:
 # --- a step's image ---------------------------------------------------------------------------------------------
 
 
-_FETCHER = None
-
-
 def step_image(doc: Any, package: Path, *, longest: int = STEP_LONGEST, fetcher: Any = None) -> Path | None:
     """A page imported by reference, fetched at the size a step reads it (the Image API's resize), kept in the
     bounded cache; None when it has no service or the server cannot be reached (the step then says the page could
     not be fetched)."""
-    global _FETCHER
     service = (doc.metadata or {}).get("iiif_service") if isinstance(doc.metadata, dict) else None
     if not service:
         return None
-    from fichero_server.media.iiif_fetch import FetchFailed, PoliteFetcher, image_url, urllib_get
+    from fichero_server.media.iiif_fetch import FetchFailed, image_url
 
     cache = package / "storage" / "iiif-steps" / str(longest)
     dest = cache / doc.id[:2].lower() / f"{doc.id}.jpg"
@@ -141,9 +165,9 @@ def step_image(doc: Any, package: Path, *, longest: int = STEP_LONGEST, fetcher:
         os.utime(dest)  # recently used: kept longest
         return dest
     if fetcher is None:
-        if _FETCHER is None:
-            _FETCHER = PoliteFetcher(get=urllib_get, retries=3)
-        fetcher = _FETCHER
+        from fichero_server.media.iiif_engine import engine_fetcher
+
+        fetcher = engine_fetcher()
     try:
         data = fetcher.fetch(image_url(str(service), longest=longest))
     except (FetchFailed, OSError):

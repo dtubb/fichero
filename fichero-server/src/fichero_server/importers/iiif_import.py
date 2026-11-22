@@ -1031,34 +1031,53 @@ def parse_iiif_url(url: str, *, fetcher: Any | None = None, max_manifests: int |
     A collection's manifests (and nested collections) are fetched one by one, politely
     (`media.iiif_fetch.PoliteFetcher`); `max_manifests` stops early, for a sample before a whole archive.
     """
-    from fichero_server.media.iiif_fetch import PoliteFetcher, urllib_get
+    from fichero_server.media.iiif_engine import engine_fetcher
 
-    fetcher = fetcher or PoliteFetcher(get=urllib_get)
+    fetcher = fetcher or engine_fetcher()
 
     def load(ref: str) -> dict[str, Any]:
         return json.loads(fetcher.fetch(ref).decode("utf-8"))
 
     root = load(url)
-    if _json_type(root) == "Manifest":
-        collection = {"id": url, "type": "Collection", "label": root.get("label"), "items": [root]}
-    else:
-        collection = root
-    collection_external = _safe_external_id(_json_id(collection) or url)
-    collection_node = _collection_node(collection, collection_external, Path("."))
-    collection_node["metadata"].update({"source_assets": url, "iiif_rights": _rights(collection), "by_reference": True})
-    nodes = [collection_node]
+    nodes: list[dict[str, Any]] = []
     warnings: list[str] = []
     seen: set[str] = set()
-    sequence = 0
-    queue = list(collection.get("items") or collection.get("manifests") or [])
-    queue += list(collection.get("collections") or [])
+    visited: set[str] = set()
+
+    def folder_node(doc: dict[str, Any], ref_id: str, parent: str | None, *, manifest: bool) -> str:
+        """A folder for a collection or a manifest: what the source says about it is stored here, once."""
+        external = _safe_external_id(ref_id)
+        node = _collection_node(doc, external, Path("."))
+        node["parent_external_id"] = parent
+        node["metadata"].update({"source_assets": ref_id, "iiif_rights": _rights(doc), "by_reference": True,
+                                 "iiif_type": "Manifest" if manifest else "Collection"})
+        if manifest:
+            node["metadata"]["iiif_manifest_metadata"] = _metadata_dict(doc)
+        nodes.append(node)
+        return external
+
+    def add_manifest(doc: dict[str, Any], ref_id: str, parent: str | None) -> None:
+        seen.add(ref_id)
+        manifest_external = folder_node(doc, ref_id, parent, manifest=True)
+        canvases = doc.get("items") or [c for s in doc.get("sequences") or [] for c in s.get("canvases") or []]
+        for sequence, canvas in enumerate(canvases, 1):
+            nodes.append(_remote_canvas_node(canvas, manifest=doc, parent_external=manifest_external,
+                                             corpus=_safe_external_id(url), sequence=sequence))
+
+    if _json_type(root) == "Manifest":
+        add_manifest(root, url, None)
+        return _ParsedIIIF(nodes=nodes, annotation_jobs=[], manifests_seen=len(seen), warnings=warnings)
+    visited.add(url)
+    root_external = folder_node(root, _json_id(root) or url, None, manifest=False)
+    queue = [(ref, root_external) for ref in (root.get("items") or root.get("manifests") or [])
+             + list(root.get("collections") or [])]
     while queue:
-        ref = queue.pop(0)
+        ref, parent = queue.pop(0)
         if max_manifests is not None and len(seen) >= max_manifests:
             warnings.append(f"stopped after {max_manifests} manifests (a sample)")
             break
         ref_id = _json_id(ref) if isinstance(ref, dict) else str(ref)
-        if not ref_id or ref_id in seen:
+        if not ref_id or ref_id in seen or ref_id in visited:
             continue
         kind = _json_type(ref) if isinstance(ref, dict) else None
         try:
@@ -1069,18 +1088,12 @@ def parse_iiif_url(url: str, *, fetcher: Any | None = None, max_manifests: int |
             continue
         kind = _json_type(doc) or kind
         if kind == "Collection":
-            queue += list(doc.get("items") or doc.get("manifests") or []) + list(doc.get("collections") or [])
+            visited.add(ref_id)
+            inner = folder_node(doc, ref_id, parent, manifest=False)
+            queue += [(m, inner) for m in list(doc.get("items") or doc.get("manifests") or [])
+                      + list(doc.get("collections") or [])]
             continue
-        seen.add(ref_id)
-        canvases = doc.get("items") or [c for s in doc.get("sequences") or [] for c in s.get("canvases") or []]
-        rights = _rights(doc)
-        for canvas in canvases:
-            sequence += 1
-            node = _remote_canvas_node(canvas, manifest=doc, parent_external=collection_external,
-                                       corpus=collection_external, sequence=sequence)
-            node["metadata"]["iiif_rights"] = rights
-            node["metadata"]["iiif_manifest_metadata"] = _metadata_dict(doc)
-            nodes.append(node)
+        add_manifest(doc, ref_id, parent)
     return _ParsedIIIF(nodes=nodes, annotation_jobs=[], manifests_seen=len(seen), warnings=warnings)
 
 

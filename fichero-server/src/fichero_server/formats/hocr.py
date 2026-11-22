@@ -254,6 +254,7 @@ def write(page: SourcePage, report: LossReport) -> bytes:
             parent_el, "span", **{"class": css, "id": ref, "title": "; ".join(title_parts)}
         )
         by_ref[ref] = element
+        report.note_marks_not_written(segment, "hOCR")
 
         if segment.language:
             element.set("lang", segment.language)

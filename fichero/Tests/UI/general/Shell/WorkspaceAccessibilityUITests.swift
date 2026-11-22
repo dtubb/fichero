@@ -28,8 +28,8 @@
 //  accessibility identifier (e.g. `pane.library` / `pane.preview` /
 //  `pane.reading` / `pane.inspector`) nor a `workspace.paneComposition` container
 //  id, so this suite asserts pane presence through the identifiers that DO exist
-//  today — the pane-head close/pin affordances (`paneHeadPinToggle`, and the
-//  "Close pane" / "Close this split" accessibilityLabels on PaneHead) and the
+//  today — the pane-head menu button (accessibilityLabel "Pane menu", which
+//  holds Pin and Close since #6741) and the
 //  shell content-ready marker `library.content.ready`. Per-kind ids are the clean
 //  fix and are flagged for the manager rather than invented here.
 //
@@ -129,24 +129,20 @@ final class WorkspaceAccessibilityUITests: FicheroUISessionTests {
             // At least one accessible pane-head control is present — evidence the
             // composed panes mounted with the labelled chrome the ruling requires.
             // Every built-in includes a preview and/or reader pane, which carry a
-            // PaneHead; on the applied path each leaf's head close button is
-            // labelled "Pane menu" and the pin is
-            // `paneHeadPinToggle`.
+            // PaneHead; on the applied path each leaf's head menu button is
+            // labelled "Pane menu".
             XCTAssertTrue(
                 accessiblePaneHeadControlExists(timeout: 8),
                 "After applying \"\(workspace.title)\" no labelled pane-head control "
-                + "(paneHeadPinToggle / \"Pane menu\") was found — "
+                + "(\"Pane menu\") was found — "
                 + "the composed panes did not mount accessible head chrome "
                 + "(spec panes.one-renderer + §\"Accessibility is first-class\")."
             )
         }
     }
 
-    /// True if any labelled pane-head affordance exists — the pin toggle
-    /// (identifier `paneHeadPinToggle`) or the pane menu button (accessibilityLabel "Pane menu").
+    /// True if the labelled pane-head menu button (accessibilityLabel "Pane menu") exists.
     private func accessiblePaneHeadControlExists(timeout: TimeInterval) -> Bool {
-        let pin = app.buttons["paneHeadPinToggle"].firstMatch
-        if pin.waitForExistence(timeout: timeout) { return true }
-        return app.menuButtons["Pane menu"].firstMatch.exists
+        app.menuButtons["Pane menu"].firstMatch.waitForExistence(timeout: timeout)
     }
 }

@@ -320,11 +320,17 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
   with its count and how many more it needs, in the readiness sentence's form (`bakeoff.readiness`); it is
   offered again when there are enough.
 - `training.propose.names-tagger` — **[GAP]** (#5536, #5556) the names row trains spaCy on confirmed mentions
-  on this Mac or on Hugging Face, or a Create ML word tagger, and is scored by precision and recall per kind.
+  on this Mac or on Hugging Face, or a Create ML word tagger, and is scored by precision and recall per kind. The set it
+  trains on, the trainer and the pages that count are `kg.teach.names-set-from-corrections`,
+  `kg.teach.spacy-trained-on-this-mac` and `kg.teach.page-is-checked-for-names` (`kg/kg-confidence-and-provenance.md`,
+  section K); this line is the row on the sheet.
 - `training.set.held-out-picked-across-folder` — **[GAP]** (#5441) Fichero picks the held-out pages across
   the folder — stratified by hand, page kind and sub-folder where known, at least two pages, a stated
   share — lists them on the sheet, lets the person swap one, and never picks a page any candidate trained
-  on. Today the person names them (`distill.eval.held-out-checked-pages`).
+  on. Today the person names them (`distill.eval.held-out-checked-pages`). Ruled 2026-11-21 (owner): the share is one
+  in ten, drawn silently as the person corrects and never trained on; the picker is built as
+  `hands.heldout.one-in-ten-silently` (`source/read-any-hand.md`, Step 1.1), and this line keeps the sheet that lists
+  the pages and lets the person swap one.
 - `training.set.held-out-never-trained` — **[OK]** (#5398) a held-out page is never written to the set nor
   sent. Built: `fichero-server/src/fichero_server/training/kraken_set.py`; tested in
   `fichero-server/tests/unit/training/test_kraken_training_set.py`
@@ -466,13 +472,19 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
   `fichero-server/tests/unit/workflows/test_transcription_accuracy.py` and
   `fichero-server/tests/unit/recipes/test_bakeoff_readers.py`
   (`test_every_candidate_is_scored_by_the_one_cer_on_the_same_pages`).
-- `training.eval.policies-named` — **[PARTIAL]** (#5441) each figure names its policy; the four shipped
-  policies are built; `graphemic` (long s, u/v, i/j folded) and `expanded` (the project's abbreviation
-  table) are not, and no table ships.
+- `training.eval.policies-named` — **[PARTIAL]** (#5441) each figure names its policy; five policies ship
+  (re-read 2026-11-20: `diplomatic`, `layout-insensitive`, `lenient`, `accent-blind` and `catmus-as-written`, which
+  folds u/v and i/j and decomposes diacritics, `fichero-server/src/fichero_server/workflows/transcription_accuracy.py`
+  `POLICIES`); the long s is not folded by any, `expanded` (the project's abbreviation table) is not built, and no
+  table ships. Which policy RANKS is `readers.bakeoff.policy-follows-the-convention` (`source/readers.md`).
 - `training.eval.wer-beside-cer` — **[PARTIAL]** (#5545) WER is reported beside CER under the same policy by
-  the one word edit distance; built in the reasons A/B only
-  (`fichero-server/src/fichero_server/training/reasons_ab.py` `_word_edits`); not in the evaluation job,
-  the bake-off or the card.
+  the one word edit distance. Built (re-read 2026-11-20): the evaluation job counts a page's word errors
+  (`fichero-server/src/fichero_server/training/evaluation.py` `word_errors`, `wer_over`) and the bake-off's row
+  carries `wer` (`fichero-server/tests/unit/recipes/test_bakeoff_contenders_5660.py`
+  `test_apple_vision_reads_the_same_pages_scored_by_cer_and_wer`); the reasons A/B has its own
+  (`fichero-server/src/fichero_server/training/reasons_ab.py` `_word_edits`). Not built: the words are split on
+  whitespace as written, under no named policy (so case and punctuation always count), and two word edit distances
+  exist where the line asks for one.
 - `training.eval.not-read-is-not-100` — **[OK]** (#5531) a candidate that returned no text or too little is
   "not read" with why, one that read too few pages "not measured", and neither sums as 100% error or wins.
   Built: `fichero-server/src/fichero_server/training/evaluation.py` `judge_page`, `measured`,
@@ -485,7 +497,10 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
   the lines it found with the step's reader against the checked text, so a finder that splits or merges lines shows in
   both. *Test (to write):* test_lines_found_score.py (a finder that merges two lines loses recall and CER).
 - `training.eval.names-precision-recall` — **[GAP]** (#5545, #5536) a names model is scored by precision,
-  recall and F1 per kind of name against confirmed mentions on held-out pages.
+  recall and F1 per kind of name against confirmed mentions on held-out pages. The scorer is ONE function, defined in
+  `kg.teach.names-scorer` (start, end and kind all match; the overlap figures beside; a kind with fewer than 20 checked
+  mentions is not judged), with its error table (`kg.teach.names-error-table`); statements and links are scored by
+  `kg.teach.statements-set-and-scorer` and `kg.teach.linking-set-and-scorer`.
 - `training.eval.fields-exact-and-cer` — **[GAP]** (#5545) a structured-fields model is scored by exact
   match per field and the CER of each field's text.
 - `training.eval.boundaries` — **[GAP]** (#5550) a document-finding model is scored by boundary precision

@@ -19,17 +19,23 @@ extension SegmentEdit {
     }
 
     /// The KNIFE (`segment-editor.split-knife`): one stroke, sent once in the frame it was drawn in (the page's
-    /// fractions), with the versions of every line whose box it reaches. The engine decides which it crosses: a
-    /// line it only grazes is left alone and named in the answer. Lines with no baseline or no version are not
-    /// offered; a stroke that reaches no line, or a click with no length, sends nothing.
-    static func knife(_ stroke: [[Double]], over lines: [Segment]) -> Result<Call, Refusal> {
+    /// fractions), with the versions of every line of the shown pass (`passId`) whose box it reaches; the engine
+    /// refuses lines of two passes in one stroke. The engine decides which it crosses: a line it only grazes is left
+    /// alone and named in the answer. Regions of the shown pass are offered too (`kind == "region"`, no baseline
+    /// needed): the engine cuts one's polygon along the stroke. Lines with no baseline or no version are not
+    /// offered; a stroke that reaches no
+    /// line, or a click with no length, sends nothing, and one that reaches only lines with no baseline is refused as
+    /// `.noBaseline` (`segment-editor.edge.no-baseline`).
+    static func knife(_ stroke: [[Double]], over lines: [Segment], onPass passId: String?) -> Result<Call, Refusal> {
         guard stroke.count >= 2, let reach = bounds(of: stroke) else { return .failure(.tooFew) }
         let reached = lines.filter { line in
-            guard hasBaseline(line), let rect = line.anchor.rect, rect.count >= 4 else { return false }
+            guard line.passId == passId, let rect = line.anchor.rect, rect.count >= 4 else { return false }
             return rect[0] <= reach[2] && reach[0] <= rect[0] + rect[2] && rect[1] <= reach[3] && reach[1] <= rect[1] + rect[3]
         }
         guard !reached.isEmpty else { return .failure(.tooFew) }
-        let versioned = reached.filter { $0.version != nil }
+        let cuttable = reached.filter { $0.kind == "region" || hasBaseline($0) }
+        guard !cuttable.isEmpty else { return .failure(.noBaseline) }
+        let versioned = cuttable.filter { $0.version != nil }
         guard !versioned.isEmpty, let versions = versions(of: versioned) else { return .failure(.versionUnknown) }
         return .success(Call(
             action: "segment.split",
@@ -75,6 +81,17 @@ extension SegmentEdit {
             }
         }
         return best
+    }
+
+    /// What the page says when a tool's edit was refused before anything was sent, never silent (#6734).
+    static func notSentWords(_ name: String, _ refusal: Refusal) -> String {
+        let why: String = switch refusal {
+        case .tooFew: "nothing to act on: the stroke reaches no segment it can change"
+        case .versionUnknown: "the segments are not saved yet"
+        case .noBaseline: "a line has no baseline"
+        case .noOrder: "this page has no reading order"
+        }
+        return "\(name): \(why)."
     }
 
     /// What the Knife says when it is done: how many lines it cut, and how many under the stroke it left alone
@@ -197,6 +214,51 @@ extension SegmentEdit {
         ))
     }
 
+    /// CONVERT TO BOX (`segment-editor.convert-to-box`): each selected segment that has a polygon becomes its
+    /// bounding rectangle, in one `segment.convert_to_box` and one undo. A segment that is already a box is left out.
+    static func convertToBox(_ segments: [Segment]) -> Result<Call, Refusal> {
+        let polygons = segments.filter { ($0.anchor.polygon?.count ?? 0) >= 3 }
+        guard !polygons.isEmpty else { return .failure(.tooFew) }
+        guard let versions = versions(of: polygons) else { return .failure(.versionUnknown) }
+        return .success(Call(
+            action: "segment.convert_to_box",
+            params: .convertToBox(SegmentCutWordsRequest(segmentIds: polygons.map(\.id), expectedVersions: versions))
+        ))
+    }
+
+    /// CONVERT TO LINE / CONVERT TO REGION (`segment-editor.convert-level`): each selected segment not already at the level
+    /// `to` takes it, in one `segment.convert_level` and one undo. A segment already there is left out.
+    static func convertLevel(_ segments: [Segment], to level: String) -> Result<Call, Refusal> {
+        let changing = segments.filter { $0.kind != level }
+        guard !changing.isEmpty else { return .failure(.tooFew) }
+        guard let versions = versions(of: changing) else { return .failure(.versionUnknown) }
+        return .success(Call(
+            action: "segment.convert_level",
+            params: .convertLevel(SegmentConvertLevelRequest(segmentIds: changing.map(\.id), level: level, expectedVersions: versions))
+        ))
+    }
+
+    /// MAKE REGION FROM LINES (`segment-editor.make-region-from-lines`): two or more selected segments become the children
+    /// of one new region, in one `segment.group_lines` and one undo.
+    static func groupLines(_ lines: [Segment]) -> Result<Call, Refusal> {
+        guard lines.count >= 2 else { return .failure(.tooFew) }
+        guard let versions = versions(of: lines) else { return .failure(.versionUnknown) }
+        return .success(Call(
+            action: "segment.group_lines",
+            params: .groupLines(SegmentCutWordsRequest(segmentIds: lines.map(\.id), expectedVersions: versions))
+        ))
+    }
+
+    /// UNGROUP REGION: a region's lines go to its parent and the region is removed, in one `segment.ungroup_region`.
+    static func ungroupRegion(_ region: Segment) -> Result<Call, Refusal> {
+        guard region.kind == "region" else { return .failure(.tooFew) }
+        guard let version = region.version else { return .failure(.versionUnknown) }
+        return .success(Call(
+            action: "segment.ungroup_region",
+            params: .ungroupRegion(SegmentUngroupRegionRequest(regionId: region.id, expectedVersion: version))
+        ))
+    }
+
     /// What Cut Words says when it could not cut every line: how many it left, and that they need a reading or ink.
     static func cutWordsNotice(made: Int, leftAlone: Int) -> String? {
         guard leftAlone > 0 else { return nil }
@@ -255,6 +317,22 @@ struct SegmentCutWordsRequest: Encodable, Equatable {
     enum CodingKeys: String, CodingKey { case segmentIds = "segment_ids", expectedVersions = "expected_versions" }
 }
 
+/// `segment.convert_level`: the segments to change, the level they take (`to_kind`: `line` or `region`), and the versions read.
+struct SegmentConvertLevelRequest: Encodable, Equatable {
+    let segmentIds: [String]
+    let level: String
+    let expectedVersions: [String: Int]
+
+    enum CodingKeys: String, CodingKey { case segmentIds = "segment_ids", level = "to_kind", expectedVersions = "expected_versions" }
+}
+
+/// `segment.ungroup_region`: one region, at the version the caller read.
+struct SegmentUngroupRegionRequest: Encodable, Equatable {
+    let regionId: String
+    let expectedVersion: Int
+    enum CodingKeys: String, CodingKey { case regionId = "region_id", expectedVersion = "expected_version" }
+}
+
 extension SegmentEdit.Params {
     /// The tools' request bodies, the second half of `payload`, so neither switch carries every kind.
     var toolPayload: any Encodable {
@@ -264,8 +342,11 @@ extension SegmentEdit.Params {
         case .knife(let params): params
         case .simplify(let params): params
         case .cutWords(let params): params
-        case .addBaseline(let params), .cutCharacters(let params): params
+        case .addBaseline(let params), .cutCharacters(let params), .convertToBox(let params), .groupLines(let params): params
+        case .ungroupRegion(let params): params
+        case .convertLevel(let params): params
         case .sequence(let params): params
+        case .moveInOrder(let params): params
         case .translate(let params): params
         case .moveCut(let params): params
         case .update, .baseline, .create, .delete, .merge, .updateMany: payload

@@ -515,6 +515,205 @@ steps and disk use, not landings.
   `remote_min_free_gb` is skipped, and the nightly names its own `check_runner`. Left: which rung goes to which Mac is
   the list's order, not a placement by capability (`dev-workflows.pool.placement-and-fallback`). Serves: reliable.
 
+### J. What the day of 2026-11-21 showed (#6589)
+
+Fourteen lanes ran through a day and a night. Each line below is something the loop did wrong or could not do, read from
+that day's journal and placed in the code. The owner asked for them to be specified so the builder builds them
+(paraphrased). Caps read once per session, and the disk floor's rows and alert, are specified by the performance review of
+the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026-11-21.
+
+- `local.run.reexec-adopts-by-window-or-pid` [BROKEN] (#6589) — a loop that starts with no handle for a lane (a re-exec, a
+  crash, a login) adopts every session that is alive, and stops none. A session is alive when the tmux window the lane
+  recorded at its start still runs more than an idle shell, or when the process id it recorded is running. The loop
+  watches it again (a watcher that died is started again on the same session and feed), writes one `adopted` row, and
+  the step keeps its state. Only a lane with neither a live window nor a live process is queued again, and the lost-track
+  branch never ends a window that runs more than a shell: that is an alert with the window's id. Today
+  `queue.adopt_session` in `fichero-builder/fichero_builder/queue.py` adopts only when the lane still holds its feed path
+  and `pgrep` finds a `builder run` on that feed; any miss falls to `procs.stop` in `queue.tick_lane`, which writes the
+  stop marker, ends the lane's windows and queues the step again ("stopping the session this loop lost track of"). On
+  2026-11-21 that row was written fourteen times, five of them within two minutes of one re-exec while the sessions were
+  at work, and no `adopted` row was written all day. The lane does not record its window id or its process id at start.
+  Test (owed): `test_builder_restart.py`, a re-exec with five live windows and no watcher adopts five and stops none; a
+  live process id with a renamed window is adopted; a lane with neither is queued once. Serves: reliable.
+- `local.run.drain-expired-one-row` [BROKEN] (#6589) — when the wait for a re-exec passes its limit, the loop says so once
+  for each lane and head, and the re-exec then happens at the first tick with no chain running, before another chain
+  starts. Today the branch after `DRAIN_MAX_S` in `queue.tick_lane` appends a `drain-expired` row every time it is
+  reached and lets every chain start on the old code, so the quiet tick `queue.restart_due` waits for may never come:
+  725 `drain-expired` rows on 2026-11-21 against 9 `drain-held`, and about 35 minutes of them before the re-exec.
+  Test (owed): `test_loop_survives.py`, ten ticks past the limit write one row a lane and head, and the loop re-execs
+  after the running chain ends with a second batch still waiting. Serves: reliable.
+- `local.run.sent-needs-a-live-session` [GAP] (#6589) — a step is `sent` only while a session is at work on it. At every
+  tick the loop checks each `sent` step: the window runs more than a shell, and the session file has changed within
+  `[spend].silent_s` or the session is idle after a delivered message. A `sent` step that fails the check for two ticks
+  is one `queue` row `sent-no-session` and goes back to `queued` from its tree (counted as a restart, so the existing
+  limit still blocks a step that keeps losing its session); a `sent` step older than `[loop].sent_hours` (default 3)
+  with no row of its own in that time is one alert with retry and park. Today a live handle whose pane holds no agent
+  reaches `procs.row(lane) is None` in `queue.tick_lane` and returns, tick after tick, with no row; one step sat `sent`
+  that way for hours on 2026-11-21. Test (owed): `test_loop.py`, a `sent` step whose window runs a shell is queued again
+  after two ticks with one row; a quiet `sent` step past the limit alerts once. Serves: reliable.
+- `local.run.turn-ended-without-done-alerts` [GAP] (#6589) — a worker whose turn ends after a delivered message with no
+  DONE line and no handoff line is noticed within one tick, whether or not its branch moved. The watcher writes one
+  `watch` row `turn-ended-no-done` with the last 300 characters the worker wrote. When that text ends in a question, it
+  is one `question` alert for the manager (answer, send back, park), and the answer is told to the same session. When
+  it does not, the worker is nudged once with the exact line to end on, and two ticks later the same alert is raised.
+  This replaces "left alone while its branch has not moved" in `dev-workflows.rollout.dry-run`. Today the loop in
+  `fichero-builder/fichero_builder/run.py` counts `unsaid` only when the head moved, and `watcher.assess` in
+  `fichero-builder/fichero_builder/watcher.py` alerts only on a session that is not idle; a small-model worker sat idle
+  on a question for an hour and a half on 2026-11-21. The signal comes from Claude Code's own `Stop` hook, not from
+  reading the tmux window: the worker's settings.json the builder writes carries a `Stop` hook, which receives the turn's
+  `last_assistant_message` and writes it to the lane's feed when it has no DONE or handoff line. An adapter whose harness
+  has no such hook falls back to the window. Test (owed): `test_dry_run.py`, an idle worker with an unmoved
+  branch and a last line ending in a question mark is one alert in one tick; one with no question is nudged, then
+  alerted. Serves: reliable.
+- `local.disk.thin-snapshots-before-holding` [GAP] (#6589) — before the loop holds a new lane for disk, it frees what
+  the system's local backup snapshots pin and measures again. On macOS, space freed by a sweep stays held by local Time
+  Machine snapshots until they are thinned. Once in a low-disk episode, and at most once an hour, the loop runs
+  `tmutil thinlocalsnapshots / <bytes> 4` (no sudo; bytes from `[loop].disk_thin_gb`, default 8), writes one
+  `disk-thinned` row with the free space before and after, and holds the lane only if the floor is still not met. A
+  machine without `tmutil`, or a command that fails, is a row and the hold goes on as before. Today the hold in
+  `queue.tick_lane` reads `procs.free_gb` and returns; on 2026-11-21 it wrote 934 `disk-hold` rows, and the same command
+  run by hand freed 10 to 14 GB twice. Test (owed): `test_loop.py`, a fake thin that frees space lets the lane start
+  with one `disk-thinned` row; one that frees nothing holds; a second low reading within the hour does not thin again.
+  Serves: reliable, with little supervision.
+- `local.queue.add-refuses-a-repeated-brief` [GAP] (#6589) — two steps of one lane never share one brief. `queue add`
+  compares the brief's content with the kept brief of every step the lane has, landed or not, and refuses a repeat,
+  naming the step that has it. With `--continues <step>` it takes the repeat and appends to the kept copy what a
+  continuation needs: the commits the lane has landed since that step began (sha and subject), the files they
+  changed, and what is left (the text of `--left`, required with `--continues`). Today the `add` action of `queue.main`
+  copies the file to the manager's briefs folder under the lane and step and compares nothing; on 2026-11-21 five
+  continuation steps of one lane were queued on one file, and the worker, shown nothing new, said DONE with no commit.
+  Test (owed): `test_queue_verb.py`, a second step on the same text is refused with the first step's name; with
+  `--continues` and `--left` the kept brief ends with the landed commits and the left text; `--continues` with no
+  `--left` is refused. Serves: builds Fichero, reliable.
+- `local.queue.drop-takes-a-queued-step` [GAP] (#6589) — `builder queue drop --lane L --step S --text WHY` removes a step
+  that has not started: `queued` with no round, no head and no session, at the cursor or behind it. It writes the same
+  `dropped` row as for a parked step. A step in flight, blocked or landed is refused as before. Today `queue.reorder`
+  takes `drop` for a `parked` step only, so a step queued by mistake has to be parked first. Test (owed):
+  `test_queue_verb.py`, a queued step that never started is dropped with its reason in the row; a `sent` one is
+  refused. Serves: reliable.
+- `local.run.recorded-move-is-not-a-stray-write` [GAP] (#6589) — the check that no tree outside a step's own moved
+  excuses a move the loop or the manager made and recorded. A tree is excused when a `landed` row for the jail root, or
+  a `tree-moved` row naming the tree, the old head and the new head, was written since the step's snapshot; and the
+  jail root is excused without a row when it is clean and its new head is the land branch's tip on origin with the old
+  head an ancestor, which is what a refresh does and a stray write does not. The manager's hand refresh of the jail
+  root after a pushed rules change goes through a verb that writes the `tree-moved` row. A move that is still an alert
+  is one alert for the move, naming every step that saw it, not one a step. Today `queue.tree_check` excuses the jail
+  root only for a `landed` row of step `jail-root`; on 2026-11-21 one hand refresh, clean on both sides, raised seven
+  alerts, one for each live step. Test (owed): `test_loop.py`, a jail root fast-forwarded to origin's tip raises
+  nothing; a `tree-moved` row excuses its tree; a dirty or off-origin jail root is one alert for three steps.
+  Serves: reliable.
+- `local.autofix.loop-applies-the-printed-fix` [GAP] (#6589) — where a check prints the exact fix, the loop applies it
+  to a managed lane, commits and checks again; no worker is asked. The classes are opted in by name in
+  `[check].autofix` (an unknown name refuses the rules file). The fix runs in the lane's worktree as the worker, the
+  commit carries the lane's trailers and may touch only the files its class names (anything else is undone and the
+  red goes to the worker), and each is one `autofix` journal row: class, rung, head before and after, files. A class
+  is tried once for a head; the same red again goes to the worker as today. An external lane is never committed to:
+  its red names the fix. Every other red still goes to the worker. Built: the `Fix:` line for three of these reds
+  (`autofix.fix_hints` in `fichero-builder/fichero_builder/autofix.py`) and the regeneration after a rebase
+  (`dev-workflows.run.rebase-rebakes-generated`). Left: nothing applies a `Fix:` line; on 2026-11-21 52 fix briefs
+  went to workers (guards 14, build 10, ready 10, red-on-base 7, not READY 7, diff bound 4). Test (owed):
+  `test_autofix.py`, a red with a fix of a named class is one commit, one `autofix` row and a second check with no
+  message to the worker; a class not named, a second red at the fixed head, and an external lane each go the old
+  way. Serves: builds Fichero, reliable.
+- `local.autofix.classes` [GAP] (#6589) — the four first classes, each decided by the check's own output and nothing
+  else. `known-gaps-now-clean`: `scripts/check_endpoint_coverage_matrix.py` says entries of its known-gaps list are now
+  clean; the loop removes exactly those entries. `ratchet-baseline-lower`: a ratchet prints a count below its baseline;
+  the loop writes the lower number and never a higher one. `openapi-regen`: a contract guard says a generated copy is
+  stale; the loop runs the `[check].regen` lines and commits the tracked files they changed. `spec-change-trailer`:
+  `scripts/check_spec_acceptance.py` asks for a `Spec-change:` trailer; the loop adds one only when the step's brief
+  carries a `Spec-change:` line, copied word for word, because the trailer must name a ruling and a script cannot make
+  one up; with none in the brief the red is a question for the manager, not a fix brief. Test (owed):
+  `test_autofix.py`, one fixture red for each class gives the expected one-file commit; a baseline that would rise, an
+  entry the check did not name, and an acceptance red with no line in the brief change nothing. Serves: reliable.
+- `local.models.effort-per-role` [GAP] (#6589) — a `[models]` role row may carry `effort = "low" | "medium" | "high"`,
+  and the worker, reviewer or spec writer started on that role runs at that level: low for lint and mechanical
+  batches, medium for workers, high for reviewers and spec writers. The adapter passes it in the form its harness
+  takes. For Claude Code that is `"effortLevel"` in the settings.json the builder writes for the worker (the same level
+  as the `--effort` flag and the `CLAUDE_CODE_EFFORT_LEVEL` variable, which win over it; the builder sets neither, so
+  the row decides). Claude Code takes `low`, `medium`, `high` and `xhigh` there; an adapter that cannot take a level says so, and a row asking it for one refuses the start as a question.
+  Any other value refuses the rules file. A row with no `effort` starts the command it starts today, byte for byte,
+  and the run's `worker` row records the level. Today `models.Model` holds provider, model and context, and
+  `start_tool` builds the Claude Code command with `--model` alone. Test (owed): `test_model_config.py` and
+  `test_adapters.py`, a row with `effort = "low"` puts the level in the start command; no row leaves the command
+  unchanged; `effort = "max"` refuses. Serves: builds Fichero (the same work for fewer tokens).
+
+
+### K. Small models: cheaper and faster, and as reliable (owner 2026-11-21)
+
+The owner asked what else would let Qwen3-Coder and other small models carry more of the work (paraphrased). The
+records of 2026-11-14 to 2026-11-21 were read for it. What they say: 182 Sonnet sessions cost a median 1.60 USD
+metered and 124 Opus sessions a median 11.07; no session in the week ran on a small model, so nothing yet measures
+one; the model is set for a lane, whatever its steps are; of 903 commits landed in the week, 261 changed only docs or
+specs, 107 only tests and 25 only data or generated files (44% together); 50 of 306 sessions ended with no commit; a
+session read a median 1.5 million tokens (cache reads counted) over 33 turns before its first commit; and on 2026-11-21
+52 fix rounds went to workers, 14 of them for a `ready` or diff-bound red a local command reports in seconds. Only what
+those numbers support is below. Already specified, and not repeated: escalation (§ C), the per-model comparison
+(`dev-workflows.ledger.comparison-view`), the short brief and the diff bound for each role (`agent-profiles.worker.small`),
+a review that reads only new commits (`dev-workflows.tool.check`), and a verdict kept for an unchanged range (the
+performance review of 2026-11-21). The rebase already runs before the check. Spec-change: manager 2026-11-21.
+
+- `local.small.step-kind-is-recorded` [GAP] (#6116) — every step has a kind, decided by rule from the files and tests its
+  brief names and never by a model: `docs` (only docs and specs), `tests` (only test files), `lint` (a lint or warnings
+  batch), `mechanical` (only data and generated files, or a rename), `feature` (anything else), and `design` (a spec to
+  write, or anything `local.must-escalate` names). The kind is on the step's record, its `queue` rows and the `cost`
+  row of every session that worked on it, so the comparison can be read for each kind. A brief that names no files is
+  `feature`. Today `queue.add` in `fichero-builder/fichero_builder/queue.py` keeps the step, brief, issues and waits,
+  and the `cost` row in `fichero-builder/fichero_builder/run.py` carries the task and the model. Test (owed):
+  `test_queue_verb.py`, a brief naming two test files is `tests`; one naming a spec and a source file is `feature`; the
+  kind is on the cost row. Serves: local, builds Fichero.
+- `local.small.kind-has-its-lane-and-role` [GAP] (#6116) — a kind can be given to a cheaper role, by measurement. A
+  `[models.kinds]` row names a role for a kind; `builder milestone` and `builder steps` then place steps of that kind on
+  the kind's own lane, whose worker runs on that role. The worker stays one long-running session for its lane (§ A):
+  the lane changes, never the model inside a lane. A row is a trial until it has passed: a trial takes at most one step
+  in five of its kind, and it passes when the comparison shows at least 20 landed steps of that kind on that role with
+  no more fix rounds a landed step, and no lower share of first checks green, than the lane's own role (`builder ledger
+  --compare --kind K` writes one `kind-passed` or `kind-failed` row; a failed kind goes back to the lane's role). A step
+  on a kind lane that meets an escalation trigger (`local.escalation-triggers`) goes back to its milestone's lane with
+  the failed diff and the findings. No row means today's behaviour. Today the role is the lane's
+  (`lane["role"]` in `queue.add`) and is chosen by hand with `--role`. Test (owed): `test_queue_verb.py` and
+  `test_milestone_verb.py`, a `tests` step goes to the kind lane on its role; a trial takes one in five; a kind with no
+  `kind-passed` row is never past trial; a step red twice at one rung returns. Serves: local, builds Fichero.
+- `local.small.worker-prechecks-before-done` [GAP] (#6116) — a managed worker ends a step with one command, not a line it
+  composes. The brief's DONE instruction names it. Run in the worker's own tree, inside the jail, with no network, it
+  checks in under a minute: the trailer on each new commit, the pinned ready lint, the role's diff bound, the linter
+  over the changed files, and the tests the brief names. Green, it prints `DONE <sha>` for the worker to end its turn
+  on. Red, it prints the findings in the form of `local.small.fix-brief-has-one-form` and no DONE line. The ladder
+  still judges everything afterwards; this only stops a red a script could have told the worker. Today
+  `builder precheck` runs on the owner's side, as the caller (`dev-workflows.run.presubmit-lints`, item 8), and a
+  managed worker has only the brief's sentence about the DONE line. Test (owed): `test_presubmit.py`, a tree with a bad
+  trailer prints the finding and no DONE line; a clean tree prints the line with its head; the command opens no
+  socket. Serves: reliable, local.
+- `local.small.fix-brief-has-one-form` [GAP] (#6116) — every finding sent to a worker has the same fields in the same
+  order: `RUNG`, `HEAD`, `FILE:LINE`, `SAID` (at most 20 lines of the check's own output), `FIX` (the exact command,
+  when the check printed one), `RERUN` (the command that shows it green) and `END` (the command of
+  `local.small.worker-prechecks-before-done`). One block for each finding, nothing before the first block, 60 lines at
+  most, the rest in a file the last line names. A reviewer's NOT READY is cut into the same blocks, one for each
+  finding. Today the fix briefs the loop writes in `queue.py` (the step's `resume_brief`) are the check's tail and a
+  sentence, different for each kind of red. Test (owed): `test_loop.py`, a guards red, a build red and a NOT READY each
+  become blocks with every field in order; a 200-line output is cut to the cap and names its file. Serves: reliable.
+- `local.small.brief-carries-the-symbols` [PARTIAL] (#6116) — a step brief gives a small model its place in the code, so
+  it does not search for it. For each file the brief names, the brief lists the symbols the step's spec bullets cite
+  and the tests named, each with its first and last line from the code map, 40 lines at most; a brief queued by hand
+  with `queue add` gets the same list as one `builder milestone` wrote. The measure is the `reading` row: the median
+  tokens before a first commit, for each model, is in the nightly report, and the target is half of the week's 1.5
+  million. Built: a milestone brief's where list gives each file found by the step's words with the first twelve
+  symbols of its outline and a line each (`milestone.write_briefs` and `codemap.outlines`; test
+  `fichero-builder/tests/test_milestone_verb.py::test_the_where_list_is_the_spec_the_designs_directory_and_the_files_found_by_the_steps_words_with_their_outlines`).
+  Left: the symbols the spec bullets cite come first, the spans, the list on a hand-queued brief, and the measure in
+  the report; an owed test in `test_codemap.py` (a step citing two functions lists both with spans; the list never
+  passes the cap). Serves: local.
+- `local.spend.metered-provider-needs-a-cap` [GAP] (#6116) — no session starts on a provider that bills by use unless
+  that provider has a cap. `[spend].metered` lists such providers (OpenRouter is the first) and `[spend.week_usd]`
+  gives each a weekly figure in USD; a listed provider with no figure refuses the rules file, and a role on it
+  refuses to start. Every `cost` row names its provider; the watcher adds the week's rows for the provider and parks a
+  session that would pass the cap, with one alert. A subscription login is not metered and keeps the session and day
+  caps it has. Today `watcher.Spend` in `fichero-builder/fichero_builder/watcher.py` has a session cap and a day cap for
+  all models together, the `cost` row names no provider, and the 50 USD a week for OpenRouter is a stop rule for a
+  person to watch. Test (owed): `test_watcher.py` and `test_model_config.py`, a metered provider with no figure
+  refuses; a session parks when the week's rows reach the figure; a subscription session is not counted.
+  Serves: reliable (no spend without a cap), local.
+
+
 ### From `dev-workflows.md` — Behaviours
 
 
@@ -3431,6 +3630,12 @@ done by hand (this file, its review and report). The absorbed specs' own build o
 - Tests: fichero-builder/tests/test_trailer.py, fichero-builder/tests/test_model_config.py
 - Size: S
 
+#### Step 1.5 — no metered provider without a weekly cap
+- Behaviours: `local.spend.metered-provider-needs-a-cap`
+- Tests: fichero-builder/tests/test_watcher.py (the week's rows reach the figure and the session parks), fichero-builder/tests/test_model_config.py (a metered provider with no figure refuses)
+- Depends on: 1.1
+- Size: S
+
 ### Stage 2 — the gates
 
 #### Step 2.1 — the four [BROKEN] behaviours are fixed first
@@ -3477,6 +3682,48 @@ done by hand (this file, its review and report). The absorbed specs' own build o
 - Behaviours: `local.scale.lanes-follow-the-landing-rate`, `local.scale.checks-run-on-other-macs`
 - Tests: fichero-builder/tests/test_loop.py, fichero-builder/tests/test_measure.py
 - Depends on: 2.2
+- Size: S
+
+#### Step 2.9 — a re-exec'd loop adopts every live session and stops none
+- Behaviours: `local.run.reexec-adopts-by-window-or-pid`, `local.run.drain-expired-one-row`
+- Tests: fichero-builder/tests/test_builder_restart.py (five live windows adopted, none stopped; a live pid adopted; neither queued once), fichero-builder/tests/test_loop_survives.py (one drain-expired row a lane and head; the re-exec after the running chain)
+- Depends on: 2.1
+- Size: S
+
+#### Step 2.10 — a sent step has a live session, and a turn that ends without DONE is seen in one tick
+- Behaviours: `local.run.sent-needs-a-live-session`, `local.run.turn-ended-without-done-alerts`
+- Tests: fichero-builder/tests/test_loop.py (a sent step on a shell is queued again; a quiet sent step alerts once), fichero-builder/tests/test_dry_run.py (a question alerts in one tick; no question is nudged then alerted), fichero-builder/tests/test_watcher.py
+- Depends on: 2.9
+- Size: M
+
+#### Step 2.11 — the loop thins local snapshots before it holds a lane for disk
+- Behaviours: `local.disk.thin-snapshots-before-holding`
+- Tests: fichero-builder/tests/test_loop.py (a thin that frees space starts the lane; one that frees nothing holds; once an hour)
+- Depends on: 2.1
+- Size: S
+
+#### Step 2.12 — `queue add` refuses a repeated brief; `queue drop` takes a step that never started
+- Behaviours: `local.queue.add-refuses-a-repeated-brief`, `local.queue.drop-takes-a-queued-step`
+- Tests: fichero-builder/tests/test_queue_verb.py (a repeat refused by name; `--continues` appends landed and left; a queued step dropped, a sent one refused)
+- Depends on: 2.1
+- Size: S
+
+#### Step 2.13 — a move the loop or the manager recorded is not a stray write
+- Behaviours: `local.run.recorded-move-is-not-a-stray-write`
+- Tests: fichero-builder/tests/test_loop.py (a fast-forward to origin's tip is silent; a `tree-moved` row excuses; a dirty root is one alert for three steps)
+- Depends on: 2.7
+- Size: S
+
+#### Step 2.14 — mechanical fix rounds by script
+- Behaviours: `local.autofix.loop-applies-the-printed-fix`, `local.autofix.classes`
+- Tests: fichero-builder/tests/test_autofix.py (one fixture red a class; the refusals), fichero-builder/tests/test_loop.py (the fix, the row and the second check with no message to the worker)
+- Depends on: 2.6
+- Size: M
+
+#### Step 2.15 — effort per role
+- Behaviours: `local.models.effort-per-role`
+- Tests: fichero-builder/tests/test_model_config.py, fichero-builder/tests/test_adapters.py
+- Depends on: 2.1
 - Size: S
 
 ### Stage 3 — state and reports
@@ -3528,6 +3775,24 @@ done by hand (this file, its review and report). The absorbed specs' own build o
 - Tests: fichero-builder/tests/test_rung_stats.py (new cases)
 - Depends on: 4.1
 - Size: M
+
+#### Step 4.3 — a step has a kind, and a kind earns a cheaper role by measurement
+- Behaviours: `local.small.step-kind-is-recorded`, `local.small.kind-has-its-lane-and-role`
+- Tests: fichero-builder/tests/test_queue_verb.py (the kind by rule, on the cost row; one trial step in five), fichero-builder/tests/test_milestone_verb.py (a routed kind is placed on its lane)
+- Depends on: 1.5
+- Size: M
+
+#### Step 4.4 — the worker checks before it says DONE, and every finding has one form
+- Behaviours: `local.small.worker-prechecks-before-done`, `local.small.fix-brief-has-one-form`
+- Tests: fichero-builder/tests/test_presubmit.py (a bad trailer prints a finding and no DONE line; no socket), fichero-builder/tests/test_loop.py (three kinds of red become blocks with every field)
+- Depends on: 2.14
+- Size: M
+
+#### Step 4.5 — the brief carries the symbols and their lines
+- Behaviours: `local.small.brief-carries-the-symbols`
+- Tests: fichero-builder/tests/test_codemap.py (two cited functions with spans; the cap)
+- Depends on: 4.3
+- Size: S
 
 ### Stage 5 — the loop moves onto LangGraph
 

@@ -1880,6 +1880,18 @@ class AppDatabase:
             self.conn.commit()
         return secret
 
+    def revoke_enrollment_secrets(self, user_id: str | None = None) -> int:
+        """Retire every live enrollment secret (of one person, or of all); a later redeem is refused. Returns how many."""
+        sql = "UPDATE enrollment_secrets SET revoked = TRUE WHERE revoked = FALSE"
+        params: list[str] = []
+        if user_id is not None:
+            sql += " AND user_id = ?"
+            params.append(user_id)
+        with self._lock:
+            count = len(self.conn.execute(sql + " RETURNING id", params).fetchall())
+            self.conn.commit()
+        return count
+
     def get_enrollment_secret_by_token_hash(self, token_hash: str) -> EnrollmentSecret | None:
         """Return a persistent enrollment grant by its stored hash."""
         with self._lock:
@@ -1921,6 +1933,30 @@ class AppDatabase:
             )
             self.conn.commit()
         return client
+
+    def live_clients_by_public_key(self, public_key_pem: str) -> list[AccountClient]:
+        """Every live client holding exactly this public key, oldest first (the synced key's other devices)."""
+        with self._lock:
+            rows = self.conn.execute(
+                "SELECT id, user_id, kind, name, host, public_key_pem, created_at, revoked_at "
+                "FROM clients WHERE public_key_pem = ? AND revoked_at IS NULL ORDER BY created_at, id",
+                [public_key_pem],
+            ).fetchall()
+        return [
+            AccountClient(
+                id=r[0], user_id=r[1], kind=r[2], name=r[3], host=r[4] or "", public_key_pem=r[5],
+                created_at=ensure_utc(r[6]), revoked_at=None,
+            )
+            for r in rows
+        ]
+
+    def public_key_was_revoked(self, public_key_pem: str) -> bool:
+        """True when any client holding this key was revoked: the key can no longer register new devices."""
+        with self._lock:
+            row = fetch_one(self.conn.execute(
+                "SELECT 1 FROM clients WHERE public_key_pem = ? AND revoked_at IS NOT NULL LIMIT 1", [public_key_pem]
+            ))
+        return row is not None
 
     def user_has_key(self, user_id: str) -> bool:
         with self._lock:

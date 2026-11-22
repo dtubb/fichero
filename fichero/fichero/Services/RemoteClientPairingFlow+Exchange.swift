@@ -49,17 +49,23 @@ extension RemoteClientPairing {
     @MainActor
     static func persistHostCredentials(_ result: PairingExchangeResult, expectedSPKIPin: String?) throws {
         try PairingService.persistAuthToken(result.deviceToken, for: result.apiRoot)
+        try persistPin(expectedSPKIPin, for: result.apiRoot)
+        // Record the token's expiry so renewal can fire before it lapses (#3096).
+        DeviceTokenRenewal.storeExpiry(result.expiresAt, host: result.apiRoot.absoluteString)
+    }
+
+    /// The host's pin, or none for a public CA.
+    @MainActor
+    static func persistPin(_ expectedSPKIPin: String?, for apiRoot: URL) throws {
         // No pin for a publicly-trusted host. Storing one would be worse than
         // useless: `shouldEnforcePinning` only grants the public-CA exemption
         // while NO pin is recorded, so writing one here re-arms enforcement
         // against a key we do not hold (#5041).
         if let expectedSPKIPin {
-            try RemoteCertificatePinning.persistSPKIPin(expectedSPKIPin, hostString: result.apiRoot.absoluteString)
+            try RemoteCertificatePinning.persistSPKIPin(expectedSPKIPin, hostString: apiRoot.absoluteString)
         } else {
-            RemoteCertificatePinning.clearPersistedSPKIPin(hostString: result.apiRoot.absoluteString)
+            RemoteCertificatePinning.clearPersistedSPKIPin(hostString: apiRoot.absoluteString)
         }
-        // Record the token's expiry so renewal can fire before it lapses (#3096).
-        DeviceTokenRenewal.storeExpiry(result.expiresAt, host: result.apiRoot.absoluteString)
     }
 
     @MainActor
@@ -73,12 +79,18 @@ extension RemoteClientPairing {
         // A Mac that only pairs keeps its own engine: the host's token and key are kept (the library dials it by its own
         // address), the app-wide host is not written (#6418: it stopped the next launch from starting this Mac's engine).
         guard makesAppHost else { return }
-        EngineConfig.storeHost(result.apiRoot.absoluteString)
+        persistAppHost(result.apiRoot, libraryPath: libraryPath)
+    }
+
+    /// Makes `apiRoot` the app's one host: the endpoint set is just it, and the library path is the one given or none.
+    @MainActor
+    static func persistAppHost(_ apiRoot: URL, libraryPath: String?) {
+        EngineConfig.storeHost(apiRoot.absoluteString)
         // Reset the failover endpoint set to just this newly paired endpoint
         // (#3098): a fresh pairing establishes THE paired host, so a previous
         // Mac's endpoints must not linger and be walked during a later failover.
         PairedHostEndpointStore.clear()
-        PairedHostEndpointStore.record(result.apiRoot)
+        PairedHostEndpointStore.record(apiRoot)
         if let libraryPath = normalizedLibraryPath(libraryPath) {
             EngineConfig.defaults.set(libraryPath, forKey: RemoteAccessConfig.pairedLibraryPathKey)
         } else {

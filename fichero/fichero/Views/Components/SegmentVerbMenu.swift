@@ -39,6 +39,9 @@ struct SegmentVerbMenu: View {
         }
         if !ids.isEmpty {
             Divider()
+            Button("Convert to Line") { run("Convert to Line") { SegmentEdit.convertLevel($0, to: "line") } }
+            Button("Convert to Region") { run("Convert to Region") { SegmentEdit.convertLevel($0, to: "region") } }
+            Divider()
             SegmentAttributeMenu.Items(apply: { attribute in
                 run("Set Segment") { SegmentEdit.set(attribute, on: $0) }
             })

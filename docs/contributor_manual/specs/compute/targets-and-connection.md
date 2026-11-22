@@ -62,8 +62,7 @@ second factor (`compute.connect.second-factor-passes-through`); one connection k
   token file because the app has nowhere to keep a second one (VERIFIED
   `docs/contributor_manual/remote-backend-acenet.md:82-96`).
 - **Pairing exists**: a one-time link or QR code carrying a short-lived code and a certificate
-  pin; a paired device gets its own token (`guide/15-remote-engines.md`, the Tailscale section;
-  `scripts/create_tailscale_pairing_link.sh`).
+  pin; a paired device gets its own token (`guide/15-remote-engines.md`, the Tailscale section; the Mac makes the link in Settings → Sharing → Add Device).
 - **Where keys live is ruled**: for a local engine, the app's own Keychain, pushed to the
   engine on connect (`ai/ai-settings.md` (section K), "Two stores of truth").
 - **A host for each library** is not built (#2573, open). Today the app has one engine address

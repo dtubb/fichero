@@ -967,6 +967,27 @@ a run on the cluster, not yet startable (`compute.job.recipe-is-a-slurm-chain` (
   their place is set up and allowed, each with its cost and time; a move whose place is not ready
   (the cluster before #5238) is shown greyed with the reason, never started.
 
+**Checked on real pages, 2026-11-20** (ten medieval Spanish and Old French manuscript pages, a 16 GB Mac, Kraken readers
+only; the run's side is `recipes-run.md` section 14). The reader Set Up chose for the two languages read four pages at
+2.4 to 3.6% character error (its card's published figure: 3.9%) at 22.6 s a page; the medieval reader beside it, chosen
+by hand through `use-candidate`, read them at 6 to 8% in 5.3 s a page, and the plan then counted every page as not
+done for the new reader, as it should. Start's plan gave each step's cost and no time. Three faults of the choosing:
+
+- `designer.step.swapped-model-says-its-own-name` [BROKEN] (#5612, → #6815) — after Use This One the step names
+  the model now on it. Measured: `POST /api/recipes/project/steps/use-candidate` set the step's `model` and `card`
+  to the new reader and left `model_name` and `model_link` saying the old one, so Ready names a reader the run
+  does not use. The plan's run and the run's row said the new reader.
+- `designer.place.one-id-for-a-place` [BROKEN] (#6173, → #6816) — a place has one id on every route. Measured:
+  Hugging Face Jobs is `hf-jobs` in a candidate's `places` (`step_choices`), `huggingface-jobs` in
+  `POST /api/recipes/project/steps/place` (which refuses `hf-jobs`), and `huggingface` in
+  `GET /api/recipes/places`; the step then carries `place: huggingface-jobs` beside `runs_on: this-mac`, and a
+  plan with nothing left to run says nothing of why it stays on this Mac.
+- `designer.place.per-step-place-covers-every-place` [MISSING] (#5238, #6173, → #6816) — a step can be put on
+  any place the person allowed: this Mac, another Mac of theirs, Hugging Face Jobs, the cluster, a cloud model.
+  Today the route takes this Mac or Hugging Face Jobs, for the Read step alone (`recipes/start.py`
+  `set_step_place`); a cloud model is a model choice, the cluster a project binding, another Mac nothing yet.
+  A fresh install answers `places: ["this-mac"], answered: false`.
+
 ### 13. Sharing a recipe: built-in, export, import, start from a recipe, search
 
 **Exists.** Sharing is specified in section 12 of `models-chains-and-projects.md` and largely unbuilt:
@@ -1513,6 +1534,18 @@ Written for the builder 2026-11-07 (spec-writer). **Built:** a taught model is a
 Written for the builder 2026-11-07 (spec-writer). **Built:** the routes' figures with their basis (`routes.py`), the plan's estimate and the cap refusal with fixes (Step 18.2), the run's summary with pace and cost (`ui/activity-pane.md` Step 2.1). **Left:** (1) engine: Ready's total predicted cost and hours as the sum of the stages' predictions (Step 7.2), shown against the route's figure in one line ("your path estimated US$120; measured on your pages, US$96"); (2) the run carries predicted then measured per stage, the summary saying both; (3) a cap that stops a run says so in the run's words with the fix (18.2's) and the pages done; (4) a path move during a run (a Teach switch, a cheaper step) is an offer on the run, clicked, never applied by itself. **Acceptance (engine):** the Ready answer's total equals the sum of the stage predictions and names the route's figure; a run's summary carries predicted and measured per stage; a run stopped by the cap says the cap, the pages done and the fixes; a switch during the run appears as an offer row and changes nothing until taken. **Acceptance (app, by test):** Ready shows the one line; Activity's row shows the offer.
 
 - test (to write): `test_ready_totals.py`, `test_run_predicted_measured.py`, `test_run_cap_stops.py` in fichero-server/tests/unit/recipes/ (the sum against the route; predicted then measured; the stop's words; the offer row)
+
+#### Step 12.2 — A swapped model says its own name; one id for a place (#6815, #6816, #5612, #6173)
+- Behaviours: `designer.step.swapped-model-says-its-own-name`, `designer.place.one-id-for-a-place`, `designer.place.per-step-place-covers-every-place`
+- Tests: test_use_candidate_renames_the_step.py (not yet written), fichero-server/tests/unit/recipes/test_start_plan.py
+- Size: S
+
+Engine: the `use-candidate` route rewrites `model_name` and `model_link` from the new card
+(`api/routes/system/recipes.py`); `step_choices` names Hugging Face Jobs by the id the place route takes. The wider
+per-step place (another Mac, the cluster) stays with Step 16.3 and #5238; this step only fixes the two faults.
+
+- test (to write): `test_use_candidate_renames_the_step.py` in fichero-server/tests/unit/recipes/ (after the swap the step's
+  name, link, card and model are the new card's; a candidate's place id is accepted by the place route unchanged)
 
 ### Stage 13 — Workflows
 

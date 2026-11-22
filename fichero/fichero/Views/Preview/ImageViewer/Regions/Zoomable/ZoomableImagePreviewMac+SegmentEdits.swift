@@ -184,11 +184,13 @@ extension ZoomableImagePreview {
         if refusesEditOnMappedRendition() { return }
         guard let passId = ocrGeometryPassId, let documentId, let store = segmentEditStore else {
             Self.logger.error("Marker stroke not sent: no pass is shown")
+            windowState?.segmentNotice = StrokeRefusal.noPass.words
             return
         }
         let onThePass = store.segments(documentId: documentId).filter { $0.passId == passId }
         if passId.hasPrefix("legacy:") || onThePass.contains(where: { $0.provisional }) {
             Self.logger.error("Marker stroke not sent: the page's boxes are not saved as segments yet")
+            windowState?.segmentNotice = StrokeRefusal.notSaved.words
             return
         }
         let kind = windowState?.lastDrawnKind ?? "region"
@@ -217,7 +219,6 @@ extension ZoomableImagePreview {
             do {
                 let orders = try await readingOrderService.orders(documentId: documentId)
                 let planned = SegmentEdit.sequence(clicks, after: after, passId: passId, orders: orders)
-                if case .failure(let refusal) = planned { windowState.segmentNotice = SegmentMover.problem(refusal) }
                 runSegmentEdit(planned, documentId: documentId, name: "Set Reading Order")
             } catch {
                 Self.logger.error("Set Reading Order not sent: \(error.localizedDescription, privacy: .public)")
@@ -229,21 +230,22 @@ extension ZoomableImagePreview {
     /// of it; the engine makes the outline and the baseline. ⌘Z.
     func drawPaintStroke(_ stroke: [[Double]], widthPixels: Double) {
         if refusesEditOnMappedRendition() { return }
-        guard let passId = shownArtifactlessPassId, let documentId, let store = segmentEditStore else {
-            Self.logger.notice("Paintbrush stroke not sent: the shown boxes are not a segment pass")
-            return
+        guard let store = segmentEditStore else { return }
+        let onThePass = documentId.map { id in store.segments(documentId: id).filter { $0.passId == ocrGeometryPassId } } ?? []
+        switch StrokeTarget.resolve(
+            documentId: documentId, passId: ocrGeometryPassId, onPass: onThePass,
+            region: SegmentShapes.containingRegion(for: stroke, among: onThePass)
+        ) {
+        case .failure(let refusal):
+            Self.logger.notice("Paintbrush stroke not sent: \(refusal.words, privacy: .public)")
+            windowState?.segmentNotice = refusal.words
+        case .success(let target):
+            runSegmentEdit(
+                PaintbrushStroke.create(stroke, widthPixels: widthPixels, on: target),
+                documentId: target.documentId, name: "Paint Line"
+            )
+            windowState?.lastDrawnKind = "line"
         }
-        let onThePass = store.segments(documentId: documentId).filter { $0.passId == passId }
-        runSegmentEdit(
-            PaintbrushStroke.create(
-                stroke, widthPixels: widthPixels, on: StrokeTarget(
-                    documentId: documentId, passId: passId, onPass: onThePass.first,
-                    parentSegmentId: SegmentShapes.containingRegion(for: stroke, among: onThePass)?.id
-                )
-            ),
-            documentId: documentId, name: "Paint Line"
-        )
-        windowState?.lastDrawnKind = "line"
     }
 
     /// MOVE A CUT by its mark (`segment-editor.cut-marks-editable`): one `segment.move_cut`, the cut a person's now. ⌘Z.
@@ -333,12 +335,13 @@ extension ZoomableImagePreview {
     }
 
     /// CUT every line the Knife's stroke crosses (`segment-editor.split-knife`): one `segment.split` with the
-    /// stroke and the versions of the page's lines it reaches, one ⌘Z. The engine says which lines it left alone.
+    /// stroke and the versions of the shown pass's lines it reaches, one ⌘Z. The engine says which lines it left alone.
     func knifeCut(_ stroke: [[Double]]) {
         if refusesEditOnMappedRendition() { return }
         guard let documentId, let store = segmentEditStore else { return }
         runSegmentEdit(
-            SegmentEdit.knife(stroke, over: store.segments(documentId: documentId)), documentId: documentId, name: "Cut Lines"
+            SegmentEdit.knife(stroke, over: store.segments(documentId: documentId), onPass: ocrGeometryPassId),
+            documentId: documentId, name: "Cut Lines"
         ) { result in
             windowState?.segmentNotice = SegmentEdit.knifeNotice(
                 cut: result.resultListCounts["splits"] ?? 0, leftAlone: result.resultListCounts["left_alone"] ?? 0
@@ -353,6 +356,7 @@ extension ZoomableImagePreview {
         guard case .success(let call) = planned else {
             if case .failure(let refusal) = planned {
                 Self.logger.notice("\(name, privacy: .public) not sent: \(String(describing: refusal), privacy: .public)")
+                windowState?.segmentNotice = SegmentEdit.notSentWords(name, refusal)
             }
             return
         }
@@ -367,6 +371,7 @@ extension ZoomableImagePreview {
                 answered(result)
             } catch {
                 Self.logger.error("\(name, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+                windowState?.segmentNotice = "\(name) failed: \(error.localizedDescription)"
             }
         }
     }

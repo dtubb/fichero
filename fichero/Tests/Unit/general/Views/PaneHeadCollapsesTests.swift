@@ -63,6 +63,22 @@ final class PaneHeadCollapsesTests: XCTestCase {
         XCTAssertNil(overflow, "and nothing is folded away")
     }
 
+    /// `panes.head.one-menu-button` (#6741): a pane's own tools (the Source pane's zoom) sit in an island of their
+    /// own beside the pane menu's island, not inside the menu's glass. What breaks without this: the tools and the
+    /// menu share one capsule again, so the menu's island holds the tools' frame.
+    func testAWideHeadPutsItsToolsInAnIslandBesideTheMenusIsland() async throws {
+        let probe = Probe()
+        let wide = host(width: 900, probe: probe)
+        defer { wide.window?.contentView = nil }
+        let tools = try XCTUnwrap(try await frame(PaneHeadMetrics.controlsIdentifier, in: probe, under: wide))
+        let menuIsland = try XCTUnwrap(
+            try await frame(PaneHeadMetrics.menuIslandIdentifier, in: probe, under: wide),
+            "the pane menu has an island"
+        )
+        XCTAssertLessThanOrEqual(tools.maxX + PaneHeadMetrics.capsuleSpacing, menuIsland.minX + 0.5,
+                                 "the tools sit left of the menu's island, outside its glass")
+    }
+
     /// The frame the head reported for this part (in the hosting view's space); waits for SwiftUI's layout
     /// unless told not to.
     private func frame(_ part: String, in probe: Probe, under root: NSView, waiting: Bool = true) async throws -> CGRect? {

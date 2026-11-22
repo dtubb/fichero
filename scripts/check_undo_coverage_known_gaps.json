@@ -525,5 +525,8 @@
   "POST /api/activity/continue-all": "batch-22 (#6588, activity.window.run-controls): the window's global run controls; Pause All and Continue All undo each other by the other button, Stop All has no inverse (a stopped run is Retried, not undone)",
   "POST /api/activity/stop-all": "batch-22 (#6588, activity.window.run-controls): the window's global run controls; Pause All and Continue All undo each other by the other button, Stop All has no inverse (a stopped run is Retried, not undone)",
   "POST /api/activity/models/unload-idle": "#6588 (models.row.what-unloading-gives-back): unloading is not undone; the model loads again on its next use",
-  "PUT /api/activity/models/run-settings/{runtime}": "#6588 (models.settings.run-knobs): the action records before and after, but no inverse is registered; the window that would offer Undo is not built yet"
+  "PUT /api/activity/models/run-settings/{runtime}": "#6588 (models.settings.run-knobs): the action records before and after, but no inverse is registered; the window that would offer Undo is not built yet",
+  "PUT /api/pair/own-devices": "mints or retires an enrollment secret; the secret cannot be brought back, the Mac mints a new one by turning the switch on again (#6568)",
+  "POST /api/auth/key-challenge": "issues a single-use nonce; changes nothing the person keeps (#2403)",
+  "POST /api/auth/sign-in-by-key": "a sign-in and a device client row; the device is ended by revoking it, not by undo (#2403)"
 }

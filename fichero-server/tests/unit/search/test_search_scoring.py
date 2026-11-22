@@ -246,7 +246,7 @@ class TestHybridRanking:
         monkeypatch.setattr(
             type(db),
             "search_vectors",
-            lambda self, _table, _query_vector, _limit: [
+            lambda self, _table, _query_vector, _limit, **_kw: [
                 {
                     "document_id": "doc-semantic",
                     "id": "doc-semantic",
@@ -323,7 +323,7 @@ class TestHybridRanking:
         monkeypatch.setattr(type(db), "_embed_text", lambda self, _query: [0.0])
         # Semantic leg finds nothing relevant.
         monkeypatch.setattr(
-            type(db), "search_vectors", lambda self, _t, _v, _l: []
+            type(db), "search_vectors", lambda self, _t, _v, _l, **_kw: []
         )
         monkeypatch.setattr(type(db), "_is_active_document_id", lambda self, _d: True)
         monkeypatch.setattr(
@@ -472,7 +472,7 @@ class TestKGFusionLeg:
         monkeypatch.setattr(type(db), "lance", property(lambda self: fake_lance))
         monkeypatch.setattr(type(db), "_lance_tables", lambda self: [EMBEDDINGS_TABLE])
         monkeypatch.setattr(type(db), "_embed_text", lambda self, _q: [0.0])
-        monkeypatch.setattr(type(db), "search_vectors", lambda self, _t, _v, _l: [])
+        monkeypatch.setattr(type(db), "search_vectors", lambda self, _t, _v, _l, **_kw: [])
         monkeypatch.setattr(type(db), "_is_active_document_id", lambda self, _d: True)
         monkeypatch.setattr(
             type(db), "_has_indexed_page_children", lambda self, _d: False

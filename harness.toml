@@ -510,8 +510,8 @@ RULES (earlier clusters were sent back for these):
 window = 200000   # plain sonnet's window (owner 2026-11-02: every turn stays under 200k; handoffs often, cheap and reliable)
 handoff_at = 0.85
 handoff_tokens = 175000   # owner 2026-11-02: hand off here, an absolute count (a lane used 17M tokens for three steps on a 1M window)
-session_usd = 25  # owner 2026-11-20 22:40: Opus workers; 8 handed off every few minutes
-day_usd = 600   # owner 2026-11-20 22:40: spend the remaining weekly budget with Opus workers (was 250)
+session_usd = 12  # owner 2026-11-21: Sonnet workers; the meter reads ~1.9x high until #6870 lands (8 handed off too often)
+day_usd = 300  # owner ruling B5 2026-11-21: 300 USD-equivalent a day from 2026-11-22 (today-only raises are over)
 silent_s = 1800
 prices = { sonnet = [3, 15], opus = [15, 75], haiku = [1, 5], claude-fable-5-1 = [15, 75] }  # fable: notional like the others (Max login); opus rates until the owner sets its own
 
@@ -520,7 +520,7 @@ prices = { sonnet = [3, 15], opus = [15, 75], haiku = [1, 5], claude-fable-5-1 =
 # person, never a fallback. `claude-code` = an interactive Claude Code session in a pane (the model is its /model name);
 # `anthropic` and `omlx` are Pi providers (their models and prices live in Pi's models.json). Change by editing here.
 providers = ["claude-code", "anthropic", "omlx"]
-builder = { provider = "claude-code", model = "opus" }  # owner 2026-11-20 22:40: use the Opus budget (was sonnet)
+builder = { provider = "claude-code", model = "sonnet" }  # owner 2026-11-21 11:20: back to Sonnet after the burn (Opus cost ~40x a landing); Haiku trial on chosen lanes
 reviewer = { provider = "claude-code", model = "opus", context = 200000 }  # its review cap is 40% of this at 3.5 bytes a token
 # manager 2026-11-02 (6a): sonnet reviews by default; opus (`reviewer`) when a range touches these paths, and once per milestone
 reviewer_fast = { provider = "claude-code", model = "sonnet", context = 200000 }
@@ -528,6 +528,7 @@ reviewer_fast = { provider = "claude-code", model = "sonnet", context = 200000 }
 opus_lanes = ["lane-sharing", "lane-qwen", "lane-qwen2"]  # lane-qwen: Opus reviews every Qwen batch (owner 2026-11-07, #6380)
 reviewer_paths = ["fichero-builder/", "scripts/harness_", "scripts/lane_ready_check.sh", "harness.toml"]
 spec-writer = { provider = "claude-code", model = "opus" }
+haiku-trial = { provider = "claude-code", model = "haiku" }  # owner 2026-11-21 (B11): Haiku trial on SwiftLint/ruff batches and tests for existing code, 20 steps a kind, measured against Sonnet
 helper = { provider = "claude-code", model = "haiku" }
 manager = { provider = "claude-code", model = "haiku" }  # reads alerts and answers them (dev-workflows.run.loop-roles)
 researcher = { provider = "claude-code", model = "sonnet" }

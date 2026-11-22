@@ -122,6 +122,34 @@ extension ZoomableImagePreview {
         runSegmentEdit(SegmentEdit.addBaseline(selectedSegments(documentId)), documentId: documentId, name: "Add Baseline")
     }
 
+    /// CONVERT TO BOX (`segment-editor.convert-to-box`, ⌥⌘B): the selected polygons become their bounding rectangles, one ⌘Z.
+    func convertSelectedToBox() {
+        guard let documentId else { return }
+        runSegmentEdit(SegmentEdit.convertToBox(selectedSegments(documentId)), documentId: documentId, name: "Convert to Box")
+    }
+
+    /// CONVERT TO LINE / CONVERT TO REGION (`segment-editor.convert-level`): the selected segments take the level; one ⌘Z.
+    func convertSelected(to level: String) {
+        guard let documentId else { return }
+        let name = level == "line" ? "Convert to Line" : "Convert to Region"
+        runSegmentEdit(SegmentEdit.convertLevel(selectedSegments(documentId), to: level), documentId: documentId, name: name)
+    }
+
+    /// MAKE REGION FROM LINES (`segment-editor.make-region-from-lines`, ⌘G): the selected lines become the children of one
+    /// new region; one ⌘Z.
+    func makeRegionFromSelectedLines() {
+        guard let documentId else { return }
+        runSegmentEdit(SegmentEdit.groupLines(selectedSegments(documentId)), documentId: documentId, name: "Make Region from Lines")
+    }
+
+    /// UNGROUP REGION: each selected region's lines go back to its parent and the region is removed; one ⌘Z each.
+    func ungroupSelectedRegions() {
+        guard let documentId else { return }
+        for region in selectedSegments(documentId) where region.kind == "region" {
+            runSegmentEdit(SegmentEdit.ungroupRegion(region), documentId: documentId, name: "Ungroup Region")
+        }
+    }
+
     /// SPLIT the one selected line where it was last clicked (`segment-editor.split-at-a-point`, ⌘⇧K).
     func splitSelectedLineAtLastPoint() {
         guard let documentId, let line = selectedSegments(documentId).first, let pressed = pointerFeed.latest?.point else { return }

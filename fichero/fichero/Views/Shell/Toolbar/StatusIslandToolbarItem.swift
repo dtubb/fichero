@@ -198,6 +198,29 @@ struct StatusIslandMessage: Equatable {
     /// A string already within budget is returned untouched, so this can never
     /// shorten something that did not need it.
     static func shortForm(_ text: String) -> String {
+        clipped(text) { flattened in
+            let room = budget - 1
+            let clipped = flattened.prefix(room)
+            if let lastSpace = clipped.lastIndex(of: " ") {
+                let words = clipped[..<lastSpace].trimmingCharacters(in: .whitespaces)
+                // Only prefer the word boundary when it leaves a usable phrase; a
+                // single very long word would otherwise collapse to just "…".
+                if words.count >= room / 2 { return words + "…" }
+            }
+            return String(clipped) + "…"
+        }
+    }
+
+    /// An item's name within budget, cut in the middle so its end (the page number, `_001`) still shows (#6743).
+    static func itemName(_ text: String) -> String {
+        clipped(text) { flattened in
+            let room = budget - 1
+            let tail = room / 2
+            return String(flattened.prefix(room - tail)) + "…" + String(flattened.suffix(tail))
+        }
+    }
+
+    private static func clipped(_ text: String, _ cut: (String) -> String) -> String {
         // Flatten first: the island is ONE line, and a multi-line payload — the
         // debug-external engine diagnosis is three lines with a shell command in
         // the middle — must not arrive with hard returns in it. Collapsing every
@@ -208,19 +231,7 @@ struct StatusIslandMessage: Equatable {
             .filter { !$0.isEmpty }
             .joined(separator: " ")
         guard flattened.count > budget else { return flattened }
-        // Leave room for the ellipsis so the RESULT is within budget, not the
-        // part before it.
-        let room = budget - 1
-        let clipped = flattened.prefix(room)
-        if let lastSpace = clipped.lastIndex(of: " ") {
-            let words = clipped[..<lastSpace].trimmingCharacters(in: .whitespaces)
-            // Only prefer the word boundary when it leaves a usable phrase; a
-            // single very long word would otherwise collapse to just "…".
-            if words.count >= room / 2 {
-                return words + "…"
-            }
-        }
-        return String(clipped) + "…"
+        return cut(flattened)
     }
 
     /// Highest-urgency source first: engine failure → engine booting → import
@@ -289,7 +300,7 @@ struct StatusIslandMessage: Equatable {
         // ONE selection: the island names the ITEM (Daniel, 2026-08-23) —
         // what is selected, not which view shows it.
         if selection.count == 1, let label = selection.label, !label.isEmpty {
-            return .init(text: shortForm(label), isError: false)
+            return .init(text: itemName(label), isError: false)
         }
         // AMBIENT background work sits BELOW the selection (Daniel, 2026-09-06):
         // it runs nearly continuously under the always-on-background rule, so
@@ -301,7 +312,7 @@ struct StatusIslandMessage: Equatable {
         // quiet idle): name the OPEN folder — the island never sits empty —
         // and say "Nothing selected" only when there is no folder either.
         if let context = selection.contextLabel, !context.isEmpty {
-            return .init(text: shortForm(context), isError: false)
+            return .init(text: itemName(context), isError: false)
         }
         return .init(text: "Nothing selected", isError: false)
     }

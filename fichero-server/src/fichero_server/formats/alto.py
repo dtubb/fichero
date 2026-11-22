@@ -43,6 +43,9 @@ from fichero_server.formats.harness import (
     LossReport,
     PageOrder,
     PageSegment,
+    maker_by,
+    maker_from,
+    maker_id,
     SourcePage,
     xml_id,
 )
@@ -292,6 +295,17 @@ def _read_page(root: Any, page_el: Any, unit: str) -> SourcePage:
             # `BT25436` does) and resolved where it can be, so the label survives the library.
             segment.foreign["alto:TAGREFS"] = element.get("TAGREFS")
             declared = [{"ID": ref, **tags[ref]} for ref in element.get("TAGREFS").split() if ref in tags]
+            # Who made the line's first reading is a tag of Fichero's own (`_maker_tag`), not the file's.
+            made = [t for t in declared if str(t.get("LABEL") or "").startswith(MAKER_LABEL)]
+            if made:
+                segment.reading_maker = maker_from(made[0]["LABEL"][len(MAKER_LABEL):], made[0].get("DESCRIPTION"))
+                gone = {t["ID"] for t in made}
+                declared = [t for t in declared if t["ID"] not in gone]
+                kept = " ".join(ref for ref in element.get("TAGREFS").split() if ref not in gone)
+                if kept:
+                    segment.foreign["alto:TAGREFS"] = kept
+                else:
+                    del segment.foreign["alto:TAGREFS"]
             if declared:
                 segment.foreign["alto:tags"] = declared
         if kind == "line" and element.get("BASELINE") and width and height:
@@ -321,6 +335,28 @@ def _read_page(root: Any, page_el: Any, unit: str) -> SourcePage:
 
 #: A tag declaration's attributes besides ID (`TagType`).
 TAG_ATTRIBUTES = ("TYPE", "LABEL", "DESCRIPTION", "URI")
+
+
+#: The `LABEL` of the `OtherTag` that says who made a line's first reading: `maker:person` or `maker:machine`,
+#: the name in `DESCRIPTION`.
+MAKER_LABEL = "maker:"
+
+
+def _maker_tag(segment: PageSegment) -> dict | None:
+    if not (segment.reading_maker and segment.readings):
+        return None
+    by, name = maker_by(segment.reading_maker), segment.reading_maker["name"]
+    return {"ID": maker_id(segment.reading_maker), "element": "OtherTag", "LABEL": MAKER_LABEL + by,
+            "DESCRIPTION": name}
+
+
+def _tags_of(segment: PageSegment) -> list[dict]:
+    """The tags a segment references: the ones its file declared, else an `OtherTag` labelled with its
+    own type (`source.format.kind-raw-out`). A type the file stated keeps the file's own form."""
+    declared = segment.foreign.get("alto:tags", [])
+    if declared or not segment.kind_raw:
+        return declared
+    return [{"ID": f"fichero-kind-{segment.kind_raw}", "element": "OtherTag", "LABEL": segment.kind_raw}]
 
 
 def _baseline(value: str, hpos: float | None, width: float | None) -> list[tuple[float, float]] | None:
@@ -372,11 +408,15 @@ def write(page: SourcePage, report: LossReport) -> bytes:
     )
     for name, value in page.identity.items():  # what this file is (#4952): ALTO's identifiers
         etree.SubElement(source, f"{{{ALTO_NS_V4}}}fileIdentifier", fileIdentifierLocation=name).text = value
+    if page.producer:  # what made the page's pass (`source.format.who-made-it-out`)
+        processing = etree.SubElement(description, f"{{{ALTO_NS_V4}}}Processing", ID="fichero-pass")
+        software = etree.SubElement(processing, f"{{{ALTO_NS_V4}}}processingSoftware")
+        etree.SubElement(software, f"{{{ALTO_NS_V4}}}softwareName").text = page.producer
 
     # The tag declarations the segments carry, once each, in the order first met (#5138).
     declared_tags: dict[str, dict] = {}
     for segment in page.segments:
-        for tag in segment.foreign.get("alto:tags", []):
+        for tag in [*_tags_of(segment), *filter(None, [_maker_tag(segment)])]:
             declared_tags.setdefault(tag["ID"], tag)
     if declared_tags:
         tags_el = etree.SubElement(root, f"{{{ALTO_NS_V4}}}Tags")
@@ -494,6 +534,8 @@ def write(page: SourcePage, report: LossReport) -> bytes:
             # which `xsd:string` allows, and the reader takes an empty CONTENT as no
             # reading. Omitting the attribute failed 15 of 239 real pages.
             attrs["CONTENT"] = segment.readings[0][1] if segment.readings else ""
+            if segment.reading_confidence is not None:
+                attrs["WC"] = f"{segment.reading_confidence:.2f}"
             cut = segment.foreign.get("fichero:cut")
             if cut:
                 # `segment-editor.export-carries-every-edit`: the cut's confidence is the word's WC; ALTO has no
@@ -504,9 +546,10 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                                                      "a person); PAGE XML keeps it in custom")
         if element_name == "ComposedBlock" and segment.foreign.get("alto:TYPE"):
             attrs["TYPE"] = str(segment.foreign["alto:TYPE"])
-        refs = [tag["ID"] for tag in segment.foreign.get("alto:tags", [])]
-        if refs:
-            attrs["TAGREFS"] = " ".join(xml_id(ref) for ref in refs)
+        refs = [tag["ID"] for tag in _tags_of(segment)]
+        listed = [*refs, *[t["ID"] for t in filter(None, [_maker_tag(segment)])]]
+        if listed:
+            attrs["TAGREFS"] = " ".join(xml_id(ref) for ref in listed)
         undeclared = len(str(segment.foreign.get("alto:TAGREFS", "")).split()) - len(refs)
         if undeclared > 0:
             report.note(
@@ -523,6 +566,19 @@ def write(page: SourcePage, report: LossReport) -> bytes:
             parent_el, f"{{{ALTO_NS_V4}}}{element_name}", **attrs
         )
         by_ref[ref] = element
+        report.note_marks_not_written(segment, "ALTO")
+        # `String@WC` carries the confidence of a word's reading and of a line's implicit String; ALTO
+        # has no confidence on a block, a line or a shape.
+        report.note_confidence_not_written(
+            segment, "ALTO", reading=segment.kind != "word" and not (segment.kind == "line" and ref not in has_words)
+        )
+        # The outline beside the box ALTO requires (#6799), as the element's first child, where the
+        # schema puts `Shape`. A polygon that is only the box's four corners is not written:
+        # ALTO's `Shape` is "the bounding shape of a block, if it is not rectangular".
+        points = _outline(segment.polygon, attrs, width, height)
+        if points:
+            shape = etree.SubElement(element, f"{{{ALTO_NS_V4}}}Shape")
+            etree.SubElement(shape, f"{{{ALTO_NS_V4}}}Polygon", POINTS=points)
 
         if segment.language:
             # ALTO wants a BCP 47 tag. A language NAME (which is what the engine
@@ -565,6 +621,7 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                 f"{{{ALTO_NS_V4}}}String",
                 ID=xml_id(f"{IMPLICIT_ID_PREFIX}string-{ref}"),
                 CONTENT=segment.readings[0][1] if segment.readings else "",
+                **({"WC": f"{segment.reading_confidence:.2f}"} if segment.reading_confidence is not None else {}),
                 HPOS=attrs.get("HPOS", "0"),
                 VPOS=attrs.get("VPOS", "0"),
                 WIDTH=attrs.get("WIDTH", "0"),
@@ -665,6 +722,22 @@ def _in_first_order(page: SourcePage) -> list[PageSegment]:
     seen = {id(s) for s in out}
     out.extend([s for s in page.segments if id(s) not in seen])
     return out
+
+
+def _outline(polygon: list[list[float]] | None, attrs: dict, width: float, height: float) -> str | None:
+    """`Polygon@POINTS` ("x1,y1 x2,y2 ...", the form the schema recommends) in whole units, or
+    None when there is no polygon or it is the element's own box."""
+    if not polygon or len(polygon) < 3:
+        return None
+    pixels = [(int(round(x * width)), int(round(y * height))) for x, y in polygon]
+    if "HPOS" in attrs and len(pixels) == 4:
+        # Within one unit of a corner, because HPOS and WIDTH are each rounded on their own.
+        x0, y0 = int(attrs["HPOS"]), int(attrs["VPOS"])
+        x1, y1 = x0 + int(attrs["WIDTH"]), y0 + int(attrs["HEIGHT"])
+        corners = ((x0, y0), (x1, y0), (x1, y1), (x0, y1))
+        if all(any(abs(px - cx) <= 1 and abs(py - cy) <= 1 for cx, cy in corners) for px, py in pixels):
+            return None
+    return " ".join(f"{x},{y}" for x, y in pixels)
 
 
 def _bounds(polygon: list[list[float]] | None) -> list[float] | None:

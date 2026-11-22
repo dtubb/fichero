@@ -133,7 +133,9 @@ extension ActivityDetails {
     /// What a recipe run's node says it made, once it has ended; nil before.
     static func summary(of node: ActivityJobNode?) -> Summary? {
         guard let summary = node?.summary else { return nil }
-        let failed = summary.failed.map { stage in
+        // Each action once, by action and target (#6731): an offer the engine names twice for one stage run is one button.
+        var offered: Set<String> = []
+        let failed = summary.failed.filter { offered.insert("\($0.threadId)\n\($0.offer ?? "")").inserted }.map { stage in
             let title = node?.children.first { $0.id == stage.threadId }?.displayName
                 ?? stage.steps.joined(separator: ", ")
             let noun = stage.pagesFailed == 1 ? "page" : "pages"

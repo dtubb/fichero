@@ -12,13 +12,15 @@ import Testing
 @MainActor
 @Suite(.tags(.paleography))
 struct KnifeStrokeTests {
-    private func line(_ id: String, version: Int?, rect: [Double], baseline: [[Double]]? = nil) -> Segment {
+    private func line(
+        _ id: String, version: Int?, rect: [Double], baseline: [[Double]]? = nil, passId: String = "imported"
+    ) -> Segment {
         let anchor = SourceAnchorValue(
             generated: Components.Schemas.SourceAnchorOutput(documentId: "page-1", rect: rect)
         )
         let drawn = baseline ?? [[rect[0], rect[1] + rect[3] * 0.8], [rect[0] + rect[2], rect[1] + rect[3] * 0.8]]
         return Segment(
-            id: id, provisional: false, documentId: "page-1", passId: "imported",
+            id: id, provisional: false, documentId: "page-1", passId: passId,
             kind: "line", kindRaw: nil, version: version, provenanceKind: .externalImport, anchor: anchor,
             baseline: drawn, text: nil, confidence: nil, language: nil, script: nil, direction: nil,
             sourceArtifactId: nil, boxIndex: 0, pageIndex: nil, metadata: nil
@@ -37,7 +39,7 @@ struct KnifeStrokeTests {
             line("top", version: 3, rect: [0.1, 0.2, 0.8, 0.05]),
             line("bottom", version: 1, rect: [0.1, 0.3, 0.8, 0.05]),
             line("far", version: 2, rect: [0.1, 0.8, 0.8, 0.05])
-        ]).get()
+        ], onPass: "imported").get()
         let params = try json(call)
         #expect(call.action == "segment.split")
         #expect(params["cut_path"] as? [[Double]] == stroke)
@@ -59,12 +61,47 @@ struct KnifeStrokeTests {
         let params = try json(SegmentEdit.knife(stroke, over: [
             line("top", version: 3, rect: [0.1, 0.2, 0.8, 0.05]), noBaseline,
             line("unsaved", version: nil, rect: [0.1, 0.25, 0.8, 0.04])
-        ]).get())
+        ], onPass: "imported").get())
         #expect(params["expected_versions"] as? [String: Int] == ["top": 3])
-        #expect(SegmentEdit.knife(stroke, over: [line("far", version: 1, rect: [0.1, 0.8, 0.8, 0.05])]) == .failure(.tooFew))
-        #expect(SegmentEdit.knife([[0.5, 0.2]], over: [line("top", version: 1, rect: [0.1, 0.2, 0.8, 0.05])]) == .failure(.tooFew))
-        #expect(SegmentEdit.knife(stroke, over: [line("unsaved", version: nil, rect: [0.1, 0.2, 0.8, 0.05])])
+        #expect(SegmentEdit.knife(stroke, over: [line("far", version: 1, rect: [0.1, 0.8, 0.8, 0.05])], onPass: "imported")
+            == .failure(.tooFew))
+        #expect(SegmentEdit.knife([[0.5, 0.2]], over: [line("top", version: 1, rect: [0.1, 0.2, 0.8, 0.05])], onPass: "imported")
+            == .failure(.tooFew))
+        #expect(SegmentEdit.knife(stroke, over: [line("unsaved", version: nil, rect: [0.1, 0.2, 0.8, 0.05])], onPass: "imported")
             == .failure(.versionUnknown))
+        #expect(SegmentEdit.knife(stroke, over: [noBaseline], onPass: "imported") == .failure(.noBaseline),
+                "a stroke over box-drawn lines only says they have no baseline (`segment-editor.edge.no-baseline`)")
+    }
+
+    @Test("only the shown pass's lines are offered: the engine refuses a stroke over lines of two passes (#6734)")
+    func onlyTheShownPass() throws {
+        let stroke: [[Double]] = [[0.5, 0.15], [0.5, 0.4]]
+        let lines = [
+            line("shown", version: 3, rect: [0.1, 0.2, 0.8, 0.05], passId: "shown-pass"),
+            line("other", version: 1, rect: [0.1, 0.2, 0.8, 0.05], passId: "older-pass")
+        ]
+        let params = try json(SegmentEdit.knife(stroke, over: lines, onPass: "shown-pass").get())
+        #expect(params["expected_versions"] as? [String: Int] == ["shown": 3])
+        #expect(SegmentEdit.knife(stroke, over: lines, onPass: nil) == .failure(.tooFew), "no pass shown, nothing to cut")
+    }
+
+    @Test("the Knife offers the shown pass's regions as well as its lines; a region needs no baseline (#6734)")
+    func regionsAreOffered() throws {
+        let stroke: [[Double]] = [[0.05, 0.3], [0.95, 0.3]]
+        let region = Segment(
+            id: "region", provisional: false, documentId: "page-1", passId: "imported", kind: "region", kindRaw: nil,
+            version: 4, provenanceKind: .externalImport,
+            anchor: SourceAnchorValue(generated: Components.Schemas.SourceAnchorOutput(documentId: "page-1", rect: [0.1, 0.1, 0.8, 0.4])),
+            baseline: nil, text: nil, confidence: nil, language: nil, script: nil, direction: nil,
+            sourceArtifactId: nil, boxIndex: 0, pageIndex: nil, metadata: nil
+        )
+        let params = try json(SegmentEdit.knife(stroke, over: [
+            region, line("inside", version: 2, rect: [0.15, 0.25, 0.7, 0.1])
+        ], onPass: "imported").get())
+        #expect(params["expected_versions"] as? [String: Int] == ["region": 4, "inside": 2])
+        let far: [[Double]] = [[0.05, 0.8], [0.95, 0.8]]
+        #expect(SegmentEdit.knife(far, over: [region], onPass: "imported") == .failure(.tooFew),
+                "a stroke that reaches no region or line says so")
     }
 
     @Test("a slow drag is thinned before it is sent, and still ends where it was let go")
@@ -92,7 +129,7 @@ struct KnifeStrokeTests {
         window.pressKnifeKey()
         window.letGoOfKnifeKey()
         #expect(window.knifeArmed, "a bare K chooses the Knife")
-        #expect(window.activeMarkupTool == .select)
+        #expect(window.activeMarkupTool == nil, "a tool is chosen, so Select is not also active")
         #expect(!window.knifeHeld)
 
         window.knifeArmed = false

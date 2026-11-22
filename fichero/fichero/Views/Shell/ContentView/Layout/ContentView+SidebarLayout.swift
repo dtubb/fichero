@@ -120,7 +120,11 @@ extension ContentView {
         // The iPad does the same (#6563): the pair replaces the system toggle wherever the pair is drawn, and a compact
         // iPhone, which has no pair, keeps the system's own (`SidebarPairHome`).
         .toolbar(removing: sidebarPairHome == nil ? nil : .sidebarToggle)
+        #if os(macOS)
+        .toolbar(id: ContentToolbarID.customizableToolbar) { sidebarToolbarContent }
+        #else
         .toolbar { sidebarToolbarContent }
+        #endif
         // NOTE: \.showInspector is published from the detail column in
         // ContentView.navigationSplitColumn (always present), NOT here — the
         // sidebar leaves the hierarchy when collapsed, which disabled ⌘⌥I

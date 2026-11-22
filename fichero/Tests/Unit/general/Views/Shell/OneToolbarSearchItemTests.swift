@@ -173,8 +173,11 @@ struct OneToolbarSearchItemTests {
             ),
             encoding: .utf8
         )
+        let builder = try #require(
+            source.components(separatedBy: "var inspectorColumnToolbarContent").dropFirst().first
+        )
         let afterMac = try #require(
-            source.components(separatedBy: "#if os(macOS)").dropFirst().first
+            builder.components(separatedBy: "#if os(macOS)").dropFirst().first
         )
         let macBranch = try #require(afterMac.components(separatedBy: "#else").first)
         #expect(macBranch.components(separatedBy: "ToolbarItem(").count - 1 == 1)

@@ -11,6 +11,12 @@
 > neighbours, the map, #5030), `source/historical-text-normalization.md` (names across scripts,
 > translation, dating), `source/undeciphered-scripts.md` (#5328), `compute/distillation.md`
 > (#5336) and `compute/jobs-and-fine-tuning.md` (#5240).
+>
+> **Measured and built in `kg/reconstruct-the-record.md` (owner 2026-11-21).** That spec owns the check set a method here
+> is scored on (its open part is the fixture this file's Test matrix asks for), the gate that decides when a method's
+> proposals are offered by default, and the build steps for `xcorpus.compare.named-sets`, `xcorpus.link.proposed-with-evidence`,
+> `xcorpus.link.person-decides`, `xcorpus.link.entities-across-languages`, `xcorpus.link.same-hand` and
+> `xcorpus.method.says-its-limits`. The methods and their text stay here.
 
 ## Intent
 

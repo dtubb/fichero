@@ -309,5 +309,6 @@
   "POST /api/workflow-execution/runs/archive": "the app reaches workflow_run.archive through the generic /api/actions/invoke (one undoable step on the window's stack, #6441), not this route; the route is for the CLI and MCP",
   "POST /api/activity/models/unload-idle": "the window's model management (#6588): engine first, reached through the generated CLI and MCP; the Models window that calls it is not built yet",
   "GET /api/activity/models/run-settings/{runtime}": "the window's model management (#6588): engine first, reached through the generated CLI and MCP; the Models window that calls it is not built yet",
-  "PUT /api/activity/models/run-settings/{runtime}": "the window's model management (#6588): engine first, reached through the generated CLI and MCP; the Models window that calls it is not built yet"
+  "PUT /api/activity/models/run-settings/{runtime}": "the window's model management (#6588): engine first, reached through the generated CLI and MCP; the Models window that calls it is not built yet",
+  "PUT /api/pair/own-devices": "the own-devices enrollment secret (#6568): Unix-socket only, the Mac's own app calls it; the app's switch is not built, and a CLI or MCP caller is refused 403 by design"
 }

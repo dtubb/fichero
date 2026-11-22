@@ -14,6 +14,33 @@
 > Tags: **[OK]** built and tested · **[PARTIAL]** built, partly proven or partly wired ·
 > **[GAP]** intended, never built (needs an issue) · **[BROKEN]** regression, code
 > contradicts the rule (needs an issue).
+>
+> **Updated 2026-11-21** from the owner's rulings on people, biography and concepts (section "Ruled 2026-11-21" and
+> section D below). Lines the ruling overtakes are kept, each with a "Superseded 2026-11-21" pointer; nothing is
+> deleted. Section D has no build order here: its lines are built in the steps of `explore/concepts-and-terms.md`,
+> and "→ #NEW-Cn" is the step issue of that spec. Its neighbour is `kg/ontological-layer.md` (what kinds of thing
+> exist); this layer holds what the historian thinks about them.
+
+## For a historian
+
+When you explore your archive (`explore/explore.md`) almost everything you see is what the sources say. This layer
+is the one place that holds what YOU say: the concepts you define, your reading of a passage, your judgement on two
+sources that disagree, and the arguments you build from them. Each is tied to the passages it rests on, so you and
+your readers can go from your claim to the page. It is yours alone. Fichero stores it, finds passages for it and
+counts for it. It never writes in it: no suggested interpretation, no proposed concept, no drafted argument.
+
+## Ruled 2026-11-21 (owner; paraphrased)
+
+1. **The hermeneutic layer is interpretation**: the historian's concepts, readings and arguments. It is owned by the
+   person and linked to evidence.
+2. **The model never writes here.** It proposes no concept and no interpretation. Its mechanical work (reading,
+   grouping spellings, proposing a same-person link, ranking) lives outside this layer and is labelled.
+3. **The historian's categories are kept distinct from the sources' own** (`kg/ontological-layer.md`). A tie between
+   the two is something the historian makes, and it is stored here.
+
+What this changes in the lines below: an interpretation is always a person's, so "attributed to whoever (or
+whatever) made it" now means which person; the suggestion models have no future; letting an agent write an
+interpretation is no longer an open question; a pattern becomes the historian's concept with its passages.
 
 ## A naming note, stated plainly
 
@@ -39,12 +66,17 @@ it is distinct from the KG's own claims (asserted facts with provenance) and fro
 passage, FROM a specific framework's perspective, and is attributed to whoever (or whatever)
 made it.
 
+*Superseded 2026-11-21 in part:* only a person makes one (`hermeneutic.layer.only-a-person-writes`). A framework is
+the record a historian's concept is kept in, and a pattern is that concept's passages
+(`hermeneutic.concept.is-the-framework-record`, `explore/concepts-and-terms.md`).
+
 ## What already exists (grounded, read on disk 2026-09-18)
 
 - `fichero_server.models.hermeneutics` — `InterpretiveFramework`, `Interpretation`,
   `PatternInstance`, `HermeneuticCircleState`, plus `HermesSuggestionRequest`/`HermesSuggestion`
   (models for an AI-suggestion feature whose route was deleted as a permanent-501 stub with no
-  caller, 2026-07-27 — the models remain, nothing serves them).
+  caller, 2026-07-27 — the models remain, nothing serves them). *Superseded 2026-11-21:* an AI suggestion of an
+  interpretation is ruled out; the two models are to be deleted (`hermeneutic.layer.only-a-person-writes`).
 - `api/routes/interpretation/hermeneutics.py` — full CRUD for frameworks (create/list/get/
   update/DELETE), create/list/get/PATCH for interpretations (no delete), create/list/get/PATCH
   for patterns plus an add-claim-to-pattern action, and create/list/get/navigate/backtrack for
@@ -99,20 +131,25 @@ made it.
 - `hermeneutic.interpretation-has-source-anchor` — **[GAP]** (#4692) an interpretation has no
   char-span/rect anchor (`rendition_id`, offsets) the way a claim or annotation does, so even
   once linked to a passage (behavior above), nothing can highlight that passage in the reader
-  the way a claim's source anchor does. Not built.
+  the way a claim's source anchor does. Not built. *Superseded 2026-11-21:* restated and scheduled as
+  `hermeneutic.reading.rests-on-a-stretch` in section D.
 - `hermeneutic.pattern-and-circle-state-have-no-app-surface` — **[GAP]** (#4692) `PatternInstance`
   and `HermeneuticCircleState` are fully modelled, routed, and (per the ordering tests below)
   tested engine-side, but have ZERO presence anywhere under `fichero/fichero/Views/` or
   `Models/` — no Swift model, no store, no view, confirmed by grep across the whole tree. A
   researcher cannot see or use pattern recognition or hermeneutic-circle navigation at all
-  today, on any surface.
+  today, on any surface. *Superseded 2026-11-21 in part:* a pattern gets its surface as the historian's
+  concept and its passages (the concept sheet, `explore/concepts-and-terms.md` section C); nothing "recognises" a
+  pattern for the person. Circle-state stays without a surface; see the open question on retiring it.
 - `hermeneutic.reachable-by-agent-or-mcp` — **[GAP]** (#4692) `interpretation.create`/
   `.update` are registered, audited actions, but neither is in `chat_tools.py`'s
   `CHAT_WRITE_ALLOWLIST` (`:70-77`, four entries: `workflow.run`, `entity.create`,
   `entity.update`, `claim.create` — no `interpretation.*`), so the in-app agent cannot create or
   edit an interpretation via the audited chat-tools path. Framework/pattern/circle-state
   actions are absent from the allowlist too. The mechanism to add them is trivial (the registry
-  already has the actions); the allowlist entry itself is what's missing.
+  already has the actions); the allowlist entry itself is what's missing. *Superseded 2026-11-21:* the entry is not to be added. An agent may READ this layer
+  through generated tools; every write by a model's account is refused
+  (`hermeneutic.layer.only-a-person-writes`). What remains of this gap is the read tools only.
 
 ### B. Ordering, in-place updates, and honesty
 
@@ -204,6 +241,36 @@ made it.
   a claim and do not yet apply the derivation; and "agent" is identified by the surface an
   action came through, not by a verified property of the account.
 
+### D. The layer after the ruling of 2026-11-21 (built in `explore/concepts-and-terms.md`)
+
+- `hermeneutic.layer.only-a-person-writes` — **[GAP]** (#4692 → #7024) every create, update and delete of a
+  framework, an interpretation, a pattern and a link in this layer is refused when the actor is a model, an agent or
+  a workflow (`ProvenanceKind` other than human), on every route, action and tool; the chat write allowlist never
+  gains an entry for this layer; and the unused suggestion models (`HermesSuggestionRequest`, `HermesSuggestion`) are
+  deleted. Reading is open to tools. *Test (to write):* test_hermeneutic_refuses_non_human_actor.py (each mutating
+  action with an agent actor is refused and writes no row).
+- `hermeneutic.concept.is-the-framework-record` — **[GAP]** (#4692 → #7024) a historian's concept is stored in the
+  framework record (name, definition, what counts, what does not, scope, versions) and its passages in the pattern
+  record (seed passages and marked passages, each a stretch of a page with the person's mark), so the concept
+  sheet adds no second store. The framework's `kind` list keeps its lenses and gains "concept". *Test (to write):*
+  test_concept_is_a_framework.py.
+- `hermeneutic.reading.rests-on-a-stretch` — **[GAP]** (#4692 → #7025) an interpretation (the historian's reading of
+  a passage, or their judgement on sources that conflict) is anchored to one or more stretches of pages or to the
+  statements it is about, with the same anchor a statement uses, so the Reader can light the passage and every
+  explore view can open it. An interpretation with no anchor cannot be saved from the app. Restates and schedules
+  `hermeneutic.interpretation-has-source-anchor` and `hermeneutic.interpretation-linked-to-claim-or-passage`.
+  *Test (to write):* test_interpretation_anchor.py.
+- `hermeneutic.argument.links-evidence-and-is-the-persons` — **[GAP]** (#4692 → #7029) the links a historian makes
+  between things in this layer and the record are typed, owned and versioned: a term as evidence for a concept, a
+  source's category treated as one of their types (`ontology.sources.mapping-is-a-persons-link`), a passage as a
+  counter-example to a concept, one reading as support for or against another. Each link carries who made it, when,
+  and the passages it rests on. Fichero never proposes one. *Test (to write):* test_argument_links_evidence.py.
+- `hermeneutic.shown.as-the-persons-everywhere` — **[GAP]** (#4692 → #7028) wherever something from this layer is
+  on screen beside what the sources say (a reading beside a conflict on a biography page, a concept as a row of a
+  life band, a historian's type beside a source's word) it is drawn and labelled as the historian's, with their
+  name and the date, and is never counted as an attestation or mixed into a count of what the sources say.
+  *Test (to write):* HermeneuticMarksAreLabelledTests.swift.
+
 ## Test matrix
 
 | Leg | This surface? | Pins | File |
@@ -236,9 +303,16 @@ different layer), and to be able to click around and see the source image from w
 is currently showing, not just claims. This does not answer the five open questions below; it
 confirms they are live, not hypothetical.
 
+**Answered 2026-11-21 (owner's rulings, paraphrased):** this layer is reached while exploring. A concept is a node
+in the sidebar whose Reader rendition is the concept sheet; a reading sits beside the passage or the conflict it is
+about, on the biography page and in the Reader; and each opens the page image
+(`explore/concepts-and-terms.md`, `kg/people-and-lives.md`). The Inspector tab stays as the list of one document's
+readings.
+
 ## Open questions (for the maintainer — options the code makes cheap, not a recommendation)
 
-1. **Does the Interpretations tab move, or does the Inspector stay its home?** The code makes
+1. **Answered in part** (owner 2026-11-21): the Reader and the sidebar are where this layer is met; the
+   Inspector keeps the per-document list. **Does the Interpretations tab move, or does the Inspector stay its home?** The code makes
    cheap: (a) leave it in the Inspector, alongside Notes, as today; (b) give it a Reader
    rendition once it has a source anchor (mirrors the readable-representation ruling that the
    Reader shows content, the Inspector shows curation); (c) both — Inspector for the list/edit
@@ -248,14 +322,16 @@ confirms they are live, not hypothetical.
    create form to send them is a small, standalone fix; a full char-span/rect anchor
    (`hermeneutic.interpretation-has-source-anchor`) is a bigger, separate piece of work. They
    can ship in either order.
-3. **Do patterns and circle-state get a Swift surface at all, or do they retire?** Both are
+3. **Half answered** (owner 2026-11-21): patterns get their surface as the concept's passages. Still open:
+   does circle-state retire? Recommended: yes; nothing in the rulings uses it and it has no caller. **Do patterns and circle-state get a Swift surface at all, or do they retire?** Both are
    fully built and tested engine-side with zero app presence. The code makes cheap: (a) build a
    real Swift surface for both (a pattern list, a circle-navigation UI); (b) retire the
    circle-state model specifically if hermeneutic-circle navigation isn't a feature anyone
    wants surfaced (patterns still feed potential future cross-document analysis, so retiring
    patterns too is a bigger claim); (c) leave both as engine-only substrate for now, undecided,
    revisited when a concrete UI need names them.
-4. **Should interpretation actions join `CHAT_WRITE_ALLOWLIST`?** The mechanism is trivial (the
+4. **Answered** (owner 2026-11-21): no. The model never writes in this layer
+   (`hermeneutic.layer.only-a-person-writes`). **Should interpretation actions join `CHAT_WRITE_ALLOWLIST`?** The mechanism is trivial (the
    actions are already registered and audited) — the only question is whether letting an agent
    record its OWN interpretation (as opposed to a human's) is a decision the creative director
    wants made now or deferred alongside the broader per-model tool-grant work

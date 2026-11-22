@@ -37,7 +37,7 @@ from fichero_server.knowledge.paragraph import (
 from fichero_server.knowledge.probabilistic_scorer import ThresholdDecision
 from fichero_server.knowledge.pykeen_predictor import LinkPrediction, load_model, predict_for_subject
 from fichero_server.knowledge.triangulation import TripleKey, TripleSupport
-from fichero_server.models.knowledge import ClaimRelationType
+from fichero_server.models.knowledge import ClaimRelationType, KnowledgeClaimLink
 
 
 class _FakeDatabase:
@@ -171,15 +171,15 @@ def test_contradiction_subgraph_only_includes_contradictions():
     claim_3 = SimpleNamespace(id="c-3", text="Carol says Z")
 
     links = [
-        SimpleNamespace(
-            source_claim_id="c-1",
-            target_claim_id="c-2",
-            relation=ClaimRelationType.contradicts,
+        KnowledgeClaimLink(
+            claim_id="c-1",
+            related_claim_id="c-2",
+            relation_type=ClaimRelationType.contradicts,
         ),
-        SimpleNamespace(
-            source_claim_id="c-2",
-            target_claim_id="c-3",
-            relation=ClaimRelationType.supports,
+        KnowledgeClaimLink(
+            claim_id="c-2",
+            related_claim_id="c-3",
+            relation_type=ClaimRelationType.supports,
         ),
     ]
 

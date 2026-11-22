@@ -163,6 +163,46 @@ def cut_outline_along(
     return polygons
 
 
+def cut_region(outline: list[Point], stroke: list[Point]) -> list[list[Point]] | None:
+    """A region's outline cut along the stroke into the pieces it leaves (`segment-editor.split-knife`, regions):
+    the stroke erased from the raster, each connected piece traced, the erased kerf given to the nearest piece
+    so the parts meet. Pieces come back top to bottom, then left to right; None when the stroke leaves fewer
+    than two pieces (it grazed, or stopped short of cutting through)."""
+    cells = _cells(outline)
+    origin = cells.min(axis=0) - 2
+    size = cells.max(axis=0) - origin + 3
+    mask = np.zeros((int(size[1]), int(size[0])), dtype=np.uint8)
+    cv2.fillPoly(mask, [cells - origin], 255)
+    cut = mask.copy()
+    cv2.polylines(cut, [_cells(stroke) - origin], False, 0, thickness=_KERF)
+    count, labels = cv2.connectedComponents(cut, connectivity=4)
+    areas = {c: int((labels == c).sum()) for c in range(1, count)}
+    # A crumb under 1% of the region is the kerf's edge, not a part.
+    floor = max(4, int(0.01 * sum(areas.values())))
+    kept = [c for c, area in areas.items() if area >= floor]
+    if len(kept) < 2:
+        return None
+    distances = [
+        cv2.distanceTransform(np.where(labels == c, 0, 255).astype(np.uint8), cv2.DIST_L2, 3) for c in kept
+    ]
+    nearest = np.argmin(np.stack(distances), axis=0)
+    assigned = np.full(mask.shape, -1, dtype=np.int32)
+    for index, c in enumerate(kept):
+        assigned[labels == c] = index
+    rest = (mask > 0) & (assigned < 0)
+    assigned[rest] = nearest[rest]
+    polygons: list[list[Point]] = []
+    for index in range(len(kept)):
+        part = np.where(assigned == index, 255, 0).astype(np.uint8)
+        contours, _ = cv2.findContours(part, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        outer = max(contours, key=cv2.contourArea)
+        traced = cv2.approxPolyDP(outer, _TRACE_TOLERANCE, True).reshape(-1, 2) + origin
+        if len(traced) < 3:
+            return None
+        polygons.append([[round(float(x) / _GRID, 6), round(float(y) / _GRID, 6)] for x, y in traced])
+    return sorted(polygons, key=lambda poly: (min(p[1] for p in poly), min(p[0] for p in poly)))
+
+
 def reading_offsets(cuts: list[float], length: int, char_positions: list[float] | None) -> tuple[list[int], bool]:
     """Where to cut a reading of `length` characters for each crossing (fractions along the line as it
     reads): before the character whose position is nearest, when positions are known; else in proportion.

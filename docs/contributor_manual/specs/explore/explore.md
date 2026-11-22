@@ -67,6 +67,8 @@ export routes (`fichero-server/src/fichero_server/api/routes/`). The inventory, 
 | `networks.md` | people and other networks, "as of when", confidence and asserter as controls, export to Gephi |
 | `tables-and-counts.md` | the table with facets and counts, distributions, flows, word use across a corpus, the hermeneutic layers |
 | `experiments-and-sharing.md` | methods behind one seam, experiments, saved views, comparing, export, publishing, what never leaves the machine, care in representation |
+| `concepts-and-terms.md` | the sources' own terms (vocabulary, concordance, the attestation sheet), the historian's concepts and concept-led search, counts shown as ranges, export for a footnote. Its own milestone, `concepts-and-terms` (owner 2026-11-21) |
+| `../kg/people-and-lives.md` | exploring from a person: the biography page put together from fragments, the stitch bench, the life band, who names whom, the archive's shape and gaps. Milestone `people-and-lives` (owner 2026-11-21) |
 
 ## Prior art / best practices (don't invent from scratch)
 

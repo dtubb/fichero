@@ -46,3 +46,47 @@ struct PaintbrushToolTests {
         #expect(!window.paintArmed)
     }
 }
+
+/// What breaks without these: a Paintbrush stroke on a page that has a result artifact was dropped with only a log line
+/// (the gate wanted an artifact-less pass), so nothing was recorded and the page said nothing (#6734).
+@MainActor
+@Suite(.tags(.paleography))
+struct PaintbrushTargetTests {
+    private func segment(_ id: String, provisional: Bool = false) -> Segment {
+        Segment(
+            id: id, provisional: provisional, documentId: "d", passId: "p", kind: "region", kindRaw: nil,
+            provenanceKind: .workflow, anchor: SourceAnchorValue(generated: .init(documentId: "d")),
+            baseline: nil, text: nil, confidence: nil, language: nil, script: nil, direction: nil,
+            sourceArtifactId: nil, boxIndex: nil, pageIndex: nil, metadata: nil
+        )
+    }
+
+    private func refusal(_ result: Result<StrokeTarget, StrokeRefusal>) -> StrokeRefusal? {
+        if case .failure(let why) = result { return why }
+        return nil
+    }
+
+    @Test("a shown pass takes the stroke whether or not it has an artifact; the region holding it is the parent")
+    func resolves() throws {
+        let region = segment("r")
+        let target = try StrokeTarget.resolve(documentId: "d", passId: "p", onPass: [region], region: region).get()
+        #expect(target.documentId == "d" && target.passId == "p" && target.parentSegmentId == "r")
+        let call = try PaintbrushStroke.create([[0.1, 0.3], [0.5, 0.3]], widthPixels: 20, on: target).get()
+        #expect(call.action == "segment.create")
+    }
+
+    @Test("no pass, a legacy pass or a provisional segment is refused with words for the page")
+    func refuses() {
+        #expect(refusal(StrokeTarget.resolve(documentId: "d", passId: nil, onPass: [], region: nil)) == .noPass)
+        #expect(refusal(StrokeTarget.resolve(documentId: nil, passId: "p", onPass: [], region: nil)) == .noPass)
+        #expect(refusal(StrokeTarget.resolve(documentId: "d", passId: "legacy:x", onPass: [], region: nil)) == .notSaved)
+        let provisional = segment("s", provisional: true)
+        #expect(refusal(StrokeTarget.resolve(documentId: "d", passId: "p", onPass: [provisional], region: nil)) == .notSaved)
+        #expect(!StrokeRefusal.noPass.words.isEmpty)
+    }
+
+    @Test("a refused edit says what was not sent")
+    func notSent() {
+        #expect(SegmentEdit.notSentWords("Cut Lines", .tooFew).hasPrefix("Cut Lines: "))
+    }
+}

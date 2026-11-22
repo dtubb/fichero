@@ -191,6 +191,7 @@ def write(page: SourcePage, report: LossReport) -> bytes:
     script_count = 0
 
     for segment in page.segments:
+        report.note_marks_not_written(segment, "YOLO")
         rect = segment.rect or _bounds(segment.polygon)
         if rect is None:
             report.note(

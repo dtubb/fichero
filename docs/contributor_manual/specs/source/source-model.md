@@ -768,7 +768,8 @@ Citations are to `fichero-server/src/fichero_server/` (engine) and `fichero/fich
   raises on a cycle. Profiles and structured segments use this one system.
 - **Pieces of the formats work ship already**: Parquet, IIIF, W3C annotation and RDF export
   through one record stream (`export_service.py`); a IIIF and W3C-annotation importer
-  (`importers/iiif_import.py`); a Convert-to-SVG tool (a vision model redraws; it is not made
+  (`importers/iiif_import.py`), and IIIF by reference from a manifest or collection link
+  (`importers/iiif_source.py`; the one IIIF spec is `iiif.md`); a Convert-to-SVG tool (a vision model redraws; it is not made
   from geometry); a table-extraction tool (`workflows/tools/table_extract.py`).
 - **A generated command line.** The CLI is generated from the OpenAPI contract (about 700
   commands), so a new route gets its command for nothing. Nobody hand-writes segment commands.

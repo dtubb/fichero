@@ -68,18 +68,10 @@ Tailscale certificate pin to paired clients. Use `tailscale serve status` to
 inspect the generated tailnet URL. The engine itself still only sees a loopback
 service.
 
-Create a one-time iPhone/iPad manual pairing link by passing the library path on
-the Mac explicitly:
-
-```bash
-scripts/create_tailscale_pairing_link.sh \
-  "$HOME/Documents/My Library.fichero"
-```
-
-Paste the emitted `fichero://pair?...` link into **Connect → Manual link** before
-it expires. The link contains a short-lived pairing code and certificate pin; do
-not publish it. It is deliberately scoped to the supplied library rather than
-guessing from the registry.
+Create a one-time iPhone/iPad pairing link on the Mac in **Settings → Sharing →
+Add Device** (it carries the tailnet address when Tailscale is running). Paste the
+link into **Connect → Manual link** before it expires. The link contains a
+short-lived pairing code and certificate pin; do not publish it.
 
 Do not run:
 

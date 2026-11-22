@@ -8,6 +8,7 @@ shared-secret-only single-user app.
 from __future__ import annotations
 
 import base64
+import hashlib
 import hmac
 import logging
 import os
@@ -1003,6 +1004,131 @@ def challenge(body: ChallengeRequest, app_db: AppDatabase = Depends(get_app_data
     _challenges[nonce] = (body.client_id, expires_at)
     return ChallengeResponse(
         nonce=nonce, expires_in=CHALLENGE_TTL_SECONDS, expires_at=expires_at, engine_id=_engine_id(app_db)
+    )
+
+
+class KeyChallengeRequest(BaseModel):
+    public_key_pem: str = Field(min_length=1, max_length=2000)
+
+
+class DeviceClientBody(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    host: str = Field(default="", max_length=120)
+
+
+class KeySignInRequest(BaseModel):
+    public_key_pem: str = Field(min_length=1, max_length=2000)
+    nonce: str = Field(min_length=1, max_length=200)
+    signature: str = Field(min_length=1, max_length=2000)
+    client: DeviceClientBody
+
+
+_key_challenges: dict[str, tuple[str, int]] = {}  # nonce -> (key hash, expires_at): key sign-in, never a client id
+_key_challenges_by_key: dict[str, list[str]] = {}  # key hash -> its outstanding nonces, oldest first
+# In total, not per key: any valid key gets a challenge without a session, so new keys alone must not grow memory.
+MAX_KEY_CHALLENGES = 1024
+_key_sign_in_failures: dict[str, list[float]] = {}  # key hash -> failure times, apart from the clients' own counters
+
+
+def _drop_key_challenge(nonce: str) -> tuple[str, int] | None:
+    """Removes one challenge from both maps and returns it; None when it was not outstanding."""
+    issued = _key_challenges.pop(nonce, None)
+    if issued is not None:
+        mine = _key_challenges_by_key[issued[0]]
+        mine.remove(nonce)  # at most MAX_OUTSTANDING_CHALLENGES long
+        if not mine:
+            del _key_challenges_by_key[issued[0]]
+    return issued
+
+
+def _key_hash(public_key_pem: str) -> str:
+    return hashlib.sha256(public_key_pem.encode()).hexdigest()
+
+
+def _key_sign_in_message(engine_id: str, key_hash: str, nonce: str, expires_at: int) -> bytes:
+    """Names the key, not a client: a device that has no client here can sign it from what the challenge returned."""
+    return "\x00".join(["fichero-key-sign-in-v1", engine_id, key_hash, nonce, str(expires_at)]).encode()
+
+
+def _key_holder(app_db: AppDatabase, public_key_pem: str):
+    """The oldest live client holding this key: the key is already trusted for that person. None when no one holds it."""
+    if not _is_p256_public_key(public_key_pem) or app_db.public_key_was_revoked(public_key_pem):
+        return None  # a revoked device must not sign straight back in with the shared key: a revoke needs a new key
+    holders = app_db.live_clients_by_public_key(public_key_pem)
+    return holders[0] if holders else None
+
+
+@auth_router.post("/key-challenge", response_model=ChallengeResponse)
+def key_challenge(body: KeyChallengeRequest, app_db: AppDatabase = Depends(get_app_database)) -> ChallengeResponse:
+    """`multiuser.second-device-by-synced-key`: a nonce for any valid P-256 key, whether or not it is registered, so the
+    answer does not say who holds a key; the sign-in refuses an unknown one. Counted apart from client sign-ins."""
+    if not _is_p256_public_key(body.public_key_pem):
+        raise _REFUSED
+    now = time.time()
+    # Every challenge has the same TTL, so insertion order is expiry order and the expired ones are at the front. If
+    # the clock steps back, an expired one can stay behind a live one; the total cap below still bounds the dict.
+    while _key_challenges and next(iter(_key_challenges.values()))[1] <= now:
+        _drop_key_challenge(next(iter(_key_challenges)))
+    key = _key_hash(body.public_key_pem)
+    mine = _key_challenges_by_key.get(key, [])
+    for old in mine[: max(0, len(mine) - MAX_OUTSTANDING_CHALLENGES + 1)]:
+        _drop_key_challenge(old)
+    while len(_key_challenges) >= MAX_KEY_CHALLENGES:
+        _drop_key_challenge(next(iter(_key_challenges)))  # the oldest goes: its device asks again
+    nonce = secrets.token_urlsafe(32)
+    expires_at = int(now) + CHALLENGE_TTL_SECONDS
+    _key_challenges[nonce] = (key, expires_at)
+    _key_challenges_by_key.setdefault(key, []).append(nonce)
+    return ChallengeResponse(
+        nonce=nonce, expires_in=CHALLENGE_TTL_SECONDS, expires_at=expires_at, engine_id=_engine_id(app_db)
+    )
+
+
+@auth_router.post("/sign-in-by-key", response_model=SignInResponse)
+def sign_in_by_key(body: KeySignInRequest, app_db: AppDatabase = Depends(get_app_database)) -> SignInResponse:
+    """Sign in with a trusted key from a device the engine has not seen: on the first success the engine registers a new
+    `device` client (named by the device, same key, same person); a repeat from the same device reuses that row."""
+    now = time.time()
+    key = _key_hash(body.public_key_pem)
+    recent = [t for t in _key_sign_in_failures.get(key, []) if now - t < 60]
+    if len(recent) >= SIGN_IN_FAILURES_PER_MINUTE:
+        raise HTTPException(status_code=429, detail="too many failed sign-ins", headers={"Retry-After": "60"})
+    issued = _drop_key_challenge(body.nonce)  # single use, spent whether or not the signature is good
+    holder = _key_holder(app_db, body.public_key_pem)
+    ok = (
+        issued is not None
+        and issued[0] == key
+        and issued[1] > now
+        and holder is not None
+        and _signature_is_valid(
+            body.public_key_pem, _key_sign_in_message(_engine_id(app_db), key, body.nonce, issued[1]), body.signature
+        )
+    )
+    user = app_db.get_user(holder.user_id) if ok else None
+    if user is None or not user.active:
+        # Only a key a live client holds is counted: this route is reachable over TCP and keys nobody holds must not
+        # grow this dict (the same rule as `sign_in`). ponytail: a per-source limit would also stop anyone who knows a
+        # held public key from locking out that key's sign-in for a minute.
+        if holder is not None:
+            _key_sign_in_failures[key] = [*recent, now]
+        raise _REFUSED
+    mine = next(
+        (
+            c for c in app_db.live_clients_by_public_key(body.public_key_pem)
+            if c.user_id == holder.user_id and c.name == body.client.name.strip() and c.host == body.client.host.strip()
+        ),
+        None,
+    ) or app_db.create_client(
+        user_id=holder.user_id, kind="device", name=body.client.name, host=body.client.host,
+        public_key_pem=body.public_key_pem,
+    )
+    raw_token = accounts.new_session_token()
+    app_db.create_session(
+        user_id=user.id, token_hash=accounts.hash_token(raw_token), device_label=mine.name, ttl=SESSION_TTL,
+        client_id=mine.id,
+    )
+    return SignInResponse(
+        session_token=raw_token, user=_to_public_user(user), client=SignInClient(id=mine.id, kind=mine.kind, name=mine.name)
     )
 
 

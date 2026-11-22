@@ -22,6 +22,7 @@ from fichero_server.api.main import (
     LibraryAccessDeniedError, _is_allowed_local_path, db_manager, get_library_database_for_write,
 )
 from fichero_server.db import Database
+from fichero_server.importers import interrupted_import
 from fichero_server.importers.derivatives import queue_derivatives
 from fichero_server.importers.sources_folder import import_parent_id
 from fichero_server.models import Document, Status
@@ -668,6 +669,8 @@ def import_folder_impl(
         db=db,
         package_path=package_path,
         skip_paths=(set(plan.pairs) | set(plan.pages)) if plan else None,
+        # Each batch's jobs are written in the transaction that saves its pages (#6829).
+        on_saved=lambda saved: queue_derivatives(saved, library_path=package_path, db=db),
     )
     if plan is not None:
         read: list[tuple[Path, str, str]] = []
@@ -678,9 +681,6 @@ def import_folder_impl(
             from fichero_server import sync_folder
 
             sync_folder.adopt(db, path.resolve(), read)
-    # Queued after the whole folder lands rather than per file: the queue is
-    # bounded (#4225) and the ingest loop must not block on it.
-    queue_derivatives(docs, library_path=package_path, db=db)
     not_arranged = _arrange_new_folders(db, docs, request.parent_id, ctx)
     if not_arranged and interchange_report is not None:
         interchange_report["not_arranged"] = not_arranged
@@ -1017,7 +1017,11 @@ async def ingest_folder(
         # lands in a terminal task state.
         bg_db = None
 
+        import_row: str | None = None
+
         def on_progress(current: int, total: int, fetching: float = 0.0):
+            if import_row is not None and bg_db is not None:
+                interrupted_import.record_progress(bg_db, import_row, current, total)
             # fetching: the share of the current file's slot while it comes down from Box or iCloud (#6248)
             _tasks[task_id]["processed"] = current
             _tasks[task_id]["total"] = total
@@ -1076,6 +1080,7 @@ async def ingest_folder(
             # one — avoids stale/contended connection state on long folder
             # ingests (#1216). Inside the try, see above.
             bg_db = db_manager.get_database(x_fichero_library_path)
+            import_row = interrupted_import.begin(bg_db, request.model_dump(mode="json"))
             if not _tasks[task_id]["cancel_requested"]:
                 _tasks[task_id]["status"] = "running"
                 logger.info("ingest.task task_id=%s status=running path=%s", task_id, path)
@@ -1116,6 +1121,10 @@ async def ingest_folder(
             _tasks[task_id]["document_ids"] = list(
                 dict.fromkeys(_tasks[task_id]["document_ids"] + doc_ids)
             )
+            interrupted_import.end(
+                bg_db, import_row, "done" if _tasks[task_id]["status"] == "completed" else _tasks[task_id]["status"],
+                _tasks[task_id]["error"],
+            )
             logger.info(
                 "ingest.task task_id=%s status=%s path=%s files=%d",
                 task_id, _tasks[task_id]["status"], path, len(doc_ids),
@@ -1128,6 +1137,8 @@ async def ingest_folder(
             _tasks[task_id]["status"] = "failed"
             _tasks[task_id]["finished_at"] = time.monotonic()
             _tasks[task_id]["error"] = str(e) or type(e).__name__
+            if bg_db is not None and import_row is not None:
+                interrupted_import.end(bg_db, import_row, "failed", _tasks[task_id]["error"])
             logger.error(f"Folder ingest failed: {path}: {e!r}")
             if not isinstance(e, Exception):
                 raise

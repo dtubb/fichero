@@ -192,6 +192,31 @@ struct StrokeTarget {
     let passId: String
     var onPass: Segment?
     var parentSegmentId: String?
+
+    /// The target of a Marker or Paintbrush stroke on the shown pass, or the reason there is none, for the page to say.
+    /// Any shown pass takes a stroke, with or without a result artifact; a legacy or provisional pass does not.
+    /// `region` is the one holding most of the stroke, if any.
+    static func resolve(
+        documentId: String?, passId: String?, onPass: [Segment], region: Segment?
+    ) -> Result<StrokeTarget, StrokeRefusal> {
+        guard let documentId, let passId else { return .failure(.noPass) }
+        if passId.hasPrefix("legacy:") || onPass.contains(where: { $0.provisional }) { return .failure(.notSaved) }
+        return .success(StrokeTarget(
+            documentId: documentId, passId: passId, onPass: onPass.first, parentSegmentId: region?.id
+        ))
+    }
+}
+
+/// Why a stroke could not be sent, in words for the page.
+enum StrokeRefusal: Error, Equatable {
+    case noPass, notSaved
+
+    var words: String {
+        switch self {
+        case .noPass: "There is no segment pass on this page to draw on."
+        case .notSaved: "This page's boxes are not saved as segments yet, so nothing can be drawn on them."
+        }
+    }
 }
 
 /// A drawn segment's anchor: only what the drawing states, the rest absent (never null-as-a-claim).

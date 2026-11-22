@@ -10,16 +10,25 @@ final class PaneMenuEntriesShapeTests: XCTestCase {
         let menu = try AppSource.code("Views/Shell/PaneHead/PaneChromeMenu.swift")
         let head = try AppSource.code("Views/Shell/PaneHead/PaneHead.swift")
         XCTAssertTrue(menu.contains("struct PaneMenuEntries: View"))
-        XCTAssertTrue(menu.contains("PaneMenuEntries(splitActions: splitActions"), "the + no longer renders the shared entries")
+        XCTAssertTrue(menu.contains("viewAs: viewAs, splitActions: splitActions"), "the + no longer renders the shared entries")
         XCTAssertTrue(head.contains(".contextMenu {\n                PaneMenuEntries("), "the head lost its right-click menu")
-        for label in ["\"Pin Pane\"", "\"Unpin Pane\""] {
-            XCTAssertTrue(menu.contains(label), "pane menu lost \(label)")
-        }
+        XCTAssertTrue(menu.contains("Label(\"Pin Pane\""), "pane menu lost Pin Pane")
     }
 
     func testCloseIsOnePath() throws {
         let head = try AppSource.code("Views/Shell/PaneHead/PaneHead.swift")
         XCTAssertEqual(head.components(separatedBy: "closePane()").count - 1, 4,
                        "definition, the X, the + menu and the right-click each call closePane once")
+    }
+
+    /// #6741: the forbidden leftovers of the old head and menu stay gone (an absence check).
+    func testNoPinButtonNoSecondPinTitleNoOneStepSplit() throws {
+        let menu = try AppSource.code("Views/Shell/PaneHead/PaneChromeMenu.swift")
+        let head = try AppSource.code("Views/Shell/PaneHead/PaneHead.swift")
+        XCTAssertFalse(head.contains("pinToggle"), "the head still places its own pin button")
+        XCTAssertFalse(head.contains("paneHeadPinToggle"))
+        XCTAssertFalse(menu.contains("\"Unpin Pane\""), "a checked toggle needs no second title")
+        XCTAssertFalse(menu.contains("\"Split Vertical\""), "the one-step duplicate entry is replaced by the submenu")
+        XCTAssertFalse(menu.contains("\"Split Horizontal\""))
     }
 }

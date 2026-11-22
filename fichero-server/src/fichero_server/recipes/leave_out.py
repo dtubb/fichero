@@ -22,6 +22,8 @@ import statistics
 from collections.abc import Callable
 from typing import Any
 
+from fichero_server.core.timeutil import utc_now
+
 TOO_SMALL = "too small"
 OFF_THE_PAGE = "off the page"
 BLEED = "likely bleed-through"
@@ -222,8 +224,13 @@ def _open_image(path: str | None) -> Any | None:
 
 def run_step(db: Any, documents: list[str], parent: str, step: dict[str, Any],
              stop: Callable[[], bool] | None = None) -> tuple[str | None, str, str | None]:
-    """The recipe run's card: (its job, its end, why). The account rides on the step as `leave_out` (never `left_out`: that is the runner's list of pages left out as blank, #5691)."""
+    """The recipe run's card: (its job, its end, why). The account rides on the step as `leave_out` (never `left_out`: that is the runner's list of pages left out as blank, #5691).
+    It makes no job, so its run on this batch is kept on the step as `spans`: [started, ended, pages done], which times
+    it (`recipes-run.timing.every-step-timed`, #6809); a stopped run adds its time and no pages."""
+    started = utc_now()
     step["leave_out"] = leave_out_pages(db, documents, parent, stop=stop)
-    if stop is not None and stop():
+    stopped = stop is not None and stop()
+    step["spans"] = [[started.isoformat(), utc_now().isoformat(), 0 if stopped else len(documents)]]
+    if stopped:
         return None, "cancelled", "Stopped by you"
     return None, "done", None

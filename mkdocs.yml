@@ -428,6 +428,7 @@ nav:
               - Networks (people and things joined): contributor_manual/specs/explore/networks.md
               - Tables and counts (facets, flows): contributor_manual/specs/explore/tables-and-counts.md
               - Experiments, saved views, sharing: contributor_manual/specs/explore/experiments-and-sharing.md
+              - Concepts and terms (DRAFT): contributor_manual/specs/explore/concepts-and-terms.md
           - Harness:
               - Building Fichero Locally, the one harness spec (draft): contributor_manual/specs/harness/building-fichero-locally.md
               - Building Fichero Locally, Phase 0 review: contributor_manual/specs/harness/building-fichero-locally-REVIEW.md
@@ -454,13 +455,20 @@ nav:
               - Release Channels & Feature Tiers (draft): contributor_manual/specs/harness/release-channels-and-feature-tiers.md
           - KG:
               - KG Overview — Names, Statements, Review, Graph (draft): contributor_manual/specs/kg/kg-entities-and-statements.md
+              - KG Confidence, Provenance, Qualifiers, Authorities, Search (draft): contributor_manual/specs/kg/kg-confidence-and-provenance.md
               - Hermeneutic Layer: contributor_manual/specs/kg/hermeneutic-layer.md
               - KG Enrichment, RDF & Linked Data: contributor_manual/specs/kg/kg-enrichment.md
               - Project Gazetteer & Canonical Names: contributor_manual/specs/kg/project-gazetteer-and-names.md
               - KG Entity Inspector: contributor_manual/specs/kg/kg-entity-inspector.md
               - KG Interactions & Standards: contributor_manual/specs/kg/kg-interactions.md
+              - KG Paragraph Realisation (draft): contributor_manual/specs/kg/kg-paragraph-realisation.md
               - KG Readable Representation: contributor_manual/specs/kg/kg-readable-representation.md
+              - KG Rendering: contributor_manual/specs/kg/kg-rendering.md
               - KG Tables: contributor_manual/specs/kg/kg-tables.md
+              - KG Store & Query (draft): contributor_manual/specs/kg/kg-store-and-query.md
+              - Reconstruct the Record (cross-archive check set and graph, DRAFT): contributor_manual/specs/kg/reconstruct-the-record.md
+              - People and Lives (DRAFT): contributor_manual/specs/kg/people-and-lives.md
+              - Ontological Layer (DRAFT): contributor_manual/specs/kg/ontological-layer.md
           - Source:
               - Source Model (foundation): contributor_manual/specs/source/source-model.md
               - Survey of the Field: contributor_manual/specs/source/source-survey.md
@@ -476,6 +484,8 @@ nav:
               - Formats & Training: contributor_manual/specs/source/formats-and-training.md
               - Maps & Georeference: contributor_manual/specs/source/maps-and-georeference.md
               - Models, Chains & Projects: contributor_manual/specs/source/models-chains-and-projects.md
+              - Readers (kinds, the reader a script gets, what is measured, DRAFT): contributor_manual/specs/source/readers.md
+              - Read Any Hand (blind benchmark, calibration, DRAFT): contributor_manual/specs/source/read-any-hand.md
               - Recipe Designer: contributor_manual/specs/source/recipe-designer.md
               - Checking a Layer's Proposals: contributor_manual/specs/source/checking.md
               - Panes (what each pane shows): contributor_manual/specs/source/panes.md
@@ -531,6 +541,7 @@ nav:
               - Models and Compute Window (draft): contributor_manual/specs/ui/models-and-compute-window.md
               - Automation: contributor_manual/specs/ui/automation.md
               - Catalogue Table: contributor_manual/specs/ui/catalogue-table.md
+              - iPhone and iPad: contributor_manual/specs/ui/iphone-ipad.md
               - Library View Modes: contributor_manual/specs/ui/library-view-modes.md
               - Menus & Commands: contributor_manual/specs/ui/menus-and-commands.md
               - Modes → Panes: contributor_manual/specs/ui/modes-to-panes.md
@@ -544,6 +555,7 @@ nav:
               - Reviewing Names & Statements (draft): contributor_manual/specs/ui/review-names-and-statements.md
               - Reading Markup & Annotations: contributor_manual/specs/ui/reading-markup-annotations.md
               - Research: contributor_manual/specs/ui/research.md
+              - Research Operations (steps, brief, adapters, drivers, DRAFT): contributor_manual/specs/ui/research-operations.md
               - Search: contributor_manual/specs/ui/search.md
               - Sidebar CRUD: contributor_manual/specs/ui/sidebar-crud.md
               - Undo Everywhere: contributor_manual/specs/ui/undo-everywhere.md

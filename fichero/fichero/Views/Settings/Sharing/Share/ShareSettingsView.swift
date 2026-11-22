@@ -48,6 +48,7 @@ struct ShareSettingsView: View {
     @State var addressDraft = ""
     @State var sharingState: SharingStateRecord?
     @State var detectedTailnetURL: String?
+    @State var ownDevicesOn = OwnDevicesSwitch.isOn()
     @State var firewallVerdict = FirewallCheck.Verdict.unknown
     @State var selectedDevices = Set<String>()
     @State var confirmRemoveSelected = false

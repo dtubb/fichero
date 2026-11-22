@@ -138,10 +138,10 @@ and three of them are also **spring-loaded**: hold the key for a stroke, let go,
 | Tool | Key | Spring-loaded | What a drag does |
 |---|---|---|---|
 | Select | V, Esc | — | band (marquee); ⌥-drag lasso; drag on a selected shape moves it; drag a handle reshapes |
-| Brush select | B | hold B | paints a selection mask; ⌥ subtracts; `[` `]` size |
+| Select Brush | B | hold B | paints a selection mask; ⌥ subtracts; `[` `]` size |
 | Knife | K | hold K | one stroke cuts every line it crosses |
 | Marker | M | hold M | freehand outline (closed) or baseline (open), simplified on release |
-| Paintbrush | P | — | paints a polygon along the ink; width on a slider, pressure optional |
+| Line Brush (the Paintbrush) | P | — | paints a polygon along the ink; width on a slider, pressure optional |
 | Order | O | — | click segments in sequence to set the reading order |
 | Shape (box / polygon / baseline by points) | S | — | the umbrella's one Shape tool, unchanged (`source.editor.draw-shapes`) |
 
@@ -219,7 +219,7 @@ targets are at least 44 pt.
   once, `segment-editor.every-edit-lands-at-once`), and lighting only the kept region's lines.
   *Tests:* `test_segment_merge_lines.py::TestMergeRegions`;
   `fichero/Tests/Unit/general/Views/Source/SegmentJoinTests.swift::mergedRegionsFlashTheOrder`.
-- `segment-editor.split-knife` — **[PARTIAL]** (→ #4941; app + engine; refines `source.editor.cut`) a Knife stroke, a
+- `segment-editor.split-knife` — **[OK]** (→ #4941; app + engine; refines `source.editor.cut`) a Knife stroke, a
   polyline drawn across one or many lines, splits every line it crosses at the crossing: the
   engine (`segment.split` gains `cut_path`, points in the frame of the image drawn on) cuts each
   outline along the stroke, cuts each baseline where the stroke crosses it, and gives each part
@@ -240,10 +240,18 @@ targets are at least 44 pt.
   (`WindowState.letGoOfKnifeKey`). *Not built:* the Pencil.
   *Owner 2026-11-19 (#6734):* drawing a cut across a segment currently splits and saves nothing; the cut must split each
   segment it crosses into two, saved and undoable, with a test that drives the commit path. *Not built.*
-  *Tests:* `test_segment_split_knife.py`
-  (two crossings, graze, rtl, vertical; the undo takes the `cut` mark off the line again, 2026-11-14, as a version
-  snapshot carries no metadata); `KnifeStrokeTests.swift` (the stroke is sent once,
-  in the drawn frame, with versions; `aTapOfKChoosesTheKnife`).
+  *Owner 2026-11-21 (#6734):* the Knife offers lines AND regions: a stroke across a region splits its polygon in two as
+  it splits a line at its baseline. *Built (2026-11-21):* `segment.split` with `cut_path` cuts a named region's polygon
+  along the stroke into the pieces it leaves (`media/line_cut.cut_region`); the first piece keeps the region's id, the
+  others are new regions after it in the reading order, and each line of the region goes whole with the piece holding
+  its baseline's middle (a line the stroke crosses inside a cut region moves, it is not cut again); a stroke that does
+  not cut through leaves the region alone (`grazed`); one action, one undo (`segment.unsplit_many`). The app offers the
+  shown pass's regions with its lines (`SegmentEdit.knife`).
+  *Tests:* `fichero-server/tests/unit/api/test_segment_split_knife.py` (two crossings, graze, rtl, vertical; the undo
+  takes the `cut` mark off the line again, 2026-11-14, as a version snapshot carries no metadata; `TestRegions`: a region
+  becomes two with the right lines in each, undo restores it, a short stroke leaves it) and
+  `fichero/Tests/Unit/general/Views/Source/KnifeStrokeTests.swift` (the stroke is sent once, in the drawn frame, with
+  versions; `aTapOfKChoosesTheKnife`; `regionsAreOffered`).
 - `segment-editor.split-at-a-point` — **[OK]** (→ #4941; app) with one line selected, ⌘⇧K splits it under the
   pointer (a vertical cut through that point at right angles to the baseline), for the common
   case where a stroke is more than is needed; the same engine call with a two-point `cut_path`.
@@ -314,6 +322,18 @@ targets are at least 44 pt.
   the whole selection one image pixel, ⇧ ten, ⌥⇧ a hundred; with a pressed point, the point
   alone (built). A held key gathers into one action, committed when the key is released or
   after half a second of stillness (`undo.typing.commit-is-one-step` applied to keys).
+- `segment-editor.make-region-from-lines` — **[PARTIAL]** (#6737, owner 2026-11-19; app + engine) **Make Region from Lines**
+  (Edit › Segments ▸, ⌘G, and the page's context menu on two or more selected segments) makes one new region whose box is the
+  union of the lines' shapes and moves the lines into it as its children, in their reading order (`segment.group_lines`;
+  the region takes the lines' own parent, so lines inside a region make a region nested in it; lines under different
+  parents are refused with the reason). **Ungroup Region** (the same menus, no chord: ⇧⌘G shows or hides Items) sends a
+  region's lines to its parent and deletes the region (`segment.ungroup_region`). Each is one audit row and one undo, and
+  each is the other's undo: undoing a group deletes the region, undoing an ungroup brings the same region back with the
+  same lines and their reading-order entries as they were. The region joins the pass's `as-written` order only.
+  *Tests:* `test_segment_group_lines.py`; `SegmentGroupLinesTests.swift`.
+  *Not built:* the new region selected afterwards and open for its type; the "replace the old region when every line of it
+  is selected" question; the region in orders other than `as-written`; the existing marquee path "New Region from
+  Selection…" stays as it was (it names a drawn selection, it does not group segments).
 - `segment-editor.vertices` — **[PARTIAL]** (→ #4941; app + engine) a click on a side adds a point; ⌥-click a
   point removes it (built); ⌫ with a pressed point removes it; **Simplify** (⌘⌥S, and a slider
   in the Shape popover) asks the engine for a simpler outline, `segment.simplify` with a
@@ -376,9 +396,18 @@ targets are at least 44 pt.
   `fichero/Tests/Unit/general/Views/Source/PaintbrushToolTests.swift`.
   *Named for what it does (#6734, owner 2026-11-19):* the tool is called Line Brush, tooltip "Line Brush — paint along a line
   of writing to make a line" (it was Paintbrush; the name and the id change together). A stroke becomes a new line segment,
-  selected and open for text; when the engine refuses it, a message says why (today nothing is said). *Not built:* the
-  rename, the refusal message, and a test that drives the stroke's commit path and checks the stored segment (owner saw it
-  record nothing).
+  selected and open for text; when the engine refuses it, a message says why. *Not built:* a test that drives the stroke's
+  commit path and checks the stored segment (owner saw it record nothing).
+  *Built note (#6734):* the stroke goes to the shown pass (`ocrGeometryPassId`), as the Marker's does, whether or not the page
+  has a result artifact (it was dropped there before, with a log line only); a page with no saved segments refuses with a
+  message on the page. The tool row calls it **Line Brush** ("paint along a line of writing to make a line") and the Brush
+  **Select Brush** ("brush over segments to select them").
+
+- `segment-editor.one-tool` — **[OK]** (#6734, owner 2026-11-19) the tool row is one choice: exactly one tool is active
+  and shown. The Knife, Marker, Order, Select Brush and Line Brush leave Select empty while chosen (`chooseSegmentTool`);
+  choosing another tool, its key, Return (Order) or Esc moves the choice, and putting a tool down returns to Select.
+  Every refused or failed tool edit says why on the page. *Tests:*
+  `fichero/Tests/Unit/general/Views/Preview/SegmentToolChoiceTests.swift`.
 
 ### Lines and baselines
 
@@ -630,8 +659,11 @@ See section 7.2 below for what exists. The design:
   back into a polygon by editing its points. Tests: one polygon gives its box; three selected give three boxes; id, text and
   order unchanged; undo restores the polygon.
   *Built 2026-11-20:* the engine half: `segment.convert_to_box` (the plain bounding rectangle; all or nothing, one undo,
-  a stale version refuses all; `fichero-server/tests/unit/api/test_segment_convert_to_box.py`). *Not built:* the menus, the
-  shortcut and the fit-ink form. Needs an on-screen check.
+  a stale version refuses all; `fichero-server/tests/unit/api/test_segment_convert_to_box.py`). *Built note (#6736):* Edit ›
+  Segments ▸ Convert to Box (⌥⌘B) and the page's context menu on a selection send one `segment.convert_to_box` for the
+  selection's segments that have a polygon; a segment that is already a box is left out, and a selection of only boxes is
+  refused with the reason (`SegmentConvertToBoxTests.swift`). *Not built:* the toolbar shape-menu entry and the fit-ink form.
+  Needs an on-screen check.
 - `segment-editor.convert-level` — **[PARTIAL]** (#6740; app + engine; owner 2026-11-19) a region can become a line and a line a
   region. Convert to Line on a region keeps its shape, text and order position and computes a baseline (or draws one from its
   box, the lower third, editable); a region with child lines asks whether to merge their text into the one line, in order, or
@@ -641,7 +673,10 @@ See section 7.2 below for what exists. The design:
   each direction keeps shape, text and order; a region with children asks; undo restores.
   *Built 2026-11-20:* the engine half: `segment.convert_level` (region to line with a baseline along the lower third; line to
   region; a region holding lines is refused with the reason; one undo; `fichero-server/tests/unit/api/test_segment_convert_level.py`).
-  *Not built:* the menus, the merge-their-text choice and the one-child-line option. Needs an on-screen check.
+  *Built note (#6740):* Convert to Line and Convert to Region (Edit › Segments ▸, the page's context menu, and the segment
+  list's row menu) send one `segment.convert_level` for the selection's segments not already at that level; a selection of
+  only those is refused with the reason (`SegmentConvertLevelTests.swift`). *Not built:* the merge-their-text choice, the
+  one-child-line option and an editable baseline prompt. Needs an on-screen check.
 - `segment-editor.list-drag-reorder` — **[PARTIAL]** (#6739; app + engine; owner 2026-11-19; extends
   `segment-editor.reassign-by-drag`, which covers dropping into a region) in the segment list, dragging also reorders, as in a
   Finder or Mail outline. Dropping between rows shows a thin insertion line with a circle at its left end, indented to the
@@ -651,8 +686,11 @@ See section 7.2 below for what exists. The design:
   update at once. Tests: a drop between rows reorders; a drop on a region nests; a multi-row drag keeps relative order; undo
   restores.
   *Built 2026-11-20:* the engine half: `reading_order.move` (entries to a place under a parent, relative order kept, one undo
-  by `reading_order.restore_places`; `fichero-server/tests/unit/api/test_reading_order_move.py`). *Not built:* the list's drop
-  lines and highlight. Needs an on-screen check.
+  by `reading_order.restore_places`; `fichero-server/tests/unit/api/test_reading_order_move.py`). *Built 2026-11-21:* the list
+  half: a drop on a row that is not a region sends the dragged rows, in list order, as one `reading_order.move` just before
+  that row, and the row shows the insertion line with its circle (`ReadingOrderMove.move`, `OrderListDropReorderTests.swift`).
+  *Not built:* the line's indent to a deeper level (a drop lands in the level the list shows), a drop above or below a
+  region row (a drop on one nests). Needs an on-screen check.
 - `segment-editor.shortcuts-for-everything` — **[GAP]** (→ #4941; app; refines `source.editor.keyboard-complete`) every
   verb in this file is in the menu bar under Segment with its shortcut, in the context menu of a
   segment, and on the pane head; the map below is the one list, and

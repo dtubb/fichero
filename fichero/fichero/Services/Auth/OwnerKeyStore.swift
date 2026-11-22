@@ -41,8 +41,13 @@ nonisolated struct OwnerKeyStore: OwnerKeyProviding {
     /// True for the status a build without the keychain entitlement gets.
     static func needsLocalFallback(_ status: OSStatus) -> Bool { status == errSecMissingEntitlement }
 
+    /// The stored key, or nil when this device holds none. Never creates one (`multiuser.second-device-by-synced-key`).
+    func loadExisting() throws -> P256.Signing.PrivateKey? {
+        try load(baseQuery) ?? load(localQuery)
+    }
+
     func loadOrCreate() throws -> P256.Signing.PrivateKey {
-        if let existing = try load(baseQuery) ?? load(localQuery) { return existing }
+        if let existing = try loadExisting() { return existing }
         let key = P256.Signing.PrivateKey()
         var add = baseQuery
         add[kSecValueData as String] = key.rawRepresentation

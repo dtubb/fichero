@@ -770,7 +770,11 @@ def write_page_into_library(
 
     readings: list[ContentRepresentation] = []
     for ref, segment in order:
-        for kind, text in segment.readings:
+        for position, (kind, text) in enumerate(segment.readings):
+            # A file Fichero wrote says a person made the line's first reading: the import restores
+            # that person as its maker (`source.format.round-trip-through-a-library`). Every other
+            # reading is the file's.
+            person = segment.reading_maker if position == 0 and segment.reading_maker and segment.reading_maker["type"] == "Person" else None
             readings.append(
                 ContentRepresentation(
                     document_id=document_id,
@@ -782,8 +786,8 @@ def write_page_into_library(
                     source_anchor=SourceAnchor(
                         document_id=document_id, granularity=segment.kind
                     ),
-                    provenance_kind=imported,
-                    created_by=ctx.actor or None,
+                    provenance_kind=ProvenanceKind.human if person else imported,
+                    created_by=person["name"] if person else ctx.actor or None,
                 )
             )
     readings.extend(_expanded_readings(readings, {ids_by_ref[ref]: segment for ref, segment in order}))
@@ -910,7 +914,7 @@ def _expanded_readings(readings: list[ContentRepresentation], segments: dict[str
     from fichero_server.formats.abbreviation_markup import apply_page_custom, expanded, has_markup
 
     marked = any(has_markup(r.content) for r in readings if r.kind == "transcription")
-    out = []
+    candidates = []
     for reading in readings:
         if reading.kind != "transcription" or reading.level is not None:
             continue
@@ -920,9 +924,29 @@ def _expanded_readings(readings: list[ContentRepresentation], segments: dict[str
         else:
             opened = expanded(reading.content, marked=marked)
         if opened.strip() and opened != reading.content:
-            out.append(reading.model_copy(update={
-                "id": uuid.uuid4().hex, "content": opened, "level": "expanded",
-                "derived_from_representation_id": reading.id}))
+            candidates.append((reading, opened))
+    # A file Fichero exported already holds the opened text as a second reading of the line
+    # (`source.format.reimport-adds-no-reading`): that reading is the derived one, marked as such, and
+    # nothing is derived from it or beside it.
+    held = {}
+    for reading, opened in candidates:
+        twin = next((r for r in readings if r is not reading and r.segment_id == reading.segment_id
+                     and r.kind == "transcription" and r.level is None and r.content == opened), None)
+        if twin is not None:
+            held[id(twin)] = reading
+    out = []
+    for reading, opened in candidates:
+        if id(reading) in held:
+            continue
+        twin = next((t for t in readings if held.get(id(t)) is reading), None)
+        if twin is not None:
+            twin.level, twin.derived_from_representation_id = "expanded", reading.id
+            continue
+        out.append(reading.model_copy(update={
+            "id": uuid.uuid4().hex, "content": opened, "level": "expanded",
+            "derived_from_representation_id": reading.id,
+            **({"provenance_kind": ProvenanceKind.external_import, "created_by": None}
+               if reading.provenance_kind == ProvenanceKind.human else {})}))
     return out
 
 

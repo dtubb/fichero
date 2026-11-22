@@ -88,7 +88,7 @@ engine owns all three; the app shows only what the row says.
 | `files-unavailable` | **fails the page**, the run goes on; "Reconnect" when a volume or grant is the cause (#6306) | no | every runner that reads an original |
 | `library-closed` | **pauses** ("the project closed") | no | every job of that project |
 | `export-folder-gone` | **pauses** the export, "Choose a folder" | no | the exporter's kept export |
-| `interrupted` | **resumes by itself**, gently (`recipes-run.restart.resumes-at-once-gently`); never counted as an attempt | yes | every job (the engine stopped) |
+| `interrupted` | **is held at open** and offered in the launch alert (owner 2026-11-13, #6584; ruled again 2026-11-21); Continue there resumes it, gently (`recipes-run.restart.resumes-at-once-gently`); never counted as an attempt | yes | every job (the engine stopped) |
 | `unexpected` | **fails the item**; the run goes on with the others; a bug report is offered | no | anything (a slip in Fichero) |
 
 A remote runner's own states map onto these and never add a kind: Slurm `TIMEOUT`/`OUT_OF_MEMORY` → `memory` with a

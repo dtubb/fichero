@@ -85,6 +85,7 @@ KRAKEN_MODEL_PREFIX = "kraken:"
 _KIND_MODULES = (
     "fichero_server.actions.page_text_cache",
     "fichero_server.importers.derivatives",
+    "fichero_server.importers.interrupted_import",
     "fichero_server.training.job",
     "fichero_server.workflows.task_workers",
     "fichero_server.remote_read.job",
@@ -1738,6 +1739,32 @@ def cost_under(
     return cost if calls and priced and cost else None
 
 
+def work_under(db: "Database", job_ids: list[str]) -> dict[str, list[tuple[Any, ...]]]:
+    """Each job's page jobs, in one read: the first rows under it (or the job itself) whose kind is not a run's, as
+    `tree` counts a page; never a page job's own children. Each row: (kind, subject, started_at, finished_at, state,
+    detail). `recipes-run.timing.page-time-is-the-page-job` (#6809)."""
+    _ensure(db)
+    ids = [i for i in dict.fromkeys(job_ids) if i]
+    if not ids:
+        return {}
+    runs = ", ".join("?" * len(RUN_KINDS))
+    # ponytail: every page row of the run's steps on each poll, as the stored timelines were; remember a finished
+    # job's rows as `cost_under` does if a poll of a very large run grows slow.
+    rows = db.execute_fetchall(
+        f"WITH RECURSIVE t AS (SELECT id AS root, id, kind, subject, started_at, finished_at, state, detail FROM jobs "
+        f"WHERE id IN ({', '.join('?' * len(ids))}) "
+        "UNION ALL SELECT t.root, j.id, j.kind, j.subject, j.started_at, j.finished_at, j.state, j.detail "
+        f"FROM jobs j JOIN t ON j.parent_id = t.id WHERE t.kind IN ({runs})) "
+        f"SELECT root, kind, subject, started_at, finished_at, state, detail FROM t WHERE kind NOT IN ({runs})",
+        [*ids, *RUN_KINDS, *RUN_KINDS],
+        committed=True,
+    )
+    out: dict[str, list[tuple[Any, ...]]] = {i: [] for i in ids}
+    for root, *row in rows:
+        out[root].append(tuple(row))
+    return out
+
+
 def say(db: "Database", job_id: str, reason: str) -> None:
     """A job's reason in words, as it goes (a run downloading its pages from iCloud, #5669)."""
     db.execute("UPDATE jobs SET reason = ? WHERE id = ?", [reason or None, job_id])
@@ -1753,6 +1780,43 @@ def save_detail(
         [detail, reason, job_id],
     )
     _heard_from(job_id)
+
+
+def start_own_row(db: "Database", kind: str, subject: str, detail: str, *, replaces_held: str) -> str:
+    """A row the caller runs itself (not through the lane): made 'running' with its `detail` (JSON text). A row of the same
+    kind and subject still waiting or paused is ended with the reason `replaces_held`. Returns the new row's id."""
+    _ensure(db)
+    db.execute(
+        "UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = ? "
+        "WHERE kind = ? AND subject = ? AND state IN ('waiting', 'paused')",
+        [replaces_held, utc_now(), kind, subject],
+    )
+    job_id = _insert(db, kind, subject, None, "person")
+    db.execute("UPDATE jobs SET state = 'running', started_at = ?, detail = ? WHERE id = ?", [utc_now(), detail, job_id])
+    return job_id
+
+
+def end_own_row(db: "Database", job_id: str, state: str, reason: str | None = None) -> None:
+    """End a row `start_own_row` made, if it is still running."""
+    db.execute(
+        "UPDATE jobs SET state = ?, reason = ?, finished_at = ? WHERE id = ? AND state = 'running'",
+        [state, reason, utc_now(), job_id],
+    )
+
+
+def detail_text(db: "Database", job_id: str) -> str | None:
+    """A row's `detail` (JSON text), or None."""
+    row = db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id])
+    return row[0] if row and row[0] else None
+
+
+def running_row_of(db: "Database", kind: str, subject: str) -> tuple[str, str | None] | None:
+    """The newest running row of this kind and subject: (id, detail text)."""
+    row = db.execute_fetchone(
+        "SELECT id, detail FROM jobs WHERE kind = ? AND subject = ? AND state = 'running' ORDER BY started_at DESC LIMIT 1",
+        [kind, subject],
+    )
+    return (row[0], row[1]) if row else None
 
 
 def _heard_from(job_id: str) -> None:
@@ -1975,12 +2039,13 @@ def cancel_waiting(db: "Database", job_id: str) -> None:
 
 
 def enqueue_many(
-    db: "Database", kind: str, subjects: list[str], *, started_by: str = "automatic"
+    db: "Database", kind: str, subjects: list[str], *, started_by: str = "automatic", held: bool = False
 ) -> list[Future]:
     """`enqueue` for many subjects in a few statements (an import queues thousands of pages
     inside its own transaction, where a statement per page would be felt). Returns one future
     per subject, resolved with the job's result when it finishes in this process; a job finished
-    after a restart resolves nothing (nobody is waiting on it any more)."""
+    after a restart resolves nothing (nobody is waiting on it any more). `held`: a new row is made paused with the
+    quit's reason, for the launch alert's Continue (`stopped_at_quit`), and starts nothing."""
     if not subjects:
         return []
     _ensure(db)
@@ -2004,12 +2069,15 @@ def enqueue_many(
         rows = [(str(uuid.uuid4()), subject) for subject in chunk]
         ids.update((subject, job_id) for job_id, subject in rows)
         db.execute(
-            "INSERT INTO jobs (id, kind, subject, model, state, attempts, started_by, created_at) VALUES "
-            + ", ".join("(?, ?, ?, ?, 'waiting', 0, ?, ?)" for _ in rows),
+            "INSERT INTO jobs (id, kind, subject, model, state, reason, attempts, started_by, created_at) VALUES "
+            + ", ".join("(?, ?, ?, ?, ?, ?, 0, ?, ?)" for _ in rows),
             [
                 value
                 for job_id, subject in rows
-                for value in (job_id, kind, subject, model, started_by, now)
+                for value in (
+                    job_id, kind, subject, model, "paused" if held else "waiting", QUIT_REASON if held else None,
+                    started_by, now,
+                )
             ],
         )
     futures = [_scheduler.watch(ids[subject]) for subject in subjects if subject in ids]
@@ -4242,32 +4310,69 @@ def delete_jobs(db: "Database", ids: list[str], states: list[str] | None = None,
 
 def stopped_at_quit(db: "Database") -> list[dict[str, Any]]:
     """The top-level rows the open held (`HELD_AT_OPEN_REASONS`: what the quit left unfinished, a synced folder's new files), for the launch alert:
-    id, kind, name, subject, done/total when known, when they last started. Nothing a person paused, nothing failed."""
+    id, kind, name, subject, done/total when known, when they last started. Nothing a person paused, nothing failed.
+    The held jobs of a queue (`QUEUES`: an import's thumbnails, embeds and name drafts) are one item whose id is the
+    queue's, named with the pages it holds (`importer.resume.launch-alert-is-one-row-per-queue`)."""
     _ensure(db)
     out: list[dict[str, Any]] = []
-    marks = ", ".join("?" for _ in HELD_AT_OPEN_REASONS)
-    for job_id, kind, subject, started_at in db.execute_fetchall(
-        f"SELECT id, kind, subject, started_at FROM jobs WHERE state = 'paused' AND reason IN ({marks}) AND parent_id IS NULL "
-        f"{_hidden_filter(db)} ORDER BY created_at, id",
-        [*HELD_AT_OPEN_REASONS],
+    load_kinds()
+    queued = sorted({k for ks, _ in QUEUES.values() for k in ks})
+    queue_marks = ", ".join("?" for _ in queued) or "NULL"
+    reason_marks = ", ".join("?" for _ in HELD_AT_OPEN_REASONS)
+    held = f"state = 'paused' AND reason IN ({reason_marks}) AND parent_id IS NULL{_hidden_filter(db)}"
+    for job_id, kind, subject, started_at, detail in db.execute_fetchall(
+        f"SELECT id, kind, subject, started_at, detail FROM jobs WHERE {held} AND kind NOT IN ({queue_marks}) "
+        f"ORDER BY created_at, id",
+        [*HELD_AT_OPEN_REASONS, *queued],
         committed=True,
     ):
-        out.append({"id": job_id, "kind": kind, "name": kind_name(kind), "subject": subject, "started_at": started_at})
+        named = _named_by_its_kind(db, {"id": job_id, "kind": kind, "subject": subject, "detail": detail})
+        out.append({"id": job_id, "kind": kind, "name": named or kind_name(kind), "subject": subject, "started_at": started_at})
+    for prefix, (kinds, name) in QUEUES.items():
+        marks = ", ".join("?" for _ in kinds)
+        row = db.execute_fetchone(
+            f"SELECT count(DISTINCT subject), min(started_at) FROM jobs WHERE {held} AND kind IN ({marks})",
+            [*HELD_AT_OPEN_REASONS, *kinds],
+            committed=True,
+        )
+        if row and row[0]:
+            out.append({"id": prefix, "kind": prefix, "name": f"{name}, {row[0]:,} pages", "subject": None, "started_at": row[1]})
     return out
 
 
 def continue_after_quit(db: "Database", ids: list[str] | None) -> list[str]:
     """The person's Continue on the launch alert: the chosen rows the quit stopped (all of them when `ids` is None) are
-    let go, the stored pause lifted through each kind's own resume (`pause_job`), and the lane woken. Returns the ids."""
-    stopped = [row["id"] for row in stopped_at_quit(db)]
+    let go, the stored pause lifted through each kind's own resume (`pause_job`), and the lane woken. Returns the ids.
+    A queue's item (`stopped_at_quit`) lets all its held jobs go in one statement."""
+    stopped_rows = stopped_at_quit(db)
+    stopped = [row["id"] for row in stopped_rows]
     chosen = stopped if ids is None else [i for i in ids if i in stopped]
+    released: list[dict[str, Any]] = []
     for job_id in chosen:
+        if job_id in QUEUES:
+            released += _release_queue(db, job_id)
+            continue
         db.execute("UPDATE jobs SET reason = NULL WHERE id = ? AND state = 'paused'", [job_id])  # not "stopped" any more
         pause_job(db, job_id, False)
     if chosen:
         key = _key(db)
         db.add_after_commit_hook(lambda: _scheduler.wake(key))
+        from fichero_server.importers.derivatives import arm_released_pages
+
+        arm_released_pages(db, [r for r in stopped_rows if r["id"] in chosen and r["id"] not in QUEUES] + released)
     return chosen
+
+
+def _release_queue(db: "Database", prefix: str) -> list[dict[str, Any]]:
+    """Every held job of a queue's kinds waits again, in one UPDATE. Returns each (kind, subject) let go, for the page count."""
+    kinds = QUEUES[prefix][0]
+    marks = ", ".join("?" for _ in kinds)
+    reasons = ", ".join("?" for _ in HELD_AT_OPEN_REASONS)
+    held = f"state = 'paused' AND reason IN ({reasons}) AND parent_id IS NULL AND kind IN ({marks}){_hidden_filter(db)}"
+    params = [*HELD_AT_OPEN_REASONS, *kinds]
+    rows = [{"kind": k, "subject": sub} for k, sub in db.execute_fetchall(f"SELECT kind, subject FROM jobs WHERE {held}", params)]
+    db.execute(f"UPDATE jobs SET state = 'waiting', reason = NULL WHERE {held}", params)
+    return rows
 
 
 #: Kinds whose every job is a row of its own in Activity, however many are queued (`snapshot`).
@@ -6142,7 +6247,8 @@ def failed_since(db, kind: str, subject: str, since) -> bool:
 def queue_state(db, own_kinds: list[str], since=None) -> str | None:
     """What the job table says about a queue made of `own_kinds`: "moving" while page work of ours on a model or
     image lane runs behind it (a workflow, batch or far-side row does not count); "over" when its jobs have all
-    ended, one failed since `since`, and none waits or runs; else None."""
+    ended, one failed since `since`, and none waits or runs; "held" when none waits or runs and some are paused (what a
+    quit left, or a person's pause: Continue or Resume lets them go); else None."""
     marks = ", ".join("?" for _ in own_kinds)
     running = [
         r[0]
@@ -6173,6 +6279,15 @@ def queue_state(db, own_kinds: list[str], since=None) -> str | None:
         is not None
     ):
         return "over"
+    if (
+        db.execute_fetchone(
+            f"SELECT 1 FROM jobs WHERE kind IN ({marks}) AND state IN ('waiting', 'running') LIMIT 1", own_kinds
+        )
+        is None
+        and db.execute_fetchone(f"SELECT 1 FROM jobs WHERE kind IN ({marks}) AND state = 'paused' LIMIT 1", own_kinds)
+        is not None
+    ):
+        return "held"
     return None
 
 

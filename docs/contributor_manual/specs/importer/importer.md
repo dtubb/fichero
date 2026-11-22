@@ -288,10 +288,13 @@ is case-insensitive. Every count and list below is filtered by milestone NUMBER
   works today (`handleFileImport`/`ImportService`, confirmed by an earlier pass), but whether
   it stays "smooth" at scale ties directly to `importer.bulk-import-activity-visible` above
   (#739/#3308/#4203) rather than being a separate mechanism — cited together, not duplicated.
-- `importer.resumable-content-hash-skip` — **[GAP]** (#739) a resumable corpus pass should
+- `importer.resumable-content-hash-skip` — **[PARTIAL]** (#739) a resumable corpus pass should
   skip already-imported content by hash at 100k-document scale, distinct from progress
   VISIBILITY (`importer.bulk-import-activity-visible`) — resuming a partial import and
-  reporting one already in progress are two different capabilities. Not verified as built.
+  reporting one already in progress are two different capabilities. Verified 2026-11-20: a
+  second drop onto the same place does skip what is already in and completes the folder; what
+  is owed is in `importer.resumable-redrop-skips-without-reading` and
+  `importer.resume.an-interrupted-import-is-offered-again` below.
 - `importer.bilingual-content-does-not-duplicate-kg-rows` — **[GAP]** (#1798, redirected from
   the legacy "Importer - Source Archives" milestone) when a source's transcription duplicates
   the same content in two languages (reported against a multi-volume diary corpus specifically,
@@ -376,6 +379,258 @@ Moved onto `importer` (#307) this pass, by number: **#4210, #3288, #2106, #1328,
 Redirected to `provider-keys` (#305): **#2060**. Left in place, dispositioned above, not moved:
 everything else.
 
+## Import and derivatives at scale (review 2026-11-20, measured)
+
+What a project of 5,000 page images needs from import, the derivative queue and its originals, written as what
+should be and tagged against the code. Measured 2026-11-20 on a scratch engine and scratch libraries (an M4 with
+24 GB, sources and library on a USB solid-state disk, the machine shared with test runs): 500 and 2,000 real page
+photographs and scans (JPEG, PNG, TIFF; 2.0 GB per 500, 4 MB a page on average). Not measured here: PDFs, a
+network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures scaled).
+
+| Step | 500 pages | 2,000 pages | 5,000 pages (scaled) |
+|---|---|---|---|
+| Link import, drop to last row saved | 29.5 s (17 files/s) | about 105 s | about 4.5 min |
+| Copy import (same disk, cloned, no extra space) | 35.5 s (14 files/s) | not run | about 6 min |
+| Thumbnails, two at a time (284 ms mean, 568 ms p95) | 83 s (6.0/s) | 207 s per 1,000 after a restart (4.8/s) | 14 to 17 min |
+| Embed jobs for pages with no text (48 ms each, nothing embedded) | 24 s | 45 s per 1,000 | about 4 min |
+| Drop to "Processing imported pages completed" | 134 s | not run in one piece | about 25 min |
+| Engine memory (process tree, peak) | 1.34 GB importing, 1.45 GB on thumbnails | 1.22 GB | not measured |
+| Disk in the project (link) | 92 MB thumbnails (184 KB a page), 3.3 MB database | 375 MB thumbnails, 16 MB database | about 0.95 GB |
+| "Which originals are missing?" (none are) | 1.0 s | 4.0 s | about 10 s on a fast disk |
+
+### Throughput and what a page costs
+
+- `importer.scale.five-thousand-pages-budget` — **[PARTIAL]** (#4203) a folder of 5,000 page images linked from a
+  solid-state disk is all rows within 5 minutes, shows its first thumbnail within a minute of the drop, has every
+  thumbnail within 20 minutes, keeps the engine under 1.5 GB and adds under 1 GB to the project. *Measured:* the
+  table above meets the import, memory and disk figures at 500 and 2,000 pages. *Not met:* the first thumbnail waits
+  for the last file (`importer.resume.jobs-are-queued-with-each-batch`). *Not built:* a load leg that holds these
+  numbers; the 100,000-file target of #4203 is not measured.
+- `importer.scale.a-linked-file-is-read-once` — **[GAP]** (→ #6832; nearest #4203) a link import reads each file's
+  bytes once and asks the disk about it a handful of times. Today each file is read three times and asked about 32
+  times (measured on 100 files, 390 MB: 2.99 times the bytes read, 25.8 `stat`, 6.3 `lstat`, 3 opens per file):
+  `ingest_folder` hashes it for the skip test (`_file_checksum`), `ingest_file` hashes it again as the
+  changed-while-read check (`_extract_file_metadata`, `known_checksum=None` for a link), and reading the image's
+  size and EXIF reads it a third time (`_extract_image_metadata`; all in `importers/ingest.py`). On a network volume the read is the whole cost of an import. The
+  changed-while-read check can be the size and date before and after one read.
+- `importer.resumable-redrop-skips-without-reading` — **[PARTIAL]** (#739) dropping a folder again onto the place it
+  was imported to brings in only what is missing and makes no second copy of anything. *Built:* the skip by source
+  path and checksum, scoped to the destination (`ingest_folder`, `Database.ingest_dedup_keys`;
+  `fichero-server/tests/unit/importers/test_ingest_dedup_scope.py`); measured, a 2,000-file folder cut off at 1,000
+  was completed by a second drop in 59.5 s with no page twice and its 1,602 folders made once. *Not built:* the
+  skip reads every byte of every file already imported to hash it; a file whose path, size and date match what was
+  recorded is skipped without a read (today only an online-only cloud file is skipped that way).
+- `importer.scale.no-embed-job-for-a-page-without-text` — **[GAP]** (→ #6833; nearest #5954) a page with no text gets
+  no embed job: its thumbnail landing is what ends `pending`. Today every image gets one (`queue_derivatives`:
+  `embed_queued = queued`), which embeds nothing, costs 48 ms a page on the embed lane (24 s per 500 pages, at over
+  one core) and is the only thing that turns the page from `pending` to `completed` (`_embed_stage`,
+  `importers/derivatives.py`).
+- `importer.scale.prepare-pages-counts-what-lands` — **[PARTIAL]** (→ #6833; nearest #5954) the "Prepare pages" row
+  counts a page when its thumbnail lands, so the count moves through the whole wait. *Built:* the row's stages
+  carry their own counts (`queue_stages`, `importers/derivatives.py`). *Not built:* the row's own count moves only
+  when an embed job ends (`_progress_tick` is called from `_embed_stage` alone), so it reads 0 of N for the whole
+  thumbnail stage (83 s at 500 pages, about 15 min at 5,000) and then runs to N in seconds.
+- `importer.scale.edited-image-cache-is-bounded` — **[GAP]** (→ #6834; nearest #1590) an edited page's picture is
+  made once per saved edit, off the request, and the copy of an earlier edit is removed when a later one is saved.
+  Today `resolve_edited_source` (`db/storage.py`) writes a full-size PNG of the edited page into the project, inside
+  the thumbnail or display request that first asks for it, one file per version of the edit chain, and nothing
+  removes an older version. Read in the code; the size was measured outside the engine: an 18-megapixel photograph
+  of 4.3 MB becomes a 24.6 MB PNG in 0.83 s, so one crop over 5,000 such pages is about 120 GB.
+- `importer.scale.thumbnail-alias-costs-no-space` — **[OK]** each page's thumbnail is one file with two names (a hard
+  link), not two copies: 1,000 files for 500 pages, every one with a link count of 2, 92 MB in all
+  (`_sync_alias_to_cache`, `db/storage.py`;
+  `fichero-server/tests/unit/db/test_thumbnail_alias_sync.py::test_the_same_inode_case_short_circuits`).
+
+### A quit or a crash in the middle
+
+- `importer.resume.held-queue-is-not-stalled` — **[PARTIAL]** (→ #6827; nearest #6584, #6209) after a restart the
+  pages whose thumbnails and embeds wait for Continue are shown as held, counted from where they were, and are
+  never called stalled. Today, measured twice: the engine was killed at 1,000 of 2,000 files; at the next open
+  `resume_pending_derivatives` (`db/manager.py`) queued the 1,000 pending pages and armed the in-memory queue at
+  "0 of 1,000" (`_progress_add`), `jobs.resume` then paused every one of those rows ("Stopped when Fichero quit"),
+  and 61 s later the watchdog wrote "Processing imported pages stalled at 0 of 1000" (`_arm_stall_watchdog`:
+  `queue_state` in `execution/jobs.py` says nothing for a queue whose rows are all paused). The row stays "running,
+  0 of 1,000" until Continue; killed again with 121 thumbnails made, it came back as "0 of 1,000". Two thumbnail
+  jobs ran before the pause reached them. The open also reads every pending page whole
+  (`db.query(Document, status=pending)`) to do this. The run-resume half is its own work (`runner.soak.*`).
+  Test to add: open a library whose pages are pending and whose rows are paused; no queue is armed and no stall is
+  said after the deadline; after Continue the count starts at the thumbnails already made.
+  *Built:* the open's re-queue runs after `jobs.resume`, makes its rows paused and arms no count; `queue_state`
+  (`execution/jobs.py`) answers "held" for a queue whose rows are all paused, and the stall watchdog says nothing for
+  it; Continue arms the count with the pages it lets go. *Not built:* that count starts at 0 of the pages still held,
+  not at the thumbnails already made; the open still reads every pending page whole.
+  Test: `fichero-server/tests/unit/importers/test_held_queue_is_not_stalled.py`.
+- `importer.resume.jobs-are-queued-with-each-batch` — **[PARTIAL]** (→ #6829; nearest #739) a page's thumbnail job is
+  written in the transaction that saves the page, batch by batch, so thumbnails start while the folder is still
+  coming in and a quit leaves no page without its job. Today `import_folder_impl` (`api/routes/ingest/core.py`)
+  calls `queue_derivatives` once, after the last file: killed at 1,000 of 2,000, the project held 1,000 pending
+  pages and no job row, and at 5,000 pages the first thumbnail comes about 4.5 minutes after the drop.
+  *Built:* `ingest_folder` calls `on_saved` inside the transaction that saves each batch (a per-file retry and a
+  single save too), and the route queues that batch's thumbnail jobs there; nothing is queued after the last file.
+  *Not built:* the synchronous `import.folder` action's own import row (below); the first-thumbnail time at 5,000
+  pages is not measured again. Test: `fichero-server/tests/unit/importers/test_import_survives_a_quit.py`.
+- `importer.resume.an-interrupted-import-is-offered-again` — **[PARTIAL]** (→ #6829; nearest #739) an import a quit or
+  crash cut off is remembered in the project and offered at the next open with the rest of what the quit stopped:
+  "Import of Box 3 stopped at 1,000 of 2,000 files", Continue or Dismiss. Today the task lives only in the engine's
+  memory (`_tasks`, `api/routes/ingest/core.py`): after the restart nothing says the folder is half in, and the
+  half that is in looks like a whole folder. Dropping it again completes it
+  (`importer.resumable-redrop-skips-without-reading`), if the person knows to.
+  *Built:* the folder route writes a job row for the import (`importers/interrupted_import.py`, kind
+  "import-folder", its request and file count in the row); a row left running by a dead engine is held at open,
+  listed by `stopped_at_quit`, and Continue runs `import.folder` again from the stored request with no page made
+  twice. *Not built:* the launch alert reads "Import of Box 3 · 1,000 of 2,000 files", not "stopped at"; Dismiss is
+  untested; the synchronous `import.folder` action (the CLI) writes no import row; a library opened a second time
+  while an import runs would hold its running row, which has no live thread id.
+  Test: `fichero-server/tests/unit/importers/test_import_survives_a_quit.py`.
+- `importer.resume.launch-alert-is-one-row-per-queue` — **[PARTIAL]** (→ #6830; nearest #6584) what the quit stopped
+  is listed as one item for the import's queue ("Prepare pages, 1,000 pages"), and Continue is one statement however
+  many pages it holds. Today `stopped_at_quit` (`execution/jobs.py`) answers one item per page job (1,998 items and
+  323 KB for 1,000 pages) and `continue_after_quit` updates them one at a time: 18.9 s for 1,998 rows and 24.9 s for
+  1,879, the request held the whole time; about two minutes at 5,000 pages.
+  *Built:* `stopped_at_quit` lists the held jobs of a registered queue (`QUEUES`) as one item whose id is the queue's
+  ("Processing imported pages, 5,000 pages"), and `continue_after_quit` on that id reads the held rows once and lets
+  them go with one UPDATE: 10,000 held rows continue in under a second in the test. *Not built:* the item's name is
+  the queue's own ("Processing imported pages"), not "Prepare pages"; the alert view (Swift) is unchanged and not
+  run against the one-item list; a page the person paused is not in the list, as before.
+  Test: `fichero-server/tests/unit/jobs/test_continue_is_one_statement.py`.
+- `importer.resume.no-twin-rows-at-open` — **[PARTIAL]** (#6209, #6595) the open leaves one job row per page and
+  stage. *Built:* a waiting or paused row is reused (`enqueue_many`, `execution/jobs.py`). A page whose job was running at the kill is
+  reused too (the open's re-queue runs after `jobs.resume`). *Not built:* a page whose job was already done while the
+  page is still pending gets a second row: after one kill during thumbnails, 2,124 thumbnail rows stood for 2,000
+  pages (124 settled at once as done by `settle_made_thumbnails`). Test:
+  `fichero-server/tests/unit/importers/test_held_queue_is_not_stalled.py`.
+
+### Files of one name
+
+- `importer.same-name.files-from-different-folders-both-import` — **[PARTIAL]** (→ #6831; nearest #4579) files of the
+  same name from different folders all come in, each a page of its own keeping its name, by every way in. A layout
+  file that could belong to two images of one name pairs with neither and is listed as unpaired with that reason; a
+  name never refuses the whole drop. Today the answer depends on the way in. A folder drop and a drop by path take
+  them (`POST /api/ingest/folder`, `POST /api/ingest/files`: measured, eight pages sharing each of four names in the
+  2,000-page import, and two files of one name from two folders dropped by path, both imported). The upload route
+  refuses the whole batch with 422 "two files in the drop have the same name" (`import_files_together`,
+  `api/routes/document/documents.py`), because `import_dropped_set` stages every upload under its bare name in one
+  folder. That route is the one a remote client, the command line and the soak script use, so a camera's
+  `IMG_0001` from two cards cannot be sent together. Test to add: two uploads of one name make two pages; two
+  images of one name and one layout file of that name make two pages and one unpaired entry.
+  *Built:* `import_files_together` no longer refuses a repeated name; `import_dropped_set` stages the first file of a
+  name (compared case-folded) in the staging folder and each later one in its own `same-name-<i>/` folder, so each
+  upload is a page keeping its name. A layout file whose name matches several images is moved to the unpaired list
+  with the reason "N images in the drop are named ..." and imports as an ordinary file. *Not built:* a layout file
+  that states the image's name inside it is not matched against the twins; there is no folder upload for #4579 (it
+  stays open).
+  Test: `fichero-server/tests/unit/importers/test_same_named_uploads_import.py`.
+
+### Linked and copied originals
+
+- `importer.originals.link-records-what-a-relink-needs` — **[OK]** a linked page records its path, a bookmark, its
+  size, its checksum and its source date at import, which is what Locate Originals matches on (`ingest_file`,
+  `_extract_file_metadata`, `importers/ingest.py`; `relink_plan`, `importers/relink.py`;
+  `fichero-server/tests/unit/importers/test_locate_originals_5672.py`).
+- `importer.originals.copy-is-a-clone-on-the-same-disk` — **[OK]** a copy import onto the disk the files are on takes
+  no extra space (`_try_apfs_clone`, `_verify_copied`, `importers/ingest.py`): measured, 500 pages and 1.9 GB copied
+  in 35.5 s with the disk's used space unchanged but for the thumbnails; the stored path is relative to the
+  project, so a renamed project still finds them
+  (`fichero-server/tests/unit/importers/test_ingest_package_paths.py`).
+- `importer.originals.missing-check-is-bounded` — **[PARTIAL]** (→ #6828; nearest #6733) asking which originals are
+  missing costs one listing per source folder (or one `stat` per page), reads only each page's id and recorded
+  paths, answers a volume that is not mounted with one question for all its pages, gives up on a volume that does
+  not answer within 10 seconds and says so, and is asked once per open and after a relink, not on every folder
+  selected. Today, measured on 500 linked pages that are all present: `missing_originals`
+  (`importers/relink.py`) made 311,382 `lstat` and 38,502 `stat` calls, about 700 a page, 161 of them on the source
+  volume, because each page resolves its path and the project's allowed folders again and again (`_linked_missing`,
+  `original_is_there`, then `resolve_source` and `resolve_document_source_path`); it also reads every document
+  whole (`db.query(Document)`). It took 1.0 s at 500 pages and 4.0 s at 2,000 on a solid-state disk; at 5,000
+  pages it is 3.5 million calls, 800,000 of them on the source volume, which on a volume that answers in a few
+  milliseconds is the many-minute stall seen in a stall dump on 2026-11-20. The app asks at open and again each
+  time a folder is selected (`LocateOriginalsPresenter` and `MissingOriginalsNotice`,
+  `fichero/fichero/Views/Library/LocateOriginals.swift`), and the answer lists every missing id, which the app searches as
+  an array for each cell (`OriginalsStore.isMissing`). Test to add: 500 linked pages in 5 folders are checked with
+  at most one filesystem call a page and one listing a folder, counted; a volume that is not there is one call.
+  *Built:* `missing_originals` reads id and path only, lists each folder once and confines it once
+  (`path_security.prepare_roots`), and a volume under /Volumes that is not mounted is one `stat`. *Not built:* the
+  10-second give-up on a volume that does not answer, the app's one ask per open and after a relink, and
+  `OriginalsStore.isMissing`'s array search; a page the listing does not show still costs the full
+  `original_is_there`. Test: `fichero-server/tests/unit/importers/test_missing_originals_is_bounded.py`.
+
+## Build order
+
+From the review of 2026-11-20 ("Import and derivatives at scale" above), its ranked fixes in rank order, one step each.
+
+### Stage 1 — Import at 5,000 pages (the review's ranked fixes)
+
+#### Step 1.1 — Held is not stalled; no twin rows at open (#6827, #6209)
+- Behaviours: `importer.resume.held-queue-is-not-stalled`, `importer.resume.no-twin-rows-at-open`
+- Tests: test_held_queue_is_not_stalled.py (not yet written), fichero-server/tests/unit/jobs/test_durable_5357.py
+- Size: M
+
+`importers/derivatives.py`, `execution/jobs.py`, `db/manager.py`: `queue_state` answers held when a queue's live rows
+are all paused; the open's re-queue runs after `jobs.resume`, held, and arms nothing; Continue arms the count from the
+job table; the open queries pending ids, not whole documents.
+
+#### Step 1.2 — Which originals are missing: one call a page (#6828, #6733)
+- Behaviours: `importer.originals.missing-check-is-bounded`
+- Tests: test_missing_originals_is_bounded.py (not yet written), fichero-server/tests/unit/importers/test_locate_originals_5672.py
+- Size: M
+
+`importers/relink.py`, `db/storage.py`, `security/path_security.py`, the route, `OriginalsStore.swift`,
+`LocateOriginals.swift`. Test: counted filesystem calls for 500 pages in 5 folders (at most 505); one call for a
+volume that is not there.
+
+#### Step 1.3 — An import survives a quit (#6829, #739)
+- Behaviours: `importer.resume.jobs-are-queued-with-each-batch`, `importer.resume.an-interrupted-import-is-offered-again`
+- Tests: fichero-server/tests/unit/importers/test_import_survives_a_quit.py
+- Depends on: 1.1
+- Size: M
+
+`api/routes/ingest/core.py`, `importers/ingest.py`, `importers/derivatives.py`. Test: killed after batch 3, every saved
+page has a thumbnail row; the launch alert lists the import; Continue finishes it with no page twice.
+
+#### Step 1.4 — Continue in one statement; one alert item per queue (#6830, #6584)
+- Behaviours: `importer.resume.launch-alert-is-one-row-per-queue`
+- Tests: fichero-server/tests/unit/jobs/test_continue_is_one_statement.py
+- Size: S
+
+`execution/jobs.py`, `api/routes/system/activity.py`, the alert view. Test: 10,000 paused rows continue in under a
+second; the list answers one item.
+
+#### Step 1.5 — Uploads of one name both import (#6831, #4579)
+- Behaviours: `importer.same-name.files-from-different-folders-both-import`
+- Tests: fichero-server/tests/unit/importers/test_same_named_uploads_import.py
+- Size: S
+
+`api/routes/document/documents.py` (`import_files_together`, `import_dropped_set`), `importers/interchange_pairing.py`.
+
+#### Step 1.6 — A linked file is read once; a re-drop skips by size and date (#6832, #739)
+- Behaviours: `importer.scale.a-linked-file-is-read-once`, `importer.resumable-redrop-skips-without-reading`, `importer.resumable-content-hash-skip`
+- Tests: test_a_linked_file_is_read_once.py (not yet written), fichero-server/tests/unit/importers/test_ingest_dedup_scope.py
+- Size: S
+
+`importers/ingest.py`. Test: counted reads equal the folder's bytes; a re-drop reads none.
+
+#### Step 1.7 — No embed job for a page without text; Prepare pages counts thumbnails (#6833, #5954)
+- Behaviours: `importer.scale.no-embed-job-for-a-page-without-text`, `importer.scale.prepare-pages-counts-what-lands`
+- Tests: fichero-server/tests/unit/api/test_post_ingest_derivatives.py
+- Size: S
+
+`importers/derivatives.py`. Tests: an image import queues no embed row; the count moves with thumbnails.
+
+#### Step 1.8 — The edited-image cache is bounded (#6834, #1590)
+- Behaviours: `importer.scale.edited-image-cache-is-bounded`
+- Tests: test_edited_image_cache_is_bounded.py (not yet written)
+- Size: M
+
+`db/storage.py`, the edit actions. Test: three edits leave one file.
+
+#### Step 1.9 — The import load leg (#6864, #4203)
+- Behaviours: `importer.scale.five-thousand-pages-budget`
+- Tests: test_import_soak.py (not yet written), fichero-server/tests/unit/scripts/test_soak_run_6732.py
+- Depends on: 1.1, 1.3
+- Size: M
+
+A script like `scripts/soak_run.py` for import only: 500 pages, a kill mid-import and one mid-thumbnails, checked
+against the budget in `importer.scale.five-thousand-pages-budget`. Its nightly run on the M4 is the manager's.
+
 ## Out of scope (pointed at with arrows)
 
 - **What a workflow does to a node once it exists** (transcription, extraction, chains) —
@@ -399,6 +654,7 @@ everything else.
 | Backend (pytest) | y (NLP) / n (Kraken) | NLP-at-import IS covered now (62 tests, `importer.nlp-*` above); Kraken-at-import is still not wired | `test_nlp_draft_import.py`, `test_nlp_draft_purge_action.py` (NLP) — none yet (Kraken) |
 | Availability (Swift) | y | Data ▸ Import… reaches the focused pane; the bottom-bar/drag affordances exist | `fichero/Tests/Unit/general/App/LibraryImportFocusedValueTests.swift`, `.../Views/Library/LibraryImportAffordancesTests.swift` (not individually re-read this pass — named for completeness, not cited as proof of a behavior above) |
 | Click-around (XCUITest) | n | no dedicated drop-a-file-and-see-it-readable flow test found | — |
+| Load | y, by hand | 500 and 2,000 real pages on a scratch engine, killed mid-import and mid-thumbnails (2026-11-20, the table under "Import and derivatives at scale"); no test holds the numbers yet (`importer.scale.five-thousand-pages-budget`) | — |
 
 Hard-gate: none yet — DRAFT spec; a hard-gate set is chosen once `importer.segmentation-
 automatic-no-toggle` and `importer.nlp-auto-at-import` (the two genuinely unbuilt rulings)
@@ -516,12 +772,16 @@ from this pass shipped and closed at 177fc6cd3). Everything else stays on #188.
   offers Retry. Retry resolves the bookmark, then searches the last folder used and the library's known roots; on finding the
   original it relinks it and offers to relink the other K missing originals in that folder too. Test: Retry finds one and
   offers the rest.
-- `importer.originals.one-is-it-there-test` — **[GAP]** (#6733; app + engine; owner 2026-11-19) one test of "is this original there?" is used by
+- `importer.originals.one-is-it-there-test` — **[PARTIAL]** (#6733; app + engine; owner 2026-11-19) one test of "is this original there?" is used by
   the Locate Originals sheet, the thumbnail and Retry, so they cannot disagree (today the sheet says every linked original is
   where the project says while thumbnails say "Original unavailable"; a volume the engine cannot read must count as missing,
   not as found). The sheet's words are plain: nothing missing, "All N originals were found."; some missing, "N of M originals
   can't be found. They were last in: …" with "Choose the folder they're in now…"; after a relink, "Relinked N. Still missing: M."
   The sheet can still point at a new folder when nothing is missing ("Move originals to a new folder…"). Related: #5818.
+  *Built (checked 2026-11-20):* the engine's one test, `original_is_there` (`importers/relink.py`), is what
+  `missing_originals` asks, the thumbnail's own answer; `fichero-server/tests/unit/importers/test_original_is_there_6733.py`.
+  *Not built:* the sheet's counts ("All N originals were found." says no N today) and Retry using the same test;
+  what the test costs at scale is `importer.originals.missing-check-is-bounded`.
 - `importer.missing-original-fails-in-words` — **[GAP]** (#5818) a page whose original is not where it was imported from fails its thumbnail job in words, "<file> isn't where it was imported from: Locate Originals…" (the sentence #5811 gives a try), so the job row ends `failed` naming the file instead of finishing silently; the batch ends with each failed page named. A run waiting behind thumbnails says what it waits for (the stage, the pages that failed and why): `activity.waiting-says-why` (`execution/jobs.py` `first_reason`: the held row appends up to four thumbnail pages that failed since it was queued, newest first; tested in `tests/unit/jobs/test_a_waiting_run_says_what_it_waits_for_5818.py`).
 - `importer.derivative-source-found-for-resumed-documents` — **[BROKEN]** (#5408) resuming derivatives finds each pending document's source (pages of a notebook corpus fail with 'source not found') or says why.
 

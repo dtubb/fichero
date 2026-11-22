@@ -460,7 +460,6 @@ def test_render_entry_object_role_needs_a_whole_word_match(db):
     (#4839/#4649, tested separately below), and this test is about the
     per-claim role inference, not aggregation.
     """
-    from fichero_server.knowledge.readable import render_entry
     ana = _entity(db, "Ana")
     juan = _entity(db, "Juan")
     about_other = _svo("Juan", "pagó a", "Anastasia Mena", subject_entity_id=juan.id,
@@ -469,9 +468,10 @@ def test_render_entry_object_role_needs_a_whole_word_match(db):
                      entity_ids=[juan.id, ana.id])
     db.save(about_other)
     db.save(about_ana)
-    roles = {s["text"]: s["role"] for s in render_entry(db, ana.id)}
-    assert roles["Juan pagó a Anastasia Mena."] == "mention"
-    assert roles["Juan escribió a Ana."] == "object"
+    from fichero_server.knowledge.readable import render_entry_with_mentions
+    sentences, mentions = render_entry_with_mentions(db, ana.id)
+    assert [m["claim_id"] for m in mentions] == [about_other.id]
+    assert {s["text"]: s["role"] for s in sentences} == {"Juan escribió a Ana.": "object"}
 
 
 def test_render_entry_orders_by_date_then_created_at_then_id(db):
@@ -642,11 +642,11 @@ def test_render_entry_never_merges_same_name_different_entity_ids(db):
     father = _entity(db, "Juan Perez")
     son = _entity(db, "Juan Perez")
     father_claim = _svo(
-        "Juan Perez", "sold", "a mine",
+        "Juan Perez", "sold", "the mine of Testigo",
         subject_entity_id=father.id, entity_ids=[father.id, witness.id],
     )
     son_claim = _svo(
-        "Juan Perez", "sold", "a house",
+        "Juan Perez", "sold", "the house of Testigo",
         subject_entity_id=son.id, entity_ids=[son.id, witness.id],
     )
     db.save(father_claim)
@@ -768,8 +768,8 @@ def test_render_entry_never_merges_two_entity_less_same_name_claims(db):
     -- a father and son sharing a name, neither yet linked to an entity."""
     from fichero_server.knowledge.readable import render_entry
     witness = _entity(db, "Testigo")
-    a = _svo("Juan Perez", "witnessed", "a will", entity_ids=[witness.id])
-    b = _svo("Juan Perez", "witnessed", "a sale", entity_ids=[witness.id])
+    a = _svo("Juan Perez", "witnessed", "the will of Testigo", entity_ids=[witness.id])
+    b = _svo("Juan Perez", "witnessed", "the sale of Testigo", entity_ids=[witness.id])
     db.save(a)
     db.save(b)
     sentences = render_entry(db, witness.id)

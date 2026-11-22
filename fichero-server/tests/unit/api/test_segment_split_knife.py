@@ -304,3 +304,64 @@ class TestRefusals:
                 _person(),
             )
         assert refused.value.status_code == 422
+
+
+class TestRegions:
+    """`segment-editor.split-knife`, owner 2026-11-21 (#6734): a stroke across a region splits its polygon in two."""
+
+    def _region(self, db, client):
+        doc, pass_id = _page(db, client)
+        response = client.post("/api/segments", json={
+            "document_id": doc.id, "pass_id": pass_id, "kind": "region",
+            "anchor": {"document_id": doc.id, "polygon": _box(0.1, 0.1, 0.8, 0.4)},
+        })
+        assert response.status_code == 200, response.text
+        region = response.json()["id"]
+        lines = []
+        for y in (0.15, 0.4):
+            line_id = _line(client, doc, pass_id, polygon=_box(0.15, y, 0.7, 0.05), baseline=[[0.15, y + 0.04], [0.85, y + 0.04]])
+            row = db.get(Segment, line_id)
+            row.parent_segment_id = region
+            db.save(row)
+            lines.append(line_id)
+        return region, lines
+
+    def test_a_stroke_across_a_region_makes_two_regions_each_with_its_own_lines(self, db, client):
+        region, (upper, lower) = self._region(db, client)
+
+        # The app offers the region and its lines together: the lines move whole, they are not cut.
+        result = _knife(db, [region, upper, lower], [[0.05, 0.3], [0.95, 0.3]])
+
+        first, second = _parts(result, region)
+        assert [split["kept_id"] for split in result.result["splits"]] == [region]
+        assert first == region
+        assert db.get(Segment, first).kind == db.get(Segment, second).kind == "region"
+        assert db.get(Segment, second).deleted_at is None
+        x0, y0, x1, y1 = line_join.bounds(db.get(Segment, first).anchor.polygon)
+        assert (y0, y1) == pytest.approx((0.1, 0.3), abs=3e-3)
+        x0, y0, x1, y1 = line_join.bounds(db.get(Segment, second).anchor.polygon)
+        assert (y0, y1) == pytest.approx((0.3, 0.5), abs=3e-3)
+        assert db.get(Segment, upper).parent_segment_id == first
+        assert db.get(Segment, lower).parent_segment_id == second
+
+    def test_undo_puts_the_region_and_its_lines_back(self, db, client):
+        region, (upper, lower) = self._region(db, client)
+        shape = db.get(Segment, region).anchor.polygon
+        result = _knife(db, [region], [[0.05, 0.3], [0.95, 0.3]])
+        second = _parts(result, region)[1]
+
+        response = client.post(f"/api/actions/audit/{result.audit_id}/undo")
+        assert response.status_code == 200, response.text
+
+        assert db.get(Segment, region).anchor.polygon == shape
+        assert db.get(Segment, second).deleted_at is not None
+        assert db.get(Segment, upper).parent_segment_id == region
+        assert db.get(Segment, lower).parent_segment_id == region
+
+    def test_a_stroke_that_stops_inside_a_region_leaves_it_alone(self, db, client):
+        region, _lines = self._region(db, client)
+
+        with pytest.raises(HTTPException) as refused:
+            _knife(db, [region], [[0.4, 0.3], [0.6, 0.3]])
+        assert refused.value.status_code == 422
+        assert refused.value.detail["left_alone"] == [{"segment_id": region, "reason": "grazed"}]

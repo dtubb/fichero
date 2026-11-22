@@ -36,6 +36,9 @@ struct SplitAxisActions: Equatable, @unchecked Sendable {
     var horizontalCount: Int = 1
     let onToggleVertical: () -> Void
     let onToggleHorizontal: () -> Void
+    /// The pane menu's Split Right ▸ / Split Below ▸: split adding a pane of that kind (`panes.head.one-menu-button`).
+    let onSplitRight: (PaneSpec.Kind) -> Void
+    let onSplitBelow: (PaneSpec.Kind) -> Void
     let onCollapseSplit: () -> Void
 }
 
@@ -117,8 +120,9 @@ struct PaneModelSplitHook {
     /// `.horizontal`/`.vertical` — NOT the same vocabulary as
     /// `SplittablePane`'s OWN `toggleVertical`/`toggleHorizontal`, which
     /// name a SCREEN DIRECTION (vertical divider = side-by-side) rather
-    /// than a stack axis. See `splitAxisActions()`'s mapping.
-    let split: (SplitAxis) -> Void
+    /// than a stack axis. See `splitAxisActions()`'s mapping. The kind is the pane the split adds; nil duplicates
+    /// this one.
+    let split: (SplitAxis, PaneSpec.Kind?) -> Void
 
     /// The `SplitAxisActions` a pass-through `SplittablePane` publishes into
     /// `\.splitAxisActions` — pulled out of `SplittablePane.body` so the axis
@@ -142,8 +146,10 @@ struct PaneModelSplitHook {
             // "horizontal" means a horizontal divider (stacked, `VStack`) —
             // `PaneList`'s `.vertical` axis. Get this backwards and "Split
             // Vertical" stacks instead of siding.
-            onToggleVertical: { split(.horizontal) },
-            onToggleHorizontal: { split(.vertical) },
+            onToggleVertical: { split(.horizontal, nil) },
+            onToggleHorizontal: { split(.vertical, nil) },
+            onSplitRight: { split(.horizontal, $0) },
+            onSplitBelow: { split(.vertical, $0) },
             onCollapseSplit: {}  // never invoked: hasVertical/hasHorizontal are always false
         )
     }

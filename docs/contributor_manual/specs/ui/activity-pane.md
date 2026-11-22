@@ -661,11 +661,17 @@ the right; the same pane in a main window keeps the table and drops Time, Cost a
   Continue, Retry; Show Details selects the row so the Inspector shows its fix); the row draws the word in a small bordered
   button (`docs/assets/activity-pane/pane-fix-buttons.png`). *Test:* `fichero/Tests/Unit/general/Models/ActivityErrorRowTests.swift`
   extended (`everyActionHasAWord`).
-- `activity.failure.bar-one-button-per-action` — **[GAP]** (#6731; app; owner 2026-11-19; ties to the one dialogue per cause of
+- `activity.failure.bar-one-button-per-action` — **[PARTIAL]** (#6731; app; owner 2026-11-19; ties to the one dialogue per cause of
   #6354) the bar shown when a recipe run fails offers each distinct action once, deduplicated by action and target: a run
   that failed on 149, 137 and 112 pages shows one button for each of those three, not each twice. At most two or three
   actions show beside Show Details, and the rest are inside Show Details. Labels are readable and never cut off mid-word
   (the label shortens or the bar wraps). Test: a failure with repeated per-document actions renders each action once.
+  *Built 2026-11-21:* each action once: `ActivityDetails.summary(of:)` keeps one entry per stage run and offer, in the
+  engine's order (*Test:* `fichero/Tests/Unit/general/Models/ActivityFailedOffersOnceTests.swift`). The engine's run summary
+  lists each failed batch run and offer once, naming every step that carried it (`run_view.stage_failures`; *Test:*
+  `fichero-server/tests/unit/recipes/test_failed_stage_listed_once_6731.py`). *Not built:* the cap of
+  two or three beside Show Details, and the labels: the app has no such bar since the recipe-run strip was removed (owner
+  2026-11-13); the offers show in the Inspector's run summary, one per line.
 - `activity.runs.bulk-delete-in-background` — **[GAP]** (#6732; app + engine; owner 2026-11-19) deleting many runs at once is one
   engine call that returns at once and finishes in the background, and while it works the Activity polls stay under 500 ms.
   Reading a run's step records queries only the documents the run names (never every document in the library), with a test

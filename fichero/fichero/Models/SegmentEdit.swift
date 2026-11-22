@@ -38,8 +38,17 @@ enum SegmentEdit {
         case addBaseline(SegmentCutWordsRequest)
         /// Cut Characters (`segment.cut_characters`).
         case cutCharacters(SegmentCutWordsRequest)
+        /// Convert to Box (`segment.convert_to_box`).
+        case convertToBox(SegmentCutWordsRequest)
+        /// Convert to Line / Convert to Region (`segment.convert_level`).
+        case convertLevel(SegmentConvertLevelRequest)
+        /// Make Region from Lines (`segment.group_lines`) and Ungroup Region (`segment.ungroup_region`).
+        case groupLines(SegmentCutWordsRequest)
+        case ungroupRegion(SegmentUngroupRegionRequest)
         /// Order by clicking (`reading_order.sequence`).
         case sequence(ReadingOrderSequenceRequest)
+        /// Rows dropped between rows of the segment list (`reading_order.move`).
+        case moveInOrder(ReadingOrderMoveRequest)
         /// The selection moved by one offset (`segment.translate`).
         case translate(SegmentTranslateRequest)
         /// A cut mark moved (`segment.move_cut`).

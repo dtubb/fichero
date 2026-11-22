@@ -130,6 +130,7 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
             // The same list as the + (`panes.chrome.one-pane-menu`): right-click anywhere on the head row.
             .contextMenu {
                 PaneMenuEntries(
+                    viewAs: viewAsMenu,
                     splitActions: canSplit ? splitAxisActions : nil,
                     isPinned: isPinned,
                     closeTitle: showsClose ? (isInSplit ? "Close This Split" : "Close Pane") : nil,
@@ -196,6 +197,9 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
     private var identityCapsule: some View {
         capsule { selector() }
     }
+
+    /// The pane menu's View As ▸: the head's own view chooser's list, when it has one (`panes.head.one-menu-button`).
+    private var viewAsMenu: AnyView? { (selector() as? PaneViewChooser)?.viewAsMenu }
 
     /// Adaptive (ruling 2026-08-23): the full chain when the pane is wide
     /// enough, ONLY the leaf when it isn't — never a mid-string ellipsis.
@@ -417,48 +421,39 @@ extension PaneHead {
         }
     }
 
-    /// Pin, as a one-click TOGGLE in the head rather than a row inside the
-    /// "+" menu (Daniel, 2026-09-02: with horizontal/vertical splits "there
-    /// is no way to pin a pane to what it currently shows" — there was, two
-    /// clicks deep behind a plus sign that reads as "add a split"). Pinning
-    /// is a mode the pane is IN, so it needs a control that shows its state
-    /// without being opened. Lives here, in the shared chrome, so every pane
-    /// that supplies a pin binding gets it — reader and preview alike.
-    @ViewBuilder
-    private var pinToggle: some View {
-        if let isPinned {
-            Button {
-                isPinned.wrappedValue.toggle()
-            } label: {
-                Image(systemName: isPinned.wrappedValue ? "pin.fill" : "pin")
-                    .foregroundStyle(
-                        isPinned.wrappedValue ? Color.accentColor : Color.secondary
-                    )
-            }
-            .paneBarButtonStyle()
-            .accessibilityIdentifier("paneHeadPinToggle")
-            .accessibilityLabel(isPinned.wrappedValue
-                ? "Unpin this pane — follow selection"
-                : "Pin this pane to what it is showing")
-            .help(isPinned.wrappedValue
-                ? "Pinned — click to follow the selection again"
-                : "Pin this pane to what it is showing")
+    /// The controls, collapsing like a macOS toolbar when the pane is narrow (#5213): first the shared chrome
+    /// (the pane menu, tools) folds into a "…" overflow menu, then the pane's own controls join it. Close and the
+    /// kind switcher (the identity capsule) never fold, and the crumbs degrade on their own ladder, so the
+    /// head's narrowest form is that essential set -- it never holds the window wider than it.
+    /// The pane's own controls (the Source pane's zoom) are an island of their own beside the menu's island
+    /// (`panes.head.one-menu-button`, #6741); once everything is folded, one island holds the "…".
+    /// AnyView per rung is load-bearing (the #4331 rule, as the crumb ladder).
+    private var controlsCapsule: some View {
+        ViewThatFits(in: .horizontal) {
+            AnyView(HStack(spacing: PaneHeadMetrics.capsuleSpacing) {
+                toolsIsland
+                menuIsland { chromeControls }
+            })
+            AnyView(HStack(spacing: PaneHeadMetrics.capsuleSpacing) {
+                toolsIsland
+                menuIsland { overflowMenu { chromeControls } }
+            })
+            AnyView(menuIsland { overflowMenu { controls(); chromeControls } })
         }
     }
 
-    /// The controls, collapsing like a macOS toolbar when the pane is narrow (#5213): first the shared chrome
-    /// (pin, split, tools) folds into a "…" overflow menu, then the pane's own controls join it. Close and the
-    /// kind switcher (the identity capsule) never fold, and the crumbs degrade on their own ladder, so the
-    /// head's narrowest form is that essential set -- it never holds the window wider than it.
-    /// AnyView per rung is load-bearing (the #4331 rule, as the crumb ladder).
-    private var controlsCapsule: some View {
-        capsule {
-            ViewThatFits(in: .horizontal) {
-                AnyView(HStack(spacing: 6) { inRowControls; chromeControls })
-                AnyView(HStack(spacing: 6) { inRowControls; overflowMenu { chromeControls } })
-                AnyView(overflowMenu { controls(); chromeControls })
-            }
+    /// The pane's own controls in their island; none when the pane has no controls.
+    @ViewBuilder
+    private var toolsIsland: some View {
+        if Controls.self != EmptyView.self {
+            capsule { inRowControls }
         }
+    }
+
+    /// The pane menu's island, reported to the test probe.
+    private func menuIsland<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        capsule { HStack(spacing: 6) { content() } }
+            .reportsFrame(PaneHeadMetrics.menuIslandIdentifier, to: onPartFrame)
     }
 
     /// The pane's own controls sitting in the row (not folded), reported to the test probe.
@@ -467,12 +462,11 @@ extension PaneHead {
             .reportsFrame(PaneHeadMetrics.controlsIdentifier, to: onPartFrame)
     }
 
-    /// Shared chrome, automatic: the pin TOGGLE (when the pane supplies its state), the split "+" (from the
-    /// environment), and the tools row's toggle.
+    /// Shared chrome, automatic: the pane menu (Pin Pane is in it, #6741) and the tools row's toggle.
     @ViewBuilder
     private var chromeControls: some View {
-        pinToggle
         PaneChromeMenu(
+            viewAs: viewAsMenu,
             splitActions: canSplit ? splitAxisActions : nil,
             isPinned: isPinned,
             closeTitle: showsClose ? (isInSplit ? "Close This Split" : "Close Pane") : nil,
@@ -540,6 +534,8 @@ enum PaneHeadMetrics {
     static let overflowIdentifier = "PaneHeadOverflow"
     /// The pane's own controls while they sit in the row (the test probe's key, #5213).
     static let controlsIdentifier = "PaneHeadControls"
+    /// The pane menu's island (the test probe's key, #6741).
+    static let menuIslandIdentifier = "PaneHeadMenuIsland"
 }
 
 extension View {

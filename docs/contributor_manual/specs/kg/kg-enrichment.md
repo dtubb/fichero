@@ -181,6 +181,13 @@ fallback, already on). The rest ship off-by-default, one toggle away.
   own outputs with provenance and review state, and is inspectable/acceptable/rejectable
   before Catalogue or anything else consumes it — kept separate from Catalogue/entity
   extraction rather than hidden inside them.
+  **Superseded 2026-11-21** (owner's rulings on people, biography and concepts; → `kg/ontological-layer.md`): a
+  layer of classes, types and higher-order structures PROPOSED for a person to accept is withdrawn, since a model
+  proposes no category. The ontological layer is now the short lists of kinds of thing, the historian's types of
+  event and relation, and the sources' own categories kept as written and apart from the historian's
+  (`ontology.kinds.small-closed-set`, `ontology.relations.one-list-the-person-extends`,
+  `ontology.sources.categories-in-their-own-words`). This line stays for its history and is built by none of this
+  spec's work.
 - `kg.enrich.graphrag-evaluation` — **[GAP, parked]** (#740) parked research question, not
   committed to a milestone build: whether a laptop-friendly community-summary GraphRAG
   (nano-graphrag pattern) adds enough value over hybrid retrieval + KG entity expansion to
@@ -191,6 +198,10 @@ fallback, already on). The rest ship off-by-default, one toggle away.
 - `kg.enrich.ux` [PARTIAL] (#4759, → #4828) — Wikidata enrich preview/import + PyKEEN predictions have
   services + a review sheet; ensure they're reachable from the **entity inspector and the
   KG tables** (an "Enrich…" / "Suggested links" affordance), not only the Ontology browser.
+  (2026-11-21: the Ontology browser named here is retired; what replaces it is a table of the kinds, types and
+  source categories a project uses, `ontology.browse.is-a-table-of-what-is-used` in `kg/ontological-layer.md`. A
+  predicted link stays a suggestion in a review list, labelled as a model's, and is never drawn as a relation until
+  a person accepts it: `people.relation.proposed-is-never-drawn-as-fact`.)
   Confirmed unreachable (2026-09-18, → #4828, kg-tables milestone): `WikidataEnrichmentSheet`
   and `HeuristicReviewSheet` both lost their only entry point with the KG browser, KEPT not
   deleted. **Coupled to `kg/kg-entity-inspector.md`'s `kg.entity.authority-link-create`:** the

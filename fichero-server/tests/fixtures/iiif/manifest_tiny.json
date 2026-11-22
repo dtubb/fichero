@@ -1,0 +1,4 @@
+{"@context": "http://iiif.io/api/presentation/3/context.json", "id": "https://iiif.archive.example/tiny/manifest", "type": "Manifest",
+ "label": {"en": ["Tiny"]}, "items": [{"id": "https://iiif.archive.example/tiny/canvas/1", "type": "Canvas", "width": 400, "height": 600,
+ "items": [{"type": "AnnotationPage", "items": [{"type": "Annotation", "motivation": "painting",
+ "body": {"id": "https://127.0.0.1/img/1/full/max/0/default.jpg", "type": "Image", "service": [{"id": "https://127.0.0.1/img/1", "type": "ImageService3", "profile": "level1"}]}}]}]}]}

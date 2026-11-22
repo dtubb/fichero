@@ -131,9 +131,9 @@ extension ContentView {
     }
 
     @ToolbarContentBuilder
-    var sidebarToolbarContent: some ToolbarContent {
+    var sidebarToolbarContent: some WindowToolbarContent {
         if showsSidebarPairInColumn {
-            ToolbarItem(placement: Self.sidebarPairPlacement) {
+            ToolbarItem(id: ContentToolbarID.sidebarColumnButtons, placement: Self.sidebarPairPlacement) {
                 // The island's breathing room here too: the column's glass pill hugged the pair, the sparkle on its edge.
                 sidebarButtons.padding(.horizontal, 6)
             }

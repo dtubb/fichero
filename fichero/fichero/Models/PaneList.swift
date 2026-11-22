@@ -268,7 +268,10 @@ indirect enum PaneNode: Codable, Sendable, Hashable, Identifiable {
     /// This node with the leaf `id` replaced by a split of [that leaf, a fresh duplicate] along
     /// `axis` (spec panes.split.focused-only). Every OTHER pane is untouched — the fix for
     /// "splitting one pane splits them all". A no-op if `id` isn't a leaf in this node.
-    func splittingLeaf(_ target: UUID, axis: SplitAxis) -> PaneNode {
+    /// `adding` another kind makes the second half a fresh pane of that kind, on the same scope with no config of its
+    /// own (the pane menu's Split Right ▸ / Split Below ▸, `panes.head.one-menu-button`); nil or the leaf's own kind
+    /// duplicates it.
+    func splittingLeaf(_ target: UUID, axis: SplitAxis, adding newKind: PaneKind? = nil) -> PaneNode {
         switch self {
         case let .leaf(id, kind, scope, config):
             guard id == target else { return self }
@@ -286,12 +289,16 @@ indirect enum PaneNode: Codable, Sendable, Hashable, Identifiable {
             second.paneFraction = nil
             second.splitExtent = nil
             second.splitFraction = nil
-            return .split(axis, [
-                .leaf(id: id, kind: kind, scope: scope, config: first),
+            let added: PaneNode = if let newKind, newKind != kind {
+                .leaf(newKind, scope: scope)
+            } else {
                 .leaf(kind, scope: scope, config: second)  // the duplicate gets a fresh id
-            ])
+            }
+            return .split(axis, [.leaf(id: id, kind: kind, scope: scope, config: first), added])
         case let .split(id, axis: splitAxis, children):
-            return .split(id: id, axis: splitAxis, children: children.map { $0.splittingLeaf(target, axis: axis) })
+            return .split(id: id, axis: splitAxis, children: children.map {
+                $0.splittingLeaf(target, axis: axis, adding: newKind)
+            })
         }
     }
 
