@@ -1258,12 +1258,12 @@ async def enhanced_search(
                 break
             try:
                 source_doc_ids = db.knowledge_claim_source_document_ids_for_entity(
-                    entity_hit.id
+                    entity_hit["id"]
                 )
             except Exception as exc:  # noqa: BLE001
                 logger.warning("graph-leg claim lookup failed: %s", exc)
                 continue
-            base_score = max(0.0, float(getattr(entity_hit, "similarity_score", 0.0) or 0.0))
+            base_score = max(0.0, float(entity_hit.get("similarity_score") or 0.0))
             for doc_id in source_doc_ids:
                 if not doc_id or doc_id in graph_seen:
                     continue
@@ -1277,10 +1277,10 @@ async def enhanced_search(
                         # via the graph, through WHICH entity.
                         metadata={
                             "via": "graph",
-                            "entity_id": entity_hit.id,
-                            "entity_name": entity_hit.canonical_name,
+                            "entity_id": entity_hit["id"],
+                            "entity_name": entity_hit["canonical_name"],
                         },
-                        kg_entity_ids=[entity_hit.id],
+                        kg_entity_ids=[entity_hit["id"]],
                     )
                 )
                 if len(graph_hits) >= graph_slots:
