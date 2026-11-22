@@ -86,18 +86,81 @@ def follow_bookmark(db: Any, doc: Any) -> Path | None:
     return Path(found)
 
 
+def _present_by_listing(db: Any, package: Path, within: set[str] | None) -> tuple[list[tuple[str, str]], int]:
+    """The linked pages' (id, path) that are NOT answered present by a listing, and how many were: one `scandir` a
+    folder (a file that is listed, not a link, in a folder `resolve_document_source_path` admits, is there), and one
+    `stat` a volume under /Volumes (a volume that is not mounted makes all its pages missing, their bookmarks not
+    tried). Only id and path are read."""
+    import os
+
+    from fichero_server.db.storage import settings
+    from fichero_server.security import path_security
+
+    candidates: dict[str, list[tuple[str, str]]] = {}
+    for doc_id, raw in db.execute_fetchall(
+        "SELECT id, path FROM documents WHERE deleted_at IS NULL AND doc_type <> 'folder' AND path IS NOT NULL"
+    ):
+        if (within is not None and doc_id not in within) or not Path(raw).is_absolute():
+            continue  # not in scope, or the project's own copy
+        candidates.setdefault(str(Path(raw).parent), []).append((doc_id, raw))
+    unsure: list[tuple[str, str]] = []
+    gone: list[tuple[str, str]] = []
+    mounted: dict[str, bool] = {}
+    inside: set[Path] | None = None  # the package, as given and resolved: made when a folder under it may exist
+    prepared: path_security.PreparedRoots | None = None
+    for folder, pages in candidates.items():
+        parts = Path(folder).parts
+        if len(parts) > 2 and parts[1] == "Volumes":
+            volume = os.path.join(*parts[:3])
+            if volume not in mounted:
+                mounted[volume] = Path(volume).exists()
+            if not mounted[volume]:
+                gone.extend(pages)
+                continue
+        if inside is None:
+            inside = {package, package.resolve()}
+        if any(Path(folder).is_relative_to(root) for root in inside):
+            continue  # the project's own copy
+        if prepared is None:
+            prepared = path_security.prepare_roots(package, storage_base=settings.base_path)
+        if path_security.resolve_document_source_path(
+            folder, package, storage_base=settings.base_path, prepared=prepared
+        ) is None:
+            unsure.extend(pages)
+            continue
+        try:
+            with os.scandir(folder) as entries:
+                listed = {e.name: e.is_symlink() for e in entries}
+        except FileNotFoundError:
+            unsure.extend(pages)  # the folder moved: a page's bookmark may still find its file
+            continue
+        except OSError:
+            gone.extend(pages)  # a folder this process may not list holds no original it can open
+            continue
+        for doc_id, raw in pages:
+            if listed.get(Path(raw).name) is False:
+                continue
+            unsure.append((doc_id, raw))
+    return unsure + gone, len(gone)
+
+
 def missing_originals(db: Any, within: set[str] | None = None) -> dict[str, Any] | None:
-    """How many linked pages' originals are not where the project says, in one place (#5672); None when none."""
-    from fichero_server.models import DocType, Document
+    """How many linked pages' originals are not where the project says, in one place (#5672); None when none.
+    A page a folder listing shows is there costs no call of its own (#6828); one the listing does not show is asked
+    with `original_is_there`, which also follows its bookmark and recorded source paths (#6733)."""
+    from fichero_server.models import Document
 
     package = Path(db.path).parent
-    missing = [d for d in db.query(Document) if d.deleted_at is None and (within is None or d.id in within)
-               and d.doc_type != DocType.folder and _linked_missing(package, d) is not None]
-    if not missing:
+    not_listed, gone = _present_by_listing(db, package, within)
+    missing: list[tuple[str, str]] = not_listed[: len(not_listed) - gone] if gone else not_listed
+    still = [(i, p) for i, p in missing if (d := db.get(Document, i)) is not None and not original_is_there(package, d)]
+    still += not_listed[len(not_listed) - gone :] if gone else []
+    if not still:
         return None
-    roots = sorted({str(Path(d.path).parent) for d in missing})
-    n = len(missing)
-    return {"pages": n, "folders": roots[:20], "ids": [d.id for d in missing],
+    ids = [i for i, _ in still]
+    roots = sorted({str(Path(p).parent) for _, p in still})
+    n = len(ids)
+    return {"pages": n, "folders": roots[:20], "ids": ids,
             "sentence": (f"{n} page{'s' if n != 1 else ''}' original{'s are' if n != 1 else ' is'} not where this "
                          f"project says ({roots[0]}{' and elsewhere' if len(roots) > 1 else ''}): Locate Originals… "
                          "to point the project at where they are now")}

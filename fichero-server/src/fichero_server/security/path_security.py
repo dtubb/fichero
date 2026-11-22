@@ -22,6 +22,7 @@ now fails if they diverge again.
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import os
 import pwd
@@ -502,7 +503,7 @@ def _within_owner_granted_folder(candidate: Path) -> bool:
     return any(candidate.is_relative_to(Path(folder)) for folder in tuple(_OWNER_GRANTED_FOLDERS))
 
 
-def is_allowed_ingest_path(path: str | Path) -> bool:
+def is_allowed_ingest_path(path: str | Path, *, resolved_roots: list[Path] | None = None) -> bool:
     """Return whether a local file path is below an engine-approved root.
 
     Only the RESOLVED path is tested, against the resolved roots (#6261): a
@@ -511,10 +512,12 @@ def is_allowed_ingest_path(path: str | Path) -> bool:
     symlink into ~/Library/Mobile Documents/com~apple~CloudDocs/Documents, which
     resolves under the iCloud root (and a resolved ~/Documents root), so it
     still imports.
+
+    `resolved_roots`: the resolved ingest roots, when the caller asks about many paths and has resolved them once.
     """
     try:
         resolved = Path(path).expanduser().resolve()
-        allowed_roots = [root.resolve() for root in ingest_allowed_roots()]
+        allowed_roots = resolved_roots if resolved_roots is not None else [root.resolve() for root in ingest_allowed_roots()]
     except Exception:
         return False
 
@@ -528,11 +531,30 @@ def is_allowed_ingest_path(path: str | Path) -> bool:
     )
 
 
+@dataclasses.dataclass(frozen=True)
+class PreparedRoots:
+    """The allowed source roots and the ingest roots, resolved once (each `resolve` is a call per path part)."""
+
+    allowed: list[Path]
+    ingest: list[Path]
+
+
+def prepare_roots(library_root: Path | str | None, *, storage_base: Path | str | None = None) -> PreparedRoots:
+    allowed: list[Path] = []
+    for root in allowed_source_roots(library_root, storage_base=storage_base):
+        try:
+            allowed.append(_resolved(root))
+        except (OSError, RuntimeError):
+            continue  # `_path_within` counts a root that cannot be resolved as not containing the path
+    return PreparedRoots(allowed=allowed, ingest=[root.resolve() for root in ingest_allowed_roots()])
+
+
 def resolve_document_source_path(
     candidate: Path | str,
     library_root: Path | str | None = None,
     *,
     storage_base: Path | str | None = None,
+    prepared: "PreparedRoots | None" = None,
 ) -> Path | None:
     """Resolve a path RECORDED ON A DOCUMENT and confine it.
 
@@ -547,17 +569,30 @@ def resolve_document_source_path(
     escapes via ``..`` gets the narrow roots and nothing more, so
     ``path="../outside.txt"`` stays a 404 (test_routes_storage's confinement
     case caught exactly this while the widening was being written).
+
+    `prepared`: the roots resolved once by `prepare_roots`, for a caller that asks about many paths.
     """
-    resolved = resolve_under_allowed_roots(
-        candidate,
-        allowed_source_roots(library_root, storage_base=storage_base),
-    )
+    if prepared is not None:
+        try:
+            resolved_candidate = _resolved(candidate)
+        except (OSError, RuntimeError):
+            resolved_candidate = None
+        resolved = (
+            resolved_candidate
+            if resolved_candidate is not None and any(resolved_candidate.is_relative_to(r) for r in prepared.allowed)
+            else None
+        )
+    else:
+        resolved = resolve_under_allowed_roots(
+            candidate,
+            allowed_source_roots(library_root, storage_base=storage_base),
+        )
     if resolved is not None:
         return resolved
     raw = Path(candidate).expanduser()
     if not raw.is_absolute() or _candidate_has_parent_ref(raw):
         return None
-    if not is_allowed_ingest_path(candidate):
+    if not is_allowed_ingest_path(candidate, resolved_roots=prepared.ingest if prepared is not None else None):
         return None
     try:
         return _resolved(candidate)
