@@ -551,3 +551,70 @@ def test_queue_embedding_queues_only_the_embed_stage_with_the_save(db, test_pack
         time.sleep(0.02)
     assert ran == ["page-1"]
     assert [row[0] for row in db.execute_fetchall("SELECT kind FROM jobs")] == ["embed"]
+
+
+class TestAPageWithoutTextGetsNoEmbedJob:
+    """`importer.scale.no-embed-job-for-a-page-without-text` and `importer.scale.prepare-pages-counts-what-lands` (#6833)."""
+
+    def _queue(self, ingested_image, test_package, monkeypatch):
+        from fichero_server.importers import derivatives
+
+        monkeypatch.setattr(derivatives, "auto_nlp_enabled", lambda: False)
+        derivatives._progress.pop(str(test_package), None)
+        return queue_derivatives([ingested_image], library_path=test_package)
+
+    def test_an_image_without_text_queues_a_thumbnail_and_no_embed(
+        self, ingested_image, test_package, db, monkeypatch
+    ):
+        from fichero_server.importers import derivatives
+
+        monkeypatch.setattr(derivatives, "_progress_add", lambda *a, **k: None)
+        self._queue(ingested_image, test_package, monkeypatch)
+
+        kinds = [r[0] for r in db.execute_fetchall(
+            "SELECT kind FROM jobs WHERE subject = ?", (ingested_image.id,))]
+        assert kinds == [derivatives.THUMBNAIL_KIND]
+
+    def test_the_thumbnail_job_alone_completes_the_page_and_moves_the_count(
+        self, ingested_image, test_package, db, monkeypatch
+    ):
+        from fichero_server.importers import derivatives
+
+        ticks: list[str] = []
+        monkeypatch.setattr(derivatives, "_progress_tick", lambda library: ticks.append(library))
+        futures = self._queue(ingested_image, test_package, monkeypatch)
+        _drain(futures, timeout=60)
+
+        assert db.get(Document, ingested_image.id).status == Status.completed
+        assert len(ticks) == 1
+
+    def test_a_failed_thumbnail_leaves_the_page_pending_and_still_counts(
+        self, ingested_image, test_package, db, monkeypatch
+    ):
+        from fichero_server.importers import derivatives
+
+        ticks: list[str] = []
+        monkeypatch.setattr(derivatives, "_progress_tick", lambda library: ticks.append(library))
+        Path(ingested_image.path).unlink()
+        derivatives._thumbnail_stage(ingested_image.id, str(test_package))
+
+        assert db.get(Document, ingested_image.id).status == Status.pending
+        assert len(ticks) == 1
+
+    def test_a_page_with_text_keeps_its_embed_job_and_the_thumbnail_does_not_count_it(
+        self, ingested_image, test_package, db, monkeypatch
+    ):
+        from fichero_server.importers import derivatives
+
+        ingested_image.page_content = "some words on the page"
+        db.save(ingested_image)
+        ticks: list[str] = []
+        monkeypatch.setattr(derivatives, "_progress_add", lambda *a, **k: None)
+        monkeypatch.setattr(derivatives, "_progress_tick", lambda library: ticks.append(library))
+        self._queue(ingested_image, test_package, monkeypatch)
+        kinds = {r[0] for r in db.execute_fetchall("SELECT kind FROM jobs WHERE subject = ?", (ingested_image.id,))}
+        derivatives._thumbnail_stage(ingested_image.id, str(test_package))
+
+        assert kinds == {derivatives.THUMBNAIL_KIND, derivatives.EMBED_KIND}
+        assert ticks == []
+        assert db.get(Document, ingested_image.id).status == Status.pending

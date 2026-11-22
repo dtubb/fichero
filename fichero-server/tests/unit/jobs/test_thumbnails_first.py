@@ -103,9 +103,11 @@ def test_with_a_reading_queued_the_new_pages_thumbnails_finish_first(test_packag
     assert started[0] >= max(thumbnails_done)
 
 
-def test_the_imports_own_embeds_wait_for_its_thumbnails(test_package, box, timeline):
+def test_the_imports_own_embeds_wait_for_its_thumbnails(test_package, box, timeline, monkeypatch):
     """WHY: the embeds are queued in the same breath as the thumbnails and are the heavier half;
-    the first thing on the screen is the pages, then search."""
+    the first thing on the screen is the pages, then search. Only a page with text has an embed (#6833);
+    these images are treated as pages with text so the order of the two kinds shows."""
+    monkeypatch.setattr(derivatives, "needs_embedding", lambda doc: True)
     _import(test_package, box)
     assert _wait_for(lambda: sum(1 for e in timeline if e[0] == "embed") == PAGES)
     assert min(t for kind, _, t in timeline if kind == "embed") >= max(
