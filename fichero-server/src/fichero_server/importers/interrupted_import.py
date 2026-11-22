@@ -12,8 +12,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-from fichero_server.core.timeutil import utc_now
-
 IMPORT_KIND = "import-folder"
 
 #: The row's count is written every this many files, and at the last one.
@@ -41,46 +39,33 @@ def begin(db: Any, request: dict[str, Any]) -> str:
     from fichero_server.execution import jobs
 
     register_job_kinds()
-    jobs._ensure(db)
     folder = str(request["path"])
-    db.execute(
-        "UPDATE jobs SET state = 'cancelled', reason = 'Imported again', finished_at = ? "
-        "WHERE kind = ? AND subject = ? AND state IN ('waiting', 'paused')",
-        [utc_now(), IMPORT_KIND, folder],
-    )
-    job_id = jobs._insert(db, IMPORT_KIND, folder, None, "person")
     detail = {"request": request, "name": Path(folder).name, "done": 0, "total": 0}
-    db.execute(
-        "UPDATE jobs SET state = 'running', started_at = ?, detail = ? WHERE id = ?",
-        [utc_now(), json.dumps(detail), job_id],
-    )
-    return job_id
+    return jobs.start_own_row(db, IMPORT_KIND, folder, json.dumps(detail), replaces_held="Imported again")
 
 
 def record_progress(db: Any, job_id: str, done: int, total: int) -> None:
+    from fichero_server.execution import jobs
+
     if done % PROGRESS_EVERY and done < total:
         return
-    row = db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id])
-    detail = json.loads(row[0]) if row and row[0] else {}
+    detail = json.loads(jobs.detail_text(db, job_id) or "{}")
     detail.update(done=done, total=total)
-    db.execute("UPDATE jobs SET detail = ? WHERE id = ?", [json.dumps(detail), job_id])
+    jobs.save_detail(db, job_id, json.dumps(detail))
 
 
 def end(db: Any, job_id: str, state: str, reason: str | None = None) -> None:
-    db.execute(
-        "UPDATE jobs SET state = ?, reason = ?, finished_at = ? WHERE id = ? AND state = 'running'",
-        [state, reason, utc_now(), job_id],
-    )
+    from fichero_server.execution import jobs
+
+    jobs.end_own_row(db, job_id, state, reason)
 
 
 def run_again(db: Any, subject: str) -> None:
     """Continue on the launch alert: the import runs again from its stored request."""
     from fichero_server.actions.registry import ActionContext, registry
+    from fichero_server.execution import jobs
 
-    row = db.execute_fetchone(
-        "SELECT id, detail FROM jobs WHERE kind = ? AND subject = ? AND state = 'running' ORDER BY started_at DESC LIMIT 1",
-        [IMPORT_KIND, subject],
-    )
+    row = jobs.running_row_of(db, IMPORT_KIND, subject)
     if row is None or not row[1]:
         raise RuntimeError(f"no stored import of {subject}")
     job_id = row[0]

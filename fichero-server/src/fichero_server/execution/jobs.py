@@ -1782,6 +1782,43 @@ def save_detail(
     _heard_from(job_id)
 
 
+def start_own_row(db: "Database", kind: str, subject: str, detail: str, *, replaces_held: str) -> str:
+    """A row the caller runs itself (not through the lane): made 'running' with its `detail` (JSON text). A row of the same
+    kind and subject still waiting or paused is ended with the reason `replaces_held`. Returns the new row's id."""
+    _ensure(db)
+    db.execute(
+        "UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = ? "
+        "WHERE kind = ? AND subject = ? AND state IN ('waiting', 'paused')",
+        [replaces_held, utc_now(), kind, subject],
+    )
+    job_id = _insert(db, kind, subject, None, "person")
+    db.execute("UPDATE jobs SET state = 'running', started_at = ?, detail = ? WHERE id = ?", [utc_now(), detail, job_id])
+    return job_id
+
+
+def end_own_row(db: "Database", job_id: str, state: str, reason: str | None = None) -> None:
+    """End a row `start_own_row` made, if it is still running."""
+    db.execute(
+        "UPDATE jobs SET state = ?, reason = ?, finished_at = ? WHERE id = ? AND state = 'running'",
+        [state, reason, utc_now(), job_id],
+    )
+
+
+def detail_text(db: "Database", job_id: str) -> str | None:
+    """A row's `detail` (JSON text), or None."""
+    row = db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id])
+    return row[0] if row and row[0] else None
+
+
+def running_row_of(db: "Database", kind: str, subject: str) -> tuple[str, str | None] | None:
+    """The newest running row of this kind and subject: (id, detail text)."""
+    row = db.execute_fetchone(
+        "SELECT id, detail FROM jobs WHERE kind = ? AND subject = ? AND state = 'running' ORDER BY started_at DESC LIMIT 1",
+        [kind, subject],
+    )
+    return (row[0], row[1]) if row else None
+
+
 def _heard_from(job_id: str) -> None:
     """A running job showed progress: the model lane's stuck-lane deadline counts from now (#6213)."""
     lane = _scheduler.lanes["local-ml"]
