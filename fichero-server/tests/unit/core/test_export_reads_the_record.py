@@ -42,6 +42,9 @@ from fichero_server.workflows.attribute_sources import machine_source, with_sour
 from fichero_server.workflows.tools._entity_writer import run_attribution
 from fichero_server.workflows.tools.extractors import line_anchor, write_mentions
 
+# The embedder is the test one: saving an entity or claim must not load the pinned model (#5188, #5530).
+pytestmark = pytest.mark.usefixtures("hashed_text_embedder")
+
 BOOT = ActionContext(actor="historian", library_path=None, is_bootstrap=True)
 TEI = "{http://www.tei-c.org/ns/1.0}"
 LINES = (

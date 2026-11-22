@@ -1,6 +1,8 @@
 """A name, a mention and a statement in the record stream say who made them, how sure, and whether a person
 reviewed them (#6805)."""
 
+import pytest
+
 from fichero_server.export_service import iter_export_records
 from fichero_server.models import DocType, Document, FileType, KnowledgeClaim, KnowledgeEntity
 from fichero_server.models.knowledge import (
@@ -11,6 +13,8 @@ from fichero_server.models.knowledge import (
     EntityType,
     SourceSupport,
 )
+# The embedder is the test one: saving an entity or claim must not load the pinned model (#5188, #5530).
+pytestmark = pytest.mark.usefixtures("hashed_text_embedder")
 
 
 def _seed(db):
