@@ -7170,6 +7170,7 @@ class Database(DatabaseEmbeddingMixin):
             # Initialize results storage
             semantic_results = []
             fulltext_results = []
+            fulltext_candidates_capped = False
 
             # Check if embeddings table exists
             has_embeddings = EMBEDDINGS_TABLE in self._lance_tables()
@@ -7317,6 +7318,7 @@ class Database(DatabaseEmbeddingMixin):
                                 .to_list()
                             )
 
+                        fulltext_candidates_capped = len(raw_fulltext_hits) >= candidate_limit
                         if raw_fulltext_hits:
                             for row in raw_fulltext_hits:
                                 document_id = row.get("document_id") or row.get("id")
@@ -7700,7 +7702,16 @@ class Database(DatabaseEmbeddingMixin):
             elif search_type == "semantic":
                 combined_results = semantic_results
             elif search_type == "fulltext":
-                combined_results = fulltext_results
+                # One row a page: the best passage, and how many passages matched.
+                by_page: dict[str, dict] = {}
+                for item in sorted(fulltext_results, key=lambda r: r["score"], reverse=True):
+                    kept = by_page.get(item["document_id"])
+                    if kept is None:
+                        item["metadata"]["passages_matched"] = 1
+                        by_page[item["document_id"]] = item
+                    else:
+                        kept["metadata"]["passages_matched"] += 1
+                combined_results = list(by_page.values())
 
             # Entity-aware rank bonus for the SINGLE-leg search types only:
             # hybrid now fuses KG evidence as its own RRF leg above, and the
@@ -7926,7 +7937,14 @@ class Database(DatabaseEmbeddingMixin):
             search_stats["execution_time_ms"] = execution_time * 1000
             search_stats["total_results"] = total_count
             search_stats["returned_results"] = len(results)
-            search_stats["has_more"] = (offset + len(results)) < total_count
+            # A full-text total counts the pages among the candidates kept; when
+            # the candidate cut was reached it is a floor, not the count.
+            search_stats["total_is_lower_bound"] = (
+                search_type == "fulltext" and fulltext_candidates_capped
+            )
+            search_stats["has_more"] = (
+                offset + len(results)
+            ) < total_count or search_stats["total_is_lower_bound"]
             # LEG VISIBILITY (Daniel, 2026-09-02: "the human ought to know in
             # search options what's going on"): which retrievers ran and what
             # each contributed, so the UX can SAY "semantic only, no literal
