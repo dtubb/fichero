@@ -112,7 +112,8 @@ knowledge-graph browser and is not coming back in that form.
 | MCP | y | the lists are read tools; a model's account cannot write one | `fichero-mcp/tests/test_mcp_generated.py` |
 | Pure rule (Swift) | y | a historian's type is always marked as theirs beside the source's word | to write |
 
-## Open questions for the owner
+## Rules set by the owner's answers
 
-1. Is the seeded list of relation types right, and should "owner of" between persons carry a different name?
-2. Should the default kinds of event be chosen per recipe (a notarial project and a diary project differ)?
+- The seeded list of relation types is the default; a person adds to it, and a historian's own type is always marked
+  as theirs beside the source's word.
+- The default kinds of event are the same for every project; a recipe may add its own event kinds.

@@ -124,7 +124,7 @@ The Reader rendition of one selected term, or one name. Six parts, each opening 
 
 Wherever a count is shown, four things are shown together:
 
-    140 to 175 uses                     the range, at a stated level (90%)
+    140 to 175 uses                     the range, at a stated level (90%, the one level for every count in the app)
     126 on high-confidence readings, 31 checked by a person
     read: 2,140 of 2,600 pages in scope; 310 unread; 150 too unsure to count
     [strip: the pages in scope by time and writer: read, read unsurely, unread, not held]
@@ -322,7 +322,7 @@ that rests on a model's readings says so in the footnote itself and cannot be ex
   ranker is fitted on the person's machine on their yes and no marks, in seconds, with no cloud call; one in ten
   marks is held out by the existing rule (`record.check.one-in-ten-held-out`) and never fitted on; once there are 50
   held-out marks the sheet says how many of the passages the person would accept the search finds in its first
-  hundred, and before that says how many of the 50 there are. *Test (to write):* test_concept_ranker_local.py.
+  hundred, and before that says how many of the 50 there are. *Test (to write):* test_concept_ranker_local.py. **Not built:** the owner's answer (2026-11-22), candidate ranking runs on a local model by default; a cloud model ranks only when the historian asks, labelled on every result.
 - `concepts.heldout.test-only-when-asked` — **[GAP]** (#4692 → #7027) when the person asks, the sheet draws a
   shuffled sample from pages set aside, the search's picks mixed with random passages, with scores absent from the
   payload until marking is done; the result is two counts, how often the picks and how often the random ones were
@@ -514,16 +514,13 @@ Waits for the saved-view record (#5063). → #7030
 Hard-gate once approved: every count opens to its lines; no payload holds text a model composed; no write to a
 concept by a model's account.
 
-## Open questions for the owner
+## Rules set by the owner's answers
 
-1. **Is a concept its own sidebar node** (recommended) or a kind of saved search?
-2. **A cloud ranker.** May a cloud model rank candidates on a library that allows the cloud? Recommended: local by
-   default; a cloud ranker only when asked for, labelled, since it adds little over local vectors plus marks.
-3. **"What have I not covered?"** The review weighed listing groups of alike passages that no concept touches, and
-   dropped it, since a cluster is a model's claim. This spec shows only the share of pages no concept touches.
-   Is that the right place for the line?
-4. **Order within the milestone.** Stage 1 (terms from text) needs nothing unbuilt and Stage 3 (concepts) needs
-   nothing from Stage 2. Recommended: Stage 1, then Stage 3 beside Stage 2.
-5. **Lemmas.** Rates split across inflected forms until historical languages have word-level normalisation. Should
-   Stage 1 wait for that, or ship on written forms with groupings a person accepts (recommended)?
-6. **The level of a range.** 90% is proposed. Is one level for the whole app right?
+- A concept is its own sidebar node, not a kind of saved search.
+- Candidate ranking runs on a local model by default; a cloud model only when the historian asks, labelled on every
+  result.
+- Uncovered: only the share of pages no concept touches is shown; passages no concept touches are not grouped.
+- Order within the milestone: Stage 1 (terms from text), then Stage 3 (concepts) beside Stage 2.
+- The terms view ships on written forms before lemmas exist, with groupings a person accepts.
+- One 90% level for count ranges, app-wide.
+- This milestone, `concepts-and-terms`, stays separate from `people-and-lives`.

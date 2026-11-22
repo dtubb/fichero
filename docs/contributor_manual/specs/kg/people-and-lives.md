@@ -163,8 +163,9 @@ The Reader rendition of a selected person (`explore.panes.one-thing-is-a-renditi
 Every line carries a small mark for its reading (the four bands of `hands.calib.four-bands-in-the-reader`, or "reading
 not yet measured"), its source reference, and opens its page on one click. Where two or more sources speak to the
 same point and differ, the section shows each value on its own line, bracketed together, in the sources' words; the
-page never picks one. A person may write their own reading of the conflict; it is stored as theirs in the
-hermeneutic layer (`kg/hermeneutic-layer.md`) and drawn as theirs.
+page never picks one. The page is sources only: every line is one source's statement, and no sentence of the
+historian's is written on it. A person's own reading of a conflict is stored as theirs in the hermeneutic layer
+(`kg/hermeneutic-layer.md`) and linked from the page, beside the conflict it is about, marked as theirs.
 
 ### The stitch bench
 
@@ -184,8 +185,10 @@ that one join was holding together. A join nobody has reviewed is never drawn as
 
 ### Living people
 
-Joining scattered traces into one profile is the most privacy-sensitive thing this app does. A project carries a
-date (default: a hundred years before today). A person with any attestation after it is treated as possibly living:
+Joining scattered traces into one profile is the most privacy-sensitive thing this app does. A project carries one
+setting, a number of years (default 100), the same for every person in it. A person born, or first recorded, less
+than that many years before today is held back, and treated as possibly living, unless the historian says otherwise
+for that person (the behaviour in section G keeps its earlier wording, a date, with the owner's answer appended):
 no cross-archive link is proposed for them unless the person asks, nothing about them leaves the machine, and their
 page is not included in a publish or an export without a deliberate yes for that person. A restricted person is not
 drawn and cannot be inferred from the hole (`explore.care.restricted-people-are-not-drawn-around`).
@@ -241,7 +244,7 @@ person's own machine, are never sent anywhere, and are never set beside another 
   The one exception is the rule already specified for forms that are identical after normalisation inside one
   project (`kg.resolve.unmistakable-auto-merge`): such a join is made by the rule, labelled as the rule's, listed on
   the page among its joins, and undone like any other. *Test (to write):* test_only_a_person_accepts_a_link.py (a
-  model's account calling accept is refused; cannot tell is a stored state).
+  model's account calling accept is refused; cannot tell is a stored state). **Not built:** the owner's answer (2026-11-22), the rule join is made without asking, inside one project, labelled as a rule join and undoable.
 - `people.record.model-work-is-labelled` — **[GAP]** (#4868, #4869 → #7003) wherever a reading, a grouping of
   spellings, a link proposal or a ranking is on screen, it says it is model output or rule output, by which method
   and version, with its confidence as a band (`kg.confidence.shown-as-a-band-with-its-reason`), and is one click
@@ -299,7 +302,7 @@ person's own machine, are never sent anywhere, and are never set beside another 
 - `people.bio.sections-by-life-event-and-relation` — **[GAP]** (#5340 → #7008) lines are grouped under the event
   kinds of the ontological layer in the order the sources date them, then relations, then undated and unplaced with
   their counts; an empty section is not shown, and a line whose kind nobody set sits under "other mentions". The
-  person can reorder sections for a project. *Test (to write):* PersonBiographySectionsTests.swift.
+  person can reorder sections for a project. *Test (to write):* PersonBiographySectionsTests.swift. **Not built:** the owner's answer (2026-11-22), the sections are the default life-event sections and the seeded relation types; a recipe may add its own event kinds.
 - `people.bio.names-as-written` — **[GAP]** (#5340 → #7008) the head of the page shows every written form of the
   name as a crop of the word with its count, grouped; a form joined by a proposal nobody accepted is marked and can
   be accepted or removed there. The page title is the form the historian chose, or the commonest written form, and
@@ -372,7 +375,7 @@ person's own machine, are never sent anywhere, and are never set beside another 
   that are never mixed: accepted relations by type, and people named in the same acts with the number of acts. The
   second group says its rule in words ("named in the same act") and is not called a relationship. Each row opens
   its lines. It is a list first; a small diagram of kin is offered only for accepted parent, spouse and child
-  links. *Test (to write):* test_relations_around_payload.py.
+  links. *Test (to write):* test_relations_around_payload.py. **Not built:** the owner's answer (2026-11-22), co-naming in one act is evidence for a same-person link only; it never proposes a relation by itself.
 - `people.view.who-names-whom` — **[GAP]** (#5032 → #7015) for a set, a counted table and its drawing: writers and
   offices on one side, the people they name on the other, grouped by the sources' own words for them, with the
   number of acts in each cell and, where the formula gives it, the position the person holds in the act (party,
@@ -392,7 +395,7 @@ person's own machine, are never sent anywhere, and are never set beside another 
 - `people.privacy.living-date-holds-back-proposals` — **[GAP]** (#4953 → #7006) a project has a date, by default a
   hundred years before today, that the person can move. For a person with any attestation after it, no link across
   archives is proposed unless the person asks for that person by name, and the bench says how many proposals were
-  held back for this. *Test (to write):* test_living_date_holds_back_candidates.py.
+  held back for this. *Test (to write):* test_living_date_holds_back_candidates.py. **Not built:** the owner's answer (2026-11-22), the setting is one number of years per project, default 100; a person born or first recorded less than that many years before today is held back unless the historian says otherwise.
 - `people.privacy.nothing-published-by-default` — **[GAP]** (#4953 → #7006) a biography page, a relations view or a
   set view that includes a possibly living person is left out of a publish and an export unless the person says
   yes for it, once, with the names listed (`explore.care.publishing-asks-about-people`); a restricted person is not
@@ -589,20 +592,15 @@ The writer or office of a document, and the position of a person in an act, are 
 Hard-gate once approved: no payload of this spec holds text a model composed; only a person's action accepts a
 link; every line resolves to a stretch.
 
-## Open questions for the owner
+## Rules set by the owner's answers
 
-1. **Identical forms joined by rule.** Inside one project, `kg.resolve.unmistakable-auto-merge` joins forms that are
-   identical after normalisation without asking. Under the ruling that the person accepts or rejects links, should
-   that stand (labelled, listed, undoable; recommended, or the queue is thousands of trivial pairs), or should even
-   those wait for a yes?
-2. **The living-people date.** Is a hundred years before today the right default, and is it one date per project or
-   per archive?
-3. **Sections.** Is the list of life-event sections above right as the default for the owner's own material, and
-   should a project be able to rename them as well as add and reorder?
-4. **The historian's own sentences on the page.** May a person write a connecting sentence on a biography page
-   (stored and drawn as theirs), or is the page only the sources, with the historian's writing kept in notes and
-   the hermeneutic layer? Recommended: only the sources; their reading of a conflict sits beside it, marked.
-5. **Co-naming.** "Named in the same act" is counted and shown apart from relations. Should it ever be offered as a
-   reason to propose a relation, or only as a reason for a same-person link? Recommended: only the second.
-6. **Its own milestone.** This spec declares the milestone `people-and-lives`, placed after `reconstruct-the-record`.
-   Should the two be one milestone?
+- Identical name forms inside one project join by rule without asking, labelled as a rule join and undoable
+  (`people.record.person-decides`).
+- Living people: one setting per project, default 100 years (`people.privacy.living-date-holds-back-proposals`).
+- Biography pages use the default life-event sections and the seeded relation types; a recipe may add its own event
+  kinds (`people.bio.sections-by-life-event-and-relation`).
+- A biography page is sources only; the historian's interpretation lives in the hermeneutic layer, linked from the
+  page.
+- Co-naming in one act is evidence for a same-person link only (`people.view.relations-around-a-person`).
+- This spec's milestone, `people-and-lives`, stays separate from `reconstruct-the-record` and from
+  `concepts-and-terms`.
