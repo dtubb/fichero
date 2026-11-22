@@ -1516,7 +1516,7 @@ class TestQueryCompilation:
     LLM; the compiled query is always visible; failure is reported and the
     raw query still runs."""
 
-    def test_resolver_executes_unmocked(self, db):
+    def test_resolver_executes_unmocked(self, db, monkeypatch):
         # Regression (reported live): the resolver imported
         # `ModelModel`/`ProviderModel` — chat.py's local ALIASES, not real
         # names in fichero_server.models — so every live compile raised
@@ -1527,6 +1527,11 @@ class TestQueryCompilation:
         # now falls back to on-device Apple Intelligence instead of refusing.
         from fichero_server.retrieval.query_compiler import _resolve_compiler_config
 
+        class _AppDB:
+            def get_ai_defaults(self):
+                return {}
+
+        monkeypatch.setattr("fichero_server.db.app.get_app_db", lambda: _AppDB())
         config = _resolve_compiler_config(db)
         assert config is not None
         assert config.provider == "apple"

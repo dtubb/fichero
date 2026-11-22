@@ -130,47 +130,22 @@ def looks_like_natural_language(query: str) -> bool:
 
 
 def _resolve_compiler_config(db: "Database"):
-    """First enabled provider/model from the library's Providers config —
-    the same resolution chat uses. A library with NO configured providers
-    falls back to the settings default (on-device Apple Intelligence), the
-    same resolution bibliography extraction uses — Ask mode refusing with
-    "no enabled LLM provider configured" on a fresh library was Daniel's
-    2026-08-11 "that's terrible": the machine has an LLM, use it. If Apple
-    FM is genuinely unavailable at runtime, chat_structured raises and
-    enhanced_search reports it while searching the raw words — unchanged."""
+    """The model that compiles a question: the app's text default (Settings > AI Defaults), the one chat uses;
+    on-device when it names none. Providers are not looked up in the library database, where they are never kept
+    (#5368, #6791); `db` is kept for the caller's signature."""
+    from fichero_server.db.app import get_app_db
     from fichero_server.llm import LLMConfig
-    from fichero_server.llm.providers import get_provider_info
-    # NOT `ModelModel`/`ProviderModel` — those are chat.py's local import
-    # aliases, not names in fichero_server.models. Importing them here raised
-    # ImportError on every live compile (tests mocked this resolver).
-    from fichero_server.models import Model as ModelModel
-    from fichero_server.models import Provider as ProviderModel
+    from fichero_server.llm.places import with_row_address
 
-    configured = db.query(ProviderModel, enabled=True)
-    if not configured:
-        return LLMConfig(
-            provider="apple",
-            model="apple-intelligence",
+    defaults = get_app_db().get_ai_defaults()
+    return with_row_address(
+        LLMConfig(
+            provider=defaults.get("default_text_provider") or "apple",
+            model=defaults.get("default_text_model") or "apple-intelligence",
+            # Deterministic extraction, tiny output.
             temperature=0.0,
             max_tokens=400,
         )
-    provider_row = configured[0]
-    provider = provider_row.provider_type.value
-    models = db.query(ModelModel, provider_id=provider_row.id, enabled=True)
-    if models:
-        model = models[0].model_id
-    else:
-        info = get_provider_info(provider)
-        model = info.default_model if info else None
-    if not model:
-        return None
-    return LLMConfig(
-        provider=provider,
-        model=model,
-        # Deterministic extraction, tiny output.
-        temperature=0.0,
-        max_tokens=400,
-        api_base=provider_row.api_base,
     )
 
 
