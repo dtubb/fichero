@@ -209,7 +209,7 @@ paging. The screens, in order:
   the tap. Not proven to be the cause of #6567; the path rule removes both, because with a path a pushed item is popped
   only by Back. Acceptance (UI test, real root view, seeded project): from a folder, tap an image → the item view's
   Source page exists and the image element still exists 5 s later, with the Mac's answers delayed by 3 s.
-- `ios.nav.folders-push` — **[BROKEN]** (#5964; its own issue → #6945) a folder tapped in a folder's list PUSHES that folder's screen, and Back
+- `ios.nav.folders-push` — **[PARTIAL]** (built: a folder, group or PDF tapped at compact width pushes a `folder(id)` step (`ContentView.navigateIntoFolder`, `CompactPath.pushFolder`) and Back re-roots the list on the folder now on top; a PDF or group is no longer an item. Unit tests `CompactPathTests.swift`, `CompactReaderLeafTests.swift` exist; the UI test `IOSDrillDownUITests.testNestedFoldersPushAndBackIsOneFolder` is written and has not run) (#5964; its own issue → #6945) a folder tapped in a folder's list PUSHES that folder's screen, and Back
   returns to the folder it was tapped in. Today a folder tap at compact width re-roots the SAME screen
   (`LibraryView+Selection.swift:250-256` → `navigateToDocument`, `ContentView+SourceNavigation.swift:9-13`: it sets the
   view mode and the sidebar's selection, and pushes nothing), so however deep the person is, the system Back leaves the
@@ -218,7 +218,7 @@ paging. The screens, in order:
   both re-roots the list and is pushed as a file, because the leaf rule excludes only `docType == .folder`,
   `ContentView+CompactReader.swift:47`). Acceptance: Sidebar → folder A → subfolder B → Back shows A's list (B's row
   there) → Back shows the sidebar. Tests: `CompactPathTests.swift`, `IOSDrillDownUITests.swift`.
-- `ios.nav.sidebar-drills` — **[BROKEN]** (#5964; its own issue → #6946; owner 2026-11-21) on the iPhone the sidebar never expands a row in
+- `ios.nav.sidebar-drills` — **[PARTIAL]** (built: at the phone idiom (`SidebarPhone.isPhone`, read once) a folder row with children, a project and the Models node are flat rows with no `DisclosureGroup`; the iPad and Mac keep the tree. Not built: sources still show as sidebar rows on the phone. `SidebarPhoneRowsTests.swift` tests only the rule, not a seeded row list; `IOSDrillDownUITests.testTheSidebarHasNoDisclosureRow` has not run) (#5964; its own issue → #6946; owner 2026-11-21) on the iPhone the sidebar never expands a row in
   place: no disclosure triangle, no child rows under a folder. A tap on a project or a folder pushes that folder's screen
   (`ios.nav.folders-push`); its subfolders and items are there. Today the iPhone gets the Mac's tree unchanged: every
   folder row with children is a `DisclosureGroup` (`Views/Sidebar/ItemRow/SidebarItemRow+Presentation+Body.swift:174`),
@@ -232,7 +232,7 @@ paging. The screens, in order:
   element with the disclosure trait exists in the sidebar on an iPhone; tapping a folder shows a screen titled with the
   folder's name whose Back button is the sidebar. Tests: `SidebarPhoneRowsTests.swift` (the phone's row list for a
   seeded tree has no expandable row and no source row), `IOSDrillDownUITests.swift`.
-- `ios.nav.back-is-one-step` — **[BROKEN]** (#5964; → #6945) Back, and the edge swipe, pop exactly one screen: item view → its
+- `ios.nav.back-is-one-step` — **[PARTIAL]** (built: Back pops one step of the path, from a nested folder, an item, Reader and Info, tested in `CompactPathTests.swift`; the UI test `IOSDrillDownUITests` has not run) (#5964; → #6945) Back, and the edge swipe, pop exactly one screen: item view → its
   folder → the folder above → … → the sidebar. Leaving the item view clears the list's selection so the same row can be
   tapped again. Today Back from a nested folder goes to the sidebar (`ios.nav.folders-push`) and "Back" from Reader or
   Info is never reached (`ios.nav.one-path`). Tests: `CompactPathTests.swift` (Back from every depth).
