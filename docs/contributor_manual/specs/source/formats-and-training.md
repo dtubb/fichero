@@ -453,20 +453,18 @@ skipped. What did not hold is the lines below. `→ #N` names the issue that tra
   pixel, 124 of the eScriptorium file's 125 outlines written, a box written as a box). Measured
   2026-11-20, before #6799: 0 `Polygon` elements in 10 exports of 1,044 Kraken lines and in 6
   re-exports of ALTO files that arrived with 124 to 148 line polygons each.
-- `source.format.kind-raw-out` — **[GAP]** (#4943, #6749, → #6801) a segment's own type
+- `source.format.kind-raw-out` — **[PARTIAL]** (#4943, #6749, #6801; pinned by `tests/unit/formats/test_type_and_confidence_reach_the_writers_6801.py`) a segment's own type
   (`Segment.kind_raw`: a SegmOnto zone or line type, a layout model's label, Kraken's region type)
   is written in each format's own place: ALTO as a declared `OtherTag` the element references,
   PAGE XML as `custom="structure {type:…;}"`, TEI as `@type` on the zone. A type the file itself
-  stated on import keeps the file's own form. Today the type travels only inside the format it
-  came in (`foreign["alto:tags"]`, `foreign["custom"]`): the six SegmOnto ALTO pages re-export to
-  ALTO with their 4 to 6 zone types and 133 to 155 references each, and to PAGE XML and TEI with
-  none; the Transkribus page's 48 structure types reach PAGE XML and neither ALTO nor TEI; a Kraken
-  pass's region type (`text`) reaches no file. None of it is in a loss report.
-- `source.format.confidence-out` — **[GAP]** (#4943, → #6801) a shape's confidence and a
+  stated on import keeps the file's own form. Built for PAGE XML, ALTO and TEI (a library page's
+  types reach all three). Not built: hOCR and YOLO are not handed the type by this path and do not name it.
+- `source.format.confidence-out` — **[PARTIAL]** (#4943, #6801; pinned by `tests/unit/formats/test_type_and_confidence_reach_the_writers_6801.py`) a shape's confidence and a
   reading's confidence go out where the format has a place (PAGE `Coords@conf` and
-  `TextEquiv@conf`, ALTO `String@WC`, TEI `@cert`), and are a named loss where it has none. Today
-  only a cut word's confidence is written (`page_export.py::CUT_FACTS`); 0 of 30 PAGE exports
-  carry a `conf`.
+  `TextEquiv@conf`, ALTO `String@WC`), and are a named loss where it has none. Built: PAGE XML writes both;
+  ALTO writes a reading's confidence on a word and on a line's own String and names the rest as lost;
+  TEI's `@cert` is a word (high, medium, low), not a number, so TEI names both as lost. Not built: hOCR
+  and YOLO.
 - `source.format.who-made-it-out` — **[GAP]** (#4943, → #6802) a file says what made the pass and
   whether each line's reading is a person's or a machine's: ALTO `Processing` steps, PAGE
   `Metadata/Creator` and a per-line mark, TEI `respStmt` with `@resp` on the line. Today PAGE and
@@ -501,8 +499,7 @@ skipped. What did not hold is the lines below. `→ #N` names the issue that tra
   (`source.format.alto-out-outlines`). A library page exported as ALTO, PAGE XML and TEI, imported
   into a fresh page and read out again keeps its kinds, text, shapes to a pixel, editorial facts and
   names, less what the report named (`tests/unit/core/test_library_round_trip_6800.py`, 3 tests).
-  **Not built:** the segment types and confidences, which no writer is handed (`PageSegment` has no
-  field for them: `source.format.kind-raw-out`, `source.format.confidence-out`, → #6801); and TEI's
+  **Not built:** the segment types and confidences are written by PAGE XML, ALTO and TEI since #6801 and are not compared by that test; and TEI's
   names, which a TEI re-import does not make into mentions while the TEI report names no loss
   (not compared by that test).
 - `source.format.export-cost` — **[GAP]** (#4943, → #6804) a page's export costs time in step
@@ -547,7 +544,7 @@ Each format (one import and one export behaviour each)
   tags for a type the file did not bring, and did not name outlines, editorial facts or names as
   lost. Since #6799 and #6800 it writes outlines and names the editorial facts and names it drops:
   `source.format.alto-out-outlines`, `source.format.undeclared-losses-are-declared`. `Processing`
-  and the types are still missing: `source.format.who-made-it-out`, `source.format.kind-raw-out`.) `Page@LANG`, which 4.4 added, is
+  is still missing: `source.format.who-made-it-out`; the types are written since #6801.) `Page@LANG`, which 4.4 added, is
   written when it is a BCP 47 tag and is no longer a loss
   (`test_alto.py::TestARealHebrewExportStatesItsLanguageWhereAltoDoesNotAllowIt::test_the_page_language_is_written_back_in_4_4_and_is_no_longer_a_loss`).
   An **untranscribed** word or line is written `CONTENT=""` and not left without `String`. The schema

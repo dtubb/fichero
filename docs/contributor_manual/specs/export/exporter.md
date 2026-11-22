@@ -233,9 +233,9 @@ tests sit under `fichero-server/tests/unit/`; Swift tests under `fichero/Tests/U
 - Tests: fichero-server/tests/unit/api/test_alto_writes_outlines_6799.py, fichero-server/tests/unit/core/test_export_names_what_it_drops_6800.py, fichero-server/tests/unit/core/test_library_round_trip_6800.py
 - Size: S
 
-#### Step 1.2 — Segment type and confidence reach the writers (#6801)
+#### Step 1.2 — Segment type and confidence reach the writers (built for PAGE XML, ALTO and TEI) (#6801)
 - Behaviours: `source.format.kind-raw-out`, `source.format.confidence-out`
-- Tests: `test_type_and_confidence_reach_the_writers_6801.py` in fichero-server/tests/unit/formats/ (to write)
+- Tests: fichero-server/tests/unit/formats/test_type_and_confidence_reach_the_writers_6801.py
 - Depends on: 1.1
 - Size: M
 
