@@ -6805,7 +6805,7 @@ class Database(DatabaseEmbeddingMixin):
             return results
 
         try:
-            from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
+            from fichero_server.models.knowledge import KnowledgeEntity
         except Exception as exc:  # noqa: BLE001
             logger.debug("KG models unavailable during search enrichment: %s", exc)
             return results
@@ -6816,8 +6816,10 @@ class Database(DatabaseEmbeddingMixin):
             return results
 
         try:
-            claims = self.all(KnowledgeClaim)
-            entities = self.all(KnowledgeEntity)
+            claims = self._claims_of_documents(doc_ids)
+            entities = self._rows_by_ids(
+                KnowledgeEntity, "id", sorted({eid for c in claims for eid in self._claim_entity_ids(c)})
+            )
         except Exception as exc:  # noqa: BLE001
             logger.debug("KG lookup failed during search enrichment: %s", exc)
             return results
@@ -6845,18 +6847,7 @@ class Database(DatabaseEmbeddingMixin):
             if not relevant_doc_ids:
                 continue
 
-            entity_ids = {
-                entity_id
-                for entity_id in [
-                    *claim.entity_ids,
-                    claim.subject_entity_id,
-                    claim.speaker_entity_id,
-                    claim.subject_of_inquiry_entity_id,
-                    claim.scribe_entity_id,
-                    claim.editor_entity_id,
-                ]
-                if entity_id
-            }
+            entity_ids = self._claim_entity_ids(claim)
             matched_entity_ids = {
                 entity_id for entity_id in entity_ids if _entity_matches(entity_id)
             }
@@ -6885,6 +6876,93 @@ class Database(DatabaseEmbeddingMixin):
             result.kg_entity_ids = sorted(matched_entities_by_doc[result.document_id])
         return results
 
+    @staticmethod
+    def _claim_entity_ids(claim: Any) -> set[str]:
+        """Every entity id a claim names: its list and its subject, speaker, inquiry, scribe and editor."""
+        return {
+            entity_id
+            for entity_id in [
+                *(claim.entity_ids or []),
+                claim.subject_entity_id,
+                claim.speaker_entity_id,
+                claim.subject_of_inquiry_entity_id,
+                claim.scribe_entity_id,
+                claim.editor_entity_id,
+            ]
+            if entity_id
+        }
+
+    def _rows_where(self, model: Type[T], where: str, params: list[Any]) -> list[T]:
+        """The rows of `model` matching a trusted `where` (bound `params`), hydrated; no other row is read into a model."""
+        self._ensure_table(model)
+        rows, columns = self._execute_fetch_with_columns(f"SELECT * FROM {self._sql_table_name(model)} WHERE {where}", params)
+        return [m for row in rows if (m := self._hydrate_row(model, columns, row)) is not None]
+
+    def _rows_by_ids(self, model: Type[T], column: str, ids: list[str]) -> list[T]:
+        """The rows of `model` whose `column` is one of `ids`."""
+        if not ids:
+            return []
+        if not _VALID_IDENTIFIER.match(column):
+            raise ValueError(f"Invalid column name: {column}")
+        return self._rows_where(model, f"{column} IN (SELECT unnest(?))", [list(ids)])
+
+    def _claims_of_documents(self, doc_ids: set[str]) -> list[Any]:
+        """The claims whose source document, or one of whose source ids, is in `doc_ids`.
+
+        ponytail: the database still scans the claim table's two source columns to find them; an index on the source
+        id replaces the scan once a library holds more claims than that scan can read in a search's time."""
+        from fichero_server.models.knowledge import KnowledgeClaim
+
+        ids = sorted(doc_ids)
+        return self._rows_where(
+            KnowledgeClaim,
+            "source_document_id IN (SELECT unnest(?)) OR list_has_any(from_json(source_ids, '[\"VARCHAR\"]'), ?)",
+            [ids, ids],
+        )
+
+    def _entities_named_by(self, terms: list[str]) -> list[Any]:
+        """The entities whose name or an alias is a whole-word match of one of `terms` (folded), hydrated; the match runs
+        inside the database over the name columns, so no other entity is read into a model.
+
+        ponytail: the database still scans the entity table's name columns on each search; a folded-name index replaces
+        the scan once a library's entities outgrow that scan."""
+        from fichero_server.models.knowledge import KnowledgeEntity
+
+        self._ensure_table(KnowledgeEntity)
+        self._register_entity_name_match()
+        rows, _cols = self._execute_fetch_with_columns(
+            f"SELECT id FROM {self._sql_table_name(KnowledgeEntity)} "
+            "WHERE fichero_entity_names_match(canonical_name, aliases, ?)",
+            [json.dumps(terms)],
+        )
+        return self._rows_by_ids(KnowledgeEntity, "id", [r[0] for r in rows])
+
+    def _register_entity_name_match(self) -> None:
+        """Give the connection `fichero_entity_names_match(canonical_name, aliases_json, terms_json)`: true when a term
+        equals a folded surface or, at three characters or more, is a whole word inside it."""
+        if getattr(self, "_entity_match_conn", None) is self.conn:
+            return
+
+        def _match(canonical: str | None, aliases_json: str | None, terms_json: str) -> bool:
+            terms = json.loads(terms_json)
+            surfaces = [canonical, *(json.loads(aliases_json) if aliases_json else [])]
+            for surface in surfaces:
+                folded = _fold_for_search(surface or "")
+                if not folded:
+                    continue
+                for term in terms:
+                    if term == folded or (len(term) >= 3 and len(folded) >= 3 and f" {term} " in f" {folded} "):
+                        return True
+            return False
+
+        with self._lock:
+            try:
+                self.conn.create_function("fichero_entity_names_match", _match, null_handling="special")
+            except duckdb.Error as exc:
+                if "already" not in str(exc).lower():
+                    raise
+        self._entity_match_conn = self.conn
+
     def _expand_query_with_entity_aliases(self, query: str) -> tuple[list[str], set[str]]:
         """Expand a query with canonical + alias forms from matching entities."""
         terms = _search_match_terms(query)
@@ -6892,9 +6970,7 @@ class Database(DatabaseEmbeddingMixin):
             return [], set()
 
         try:
-            from fichero_server.models.knowledge import KnowledgeEntity
-
-            entities = self.all(KnowledgeEntity)
+            entities = self._entities_named_by(terms)
         except Exception as exc:  # noqa: BLE001
             # Degrade to the raw terms, but don't hide WHY alias expansion is
             # off — a silent empty here masks a real KG/DB fault (#2507).
@@ -6950,7 +7026,15 @@ class Database(DatabaseEmbeddingMixin):
         try:
             from fichero_server.models.knowledge import KnowledgeClaim
 
-            claims = self.all(KnowledgeClaim)
+            ids = sorted(matched_entity_ids)
+            in_ids = "IN (SELECT unnest(?))"
+            claims = self._rows_where(
+                KnowledgeClaim,
+                f"list_has_any(from_json(entity_ids, '[\"VARCHAR\"]'), ?) OR subject_entity_id {in_ids} "
+                f"OR speaker_entity_id {in_ids} OR subject_of_inquiry_entity_id {in_ids} "
+                f"OR scribe_entity_id {in_ids} OR editor_entity_id {in_ids}",
+                [ids] * 6,
+            )
         except Exception as exc:  # noqa: BLE001
             # Rank without the entity boost, but surface the fault rather than
             # silently returning no boosted docs (#2507).
