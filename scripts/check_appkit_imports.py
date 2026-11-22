@@ -67,7 +67,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Library/Export/DocumentExporter.swift": "#4121 — macOS export destination uses NSSavePanel behind #if os(macOS); iOS uses its system share sheet",
     "Views/Sidebar/ItemRow/SidebarDropOperation.swift": "Option-drag copy (Daniel 2026-07-26) — the ⌥ key at drop time is unreadable from SwiftUI drop callbacks; NSEvent.modifierFlags on macOS, GameController hardware keyboard on iOS/visionOS. Both #if os-gated; no drag-stack surgery",
     "App/ViewSettings.swift": "#3682 — Reader/Editor font scale multiplies the SEMANTIC base size, which only NSFont/UIFont.preferredFont(forTextStyle:) can report (SwiftUI exposes no point size). Both sides are #if canImport-guarded; #2101",
-    "Models/Navigation/SidebarPhone.swift": "#6946 — the phone idiom: SwiftUI exposes no device idiom (a large iPhone in landscape reports a regular width), only UIDevice.userInterfaceIdiom does. #if canImport(UIKit)-guarded",
     "Views/Preview/ImageEditor/LiveEditPreview.swift": "#3673 — Core Image live preview bridges CGImage → NSImage/UIImage for display; Core Image itself is AppKit/UIKit-side. #if canImport-guarded; #2101",
     "App/AppState/AppState.swift": "#3341/#3369 — app state owns macOS activation/recovery routing; migrate remaining AppKit hooks under #2101",
     "App/LibraryWindow.swift": "window bridge: NSWindow/NSApplication via an NSViewRepresentable, #if canImport(AppKit) (#2101)",
