@@ -1,6 +1,7 @@
 import Foundation
 
-/// The iPhone's ONE navigation path: any number of folders, then at most one item, then Reader and Info in that order (each optional).
+/// The iPhone's ONE navigation path: any number of folders, then at most one item, then Reader and Info in that
+/// order (each optional).
 /// Every push and every Back is a change to `steps`, so the drill-down is testable with no view.
 struct CompactPath: Equatable {
     private(set) var steps: [CompactStep] = []
