@@ -1,13 +1,5 @@
 import Foundation
 
-/// One screen of the iPhone drill-down (`ios.nav.one-path`, #6944).
-enum CompactStep: Hashable {
-    case folder(String)
-    case item(String)
-    case reader
-    case info
-}
-
 /// The iPhone's ONE navigation path: any number of folders, then at most one item, then Reader and Info in that order (each optional).
 /// Every push and every Back is a change to `steps`, so the drill-down is testable with no view.
 struct CompactPath: Equatable {
