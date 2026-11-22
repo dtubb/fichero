@@ -5,8 +5,18 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
 from fichero_server.models import DocType, Document, FileType
 from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
+
+
+@pytest.fixture(autouse=True)
+def _models_dir_in_tmp(tmp_path, monkeypatch):
+    """Saving an entity tries to embed it; where the model is absent that makes its cache folder, kept under tmp_path."""
+    from fichero_server.llm import local_models
+
+    monkeypatch.setattr(local_models, "MODELS_BASE", tmp_path / "models")
 
 
 def test_a_page_whose_text_never_has_the_word_is_found_through_the_entity_it_is_about(client, db, caplog) -> None:
