@@ -324,6 +324,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/importers/iiif_import.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/iiif_source.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/ingest.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/interchange_pairing.py
+$(SRCROOT)/../fichero-server/src/fichero_server/importers/interrupted_import.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/keep_a_copy.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/legacy_10_archive.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/manifest_import.py

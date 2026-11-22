@@ -85,6 +85,7 @@ KRAKEN_MODEL_PREFIX = "kraken:"
 _KIND_MODULES = (
     "fichero_server.actions.page_text_cache",
     "fichero_server.importers.derivatives",
+    "fichero_server.importers.interrupted_import",
     "fichero_server.training.job",
     "fichero_server.workflows.task_workers",
     "fichero_server.remote_read.job",
@@ -4276,13 +4277,14 @@ def stopped_at_quit(db: "Database") -> list[dict[str, Any]]:
     _ensure(db)
     out: list[dict[str, Any]] = []
     marks = ", ".join("?" for _ in HELD_AT_OPEN_REASONS)
-    for job_id, kind, subject, started_at in db.execute_fetchall(
-        f"SELECT id, kind, subject, started_at FROM jobs WHERE state = 'paused' AND reason IN ({marks}) AND parent_id IS NULL "
+    for job_id, kind, subject, started_at, detail in db.execute_fetchall(
+        f"SELECT id, kind, subject, started_at, detail FROM jobs WHERE state = 'paused' AND reason IN ({marks}) AND parent_id IS NULL "
         f"{_hidden_filter(db)} ORDER BY created_at, id",
         [*HELD_AT_OPEN_REASONS],
         committed=True,
     ):
-        out.append({"id": job_id, "kind": kind, "name": kind_name(kind), "subject": subject, "started_at": started_at})
+        named = _named_by_its_kind(db, {"id": job_id, "kind": kind, "subject": subject, "detail": detail})
+        out.append({"id": job_id, "kind": kind, "name": named or kind_name(kind), "subject": subject, "started_at": started_at})
     return out
 
 

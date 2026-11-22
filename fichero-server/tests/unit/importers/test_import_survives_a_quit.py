@@ -1,17 +1,19 @@
-"""Each saved batch of a folder import has its thumbnail jobs, so a quit leaves no page without one (#6829, #739).
+"""A folder import a quit cut off keeps its work and is offered again (#6829, #739).
 
-Spec: docs/contributor_manual/specs/importer/importer.md -- `importer.resume.jobs-are-queued-with-each-batch`. Driven through `import_folder_impl` (the body of
-`POST /api/ingest/folder`), on the real jobs table.
+Spec: docs/contributor_manual/specs/importer/importer.md -- `importer.resume.jobs-are-queued-with-each-batch`,
+`importer.resume.an-interrupted-import-is-offered-again`. Driven through `import_folder_impl` (the body of
+`POST /api/ingest/folder`), `jobs.resume`, `jobs.stopped_at_quit` and `jobs.continue_after_quit`, on the real jobs table.
 """
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 import pytest
 
 from fichero_server.api.routes.ingest.core import IngestFolderRequest, import_folder_impl
 from fichero_server.execution import jobs
-from fichero_server.importers import derivatives
+from fichero_server.importers import derivatives, interrupted_import
 from fichero_server.models import DocType, Document
 
 FILES = 230  # more than two batches of `_INGEST_BATCH_SIZE` (100)
@@ -59,3 +61,38 @@ def test_each_saved_batch_has_its_jobs_before_the_import_ends(lib):
     saved = {d.id for d in db.query(Document) if d.path and d.doc_type != DocType.folder}
     assert len(saved) >= 200
     assert saved <= _thumbnail_subjects(db), "a saved page has no thumbnail job"
+
+
+def test_a_cut_off_import_is_offered_again_and_makes_no_page_twice(lib):
+    db, folder, library = lib
+    request = _request(folder).model_dump(mode="json")
+    row = interrupted_import.begin(db, request)
+    state = {"n": 0}
+
+    def on_progress(current, total, fetching=0.0):
+        state["n"] = current
+        interrupted_import.record_progress(db, row, current, total)
+
+    import_folder_impl(db, _request(folder), library, on_progress=on_progress,
+                       should_cancel=lambda: state["n"] >= 100)
+    assert 0 < len(db.query(Document)) < FILES
+    # the process dies here: the row stays running
+
+    jobs.resume(db)
+    stopped = jobs.stopped_at_quit(db)
+    names = [s["name"] for s in stopped if s["kind"] == interrupted_import.IMPORT_KIND]
+    assert len(names) == 1 and names[0].startswith("Import of Box 3 · ") and names[0].endswith(f" of {FILES:,} files")
+
+    own = [s["id"] for s in stopped if s["kind"] == interrupted_import.IMPORT_KIND]
+    assert jobs.continue_after_quit(db, own) == own
+    jobs.set_paused(False)  # the lane runs the import again from its stored request
+    deadline = time.monotonic() + 60
+    while time.monotonic() < deadline:
+        state = db.execute_fetchone("SELECT state FROM jobs WHERE id = ?", [own[0]])[0]
+        if state not in ("waiting", "running"):
+            break
+        time.sleep(0.2)
+    assert state == "done", state
+
+    paths = [d.path for d in db.query(Document) if d.path and d.doc_type != DocType.folder]
+    assert len(paths) == FILES and len(set(paths)) == FILES
