@@ -10,6 +10,24 @@ nonisolated enum BoxResize {
         let index: Int
         let handle: Int
         var bbox: [Double]
+        /// Where the press was, and the one axis ⇧ fixed once the pointer moved past `axisThreshold` (nil until then).
+        var start: [Double] = []
+        var axis: Axis?
+    }
+
+    /// The one axis a ⇧-drag changes (`segment-editor.expand-one-axis`): horizontal moves the left or right edge,
+    /// vertical the top or bottom.
+    enum Axis { case horizontal, vertical }
+
+    /// How far the pointer must travel before the first direction counts, in page fractions.
+    static let axisThreshold = 0.004
+
+    /// The axis of a drag from `start` to `point`: the larger of the two distances once either is past `threshold`; nil before that.
+    static func axis(from start: [Double], to point: [Double], threshold: Double = axisThreshold) -> Axis? {
+        guard start.count >= 2, point.count >= 2 else { return nil }
+        let across = abs(point[0] - start[0]), down = abs(point[1] - start[1])
+        guard max(across, down) > threshold else { return nil }
+        return across >= down ? .horizontal : .vertical
     }
 
     /// Which edges each handle moves: -1 the minimum edge, 1 the maximum, 0 neither, on x then y.
@@ -30,9 +48,13 @@ nonisolated enum BoxResize {
         }
     }
 
-    /// `bbox` with handle `index` dragged to `point`, never thinner than `minimum`.
-    static func resized(_ bbox: [Double], handle index: Int, to point: [Double], minimum: Double = 0.002) -> [Double] {
-        let handle = handles[index]
+    /// `bbox` with handle `index` dragged to `point`, never thinner than `minimum`. With an `axis`, only that axis's edges
+    /// move: the other stays where it was.
+    static func resized(
+        _ bbox: [Double], handle index: Int, to point: [Double], axis: Axis? = nil, minimum: Double = 0.002
+    ) -> [Double] {
+        var handle = handles[index]
+        if axis == .vertical { handle.x = 0 } else if axis == .horizontal { handle.y = 0 }
         var minX = bbox[0], maxX = bbox[0] + bbox[2], minY = bbox[1], maxY = bbox[1] + bbox[3]
         if handle.x == -1 { minX = point[0] } else if handle.x == 1 { maxX = point[0] }
         if handle.y == -1 { minY = point[1] } else if handle.y == 1 { maxY = point[1] }

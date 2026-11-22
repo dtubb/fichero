@@ -88,11 +88,11 @@ extension RegionInteractionLayer {
             let reach = [Double(SelectionStyle.handleSide) / size.width * visible.width,
                          Double(SelectionStyle.handleSide) / size.height * visible.height]
             guard let handle = BoxResize.handle(at: point, of: bbox, reach: reach) else { return false }
-            resizeDrag = BoxResize.Drag(index: index, handle: handle, bbox: bbox)
+            resizeDrag = BoxResize.Drag(index: index, handle: handle, bbox: bbox, start: point)
             return true
         case .dragged:
             guard let drag = resizeDrag, allBoxes.indices.contains(drag.index) else { return false }
-            resizeDrag?.bbox = BoxResize.resized(allBoxes[drag.index].bbox, handle: drag.handle, to: point)
+            resizeDragged(drag, to: point, shift: event.shift)
             return true
         case .released:
             guard let drag = resizeDrag else { return false }
@@ -102,6 +102,20 @@ extension RegionInteractionLayer {
             }
             return true
         }
+    }
+
+    /// ⇧ fixes one axis by the drag's first direction (`segment-editor.expand-one-axis`); the box stays put until then.
+    /// Letting go of ⇧ goes back to the free resize.
+    private func resizeDragged(_ drag: BoxResize.Drag, to point: [Double], shift: Bool) {
+        let current = allBoxes[drag.index].bbox
+        guard shift else {
+            resizeDrag?.axis = nil
+            resizeDrag?.bbox = BoxResize.resized(current, handle: drag.handle, to: point)
+            return
+        }
+        let axis = drag.axis ?? BoxResize.axis(from: drag.start, to: point)
+        resizeDrag?.axis = axis
+        resizeDrag?.bbox = axis.map { BoxResize.resized(current, handle: drag.handle, to: point, axis: $0) } ?? current
     }
 
     /// The one selected box, by its position in the full list.
