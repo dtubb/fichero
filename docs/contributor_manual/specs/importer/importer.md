@@ -502,17 +502,17 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
 
 ### Files of one name
 
-- `importer.same-name.files-from-different-folders-both-import` — **[BROKEN]** (→ #6831; nearest #4579) files of the
+- `importer.same-name.files-from-different-folders-both-import` — **[PARTIAL]** (→ #6831; nearest #4579) files of the
   same name from different folders all come in, each a page of its own keeping its name, by every way in. A layout
   file that could belong to two images of one name pairs with neither and is listed as unpaired with that reason; a
-  name never refuses the whole drop. Today the answer depends on the way in. A folder drop and a drop by path take
-  them (`POST /api/ingest/folder`, `POST /api/ingest/files`: measured, eight pages sharing each of four names in the
-  2,000-page import, and two files of one name from two folders dropped by path, both imported). The upload route
-  refuses the whole batch with 422 "two files in the drop have the same name" (`import_files_together`,
-  `api/routes/document/documents.py`), because `import_dropped_set` stages every upload under its bare name in one
-  folder. That route is the one a remote client, the command line and the soak script use, so a camera's
-  `IMG_0001` from two cards cannot be sent together. Test to add: two uploads of one name make two pages; two
-  images of one name and one layout file of that name make two pages and one unpaired entry.
+  name never refuses the whole drop.
+  *Built:* `import_files_together` no longer refuses a repeated name; `import_dropped_set` stages the first file of a
+  name (compared case-folded) in the staging folder and each later one in its own `same-name-<i>/` folder, so each
+  upload is a page keeping its name. A layout file whose name matches several images is moved to the unpaired list
+  with the reason "N images in the drop are named ..." and imports as an ordinary file. *Not built:* a layout file
+  that states the image's name inside it is not matched against the twins; there is no folder upload for #4579 (it
+  stays open).
+  Test: `fichero-server/tests/unit/importers/test_same_named_uploads_import.py`.
 
 ### Linked and copied originals
 
@@ -589,7 +589,7 @@ second; the list answers one item.
 
 #### Step 1.5 — Uploads of one name both import (#6831, #4579)
 - Behaviours: `importer.same-name.files-from-different-folders-both-import`
-- Tests: test_same_named_uploads_import.py (not yet written)
+- Tests: fichero-server/tests/unit/importers/test_same_named_uploads_import.py
 - Size: S
 
 `api/routes/document/documents.py` (`import_files_together`, `import_dropped_set`), `importers/interchange_pairing.py`.
