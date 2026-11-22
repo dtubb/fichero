@@ -151,10 +151,20 @@ class Case:
 
 
 def build_case(db, name: str) -> Case:
+    """The case's rows as claims; saved to `db` unless it is None (the scorer tests need none).
+    Embeds are deferred and never flushed: the vectors play no part here."""
+    if db is None:
+        return _build_case(None, name)
+    with db.defer_embeddings():
+        return _build_case(db, name)
+
+
+def _build_case(db, name: str) -> Case:
+    save = db.save if db is not None else (lambda _row: None)
     names = CASES[name]
     ents = {k: KnowledgeEntity(canonical_name=names[k]) for k in ("P", "A", "B")}
     for e in ents.values():
-        db.save(e)
+        save(e)
     ids = {r.key: f"{name}-{r.key}" for r in ROWS}
     case = Case(name, ents["P"].id, names, {r.key: r for r in ROWS}, {}, ids)
     for r in ROWS:
@@ -187,11 +197,11 @@ def build_case(db, name: str) -> Case:
             source_document_id=f"{name}-doc-{r.key}-1",
             source_ids=[f"{name}-doc-{r.key}-{n}" for n in range(2, r.docs + 1)], **kw,
         )
-        db.save(claim)
+        save(claim)
         case.claims[claim.id] = claim
     for r in ROWS:
         if r.contradicts:
-            db.save(KnowledgeClaimLink(
+            save(KnowledgeClaimLink(
                 claim_id=ids[r.key], related_claim_id=ids[r.contradicts],
                 relation_type=ClaimRelationType.contradicts))
     return case
@@ -362,8 +372,8 @@ def _one_row_case(case: Case) -> Case:
     return Case(case.name, case.entity_id, case.names, keep, case.claims, case.ids)
 
 
-def test_the_scorer_reports_no_violation_for_an_answer_that_meets_the_bar(db):
-    case = _one_row_case(build_case(db, "person"))
+def test_the_scorer_reports_no_violation_for_an_answer_that_meets_the_bar():
+    case = _one_row_case(build_case(None, "person"))
     answer = _tiny_answer(case)
     assert failures(score(case, answer)) == {}
 
@@ -384,8 +394,8 @@ def test_the_scorer_reports_no_violation_for_an_answer_that_meets_the_bar(db):
     ("claim segments that are substrings of their field",
      lambda a, c: a["sentences"][0]["segments"][2].update(end=a["sentences"][0]["segments"][2]["end"] + 1)),
 ])
-def test_the_scorer_names_each_measure_it_catches(db, measure, damage):
-    case = _one_row_case(build_case(db, "person"))
+def test_the_scorer_names_each_measure_it_catches(measure, damage):
+    case = _one_row_case(build_case(None, "person"))
     answer = _tiny_answer(case)
     damage(answer, case)
     assert measure in failures(score(case, answer))
