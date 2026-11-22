@@ -286,15 +286,21 @@ targets are at least 44 pt.
   the lasso (⌥-drag from empty page in Select, drawn dashed), the over-half rule and the level rule
   for the band and the lasso (`SegmentSelectionGestures.inside`, `level`: lines when the page shows
   any, regions with ⌘, else what is shown). *Not built:* touch. *Tests:*
-  `fichero/Tests/Unit/general/Views/Source/SegmentSelectionGesturesTests.swift`.
+  `fichero/Tests/Unit/general/Views/Segments/SegmentSelectionGesturesTests.swift`.
+  *Built note (#7033, found by reading, needs an on-screen check):* Select's press always starts the band, so a drag that
+  starts ON a box (every press on a page) draws it; a click that does not move still selects. The band selects every box it
+  touches or encloses (`SegmentSelectionGestures.touching`); the lasso keeps the over-half rule. The band runs in the Source
+  view as well as Edit Segments. *Tests:* `fichero/Tests/Unit/general/Views/Segments/SelectPointerTests.swift`.
 - `segment-editor.select-shift-toggles` — **[PARTIAL]** (→ #4941; app) ⇧-click and ⇧-band add to the selection;
   ⇧-click on a selected segment removes it; ⌘A selects every segment of the level shown; ⌘⇧A
-  selects the same kind as the selection ("select the same kind" from the umbrella). *Built:*
+  selects the same kind as the selection ("select the same kind" from the umbrella); ⌘-click toggles one box, in the Source view
+  too (#7033). *Built:*
   ⇧-click and band on the Mac, ⌘A (Edit › Segments ▸ Select All Segments: every box shown).
   *Built (2026-11-14):* ⇧-click on a selected segment in Edit Segments removes it (it no longer starts
   a move, `SegmentEditingMode.pressStartsMove`); Edit › Segments ▸ Select Same Kind (⌘⇧A,
-  `SegmentSelectionGestures.sameKind`). *Tests:*
-  `fichero/Tests/Unit/general/Views/Source/SegmentSelectionGesturesTests.swift`.
+  `SegmentSelectionGestures.sameKind`). *Built note (#7033, needs an on-screen check):* ⌘-click toggles a box as ⇧-click does.
+  Join keeps its one shortcut, ⌘⌥J (no new chord; `canJoin` is tested in `SegmentJoinTests.swift`). *Tests:* `fichero/Tests/Unit/general/Views/Segments/SelectPointerTests.swift`;
+  `fichero/Tests/Unit/general/Views/Segments/SegmentSelectionGesturesTests.swift`.
 - `segment-editor.select-brush` — **[PARTIAL]** (→ #4941; app) the Brush paints a mask on the page; every segment the
   mask touches is selected when the stroke ends; ⌥ while painting subtracts; `[` and `]` change
   the size, shown as a circle under the pointer; on the iPad the size follows the slider and,
@@ -343,7 +349,9 @@ targets are at least 44 pt.
   *Built (2026-11-13):* `segment.simplify` (Douglas-Peucker in the page image's pixels, outline closed
   and baseline open, never below three and two points, re-checked for a self-crossing; a shape
   already that simple is left alone; one undo through `segment.restore_versions`) and
-  Edit › Segments ▸ Simplify Outline at 2 px. *Built (2026-11-14):* the slider (0.5 to 20 px) in
+  Edit › Segments ▸ Simplify Outline at 2 px. *Built note (#7035, needs an on-screen check):* Simplify says how many points it
+  removed in the page notice (`SegmentEdit.pointCount`, `simplifyNotice`; `SegmentSimplifyTests.swift`); it needs a
+  selection, which Select could not make until #7033 was fixed. *Built (2026-11-14):* the slider (0.5 to 20 px) in
   Simplify's popover in the segment tools row, beside the shape tools (there is no Shape popover yet);
   while it is held the page draws, dashed, what the engine would make of the selection
   (`GET /api/segments/document/{doc_id}/simplify-preview`, the same computation the action writes,
@@ -352,7 +360,7 @@ targets are at least 44 pt.
   `SegmentEditingMode.deleteKey`). *Not built:* the chord: ⌥⌘S is Star's in the markup row
   (`PreviewMarkupToolsRow`).
   *Tests:* `fichero-server/tests/unit/api/test_segment_simplify.py` (the preview);
-  `fichero/Tests/Unit/general/Views/Source/SegmentSimplifyTests.swift` (`theSlider`, `thePreviewPaths`);
+  `fichero/Tests/Unit/general/Views/Segments/SegmentSimplifyTests.swift` (`theSlider`, `thePreviewPaths`);
   `fichero/Tests/Unit/general/Views/Preview/SegmentEditingModeTests.swift` (⌫ on a pressed point).
   *Built note (2026-11-20):* a tolerance far above the outline's size still leaves three outline points and two baseline
   points; several segments simplify as one action and one undo restores all; one stale version refuses the whole simplify
@@ -525,7 +533,7 @@ See section 7.2 below for what exists. The design:
   word left alone; a word with no positions, right-to-left or of one character left alone and named; one undo,
   `segment.uncut_words`) and Edit › Segments ▸ Cut Characters on the selected words. *Not built:* the zoom gate,
   an ink-gap fallback for characters. *Tests:* `fichero-server/tests/unit/api/test_segment_cut_characters.py`;
-  `fichero/Tests/Unit/general/Views/Source/SegmentSimplifyTests.swift::cutCharacters`.
+  `fichero/Tests/Unit/general/Views/Segments/SegmentSimplifyTests.swift::cutCharacters`.
 - `segment-editor.cut-fallback-ink-gaps` — **[OK]** (→ #5212; engine) a line with a reading and no positions is
   cut by the ink-gap projection profile along its baseline: the dark pixels of the current
   image inside the outline are summed across the baseline, gaps wider than a fraction of the
@@ -597,7 +605,7 @@ See section 7.2 below for what exists. The design:
   Edit › Segments ▸ Next Doubtful Line selects the next measured line in that order, from the top again after the last, and says when nothing is
   doubtful (`SegmentSelectionGestures.nextDoubtful`); the head's button is not built. *Tests:*
   `fichero-server/tests/unit/api/test_segments_doubtful.py`;
-  `fichero/Tests/Unit/general/Views/Source/SegmentSelectionGesturesTests.swift::NextDoubtfulTests`.
+  `fichero/Tests/Unit/general/Views/Segments/SegmentSelectionGesturesTests.swift::NextDoubtfulTests`.
 - `segment-editor.layers` — **[PARTIAL]** (→ #5114; app; applies Q2 of the umbrella's rulings and `layers.toggle.one-menu-per-surface`)
   the What-to-show menu's segment entries are layers: regions, lines, baselines, words,
   characters, reading order, each on or off with an opacity, remembered per pane
@@ -641,12 +649,18 @@ See section 7.2 below for what exists. The design:
   (select, box, lasso, knife, combine, order, select brush, line brush, and the rest) does its job on a real page, and its
   result is saved (survives a reload) and undoable. Walked once per tool, with a test per tool that drives its gesture and
   commit path and checks the stored segments; both brushes fail that test today.
+  *Built note (#7034, needs an on-screen check):* the Region tool in Edit Segments saves its dragged box as a polygon region on
+  the shown pass with `segment.create`, selects it, one undo (`onDrawRegionBox`;
+  `fichero/Tests/Unit/general/Views/Segments/DrawRegionPointerTests.swift` checks the hand-over, not the stored segment).
 - `segment-editor.one-active-tool` — **[GAP]** (#6734; app; owner 2026-11-19) the toolbar is one choice: exactly one tool shows
   as active, and picking another, by click or key, moves the highlight. Today Select stays highlighted beside the tool just
   picked and still handles the drag, which may be why the brushes seem to do nothing. Test: choosing each tool leaves only
   that tool active, in the model and in the toolbar.
-- `segment-editor.expand-one-axis` — **[PROPOSED]** (#6735; open choice for the owner: tools plus keys as below, or only one
-  of them) a way to expand a segment only vertically or only horizontally. Proposed, A: two tools, Expand Vertically (V) and
+- `segment-editor.expand-one-axis` — **[PARTIAL]** (#6735; app) owner ruling 2026-11-21: dragging a handle with ⇧ held changes
+  one axis, chosen by the way the drag first moves; the other edges stay; without ⇧ the drag is as before; one undoable move; lines
+  and regions both. *Built note (needs an on-screen check):* `BoxResize.axis`, `resized(axis:)` and `handleResize`;
+  `fichero/Tests/Unit/general/Views/Segments/ShiftDragOneAxisTests.swift`. The tools and keys below stay **[PROPOSED]** (open choice
+  for the owner: tools plus keys, or only one of them): a way to expand a segment only vertically or only horizontally. Proposed, A: two tools, Expand Vertically (V) and
   Expand Horizontally (H); dragging over a segment changes only that axis with the other edges locked; a click grows that axis
   to fit the ink (snapping to the page's text); Shift applies it to every selected segment. Proposed, C: keys on a selection,
   ⌥↑ and ⌥↓ for height and ⌥← and ⌥→ for width, 1 px a press (10 px with Shift), working on many lines at once. Edge handles
@@ -962,7 +976,7 @@ The umbrella's speed trial (slice 12) is the gate and is not restated. This file
   gives the kept word every member's outline as a polygon shape, one undo. In the app, Cut Words says how many words
   go on onto the next line and Edit › Segments ▸ Join Broken Words joins each (one merge and one undo per word,
   `SegmentEdit.joinBrokenWord`). *Tests:* `fichero-server/tests/unit/api/test_segment_word_across_lines.py`;
-  `fichero/Tests/Unit/general/Views/Source/SegmentSimplifyTests.swift::brokenWords`.
+  `fichero/Tests/Unit/general/Views/Segments/SegmentSimplifyTests.swift::brokenWords`.
 - `segment-editor.edge.knife-through-words` — **[PARTIAL]** (→ #4941; engine) a knife split of a line that already has
   words assigns each word to the part its centre falls in and splits a word the stroke crosses.
   *Built (2026-11-13):* words go with the part holding their centre, and undo puts them back
@@ -1149,7 +1163,7 @@ hand, so the cut marks on such a line are the fallback's and say so.
 
 | Leg | This surface? | Pins | File |
 |-----|---------------|------|------|
-| Pure rule (Swift) | y | tool decisions, plans, gesture-to-request | `fichero/Tests/Unit/general/Views/Source/*Tests.swift` |
+| Pure rule (Swift) | y | tool decisions, plans, gesture-to-request | `fichero/Tests/Unit/general/Views/Segments/*Tests.swift` |
 | Availability (Swift) | y | every verb reachable in Edit Segments | same |
 | Backend (pytest) | y | every new action and parameter, inverses, refusals | `fichero-server/tests/unit/api/test_segment_*.py` |
 | MCP | y | the new actions map | `fichero-mcp/tests/test_mcp_generated.py` |
