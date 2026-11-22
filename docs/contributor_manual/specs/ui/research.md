@@ -37,6 +37,20 @@ disagrees, this ruling wins.
 5. **One word, one meaning.** "Workspace" had four meanings (section I). In what a person reads it now means
    only a window's saved pane layout; the thing that holds a line of research is a **research folder**.
 
+Owner answers, 2026-11-21, to the questions the review raised:
+
+6. **The names stay:** "Research folder" and "Plan". There is ONE Plan window, with a source list of research
+   folders.
+7. **Accepted staged imports land in that research folder.**
+8. **Checklists fold into Plan leads and tasks,** converted when a research folder is opened.
+9. **The embedded browser is brought to the new UX in Stage 1,** not deferred (Step 1.5).
+10. **Library text goes to a cloud model only where that library allows it:** a per-library setting, cloud
+    allowed or local only.
+11. **A catalogue that needs a login, or blocks scripts, turns its lead into "requested" for the owner,** with
+    its terms ready.
+12. **The agent has an editor account on one pilot library only.** Every staged import waits for the owner's
+    Accept.
+
 **A research folder, in one sentence:** a research folder is an ordinary folder in the project's tree, marked
 as research, that holds one line of research (its chats, notes, search log, source register and staged
 imports), while a workspace is only a window's saved pane layout.
@@ -635,6 +649,14 @@ Strings, the item type's name, Keep in Research Folder… in the File menu and t
 
 The chat reads the one default for "Chat and research"; `ChatModelPicker` and the view's provider loading deleted; the name opens Models and Compute (Settings › AI until `models-and-compute-window.md` Step 1.1 lands). About 9 files.
 
+#### Step 1.5 — The embedded browser takes the new UX
+- Behaviours: `research.embedded-browser-home-surface`
+- Tests: EmbeddedBrowserNewUXTests.swift (to write)
+- Depends on: 1.2
+- Size: M
+
+The embedded browser renders in the Source/Preview pane (`PaneSurface.webBrowser`) with the same one pane menu, bar and Finder-style selection as the chat; moved here from Step 4.2 (`modes-to-panes.md` increment 5c is built here, not later).
+
 ### Stage 2 — The Plan: a pane, then a window
 
 #### Step 2.1 — The Plan pane kind over the rows that exist, selected like Finder
@@ -721,13 +743,13 @@ The Changes view over the audit rows, Undo and Undo Pass on the window's stack, 
 
 Tests only, after Step 1.2 has removed the Compare and Knowledge views, so what is pinned is what stays.
 
-#### Step 4.2 — Chat in any pane, and the browser's home (`modes-to-panes.md` increments 6 and 5c; #4041, #4809)
-- Behaviours: `research.chat-single-mount`, `research.embedded-browser-home-surface`
+#### Step 4.2 — Chat in any pane (`modes-to-panes.md` increment 6; #4041)
+- Behaviours: `research.chat-single-mount`
 - Tests: fichero/Tests/Unit/general/Views/ChatMountTests.swift, fichero/Tests/Unit/general/Views/Chat/ChatViewBoundaryTests.swift
 - Depends on: 1.2
 - Size: M
 
-Built from `modes-to-panes.md`, which owns both; listed here so this spec's lines have a step.
+Built from `modes-to-panes.md`, which owns it; listed here so this spec's line has a step.
 
 #### Step 4.3 — The agent's other tools (#3093, #509, #270, #5760, #821)
 - Behaviours: `research.canvas-actions-are-agent-tools`, `research.mcp-servers-configurable-in-app`, `research.mcp-semantic-spatial-tools`, `mcp.client.tools-reach-a-workflow`, `research.apple-fm-tool-callback`
