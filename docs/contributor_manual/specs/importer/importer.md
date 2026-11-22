@@ -508,7 +508,7 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
   in 35.5 s with the disk's used space unchanged but for the thumbnails; the stored path is relative to the
   project, so a renamed project still finds them
   (`fichero-server/tests/unit/importers/test_ingest_package_paths.py`).
-- `importer.originals.missing-check-is-bounded` — **[BROKEN]** (→ #6828; nearest #6733) asking which originals are
+- `importer.originals.missing-check-is-bounded` — **[PARTIAL]** (→ #6828; nearest #6733) asking which originals are
   missing costs one listing per source folder (or one `stat` per page), reads only each page's id and recorded
   paths, answers a volume that is not mounted with one question for all its pages, gives up on a volume that does
   not answer within 10 seconds and says so, and is asked once per open and after a relink, not on every folder
@@ -523,6 +523,11 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
   `fichero/fichero/Views/Library/LocateOriginals.swift`), and the answer lists every missing id, which the app searches as
   an array for each cell (`OriginalsStore.isMissing`). Test to add: 500 linked pages in 5 folders are checked with
   at most one filesystem call a page and one listing a folder, counted; a volume that is not there is one call.
+  *Built:* `missing_originals` reads id and path only, lists each folder once and confines it once
+  (`path_security.prepare_roots`), and a volume under /Volumes that is not mounted is one `stat`. *Not built:* the
+  10-second give-up on a volume that does not answer, the app's one ask per open and after a relink, and
+  `OriginalsStore.isMissing`'s array search; a page the listing does not show still costs the full
+  `original_is_there`. Test: `fichero-server/tests/unit/importers/test_missing_originals_is_bounded.py`.
 
 ## Build order
 
