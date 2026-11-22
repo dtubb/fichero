@@ -271,7 +271,6 @@ class TestEnhancedSearch:
             file_type=FileType.text,
         )
         db.save(doc)
-        db.embed(doc)
         doc.deleted_at = doc.updated_at
         doc.deleted_by = "tester"
         db.save(doc)
