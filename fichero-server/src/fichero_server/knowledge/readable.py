@@ -540,12 +540,13 @@ def render_entry_with_mentions(db, entity_id: str) -> tuple[list[dict], list[dic
     candidates = list(by_id.values())
     claims = [c for c in select_entry_claims(candidates, entity_id) if not _is_withdrawn(c)]
     claims = sorted(claims, key=_entry_sort_key)  # stage 2, before stage 3 aggregates
+    mention_claims = [c for c in claims if _entity_role(c, entity_id, entity_names) == "mention"]
+    mentioned = {c.id for c in mention_claims}
     mentions = [
         {"claim_id": c.id, "text": _claim_sentence(c), "document_id": c.source_document_id}
-        for c in claims
-        if _entity_role(c, entity_id, entity_names) == "mention"
+        for c in mention_claims
     ]
-    claims = [c for c in claims if _entity_role(c, entity_id, entity_names) != "mention"]
+    claims = [c for c in claims if c.id not in mentioned]
 
     sentences: list[dict] = []
     cursor = 0
