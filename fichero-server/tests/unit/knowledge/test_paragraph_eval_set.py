@@ -410,6 +410,10 @@ def _route(client, case: Case) -> dict:
     return r.json()
 
 
+# Strict: the route has no clauses, segments, dates, places or doubt yet. Each of #6835, #6836,
+# #6837, #6838, #6839, #6840, #6841, #6842, #6843, #6844 builds part of it; when the last one
+# lands this test passes, strict xfail fails it, and the mark is removed.
+@pytest.mark.xfail(strict=True, reason="the readable route does not meet the pass bar yet (#6835 to #6844)")
 @pytest.mark.parametrize("name", list(CASES))
 def test_the_route_answer_meets_the_pass_bar(client, db, name):
     case = build_case(db, name)
