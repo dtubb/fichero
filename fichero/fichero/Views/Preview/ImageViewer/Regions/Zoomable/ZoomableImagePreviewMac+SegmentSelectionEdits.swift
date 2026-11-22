@@ -68,9 +68,16 @@ extension ZoomableImagePreview {
     /// SIMPLIFY the selected segments' outlines and baselines (`segment-editor.vertices`, ⌥⌘S): one ⌘Z.
     func simplifySelectedSegments(tolerance: Double = SegmentEdit.simplifyTolerance) {
         guard let documentId else { return }
+        let selected = selectedSegments(documentId)
+        let before = SegmentEdit.pointCount(selected)
+        let ids = Set(selected.map(\.id))
         runSegmentEdit(
-            SegmentEdit.simplify(selectedSegments(documentId), tolerance: tolerance), documentId: documentId, name: "Simplify Outline"
-        )
+            SegmentEdit.simplify(selected, tolerance: tolerance), documentId: documentId, name: "Simplify Outline"
+        ) { _ in
+            // The store was re-read before this runs (`SegmentEditRunner.runAnswering`), so these are the simplified shapes.
+            let after = SegmentEdit.pointCount(segmentEditStore?.segments(documentId: documentId).filter { ids.contains($0.id) } ?? [])
+            windowState?.segmentNotice = SegmentEdit.simplifyNotice(removed: before - after)
+        }
     }
 
     /// The Simplify slider moved: what the engine would make of the selection at `tolerance`, drawn over the page and

@@ -259,6 +259,16 @@ extension SegmentEdit {
         ))
     }
 
+    /// How many points the segments' outlines and baselines hold in all.
+    static func pointCount(_ segments: [Segment]) -> Int {
+        segments.reduce(0) { $0 + ($1.anchor.polygon?.count ?? 0) + ($1.baseline?.count ?? 0) }
+    }
+
+    /// What Simplify says it did: how many points it took out.
+    static func simplifyNotice(removed: Int) -> String {
+        removed <= 0 ? "Simplify removed no points" : "Simplify removed \(removed) \(removed == 1 ? "point" : "points")"
+    }
+
     /// What Cut Words says when it could not cut every line: how many it left, and that they need a reading or ink.
     static func cutWordsNotice(made: Int, leftAlone: Int) -> String? {
         guard leftAlone > 0 else { return nil }
