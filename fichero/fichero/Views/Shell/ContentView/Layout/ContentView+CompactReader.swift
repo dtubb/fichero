@@ -153,7 +153,7 @@ extension ContentView {
             previewView
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 // `doc.name` for a page is the upload temp filename (#4416).
-                .navigationTitle(pushedReaderDocument.map(DocumentTitle.displayName(for:)) ?? "")
+                .navigationTitle(pushedReaderDocument.map { DocumentTitle.displayName(for: $0) } ?? "")
                 #if !os(macOS)
                 .navigationBarTitleDisplayMode(.inline)
                 #endif
