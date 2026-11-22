@@ -374,7 +374,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
         "display_name": request.display_name or f"{request.name} (taught by {taught_by(request.teacher)})",
         "summary": (f"{lessons(request.teacher, ts)}; {counted(len(request.held_out_ids), 'page')} held out as the test; "
                     f"{counted(ts.get('lines_left_out', 0), 'flagged line')} left out."),
-        "teacher": request.teacher, "training_set": ts, "held_out": ts.get("held_out", []),
+        "teacher": request.teacher, "taught_by": taught_by(request.teacher), "training_set": ts, "held_out": ts.get("held_out", []),
         "target": place, "far_id": far_id, "flavor": flavor,
         "not_for_release": request.not_for_release,
         "release_note": request.release_note or (NOT_FOR_RELEASE_NOTE if request.not_for_release else None),

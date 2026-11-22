@@ -125,3 +125,15 @@ def test_no_held_out_pages_is_not_measured_in_words(db, notebook, tmp_path, monk
     job_id, _ = _trained_and_landed(db, notebook, tmp_path, monkeypatch, held_out_ids=[])
     assert training_job.status(db, job_id)["held_out_score"] == {
         "state": "not measured", "why": "no held-out corrected pages"}
+
+
+# --- the card names its teacher -------------------------------------------------------------------------------
+
+def test_the_card_names_the_teacher_in_words(db, notebook, tmp_path, monkeypatch):
+    """WHY (`distill.train.card-names-teacher`): `teacher` is a raw id (or `person`); a person reading the card needs
+    who taught the reader, in words, on the card."""
+    from fichero_server.llm import kraken_runtime as kr
+    from tests.unit.training.test_kraken_training_set import TEACHER
+
+    _, reader = _trained_and_landed(db, notebook, tmp_path, monkeypatch)
+    assert kr.trained_reader_card(reader)["taught_by"] == TEACHER
