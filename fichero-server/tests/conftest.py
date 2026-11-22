@@ -825,7 +825,7 @@ _APPLE_VISION_OK = _apple_vision_available()
 _APPLE_INTELLIGENCE_OK = _apple_intelligence_available()
 
 
-def pytest_collection_modifyitems(config, items):  # noqa: ARG001
+def pytest_collection_modifyitems(config, items):
     """The ONE collection hook: anyio automark, Apple skips, known-spec xfails.
 
     These lived as THREE separate defs of this hook name; only the last one
@@ -833,6 +833,12 @@ def pytest_collection_modifyitems(config, items):  # noqa: ARG001
     Apple skips were silently dead — async-fixture tests errored and nobody
     connected it to a shadowed hook. Merged 2026-08-02; do not split again.
     """
+    # A `real_model` test runs a real downloaded model: left out of a run unless its marker is asked for (`-m real_model`).
+    if "real_model" not in (config.getoption("markexpr") or ""):
+        left_out = [item for item in items if "real_model" in item.keywords]
+        if left_out:
+            config.hook.pytest_deselected(items=left_out)
+            items[:] = [item for item in items if item not in left_out]
     skip_vision = pytest.mark.skip(
         reason="Apple Vision unavailable (non-mac or PyObjC Vision missing)"
     )
