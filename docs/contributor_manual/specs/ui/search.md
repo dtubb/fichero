@@ -421,13 +421,17 @@ The two indexes are fast; nearly all of the time is what is done around them.
   no graph, so it cannot see any of it. Test to write: the same file seeds 5,000 pages with passages,
   given vectors, names and statements, and holds a budget scaled from this one. Ruling P4 (owner
   2026-11-21): the budget is held on the 8 GB M1.
-- `search.scale.cost-does-not-grow-with-the-graph` — **[BROKEN]** (#1833, → #6782) every search, of any
+- `search.scale.cost-does-not-grow-with-the-graph` — **[PARTIAL]** (#1833, → #6782) every search, of any
   type, reads every name in the project to widen the query with aliases, then every statement and every
   name again to mark which hits they touch (`_expand_query_with_entity_aliases`,
   `enrich_search_results_with_kg`). Measured: reading all statements alone takes 0.46 s, 1.6 s and 4.8 s
   at the three sizes, and it is done on each search. Should: aliases are looked up by folded name in an
   index, and statements are fetched for the pages on the result page only. Test to write:
   test_search_reads_only_the_rows_it_needs.py in `fichero-server/tests/unit/search/` (counts rows read).
+  Built: alias expansion, result enrichment and the entity boost read into models only the entities whose
+  name or alias matches a term and the claims whose source is a result page (or that name a matched
+  entity); pinned: `fichero-server/tests/unit/search/test_search_reads_only_the_rows_it_needs.py`. Not
+  built: the folded-name index (the database still scans the name and source columns on each search).
 - `search.scale.no-whole-table-read` — **[BROKEN]** (#3321, → #6783) when the text index finds nothing
   for a word (a typing slip, the start of a word, a word inside a longer token), and for every fuzzy
   search, the whole passage table, vectors included, is read into memory and scanned. Measured: 43 s and
