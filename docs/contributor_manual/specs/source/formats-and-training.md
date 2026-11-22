@@ -471,12 +471,13 @@ skipped. What did not hold is the lines below. `→ #N` names the issue that tra
   **Built:** (#6801; `tests/unit/formats/test_type_and_confidence_reach_the_writers_6801.py`) PAGE XML writes both; ALTO writes a reading's confidence on a word and on a line's own
   String and names the rest as lost; TEI's `@cert` is high, medium or low, not a number, so TEI names both as
   lost. **Not built:** hOCR and YOLO.
-- `source.format.who-made-it-out` — **[GAP]** (#4943, → #6802) a file says what made the pass and
+- `source.format.who-made-it-out` — **[PARTIAL]** (#4943, → #6802) a file says what made the pass and
   whether each line's reading is a person's or a machine's: ALTO `Processing` steps, PAGE
   `Metadata/Creator` and a per-line mark, TEI `respStmt` with `@resp` on the line. Today PAGE and
   TEI name the pass's maker only (`kraken:blla` on a page whose five readings a person typed), ALTO
   names nobody (0 `Processing` elements), and the count of unreviewed machine lines is the only
   per-reading fact (`fichero-machine-made-lines`).
+  **Built:** (#6802; `tests/unit/core/test_who_made_it_round_trips_6802.py`) PAGE XML writes a per-line `fichero-maker` mark in `custom`, ALTO an `OtherTag` referenced from the line's `TAGREFS` plus a `Processing` step naming the producer, TEI a `<lb resp>` with a `<respStmt>` in `titleStmt`. **Not built:** ALTO has no per-line mark beyond the tag.
 - `source.format.round-trip-through-a-library` — **[PARTIAL]** (#4943, #6439, → #6802) export, import into a
   fresh page, export again gives the same file but for the two ids (`fichero-source`,
   `fichero-pass`), less what the loss report named. **Holds** for geometry, order and text once the ids and the maker are set aside: 17 of 17
@@ -486,6 +487,7 @@ skipped. What did not hold is the lines below. `→ #N` names the issue that tra
   second file differs from the first in every format. Ruled 2026-11-21 (the owner, #6802): an
   import restores a person's authorship persistently; until it is built the first export names
   the loss.
+  **Built:** (#6802; `tests/unit/core/test_who_made_it_round_trips_6802.py`) a person's maker on a line's first reading comes back as a human reading by that name, in PAGE XML, ALTO and TEI. **Not built:** a machine's maker is not restored on import; TEI's `sourceDesc` and the ids still differ.
 - `source.format.reimport-adds-no-reading` — **[PARTIAL]** (#4943, → #6803) importing a file
   Fichero exported adds no reading the file does not hold. Today a line whose reading carries
   abbreviation markup gets a plain reading derived at import (`formats/abbreviation_markup.py`),
@@ -566,6 +568,7 @@ Each format (one import and one export behaviour each)
   and re-imports gets their word back rather than a block nobody drew. Pinned by
   `test_alto.py::TestTheImplicitParentIsWrittenAndMarked` (5 tests, including that a real page with
   proper parents invents nothing).
+  **Built:** (#6802; `tests/unit/core/test_who_made_it_round_trips_6802.py`) `Processing/processingSoftware` is written, naming the producer. **Not built:** the segment types (`source.format.kind-raw-out`).
 - `source.format.tei-in` · `source.format.tei-out` — **[OK]** (→ #4945), pinned by
   `tests/unit/formats/test_tei.py::TestTheRoundTripHolds` — granularity and nesting, language,
   script and direction both ways, right-to-left text byte for byte, shapes and baselines to the

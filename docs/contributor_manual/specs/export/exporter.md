@@ -255,9 +255,9 @@ tests sit under `fichero-server/tests/unit/`; Swift tests under `fichero/Tests/U
 - Depends on: 1.2
 - Size: M
 
-#### Step 1.6 — Who made it, in the file; import restores a person's authorship (#6802)
+#### Step 1.6 — Who made it, in the file; import restores a person's authorship (#6802) (partly built)
 - Behaviours: `source.format.who-made-it-out`, `source.format.round-trip-through-a-library`, `source.format.alto-out`
-- Tests: `test_who_made_it_round_trips_6802.py` in fichero-server/tests/unit/core/ (to write)
+- Tests: `fichero-server/tests/unit/core/test_who_made_it_round_trips_6802.py`
 - Depends on: 1.5
 - Size: M
 
