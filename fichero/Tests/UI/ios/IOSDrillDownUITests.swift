@@ -53,5 +53,35 @@ final class IOSDrillDownUITests: XCTestCase {
         back(app)
         XCTAssertTrue(row(app, containing: "sample.jpg").waitForExistence(timeout: 10), "Back from the item did not show the list")
     }
+
+    /// `ios.nav.folders-push`, `ios.nav.back-is-one-step` (#6945): Test Archive > Box 1 > Series A, and Back
+    /// shows Box 1's list, then Test Archive's list.
+    func testNestedFoldersPushAndBackIsOneFolder() throws {
+        let app = try launchSeededApp()
+        XCTAssertTrue(app.otherElements["library.content.ready"].waitForExistence(timeout: 60), "the library never showed")
+
+        row(app, containing: "Test Archive").tap()
+        let box = row(app, containing: "Box 1")
+        XCTAssertTrue(box.waitForExistence(timeout: 20), "Test Archive lists no Box 1")
+        box.tap()
+        let series = row(app, containing: "Series A")
+        XCTAssertTrue(series.waitForExistence(timeout: 20), "Box 1 lists no Series A")
+        series.tap()
+        XCTAssertTrue(app.navigationBars["Series A"].waitForExistence(timeout: 10), "Series A's screen was not pushed")
+
+        back(app)
+        XCTAssertTrue(app.navigationBars["Box 1"].waitForExistence(timeout: 10), "Back from Series A did not show Box 1")
+        XCTAssertTrue(row(app, containing: "Series A").exists, "Box 1's list has no Series A row")
+        back(app)
+        XCTAssertTrue(app.navigationBars["Test Archive"].waitForExistence(timeout: 10), "Back did not show Test Archive")
+        XCTAssertTrue(row(app, containing: "Box 1").exists, "Test Archive's list has no Box 1 row")
+    }
+
+    /// `ios.nav.sidebar-drills` (#6946): no row of the sidebar expands in place.
+    func testTheSidebarHasNoDisclosureRow() throws {
+        let app = try launchSeededApp()
+        XCTAssertTrue(app.otherElements["library.content.ready"].waitForExistence(timeout: 60), "the library never showed")
+        XCTAssertEqual(app.disclosureTriangles.count, 0, "an iPhone sidebar row expands in place")
+    }
 }
 #endif

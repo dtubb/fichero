@@ -19,30 +19,43 @@ struct SidebarModelsNode: View {
 
     @State private var isExpanded = true
 
+    @ViewBuilder
+    private var modelRows: some View {
+        ForEach(store.models, id: \.id) { model in
+            let destination = SidebarDestination.trainedModel(model.id, libraryId: libraryId)
+            Label(model.name, systemImage: "brain")
+                .help(ModelNodeFacts.kindName(model.kind))
+                .sidebarDropHighlight(false, selected: selection.contains(destination))
+                .tag(destination)
+                .listRowInsets(SidebarRowMetrics.insets(.libraryItem))
+                // The model's verbs: the same items Project › Train renders (#5652 slice 1).
+                .contextMenu {
+                    TrainModelMenuItem(projectId: libraryId)
+                    if let target = TrainedModelMenuTarget.make(modelId: model.id, store: store),
+                       target.livesOnlyHere {
+                        MakeModelGlobalMenuItem(target: target)
+                    }
+                }
+        }
+    }
+
     var body: some View {
         if store.showsModelsNode {
-            DisclosureGroup(isExpanded: $isExpanded) {
-                ForEach(store.models, id: \.id) { model in
-                    let destination = SidebarDestination.trainedModel(model.id, libraryId: libraryId)
-                    Label(model.name, systemImage: "brain")
-                        .help(ModelNodeFacts.kindName(model.kind))
-                        .sidebarDropHighlight(false, selected: selection.contains(destination))
-                        .tag(destination)
-                        .listRowInsets(SidebarRowMetrics.insets(.libraryItem))
-                        // The model's verbs: the same items Project › Train renders (#5652 slice 1).
-                        .contextMenu {
-                            TrainModelMenuItem(projectId: libraryId)
-                            if let target = TrainedModelMenuTarget.make(modelId: model.id, store: store),
-                               target.livesOnlyHere {
-                                MakeModelGlobalMenuItem(target: target)
-                            }
-                        }
+            if SidebarPhone.rowExpandsInPlace(isPhone: SidebarPhone.isPhone) {
+                DisclosureGroup(isExpanded: $isExpanded) {
+                    modelRows
+                } label: {
+                    Label(Self.name, systemImage: "graduationcap")
                 }
-            } label: {
+                .listRowInsets(SidebarRowMetrics.insets(.libraryItem))
+                .accessibilityIdentifier(SidebarAccessibilityID.models(libraryId))
+            } else {
+                // The phone's rows are flat (#6946): the node's name, then its models.
                 Label(Self.name, systemImage: "graduationcap")
+                    .listRowInsets(SidebarRowMetrics.insets(.libraryItem))
+                    .accessibilityIdentifier(SidebarAccessibilityID.models(libraryId))
+                modelRows
             }
-            .listRowInsets(SidebarRowMetrics.insets(.libraryItem))
-            .accessibilityIdentifier(SidebarAccessibilityID.models(libraryId))
         }
     }
 }
