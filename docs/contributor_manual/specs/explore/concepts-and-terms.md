@@ -170,6 +170,35 @@ off-diagonal cells are where the historian's concept and the sources' word come 
 | show the share of pages in scope that no concept of the person's touches | name what is in it, cluster it, or suggest a concept |
 | rank passages with a stated reason | summarise, explain, or compare with the literature |
 
+### Categories, and the life of a word or a concept
+
+**Two kinds of category, kept apart.** The sources' own labels ("bruja", "hechicera", "viuda", "mestiza", "doncella")
+are terms: the emic line. They are shown as written, counted as ranges, and opened to their pages like any term. When
+a source applies such a label to a person, that is a statement by that source about that person and is shown on their
+life page (`kg/people-and-lives.md`). The historian's analytic categories (gender as an analytic lens, witchcraft as a
+historian's concept) are concepts the historian defines under the rules of section C. Fichero never assigns a
+category to anyone. It may only find passages for a concept the historian defined, or group spellings of a term a
+source used.
+
+**Worked example, witchcraft.** As a term: the sheet for "bruja" lists its written forms (bruja, bruxa, with the
+spellings a person accepted as one), the count of uses as a range with its denominator, the offices and writers that
+used it, and about whom, each count opening its lines; "hechicera" has its own sheet and is not merged with it unless a
+person groups them. As a concept: the historian defines "witchcraft", its scope and what counts, marks seed
+passages, and Fichero ranks candidate passages with the reasons, labelled as ranking; the two-by-two of the term
+against the concept is the historian's evidence, linked by them (`concepts.term-as-evidence.two-by-two`).
+
+**Worked example, gender.** As terms: "viuda", "doncella", "casada" counted by period and record type, each shown as
+the source wrote it. As a concept: the historian defines "gender" as an analytic lens, with the passages they accept as
+examples and their definition shown as theirs; Fichero does not decide who in a source is a woman or a man, and a
+view groups no person under a label the app supplied.
+
+**The life of a term or a concept.** A word or a category has a life page in the layout of a person's: when it
+first and last appears; how its use changes over time; which offices and writers used it; about whom; and its
+spellings. Every point opens the page; counts are ranges; a gap is shown as unread pages, never as absence. For a
+source term the page is built from the sources' own uses. For a historian's concept it is built from the passages the
+historian accepted as examples, with their definition shown as theirs. The page links to the people and things it is
+about, and they link back (`people.life.moves-between-a-person-a-thing-and-a-word`).
+
 ### Views
 
 All counted, each with its table twin and its settings on its face: the vocabulary of a set (a Library view mode);
@@ -360,6 +389,13 @@ that rests on a model's readings says so in the footnote itself and cannot be ex
   versions. It is computed on the person's machine, is in no export or publish, and is compared with nothing.
   *Test (to write):* test_range_coverage_panel.py.
 
+### E. Categories and the life of a word or a concept
+
+- `terms.life.first-last-change-offices-about-whom` — **[GAP]** (#6763 → #NEW-C1) a term's life page shows when it first and last appears, how its use changes over time, which offices and writers used it, about whom, and its spellings, built from the sources' own uses; every point opens its page; every count is a range with its four parts; a period with unread pages is shown as unread, not as zero. *Test (to write):* test_term_life_payload.py (a planted term with a gap in its years returns the gap as unread pages and each point with its lines), TermLifePageTests.swift.
+- `concepts.life.built-from-accepted-examples` — **[GAP]** (#4692 → #NEW-C1) a concept's life page is built from the passages the historian accepted as examples, in the same layout, with the historian's definition shown as theirs; a passage nobody accepted is not counted. *Test (to write):* test_concept_life_payload.py.
+- `terms.category.label-applied-to-a-person-is-a-source-statement` — **[GAP]** (#5340 → #NEW-C2) a source's label for a person ("bruja", "viuda") is stored as a statement by that source about that person, with its stretch, and shown on the person's life page as the source's word; no route or view assigns a category to a person, and no model proposes one. *Test (to write):* test_category_is_a_source_statement.py (a model's account is refused on writing a category to a person).
+- `concepts.category.emic-and-analytic-are-worked-examples` — **[GAP]** (#4692 → #NEW-C2) the sheet for a source term and the sheet for a historian's concept on the same subject (witchcraft, gender) are separate records that never merge; the link between them is the historian's, typed and versioned. *Test (to write):* test_term_and_concept_stay_apart.py.
+
 ## Lines of other specs built here (cited, not copied)
 
 `kg/hermeneutic-layer.md` section D has no build order; its lines are built in the steps below, with their text and
@@ -500,6 +536,24 @@ Waits for the saved-view record (#5063). → #7030
 
 → #7031
 
+### Stage 5 — Lives of words and categories
+
+#### Step 5.1 — The life page of a term and of a concept
+- Behaviours: `terms.life.first-last-change-offices-about-whom`, `concepts.life.built-from-accepted-examples`
+- Tests: test_term_life_payload.py, test_concept_life_payload.py, TermLifePageTests.swift
+- Depends on: 1.3, 3.2
+- Size: M
+
+→ #NEW-C1
+
+#### Step 5.2 — Categories: the source's label about a person, and witchcraft and gender as worked examples
+- Behaviours: `terms.category.label-applied-to-a-person-is-a-source-statement`, `concepts.category.emic-and-analytic-are-worked-examples`
+- Tests: test_category_is_a_source_statement.py, test_term_and_concept_stay_apart.py
+- Depends on: 5.1
+- Size: S
+
+→ #NEW-C2
+
 ## Test matrix
 
 | Leg | This surface? | Pins | File |
@@ -524,3 +578,6 @@ concept by a model's account.
 - The terms view ships on written forms before lemmas exist, with groupings a person accepts.
 - One 90% level for count ranges, app-wide.
 - This milestone, `concepts-and-terms`, stays separate from `people-and-lives`.
+- A source's own label for a person is a term and, applied to a person, that source's statement about them; a
+  historian's analytic category is a concept they define; Fichero assigns no category to anyone.
+- A word or a category has a life page in the layout of a person's, with counts as ranges and gaps as unread pages.

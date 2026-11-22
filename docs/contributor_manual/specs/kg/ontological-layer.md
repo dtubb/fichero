@@ -47,6 +47,30 @@ A tie between a source's category and a historian's type ("this status word, in 
 type") is something the historian makes, with the passages it rests on. It belongs to them and is stored in the
 hermeneutic layer. Fichero follows it in counts only where the view says so.
 
+## Beyond people: kinds as a set, agents of any kind
+
+The sources speak of more than persons as having a history and as doing things: an object, a piece of land, a
+building, a document, an image; a river, an animal, a crop, a weather event; a saint, a spirit, a demon, a devotional
+image, the dead. The kinds of thing therefore reach them (below), and three rules hold.
+
+- **Kind is a set.** An entity may be several kinds at once, as the sources give it: a devotional image that is an
+  object and a spiritual being; a mill that is a building, a business and a river use; a title deed that is a
+  document and an actor in a lawsuit. The life page shows every kind the sources give it, each with the lines that
+  give it.
+- **Agents of any kind, treated alike.** The agent, actor or doer role of a statement may be filled by an entity of any
+  kind: person, thing, nature, spiritual, institution, document. There is no built-in order in which only persons act.
+  "The image of the Virgin stopped the flood", "the river took the mill" and "the devil appeared to her" are each
+  recorded as that source states it, attributed to that source. Fichero records the agency and never asserts it.
+- **Reading agency is the historian's.** Whether such a statement is to be taken literally, as a figure of speech, as
+  belief, or as a claim about who was responsible is interpretation, kept in the hermeneutic layer
+  (`kg/hermeneutic-layer.md`). Translation, mediation and an obligatory point of passage are the historian's terms;
+  Fichero labels nothing by them.
+
+Worked example, a devotional image: the source says the image heals (a statement with the image as agent), a will
+leaves it to a confraternity (owner), a record has it carried to another church (moved), and a lawsuit is brought
+over it (a party or the thing at issue). One entity, kinds object and spiritual being, four statements, each with
+its source, none of them asserted by Fichero.
+
 ## Prior art (what we adopt)
 
 - **Event-centred models of cultural heritage data**: an event has participants in roles, a time-span and a place,
@@ -71,7 +95,7 @@ knowledge-graph browser and is not coming back in that form.
 - `ontology.kinds.small-closed-set` — **[GAP]** (#1678 → #7002) the kinds of thing are a closed list in one place in
   the engine (person, place, organisation, event, document), read by every route and view; a name's kind is set by a
   person or proposed by a labelled method and can be corrected like any reading. No project and no model adds a
-  kind. *Test (to write):* test_ontology_kinds.py.
+  kind. *Test (to write):* test_ontology_kinds.py. **Not built:** the list is widened by `ontology.kinds.beyond-people` and an entity carries a set of kinds (`ontology.kinds.an-entity-has-a-set-of-kinds`).
 - `ontology.events.kinds-are-the-sections` — **[GAP]** (#1678 → #7002) kinds of event are a list the project owns,
   seeded with a short default (birth or baptism, marriage, death or burial, sale, loan, lawsuit, appointment,
   movement), which the person can add to, rename and retire; the sections of a biography page are this list
@@ -98,11 +122,16 @@ knowledge-graph browser and is not coming back in that form.
 - `ontology.role.is-a-position-in-a-statement` — **[GAP]** (#1678, #4842 → #7015) a role is recorded on a person's
   place in one statement or act (party, witness, spoken about, writer, and the source's own word where given), read
   from the formula's slot by a stated rule or set by a person; it is never a property of the person as a whole.
-  Closes the gap named by `kg.statements.object-role`. *Test (to write):* test_role_is_a_position.py.
+  Closes the gap named by `kg.statements.object-role`. *Test (to write):* test_role_is_a_position.py. **Not built:** the agent or doer position may be filled by an entity of any kind (`ontology.agency.any-kind-fills-the-agent-role`).
 - `ontology.browse.is-a-table-of-what-is-used` — **[GAP]** (#1678 → #7015) the three lists can be read as one table
   in the Library: each kind, type and source category with how many records use it, opening to those records. It is
   a table of what the project holds, not a class diagram, and replaces the retired ontology browser.
   *Test (to write):* test_ontology_browse_table.py.
+
+- `ontology.kinds.beyond-people` — **[GAP]** (#1678 → #NEW-P8) the closed list of kinds of thing of `ontology.kinds.small-closed-set` also holds, beside person, place, organisation, event and document: object, building, land, image, nature (river, animal, crop, weather event) and spiritual being (saint, spirit, demon, devotional image, the dead). The list is changed by a spec change only; a recipe may add its own kinds of event, as for people. *Test (to write):* test_ontology_kinds_beyond_people.py.
+- `ontology.kinds.an-entity-has-a-set-of-kinds` — **[GAP]** (#1678 → #NEW-P9) an entity carries a set of kinds, not one value; each kind in the set rests on the statements or mentions that give it, and a kind a person sets is marked as theirs. A model's proposed kind is labelled and counts for nothing until a person accepts it. *Test (to write):* test_entity_kind_is_a_set.py.
+- `ontology.agency.any-kind-fills-the-agent-role` — **[GAP]** (#1678 → #NEW-P9) the agent, actor or doer position of a statement, and either end of a relation, can be filled by an entity of any kind; no route, view or rule refuses an agent because it is not a person, and no ranking, count or view puts persons first. *Test (to write):* test_agent_of_any_kind.py (a statement whose agent is an image, a river and a spirit is stored and read back).
+- `ontology.agency.recorded-as-stated-never-asserted` — **[GAP]** (#1678 → #NEW-P9) a statement with a non-person agent carries the source that states it and is shown as that source's statement; Fichero writes no agency of its own and no sentence in its own voice that an image, a river or a spirit did something. A historian's reading of it is stored in the hermeneutic layer (`hermeneutic.agency.reading-is-the-historians`). *Test (to write):* test_agency_is_attributed_to_its_source.py.
 
 ## Test matrix
 
@@ -117,3 +146,7 @@ knowledge-graph browser and is not coming back in that form.
 - The seeded list of relation types is the default; a person adds to it, and a historian's own type is always marked
   as theirs beside the source's word.
 - The default kinds of event are the same for every project; a recipe may add its own event kinds.
+- Things, nature and the spiritual are kinds of thing; an entity may have several kinds at once; any kind can be the
+  agent of a statement, recorded as its source states it and never asserted by Fichero.
+- Lives of things, of nature and of the spiritual, and of words and concepts, are built in `kg/people-and-lives.md`
+  and `explore/concepts-and-terms.md`.

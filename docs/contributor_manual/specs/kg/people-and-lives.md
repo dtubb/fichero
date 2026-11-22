@@ -167,6 +167,38 @@ page never picks one. The page is sources only: every line is one source's state
 historian's is written on it. A person's own reading of a conflict is stored as theirs in the hermeneutic layer
 (`kg/hermeneutic-layer.md`) and linked from the page, beside the conflict it is about, marked as theirs.
 
+### Lives beyond people
+
+A life page is for any entity the sources speak of as having a history, not only a person: **things** (objects, land,
+buildings, documents, images), **nature** (rivers, animals, crops, weather events) and **the spiritual** (saints,
+spirits, demons, devotional images, the dead). The same rules hold as for a person: sources only, every line one
+source's statement, gaps shown, links proposed by a labelled method and accepted by a person. The life-event
+sections vary by the entity's kind (a building is built, altered, sold, ruined; a river floods, is crossed, is
+dammed; a saint is invoked, has a feast, has an image carried) and a recipe may add its own kinds. The living-people
+rule (`people.privacy.living-date-holds-back-proposals`) is a rule about persons and is not applied to other kinds.
+
+An entity may be several kinds at once (`ontology.kinds.an-entity-has-a-set-of-kinds`), and the page shows every kind
+the sources give it. Any kind may be the agent of a statement and is treated alike
+(`ontology.agency.any-kind-fills-the-agent-role`); the page shows the statement as its source states it and never as
+Fichero's, and the historian's reading of it sits beside it, linked, in the hermeneutic layer.
+
+**The network panel.** From any life page, a panel lists the associations the sources record: who and what acted
+with or on this entity, and through which statements. Each edge is one statement with its source, opening its page.
+Nothing is inferred, and no centrality score and no "most important" order is shown, because a view shows what is
+in the sources. Calling something a mediator or an obligatory point is the historian's reading and is kept in the
+hermeneutic layer (`hermeneutic.agency.reading-is-the-historians`).
+
+**Words and categories have lives too** (`explore/concepts-and-terms.md`, section E): a term or a concept uses this
+same layout, so a historian can move between a person, a thing and a word. A source's label applied to a person
+("bruja", "viuda", "mestiza") is that source's statement about that person and is shown on the person's page as such.
+Fichero never assigns a category to anyone.
+
+Worked example: a devotional image that heals, is owned, is moved and is sued over. Its page shows the kinds object
+and spiritual being; in the sections, the statement that it healed (the image as agent, the source's word for the
+healing beside it), the will that leaves it to a confraternity, the record of its carrying to another church, and the
+lawsuit; the network panel lists the confraternity, the church, the parties and the persons healed, each edge with
+its line; a gap shows the years with no attestation as unread pages.
+
 ### The stitch bench
 
 Where same-person proposals are decided, fast, with the evidence. Two lives (or three) are laid one above the other
@@ -264,7 +296,7 @@ person's own machine, are never sent anywhere, and are never set beside another 
 - `people.relation.typed-link-rests-on-statements` — **[GAP]** (#5340 → #7005) a relation between two persons has a
   type from the ontological layer's list (`ontology.relations.one-list-the-person-extends`), a direction, an optional
   span of time, and the statements it rests on. A relation with no statement under it cannot be saved, except one
-  the historian asserts, which is stored and drawn as their inference. *Test (to write):* test_relation_needs_a_statement.py.
+  the historian asserts, which is stored and drawn as their inference. *Test (to write):* test_relation_needs_a_statement.py. **Not built:** the ends of a relation may be an entity of any kind (`ontology.agency.any-kind-fills-the-agent-role`).
 - `people.relation.sources-word-is-shown` — **[GAP]** (#5340 → #7005) a relation row shows the sources' own word or
   formula for the tie, in the source language, beside the historian's type (`ontology.sources.categories-in-their-own-words`);
   where sources use different words for it, each is listed with its lines. *Test (to write):*
@@ -418,6 +450,13 @@ person's own machine, are never sent anywhere, and are never set beside another 
   or a person against another by them. There is no public score. *Test (to write):*
   test_people_quality_is_in_no_export.py.
 
+### I. Lives beyond people
+
+- `people.life.any-entity-with-a-history` — **[GAP]** (#5340 → #NEW-P8) the biography page of Section C is served for an entity of any kind of `ontology.kinds.beyond-people`, by the same route and under the same rules: sources only, every line one source's statement resting on a stretch, accepted or attested only, conflicts kept, gaps shown, links proposed by a labelled method and accepted by a person. *Test (to write):* test_life_page_for_any_kind.py (a river, an image and a saint each return a page whose every line resolves to a stretch).
+- `people.life.sections-vary-by-entity-kind` — **[GAP]** (#5340 → #NEW-P8) the sections of a page are the event kinds seeded for the entity's kind (and for each kind in its set), and a recipe may add its own kinds; a person's page keeps the person sections. *Test (to write):* test_sections_by_entity_kind.py.
+- `people.life.network-panel-of-recorded-ties` — **[GAP]** (#5032 → #NEW-P9) from any life page the panel lists who and what acted with or on the entity and through which statements; each edge is one statement with its source and opens its page; no edge is inferred, and no centrality score or importance order is in the payload. *Test (to write):* test_network_panel_edges_are_statements.py (every edge has a statement id; no score field; a model-proposed tie is absent until accepted), NetworkPanelTests.swift.
+- `people.life.moves-between-a-person-a-thing-and-a-word` — **[GAP]** (#5032 → #NEW-P9) a name, a thing or a term opened from a life page opens its own life page in the same layout (a person's, an entity's, a term's or a concept's), and the way back is one step. *Test (to write):* LifePageNavigationTests.swift.
+
 ## Lines of other specs built here (cited, not copied)
 
 `kg/ontological-layer.md` has no build order of its own. Its lines are built in Step 1.2 and Step 1.5 below, with
@@ -569,6 +608,24 @@ The writer or office of a document, and the position of a person in an act, are 
 
 → #7016
 
+### Stage 6 — Lives beyond people
+
+#### Step 6.1 — Things, nature and the spiritual have life pages; kind is a set
+- Behaviours: `ontology.kinds.beyond-people`, `ontology.kinds.an-entity-has-a-set-of-kinds`, `people.life.any-entity-with-a-history`, `people.life.sections-vary-by-entity-kind`
+- Tests: test_ontology_kinds_beyond_people.py, test_entity_kind_is_a_set.py, test_life_page_for_any_kind.py, test_sections_by_entity_kind.py
+- Depends on: 2.1
+- Size: M
+
+→ #NEW-P8
+
+#### Step 6.2 — Agents of any kind, the network panel, and moving between a person, a thing and a word
+- Behaviours: `ontology.agency.any-kind-fills-the-agent-role`, `ontology.agency.recorded-as-stated-never-asserted`, `people.life.network-panel-of-recorded-ties`, `people.life.moves-between-a-person-a-thing-and-a-word`, `hermeneutic.agency.reading-is-the-historians`
+- Tests: test_agent_of_any_kind.py, test_agency_is_attributed_to_its_source.py, test_network_panel_edges_are_statements.py, test_agency_reading_is_a_persons.py, NetworkPanelTests.swift, LifePageNavigationTests.swift
+- Depends on: 6.1, 4.1
+- Size: M
+
+Worked example: a devotional image that heals, is owned, is moved and is sued over. → #NEW-P9
+
 ## Future (not scheduled, not to be cut into issues)
 
 - **The layered record.** The archives as stacked flat sheets with stitches as threads, tilting from and flattening
@@ -604,3 +661,8 @@ link; every line resolves to a stretch.
 - Co-naming in one act is evidence for a same-person link only (`people.view.relations-around-a-person`).
 - This spec's milestone, `people-and-lives`, stays separate from `reconstruct-the-record` and from
   `concepts-and-terms`.
+- A life page is for any entity the sources speak of as having a history: things, nature and the spiritual as well as
+  persons; the same rules hold, and the sections vary by entity kind (`people.life.any-entity-with-a-history`).
+- Any kind may be the agent of a statement; the page shows it as its source states it, and the network panel shows
+  only the ties the sources record, with no score and no importance order.
+- A source's label for a person is that source's statement about them; Fichero assigns no category to anyone.

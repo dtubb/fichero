@@ -271,6 +271,14 @@ the record a historian's concept is kept in, and a pattern is that concept's pas
   name and the date, and is never counted as an attestation or mixed into a count of what the sources say.
   *Test (to write):* HermeneuticMarksAreLabelledTests.swift.
 
+- `hermeneutic.agency.reading-is-the-historians` — **[GAP]** (#4692 → #NEW-P9) when a source's statement gives an
+  image, a river, a spirit, a document or any non-person an act ("the river took the mill"), the historian's reading
+  of it (literal, figurative, belief, an account of responsibility) and any use of translation, mediation or an
+  obligatory point of passage are interpretations of this layer: stored as theirs, linked to the statement and its
+  stretch, drawn beside it with their name and the date. Fichero never labels an entity a mediator or an obligatory
+  point and never ranks entities by centrality or importance. *Test (to write):* test_agency_reading_is_a_persons.py
+  (a model's account cannot write one; the reading links to a statement).
+
 ## Test matrix
 
 | Leg | This surface? | Pins | File |
