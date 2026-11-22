@@ -48,7 +48,9 @@ def test_a_start_whose_price_times_limit_passes_the_cap_is_refused_with_the_sum(
 
 def test_a_start_under_the_cap_is_queued(db, notebook, test_package):
     _set_cap(test_package, 5.0)
-    assert _start(db, notebook, FakeHub())["job_id"]
+    started = _start(db, notebook, FakeHub())
+    assert started["max_cost_usd"] == 1.6  # 0.4 an hour x 4h, the sum the cap was checked with
+    assert training_job.status(db, started["job_id"])["max_cost_usd"] == 1.6
 
 
 def test_spend_already_this_month_counts_against_the_cap(db, notebook, test_package):

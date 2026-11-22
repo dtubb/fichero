@@ -82,10 +82,11 @@ class OverTheCap(PagesMayNotLeave):
     """The most this training can cost does not fit the project's Hugging Face cap (a refusal like the others: 403)."""
 
 
-def _within_the_cap(db: Any, price: float | None, timeout: str) -> None:
+def _within_the_cap(db: Any, price: float | None, timeout: str) -> float:
     """A training start is checked against the project's monthly Hugging Face cap as price an hour times the time
     limit, on top of what this month's Jobs can already cost (`source.onboard.spend-cap`, #5769). A $0 cap, or a
-    hardware with no listed price, refuses: nothing is sent on a guess. Refused in words, with nothing queued."""
+    hardware with no listed price, refuses: nothing is sent on a guess. Refused in words, with nothing queued.
+    Returns the most the training can cost, in US dollars."""
     from fichero_server.recipes.answers import spend_cap
     from fichero_server.recipes.project import read_project_setup
     from fichero_server.recipes.train_offers import _hours, spend_this_month
@@ -103,6 +104,7 @@ def _within_the_cap(db: Any, price: float | None, timeout: str) -> None:
     if spent + most > cap:
         raise OverTheCap(f"This training can cost up to ${most:.2f} (${price:g} an hour for {timeout}); Hugging Face "
                          f"this month is at most ${spent:.2f} of the ${cap:.2f} cap, so it does not fit.")
+    return most
 
 
 def _project_must_agree(db: Any, what: str) -> None:
@@ -186,17 +188,16 @@ def start(db: Any, request: _TrainRequest, *, started_by: str,
     refuse_an_empty_set(db, request)  # nothing to train on: refused here, with the preview's reason (#5699)
     flavor = (request.flavor or target.cheapest(LORA_FLAVORS)) if place == TARGET else ""  # a cluster: one GPU a job
     price = target.price_per_hour(flavor)
-    if place == TARGET:
-        _within_the_cap(db, price, request.timeout)  # a cluster is an allocation, not bought by the hour
+    most = _within_the_cap(db, price, request.timeout) if place == TARGET else None  # a cluster is not bought by the hour
     batch = kraken_batch(flavor, request.batch_size) if isinstance(request, TrainKrakenRequest) else None
     detail = {"card": _card_of(request), "request": request.model_dump(), "flavor": flavor,
-              "price_per_hour_usd": price, "yes": {"by": started_by, "at": _now(), "to": place},
+              "price_per_hour_usd": price, "max_cost_usd": most, "yes": {"by": started_by, "at": _now(), "to": place},
               "phase": "waiting", "history": [{"phase": "waiting", "at": _now()}],
               **({"batch_size": batch} if batch else {})}
     job_id = jobs.enqueue_remote(db, KIND, f"training:{uuid.uuid4()}", target=place, detail=json.dumps(detail),
                                  reason=f"Waiting to send to {_place_words(target, place)}", started_by=started_by)
     return {"job_id": job_id, "flavor": flavor, "timeout": request.timeout, "price_per_hour_usd": price,
-            "batch_size": batch}
+            "max_cost_usd": most, "batch_size": batch}
 
 
 #: Phases after which the Job on Hugging Face is known to have ended (or never to have started).
