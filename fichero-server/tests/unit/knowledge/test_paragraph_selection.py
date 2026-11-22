@@ -85,3 +85,19 @@ def test_an_object_statement_stays_in_the_paragraph_and_not_in_the_list(client, 
     body = _read(client, ines)
     assert [s["claim_ids"] for s in body["sentences"]] == [[said.id]]
     assert body["also_mentioned_in"] == []
+
+
+# ---- the withdrawn test itself, with no database and no route ------------------------------
+
+
+@pytest.mark.parametrize("fields, withdrawn", [
+    ({}, False),
+    ({"curation_state": ClaimCurationState.curated}, False),
+    ({"epistemic_status": EpistemicStatus.tentative}, False),
+    ({"curation_state": ClaimCurationState.rejected}, True),
+    ({"epistemic_status": EpistemicStatus.rejected}, True),
+    ({"merged_into_id": "another-statement"}, True),
+])
+def test_a_statement_is_withdrawn_when_rejected_or_merged(fields, withdrawn):
+    from fichero_server.knowledge.readable import _is_withdrawn
+    assert _is_withdrawn(KnowledgeClaim(text="x", **fields)) is withdrawn
