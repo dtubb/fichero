@@ -32,7 +32,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Sequence
 
-from fichero_server.knowledge._common import order_statement_parts
+from fichero_server.knowledge._common import STATEMENT_ROLE_ORDER, order_statement_parts
 from fichero_server.knowledge.paragraph import (
     _claim_object,
     _claim_sentence,
@@ -474,6 +474,132 @@ def _render_group_sentence(agg: "Aggregation", representative: KnowledgeClaim) -
     return _claim_sentence(representative)
 
 
+_ROLE_FIELDS = {
+    "subject": ("subject_canonical", "svo_subject"),
+    "verb": ("predicate_verb", "svo_verb"),
+    "object": ("object_phrase", "svo_object"),
+}
+
+
+def _role_field(claim: KnowledgeClaim, role: str) -> str:
+    """The stored field the claim's `role` text comes from (the first one set, as `_claim_subject` etc. read)."""
+    return next(name for name in _ROLE_FIELDS[role] if getattr(claim, name))
+
+
+def _claim_pieces(claim: KnowledgeClaim) -> list[tuple[str, str]]:
+    """`_claim_sentence` as (text, origin) pieces joined by single spaces, a "." piece last when added.
+
+    A piece's text is the stored field with whitespace collapsed, so it equals the field up to whitespace.
+    """
+    values = {
+        "subject": _claim_subject(claim),
+        "verb": _claim_verb(claim),
+        "object": _claim_object(claim),
+    }
+    pieces = [(values[r], f"claim:{claim.id}:{_role_field(claim, r)}") for r in STATEMENT_ROLE_ORDER if values[r]]
+    if len(pieces) < 2:
+        text = " ".join(claim.text.split())
+        if text:
+            pieces = [(text, f"claim:{claim.id}:text")]
+    if pieces and not pieces[-1][0].endswith((".", "!", "?")):
+        pieces.append((".", "punctuation"))
+    return pieces
+
+
+def _join_pieces(pieces: list[tuple[str, str, list[str]]]) -> tuple[str, list[dict]]:
+    """Text and segments (offsets within the text) from the same pieces. A piece starting with "." or ","
+    is attached without a space."""
+    text = ""
+    segments: list[dict] = []
+    for piece, origin, ids in pieces:
+        if text and not piece.startswith((".", ",")):
+            text += " "
+        start = len(text)
+        text += piece
+        segments.append({"start": start, "end": len(text), "origin": origin, "claim_ids": list(ids)})
+    return text, segments
+
+
+def _group_state(claims: list[KnowledgeClaim]) -> str:
+    reviewed = all(
+        c.curation_state == ClaimCurationState.curated or c.epistemic_status == EpistemicStatus.confirmed
+        for c in claims
+    )
+    return "reviewed" if reviewed else "proposed"
+
+
+def _sources(claims: list[KnowledgeClaim]) -> int:
+    return len({d for c in claims for d in (c.source_document_id, *c.source_ids) if d})
+
+
+def _merged_pieces(
+    agg: "Aggregation", group_claims: list[KnowledgeClaim]
+) -> tuple[list[tuple[str, str, list[str]]], list[tuple[int, list[KnowledgeClaim]]]] | None:
+    """The pieces of a merged sentence as `_render_group_sentence` joins them, and (index of the object
+    piece, claims) per distinct object; None when the group has no complete statement."""
+    ids = list(agg.claim_ids)
+    first = group_claims[0]
+    lang = agg.language if agg.language in _REALISATION else "en"
+    objects = [(obj, [c for c in group_claims if _claim_object(c) == obj]) for obj in agg.objects]
+    if objects:
+        objects[0][1].extend(c for c in group_claims if not _claim_object(c))
+    head = [
+        (agg.subject, f"claim:{first.id}:{_role_field(first, 'subject')}", ids) if agg.subject else None,
+        (agg.verb, f"claim:{first.id}:{_role_field(first, 'verb')}", ids) if agg.verb else None,
+    ]
+    pieces = [p for p in head if p]
+    if len(pieces) + bool(objects) < 2:
+        return None
+    marks: list[tuple[int, list[KnowledgeClaim]]] = []
+    for i, (obj, members) in enumerate(objects):
+        if i == len(objects) - 1 and i:
+            pieces.append((_REALISATION[lang]["and"], f"table:{lang}:and", ids))
+        elif i:
+            pieces.append((",", "punctuation", ids))
+        pieces.append((obj, f"claim:{members[0].id}:{_role_field(members[0], 'object')}", [m.id for m in members]))
+        marks.append((len(pieces) - 1, members))
+    if not pieces[-1][0].endswith((".", "!", "?")):
+        pieces.append((".", "punctuation", ids))
+    return pieces, marks
+
+
+def _trace_group_sentence(
+    agg: "Aggregation", group_claims: list[KnowledgeClaim], entity_id: str, entity_names: list[str]
+) -> tuple[str, list[dict], list[dict]]:
+    """The sentence of `_render_group_sentence`, with its clauses and segments (offsets within the sentence).
+
+    A single claim, or a group with no complete statement, is one clause with all the group's claim ids.
+    A merged group has one clause per distinct object phrase; a claim with no object joins the first.
+    """
+    ids = list(agg.claim_ids)
+    merged = _merged_pieces(agg, group_claims) if agg.count > 1 else None
+    if merged is None:
+        pieces = [(t, o, ids) for t, o in _claim_pieces(group_claims[0])]
+        marks: list[tuple[int, list[KnowledgeClaim]]] = []
+    else:
+        pieces, marks = merged
+    text, segments = _join_pieces(pieces)
+    spans = [(segments[i]["start"], segments[i]["end"], m) for i, m in marks] if len(marks) > 1 else [
+        (0, len(text), group_claims)
+    ]
+    clauses = [
+        {
+            "start": start,
+            "end": end,
+            "claim_ids": [c.id for c in members],
+            "role": _group_role(members, entity_id, entity_names),
+            "revoiced": False,
+            "state": _group_state(members),
+            "doubt": "none",
+            "sources": _sources(members),
+            "date": None,
+            "place": None,
+        }
+        for start, end, members in spans
+    ]
+    return text, clauses, segments
+
+
 def _is_withdrawn(claim: KnowledgeClaim) -> bool:
     """A statement a person rejected, or one merged into another: said nowhere."""
     return (
@@ -552,8 +678,7 @@ def render_entry_with_mentions(db, entity_id: str) -> tuple[list[dict], list[dic
     cursor = 0
     for group in aggregate_claims(claims):
         group_claims = [by_id[cid] for cid in group.claim_ids]
-        representative = group_claims[0]
-        text = _render_group_sentence(group, representative)
+        text, clauses, segments = _trace_group_sentence(group, group_claims, entity_id, entity_names)
         if not text:
             continue
         start = cursor if not sentences else cursor + 1  # +1 for the joining space
@@ -571,6 +696,8 @@ def render_entry_with_mentions(db, entity_id: str) -> tuple[list[dict], list[dic
                 "claim_ids": list(group.claim_ids),
                 "role": _group_role(group_claims, entity_id, entity_names),
                 "revoiced": False,
+                "clauses": [{**c, "start": start + c["start"], "end": start + c["end"]} for c in clauses],
+                "segments": [{**g, "start": start + g["start"], "end": start + g["end"]} for g in segments],
             }
         )
         cursor = end

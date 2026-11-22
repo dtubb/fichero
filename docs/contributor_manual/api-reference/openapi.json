@@ -90263,6 +90263,100 @@
         "title": "ReadFlagInfo",
         "description": "A read that is not trusted: `kind` in a word, `reason` in a sentence (the wire shape of `read_guard.ReadFlag`)."
       },
+      "ReadableClause": {
+        "properties": {
+          "start": {
+            "type": "integer",
+            "title": "Start"
+          },
+          "end": {
+            "type": "integer",
+            "title": "End"
+          },
+          "claim_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Claim Ids"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "revoiced": {
+            "type": "boolean",
+            "title": "Revoiced"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "doubt": {
+            "type": "string",
+            "title": "Doubt"
+          },
+          "sources": {
+            "type": "integer",
+            "title": "Sources"
+          },
+          "date": {
+            "type": "string",
+            "nullable": true,
+            "title": "Date"
+          },
+          "place": {
+            "type": "string",
+            "nullable": true,
+            "title": "Place"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "claim_ids",
+          "role",
+          "revoiced",
+          "state",
+          "doubt",
+          "sources"
+        ],
+        "title": "ReadableClause",
+        "description": "One unit of a sentence: the statements it says and where its text sits in the paragraph."
+      },
+      "ReadableSegment": {
+        "properties": {
+          "start": {
+            "type": "integer",
+            "title": "Start"
+          },
+          "end": {
+            "type": "integer",
+            "title": "End"
+          },
+          "origin": {
+            "type": "string",
+            "title": "Origin"
+          },
+          "claim_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Claim Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "origin",
+          "claim_ids"
+        ],
+        "title": "ReadableSegment",
+        "description": "A span of the paragraph and where its characters come from: `claim:<id>:<field>`,\n`table:<language>:<word>` or `punctuation`."
+      },
       "ReadableSentence": {
         "properties": {
           "text": {
@@ -90296,6 +90390,22 @@
           "revoiced": {
             "type": "boolean",
             "title": "Revoiced"
+          },
+          "clauses": {
+            "items": {
+              "$ref": "#/components/schemas/ReadableClause"
+            },
+            "type": "array",
+            "title": "Clauses",
+            "default": []
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/ReadableSegment"
+            },
+            "type": "array",
+            "title": "Segments",
+            "default": []
           }
         },
         "type": "object",
