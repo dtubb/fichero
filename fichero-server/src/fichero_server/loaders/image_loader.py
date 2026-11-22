@@ -6,6 +6,7 @@ Special handling: HEIC (pillow-heif), JXL (macOS ImageIO), RAW (rawpy), all bund
 """
 
 import logging
+from contextlib import contextmanager
 from fichero_server.media import quartz_warm  # (#5745: warm() resolves Quartz names under a lock at first use)
 import tempfile
 import warnings
@@ -59,6 +60,19 @@ def open_image_checked(path: Path) -> Image.Image:
             with Image.open(path) as img:
                 return _ensure_safe_image(img, path).copy()
         except Image.DecompressionBombError as exc:  # PIL's hard error at twice the limit
+            raise UnsafeImageError(f"Image too large for ingest: {path} ({exc})") from exc
+
+
+@contextmanager
+def open_image_header_checked(path: Path):
+    """The image opened for its size and EXIF only: the header is read, the pixels are not decoded (so the file's
+    bytes are not read a second time by an import that already hashed it). Same size limit as `open_image_checked`."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", Image.DecompressionBombWarning)
+        try:
+            with Image.open(path) as img:
+                yield _ensure_safe_image(img, path)
+        except Image.DecompressionBombError as exc:
             raise UnsafeImageError(f"Image too large for ingest: {path} ({exc})") from exc
 
 

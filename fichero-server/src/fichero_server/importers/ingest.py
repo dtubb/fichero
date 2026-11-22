@@ -1145,6 +1145,12 @@ def _extract_file_metadata(
         logger.warning("Metadata extraction failed for %s: %s", path, e)
 
 
+def _raise_if_changed_while_read(path: Path, before: os.stat_result) -> None:
+    after = path.stat()
+    if (after.st_size, after.st_mtime_ns) != (before.st_size, before.st_mtime_ns):
+        raise RuntimeError(f"File changed while being ingested: {path}")
+
+
 def _file_checksum(path: Path, algorithm: str = "sha256") -> str:
     """Calculate file checksum.
 
@@ -1165,10 +1171,10 @@ def _extract_image_metadata(
     Updates doc.metadata in place.
     """
     try:
-        from fichero_server.loaders.image_loader import UnsafeImageError, open_image_checked
+        from fichero_server.loaders.image_loader import UnsafeImageError, open_image_header_checked
         from fichero_server.loaders.xmp_loader import parse_xmp_sidecar, apply_xmp_to_document
 
-        with open_image_checked(path) as img:
+        with open_image_header_checked(path) as img:
             doc.metadata["width"] = img.width
             doc.metadata["height"] = img.height
 
@@ -1510,6 +1516,7 @@ def ingest_folder(
     documents: list[Document] = []
     existing_hashes: set[tuple[str, str]] = set()
     existing_source_sizes: dict[str, int] = {}
+    existing_source_stamps: set[tuple[str, int, str]] = set()
     library_path = package_path or getattr(db, "path", None)
     # Timed (2026-08-09): this pre-scan used to materialise EVERY document
     # row into Pydantic objects before the first file was touched — on a
@@ -1529,6 +1536,7 @@ def ingest_folder(
     try:
         existing_hashes.update(db.ingest_dedup_keys(root_id=folder_id))
         existing_source_sizes.update(db.ingest_dedup_source_sizes(root_id=folder_id))
+        existing_source_stamps.update(db.ingest_dedup_source_stamps(root_id=folder_id))
         logger.info(
             "ingest.folder.prescan existing=%d elapsed_ms=%d",
             len(existing_hashes), int((time.monotonic() - _prescan_started) * 1000),
@@ -1647,8 +1655,16 @@ def ingest_folder(
                 if not_fetched := dataless.fetch_first([str(file_path)], say=still_downloading,
                                                        min_timeout=dataless._MIN_TIMEOUT_SECONDS):
                     raise dataless.DatalessSourceError(not_fetched[str(file_path)])
-            checksum = _file_checksum(file_path)
             source_key = str(file_path)
+            before = file_path.stat()
+            # A file whose path, size and date are what was recorded at its import is already in: skipped without
+            # a read (#6832).
+            if (source_key, before.st_size, datetime.fromtimestamp(before.st_mtime).isoformat()) in existing_source_stamps:
+                logger.info("Skipping unchanged file (path, size and date match): %s", file_path)
+                if on_progress:
+                    on_progress(i + 1, total)
+                continue
+            checksum = _file_checksum(file_path)
             if (source_key, checksum) in existing_hashes:
                 logger.info("Skipping unchanged file (hash match): %s", file_path)
                 if on_progress:
@@ -1684,10 +1700,9 @@ def ingest_folder(
                     save=False,
                     db=db,
                     package_path=package_path,
+                    known_checksum=checksum,
                 )
-                actual_checksum = (doc.metadata or {}).get("checksum")
-                if isinstance(actual_checksum, str) and actual_checksum != checksum:
-                    raise RuntimeError(f"File changed while being ingested: {file_path}")
+                _raise_if_changed_while_read(file_path, before)
                 pending_links.append((doc, source_key, checksum))
             else:
                 with db.transaction():
@@ -1701,20 +1716,12 @@ def ingest_folder(
                         save=True,
                         db=db,
                         package_path=package_path,
-                        # Reuse the skip-test hash EXCEPT for LINK mode, where
-                        # the recompute is the changed-while-ingesting tamper
-                        # check below (2026-08-09).
-                        known_checksum=None if mode == IngestMode.LINK else checksum,
+                        # The skip test's hash is the file's one read; the file's size and date
+                        # before and after stand for "unchanged while read" (#6832).
+                        known_checksum=checksum,
                     )
-                    actual_checksum = (doc.metadata or {}).get("checksum")
-                    if (
-                        mode == IngestMode.LINK
-                        and isinstance(actual_checksum, str)
-                        and actual_checksum != checksum
-                    ):
-                        raise RuntimeError(
-                            f"File changed while being ingested: {file_path}"
-                        )
+                    if mode == IngestMode.LINK:
+                        _raise_if_changed_while_read(file_path, before)
                     if on_saved is not None:
                         on_saved([doc])
 

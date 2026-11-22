@@ -2042,6 +2042,29 @@ class Database(DatabaseEmbeddingMixin):
             )
         return {row[0]: int(row[1]) for row in rows if row[0] and row[1] is not None}
 
+    def ingest_dedup_source_stamps(self, root_id: str | None = None) -> set[tuple[str, int, str]]:
+        """(source_path, file_size, source_mtime) for every non-failed document that recorded all three: a file
+        whose path, size and date match one of these was imported already and is skipped without reading it.
+        ``root_id`` restricts the set to that document's subtree."""
+        body = """
+            SELECT COALESCE(
+                       json_extract_string(metadata, '$.source_path'), path),
+                   TRY_CAST(json_extract_string(metadata, '$.file_size') AS BIGINT),
+                   json_extract_string(metadata, '$.source_mtime')
+            FROM documents
+            WHERE status != 'failed'
+              AND json_extract_string(metadata, '$.file_size') IS NOT NULL
+              AND json_extract_string(metadata, '$.source_mtime') IS NOT NULL
+            """
+        if root_id is None:
+            rows = self.execute_fetchall(body)
+        else:
+            rows = self.execute_fetchall(
+                self._SUBTREE_CTE + body + " AND id IN (SELECT id FROM subtree)",
+                [root_id],
+            )
+        return {(row[0], int(row[1]), row[2]) for row in rows if row[0] and row[1] is not None and row[2]}
+
     def ingest_dedup_keys(self, root_id: str | None = None) -> set[tuple[str, str]]:
         """(source_path, checksum) pairs for every non-failed document.
 
