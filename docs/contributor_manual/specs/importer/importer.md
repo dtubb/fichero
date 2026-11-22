@@ -460,17 +460,28 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
   it; Continue arms the count with the pages it lets go. *Not built:* that count starts at 0 of the pages still held,
   not at the thumbnails already made; the open still reads every pending page whole.
   Test: `fichero-server/tests/unit/importers/test_held_queue_is_not_stalled.py`.
-- `importer.resume.jobs-are-queued-with-each-batch` — **[GAP]** (→ #6829; nearest #739) a page's thumbnail job is
+- `importer.resume.jobs-are-queued-with-each-batch` — **[PARTIAL]** (→ #6829; nearest #739) a page's thumbnail job is
   written in the transaction that saves the page, batch by batch, so thumbnails start while the folder is still
   coming in and a quit leaves no page without its job. Today `import_folder_impl` (`api/routes/ingest/core.py`)
   calls `queue_derivatives` once, after the last file: killed at 1,000 of 2,000, the project held 1,000 pending
   pages and no job row, and at 5,000 pages the first thumbnail comes about 4.5 minutes after the drop.
-- `importer.resume.an-interrupted-import-is-offered-again` — **[GAP]** (→ #6829; nearest #739) an import a quit or
+  *Built:* `ingest_folder` calls `on_saved` inside the transaction that saves each batch (a per-file retry and a
+  single save too), and the route queues that batch's thumbnail jobs there; nothing is queued after the last file.
+  *Not built:* the synchronous `import.folder` action's own import row (below); the first-thumbnail time at 5,000
+  pages is not measured again. Test: `fichero-server/tests/unit/importers/test_import_survives_a_quit.py`.
+- `importer.resume.an-interrupted-import-is-offered-again` — **[PARTIAL]** (→ #6829; nearest #739) an import a quit or
   crash cut off is remembered in the project and offered at the next open with the rest of what the quit stopped:
   "Import of Box 3 stopped at 1,000 of 2,000 files", Continue or Dismiss. Today the task lives only in the engine's
   memory (`_tasks`, `api/routes/ingest/core.py`): after the restart nothing says the folder is half in, and the
   half that is in looks like a whole folder. Dropping it again completes it
   (`importer.resumable-redrop-skips-without-reading`), if the person knows to.
+  *Built:* the folder route writes a job row for the import (`importers/interrupted_import.py`, kind
+  "import-folder", its request and file count in the row); a row left running by a dead engine is held at open,
+  listed by `stopped_at_quit`, and Continue runs `import.folder` again from the stored request with no page made
+  twice. *Not built:* the launch alert reads "Import of Box 3 · 1,000 of 2,000 files", not "stopped at"; Dismiss is
+  untested; the synchronous `import.folder` action (the CLI) writes no import row; a library opened a second time
+  while an import runs would hold its running row, which has no live thread id.
+  Test: `fichero-server/tests/unit/importers/test_import_survives_a_quit.py`.
 - `importer.resume.launch-alert-is-one-row-per-queue` — **[GAP]** (→ #6830; nearest #6584) what the quit stopped
   is listed as one item for the import's queue ("Prepare pages, 1,000 pages"), and Continue is one statement however
   many pages it holds. Today `stopped_at_quit` (`execution/jobs.py`) answers one item per page job (1,998 items and
@@ -555,7 +566,7 @@ volume that is not there.
 
 #### Step 1.3 — An import survives a quit (#6829, #739)
 - Behaviours: `importer.resume.jobs-are-queued-with-each-batch`, `importer.resume.an-interrupted-import-is-offered-again`
-- Tests: test_import_survives_a_quit.py (not yet written)
+- Tests: fichero-server/tests/unit/importers/test_import_survives_a_quit.py
 - Depends on: 1.1
 - Size: M
 
