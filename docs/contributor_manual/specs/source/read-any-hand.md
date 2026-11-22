@@ -338,7 +338,7 @@ The review queue ordered by what a correction would teach is `distill.queue.unce
   near hand starts further along its curve. Actual lines are shared only from openly licensed material; a corpus
   ruled local stays local.
 - `hands.share.open-benchmark-and-board` — **[GAP]** (#5343; owner 2026-11-21) the open part of the benchmark and
-  its board are published with the manifest version, the scorer and the blind stamps. **Not built:** superseded 2026-11-22, no board is published; see `hands.share.open-manifest-is-a-fixture-no-board`.
+  its board are published with the manifest version, the scorer and the blind stamps. **Not built:** superseded 2026-11-22, no board is published; see the next line.
 - `hands.share.open-manifest-is-a-fixture-no-board` — **[GAP]** (#5343) the open part of the benchmark stays as a test fixture with its manifest version, the scorer and the blind stamps; no score board is published and no route or view serves one, because scores are not made public. *Test (to write):* test_open_manifest_publishes_no_board.py.
 
 ### J. Correct, measure, distil (the step contract)
