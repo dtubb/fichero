@@ -2681,6 +2681,11 @@ class ImportBatchResponse(BaseModel):
     failed: dict[str, str] = {}
 
 
+def _twin_images_reason(image_name: str, uploads: list[tuple[Path, str]]) -> str:
+    count = sum(name.casefold() == image_name.casefold() for _, name in uploads)
+    return f"{count} images in the drop are named {image_name!r}: imported as an ordinary file, paired with none of them"
+
+
 def import_dropped_set(
     db: Database, uploads: list[tuple[Path, str]], parent_id: str | None, ctx: "ActionContext"
 ) -> ImportBatchResponse:
@@ -2700,12 +2705,33 @@ def import_dropped_set(
     staging = Path(tempfile.mkdtemp(prefix="fichero_drop_")).resolve()
     try:
         temp_for: dict[Path, Path] = {}
-        for temp, name in uploads:
-            named = staging / name
+        # Files of one name (case aside) are each a page of their own. The first stands in the staging folder, where
+        # pairing looks; the others are staged in a folder each, where they pair with nothing.
+        first_of: dict[str, Path] = {}
+        beside: list[Path] = []  # staged where pairing looks
+        for index, (temp, name) in enumerate(uploads):
+            if name.casefold() in first_of:
+                folder = staging / f"same-name-{index}"
+                folder.mkdir()
+                named = folder / name
+            else:
+                named = staging / name
+                first_of[name.casefold()] = named
+                beside.append(named)
             if named.suffix.lower() not in IMAGE_SUFFIXES:
                 shutil.copyfile(temp, named)
             temp_for[named] = temp
-        plan = plan_pairs(sorted(temp_for))
+        twins = {first for key, first in first_of.items() if sum(n.casefold() == key for _, n in uploads) > 1}
+        plan = plan_pairs(sorted(beside))
+        # A layout file that paired with one of several images of one name pairs with none of them.
+        for layout, image in [(layout, image) for layout, image in plan.pairs.items() if image in twins]:
+            del plan.pairs[layout]
+            plan.formats.pop(layout, None)
+            plan.unpaired[layout] = _twin_images_reason(image.name, uploads)
+        for layout in [layout for layout, by_image in plan.pages.items() if twins & set(by_image)]:
+            image = next(iter(twins & set(plan.pages.pop(layout))))
+            plan.formats.pop(layout, None)
+            plan.unpaired[layout] = _twin_images_reason(image.name, uploads)
         paired = set(plan.pairs) | set(plan.pages)
         documents: list[Document] = []
         by_source: dict[str, Document] = {}
@@ -2746,10 +2772,6 @@ async def import_files_together(
     names = [Path(f.filename or "").name for f in files]
     if not files or any(not n or n.startswith(".") for n in names):
         raise HTTPException(status_code=422, detail="every file needs a name")
-    if len({n.casefold() for n in names}) != len(names):
-        # Two files one name apart only in case (or the same name twice) cannot both be named in
-        # one folder, and pairing by name would have to pick one: refused, never guessed.
-        raise HTTPException(status_code=422, detail="two files in the drop have the same name: " + ", ".join(sorted(names)))
     uploads: list[tuple[Path, str]] = []
     try:
         for file, name in zip(files, names):

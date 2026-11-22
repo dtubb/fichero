@@ -68,11 +68,6 @@ def test_an_xml_with_no_image_in_the_drop_is_an_ordinary_file_and_named(db, clie
     assert "lonely.xml" in body["unpaired"]
 
 
-def test_two_files_of_one_name_are_refused_not_guessed(client):
-    response = _drop(client, [("a.jpg", _jpeg()), ("A.JPG", _jpeg())])
-    assert response.status_code == 422 and "same name" in response.json()["detail"]
-
-
 def test_the_real_ajami_files_dropped_together_all_pair(db, client):
     """The folder Daniel dropped: 8 jpg + 8 ALTO, each stating `.JPG`. Local corpus only."""
     if not AJAMI.is_dir():
