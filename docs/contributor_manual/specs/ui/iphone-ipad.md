@@ -251,7 +251,7 @@ paging. The screens, in order:
 
 #### The item view: pages you swipe between
 
-- `ios.item.pages` — **[GAP]** (#6566; → #6947; owner 2026-11-21) the item view is a horizontal paged container with four
+- `ios.item.pages` — **[PARTIAL]** (built: `ItemPage` and `ContentView.compactItemPages`: a lazy horizontal pager of Source, Reader, Segments, Info built from the Mac's panes. Not built: the per-kind empty sentence. `ItemPageTests.swift` tests the order; `IOSItemPagesUITests.swift` is written and has not run.) (#6566; → #6947; owner 2026-11-21) the item view is a horizontal paged container with four
   pages, in this order: **Source** (the image or the PDF page), **Reader** (its text), **Segments** (the page with its
   segments and the selected segment's text), **Info** (the Inspector's sections for the item). The order is the order of
   the work: look, read, check the pieces, then the facts; it is also the Mac's pane order. More pages are added at the
@@ -263,29 +263,29 @@ paging. The screens, in order:
   seeded letter, or the empty sentence for the photograph; Segments lists the seeded letter's three lines; Info shows
   the item's name and kind. Tests: `ItemPagesTests.swift` (the page list and order; the empty sentence per kind),
   `IOSItemPagesUITests.swift`.
-- `ios.item.swipe-changes-page` — **[GAP]** (#6566; → #6947) a horizontal swipe moves one page; at the first page a swipe from
+- `ios.item.swipe-changes-page` — **[PARTIAL]** (built: the pager's first and last pages stop (`ItemPage.next/previous`, `ItemPageTests.swift`); `IOSItemPagesUITests.swift` is written and has not run.) (#6566; → #6947) a horizontal swipe moves one page; at the first page a swipe from
   the screen's left edge is Back, anywhere else it does nothing; at the last page a swipe left does nothing. Acceptance:
   from Source, three swipes left show Reader, Segments, Info in turn and a fourth changes nothing; three swipes right
   return to Source; an edge swipe on Source pops to the folder. Tests: `IOSItemPagesUITests.swift`.
-- `ios.item.header-says-where` — **[GAP]** (#6566; → #6947) the bar's centre holds one small segmented header, Source · Reader ·
+- `ios.item.header-says-where` — **[PARTIAL]** (built: a segmented `Picker` in the bar's principal slot, selection bound to the page; the Reader and Info buttons and `CompactDocumentStep` are removed. Not built: the glyph form at the largest text size; `IOSItemPagesUITests.swift` is written and has not run.) (#6566; → #6947) the bar's centre holds one small segmented header, Source · Reader ·
   Segments · Info, with the showing page selected; a tap on a name goes to that page with no swipe. It is the only title
   the item view has (`ios.titles.once-at-most`). It replaces the Reader and Info bar buttons of #6566
   (`compactDocumentStepToolbar`, `ContentView+CompactReader.swift:150-163`), which are removed with `CompactDocumentStep`.
   On the narrowest phone at the largest text size the header shows glyphs with the names as accessibility labels.
   Tests: `ItemPagesTests.swift` (header selection follows the page and the reverse), `IOSItemPagesUITests.swift` (tap
   Info from Source).
-- `ios.item.page-is-remembered-per-window` — **[GAP]** (#6566; → #6947; a default the owner may change, Open question 4) the
+- `ios.item.page-is-remembered-per-window` — **[PARTIAL]** (built: `WindowState.compactItemPage`, starting on Source, `ItemPageTests.testTheWindowStartsOnSource`) (#6566; → #6947; a default the owner may change, Open question 4) the
   page last used is remembered for the WINDOW, not per item: a person reading through a folder in the Reader opens the
   next item in the Reader. It lasts while the app runs; a fresh launch starts on Source. Per-item memory was considered
   and not chosen: it makes the page the person lands on depend on what they did to that item last week. Tests:
   `ItemPagesTests.swift`.
-- `ios.item.zoom-wins-over-paging` — **[GAP]** (#6566; → #6947) on the Source page a picture at fit pages with a horizontal
+- `ios.item.zoom-wins-over-paging` — **[PARTIAL]** (built: `ZoomableImagePreview` (iOS) sets `WindowState.compactImageZoomed` from `PageSwipe.isZoomedIn`, and the pager's scrolling is off while it is set (`ItemPage.swipePages`, `ItemPageTests.swift`); `IOSItemPagesUITests.swift` is written and has not run.) (#6566; → #6947) on the Source page a picture at fit pages with a horizontal
   swipe; a zoomed picture pans, and a horizontal drag NEVER changes page while it is zoomed, even at the picture's edge
   (the paged container's scrolling is off while the zoom is above fit). Pinch and double-tap zoom as they do now
   (`Views/Preview/ImageViewer/ZoomableImagePreviewIOS.swift`); double-tap again returns to fit, where swiping pages
   again; the header works at any zoom. Acceptance: pinch to 2×, drag left three times: still Source; double-tap; swipe
   left: Reader. Tests: `IOSItemPagesUITests.swift`.
-- `ios.item.segments-own-their-gestures` — **[GAP]** (#6566; → #6947; Open question 5) on the Segments page a drag belongs to
+- `ios.item.segments-own-their-gestures` — **[PARTIAL]** (built: the pager does not scroll on Segments, which shows `SegmentsPaneView` as the Mac does (no phone look-and-select layer yet); `IOSItemPagesUITests.swift` is written and has not run.) (#6566; → #6947; Open question 5) on the Segments page a drag belongs to
   the page (select, and later the editor's tools), so a swipe does not change page there: the person leaves Segments by
   the header or by Back. On the phone the page first ships as look-and-select (tap a segment, read its text below); the
   drawing tools (Brush, Knife, Marker, Order) stay on the Mac and the iPad until the owner asks for them on the phone.
@@ -294,7 +294,7 @@ paging. The screens, in order:
   the next and previous item in the folder are two buttons at the bottom of the item view (and VoiceOver actions), which
   replace the item in place: the path's last step changes, nothing is pushed, Back still returns to the folder, and the
   page stays the same page. Tests: `CompactPathTests.swift`.
-- `ios.item.voiceover-reaches-every-page` — **[GAP]** (#6566; → #6947) with VoiceOver on, every page is reachable without the
+- `ios.item.voiceover-reaches-every-page` — **[PARTIAL]** (built: the header's value says "n of 4" and the pager takes the adjustable action. Not built: moving VoiceOver focus and the announcement on a page change; `IOSItemPagesUITests.swift` is written and has not run.) (#6566; → #6947) with VoiceOver on, every page is reachable without the
   swipe gesture: the header is a tab group whose four tabs are named and say "selected" and "1 of 4"; the paged
   container is adjustable (swipe up or down moves a page) and answers the three-finger scroll; changing page moves the
   VoiceOver focus to the new page's first element and announces its name. Tests: `IOSItemPagesUITests.swift` (the four
@@ -302,7 +302,7 @@ paging. The screens, in order:
 
 #### Names and titles
 
-- `ios.titles.once-at-most` — **[BROKEN]** (#4416; its own issue → #6948; owner 2026-11-21) every iPhone and iPad screen shows its name once
+- `ios.titles.once-at-most` — **[PARTIAL]** (built: the item view draws the page header, not the item's name, in the bar and keeps the name as its `navigationTitle`; the Reader and Info bar titles are gone with their screens. Not built: the folder list's pane head and path row, the editor's header row, the item's name as Info's first line) (#4416; its own issue → #6948; owner 2026-11-21) every iPhone and iPad screen shows its name once
   at most. Today, by the code: the folder's list has the name in the bar (`.navigationTitle(toolbarTitle)`, set on both
   the split view, `ContentView+RootLayout.swift:386`, and the stack's root, `ContentView+CompactReader.swift:94`) and again
   in the Items pane's own head inside the view (`showsPaneHead`, on by default, `Views/Library/LibraryView+Body.swift:137`;
