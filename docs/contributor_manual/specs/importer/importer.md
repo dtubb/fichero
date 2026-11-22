@@ -445,12 +445,20 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
 
 - `importer.resume.held-queue-is-not-stalled` — **[PARTIAL]** (→ #6827; nearest #6584, #6209) after a restart the
   pages whose thumbnails and embeds wait for Continue are shown as held, counted from where they were, and are
-  never called stalled. *Built:* the open's re-queue runs after `jobs.resume`, makes its rows paused and arms no
-  count; `queue_state` (`execution/jobs.py`) answers "held" for a queue whose rows are all paused, and the stall
-  watchdog says nothing for it; Continue arms the count with the pages it lets go. *Not built:* that count starts at
-  0 of the pages still held, not at the thumbnails already made (killed again with 121 thumbnails made it came back
-  as "0 of 1,000"); the open still reads every pending page whole (`db.query(Document, status=pending)`). The
-  run-resume half is its own work (`runner.soak.*`).
+  never called stalled. Today, measured twice: the engine was killed at 1,000 of 2,000 files; at the next open
+  `resume_pending_derivatives` (`db/manager.py`) queued the 1,000 pending pages and armed the in-memory queue at
+  "0 of 1,000" (`_progress_add`), `jobs.resume` then paused every one of those rows ("Stopped when Fichero quit"),
+  and 61 s later the watchdog wrote "Processing imported pages stalled at 0 of 1000" (`_arm_stall_watchdog`:
+  `queue_state` in `execution/jobs.py` says nothing for a queue whose rows are all paused). The row stays "running,
+  0 of 1,000" until Continue; killed again with 121 thumbnails made, it came back as "0 of 1,000". Two thumbnail
+  jobs ran before the pause reached them. The open also reads every pending page whole
+  (`db.query(Document, status=pending)`) to do this. The run-resume half is its own work (`runner.soak.*`).
+  Test to add: open a library whose pages are pending and whose rows are paused; no queue is armed and no stall is
+  said after the deadline; after Continue the count starts at the thumbnails already made.
+  *Built:* the open's re-queue runs after `jobs.resume`, makes its rows paused and arms no count; `queue_state`
+  (`execution/jobs.py`) answers "held" for a queue whose rows are all paused, and the stall watchdog says nothing for
+  it; Continue arms the count with the pages it lets go. *Not built:* that count starts at 0 of the pages still held,
+  not at the thumbnails already made; the open still reads every pending page whole.
   Test: `fichero-server/tests/unit/importers/test_held_queue_is_not_stalled.py`.
 - `importer.resume.jobs-are-queued-with-each-batch` — **[GAP]** (→ #6829; nearest #739) a page's thumbnail job is
   written in the transaction that saves the page, batch by batch, so thumbnails start while the folder is still
