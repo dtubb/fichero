@@ -84,6 +84,15 @@ final class CompactReaderLeafTests: XCTestCase {
         ))
     }
 
+    /// A PDF is a folder on the phone: it pushes a list of its pages, never the item view (#6945).
+    func testPdfNeverResolvesAsLeaf() {
+        var pdf = doc("p")
+        pdf.fileType = .pdf
+        XCTAssertNil(ContentView.resolveCompactReaderLeaf(
+            detailDocument: pdf, selectedId: nil, displayedDocuments: [], fallbackDocuments: []
+        ))
+    }
+
     /// Nothing selected, nothing promoted: no push.
     func testEmptySelectionResolvesNil() {
         XCTAssertNil(ContentView.resolveCompactReaderLeaf(

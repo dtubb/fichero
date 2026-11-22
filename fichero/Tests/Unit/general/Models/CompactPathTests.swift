@@ -48,4 +48,40 @@ final class CompactPathTests: XCTestCase {
         XCTAssertFalse(CompactPath.isValid([.item("a"), .item("b")]), "at most one item")
         XCTAssertFalse(CompactPath.isValid([.item("a"), .info, .reader]), "Reader is pushed before Info")
     }
+
+    // MARK: - ios.nav.folders-push, ios.nav.back-is-one-step (#6945)
+
+    func testFoldersPushAndBackReturnsOneFolderAtATime() {
+        var path = CompactPath()
+        path.pushFolder("A", from: "root")
+        path.pushFolder("B", from: "A")
+        XCTAssertEqual(path.steps, [.folder("A"), .folder("B")])
+        XCTAssertEqual(path.currentFolderId, "B")
+        path.back()
+        XCTAssertEqual(path.currentFolderId, "A", "Back shows A's list")
+        path.back()
+        XCTAssertEqual(path.steps, [])
+        XCTAssertEqual(path.currentFolderId, "root", "Back from the first folder shows the list it was pushed from")
+    }
+
+    func testAFolderIsNotPushedOnAnItemOrTwice() {
+        var path = CompactPath()
+        path.pushFolder("A", from: "root")
+        path.pushFolder("A", from: "A")
+        XCTAssertEqual(path.steps, [.folder("A")])
+        path.open(item: "x")
+        path.pushFolder("B", from: "A")
+        XCTAssertEqual(path.steps, [.folder("A"), .item("x")])
+    }
+
+    func testBackFromAnItemInAFolderShowsThatFolder() {
+        var path = CompactPath()
+        path.pushFolder("A", from: "root")
+        path.open(item: "x")
+        path.push(.reader)
+        path.back()
+        path.back()
+        XCTAssertEqual(path.steps, [.folder("A")])
+        XCTAssertEqual(path.currentFolderId, "A")
+    }
 }

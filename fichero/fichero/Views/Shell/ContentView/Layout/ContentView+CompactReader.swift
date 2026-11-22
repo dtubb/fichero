@@ -43,7 +43,7 @@ extension ContentView {
                 displayedDocuments.first(where: { $0.id == id })
                     ?? fallbackDocuments.first(where: { $0.id == id })
             }
-        guard let doc = candidate, doc.docType != .folder else { return nil }
+        guard let doc = candidate, !doc.isNavigableContainer else { return nil }
         return doc
     }
 
@@ -72,6 +72,24 @@ extension ContentView {
             pushedReaderDocument = leaf
         }
         windowState.compactPath.open(item: leaf.id)
+    }
+
+    /// A folder, a group or a PDF tapped in a list: at compact width its screen is pushed on the path, so Back
+    /// returns to the list it was tapped in (`ios.nav.folders-push`, #6945).
+    func navigateIntoFolder(_ doc: Document) {
+        if usesCompactReaderFlow {
+            let selected = sidebarSelectionState.selectedItemId
+            let current = selected.map { $0.hasPrefix("doc:") ? String($0.dropFirst(4)) : $0 }
+            windowState.compactPath.pushFolder(doc.id, from: current)
+        }
+        navigateToDocument(doc)
+    }
+
+    /// Back from a folder screen re-roots the shared list on the folder now on top.
+    private func showCompactFolder(_ folderId: String?) {
+        guard let folderId, sidebarSelectionState.selectedItemId != "doc:\(folderId)",
+              let doc = documentStore.resolveDocument(folderId) else { return }
+        navigateToDocument(doc)
     }
 
     /// The path's binding for the stack: a pop writes a shorter path back.
@@ -108,6 +126,7 @@ extension ContentView {
                 .navigationDestination(for: CompactStep.self) { step in
                     compactScreen(step)
                 }
+                .onChange(of: windowState.compactPath.currentFolderId) { _, id in showCompactFolder(id) }
                 .onChange(of: browserSelection) { _, _ in syncPushedReaderDocument() }
                 .onChange(of: detailDocument) { _, _ in syncPushedReaderDocument() }
                 // Back past the item clears the selection so the list returns clean.
@@ -145,7 +164,8 @@ extension ContentView {
         }
     }
 
-    /// The screen a path step shows. A folder step is not pushed yet (`ios.nav.folders-push`, #6945).
+    /// The screen a path step shows. A folder step shows the shared list, re-rooted on that folder
+    /// (`ios.nav.folders-push`, #6945).
     @ViewBuilder
     private func compactScreen(_ step: CompactStep) -> some View {
         switch step {
@@ -160,7 +180,13 @@ extension ContentView {
                 .toolbar { compactDocumentStepToolbar(from: .source) }
         case .reader: compactStepScreen(.reader)
         case .info: compactStepScreen(.info)
-        case .folder: EmptyView()
+        case .folder:
+            AnyView(contentWithOptionalModeRail)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .navigationTitle(toolbarTitle)
+                #if !os(macOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
         }
     }
 

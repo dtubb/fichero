@@ -6,6 +6,18 @@ import Foundation
 struct CompactPath: Equatable {
     private(set) var steps: [CompactStep] = []
 
+    /// The folder the stack's root list shows: where the first folder was pushed from. Kept after Back, so popping
+    /// the last folder step returns to it (`ios.nav.folders-push`, #6945).
+    private(set) var rootFolderId: String?
+
+    /// The folders pushed, outermost first.
+    var folderIds: [String] {
+        steps.compactMap { if case .folder(let id) = $0 { id } else { nil } }
+    }
+
+    /// The folder whose list the top screen shows: the last pushed folder, else the root's.
+    var currentFolderId: String? { folderIds.last ?? rootFolderId }
+
     /// The item the path holds, if any.
     var itemId: String? {
         for case .item(let id) in steps { return id }
@@ -31,6 +43,14 @@ struct CompactPath: Equatable {
     mutating func push(_ step: CompactStep) {
         guard steps.last != step else { return }
         set(steps + [step])
+    }
+
+    /// Pushes a folder's screen on top of the folders, from the list `current` shows. Ignored when the path holds an
+    /// item (a folder is never pushed on one) or already ends at this folder.
+    mutating func pushFolder(_ id: String, from current: String?) {
+        guard itemId == nil, (currentFolderId ?? current) != id else { return }
+        if folderIds.isEmpty { rootFolderId = current }
+        set(steps + [.folder(id)])
     }
 
     /// Makes `id` the path's item: replaces the item (and what sits on it), or appends it after the folders.
