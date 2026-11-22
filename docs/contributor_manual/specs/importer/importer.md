@@ -505,7 +505,14 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
 - `importer.same-name.files-from-different-folders-both-import` — **[PARTIAL]** (→ #6831; nearest #4579) files of the
   same name from different folders all come in, each a page of its own keeping its name, by every way in. A layout
   file that could belong to two images of one name pairs with neither and is listed as unpaired with that reason; a
-  name never refuses the whole drop.
+  name never refuses the whole drop. Today the answer depends on the way in. A folder drop and a drop by path take
+  them (`POST /api/ingest/folder`, `POST /api/ingest/files`: measured, eight pages sharing each of four names in the
+  2,000-page import, and two files of one name from two folders dropped by path, both imported). The upload route
+  refuses the whole batch with 422 "two files in the drop have the same name" (`import_files_together`,
+  `api/routes/document/documents.py`), because `import_dropped_set` stages every upload under its bare name in one
+  folder. That route is the one a remote client, the command line and the soak script use, so a camera's
+  `IMG_0001` from two cards cannot be sent together. Test to add: two uploads of one name make two pages; two
+  images of one name and one layout file of that name make two pages and one unpaired entry.
   *Built:* `import_files_together` no longer refuses a repeated name; `import_dropped_set` stages the first file of a
   name (compared case-folded) in the staging folder and each later one in its own `same-name-<i>/` folder, so each
   upload is a page keeping its name. A layout file whose name matches several images is moved to the unpaired list
