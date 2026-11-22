@@ -100,10 +100,10 @@ def page_from_library(
     from fichero_server.api.routes.document.segment_readings import (
         ReadingMeasures,
         counting_by_kind,
+        _readings_for_live_rows,
         counting_by_kind_and_level,
         document_text,
         is_unconverted_pass,
-        readings_of_segment,
         retired_readings_of,
     )
     from fichero_server.models import Document, Segment
@@ -187,14 +187,26 @@ def page_from_library(
     retired_memo: dict[tuple[str, str], set[str]] = {}
     on_lines = _record_on_lines(db, document_id)   # the page's names and dates, by line (#5603)
     measures = ReadingMeasures(db)   # which machine reading counts, looked up once for the page (#5558)
+    # Each of these is read for the whole page in one query and handed to its line: a query a line grew the
+    # page's cost with its lines (#6804).
+    from fichero_server.models.editorial import EditorialFact
+    from fichero_server.models.readings import ReadingChoice
+
+    readings_by_row = _readings_for_live_rows(db, rows, document_id, {})
+    choices_by_row: dict[str, list[Any]] = {}
+    for choice in db.query_in(ReadingChoice, "segment_id", sorted(ids)):
+        choices_by_row.setdefault(choice.segment_id, []).append(choice)
+    facts_by_row: dict[str, list[Any]] = {}
+    for fact in db.query_in(EditorialFact, "segment_id", sorted(ids)):
+        facts_by_row.setdefault(fact.segment_id, []).append(fact)
     # One pass, asked once: on a pass a person marked ground truth the file's readings are theirs (#5513).
     on_ground_truth = bool(pass_row is not None and pass_row.ground_truth)
     for row in rows:
         # A word its line's edit took out is written with its shape and no text, and its
         # retired readings are not alternatives either (#5190, `retired-words-in-the-export`).
-        retired = retired_readings_of(db, row.id, want_kind, rule, retired_memo)
+        retired = retired_readings_of(db, row.id, want_kind, rule, retired_memo, row)
         items = [
-            i for i in readings_of_segment(db, row.id)
+            i for i in readings_by_row[row.id]
             if i.kind == want_kind and (want_level is None or counting_level(i.level) == want_level)
             and not i.retracted and i.id not in retired
         ]
@@ -203,7 +215,8 @@ def page_from_library(
         # stored reading says word for word is dropped; a correction keeps the machine's original.
         said = {i.content for i in items if not i.provisional}
         items = [i for i in items if not (i.provisional and i.content in said)]
-        counting = dict(rule=rule, retired_memo=retired_memo, on_ground_truth=on_ground_truth, measures=measures)
+        counting = dict(rule=rule, retired_memo=retired_memo, on_ground_truth=on_ground_truth, measures=measures,
+                        choices=choices_by_row.get(row.id, []), segment=row)
         counted = (
             None if not items
             else counting_by_kind(db, row.id, items, **counting).get(want_kind) if want_level is None
@@ -255,7 +268,7 @@ def page_from_library(
         # Imported here, not at module scope: format modules load on first use (#4038).
         from fichero_server.formats.tei import EDITORIAL_FACTS
 
-        segments[-1].foreign[EDITORIAL_FACTS] = _editorial_facts_on(db, row.id, items[0].id if items else None)
+        segments[-1].foreign[EDITORIAL_FACTS] = _editorial_facts_on(facts_by_row.get(row.id, []), items[0].id if items else None)
         if items and row.id in on_lines:
             from fichero_server.formats.tei import RECORD_MARKS
 
@@ -315,14 +328,12 @@ def page_from_library(
     return page, choices
 
 
-def _editorial_facts_on(db: Any, segment_id: str, reading_id: str | None) -> list[dict[str, Any]]:
+def _editorial_facts_on(facts: list[Any], reading_id: str | None) -> list[dict[str, Any]]:
     """The live editorial facts on the reading being written (#5179), for a writer to draw: a fact
     on another reading of the segment is about other letters, and one with no place in the text
     (an `unclear` with no span) has nowhere to stand."""
-    from fichero_server.models.editorial import EditorialFact
-
     out = []
-    for fact in db.query(EditorialFact, segment_id=segment_id):
+    for fact in facts:
         if fact.withdrawn_at is not None or fact.char_start is None:
             continue
         if fact.representation_id is not None and fact.representation_id != reading_id:
