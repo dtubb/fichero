@@ -61,3 +61,67 @@ def test_spend_already_this_month_counts_against_the_cap(db, notebook, test_pack
     db.execute("UPDATE jobs SET detail = ? WHERE id = ?", [json.dumps(detail), job_id])
     with pytest.raises(training_job.OverTheCap, match="this month"):
         _start(db, notebook, FakeHub())
+
+
+# --- the held-out score at landing ----------------------------------------------------------------------------
+
+def _trained_and_landed(db, notebook, tmp_path, monkeypatch, *, person_checked=True, **over):
+    """A training run to its landing against the fake Hub; returns (job id, reader id)."""
+    from fichero_server.execution import jobs
+    from tests.unit.training.test_evaluation_job import _checked
+
+    monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)
+    if person_checked:
+        _checked(db, tmp_path, notebook.test_page, by_a_person=True)
+    hub = FakeHub()
+    started = _start(db, notebook, hub, **over)
+    reader = training_job.run(db, _subject(db, started["job_id"]), target=hub, sleep=lambda s: None)
+    return started["job_id"], reader
+
+
+def test_landing_starts_the_evaluation_job_on_the_held_out_pages(db, notebook, tmp_path, monkeypatch):
+    """WHY (`distill.eval.job`): the held-out pages stayed home and nothing scored them unless a person started the
+    evaluation by hand; a reader must be measured when it lands."""
+    job_id, reader = _trained_and_landed(db, notebook, tmp_path, monkeypatch)
+
+    score = training_job.status(db, job_id)["held_out_score"]
+    assert score["state"] == "scoring"
+    row = db.execute_fetchone("SELECT kind, detail FROM jobs WHERE id = ?", [score["evaluation_job_id"]])
+    assert row[0] == "evaluate-models"
+    request = json.loads(row[1])["request"]
+    assert [c["model"] for c in request["candidates"]] == [reader] and request["held_out_ids"] == [notebook.test_page.id]
+
+
+def test_the_score_the_evaluation_measures_is_on_the_readers_card_with_its_cer_and_lines(
+        db, notebook, tmp_path, monkeypatch):
+    """WHY: a person reads the held-out CER on the card of the reader, not in a job's log."""
+    from fichero_server.execution import jobs
+    from fichero_server.llm import kraken_runtime
+    from fichero_server.training import evaluation
+
+    job_id, reader = _trained_and_landed(db, notebook, tmp_path, monkeypatch)
+    monkeypatch.setattr(kraken_runtime, "read_given_lines", lambda image, model, lines, **kw: [ln["text"] for ln in lines])
+    eval_id = training_job.status(db, job_id)["held_out_score"]["evaluation_job_id"]
+    subject = db.execute_fetchone("SELECT subject FROM jobs WHERE id = ?", [eval_id])[0]
+    evaluation.register_job_kinds()
+    jobs.KINDS[evaluation.KIND].run(db, subject)
+
+    (entry,) = evaluation.model_evaluations(reader, "kraken")
+    assert entry["job_id"] == eval_id and entry["scores"]["diplomatic"]["cer"] == 0.0
+    assert entry["lines"] > 0 and entry["pages_read"] == 1
+
+
+def test_a_reader_with_nothing_to_score_says_why_and_still_lands(db, notebook, tmp_path, monkeypatch):
+    """WHY: no person's reading on the held-out page means no fair score; the card says so (`not measured`), the
+    trained reader still lands, and no evaluation is queued to fail later."""
+    job_id, reader = _trained_and_landed(db, notebook, tmp_path, monkeypatch, person_checked=False)
+    status = training_job.status(db, job_id)
+    assert status["state"] != "failed" and status["reader_id"] == reader
+    assert status["held_out_score"]["state"] == "not measured" and "reading" in status["held_out_score"]["why"]
+    assert db.execute_fetchone("SELECT count(*) FROM jobs WHERE kind = 'evaluate-models'")[0] == 0
+
+
+def test_no_held_out_pages_is_not_measured_in_words(db, notebook, tmp_path, monkeypatch):
+    job_id, _ = _trained_and_landed(db, notebook, tmp_path, monkeypatch, held_out_ids=[])
+    assert training_job.status(db, job_id)["held_out_score"] == {
+        "state": "not measured", "why": "no held-out corrected pages"}

@@ -393,6 +393,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
         model_id = land_trained_reader(out, job_id=job_id, model_name=request.name, card={**card, "base": request.base},
                                         project=Path(db.path).parent)  # lands inside the project (#5539)
         detail["reader_id"] = model_id
+        detail["held_out_score"] = _score_at_landing(db, request, model_id, detail["yes"]["by"])
     done = f"Done: {model_id} is ready to read with"
     if hasattr(target, "remove"):  # a cluster: the set's copies stay only where the project said so (#5769)
         from fichero_server.remote_read.job import copies_left
@@ -400,6 +401,24 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
         done += copies_left(db, target, job_id)
     _save(db, job_id, detail, phase="done", reason=done)
     return model_id
+
+
+def _score_at_landing(db: Any, request: _TrainRequest, reader_id: str, started_by: str) -> dict[str, Any]:
+    """Start the evaluation job on the held-out pages the reader was kept from (`distill.eval.job`): the score lands on
+    the reader's card when that job ends. Nothing to score, or no fair score possible, is recorded in words, never
+    raised: the reader is trained and paid for."""
+    from fichero_server.models.compute_requests import EvaluationCandidate, EvaluationRunRequest
+    from fichero_server.training import evaluation
+
+    if not request.held_out_ids:
+        return {"state": "not measured", "why": "no held-out corrected pages"}
+    asked = EvaluationRunRequest(candidates=[EvaluationCandidate(model=reader_id, reader="kraken")],
+                                 held_out_ids=request.held_out_ids)
+    try:
+        started = evaluation.start(db, asked, started_by=started_by)
+    except evaluation.EvaluationRefused as exc:
+        return {"state": "not measured", "why": str(exc)}
+    return {"state": "scoring", "evaluation_job_id": started["job_id"]}
 
 
 def _out_of_reach_if_running_there(db: Any, job_id: str, detail: dict[str, Any], exc: Exception) -> None:

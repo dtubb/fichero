@@ -737,6 +737,7 @@ def evaluate(db: Any, job_id: str, request: EvaluationRunRequest, planned: dict[
             "definition": CER_DEFINITION, "pages": [p["document_id"] for p in pages], "role": m["role"],
             "scores": m["scores"], "per_page": m["per_page"], "speed": m["speed"], "measured": m["measured"],
             "pages_read": m["pages_read"], "pages_total": m["pages_total"], "why": m["why"],
+            "lines": sum(p["lines"] for p in m["per_page"] if p.get("read", True)),
             "granularity": m["granularity"], "lines_per_request": m["lines_per_request"],
             "compared_with": list(dict.fromkeys(o["model"] for o in models if o["model"] != m["model"]))})
     ranked = sorted((m for m in models if m["measured"] and m["scores"][DEFAULT_POLICY_NAME]["cer"] is not None),
