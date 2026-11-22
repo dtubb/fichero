@@ -436,11 +436,17 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
   `embed_queued = queued`), which embeds nothing, costs 48 ms a page on the embed lane (24 s per 500 pages, at over
   one core) and is the only thing that turns the page from `pending` to `completed` (`_embed_stage`,
   `importers/derivatives.py`).
+  *Built:* `queue_derivatives` queues an embed job only for a page with text, and the thumbnail stage ends a page
+  with no text (`pending` to `completed`, unless the thumbnail failed). Test:
+  `fichero-server/tests/unit/api/test_post_ingest_derivatives.py`.
 - `importer.scale.prepare-pages-counts-what-lands` — **[PARTIAL]** (→ #6833; nearest #5954) the "Prepare pages" row
   counts a page when its thumbnail lands, so the count moves through the whole wait. *Built:* the row's stages
   carry their own counts (`queue_stages`, `importers/derivatives.py`). *Not built:* the row's own count moves only
   when an embed job ends (`_progress_tick` is called from `_embed_stage` alone), so it reads 0 of N for the whole
   thumbnail stage (83 s at 500 pages, about 15 min at 5,000) and then runs to N in seconds.
+  *Built (a page with no text):* its thumbnail stage ticks the count, so the count moves as those thumbnails land
+  (`_thumbnail_stage`). *Not built:* a page with text still counts when its embed job ends. Test:
+  `fichero-server/tests/unit/api/test_post_ingest_derivatives.py`.
 - `importer.scale.edited-image-cache-is-bounded` — **[GAP]** (→ #6834; nearest #1590) an edited page's picture is
   made once per saved edit, off the request, and the copy of an earlier edit is removed when a later one is saved.
   Today `resolve_edited_source` (`db/storage.py`) writes a full-size PNG of the edited page into the project, inside
