@@ -1,4 +1,6 @@
-"""Ultralytics imports in the Python the tests run under, and the stock layout model finds regions on a real page
+"""A real-model run (needs ultralytics and the stock weights; run with `-m real_model`, not part of the ladder).
+
+Ultralytics imports in the Python the tests run under, and the stock layout model finds regions on a real page
 (#5525, #6675).
 
 Spec: docs/contributor_manual/specs/ai/local-runtimes.md (`runtime.yolo.imports-wherever-the-engine-runs`).
@@ -14,12 +16,10 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.real_model
+
 from fichero_server.llm import yolo_runtime
 from tests._real_state_guard import ROOTS
-
-# The engine's own import path: settings under the (test) store, offline, then `from ultralytics import settings`.
-yolo_runtime._quiet()
-import ultralytics  # noqa: E402,F401  (an ImportError here fails the run)
 
 _FILE = yolo_runtime.YOLO_MODELS[yolo_runtime.DEFAULT_MODEL][1]
 #: The stock weights in this Mac's real model store (the test base's own store is always empty).
@@ -28,6 +28,7 @@ PAGE = Path(__file__).resolve().parents[4] / "test-fixtures" / "files" / "sample
 
 
 def test_the_stock_model_finds_regions_on_a_real_page(tmp_path, monkeypatch):
+    yolo_runtime._quiet()  # the engine's own import path: settings under the (test) store, offline (an ImportError fails)
     if not STOCK.is_file():
         pytest.skip(f"the stock layout weights are not in this Mac's model store ({STOCK}); "
                     f"download {yolo_runtime.DEFAULT_MODEL} in Fichero first")

@@ -577,4 +577,5 @@ markers = [
     # on a quiet machine, can fail when the machine is saturated. A gate under contention may retry
     # or exclude it with -m 'not load_sensitive'; it is never deleted for being slow.
     "load_sensitive: spawns an engine and waits on it; can fail under heavy load (#5187)",
+    "real_model: runs a real downloaded model; not collected by the ladder (`-m real_model` runs it)",
 ]
