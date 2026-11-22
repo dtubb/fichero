@@ -190,15 +190,18 @@ They go in `test_paragraph_*.py` files beside
 
 ### A. What is said
 
-- `kg.para.rejected-never-stated` — **[BROKEN]** (#4647, → #6835) a statement a person
-  rejected (`curation_state` or `epistemic_status` is `rejected`) or that was merged into
-  another (`merged_into_id`) is in no sentence and no list. Today `render_entry` reads none of
-  the three and printed the rejected statement of the evaluation set as fact. Test (to write):
-  `test_a_rejected_or_merged_statement_is_never_stated`.
-- `kg.para.mentions-are-a-list` — **[PARTIAL]** (#4647, → #6835) a statement in which the page
-  name is neither subject nor object is not in the paragraph; it is in `also_mentioned_in`,
-  in the paragraph's order. Built: the role (`_entity_role`). Not built: the list; today the
-  sentence is in the paragraph. Test (to write): `test_a_mention_is_listed_not_narrated`.
+- `kg.para.rejected-never-stated` — **[OK]** (#4647, → #6835) a statement a person rejected
+  (`curation_state` or `epistemic_status` is `rejected`) or that was merged into another
+  (`merged_into_id`) is in no sentence and no list. Before this, `render_entry` read none of the
+  three and printed the rejected statement of the evaluation set as fact. Tests:
+  `test_a_rejected_or_merged_statement_is_never_stated` (through the route) and
+  `test_a_statement_is_withdrawn_when_rejected_or_merged` in
+  `fichero-server/tests/unit/knowledge/test_paragraph_selection.py`.
+- `kg.para.mentions-are-a-list` — **[OK]** (#4647, → #6835) a statement in which the page
+  name is neither subject nor object is not in the paragraph; it is in `also_mentioned_in`
+  (`claim_id`, `text`, `document_id`), in the paragraph's order. Test:
+  `test_a_mention_is_listed_not_narrated` in
+  `fichero-server/tests/unit/knowledge/test_paragraph_selection.py`.
 - `kg.para.proposed-is-marked` — **[GAP]** (#4750, → #6836) each clause says whether a person
   has reviewed its statement: `state` is `reviewed` when every statement of the clause is
   curated or confirmed, else `proposed`. The app draws the one mark `kg-rendering.md` names;
@@ -425,13 +428,14 @@ Doubt is decided in this order, and the first rule that fits is the only one use
 
 ## The evaluation set and its pass bar
 
-- `kg.para.eval-set` — **[GAP]** (#4841, → #6846) a synthetic set, no archive data, lives
-  with the engine's test fixtures as rows shaped like the engine's: at least three invented
-  names (a person, a place, an organisation), 20 statements or more each, and every case in
-  "Measured" above, in Spanish and English, plus one language with no table. A case seen wrong
-  on a real paragraph is added as an invented row before it is fixed. Test (to write):
-  `test_the_evaluation_set_covers_every_case`.
-- `kg.para.pass-bar` — **[GAP]** (#4841, → #6846) a scorer reads the route's answer for each
+- `kg.para.eval-set` — **[OK]** (#4841, → #6846) a synthetic set, no archive data, lives
+  with the engine's test fixtures as rows shaped like the engine's: three invented names (a
+  person, a place, an organisation), 26 statements each, covering every case in "Measured"
+  above, in Spanish, English and Portuguese (a language with no table) and with no language. A
+  case seen wrong on a real paragraph is added as an invented row before it is fixed. Test:
+  `test_the_evaluation_set_covers_every_case` in
+  `fichero-server/tests/unit/knowledge/test_paragraph_eval_set.py`.
+- `kg.para.pass-bar` — **[PARTIAL]** (#4841, → #6846) a scorer reads the route's answer for each
   name of the set and the test fails unless, exactly:
 
 | Measure | Bar |
@@ -452,6 +456,9 @@ Doubt is decided in this order, and the first rule that fits is the only one use
 | words in the longest sentence | 40 at most |
 | the same bytes from shuffled input, five shuffles | yes |
 
+  Built: the scorer, checked on hand-written answers; `test_the_route_answer_meets_the_pass_bar`
+  runs it on the route's answer for each name and is a strict xfail until #6835 to #6844 land.
+  Not built: the re-centred share report and the expected paragraphs as text.
   The share of object statements re-centred is reported and has no bar: it grows with the
   table. Reading quality beyond these counts is judged by a person on the set's paragraphs,
   kept beside the fixtures as expected text, so a change in wording shows as a diff.
