@@ -750,6 +750,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/tool_context.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/bakeoff_lines.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/evaluation.py
+$(SRCROOT)/../fichero-server/src/fichero_server/training/gate.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/hf_jobs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/hf_kraken_train.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/hf_vision_lora_train.py
