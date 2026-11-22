@@ -5,7 +5,16 @@ Each test empties the statements' `entity_ids` column after saving, so only the 
 
 from datetime import datetime
 
+import pytest
+
 from fichero_server.models.knowledge import EntityType, KnowledgeClaim, KnowledgeEntity
+
+
+@pytest.fixture(autouse=True)
+def _no_embedding(db, monkeypatch):
+    """The embedding model is not what these tests are about, and starting it writes to the maintainer's model directory."""
+    for name in ("schedule_entity_embedding", "schedule_claim_embedding", "schedule_claim_embeddings"):
+        monkeypatch.setattr(db, name, lambda *a, **k: None)
 
 
 def _entity(db, name, entity_type=EntityType.person):
