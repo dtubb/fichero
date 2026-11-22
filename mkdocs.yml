@@ -428,6 +428,7 @@ nav:
               - Networks (people and things joined): contributor_manual/specs/explore/networks.md
               - Tables and counts (facets, flows): contributor_manual/specs/explore/tables-and-counts.md
               - Experiments, saved views, sharing: contributor_manual/specs/explore/experiments-and-sharing.md
+              - Concepts and terms (DRAFT): contributor_manual/specs/explore/concepts-and-terms.md
           - Harness:
               - Building Fichero Locally, the one harness spec (draft): contributor_manual/specs/harness/building-fichero-locally.md
               - Building Fichero Locally, Phase 0 review: contributor_manual/specs/harness/building-fichero-locally-REVIEW.md
@@ -466,6 +467,8 @@ nav:
               - KG Tables: contributor_manual/specs/kg/kg-tables.md
               - KG Store & Query (draft): contributor_manual/specs/kg/kg-store-and-query.md
               - Reconstruct the Record (cross-archive check set and graph, DRAFT): contributor_manual/specs/kg/reconstruct-the-record.md
+              - People and Lives (DRAFT): contributor_manual/specs/kg/people-and-lives.md
+              - Ontological Layer (DRAFT): contributor_manual/specs/kg/ontological-layer.md
           - Source:
               - Source Model (foundation): contributor_manual/specs/source/source-model.md
               - Survey of the Field: contributor_manual/specs/source/source-survey.md
