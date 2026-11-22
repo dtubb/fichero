@@ -179,6 +179,8 @@ makes extraction slow. The 744 tests of `tests/unit/kg`, `tests/unit/knowledge` 
   Built: both routes count in `Database.entity_claim_counts` (GROUP BY over `kg_mentions`); `/top` passes its
   limit and type filter into the query. Not built: `top_entities` still reads each listed name with one `get`;
   pages per name and names per page have no reader.
+  A library with statements and no `kg_mentions` table is backfilled when the table is first made
+  (`Database._ensure_kg_mentions`); a table that exists but disagrees with the statements is not detected.
   *Test:* `tests/unit/api/test_entity_counts_from_the_link_table.py`.
 - `kg.query.one-name-costs-what-it-returns` — **[PARTIAL]** (#4975) opening one name costs in
   proportion to that name's statements, not the project's. Built: the drill-down, documents and
