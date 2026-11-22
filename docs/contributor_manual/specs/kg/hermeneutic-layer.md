@@ -243,29 +243,29 @@ the record a historian's concept is kept in, and a pattern is that concept's pas
 
 ### D. The layer after the ruling of 2026-11-21 (built in `explore/concepts-and-terms.md`)
 
-- `hermeneutic.layer.only-a-person-writes` — **[GAP]** (#4692 → #NEW-C8) every create, update and delete of a
+- `hermeneutic.layer.only-a-person-writes` — **[GAP]** (#4692 → #7024) every create, update and delete of a
   framework, an interpretation, a pattern and a link in this layer is refused when the actor is a model, an agent or
   a workflow (`ProvenanceKind` other than human), on every route, action and tool; the chat write allowlist never
   gains an entry for this layer; and the unused suggestion models (`HermesSuggestionRequest`, `HermesSuggestion`) are
   deleted. Reading is open to tools. *Test (to write):* test_hermeneutic_refuses_non_human_actor.py (each mutating
   action with an agent actor is refused and writes no row).
-- `hermeneutic.concept.is-the-framework-record` — **[GAP]** (#4692 → #NEW-C8) a historian's concept is stored in the
+- `hermeneutic.concept.is-the-framework-record` — **[GAP]** (#4692 → #7024) a historian's concept is stored in the
   framework record (name, definition, what counts, what does not, scope, versions) and its passages in the pattern
   record (seed passages and marked passages, each a stretch of a page with the person's mark), so the concept
   sheet adds no second store. The framework's `kind` list keeps its lenses and gains "concept". *Test (to write):*
   test_concept_is_a_framework.py.
-- `hermeneutic.reading.rests-on-a-stretch` — **[GAP]** (#4692 → #NEW-C9) an interpretation (the historian's reading of
+- `hermeneutic.reading.rests-on-a-stretch` — **[GAP]** (#4692 → #7025) an interpretation (the historian's reading of
   a passage, or their judgement on sources that conflict) is anchored to one or more stretches of pages or to the
   statements it is about, with the same anchor a statement uses, so the Reader can light the passage and every
   explore view can open it. An interpretation with no anchor cannot be saved from the app. Restates and schedules
   `hermeneutic.interpretation-has-source-anchor` and `hermeneutic.interpretation-linked-to-claim-or-passage`.
   *Test (to write):* test_interpretation_anchor.py.
-- `hermeneutic.argument.links-evidence-and-is-the-persons` — **[GAP]** (#4692 → #NEW-C13) the links a historian makes
+- `hermeneutic.argument.links-evidence-and-is-the-persons` — **[GAP]** (#4692 → #7029) the links a historian makes
   between things in this layer and the record are typed, owned and versioned: a term as evidence for a concept, a
   source's category treated as one of their types (`ontology.sources.mapping-is-a-persons-link`), a passage as a
   counter-example to a concept, one reading as support for or against another. Each link carries who made it, when,
   and the passages it rests on. Fichero never proposes one. *Test (to write):* test_argument_links_evidence.py.
-- `hermeneutic.shown.as-the-persons-everywhere` — **[GAP]** (#4692 → #NEW-C12) wherever something from this layer is
+- `hermeneutic.shown.as-the-persons-everywhere` — **[GAP]** (#4692 → #7028) wherever something from this layer is
   on screen beside what the sources say (a reading beside a conflict on a biography page, a concept as a row of a
   life band, a historian's type beside a source's word) it is drawn and labelled as the historian's, with their
   name and the date, and is never counted as an attestation or mixed into a count of what the sources say.

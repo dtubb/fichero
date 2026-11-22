@@ -220,104 +220,104 @@ person's own machine, are never sent anywhere, and are never set beside another 
 
 ### A. The person record
 
-- `people.record.mentions-add-up-to-a-person` — **[GAP]** (#5340 → #NEW-P1) a person is the set of mentions (stretches
+- `people.record.mentions-add-up-to-a-person` — **[GAP]** (#5340 → #7001) a person is the set of mentions (stretches
   of pages, `kg.one.mention-is-the-link`) that accepted links join, and one route returns a person with every
   mention, its archive, its written form, its document's date with its basis, and the link that brought it in. No
   field of a person is a value without a mention under it, except what the historian typed, which is marked as
   theirs. *Test (to write):* test_person_is_its_mentions.py (three mentions and two accepted links give one person
   with three mentions; removing a link gives two persons).
-- `people.record.unnamed-people-are-kept` — **[GAP]** (#5340 → #NEW-P1) a person pointed at without a name (by kinship,
+- `people.record.unnamed-people-are-kept` — **[GAP]** (#5340 → #7001) a person pointed at without a name (by kinship,
   role or possession, found by a stated pattern the person can read and edit) is a person record with the pointing
   words as its form, linked to the person it is pointed through. It appears in lists and counts and is never dropped
   at a names gate for having no name. *Test (to write):* test_unnamed_person_is_a_record.py.
-- `people.record.link-is-a-proposal-with-reasons` — **[GAP]** (#5340, #5545 → #NEW-P3) a same-person link is a record
+- `people.record.link-is-a-proposal-with-reasons` — **[GAP]** (#5340, #5545 → #7003) a same-person link is a record
   with its two ends, its maker (a named rule or a model with its version), its state, and its reasons as a list in
   which every reason is counted or read from the pages (dates that overlap, a shared co-named person, a shared
   place, the same role, the same spelling key) with the two stretches it rests on. A reason is never a sentence a
   model wrote. *Test (to write):* test_link_proposal_reasons.py (every reason row has two stretch ids; a payload with
   free prose in a reason is refused).
-- `people.record.person-decides` — **[GAP]** (#5340, #5545 → #NEW-P3) the states of a link are proposed, accepted,
+- `people.record.person-decides` — **[GAP]** (#5340, #5545 → #7003) the states of a link are proposed, accepted,
   rejected and cannot tell; only a person's action moves a link to accepted, and "cannot tell" is kept and counted.
   The one exception is the rule already specified for forms that are identical after normalisation inside one
   project (`kg.resolve.unmistakable-auto-merge`): such a join is made by the rule, labelled as the rule's, listed on
   the page among its joins, and undone like any other. *Test (to write):* test_only_a_person_accepts_a_link.py (a
   model's account calling accept is refused; cannot tell is a stored state).
-- `people.record.model-work-is-labelled` — **[GAP]** (#4868, #4869 → #NEW-P3) wherever a reading, a grouping of
+- `people.record.model-work-is-labelled` — **[GAP]** (#4868, #4869 → #7003) wherever a reading, a grouping of
   spellings, a link proposal or a ranking is on screen, it says it is model output or rule output, by which method
   and version, with its confidence as a band (`kg.confidence.shown-as-a-band-with-its-reason`), and is one click
   from the stretches. *Test (to write):* PersonProposalLabelTests.swift (no proposal row renders without a maker
   label and an evidence target).
-- `people.record.split-and-merge-are-undoable` — **[GAP]** (#5110 → #NEW-P4) accept, reject, split a person at a link,
+- `people.record.split-and-merge-are-undoable` — **[GAP]** (#5110 → #7004) accept, reject, split a person at a link,
   and merge two persons are each one audited action with undo, reachable from the page, the bench and the Inspector
   (`kg.resolve.merge-and-split-have-a-door`). Undoing an accept separates exactly the mentions that link joined and
   restores the two persons with their earlier ids. A decision is remembered: a rejected pair is not proposed again.
   *Test (to write):* test_split_merge_undo_roundtrip.py (accept, undo: ids and mention sets equal the start).
-- `people.record.split-moves-what-rested-on-it` — **[GAP]** (#5110 → #NEW-P4) when a person is split, each relation,
+- `people.record.split-moves-what-rested-on-it` — **[GAP]** (#5110 → #7004) when a person is split, each relation,
   note and accepted statement goes with the mentions it rests on; one that rested on both halves is listed for the
   person to place and is attached to neither until they do. *Test (to write):* test_split_carries_dependents.py.
 
 ### B. Relations between people
 
-- `people.relation.typed-link-rests-on-statements` — **[GAP]** (#5340 → #NEW-P5) a relation between two persons has a
+- `people.relation.typed-link-rests-on-statements` — **[GAP]** (#5340 → #7005) a relation between two persons has a
   type from the ontological layer's list (`ontology.relations.one-list-the-person-extends`), a direction, an optional
   span of time, and the statements it rests on. A relation with no statement under it cannot be saved, except one
   the historian asserts, which is stored and drawn as their inference. *Test (to write):* test_relation_needs_a_statement.py.
-- `people.relation.sources-word-is-shown` — **[GAP]** (#5340 → #NEW-P5) a relation row shows the sources' own word or
+- `people.relation.sources-word-is-shown` — **[GAP]** (#5340 → #7005) a relation row shows the sources' own word or
   formula for the tie, in the source language, beside the historian's type (`ontology.sources.categories-in-their-own-words`);
   where sources use different words for it, each is listed with its lines. *Test (to write):*
   test_relation_carries_source_words.py.
-- `people.relation.proposed-is-never-drawn-as-fact` — **[GAP]** (#5340 → #NEW-P5) a relation proposed by a rule (a name
+- `people.relation.proposed-is-never-drawn-as-fact` — **[GAP]** (#5340 → #7005) a relation proposed by a rule (a name
   in the father's slot of a baptism formula) or by a model is a proposal with its maker and the line it read; it is
   listed under "proposed, not checked", is not drawn in any view of relations and is not counted until a person
   accepts it. *Test (to write):* test_proposed_relation_not_in_views.py.
 
 ### C. The biography page
 
-- `people.bio.every-line-is-sourced` — **[GAP]** (#4750, #5340 → #NEW-P6) one route returns the page as sections of
+- `people.bio.every-line-is-sourced` — **[GAP]** (#4750, #5340 → #7007) one route returns the page as sections of
   lines, and every line carries the ids of the statements or mentions it rests on, the stretch of each, the
   archive, the source reference and the reading band. A line with no stretch is not returned; a line the historian
   wrote is returned as theirs. Extends `kg.read.biography`. *Test (to write):* test_biography_lines_are_sourced.py
   (every line of the payload resolves to a stretch on a page).
-- `people.bio.only-accepted-or-attested` — **[GAP]** (#5340, #6835 → #NEW-P6) the sections hold only statements a
+- `people.bio.only-accepted-or-attested` — **[GAP]** (#5340, #6835 → #7007) the sections hold only statements a
   person wrote or accepted and plain attestations (named in this act, in this position, on this written date). A
   statement a person rejected never appears (`kg.para.rejected-never-stated`). Statements and links nobody has
   checked are returned in their own block, "proposed, not checked", and take no part in any count, band or view.
   *Test (to write):* test_biography_proposed_is_apart.py.
-- `people.bio.no-model-prose` — **[GAP]** (#4648, #5340 → #NEW-P6) every sentence on the page is made by rule from a
+- `people.bio.no-model-prose` — **[GAP]** (#4648, #5340 → #7007) every sentence on the page is made by rule from a
   statement (`kg.read.no-llm`, `kg/kg-paragraph-realisation.md`) or is the source's own words. No field of the
   payload holds text a model composed, and a guard walks the payload schema and every view payload of this spec to
   hold that. *Test (to write):* test_people_payloads_hold_no_model_prose.py.
-- `people.bio.conflicts-side-by-side` — **[GAP]** (#5340 → #NEW-P6) where two or more sources speak to the same point
+- `people.bio.conflicts-side-by-side` — **[GAP]** (#5340 → #7007) where two or more sources speak to the same point
   of a life and their written values differ, or a person marked them as in conflict
   (`kg.confidence.contradiction-is-kept`), the page returns them as one group with every value, each with its source
   and date of writing. No value is chosen, ranked first for being likelier, or averaged. *Test (to write):*
   test_biography_keeps_conflicts.py (two birth years give one group of two lines).
-- `people.bio.is-a-reader-rendition` — **[GAP]** (#5340 → #NEW-P7) the page is the Reader's rendition of a selected
+- `people.bio.is-a-reader-rendition` — **[GAP]** (#5340 → #7008) the page is the Reader's rendition of a selected
   person on Mac, iPad and iPhone; one click or tap on a line selects its stretch and the linked Preview shows the
   page with the words lit (`explore.source.open-evidence-one-step`). On iPhone it follows the drill-then-swipe rule:
   the page, then swipe to the source. *Test (to write):* PersonBiographyRenditionTests.swift.
-- `people.bio.sections-by-life-event-and-relation` — **[GAP]** (#5340 → #NEW-P7) lines are grouped under the event
+- `people.bio.sections-by-life-event-and-relation` — **[GAP]** (#5340 → #7008) lines are grouped under the event
   kinds of the ontological layer in the order the sources date them, then relations, then undated and unplaced with
   their counts; an empty section is not shown, and a line whose kind nobody set sits under "other mentions". The
   person can reorder sections for a project. *Test (to write):* PersonBiographySectionsTests.swift.
-- `people.bio.names-as-written` — **[GAP]** (#5340 → #NEW-P7) the head of the page shows every written form of the
+- `people.bio.names-as-written` — **[GAP]** (#5340 → #7008) the head of the page shows every written form of the
   name as a crop of the word with its count, grouped; a form joined by a proposal nobody accepted is marked and can
   be accepted or removed there. The page title is the form the historian chose, or the commonest written form, and
   never a form a model normalised. *Test (to write):* PersonNameFormsTests.swift.
-- `people.bio.uncertainty-is-on-the-line` — **[GAP]** (#6763 → #NEW-P8) each line shows the reading band of the words
+- `people.bio.uncertainty-is-on-the-line` — **[GAP]** (#6763 → #7009) each line shows the reading band of the words
   it rests on (or "reading not yet measured"), a date as a span with its basis (`kg.qualifier.date-form`), and a mark
   when it reaches this person only through a join nobody has reviewed. A line is never shown more certain than the
   least certain thing under it (`record.confidence.capped-by-the-reading`), and no confidence is printed as a
   decimal. *Test (to write):* test_biography_line_doubt.py.
-- `people.bio.gaps-are-shown` — **[GAP]** (#5340 → #NEW-P8) the page shows each stretch of years with no attestation
+- `people.bio.gaps-are-shown` — **[GAP]** (#5340 → #7009) the page shows each stretch of years with no attestation
   as an empty span with its length, and says for that span whether the archives in the project hold pages of those
   years, and how many are unread or read unsurely. An implied record (`record.gap.implied-records-are-inferences`) is
   drawn as an inference in the gap, never as a line of the life. *Test (to write):* test_biography_gaps.py (a life
   attested in two decades thirty years apart returns one gap with the page counts of the years between).
-- `people.bio.how-it-was-put-together` — **[GAP]** (#5340 → #NEW-P8) the foot of the page lists the joins the page
+- `people.bio.how-it-was-put-together` — **[GAP]** (#5340 → #7009) the foot of the page lists the joins the page
   stands on, each with its state, maker and reasons, and what was left out with counts (rights, unsure readings,
   rejected statements). Each join can be cut from there. *Test (to write):* PersonBiographyJoinsTests.swift.
-- `people.bio.export-with-citations` — **[GAP]** (#5034 → #NEW-P9) the page exports as a readable document and as
+- `people.bio.export-with-citations` — **[GAP]** (#5034 → #7010) the page exports as a readable document and as
   data: every line with its source reference in the project's citation style, the line as read, whether a person
   checked the reading, and the conflicts and gaps as shown. The joins and their states are part of the export; a
   person is never exported as silently merged. Rights rules and the living-people rule apply to the export as to
@@ -325,26 +325,26 @@ person's own machine, are never sent anywhere, and are never set beside another 
 
 ### D. The stitch bench
 
-- `people.bench.fit-between-two-lives` — **[GAP]** (#5545, #3323 → #NEW-P10) for a pair (or three) one route returns
+- `people.bench.fit-between-two-lives` — **[GAP]** (#5545, #3323 → #7011) for a pair (or three) one route returns
   both lives' dated attestations on one axis and the fit between them: each shared co-named person, place, role and
   overlapping date as a tie with its two stretches. Every tie is a count or a match on what is written; the
   matcher's score is returned apart, labelled as a ranking, as a band or "not yet measured here"
   (`record.measure.one-report-and-a-gate`). *Test (to write):* test_bench_fit_lane.py (a shared-context pair has more
   ties than a namesake pair; every tie has two stretch ids).
-- `people.bench.impossibilities-are-stated-rules` — **[GAP]** (#5545 → #NEW-P10) a small set of rules over written
+- `people.bench.impossibilities-are-stated-rules` — **[GAP]** (#5545 → #7011) a small set of rules over written
   dates and places lists what speaks against a join: attested in two places further apart than a stated distance
   within a stated number of days, acting after a recorded death or burial, a child attested before a parent's
   birth. Each rule has a name, its settings are shown and can be changed for the project, and a bar always appears
   when its rule fires. A bar does not decide; the person does. *Test (to write):* test_bench_impossibility_rules.py.
-- `people.bench.namesakes-are-counted` — **[GAP]** (#5545 → #NEW-P10) the bench shows how many other persons in the
+- `people.bench.namesakes-are-counted` — **[GAP]** (#5545 → #7011) the bench shows how many other persons in the
   sets being compared share the spelling key of each side, and opens that list. *Test (to write):*
   test_bench_namesake_count.py.
-- `people.bench.decide-by-key` — **[GAP]** (#5545 → #NEW-P11) the bench lives in the review surface
+- `people.bench.decide-by-key` — **[GAP]** (#5545 → #7012) the bench lives in the review surface
   (`ui/review-names-and-statements.md`); Same, Different and Cannot tell are the audited actions of section A, each
   on one key, and the next pair loads without a pause. On Same the two lives become one with a stitch. The seeded
   pairs of `record.check.seeded-with-hard-cases` are answered here. On iPhone it is one card per pair with the fit
   only. *Test (to write):* StitchBenchDecisionTests.swift.
-- `people.bench.queue-is-ordered-and-says-how` — **[GAP]** (#5545 → #NEW-P11) proposals are offered in an order the
+- `people.bench.queue-is-ordered-and-says-how` — **[GAP]** (#5545 → #7012) proposals are offered in an order the
   bench states and the person can change: the default is the pairs whose answer would change the most pages
   first, then the least sure (`kg.confidence.review-least-sure-and-most-used-first`). A pair with a name read from
   unsure words is not offered (`record.confidence.unsure-readings-seed-nothing`), and the bench says how many were
@@ -352,35 +352,35 @@ person's own machine, are never sent anywhere, and are never set beside another 
 
 ### E. Across archives
 
-- `people.xarchive.stitch-is-drawn-and-can-be-cut` — **[GAP]** (#5341 → #NEW-P12) on the page and the life band an
+- `people.xarchive.stitch-is-drawn-and-can-be-cut` — **[GAP]** (#5341 → #7013) on the page and the life band an
   accepted link between two archives is a drawn object between their rows, and every line says which archive it is
   from. Cutting the stitch is undo of the same-as link (`record.link.same-as-joins-and-never-merges`) and the page
   becomes two pages. *Test (to write):* PersonStitchTests.swift (cut: two renditions, each with its own archive's
   lines).
-- `people.xarchive.unreviewed-join-is-never-settled` — **[GAP]** (#5341 → #NEW-P12) a join that came from a rule or an
+- `people.xarchive.unreviewed-join-is-never-settled` — **[GAP]** (#5341 → #7013) a join that came from a rule or an
   import and that no person has reviewed is drawn doubled and labelled, on the page, the band and every set view,
   and every export carries its state. *Test (to write):* test_unreviewed_join_is_marked_everywhere.py.
 
 ### F. Views that pass the design rule
 
-- `people.view.life-band` — **[GAP]** (#5032 → #NEW-P13) one person's attestations along time, a row per archive or
+- `people.view.life-band` — **[GAP]** (#5032 → #7014) one person's attestations along time, a row per archive or
   series, each mark a span as wide as its date is uncertain, hollow if it rests on an unreviewed join, with empty
   years empty and undated marks parked and counted. A mark opens its line; a chosen span scrolls the page. Builds
   `explore.time.life-course` on attestations and accepted statements only. *Test (to write):* test_life_band_payload.py,
   LifeBandEncodingTests.swift.
-- `people.view.relations-around-a-person` — **[GAP]** (#5032 → #NEW-P13) the people around one person in two groups
+- `people.view.relations-around-a-person` — **[GAP]** (#5032 → #7014) the people around one person in two groups
   that are never mixed: accepted relations by type, and people named in the same acts with the number of acts. The
   second group says its rule in words ("named in the same act") and is not called a relationship. Each row opens
   its lines. It is a list first; a small diagram of kin is offered only for accepted parent, spouse and child
   links. *Test (to write):* test_relations_around_payload.py.
-- `people.view.who-names-whom` — **[GAP]** (#5032 → #NEW-P14) for a set, a counted table and its drawing: writers and
+- `people.view.who-names-whom` — **[GAP]** (#5032 → #7015) for a set, a counted table and its drawing: writers and
   offices on one side, the people they name on the other, grouped by the sources' own words for them, with the
   number of acts in each cell and, where the formula gives it, the position the person holds in the act (party,
   witness, the one spoken about). A control counts each writer once, so that a person is not central only because
   one office wrote about them often. Writer and office come from the catalogue or from a grouping of hands a person
   can edit; pages with no known writer are a visible row. *Test (to write):* test_who_names_whom_counts.py (counts
   equal a hand count on the fixture; the once-per-writer control changes the order as planted).
-- `people.view.archive-shape-and-gaps` — **[GAP]** (#5032 → #NEW-P14) for a folder or a project, pages in shelf order
+- `people.view.archive-shape-and-gaps` — **[GAP]** (#5032 → #7015) for a folder or a project, pages in shelf order
   as a strip tinted by one counted measure (read with confidence, read unsurely, unread, person-checked), with
   numbered series showing the numbers that are absent, and "not yet measured" as a state of its own and never a
   pale tint. A drag over the strip is an ordinary selection. The same strip, small, sits beside any count of people
@@ -389,28 +389,28 @@ person's own machine, are never sent anywhere, and are never set beside another 
 
 ### G. Living people
 
-- `people.privacy.living-date-holds-back-proposals` — **[GAP]** (#4953 → #NEW-P15) a project has a date, by default a
+- `people.privacy.living-date-holds-back-proposals` — **[GAP]** (#4953 → #7006) a project has a date, by default a
   hundred years before today, that the person can move. For a person with any attestation after it, no link across
   archives is proposed unless the person asks for that person by name, and the bench says how many proposals were
   held back for this. *Test (to write):* test_living_date_holds_back_candidates.py.
-- `people.privacy.nothing-published-by-default` — **[GAP]** (#4953 → #NEW-P15) a biography page, a relations view or a
+- `people.privacy.nothing-published-by-default` — **[GAP]** (#4953 → #7006) a biography page, a relations view or a
   set view that includes a possibly living person is left out of a publish and an export unless the person says
   yes for it, once, with the names listed (`explore.care.publishing-asks-about-people`); a restricted person is not
   drawn and the hole is not inferable (`explore.care.restricted-people-are-not-drawn-around`). *Test (to write):*
   test_living_people_not_exported_unasked.py.
-- `people.privacy.a-person-record-never-leaves-unasked` — **[GAP]** (#4953 → #NEW-P15) no step of this spec sends a
+- `people.privacy.a-person-record-never-leaves-unasked` — **[GAP]** (#4953 → #7006) no step of this spec sends a
   person's assembled record, a pair of lives or a list of names to a cloud model. A proposal method that would use
   one runs only where the library's cloud answer allows it and the person asked, and never for a possibly living
   person. *Test (to write):* test_people_routes_make_no_cloud_call.py.
 
 ### H. Private quality checks
 
-- `people.quality.own-project-only` — **[GAP]** (#5545 → #NEW-P16) a panel in the project shows, for that project
+- `people.quality.own-project-only` — **[GAP]** (#5545 → #7016) a panel in the project shows, for that project
   alone: links accepted, rejected and cannot tell; links accepted and later undone, as a count and a share; and the
   matcher's agreement with held-out decisions once there are 50 (`record.check.one-in-ten-held-out`). Each figure
   opens the decisions it counts. *Test (to write):* test_people_quality_panel.py (ten accepts and two undos give two
   of ten, and the two rows).
-- `people.quality.nothing-is-published-or-compared` — **[GAP]** (#5545 → #NEW-P16) these figures are computed on the
+- `people.quality.nothing-is-published-or-compared` — **[GAP]** (#5545 → #7016) these figures are computed on the
   person's machine, are in no export, publish, shared file or telemetry, and no surface ranks a project, a method
   or a person against another by them. There is no public score. *Test (to write):*
   test_people_quality_is_in_no_export.py.
@@ -436,7 +436,7 @@ Engine before app; each step ships alone and is 25 files or fewer. Stage 1 can s
 - Tests: test_person_is_its_mentions.py, test_unnamed_person_is_a_record.py
 - Size: M
 
-Waits for `kg.one.mention-is-the-link` (`kg/kg-entities-and-statements.md` Step 1.3). → #NEW-P1
+Waits for `kg.one.mention-is-the-link` (`kg/kg-entities-and-statements.md` Step 1.3). → #7001
 
 #### Step 1.2 — Kinds of thing and of event, as one small list
 - Behaviours: `ontology.kinds.small-closed-set`, `ontology.events.kinds-are-the-sections`, `ontology.model-proposes-no-kind`
@@ -444,7 +444,7 @@ Waits for `kg.one.mention-is-the-link` (`kg/kg-entities-and-statements.md` Step 
 - Depends on: 1.1
 - Size: S
 
-→ #NEW-P2
+→ #7002
 
 #### Step 1.3 — A link is a proposal with reasons; the person decides; model work is labelled
 - Behaviours: `people.record.link-is-a-proposal-with-reasons`, `people.record.person-decides`, `people.record.model-work-is-labelled`
@@ -452,7 +452,7 @@ Waits for `kg.one.mention-is-the-link` (`kg/kg-entities-and-statements.md` Step 
 - Depends on: 1.1
 - Size: M
 
-→ #NEW-P3
+→ #7003
 
 #### Step 1.4 — Split and merge, with undo, carrying what rested on them
 - Behaviours: `people.record.split-and-merge-are-undoable`, `people.record.split-moves-what-rested-on-it`
@@ -460,7 +460,7 @@ Waits for `kg.one.mention-is-the-link` (`kg/kg-entities-and-statements.md` Step 
 - Depends on: 1.3
 - Size: M
 
-→ #NEW-P4
+→ #7004
 
 #### Step 1.5 — Relations as typed links, with the sources' words beside the historian's type
 - Behaviours: `people.relation.typed-link-rests-on-statements`, `people.relation.sources-word-is-shown`, `people.relation.proposed-is-never-drawn-as-fact`, `ontology.relations.one-list-the-person-extends`, `ontology.sources.categories-in-their-own-words`
@@ -468,7 +468,7 @@ Waits for `kg.one.mention-is-the-link` (`kg/kg-entities-and-statements.md` Step 
 - Depends on: 1.2, 1.3
 - Size: M
 
-→ #NEW-P5
+→ #7005
 
 #### Step 1.6 — Living people: the date, nothing published unasked, nothing sent
 - Behaviours: `people.privacy.living-date-holds-back-proposals`, `people.privacy.nothing-published-by-default`, `people.privacy.a-person-record-never-leaves-unasked`
@@ -476,7 +476,7 @@ Waits for `kg.one.mention-is-the-link` (`kg/kg-entities-and-statements.md` Step 
 - Depends on: 1.3
 - Size: M
 
-Before anything across archives. → #NEW-P15
+Before anything across archives. → #7006
 
 ### Stage 2 — The biography page
 
@@ -486,7 +486,7 @@ Before anything across archives. → #NEW-P15
 - Depends on: 1.5
 - Size: M
 
-→ #NEW-P6
+→ #7007
 
 #### Step 2.2 — The page in the Reader: sections, relations, names as written
 - Behaviours: `people.bio.is-a-reader-rendition`, `people.bio.sections-by-life-event-and-relation`, `people.bio.names-as-written`
@@ -494,7 +494,7 @@ Before anything across archives. → #NEW-P15
 - Depends on: 2.1
 - Size: M
 
-→ #NEW-P7
+→ #7008
 
 #### Step 2.3 — Doubt on the line, gaps on the page, and how it was put together
 - Behaviours: `people.bio.uncertainty-is-on-the-line`, `people.bio.gaps-are-shown`, `people.bio.how-it-was-put-together`
@@ -502,7 +502,7 @@ Before anything across archives. → #NEW-P15
 - Depends on: 2.2
 - Size: M
 
-Ships "reading not yet measured" until `source/read-any-hand.md` Step 1.2 has a fit. → #NEW-P8
+Ships "reading not yet measured" until `source/read-any-hand.md` Step 1.2 has a fit. → #7009
 
 #### Step 2.4 — Export a life with its citations and its joins
 - Behaviours: `people.bio.export-with-citations`
@@ -510,7 +510,7 @@ Ships "reading not yet measured" until `source/read-any-hand.md` Step 1.2 has a 
 - Depends on: 2.3, 1.6
 - Size: S
 
-→ #NEW-P9
+→ #7010
 
 ### Stage 3 — The stitch bench
 
@@ -520,7 +520,7 @@ Ships "reading not yet measured" until `source/read-any-hand.md` Step 1.2 has a 
 - Depends on: 1.3
 - Size: M
 
-→ #NEW-P10
+→ #7011
 
 #### Step 3.2 — The bench in the review surface: decide by key, an ordered queue
 - Behaviours: `people.bench.decide-by-key`, `people.bench.queue-is-ordered-and-says-how`
@@ -528,7 +528,7 @@ Ships "reading not yet measured" until `source/read-any-hand.md` Step 1.2 has a 
 - Depends on: 3.1, 1.4
 - Size: M
 
-→ #NEW-P11
+→ #7012
 
 #### Step 3.3 — Across archives: the stitch drawn, cut, and never shown as settled unreviewed
 - Behaviours: `people.xarchive.stitch-is-drawn-and-can-be-cut`, `people.xarchive.unreviewed-join-is-never-settled`
@@ -536,7 +536,7 @@ Ships "reading not yet measured" until `source/read-any-hand.md` Step 1.2 has a 
 - Depends on: 3.2, 2.2, 1.6
 - Size: M
 
-Waits for `kg/reconstruct-the-record.md` Step 2.2. → #NEW-P12
+Waits for `kg/reconstruct-the-record.md` Step 2.2. → #7013
 
 ### Stage 4 — Views of people and of the record
 
@@ -546,7 +546,7 @@ Waits for `kg/reconstruct-the-record.md` Step 2.2. → #NEW-P12
 - Depends on: 2.1
 - Size: M
 
-→ #NEW-P13
+→ #7014
 
 #### Step 4.2 — Who names whom, and the archive's shape and gaps
 - Behaviours: `people.view.who-names-whom`, `people.view.archive-shape-and-gaps`, `ontology.role.is-a-position-in-a-statement`, `ontology.sources.mapping-is-a-persons-link`, `ontology.browse.is-a-table-of-what-is-used`
@@ -554,7 +554,7 @@ Waits for `kg/reconstruct-the-record.md` Step 2.2. → #NEW-P12
 - Depends on: 4.1
 - Size: M
 
-The writer or office of a document, and the position of a person in an act, are fields this step adds. → #NEW-P14
+The writer or office of a document, and the position of a person in an act, are fields this step adds. → #7015
 
 ### Stage 5 — Private quality checks
 
@@ -564,7 +564,7 @@ The writer or office of a document, and the position of a person in an act, are 
 - Depends on: 1.4
 - Size: S
 
-→ #NEW-P16
+→ #7016
 
 ## Future (not scheduled, not to be cut into issues)
 

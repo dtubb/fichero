@@ -68,38 +68,38 @@ knowledge-graph browser and is not coming back in that form.
 
 ## Behaviours
 
-- `ontology.kinds.small-closed-set` — **[GAP]** (#1678 → #NEW-P2) the kinds of thing are a closed list in one place in
+- `ontology.kinds.small-closed-set` — **[GAP]** (#1678 → #7002) the kinds of thing are a closed list in one place in
   the engine (person, place, organisation, event, document), read by every route and view; a name's kind is set by a
   person or proposed by a labelled method and can be corrected like any reading. No project and no model adds a
   kind. *Test (to write):* test_ontology_kinds.py.
-- `ontology.events.kinds-are-the-sections` — **[GAP]** (#1678 → #NEW-P2) kinds of event are a list the project owns,
+- `ontology.events.kinds-are-the-sections` — **[GAP]** (#1678 → #7002) kinds of event are a list the project owns,
   seeded with a short default (birth or baptism, marriage, death or burial, sale, loan, lawsuit, appointment,
   movement), which the person can add to, rename and retire; the sections of a biography page are this list
   (`people.bio.sections-by-life-event-and-relation`). Retiring a kind hides it and changes no statement.
   *Test (to write):* test_ontology_kinds.py.
-- `ontology.model-proposes-no-kind` — **[GAP]** (#1678 → #NEW-P2) no route lets a model's account create, rename or
+- `ontology.model-proposes-no-kind` — **[GAP]** (#1678 → #7002) no route lets a model's account create, rename or
   retire a kind of thing, a kind of event or a type of relation, and no view shows a class, type or grouping that a
   model named. *Test (to write):* test_no_model_writes_a_kind.py.
-- `ontology.relations.one-list-the-person-extends` — **[GAP]** (#1678 → #NEW-P5) types of relation between people are
+- `ontology.relations.one-list-the-person-extends` — **[GAP]** (#1678 → #7005) types of relation between people are
   one list the project owns, each with a name, a direction and its inverse, seeded with parent of, spouse of, child
   of, sibling of, witness for, godparent of, owner of, employer of; the person adds, renames and retires types. A
   relation of a type (`people.relation.typed-link-rests-on-statements`) is the historian's classification and is
   marked as such wherever it is shown. *Test (to write):* test_relation_types_list.py.
-- `ontology.sources.categories-in-their-own-words` — **[GAP]** (#1678 → #NEW-P5) the word or formula a source uses for
+- `ontology.sources.categories-in-their-own-words` — **[GAP]** (#1678 → #7005) the word or formula a source uses for
   a person (a status, an office, a kinship term) or for a tie is kept as written, in the source language, on the
   mention or the statement it belongs to, with its stretch. It is shown beside and never in place of the historian's
   type, and it is a term like any other, with its own sheet (`terms.sheet.one-view-for-a-term-or-a-name`). No view
   groups people under a label the app supplied where the sources supply one (`explore.care.the-record-is-not-the-person`).
   *Test (to write):* test_relation_carries_source_words.py.
-- `ontology.sources.mapping-is-a-persons-link` — **[GAP]** (#1678 → #NEW-P14) treating a source's category as one of
+- `ontology.sources.mapping-is-a-persons-link` — **[GAP]** (#1678 → #7015) treating a source's category as one of
   the historian's types is a link the person makes, with its scope (which writers, which years) and the passages it
   rests on; it is stored as theirs, shown wherever it changes a count, and can be turned off in any view. Fichero
   never proposes one. *Test (to write):* test_category_mapping_is_owned.py.
-- `ontology.role.is-a-position-in-a-statement` — **[GAP]** (#1678, #4842 → #NEW-P14) a role is recorded on a person's
+- `ontology.role.is-a-position-in-a-statement` — **[GAP]** (#1678, #4842 → #7015) a role is recorded on a person's
   place in one statement or act (party, witness, spoken about, writer, and the source's own word where given), read
   from the formula's slot by a stated rule or set by a person; it is never a property of the person as a whole.
   Closes the gap named by `kg.statements.object-role`. *Test (to write):* test_role_is_a_position.py.
-- `ontology.browse.is-a-table-of-what-is-used` — **[GAP]** (#1678 → #NEW-P14) the three lists can be read as one table
+- `ontology.browse.is-a-table-of-what-is-used` — **[GAP]** (#1678 → #7015) the three lists can be read as one table
   in the Library: each kind, type and source category with how many records use it, opening to those records. It is
   a table of what the project holds, not a class diagram, and replaces the retired ontology browser.
   *Test (to write):* test_ontology_browse_table.py.

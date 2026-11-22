@@ -192,58 +192,58 @@ that rests on a model's readings says so in the footnote itself and cannot be ex
 
 ### A. The sources' own terms
 
-- `terms.vocabulary.table-of-any-set` — **[GAP]** (#5032 → #NEW-C1) for any set, a Library view mode lists its terms
+- `terms.vocabulary.table-of-any-set` — **[GAP]** (#5032 → #7017) for any set, a Library view mode lists its terms
   as a table: count, rate per thousand words read, number of writers and of record types that use it, first and
   last attestation, and how unevenly it falls in time. Rows sort and filter on those columns only; no column and no
   title ranks a term as important. A row opens the term's sheet. Counts say which reading was counted
   (`explore.corpus.which-reading`). *Test (to write):* test_vocabulary_table.py (counts equal a hand count on a keyed
   fixture; the payload has no field of free prose).
-- `terms.concordance.every-occurrence-in-its-line` — **[GAP]** (#5032 → #NEW-C1) every occurrence of a term or a name
+- `terms.concordance.every-occurrence-in-its-line` — **[GAP]** (#5032 → #7017) every occurrence of a term or a name
   is listed in its line with the term centred, sortable by left context, right context, date and writer; each row
   shows the crop of the written line on demand and opens the page with the stretch lit. Builds
   `explore.corpus.keyword-in-context`. *Test (to write):* test_concordance_rows.py.
-- `counts.open.every-count-opens-to-its-lines` — **[GAP]** (#5032 → #NEW-C1) every number on every view of this spec
+- `counts.open.every-count-opens-to-its-lines` — **[GAP]** (#5032 → #7017) every number on every view of this spec
   opens to the list of occurrences it counts, and each of those to its page, in one step each
   (`explore.source.aggregate-opens-to-a-list`). A guard walks every view payload: each count carries the ids of what
   it counts or a query that returns them, and no field holds text a model composed. *Test (to write):*
   test_term_payloads_open_and_hold_no_model_prose.py.
-- `terms.forms.variants-are-proposals` — **[GAP]** (#5032 → #NEW-C2) spellings, abbreviations and translations of a
+- `terms.forms.variants-are-proposals` — **[GAP]** (#5032 → #7018) spellings, abbreviations and translations of a
   term are grouped by a labelled method into proposals; a group becomes one term only when a person accepts it, and
   an accepted grouping can be cut, which separates its counts. The Forms part shows each form as a crop of the
   written word with its count and the state of its grouping. *Test (to write):* test_term_variants_are_proposals.py
   (a planted term in three spellings is three rows until accepted, then one; cut gives three again).
-- `terms.forms.only-trusted-readings-make-a-term` — **[GAP]** (#6763 → #NEW-C2) a word read in the unsure or not-read
+- `terms.forms.only-trusted-readings-make-a-term` — **[GAP]** (#6763 → #7018) a word read in the unsure or not-read
   band never creates a row of the vocabulary and never proposes a form; it is counted as "too unsure to count" in
   the strip. *Test (to write):* test_unsure_words_make_no_term.py.
-- `terms.sheet.one-view-for-a-term-or-a-name` — **[GAP]** (#5032 → #NEW-C3) the attestation sheet is the Reader's
+- `terms.sheet.one-view-for-a-term-or-a-name` — **[GAP]** (#5032 → #7019) the attestation sheet is the Reader's
   rendition of a selected term and of a selected name, from one payload shape and one drawing: forms, concordance,
   when and where, who writes it about whom, company, slot. A part whose data the project does not have yet says
   what it waits for and shows nothing invented. On iPhone the parts are swiped. *Test (to write):*
   AttestationSheetTests.swift.
-- `terms.sheet.when-and-where-in-four-states` — **[GAP]** (#5032 → #NEW-C3) use along time, by place and by archive is
+- `terms.sheet.when-and-where-in-four-states` — **[GAP]** (#5032 → #7019) use along time, by place and by archive is
   drawn as a rate against what was read, and each period or place is in one of four states that are drawn
   differently: present; absent in pages read with confidence; unknown because the pages are unread or read
   unsurely; no such pages held. A zero is never drawn for the third or fourth state. Builds
   `explore.corpus.word-use-over-time` and `explore.corpus.ocr-quality-is-shown`. *Test (to write):*
   test_when_and_where_four_states.py.
-- `terms.reader.tracked-terms-layer` — **[GAP]** (#5032 → #NEW-C3) in the Reader a layer underlines the terms the
+- `terms.reader.tracked-terms-layer` — **[GAP]** (#5032 → #7019) in the Reader a layer underlines the terms the
   person chose to track in any document; each opens its sheet. Off by default. *Test (to write):*
   TrackedTermsLayerTests.swift.
-- `terms.sheet.company-is-collocation-with-settings` — **[GAP]** (#5032 → #NEW-C4) the words and names found within a
+- `terms.sheet.company-is-collocation-with-settings` — **[GAP]** (#5032 → #7020) the words and names found within a
   stated window of a term, scored by a named measure against their rate elsewhere, shown as lists with example
   lines, as small multiples by period, record type and writer; the window and the measure are on the view and can
   be changed. Each neighbour opens its lines. *Test (to write):* test_collocation_settings_and_counts.py.
-- `terms.sheet.shift-in-use-never-in-meaning` — **[GAP]** (#5032 → #NEW-C4) the sheet can show that a term's company,
+- `terms.sheet.shift-in-use-never-in-meaning` — **[GAP]** (#5032 → #7020) the sheet can show that a term's company,
   its writers or the people it is applied to differ between two periods the person chose, as two lists with their
   lines and counts. No payload or label states what a term means or that a meaning changed.
   *Test (to write):* test_shift_is_shown_as_counts.py (a planted term whose neighbours change after a date shows two
   different lists; the payload has no sentence).
-- `terms.sheet.who-writes-it-about-whom` — **[GAP]** (#5032 → #NEW-C5) a matrix for one term: writers and offices
+- `terms.sheet.who-writes-it-about-whom` — **[GAP]** (#5032 → #7021) a matrix for one term: writers and offices
   down, the people or things it is applied to across, grouped in the sources' own words, each cell a count of acts
   that opens to them. A term in a writer's own voice is kept apart from one in reported speech where the source
   marks that. Waits for the writer field and roles of `kg/people-and-lives.md` Step 4.2. *Test (to write):*
   test_term_who_about_whom.py.
-- `terms.sheet.the-slot-and-its-alternatives` — **[GAP]** (#5032 → #NEW-C5) where a term stands in a recurring formula
+- `terms.sheet.the-slot-and-its-alternatives` — **[GAP]** (#5032 → #7021) where a term stands in a recurring formula
   or a table column, the sheet shows that slot and everything else that fills it across the set, as counts over
   time. Slots come from text alignment of acts of one kind (`xcorpus.link.shared-structure`) or from a column the
   person names; vectors may rank which acts to align and decide nothing else. *Test (to write):*
@@ -251,92 +251,92 @@ that rests on a model's readings says so in the footnote itself and cannot be ex
 
 ### B. Counts as ranges
 
-- `counts.range.four-parts-together` — **[GAP]** (#6763 → #NEW-C6) one engine function returns every count this spec
+- `counts.range.four-parts-together` — **[GAP]** (#6763 → #7022) one engine function returns every count this spec
   shows, and what it returns is always four parts: the range at a stated level; how many finds rest on
   high-confidence readings and how many on readings a person checked; the pages in scope read, unread and too
   unsure to count; and the data of the denominator strip. No view computes a count of its own.
   *Test (to write):* test_count_has_four_parts.py.
-- `counts.range.built-from-measured-doubt-only` — **[GAP]** (#6763 → #NEW-C6) the range is computed from the
+- `counts.range.built-from-measured-doubt-only` — **[GAP]** (#6763 → #7022) the range is computed from the
   calibrated chance that each matched word is read right, from words whose second or third reading matches with
   their chances, and from the hand's measured miss rate for that kind of word (names and rare words measured
   apart from common ones). The method is named and versioned and its inputs can be opened. Search and counting read
   the reader's alternative readings. *Test (to write):* test_range_from_calibrated_readings.py.
-- `counts.range.no-fit-no-range` — **[GAP]** (#6763 → #NEW-C6) for pages whose hand has no calibration fit
+- `counts.range.no-fit-no-range` — **[GAP]** (#6763 → #7022) for pages whose hand has no calibration fit
   (`hands.calib.fitted-per-hand-and-shown`), the count reads "at least N as read; reading not yet measured" and no
   interval is shown or exported. *Test (to write):* test_no_fit_gives_no_range.py.
-- `counts.range.accepted-and-proposed-apart` — **[GAP]** (#6763 → #NEW-C6) a count over forms or over joined people
+- `counts.range.accepted-and-proposed-apart` — **[GAP]** (#6763 → #7022) a count over forms or over joined people
   gives the figure under accepted groupings and joins, and separately how much proposed ones would add ("112 under
   accepted forms; up to 175 with 9 proposed forms"). Proposed groupings never enter the first figure.
   *Test (to write):* test_count_accepted_vs_proposed.py.
-- `counts.strip.denominator-beside-every-count` — **[GAP]** (#5032 → #NEW-C7) every count and every rate has beside it
+- `counts.strip.denominator-beside-every-count` — **[GAP]** (#5032 → #7023) every count and every rate has beside it
   a small strip of the pages in scope by time and by writer: read with confidence, read unsurely, unread, not held.
   It is one shared component and one field of the view data shape (`explore.panes.one-data-shape`); a rate cannot be
   rendered without it. *Test (to write):* DenominatorStripTests.swift, test_rate_payload_requires_strip.py.
-- `counts.narrow.check-twenty-lines` — **[GAP]** (#6763 → #NEW-C7) beside a range the person can ask for the
+- `counts.narrow.check-twenty-lines` — **[GAP]** (#6763 → #7023) beside a range the person can ask for the
   occurrences that contribute most to its width (the least sure finds, the likeliest misses), and mark each yes or
   no in the review surface; each mark replaces a chance with a fact, the term's own precision and recall replace
   the hand-wide estimate, and the range is recomputed. *Test (to write):* test_marks_narrow_the_range.py (after
   twenty marks on the fixture the range is narrower and still holds the true count).
-- `counts.background.vocabulary-exists-when-pages-are-read` — **[GAP]** (#5032 → #NEW-C7) counts for every form above
+- `counts.background.vocabulary-exists-when-pages-are-read` — **[GAP]** (#5032 → #7023) counts for every form above
   a stated frequency are computed as pages are read or corrected, as an Activity job that yields to the person's
   work and updates only what changed, so a set's vocabulary is there when the person opens it.
   *Test (to write):* test_vocabulary_updates_incrementally.py.
 
 ### C. The historian's concepts
 
-- `concepts.record.owned-by-the-person` — **[GAP]** (#4692 → #NEW-C8) a concept has a name, a definition, what counts
+- `concepts.record.owned-by-the-person` — **[GAP]** (#4692 → #7024) a concept has a name, a definition, what counts
   and what does not, an optional scope, and seed passages anchored to stretches of pages, all written by a person,
   and is a node in the sidebar. It is stored in the hermeneutic layer's framework and pattern records
   (`hermeneutic.concept.is-the-framework-record`), not in a new store. *Test (to write):* test_concept_record.py.
-- `concepts.record.versions-are-kept` — **[GAP]** (#4692 → #NEW-C8) changing a definition, a rule or the scope makes a
+- `concepts.record.versions-are-kept` — **[GAP]** (#4692 → #7024) changing a definition, a rule or the scope makes a
   new version; earlier versions are never edited in place; each mark keeps the version it was made under, and after
   a change earlier marks are offered for re-marking, not silently reused. *Test (to write):*
   test_concept_versions.py.
-- `concepts.never-proposed-by-a-model` — **[GAP]** (#4692 → #NEW-C8) no route, view or tool creates a concept, names
+- `concepts.never-proposed-by-a-model` — **[GAP]** (#4692 → #7024) no route, view or tool creates a concept, names
   one, drafts or rewrites a definition, labels a group of passages, or states that a concept is new or better than
   another. A model's account is refused on every write to a concept. *Test (to write):*
   test_model_cannot_write_a_concept.py.
-- `concepts.find.candidates-ranked-with-why` — **[GAP]** (#5033 → #NEW-C9) one route takes a concept and returns
+- `concepts.find.candidates-ranked-with-why` — **[GAP]** (#5033 → #7025) one route takes a concept and returns
   ranked candidate passages across the set, each with the seed it is nearest to, the words it shares with it, its
   score once a ranker exists, its reading band and its stretch. The ranking is labelled as model output with the
   method and version; passages on unsure readings are held back and counted; vectors of two models are never mixed
   (`explore.meaning.same-space-only`). *Test (to write):* test_concept_candidates.py (planted instances outrank
   unrelated passages; every row names its reason).
-- `concepts.marks.yes-no-unsure` — **[GAP]** (#4692 → #NEW-C9) on the concept sheet the person marks a passage yes, no
+- `concepts.marks.yes-no-unsure` — **[GAP]** (#4692 → #7025) on the concept sheet the person marks a passage yes, no
   or unsure by key or tap; each mark is one audited action by a person with undo; unsure is kept, counted, and
   teaches nothing. *Test (to write):* test_concept_marks.py, ConceptSheetMarksTests.swift.
-- `concepts.sheet.is-a-reader-rendition` — **[GAP]** (#4692 → #NEW-C9) the concept sheet is the Reader's rendition of
+- `concepts.sheet.is-a-reader-rendition` — **[GAP]** (#4692 → #7025) the concept sheet is the Reader's rendition of
   a selected concept: the two columns, each passage as the crop of its lines with the reading beneath, the linked
   Preview following the chosen stretch. On iPhone, one passage card at a time. *Test (to write):*
   ConceptSheetTests.swift.
-- `concepts.find.near-the-line-is-always-open` — **[GAP]** (#4692 → #NEW-C10) the sheet's second column is open by
+- `concepts.find.near-the-line-is-always-open` — **[GAP]** (#4692 → #7026) the sheet's second column is open by
   default and holds, each under its own label: passages the ranker is least sure of, and passages like the "does
   not count" seeds that sit among the candidates. Each says in what measured respect it is close and differs.
   Where nothing was searched the column says so and never reads as "none found". *Test (to write):*
   test_concept_near_misses.py (at least half the planted near misses appear in the column).
-- `concepts.find.expected-and-missing-needs-a-scope` — **[GAP]** (#4692 → #NEW-C10) when, and only when, the person
+- `concepts.find.expected-and-missing-needs-a-scope` — **[GAP]** (#4692 → #7026) when, and only when, the person
   gave a scope, the second column also lists documents inside it, of the record types where marked instances are
   found, that have none, split into read with confidence and unread or unsure. *Test (to write):*
   test_expected_and_missing.py (empty without a scope).
-- `concepts.marks.sharpen-the-search-locally` — **[GAP]** (#4692 → #NEW-C11) after a stated number of marks a small
+- `concepts.marks.sharpen-the-search-locally` — **[GAP]** (#4692 → #7027) after a stated number of marks a small
   ranker is fitted on the person's machine on their yes and no marks, in seconds, with no cloud call; one in ten
   marks is held out by the existing rule (`record.check.one-in-ten-held-out`) and never fitted on; once there are 50
   held-out marks the sheet says how many of the passages the person would accept the search finds in its first
   hundred, and before that says how many of the 50 there are. *Test (to write):* test_concept_ranker_local.py.
-- `concepts.heldout.test-only-when-asked` — **[GAP]** (#4692 → #NEW-C11) when the person asks, the sheet draws a
+- `concepts.heldout.test-only-when-asked` — **[GAP]** (#4692 → #7027) when the person asks, the sheet draws a
   shuffled sample from pages set aside, the search's picks mixed with random passages, with scores absent from the
   payload until marking is done; the result is two counts, how often the picks and how often the random ones were
   accepted, and where they do not differ the sheet says it cannot tell whether the search or the concept is weak.
   It is never required and nothing ranks concepts by it. *Test (to write):* test_concept_blind_sample.py.
-- `concepts.spread.rate-over-marked-against-read` — **[GAP]** (#4692 → #NEW-C12) the spread of a concept by time,
+- `concepts.spread.rate-over-marked-against-read` — **[GAP]** (#4692 → #7028) the spread of a concept by time,
   place, record type and writer is computed over passages marked yes, as a rate against passages read, in the four
   states of `terms.sheet.when-and-where-in-four-states`, with the denominator strip. Unmarked candidates are drawn
   hollow beside them, labelled, and never summed with them. *Test (to write):* test_concept_spread.py.
-- `concepts.reread.a-reader-layer` — **[GAP]** (#4692 → #NEW-C12) with a concept chosen, any document in the Reader
+- `concepts.reread.a-reader-layer` — **[GAP]** (#4692 → #7028) with a concept chosen, any document in the Reader
   shows where its ranker scores high and where it is near the line, labelled as a ranking, and marks made there are
   the same marks. A person's biography page can carry the concept as a row of the life band: the points in a life
   where passages marked yes occur. *Test (to write):* ConceptReaderLayerTests.swift.
-- `concepts.term-as-evidence.two-by-two` — **[GAP]** (#4692 → #NEW-C13) the person can attach a term (optionally only
+- `concepts.term-as-evidence.two-by-two` — **[GAP]** (#4692 → #7029) the person can attach a term (optionally only
   in a slot, a period or a writer) to a concept as evidence; the link is theirs, typed and versioned. The sheet then
   shows the four cells (term and yes; term and not; yes without term; neither), which sum to the passages in scope
   and each open to them; a term's sheet lists the person's concepts that cite it. Fichero never proposes such a
@@ -344,17 +344,17 @@ that rests on a model's readings says so in the footnote itself and cannot be ex
 
 ### D. Export for citation, and the private check
 
-- `cite.bundle.query-counts-passages` — **[GAP]** (#5034 → #NEW-C14) any counted view exports one bundle, as CSV and
+- `cite.bundle.query-counts-passages` — **[GAP]** (#5034 → #7030) any counted view exports one bundle, as CSV and
   as a readable document: the query with its settings, what it was run on (date, reader and grouping versions,
   checked share), the counts with their ranges, and every passage with its line as read, its archive reference and
   its stretch. Rights rules apply as to the view. *Test (to write):* test_citation_bundle.py.
-- `cite.footnote.carries-range-and-checked-share` — **[GAP]** (#5034 → #NEW-C14) the bundle includes a footnote in
+- `cite.footnote.carries-range-and-checked-share` — **[GAP]** (#5034 → #7030) the bundle includes a footnote in
   plain words with the range, its level, the number of acts or pages counted, how many lines a person checked, and
   the date; it cannot be exported with any of these removed, and a count on a model's readings says so in the
   footnote. *Test (to write):* test_footnote_form.py.
-- `cite.rerun-gives-the-same-table` — **[GAP]** (#5063 → #NEW-C14) the bundle's query, kept as a saved view, re-run on
+- `cite.rerun-gives-the-same-table` — **[GAP]** (#5063 → #7030) the bundle's query, kept as a saved view, re-run on
   the same library state gives the same table byte for byte. *Test (to write):* test_citation_rerun_is_identical.py.
-- `counts.quality.ranges-checked-on-own-project` — **[GAP]** (#6763 → #NEW-C15) on the person's own project a panel
+- `counts.quality.ranges-checked-on-own-project` — **[GAP]** (#6763 → #7031) on the person's own project a panel
   shows, per hand, how often a stated range held the count a person later established by checking, with the median
   width of the ranges, and for each concept how many marks, how many in the near-the-line column and how many
   versions. It is computed on the person's machine, is in no export or publish, and is compared with nothing.
@@ -381,7 +381,7 @@ nothing from the knowledge graph.
 - Tests: test_vocabulary_table.py, test_concordance_rows.py, test_term_payloads_open_and_hold_no_model_prose.py
 - Size: M
 
-→ #NEW-C1
+→ #7017
 
 #### Step 1.2 — Forms: variants as proposals a person accepts; unsure words make no term
 - Behaviours: `terms.forms.variants-are-proposals`, `terms.forms.only-trusted-readings-make-a-term`
@@ -389,7 +389,7 @@ nothing from the knowledge graph.
 - Depends on: 1.1
 - Size: M
 
-→ #NEW-C2
+→ #7018
 
 #### Step 1.3 — The attestation sheet in the Reader, with when and where in four states
 - Behaviours: `terms.sheet.one-view-for-a-term-or-a-name`, `terms.sheet.when-and-where-in-four-states`, `terms.reader.tracked-terms-layer`, `explore.corpus.word-use-over-time`, `explore.corpus.ocr-quality-is-shown`
@@ -397,7 +397,7 @@ nothing from the knowledge graph.
 - Depends on: 1.2
 - Size: M
 
-→ #NEW-C3
+→ #7019
 
 #### Step 1.4 — Company, and a shift in use shown as counts
 - Behaviours: `terms.sheet.company-is-collocation-with-settings`, `terms.sheet.shift-in-use-never-in-meaning`
@@ -405,7 +405,7 @@ nothing from the knowledge graph.
 - Depends on: 1.3
 - Size: M
 
-→ #NEW-C4
+→ #7020
 
 #### Step 1.5 — Who writes it about whom, and the slot
 - Behaviours: `terms.sheet.who-writes-it-about-whom`, `terms.sheet.the-slot-and-its-alternatives`
@@ -413,7 +413,7 @@ nothing from the knowledge graph.
 - Depends on: 1.4
 - Size: M
 
-Waits for the writer field and roles (`kg/people-and-lives.md` Step 4.2) and for formula alignment. → #NEW-C5
+Waits for the writer field and roles (`kg/people-and-lives.md` Step 4.2) and for formula alignment. → #7021
 
 ### Stage 2 — Counts as ranges
 
@@ -423,7 +423,7 @@ Waits for the writer field and roles (`kg/people-and-lives.md` Step 4.2) and for
 - Depends on: 1.2
 - Size: M
 
-→ #NEW-C6
+→ #7022
 
 #### Step 2.2 — The denominator strip, "check 20 to narrow", and the vocabulary kept up in the background
 - Behaviours: `counts.strip.denominator-beside-every-count`, `counts.narrow.check-twenty-lines`, `counts.background.vocabulary-exists-when-pages-are-read`
@@ -431,7 +431,7 @@ Waits for the writer field and roles (`kg/people-and-lives.md` Step 4.2) and for
 - Depends on: 2.1
 - Size: M
 
-→ #NEW-C7
+→ #7023
 
 ### Stage 3 — The historian's concepts
 
@@ -440,7 +440,7 @@ Waits for the writer field and roles (`kg/people-and-lives.md` Step 4.2) and for
 - Tests: test_concept_record.py, test_concept_versions.py, test_model_cannot_write_a_concept.py
 - Size: M
 
-Engine only. → #NEW-C8
+Engine only. → #7024
 
 #### Step 3.2 — Candidates with why, marks, and the concept sheet
 - Behaviours: `concepts.find.candidates-ranked-with-why`, `concepts.marks.yes-no-unsure`, `concepts.sheet.is-a-reader-rendition`, `hermeneutic.reading.rests-on-a-stretch`
@@ -448,7 +448,7 @@ Engine only. → #NEW-C8
 - Depends on: 3.1
 - Size: M
 
-→ #NEW-C9
+→ #7025
 
 #### Step 3.3 — Near the line, and expected and missing
 - Behaviours: `concepts.find.near-the-line-is-always-open`, `concepts.find.expected-and-missing-needs-a-scope`
@@ -456,7 +456,7 @@ Engine only. → #NEW-C8
 - Depends on: 3.2
 - Size: M
 
-→ #NEW-C10
+→ #7026
 
 #### Step 3.4 — Marks sharpen the search on this machine; the blind sample when asked
 - Behaviours: `concepts.marks.sharpen-the-search-locally`, `concepts.heldout.test-only-when-asked`
@@ -464,7 +464,7 @@ Engine only. → #NEW-C8
 - Depends on: 3.2
 - Size: M
 
-→ #NEW-C11
+→ #7027
 
 #### Step 3.5 — The spread, and rereading with a concept
 - Behaviours: `concepts.spread.rate-over-marked-against-read`, `concepts.reread.a-reader-layer`, `hermeneutic.shown.as-the-persons-everywhere`
@@ -472,7 +472,7 @@ Engine only. → #NEW-C8
 - Depends on: 3.4, 2.2
 - Size: M
 
-→ #NEW-C12
+→ #7028
 
 #### Step 3.6 — A term as evidence for a concept; the person's argument linked to its evidence
 - Behaviours: `concepts.term-as-evidence.two-by-two`, `hermeneutic.argument.links-evidence-and-is-the-persons`
@@ -480,7 +480,7 @@ Engine only. → #NEW-C8
 - Depends on: 3.2, 1.3
 - Size: M
 
-→ #NEW-C13
+→ #7029
 
 ### Stage 4 — Citing, and the private check
 
@@ -490,7 +490,7 @@ Engine only. → #NEW-C8
 - Depends on: 2.1
 - Size: M
 
-Waits for the saved-view record (#5063). → #NEW-C14
+Waits for the saved-view record (#5063). → #7030
 
 #### Step 4.2 — How well the ranges held, on this project only
 - Behaviours: `counts.quality.ranges-checked-on-own-project`
@@ -498,7 +498,7 @@ Waits for the saved-view record (#5063). → #NEW-C14
 - Depends on: 2.2
 - Size: S
 
-→ #NEW-C15
+→ #7031
 
 ## Test matrix
 
