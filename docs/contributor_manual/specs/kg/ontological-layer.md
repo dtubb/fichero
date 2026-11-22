@@ -95,7 +95,7 @@ knowledge-graph browser and is not coming back in that form.
 - `ontology.kinds.small-closed-set` — **[GAP]** (#1678 → #7002) the kinds of thing are a closed list in one place in
   the engine (person, place, organisation, event, document), read by every route and view; a name's kind is set by a
   person or proposed by a labelled method and can be corrected like any reading. No project and no model adds a
-  kind. *Test (to write):* test_ontology_kinds.py. **Not built:** the list is widened by `ontology.kinds.beyond-people` and an entity carries a set of kinds (`ontology.kinds.an-entity-has-a-set-of-kinds`).
+  kind. *Test (to write):* test_ontology_kinds.py. **Not built:** the list reaches things, nature and the spiritual, and an entity carries a set of kinds (see the beyond-people bullets below).
 - `ontology.events.kinds-are-the-sections` — **[GAP]** (#1678 → #7002) kinds of event are a list the project owns,
   seeded with a short default (birth or baptism, marriage, death or burial, sale, loan, lawsuit, appointment,
   movement), which the person can add to, rename and retire; the sections of a biography page are this list
@@ -122,7 +122,7 @@ knowledge-graph browser and is not coming back in that form.
 - `ontology.role.is-a-position-in-a-statement` — **[GAP]** (#1678, #4842 → #7015) a role is recorded on a person's
   place in one statement or act (party, witness, spoken about, writer, and the source's own word where given), read
   from the formula's slot by a stated rule or set by a person; it is never a property of the person as a whole.
-  Closes the gap named by `kg.statements.object-role`. *Test (to write):* test_role_is_a_position.py. **Not built:** the agent or doer position may be filled by an entity of any kind (`ontology.agency.any-kind-fills-the-agent-role`).
+  Closes the gap named by `kg.statements.object-role`. *Test (to write):* test_role_is_a_position.py. **Not built:** the agent or doer position may be filled by an entity of any kind (see the agency bullets below).
 - `ontology.browse.is-a-table-of-what-is-used` — **[GAP]** (#1678 → #7015) the three lists can be read as one table
   in the Library: each kind, type and source category with how many records use it, opening to those records. It is
   a table of what the project holds, not a class diagram, and replaces the retired ontology browser.
