@@ -2838,6 +2838,7 @@ def _invert_ungroup_region(before, after, ctx: ActionContext):
     domains=["segment"],
     undoable=True,
     invert=_invert_group_lines,
+    redo_via_own_invert=True,
 )
 def _action_segment_group_lines(db: Database, params: SegmentGroupLinesParams, ctx: ActionContext):
     """Make a region from lines: a new region whose box is the union of the lines' shapes, in the lines' own parent
@@ -2918,6 +2919,7 @@ def _action_segment_group_lines(db: Database, params: SegmentGroupLinesParams, c
     domains=["segment"],
     undoable=True,
     invert=_invert_ungroup_region,
+    redo_via_own_invert=True,
 )
 def _action_segment_ungroup_region(db: Database, params: SegmentUngroupRegionParams, ctx: ActionContext):
     """Ungroup a region: its live children go to the region's own parent (in the order by page position, or as the

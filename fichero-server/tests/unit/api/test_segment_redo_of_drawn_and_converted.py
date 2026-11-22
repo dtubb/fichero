@@ -104,3 +104,46 @@ def test_redo_of_convert_level_makes_the_region_a_line_again(db, client):
     assert done[1] == "line" and done[4]
 
     _undo_redo_undo(db, client, converted.audit_id, sid, start=start, done=done)
+
+
+def _tree(db, ids):
+    """Each segment's (live, parent) by id, the hierarchy Make Region and Ungroup change."""
+    return [(db.get(Segment, i).deleted_at is None, db.get(Segment, i).parent_segment_id) for i in ids]
+
+
+def test_redo_of_make_region_from_lines_puts_the_lines_back_in_the_same_region(db, client):
+    from tests.unit.api.test_segment_reparent import _page as _regions_page
+    from tests.unit.api.test_segment_reparent import _segment as _reparent_segment
+
+    doc, pass_row, *_ = _regions_page(db)
+    lines = [_reparent_segment(db, doc, pass_row, "line", y=y).id for y in (0.1, 0.2)]
+    made = registry.invoke(db, "segment.group_lines", {
+        "segment_ids": lines, "expected_versions": {i: db.get(Segment, i).version for i in lines}}, _person())
+    ids = [made.result["region_id"], *lines]
+    done = _tree(db, ids)
+
+    undone = _undo(client, made.audit_id)
+    assert _tree(db, ids) == [(False, None), (True, None), (True, None)]
+    redone = _undo(client, undone)
+    assert _tree(db, ids) == done, "redo groups the lines into the same region again"
+    _undo(client, redone)
+    assert _tree(db, ids) == [(False, None), (True, None), (True, None)]
+
+
+def test_redo_of_ungroup_region_takes_the_region_away_again(db, client):
+    from tests.unit.api.test_segment_reparent import _page as _regions_page
+
+    _, _, region, _, line, other = _regions_page(db)
+    ids = [region.id, line.id, other.id]
+    start = _tree(db, ids)
+    ungrouped = registry.invoke(db, "segment.ungroup_region",
+                                {"region_id": region.id, "expected_version": region.version}, _person())
+    done = _tree(db, ids)
+    assert done == [(False, region.parent_segment_id), (True, None), (True, None)]
+
+    undone = _undo(client, ungrouped.audit_id)
+    assert _tree(db, ids) == start
+    redone = _undo(client, undone)
+    assert _tree(db, ids) == done
+    _undo(client, redone)
+    assert _tree(db, ids) == start
