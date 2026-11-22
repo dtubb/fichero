@@ -936,6 +936,10 @@ def write(page: SourcePage, report: LossReport) -> bytes:
         attrs: dict[str, str] = {}
         if kind == "name":  # a mention, pointing at its entity by the record's own id (#5603)
             attrs["ref"] = f"fichero:entity:{fact['ref']}"
+            if fact.get("certainty") is not None:
+                attrs["cert"] = "high" if fact["certainty"] >= 0.9 else "medium" if fact["certainty"] >= 0.6 else "low"
+            if fact.get("maker"):
+                attrs["resp"] = "#" + maker_id(fact["maker"])
             if fact["tag"] == "rs" and fact.get("type"):
                 attrs["type"] = fact["type"]
             return etree.Element(q(fact["tag"]), attrs)
@@ -1361,6 +1365,10 @@ def _declare_makers(page: SourcePage, header: Any, q: Any, report: LossReport) -
     from lxml import etree
 
     makers = {maker_id(s.reading_maker): s.reading_maker for s in page.segments if s.reading_maker and s.readings}
+    for segment in page.segments:
+        for mark in segment.foreign.get(RECORD_MARKS) or []:
+            if mark.get("maker"):
+                makers.setdefault(maker_id(mark["maker"]), mark["maker"])
     if not makers:
         return
     title_stmt = next(iter(header.iter(q("titleStmt"))), None)
@@ -1370,7 +1378,7 @@ def _declare_makers(page: SourcePage, header: Any, q: Any, report: LossReport) -
     for stmt_id, maker in makers.items():
         stmt = etree.SubElement(title_stmt, q("respStmt"))
         stmt.set("{http://www.w3.org/XML/1998/namespace}id", stmt_id)
-        etree.SubElement(stmt, q("resp")).text = f"reading made by a {maker_by(maker)}"
+        etree.SubElement(stmt, q("resp")).text = f"made by a {maker_by(maker)}"
         etree.SubElement(stmt, q("name")).text = maker["name"]
 
 

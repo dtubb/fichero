@@ -287,3 +287,16 @@ def test_on_a_page_with_no_lines_a_mention_points_at_the_words_in_the_page_text(
         {"type": "TextQuoteSelector", "exact": "Pedro Ruiz"},
         {"type": "TextPositionSelector", "start": at, "end": at + len("Pedro Ruiz")},
     ]
+
+
+def test_tei_names_say_how_sure_and_what_made_them(client, library):
+    """A name's element carries `@cert` (the mention's confidence as high, medium or low) and `@resp`
+    naming a `<respStmt>` in the header for the run that found it (#6805)."""
+    body = _ok(client.get(f"/api/documents/{library['doc'].id}/export/tei"))
+    root = etree.fromstring(body["content"].encode("utf-8"))
+
+    (pers,) = root.iter(f"{TEI}persName")
+    assert pers.get("cert") == "low"
+    maker = pers.get("resp").lstrip("#")
+    (stmt,) = [s for s in root.iter(f"{TEI}respStmt") if s.get("{http://www.w3.org/XML/1998/namespace}id") == maker]
+    assert stmt.findtext(f"{TEI}name") == "openrouter/names-model"

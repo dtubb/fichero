@@ -351,6 +351,16 @@ def _editorial_facts_on(facts: list[Any], reading_id: str | None) -> list[dict[s
 NAME_TAGS = {"person": "persName", "location": "placeName", "organization": "orgName"}
 
 
+def _mention_maker(made_by: dict[str, Any] | None) -> dict[str, str] | None:
+    """A mention's maker as a `reading_maker` does: the person, or the provider and model of the run."""
+    if not made_by:
+        return None
+    if made_by["by"] == "person":
+        return {"type": "Person", "name": made_by["name"]} if made_by.get("name") else None
+    name = "/".join(p for p in (made_by.get("provider"), made_by.get("model")) if p)
+    return {"type": "Software", "name": name} if name else None
+
+
 def _record_on_lines(db: Any, document_id: str) -> dict[str, list[dict[str, Any]]]:
     """The page's names and dates that stand on a line, by segment (#5603, `source.extract.exported`):
     each mention (`export_service.record_mentions`, the record stream's own reader) and each date claim
@@ -366,7 +376,8 @@ def _record_on_lines(db: Any, document_id: str) -> dict[str, list[dict[str, Any]
             "kind": "name", "start": mention["segment_char_start"], "end": mention["segment_char_end"],
             "reading_id": mention["reading_id"], "exact": mention["excerpt"],
             "tag": NAME_TAGS.get(mention["entity_type"], "rs"), "type": mention["entity_type"],
-            "ref": mention["entity_id"],
+            "ref": mention["entity_id"], "certainty": mention["confidence"],
+            "maker": _mention_maker(mention["made_by"]),
         })
     for claim in db.query(KnowledgeClaim, source_document_id=document_id):
         date_text = (claim.metadata or {}).get("date_text")
