@@ -114,6 +114,9 @@ def test_iter_export_records_page_granularity_carries_document_provenance(db):
             "speaker_entity_id": None,
             "provider": None,
             "model": None,
+            "made_by": None,
+            "confidence": 0.5,
+            "curation_state": "unreviewed",
         }
     ]
 
