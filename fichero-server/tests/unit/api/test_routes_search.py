@@ -1583,8 +1583,11 @@ class TestQueryCompilation:
         # The compiled query is visible (AI = instrument)…
         assert payload["compiled_query"]["semantic_query"] == "condoto mining"
         assert payload["compilation_error"] is None
-        # …and its date filters were applied.
-        assert payload["filters_applied"]["date_from"] == "1948-03-01"
+        # …and its dates were applied as the written date (day numbers), not the import date.
+        from fichero_server.histdate import gregorian_to_jdn
+
+        assert payload["filters_applied"]["date_jdn_from"] == gregorian_to_jdn(1948, 3, 1)
+        assert payload["filters_applied"]["date_jdn_to"] == gregorian_to_jdn(1948, 3, 31)
 
     def test_compilation_failure_is_reported_and_raw_query_runs(self, client, db, monkeypatch):
         from fichero_server.api.routes.search import core as core_module

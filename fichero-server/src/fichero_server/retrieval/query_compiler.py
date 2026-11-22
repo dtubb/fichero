@@ -39,9 +39,10 @@ _COMPILER_SYSTEM_PROMPT = (
     "You compile a researcher's natural-language request into a structured "
     "archive search. Extract ONLY what the request states — never invent "
     "entities, dates, or types that are not implied by the wording. Put every "
-    "date the request implies in the date_from and date_to FIELDS, in ISO "
-    "format (YYYY-MM-DD), using the span boundaries for a partial date: "
-    "'March 1948' sets date_from=1948-03-01 and date_to=1948-03-31. "
+    "date the request states in the date_from and date_to FIELDS, in ISO "
+    "format (YYYY-MM-DD), using the first and last day of the span for a "
+    "partial date (a month or a year). A request that states no date leaves "
+    "both fields empty. "
     "semantic_query is the request rephrased as a dense retrieval query in "
     "the request's own language, stripped of every filter already captured in "
     "another field. semantic_query must contain NO dates and NO date range — "
@@ -173,6 +174,20 @@ def _resolve_compiler_config(db: "Database"):
     )
 
 
+def _keep_only_what_the_question_says(compiled: CompiledQuery, question: str) -> None:
+    """Drop a filter whose words are not in the question: a date whose year is not written in it, a document type it does
+    not name, an entity whose name is not in it (#6785). Checked here, not asked of the model."""
+    folded = question.casefold()
+    years = set(re.findall(r"(?<!\d)\d{4}(?!\d)", folded))
+    if compiled.date_from and compiled.date_from[:4] not in years:
+        compiled.date_from = None
+    if compiled.date_to and compiled.date_to[:4] not in years:
+        compiled.date_to = None
+    if compiled.doc_type and not re.search(rf"\b{re.escape(compiled.doc_type.casefold())}s?\b", folded):
+        compiled.doc_type = None
+    compiled.entities = [e for e in compiled.entities if e.casefold() in folded]
+
+
 async def compile_query(db: "Database", query: str) -> CompiledQuery:
     """Compile ``query`` via the configured LLM. Raises on failure —
     the caller decides how to surface it (enhanced_search reports it in
@@ -195,6 +210,7 @@ async def compile_query(db: "Database", query: str) -> CompiledQuery:
     # The retrieval text never carries the dates it already put in the
     # filter fields — see `strip_dates_from_semantic_query`.
     compiled.semantic_query = strip_dates_from_semantic_query(compiled.semantic_query)
+    _keep_only_what_the_question_says(compiled, query)
     if not compiled.semantic_query.strip():
         # Scrubbed to nothing (or never produced): search the user's own
         # words rather than a blank. The date FILTERS still apply.

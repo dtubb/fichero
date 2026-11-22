@@ -109,6 +109,16 @@ def _readable_document_ids(
     }
 
 
+def _iso_to_jdn(iso: str) -> int:
+    """The day number of a `YYYY-MM-DD` date; raises ValueError for text that is not a date."""
+    from datetime import date
+
+    from fichero_server.histdate import gregorian_to_jdn
+
+    day = date.fromisoformat(iso)
+    return gregorian_to_jdn(day.year, day.month, day.day)
+
+
 def _filter_entity_hits_for_actor(
     entity_hits: list[dict[str, Any]],
     *,
@@ -1118,10 +1128,11 @@ async def enhanced_search(
             compiled_query = await compile_query(db, request.query)
             effective_query = compiled_query.semantic_query
             merged_filters = dict(request.filters or {})
+            # The dates of a question are the dates written on the pages (day numbers), not the day they were imported.
             if compiled_query.date_from:
-                merged_filters.setdefault("date_from", compiled_query.date_from)
+                merged_filters.setdefault("date_jdn_from", _iso_to_jdn(compiled_query.date_from))
             if compiled_query.date_to:
-                merged_filters.setdefault("date_to", compiled_query.date_to)
+                merged_filters.setdefault("date_jdn_to", _iso_to_jdn(compiled_query.date_to))
             if compiled_query.doc_type:
                 merged_filters.setdefault("doc_type", compiled_query.doc_type)
             if merged_filters:
