@@ -432,13 +432,16 @@ The two indexes are fast; nearly all of the time is what is done around them.
   name or alias matches a term and the claims whose source is a result page (or that name a matched
   entity); pinned: `fichero-server/tests/unit/search/test_search_reads_only_the_rows_it_needs.py`. Not
   built: the folded-name index (the database still scans the name and source columns on each search).
-- `search.scale.no-whole-table-read` — **[BROKEN]** (#3321, → #6783) when the text index finds nothing
+- `search.scale.no-whole-table-read` — **[PARTIAL]** (#3321, → #6783) when the text index finds nothing
   for a word (a typing slip, the start of a word, a word inside a longer token), and for every fuzzy
   search, the whole passage table, vectors included, is read into memory and scanned. Measured: 43 s and
   about 3.5 GB more memory at 50,000 pages for one mistyped word; fuzzy 111 s. On a 16 GB laptop that is
   the engine being killed. Should: the scan never reads vectors, and the cases it serves move into the
   index (`search.match.same-with-or-without-other-hits`). Test to write:
   test_zero_hit_query_reads_no_vectors.py in `fichero-server/tests/unit/search/`.
+  Built: the scan a zero-hit word or a fuzzy search falls back to reads the passage text and metadata
+  columns and no vector column; pinned: `fichero-server/tests/unit/search/test_zero_hit_query_reads_no_vectors.py`.
+  Not built: the cases the scan serves are not in the index, so the scan still reads every passage's text.
 - `search.scope.narrows-before-ranking` — **[PARTIAL]** (#4236, → #6781) a search in This Folder ranks
   the whole project, keeps the best 200 passages, and only then drops what is outside the folder. A
   folder of 50 pages that all hold the word returned 30 to 43 of them in a 300-page project, 3 in a
