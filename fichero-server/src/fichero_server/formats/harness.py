@@ -48,7 +48,7 @@ def maker_id(maker: dict[str, str]) -> str:
     """An id for a maker mark in a file's own declarations: one per kind and name."""
     import hashlib
 
-    return f"fichero-maker-{maker_by(maker)}-{hashlib.sha1(maker['name'].encode()).hexdigest()[:8]}"
+    return f"fichero-maker-{maker_by(maker)}-{hashlib.sha256(maker['name'].encode()).hexdigest()[:16]}"
 
 
 def maker_from(by: str, name: str | None) -> dict[str, str] | None:
