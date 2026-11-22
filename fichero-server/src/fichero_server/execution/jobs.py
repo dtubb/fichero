@@ -4310,28 +4310,48 @@ def delete_jobs(db: "Database", ids: list[str], states: list[str] | None = None,
 
 def stopped_at_quit(db: "Database") -> list[dict[str, Any]]:
     """The top-level rows the open held (`HELD_AT_OPEN_REASONS`: what the quit left unfinished, a synced folder's new files), for the launch alert:
-    id, kind, name, subject, done/total when known, when they last started. Nothing a person paused, nothing failed."""
+    id, kind, name, subject, done/total when known, when they last started. Nothing a person paused, nothing failed.
+    The held jobs of a queue (`QUEUES`: an import's thumbnails, embeds and name drafts) are one item whose id is the
+    queue's, named with the pages it holds (`importer.resume.launch-alert-is-one-row-per-queue`)."""
     _ensure(db)
     out: list[dict[str, Any]] = []
-    marks = ", ".join("?" for _ in HELD_AT_OPEN_REASONS)
+    load_kinds()
+    queued = sorted({k for ks, _ in QUEUES.values() for k in ks})
+    queue_marks = ", ".join("?" for _ in queued) or "NULL"
+    reason_marks = ", ".join("?" for _ in HELD_AT_OPEN_REASONS)
+    held = f"state = 'paused' AND reason IN ({reason_marks}) AND parent_id IS NULL{_hidden_filter(db)}"
     for job_id, kind, subject, started_at, detail in db.execute_fetchall(
-        f"SELECT id, kind, subject, started_at, detail FROM jobs WHERE state = 'paused' AND reason IN ({marks}) AND parent_id IS NULL "
-        f"{_hidden_filter(db)} ORDER BY created_at, id",
-        [*HELD_AT_OPEN_REASONS],
+        f"SELECT id, kind, subject, started_at, detail FROM jobs WHERE {held} AND kind NOT IN ({queue_marks}) "
+        f"ORDER BY created_at, id",
+        [*HELD_AT_OPEN_REASONS, *queued],
         committed=True,
     ):
         named = _named_by_its_kind(db, {"id": job_id, "kind": kind, "subject": subject, "detail": detail})
         out.append({"id": job_id, "kind": kind, "name": named or kind_name(kind), "subject": subject, "started_at": started_at})
+    for prefix, (kinds, name) in QUEUES.items():
+        marks = ", ".join("?" for _ in kinds)
+        row = db.execute_fetchone(
+            f"SELECT count(DISTINCT subject), min(started_at) FROM jobs WHERE {held} AND kind IN ({marks})",
+            [*HELD_AT_OPEN_REASONS, *kinds],
+            committed=True,
+        )
+        if row and row[0]:
+            out.append({"id": prefix, "kind": prefix, "name": f"{name}, {row[0]:,} pages", "subject": None, "started_at": row[1]})
     return out
 
 
 def continue_after_quit(db: "Database", ids: list[str] | None) -> list[str]:
     """The person's Continue on the launch alert: the chosen rows the quit stopped (all of them when `ids` is None) are
-    let go, the stored pause lifted through each kind's own resume (`pause_job`), and the lane woken. Returns the ids."""
+    let go, the stored pause lifted through each kind's own resume (`pause_job`), and the lane woken. Returns the ids.
+    A queue's item (`stopped_at_quit`) lets all its held jobs go in one statement."""
     stopped_rows = stopped_at_quit(db)
     stopped = [row["id"] for row in stopped_rows]
     chosen = stopped if ids is None else [i for i in ids if i in stopped]
+    released: list[dict[str, Any]] = []
     for job_id in chosen:
+        if job_id in QUEUES:
+            released += _release_queue(db, job_id)
+            continue
         db.execute("UPDATE jobs SET reason = NULL WHERE id = ? AND state = 'paused'", [job_id])  # not "stopped" any more
         pause_job(db, job_id, False)
     if chosen:
@@ -4339,8 +4359,20 @@ def continue_after_quit(db: "Database", ids: list[str] | None) -> list[str]:
         db.add_after_commit_hook(lambda: _scheduler.wake(key))
         from fichero_server.importers.derivatives import arm_released_pages
 
-        arm_released_pages(db, [r for r in stopped_rows if r["id"] in chosen])
+        arm_released_pages(db, [r for r in stopped_rows if r["id"] in chosen and r["id"] not in QUEUES] + released)
     return chosen
+
+
+def _release_queue(db: "Database", prefix: str) -> list[dict[str, Any]]:
+    """Every held job of a queue's kinds waits again, in one UPDATE. Returns each (kind, subject) let go, for the page count."""
+    kinds = QUEUES[prefix][0]
+    marks = ", ".join("?" for _ in kinds)
+    reasons = ", ".join("?" for _ in HELD_AT_OPEN_REASONS)
+    held = f"state = 'paused' AND reason IN ({reasons}) AND parent_id IS NULL AND kind IN ({marks}){_hidden_filter(db)}"
+    params = [*HELD_AT_OPEN_REASONS, *kinds]
+    rows = [{"kind": k, "subject": sub} for k, sub in db.execute_fetchall(f"SELECT kind, subject FROM jobs WHERE {held}", params)]
+    db.execute(f"UPDATE jobs SET state = 'waiting', reason = NULL WHERE {held}", params)
+    return rows
 
 
 #: Kinds whose every job is a row of its own in Activity, however many are queued (`snapshot`).
