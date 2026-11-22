@@ -1,0 +1,8 @@
+{
+  "language": "en",
+  "and": "and",
+  "at": "at",
+  "times": "times",
+  "prepositions": ["to", "from", "in", "at", "on", "by", "with", "for", "of", "into", "before", "after"],
+  "contractions": {}
+}
