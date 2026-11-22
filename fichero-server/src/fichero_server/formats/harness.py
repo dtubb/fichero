@@ -122,6 +122,13 @@ class PageSegment:
     ref: str | None = None
     #: Nesting, by `ref`: a line inside a region.
     parent_ref: str | None = None
+    #: The segment's own type as its source named it (`Segment.kind_raw`: a SegmOnto zone or line
+    #: type, a layout model's label), beside the tidy `kind`.
+    kind_raw: str | None = None
+    #: A machine's confidence in the SHAPE, 0 to 1 (`Segment.confidence`); None when none was given.
+    confidence: float | None = None
+    #: A machine's confidence in the reading written first, 0 to 1; None when none was given.
+    reading_confidence: float | None = None
     #: Anything the format stated that the model has no field for, kept verbatim
     #: (`source.format.keeps-unrecognised`).
     foreign: dict[str, Any] = field(default_factory=dict)
@@ -281,6 +288,15 @@ class LossReport:
                 self.losses.append(Loss(what, existing.count + count, why))
                 return
         self.losses.append(Loss(what, count, why))
+
+    def note_confidence_not_written(self, segment: PageSegment, fmt: str, *, shape: bool = True,
+                                    reading: bool = True) -> None:
+        """Name the confidences a library export handed this segment, for the parts of a writer with no
+        place for them (#6801)."""
+        if shape and segment.confidence is not None:
+            self.note("a shape's confidence", 1, f"{fmt} has no place for the confidence of a shape")
+        if reading and segment.reading_confidence is not None:
+            self.note("a reading's confidence", 1, f"{fmt} has no place for the confidence of a reading")
 
     def note_marks_not_written(self, segment: PageSegment, fmt: str, facts: bool = True) -> None:
         """Name the editorial facts (when `facts`) and the record's names and dates a library export

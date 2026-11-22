@@ -323,6 +323,15 @@ def _read_page(root: Any, page_el: Any, unit: str) -> SourcePage:
 TAG_ATTRIBUTES = ("TYPE", "LABEL", "DESCRIPTION", "URI")
 
 
+def _tags_of(segment: PageSegment) -> list[dict]:
+    """The tags a segment references: the ones its file declared, else an `OtherTag` labelled with its
+    own type (`source.format.kind-raw-out`). A type the file stated keeps the file's own form."""
+    declared = segment.foreign.get("alto:tags", [])
+    if declared or not segment.kind_raw:
+        return declared
+    return [{"ID": f"fichero-kind-{segment.kind_raw}", "element": "OtherTag", "LABEL": segment.kind_raw}]
+
+
 def _baseline(value: str, hpos: float | None, width: float | None) -> list[tuple[float, float]] | None:
     """`TextLine@BASELINE` as points in the file's unit, or None when it cannot be read.
 
@@ -376,7 +385,7 @@ def write(page: SourcePage, report: LossReport) -> bytes:
     # The tag declarations the segments carry, once each, in the order first met (#5138).
     declared_tags: dict[str, dict] = {}
     for segment in page.segments:
-        for tag in segment.foreign.get("alto:tags", []):
+        for tag in _tags_of(segment):
             declared_tags.setdefault(tag["ID"], tag)
     if declared_tags:
         tags_el = etree.SubElement(root, f"{{{ALTO_NS_V4}}}Tags")
@@ -494,6 +503,8 @@ def write(page: SourcePage, report: LossReport) -> bytes:
             # which `xsd:string` allows, and the reader takes an empty CONTENT as no
             # reading. Omitting the attribute failed 15 of 239 real pages.
             attrs["CONTENT"] = segment.readings[0][1] if segment.readings else ""
+            if segment.reading_confidence is not None:
+                attrs["WC"] = f"{segment.reading_confidence:.2f}"
             cut = segment.foreign.get("fichero:cut")
             if cut:
                 # `segment-editor.export-carries-every-edit`: the cut's confidence is the word's WC; ALTO has no
@@ -504,7 +515,7 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                                                      "a person); PAGE XML keeps it in custom")
         if element_name == "ComposedBlock" and segment.foreign.get("alto:TYPE"):
             attrs["TYPE"] = str(segment.foreign["alto:TYPE"])
-        refs = [tag["ID"] for tag in segment.foreign.get("alto:tags", [])]
+        refs = [tag["ID"] for tag in _tags_of(segment)]
         if refs:
             attrs["TAGREFS"] = " ".join(xml_id(ref) for ref in refs)
         undeclared = len(str(segment.foreign.get("alto:TAGREFS", "")).split()) - len(refs)
@@ -524,6 +535,11 @@ def write(page: SourcePage, report: LossReport) -> bytes:
         )
         by_ref[ref] = element
         report.note_marks_not_written(segment, "ALTO")
+        # `String@WC` carries the confidence of a word's reading and of a line's implicit String; ALTO
+        # has no confidence on a block, a line or a shape.
+        report.note_confidence_not_written(
+            segment, "ALTO", reading=segment.kind != "word" and not (segment.kind == "line" and ref not in has_words)
+        )
         # The outline beside the box ALTO requires (#6799), as the element's first child, where the
         # schema puts `Shape`. A polygon that is only the box's four corners is not written:
         # ALTO's `Shape` is "the bounding shape of a block, if it is not rectangular".
@@ -573,6 +589,7 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                 f"{{{ALTO_NS_V4}}}String",
                 ID=xml_id(f"{IMPLICIT_ID_PREFIX}string-{ref}"),
                 CONTENT=segment.readings[0][1] if segment.readings else "",
+                **({"WC": f"{segment.reading_confidence:.2f}"} if segment.reading_confidence is not None else {}),
                 HPOS=attrs.get("HPOS", "0"),
                 VPOS=attrs.get("VPOS", "0"),
                 WIDTH=attrs.get("WIDTH", "0"),

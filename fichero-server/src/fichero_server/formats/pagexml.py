@@ -662,11 +662,15 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                     "re-import",
                 )
         if points:
-            etree.SubElement(
+            coords = etree.SubElement(
                 element,
                 f"{{{PAGE_NS_2019}}}Coords",
                 points=_points_out(points, width, height),
             )
+            if segment.confidence is not None:
+                coords.set("conf", f"{segment.confidence:.2f}")
+        else:
+            report.note_confidence_not_written(segment, "PAGE XML (a segment with no Coords)", reading=False)
         if segment.baseline:
             etree.SubElement(
                 element,
@@ -717,6 +721,9 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                     report.note(f"a '{fact['kind']}' editorial mark", 1,
                                 "PAGE XML records only `unclear` stretches in `custom`")
             custom = " ".join(filter(None, [custom, *marks]))
+        if segment.kind_raw and "structure" not in custom:
+            # The type the file itself stated keeps its own form (kept in `custom` from import).
+            custom = " ".join(filter(None, [custom, f"structure {{type:{segment.kind_raw};}}"]))
         cut = segment.foreign.get("fichero:cut")
         if cut:
             # How a word was cut (`segment-editor.export-carries-every-edit`), in PAGE's own `custom` grammar.
@@ -733,6 +740,8 @@ def write(page: SourcePage, report: LossReport) -> bytes:
             equiv = etree.SubElement(
                 element, f"{{{PAGE_NS_2019}}}TextEquiv", index=str(reading_index)
             )
+            if reading_index == 0 and segment.reading_confidence is not None:
+                equiv.set("conf", f"{segment.reading_confidence:.2f}")
             etree.SubElement(equiv, f"{{{PAGE_NS_2019}}}Unicode").text = text
         if len(segment.readings) > 1:
             report.note(

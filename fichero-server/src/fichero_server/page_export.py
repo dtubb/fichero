@@ -221,6 +221,9 @@ def page_from_library(
                 readings=[(i.kind, i.content) for i in items],
                 ref=row.id,
                 parent_ref=row.parent_segment_id if row.parent_segment_id in ids else None,
+                kind_raw=row.kind_raw,
+                confidence=row.confidence,
+                reading_confidence=items[0].machine_confidence if items else None,
                 # What the IMPORT kept because the model has no field for it
                 # (`source.format.keeps-unrecognised`). Read back out here, or a file
                 # imported into a library and then exported loses what the import

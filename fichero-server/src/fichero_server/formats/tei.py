@@ -800,6 +800,8 @@ def write(page: SourcePage, report: LossReport) -> bytes:
         children.setdefault(segment.parent_ref if segment.parent_ref in by_ref else None, []).append(segment)
 
     zone_ids: dict[int, str] = {}
+    for segment in page.segments:   # `@cert` is a word (high, medium, low), not a number: both are named lost
+        report.note_confidence_not_written(segment, "TEI")
 
     def zone_for(segment: PageSegment) -> str | None:
         points = segment.polygon or _rect_points(segment.rect)
@@ -808,6 +810,8 @@ def write(page: SourcePage, report: LossReport) -> bytes:
         zid = f"z{len(zone_ids) + 1}"
         zone_ids[id(segment)] = zid
         zone = etree.SubElement(surface, q("zone"), {_XML_ID: zid})
+        if segment.kind_raw:
+            zone.set("type", segment.kind_raw)   # `source.format.kind-raw-out`
         if segment.polygon:
             zone.set("points", _points_out(segment.polygon, width, height))
         elif segment.rect:
