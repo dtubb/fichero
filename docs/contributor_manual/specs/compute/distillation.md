@@ -581,7 +581,7 @@ Built: Transcribe in Kraken mode with `lines_read_by: "model"` (Kraken finds eac
 
 #### Step 1.2 — distil Kraken on Hugging Face Jobs from the labels, the student measured against people and adopted within the bar (#5337, #5240, #5404)
 - Behaviours: `distill.job.any-model-job`, `distill.train.card-names-teacher`, `distill.measure.against-people`, `distill.adopt.within-bar`, `distill.scale.local-first-then-remote`
-- Tests: fichero-server/tests/unit/training/test_hf_jobs_target.py, fichero-server/tests/unit/training/test_adopt_past_the_noise_band_5700.py, test_distil_kraken_on_hf.py (not yet written), test_teach_as_you_go_end_to_end.py (not yet written)
+- Tests: fichero-server/tests/unit/training/test_hf_jobs_target.py, fichero-server/tests/unit/training/test_adopt_past_the_noise_band_5700.py, fichero-server/tests/unit/training/test_distil_kraken_on_hf.py, test_teach_as_you_go_end_to_end.py (not yet written)
 - Depends on: 1.1
 - Size: M
 
@@ -609,7 +609,7 @@ Face end to end (Step 2.1 here). Steps of other specs that this stage needs are 
 
 #### Step 2.1 — Kraken on Hugging Face, end to end and for real: lines and readings as a Job, training as a Job, the model home and gated (#5398, #5337)
 - Behaviours: `distill.eval.job`, `distill.eval.held-out-checked-pages`, `distill.eval.stored-on-the-model-node`
-- Tests: fichero-server/tests/unit/training/test_hf_jobs_target.py, fichero-server/tests/unit/training/test_trained_reader_lands.py, fichero-server/tests/unit/training/test_evaluation_job.py, fichero-server/tests/unit/remote_read/test_read_at_scale_job.py, test_distil_kraken_on_hf.py (not yet written)
+- Tests: fichero-server/tests/unit/training/test_hf_jobs_target.py, fichero-server/tests/unit/training/test_trained_reader_lands.py, fichero-server/tests/unit/training/test_evaluation_job.py, fichero-server/tests/unit/remote_read/test_read_at_scale_job.py, fichero-server/tests/unit/training/test_distil_kraken_on_hf.py
 - Depends on: 1.1
 - Size: M
 
@@ -620,9 +620,11 @@ hardware price read first; a time limit always sent); `training/hf_kraken_train.
 `training/job.py` (the `train-a-model` job, `POST /api/training/kraken`); `training/landing.py` (the reader lands with
 its card); `remote_read/runner.py` and `remote_read/job.py` (Kraken's line finder and a Kraken reader as a Job, shard
 by shard, landing idempotently; the monthly cap read by `_hf_spend`). Left: the held-out score written on the card at
-landing (the held-out pages stay home and nothing scores them by itself); the line finder trained as a Job
-(`compute.tune.kraken-segmentation`); the training start checked against the project's and the app's caps as price times
-time limit (today a $0 cap only holds the offer, `recipes/train_offers.py`); the card naming its teacher. A first real
+landing; the line finder trained as a Job (`compute.tune.kraken-segmentation`). Built since (fake Hub): landing starts the
+evaluation job on the held-out pages and the card gets its CER, lines scored and the gate's verdict
+(`training/gate.py`); the training start is checked against the project's cap as price times time limit; the card names
+its teacher (`taught_by`). Not built: the check against the app's own cap, and the held-out score's lines *found*
+(that is the line finder's score). A first real
 run needs, from the owner: a fine-grained Hugging Face token with write to his own repositories and Jobs, billing
 enabled for Jobs on that account, and a spending cap above $0 for the project (a few dollars covers a `t4-small` run
 inside its 4 h limit). Acceptance, on the named machine with that token: 20 public test pages are segmented and read by
