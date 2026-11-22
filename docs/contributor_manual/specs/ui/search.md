@@ -462,7 +462,8 @@ The two indexes are fast; nearly all of the time is what is done around them.
   pages; on real text one page three times in the first three rows. Should: one row a page, carrying its
   best passage and how many passages matched. Test to write: test_fulltext_one_row_per_page.py in
   `fichero-server/tests/unit/search/`. Built: a Full Text row is one per page, with its best passage and
-  `metadata.passages_matched`, the matched passages among the candidates kept; pinned by that file.
+  `metadata.passages_matched`, the matched passages among the candidates kept; pinned:
+  `fichero-server/tests/unit/search/test_fulltext_one_row_per_page.py`.
 - `search.results.total-is-true` — **[BROKEN]** (#4604, → #6784) the total a search reports is the
   number of candidates kept, which is never more than four times the page size: a word on thousands of
   pages says 200. Should: the true count of matching pages when it is cheap (keyword), else "more than
