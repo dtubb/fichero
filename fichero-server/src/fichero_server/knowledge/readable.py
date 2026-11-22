@@ -41,7 +41,12 @@ from fichero_server.knowledge.paragraph import (
     _normalize,
     _sentence_end,
 )
-from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
+from fichero_server.models.knowledge import (
+    ClaimCurationState,
+    EpistemicStatus,
+    KnowledgeClaim,
+    KnowledgeEntity,
+)
 
 
 class Ordering(str, Enum):
@@ -469,7 +474,21 @@ def _render_group_sentence(agg: "Aggregation", representative: KnowledgeClaim) -
     return _claim_sentence(representative)
 
 
+def _is_withdrawn(claim: KnowledgeClaim) -> bool:
+    """A statement a person rejected, or one merged into another: said nowhere."""
+    return (
+        claim.curation_state == ClaimCurationState.rejected
+        or claim.epistemic_status == EpistemicStatus.rejected
+        or bool(claim.merged_into_id)
+    )
+
+
 def render_entry(db, entity_id: str) -> list[dict]:
+    """The sentences of `render_entry_with_mentions`; see it."""
+    return render_entry_with_mentions(db, entity_id)[0]
+
+
+def render_entry_with_mentions(db, entity_id: str) -> tuple[list[dict], list[dict]]:
     """The entry composer -- ONE paragraph of `entity_id`'s claims, sentence-by-sentence,
     each carrying enough to make it clickable to its claim(s) and, later, to open its
     highlighted source (kg.read.sentence-opens-source-highlighted).
@@ -493,7 +512,12 @@ def render_entry(db, entity_id: str) -> list[dict]:
     phrase); a merged sentence never claims an order or a causal link between its
     objects beyond what the language's plain conjunction ("y"/"and") states.
 
-    Returns ``[]`` for an entity with no claims. `start`/`end` are character offsets into
+    A statement a person rejected (`curation_state` or `epistemic_status`), or one merged into
+    another (`merged_into_id`), is in neither result. A statement in which the page entity is
+    neither subject nor object (role ``mention``) is not narrated: it is the second result, a
+    list of ``{claim_id, text, document_id}`` in the paragraph's order.
+
+    Returns ``([], [])`` for an entity with no claims. `start`/`end` are character offsets into
     the paragraph these sentences join into (`" ".join(s["text"] for s in sentences)`),
     so a caller can always verify ``paragraph[s["start"]:s["end"]] == s["text"]``.
     """
@@ -514,8 +538,14 @@ def render_entry(db, entity_id: str) -> list[dict]:
         )
     }
     candidates = list(by_id.values())
-    claims = select_entry_claims(candidates, entity_id)
+    claims = [c for c in select_entry_claims(candidates, entity_id) if not _is_withdrawn(c)]
     claims = sorted(claims, key=_entry_sort_key)  # stage 2, before stage 3 aggregates
+    mentions = [
+        {"claim_id": c.id, "text": _claim_sentence(c), "document_id": c.source_document_id}
+        for c in claims
+        if _entity_role(c, entity_id, entity_names) == "mention"
+    ]
+    claims = [c for c in claims if _entity_role(c, entity_id, entity_names) != "mention"]
 
     sentences: list[dict] = []
     cursor = 0
@@ -543,4 +573,4 @@ def render_entry(db, entity_id: str) -> list[dict]:
             }
         )
         cursor = end
-    return sentences
+    return sentences, mentions

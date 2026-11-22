@@ -54146,6 +54146,30 @@
         ],
         "title": "AllowCloudResult"
       },
+      "AlsoMentionedIn": {
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "title": "Claim Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "document_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Document Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "claim_id",
+          "text"
+        ],
+        "title": "AlsoMentionedIn",
+        "description": "A statement that names the entity without being about it: listed, never narrated."
+      },
       "AnchorBasis": {
         "type": "string",
         "enum": [
@@ -70885,6 +70909,14 @@
             },
             "type": "array",
             "title": "Sentences"
+          },
+          "also_mentioned_in": {
+            "items": {
+              "$ref": "#/components/schemas/AlsoMentionedIn"
+            },
+            "type": "array",
+            "title": "Also Mentioned In",
+            "default": []
           }
         },
         "type": "object",
