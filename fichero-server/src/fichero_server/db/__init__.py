@@ -7354,8 +7354,16 @@ class Database(DatabaseEmbeddingMixin):
                                 )
                         else:
                             # ponytail: fuzzy matching and zero-hit accent edge cases still
-                            # use the old corpus scan until we can index folded text.
-                            all_docs = table.to_pandas()
+                            # scan the passage text until we can index folded text; the scan never reads vectors.
+                            all_docs = table.to_lance().to_table(
+                                columns=self._lance_select_existing_fields(
+                                    table,
+                                    [
+                                        "document_id", "id", "text", "name", "doc_type", "file_type", "created_at",
+                                        "updated_at", "embedding_scope", "passage_id", "page_id", "char_start", "char_end",
+                                    ],
+                                )
+                            ).to_pandas()
                             if scope_ids is not None:
                                 all_docs = all_docs[all_docs["document_id"].isin(scope_ids)]
                             normalised_text = all_docs["text"].astype(str).map(_fold_for_search)
