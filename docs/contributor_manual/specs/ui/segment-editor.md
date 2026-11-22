@@ -336,7 +336,7 @@ targets are at least 44 pt.
   region's lines to its parent and deletes the region (`segment.ungroup_region`). Each is one audit row and one undo, and
   each is the other's undo: undoing a group deletes the region, undoing an ungroup brings the same region back with the
   same lines and their reading-order entries as they were. The region joins the pass's `as-written` order only.
-  *Tests:* `test_segment_group_lines.py`; `SegmentGroupLinesTests.swift`.
+  *Tests:* `test_segment_group_lines.py`; `test_segment_redo_of_drawn_and_converted.py` (redo of each puts back the same region); `SegmentGroupLinesTests.swift`.
   *Not built:* the new region selected afterwards and open for its type; the "replace the old region when every line of it
   is selected" question; the region in orders other than `as-written`; the existing marquee path "New Region from
   Selection…" stays as it was (it names a drawn selection, it does not group segments).
