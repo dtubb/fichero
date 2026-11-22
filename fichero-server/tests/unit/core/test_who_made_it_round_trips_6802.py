@@ -22,9 +22,6 @@ from fichero_server.models.knowledge import ProvenanceKind
 from fichero_server.page_export import page_from_library
 from tests.unit.core.test_export_reads_the_record import LINES, library  # noqa: F401  (fixture)
 
-# The embedder is the test one: saving an entity must not load the pinned model (#5188, #5530).
-pytestmark = pytest.mark.usefixtures("hashed_text_embedder")
-
 pytestmark = pytest.mark.source_model
 
 BOOT = ActionContext(actor="importer", library_path=None, is_bootstrap=True)
