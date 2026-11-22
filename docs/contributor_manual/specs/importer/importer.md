@@ -482,11 +482,17 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
   untested; the synchronous `import.folder` action (the CLI) writes no import row; a library opened a second time
   while an import runs would hold its running row, which has no live thread id.
   Test: `fichero-server/tests/unit/importers/test_import_survives_a_quit.py`.
-- `importer.resume.launch-alert-is-one-row-per-queue` — **[GAP]** (→ #6830; nearest #6584) what the quit stopped
+- `importer.resume.launch-alert-is-one-row-per-queue` — **[PARTIAL]** (→ #6830; nearest #6584) what the quit stopped
   is listed as one item for the import's queue ("Prepare pages, 1,000 pages"), and Continue is one statement however
   many pages it holds. Today `stopped_at_quit` (`execution/jobs.py`) answers one item per page job (1,998 items and
   323 KB for 1,000 pages) and `continue_after_quit` updates them one at a time: 18.9 s for 1,998 rows and 24.9 s for
   1,879, the request held the whole time; about two minutes at 5,000 pages.
+  *Built:* `stopped_at_quit` lists the held jobs of a registered queue (`QUEUES`) as one item whose id is the queue's
+  ("Processing imported pages, 5,000 pages"), and `continue_after_quit` on that id reads the held rows once and lets
+  them go with one UPDATE: 10,000 held rows continue in under a second in the test. *Not built:* the item's name is
+  the queue's own ("Processing imported pages"), not "Prepare pages"; the alert view (Swift) is unchanged and not
+  run against the one-item list; a page the person paused is not in the list, as before.
+  Test: `fichero-server/tests/unit/jobs/test_continue_is_one_statement.py`.
 - `importer.resume.no-twin-rows-at-open` — **[PARTIAL]** (#6209, #6595) the open leaves one job row per page and
   stage. *Built:* a waiting or paused row is reused (`enqueue_many`, `execution/jobs.py`). A page whose job was running at the kill is
   reused too (the open's re-queue runs after `jobs.resume`). *Not built:* a page whose job was already done while the
@@ -575,7 +581,7 @@ page has a thumbnail row; the launch alert lists the import; Continue finishes i
 
 #### Step 1.4 — Continue in one statement; one alert item per queue (#6830, #6584)
 - Behaviours: `importer.resume.launch-alert-is-one-row-per-queue`
-- Tests: test_continue_is_one_statement.py (not yet written)
+- Tests: fichero-server/tests/unit/jobs/test_continue_is_one_statement.py
 - Size: S
 
 `execution/jobs.py`, `api/routes/system/activity.py`, the alert view. Test: 10,000 paused rows continue in under a
