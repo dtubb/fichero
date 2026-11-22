@@ -37,7 +37,7 @@ class FakeHub:
         return "historian"
 
     def price_per_hour(self, flavor):
-        return {NOTEBOOK_FLAVOR: 0.4, "l4x1": 0.8}.get(flavor)
+        return {NOTEBOOK_FLAVOR: 0.4, "l4x1": 0.8, "a10g-large": 1.5}.get(flavor)
 
     def cheapest(self, flavors):
         return "l4x1"
