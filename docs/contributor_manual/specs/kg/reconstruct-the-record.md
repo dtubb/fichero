@@ -245,6 +245,27 @@ and never seeds a search. Until a hand has a fit, figures say "reading not yet m
   term; the proposal list says how many names were left out for this. *Test (to write):*
   test_unsure_names_are_not_candidates.py.
 
+### E. Correct, measure, distil (the step contract)
+
+Finding names, extracting statements and proposing pairs are machine steps. The contract every step fills, the
+correction rules and the loop's display are `compute/correct-measure-distil.md`'s; these lines are these steps' part of it.
+
+- `record.contract.names-statements-pairs-fill-it` — **[GAP]** (#5545, #5941) the steps that find names, extract
+  statements and relations, and propose pairs each declare their contract (`stepcontract.every-step-declares-six`):
+  the unit (a mention, a statement on its stretch, a pair); the gestures and the surface; ground truth as the decision
+  a person's action leaves (`record.check.is-read-from-decisions`); the decision as the held-out unit; the measure of
+  section B; and how each is taught (`kg.teach.*`). *Test (to write):* test_step_contract.py.
+- `record.measure.error-per-step-with-range` — **[GAP]** (#5545) the report's figures for names, statements and pairs
+  are served per step in the one shape (`measure.error.per-step-hand-project`): for the project and per archive, each
+  with its range, the number of held-out decisions behind it and the reference's kind. *Test (to write):*
+  test_record_error_per_step.py (two archives, one under 50 decisions: one figure with a range, one "N of 50").
+- `record.correct.name-and-statement-in-one-gesture` — **[GAP]** (#4794, #5417) in the review surface and on the page,
+  a name takes one gesture each to confirm, to delete (not a name) and to mark its kind (one key a kind, shown beside
+  the kind); its ends are fixed by dragging. A statement takes one gesture each to accept and to reject, and E to fix a
+  part. The queue is the least sure first and the surface shows the progress line (`correct.ui.least-sure-first`,
+  `correct.ui.progress-line`). Each decision is a row of the check set. *Test (to write):*
+  ReviewOneGestureTests.swift; test_review_decisions_feed_the_check_set.py.
+
 ## Lines of other specs built here (cited, not copied)
 
 `explore/connections-across-corpora.md` has no build order. These of its lines are built in this spec's steps, with
@@ -284,6 +305,14 @@ The same hash and the same two halves as `source/read-any-hand.md` Step 1.1; whi
 
 Today's matcher and extractor scored as they are. This is the figure every later step must beat.
 
+#### Step 0.4 — The contract for names, statements and pairs; the error per step with its range
+- Behaviours: `record.contract.names-statements-pairs-fill-it`, `record.measure.error-per-step-with-range`
+- Tests: test_step_contract.py, test_record_error_per_step.py
+- Depends on: 0.3
+- Size: S
+
+Needs `compute/correct-measure-distil.md` Steps 1.1 and 2.1.
+
 ### Stage 1 — First tasks: dating, placing and the same hand
 
 #### Step 1.1 — A date and a place proposed from parallels, scored against the written ones
@@ -322,6 +351,14 @@ and waits for it.
 - Size: S
 
 Waits for `source/read-any-hand.md` Step 1.2 (the fit). Until then the "reading not yet measured" label is what ships.
+
+#### Step 2.4 — A name and a statement corrected in one gesture, least sure first
+- Behaviours: `record.correct.name-and-statement-in-one-gesture`
+- Tests: ReviewOneGestureTests.swift, test_review_decisions_feed_the_check_set.py
+- Depends on: 2.2
+- Size: M
+
+Needs `compute/correct-measure-distil.md` Step 3.1, and the review surface's keyboard flow (`review.keyboard-flow`).
 
 ### Stage 3 — Events, and what is missing
 

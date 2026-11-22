@@ -457,6 +457,30 @@ person's own machine, are never sent anywhere, and are never set beside another 
 - `people.life.network-panel-of-recorded-ties` — **[GAP]** (#5032 → #NEW-P9) from any life page the panel lists who and what acted with or on the entity and through which statements; each edge is one statement with its source and opens its page; no edge is inferred, and no centrality score or importance order is in the payload. *Test (to write):* test_network_panel_edges_are_statements.py (every edge has a statement id; no score field; a model-proposed tie is absent until accepted), NetworkPanelTests.swift.
 - `people.life.moves-between-a-person-a-thing-and-a-word` — **[GAP]** (#5032 → #NEW-P9) a name, a thing or a term opened from a life page opens its own life page in the same layout (a person's, an entity's, a term's or a concept's), and the way back is one step. *Test (to write):* LifePageNavigationTests.swift.
 
+### J. Correct, measure, distil (the step contract)
+
+Linking mentions to one person is a machine step. The contract every step fills, the correction rules and the loop's
+display are `compute/correct-measure-distil.md`'s; these lines are this step's part of it.
+
+- `people.contract.linking-fills-it` — **[GAP]** (#5545, #5941) the linking step declares its contract
+  (`stepcontract.every-step-declares-six`): the unit is a link; the gestures are accept, reject, cannot tell, cut and
+  undo, on the bench, the biography page and the Inspector; ground truth is the link's state with who and when; the
+  held-out unit is the decision; the measure is pairwise precision and recall and B-cubed, with the accept rate and
+  the undo rate beside them as rates; and the matcher is trained from decisions, with no teacher that accepts.
+  *Test (to write):* test_step_contract.py.
+- `people.correct.link-where-it-is-drawn` — **[GAP]** (#5110, #5545) wherever a link is drawn (the bench, the joins
+  listed at the foot of a biography page, a stitch on the life band, the Inspector) it is accepted, cut or undone
+  there, in one key or one click on the link itself; each is the audited action of section A. The bench shows the
+  progress line (`correct.ui.progress-line`): "N links decided, error now X% (a to b)", with the accept rate and the
+  undo rate beside it, named as rates. *Test (to write):* LinkCorrectInPlaceTests.swift;
+  test_link_progress_line.py.
+- `people.loop.matcher-refit-behind-the-gate` — **[GAP]** (#6386, #5545) the matcher's weights and its line are
+  refitted on this machine from the person's decisions that are not held out (`kg.teach.linking-set-and-scorer`); the
+  refitted version's proposals replace the current version's by default only when it measures better on the report
+  half (`loopstate.switch-only-when-measured-better`, `record.measure.one-report-and-a-gate`). No version accepts its
+  own proposal. *Test (to write):* test_matcher_refit_gate.py (a refit that is not better is kept and not used; a
+  held-out decision is in no fit).
+
 ## Lines of other specs built here (cited, not copied)
 
 `kg/ontological-layer.md` has no build order of its own. Its lines are built in Step 1.2 and Step 1.5 below, with
@@ -580,6 +604,14 @@ Ships "reading not yet measured" until `source/read-any-hand.md` Step 1.2 has a 
 
 Waits for `kg/reconstruct-the-record.md` Step 2.2. → #7013
 
+#### Step 3.4 — A link accepted, cut or undone where it is drawn; the progress line
+- Behaviours: `people.contract.linking-fills-it`, `people.correct.link-where-it-is-drawn`
+- Tests: test_step_contract.py, LinkCorrectInPlaceTests.swift, test_link_progress_line.py
+- Depends on: 3.2
+- Size: M
+
+Needs `compute/correct-measure-distil.md` Steps 1.1 and 3.1.
+
 ### Stage 4 — Views of people and of the record
 
 #### Step 4.1 — The life band and the people around a person
@@ -607,6 +639,14 @@ The writer or office of a document, and the position of a person in an act, are 
 - Size: S
 
 → #7016
+
+#### Step 5.2 — The matcher refitted from decisions, behind the gate
+- Behaviours: `people.loop.matcher-refit-behind-the-gate`
+- Tests: test_matcher_refit_gate.py
+- Depends on: 5.1
+- Size: M
+
+Needs `compute/correct-measure-distil.md` Step 4.1 (the switch rule).
 
 ### Stage 6 — Lives beyond people
 

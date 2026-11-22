@@ -396,6 +396,30 @@ that rests on a model's readings says so in the footnote itself and cannot be ex
 - `terms.category.label-applied-to-a-person-is-a-source-statement` — **[GAP]** (#5340 → #NEW-C2) a source's label for a person ("bruja", "viuda") is stored as a statement by that source about that person, with its stretch, and shown on the person's life page as the source's word; no route or view assigns a category to a person, and no model proposes one. *Test (to write):* test_category_is_a_source_statement.py (a model's account is refused on writing a category to a person).
 - `concepts.category.emic-and-analytic-are-worked-examples` — **[GAP]** (#4692 → #NEW-C2) the sheet for a source term and the sheet for a historian's concept on the same subject (witchcraft, gender) are separate records that never merge; the link between them is the historian's, typed and versioned. *Test (to write):* test_term_and_concept_stay_apart.py.
 
+### F. Correct, measure, distil (the step contract)
+
+Finding passages for a concept and grouping spellings are machine steps. The contract every step fills, the correction
+rules and the loop's display are `compute/correct-measure-distil.md`'s; these lines are these steps' part of it.
+
+- `concepts.contract.passages-and-forms-fill-it` — **[GAP]** (#4692, #5032, #5941) the step that finds passages for a
+  concept and the step that groups spellings each declare their contract (`stepcontract.every-step-declares-six`). For
+  passages: the unit is a candidate passage; the gestures are yes, no and unsure on the concept sheet; ground truth is
+  the mark; the held-out unit is the mark; the measure is the share of held-out yes marks found in the first hundred;
+  it is trained as a local ranker and has no teacher. For spellings: the unit is a grouping of two forms; the gestures
+  are accept, cut and undo in the Forms part; ground truth is the grouping's state; the held-out unit is the decision;
+  the measure is pairwise precision and recall. *Test (to write):* test_step_contract.py.
+- `terms.forms.grouping-corrected-and-measured` — **[GAP]** (#5032) in the Forms part a proposed grouping is accepted,
+  one form is cut out of a group, and either is undone, each in one key or click on the form. One in ten of these
+  decisions is held out (`record.check.one-in-ten-held-out`); the grouping method is scored on the report half and its
+  line refitted from the rest on this machine; a refitted version's proposals are offered by default only when it
+  measures better (`loopstate.switch-only-when-measured-better`). The part shows the progress line
+  (`correct.ui.progress-line`). *Test (to write):* test_form_grouping_measured.py (a held-out decision is in no fit;
+  a version that is not better is not offered).
+- `concepts.sheet.progress-line` — **[GAP]** (#4692, #6283) the concept sheet shows one line for the concept's
+  version: "N marked, M yes of those offered", and, once there are 50 held-out marks, "finds X% of your held-out yes
+  passages in its first hundred (a to b)". The yes-rate is named as a rate and is never shown as an error
+  (`measure.rates-are-not-errors`). *Test (to write):* test_concept_progress_line.py.
+
 ## Lines of other specs built here (cited, not copied)
 
 `kg/hermeneutic-layer.md` section D has no build order; its lines are built in the steps below, with their text and
@@ -450,6 +474,14 @@ nothing from the knowledge graph.
 - Size: M
 
 Waits for the writer field and roles (`kg/people-and-lives.md` Step 4.2) and for formula alignment. → #7021
+
+#### Step 1.6 — The contract for passages and spellings; spelling groups corrected and measured
+- Behaviours: `concepts.contract.passages-and-forms-fill-it`, `terms.forms.grouping-corrected-and-measured`
+- Tests: test_step_contract.py, test_form_grouping_measured.py
+- Depends on: 1.2
+- Size: M
+
+Needs `compute/correct-measure-distil.md` Steps 1.1 and 2.1.
 
 ### Stage 2 — Counts as ranges
 
@@ -517,6 +549,14 @@ Engine only. → #7024
 - Size: M
 
 → #7029
+
+#### Step 3.7 — The concept sheet's progress line
+- Behaviours: `concepts.sheet.progress-line`
+- Tests: test_concept_progress_line.py
+- Depends on: 3.4
+- Size: S
+
+Needs `compute/correct-measure-distil.md` Step 3.1.
 
 ### Stage 4 — Citing, and the private check
 
