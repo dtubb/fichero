@@ -841,8 +841,7 @@ class DatabaseEmbeddingMixin:
                     }
                 )
 
-            for doc_id in units_by_doc_id:
-                self._delete_embedding_rows("document_id", doc_id)
+            self._delete_embedding_rows_for_documents(list(units_by_doc_id))
             self.save_vectors(EMBEDDINGS_TABLE, records)
             return set(units_by_doc_id)
         except (RuntimeError, ValueError, OSError, MemoryError) as exc:

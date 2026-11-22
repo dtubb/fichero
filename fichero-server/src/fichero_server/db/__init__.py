@@ -6225,6 +6225,17 @@ class Database(DatabaseEmbeddingMixin):
             table.delete(f"{field} = '{safe_value}'")
         self._invalidate_embedded_doc_ids_cache()
 
+    def _delete_embedding_rows_for_documents(self, document_ids: list[str]) -> None:
+        """Delete the embedding rows of several documents with one ``where`` (one Lance delete, not one per document)."""
+        if not document_ids:
+            return
+        quoted = ", ".join("'" + str(doc_id).replace("'", "''") + "'" for doc_id in document_ids)
+        with self._lance_lock:
+            if EMBEDDINGS_TABLE not in self._lance_tables():
+                return
+            self.lance.open_table(EMBEDDINGS_TABLE).delete(f"document_id IN ({quoted})")
+        self._invalidate_embedded_doc_ids_cache()
+
     def save_embedding(
         self, doc: BaseModel, vector: list[float], text: str | None = None
     ) -> None:
