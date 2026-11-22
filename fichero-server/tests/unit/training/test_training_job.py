@@ -37,7 +37,7 @@ class FakeHub:
         return "historian"
 
     def price_per_hour(self, flavor):
-        return {NOTEBOOK_FLAVOR: 0.4, "l4x1": 0.8, "a10g-large": 1.5}.get(flavor)
+        return {NOTEBOOK_FLAVOR: 0.4, "l4x1": 0.8}.get(flavor)
 
     def cheapest(self, flavors):
         return "l4x1"
@@ -109,6 +109,7 @@ def test_a_training_job_goes_out_runs_and_comes_home_as_a_reader(db, notebook):
     reader = training_job.run(db, _subject(db, started["job_id"]), target=hub, sleep=lambda s: None)
 
     assert started["price_per_hour_usd"] == 0.4
+    assert started["max_cost_usd"] == pytest.approx(0.4 * 4), "price an hour x the 4h limit, the sum the cap was checked with"
     (sent,) = hub.sent
     assert "SM_NPQ_C09_001.xml" in sent and not any("SM_NPQ_C09_002" in name for name in sent)
     assert hub.submitted[0]["flavor"] == NOTEBOOK_FLAVOR and hub.submitted[0]["timeout"] == "4h"
@@ -264,6 +265,7 @@ def test_the_vision_card_trains_on_line_pairs_and_lands_through_the_local_lane(d
     model_id = training_job.run(db, _subject(db, started["job_id"]), target=hub, sleep=lambda s: None)
 
     assert started["flavor"] == "l4x1" and started["price_per_hour_usd"] == 0.8
+    assert started["max_cost_usd"] == pytest.approx(0.8 * 8)
     (sent,) = hub.sent
     assert "pairs.jsonl" in sent and any(name.startswith("SM_NPQ_C10_001_") for name in sent)
     assert not any("SM_NPQ_C10_002" in name for name in sent), "held-out pages never leave"
