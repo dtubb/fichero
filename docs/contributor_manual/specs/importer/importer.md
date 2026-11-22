@@ -426,7 +426,7 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
   was completed by a second drop in 59.5 s with no page twice and its 1,602 folders made once. *Not built:* the
   skip reads every byte of every file already imported to hash it; a file whose path, size and date match what was
   recorded is skipped without a read (today only an online-only cloud file is skipped that way).
-  *Built (#6832):* a file whose path, size and date match what its import recorded is skipped without being opened
+  *Built:* (#6832) a file whose path, size and date match what its import recorded is skipped without being opened
   (`ingest_folder`, `Database.ingest_dedup_source_stamps`, scoped to the destination); a re-drop of six linked JPEGs
   reads no bytes, and a file whose size changed is read and imported again. *Not built:* a file whose date matches
   but whose bytes changed is not noticed.
