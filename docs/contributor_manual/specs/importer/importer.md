@@ -444,7 +444,7 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
   carry their own counts (`queue_stages`, `importers/derivatives.py`). *Not built:* the row's own count moves only
   when an embed job ends (`_progress_tick` is called from `_embed_stage` alone), so it reads 0 of N for the whole
   thumbnail stage (83 s at 500 pages, about 15 min at 5,000) and then runs to N in seconds.
-  *Built (a page with no text):* its thumbnail stage ticks the count, so the count moves as those thumbnails land
+  *Built:* for a page with no text, its thumbnail stage ticks the count, so the count moves as those thumbnails land
   (`_thumbnail_stage`). *Not built:* a page with text still counts when its embed job ends. Test:
   `fichero-server/tests/unit/api/test_post_ingest_derivatives.py`.
 - `importer.scale.edited-image-cache-is-bounded` — **[GAP]** (→ #6834; nearest #1590) an edited page's picture is
