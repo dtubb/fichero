@@ -312,8 +312,10 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
   (`scripts/setup_venv.sh`), and the gate refuses to run the engine's tests in a Python where a bundled runtime does not
   import, naming the module and the command that fixes it; the matrix's YOLO row runs the real detector on the fixture
   pages on the GPU, twice, with one load. *Test:*
-  `fichero-server/tests/unit/llm/test_yolo_runs_for_real.py` (skipped with its reason only where the stock weights are
-  not in the model store; an import failure fails at collection, never skips), and
+  `fichero-server/tests/unit/llm/test_yolo_runs_without_ultralytics.py` (the engine's load and detect path against a fake
+  `ultralytics`, so it runs where none is installed), `fichero-server/tests/unit/llm/test_yolo_real_model.py` (the real
+  weights on a fixture page; marked `real_model`, outside the ladder, skipped with its reason where the stock weights are
+  not in the model store), and
   `fichero-server/tests/unit/packaging/test_ultralytics_declared_6675.py`.
 
 ### C. Loading, residency and speed
@@ -520,7 +522,7 @@ Engine first: the estimate and the five-step factor as a pure function with its 
 
 #### Step 2.1 — YOLO runs for real wherever the engine runs: imported, on the lane, on the right device (#5525)
 - Behaviours: `runtime.yolo.imports-wherever-the-engine-runs`, `runtime.yolo.none-yet`, `runtime.pytorch.device-chosen`
-- Tests: fichero-server/tests/unit/scripts/test_runtime_matrix.py, fichero-server/tests/unit/recipes/test_yolo_regions_card.py, fichero-server/tests/unit/llm/test_yolo_runs_for_real.py
+- Tests: fichero-server/tests/unit/scripts/test_runtime_matrix.py, fichero-server/tests/unit/recipes/test_yolo_regions_card.py, fichero-server/tests/unit/llm/test_yolo_runs_without_ultralytics.py, fichero-server/tests/unit/llm/test_yolo_real_model.py
 - Size: S
 
 The first step of the model loop's layout row (`compute/distillation.md` Stage 2). Built: the detector
