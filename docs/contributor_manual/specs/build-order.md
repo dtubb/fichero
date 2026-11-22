@@ -16,45 +16,47 @@
 6. `activity` — running things and watching them: the Activity pane and window, the one job model. Spec: ui/activity-pane.md
 7. `read-any-hand` — flagship, a small standing measurement lane beside Activity and the runner (owner 2026-11-21): the blind-hands benchmark, the held-out split, calibration; Stage 0 is two weeks of measurement with no product code. Spec: source/read-any-hand.md
 8. `reconstruct-the-record` — flagship, in parallel with `read-any-hand` (owner 2026-11-21): the cross-archive check set first, then the graph of people, places and events measured on it. Spec: kg/reconstruct-the-record.md
-9. `research-operations` — the research pilot (owner 2026-11-21): the builder drives the pilot through the Fichero MCP now (Stage 0); then leads, steps, the brief, catalogue adapters and the Pi and Claude Code hook-up; runs beside the `research` milestone's UX steps. Spec: ui/research-operations.md
-10. `workflows` — running things and watching them: the workflow editor and bar. Spec: ui/workflows.md
-11. `workflow-node-config` — running things and watching them. Spec: ui/workflow-node-config.md
-12. `source-model` — the data model and getting material in
-13. `importer` — the data model and getting material in. Spec: importer/importer.md
-14. `undo-trash-rollback` — the data model and getting material in
-15. `panes-workspaces` — the shell
-16. `modes-to-panes` — the shell
-17. `library-view-modes` — the shell
-18. `sidebar-crud` — the shell
-19. `menus-and-commands` — the shell
-20. `preview-surface` — the shell
-21. `reader-view` — the shell
-22. `kg-store-and-query` — knowledge and finding: one link table of names, statement ends as ids, counts in SQL, bounded walks (2026-11-20 review). Spec: kg/kg-store-and-query.md
-23. `kg-confidence-and-provenance` — knowledge and finding: what a confidence means, where it came from, the extractor taught on this Mac (2026-11-20 review). Spec: kg/kg-confidence-and-provenance.md
-24. `kg-rendering` — knowledge and finding: the graph drawn, inspected and read (2026-11-20 review). Spec: kg/kg-rendering.md
-25. `search-correct-and-fast` — knowledge and finding: search that finds what it says and answers in time (2026-11-20 review). Spec: ui/search.md
-26. `export-roundtrip` — output: what is exported comes back on import (2026-11-20 review). Spec: export/exporter.md
-27. `readers-measured` — getting material in: each reader measured per script, the default chosen from the measures (2026-11-20 review). Spec: source/readers.md
-28. `kg-tables` — knowledge and finding
-29. `kg-readable-representation` — knowledge and finding; the buildable steps sit in the realisation spec, the rulings stay in kg/kg-readable-representation.md. Spec: kg/kg-paragraph-realisation.md
-30. `kg-entity-inspector` — knowledge and finding
-31. `kg-enrichment` — knowledge and finding
-32. `search` — knowledge and finding
-33. `explore` — knowledge and finding
-34. `research` — knowledge and finding
-35. `ai-settings` — engine and providers
-36. `remote-compute` — engine and providers
-37. `transport-http-uds` — engine and providers
-38. `engine-startup-lifecycle` — engine and providers
-39. `audited-action-layer` — engine and providers
-40. `observable-data-layer` — engine and providers
-41. `export-pipeline` — output
-42. `historical-text-normalization` — output
-43. `test-environment-contract` — testing and release
-44. `ui-testing-strategy` — testing and release
-45. `ui-test-harness` — testing and release
-46. `release-and-versioning` — testing and release
-47. `cloud-permission-and-spend` — caps in Settings, images to the cloud, a refusal with a way through. Spec: ai/cloud-permission-and-spend.md
+9. `people-and-lives` — exploring an archive from a person (owner 2026-11-21): the person record with links a person accepts, rejects, splits and merges; the biography page put together from fragments, every line one click from its page; the stitch bench; the life band, who names whom, the archive's shape and gaps; living people; private quality checks only. Stage 1 runs beside `reconstruct-the-record` Stage 0. Spec: kg/people-and-lives.md (kinds of thing and relation: kg/ontological-layer.md)
+10. `concepts-and-terms` — exploring an archive from a word or an idea (owner 2026-11-21): the sources' own terms (vocabulary, concordance, the attestation sheet), counts as ranges with their denominator, the historian's concepts and concept-led search, export for a footnote; the model proposes no concept. Stage 1 needs only text. Spec: explore/concepts-and-terms.md (the historian's layer: kg/hermeneutic-layer.md)
+11. `research-operations` — the research pilot (owner 2026-11-21): the builder drives the pilot through the Fichero MCP now (Stage 0); then leads, steps, the brief, catalogue adapters and the Pi and Claude Code hook-up; runs beside the `research` milestone's UX steps. Spec: ui/research-operations.md
+12. `workflows` — running things and watching them: the workflow editor and bar. Spec: ui/workflows.md
+13. `workflow-node-config` — running things and watching them. Spec: ui/workflow-node-config.md
+14. `source-model` — the data model and getting material in
+15. `importer` — the data model and getting material in. Spec: importer/importer.md
+16. `undo-trash-rollback` — the data model and getting material in
+17. `panes-workspaces` — the shell
+18. `modes-to-panes` — the shell
+19. `library-view-modes` — the shell
+20. `sidebar-crud` — the shell
+21. `menus-and-commands` — the shell
+22. `preview-surface` — the shell
+23. `reader-view` — the shell
+24. `kg-store-and-query` — knowledge and finding: one link table of names, statement ends as ids, counts in SQL, bounded walks (2026-11-20 review). Spec: kg/kg-store-and-query.md
+25. `kg-confidence-and-provenance` — knowledge and finding: what a confidence means, where it came from, the extractor taught on this Mac (2026-11-20 review). Spec: kg/kg-confidence-and-provenance.md
+26. `kg-rendering` — knowledge and finding: the graph drawn, inspected and read (2026-11-20 review). Spec: kg/kg-rendering.md
+27. `search-correct-and-fast` — knowledge and finding: search that finds what it says and answers in time (2026-11-20 review). Spec: ui/search.md
+28. `export-roundtrip` — output: what is exported comes back on import (2026-11-20 review). Spec: export/exporter.md
+29. `readers-measured` — getting material in: each reader measured per script, the default chosen from the measures (2026-11-20 review). Spec: source/readers.md
+30. `kg-tables` — knowledge and finding
+31. `kg-readable-representation` — knowledge and finding; the buildable steps sit in the realisation spec, the rulings stay in kg/kg-readable-representation.md. Spec: kg/kg-paragraph-realisation.md
+32. `kg-entity-inspector` — knowledge and finding
+33. `kg-enrichment` — knowledge and finding
+34. `search` — knowledge and finding
+35. `explore` — knowledge and finding
+36. `research` — knowledge and finding
+37. `ai-settings` — engine and providers
+38. `remote-compute` — engine and providers
+39. `transport-http-uds` — engine and providers
+40. `engine-startup-lifecycle` — engine and providers
+41. `audited-action-layer` — engine and providers
+42. `observable-data-layer` — engine and providers
+43. `export-pipeline` — output
+44. `historical-text-normalization` — output
+45. `test-environment-contract` — testing and release
+46. `ui-testing-strategy` — testing and release
+47. `ui-test-harness` — testing and release
+48. `release-and-versioning` — testing and release
+49. `cloud-permission-and-spend` — caps in Settings, images to the cloud, a refusal with a way through. Spec: ai/cloud-permission-and-spend.md
 
 ## Parked
 
