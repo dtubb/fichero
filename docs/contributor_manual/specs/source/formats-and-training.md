@@ -528,6 +528,7 @@ skipped. What did not hold is the lines below. `→ #N` names the issue that tra
   made on one page; the other 19 carry a page-text span and no segment), as
   `<persName ref="fichero:entity:…">` with no `@resp` or `@cert`, and statements are not written
   at all.
+  **Built:** (#6805; `fichero-server/tests/unit/core/test_export_reads_the_record.py::test_tei_names_say_how_sure_and_what_made_them`) a name written inline carries `@cert` (high, medium or low from the mention's confidence) and `@resp` naming a `<respStmt>` for the person or the provider and model that found it. **Not built:** the mentions with no line (19 of 21 on that page); statements in TEI; `@resp` on a date.
 
 Open questions from the review of 2026-11-20:
 1. May an import restore a person's authorship of a reading when the file is one Fichero wrote

@@ -200,6 +200,7 @@ seven ground-truth files imported, the free name-finder run on one page: 17 name
   `sourceDocument`, `sourceExcerpt` and one flat `confidence` (0.5 on all 17) and neither
   provider, model nor a PROV term (170 triples, 0 `prov:`), so `profile.provenance.prov-o-on-everything`
   (#6439) has nothing to stand on yet.
+  **Built:** (#6805; `tests/unit/core/test_names_and_statements_say_their_maker_6805.py`, `tests/unit/kg/test_rdf_claim_says_its_maker_6805.py`) the claim record carries `made_by`, `confidence` and `curation_state`, the entity record `made_by` and `curation_state`, the mention record `confidence` and `curation_state`; an RDF claim writes `fichero:provider`, `fichero:model`, `fichero:madeByPerson` and `fichero:curationState`. **Not built:** a PROV term in the RDF; an entity's confidence (the model has none).
 - `export.csv-of-names-and-statements` — **[GAP]** (#6439) names, statements and mentions leave
   as CSV with a CSVW description beside each (`profile.tables.csvw-and-parquet`). Today they leave
   as JSONL, Parquet and three workbook sheets (Documents, Entities, Claims); the only CSV the
@@ -261,9 +262,9 @@ tests sit under `fichero-server/tests/unit/`; Swift tests under `fichero/Tests/U
 - Depends on: 1.5
 - Size: M
 
-#### Step 1.7 — Names and statements with their maker (#6805, #5603)
+#### Step 1.7 — Names and statements with their maker (#6805, #5603) (partly built)
 - Behaviours: `export.statements-say-what-made-them`, `source.format.names-in-every-tei`
-- Tests: `test_names_and_statements_with_their_maker_6805.py` in fichero-server/tests/unit/core/ (to write)
+- Tests: `fichero-server/tests/unit/core/test_names_and_statements_say_their_maker_6805.py`, `fichero-server/tests/unit/kg/test_rdf_claim_says_its_maker_6805.py`, `fichero-server/tests/unit/core/test_export_reads_the_record.py::test_tei_names_say_how_sure_and_what_made_them`
 - Depends on: 1.6
 - Size: M
 
