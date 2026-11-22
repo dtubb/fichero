@@ -1432,7 +1432,10 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
 
     def red(msg: str) -> dict | None:  # the manager's approve (an alert) records the refusal and goes on to the green run
         # True: every refusal; a tuple: only one naming an approved test file (an approve binds to the tests its alert named)
-        if approve_red is True or (isinstance(approve_red, tuple) and any(t in msg for t in approve_red)):
+        # 2026-11-22: a refusal naming no test file ("no test file changed", a red run naming only a report) is excused by any
+        # approve at this head; a tuple of files only narrows refusals that name files (kg-conf conf-2 looped on the same sha)
+        names_a_test = bool(re.search(r"[\w./-]+\.py\b", msg))
+        if approve_red is True or (isinstance(approve_red, tuple) and (not names_a_test or any(t in msg for t in approve_red))):
             approved.append(msg)
             return None
         return {"name": "red-on-base", "argv": [], "exit_code": 1, "ok": False, "timed_out": False, "seconds": 0,
