@@ -117,8 +117,8 @@ class TestIIIFPresentationExport:
         assert canvas["type"] == "Canvas"
         # The notes page, and (iiif.export.segments-as-annotations) the page of its lines.
         assert canvas["annotations"] == [
-            {"id": f"/api/iiif/iiif/lines/{doc.id}", "type": "AnnotationPage"},
-            {"id": f"/api/documents/{doc.id}/annotations.jsonld", "type": "AnnotationPage"},
+            {"id": f"http://testserver/api/iiif/iiif/lines/{doc.id}", "type": "AnnotationPage"},
+            {"id": f"http://testserver/api/documents/{doc.id}/annotations.jsonld", "type": "AnnotationPage"},
         ]
 
         exported = client.get(f"/api/documents/{doc.id}/annotations.jsonld")

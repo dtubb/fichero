@@ -129,6 +129,9 @@ class PageSegment:
     confidence: float | None = None
     #: A machine's confidence in the reading written first, 0 to 1; None when none was given.
     reading_confidence: float | None = None
+    #: Who made the reading written first, as `{"type": "Person" | "Software", "name": ...}`; None when
+    #: there is no reading or it names no maker.
+    reading_maker: dict[str, str] | None = None
     #: Anything the format stated that the model has no field for, kept verbatim
     #: (`source.format.keeps-unrecognised`).
     foreign: dict[str, Any] = field(default_factory=dict)

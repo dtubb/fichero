@@ -70,6 +70,14 @@ class PageExport:
 #: PAGE writes them in `custom`, ALTO writes the confidence as `WC` and reports the source lost.
 CUT_FACTS = "fichero:cut"
 
+def _reading_maker(reading: Any) -> dict[str, str] | None:
+    """A reading's maker: the person who wrote it, or the provider and model that read it; None when it names neither."""
+    if str(getattr(reading.provenance_kind, "value", reading.provenance_kind)) == "human":
+        return {"type": "Person", "name": reading.created_by} if reading.created_by else None
+    name = "/".join(p for p in (reading.producer_provider, reading.producer_model) if p)
+    return {"type": "Software", "name": name} if name else None
+
+
 def page_from_library(
     db: Any,
     document_id: str,
@@ -224,6 +232,7 @@ def page_from_library(
                 kind_raw=row.kind_raw,
                 confidence=row.confidence,
                 reading_confidence=items[0].machine_confidence if items else None,
+                reading_maker=_reading_maker(items[0]) if items else None,
                 # What the IMPORT kept because the model has no field for it
                 # (`source.format.keeps-unrecognised`). Read back out here, or a file
                 # imported into a library and then exported loses what the import
