@@ -511,7 +511,7 @@ skipped. What did not hold is the lines below. `→ #N` names the issue that tra
   names, which a TEI re-import does not make into mentions while the TEI report names no loss
   (not compared by that test).
   **Built:** (#6801) the segment types and confidences are handed to PAGE XML, ALTO and TEI; that test does not compare them.
-- `source.format.export-cost` — **[GAP]** (#4943, → #6804) a page's export costs time in step
+- `source.format.export-cost` — **[PARTIAL]** (#4943, → #6804) a page's export costs time in step
   with its file, not its row count times a lookup. Measured: writing and validating take 3 to 5 ms
   a page; building the page (`page_export.py::page_from_library`) takes 130 to 900 ms, a median of
   4 ms a segment, because readings, counting and editorial facts are looked up one segment at a
@@ -519,6 +519,7 @@ skipped. What did not hold is the lines below. `→ #N` names the issue that tra
   pages in three formats is about 35 minutes. Target: the page built once for every format asked
   for, readings and facts read for the page in one query each, under 100 ms for a 150-line page.
   The first TEI export in a process also waits 7 to 8 s for the schema to compile.
+  **Built:** (#6804; `fichero-server/tests/unit/core/test_page_built_once_in_few_queries_6804.py`) a page's readings, reading choices and editorial facts are read once for the page: the database reads of a 3-line and a 40-line page are equal in PAGE XML, ALTO and TEI. **Not built:** the page built once for several formats; a time measured against the 100 ms target.
 - `source.format.names-in-every-tei` — **[PARTIAL]** (#5603, → #6805) every name and date the
   record holds on the page is written inline in TEI with its entity, what found it and how sure.
   Today only a mention anchored to a line is written (2 of the 21 mentions the free name-finder

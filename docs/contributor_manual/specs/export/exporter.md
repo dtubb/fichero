@@ -249,9 +249,9 @@ tests sit under `fichero-server/tests/unit/`; Swift tests under `fichero/Tests/U
 - Tests: fichero-server/tests/unit/api/test_iiif_export_a_viewer_can_open_6806.py
 - Size: M
 
-#### Step 1.5 — The page built once, in a few queries (#6804)
+#### Step 1.5 — The page built once, in a few queries (partly built) (#6804)
 - Behaviours: `source.format.export-cost`
-- Tests: `test_page_built_once_in_few_queries_6804.py` in fichero-server/tests/unit/core/ (to write)
+- Tests: fichero-server/tests/unit/core/test_page_built_once_in_few_queries_6804.py
 - Depends on: 1.2
 - Size: M
 
