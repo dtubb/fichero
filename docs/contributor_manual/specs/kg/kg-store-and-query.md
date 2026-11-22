@@ -176,7 +176,10 @@ makes extraction slow. The 744 tests of `tests/unit/kg`, `tests/unit/knowledge` 
   link table. Code today: `/api/entities/top` and `/api/entities/claim-counts` fetch every
   statement's id list and count with `json.loads` in Python (64 ms at 50,000 statements, and the
   whole dictionary of counts sent to the app); `top_entities` then reads names one `get` at a time.
-  *Test:* `test_entity_counts_from_the_link_table.py` (not yet written).
+  Built: both routes count in `Database.entity_claim_counts` (GROUP BY over `kg_mentions`); `/top` passes its
+  limit and type filter into the query. Not built: `top_entities` still reads each listed name with one `get`;
+  pages per name and names per page have no reader.
+  *Test:* `tests/unit/api/test_entity_counts_from_the_link_table.py`.
 - `kg.query.one-name-costs-what-it-returns` — **[PARTIAL]** (#4975) opening one name costs in
   proportion to that name's statements, not the project's. Built: the drill-down, documents and
   excerpt readers are single SQL scans (`entity_document_link_rows`,
