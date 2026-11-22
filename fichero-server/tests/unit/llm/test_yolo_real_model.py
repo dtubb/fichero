@@ -6,7 +6,7 @@ Ultralytics imports in the Python the tests run under, and the stock layout mode
 Spec: docs/contributor_manual/specs/ai/local-runtimes.md (`runtime.yolo.imports-wherever-the-engine-runs`).
 
 No stand-ins: the real import, the real weights, one fixture page. Skipped, with its reason, only where the stock
-weights are not in this Mac's model store; an import failure fails at collection, never skips. The weights are read
+weights are not in this Mac's model store; an import failure fails the test, never skips. The weights are read
 from the real store and copied into the test's own store, so nothing is written to the real one.
 """
 from __future__ import annotations
@@ -16,10 +16,10 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.real_model
-
 from fichero_server.llm import yolo_runtime
 from tests._real_state_guard import ROOTS
+
+pytestmark = pytest.mark.real_model
 
 _FILE = yolo_runtime.YOLO_MODELS[yolo_runtime.DEFAULT_MODEL][1]
 #: The stock weights in this Mac's real model store (the test base's own store is always empty).
