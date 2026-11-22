@@ -6,7 +6,7 @@ enum SidebarPhone {
     /// Whether this device is a phone: the hardware model names an iPhone (the simulator names its model in the
     /// environment). Foundation only; SwiftUI has no device idiom and a size class is not one (a large iPhone in
     /// landscape is regular width).
-    static var isPhone: Bool {
+    static let isPhone: Bool = {
         #if os(iOS)
         let env = ProcessInfo.processInfo.environment
         if let simulated = env["SIMULATOR_MODEL_IDENTIFIER"] { return simulated.hasPrefix("iPhone") }
@@ -18,7 +18,7 @@ enum SidebarPhone {
         #else
         false
         #endif
-    }
+    }()
 
     /// Whether a row with children is drawn as an expandable group: only off the phone.
     nonisolated static func rowExpandsInPlace(isPhone: Bool) -> Bool {
