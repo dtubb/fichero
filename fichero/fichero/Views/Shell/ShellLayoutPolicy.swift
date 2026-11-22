@@ -171,26 +171,3 @@ enum CompactShellPolicy {
         }
     }
 }
-
-/// The screens of the iPhone drill-down from a file (#6566, owner ruling 2026-11-13):
-/// Sidebar → Items → Source → Reader → Info. Source is the pushed file; `next` is what its bar offers to push.
-/// Back pops one screen, so Reader and Info return to the file.
-enum CompactDocumentStep: CaseIterable, Equatable {
-    case source, reader, info
-
-    var title: String {
-        switch self {
-        case .source: "Source"
-        case .reader: "Reader"
-        case .info: "Info"
-        }
-    }
-
-    var next: [CompactDocumentStep] {
-        switch self {
-        case .source: [.reader, .info]
-        case .reader: [.info]
-        case .info: []
-        }
-    }
-}

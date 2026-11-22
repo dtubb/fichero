@@ -1,7 +1,7 @@
 import Foundation
 
-/// The iPhone's ONE navigation path: any number of folders, then at most one item, then Reader and Info in that
-/// order (each optional).
+/// The iPhone's ONE navigation path: any number of folders, then at most one item. The item's pages are
+/// `ItemPage`, held beside the path.
 /// Every push and every Back is a change to `steps`, so the drill-down is testable with no view.
 struct CompactPath: Equatable {
     private(set) var steps: [CompactStep] = []
@@ -24,25 +24,18 @@ struct CompactPath: Equatable {
         return nil
     }
 
-    /// Whether `steps` is a legal path: folders, then an item, then Reader and Info in that order, each optional.
+    /// Whether `steps` is a legal path: folders, then at most one item.
     static func isValid(_ steps: [CompactStep]) -> Bool {
         let tail = steps.drop { if case .folder = $0 { true } else { false } }
-        guard !tail.isEmpty else { return true }
-        let legal: [[CompactStep]] = [[], [.reader], [.reader, .info], [.info]]
-        guard case .item = tail.first else { return false }
-        return legal.contains(Array(tail.dropFirst()))
+        guard let first = tail.first else { return true }
+        guard case .item = first else { return false }
+        return tail.count == 1
     }
 
     /// Replaces the whole path (the stack's own binding writes here). An illegal path is a programming error.
     mutating func set(_ newSteps: [CompactStep]) {
         precondition(Self.isValid(newSteps), "illegal compact path \(newSteps)")
         steps = newSteps
-    }
-
-    /// Pushes a step; ignored when it is already the last one.
-    mutating func push(_ step: CompactStep) {
-        guard steps.last != step else { return }
-        set(steps + [step])
     }
 
     /// Pushes a folder's screen on top of the folders, from the list `current` shows. Ignored when the path holds an

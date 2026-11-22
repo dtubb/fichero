@@ -48,8 +48,14 @@ class WindowState {
     /// Inspector's Activity section shows while the Activity pane holds the focus.
     var activityPick: ActivityPaneSelection?
 
-    /// The iPhone's ONE navigation path: folders, then an item, then Reader and Info (`ios.nav.one-path`, #6944).
+    /// The iPhone's ONE navigation path: folders, then an item (`ios.nav.one-path`, #6944).
     var compactPath = CompactPath()
+
+    /// The item page last used, for this window while the app runs (`ios.item.page-is-remembered-per-window`, #6947).
+    var compactItemPage = ItemPage.source
+
+    /// Whether the Source picture is zoomed above fit: the item pages do not change page then (#6947).
+    var compactImageZoomed = false
 
     /// Why the last drop onto a library folder cell failed, or nil (#4474).
     /// Rendered by `LibraryView`'s drop alert. The sidebar has the same surface

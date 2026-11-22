@@ -1,8 +1,7 @@
 #if os(iOS)
 import XCTest
 
-/// `ios.nav.one-path` (#6944), `ios.proof.flows-on-a-simulator`: on an iPhone the person goes folder → item → image, Reader
-/// and Info, and Back returns one level each time. Drives the app's REAL root view against the seeded harness engine that
+/// `ios.nav.one-path` (#6944), `ios.proof.flows-on-a-simulator`: on an iPhone the person goes folder → item → image, and Back returns one level each time. Drives the app's REAL root view against the seeded harness engine that
 /// `scripts/run_ios_ui_sim.sh` starts; it FAILS, not skips, when that engine is missing. WRITTEN, NOT RUN: no simulator on
 /// the Pro while the owner works.
 final class IOSDrillDownUITests: XCTestCase {
@@ -28,7 +27,7 @@ final class IOSDrillDownUITests: XCTestCase {
         button.tap()
     }
 
-    func testFolderThenItemThenReaderAndInfoAndBackOneLevelEachTime() throws {
+    func testFolderThenItemThenBackOneLevelEachTime() throws {
         let app = try launchSeededApp()
         XCTAssertTrue(app.otherElements["library.content.ready"].waitForExistence(timeout: 60), "the library never showed")
 
@@ -41,15 +40,6 @@ final class IOSDrillDownUITests: XCTestCase {
         item.tap()
         XCTAssertTrue(app.images.firstMatch.waitForExistence(timeout: 20), "the item's image is not shown")
 
-        app.buttons["Reader"].tap()
-        XCTAssertTrue(app.navigationBars["Reader"].waitForExistence(timeout: 10), "Reader did not open")
-        app.buttons["Info"].tap()
-        XCTAssertTrue(app.navigationBars["Info"].waitForExistence(timeout: 10), "Info did not open")
-
-        back(app)
-        XCTAssertTrue(app.navigationBars["Reader"].waitForExistence(timeout: 10), "Back from Info did not show Reader")
-        back(app)
-        XCTAssertTrue(app.images.firstMatch.waitForExistence(timeout: 10), "Back from Reader did not show the image")
         back(app)
         XCTAssertTrue(row(app, containing: "sample.jpg").waitForExistence(timeout: 10), "Back from the item did not show the list")
     }

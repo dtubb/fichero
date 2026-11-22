@@ -47,6 +47,7 @@ struct ZoomableImagePreview: View {
     @Environment(DocumentStore.self) var documentStore
     @Environment(StorageService.self) var storageService
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    @Environment(WindowState.self) var windowState: WindowState?
 
     @State var scale: CGFloat = 1.0
     @State var cursorPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)
@@ -117,6 +118,17 @@ struct ZoomableImagePreview: View {
     }
 
     var body: some View {
+        body0
+            // The iPhone's item pages stop paging while the picture is zoomed (`ios.item.zoom-wins-over-paging`).
+            .onChange(of: scale) {
+                windowState?.compactImageZoomed = PageSwipe.isZoomedIn(
+                    scale: scale, fitScale: imageCoordinator?.calculateFitScale()
+                )
+            }
+            .onDisappear { windowState?.compactImageZoomed = false }
+    }
+
+    private var body0: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .bottom) {
                 Group {

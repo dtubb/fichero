@@ -12,41 +12,26 @@ final class CompactPathTests: XCTestCase {
         XCTAssertNil(path.itemId)
     }
 
-    func testReaderAndInfoStackOnTheItemAndBackReturnsOneLevelEachTime() {
-        var path = CompactPath()
-        path.open(item: "a")
-        path.push(.reader)
-        path.push(.info)
-        XCTAssertEqual(path.steps, [.item("a"), .reader, .info])
-        XCTAssertEqual(path.itemId, "a", "pushing Reader and Info does not replace the item")
-        path.back()
-        XCTAssertEqual(path.steps, [.item("a"), .reader])
-        path.back()
-        XCTAssertEqual(path.steps, [.item("a")])
-    }
-
     func testOpeningAnotherItemReplacesTheItemAndWhatSitsOnIt() {
         var path = CompactPath()
-        path.set([.folder("f"), .item("a"), .reader])
+        path.set([.folder("f"), .item("a")])
         path.open(item: "b")
         XCTAssertEqual(path.steps, [.folder("f"), .item("b")])
     }
 
     func testOpeningTheSameItemTwiceChangesNothing() {
         var path = CompactPath()
-        path.set([.item("a"), .info])
+        path.set([.item("a")])
         path.open(item: "a")
-        XCTAssertEqual(path.steps, [.item("a"), .info])
+        XCTAssertEqual(path.steps, [.item("a")])
     }
 
     func testLegalAndIllegalPaths() {
         XCTAssertTrue(CompactPath.isValid([]))
-        XCTAssertTrue(CompactPath.isValid([.folder("a"), .folder("b"), .item("c"), .reader, .info]))
-        XCTAssertTrue(CompactPath.isValid([.item("c"), .info]))
-        XCTAssertFalse(CompactPath.isValid([.reader]), "Reader needs an item under it")
+        XCTAssertTrue(CompactPath.isValid([.folder("a"), .folder("b"), .item("c")]))
+        XCTAssertTrue(CompactPath.isValid([.item("c")]))
         XCTAssertFalse(CompactPath.isValid([.item("a"), .folder("b")]), "a folder never sits on an item")
         XCTAssertFalse(CompactPath.isValid([.item("a"), .item("b")]), "at most one item")
-        XCTAssertFalse(CompactPath.isValid([.item("a"), .info, .reader]), "Reader is pushed before Info")
     }
 
     // MARK: - ios.nav.folders-push, ios.nav.back-is-one-step (#6945)
@@ -78,8 +63,6 @@ final class CompactPathTests: XCTestCase {
         var path = CompactPath()
         path.pushFolder("A", from: "root")
         path.open(item: "x")
-        path.push(.reader)
-        path.back()
         path.back()
         XCTAssertEqual(path.steps, [.folder("A")])
         XCTAssertEqual(path.currentFolderId, "A")
