@@ -573,7 +573,7 @@ search route is not called by the app.
   rule: the graph parts and the scope NARROW (which pages and statements may be shown); words and
   meaning RANK inside what is left; when no graph part is given, the graph only helps rank (today's
   Semantic + Graph). A row says each way it was found (word, meaning, name, statement), as it does now.
-- `search.graph.names-lead-to-their-pages` — **[BUILT]** (#1833, → #6786) the step that follows the
+- `search.graph.names-lead-to-their-pages` — **[BROKEN]** (#1833, → #6786) the step that follows the
   names nearest a query to the pages of their statements, so a page is found though its text never has
   the word, never runs: it reads the name hits as objects and they are plain records, so each one fails
   and is skipped, with one warning in the log per search
@@ -581,8 +581,8 @@ search route is not called by the app.
   test passes because it only checks the hit if the hit is there. Test to write: the existing graph-leg
   test asserts the page is found by the graph, with no condition.
   Built: the graph leg reads the entity hits as the plain records they are; pinned by
-  test_graph_leg_finds_the_page_of_a_named_entity.py. (The older graph-leg case in test_routes_search.py
-  still has an `if via == graph` condition and needs the embedding model.)
+  test_graph_leg_finds_the_page_of_a_named_entity.py. Not built: the older graph-leg case in
+  test_routes_search.py still has an `if via == graph` condition and needs the embedding model.
 - `search.graph.own-route` — **[PARTIAL]** (#2571, → #6788) `GET /api/kg/search` looks for letters in
   every name, statement, note and annotation by reading them all, lower-cased but not folded (an
   accented name is missed unless an alias is plain); it is off below the beta tier and nothing in the
@@ -612,7 +612,7 @@ sources; it is a dev-tier feature, off in a release build, and the search field 
   written-date range of `search.graph.date-range`, shown as a part of the search that can be removed.
   Built: the route sends the written-date range (`date_jdn_from`, `date_jdn_to`). Not built: showing it
   as a part of the search that can be removed (app side).
-- `search.ask.uses-the-chosen-text-model` — **[BUILT]** (#5368, → #6791) the model that turns the
+- `search.ask.uses-the-chosen-text-model` — **[BROKEN]** (#5368, → #6791) the model that turns the
   question into a search is looked up among provider rows in the project's database, where there are
   none, so it is always the on-device model whatever Settings says (chat reads the app's default
   correctly). In an engine run from source the on-device bridge is also looked for one folder too high
