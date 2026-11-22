@@ -453,7 +453,7 @@ skipped. What did not hold is the lines below. `→ #N` names the issue that tra
   pixel, 124 of the eScriptorium file's 125 outlines written, a box written as a box). Measured
   2026-11-20, before #6799: 0 `Polygon` elements in 10 exports of 1,044 Kraken lines and in 6
   re-exports of ALTO files that arrived with 124 to 148 line polygons each.
-- `source.format.kind-raw-out` — **[PARTIAL]** (#4943, #6749, #6801; pinned by `tests/unit/formats/test_type_and_confidence_reach_the_writers_6801.py`) a segment's own type
+- `source.format.kind-raw-out` — **[PARTIAL]** (#4943, #6749, → #6801) a segment's own type
   (`Segment.kind_raw`: a SegmOnto zone or line type, a layout model's label, Kraken's region type)
   is written in each format's own place: ALTO as a declared `OtherTag` the element references,
   PAGE XML as `custom="structure {type:…;}"`, TEI as `@type` on the zone. A type the file itself
@@ -462,13 +462,13 @@ skipped. What did not hold is the lines below. `→ #N` names the issue that tra
   ALTO with their 4 to 6 zone types and 133 to 155 references each, and to PAGE XML and TEI with
   none; the Transkribus page's 48 structure types reach PAGE XML and neither ALTO nor TEI; a Kraken
   pass's region type (`text`) reaches no file. None of it is in a loss report.
-  **Built (#6801):** PAGE XML, ALTO and TEI write the type of a library page's segment. **Not built:** hOCR and YOLO.
-- `source.format.confidence-out` — **[PARTIAL]** (#4943, #6801; pinned by `tests/unit/formats/test_type_and_confidence_reach_the_writers_6801.py`) a shape's confidence and a
+  **Built:** (#6801; `tests/unit/formats/test_type_and_confidence_reach_the_writers_6801.py`) PAGE XML, ALTO and TEI write the type of a library page's segment. **Not built:** hOCR and YOLO.
+- `source.format.confidence-out` — **[PARTIAL]** (#4943, → #6801) a shape's confidence and a
   reading's confidence go out where the format has a place (PAGE `Coords@conf` and
   `TextEquiv@conf`, ALTO `String@WC`, TEI `@cert`), and are a named loss where it has none. Today
   only a cut word's confidence is written (`page_export.py::CUT_FACTS`); 0 of 30 PAGE exports
   carry a `conf`.
-  **Built (#6801):** PAGE XML writes both; ALTO writes a reading's confidence on a word and on a line's own
+  **Built:** (#6801; `tests/unit/formats/test_type_and_confidence_reach_the_writers_6801.py`) PAGE XML writes both; ALTO writes a reading's confidence on a word and on a line's own
   String and names the rest as lost; TEI's `@cert` is high, medium or low, not a number, so TEI names both as
   lost. **Not built:** hOCR and YOLO.
 - `source.format.who-made-it-out` — **[GAP]** (#4943, → #6802) a file says what made the pass and
@@ -509,7 +509,7 @@ skipped. What did not hold is the lines below. `→ #N` names the issue that tra
   field for them: `source.format.kind-raw-out`, `source.format.confidence-out`, → #6801); and TEI's
   names, which a TEI re-import does not make into mentions while the TEI report names no loss
   (not compared by that test).
-  **Built (#6801):** the segment types and confidences are handed to PAGE XML, ALTO and TEI; that test does not compare them.
+  **Built:** (#6801) the segment types and confidences are handed to PAGE XML, ALTO and TEI; that test does not compare them.
 - `source.format.export-cost` — **[GAP]** (#4943, → #6804) a page's export costs time in step
   with its file, not its row count times a lookup. Measured: writing and validating take 3 to 5 ms
   a page; building the page (`page_export.py::page_from_library`) takes 130 to 900 ms, a median of
