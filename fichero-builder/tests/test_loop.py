@@ -1763,3 +1763,31 @@ def test_any_other_red_still_gets_the_plain_fix_brief(state):
     fake = Fake(chains={"1.1": [{"ok": False, "kind": "red", "why": "pytest red", "findings": "failed rung: pytest\nt1 failed"}]})
     queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
     assert "part2" not in fake.sent[0] and "t1 failed" in fake.sent[0]
+
+
+def test_the_same_head_going_on_by_itself_after_an_approve_runs_the_recheck_with_the_approval_for_the_named_files(state):
+    """#6589 2026-11-21 (perf-1): `auto-approve` said the same head goes on, and the re-check refused red-on-base again: the approve
+    was recorded at head "" and the step's head was set later, so the flag stood but _approved was false."""
+    lane(state)
+    full = "ab12cd34e" + "5" * 31
+    red = {"ok": False, "kind": "red-on-base", "why": f"red-on-base at {full[:9]}: NOT RED ON BASE: t/test_x.py passes", "judged": full}
+    fake = Fake(chains={"1.1": [dict(red), dict(red)]})
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    (a,) = _alerts()
+    lanes = queue.load()
+    lanes[0]["steps"][0]["head"] = ""  # the approve is recorded while the step has no head
+    queue.save(lanes)
+    assert queue.answer(a["id"], "approve")[0] == 0
+    lanes = queue.load()
+    lanes[0]["steps"][0]["head"] = full  # a head set later: the stored approve lapses
+    queue.save(lanes)
+    assert not queue._approved(steps()["1.1"], "approve_red")
+    seen, base_chain = [], fake.procs.chain
+
+    def chain(lane_, step, stage):  # what the re-check's ladder is handed
+        seen.append((queue._approved(step, "approve_red"), queue.content_approvals(step, str(state))["approve_red"]))
+        return base_chain(lane_, step, stage)
+    fake.procs.chain = chain
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert [r for r in journal.read() if r["event"] == "queue" and r.get("state") == "auto-approve"]
+    assert seen[1] == (True, ("t/test_x.py",)), "the re-check of the same head runs with the approval for the named file"

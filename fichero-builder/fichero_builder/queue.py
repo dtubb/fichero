@@ -583,6 +583,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             # the same reason go on once by themselves, then it blocks as before (an approve that did not take effect must not loop)
             once.append(f"{judged}:{r['kind']}")
             _set_approval(s, r["kind"], r.get("approvals"))
+            s["approved_head"] = s.get("head", "")  # the flag counts only at its approved head (_approved): a head set since the approve must not void it
             journal.append("queue", lane=lane["id"], step=s["step"], state="auto-approve", detail=f"{r['kind']} at {judged[:9]} was approved: the same head goes on by itself")
             move(s, "done", f"{r['kind']} at {judged[:9]} was approved already: the check runs again with that approval")
             return True
