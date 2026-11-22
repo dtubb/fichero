@@ -29,6 +29,14 @@ from fichero_server.models import AccountUser, DocType, Document, FileType, KGGr
 from tests._real_state_guard import skip_without_embedding_model
 
 
+@pytest.fixture(autouse=True)
+def _models_dir_in_tmp(tmp_path, monkeypatch):
+    """Where the embedding model is absent, loading it makes its cache folder; keep that under tmp_path."""
+    from fichero_server.llm import local_models
+
+    monkeypatch.setattr(local_models, "MODELS_BASE", tmp_path / "models")
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
