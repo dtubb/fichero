@@ -163,3 +163,15 @@ def test_live_spend_sums_other_sessions_fresh_files_of_today_only(tmp_path):
     now = (d / "a.json").stat().st_mtime + 10
     assert watcher.live_spend(d, "2026-11-21", "me", now) == 3.5
     assert watcher.live_spend(tmp_path / "none", "2026-11-21", "me", now) == 0
+
+
+def test_live_spend_skips_a_file_that_is_malformed_or_cannot_be_read(tmp_path):
+    """#6871: a run's live file deleted between the listing and the read, or a stray non-JSON file, must not end the watcher."""
+    import json
+    d = tmp_path / "live"
+    d.mkdir()
+    (d / "ok.json").write_text(json.dumps({"usd": 1.0, "day": "2026-11-21"}))
+    (d / "junk.json").write_text("not json")
+    (d / "unreadable.json").mkdir()  # read_text raises OSError, as a vanished file does
+    now = (d / "ok.json").stat().st_mtime + 10
+    assert watcher.live_spend(d, "2026-11-21", "me", now) == 1.0

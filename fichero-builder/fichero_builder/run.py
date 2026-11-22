@@ -258,7 +258,10 @@ def run(root, worktree, brief, *, name: str, model: str = "sonnet", kind: str = 
                 journal.append("watch", task=name, what=f"alert: rules unreadable: {e}"[:300])
                 out(f"{name}: rules unreadable, keeping the last caps: {e}")
             rules_bad = True
-        _live(name, watcher.cost_of(state, spend, model))
+        try:
+            _live(name, watcher.cost_of(state, spend, model))
+        except OSError as e:  # the other runs miss this run's figure for a tick; the watch goes on
+            journal.append("watch", task=name, what=f"alert: live spend not written: {e}"[:300])
         decisions = watcher.assess(state, spend, model, spent_today=_spent_today(name), silent_for_s=now - last_change)
         for d in decisions:
             kind_of = d.split(":")[0]  # one row per kind of decision, not one per tick

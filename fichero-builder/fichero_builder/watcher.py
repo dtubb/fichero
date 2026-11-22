@@ -117,9 +117,12 @@ def live_spend(d, today: str, exclude: str, now: float) -> float:
     `<d>/<name>.json` = {"usd", "day"} each run rewrites every tick; only today's, changed within LIVE_STALE_S, not `exclude`'s."""
     total = 0.0
     for f in Path(d).glob("*.json") if Path(d).is_dir() else ():
-        if f.stem == exclude or now - f.stat().st_mtime > LIVE_STALE_S:
+        try:  # another run deletes its file when it ends: a vanished or unreadable file is not a spend
+            if f.stem == exclude or now - f.stat().st_mtime > LIVE_STALE_S:
+                continue
+            doc = json.loads(f.read_text())
+        except (OSError, ValueError):
             continue
-        doc = json.loads(f.read_text())
         if doc.get("day") == today:
             total += float(doc.get("usd", 0))
     return total
