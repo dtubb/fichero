@@ -668,6 +668,8 @@ def import_folder_impl(
         db=db,
         package_path=package_path,
         skip_paths=(set(plan.pairs) | set(plan.pages)) if plan else None,
+        # Each batch's jobs are written in the transaction that saves its pages (#6829).
+        on_saved=lambda saved: queue_derivatives(saved, library_path=package_path, db=db),
     )
     if plan is not None:
         read: list[tuple[Path, str, str]] = []
@@ -678,9 +680,6 @@ def import_folder_impl(
             from fichero_server import sync_folder
 
             sync_folder.adopt(db, path.resolve(), read)
-    # Queued after the whole folder lands rather than per file: the queue is
-    # bounded (#4225) and the ingest loop must not block on it.
-    queue_derivatives(docs, library_path=package_path, db=db)
     not_arranged = _arrange_new_folders(db, docs, request.parent_id, ctx)
     if not_arranged and interchange_report is not None:
         interchange_report["not_arranged"] = not_arranged
