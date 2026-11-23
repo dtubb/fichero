@@ -65,7 +65,7 @@ remote_guards = "auto"
 # manager 2026-11-06 t88: the build rung on the M1 Air (its own derived data under ~/fichero-gate), so the Pro stays the owner's; the Air
 # unreachable, or a red there that names no Swift source error, builds here as before
 build_remote = "m4:~/fichero-gate"  # 2026-11-09: the M4 (Xcode 27, derived data on its Dev Disk); the Air stays in remote above
-remote_min_free_gb = 6  # manager 2026-11-06: a runner under 6 GiB free is skipped
+remote_min_free_gb = 4  # manager 2026-11-22: checks need about 1-2 GB of /tmp; the M4 internal disk sits near 5 GB with the work on its external disk
 pytest_plugins = ["anyio.pytest_plugin", "_hypothesis_pytestplugin", "langsmith.pytest_plugin", "pytest_timeout", "pytest_asyncio.plugin"]
 
 # A diff under build_paths compiles the app (build only, never a test run: a test run quits the owner's app) in the
