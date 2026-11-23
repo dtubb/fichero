@@ -1620,7 +1620,7 @@ def perf(root, since: str, changed: list[str], cfg: Config) -> dict:
                                                        (row.get("stderr_tail") or "")[-300:]], {"results": [row]})
     res = json.loads(m.group(1))
     lines = [*res.get("reds", []), *[f"finding: new own frame in the top ten: {f}" for f in res.get("findings", [])],
-             *[f"falls: {f}" for f in res.get("falls", [])],
+             *[f"falls: {f}" for f in res.get("falls", [])], *[f"change: {c}" for c in res.get("changes", [])],
              *[f"recorded (report-only, commit to scripts/perf_baseline.json): {k} = {v['median']:g}" for k, v in (res.get("recorded") or {}).items()], *([res["void"]] if res.get("void") else [])]
     return _report_only("perf", cfg.perf, bool(res.get("ok")), lines or ["engine perf: every figure within its tolerance"], {"results": [row]})
 

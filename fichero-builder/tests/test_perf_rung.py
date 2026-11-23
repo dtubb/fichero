@@ -182,3 +182,16 @@ def test_a_perf_run_that_could_not_measure_is_red_even_report_only_but_a_slow_nu
     assert not r["ok"] and "REFUSED: the perf run printed no PERF-RESULT line" in r["stdout_tail"]
     slow = check_tool._report_only("perf", {"enforce": False}, False, ["median 130 ms over 100"])
     assert slow["ok"] and not slow.get("not_run")
+
+
+def test_the_result_carries_bytes_written_and_says_each_figures_change_against_the_base_in_percent():
+    """#6600: time, peak RSS and the disk the workload added are each compared with the base and the change is said in %."""
+    base = {**BASE, "figures": {**BASE["figures"], "written_kib|engine perf run|Mac16,10": {"median": 2000.0}}}
+    figs = {"benchmarks": perf_rung.read_benchmarks(_bench(104.0)), "peak_rss_mb": 1020.0, "disk_kib": {}, "written_kib": 2500.0, "top": []}
+    out = perf_rung.judge(figs, base, "Mac16,10", "nominal")
+    assert out["ok"], out["reds"]
+    text = "\n".join(out["changes"])
+    assert "104 vs base 100 (+4.0%)" in text and "1020 vs base 1000 (+2.0%)" in text and "2500 vs base 2000 (+25.0%)" in text
+    fresh = perf_rung.judge(figs, BASE, "Mac16,10", "nominal")
+    assert "written_kib" in "\n".join(fresh["changes"]) and "no base yet" in "\n".join(fresh["changes"])
+    assert fresh["recorded"]["written_kib|engine perf run|Mac16,10"] == {"median": 2500.0} and fresh["ok"], "a first figure is recorded, never a red"

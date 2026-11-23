@@ -98,7 +98,7 @@ def judge(figures: dict, baseline: dict, model: str, thermal: str | None, idle: 
     REFUSED (a red the caller must show), never a pass."""
     t = trial(root)
     tol = baseline.get("tolerances") or {}
-    out = {"ok": True, "reds": [], "findings": [], "falls": [], "void": "", "recorded": {}}
+    out = {"ok": True, "reds": [], "findings": [], "falls": [], "void": "", "recorded": {}, "changes": []}
     if not model or thermal not in t.READABLE_THERMAL:
         out["ok"] = False
         out["reds"].append("REFUSED: " + ("no machine model" if not model else "the thermal state could not be read") + ": a gate that cannot read its input fails")
@@ -129,6 +129,17 @@ def judge(figures: dict, baseline: dict, model: str, thermal: str | None, idle: 
                                f"{(baseline.get('figures') or {}).get(key, {}).get('median', 0):g}) on {model}")
         elif "lower the file" in reason:
             out["falls"].append(reason)
+    # the change against the base, said in %: time and RSS (judged above) and the disk the workload added (said, not judged: no tolerance)
+    seen = [("wall_ms", n, v) for n, v in sorted(figures.get("benchmarks", {}).items())]
+    if figures.get("peak_rss_mb") is not None:
+        seen.append(("peak_rss_mb", "engine perf run", figures["peak_rss_mb"]))
+    if figures.get("written_kib") is not None:
+        seen.append(("written_kib", "engine perf run", figures["written_kib"]))
+        if f"written_kib|engine perf run|{model}" not in (baseline.get("figures") or {}):
+            out["recorded"][f"written_kib|engine perf run|{model}"] = {"median": float(figures["written_kib"])}
+    for measure, scenario, value in seen:
+        was = ((baseline.get("figures") or {}).get(f"{measure}|{scenario}|{model}") or {}).get("median")
+        out["changes"].append(f"{measure} {scenario}: {value:g}" + (f" vs base {was:g} ({(float(value) - was) / was * 100:+.1f}%)" if was else " (no base yet)"))
     out["findings"] = new_own_frames(figures.get("top", []), baseline.get("top", []))
     return out
 
