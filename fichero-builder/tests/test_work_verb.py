@@ -867,3 +867,17 @@ def test_a_review_started_by_do_review_leaves_its_dirs_where_the_sweep_looks(tmp
     (tmp_path / "harness.toml").write_text("")
     f, n, _ = scratch.list_step(tmp_path)
     assert n == 1 and str(left) in f.read_text()
+
+
+def test_batches_sharing_only_generated_contract_files_get_two_slots_and_one_sharing_a_source_file_waits_with_a_row(scratch):
+    """#6589: the contract files every route change regenerates never make two checks wait; a shared source file still does, and
+    a wait on a clash with a free slot is one `lock` row naming the file."""
+    gen = list(work.GENERATED_CLASH_FREE)
+    with work.ladder_slot("a", ["a.py", *gen], 3) as s1:
+        with work.ladder_slot("b", ["b.py", *gen], 3) as s2:
+            assert s1 != s2
+        with pytest.raises(_Waited):
+            with work.ladder_slot("c", ["a.py", *gen], 3, sleep=_stop):
+                pass
+    rows = [r for r in journal.read() if r.get("event") == "lock" and r.get("state") == "clash"]
+    assert len(rows) == 1 and "a.py" in rows[0]["detail"] and not any(g in rows[0]["detail"] for g in gen) and rows[0]["holder"] == "a"

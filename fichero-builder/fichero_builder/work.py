@@ -457,15 +457,30 @@ def _base_moved(a, branch: str, head: str) -> bool:
     return r.returncode == 1
 
 
+# The files a route change regenerates (the outputs of `[check].regen` and its sync script). Two batches that share only these do not
+# wait for each other: landing rebases and regenerates them, and the contract-current rung catches a stale one.
+GENERATED_CLASH_FREE = frozenset({
+    "docs/contributor_manual/api-reference/openapi.json",
+    "fichero-cli/src/fichero_cli/openapi_surface_generated.py",
+    "fichero-mcp/src/fichero_mcp/openapi_tools_generated.py",
+    "fichero-server/tests/contracts/endpoints.json",
+    "fichero-server/tests/contracts/openapi.json",
+    "fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json",
+    "fichero/fichero-api-client/Sources/FicheroAPIClient/ContractIdentity.generated.swift",
+    "fichero-server/src/fichero_server/api/contract_identity_generated.py",
+    "fichero/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist",
+})
+
+
 @contextlib.contextmanager
 def ladder_slot(name: str, files: list[str], n: int, sleep=time.sleep):
     """Speed 3 (manager 2026-11-02): up to n ladders at once ([check].parallel), never two whose batches share a file (an
     unknown file list shares every file). The slot's files sit beside its lock while it runs; a slot whose lock is free is
     not running, whatever file it left. A wait over Lock.WARN_S is one row, like the single lock's."""
-    t0, said, state = time.time(), False, Path(journal.STATE)
+    t0, said, clashed, state = time.time(), False, False, Path(journal.STATE)
     while True:
         with journal.Lock("ladder-pick"):  # pick and claim as one step: two chains never both see the other's slot empty
-            free, clash = None, ""
+            free, clash, shared = None, "", set()
             for slot in journal.ladder_slots(n):
                 lk = journal.Lock(slot, wait=False, what=f"the check of {name}")
                 try:
@@ -476,8 +491,8 @@ def ladder_slot(name: str, files: list[str], n: int, sleep=time.sleep):
                         o = json.loads(other.read_text())
                     except (OSError, ValueError):
                         o = {"name": "?", "files": []}
-                    if not files or not o["files"] or set(files) & set(o["files"]):
-                        clash = o["name"]
+                    if not files or not o["files"] or (both := (set(files) & set(o["files"])) - GENERATED_CLASH_FREE):
+                        clash, shared = o["name"], (both if files and o["files"] else {"(an unknown file list)"})
                     continue
                 if free is None:
                     free = (slot, lk)
@@ -486,6 +501,10 @@ def ladder_slot(name: str, files: list[str], n: int, sleep=time.sleep):
             if free and clash:
                 free[1].__exit__()
                 free = None
+                if not clashed:  # a slot was free and the batch still waited: one row, so the cost of the rule can be measured
+                    clashed = True
+                    journal.append("lock", state="clash", name="ladder", holder=clash, what=f"the check of {name}", pid=os.getpid(),
+                                   detail=f"a ladder slot is free, but its batch shares {', '.join(sorted(shared))} with the check of {clash}")
             if free:
                 (state / f"{free[0]}.files").write_text(json.dumps({"name": name, "files": files}))
         if free:
