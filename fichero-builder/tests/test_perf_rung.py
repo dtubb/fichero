@@ -156,17 +156,29 @@ def test_a_rung_that_did_not_measure_is_not_run_never_green_and_names_why(tmp_pa
     # perf(): None is "runner down"; a refused tool and a missing file are named, each with the remote stderr, never "unreachable"
     monkeypatch.setattr(check_tool, "_remote_build", lambda *a, **k: None)
     r = check_tool.perf(tmp_path, "a", eng, _perf_cfg())
-    assert r["ok"] and r["not_run"] and "not-run: runner down" in r["stdout_tail"]
+    assert not r["ok"] and r["not_run"] and "not-run: runner down" in r["stdout_tail"]
     def env_red(err):
         return {"ok": False, "skipped": False, "remote_env_red": True, "remote": "m4", "results": [{"exit_code": 1, "stderr_tail": err, "stdout_tail": ""}]}
 
     monkeypatch.setattr(check_tool, "_remote_build", lambda *a, **k: env_red("ModuleNotFoundError: No module named pytest_benchmark"))
     r = check_tool.perf(tmp_path, "a", eng, _perf_cfg())
-    assert r["ok"] and r["not_run"] and "not-run: perf tool refused" in r["stdout_tail"] and "pytest_benchmark" in r["stdout_tail"]
+    assert not r["ok"] and r["not_run"] and "not-run: perf tool refused" in r["stdout_tail"] and "pytest_benchmark" in r["stdout_tail"]
     assert "unreachable" not in r["stdout_tail"]
     monkeypatch.setattr(check_tool, "_remote_build", lambda *a, **k: env_red("FileNotFoundError: [Errno 2] No such file or directory: 'scripts/perf_baseline.json'"))
     r = check_tool.perf(tmp_path, "a", eng, _perf_cfg())
-    assert r["ok"] and r["not_run"] and "not-run: scripts/perf_baseline.json missing on the runner" in r["stdout_tail"]
+    assert not r["ok"] and r["not_run"] and "not-run: scripts/perf_baseline.json missing on the runner" in r["stdout_tail"]
     # every one is a journal row with state not-run and an id
     rows = [x for x in journal.read() if x.get("state") == "not-run" and x.get("rung") == "perf"]
     assert len(rows) == 3 and all(x.get("id") for x in rows) and len({x["id"] for x in rows}) == 3
+
+
+def test_a_perf_run_that_could_not_measure_is_red_even_report_only_but_a_slow_number_is_not(tmp_path, monkeypatch):
+    """#6600: report-only forgives a slow figure, never a missing one (2026-11-23: no PERF-RESULT line, pytest exit 1, and the rung counted ok)."""
+    from fichero_builder import check_tool, journal
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    row = {"name": "perf", "ok": True, "exit_code": 1, "stdout_tail": "no result here", "stderr_tail": "pytest exit 1", "timed_out": False}
+    monkeypatch.setattr(check_tool, "_remote_build", lambda *a, **k: {"ok": True, "skipped": False, "results": [row]})
+    r = check_tool.perf(tmp_path, "a", ["fichero-server/src/x.py"], _perf_cfg())
+    assert not r["ok"] and "REFUSED: the perf run printed no PERF-RESULT line" in r["stdout_tail"]
+    slow = check_tool._report_only("perf", {"enforce": False}, False, ["median 130 ms over 100"])
+    assert slow["ok"] and not slow.get("not_run")

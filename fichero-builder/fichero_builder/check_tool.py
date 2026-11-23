@@ -1560,12 +1560,14 @@ def _rung_alert(name: str, detail: str) -> None:
 
 
 def _report_only(name: str, cfg_table: dict, ok: bool, lines: list[str], extra: dict | None = None) -> dict:
-    """A rung row. Enforcing, a red is red; report-only, it stays green and says what it would have said, and an alert row is journalled."""
+    """A rung row. Enforcing, a red is red; report-only, it stays green and says what it would have said, and an alert row is journalled.
+    The perf rung is red whenever it measured nothing (REFUSED / not-run lines), enforcing or not."""
     enforce = bool(cfg_table.get("enforce", False))
     if not ok and not enforce:
         _rung_alert(name, f"{name} (report-only) would be red: " + "; ".join(lines))
     refused = any(x.startswith(("REFUSED", "not run", "not-run")) for x in lines)  # a refused rung measured nothing: "not run", never green
-    return {"ok": ok or not enforce, "skipped": False, "enforced": enforce, "stdout_tail": "\n".join(lines)[-3500:], "stderr_tail": "",
+    missing = refused and name == "perf"  # #6600: report-only forgives a slow figure, never a missing one: a perf run that measured nothing is red
+    return {"ok": (ok or not enforce) and not missing, "skipped": False, "enforced": enforce, "stdout_tail": "\n".join(lines)[-3500:], "stderr_tail": "",
             "results": [], **({"not_run": True} if refused else {}), **(extra or {})}
 
 
