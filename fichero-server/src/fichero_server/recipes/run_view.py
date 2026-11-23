@@ -193,7 +193,25 @@ def _kept_timing(kept: list[list[Any]]) -> tuple[StepTiming, list[tuple[datetime
                       seconds_per_page=round(statistics.median(pages), 1) if pages else None), spans
 
 
+#: An ended run's timings, kept by the run and what its steps ended as (a step retried after the end changes the key):
+#: the list of runs reads each ended run's timeline once, not on every poll (#6812).
+_ENDED_TIMINGS: dict[tuple, tuple[Optional[float], dict[int, StepTiming]]] = {}
+
+
 def _timings(db: Any, status: dict[str, Any]) -> tuple[Optional[float], dict[int, StepTiming]]:
+    """`_read_timings`, kept for a run that has ended."""
+    if status.get("state") not in ("done", "failed", "cancelled"):
+        return _read_timings(db, status)
+    key = (str(getattr(db, "path", "")), status.get("job_id"), status["state"],
+           tuple((s.get("state"), s.get("child_id"), len(s.get("batch_jobs") or []), len(s.get("embed_jobs") or [])) for s in status["steps"]))
+    if key not in _ENDED_TIMINGS:
+        out = _read_timings(db, status)
+        if out != (None, {}):  # a read that failed gives none: asked again next poll
+            _ENDED_TIMINGS[key] = out
+    return _ENDED_TIMINGS.get(key, (None, {}))
+
+
+def _read_timings(db: Any, status: dict[str, Any]) -> tuple[Optional[float], dict[int, StepTiming]]:
     """The run's seconds and each step's timing, by the step's place in the run, from the rows: each batch's job and the
     page jobs under it (`recipes-run.timing.page-time-is-the-page-job`, `survives-pause-and-restart`, #6809); Search, from
     its embed jobs (`embed_jobs`); Leave Out, from the runs it kept (`spans`). The run's seconds: the time any of its steps ran. Bookkeeping: a library that cannot be
