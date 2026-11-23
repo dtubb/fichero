@@ -38,3 +38,17 @@ def test_a_cell_is_the_effective_value_own_else_inherited_never_guessed(db, tmp_
     own, inherited = _rows(db, tmp_path, box)
     assert own[5:7] == ["T", "Propia"] and inherited[5:7] == ["", "Archivo Z"]
     assert inherited[7:] == ["", "", "", "", "", ""]  # nothing invented: date, places, people, description, problems, subjects
+
+
+def test_people_print_by_the_declarations_name_order_from_the_entitys_names(db, tmp_path):
+    from fichero_server.models.knowledge import EntityType, KnowledgeEntity
+
+    db.save(KnowledgeEntity(canonical_name="Ana Mora", entity_type=EntityType.person,
+                            metadata={"given_names": "Ana", "surnames": "Mora"}))
+    db.save(KnowledgeEntity(canonical_name="Fray Luis", entity_type=EntityType.person, metadata={"given_names": "Luis"}))
+    box = folder(db, "Caja", proto="eap_box")
+    folder(db, "Carta", box.id, seq=1, attrs={"catalogue_people": ["Ana Mora", "Fray Luis", "Pedro Luna"]})
+    out = tmp_path / "c.xlsx"
+    export_catalogue_xlsx(db, out, box.id)
+    rows = read_xlsx(out)[0]["Caja Catalogación básica"]
+    assert "Mora, Ana|Fray Luis|Pedro Luna" in rows[3]  # a split name by surname first; the rest as written

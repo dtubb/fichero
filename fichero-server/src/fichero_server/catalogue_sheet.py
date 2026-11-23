@@ -308,9 +308,22 @@ def _description(db: Any, folder: Document) -> str:
     return (art.content or "") if art is not None else ""
 
 
-def _list_cell(value: Any, column: Column) -> str:
+def _by_name_order(name: str, column: Column, known: Facts | None) -> str:
+    """A person as the declaration's `name_order` prints them: "surname_first" gives "Surnames, Given" from the entity's
+    `surnames` and `given_names`; a name with no split surname, or no entity, prints as written."""
+    if column.name_order != "surname_first" or known is None:
+        return name
+    for entity in known.entities.get(fold(name), []):
+        record = entity.metadata or {}
+        if record.get("surnames"):
+            return f"{record['surnames']}, {record.get('given_names') or ''}".rstrip(", ")
+    return name
+
+
+def _list_cell(value: Any, column: Column, known: Facts | None = None) -> str:
     labels = column.option_labels.get("en", {})
     items = value if isinstance(value, list) else [value]
+    items = [_by_name_order(str(i), column, known) for i in items]
     return (column.join or "; ").join(str(labels.get(i, i)) for i in items if i not in (None, ""))
 
 
@@ -339,7 +352,7 @@ def cell(db: Any, folder: Document, column: Column, effective: dict[str, dict], 
         return ""
     if column.type == "date":
         return render_date(value, column, lang)
-    return _list_cell(value, column)
+    return _list_cell(value, column, known)
 
 
 def header_rows(columns: list[Column]) -> list[list[str]]:
