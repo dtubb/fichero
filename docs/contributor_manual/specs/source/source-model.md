@@ -1312,7 +1312,7 @@ action record holding a researcher's words is ruled out.
   statement (a native crash inside the app's engine), and the worker `_embed_worker` opened is never left open behind
   the manager. An embed that carries on after the close fails cleanly on its next statement. Closing twice is
   harmless. `db_manager.close_database` takes the library out under its lock and closes it outside. *Test:*
-  `fichero-server/tests/unit/db/test_close_closes_the_embed_worker_6238.py`.
+  `fichero-server/tests/unit/db/test_close_closes_the_embed_worker_6238.py::test_closing_a_library_closes_the_embed_worker_it_opened`, `::test_a_close_while_the_library_is_mid_statement_waits_for_it`.
 - `source.store.duckdb-spill-survives-a-query` — **[GAP]** (#6272) a query that spills to DuckDB's temp directory keeps its spill
   file until the query ends: GET children of a large folder must not return 500 "Could not read enough bytes". Not reproduced or built.
 - `source.store.a-closed-database-stays-closed` — **[OK]** (#6238) a `Database` that was closed refuses every later
@@ -1322,6 +1322,6 @@ action record holding a researcher's words is ruled out.
   once per use, and bind it to a local for a block of several statements or a transaction: a close mid-block fails the
   next statement and cannot open a second `Database` on the file for it to write through outside the transaction.
   `close_all` takes each `Database` out of the manager's table before it closes it, as `close_database` does. Tests:
-  `fichero-server/tests/unit/db/test_a_closed_database_stays_closed_6238.py`.
+  `fichero-server/tests/unit/db/test_a_closed_database_stays_closed_6238.py::test_a_statement_after_close_is_refused_and_opens_nothing`, `::test_a_library_closed_inside_a_transaction_opens_no_second_database`.
 - `source.store.fresh-open-invariant` — **[GAP]** (#5056) a guard opens a real library and asserts every registered model's table and declared index exists.
 - `source.certainty.damage-and-certainty-model` — **[GAP]** (#5097) slice 14's certainty and damage get behaviours: a scholar's certainty about a reading and physical damage on the page are two separate records.
