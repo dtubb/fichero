@@ -1740,6 +1740,10 @@ class ActivityPlace(BaseModel):
         default=None, description="from a probe or the key a call uses; null where nothing probes")
     egress: Literal["this-mac", "own-machine", "provider", "institution"] = Field(
         default="this-mac", description="where its data goes, from the address: this Mac, a machine of the person's own, the provider, the institution")
+    calls_in_flight: Optional[int] = Field(default=None, description="calls to this cloud provider holding a slot now; null off the cloud")
+    calls_cap: Optional[int] = Field(default=None, description="how many calls to it may be in flight (lowered by an in-flight-budget answer); null off the cloud")
+    credit: Optional[ModelFailure] = Field(
+        default=None, description="the newest no-credit, key-refused or rate-limited failure today on one of its models; null when none")
 
 
 class LaneLoad(BaseModel):
@@ -1758,8 +1762,28 @@ class ThisMac(BaseModel):
     lanes: list[LaneLoad] = Field(default_factory=list)
 
 
+class TrainedModel(BaseModel):
+    """A model trained in this project, a row under This Mac › Trained here (`models.trained.are-rows`)."""
+
+    id: str
+    name: str
+    kind: str
+    place: Literal["this-mac"] = "this-mac"
+    section: str = Field(description="the sidebar section it sits under: Trained here")
+    trained_at: Optional[str] = None
+    trained_where: Optional[str] = Field(default=None, description="where it was trained, as its card says")
+    scores: Optional[dict[str, Any]] = Field(default=None, description="its newest held-out evaluation; null when none was run")
+    size_bytes: Optional[int] = None
+    runs_on: list[dict[str, Any]] = Field(default_factory=list, description="the builds it has and where each can run")
+    lives: Optional[str] = Field(default=None, description="project, global or both")
+    ground_truth: Optional[dict[str, Optional[int]]] = Field(
+        default=None, description="pages, lines, lines_checked_by_a_person and held_out_pages it was trained on; null when its card keeps none")
+    not_for_release: bool = Field(description="its training data forbids publishing it")
+
+
 class ActivityModelsResponse(BaseModel):
     models: list[ActivityModel] = Field(default_factory=list)
+    trained: list[TrainedModel] = Field(default_factory=list, description="the models trained in this project")
     places: list[ActivityPlace] = Field(default_factory=list, description="every place set up, used or not")
     this_mac: Optional[ThisMac] = None
 
@@ -1769,11 +1793,13 @@ async def activity_models(db: Database = Depends(get_library_database)) -> Activ
     """The Models tree (`activity.window.models-tree`, `activity.resources.everything-measured`, #6588): every model this
     project used today, the engine holds now or this Mac has installed, by place (this Mac, remote, cloud) and provider,
     loaded or not, active or not, its memory where measured, today's pages, calls and seconds; and every place set up."""
-    from fichero_server.workflows.activity_models import models, places, this_mac
+    from fichero_server.workflows.activity_models import add_credit, models, places, this_mac, trained_rows
 
     listed = await asyncio.to_thread(places)
     found = await asyncio.to_thread(lambda: models(db, accounts={(p["place"], p["provider"]): p["account"] for p in listed}))
+    add_credit(listed, found)
     return ActivityModelsResponse(models=[ActivityModel(**m) for m in found],
+                                  trained=[TrainedModel(**t) for t in await asyncio.to_thread(trained_rows, db)],
                                   places=[ActivityPlace(**p) for p in listed],
                                   this_mac=ThisMac(**await asyncio.to_thread(this_mac, db)))
 
