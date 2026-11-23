@@ -347,6 +347,42 @@ final class ProjectRunStripTests: XCTestCase {
         XCTAssertEqual(Self.treeReads("newer-ended-run"), 0, "only the adopted run's tree is read")
     }
 
+    // MARK: - activity.run.folder-steps-done for a run this session never polled
+
+    func testRelaunch_aRunThisSessionNeverPolled_marksItsFolders() async throws {
+        // WHY: the count lived on the run and was read only while the app polled it; after a relaunch a run still on the
+        // engine marked no folder. The library open reads the project's runs once and folds the newest run's count: from
+        // its status when the list item has none. An older run is not folded.
+        let store = Self.store(defaults: try scratchDefaults())
+        let counted: [String: Any] = ["steps": ["read"], "done": 3, "of": 5]
+        func status(_ id: String, folder: String) -> [String: Any] {
+            ["job_id": id, "state": "done", "steps": [Any](), "skipped": [Any](), "folders_done": 1, "folders_total": 1,
+             "folder_steps": [["folder_id": folder, "steps": [counted]]]]
+        }
+        MockTransportURLProtocol.reset([
+            Stub(path: "/api/recipes/project/runs/newest-run", method: "GET", status: 200,
+                 body: try Self.json(status("newest-run", folder: "F-new"))),
+            Stub(path: "/api/recipes/project/runs", method: "GET", status: 200,
+                 body: try Self.recipeRuns([("newest-run", "done"), ("older-run", "done")]))
+        ])
+
+        await store.restoreProjectRun()
+
+        XCTAssertEqual(store.recipeFolderSteps["F-new"]?.words, "read: 3 of 5 pages", "the newest run marks its folder")
+        XCTAssertNil(store.recipeFolderSteps["F-old"], "an older run is not folded")
+        XCTAssertEqual(MockTransportURLProtocol.recorded().compactMap(\.url?.path).filter { $0.hasSuffix("older-run") }, [],
+                       "an older run is not read")
+
+        // A failed read keeps what is shown.
+        MockTransportURLProtocol.reset([
+            Stub(path: "/api/recipes/project/runs/newest-run", method: "GET", status: 500, body: Data("{}".utf8)),
+            Stub(path: "/api/recipes/project/runs", method: "GET", status: 200,
+                 body: try Self.recipeRuns([("newest-run", "done")]))
+        ])
+        await store.restoreProjectRun()
+        XCTAssertNotNil(store.recipeFolderSteps["F-new"], "a failed read keeps what is shown")
+    }
+
     func testRelaunch_aRunThatEndedWhileClosed_showsItsSummary() async throws {
         // WHY: a run that ended while the app was closed never said what it made in the project window.
         let store = Self.store(defaults: try scratchDefaults())
