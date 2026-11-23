@@ -40,8 +40,12 @@ def test_a_cell_is_the_effective_value_own_else_inherited_never_guessed(db, tmp_
     assert inherited[7:] == ["", "", "", "", "", ""]  # nothing invented: date, places, people, description, problems, subjects
 
 
-def test_people_print_by_the_declarations_name_order_from_the_entitys_names(db, tmp_path):
+def test_people_print_by_the_declarations_name_order_from_the_entitys_names(db, tmp_path, monkeypatch):
+    from fichero_server.db.embeddings import DatabaseEmbeddingMixin
     from fichero_server.models.knowledge import EntityType, KnowledgeEntity
+
+    # saving an entity would load the embedding model and make its store directory; this test is about names
+    monkeypatch.setattr(DatabaseEmbeddingMixin, "_schedule_embedding_task", lambda *a, **k: None)
 
     db.save(KnowledgeEntity(canonical_name="Ana Mora", entity_type=EntityType.person,
                             metadata={"given_names": "Ana", "surnames": "Mora"}))
