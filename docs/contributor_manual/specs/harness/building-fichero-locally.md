@@ -633,6 +633,16 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   with one `disk-thinned` row; one that frees nothing holds; a second low reading within the hour does not thin again.
   Serves: reliable, with little supervision.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
+- `local.run.waiting-is-one-ask-alert` [OK] (#6855) — a worker whose last line is `WAITING: <question>` is one ask alert
+  for the manager. The step row records `waiting=<question>`, the step stays `sent` and blocks with that one alert, and
+  `console.status()["open_questions"]` lists each open question with its lane and step (a Questions section in the
+  console page). A send-back of a waiting step with no `--text` is refused; with text, the answer reaches the same
+  session. Tests
+  `fichero-builder/tests/test_loop.py::test_a_worker_that_ends_with_waiting_is_one_ask_alert_with_the_question_and_the_step_waits`,
+  `fichero-builder/tests/test_loop.py::test_a_send_back_of_a_question_with_no_answer_is_refused_and_with_one_the_answer_reaches_the_session`,
+  `fichero-builder/tests/test_loop.py::test_the_console_lists_each_open_question_with_its_lane_and_step`,
+  `fichero-builder/tests/test_dry_run.py::test_a_waiting_end_message_is_one_step_row_with_the_question_and_the_session_stays`.
+  Serves: reliable, with little supervision.
 - `local.queue.add-refuses-a-repeated-brief` [GAP] (#6589) — two steps of one lane never share one brief. `queue add`
   compares the brief's content with the kept brief of every step the lane has, landed or not, and refuses a repeat,
   naming the step that has it. With `--continues <step>` it takes the repeat and appends to the kept copy what a
