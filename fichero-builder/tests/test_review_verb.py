@@ -2,7 +2,9 @@
 none reads the real git config, the real journal or the real issues."""
 from __future__ import annotations
 
+import json
 import os
+import sys
 
 import subprocess
 from pathlib import Path
@@ -144,3 +146,143 @@ def test_start_makes_the_worktree_and_branch_excludes_the_report_and_queues_one_
     assert cli.main(["review", "start", "Bad Area", "--repo-dir", str(repo), "--state", str(tmp_path / "state")]) == 1
     assert cli.main(["review", "start", "other", "--repo-dir", str(repo), "--base", "nope", "--state", str(tmp_path / "state")]) == 1
     assert "not a commit" in capsys.readouterr().out
+
+
+SPEC = """# Widgets
+
+> Milestone: widgets
+
+## Behaviours
+
+- `widgets.lookup.indexed` [GAP] (→ #NEW-1) — index the key.
+- `widgets.lookup.cheap` [GAP] → #NEW-1
+- `widgets.age.said` [GAP] → #NEW
+  a figure says its age.
+- `widgets.search.folds` [GAP] (→ #NEW-S1) — fold accents.
+
+Legend: a bare `#NEW` in prose is legend text, and `→ #NEW-S` too.
+
+## Build order
+
+### Stage 1 — all
+
+#### Step 1.1 — Fast lookup
+- Behaviours: `widgets.lookup.indexed`, `widgets.lookup.cheap`
+- Tests: tests/test_a.py
+- Size: S
+
+#### Step 1.2 — Honest age (#9)
+- Behaviours: `widgets.age.said`
+- Tests: tests/test_b.py
+- Size: S
+
+#### Step 2.1 — Folds
+- Behaviours: `widgets.search.folds`
+- Tests: tests/test_c.py
+- Size: S
+"""
+ORDER = """# Build order
+
+## In order
+
+1. `Builder` — the harness. Spec: harness/building-fichero-locally.md
+2. `other` — another. Spec: x/other.md
+
+## Parked
+
+- `old` — parked.
+"""
+SPEC_REL = "docs/contributor_manual/specs/harness/widgets.md"
+
+
+def _fake_gh(tmp_path):
+    """Numbers issues from 7000 and records every call as one JSON line; the only issue client the tests use."""
+    log = tmp_path / "gh-calls.jsonl"
+    counter = tmp_path / "gh-counter"
+    counter.write_text("7000")
+    gh = tmp_path / "gh"
+    gh.write_text(f"""#!{sys.executable}
+import json, sys
+a = sys.argv[1:]
+open({str(log)!r}, "a").write(json.dumps(a) + "\\n")
+if a[:2] == ["issue", "create"]:
+    n = int(open({str(counter)!r}).read())
+    open({str(counter)!r}, "w").write(str(n + 1))
+    print(f"https://example.invalid/o/r/issues/{{n}}")
+""")
+    gh.chmod(0o755)
+    return str(gh), log
+
+
+def _calls(log):
+    return [json.loads(x) for x in log.read_text().splitlines()] if log.exists() else []
+
+
+def _started(tmp_path, monkeypatch, spec=SPEC, report=REPORT):
+    from fichero_builder import __main__ as cli
+    from fichero_builder import journal
+
+    repo = _scratch_repo(tmp_path, monkeypatch)
+    _git(repo, "init", "-q", "-b", "main")
+    for rel, text in ((SPEC_REL, spec), ("docs/contributor_manual/specs/build-order.md", ORDER)):
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_text(text)
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-q", "-m", "first")
+    _git(repo, "update-ref", "refs/remotes/origin/integration", "HEAD")
+    monkeypatch.setattr(journal, "STATE", tmp_path / "state")
+    assert cli.main(["review", "start", "widgets", "--repo-dir", str(repo), "--state", str(tmp_path / "state")]) == 0
+    wt = tmp_path / "work" / "wt-review-widgets"
+    (wt / "review-widgets.md").write_text(report)
+    return repo, wt
+
+
+def _approve(repo, tmp_path, gh, *extra):
+    from fichero_builder import __main__ as cli
+
+    return cli.main(["review", "approve", "widgets", "--repo-dir", str(repo), "--state", str(tmp_path / "state"), "--gh", gh,
+                     "--milestone", "widgets", "--spec", SPEC_REL, "--desc", "the widget store", *extra])
+
+
+def test_approve_files_the_issues_maps_every_tag_numbers_the_steps_and_commits_two_files(tmp_path, monkeypatch, capsys):
+    repo, wt = _started(tmp_path, monkeypatch)
+    gh, log = _fake_gh(tmp_path)
+    base = _git(wt, "rev-parse", "HEAD")
+    assert _approve(repo, tmp_path, gh, "--after", "Builder") == 0, capsys.readouterr().out
+    created = [c for c in _calls(log) if c[:2] == ["issue", "create"]]
+    assert len(created) == 3 and created[0][created[0].index("--title") + 1] == "[widgets] Lookups scan every row: index the key"
+    assert created[0][created[0].index("--milestone") + 1] == "widgets"
+    assert json.loads((tmp_path / "state" / "review-widgets-issues.json").read_text())["issues"] == {"1": 7000, "2": 7001, "S1": 7002}
+    spec = (wt / SPEC_REL).read_text()
+    assert "(→ #7000) — index" in spec and "`widgets.lookup.cheap` [GAP] → #7000" in spec and "[GAP] → #7001\n" in spec, "a bare tag is mapped by behaviour id"
+    assert "(→ #7002)" in spec and "`#NEW`" in spec and "`→ #NEW-S`" in spec, "the legend lines stay"
+    assert "#### Step 1.1 — Fast lookup (#7000)" in spec and "#### Step 1.2 — Honest age (#9, #7001, #42)" in spec and "#### Step 2.1 — Folds (#7002)" in spec
+    order = (wt / "docs/contributor_manual/specs/build-order.md").read_text()
+    assert order.index("`Builder`") < order.index("2. `widgets` — the widget store. Spec: harness/widgets.md") < order.index("3. `other`") and "## Parked\n\n- `old`" in order
+    assert [c for c in _calls(log) if c[:2] == ["issue", "comment"]][0][2] == "42", "an existing issue that gained evidence is commented"
+    assert _git(wt, "diff", "--name-only", base, "HEAD").split() == ["docs/contributor_manual/specs/build-order.md", SPEC_REL]
+    body = _git(wt, "log", "-1", "--format=%B")
+    assert body.rstrip().endswith("Written-By: Claude Opus 5.5 using Claude Code using Fichero Builder") and "Spec-change: owner 2026-11-21 a review incorporates itself" in body
+    assert (tmp_path / "state" / "review-widgets-issue-list.txt").read_text().splitlines()[0] == "#7000 [widgets] Lookups scan every row: index the key"
+
+
+def test_a_second_approve_files_nothing_new_and_adds_no_commit(tmp_path, monkeypatch):
+    repo, wt = _started(tmp_path, monkeypatch)
+    gh, log = _fake_gh(tmp_path)
+    assert _approve(repo, tmp_path, gh) == 0
+    head, n = _git(wt, "rev-parse", "HEAD"), len(_calls(log))
+    assert _approve(repo, tmp_path, gh) == 0
+    assert _git(wt, "rev-parse", "HEAD") == head and len(_calls(log)) == n, "no issue, no comment, no commit twice"
+
+
+def test_an_unmappable_bare_tag_or_a_fix_with_no_step_refuses_before_anything_is_filed(tmp_path, monkeypatch, capsys):
+    gh, log = _fake_gh(tmp_path)
+    repo, wt = _started(tmp_path, monkeypatch, spec=SPEC.replace("`widgets.age.said` [GAP] → #NEW", "`widgets.other` [GAP] → #NEW"))
+    assert _approve(repo, tmp_path, gh) == 1
+    assert "a bare #NEW on `widgets.other`, which no issue names" in capsys.readouterr().out and _calls(log) == []
+    (wt / "review-widgets.md").write_text(REPORT.replace("[2.1]", "[3.1]").replace("**Honest age** [1.2]", "**Honest age**"))
+    (wt / SPEC_REL).write_text(SPEC)
+    assert _approve(repo, tmp_path, gh) == 1
+    out = capsys.readouterr().out
+    assert "ranked fix 2 cites no spec step" in out and "Step 3.1, which the spec's Build order lacks" in out and "Step 2.1 has no ranked fix" in out
+    assert _calls(log) == []
