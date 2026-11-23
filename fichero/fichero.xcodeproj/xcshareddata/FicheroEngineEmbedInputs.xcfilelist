@@ -118,6 +118,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/interpretation/hermen
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/kg/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/kg/claim_analysis.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/kg/claim_search.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/kg/comments.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/kg/curation_rules.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/kg/entity_curation.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/kg/graph.py
@@ -506,6 +507,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/models/found_documents.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/geo.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/hands.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/hermeneutics.py
+$(SRCROOT)/../fichero-server/src/fichero_server/models/kg_comments.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/knowledge.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/letterforms.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/node_aliases.py
