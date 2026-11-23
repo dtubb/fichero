@@ -12,7 +12,7 @@ max_commits = 100  # the most commits a lane may be ahead of origin/integration 
 guard_glob = "scripts/check_*.py"
 guard_timeout_s = 60
 min_guards = 20
-parallel = 2   # speed 3 (manager 2026-11-02): two ladders at once when their batches share no file; 1 = one at a time
+parallel = 3   # manager 2026-11-22: one ladder per check runner (m4, imac, air), disjoint batches only; was 2 from 2026-11-02 with one runner
 # Guards the nightly gate runs instead (reasons: pipeline/projects/fichero.toml [ladder.skip]).
 guard_skip = [
   "check_closed_issues_landed", "check_unmerged_work", "check_merged_worktrees", "check_no_orphan_stashes",
