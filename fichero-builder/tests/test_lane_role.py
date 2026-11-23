@@ -67,3 +67,18 @@ def test_the_handoff_successor_keeps_the_role_its_window_and_its_label(state):
     assert reg["window"] == 400000 and reg["handoff_tokens"] == 340000, "85 % of the role's own window, not [spend]'s 175000 mark"
     rows = [e for e in journal.read() if e["event"] in ("worker", "cost")]
     assert len(rows) == 4 and all(e["role"] == "maintainer-fable" for e in rows)
+
+
+def test_a_workers_command_starts_in_a_directory_it_made_with_tmpdir_and_pytest_basetemp_inside_it(state, monkeypatch):
+    popens = []
+    monkeypatch.setattr(queue.work, "as_worker", lambda a, s: type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})())
+    monkeypatch.setattr(queue.subprocess, "Popen", lambda argv, **k: popens.append(argv[-1]) or object())
+    monkeypatch.setattr(queue, "tmux_as_worker", lambda j, *a: "")
+    monkeypatch.setattr(queue.work, "ensure_pinned", lambda root, brief, base: str(state))
+    monkeypatch.setattr(queue.land_tool, "resolve_branch", lambda repo, branch: "d" * 40)
+    queue.real_procs(state).start({"id": "mf", "worktree": str(state / "wr" / "wt-mf"), "seq": 0}, {"step": "1.1", "brief": str(state / "brief"), "issues": []})
+    own, wr = str(state / "wr" / "work-mf"), str(state / "wr")
+    cmd = popens[0]
+    assert f"mkdir -p {own}/tmp" in cmd and f"[ -O {own} ]" in cmd, "the directory is made by the worker and its owner is checked"
+    assert f"cd {own} &&" in cmd and f"cd {wr} &&" not in cmd, "never the world-writable workroot itself"
+    assert f"TMPDIR={own}/tmp" in cmd and f"--basetemp={own}/tmp/pytest" in cmd
