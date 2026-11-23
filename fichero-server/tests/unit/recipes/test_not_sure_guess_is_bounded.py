@@ -2,6 +2,7 @@
 gives up on a page after a deadline, so a slow read says "could not tell" instead of holding the answer for minutes."""
 from __future__ import annotations
 
+import threading
 import time
 from types import SimpleNamespace
 
@@ -38,9 +39,13 @@ def test_the_quick_read_gets_a_reduced_picture(tmp_path, monkeypatch):
 
 
 def test_a_slow_read_gives_up_at_the_deadline_and_says_so(tmp_path, monkeypatch):
-    _vision_here(monkeypatch, lambda path, language: time.sleep(5) or "never used")
+    release = threading.Event()
+    _vision_here(monkeypatch, lambda path, language: release.wait(5) and "never used")
     monkeypatch.setattr(language_guess, "QUICK_READ_SECONDS", 0.3)
     started = time.monotonic()
-    guess = language_guess._guess(None, tmp_path, [_doc(tmp_path)])
+    try:
+        guess = language_guess._guess(None, tmp_path, [_doc(tmp_path)])
+    finally:
+        release.set()
     assert time.monotonic() - started < 2.0, "the guess waited for the slow read"
     assert guess["code"] is None and guess["sentence"].startswith("Could not tell the language")
