@@ -102,12 +102,14 @@ def _action_restore(db: Database, params: CommentIdParams, ctx: ActionContext):
         after={"comment_id": comment.id, "withdrawn": False}, emit="kg.comment.added")
 
 
-def _anchor_visible(db: Database, kind: CommentAnchorKind, anchor_id: str, may_read) -> bool:
+def _anchor_visible(db: Database, kind: CommentAnchorKind, anchor_id: str, may_read, nodes: dict) -> bool:
     """Whether the node a comment is on is readable to this caller: a comment is as readable as its node. `may_read` is
     `document_reader`'s answer (None: every page is readable to this caller)."""
     if may_read is None:
         return True
-    node = db.get(_ANCHOR_MODEL[kind], anchor_id)
+    if (kind, anchor_id) not in nodes:
+        nodes[(kind, anchor_id)] = db.get(_ANCHOR_MODEL[kind], anchor_id)
+    node = nodes[(kind, anchor_id)]
     if node is None:
         return False
     if kind is CommentAnchorKind.source:
@@ -132,6 +134,7 @@ def list_comments(
     """The live comments on one node, oldest first; a reply carries its `parent_id`. Nothing is listed on a node the
     caller may not read (a page the caller is denied, a claim or entity resting only on such pages)."""
     may_read = document_reader(request, library_path)
+    nodes: dict = {}  # each anchor node is looked up once, whatever the number of comments on it
     live = [c for c in db.query(KgComment, anchor_id=anchor_id)
-            if c.withdrawn_at is None and _anchor_visible(db, c.anchor_kind, c.anchor_id, may_read)]
+            if c.withdrawn_at is None and _anchor_visible(db, c.anchor_kind, c.anchor_id, may_read, nodes)]
     return CommentListResponse(items=sorted(live, key=lambda c: c.created_at))
