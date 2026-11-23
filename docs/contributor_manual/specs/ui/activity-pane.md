@@ -3145,9 +3145,9 @@ line post-processing. For 200 handwritten pages the stages today add up rather t
   (`fichero-server/tests/unit/jobs/test_chat_on_the_lane.py`). Still a gap: a provider's own stated rate limit.* the cap on concurrent model calls is one per
   Mac, shared by every run. Today it is per run: the semaphore is rebound to each run's event loop
   (`workflows/builder.py:91-127`), and three runs measured 12 calls at once against a cap of 4.
-- `activity.run.utility-qos-bounded` — **[GAP]** (#5358) heavy local work runs at utility QoS in
+- `activity.run.utility-qos-bounded` — **[OK]** (#5358) heavy local work runs at utility QoS in
   a bounded lane, and yields to the person by holding the lane back. It never drops to background
-  QoS, which measured about 18 times slower for Kraken (`llm/kraken_runtime.py:527-530`). Needs its test defined: a run at utility QoS with the Mac in use lowers its concurrency and finishes (manager 2026-11-23).
+  QoS, which measured about 18 times slower for Kraken (`llm/kraken_runtime.py:527-530`). Needs its test defined: a run at utility QoS with the Mac in use lowers its concurrency and finishes (manager 2026-11-23). Built: the behaviour was already in `compute_preferences.apply_to_this_thread` and `kraken_runtime.set_page_priority`; pinned by `fichero-server/tests/unit/jobs/test_automatic_kraken_runs_at_utility_5819.py::test_a_run_at_utility_with_the_mac_in_use_lowers_its_concurrency_and_never_drops_to_background` (passes). Not built: nothing.
 - `activity.run.progress-on-purpose` — **[GAP]** (#5376) a run reports progress it writes on
   purpose (graph updates and explicit progress), not by translating LangGraph's every internal
   event (`execution/runner.py:305-316`, `:1677-1683`).
