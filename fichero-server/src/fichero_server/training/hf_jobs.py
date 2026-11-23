@@ -307,3 +307,9 @@ def lora_args(job_key: str, *, base_repo: str, epochs: int, rank: int, arm: str 
     root = job_root(job_key)
     return ["--data", f"{root}/data", "--out", f"{root}/out", "--base", base_repo,
             "--epochs", str(epochs), "--rank", str(rank), "--arm", arm, *(["--all-lines"] if all_lines else [])]
+
+
+def package_args(job_key: str, *, trainer: str) -> list[str]:
+    """The Job's arguments for `one_trainer.py`, the image's "run a package" mode (`compute.tune.one-trainer-three-places`)."""
+    root = job_root(job_key)
+    return ["--data", f"{root}/data", "--out", f"{root}/out", "--trainer", trainer]
