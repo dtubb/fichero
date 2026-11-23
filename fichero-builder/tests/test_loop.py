@@ -1809,6 +1809,16 @@ def test_a_send_back_of_a_question_with_no_answer_is_refused_and_with_one_the_an
     assert "the day cap stays" in open(steps()["1.1"]["resume_brief"]).read()
 
 
+def test_a_retry_of_a_question_clears_it_so_a_later_send_back_of_another_alert_needs_no_answer(state):
+    _waiting(state)
+    (a,) = _alerts()
+    assert queue.answer(a["id"], "retry")[0] == 0
+    assert "waiting" not in steps()["1.1"]
+    b = queue.alert("m1", "1.1", "a review's red rung", "ev", ["send-back", "retry"])
+    assert queue.answer(b, "send-back")[0] == 0, "the old question is not asked again"
+    assert console.status(journal.read(), queue.load(), today=time.strftime("%Y-%m-%d"))["open_questions"] == []
+
+
 def test_the_console_lists_each_open_question_with_its_lane_and_step(state):
     _waiting(state)
     st = console.status(journal.read(), queue.load(), today=time.strftime("%Y-%m-%d"))

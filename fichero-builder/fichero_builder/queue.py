@@ -960,7 +960,7 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None, text: str = "")
         if s is None:
             journal.append("alert-answer", id=alert_id, action=action, ok=False, detail="the lane or step is gone")
             return 1, "REFUSED: the lane or step is gone"
-        if action == "send-back" and s.get("waiting") and not text.strip():  # #6855: a question's send-back is its answer; with none the session is asked the same thing
+        if action == "send-back" and s.get("waiting") and a["what"].startswith("WAITING:") and not text.strip():  # #6855: a question's send-back is its answer; with none the session is asked the same thing
             why = f"{a['lane']} {a['step']} asked: {s['waiting'][:200]}: send-back needs the answer (--text)"
             journal.append("alert-answer", id=alert_id, action=action, ok=False, detail=why)
             return 1, f"REFUSED: {why}"
@@ -973,6 +973,7 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None, text: str = "")
             again = "done" if action == "approve" or (action == "retry" and head_) else "queued"
             said = f"{a.get('what', '')}\n{s.get('why', '')}"
             s.update(state=again, rounds=0, restarts=0, why="")
+            s.pop("waiting", None)  # the question is answered, retried or approved past: it is not asked again by a later alert
             if action == "retry" and head_:  # the same head, the chain again from the failed rung: green rungs stand, no fresh session
                 s["head"], s["retry_rungs"] = head_, True
             if action == "retry":  # #6506: the retried head goes behind fresh dones; an unchanged head is said to be one
@@ -1012,7 +1013,6 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None, text: str = "")
             if action == "send-back":
                 fix = journal.STATE / f"sendback-{alert_id}.txt"
                 fix.write_text(Path(s["brief"]).read_text().rstrip("\n") + OWNER_PATH.sub("<a path outside the jail>", f"\n\nSent back by the manager: {a['what']}\nEvidence: {a['evidence']}\n" + (f"Answer: {text.strip()}\n" if text.strip() else "")))
-                s.pop("waiting", None)
                 s["resume_brief"] = str(fix)
             lane["paused"] = False
             save(lanes)
