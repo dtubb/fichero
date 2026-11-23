@@ -70,11 +70,11 @@ final class PaneHeadCollapsesTests: XCTestCase {
         let probe = Probe()
         let wide = host(width: 900, probe: probe)
         defer { wide.window?.contentView = nil }
-        let tools = try XCTUnwrap(try await frame(PaneHeadMetrics.controlsIdentifier, in: probe, under: wide))
-        let menuIsland = try XCTUnwrap(
-            try await frame(PaneHeadMetrics.menuIslandIdentifier, in: probe, under: wide),
-            "the pane menu has an island"
-        )
+        // The awaits sit outside XCTUnwrap: its autoclosure does not support concurrency (a test build error).
+        let toolsFrame = try await frame(PaneHeadMetrics.controlsIdentifier, in: probe, under: wide)
+        let tools = try XCTUnwrap(toolsFrame)
+        let menuFrame = try await frame(PaneHeadMetrics.menuIslandIdentifier, in: probe, under: wide)
+        let menuIsland = try XCTUnwrap(menuFrame, "the pane menu has an island")
         XCTAssertLessThanOrEqual(tools.maxX + PaneHeadMetrics.capsuleSpacing, menuIsland.minX + 0.5,
                                  "the tools sit left of the menu's island, outside its glass")
     }
