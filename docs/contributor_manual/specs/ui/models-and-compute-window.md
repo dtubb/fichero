@@ -243,10 +243,10 @@ filters Activity by `model:`.
   supplies included) and from a real probe; today key status ignores app-supplied keys and no Swift code reads the
   runtimes endpoint, so a row can read ready with nothing behind it. *Test (to write, in `fichero-server/tests/unit/api/`):* a
   stub probe that refuses gives "Not reachable"; an app-supplied key reads Ready; no key reads Needs key. **Built:** a cloud or remote model row carries its place's `account` (`test_a_cloud_model_carries_its_places_account`); `places()` in `GET /api/activity/models` carries `account` (another Mac from a probe of its address, a cloud provider from `llm.get_api_key`, a cluster null), tested in `fichero-server/tests/unit/api/test_activity_models_6588.py::test_a_places_account_comes_from_a_probe_and_the_key_a_call_uses`; **Not built:** only `ActivityModelEntry.account` reads it (no view), and the probe is a reachability check of the address, not a model-list request.
-- `models.row.credit-and-limits` — **[GAP]** (#6675, #6354) a provider that answered no credit, a key limit or a rate
+- `models.row.credit-and-limits` — **[PARTIAL]** (#6675, #6354) a provider that answered no credit, a key limit or a rate
   limit shows it in Account in the provider's words (redacted), with the dead mark's seconds left and the calls in flight
   of its cap; the row's button is Open provider page; the paused runs are listed under Using now with Continue.
-  *Test:* `ModelsRowAccountTests.swift` (a `no-credit` failure and a dead mark render those words and that button).
+  *Test:* `ModelsRowAccountTests.swift` (a `no-credit` failure and a dead mark render those words and that button). **Built:** each cloud place in the answer carries `calls_in_flight`, `calls_cap` and `credit` (the newest no-credit, key-refused or rate-limited failure today on one of its models: words, kind, button), tested in `test_activity_models_6588.py::test_a_cloud_place_says_its_calls_in_flight_and_the_credit_a_failure_named`. **Not built:** the dead mark's seconds left (the engine keeps no provider-wide mark between runs), the paused runs under Using now, the Account cell and `ModelsRowAccountTests.swift`.
 - `models.row.using-now-and-last-failed` — **[PARTIAL]** (#6588, #6354) Using now lists the Activity rows in flight on this
   model or place; Last failed shows the newest `failure` on it today with its fix button; Show in Activity filters by it.
   *Test:* `ModelsRowActivityTiesTests.swift`. **Built:** `using_now` (the kinds of job running on a model) and `last_failed` (the newest failed job's row words, kind and fix button) on each model row, tested in `test_activity_models_6588.py::test_a_failure_today_and_the_work_in_flight_ride_on_the_model`. **Not built:** the cells, Show in Activity, and `ModelsRowActivityTiesTests.swift`.
@@ -306,8 +306,8 @@ engine's rule; a value out of range is refused with the range, never clamped.
   the existing `/api/hpc/clusters` flow (host, user, folder, allocation; Make key; Sign in; Test connection; Install image)
   as the Inspector's buttons; the row's Account is the probe's answer. Built: the routes and the HPC settings view; owed:
   the rows here and Settings' view retired.
-- `models.place.hf-jobs` — **[GAP]** (#5398, #5740) Hugging Face Jobs is a place row with its token's state, the image,
-  the monthly cap (read-only, Settings'), its jobs running and queued with far-side state and cost.
+- `models.place.hf-jobs` — **[PARTIAL]** (#5398, #5740) Hugging Face Jobs is a place row with its token's state, the image,
+  the monthly cap (read-only, Settings'), its jobs running and queued with far-side state and cost. **Built:** a Hugging Face Jobs place in the answer, its account the token's state, tested in `test_activity_models_6588.py::test_hugging_face_jobs_is_a_place_with_its_tokens_state`. **Not built:** the image, the cap, the jobs and the row.
 - `models.place.egress-from-the-address` — **[PARTIAL]** (#5582; `ai.where.*` A own the rule) the Egress column is worked
   out from the address, never the provider type. **Built:** each place in `GET /api/activity/models` carries `egress` (this-mac, own-machine for an address off this Mac, provider, institution for a cluster), tested in `fichero-server/tests/unit/api/test_activity_models_6588.py::test_a_places_egress_comes_from_its_address_not_its_provider_type`. **Not built:** the column in the window, and the provider's company and country.
 
@@ -322,14 +322,14 @@ the surface those two lines describe, `models.row.account-from-a-probe` is their
 
 ### D. Trained models and ground truth
 
-- `models.trained.are-rows` — **[GAP]** (#5439, #5440; `compute/training-and-evaluation.md` owns the training) a model
+- `models.trained.are-rows` — **[PARTIAL]** (#5439, #5440; `compute/training-and-evaluation.md` owns the training) a model
   trained here or on a cluster is a row under This Mac › Trained here with its held-out scores, provenance and where it
   can run, and Choose for… sets it for a step; Train… on a step's row and Train a Model… on a folder's context menu open
-  the same sheet, and the training's row is Activity's.
-- `models.ground-truth.counts` — **[GAP]** (#5119, #5446; the mark, the rule and the sidebar's Ground Truth smart folders
+  the same sheet, and the training's row is Activity's. **Built:** `trained` in `GET /api/activity/models` (scores, where it can run, `not_for_release`), tested in `test_activity_models_6588.py::test_a_trained_model_is_a_row_under_this_mac_with_its_ground_truth_counts`. **Not built:** the rows in the window, Choose for… and the shared sheet.
+- `models.ground-truth.counts` — **[PARTIAL]** (#5119, #5446; the mark, the rule and the sidebar's Ground Truth smart folders
   are `source/ground-truth.md`'s) a trained model's Inspector says how many ground-truth lines and pages it was trained
   on and when the set was last added to, the same count the sidebar's Ground Truth › Lines folder shows; the set itself
-  stays in the project.
+  stays in the project. **Built:** each trained row's `ground_truth` (pages, lines, lines checked by a person, held-out pages, from its card). **Not built:** when the set was last added to, the match with the sidebar's folder count, and the Inspector.
 
 ### E. Settings after the move
 
@@ -429,6 +429,7 @@ the surface those two lines describe, `models.row.account-from-a-probe` is their
 #### Step 3.1 — Providers' credit and limits; Connect… a Mac, a cluster, HF Jobs (#6675, #5951, #5454)
 - Behaviours: `models.row.credit-and-limits`, `models.place.every-place-listed`, `models.place.add-a-mac`, `models.place.add-a-cluster`, `models.place.hf-jobs`, `models.place.egress-from-the-address`
 - Tests: fichero-server/tests/unit/api/test_activity_models_6588.py (extended: clusters and provider accounts in the one list; a Swift test of the Account cell's words and button to write)
+- Status: the engine half is built (credit, in-flight calls, the Hugging Face Jobs place); the Swift Account cell, Connect… sheets and rows are not.
 - Depends on: 1.2
 - Size: L
 
@@ -437,6 +438,7 @@ the surface those two lines describe, `models.row.account-from-a-probe` is their
 #### Step 4.1 — Trained models as rows; Settings keeps preferences; deep links land (#5439, #4307)
 - Behaviours: `models.trained.are-rows`, `models.ground-truth.counts`, `models.settings.keeps-preferences`, `models.settings.one-download-location`, `models.settings.deep-links-still-land`
 - Tests: fichero/Tests/Unit/general/Views/RunFailureAlertTests.swift (the `open-settings` deep link lands on the window; a Swift test of the slimmed Settings pane to write)
+- Status: the engine half of the trained rows and ground-truth counts is built; the slimmed Settings pane, the download-location field and the deep links are not (Swift, not written here).
 - Depends on: 2.1, 3.1
 - Size: M
 
