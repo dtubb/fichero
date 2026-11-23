@@ -1449,19 +1449,28 @@ def park_alert() -> None:
               str(journal.STATE / "journal.jsonl"), [])
 
 
+DISK_FLOOR_MARK = "disk-floor.held"  # present while the floor holds lanes: survives a restart, costs one stat a tick (the journal is tens of MB)
+
+
 def disk_floor_alerts(procs: Procs) -> None:
-    """#6852: every lane held by the disk floor is one alert naming them, and the floor clearing is one more; the last
-    `disk-floor` row in the journal says which of the two the loop is in, so a restart does not repeat either."""
+    """#6852: every lane held by the disk floor is one alert naming them, and the floor clearing is one more; the marker file
+    under the state dir says which of the two the loop is in, so a restart repeats neither."""
     held, DISK_HELD[:] = sorted(set(DISK_HELD)), []
-    last = next((r["state"] for r in reversed(journal.read()) if r.get("event") == "loop" and r.get("state") in ("disk-floor", "disk-floor-clear")), "")
-    if held and last != "disk-floor":
+    mark = journal.STATE / DISK_FLOOR_MARK
+    if not held and not mark.exists():
+        return
+    if held and not mark.exists():
         why = f"{procs.free_gb():.0f} GB free, under the floor of {DISK_FLOOR_GB[0]:g} GB: no new lane starts ({', '.join(held)} held)"
+        mark.parent.mkdir(parents=True, exist_ok=True)
+        mark.write_text(why + "\n")
         journal.append("loop", state="disk-floor", detail=why)
         alert("-", "disk-floor", why, str(journal.STATE / "journal.jsonl"), [])
-    elif not held and last == "disk-floor" and DISK_FLOOR_GB[0] and procs.free_gb is not None and (free := procs.free_gb()) >= DISK_FLOOR_GB[0]:
-        why = f"{free:.0f} GB free, over the floor of {DISK_FLOOR_GB[0]:g} GB: lanes start again"
-        journal.append("loop", state="disk-floor-clear", detail=why)
-        alert("-", "disk-floor", why, str(journal.STATE / "journal.jsonl"), [])
+    elif not held and (not DISK_FLOOR_GB[0] or procs.free_gb is None or procs.free_gb() >= DISK_FLOOR_GB[0]):
+        mark.unlink(missing_ok=True)
+        if DISK_FLOOR_GB[0] and procs.free_gb is not None:
+            why = f"{procs.free_gb():.0f} GB free, over the floor of {DISK_FLOOR_GB[0]:g} GB: lanes start again"
+            journal.append("loop", state="disk-floor-clear", detail=why)
+            alert("-", "disk-floor", why, str(journal.STATE / "journal.jsonl"), [])
 
 
 def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, chains: dict | None = None) -> bool:

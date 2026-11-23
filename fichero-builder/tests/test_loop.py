@@ -1747,6 +1747,22 @@ def test_a_falling_disk_holds_every_lane_with_one_alert_and_clearing_raises_one_
     assert fake.starts, "over the floor the lanes start"
     cleared = _alerts()[1:]
     assert len(cleared) == 1 and "over the floor" in cleared[0]["what"]
+    assert not (journal.STATE / queue.DISK_FLOOR_MARK).exists()
+
+
+def test_the_disk_floor_check_reads_no_journal_while_nothing_is_held(state, monkeypatch):
+    """#6852: the tick checks one marker file; it never parses the journal for the floor's state."""
+    fake = Fake()
+    monkeypatch.setattr(journal, "read", lambda *a, **k: pytest.fail("the journal was read"))
+    queue.disk_floor_alerts(fake.procs)
+
+
+def test_a_park_stops_a_window_and_never_the_tmux_server():
+    """#6851: a cap park ends one worker's window; no code path of the loop or a run kills the server."""
+    import pathlib
+
+    for f in pathlib.Path(queue.__file__).parent.glob("*.py"):
+        assert "kill-server" not in f.read_text(), f.name
 
 
 def test_a_cap_that_parks_two_workers_is_one_alert_listing_both_lanes(state):
