@@ -24,6 +24,8 @@ import pathlib
 import re
 import sys
 
+from _scan_files import scan_rglob
+
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 BASELINE = REPO_ROOT / "scripts/check_spec_app_evidence_baseline.json"
 SPECS = pathlib.Path("docs/contributor_manual/specs")
@@ -53,7 +55,7 @@ UX_NEEDS = {
 def _spec_files(root: pathlib.Path) -> list[pathlib.Path]:
     specs = root / SPECS
     out = []
-    for p in sorted(specs.rglob("*.md")):
+    for p in sorted(scan_rglob(specs, "*.md")):
         rel = p.relative_to(specs)
         if p.name.startswith("_") or any(part.startswith(".") for part in rel.parts):
             continue
