@@ -183,21 +183,21 @@ filters Activity by `model:`.
 
 ### A. The window and its bones
 
-- `models.window.is-activitys-shape` — **[PARTIAL]** (#6588, #4307; built: the sidebar's three sections and the rule that groups the one list under each item, `ModelsWindowModel`, tested in `ModelsWindowLayoutTests.swift`; not built: `PaneKind.models`, the `NavigationSplitView`, the table and Inspector views, the run controls and the filter) the window is a `NavigationSplitView` with a source
+- `models.window.is-activitys-shape` — **[PARTIAL]** (#6588, #4307) the window is a `NavigationSplitView` with a source
   list (This Mac, Places, Work), the one table and the Inspector, laid out by a pane kind (`PaneKind.models`) so a main
   window can show it as a pane; the toolbar leads with Activity's run controls; the bottom bar is the filter.
-  *Test:* `fichero/Tests/Unit/general/Views/Models/ModelsWindowLayoutTests.swift` (the three sections now; the pane kind and the Inspector following the selection to write with the views).
-- `models.window.one-list` — **[OK]** (#6588; `GET /api/activity/models` with place › provider › model, `loaded`, `active`,
-  memory, today's pages and calls, `size_bytes`, `licence`, `fits_here` with `needs_bytes`, `fits_note` and `unload_to_fit`,
-  `account`, `using_now`, `last_failed`, and `this_mac` with its `gpu`; `ActivityModelEntry` reads each) the window reads ONE engine list, the models answer grown by the columns
+  *Test:* `ModelsWindowLayoutTests.swift` (the three sections, the pane kind, the Inspector follows the selection). **Built:** the sidebar's three sections and the rule that groups the one list under each item (`ModelsWindowModel`), tested in `fichero/Tests/Unit/general/Views/Activity/Pane/ModelsWindowLayoutTests.swift`. **Not built:** `PaneKind.models`, the `NavigationSplitView`, the table and Inspector views, the run controls and the filter.
+- `models.window.one-list` — **[PARTIAL]** (#6588; built: `GET /api/activity/models` with place › provider › model,
+  `loaded`, `active`, memory, today's pages and calls, `this_mac`; not built: size on disk, `fits_here`, `account`, the
+  card's licence, failures today, the Mac's GPU) the window reads ONE engine list, the models answer grown by the columns
   above; the local-models list (`/api/local-models`), the runtimes list (`/api/providers/local-runtimes`), the providers list
   and the clusters list are read by the engine into it, never by the app in parallel. *Test:*
-  `fichero-server/tests/unit/api/test_activity_models_6588.py` (extend: each new field; "—" for what nothing measures).
-- `models.window.columns-and-verbs-are-activitys` — **[PARTIAL]** (#6588; built: the row's one button as a rule, `ModelsWindowModel.button`, tested in `ModelsWindowLayoutTests.swift`; not built: the column menu, kept widths, the context menu and the Mail rule for several rows) the column menu, the kept widths, the verb pattern
+  `fichero-server/tests/unit/api/test_activity_models_6588.py` (extend: each new field; "—" for what nothing measures). **Built:** `size_bytes`, `licence`, `fits_here` with `needs_bytes`, `fits_note` and `unload_to_fit`, `account`, `using_now`, `last_failed` on each model and `gpu` on `this_mac`, read by `ActivityModelEntry`; tested in `test_activity_models_6588.py`. **Not built:** the window that draws them.
+- `models.window.columns-and-verbs-are-activitys` — **[PARTIAL]** (#6588) the column menu, the kept widths, the verb pattern
   (one row button = the fix or the state verb; the rest in the context menu) and the Mail rule for several rows are
-  Activity's (`activity.pane.columns-from-the-header`, `activity.pane.fix-button-has-words`). *Test:* `ModelsWindowVerbsTests.swift`.
-- `models.window.needs-you-badge` — **[PARTIAL]** (#6588; built: the count and the sort, `ModelsWindowModel.badge` and `needsYouFirst`, tested in `ModelsWindowLayoutTests.swift`; not built: the badge drawn, and a "no credit" row, which the engine does not yet report) each sidebar item is badged with its rows needing you (broken,
-  no credit, needs key, not reachable), and those rows sort first. *Test:* `ModelsWindowNeedsYouTests.swift`.
+  Activity's (`activity.pane.columns-from-the-header`, `activity.pane.fix-button-has-words`). *Test:* `ModelsWindowVerbsTests.swift`. **Built:** the row's one button as a rule (`ModelsWindowModel.button`), tested in `ModelsWindowLayoutTests.swift`. **Not built:** the column menu, kept widths, the context menu and the Mail rule for several rows.
+- `models.window.needs-you-badge` — **[PARTIAL]** (#6588) each sidebar item is badged with its rows needing you (broken,
+  no credit, needs key, not reachable), and those rows sort first. *Test:* `ModelsWindowNeedsYouTests.swift`. **Built:** the count and the sort (`ModelsWindowModel.badge`, `needsYouFirst`), tested in `ModelsWindowLayoutTests.swift`. **Not built:** the badge drawn, and a "no credit" row, which the engine does not yet report.
 
 ### A2. Search, bookmark, and what a recipe can reach (owner 2026-11-18)
 
@@ -247,9 +247,9 @@ filters Activity by `model:`.
   limit shows it in Account in the provider's words (redacted), with the dead mark's seconds left and the calls in flight
   of its cap; the row's button is Open provider page; the paused runs are listed under Using now with Continue.
   *Test:* `ModelsRowAccountTests.swift` (a `no-credit` failure and a dead mark render those words and that button).
-- `models.row.using-now-and-last-failed` — **[PARTIAL]** (#6588, #6354; built: `using_now` (the kinds of job running on a model) and `last_failed` (the newest failed job's row words, kind and fix button) on each model row, tested in `test_activity_models_6588.py::test_a_failure_today_and_the_work_in_flight_ride_on_the_model`; not built: the cells, Show in Activity, and `ModelsRowActivityTiesTests.swift`) Using now lists the Activity rows in flight on this
+- `models.row.using-now-and-last-failed` — **[PARTIAL]** (#6588, #6354) Using now lists the Activity rows in flight on this
   model or place; Last failed shows the newest `failure` on it today with its fix button; Show in Activity filters by it.
-  *Test:* `ModelsRowActivityTiesTests.swift`.
+  *Test:* `ModelsRowActivityTiesTests.swift`. **Built:** `using_now` (the kinds of job running on a model) and `last_failed` (the newest failed job's row words, kind and fix button) on each model row, tested in `test_activity_models_6588.py::test_a_failure_today_and_the_work_in_flight_ride_on_the_model`. **Not built:** the cells, Show in Activity, and `ModelsRowActivityTiesTests.swift`.
 - `models.row.what-unloading-gives-back` — **[PARTIAL]** (#4987, #4999) This Mac's Inspector lists each resident model with
   its memory and the one button Unload idle models, which calls `release_idle_models` and shows what was freed.
   *Test (to write, in `fichero-server/tests/unit/api/`):* the route frees the idle embedder and answers its name; a model with a
