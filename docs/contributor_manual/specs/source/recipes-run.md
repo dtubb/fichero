@@ -547,7 +547,7 @@ replaces the Kraken figure before #6212 is coded.
 ### 11. Order of completion, and search once at the end
 
 - `recipes-run.order.folders-then-pages-queued` — **[OK]** (#5849; `source.recipe.pages-in-finder-order` owns
-  it; pinned by `fichero-server/tests/unit/recipes/test_pages_in_finder_order_5849.py`) a run queues and
+  it; pinned by `fichero-server/tests/unit/recipes/test_pages_in_finder_order_5849.py::test_the_material_comes_in_natural_name_order`) a run queues and
   starts its pages folder by folder in sidebar order, pages in no folder first, each page in its natural
   name order. One exception, by design: a hosted reading step runs beside a local one when neither takes what the
   other gives (`_beside`, `recipes/runner.py`), so the two overlap, and the summary's timings count them as
