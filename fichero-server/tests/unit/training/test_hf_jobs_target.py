@@ -196,7 +196,7 @@ def test_a_lora_recipe_file_drives_the_jobs_arguments(tmp_path):
 
 
 @pytest.mark.usefixtures("project_says_yes")
-def test_the_recipe_file_reaches_the_submitted_job(db, full_size_notebook, tmp_path, monkeypatch):
+def test_the_recipe_file_reaches_the_submitted_job(db, full_size_notebook, tmp_path, monkeypatch):  # noqa: F811
     from fichero_server.training import mlx_landing
     from fichero_server.training.job import TrainVisionLoraRequest
 
