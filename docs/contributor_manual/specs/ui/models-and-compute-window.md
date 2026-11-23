@@ -234,10 +234,10 @@ filters Activity by `model:`.
 - `models.row.loaded-and-active` — **[OK]** (#6588; `activity.window.models-tree` owns it) filled when resident,
   hollow when not, a green dot while a page or call is in flight; the memory beside it, estimated where it is. *Tests:*
   `fichero-server/tests/unit/api/test_activity_models_6588.py`, `fichero/Tests/Unit/general/Views/Activity/Pane/ActivityModelsTreeTests.swift`.
-- `models.row.fits-here` — **[PARTIAL]** (#5221, #4987; built: `fits_here`, `needs_bytes`, `fits_note` and `unload_to_fit` on each sized installed model from `local_inference.fit_estimate` with memory injected, tested in `fichero-server/tests/unit/api/test_activity_models_6588.py::test_an_installed_model_says_its_size_licence_and_whether_it_fits_with_memory_injected`; `ActivityModelEntry.fitsWords` reads it; not built: the column in a window, and "Tight (needs 6 GB, 4 GB free)" words) a This Mac model says whether it fits now (the one memory number
+- `models.row.fits-here` — **[PARTIAL]** (#5221, #4987) a This Mac model says whether it fits now (the one memory number
   against free memory and pressure, the rule `settings.local-model-refused-before-it-loads` already applies at load), and
   what would have to be unloaded for it to fit. *Test (to write, in `fichero-server/tests/unit/api/`):* with memory injected,
-  never the machine's, a model under free memory reads "Yes", one over it "No" naming what to unload.
+  never the machine's, a model under free memory reads "Yes", one over it "No" naming what to unload. **Built:** `fits_here`, `needs_bytes`, `fits_note` and `unload_to_fit` on each sized installed model from `local_inference.fit_estimate` with memory injected, tested in `fichero-server/tests/unit/api/test_activity_models_6588.py::test_an_installed_model_says_its_size_licence_and_whether_it_fits_with_memory_injected`; `ActivityModelEntry.fitsWords` reads it. **Not built:** the column in a window, and "Tight (needs 6 GB, 4 GB free)" words.
 - `models.row.account-from-a-probe` — **[PARTIAL]** (#5369, #4303, #5367; `keys.status-sees-supplied-keys`,
   `runtime.status-from-the-endpoint`) a place's Account column comes from the same lookup a call uses (keys the app
   supplies included) and from a real probe; today key status ignores app-supplied keys and no Swift code reads the
