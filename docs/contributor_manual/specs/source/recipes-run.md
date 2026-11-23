@@ -788,14 +788,18 @@ The behaviours this adds:
 - `recipes-run.timing.plan-says-time-from-measured-pages` — **[PARTIAL]** (#4951, #6052, → #6810) Start's plan says
   how long each step will take on these pages once this Mac has finished pages of that step's model
   (`estimate.runs[].seconds`, with its basis), and the run keeps that figure beside what it measured
-  (`designer.run.predicted-then-measured`). Today the plan carries cost alone (`recipes/start.py`); the run says
+  (`designer.run.predicted-then-measured`). The run says
   "about 2 min left" in its words only (`estimate_seconds_left` is null on the step's account). Measured: after 5
   pages read by the step's reader, `GET /api/recipes/routes` still said the time on this Mac was unknown:
   `recipes/routes.py` `default_models` passes the reader as the plan names it (`kraken-…`) and the job rows
   store it with its runtime (`kraken:kraken-…`), so `measured_seconds_per_page` finds no row.
   *Built:* the routes read a reader named without its runtime (`execution/jobs.py` `finished_seconds` matches `model` or
   `…:model`; `fichero-server/tests/unit/recipes/test_routes_for_the_volume.py`, `test_a_reader_named_without_its_runtime_finds_this_macs_measured_pages`).
-  *Left:* Start's plan carries no time per step yet.
+  *Built:* Start's plan carries `estimate.runs[].seconds`, `seconds_basis` (`measured` or `unknown`) and `seconds_words` for each
+  local step: this Mac's median seconds a page for the step's model times the pages, or null and `unknown` when the model has no
+  finished page here (`recipes/routes.py` `measured_speeds`; `fichero-server/tests/unit/recipes/test_plan_says_time_6810.py`).
+  *Left:* the plan gives no time for a cloud step or the Catalogue step, and the run does not keep the figure beside what it
+  measured (`designer.run.predicted-then-measured`).
 - `recipes-run.journey.run-one-step-on-a-folder-or-file` — **[PARTIAL]** (#7036) the historian picks one step of the
   recipe and runs only that step on the selected folder or on one file; the steps before it are not run again (what they
   wrote is what the step reads) and Activity shows the run as that one step. *Built (engine):* Start with `steps` and
