@@ -59,7 +59,7 @@ def test_pages_done_before_a_pause_count_and_the_pause_does_not(db, no_account):
 
 
 def test_a_page_time_is_its_job_not_its_wait_for_the_lane(db, no_account):
-    """Three pages handed in at once to the one lane: each ran 5 s, the last waited 10 s for it."""
+    """Three pages handed in at once to the one lane: each ran 5 s, the last waited 10 s for it; each page's time is its job's 5 s (#6809)."""
     _row(db, "run", "run-a-recipe", 0, 15)
     _row(db, "read", "workflow", 0, 15, parent="run")
     _row(db, "read:read", "workflow-step", 0, 15, parent="read")
