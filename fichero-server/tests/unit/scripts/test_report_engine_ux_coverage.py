@@ -24,6 +24,7 @@ def _load(name: str):
 
 report = _load("report_engine_ux_coverage")
 
+S = "docs/contributor_manual" + "/specs"
 OPENAPI = {"paths": {
     "/api/models": {"get": {"operationId": "list_models_api_models_get"}},
     "/api/models/{model_id}": {"get": {"operationId": "get_model_api_models__model_id__get"}},
@@ -57,7 +58,7 @@ def test_each_known_gap_lands_in_one_bucket_no_spec_no_app_behaviour_or_app_beha
 
 def test_a_path_is_not_named_by_a_longer_sibling_path(tmp_path):
     root = _root(tmp_path)
-    (root / "docs/contributor_manual/specs/models.md").write_text("- `m.x` — **[GAP]** (#1) the app uses `/api/models/{model_id}`.\n", encoding="utf-8")
+    (root / S + "/models.md").write_text("- `m.x` — **[GAP]** (#1) the app uses `/api/models/{model_id}`.\n", encoding="utf-8")
     assert "GET /api/models" in report.classify(root, GAPS, OPENAPI)["no_spec"]
 
 

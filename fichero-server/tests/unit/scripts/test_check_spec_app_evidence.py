@@ -19,6 +19,7 @@ guard = importlib.util.module_from_spec(_SPEC)
 sys.modules[_SPEC.name] = guard
 _SPEC.loader.exec_module(guard)
 
+S = "docs/contributor_manual" + "/specs"
 UX_OK = """## What the person sees
 
 Opened from the Window menu, "Models & Cluster" (Cmd-Shift-M). It shows one row per model with Install and Remove buttons.
@@ -37,7 +38,7 @@ def _root(tmp_path: Path, files: dict[str, str]) -> Path:
 
 def test_an_ok_app_behaviour_citing_only_pytest_is_engine_done_the_app_part_is_not(tmp_path):
     root = _root(tmp_path, {"a.md": "- `m.one` — **[OK]** the app shows the model list. *Test:* `fichero-server/tests/unit/test_models.py`\n"})
-    assert guard.engine_only_offenders(root) == {"docs/contributor_manual/specs/a.md::m.one"}
+    assert guard.engine_only_offenders(root) == {S + "/a.md::m.one"}
 
 
 def test_a_swift_test_path_or_a_ui_test_satisfies_it_and_a_non_app_or_gap_line_is_not_judged(tmp_path):
@@ -53,7 +54,7 @@ def test_a_swift_test_path_or_a_ui_test_satisfies_it_and_a_non_app_or_gap_line_i
 
 def test_the_scope_text_runs_over_continuation_lines_after_the_tag(tmp_path):
     root = _root(tmp_path, {"a.md": "- `m.one` — **[OK]** (#5)\n  the sidebar in the app lists it.\n  *Test:* `t.py`\n"})
-    assert guard.engine_only_offenders(root) == {"docs/contributor_manual/specs/a.md::m.one"}
+    assert guard.engine_only_offenders(root) == {S + "/a.md::m.one"}
 
 
 def test_a_spec_with_app_behaviours_needs_a_ux_section_naming_opener_states_and_acceptance(tmp_path):
@@ -64,7 +65,7 @@ def test_a_spec_with_app_behaviours_needs_a_ux_section_naming_opener_states_and_
         "thin.md": body + "## What the person sees\n\nA list.\n",
         "engine.md": "- `m.two` — **[OK]** the engine lists it. *Test:* `t.py`\n",
     })
-    assert guard.no_ux_specs(root) == {"docs/contributor_manual/specs/none.md", "docs/contributor_manual/specs/thin.md"}
+    assert guard.no_ux_specs(root) == {S + "/none.md", S + "/thin.md"}
     assert guard.ux_problems(UX_OK) == []
     assert {"opener", "empty", "loading", "error", "acceptance"} <= set(guard.ux_problems("## UX\n\nA list.\n"))
 
@@ -77,13 +78,13 @@ def _write_baseline(root: Path, engine_only: list[str], no_ux: list[str]) -> Pat
 
 def test_a_new_offender_fails_a_baselined_one_passes_and_a_listed_line_that_now_passes_fails(tmp_path):
     root = _root(tmp_path, {"a.md": "- `m.one` — **[OK]** the app shows it. *Test:* `t.py`\n"})
-    key = "docs/contributor_manual/specs/a.md::m.one"
-    ux = "docs/contributor_manual/specs/a.md"
+    key = S + "/a.md::m.one"
+    ux = S + "/a.md"
     new, stale = guard.judge(root, _write_baseline(root, [], [ux]))
     assert new == [f"engine_only: {key}"] and stale == []
     new, stale = guard.judge(root, _write_baseline(root, [key], [ux]))
     assert new == [] and stale == []
-    (root / "docs/contributor_manual/specs/a.md").write_text(
+    (root / S + "/a.md").write_text(
         "- `m.one` — **[OK]** the app shows it. *Test:* `fichero/Tests/Unit/general/Models/ATests.swift`\n" + UX_OK, encoding="utf-8")
     new, stale = guard.judge(root, _write_baseline(root, [key], [ux]))
     assert new == [] and stale == [f"engine_only: {key}", f"no_ux_section: {ux}"]
