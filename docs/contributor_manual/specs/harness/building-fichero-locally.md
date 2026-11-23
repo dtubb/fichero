@@ -3894,9 +3894,11 @@ scratch dirs in one morning. The journal is 46.6 MB and 83% of it is loop tick r
   journal row listing every lane, and a reader that needs one kind of event does not parse the whole journal. Test: an
   owed test in fichero-builder/tests/test_journal.py. (#6589) → #6884
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
-- `local.perf.start-sets-no-global-git-config` [BROKEN] — a worker start sets its git identity and its trust of the
-  worktree for that worktree only, so two starts in one tick cannot meet on one lock. Today `start_tool.prepare` writes
-  the worker user's global config. Test: an owed test in fichero-builder/tests/test_jail_git.py. → #6854
+- `local.perf.start-sets-no-global-git-config` [OK] — a worker start sets its git identity for that worktree only
+  (`git config --worktree`, its own `config.worktree` file, no lock) and its trust of the worktree through
+  `GIT_CONFIG_*` in the worker's environment; the one write to the repo's shared config (`extensions.worktreeConfig`) is made
+  once per repo, under a lock named for that repo, so two starts in one tick do not meet on one lock and `start_tool.prepare`
+  never writes a global config. Test: `fichero-builder/tests/test_codemap.py::test_two_starts_at_once_set_each_worktrees_identity_and_leave_the_global_config_alone`. → #6854
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 
 ### Targets for a good week

@@ -6,6 +6,7 @@ Stdlib + workflows.check_tool/jail only. `scripts/harness_start.py` is the only 
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shlex
@@ -93,10 +94,14 @@ def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_b
     # "dubious ownership" (first real check, 2026-11-01): _READ_PROMPT exports safe.directory=* into the worker's own environment.
     # The worker commits as Claude, never as the jail user (a host name leaked, 2026-11-02): the name and email go in THIS
     # worktree's config, never --global (#6854: a global write made two starts at once race on one file and rewrote every user's identity).
-    with journal.Lock("git-config", what=f"identity of {worktree.name}"):  # a linked worktree shares the repo's config file: one writer at a time
-        subprocess.run(["git", "-C", str(worktree), "config", "extensions.worktreeConfig", "true"], check=True)
-        for k, v in (("user.name", AUTHOR["GIT_AUTHOR_NAME"]), ("user.email", AUTHOR["GIT_AUTHOR_EMAIL"])):
-            subprocess.run(["git", "-C", str(worktree), "config", "--worktree", k, v], check=True)
+    wt = ["git", "-C", str(worktree)]
+    if subprocess.run([*wt, "config", "--get", "extensions.worktreeConfig"], capture_output=True, text=True).stdout.strip() != "true":
+        # the one write to the repo's shared config file, once per repo, under a lock named for that repo (two starts in two repos never meet)
+        common = subprocess.run([*wt, "rev-parse", "--path-format=absolute", "--git-common-dir"], capture_output=True, text=True, check=True).stdout.strip()
+        with journal.Lock("git-config-" + hashlib.sha1(common.encode()).hexdigest()[:12], what=f"worktreeConfig of {common}"):
+            subprocess.run([*wt, "config", "extensions.worktreeConfig", "true"], check=True)
+    for k, v in (("user.name", AUTHOR["GIT_AUTHOR_NAME"]), ("user.email", AUTHOR["GIT_AUTHOR_EMAIL"])):
+        subprocess.run([*wt, "config", "--worktree", k, v], check=True)  # this worktree's own config.worktree file: no lock
     adapters.require_lane_capable(adapters.ClaudeCode())
     servers, missing = mcp_servers.delivered(root, role=role, stack=stack, project=project)
     for name in missing:
