@@ -134,3 +134,9 @@ struct ModelsPaneView: View {
 private extension String {
     var nilIfEmpty: String? { isEmpty ? nil : self }
 }
+
+#Preview("The Models and Cluster pane") {
+    ModelsPaneView()
+        .environment(LibraryManager.shared)
+        .frame(width: 1100, height: 600)
+}
