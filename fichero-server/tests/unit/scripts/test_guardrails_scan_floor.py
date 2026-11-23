@@ -67,6 +67,7 @@ FLOORED_CHECKS: dict[str, dict] = {
         "extra_scripts": [
             "matrix_guardrail_common.py",
             "check_endpoint_coverage_matrix_known_gaps.json",
+            "check_endpoint_coverage_matrix_no_spec_baseline.json",
         ],
     },
     "check_action_surface_matrix.py": {
