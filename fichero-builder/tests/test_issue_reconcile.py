@@ -130,7 +130,10 @@ def test_a_landing_whose_sha_is_only_on_the_remote_is_fetched_and_read(tmp_path,
     sha = _git_in(other, "rev-parse", "HEAD")
     monkeypatch.chdir(clone)
     mod = issue_reconcile
-    import subprocess, pytest
+    import subprocess
+
+    import pytest
+
     with pytest.raises(subprocess.CalledProcessError):
         mod._git("ls-tree", "-r", "--name-only", sha)  # the failure the audit saw
     mod.ensure_ref(sha)
