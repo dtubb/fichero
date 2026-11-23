@@ -536,7 +536,7 @@ replaces the Kraken figure before #6212 is coded.
   who stopped it (`test_a_stopped_run_says_who_stopped_it.py`).
 - `recipes-run.control.pause-and-resume` — **[PARTIAL]** (#5933; `activity.recipe-run.pause-reaches-its-step` (G)
   owns it) Pause on the run's row pauses the recipe at its next step and its step's run in flight, saying
-  so; a paused step is waiting, never failed; Resume carries on from the checkpoint. Built, its 13 tests green on
+  so; a paused step is waiting, never failed; Resume carries on from the checkpoint. Built, its 14 tests green on
   build/recipes-run (`fichero-server/tests/unit/recipes/test_recipe_pause_5933.py`); left: Pause and Resume on a real
   run on the M4.
 - `recipes-run.control.start-again-redoes-nothing` — **[OK]** (#5390; `source.recipe.done-is-not-redone` owns
