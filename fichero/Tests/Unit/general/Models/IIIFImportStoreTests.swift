@@ -13,7 +13,8 @@ private final class IIIFMockURLProtocol: URLProtocol {
         let key = "\(request.httpMethod ?? "GET") \(request.url?.path ?? "")"
         let body = (try? JSONSerialization.jsonObject(with: request.bodyOrStream())) as? [String: Any] ?? [:]
         Self.seen.append((key, body))
-        let json = #"{"job_id": "job-iiif-1", "folder_id": "folder-iiif-1", "url": "\#(body["url"] as? String ?? "https://example.org/m.json")"}"#
+        let url = body["url"] as? String ?? "https://example.org/m.json"
+        let json = #"{"job_id": "job-iiif-1", "folder_id": "folder-iiif-1", "url": "\#(url)"}"#
         let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
                                        headerFields: ["Content-Type": "application/json"])!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
