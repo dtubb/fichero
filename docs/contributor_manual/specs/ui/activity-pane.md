@@ -2447,7 +2447,7 @@ and node, not by job); a retry action for failed pages.
   lane's pick holds neither `_heavy_pick` nor its own lock across a slow probe. The flags (`is_paused`, `is_started`) were already
   read before the lock; the battery reading (`pmset`, up to 5 s) is now taken there too, so the pick reads a fresh cache; and the
   held reason is written to the waiting rows once per change (again after 30 s), not once per scan per open project. Pinned by
-  `fichero-server/tests/unit/jobs/test_pick_holds_no_lock_across_slow_probes.py`. NOT done: the held-reason write still happens
+  `fichero-server/tests/unit/jobs/test_pick_holds_no_lock_across_slow_probes.py::test_the_battery_is_read_before_the_heavy_pick_lock_is_taken`. NOT done: the held-reason write still happens
   inside the lane's pick when it does happen, and the thermal and memory probes are read in place (cheap sysctls).
 - `activity.lane.hung-call-says-so` — **[OK]** (#5874; green on the Pro, single file, 2026-10-21, r1-steps-c15: `fichero-server/tests/unit/jobs/test_pick_holds_no_lock_across_slow_probes.py::test_a_model_call_that_does_not_answer_says_so_on_its_row`; Fable runner review #16) a model call that holds the lane's slot and does not
   answer says so on its row after 60 s and at each minute after ("Waiting for the model to answer (2 min so far)"), instead of the last
