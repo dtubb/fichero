@@ -24,6 +24,8 @@ UNSURE = "und"
 MAX_PAGES, MIN_LETTERS = 3, 40
 #: A language wins on this many function words, this many times the next one's.
 MIN_HITS, MIN_RATIO = 4, 1.5
+#: The quick read's picture is at most this many pixels on a side, and a page's read is given up after this many seconds (#6814).
+QUICK_READ_PIXELS, QUICK_READ_SECONDS = 1600, 20.0
 
 #: Unicode name prefix -> ISO 15924 code, for the scripts a project of ours is likely to hold.
 _SCRIPTS = {"LATIN": "Latn", "CYRILLIC": "Cyrl", "GREEK": "Grek", "ARABIC": "Arab", "HEBREW": "Hebr", "CJK": "Hani",
@@ -84,11 +86,30 @@ def _page_text(db: Any, library: Path, doc: Any) -> str:
 
         if path.suffix.lower() == ".pdf" or not path.is_file() or not apple_vision_here():
             return ""
-        # "auto": no language is assumed, the question is which it is
-        return (apple_vision_ocr(str(path), "auto") or "").strip()
+        return _quick_read(path, apple_vision_ocr)
     except Exception as exc:  # noqa: BLE001 -- a quick read that cannot run says nothing; the field then says "could not tell"
         logger.info("language guess: the quick read of %s did not run: %s", path.name, exc)
         return ""
+
+
+def _quick_read(path: Path, read: Any) -> str:
+    """The page's picture reduced to `QUICK_READ_PIXELS`, read with no language assumed (the question is which it is); '' when the
+    read is still going after `QUICK_READ_SECONDS` (its thread is left to finish; its answer is not used)."""
+    import tempfile
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError as Late
+
+    from fichero_server.db import storage
+
+    with tempfile.TemporaryDirectory(prefix="quick-read-") as folder:
+        small = storage._generate_image(path, Path(folder) / "quick.jpg", (QUICK_READ_PIXELS, QUICK_READ_PIXELS))
+        pool = ThreadPoolExecutor(max_workers=1)
+        try:
+            return (pool.submit(read, str(small or path), "auto").result(timeout=QUICK_READ_SECONDS) or "").strip()
+        except Late:
+            logger.info("language guess: the quick read of %s took over %.0f s; gave up on it", path.name, QUICK_READ_SECONDS)
+            return ""
+        finally:
+            pool.shutdown(wait=False)
 
 
 def unsure(answers: dict[str, Any]) -> bool:
