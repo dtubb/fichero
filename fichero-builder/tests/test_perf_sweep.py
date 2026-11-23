@@ -605,3 +605,12 @@ def test_the_performance_lens_names_ram_disk_and_time_risks_in_the_diff():
     assert "Name each RAM, disk and time risk in the diff" in text
     for shape in ("a loop over all documents", "a whole-file read", "an unbounded cache", "main-thread work in a SwiftUI body"):
         assert shape in text
+
+
+def test_the_reviewer_refuses_an_app_step_whose_diff_adds_no_screen_reaching_the_feature():
+    """#7067: for a step whose spec behaviours are app ones, NOT READY when the diff adds no window, menu command or pane kind."""
+    text = review_lenses.LENSES
+    assert "LENS: App screen" in text and "NOT READY" in review_lenses.APP_SCREEN
+    for opener in ("a Window or openWindow id", "a menu command", "a pane kind"):
+        assert opener in review_lenses.APP_SCREEN
+    assert "engine answers and pure rules" in review_lenses.APP_SCREEN
