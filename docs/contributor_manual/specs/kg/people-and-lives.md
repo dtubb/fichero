@@ -248,7 +248,7 @@ archives. It is listed under Future and is not to be built before the flat band 
 
 A project can show its owner how the linking is doing on that project only: of the links accepted, how many were
 later undone; of the proposals offered, how many were accepted, rejected or left as cannot tell; how many held-out
-decisions the matcher agrees with (`record.check.one-in-ten-held-out`, no figure under 50). These are read on the
+decisions the matcher agrees with (`record.check.one-in-ten-held-out`, no figure under 100). These are read on the
 person's own machine, are never sent anywhere, and are never set beside another project's.
 
 ## Behaviours

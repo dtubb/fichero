@@ -370,7 +370,7 @@ decisions is held out and never trained on (`record.check.one-in-ten-held-out`, 
   corrected names and statements train the extractor (`kg.teach.*`, `kg/kg-confidence-and-provenance.md`), with one
   decision in ten held out by `record.check.one-in-ten-held-out`; an extractor's figure is its precision on the
   report half, per kind and band, and under 50 held-out decisions none is shown. *Test (to write):*
-  test_research_extractor_figures.py.
+  test_research_extractor_figures.py. **Not built:** the owner's answer (2026-11-22) replaces the threshold above: an extractor's figure is shown only after 100 held-out decisions; below that the line says "not enough checked yet" and shows no number.
 - `research.ops.learn.routing-by-failure-rate` — **[GAP]** (#2069 → #6999) per step kind and tier the engine keeps
   the share of steps that needed a fix round or an escalation; a kind over one half on a tier starts one tier up, and
   the Models and Compute row for that kind of work says so with the count. *Test (to write):*

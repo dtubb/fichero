@@ -204,7 +204,7 @@ After Stage 0 the lane stands: the benchmark reruns on every adopted reader and 
   person-checked mean; a half-corrected page is not person-checked).
 - `hands.truth.every-figure-says-its-reference` — **[GAP]** (#4947 → #6966) every figure this spec defines carries
   the count of person-checked and of model-checked lines behind it, and a figure resting on fewer than 100 lines or
-  two pages (the bake-off's own floor, `recipes/bakeoff.py` `MIN_LINES`, `MIN_PAGES`) is shown as "too few to say".
+  two pages (the bake-off's own floor, `recipes/bakeoff.py` `MIN_LINES`, `MIN_PAGES`) is shown as "too few to say". **Not built:** the owner's answer (2026-11-22) replaces the threshold above: a figure is shown only after 100 held-out decisions, or 5 held-out pages in each half; below that the line says "not enough checked yet" and shows no number.
 
 ### C. The held-out split in a working project
 
@@ -221,7 +221,7 @@ After Stage 0 the lane stands: the benchmark reruns on every adopted reader and 
   hash. Calibration, thresholds and the noise band are fitted on the fit half only; every figure shown or published
   comes from the report half only. With fewer than two pages in either half the figure is "too few to say".
   *Test (to write):* test_held_out_two_halves.py (a fit never reads a report-half page; a figure never reads a
-  fit-half page).
+  fit-half page). **Not built:** the owner's answer (2026-11-22) replaces the threshold above: with fewer than 5 pages in either half the figure is "not enough checked yet", with no number.
 - `hands.heldout.every-builder-refuses` — **[GAP]** (#5441 → #6969) every builder of something a model learns from
   refuses a held-out page: the Kraken and vision training sets (built, `training.set.held-out-never-trained`), the
   YOLO set, the rescoring tables of section F, prompt examples, and a set packed for another place. One function
@@ -359,8 +359,8 @@ display are `compute/correct-measure-distil.md`'s; these lines are this step's p
   (confirm, fix and not-readable each call one action; the focus follows the queue's order).
 - `hands.correct.progress-per-hand` — **[GAP]** (#6283, #5441) the Reader shows, for the hand of the page in view,
   "N lines corrected in this hand, error now X% (a to b)": N from the hand's ground truth, X the CER on the report half
-  of its held-out pages, with its range; with fewer than two held-out pages in either half it reads "N lines
-  corrected, too few pages set aside to measure" (`correct.ui.progress-line`). *Test (to write):*
+  of its held-out pages, with its range; with fewer than 5 held-out pages in either half it reads "N lines
+  corrected, not enough checked yet" (`correct.ui.progress-line`). *Test (to write):*
   test_progress_line_per_hand.py.
 - `hands.loop.better-reader-takes-over` — **[GAP]** (#5337, #4951) a hand's adapter or student replaces that hand's
   reader only by the switch rule (`loopstate.switch-only-when-measured-better`), for that hand as the scope; the

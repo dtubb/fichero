@@ -351,7 +351,7 @@ that rests on a model's readings says so in the footnote itself and cannot be ex
   ranker is fitted on the person's machine on their yes and no marks, in seconds, with no cloud call; one in ten
   marks is held out by the existing rule (`record.check.one-in-ten-held-out`) and never fitted on; once there are 50
   held-out marks the sheet says how many of the passages the person would accept the search finds in its first
-  hundred, and before that says how many of the 50 there are. *Test (to write):* test_concept_ranker_local.py. **Not built:** the owner's answer (2026-11-22), candidate ranking runs on a local model by default; a cloud model ranks only when the historian asks, labelled on every result.
+  hundred, and before that says how many of the 50 there are. *Test (to write):* test_concept_ranker_local.py. **Not built:** the owner's answer (2026-11-22), candidate ranking runs on a local model by default; a cloud model ranks only when the historian asks, labelled on every result. **Not built:** the owner's answer (2026-11-22) replaces the threshold above: the sheet shows the figure only after 100 held-out marks, and before that says "not enough checked yet" with no number.
 - `concepts.heldout.test-only-when-asked` — **[GAP]** (#4692 → #7027) when the person asks, the sheet draws a
   shuffled sample from pages set aside, the search's picks mixed with random passages, with scores absent from the
   payload until marking is done; the result is two counts, how often the picks and how often the random ones were
@@ -416,7 +416,7 @@ rules and the loop's display are `compute/correct-measure-distil.md`'s; these li
   (`correct.ui.progress-line`). *Test (to write):* test_form_grouping_measured.py (a held-out decision is in no fit;
   a version that is not better is not offered).
 - `concepts.sheet.progress-line` — **[GAP]** (#4692, #6283) the concept sheet shows one line for the concept's
-  version: "N marked, M yes of those offered", and, once there are 50 held-out marks, "finds X% of your held-out yes
+  version: "N marked, M yes of those offered", and, once there are 100 held-out marks, "finds X% of your held-out yes
   passages in its first hundred (a to b)". The yes-rate is named as a rate and is never shown as an error
   (`measure.rates-are-not-errors`). *Test (to write):* test_concept_progress_line.py.
 

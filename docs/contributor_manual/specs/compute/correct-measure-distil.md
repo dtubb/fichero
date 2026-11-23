@@ -132,7 +132,7 @@ Four rules hold on every surface where a step's output is corrected.
    held out never changes its place.
 4. **Progress in one line.** The surface says "N corrected, error now X% (a to b)" for the step and the scope: N from
    the ground truth, X from the report half of the held-out share, the range at the app's one level. Below the minimum
-   it says "N corrected, 12 of 50 needed to measure". It never says which units were held out.
+   it says "N corrected, not enough checked yet" and shows no figure (100 held-out decisions, or 5 held-out pages in each half). It never says which units were held out.
 
 ### The loop's state, in Activity and in Models
 
@@ -222,9 +222,9 @@ Tests to write sit in `fichero-server/tests/unit/training/` unless a path says o
   test_correction_queue.py (planted confidences give the order; flipping held-out leaves it unchanged).
 - `correct.ui.progress-line` — **[GAP]** (#6283, #5441) every correction surface shows one line for the step and the
   scope: "N corrected, error now X% (a to b)", where N is the count of ground-truth units, X the step's error on the
-  report half and (a to b) its range. Below the minimum of held-out units it reads "N corrected, k of m needed to
-  measure". The line updates as corrections land, and no response says which units were held out. *Test (to write):*
-  test_progress_line.py; CorrectionProgressLineTests.swift (the three wordings from a stub answer).
+  report half and (a to b) its range. Below the minimum of held-out units (100 decisions, or 5 pages in each half) it reads "N corrected, not
+  enough checked yet" and shows no figure. The line updates as corrections land, and no response says which units were held out. *Test (to write):*
+  test_progress_line.py; CorrectionProgressLineTests.swift (the wordings from a stub answer).
 
 ### D. The measure
 
@@ -349,7 +349,7 @@ Needs `compute/distillation.md` Steps 2.2 and 2.3 (the one gate, the one answer 
 
 | Leg | This surface? | Pins | File |
 |-----|---------------|------|------|
-| Pure rule (Swift) | y | the one key table; the progress line's three wordings; the loop row's four parts | `fichero/Tests/Unit/general/` (to write: CorrectionKeysTests.swift, CorrectionProgressLineTests.swift) |
+| Pure rule (Swift) | y | the one key table; the progress line's wordings; the loop row's four parts | `fichero/Tests/Unit/general/` (to write: CorrectionKeysTests.swift, CorrectionProgressLineTests.swift) |
 | Availability (Swift) | y | every contract's surface offers each of its gestures | CorrectionInPlaceTests.swift (to write) |
 | Backend (pytest) | y | the contract and the walk; one ground-truth reader; the held-out unit; the error with its range; the queue; the switch rule | `fichero-server/tests/unit/training/` (to write, the files named above) |
 | MCP | y | a step's contract, its error answer and its queue read back | `fichero-mcp/tests/test_mcp_generated.py` |
@@ -371,7 +371,7 @@ Needs `compute/distillation.md` Steps 2.2 and 2.3 (the one gate, the one answer 
 
 ## Preview harness
 
-`CorrectionProgressLinePreview` renders the line's three wordings, and `ModelLoopRowPreview` a step's row in its
+`CorrectionProgressLinePreview` renders the line's wordings, and `ModelLoopRowPreview` a step's row in its
 states (data only, measured, a better model ready, switched), each from stub answers.
 
 ## Accessibility identifiers

@@ -102,8 +102,8 @@ never forced.
 **Held out.** One in ten of a person's decisions of each kind is held out, silently, by a hash of the decision's id
 and a per-project salt. A held-out decision never trains a tagger, an extractor or a matcher, never sets a threshold,
 and is never an example in a prompt. As in `source/read-any-hand.md`, held-out decisions are cut into a fit half
-(calibration, thresholds) and a report half (every figure shown). Under 50 held-out decisions of a kind, no figure of
-that kind is shown: the app says how many there are of the 50.
+(calibration, thresholds) and a report half (every figure shown). Under 100 held-out decisions of a kind, no figure of
+that kind is shown: the app says "not enough checked yet", with no number.
 
 **Open and private.** A small open part (pairs from open-licensed parallel sets, which is the fixture
 `explore/connections-across-corpora.md` names in its test matrix) is committed and runs in the tests. A project's own
@@ -171,7 +171,7 @@ and never seeds a search. Until a hand has a fit, figures say "reading not yet m
   cut into a fit half and a report half as `hands.heldout.fit-half-and-report-half` cuts pages. Under 50 held-out
   decisions of a kind no figure of that kind is shown, and the app says "N of 50 checked". *Test (to write):*
   test_check_set_held_out.py (1,000 decisions give 100 within the binomial band; a trainer's set has none of them;
-  49 decisions show no figure).
+  49 decisions show no figure). **Not built:** the owner's answer (2026-11-22) replaces the threshold above: a figure is shown only after 100 held-out decisions, or 5 held-out pages in each half; below that the line says "not enough checked yet" and shows no number.
 - `record.check.open-part-is-a-fixture` — **[GAP]** (#5341 → #6979) the open part of the check set (pairs and
   parallel passages from open-licensed sets, with their licences) is a committed fixture the tests run on, and is the
   fixture `explore/connections-across-corpora.md`'s test matrix asks for. No decision from a person's library is ever
@@ -258,7 +258,7 @@ correction rules and the loop's display are `compute/correct-measure-distil.md`'
 - `record.measure.error-per-step-with-range` — **[GAP]** (#5545) the report's figures for names, statements and pairs
   are served per step in the one shape (`measure.error.per-step-hand-project`): for the project and per archive, each
   with its range, the number of held-out decisions behind it and the reference's kind. *Test (to write):*
-  test_record_error_per_step.py (two archives, one under 50 decisions: one figure with a range, one "N of 50").
+  test_record_error_per_step.py (two archives, one under 100 decisions: one figure with a range, one "not enough checked yet" and no number).
 - `record.correct.name-and-statement-in-one-gesture` — **[GAP]** (#4794, #5417) in the review surface and on the page,
   a name takes one gesture each to confirm, to delete (not a name) and to mark its kind (one key a kind, shown beside
   the kind); its ends are fixed by dragging. A statement takes one gesture each to accept and to reject, and E to fix a
