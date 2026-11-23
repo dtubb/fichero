@@ -477,7 +477,7 @@ disk_floor_gb = 30
 # dev-workflows.run.measure: test machines `builder measure` ships a lane's commit to (ssh host, the gate dir with venv/)
 imac = { ssh = "imac", dir = "~/fichero-gate", min_free_gb = 5 }
 m1air = { ssh = "air", dir = "~/fichero-gate", min_free_gb = 5 }   # the owner's M1 Air: any time
-# m4air = { ssh = "m4", dir = "~/fichero-gate", min_free_gb = 5 }    # the M4 Air: gate runner since 2026-11-09 (headless; ~/fichero-gate -> /Volumes/Fichero Dev Disk/fichero-gate), a GUI session for the app  # owner 2026-11-23: away
+m4air = { ssh = "m4", dir = "~/fichero-gate", min_free_gb = 5 }    # the M4 Air: gate runner since 2026-11-09 (headless; ~/fichero-gate -> /Volumes/Fichero Dev Disk/fichero-gate), a GUI session for the app  # owner 2026-11-23: the M4 Air is away; kept for the perf-sweep table, not a check runner
 
 [queue]
 # `builder queue run` (dev-workflows.tool.queue): how many `builder work` processes run at once; the ladder is one at a time regardless.
