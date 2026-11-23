@@ -98,13 +98,20 @@ jobs:
       matrix:
         include:
           - { language: python, os: ubuntu-latest, build-mode: none }
-          - { language: swift, os: macos-15, build-mode: none }
+          - { language: swift, os: macos-15, build-mode: manual }  # Swift has no 'none' mode (CodeQL fatal error)
     steps:
       - uses: actions/checkout@v7
       - uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
+      - name: Build the app for CodeQL (Swift only)
+        if: matrix.language == 'swift'
+        run: |
+          set -o pipefail
+          xcodebuild build -project fichero/fichero.xcodeproj -scheme "Fichero (Dev Local)" \
+            -destination 'platform=macOS' -skipPackagePluginValidation -skipMacroValidation \
+            CODE_SIGNING_ALLOWED=NO | tail -n 50
       - uses: github/codeql-action/analyze@v3
         with:
           category: /language:${{ matrix.language }}
