@@ -295,7 +295,7 @@ runs on the builder, not by a sweep: the files a batch adds or moves are judged 
 | Models/Services by feature | `check_folder_organization.py` allowlist | [GAP] until the two entries leave |
 | Swift test mirror | — | [GAP] in `check_folder_organization` |
 | Python package root, test mirror, shims, test names | — | [GAP] `check_engine_package_layout` |
-| one type per file, View suffix, platform suffix | — | [GAP] `check_swift_one_type_per_file` |
+| one type per file, View suffix, platform suffix | `check_swift_one_type_per_file.py` (`fichero-server/tests/unit/scripts/test_check_swift_one_type_per_file.py`) | [OK] built; `KNOWN_VIOLATIONS` ratchets the baseline |
 | dead Swift files | `check_dead_files.py` | [OK]; periphery nightly [GAP] |
 | dead Python | — | [GAP] `check_vulture_ratchet` |
 | commented-out code | `check_comment_hygiene.py`, `check_python_comment_hygiene.py` | [OK] |
