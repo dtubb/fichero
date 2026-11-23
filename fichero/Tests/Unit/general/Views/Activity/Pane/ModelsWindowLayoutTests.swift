@@ -65,8 +65,8 @@ struct ModelsWindowLayoutTests {
     func placeStatusIsProbed() {
         let down = ActivityModelEntry(id: "remote|studio|llama", name: "llama", place: .remote, provider: "studio",
                                       account: .notReachable)
-        let up = ActivityModelEntry(id: "cloud|OpenAI|gpt", name: "gpt", place: .cloud, provider: "OpenAI", account: .ready)
-        let all = [down, up, keyless, idle]
+        let ready = ActivityModelEntry(id: "cloud|OpenAI|gpt", name: "gpt", place: .cloud, provider: "OpenAI", account: .ready)
+        let all = [down, ready, keyless, idle]
         #expect(ModelsWindowModel.placeStatus(provider: "studio", in: all) == .notReachable)
         #expect(ModelsWindowModel.placeStatus(provider: "OpenAI", in: all) == .ready)
         #expect(ModelsWindowModel.placeStatus(provider: "Anthropic", in: all) == .needsKey)
