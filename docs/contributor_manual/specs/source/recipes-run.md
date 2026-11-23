@@ -395,7 +395,7 @@ replaces the Kraken figure before #6212 is coded.
   share of the budget (10% of physical memory, never under 1 GiB; the engine's own app and global databases take a
   slice, 5% of the budget or twice their file, in 32 MiB steps, 64 MiB at least and an equal share at most; the
   libraries split the rest, 256 MiB at least; below 12 GB of memory each instance runs 2 threads,
-  `fichero-server/tests/unit/core/test_duckdb_memory_budget.py`); a refused spill-directory switch
+  `fichero-server/tests/unit/core/test_duckdb_memory_budget.py::test_four_open_databases_on_16_gib_stay_within_the_budget`); a refused spill-directory switch
   ("Cannot switch temporary directory after the current one has been used") is logged once and never
   skips the cap. Was: `apply_memory_limit` set the spill directory first, the instance that had already
   spilled refused, the exception skipped the cap, and the instance ran at DuckDB's default of 80% of RAM
@@ -431,12 +431,12 @@ replaces the Kraken figure before #6212 is coded.
   keeps two heavy models loaded: before a Kraken load it stops the served MLX model and before a served
   model it frees Kraken, whatever the free-memory reading says; the run's row says which model it swapped
   for and why. Built: one heavy job at a time while memory is tight (`activity.throttle.one-heavy-when-memory-tight`,
-  `fichero-server/tests/unit/jobs/test_one_heavy_when_memory_tight.py`), the idle release of Kraken after
+  `fichero-server/tests/unit/jobs/test_one_heavy_when_memory_tight.py::test_two_heavy_lanes_run_one_job_between_them_while_memory_is_busy`), the idle release of Kraken after
   120 s and the embedder after 600 s (`activity.lane.idle-unload`), the memory hold freeing idle models
-  (`fichero-server/tests/unit/jobs/test_memory_gate_frees_idle_models_6129.py`). The release of the served model
+  (`fichero-server/tests/unit/jobs/test_memory_gate_frees_idle_models_6129.py::test_a_memory_hold_asks_for_the_idle_models_to_be_freed_on_the_next_claim`). The release of the served model
   before a Kraken load (`_stop_local_model_server`, since 2026-10-21) and of Kraken before a served model are pinned at the
   lane by `fichero-server/tests/unit/jobs/test_one_heavy_when_memory_tight.py::test_a_small_mac_frees_the_loaded_heavy_model_before_another_loads_whatever_memory_reads`
-  and at the server by `fichero-server/tests/unit/api/test_served_model_released_for_kraken.py`.
+  and at the server by `fichero-server/tests/unit/api/test_served_model_released_for_kraken.py::test_stop_served_models_stops_the_engine_started_running_servers_only`.
 - `recipes-run.memory.hold-when-paging` — **[PARTIAL]** (#6075; `activity.throttle.hold-when-swapping` (P)
   owns it) new heavy work is held, and Kraken reads one page at a time, while this Mac is paging NOW under
   memory pressure at warn or above (pageouts or swap grown by 64 MB within the last minute); static swap
