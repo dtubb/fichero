@@ -196,6 +196,8 @@ def _kept_timing(kept: list[list[Any]]) -> tuple[StepTiming, list[tuple[datetime
 #: An ended run's timings, kept by the run and what its steps ended as (a step retried after the end changes the key):
 #: the list of runs reads each ended run's timeline once, not on every poll (#6812).
 _ENDED_TIMINGS: dict[tuple, tuple[Optional[float], dict[int, StepTiming]]] = {}
+#: At most this many ended runs are kept; the oldest read goes first.
+_ENDED_TIMINGS_CAP = 300
 
 
 def _timings(db: Any, status: dict[str, Any]) -> tuple[Optional[float], dict[int, StepTiming]]:
@@ -208,6 +210,8 @@ def _timings(db: Any, status: dict[str, Any]) -> tuple[Optional[float], dict[int
         out = _read_timings(db, status)
         if out != (None, {}):  # a read that failed gives none: asked again next poll
             _ENDED_TIMINGS[key] = out
+            while len(_ENDED_TIMINGS) > _ENDED_TIMINGS_CAP:
+                del _ENDED_TIMINGS[next(iter(_ENDED_TIMINGS))]
     return _ENDED_TIMINGS.get(key, (None, {}))
 
 

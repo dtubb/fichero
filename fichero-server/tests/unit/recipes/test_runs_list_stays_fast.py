@@ -35,3 +35,12 @@ def test_the_list_of_runs_reads_no_ended_runs_timeline_twice(db, monkeypatch):
     assert reads == [], "the second poll reads none of them"
     assert [i.seconds for i in second.items] == [i.seconds for i in first.items]
     assert run_view._ENDED_TIMINGS, "the ended runs' timings are what was kept"
+
+
+def test_the_kept_timings_stay_under_their_cap(db, monkeypatch):
+    monkeypatch.setattr(run_view, "_ENDED_TIMINGS_CAP", 5)
+    run_view._ENDED_TIMINGS.clear()
+    for n in range(12):
+        _ended_run(db, n)
+    asyncio.run(recipes.recipe_runs(db=db))
+    assert 0 < len(run_view._ENDED_TIMINGS) <= 5
