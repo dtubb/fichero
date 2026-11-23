@@ -111,6 +111,8 @@ struct IngestTask: Identifiable {
     let taskId: String
     let status: String
     let path: String
+    /// The folder the engine made for this import before copying anything (#7066); nil for a corpus.
+    var folderId: String?
 
     var id: String { taskId }
 }

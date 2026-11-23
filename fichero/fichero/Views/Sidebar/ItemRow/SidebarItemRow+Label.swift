@@ -79,6 +79,7 @@ extension SidebarItemRow {
         if case .document(let doc) = item.itemType {
             badge = ingestBadge(for: doc)
         }
+        if importingFolder?.error != nil { badge = ("exclamationmark.triangle.fill", Color.orange) }
         let activity = containerActivity
         return SidebarRowLabelCore(
             iconOnly: iconOnly,

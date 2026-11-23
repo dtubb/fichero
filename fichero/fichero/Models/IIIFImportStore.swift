@@ -9,6 +9,8 @@ import Observation
 @Observable
 final class IIIFImportStore {
     let client: FicheroClient
+    /// The sidebar's spinner and error mark for the folder an add fills (#7066).
+    let folderImports: FolderImportTracker
 
     /// The import sheet is open (File › Import from IIIF…).
     var isChoosing = false
@@ -17,8 +19,9 @@ final class IIIFImportStore {
     private(set) var startedJobId: String?
     private(set) var refusal: String?
 
-    init(client: FicheroClient) {
+    init(client: FicheroClient, folderImports: FolderImportTracker = FolderImportTracker()) {
         self.client = client
+        self.folderImports = folderImports
     }
 
     /// A pasted source as the engine takes it: an https URL; nil for anything else (an http URL, a word, a file).
@@ -42,7 +45,9 @@ final class IIIFImportStore {
             )
             switch response {
             case .ok(let success):
-                startedJobId = try success.body.json.jobId
+                let started = try success.body.json
+                startedJobId = started.jobId
+                watch(jobId: started.jobId, folderId: started.folderId)
                 return true
             case .unprocessableContent:
                 refusal = "Fichero could not read \(url.host ?? "that address") as a IIIF manifest or collection."
@@ -54,6 +59,29 @@ final class IIIFImportStore {
             refusal = "Could not start the import: \(error.localizedDescription)"
         }
         return false
+    }
+
+    /// The folder shows a spinner from the engine's start answer until the job ends; a failed job keeps the row, marked,
+    /// with the job's reason (#7066). The job's state is read from the same Activity route the Activity window uses.
+    private func watch(jobId: String, folderId: String) {
+        folderImports.begin(folderId: folderId)
+        Task { [client, folderImports] in
+            while !Task.isCancelled {
+                if let tree = try? await client.api.getJobTreeApiActivityJobsJobIdGet(path: .init(jobId: jobId)),
+                   case .ok(let read) = tree, let job = try? read.body.json {
+                    switch job.state {
+                    case "done", "completed", "cancelled":
+                        folderImports.finish(folderId: folderId)
+                        return
+                    case "failed":
+                        folderImports.fail(folderId: folderId, reason: job.reason ?? "The import failed.")
+                        return
+                    default: break
+                    }
+                }
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
     }
 
     /// Read a bound folder's source again, as one job: what the institution added appears; nothing is made twice.
@@ -68,7 +96,9 @@ final class IIIFImportStore {
             )
             switch response {
             case .ok(let success):
-                startedJobId = try success.body.json.jobId
+                let started = try success.body.json
+                startedJobId = started.jobId
+                watch(jobId: started.jobId, folderId: started.folderId)
                 return true
             case .unprocessableContent:
                 refusal = "Fichero could not refresh this folder."

@@ -194,7 +194,21 @@ extension SidebarView {
         cachedItemIndex = sidebarItemIndex(cachedLibraryHeaders)
         lastTreeRebuildAt = Date()  // the window in which a dropped row is a rebuild gap (`sidebar.deselect-always-works`)
         InteractionProfile.lap(.sidebarExpand, "index")
+        revealImportingFolders(in: library)
         InteractionProfile.endAfterNextRender(.sidebarExpand, detail: "rebuilt for \(reason)")
+    }
+
+    /// A folder an import is filling is shown, not just added: once its row is known (it arrives on the change stream),
+    /// its ancestors are opened (#7066).
+    func revealImportingFolders(in library: LibraryManager.LibraryReference) {
+        let tracker = library.importService.folderImports
+        guard !tracker.pendingReveal.isEmpty else { return }
+        let known = library.documentStore.knownDocumentsById()
+        for folderId in tracker.pendingReveal where known[folderId] != nil {
+            let parents = FolderImportTracker.ancestors(of: folderId) { known[$0]?.parentId }
+            sidebarState.expandedItems.formUnion(parents)
+            tracker.revealed(folderId: folderId)
+        }
     }
 
     /// Recompute and store the per-library derived state that used to be redone

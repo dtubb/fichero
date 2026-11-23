@@ -79,8 +79,9 @@ extension ImportService {
             let task = IngestTask(
                 taskId: taskResponse.taskId,
                 status: taskResponse.status,
-                path: taskResponse.path
+                path: taskResponse.path, folderId: taskResponse.folderId
             )
+            if let folderId = task.folderId { folderImports.begin(folderId: folderId) }
             currentTask = task
             logger.info("Folder import task started: \(task.taskId)")
             #if os(macOS)
@@ -206,6 +207,10 @@ extension ImportService {
             autoEmbed: autoEmbed
         )
 
+        // The row's spinner goes when the import ends, and a failure keeps the row with its reason (#7066).
+        var failure: String?
+        defer { settleFolderImport(task.folderId, failure: failure) }
+
         var watchdog = IngestStallWatchdog(limit: timeout)
 
         // Poll until completion or stalled-too-long
@@ -240,6 +245,7 @@ extension ImportService {
             case "failed":
                 let errorMessage = status.error ?? "Unknown error"
                 logger.error("Folder import failed: \(errorMessage)")
+                failure = errorMessage
                 throw ImportServiceError.taskFailed(errorMessage)
 
             case "cancelled":
@@ -266,6 +272,12 @@ extension ImportService {
                 try await Task.sleep(nanoseconds: UInt64(pacer.interval * 1_000_000_000))
             }
         }
+    }
+
+    /// The import ended: the folder row's spinner goes, or, on a failure, the row keeps its error (#7066).
+    private func settleFolderImport(_ folderId: String?, failure: String?) {
+        guard let folderId else { return }
+        if let failure { folderImports.fail(folderId: folderId, reason: failure) } else { folderImports.finish(folderId: folderId) }
     }
 
     /// Import an entire folder (convenience method that waits for completion)

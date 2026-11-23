@@ -20,6 +20,9 @@ class ImportService {
     var lastError: ImportError?
     var currentTask: IngestTask?
 
+    /// The folders imports are filling, for the sidebar rows (#7066).
+    let folderImports = FolderImportTracker()
+
     /// The live folder-import status, republished on every poll — nil when
     /// nothing is importing. The progress surfaces observe THIS rather than
     /// polling themselves, so the Activity window and the toolbar island always
