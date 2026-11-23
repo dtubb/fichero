@@ -740,7 +740,8 @@ What the figures were, beside what the run said:
 
 The behaviours this adds:
 
-- `recipes-run.restart.continue-adopts-the-paused-step` — **[BROKEN]** (#6584, → #6807) after a quit, the launch
+- `recipes-run.restart.continue-adopts-the-paused-step` — **[OK]** (#6584, #6807;
+  `fichero-server/tests/unit/recipes/test_continue_adopts_the_paused_step_6807.py`) after a quit, the launch
   list names a recipe run ONCE: its step's run that the quit paused is part of it, never a second row, and the
   embeds the recipe will do at its end are not listed beside it; Continue resumes that step's run from its
   checkpoint and the recipe adopts it, as a person's Resume does (`_adopt_step_run`). Measured: the list held 5
@@ -750,7 +751,8 @@ The behaviours this adds:
   no reading", with no `missed` offer. Code: `execution/jobs.py` `stopped_at_quit`, `continue_after_quit`;
   `api/routes/system/activity.py` `list_stopped_at_quit`, `continue_after_quit` (adds the paused workflow runs);
   `recipes/runner.py` records the run a recipe waits on (`awaiting`) only in `_park`, a person's pause; a quit leaves none.
-- `recipes-run.restart.run-row-counts-pages-after-restart` — **[BROKEN]** (#6584, → #6807) after a restart the
+- `recipes-run.restart.run-row-counts-pages-after-restart` — **[OK]** (#6584, #6807;
+  `fichero-server/tests/unit/recipes/test_continue_adopts_the_paused_step_6807.py`, the last test) after a restart the
   run's row and its live row keep the page count they had: measured, the run's row read "4 of 5" before the
   kill and "5 of 11" after Continue (every step run's total added up), the live row "0 of 0", and the run's step
   list said Find Lines `running` while the run was paused.
