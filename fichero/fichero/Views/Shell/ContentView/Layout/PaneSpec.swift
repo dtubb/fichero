@@ -38,6 +38,8 @@ struct PaneSpec: Identifiable, Equatable {
         case activity
         /// The Activity graphs pane (decisions 40-41).
         case activityGraphs
+        /// The Models and Cluster window as a pane (#6588).
+        case models
 
         var title: String {
             switch self {
@@ -49,6 +51,7 @@ struct PaneSpec: Identifiable, Equatable {
             case .segments: "Segments"
             case .activity: "Activity"
             case .activityGraphs: "Activity Graphs"
+            case .models: ModelsWindowModel.windowTitle
             }
         }
 
@@ -62,6 +65,7 @@ struct PaneSpec: Identifiable, Equatable {
             case .segments: "list.bullet.rectangle"
             case .activity: "waveform.path.ecg"
             case .activityGraphs: "chart.bar.xaxis"
+            case .models: "cpu"
             }
         }
 

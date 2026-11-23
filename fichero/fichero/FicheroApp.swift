@@ -653,6 +653,22 @@ struct FicheroApp: App {
 
         detailScenes
 
+        // The Models and Cluster window (#6588): one `Window` scene; its automatic Window-menu item opens it.
+        // Same File-menu replacement as the Activity scene (#4331), so the File menu never goes empty.
+        Window("Models & Cluster", id: ModelsWindowModel.windowID) {
+            ModelsWindow()
+                .environment(appState)
+                .environment(libraryManager)
+                .environment(appExecutionObserver)
+        }
+        .defaultSize(width: 1100, height: 620)
+        .commands {
+            CommandGroup(replacing: .newItem) {
+                FileMenuCommands()
+                    .environment(libraryManager)
+            }
+        }
+
         // Activity monitor (#2546 / B2): the poppable live workflow monitor —
         // the window's root IS the hierarchical outline table. Resolves the
         // active library's shared WorkflowExecutionStore via LibraryManager and

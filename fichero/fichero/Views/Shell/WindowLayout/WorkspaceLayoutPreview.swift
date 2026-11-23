@@ -87,6 +87,7 @@ struct WorkspaceLayoutPreview: View {
         case .segments: .teal
         case .activity: .mint
         case .activityGraphs: .mint
+        case .models: .indigo
         }
     }
 
@@ -106,6 +107,7 @@ struct WorkspaceLayoutPreview: View {
         case .segments: return "Segments"
         case .activity: return "Activity"
         case .activityGraphs: return "Activity Graphs"
+        case .models: return ModelsWindowModel.windowTitle
         }
     }
 }

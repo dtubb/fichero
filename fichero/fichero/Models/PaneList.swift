@@ -52,6 +52,8 @@ enum PaneKind: String, Codable, CaseIterable, Sendable, Hashable {
     /// The Activity graphs as a pane of their own (`activity.window.views-are-panes`, `activity.graphs.own-pane`,
     /// decisions 40-41): the history graphs a main window can show beside its other panes.
     case activityGraphs
+    /// The Models and Cluster window as a pane (`models.window.is-activitys-shape`, #6588).
+    case models
 }
 
 /// What a pane is scoped to. All fields optional: a `nil` field means "follow the

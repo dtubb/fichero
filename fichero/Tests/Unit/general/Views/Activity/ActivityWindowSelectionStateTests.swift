@@ -63,12 +63,12 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
         let newItemReplaced = appSource
             .components(separatedBy: "CommandGroup(replacing: .newItem)").count - 1
         XCTAssertEqual(
-            removedCount, sceneCount - 3,
-            "every scene but main, seed and Activity monitor removes its commands (#4331)"
+            removedCount, sceneCount - 4,
+            "every scene but main, seed, Activity monitor and Models & Cluster removes its commands (#4331)"
         )
         XCTAssertEqual(
-            newItemReplaced, 3,
-            "the three surviving scenes replace the default new-item commands instead (#4331/#4524)"
+            newItemReplaced, 4,
+            "the four surviving scenes replace the default new-item commands instead (#4331/#4524)"
         )
         // The replacements MERGE with one winner app-wide, so every one of
         // them must supply the SAME File menu — an empty `{}` replacement won

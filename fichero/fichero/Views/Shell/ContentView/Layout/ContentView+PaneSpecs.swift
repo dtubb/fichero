@@ -68,6 +68,14 @@ extension ContentView {
             return activityPane(slotId: slotId, fixedWidth: spec.fixedWidth)
         case .activityGraphs:
             return activityPane(slotId: slotId, fixedWidth: spec.fixedWidth, graphsOnly: true)
+        case .models:
+            return AnyView(
+                ModelsPaneView()
+                    .frame(width: spec.fixedWidth)
+                    .frame(maxWidth: spec.fixedWidth == nil ? .infinity : nil)
+                    .clipped()
+                    .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .models; paneFocusHint = .models })
+            )
         case .chat:
             // Chat is no longer a centre pane — it lives beneath the sidebar
             // (spec panes.chat.below-sidebar). The kind stays in the enum so the
@@ -131,6 +139,7 @@ extension ContentView {
         case .segments: .segments
         case .activity: .activity
         case .activityGraphs: .activityGraphs
+        case .models: .models
         }
     }
 
@@ -146,6 +155,7 @@ extension ContentView {
         case .segments: .segments
         case .activity: .activity
         case .activityGraphs: .activityGraphs
+        case .models: .models
         }
     }
 
