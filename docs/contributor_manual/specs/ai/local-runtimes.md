@@ -300,23 +300,29 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
 
 - `runtime.yolo.imports-wherever-the-engine-runs` — **[PARTIAL]** (#6675, #5525) Ultralytics imports, and a detector finds
   regions on a real page, in every Python the engine runs under: the app's bundle, the development and test environment,
-  and the runtime matrix's. **Built 2026-11-21:** Ultralytics is a declared engine dependency
+  and the runtime matrix's. Today Ultralytics is not a declared dependency and is in no lock file: it reaches a Python
+  only through the bundle step (`[tool.fichero.mlx_bundle]` in `fichero-server/pyproject.toml`, installed by
+  `scripts/install_mlx_into_engine_bundle.py`), which `scripts/setup_venv.sh` also runs and then checks by import. An
+  environment made any other way lacks it, and no test notices, because the detector and the trainer are stand-ins in
+  every test (`fichero-server/tests/unit/training/test_yolo_regions_training.py`); the runtime matrix
+  (`runner.measured.runtime-matrix`) found exactly that. The rule: one way to make the environment
+  (`scripts/setup_venv.sh`), and the gate refuses to run the engine's tests in a Python where a bundled runtime does not
+  import, naming the module and the command that fixes it; the matrix's YOLO row runs the real detector on the fixture
+  pages on the GPU, twice, with one load. *Test (to write):* test_yolo_runs_for_real.py in
+  fichero-server/tests/unit/llm/ (skipped with its reason only where the stock weights are not in the model store; an
+  import failure fails, never skips).
+  **Built 2026-11-21:** Ultralytics is a declared engine dependency
   (`ultralytics>=8.4.175` in `fichero-server/pyproject.toml`), locked in `fichero-server/uv.lock` at the bundle's pin
   (`[tool.fichero.mlx_bundle]`), and the bundle step installs under the lock's constraints
   (`scripts/install_mlx_into_engine_bundle.py`). Measured 2026-11-21 on a 16 GB M1 under the lock's environment with the
   stock weights: the matrix's YOLO row ran ok, one load across two passes of the six sample pages, 5.2 s for the
-  first page, 0.20 s a page after, 773 MB peak RSS. *Not yet:* the bundle build under the lock's constraints, the
-  gate's refusal below, and the row on the 8 GB Mac. Before this, the detector and the trainer were stand-ins in every
-  test (`fichero-server/tests/unit/training/test_yolo_regions_training.py`), and the runtime matrix
-  (`runner.measured.runtime-matrix`) found Ultralytics missing from the gate venvs. The rule: one way to make the environment
-  (`scripts/setup_venv.sh`), and the gate refuses to run the engine's tests in a Python where a bundled runtime does not
-  import, naming the module and the command that fixes it; the matrix's YOLO row runs the real detector on the fixture
-  pages on the GPU, twice, with one load. *Test:*
+  first page, 0.20 s a page after, 773 MB peak RSS. The detector and the trainer were stand-ins in every test before;
+  the runtime matrix found Ultralytics missing from the gate venvs. *Tests:*
   `fichero-server/tests/unit/llm/test_yolo_runs_without_ultralytics.py` (the engine's load and detect path against a fake
   `ultralytics`, so it runs where none is installed), `fichero-server/tests/unit/llm/test_yolo_real_model.py` (the real
   weights on a fixture page; marked `real_model`, outside the ladder, skipped with its reason where the stock weights are
-  not in the model store), and
-  `fichero-server/tests/unit/packaging/test_ultralytics_declared_6675.py`.
+  not in the model store), and `fichero-server/tests/unit/packaging/test_ultralytics_declared_6675.py`. *Not yet:* the
+  bundle build under the lock's constraints, the gate's refusal above, and the row on the 8 GB Mac.
 
 ### C. Loading, residency and speed
 
@@ -383,7 +389,7 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
   before either is adopted.
 - `runtime.pytorch.device-chosen` — **[PARTIAL]** (#5370) PyTorch work (PyKEEN, a YOLO detector) uses
   MPS where it measures faster on the fixture and the CPU otherwise; nothing hard-codes the device. **Built
-  2026-11-21 (YOLO detection):** on a model's first page, with MPS available, `yolo_runtime.detect_regions` times one
+  2026-11-21, YOLO detection:** on a model's first page, with MPS available, `yolo_runtime.detect_regions` times one
   predict on MPS and one on the CPU after a warm-up on each, keeps the faster for that model and logs both (16 GB M1:
   MPS 0.046 s, CPU 0.339 s a page). Without MPS it runs on the CPU. *Test:*
   `fichero-server/tests/unit/llm/test_yolo_device_measured_5370.py`. *Not yet:* YOLO training
