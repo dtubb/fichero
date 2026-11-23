@@ -72,7 +72,7 @@ struct ActivityPaneOutlineTests {
     }
 
     /// `activity.window.acts-on` (#5839, ruled 2026-11-23): the pane's file rows under a run row ARE the list; the counts are the Trail.
-    @Test("a running recipe run says its stage and count in the trail and opens to its files, each with its state and a failed page's reason")
+    @Test("a running recipe run says its trail and opens to its files, each with its state and a failed page's reason")
     func runRowOpensToItsFilesWithStateAndReason() throws {
         var failed = Fix.page("r-p2", .failed, doc: "p2", model: "Kraken")
         failed.reason = "no lines found"
