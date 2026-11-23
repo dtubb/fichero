@@ -276,6 +276,7 @@ or at its handoff. This is the owner's ruling of 2026-11-01 and nothing in this 
   worker's session, so the profile does not have to admit them. Pi has no permission system of its own, so this and
   the policy extension (`pi/policy.ts`, which blocks any tool call not answered ALLOW) are the limits. The start
   probes prove the wall before each worker runs. Serves: reliable.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 - `local.handoff-measured` [GAP] (#6116) — the bake-off scores a model on handoffs as well as steps: whether the successor
   carries on correctly from the handoff file, redoes finished work, or loses the thread. A model that builds one step
   well and cannot survive a handoff does not pass. Serves: reliable.
@@ -291,6 +292,7 @@ or at its handoff. This is the owner's ruling of 2026-11-01 and nothing in this 
 - `local.escalation-by-handoff` [GAP] (#6116) — escalating a step to another tier ends the session through the same handoff
   path: the next tier starts from the handoff file plus the failed diff, the ladder output and the findings. When the
   step lands, the lane's own worker resumes from a fresh handoff. Serves: reliable.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 
 
 - `local.target` [GAP] (#6116) — every role (builder, reviewer, manager, helper) names a local provider it can run on; a role
@@ -343,15 +345,20 @@ With no stronger model on call, quality is whatever the gates enforce. These are
 
 - `local.escalation-tiers` [GAP] (#6116) — tiers are config: local builder → second local model → PARKED. During the build
   a cloud tier may sit above; it is removed at handover. Serves: reliable.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 - `local.escalation-triggers` [GAP] (#6116) — only mechanical triggers escalate: two failed fix rounds, the same rung red
   twice, a false DONE, a turn cap with no commit, repeated tool-call failures. The worker's opinion is not a trigger.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 - `local.pre-routing` [GAP] (#6116) — the brief routes a step before any attempt: size L, routes, entitlements, pinned or
   judging files, and any step kind whose recorded local failure rate is over half go to the tier that can do them.
   The rules are rewritten weekly from the escalation rows.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 - `local.escalation-row` [GAP] (#6116) — one journal row per escalation: step, kind, trigger, from, to, cost. A daily dollar
   cap; past it, steps park.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 - `local.must-escalate` [GAP] (#6116) — a weakened or deleted test, an excused red-on-base, any change to a pinned file, a
   guard, the ladder or `harness.toml`, anything on routes or entitlements, a step blocked twice, spend over cap.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 
 - `local.question-list` [GAP] (#6116) — scripts decide what is a question (the escalation triggers, a refused start, a
   contradiction the lint found); a model only drafts the wording and a proposed answer. Questions sit in one list on
@@ -391,6 +398,7 @@ Issues and milestones live on GitHub; the spec is their source and `builder` is 
   On his yes the release script runs, with one journal row. Signing keys are used only by that script. Absorbs
   `pipeline.weekly-release` [PARTIAL]; `release-channels-and-feature-tiers.md` stays the source for what each
   channel means. Serves: builds Fichero, reliable.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 
 ### F. State and reporting
 
@@ -399,11 +407,15 @@ Issues and milestones live on GitHub; the spec is their source and `builder` is 
 
 - `local.rulings-become-rules` [GAP] (#6116) — each escalation the supervising manager answers also files the guard, rule or
   routing entry that would have decided it. An escalation answered twice is a defect.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 - `local.promotions-stay-with-owner` [GAP] (#6116) — handover changes nothing about promotions: alpha, beta and release
   stay the owner's yes.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 - `local.handover` [GAP] (#6116) — the supervising manager is done when, for two consecutive weeks: no escalation reached it,
   the parked list stayed short, shadow agreement held, and no check was relaxed. It writes a handover note and stops.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 - `local.freeze` [GAP] (#6116) — after handover the harness takes fixes only; a new harness feature needs the owner.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 
 ### H. The loop moves onto LangGraph
 
@@ -415,16 +427,20 @@ Fichero's engine already uses LangGraph. The owner has ruled that the Builder ad
   landed, blocked, parked, escalated) runs as a LangGraph graph with its state saved in SQLite. The jail, the worker
   sessions, the handoff, the ladder, the GitHub writes and the release script stay the Builder's own code, called
   from the graph. The JSONL journal stays the record: every state change still writes a row. Serves: reliable.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 - `local.migration-one-lane-first` [GAP] (#6116) — the move is made one lane at a time, the first beside the current loop
   on the same steps. A lane has moved when the existing crash, restart and resume tests pass unchanged against it,
   and a worker that runs for hours and hands off at its mark carries on correctly. The old loop is deleted only when
   every lane has moved. If the long-running worker or the handoff cannot be kept, stop and report: that design
   outranks the library. Serves: reliable.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 - `local.pinned-dependency` [GAP] (#6116) — the package version is pinned and recorded with the rules; an upgrade is a step
   like any other, with the full ladder. The Builder still does not import the engine it judges. Serves: reliable.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 - `local.new-orchestration-on-the-graph` [GAP] (#6116) — escalation, the manager's moves, parked-step retries, the question
   list and the reviewers (binding, shadow, bug hunt) are built as graph nodes and pauses, never as more hand-written
   state code. LangChain is not adopted for this: it assembles model calls, and the Builder runs whole agents.
+  Superseded: owned by docs/contributor_manual/specs/harness/ (the builder specs) (Spec-change: manager 2026-11-23)
 
 ### I. What the night of 2026-11-19 taught (#6589)
 
