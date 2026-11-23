@@ -106130,6 +106130,12 @@
             "title": "All Lines",
             "description": "Train an A/B arm on every line it has, not only the lines every reasoning arm covers.",
             "default": false
+          },
+          "recipe_file": {
+            "type": "string",
+            "nullable": true,
+            "title": "Recipe File",
+            "description": "A LoRA recipe file (`training.lora_recipe`) naming rank, learning rate, epochs and prompt form; it replaces `rank`, `epochs` and `arm` above."
           }
         },
         "type": "object",

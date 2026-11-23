@@ -9159,13 +9159,14 @@ def fichero_training_start_vision_lora(
     not_for_release: Annotated[Optional[bool], Field(description='The trained model may not be released. Default: true.')] = None,
     pages_may_leave: Annotated[Optional[bool], Field(description="The person's yes for these pages to go to Hugging Face. Default: false.")] = None,
     rank: Annotated[Optional[int], Field(description='Rank. Default: 16.')] = None,
+    recipe_file: Annotated[Optional[str], Field(description='A LoRA recipe file (`training.lora_recipe`) naming rank, learning rate, epochs and prompt form; it replaces `rank`, `epochs` and `arm` above.')] = None,
     release_note: Annotated[Optional[str], Field(description='Release Note.')] = None,
     scope_ids: Annotated[list[Any], Field(description='Folders or pages whose teacher-read lines are the lessons.')],
     teacher: Annotated[str, Field(description='The model whose line readings are the lessons, e.g. google/gemini-3-flash-preview.')],
     timeout: Annotated[Optional[str], Field(description='The Job\'s time limit; always sent. Default: "8h".')] = None,
 ) -> Any:
     "Train a vision model with LoRA on Hugging Face Jobs, landed here as MLX\n\nQueue a `train-a-model` job on the vision-model card: the same training set as the Kraken\ncard, cut into line pictures with the line reader's own instruction and the teacher's answers; a\nLoRA on the bf16 base (Qwen2.5-VL 7B by default) on the cheapest GPU that fits; the merged model\nconverted to 4-bit MLX on this Mac and landed as `fichero-trained/<name>`, the adapter kept beside\nit. The same refusals as the Kraken card.\n\nRoute: POST /api/training/vision-lora (toolset `training`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/training/vision-lora", json=_rt.body({"all_lines": all_lines, "arm": arm, "base_licence": base_licence, "base_repo": base_repo, "display_name": display_name, "epochs": epochs, "flavor": flavor, "held_out_ids": held_out_ids, "keep_merged_here": keep_merged_here, "language": language, "max_trace_cer": max_trace_cer, "name": name, "not_for_release": not_for_release, "pages_may_leave": pages_may_leave, "rank": rank, "release_note": release_note, "scope_ids": scope_ids, "teacher": teacher, "timeout": timeout}))
+    return _rt.call("POST", "/api/training/vision-lora", json=_rt.body({"all_lines": all_lines, "arm": arm, "base_licence": base_licence, "base_repo": base_repo, "display_name": display_name, "epochs": epochs, "flavor": flavor, "held_out_ids": held_out_ids, "keep_merged_here": keep_merged_here, "language": language, "max_trace_cer": max_trace_cer, "name": name, "not_for_release": not_for_release, "pages_may_leave": pages_may_leave, "rank": rank, "recipe_file": recipe_file, "release_note": release_note, "scope_ids": scope_ids, "teacher": teacher, "timeout": timeout}))
 
 
 def fichero_triggers_list(
