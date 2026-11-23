@@ -42,4 +42,26 @@ struct ModelsWindowSceneTests {
     func needsYouSortsFirst() {
         #expect(ModelsWindowModel.rows(.thisMac, in: [idle, broken]).map(\.name) == ["chandra", "small"])
     }
+
+    @Test("the Inspector follows the selection: the selected listed row, nothing for none or an unlisted one")
+    func inspectorFollowsTheSelection() {
+        let rows = [broken, idle]
+        #expect(ModelsWindowModel.selectedRow(idle.id, in: rows)?.name == "small")
+        #expect(ModelsWindowModel.selectedRow(broken.id, in: rows)?.name == "chandra")
+        #expect(ModelsWindowModel.selectedRow(nil, in: rows) == nil)
+        #expect(ModelsWindowModel.selectedRow(keyless.id, in: rows) == nil)
+    }
+
+    @MainActor
+    @Test("the shared models store keeps an answer once and merges the libraries asked for")
+    func sharedStore() {
+        let store = ModelsAnswerStore()
+        let one = UUID(), two = UUID()
+        #expect(store.record(ActivityModelsAnswer(models: [idle]), for: one))
+        #expect(!store.record(ActivityModelsAnswer(models: [idle]), for: one), "the same answer redraws nothing")
+        #expect(store.record(ActivityModelsAnswer(models: [keyless]), for: two))
+        #expect(Set(store.answer(for: [one, two]).models.map(\.name)) == ["small", "claude"])
+        #expect(store.answer(for: [one]).models.map(\.name) == ["small"])
+        #expect(store.answer(for: [UUID()]).models.isEmpty)
+    }
 }

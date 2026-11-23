@@ -9,24 +9,20 @@ struct ModelsPaneView: View {
     @State private var item: ModelsWindowModel.Item? = .thisMac
     @State private var selection: ActivityModelEntry.ID?
     @State private var showsInspector = true
-    @State private var readFailed: String?
 
-    private var rows: [ActivityModelEntry] {
-        item.map { ModelsWindowModel.rows($0, in: answer.models) } ?? []
-    }
+    /// The derived lists are worked out when the answer or the item changes, not on each redraw.
+    @State private var rows: [ActivityModelEntry] = []
+    @State private var sidebarGroups = ModelsWindowModel.sidebar([])
 
-    /// The open projects and the global one: the models answer is per project's engine connection.
-    private var libraries: [LibraryManager.LibraryReference] {
-        var references = libraryManager.openLibraries
-        if let global = libraryManager.globalLibrary, !references.contains(where: { $0.id == global.id }) {
-            references.append(global)
-        }
-        return references
+    private var libraryIds: [UUID] {
+        var ids = libraryManager.openLibraries.map(\.id)
+        if let global = libraryManager.globalLibrary?.id, !ids.contains(global) { ids.append(global) }
+        return ids
     }
 
     var body: some View {
         NavigationSplitView {
-            sidebar
+            sidebarList
         } detail: {
             table
                 .inspector(isPresented: $showsInspector) { inspector.inspectorColumnWidth(min: 240, ideal: 300, max: 420) }
@@ -37,16 +33,18 @@ struct ModelsPaneView: View {
                     .accessibilityIdentifier("models.toolbar.inspector")
             }
         }
-        .task { await readOften() }
+        .task { await ModelsAnswerStore.shared.watch(libraryManager) }
+        .onChange(of: ModelsAnswerStore.shared.answers, initial: true) { refresh() }
+        .onChange(of: item) { refresh() }
         .accessibilityIdentifier("models.pane")
     }
 
     // MARK: Sidebar
 
-    private var sidebar: some View {
+    private var sidebarList: some View {
         List(selection: $item) {
             Section { thisMacLine }
-            ForEach(ModelsWindowModel.sidebar(answer.models), id: \.section) { group in
+            ForEach(sidebarGroups, id: \.section) { group in
                 Section(group.section.title) {
                     ForEach(group.entries, id: \.item) { entry in
                         Label(entry.title, systemImage: entry.icon)
@@ -92,7 +90,7 @@ struct ModelsPaneView: View {
         }
         .overlay {
             if rows.isEmpty {
-                ContentUnavailableView(readFailed ?? "Nothing here", systemImage: "cpu")
+                ContentUnavailableView(ModelsAnswerStore.shared.failure ?? "Nothing here", systemImage: "cpu")
             }
         }
         .accessibilityIdentifier("models.table")
@@ -102,7 +100,7 @@ struct ModelsPaneView: View {
 
     private var inspector: some View {
         Form {
-            if let row = rows.first(where: { $0.id == selection }) {
+            if let row = ModelsWindowModel.selectedRow(selection, in: rows) {
                 ForEach(ModelsWindowModel.inspectorLines(for: row), id: \.label) { line in
                     LabeledContent(line.label, value: line.value)
                 }
@@ -116,18 +114,12 @@ struct ModelsPaneView: View {
 
     // MARK: Reading the one list
 
-    /// The engine's models answer through the generated client, every ten seconds while the window shows.
-    private func readOften() async {
-        while !Task.isCancelled {
-            var answers: [ActivityModelsAnswer] = []
-            var failure: String?
-            for library in libraries {
-                do { answers.append(try await library.activityService.models()) } catch { failure = error.localizedDescription }
-            }
-            answer = ActivityModelsAnswer.merged(answers)
-            readFailed = answers.isEmpty ? failure : nil
-            try? await Task.sleep(for: .seconds(10))
-        }
+    /// Takes the shared store's answer and works out the sidebar and the rows once.
+    private func refresh() {
+        let fresh = ModelsAnswerStore.shared.answer(for: libraryIds)
+        if fresh != answer { answer = fresh }
+        sidebarGroups = ModelsWindowModel.sidebar(answer.models)
+        rows = item.map { ModelsWindowModel.rows($0, in: answer.models) } ?? []
     }
 }
 

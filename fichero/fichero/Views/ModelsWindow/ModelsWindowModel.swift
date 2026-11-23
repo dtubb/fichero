@@ -147,6 +147,11 @@ enum ModelsWindowModel {
         return accounts.isEmpty ? .unknown : .ready
     }
 
+    /// The row the Inspector shows: the selected id among the item's listed rows; nil when none is selected or it is not listed.
+    static func selectedRow(_ id: ActivityModelEntry.ID?, in rows: [ActivityModelEntry]) -> ActivityModelEntry? {
+        id.flatMap { id in rows.first { $0.id == id } }
+    }
+
     /// One labelled line of the Inspector.
     struct InspectorLine: Equatable, Sendable {
         let label: String

@@ -24,7 +24,9 @@ extension ActivityPaneView {
         .navigationSplitViewColumnWidth(min: Self.sidebarWidths.lowerBound, ideal: Self.sidebarIdealWidth,
                                         max: Self.sidebarWidths.upperBound)
         .accessibilityIdentifier("activity.sidebar")
-        .task(id: libraries.map(\.id)) { await readModelsOften() }
+        .task { await ModelsAnswerStore.shared.watch(libraryManager) }
+        .onChange(of: ModelsAnswerStore.shared.answers, initial: true) { readSharedModels() }
+        .onChange(of: libraries.map(\.id)) { readSharedModels() }
     }
 
     /// Where, with the places under it (decision 33, owner 2026-11-16): place › provider › model, every place
@@ -136,16 +138,9 @@ extension ActivityPaneView {
         }
     }
 
-    /// The models of the open projects, read every ten seconds while the window shows: loaded and working change often.
-    func readModelsOften() async {
-        while !Task.isCancelled {
-            var answers: [ActivityModelsAnswer] = []
-            for library in libraries {
-                if let one = try? await library.activityService.models() { answers.append(one) }
-            }
-            models = ActivityModelsAnswer.merged(answers)
-            try? await Task.sleep(for: .seconds(10))
-        }
+    /// The models of this pane's projects, from the one shared read (`ModelsAnswerStore`).
+    func readSharedModels() {
+        models = ModelsAnswerStore.shared.answer(for: libraries.map(\.id))
     }
 
     func sidebarRow(_ tab: ActivityPane.Tab) -> some View {
