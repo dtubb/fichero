@@ -219,6 +219,7 @@ class Procs:
     now: Callable[[], datetime] = datetime.now  # the clock the nightly rules read; the tests set a fake
     adopt: Callable[[dict], object | None] = lambda lane: None  # #6589: lane -> a handle on its live session (a tmux window named for it), else None
     free_gb: Callable[[], float] | None = None  # the free disk on the Mac the lanes' trees live on; None = not checked (#6589 2026-11-20)
+    live_windows: Callable[[dict], list] = lambda lane: []  # #6850: lane -> ids of its tmux windows that run more than an idle shell; the loop never ends one
     drop_index: Callable[[str], None] = lambda tree: None  # a removed tree's path -> its jcodemunch index in the worker's home is deleted
     uv_prune: Callable[[], tuple] | None = None  # () -> (rc, output): the worker's uv cache pruned; None = off
 
@@ -407,6 +408,13 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         if (adopted := procs.adopt(lane)) is not None:  # #6589: a restart resets nothing: the live window of this lane is watched again
             handles[lane["id"]] = adopted
             journal.append("queue", lane=lane["id"], step=s["step"], state="adopted", detail="a restarted loop took over the lane's live tmux window")
+            return True
+        if wins := procs.live_windows(lane):  # #6850: a live session this loop cannot watch is told, never ended or started beside
+            if s.get("live_window_alert") != wins:
+                s["live_window_alert"] = wins
+                store(lane)
+                alert(lane["id"], s["step"], f"a live session runs in tmux window {', '.join(wins)} and this loop cannot watch it (no `builder run` on its feed): "
+                      "it is left running; `builder queue stop` ends it, then retry", str(journal.STATE / "journal.jsonl"), ["retry", "park"])
             return True
         procs.stop(lane)  # ponytail: it stops within its own tick and the new one starts one tick later; two workers never share a worktree for long
         lane["feed"] = ""
@@ -1917,6 +1925,13 @@ def worker_windows(j, name: str, with_command: bool = False) -> list:
     return hits if with_command else [i for i, _ in hits]
 
 
+def live_windows(j, lane: dict) -> list:
+    """#6850: the ids of the windows named for the lane that run more than an idle shell; [] with no jail user."""
+    if j is None or not j.user:
+        return []
+    return [wid for wid, cmd in worker_windows(j, lane["id"], with_command=True) if cmd and cmd.lstrip("-") not in SHELLS]
+
+
 def adopt_session(j, lane: dict):
     """#6589: a handle on the lane's live session, or None: its `builder run` still watches its feed and a window named for the lane
     runs something other than an idle shell. The seams are `run_alive` and `tmux_as_worker`."""
@@ -2127,6 +2142,7 @@ def real_procs(root) -> Procs:
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, free_gb=lambda: shutil.disk_usage(rules.get("jail", {}).get("workroot") or str(root)).free / 1e9,
                  drop_index=drop_index, uv_prune=(lambda: as_worker("uv cache prune")) if rules.get("jail", {}).get("user") else None, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0, adopt=lambda lane: adopt_session(jail.load(root), lane),
+                 live_windows=lambda lane: live_windows(jail.load(root), lane),
                  landed=landed, push_part2=push_part2, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
                  next_milestone=lambda taken: next_in_order(root, taken), verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, nightly=ncfg, nightly_runners=nightly.real_runners(root, ncfg, branch, journal.STATE) if ncfg else None, reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "",
