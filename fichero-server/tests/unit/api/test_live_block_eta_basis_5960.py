@@ -25,3 +25,16 @@ def test_the_time_left_is_the_runs_own_pace_and_says_so_until_a_page_is_done_the
     status = _status()
     status["steps"][1]["account"] = _account(0, 20)
     assert live_stages.eta(status) == (None, None)
+
+
+def test_a_run_with_no_page_done_falls_back_to_its_page_kinds_median_and_says_so():
+    status = _status()
+    status["steps"][1]["account"] = _account(0, 20)
+    assert live_stages.eta(status, {"read-a-line": 3.0}) == (60.0, "the last 50 of this kind")
+
+
+def test_its_own_pace_wins_over_the_kinds_and_no_kind_pace_says_nothing():
+    assert live_stages.eta(_status(), {"read-a-line": 3.0}) == (130.0, "this run's pace")
+    status = _status()
+    status["steps"][1]["account"] = _account(0, 20)
+    assert live_stages.eta(status, {"other": 3.0}) == (None, None)

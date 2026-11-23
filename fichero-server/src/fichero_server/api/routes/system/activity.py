@@ -503,14 +503,14 @@ def workflow_block(job: "BackgroundJob", model: Optional[str] = None, where: Opt
 
 
 def recipe_block(job: "BackgroundJob", status: dict[str, Any], workflow_name: Optional[str],
-                 model: Optional[str] = None, where: Optional[str] = None) -> LiveBlock:
+                 model: Optional[str] = None, where: Optional[str] = None, per_item: Optional[dict[str, float]] = None) -> LiveBlock:
     """A recipe run: its recipe, the stage running now and the workflow of that stage, the pages of that stage's account."""
     steps = status.get("steps") or []
     running = next((st for st in steps if st.get("state") == "running"), None) \
         or next((st for st in steps if st.get("state") in ("waiting", "paused")), None)
     from fichero_server.recipes import live_stages
 
-    seconds_left, eta_basis = live_stages.eta(status)
+    seconds_left, eta_basis = live_stages.eta(status, per_item)
     account = (running or {}).get("account")
     waiting = status.get("reason") if status.get("state") == "waiting" else status.get("waiting_for")
     if job.reason:
@@ -588,7 +588,12 @@ async def live_blocks(db: Database, jobs: "list[BackgroundJob]",
                 logger.warning("activity summary: no workflow run %s: %s", running["child_id"], exc)
                 run = None  # the block stands without its workflow's name
         model, where = await _stage_where_and_model(db, running["child_id"]) if running else (None, None)
-        blocks.append(recipe_block(job, status, run.workflow_name if run else None, model, where))
+        from fichero_server.execution import jobs as job_queue
+
+        page_kinds = sorted({st["job"] for st in status.get("steps", []) if st.get("state") == "running" and st.get("job")})
+        per_item = await asyncio.to_thread(
+            lambda: {k: p for k in page_kinds if (p := job_queue.seconds_per_item(db, k)) is not None})
+        blocks.append(recipe_block(job, status, run.workflow_name if run else None, model, where, per_item))
     for j in jobs:
         if j.task_type == "workflow" and j.state in _LIVE_STATES and j.id not in owned:
             blocks.append(workflow_block(j, *await _stage_where_and_model(db, j.id)))
