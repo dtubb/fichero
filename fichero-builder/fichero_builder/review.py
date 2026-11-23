@@ -7,6 +7,7 @@ on the issues that gained evidence, turn the owner's questions into alerts, comm
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 
 SECTIONS = {  # key -> heading regex (a `##` heading, its number and case ignored)
@@ -118,7 +119,55 @@ def report_of(repo_dir, area: str, report=None) -> Path:
     return Path(report) if report else worktree_of(repo_dir, area) / f"review-{area}.md"
 
 
+AREA = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+COMMON = Path(__file__).resolve().parents[1] / "prompts" / "review-common.md"
+
+
+def _git(cwd, *args) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", "-c", "safe.directory=*", "-C", str(cwd), *args], capture_output=True, text=True)
+
+
+def start(repo_dir, area: str, base: str = "", scope: str = "") -> tuple[int, str]:
+    """local.review.start-queues-a-session: the review worktree and branch from the base, the brief, one queued step."""
+    import tomllib
+
+    from fichero_builder import journal, queue
+
+    if not AREA.fullmatch(area):
+        return 1, f"REFUSED: area {area!r} is not a word of lowercase letters, digits and dashes"
+    wt, branch = worktree_of(repo_dir, area), f"review-{area}"
+    if wt.exists() or _git(repo_dir, "rev-parse", "--verify", "-q", f"refs/heads/{branch}").returncode == 0:
+        return 1, f"REFUSED: the review of {area} was started: worktree {wt} or branch {branch} exists"
+    land = tomllib.loads((Path(repo_dir) / "harness.toml").read_text()).get("land", {}).get("branch", "")
+    base = base or (f"origin/{land}" if land else "")
+    sha = _git(repo_dir, "rev-parse", "--verify", "-q", f"{base}^{{commit}}").stdout.strip() if base else ""
+    if not sha:
+        return 1, f"REFUSED: base {base!r} is not a commit in {repo_dir}"
+    made = _git(repo_dir, "worktree", "add", "-q", "-b", branch, str(wt), sha)
+    if made.returncode:
+        return 1, f"REFUSED: could not make the worktree: {made.stderr.strip()[-300:]}"
+    exclude = Path(_git(wt, "rev-parse", "--path-format=absolute", "--git-path", "info/exclude").stdout.strip())
+    exclude.parent.mkdir(parents=True, exist_ok=True)
+    with exclude.open("a") as f:
+        f.write(f"review-{area}.md\n")
+    brief = journal.STATE / f"review-{area}-brief.md"
+    brief.parent.mkdir(parents=True, exist_ok=True)
+    brief.write_text(f"# Review: {area}\n\nArea: {area}\nScope: {scope or 'the area named, its code, its specs and its issues'}\n"
+                     f"Worktree: {wt} (branch {branch}, base {sha[:10]})\nReport: review-{area}.md in the worktree root (not committed)\n"
+                     f"Trailers: `Written-By: Claude Opus 5.5 using Claude Code using Fichero Builder` and `Spec-change: owner 2026-11-21 a review incorporates itself`\n\n"
+                     + COMMON.read_text())
+    queue.add(f"review-{area}", str(wt), "review", str(brief), [])
+    return 0, f"review {area}: worktree {wt}, branch {branch} at {sha[:10]}, step `review` queued on lane review-{area} (brief {brief})"
+
+
 def main(a) -> int:
+    if a.action == "start":
+        try:
+            rc, msg = start(a.repo_dir, a.area, a.base, a.scope)
+        except (OSError, ValueError) as e:
+            rc, msg = 1, f"REFUSED: {e}"
+        print(msg)
+        return rc
     if a.action == "check":
         f = report_of(a.repo_dir, a.area, a.report)
         try:

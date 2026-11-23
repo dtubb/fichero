@@ -99,6 +99,7 @@ def main(argv=None) -> int:
     rv = sub.add_parser("review", help="a review is a step kind: start (a session in a review worktree), check (the report), approve (file the issues, land the spec, queue the steps)")
     rv.add_argument("action", choices=["start", "check", "approve"]), rv.add_argument("area", help="a word of letters, digits and dashes")
     rv.add_argument("--repo-dir", default=str(Path.cwd())), rv.add_argument("--report", help="check: the report file (default review-<area>.md in the review worktree)")
+    rv.add_argument("--base", help="start: the commit the review worktree is made from (default origin/<[land].branch>)"), rv.add_argument("--scope", default="", help="start: what the review covers, in the brief")
     rv.add_argument("--state", help="where the journal, the queue and the approve's map live (default: the owner's journal dir)")
     land = sub.add_parser("land", help="the land gate after a green check row: a READY verdict for the exact range and the boundary, no second ladder; prints the push, never pushes")
     land.add_argument("--repo", help="the engine-owned repo (default [check].engine_repo of the pinned rules)")
