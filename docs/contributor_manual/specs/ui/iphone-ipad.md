@@ -274,7 +274,7 @@ paging. The screens, in order:
   On the narrowest phone at the largest text size the header shows glyphs with the names as accessibility labels.
   Tests: `ItemPagesTests.swift` (header selection follows the page and the reverse), `IOSItemPagesUITests.swift` (tap
   Info from Source).
-- `ios.item.page-is-remembered-per-window` — **[PARTIAL]** (built: `WindowState.compactItemPage`, starting on Source, `ItemPageTests.testTheWindowStartsOnSource`) (#6566; → #6947; a default the owner may change, Open question 4) the
+- `ios.item.page-is-remembered-per-window` — **[PARTIAL]** (built: `WindowState.compactItemPage`, starting on Source, `ItemPagesTests.testTheWindowStartsOnSource`) (#6566; → #6947; a default the owner may change, Open question 4) the
   page last used is remembered for the WINDOW, not per item: a person reading through a folder in the Reader opens the
   next item in the Reader. It lasts while the app runs; a fresh launch starts on Source. Per-item memory was considered
   and not chosen: it makes the page the person lands on depend on what they did to that item last week. Tests:
