@@ -2284,7 +2284,7 @@ async def list_stopped_at_quit(db: Database = Depends(get_library_database)) -> 
     items = [StoppedAtQuitItem(**row) for row in await asyncio.to_thread(job_queue.stopped_at_quit, db)]
     store = get_activity_tracker(str(db.path)).store
     for run in await store.list_workflow_runs(statuses=["paused"], limit=500):
-        if run.error == QUIT_PAUSED_ERROR:
+        if run.error == QUIT_PAUSED_ERROR and job_queue.parent_of(db, run.thread_id) not in {i.id for i in items}:
             items.append(StoppedAtQuitItem(id=run.thread_id, kind="workflow", name=run.workflow_name or "Workflow run",
                                            started_at=_utc(run.started_at)))
     return StoppedAtQuitResponse(items=items, count=len(items))
@@ -2315,7 +2315,9 @@ async def continue_after_quit(
     wanted = None if params.all else list(params.ids or [])
     continued = await asyncio.to_thread(job_queue.continue_after_quit, db, wanted)
     store = get_activity_tracker(str(db.path)).store
-    runs = [r.thread_id for r in await store.list_workflow_runs(statuses=["paused"], limit=500)]
+    # A run under a row of the list is that row's own step: its row's Continue resumes it (`pause_recipe`), never this.
+    runs = [r.thread_id for r in await store.list_workflow_runs(statuses=["paused"], limit=500)
+            if await asyncio.to_thread(job_queue.parent_of, db, r.thread_id) is None]
     continued += await resume_quit_paused_runs(store, db, runs if wanted is None else [i for i in wanted if i in runs])
     return ContinueAfterQuitResponse(continued_ids=continued, count=len(continued))
 
