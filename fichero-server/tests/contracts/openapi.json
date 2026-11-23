@@ -75654,12 +75654,18 @@
           "url": {
             "type": "string",
             "title": "Url"
+          },
+          "folder_id": {
+            "type": "string",
+            "title": "Folder Id",
+            "description": "the folder the import fills, made before any canvas is read (#7066)"
           }
         },
         "type": "object",
         "required": [
           "job_id",
-          "url"
+          "url",
+          "folder_id"
         ],
         "title": "IIIFImportStarted"
       },
@@ -76627,6 +76633,12 @@
           "path": {
             "type": "string",
             "title": "Path"
+          },
+          "folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder Id",
+            "description": "The folder the import fills, made before any file is copied (#7066), so the app shows its row at once. Absent for a corpus or a 1.0 archive, which build their own folders."
           }
         },
         "type": "object",
