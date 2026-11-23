@@ -189,7 +189,6 @@
   "POST /api/model-comparison/compare-workflow": "store missing - #2195 CLI-only model-comparison bake-off; SwiftUI comparison UI is #1753/#1739",
   "POST /api/model-comparison/recommend-models": "store missing - #2204 backend model recommendation API; Settings/model-picker UI wiring tracked by #2116",
   "POST /api/notes/{note_id}/links": "no Swift call for the /api/notes/* family (3 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
-  "POST /api/pair/enroll": "#3789 engine/CLI device enrollment; iOS automatic-enrollment store wiring is deferred",
   "POST /api/policies/orchestration": "no Swift call for the /api/policies/* family (6 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "POST /api/policies/orchestration/evaluate": "no Swift call for the /api/policies/* family (6 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "POST /api/projects": "no Swift call for the /api/projects/* family (9 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
@@ -310,6 +309,7 @@
   "POST /api/activity/models/unload-idle": "the window's model management (#6588): engine first, reached through the generated CLI and MCP; the Models window that calls it is not built yet",
   "GET /api/activity/models/run-settings/{runtime}": "the window's model management (#6588): engine first, reached through the generated CLI and MCP; the Models window that calls it is not built yet",
   "PUT /api/activity/models/run-settings/{runtime}": "the window's model management (#6588): engine first, reached through the generated CLI and MCP; the Models window that calls it is not built yet",
-  "PUT /api/pair/own-devices": "the own-devices enrollment secret (#6568): Unix-socket only, the Mac's own app calls it; the app's switch is not built, and a CLI or MCP caller is refused 403 by design",
-  "POST /api/segments/document/{doc_id}/text-layer": "a PDF page's segments from its text layer (#6664): engine first, reached through the generated CLI; the app's call is not built (segment-editor.pdf.segments-from-the-text-layer is PARTIAL)"
+  "POST /api/segments/document/{doc_id}/text-layer": "a PDF page's segments from its text layer (#6664): engine first, reached through the generated CLI; the app's call is not built (segment-editor.pdf.segments-from-the-text-layer is PARTIAL)",
+  "POST /api/recipes/candidates/bookmark": "keeping a found card (#5460, #6588): engine first, reached through the generated CLI and MCP; the Models window's bookmark glyph that calls it is not built yet",
+  "DELETE /api/recipes/candidates/bookmark": "keeping a found card (#5460, #6588): engine first, reached through the generated CLI and MCP; the Models window's bookmark glyph that calls it is not built yet"
 }
