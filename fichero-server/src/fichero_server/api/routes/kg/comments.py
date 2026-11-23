@@ -8,12 +8,13 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action
 from fichero_server.api.auth import action_context  # noqa: F401  (kept with the other action routes' imports)
-from fichero_server.api.main import get_library_database
+from fichero_server.api.library_header import optional_library_path
+from fichero_server.api.main import claim_visible, document_reader, entity_visible, get_library_database
 from fichero_server.api.routes.document.segments import provenance_kind_from_ctx
 from fichero_server.core.off_loop import off_loop
 from fichero_server.core.timeutil import utc_now
@@ -101,13 +102,36 @@ def _action_restore(db: Database, params: CommentIdParams, ctx: ActionContext):
         after={"comment_id": comment.id, "withdrawn": False}, emit="kg.comment.added")
 
 
+def _anchor_visible(db: Database, kind: CommentAnchorKind, anchor_id: str, may_read) -> bool:
+    """Whether the node a comment is on is readable to this caller: a comment is as readable as its node. `may_read` is
+    `document_reader`'s answer (None: every page is readable to this caller)."""
+    if may_read is None:
+        return True
+    node = db.get(_ANCHOR_MODEL[kind], anchor_id)
+    if node is None:
+        return False
+    if kind is CommentAnchorKind.source:
+        return may_read(anchor_id)
+    if kind is CommentAnchorKind.segment:
+        return may_read(node.document_id)
+    return claim_visible(may_read, node) if kind is CommentAnchorKind.claim else entity_visible(may_read, node)
+
+
 class CommentListResponse(BaseModel):
     items: list[KgComment]
 
 
 @router.get("", response_model=CommentListResponse)
 @off_loop
-def list_comments(anchor_id: str, db: Database = Depends(get_library_database)) -> CommentListResponse:
-    """The live comments on one node, oldest first; a reply carries its `parent_id`."""
-    live = [c for c in db.query(KgComment, anchor_id=anchor_id) if c.withdrawn_at is None]
+def list_comments(
+    request: Request,
+    anchor_id: str,
+    db: Database = Depends(get_library_database),
+    library_path: str | None = Depends(optional_library_path),
+) -> CommentListResponse:
+    """The live comments on one node, oldest first; a reply carries its `parent_id`. Nothing is listed on a node the
+    caller may not read (a page the caller is denied, a claim or entity resting only on such pages)."""
+    may_read = document_reader(request, library_path)
+    live = [c for c in db.query(KgComment, anchor_id=anchor_id)
+            if c.withdrawn_at is None and _anchor_visible(db, c.anchor_kind, c.anchor_id, may_read)]
     return CommentListResponse(items=sorted(live, key=lambda c: c.created_at))

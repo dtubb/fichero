@@ -63,3 +63,48 @@ def test_the_agent_tool_exists_for_comments():
     from fichero_mcp import openapi_tools_generated as generated
 
     assert hasattr(generated, "fichero_knowledge_graph_list_comments")
+
+
+# --- a reader whose pages differ (multi-user): a comment is as readable as the node it is on ---
+
+from fichero_server.models.kg_comments import CommentAnchorKind, KgComment  # noqa: E402
+from tests.unit.api.test_segments_multiuser_access import (  # noqa: E402,F401  (fixtures)
+    _grant_role, _make_doc, _make_pass, _make_segment, _override, multiuser_client, users,
+)
+
+
+def _comment(db, kind, anchor_id, body="private"):
+    db.save(KgComment(anchor_kind=kind, anchor_id=anchor_id, body=body, created_by="owner"))
+
+
+def test_a_denied_page_hides_the_comments_on_its_source_segment_and_entity(multiuser_client, app_db, users, db):
+    client, login, library_path = multiuser_client
+    _grant_role(app_db, users.editor, library_path, "editor")
+    denied, allowed = _make_doc(db, "denied.jpg"), _make_doc(db, "allowed.jpg")
+    _override(app_db, users.editor, library_path, denied.id, "deny")
+    seg = _make_segment(db, document_id=denied.id, pass_id=_make_pass(db, denied.id).id, rect=[0.1, 0.1, 0.1, 0.1])
+    hidden = KnowledgeEntity(canonical_name="Hidden", entity_type=EntityType.person, source_document_ids=[denied.id])
+    db.save(hidden, auto_embed=False)
+    open_seg = _make_segment(db, document_id=allowed.id, pass_id=_make_pass(db, allowed.id).id, rect=[0.2, 0.2, 0.1, 0.1])
+    for kind, anchor in ((CommentAnchorKind.source, denied.id), (CommentAnchorKind.segment, seg.id),
+                         (CommentAnchorKind.entity, hidden.id), (CommentAnchorKind.segment, open_seg.id)):
+        _comment(db, kind, anchor)
+
+    def read(anchor):
+        r = client.get("/api/kg/comments", params={"anchor_id": anchor}, headers=login("editor"))
+        return [] if r.status_code == 403 else r.json()["items"]  # refused outright or listed empty: either hides it
+
+    assert read(denied.id) == [] and read(seg.id) == [] and read(hidden.id) == []
+    assert [c["body"] for c in read(open_seg.id)] == ["private"]  # a page the editor may read stays readable
+
+
+def test_a_denied_page_refuses_a_comment_on_it(multiuser_client, app_db, users, db):
+    client, login, library_path = multiuser_client
+    _grant_role(app_db, users.editor, library_path, "editor")
+    denied = _make_doc(db, "denied.jpg")
+    _override(app_db, users.editor, library_path, denied.id, "deny")
+    seg = _make_segment(db, document_id=denied.id, pass_id=_make_pass(db, denied.id).id, rect=[0.1, 0.1, 0.1, 0.1])
+    for kind, anchor in (("source", denied.id), ("segment", seg.id)):
+        refused = client.post("/api/actions/invoke", headers=login("editor"), json={
+            "name": "kg.comment.add", "params": {"anchor_kind": kind, "anchor_id": anchor, "body": "x"}})
+        assert refused.status_code == 403, (kind, refused.text)
