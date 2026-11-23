@@ -96,6 +96,10 @@ def main(argv=None) -> int:
     ms.add_argument("--gh", default="gh")
     ms.add_argument("--enqueue", action="store_true", help="queue each step brief in the milestone's lane (worktree <[jail].workroot>/wt-<lane>), in build order")
     ms.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
+    rv = sub.add_parser("review", help="a review is a step kind: start (a session in a review worktree), check (the report), approve (file the issues, land the spec, queue the steps)")
+    rv.add_argument("action", choices=["start", "check", "approve"]), rv.add_argument("area", help="a word of letters, digits and dashes")
+    rv.add_argument("--repo-dir", default=str(Path.cwd())), rv.add_argument("--report", help="check: the report file (default review-<area>.md in the review worktree)")
+    rv.add_argument("--state", help="where the journal, the queue and the approve's map live (default: the owner's journal dir)")
     land = sub.add_parser("land", help="the land gate after a green check row: a READY verdict for the exact range and the boundary, no second ladder; prints the push, never pushes")
     land.add_argument("--repo", help="the engine-owned repo (default [check].engine_repo of the pinned rules)")
     land.add_argument("head")
@@ -558,6 +562,11 @@ def main(argv=None) -> int:
         from fichero_builder import console
 
         return console.main(a)
+    if a.cmd == "review":
+        from fichero_builder import review
+
+        journal.STATE = Path(a.state) if a.state else journal.STATE
+        return review.main(a)
     if a.cmd == "landed":
         from fichero_builder import landed
 
