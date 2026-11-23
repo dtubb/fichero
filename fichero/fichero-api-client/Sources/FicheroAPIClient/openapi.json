@@ -83640,6 +83640,18 @@
             "title": "Link",
             "description": "the page of its model (Hugging Face, Zenodo's DOI); null where it has none (#5808)"
           },
+          "bookmark_key": {
+            "type": "string",
+            "nullable": true,
+            "title": "Bookmark Key",
+            "description": "the key the bookmark routes take for a card a Hugging Face search found; null for any other card (#6588)"
+          },
+          "bookmarked": {
+            "type": "boolean",
+            "title": "Bookmarked",
+            "description": "the person kept this found card (`models.bookmark.kept-not-added`, #6588)",
+            "default": false
+          },
           "other_period": {
             "type": "boolean",
             "title": "Other Period",

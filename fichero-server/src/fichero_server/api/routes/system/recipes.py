@@ -1493,6 +1493,9 @@ class ModelCandidate(BaseModel):
                                       "page can name them before it runs (#5808)")
     link: Optional[str] = Field(default=None, description="the page of its model (Hugging Face, Zenodo's DOI); null "
                                 "where it has none (#5808)")
+    bookmark_key: Optional[str] = Field(default=None, description=(
+        "the key the bookmark routes take for a card a Hugging Face search found; null for any other card (#6588)"))
+    bookmarked: bool = Field(default=False, description="the person kept this found card (`models.bookmark.kept-not-added`, #6588)")
     other_period: bool = Field(default=False, description="made for another period than the project's "
                                "(`answers.period`): the app lists it under 'Other periods', not beside the fitting "
                                "ones (#5808)")
@@ -1715,6 +1718,8 @@ async def model_candidates(
         egress_allowed,
         size_words,
     )
+    from fichero_server.recipes.discovery import _hub_key
+    from fichero_server.recipes.discovery import cached_hub as discovery_cached_hub
     from fichero_server.recipes.names import resolve_language, resolve_script
 
     from fichero_server.recipes.jobs import get_job
@@ -1824,6 +1829,8 @@ async def model_candidates(
     from fichero_server.recipes.where_it_runs import places_it_can_run
 
     mac_gb, hf_ready, cluster_names = await run_in_threadpool(_where_facts, request)
+    kept = discovery_cached_hub()
+    keys = {c.id: _hub_key(c) if c.source == "hugging-face" else None for c in cards}
     items = [ModelCandidate(
         id=c.id, name=c.note.strip().rstrip(".") or c.id, tier=reader_tier(c, job),
         tier_words=TIER_WORDS.get(reader_tier(c, job) or ""), short_name=short_name(c), source=c.source,
@@ -1840,6 +1847,7 @@ async def model_candidates(
         runs_where=candidate_place(c), availability=candidate_availability(c)[0],
         availability_words=availability_words(c), chosen=c.id == pick, default_pick=chosen_id is None and c.id == pick, fit=fit(c),
         link=model_link(c), other_period=other_period(c, a), compared_by_default=c.id in compared,
+        bookmark_key=keys[c.id], bookmarked=bool(keys[c.id] and (kept.get(keys[c.id]) or {}).get("bookmarked")),
     ) for c in sorted(cards, key=lambda c: (c.id != pick, _offered_order(c)[0] != 0, rank.get(c.id, len(rank) + 1), _offered_order(c), c.id))]
     if worth_only:  # the finder's list (owner 2026-10-23); without it every candidate, as Compare and the tests read it
         items = worth_listing(items)

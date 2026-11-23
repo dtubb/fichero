@@ -1699,7 +1699,9 @@ def hub_cards(languages: frozenset[str] | None, skip_repos: set[str] = frozenset
         runs_here = bool(row.get("runs_here", True))
         runs_on = str(row.get("runs_on") or "this-mac")
         remote = runs_on != "this-mac"
-        if repo in skip_repos or (languages is not None and not languages & set(row.get("found_for") or ())):
+        # A bookmarked card is listed whichever search found it (`models.bookmark.kept-not-added`, #6588).
+        if repo in skip_repos or (languages is not None and not row.get("bookmarked")
+                                  and not languages & set(row.get("found_for") or ())):
             continue
         if runnable_only and (not runs_here or remote):
             continue
