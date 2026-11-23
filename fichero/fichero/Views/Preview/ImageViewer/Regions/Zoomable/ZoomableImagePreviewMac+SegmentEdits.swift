@@ -318,21 +318,11 @@ extension ZoomableImagePreview {
         guard onSegments else { return false }
         // Merged regions: their lines now read among the kept region's; the order shows for two seconds.
         let flash = SegmentEdit.joinsRegions(segments)
-        // After each re-read (the join, its undo, its redo) the selection is the kept line, or the joined lines once undone.
-        let joined = segments.map(\.id)
         runSegmentEdit(
             SegmentEdit.join(segments, asLines: true), documentId: documentId, name: "Join Segments",
-            afterReread: {
-                guard let store = segmentEditStore else { return }
-                let live = Set(store.segments(documentId: documentId).map(\.id))
-                InspectorPath.select(
-                    segmentIds: SegmentEdit.selectionAfterJoin(joined: joined, live: live),
-                    into: regionSelection, documentId: documentId, store: store
-                )
-            }
-        ) { _ in
-            if flash { windowState?.flashOrderOverlay() }
-        }
+            afterReread: { selectAfterJoin(segments.map(\.id), documentId: documentId) },
+            answered: { _ in if flash { windowState?.flashOrderOverlay() } }
+        )
         return true
     }
 
