@@ -56,6 +56,7 @@ def _fake(tmp_path, monkeypatch, issues):
     (tmp_path / "issues.json").write_text(json.dumps(issues))
     monkeypatch.setenv("FAKE_GH_DIR", str(tmp_path))
     monkeypatch.setattr(mod, "GH", str(gh))
+    monkeypatch.setattr(mod, "ensure_ref", lambda ref: None)  # the ref is a stand-in: no git repo is read
     monkeypatch.setattr(mod, "load_specs", lambda ref: [("docs/s.md", SPEC)])
     monkeypatch.setattr(mod, "load_fixes", lambda ref: {4: ["fff111222"]})
     monkeypatch.setattr(mod, "test_missing_on_ref", lambda ref, names: set())
