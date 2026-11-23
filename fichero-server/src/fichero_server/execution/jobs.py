@@ -3726,12 +3726,13 @@ def set_mode(new_mode: str) -> None:
 
 def finished_seconds(db: "Database", model: str, *, limit: int = 200) -> list[float]:
     """How long each of `model`'s most recent finished jobs took, newest first: the measured
-    speed `recipes/routes.py` reports (`source.onboard.routes-for-the-volume`)."""
+    speed `recipes/routes.py` reports (`source.onboard.routes-for-the-volume`). A job row stores a local model with
+    its runtime (`kraken:kraken-x`); `model` named without it (`kraken-x`, as the plan names it) matches those rows too."""
     _ensure(db)
     rows = db.execute_fetchall(
-        "SELECT epoch(finished_at) - epoch(started_at) FROM jobs WHERE model = ? AND state = 'done' "
-        "AND started_at IS NOT NULL AND finished_at IS NOT NULL ORDER BY finished_at DESC LIMIT ?",
-        [model, limit],
+        "SELECT epoch(finished_at) - epoch(started_at) FROM jobs WHERE (model = ? OR ends_with(model, ?)) "
+        "AND state = 'done' AND started_at IS NOT NULL AND finished_at IS NOT NULL ORDER BY finished_at DESC LIMIT ?",
+        [model, ":" + model, limit],
     )
     return [float(r[0]) for r in rows if r[0] is not None and r[0] >= 0]
 

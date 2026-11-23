@@ -120,3 +120,15 @@ def test_routes_with_no_model_given_or_planned_say_their_figures_are_unknown(cli
     cloud, mac, distil = got.json()["routes"]
     assert cloud["cost_usd"]["basis"] == "unknown" and cloud["title"] == "Read it all with a cloud model"
     assert mac["time_seconds"]["basis"] == "unknown" and "a reader on this Mac" in mac["title"]
+
+
+def test_a_reader_named_without_its_runtime_finds_this_macs_measured_pages(client, db):
+    """`recipes-run.timing.plan-says-time-from-measured-pages`: the plan names the reader `kraken-...`, the job rows
+    store `kraken:kraken-...`; the route finds the measured pages either way and never matches a longer id."""
+    _finished(db, KRAKEN, [25], 5)
+    bare = KRAKEN.partition(":")[2]
+    assert measured_seconds_per_page(db, bare) == 25
+    assert measured_seconds_per_page(db, "zenodo-21788410") is None  # a suffix of the id, not the whole id
+    got = client.get("/api/recipes/routes", params={"teacher": GEMINI, "local_reader": bare, "pages": 100})
+    assert got.status_code == 200, got.text
+    assert got.json()["routes"][1]["time_seconds"]["value"] == 2500
