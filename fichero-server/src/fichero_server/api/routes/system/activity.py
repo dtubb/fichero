@@ -1693,6 +1693,15 @@ async def stop_all(
     return RunControlsResponse.model_validate(result.result)
 
 
+class ModelFailure(BaseModel):
+    """The newest failure on a model today (`models.row.using-now-and-last-failed`): the row's words and the button of its fix."""
+
+    words: str
+    kind: Optional[str] = Field(default=None, description="the failure kind; null when the reason keeps its own words")
+    button: Optional[str] = Field(default=None, description="the first action of the failure's fix, e.g. retry, open-settings")
+    at: Optional[str] = Field(default=None, description="when the job ended, ISO 8601 UTC")
+
+
 class ActivityModel(BaseModel):
     """One model of the Models tree (`activity.window.models-tree`, #6588)."""
 
@@ -1708,6 +1717,17 @@ class ActivityModel(BaseModel):
     pages_today: int = 0
     calls_today: int = 0
     seconds_today: float = 0.0
+    size_bytes: Optional[int] = Field(default=None, description="on disk, an installed model; null when nothing measures it")
+    licence: Optional[str] = Field(default=None, description="the catalogue card's licence, as it names it")
+    fits_here: Optional[Literal["yes", "tight", "no"]] = Field(
+        default=None, description="from the one memory rule against this Mac's memory; null when nothing sizes the model")
+    needs_bytes: Optional[int] = Field(default=None, description="what loading it asks of this Mac")
+    fits_note: Optional[str] = Field(default=None, description="the engine's words for the fit")
+    unload_to_fit: list[str] = Field(default_factory=list, description="loaded idle models whose unloading frees memory, when it does not fit")
+    account: Optional[Literal["ready", "needs-key", "not-reachable"]] = Field(
+        default=None, description="its place's account, from a probe or the key a call uses; null on this Mac and where nothing probes")
+    using_now: list[str] = Field(default_factory=list, description="the kinds of job running on it now")
+    last_failed: Optional[ModelFailure] = None
 
 
 class ActivityPlace(BaseModel):
@@ -1732,6 +1752,7 @@ class ThisMac(BaseModel):
     memory_used_bytes: Optional[int] = None
     memory_total_bytes: Optional[int] = None
     processor_percent: Optional[float] = Field(default=None, description="the last minute's load over its cores, %")
+    gpu: Optional[str] = Field(default=None, description="the GPU as the chip names it; null when nothing names it")
     lanes: list[LaneLoad] = Field(default_factory=list)
 
 
@@ -1748,9 +1769,10 @@ async def activity_models(db: Database = Depends(get_library_database)) -> Activ
     loaded or not, active or not, its memory where measured, today's pages, calls and seconds; and every place set up."""
     from fichero_server.workflows.activity_models import models, places, this_mac
 
-    found = await asyncio.to_thread(models, db)
+    listed = await asyncio.to_thread(places)
+    found = await asyncio.to_thread(lambda: models(db, accounts={(p["place"], p["provider"]): p["account"] for p in listed}))
     return ActivityModelsResponse(models=[ActivityModel(**m) for m in found],
-                                  places=[ActivityPlace(**p) for p in await asyncio.to_thread(places)],
+                                  places=[ActivityPlace(**p) for p in listed],
                                   this_mac=ThisMac(**await asyncio.to_thread(this_mac, db)))
 
 

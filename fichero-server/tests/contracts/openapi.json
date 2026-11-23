@@ -53062,6 +53062,72 @@
             "type": "number",
             "title": "Seconds Today",
             "default": 0.0
+          },
+          "size_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Size Bytes",
+            "description": "on disk, an installed model; null when nothing measures it"
+          },
+          "licence": {
+            "type": "string",
+            "nullable": true,
+            "title": "Licence",
+            "description": "the catalogue card's licence, as it names it"
+          },
+          "fits_here": {
+            "type": "string",
+            "enum": [
+              "yes",
+              "tight",
+              "no"
+            ],
+            "nullable": true,
+            "title": "Fits Here",
+            "description": "from the one memory rule against this Mac's memory; null when nothing sizes the model"
+          },
+          "needs_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Needs Bytes",
+            "description": "what loading it asks of this Mac"
+          },
+          "fits_note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Fits Note",
+            "description": "the engine's words for the fit"
+          },
+          "unload_to_fit": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unload To Fit",
+            "description": "loaded idle models whose unloading frees memory, when it does not fit"
+          },
+          "account": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "needs-key",
+              "not-reachable"
+            ],
+            "nullable": true,
+            "title": "Account",
+            "description": "its place's account, from a probe or the key a call uses; null on this Mac and where nothing probes"
+          },
+          "using_now": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Using Now",
+            "description": "the kinds of job running on it now"
+          },
+          "last_failed": {
+            "$ref": "#/components/schemas/ModelFailure",
+            "nullable": true
           }
         },
         "type": "object",
@@ -83409,6 +83475,38 @@
         "title": "ModelCreate",
         "description": "Add a model to a provider."
       },
+      "ModelFailure": {
+        "properties": {
+          "words": {
+            "type": "string",
+            "title": "Words"
+          },
+          "kind": {
+            "type": "string",
+            "nullable": true,
+            "title": "Kind",
+            "description": "the failure kind; null when the reason keeps its own words"
+          },
+          "button": {
+            "type": "string",
+            "nullable": true,
+            "title": "Button",
+            "description": "the first action of the failure's fix, e.g. retry, open-settings"
+          },
+          "at": {
+            "type": "string",
+            "nullable": true,
+            "title": "At",
+            "description": "when the job ended, ISO 8601 UTC"
+          }
+        },
+        "type": "object",
+        "required": [
+          "words"
+        ],
+        "title": "ModelFailure",
+        "description": "The newest failure on a model today (`models.row.using-now-and-last-failed`): the row's words and the button of its fix."
+      },
       "ModelFit": {
         "properties": {
           "word": {
@@ -104874,6 +104972,12 @@
             "nullable": true,
             "title": "Processor Percent",
             "description": "the last minute's load over its cores, %"
+          },
+          "gpu": {
+            "type": "string",
+            "nullable": true,
+            "title": "Gpu",
+            "description": "the GPU as the chip names it; null when nothing names it"
           },
           "lanes": {
             "items": {

@@ -45,12 +45,12 @@ def _provider_word(provider: str) -> str:
 _INSTALLED_RUNTIMES = {"kraken": "Kraken", "omlx": "MLX", "spacy": "spaCy", "whisper": "Whisper"}
 #: How long the installed list is kept: probing Kraken takes a second or more, and the sidebar asks every ten.
 _INSTALLED_TTL_SECONDS = 60.0
-_installed_cache: tuple[float, list[tuple[str, str]]] | None = None
+_installed_cache: tuple[float, list[tuple]] | None = None
 _installed_lock = threading.Lock()
 
 
-def installed_on_this_mac() -> list[tuple[str, str]]:
-    """(provider shown, model id) of every model installed on this Mac, from the one local catalogue Settings lists;
+def installed_on_this_mac() -> list[tuple]:
+    """(provider shown, model id, catalogue entry) of every model installed on this Mac, from the one local catalogue Settings lists;
     a runtime whose probe fails lists none (the catalogue says so in the log)."""
     global _installed_cache
     with _installed_lock:
@@ -58,7 +58,7 @@ def installed_on_this_mac() -> list[tuple[str, str]]:
             return _installed_cache[1]
     from fichero_server.api.routes.ai.local_inference import installed_local_model_entries
 
-    found = [(word, e.model_id) for runtime, word in _INSTALLED_RUNTIMES.items()
+    found = [(word, e.model_id, e) for runtime, word in _INSTALLED_RUNTIMES.items()
              for e in installed_local_model_entries(runtime)]
     with _installed_lock:
         _installed_cache = (time.monotonic(), found)
@@ -83,10 +83,10 @@ def _cluster_names(app_db: Any = None) -> dict[str, str]:
 
 
 def this_mac(db: "Database", *, memory: tuple[int | None, int | None] | None = None,
-             load: float | None = None) -> dict[str, Any]:
+             load: float | None = None, gpu: str | None = None) -> dict[str, Any]:
     """This Mac, measured (`activity.resources.everything-measured`, decision 42): memory used of its total (the kernel's
     share free of the physical memory), the processor's load (the last minute's load average over its cores), and each
-    lane's jobs running now (this project's) of its width. What nothing measures is None, never 0."""
+    lane's jobs running now (this project's) of its width, and its GPU's name. What nothing measures is None, never 0."""
     import os
 
     from fichero_server.execution import jobs as job_queue
@@ -114,7 +114,9 @@ def this_mac(db: "Database", *, memory: tuple[int | None, int | None] | None = N
         registered = job_queue.KINDS.get(kind)
         if registered is not None:
             busy[registered.lane] = busy.get(registered.lane, 0) + 1
-    return {"memory_used_bytes": used, "memory_total_bytes": total,
+    if gpu is None:
+        gpu = _gpu_name()
+    return {"memory_used_bytes": used, "memory_total_bytes": total, "gpu": gpu or None,
             "processor_percent": round(100 * load / cores, 1) if load is not None and cores else None,
             "lanes": [{"lane": lane, "busy": busy.get(lane, 0), "width": width}
                       for lane, width in job_queue.LANES.items()]}
@@ -193,6 +195,33 @@ def places(probe: Any = reachable) -> list[dict[str, Any]]:
             for p, v in sorted(unique, key=lambda pv: (order[pv[0]], pv[1].lower()))]
 
 
+def _fits_here(rows: list[dict[str, Any]], facts: dict[str, Any], physical_memory: int | None) -> None:
+    """Each sized installed model's `fits_here` ("yes" / "tight" / "no"), what it needs and the engine's words, from the one
+    memory rule (`local_inference.fit_estimate`) against this Mac's memory; a model that does not fit names the loaded,
+    idle models whose unloading frees memory (`models.row.fits-here`). A model nothing sizes, or a Mac whose memory cannot be
+    read, stays None."""
+    from fichero_server.llm import local_inference
+
+    if physical_memory is None:
+        from fichero_server.llm import kraken_runtime
+
+        try:
+            physical_memory = kraken_runtime._physical_memory_bytes()
+        except Exception:  # noqa: BLE001 -- unmeasured reads "—"
+            physical_memory = None
+    if not physical_memory:
+        return
+    idle = [r["name"] for r in rows if r["loaded"] and not r["active"] and r["memory_bytes"]]
+    for one in rows:
+        entry = facts.get(one["id"])
+        if entry is None or not entry.download_size_bytes:
+            continue
+        estimate = local_inference.fit_estimate(entry, physical_memory=physical_memory)
+        one["fits_here"], one["needs_bytes"], one["fits_note"] = _FITS_WORD[estimate.word], estimate.need_bytes, estimate.reason
+        if estimate.word != local_inference.FITS:
+            one["unload_to_fit"] = [name for name in idle if name != one["name"]]
+
+
 def place_and_provider(model: str) -> tuple[str, str, str]:
     """(place, provider, short name) for a job's model string: `kraken:<reader>` is Kraken on this Mac, `<provider>:<model>`
     a provider's model (this Mac for a local server), an engine tool by its name; anything else this Mac under its own
@@ -229,7 +258,39 @@ def model_id(place: str, provider: str, name: str) -> str:
 def _new(place: str, provider: str, name: str) -> dict[str, Any]:
     return {"id": model_id(place, provider, name), "name": name, "place": place, "provider": provider, "loaded": False,
             "active": False, "memory_bytes": None, "memory_estimated": False, "running": 0, "pages_today": 0,
-            "calls_today": 0, "seconds_today": 0.0}
+            "calls_today": 0, "seconds_today": 0.0, "size_bytes": None, "licence": None, "fits_here": None,
+            "needs_bytes": None, "fits_note": None, "unload_to_fit": [], "account": None, "using_now": [],
+            "last_failed": None}
+
+
+#: `FitEstimate.word` -> the column's word (`models.row.fits-here`).
+_FITS_WORD = {"fits": "yes", "tight": "tight", "won't fit": "no"}
+
+
+def _failure_of(reason: str | None, finished: datetime | None) -> dict[str, Any]:
+    """A failed job's row words and the button of its fix (`models.row.using-now-and-last-failed`): the kind and button
+    come from the same classifier the Activity row uses; a reason that keeps its own words has neither."""
+    from fichero_server.execution import jobs as job_queue
+
+    failure = job_queue.failed_failure(reason)
+    return {"words": failure.words, "kind": None if failure.kind == "unexpected" else failure.kind,
+            "button": failure.actions[0].kind if failure.actions else None,
+            "at": ensure_utc(finished).isoformat() if finished else None}
+
+
+def _gpu_name() -> str | None:
+    """This Mac's GPU as its chip names it ("Apple M1 GPU"); None off Apple silicon or when the chip cannot be read."""
+    import subprocess
+    import sys
+
+    if sys.platform != "darwin":
+        return None
+    try:
+        brand = subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"], capture_output=True, text=True,
+                               timeout=2, check=True).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return f"{brand} GPU" if brand.startswith("Apple") else None
 
 
 def _usage(detail: str | None) -> list[dict[str, Any]]:
@@ -261,9 +322,14 @@ def provider_hosts() -> dict[str, str]:
 
 
 def models(db: "Database", *, held: list[dict[str, Any]] | None = None,
-           installed: list[tuple[str, str]] | None = None, now: datetime | None = None) -> list[dict[str, Any]]:
+           installed: list[tuple] | None = None, now: datetime | None = None,
+           physical_memory: int | None = None, accounts: dict[tuple[str, str], str | None] | None = None
+           ) -> list[dict[str, Any]]:
     """Every model used today, held now or installed on this Mac, with where it runs, whether it is loaded and active, its
-    memory, and today's pages, calls and seconds. Sorted by place (this Mac, remote, cloud), then provider, then name."""
+    memory, and today's pages, calls and seconds; an installed model's size on disk, licence and whether it fits this Mac
+    (`physical_memory`, read when not given), a cloud or remote model's `accounts[(place, provider)]`, the kinds of job
+    running on each (`using_now`) and its newest failure today (`last_failed`). `installed`: (provider, id[, catalogue
+    entry]). Sorted by place (this Mac, remote, cloud), then provider, then name."""
     from fichero_server.execution import jobs as job_queue
     from fichero_server.remote_read import job as read_job
 
@@ -277,9 +343,10 @@ def models(db: "Database", *, held: list[dict[str, Any]] | None = None,
     def row(place: str, provider: str, name: str) -> dict[str, Any]:
         return rows.setdefault(model_id(place, provider, name), _new(place, provider, name))
 
-    for kind, model, state, target, detail, started, finished in job_queue.usage_rows_since(db, since):
+    for kind, model, state, target, detail, started, finished, reason in job_queue.usage_rows_since(db, since):
         seconds = ((ensure_utc(finished) if finished else now) - ensure_utc(started)).total_seconds() if started else 0.0
         calls = _usage(detail)
+        touched: list[dict[str, Any]] = []
         if kind == read_job.KIND:
             # A read at scale runs off this Mac: Hugging Face's jobs are the cloud, any other target a cluster of the person's.
             on_cloud = target in (None, read_job.TARGET)
@@ -294,18 +361,27 @@ def models(db: "Database", *, held: list[dict[str, Any]] | None = None,
                 one["calls_today"] += 1
                 if state == "running":
                     one["active"] = True
+                touched.append(one)
             entry = None
         elif model:
             entry = row(*place_and_provider(model))
         else:
             continue
         if entry is not None:
+            touched.append(entry)
             if state == "running":
                 entry["active"] = True
                 entry["running"] += 1
             elif state == "done":
                 entry["pages_today"] += 1
             entry["seconds_today"] += max(0.0, seconds)
+        for one in touched:
+            if state == "running" and kind not in one["using_now"]:
+                one["using_now"].append(kind)
+            elif state == "failed":
+                at = ensure_utc(finished) if finished else None
+                if one["last_failed"] is None or (at and at.isoformat() > (one["last_failed"]["at"] or "")):
+                    one["last_failed"] = _failure_of(reason, at)
 
     # What the engine holds in memory now: loaded, with its resident size where it has a process of its own.
     if held is None:
@@ -334,7 +410,16 @@ def models(db: "Database", *, held: list[dict[str, Any]] | None = None,
             if size:
                 entry["memory_bytes"], entry["memory_estimated"] = int(size), True
     # Installed on this Mac and not held: listed, not loaded (hollow), so a person sees what is here to load.
-    for provider, installed_id in installed if installed is not None else installed_on_this_mac():
-        row(THIS_MAC, provider, installed_id)
+    facts: dict[str, Any] = {}
+    for provider, installed_id, *entry in installed if installed is not None else installed_on_this_mac():
+        one = row(THIS_MAC, provider, installed_id)
+        if entry:
+            facts[one["id"]] = entry[0]
+            one["size_bytes"] = entry[0].disk_usage_bytes or None
+            one["licence"] = entry[0].license_label
+    _fits_here(list(rows.values()), facts, physical_memory)
+    for one in rows.values():
+        if one["place"] != THIS_MAC:
+            one["account"] = (accounts or {}).get((one["place"], one["provider"]))
     order = {place: index for index, place in enumerate(PLACES)}
     return sorted(rows.values(), key=lambda r: (order[r["place"]], r["provider"].lower(), r["name"].lower()))
