@@ -131,7 +131,7 @@ struct ActivityDetailsView: View {
                 ActivityDetailsStages(stages: details.stages)
             }
             if let made = details.made {
-                ActivityDetailsMade(made: made, open: { documentId in Task { await perform(.openPage(documentId: documentId), details) } })
+                ActivityMadeList(made: made, open: { documentId in Task { await perform(.openPage(documentId: documentId), details) } })
             }
         }
     }

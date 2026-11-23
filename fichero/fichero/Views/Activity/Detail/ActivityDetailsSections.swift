@@ -275,31 +275,6 @@ struct ActivityDetailsStages: View {
     }
 }
 
-/// What a finished workflow run made: each artifact's name and type, opening its document, then "and N more". The list
-/// only; taking a run back waits for `safety/run-take-back.md`.
-struct ActivityDetailsMade: View {
-    let made: ActivityDetails.Made
-    let open: (_ documentId: String) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("What this run made").font(.headline)
-            ForEach(made.items) { item in
-                Button { open(item.documentId) } label: {
-                    Text(item.name == item.type ? item.name : "\(item.name) · \(item.type)")
-                }
-                .buttonStyle(.link)
-                .font(.callout)
-                .accessibilityIdentifier("activity.details.made.item")
-            }
-            if made.more > 0 {
-                Text("and \(made.more) more").font(.callout).foregroundStyle(.secondary)
-            }
-        }
-        .accessibilityIdentifier("activity.details.made")
-    }
-}
-
 /// What a recipe run made, once it has ended (#5577): pages read, names by
 /// kind, dates and statements, each stage's failed pages with Read Again, and
 /// the steps the plan skipped with why, and Set Up… where setup can fix one.
