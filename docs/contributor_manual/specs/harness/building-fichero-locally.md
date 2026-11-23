@@ -730,49 +730,49 @@ the issue it belongs to as `NEW-n` or `#N`, and its spec step as `[1.2]` when th
 **Issues to file** (a list: `NEW-n title (behaviour ids)`), **Open questions** (a numbered list, or the word "none"),
 and optionally **Existing issues that gained evidence** (a list: `#N text`). Spec-change: owner 2026-11-21 a review incorporates itself.
 
-- `local.review.start-queues-a-session` [GAP] (#6847) — `builder review start <area> --repo-dir R [--base REF]
+- `local.review.start-queues-a-session` [OK] (#6847) — `builder review start <area> --repo-dir R [--base REF]
   [--scope TEXT]` makes the review worktree `<[jail].workroot>/wt-review-<area>` on branch `review-<area>` from the base
   (default `origin/<[land].branch>`), writes the brief (the review rules, the area, the report path
   `review-<area>.md` in the worktree, kept out of the commits by `.git/info/exclude`) and queues it as the one step
   `review` of lane `review-<area>`, so the loop runs it like any step. An area that is not a word of letters, digits and
-  dashes, or whose worktree or branch exists, is refused. Test (owed): `test_review_verb.py`, on a scratch repo: the
+  dashes, or whose worktree or branch exists, is refused. Test: `fichero-builder/tests/test_review_verb.py`, on a scratch repo: the
   worktree, the branch, the exclude line, the queued step and the brief text; a second start is refused.
   Serves: local, builds Fichero.
-- `local.review.report-is-checked` [GAP] (#6847) — `builder review check <area>` reads the report and refuses one that
+- `local.review.report-is-checked` [OK] (#6847) — `builder review check <area>` reads the report and refuses one that
   lacks a heading above, whose Issues list is empty, whose `NEW-n` run has a gap or a repeat, or in which a ranked fix
-  cites neither a listed `NEW-n` nor a `#N`. It names each fault with its heading or fix number and exits 1. Test (owed):
-  `test_review_verb.py`, one report per fault, and one whole report passes. Serves: reliable.
-- `local.review.approve-files-and-maps` [GAP] (#6847) — `builder review approve <area> --milestone M --spec FILE`
+  cites neither a listed `NEW-n` nor a `#N`. It names each fault with its heading or fix number and exits 1. Test:
+  `fichero-builder/tests/test_review_verb.py`, one report per fault, and one whole report passes. Serves: reliable.
+- `local.review.approve-files-and-maps` [OK] (#6847) — `builder review approve <area> --milestone M --spec FILE`
   runs the check first, then files one issue per `NEW-n` in milestone M through `gh` (title `[M] title`, the behaviour
   ids and the report's text in the body) and writes the map `NEW-n -> #N` to `<state>/review-<area>-issues.json` after
   each issue, so a second run files only what the map lacks. It rewrites the spec's tags: `#NEW-n` and `#NEW-Sn` become
   the filed number; a bare `#NEW` is mapped by the behaviour id of the bullet it is on, through the issue's behaviour
   ids, never by its place in the file; a bare tag on a bullet whose id no issue names, or two issues name, refuses the
-  whole approve before anything is filed. Test (owed): `test_review_verb.py`, on a fake `gh` that numbers from 7000: the
+  whole approve before anything is filed. Test: `fichero-builder/tests/test_review_verb.py`, on a fake `gh` that numbers from 7000: the
   map, the idempotent second run, `NEW-S2`, a bare tag mapped by id, and an unmapped bare tag refused with nothing
   filed. Serves: reliable.
-- `local.review.every-fix-has-an-issue` [GAP] (#6847) — the spec's Build order keeps the steps the review wrote; each
+- `local.review.every-fix-has-an-issue` [OK] (#6847) — the spec's Build order keeps the steps the review wrote; each
   step heading that a ranked fix cites as `[N.M]` takes `(#N, #M)` of the issues that fix cites. A fix whose step the
   spec lacks, and a step no fix cites, are listed and refuse the approve (a step with no issue is how #6863 to #6866
   were missed). The approve adds the milestone's line to `build-order.md` under `## In order` (after `--after
-  <milestone>`, else last) with its `Spec:` path, or sets the `Spec:` path of the line that is there. Test (owed):
-  `test_review_verb.py`: headings take their numbers; a fix pointing at a missing step refuses; the line is added once.
+  <milestone>`, else last) with its `Spec:` path, or sets the `Spec:` path of the line that is there. Test:
+  `fichero-builder/tests/test_review_verb.py`: headings take their numbers; a fix pointing at a missing step refuses; the line is added once.
   Serves: reliable.
-- `local.review.evidence-and-questions` [GAP] (#6847) — each "existing issues that gained evidence" item becomes a
+- `local.review.evidence-and-questions` [OK] (#6847) — each "existing issues that gained evidence" item becomes a
   comment on that issue, once. Each owner question becomes an `alert` row on lane `review-<area>`, step `question-n`,
   answered by `ask-owner` (the question goes as a `needs-your-decision` comment on the first filed issue) or `park`;
-  a question already alerted is not alerted twice. Test (owed): `test_review_verb.py` and `test_alerts_clear.py`: the
-  comments on the fake `gh`, the alert rows, `ask-owner` on a lane-less alert. Serves: reliable.
-- `local.review.approve-lands-then-enqueues` [GAP] (#6847) — the approve commits the spec and `build-order.md` in the
+  a question already alerted is not alerted twice. Test: `fichero-builder/tests/test_review_verb.py`: the
+  comments on the fake `gh`, the alert rows, `ask-owner` on a lane-less alert (`queue.alert` takes `issues`; `queue.answer` uses them). Serves: reliable.
+- `local.review.approve-lands-then-enqueues` [OK] (#6847) — the approve commits the spec and `build-order.md` in the
   review worktree (message from a file; the trailers `Written-By` and `Spec-change`), writes
   `<state>/review-<area>-issue-list.txt` (number, milestone, title of each filed issue) for the landing step to be
   given, and prints the sha: a landing step needs no `gh` in the jail. `builder review approve <area> --enqueue` runs
   after that commit has landed (it is an ancestor of `origin/<[land].branch>`; else refused) and calls `builder
-  milestone M --spec FILE --enqueue`. Test (owed): `test_review_verb.py`: the commit holds only the spec and
+  milestone M --spec FILE --enqueue`. Test: `fichero-builder/tests/test_review_verb.py`: the commit holds only the spec and
   `build-order.md`; `--enqueue` before the land is refused; after it, the lane has a step. Serves: local.
-- `local.review.tests-touch-nothing-real` [GAP] (#6847) — the review tests run on a scratch repo, a scratch state
+- `local.review.tests-touch-nothing-real` [OK] (#6847) — the review tests run on a scratch repo, a scratch state
   directory and a fake `gh` that records its calls and numbers its issues; no test reads the real git config, the
-  real journal or the real issues. Test (owed): `test_review_verb.py` sets `GIT_CONFIG_GLOBAL` and `HOME` to the scratch
+  real journal or the real issues. Test: `fichero-builder/tests/test_review_verb.py` sets `GIT_CONFIG_GLOBAL` and `HOME` to the scratch
   directory and asserts the fake `gh` is the only issue client called. Serves: reliable.
 
 
