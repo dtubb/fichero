@@ -52,10 +52,10 @@ def test_a_folder_import_fills_the_folder_it_answered(client, db, tmp_path):
 
 def test_a_iiif_add_answers_its_folder_before_the_manifest_is_read(db):
     url = f"{HOST}/vol1/manifest"
-    job_id, folder_id = iiif_source.start(db, url, folder_id=None, started_by="test")
+    job_id, folder_id, made = iiif_source.start(db, url, folder_id=None, started_by="test")
 
     folder = db.get(Document, folder_id)
-    assert job_id and folder.doc_type == DocType.folder and folder.name == "iiif.archive.example"
+    assert made and job_id and folder.doc_type == DocType.folder and folder.name == "iiif.archive.example"
     assert db.query(Document, parent_id=folder_id) == [], "no canvas yet"
 
     manifest = _manifest3("vol1", 3)
@@ -70,6 +70,6 @@ def test_a_iiif_add_answers_its_folder_before_the_manifest_is_read(db):
 
 @pytest.mark.parametrize("url", [f"{HOST}/a/manifest"])
 def test_a_second_iiif_add_of_the_same_source_answers_the_same_folder(db, url):
-    _, first = iiif_source.start(db, url, folder_id=None, started_by="test")
-    _, second = iiif_source.start(db, url, folder_id=None, started_by="test")
-    assert first == second
+    _, first, first_made = iiif_source.start(db, url, folder_id=None, started_by="test")
+    _, second, second_made = iiif_source.start(db, url, folder_id=None, started_by="test")
+    assert first == second and first_made and not second_made, "only the call that made the folder says so"

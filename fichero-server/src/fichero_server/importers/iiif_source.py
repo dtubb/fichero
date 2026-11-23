@@ -120,9 +120,9 @@ def import_source(db: Any, url: str, *, folder_id: str | None = None, name: str 
 
 
 def start(db: Any, url: str, *, folder_id: str | None, started_by: str, max_manifests: int | None = None
-          ) -> tuple[str, str]:
+          ) -> tuple[str, str, bool]:
     """Make (or find) the destination folder, then queue the import (or refresh) as one job in Activity. Returns the job
-    id and the folder id, both before any manifest is read or canvas made (#7066). A new folder is named for the URL's
+    id, the folder id and whether this call made the folder, all before any manifest is read or canvas made (#7066). A new folder is named for the URL's
     host until the manifest's label is known."""
     import json
     import uuid
@@ -132,14 +132,15 @@ def start(db: Any, url: str, *, folder_id: str | None, started_by: str, max_mani
     from fichero_server.models import DocType, Document
 
     folder = db.get(Document, folder_id) if folder_id else bound_folder(db, url)
-    if folder is None:
+    made = folder is None
+    if made:
         folder = Document(name=urlparse(url).hostname or "IIIF", doc_type=DocType.folder,
                           metadata={"iiif_source": url, PROVISIONAL_NAME: True})
         db.save(folder)
     register_job_kinds()
     job_id = jobs.enqueue(db, IMPORT_KIND, f"iiif:{uuid.uuid4().hex[:12]}", started_by=started_by, watched=True,
                           detail=json.dumps({"url": url, "folder_id": folder.id, "max_manifests": max_manifests}))
-    return job_id, folder.id
+    return job_id, folder.id, made
 
 
 def register_job_kinds() -> None:
