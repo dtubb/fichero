@@ -34,6 +34,21 @@ def measured_seconds_per_page(db, model: str) -> float | None:
     return statistics.median(seconds) if seconds else None
 
 
+def measured_speeds(db, workflows: list[dict[str, Any]]) -> dict[str, tuple[float, int]]:
+    """`(median seconds a page, finished pages it rests on)` of each local run's model in a plan, from this Mac's finished job rows;
+    a model with no finished page is absent. Read by Start's estimate (`recipes-run.timing.plan-says-time-from-measured-pages`)."""
+    from fichero_server.execution.jobs import finished_seconds
+
+    out: dict[str, tuple[float, int]] = {}
+    for w in workflows:
+        model = w.get("model_override") or ""
+        if model and not str(w.get("runs_on")).startswith("cloud") and model not in out:
+            seconds = finished_seconds(db, model, limit=SPEED_SAMPLE)
+            if seconds:
+                out[model] = (statistics.median(seconds), len(seconds))
+    return out
+
+
 def default_models(plan: dict[str, Any]) -> tuple[str, str]:
     """The cloud teacher and this Mac's reader the project's plan already reads with, as `(teacher, local_reader)`: a reading run on a
     cloud provider is the teacher (`provider/model`), a reading run here the local reader; "" for one the plan has none of. The routes

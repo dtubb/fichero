@@ -102758,6 +102758,28 @@
             "title": "Cost Usd",
             "description": "0 on this Mac; null when the model has no price"
           },
+          "seconds": {
+            "type": "number",
+            "nullable": true,
+            "title": "Seconds",
+            "description": "how long the run takes on these `pages`: this Mac's median seconds a page for the step's model times the pages (`recipes-run.timing.plan-says-time-from-measured-pages`); null when the model has no finished page here or the run is in the cloud, never 0"
+          },
+          "seconds_basis": {
+            "type": "string",
+            "enum": [
+              "measured",
+              "unknown"
+            ],
+            "title": "Seconds Basis",
+            "description": "how `seconds` is known",
+            "default": "unknown"
+          },
+          "seconds_words": {
+            "type": "string",
+            "nullable": true,
+            "title": "Seconds Words",
+            "description": "`seconds` and its basis in words; the app words nothing itself"
+          },
           "basis": {
             "type": "string",
             "title": "Basis",

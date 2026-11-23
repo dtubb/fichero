@@ -2265,6 +2265,12 @@ class StartEstimateRun(BaseModel):
     where: str
     pages: int
     cost_usd: Optional[float] = Field(description="0 on this Mac; null when the model has no price")
+    seconds: Optional[float] = Field(default=None, description=(
+        "how long the run takes on these `pages`: this Mac's median seconds a page for the step's model times the pages "
+        "(`recipes-run.timing.plan-says-time-from-measured-pages`); null when the model has no finished page here or the run is in the "
+        "cloud, never 0"))
+    seconds_basis: Literal["measured", "unknown"] = Field(default="unknown", description="how `seconds` is known")
+    seconds_words: Optional[str] = Field(default=None, description="`seconds` and its basis in words; the app words nothing itself")
     basis: str = Field(default="unpriced", description=(
         "how cost_usd is known: `free on this Mac`, `the model's listed rate`, `the batch price, answered within a "
         "day` (a step sent as one provider batch, #5940), or `unpriced` (a cluster or other "
@@ -2871,12 +2877,14 @@ def _as_started(db: Database, plan: dict[str, Any], memo: Optional[dict] = None)
               else set(first_pages_of(db, plan["first_pages"], memo)) if plan.get("first_pages") else None)  # the run's own pages (#6295)
     from fichero_server.recipes import booked_cost
     from fichero_server.recipes.done import material, todo_counts
+    from fichero_server.recipes.routes import measured_speeds
 
     memo = {} if memo is None else memo
     plan["estimate"] = {**estimate(plan["workflows"], plan["estimate"]["pages"], catalogue=catalogue_runs(plan["runs"]),
                                    folders=folders_covering(db, material(db, within, memo)["ids"], memo),
                                    todo=todo_counts(db, plan, within, set(started["redo"]), memo=memo),
-                                   booked=booked_cost.for_workflows(db, plan["workflows"])), "counted": counted}
+                                   booked=booked_cost.for_workflows(db, plan["workflows"]),
+                                   speeds=measured_speeds(db, plan["workflows"])), "counted": counted}
     return annotate(db, plan, within=within, redo=set(started["redo"]), memo=memo)  # its notes say what it redoes (#5689)
 
 
