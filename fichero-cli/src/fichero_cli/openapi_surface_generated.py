@@ -9735,6 +9735,20 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("list-comments")
+    def kg_list_comments_get(
+        ctx: typer.Context,
+        anchor_id: str = typer.Option(..., '--anchor-id', help='Anchor Id.'),
+    ) -> None:
+        """List Comments (GET /api/kg/comments)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/kg/comments"
+            params = {
+                "anchor_id": anchor_id,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("delete-claim-rule")
     def kg_delete_claim_rule_delete(
         ctx: typer.Context,

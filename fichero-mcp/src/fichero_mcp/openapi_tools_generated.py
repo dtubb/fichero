@@ -4612,6 +4612,14 @@ def fichero_knowledge_graph_unmerge_claims(
     return _rt.call("POST", "/api/kg/claims/unmerge", json=_rt.body({"audit_id": audit_id}))
 
 
+def fichero_knowledge_graph_list_comments(
+    *,
+    anchor_id: Annotated[str, Field(description='Anchor Id')],
+) -> Any:
+    'List Comments\n\nThe live comments on one node, oldest first; a reply carries its `parent_id`.\n\nRoute: GET /api/kg/comments (toolset `knowledge-graph`; reads).'
+    return _rt.call("GET", "/api/kg/comments", params={"anchor_id": anchor_id})
+
+
 def fichero_knowledge_graph_delete_claim_rule(
     *,
     rule_id: Annotated[str, Field(description='Rule Id.')],
@@ -10225,6 +10233,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_knowledge_graph_merge_claims", "knowledge-graph", "POST", "/api/kg/claims/merge", fichero_knowledge_graph_merge_claims),
     GeneratedTool("fichero_knowledge_graph_prune_trivial_claims", "knowledge-graph", "POST", "/api/kg/claims/prune-trivial", fichero_knowledge_graph_prune_trivial_claims),
     GeneratedTool("fichero_knowledge_graph_unmerge_claims", "knowledge-graph", "POST", "/api/kg/claims/unmerge", fichero_knowledge_graph_unmerge_claims),
+    GeneratedTool("fichero_knowledge_graph_list_comments", "knowledge-graph", "GET", "/api/kg/comments", fichero_knowledge_graph_list_comments),
     GeneratedTool("fichero_knowledge_graph_delete_claim_rule", "knowledge-graph", "DELETE", "/api/kg/curation-rules/claim-rules", fichero_knowledge_graph_delete_claim_rule),
     GeneratedTool("fichero_knowledge_graph_list_claim_rules", "knowledge-graph", "GET", "/api/kg/curation-rules/claim-rules", fichero_knowledge_graph_list_claim_rules),
     GeneratedTool("fichero_knowledge_graph_create_claim_rule", "knowledge-graph", "POST", "/api/kg/curation-rules/claim-rules", fichero_knowledge_graph_create_claim_rule),

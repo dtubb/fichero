@@ -6661,6 +6661,22 @@
         "response_model": "ClaimAuditResponse"
       },
       {
+        "method": "GET",
+        "path": "/kg/comments",
+        "operation_id": "list_comments_api_kg_comments_get",
+        "summary": "List Comments",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "anchor_id",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "CommentListResponse"
+      },
+      {
         "method": "DELETE",
         "path": "/kg/curation-rules/claim-rules",
         "operation_id": "delete_claim_rule_api_kg_curation_rules_claim_rules_delete",

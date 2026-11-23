@@ -2655,6 +2655,7 @@ from fichero_server.api.routes import (  # noqa: E402
 )
 from fichero_server.api.routes.kg import (  # noqa: E402
     claim_search as kg_claim_search,
+    comments as kg_comments,
     entity_curation as kg_entity_curation,
     graph as kg_graph,
     predictions as kg_predictions,
@@ -2920,6 +2921,8 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (document_inspector.router, "/api", ["documents"]),
     (entity_inspector.router, "/api", ["entities"]),
     (kg_search.router, "/api", ["knowledge-graph"]),
+    # kg.interact.comment (#4643): a human comment on a claim, entity, source or segment.
+    (kg_comments.router, "/api", ["knowledge-graph"]),
     (entities.router, "/api", ["entities"]),
     (export.router, "/api", ["export"]),
     (folders.router, "/api/folders", ["folders"]),

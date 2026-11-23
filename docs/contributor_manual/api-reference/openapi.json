@@ -26034,6 +26034,49 @@
         }
       }
     },
+    "/api/kg/comments": {
+      "get": {
+        "tags": [
+          "knowledge-graph"
+        ],
+        "summary": "List Comments",
+        "description": "The live comments on one node, oldest first; a reply carries its `parent_id`.",
+        "operationId": "list_comments_api_kg_comments_get",
+        "parameters": [
+          {
+            "name": "anchor_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Anchor Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/entities/bulk": {
       "post": {
         "tags": [
@@ -63765,6 +63808,32 @@
         ],
         "title": "ColumnNote"
       },
+      "CommentAnchorKind": {
+        "type": "string",
+        "enum": [
+          "claim",
+          "entity",
+          "source",
+          "segment"
+        ],
+        "title": "CommentAnchorKind"
+      },
+      "CommentListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/KgComment"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "CommentListResponse"
+      },
       "CompareFrame": {
         "properties": {
           "read_from": {
@@ -78542,6 +78611,57 @@
         ],
         "title": "KeywordCloudListResponse",
         "description": "Envelope for the keyword cloud list."
+      },
+      "KgComment": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "anchor_kind": {
+            "$ref": "#/components/schemas/CommentAnchorKind"
+          },
+          "anchor_id": {
+            "type": "string",
+            "title": "Anchor Id"
+          },
+          "parent_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Id"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "created_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Created By"
+          },
+          "provenance_kind": {
+            "$ref": "#/components/schemas/ProvenanceKind",
+            "default": "unknown"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "withdrawn_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Withdrawn At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "anchor_kind",
+          "anchor_id",
+          "body"
+        ],
+        "title": "KgComment"
       },
       "KnowledgeClaim": {
         "properties": {

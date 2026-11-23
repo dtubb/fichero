@@ -1674,6 +1674,7 @@ class Database(DatabaseEmbeddingMixin):
         from fichero_server.models.reading_orders import ReadingOrder, ReadingOrderEntry
         from fichero_server.models.source_declarations import LibraryScript
         from fichero_server.models.editorial import EditorialFact
+        from fichero_server.models.kg_comments import KgComment
         from fichero_server.models.hands import Hand, HandAttribution
         from fichero_server.models.letterforms import Allograph, LetterformDescription
         from fichero_server.models.checking import CheckVerdict
@@ -1797,6 +1798,7 @@ class Database(DatabaseEmbeddingMixin):
             # lead's review of PageLineMap). Declared, so a library gains them when it opens.
             DeclaredSign,
             EditorialFact,
+            KgComment,
             Hand,
             HandAttribution,
             Allograph,

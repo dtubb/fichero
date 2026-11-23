@@ -41,10 +41,12 @@
   them; a doc onto the claims table scopes/creates).
 - `kg.interact.context-menu-full` — **[GAP]** (#4643) one shared right-click verb set: open · edit · rename ·
   **merge/combine** · bless/reject/retype · **comment** · delete · **export selection…**.
-- `kg.interact.comment` — **[GAP]** (#4643) a human comment/note on a claim or entity (distinct from a claim);
+- `kg.interact.comment` — **[OK]** (#4643) a human comment/note on a claim or entity (distinct from a claim);
   authored + dated + provenance-tagged; a review/collaboration affordance. A comment is its own
   threaded record, anchored to any node (claim, entity, source, segment), and is never stored as
   a claim (ruled 2026-10-04).
+  Built (engine and MCP; no Swift row yet): actions `kg.comment.add` / `kg.comment.withdraw` (undo withdraws), `GET /api/kg/comments?anchor_id=`
+  (MCP `fichero_knowledge_graph_list_comments`), record `KgComment` (`models/kg_comments.py`). Test: fichero-server/tests/unit/api/test_kg_comments.py.
 - `kg.interact.export-selection` — **[GAP]** (#4643) shift-select rows → export as **JSON-LD** (validated,
   #4641) / JSONL / CSV; the selection is the scope.
 - `kg.interact.keyboard` — **[GAP]** (#4643) ⌘⌫ delete · ⌘A select-all · ⏎ open · F2/double-click rename
