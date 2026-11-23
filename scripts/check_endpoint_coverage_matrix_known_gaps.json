@@ -73,6 +73,7 @@
   "GET /api/integrations/available": "no Swift call for the /api/integrations/* family (4 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "GET /api/integrations/tinderbox/notes/{external_id}/attributes": "no Swift call for the /api/integrations/* family (4 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "GET /api/integrations/{app_name}": "no Swift call for the /api/integrations/* family (4 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
+  "GET /api/kg/comments": "kg.interact.comment (#4643): engine, CLI and MCP first; the Mac comment row is a Swift step, not built",
   "GET /api/kg/claim-search": "no Swift call for the /api/kg/* family (7 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "GET /api/kg/entities/{entity_id}/readable": "#4838 the Reader's readable-paragraph rendition is not built yet; the route landed first (cc2da29ae) (reason carried from check_ui_wiring's swiftui allowlist, #5105)",
   "GET /api/kg/export/rdf": "#2614 RDF export surface is backend/CLI/MCP-only today; no SwiftUI export/query UX yet (#2638/#2640) (reason carried from check_ui_wiring's swiftui allowlist, #5105)",
