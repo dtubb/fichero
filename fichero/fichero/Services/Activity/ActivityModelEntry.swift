@@ -34,20 +34,84 @@ struct ActivityModelEntry: Equatable, Identifiable, Sendable {
     var running = 0
     var pagesToday = 0
     var callsToday = 0
+    /// The columns of the Models and Cluster window (`models.window.one-list`): nil where nothing measures them.
+    var sizeBytes: Int?
+    var licence: String?
+    var fitsHere: FitsHere?
+    var fitsNote: String?
+    var unloadToFit: [String] = []
+    var account: Account?
+    var usingNow: [String] = []
+    var lastFailed: Failure?
+
+    /// Whether a model fits this Mac now (`models.row.fits-here`), from the engine's one memory rule.
+    enum FitsHere: String, Sendable {
+        case yes, tight, no
+    }
+
+    /// A place's account, from a probe or the key a call uses (`models.row.account-from-a-probe`).
+    enum Account: String, Sendable {
+        case ready, needsKey = "needs-key", notReachable = "not-reachable"
+
+        var words: String {
+            switch self {
+            case .ready: "Ready"
+            case .needsKey: "Needs key"
+            case .notReachable: "Not reachable"
+            }
+        }
+    }
+
+    /// The newest failure on a model today: the row's words and the button of its fix (`models.row.using-now-and-last-failed`).
+    struct Failure: Equatable, Sendable {
+        let words: String
+        var kind: String?
+        var button: String?
+    }
 
     init(id: String, name: String, place: Place, provider: String, loaded: Bool = false, active: Bool = false,
-         memoryBytes: Int? = nil, memoryEstimated: Bool = false, running: Int = 0, pagesToday: Int = 0, callsToday: Int = 0) {
+         memoryBytes: Int? = nil, memoryEstimated: Bool = false, running: Int = 0, pagesToday: Int = 0, callsToday: Int = 0,
+         sizeBytes: Int? = nil, licence: String? = nil, fitsHere: FitsHere? = nil, fitsNote: String? = nil,
+         unloadToFit: [String] = [], account: Account? = nil, usingNow: [String] = [], lastFailed: Failure? = nil) {
         self.id = id; self.name = name; self.place = place; self.provider = provider; self.loaded = loaded
         self.active = active; self.memoryBytes = memoryBytes; self.memoryEstimated = memoryEstimated
         self.running = running; self.pagesToday = pagesToday; self.callsToday = callsToday
+        self.sizeBytes = sizeBytes; self.licence = licence; self.fitsHere = fitsHere; self.fitsNote = fitsNote
+        self.unloadToFit = unloadToFit; self.account = account; self.usingNow = usingNow; self.lastFailed = lastFailed
     }
 
     init(_ model: Components.Schemas.ActivityModel) {
         self.init(id: model.id, name: model.name, place: Place(rawValue: model.place.rawValue) ?? .thisMac,
                   provider: model.provider, loaded: model.loaded, active: model.active, memoryBytes: model.memoryBytes,
                   memoryEstimated: model.memoryEstimated ?? false, running: model.running ?? 0,
-                  pagesToday: model.pagesToday ?? 0, callsToday: model.callsToday ?? 0)
+                  pagesToday: model.pagesToday ?? 0, callsToday: model.callsToday ?? 0, sizeBytes: model.sizeBytes,
+                  licence: model.licence, fitsHere: model.fitsHere.flatMap { FitsHere(rawValue: $0.rawValue) },
+                  fitsNote: model.fitsNote, unloadToFit: model.unloadToFit ?? [],
+                  account: model.account.flatMap { Account(rawValue: $0.rawValue) }, usingNow: model.usingNow ?? [],
+                  lastFailed: model.lastFailed.map { Failure(words: $0.words, kind: $0.kind, button: $0.button) })
     }
+
+    /// "2.1 GB", or "—" when nothing measures it.
+    var sizeWords: String {
+        guard let sizeBytes else { return "—" }
+        return ByteCountFormatter.string(fromByteCount: Int64(sizeBytes), countStyle: .file)
+    }
+
+    /// "Yes" · "Tight" · "No" with what to unload, "—" when nothing sizes the model (`models.row.fits-here`).
+    var fitsWords: String {
+        switch fitsHere {
+        case .yes: "Yes"
+        case .tight: "Tight"
+        case .no: unloadToFit.isEmpty ? "No" : "No (unload \(unloadToFit.joined(separator: ", ")))"
+        case nil: "—"
+        }
+    }
+
+    /// The Account column: the probe's word, "—" where nothing probes.
+    var accountWords: String { account?.words ?? "—" }
+
+    /// Whether this row needs the person: its newest failure today, or an account that is not ready.
+    var needsYou: Bool { lastFailed != nil || account == .needsKey || account == .notReachable }
 
     /// "312 MB", "~2.5 GB" when estimated, "—" when nothing measures it (`activity.resources.everything-measured`).
     var memoryWords: String {
@@ -68,6 +132,11 @@ struct ActivityModelEntry: Equatable, Identifiable, Sendable {
             seen.loaded = seen.loaded || model.loaded
             seen.active = seen.active || model.active
             seen.memoryBytes = seen.memoryBytes ?? model.memoryBytes
+            seen.sizeBytes = seen.sizeBytes ?? model.sizeBytes
+            seen.fitsHere = seen.fitsHere ?? model.fitsHere
+            seen.account = seen.account ?? model.account
+            seen.lastFailed = seen.lastFailed ?? model.lastFailed
+            for kind in model.usingNow where !seen.usingNow.contains(kind) { seen.usingNow.append(kind) }
             seen.running += model.running
             seen.pagesToday += model.pagesToday
             seen.callsToday += model.callsToday

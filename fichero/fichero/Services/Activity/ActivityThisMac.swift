@@ -12,17 +12,19 @@ struct ActivityThisMac: Equatable, Sendable {
     var memoryUsedBytes: Int?
     var memoryTotalBytes: Int?
     var processorPercent: Double?
+    /// The GPU as the chip names it; nil when nothing names it.
+    var gpu: String?
     var lanes: [Lane] = []
 
     init(memoryUsedBytes: Int? = nil, memoryTotalBytes: Int? = nil, processorPercent: Double? = nil,
-         lanes: [Lane] = []) {
+         gpu: String? = nil, lanes: [Lane] = []) {
         self.memoryUsedBytes = memoryUsedBytes; self.memoryTotalBytes = memoryTotalBytes
-        self.processorPercent = processorPercent; self.lanes = lanes
+        self.processorPercent = processorPercent; self.gpu = gpu; self.lanes = lanes
     }
 
     init(_ mac: Components.Schemas.ThisMac) {
         self.init(memoryUsedBytes: mac.memoryUsedBytes, memoryTotalBytes: mac.memoryTotalBytes,
-                  processorPercent: mac.processorPercent,
+                  processorPercent: mac.processorPercent, gpu: mac.gpu,
                   lanes: (mac.lanes ?? []).map { Lane(lane: $0.lane, busy: $0.busy, width: $0.width) })
     }
 
