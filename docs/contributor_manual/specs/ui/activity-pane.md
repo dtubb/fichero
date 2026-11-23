@@ -1758,8 +1758,8 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   the archive routes land; a deleted row never reappears, not after a relaunch, not in a Retry list (owner, 23:30).
   **Built (2026-11-13 night):** `deleted_at` beside `cleared_at`; Delete marks both, Retry refuses a deleted row, no list shows
   it; Undo through `job.undelete` (`activity.pane.archive-old-runs`, `test_archive_old_runs_6583.py`).
-- `activity.window.started-by` — **[OK]** (#5354) a row says who or what started
-  it: a person, the recipe, a schedule, a trigger, an assistant. Built: the engine sends `started_by` on every row and tree node, and the opened run's heading words it (`ActivityDetails.startedByWords`, `ActivityStartedByTests`). Built 2026-11-23 (Swift, not compiled): the window's table Started By cell says the same words (`ActivityPane.startedByLine`); test `fichero/Tests/Unit/general/Models/ActivityStartedByTests.swift` (`ActivityStartedByRowTests`).
+- `activity.window.started-by` — **[PARTIAL]** (#5354) a row says who or what started
+  it: a person, the recipe, a schedule, a trigger, an assistant. Built: the engine sends `started_by` on every row and tree node, and the opened run's heading words it (`ActivityDetails.startedByWords`, `ActivityStartedByTests`). Built 2026-11-23 (Swift, not compiled): the window's table Started By cell says the same words (`ActivityPane.startedByLine`); test `fichero/Tests/Unit/general/Models/ActivityStartedByTests.swift` (`ActivityStartedByRowTests`). Stays PARTIAL until that test has run green.
 - `activity.window.one-surface` — **[GAP]** (#5354) ingest progress, the conversion
   pill, Settings' download bars and the jobs list are views of the same rows or are retired; no
   surface keeps its own progress list. Stage 8 note 2026-11-23: Not built: needs the owner's decision on which of ingest progress, the conversion pill and Settings' download bars become job rows, and when.
