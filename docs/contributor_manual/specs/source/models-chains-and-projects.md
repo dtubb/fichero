@@ -2665,7 +2665,7 @@ Jobs and chains
   matched by segment id when every line of the answer names one, else line for line when the answer has as
   many lines as it was shown; each changed line gets a reading through `write_readings`
   (`representation.create`, under the run, so `workflow`, never `human`). Pinned by
-  `fichero-server/tests/unit/workflows/test_review_corrects_the_lines_5654.py`.* a correcting step's
+  `fichero-server/tests/unit/workflows/test_review_corrects_the_lines_5654.py::test_a_reviewed_line_gets_the_reviewers_reading_and_the_page_text_follows`, `::test_a_review_that_names_the_lines_by_id_is_matched_by_id`, `::test_a_line_a_person_read_keeps_the_persons_reading`, `::test_a_review_that_cannot_be_matched_stays_an_artifact_and_says_so`.* a correcting step's
   corrections land as readings on the lines of the page's working pass, one per line it changed: a
   transcription, as written unless the step says otherwise, made by the step's model and naming the line's
   counting reading it corrects. A line it left unchanged gets no new reading, and a line a person read keeps
@@ -2888,17 +2888,16 @@ Projects
 - `source.read.vision-same-crop-differs-between-runs` — **[GAP]** (#5901; found by the bake-off's crop probe, 2026-10-20) Apple Vision does not read the same picture the same way twice: of 72 line crops it came back EMPTY on in the live run, a plain re-run of the identical, unchanged crops read 25 (10 of the 19 real words), and no changed crop (white fill, 2x, both) read more real words than that re-run; the cause is Vision (or the load it was under), not the crop, so `crop_line` is left as it is. Anything that reads a page once and keeps the result as final (`activity.read.page-read-once`, "a page is read once, then not again") therefore assumes a stable reader that Apple Vision is not: an empty line it returned may be a line a second try reads, and a line it read may read otherwise. Owed (#5901): decide what the engine does about it (a bounded second attempt on an empty line, the reader's non-determinism said in the line's provenance, or both) and test it with a stub reader that answers differently on its second call; until then an empty Vision line is reported as "Vision returned nothing", never as "the line has no writing".
 - `source.project.setup-reads-back-whole` — **[PARTIAL]** (#5885; owner, 2026-10-19; needs compile for the Swift half) what `GET /api/recipes/project` returns reads back as the contract's `AssembledRecipe`: a recipe stored without its check result (answers saved alone store the rules' recipe, which has no `problems`; older saves too) comes back with `gaps` and `problems` filled, as `/assemble` gives them, so Set Up's About the Material never says "the data is missing". Every route that hands back the project's setup (Use This, use-instead, the save) fills them the same way, so the recipe the app adopts after Use This reads whole and the app's next save does not put a stale copy over the choice. When the app cannot read an answer it names the field and where (`Error.inWords`: "the answer has no \"problems\" (at recipe)") and logs the whole error. *Test:* `fichero-server/tests/unit/recipes/test_saved_recipe_decodes_as_the_app_does_2026_10_19.py`; `fichero/fichero-api-client/Tests/FicheroAPIClientTests/DecodeErrorWordsTests.swift`. Not yet built: a test that decodes every recipes response from a running engine.
 - `source.project.setup-saves-what-is-sent` — **[OK]** (#5584, #5864; PUT /api/recipes/project keeps the overrides the saved recipe holds and no others: a client's `at` is never read, an override the PUT carries that the saved recipe does not hold is dropped (not refused: a stale copy legitimately echoes one an undo removed), because an override is made only by Use This, which applies its rules and is audited; so a Use This made after Set Up loaded its recipe survives Set Up's whole-recipe save, a PUT cannot add one around Use This, and an undo is not undone by a stale save; an undo goes through the action and restores exactly what it recorded, Fable #6, `fichero-server/tests/unit/recipes/test_a_use_this_survives_the_whole_recipe_put_2026_10_20.py`; built: the `project.save_setup` action keeps a
-  part its params leave unset; tested in `fichero-server/tests/unit/recipes/test_setup_through_mcp_edges.py`) saving a project's setup
+  part its params leave unset; tested in `fichero-server/tests/unit/recipes/test_setup_through_mcp_edges.py::test_source_project_setup_saves_what_is_sent`) saving a project's setup
   (`PUT /api/recipes/project`, MCP `fichero_recipes_save_project_setup`) changes only the parts sent:
   a part left out (the answers, or the recipe) is kept as it was, and a part sent as null is removed, EXCEPT a recipe: a null recipe never clears one the project already has
   saved (the saved recipe, and the person's step choices in it, are kept and the keep is logged; a draft with no
   saved recipe still saves as before), so no client whose assemble failed can wipe it (## 923, ## 924;
-  `test_a_null_recipe_never_clears_a_saved_one`, `test_a_null_recipe_with_none_saved_saves_the_draft_as_before` in
-  `fichero-server/tests/unit/recipes/test_save_setup_assembles_5747.py`, unrun until the gate ends). Undo goes through the action, not the route, and still restores a null.
+  `fichero-server/tests/unit/recipes/test_save_setup_assembles_5747.py::test_a_null_recipe_never_clears_a_saved_one`, `::test_a_null_recipe_with_none_saved_saves_the_draft_as_before`, unrun until the gate ends). Undo goes through the action, not the route, and still restores a null.
   The route's description says so. An agent onboarding a project saved its recipe alone and lost
   the answers it had saved a step before. Through MCP a part is sent only when given (the generated tool
-  drops an argument left None), so the tool keeps what it is not given and cannot remove a part (`fichero-mcp/tests/test_save_project_setup_sends_only_what_is_given.py`).
-  M4 PASS 2026-10-20 c979508a5: test_a_use_this_survives_the_whole_recipe_put_2026_10_20.py, test_setup_through_mcp_edges.py (10 passed). (Red at 9707dcc83 for a stale test, not the engine: the test took `with_material` on top of its own pages, one page too many (#5813 fixture, 563753cc4).)
+  drops an argument left None), so the tool keeps what it is not given and cannot remove a part (`fichero-mcp/tests/test_save_project_setup_sends_only_what_is_given.py::test_a_part_left_out_is_not_sent`).
+  M4 PASS 2026-10-20 c979508a5: fichero-server/tests/unit/recipes/test_a_use_this_survives_the_whole_recipe_put_2026_10_20.py, fichero-server/tests/unit/recipes/test_setup_through_mcp_edges.py (10 passed). (Red at 9707dcc83 for a stale test, not the engine: the test took `with_material` on top of its own pages, one page too many (#5813 fixture, 563753cc4).)
 - `source.project.in-the-cascade` — **[GAP]** (#4951) project settings sit between the app and a
   folder in the one cascade; a folder can override them; a shown value says which level it came from.
 - `source.project.own-models` — **[GAP]** (#4951) two projects can use different models for the
@@ -3005,8 +3004,8 @@ Projects
 - `source.recipe.pages-in-finder-order` — **[OK]** (#5849, #5867; Fable review #9 found no spec line) a started recipe queues and reads its pages in
   Finder order: by the full path from the project's root (at each level the order a person set, else the name read
   naturally), then the page's own place (`IMG_2` before `IMG_10`), not the order the files were imported; its Activity
-  rows follow the order they were queued. `fichero-server/tests/unit/recipes/test_pages_in_finder_order_5849.py`.
-  M4 PASS 2026-10-20 9707dcc83: test_pages_in_finder_order_5849.py and test_systemic_error_does_not_depend_on_page_order_2026_10_20.py (7 passed).
+  rows follow the order they were queued. `fichero-server/tests/unit/recipes/test_pages_in_finder_order_5849.py::test_the_material_comes_in_natural_name_order`.
+  M4 PASS 2026-10-20 9707dcc83: fichero-server/tests/unit/recipes/test_pages_in_finder_order_5849.py and fichero-server/tests/unit/workflows/test_systemic_error_does_not_depend_on_page_order_2026_10_20.py (7 passed).
 - `activity.run.systemic-error-rule` — **[OK]** (#5880; Fable review 2026-10-19 #22; built 2026-10-20; green on the Pro, single file, 2026-10-21, r1-steps-c15: `fichero-server/tests/unit/workflows/test_systemic_error_does_not_depend_on_page_order_2026_10_20.py`, 6 passed) a node that fans out over pages stops the run as a
   systemic failure, once its pages have run (there is no early abort when the first few fail, except a refusal that holds for every page, which stops the pages not yet started), when five pages in a row fail on a batch under ten
   pages, or when more than half of a batch of ten or more failed; five bad scans in a row (blank versos, a damaged
@@ -5179,11 +5178,11 @@ Each is described in the paragraph named; the id lets a test cite it.
   Kraken reader reading lines a page already has keeps each line's certainty on its reading, and a reading the same result already
   wrote on a line is not written a second time (described under `source.onboard.auto.blank-pages-not-read`'s neighbours: "Not on
   unreadable text").
-- `source.recipe.step-counts-its-pages` — **[OK]** (#5706; tested in `fichero-server/tests/unit/recipes/test_steps_count_what_they_did_5706.py`)
+- `source.recipe.step-counts-its-pages` — **[OK]** (#5706; tested in `fichero-server/tests/unit/recipes/test_steps_count_what_they_did_5706.py::test_a_page_a_step_ran_on_and_found_nothing_on_is_done_next_time`, `::test_a_run_that_read_every_page_in_one_call_counts_every_page_done`)
   a step whose output may leave no trace on a page (Find Names on a page naming no one, Prepare on a clear page) keeps on the run the pages
   it ran on, and the plan counts them done, so a page is not "to do" after every run.
 - `source.recipe.status-names-its-own-child` — **[PARTIAL]** (#5870) A running step that makes no job shows its own state, not another row's. Test: fichero-server/tests/unit/recipes/test_recipe_row_status_5870_5871.py (lead-c14 3e1890982; PARTIAL until the M4 proof run).
-- `source.sort.written-recto-is-read` — **[OK]** (#5705; tested in `fichero-server/tests/unit/recipes/test_one_blank_rule_5705.py`) the pages a
+- `source.sort.written-recto-is-read` — **[OK]** (#5705; tested in `fichero-server/tests/unit/recipes/test_one_blank_rule_5705.py::test_the_recipe_leaves_out_exactly_the_pages_find_the_documents_calls_blank`, `::test_a_page_sorted_blank_by_an_older_rule_is_looked_at_again_and_read`) the pages a
   run leaves out are the pages Find the Documents calls blank, by one rule; a written page is never sorted blank and left out of every later run.
 - `source.job.names-warn-on-unreadable` — **[OK]** (#5694; tested in `fichero-server/tests/unit/recipes/test_names_on_unreadable_text_5694.py`)
   Find Names is not run on a page whose reading is too uncertain, and the step says which pages and why.
