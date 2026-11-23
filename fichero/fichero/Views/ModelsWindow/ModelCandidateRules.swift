@@ -63,4 +63,10 @@ enum ModelCandidateRules {
         default: return "Not on this Mac"
         }
     }
+
+    /// Whether a card's name matches the search field's text; an empty field matches every card.
+    static func matches(_ name: String, _ text: String) -> Bool {
+        let words = text.trimmingCharacters(in: .whitespaces)
+        return words.isEmpty || name.localizedCaseInsensitiveContains(words)
+    }
 }

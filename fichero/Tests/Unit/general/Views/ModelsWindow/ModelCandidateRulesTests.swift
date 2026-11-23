@@ -43,4 +43,11 @@ struct ModelCandidateRulesTests {
                 == "no model for this language")
         #expect(ModelCandidateRules.usableWords(facts(.elsewhere)) == "Runs elsewhere")
     }
+
+    @Test("the search field keeps the cards whose name has its words, any case; an empty field keeps all")
+    func search() {
+        #expect(ModelCandidateRules.matches("Acme Reader", "reader"))
+        #expect(!ModelCandidateRules.matches("Acme Reader", "kraken"))
+        #expect(ModelCandidateRules.matches("Acme Reader", "  "))
+    }
 }

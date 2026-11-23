@@ -6,7 +6,10 @@ import SwiftUI
 struct ModelsPaneView: View {
     @Environment(LibraryManager.self) private var libraryManager
     @State private var answer = ActivityModelsAnswer()
-    @State private var item: ModelsWindowModel.Item? = .thisMac
+    @State private var item: ModelsWindowModel.Item? = .usableNow
+    @State private var search = ""
+    /// The verbs over the first open project's engine; nil until a project is open.
+    @State private var store: ModelsWindowStore?
     @State private var selection: ActivityModelEntry.ID?
     @State private var showsInspector = true
 
@@ -24,16 +27,29 @@ struct ModelsPaneView: View {
         NavigationSplitView {
             sidebarList
         } detail: {
-            table
+            content
                 .inspector(isPresented: $showsInspector) { inspector.inspectorColumnWidth(min: 240, ideal: 300, max: 420) }
         }
         .toolbar {
+            ToolbarItem {
+                Button { Task { await store?.finder.searchOnline() } } label: { Label("Search Online", systemImage: "network") }
+                    .disabled(store == nil || store?.finder.isSearching == true)
+                    .accessibilityIdentifier("models.toolbar.searchOnline")
+            }
             ToolbarItem {
                 Button { showsInspector.toggle() } label: { Label("Inspector", systemImage: "sidebar.trailing") }
                     .accessibilityIdentifier("models.toolbar.inspector")
             }
         }
+        .searchable(text: $search, prompt: "Search models")
         .task { await ModelsAnswerStore.shared.watch(libraryManager) }
+        .task { await openStore() }
+        .alert("Delete this model?", isPresented: deleting, presenting: store?.pendingDelete) { _ in
+            Button("Delete", role: .destructive) { Task { await store?.confirmDelete() } }
+            Button("Cancel", role: .cancel) { store?.pendingDelete = nil }
+        } message: { row in
+            Text("\(row.name) is removed from this Mac. A step that uses it keeps it.")
+        }
         .onChange(of: ModelsAnswerStore.shared.answers, initial: true) { refresh() }
         .onChange(of: item) { refresh() }
         .accessibilityIdentifier("models.pane")
@@ -68,6 +84,36 @@ struct ModelsPaneView: View {
         .accessibilityIdentifier("models.sidebar.mac")
     }
 
+    // MARK: The table of the item
+
+    /// The cards for a Models item, else the one table over the models answer.
+    @ViewBuilder private var content: some View {
+        if let list = item?.candidateList {
+            if let store {
+                VStack(spacing: 0) {
+                    if let message = store.errorMessage { Text(message).foregroundStyle(.red).padding(6) }
+                    ModelCandidatesTable(store: store, list: list, search: search)
+                }
+            } else {
+                ContentUnavailableView("Open a project to find models for its steps.", systemImage: "magnifyingglass")
+            }
+        } else {
+            table
+        }
+    }
+
+    private var deleting: Binding<Bool> {
+        Binding(get: { store?.pendingDelete != nil }, set: { if !$0 { store?.pendingDelete = nil } })
+    }
+
+    /// Takes the first open project's engine for the verbs and asks it for the candidates of its steps.
+    private func openStore() async {
+        guard let library = libraryManager.openLibraries.first else { return }
+        let made = ModelsWindowStore(client: library.ficheroClient, finder: library.modelFinderStore)
+        store = made
+        await made.finder.load(library.recipeSetupStore.finderQuery(job: ModelFinderStore.readingJob))
+    }
+
     // MARK: The one table
 
     private var table: some View {
@@ -84,8 +130,13 @@ struct ModelsPaneView: View {
             TableColumn("Account") { row in Text(row.accountWords) }
             TableColumn("Using now") { row in Text(row.usingNow.isEmpty ? "—" : row.usingNow.joined(separator: ", ")) }
             TableColumn("Last failed") { row in
-                Text([row.lastFailed?.words, ModelsWindowModel.button(for: row)].compactMap { $0 }.joined(separator: " · ")
-                    .nilIfEmpty ?? "—")
+                Text(row.lastFailed?.words ?? "—")
+            }
+            TableColumn("") { row in
+                if let button = ModelsWindowModel.button(for: row) {
+                    Button(button) { Task { await store?.press(row) } }
+                        .accessibilityIdentifier("models.row.button")
+                }
             }
         }
         .overlay {
@@ -121,10 +172,6 @@ struct ModelsPaneView: View {
         sidebarGroups = ModelsWindowModel.sidebar(answer.models)
         rows = item.map { ModelsWindowModel.rows($0, in: answer.models) } ?? []
     }
-}
-
-private extension String {
-    var nilIfEmpty: String? { isEmpty ? nil : self }
 }
 
 #Preview("The Models and Cluster pane") {

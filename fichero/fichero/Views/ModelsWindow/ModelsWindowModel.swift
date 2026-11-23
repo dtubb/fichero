@@ -9,12 +9,13 @@ enum ModelsWindowModel {
     /// The scene's title, which the Window menu lists.
     static let windowTitle = "Models & Cluster"
 
-    /// The sidebar's sections over the one list: This Mac, Places, Work.
+    /// The sidebar's sections: Models (the found cards), then over the one list This Mac, Places, Work.
     enum Section: String, CaseIterable, Sendable {
-        case thisMac, places, work
+        case models, thisMac, places, work
 
         var title: String {
             switch self {
+            case .models: "Models"
             case .thisMac: "This Mac"
             case .places: "Places"
             case .work: "Work"
@@ -24,13 +25,25 @@ enum ModelsWindowModel {
 
     /// A sidebar item: a grouping over the one list.
     enum Item: Hashable, Sendable {
+        case usableNow, bookmarked, found
         case thisMac
         case place(ActivityModelEntry.Place)
         case runningNow
         case failedToday
 
+        /// The candidates' list this item shows; nil for an item over the models answer.
+        var candidateList: ModelCandidateRules.List? {
+            switch self {
+            case .usableNow: .usableNow
+            case .bookmarked: .bookmarked
+            case .found: .found
+            default: nil
+            }
+        }
+
         var section: Section {
             switch self {
+            case .usableNow, .bookmarked, .found: .models
             case .thisMac: .thisMac
             case .place: .places
             case .runningNow, .failedToday: .work
@@ -39,6 +52,9 @@ enum ModelsWindowModel {
 
         var title: String {
             switch self {
+            case .usableNow: "Usable now"
+            case .bookmarked: "Bookmarked"
+            case .found: "Found"
             case .thisMac: "This Mac"
             case .place(let place): place.title
             case .runningNow: "Running now"
@@ -48,6 +64,9 @@ enum ModelsWindowModel {
 
         var icon: String {
             switch self {
+            case .usableNow: "checkmark.circle"
+            case .bookmarked: "bookmark"
+            case .found: "magnifyingglass"
             case .thisMac: "desktopcomputer"
             case .place(let place): place.icon
             case .runningNow: "play.circle"
@@ -58,6 +77,9 @@ enum ModelsWindowModel {
         /// The accessibility id's last part: `models.sidebar.<item>`.
         var identifier: String {
             switch self {
+            case .usableNow: "usableNow"
+            case .bookmarked: "bookmarked"
+            case .found: "found"
             case .thisMac: "thisMac"
             case .place(let place): "place.\(place.rawValue)"
             case .runningNow: "runningNow"
@@ -68,6 +90,7 @@ enum ModelsWindowModel {
 
     /// Every item, by section, in the sidebar's order.
     static let items: [(section: Section, items: [Item])] = [
+        (.models, [.usableNow, .bookmarked, .found]),
         (.thisMac, [.thisMac]),
         (.places, [.place(.remote), .place(.cloud)]),
         (.work, [.runningNow, .failedToday])
@@ -94,6 +117,7 @@ enum ModelsWindowModel {
     static func rows(_ item: Item, in models: [ActivityModelEntry]) -> [ActivityModelEntry] {
         let rows: [ActivityModelEntry]
         switch item {
+        case .usableNow, .bookmarked, .found: rows = []  // drawn from the candidates, not the models answer
         case .thisMac: rows = models.filter { $0.place == .thisMac }
         case .place(let place): rows = models.filter { $0.place == place }
         case .runningNow: rows = models.filter { $0.active || !$0.usingNow.isEmpty }
@@ -113,13 +137,14 @@ enum ModelsWindowModel {
     }
 
     /// The row's one button (`activity.pane.fix-button-has-words`): the fix of its newest failure when it has one, else its
-    /// state verb (Unload on a loaded model); nil when there is nothing to press.
+    /// state verb (Unload on a loaded model, Delete on an installed one); nil when there is nothing to press.
     static func button(for row: ActivityModelEntry) -> String? {
         if let failure = row.lastFailed {
             return fixWords(failure.button) ?? (row.loaded ? "Unload" : nil)
         }
         if row.account == .needsKey { return "Add Key…" }
-        return row.loaded ? "Unload" : nil
+        if row.loaded { return "Unload" }
+        return row.modelType != nil && row.modelId != nil ? "Delete" : nil
     }
 
     /// A failure's first action in the verbs' words; nil for an action the window has no word for.

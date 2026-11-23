@@ -14,10 +14,10 @@ struct ModelsWindowLayoutTests {
     private let keyless = ActivityModelEntry(id: "cloud|Anthropic|claude", name: "claude", place: .cloud,
                                              provider: "Anthropic", account: .needsKey)
 
-    @Test("the sidebar has three sections, This Mac, Places and Work, each item in the section it belongs to")
+    @Test("the sidebar has four sections, Models, This Mac, Places and Work, each item in the section it belongs to")
     func sections() {
-        #expect(ModelsWindowModel.items.map(\.section) == [.thisMac, .places, .work])
-        #expect(ModelsWindowModel.Section.allCases.map(\.title) == ["This Mac", "Places", "Work"])
+        #expect(ModelsWindowModel.items.map(\.section) == [.models, .thisMac, .places, .work])
+        #expect(ModelsWindowModel.Section.allCases.map(\.title) == ["Models", "This Mac", "Places", "Work"])
         for entry in ModelsWindowModel.items {
             #expect(entry.items.allSatisfy { $0.section == entry.section })
         }
@@ -49,6 +49,9 @@ struct ModelsWindowLayoutTests {
         #expect(ModelsWindowModel.button(for: keyless) == "Add Key…")
         #expect(ModelsWindowModel.button(for: kraken) == "Unload")
         #expect(ModelsWindowModel.button(for: idle) == nil)
+        let installed = ActivityModelEntry(id: "this-mac|MLX|small", name: "small", place: .thisMac, provider: "MLX",
+                                           modelType: "omlx", modelId: "small")
+        #expect(ModelsWindowModel.button(for: installed) == "Delete")
     }
 
     @Test("the columns the engine now answers read in words, and \"—\" for what nothing measures")
@@ -81,5 +84,14 @@ struct ModelsWindowLayoutTests {
         #expect(lines.first { $0.label == "Size" }?.value == "—")
         #expect(lines.first { $0.label == "Last failed" }?.value == "Model failed to load")
         #expect(ModelsWindowModel.inspectorLines(for: kraken).first { $0.label == "Using now" }?.value == "kraken-lines")
+    }
+
+    @Test("the Models section holds Usable now, Bookmarked and Found, drawn from the candidates, with no models-answer rows")
+    func modelsSection() {
+        let items: [ModelsWindowModel.Item] = [.usableNow, .bookmarked, .found]
+        #expect(ModelsWindowModel.items.first?.items == items)
+        #expect(items.map(\.candidateList) == [.usableNow, .bookmarked, .found])
+        #expect(items.allSatisfy { ModelsWindowModel.rows($0, in: [kraken, idle]).isEmpty && $0.section == .models })
+        #expect(ModelsWindowModel.Item.thisMac.candidateList == nil)
     }
 }

@@ -43,6 +43,9 @@ struct ActivityModelEntry: Equatable, Identifiable, Sendable {
     var account: Account?
     var usingNow: [String] = []
     var lastFailed: Failure?
+    /// An installed model's address in the local-models routes (`models.manage.*`): nil for a model that is not installed.
+    var modelType: String?
+    var modelId: String?
 
     /// Whether a model fits this Mac now (`models.row.fits-here`), from the engine's one memory rule.
     enum FitsHere: String, Sendable {
@@ -72,12 +75,14 @@ struct ActivityModelEntry: Equatable, Identifiable, Sendable {
     init(id: String, name: String, place: Place, provider: String, loaded: Bool = false, active: Bool = false,
          memoryBytes: Int? = nil, memoryEstimated: Bool = false, running: Int = 0, pagesToday: Int = 0, callsToday: Int = 0,
          sizeBytes: Int? = nil, licence: String? = nil, fitsHere: FitsHere? = nil, fitsNote: String? = nil,
-         unloadToFit: [String] = [], account: Account? = nil, usingNow: [String] = [], lastFailed: Failure? = nil) {
+         unloadToFit: [String] = [], account: Account? = nil, usingNow: [String] = [], lastFailed: Failure? = nil,
+         modelType: String? = nil, modelId: String? = nil) {
         self.id = id; self.name = name; self.place = place; self.provider = provider; self.loaded = loaded
         self.active = active; self.memoryBytes = memoryBytes; self.memoryEstimated = memoryEstimated
         self.running = running; self.pagesToday = pagesToday; self.callsToday = callsToday
         self.sizeBytes = sizeBytes; self.licence = licence; self.fitsHere = fitsHere; self.fitsNote = fitsNote
         self.unloadToFit = unloadToFit; self.account = account; self.usingNow = usingNow; self.lastFailed = lastFailed
+        self.modelType = modelType; self.modelId = modelId
     }
 
     init(_ model: Components.Schemas.ActivityModel) {
@@ -88,7 +93,8 @@ struct ActivityModelEntry: Equatable, Identifiable, Sendable {
                   licence: model.licence, fitsHere: model.fitsHere.flatMap { FitsHere(rawValue: $0.rawValue) },
                   fitsNote: model.fitsNote, unloadToFit: model.unloadToFit ?? [],
                   account: model.account.flatMap { Account(rawValue: $0.rawValue) }, usingNow: model.usingNow ?? [],
-                  lastFailed: model.lastFailed.map { Failure(words: $0.words, kind: $0.kind, button: $0.button) })
+                  lastFailed: model.lastFailed.map { Failure(words: $0.words, kind: $0.kind, button: $0.button) },
+                  modelType: model.modelType, modelId: model.modelId)
     }
 
     /// "2.1 GB", or "—" when nothing measures it.
