@@ -1198,7 +1198,12 @@ def reconcile_landed(procs: Procs, lane: dict, step: dict, head: str, chains: di
             results = procs.reconcile({"id": lane_id}, {"step": step_id, "issues": issues}, head)
         except Exception as e:  # noqa: BLE001 - the step has landed; a broken reconcile is a row, never a crash
             journal.append("queue", lane=lane_id, step=step_id, state="issue-reconcile", detail=f"failed: {e}"[:300])
+            for n in issues:  # #6848: an issue left unread is an alert naming it, never only a row
+                alert(lane_id, step_id, f"the reconcile of #{n} failed: {e}", str(journal.path()), [])
             return
+        for x in results or []:
+            if x["cls"] == "UNREAD":
+                alert(lane_id, step_id, f"the reconcile left #{x['issue']} unread: {x['note']}", str(journal.path()), [])
         if results:
             journal.append("queue", lane=lane_id, step=step_id, state="issue-reconcile",
                            detail="; ".join(f"#{x['issue']} {x['cls']}{' closed' if x['closed'] else ''}" + (f": {x['note']}" if x["note"] and not x["closed"] else "") for x in results))
