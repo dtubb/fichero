@@ -76,3 +76,18 @@ def test_parent_kind_and_id_names_the_parent_and_is_none_without_one(db):
     assert q.parent_kind_and_id(db, "c1") == ("p1", "parent-pin")
     assert q.parent_kind_and_id(db, "orphan") is None
     assert q.parent_kind_and_id(db, "no-such-job-pin") is None
+
+
+def test_run_workflow_name_is_the_name_else_the_id_and_none_for_no_run(db):
+    db.execute(
+        "INSERT INTO workflowrunrecords (id, workflow_id, workflow_name, status, started_at) VALUES (?, ?, ?, 'done', ?)",
+        ["run-named-pin", "wf-id-pin", "Named workflow", NOW],
+    )
+    db.execute(
+        "INSERT INTO workflowrunrecords (id, workflow_id, workflow_name, status, started_at) VALUES (?, ?, NULL, 'done', ?)",
+        ["run-unnamed-pin", "wf-id-only-pin", NOW],
+    )
+
+    assert q.run_workflow_name(db, "run-named-pin") == "Named workflow"
+    assert q.run_workflow_name(db, "run-unnamed-pin") == "wf-id-only-pin"
+    assert q.run_workflow_name(db, "no-such-run-pin") is None
