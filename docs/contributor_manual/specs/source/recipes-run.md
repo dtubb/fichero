@@ -788,7 +788,7 @@ The behaviours this adds:
 - `recipes-run.timing.plan-says-time-from-measured-pages` — **[PARTIAL]** (#4951, #6052, → #6810) Start's plan says
   how long each step will take on these pages once this Mac has finished pages of that step's model
   (`estimate.runs[].seconds`, with its basis), and the run keeps that figure beside what it measured
-  (`designer.run.predicted-then-measured`). The run says
+  (`designer.run.predicted-then-measured`). Today the plan carries cost alone (`recipes/start.py`); the run says
   "about 2 min left" in its words only (`estimate_seconds_left` is null on the step's account). Measured: after 5
   pages read by the step's reader, `GET /api/recipes/routes` still said the time on this Mac was unknown:
   `recipes/routes.py` `default_models` passes the reader as the plan names it (`kraken-…`) and the job rows
