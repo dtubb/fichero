@@ -105,9 +105,16 @@ struct WorkspaceLayoutPreview: View {
         case .inspector: return "Inspector"
         case .chat: return "Chat"
         case .segments: return "Segments"
-        case .activity: return "Activity"
-        case .activityGraphs: return "Activity Graphs"
-        case .models: return ModelsWindowModel.windowTitle
+        case .activity, .activityGraphs, .models: return Self.windowPaneLabel(kind)
+        }
+    }
+
+    /// The labels of the panes that are a window's pane (Activity, its graphs, Models & Cluster).
+    private static func windowPaneLabel(_ kind: PaneKind) -> String {
+        switch kind {
+        case .activityGraphs: "Activity Graphs"
+        case .models: ModelsWindowModel.windowTitle
+        default: "Activity"
         }
     }
 }

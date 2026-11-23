@@ -68,14 +68,7 @@ extension ContentView {
             return activityPane(slotId: slotId, fixedWidth: spec.fixedWidth)
         case .activityGraphs:
             return activityPane(slotId: slotId, fixedWidth: spec.fixedWidth, graphsOnly: true)
-        case .models:
-            return AnyView(
-                ModelsPaneView()
-                    .frame(width: spec.fixedWidth)
-                    .frame(maxWidth: spec.fixedWidth == nil ? .infinity : nil)
-                    .clipped()
-                    .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .models; paneFocusHint = .models })
-            )
+        case .models: return modelsPane(fixedWidth: spec.fixedWidth)
         case .chat:
             // Chat is no longer a centre pane — it lives beneath the sidebar
             // (spec panes.chat.below-sidebar). The kind stays in the enum so the
@@ -90,6 +83,17 @@ extension ContentView {
                     .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .chat; paneFocusHint = .chat })
             )
         }
+    }
+
+    /// The Models and Cluster pane (#6588): the window's view as a pane of a main window.
+    private func modelsPane(fixedWidth: CGFloat?) -> AnyView {
+        AnyView(
+            ModelsPaneView()
+                .frame(width: fixedWidth)
+                .frame(maxWidth: fixedWidth == nil ? .infinity : nil)
+                .clipped()
+                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .models; paneFocusHint = .models })
+        )
     }
 
     /// The Segments pane (#4942): the selected page's segments, beside the Preview.

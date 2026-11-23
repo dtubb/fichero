@@ -20,9 +20,11 @@ struct ModelsWindowSceneTests {
         #expect(ModelsWindowModel.windowID == "models-cluster")
         #expect(ModelsWindowModel.windowTitle == "Models & Cluster")
         let app = try Self.source("FicheroApp.swift")
-        #expect(app.contains("Window(\"Models & Cluster\", id: ModelsWindowModel.windowID)"))
-        #expect(!app.contains("WindowGroup(\"Models & Cluster\""))
-        #expect(app.components(separatedBy: "id: ModelsWindowModel.windowID)").count - 1 == 1, "one scene claims the id")
+        #expect(app.contains("ModelsWindowScene(appState:"))
+        let scene = try Self.source("Views/Activity/Window/ModelsWindowScene.swift")
+        #expect(scene.contains("Window(\"Models & Cluster\", id: ModelsWindowModel.windowID)"))
+        #expect(!scene.contains("WindowGroup"))
+        #expect(!app.contains("id: ModelsWindowModel.windowID"), "one scene claims the id")
         #expect(try Self.source("Views/Activity/Window/ModelsWindow.swift").contains("ModelsPaneView("))
     }
 
