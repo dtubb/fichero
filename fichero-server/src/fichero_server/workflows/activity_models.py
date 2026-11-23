@@ -286,7 +286,7 @@ def _new(place: str, provider: str, name: str) -> dict[str, Any]:
             "active": False, "memory_bytes": None, "memory_estimated": False, "running": 0, "pages_today": 0,
             "calls_today": 0, "seconds_today": 0.0, "size_bytes": None, "licence": None, "fits_here": None,
             "needs_bytes": None, "fits_note": None, "unload_to_fit": [], "account": None, "using_now": [],
-            "last_failed": None}
+            "last_failed": None, "model_type": None, "model_id": None}
 
 
 #: `FitEstimate.word` -> the column's word (`models.row.fits-here`).
@@ -440,6 +440,8 @@ def models(db: "Database", *, held: list[dict[str, Any]] | None = None,
     facts: dict[str, Any] = {}
     for provider, installed_id, *entry in installed if installed is not None else installed_on_this_mac():
         one = row(THIS_MAC, provider, installed_id)
+        # The local-models routes' address of this model (`models.manage.*`, #6588): its runtime and id there.
+        one["model_type"], one["model_id"] = next(r for r, word in _INSTALLED_RUNTIMES.items() if word == provider), installed_id
         if entry:
             facts[one["id"]] = entry[0]
             one["size_bytes"] = entry[0].disk_usage_bytes or None

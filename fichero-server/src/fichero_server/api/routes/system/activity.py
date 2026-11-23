@@ -1755,6 +1755,8 @@ class ActivityModel(BaseModel):
         default=None, description="its place's account, from a probe or the key a call uses; null on this Mac and where nothing probes")
     using_now: list[str] = Field(default_factory=list, description="the kinds of job running on it now")
     last_failed: Optional[ModelFailure] = None
+    model_type: Optional[str] = Field(default=None, description="an installed model's runtime in the local-models routes; null otherwise")
+    model_id: Optional[str] = Field(default=None, description="an installed model's id in the local-models routes; null otherwise")
 
 
 class ActivityPlace(BaseModel):

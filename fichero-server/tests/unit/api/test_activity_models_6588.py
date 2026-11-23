@@ -427,3 +427,17 @@ def test_the_trained_models_are_read_once_a_minute_not_on_every_poll(db, monkeyp
     clock[0] += 61
     activity_models.trained_rows(db)
     assert len(reads) == 2
+
+
+def test_an_installed_row_says_the_type_and_id_the_delete_and_download_routes_take_6588(db):
+    """`models.manage.*` (#6588): the window addresses Delete on an installed row by the local-models routes' model_type and
+    model_id; a row that is not installed (a cloud model) carries neither."""
+    jobs._ensure(db)
+    found = {(m["provider"], m["name"]): m for m in activity_models.models(
+        db, held=[], installed=[("Kraken", "blla"), ("MLX", "Chandra-OCR")])}
+
+    assert (found[("Kraken", "blla")]["model_type"], found[("Kraken", "blla")]["model_id"]) == ("kraken", "blla")
+    assert (found[("MLX", "Chandra-OCR")]["model_type"], found[("MLX", "Chandra-OCR")]["model_id"]) == ("omlx", "Chandra-OCR")
+    _job(db, "j1", kind="read-a-line", model="openai:gpt-x", state="done")
+    cloud = [m for m in activity_models.models(db, held=[], installed=[]) if m["place"] == "cloud"]
+    assert cloud and all(m["model_type"] is None and m["model_id"] is None for m in cloud)
