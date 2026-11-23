@@ -1260,7 +1260,7 @@ and optionally **Existing issues that gained evidence** (a list: `#N text`). Spe
   `[spend]`, a missing cap or an unknown price refuses, decisions park, handoff, alert from a session state). Not yet: the
   process that starts, reads and acts. Test: `fichero-builder/tests/test_watcher.py`.
   The caps in `harness.toml [spend]` are owner settings (8 USD a session, 250 USD a day as of 2026-11-16 evening). `[spend].window` is 200000 and
-  `[models].builder` is plain `sonnet` (owner 2026-11-02: every turn under 200k, handoffs often, cheap and reliable), because a lane takes its model from the role (test `fichero-builder/tests/test_model_config.py::test_a_window_past_the_standard_one_has_a_builder_model_that_gets_it`).
+  `[models].builder` is plain `sonnet` (owner 2026-11-02: every turn under 200k, handoffs often, cheap and reliable; Opus 2026-11-20, back to Sonnet 2026-11-21 11:20 after the burn; the test pins exactly this value), because a lane takes its model from the role (test `fichero-builder/tests/test_model_config.py::test_a_window_past_the_standard_one_has_a_builder_model_that_gets_it`).
 - `dev-workflows.run.loop` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated) (owner 2026-11-02: the harness keeps going with nobody watching; a stage that waits on a
   person is a defect) — `builder loop` runs indefinitely: `builder queue run --lanes N --push` ticking forever, one `loop` heartbeat
   row a tick. It runs as the owner (a LaunchAgent with KeepAlive), because check rows, verdicts, the push and `gh` are the owner's
@@ -2781,6 +2781,8 @@ on the measuring side. Machine: **M4** for everything in this section unless a r
   `pipeline/tests/test_checks.py` (its test `test_checks_cwd_is_the_worktree` is owed: not in that file today),
   `pipeline/tests/test_checks.py::test_a_coder_sitecustomize_cannot_green_the_guards`,
   `pipeline/tests/test_core.py::test_rewriting_own_acceptance_in_the_spec_needs_maintainer`.
+  The Builder compares with the merge-base (`since...head`, `work.lane_diff`): a pinned file only the base moved is no part of the lane's diff, and the lane
+  stays green. Test: `fichero-builder/tests/test_pinned_merge_base.py`. Spec-change: manager 2026-11-21 pinned checks compare with the merge-base.
 - `pipeline.cost-cap` [OK] — the runner sums `message.usage.cost.total` from Pi's session JSONL per
   task while the coder runs and stops the SESSION at `cost_cap_usd` (US$5 per coder or reviewer window; the page
   shows dollars per issue, the session's cost over the issues it finished — step 1.2 cost US$6.40 over four rounds,
