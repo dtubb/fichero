@@ -75,3 +75,17 @@ def test_the_claude_code_adapter_answers_all_six_and_can_take_a_lane():
     cc = adapters.get("claude-code")
     assert not any(isinstance(cc.answer(q), adapters.Unsupported) for q in QUESTIONS)
     adapters.require_lane_capable(cc)
+
+
+def test_the_workers_tmpdir_and_pytest_basetemp_reach_the_session_command_not_the_tmux_servers_environment(tmp_path, monkeypatch):
+    """#6869: a window opened in a tmux server that is already running gets the server's environment, so the two variables go on the command."""
+    write_rules(tmp_path, '[policy]\nrules = []\n')
+    wt = tmp_path / "wt"
+    wt.mkdir()
+    subprocess.run(["git", "-C", str(wt), "init", "-q"], check=True)
+    monkeypatch.setenv("HOME", str(tmp_path / "h"))
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "gc"))
+    monkeypatch.setenv("TMPDIR", "/w/work-a/tmp")
+    monkeypatch.setenv("PYTEST_ADDOPTS", "--basetemp=/w/work-a/tmp/pytest")
+    argv = start_tool.prepare(tmp_path, wt, "do it", tmp_path / "scratch", claude_bin="claude")
+    assert argv[6:10] == ["env", "TMPDIR=/w/work-a/tmp", "PYTEST_ADDOPTS=--basetemp=/w/work-a/tmp/pytest", "claude"]

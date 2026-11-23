@@ -118,4 +118,6 @@ def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_b
                                role=role, stack=stack, project=project, servers=list(servers)))  # a file, never the text on tmux's line
     claude = [claude_bin, "--dangerously-skip-permissions", "--model", model, "--settings", str(scratch / "settings.json"),
               "--setting-sources", "", "--strict-mcp-config", f"--mcp-config={scratch / 'mcp.json'}"]  # =form: --mcp-config is variadic and would swallow the brief
+    if "PYTEST_ADDOPTS" in os.environ:  # #6869: set by queue.real_procs.start for the lane; a window in a running tmux server gets the server's environment, not ours
+        claude = ["env", *(f"{k}={os.environ[k]}" for k in ("TMPDIR", "PYTEST_ADDOPTS") if k in os.environ), *claude]
     return ["sh", "-c", _READ_PROMPT, "sh", str(scratch / "prompt.md"), brief, *claude]  # the brief stays the first user message
