@@ -318,10 +318,21 @@ extension ZoomableImagePreview {
         guard onSegments else { return false }
         // Merged regions: their lines now read among the kept region's; the order shows for two seconds.
         let flash = SegmentEdit.joinsRegions(segments)
-        runSegmentEdit(SegmentEdit.join(segments, asLines: true), documentId: documentId, name: "Join Segments") { _ in
+        // After each re-read (the join, its undo, its redo) the selection is the kept line, or the joined lines once undone.
+        let joined = segments.map(\.id)
+        runSegmentEdit(
+            SegmentEdit.join(segments, asLines: true), documentId: documentId, name: "Join Segments",
+            afterReread: {
+                guard let store = segmentEditStore else { return }
+                let live = Set(store.segments(documentId: documentId).map(\.id))
+                InspectorPath.select(
+                    segmentIds: SegmentEdit.selectionAfterJoin(joined: joined, live: live),
+                    into: regionSelection, documentId: documentId, store: store
+                )
+            }
+        ) { _ in
             if flash { windowState?.flashOrderOverlay() }
         }
-        regionSelection.clear()
         return true
     }
 
@@ -351,6 +362,7 @@ extension ZoomableImagePreview {
 
     func runSegmentEdit(
         _ planned: Result<SegmentEdit.Call, SegmentEdit.Refusal>, documentId: String, name: String,
+        afterReread: @escaping @MainActor () -> Void = {},
         answered: @escaping @MainActor (ActionInvokeResult) -> Void = { _ in }
     ) {
         guard case .success(let call) = planned else {
@@ -366,7 +378,7 @@ extension ZoomableImagePreview {
             do {
                 let result = try await runner.runAnswering(
                     call, documentId: documentId, actionName: name, steps: windowSteps,
-                    afterChange: { await loadOCRGeometry() }
+                    afterChange: { await loadOCRGeometry(); afterReread() }
                 )
                 answered(result)
             } catch {

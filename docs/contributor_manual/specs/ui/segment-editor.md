@@ -72,7 +72,7 @@ App (`fichero/fichero/Views/Preview/ImageViewer/Regions/`, `fichero/fichero/Mode
 - `RegionInteractionLayer` (Mac only, `#if os(macOS)`): click, shift-click and band selection;
   move one box; the one Shape tool draws a box, a polygon or a baseline; `+Reshape` drags a
   point, adds one on a side, removes one with ⌥-click; arrow keys nudge the pressed point by a
-  pixel (ten with ⇧); ⌫ deletes in the mode; Join is ⌘J with a plan (`SegmentEditCommand.mergePlan`)
+  pixel (ten with ⇧); ⌫ deletes in the mode; Join is ⌥⌘J with a plan (`SegmentEditCommand.mergePlan`)
   and no caller yet; `SegmentEditingMode` decides what Edit Segments allows; `SegmentEdit.move/set/delete/join`
   build the requests; `SegmentEditRunner` sends them and registers undo by audit id.
 - `PreviewPointerFeed` is the one input seam on the Mac; `ZoomableImagePreviewIOS` zooms and
@@ -105,7 +105,7 @@ App (`fichero/fichero/Views/Preview/ImageViewer/Regions/`, `fichero/fichero/Mode
 ## User stories
 
 1. A researcher opens a page Kraken segmented. Two short lines of one sentence were found as
-   two; she drags across both and presses ⌘J. One line, its reading joined, one step to undo.
+   two; she drags across both and presses ⌥⌘J. One line, its reading joined, one step to undo.
 2. Two lines of a cramped hand came back as one tall line. He holds K, draws a stroke across
    the fused line between the two baselines, lets go. Two lines, each with its own baseline,
    the reading cut at the nearest word gap.
@@ -203,10 +203,17 @@ targets are at least 44 pt.
   hulled across a gap (`media/line_join.py`), the baselines end to end in reading order, the readings
   joined with the script's separator, the move across regions, one undo (`unmerge` with
   `keep_restore`) and redo; the Preview's Join sends both flags (`SegmentEdit.join(_:asLines:)`).
-  The key is ⌥⌘J, the owner's ruling of 2026-11-08 in menus-and-commands.md, not the ⌘J written
-  here (open question). Lines measured on another image are refused, not carried. *Tests:* `tests/unit/api/test_segment_merge_lines.py` (union,
+  The key is ⌥⌘J, the owner's ruling of 2026-11-08 in menus-and-commands.md. Lines measured on another image are refused, not carried. *Tests:* `tests/unit/api/test_segment_merge_lines.py` (union,
   hull, baseline order, across regions is one action and one undo); `SegmentJoinTests.swift`.
-- `segment-editor.merge-regions` — **[PARTIAL]** (→ #4941; engine) two or more selected regions and ⌘J become one region
+- `segment-editor.join-selects-the-joined-segment` — **[OK]** (→ #7068; app) after a Join answers, the selection is the
+  kept segment (the first picked), so the Inspector shows the joined line; after ⌘Z it is the segments that were joined,
+  after ⇧⌘Z the kept one again. The Preview's Join and the segment menu's Join both do it, once the store has re-read the
+  page (`SegmentEdit.selectionAfterJoin`: the kept id alone while the others are gone, all ids once they are back); the
+  Join no longer clears the selection. Boxes with a zero rect and no text are found again by their segment id, so the
+  kept one is lit, not the first. *Tests:*
+  `fichero/Tests/Unit/general/Views/Source/SegmentJoinSelectionTests.swift` (`joinedSelectsTheKept`,
+  `undoneSelectsTheRestored`, `zeroRectBoxesAreToldApartByTheirId`).
+- `segment-editor.merge-regions` — **[PARTIAL]** (→ #4941; engine) two or more selected regions and ⌥⌘J become one region
   whose outline is the union; their lines become the kept region's lines, interleaved into its
   order by page position (`layout_order`), with the result shown before it lands as a
   highlighted order overlay for two seconds.
@@ -860,7 +867,7 @@ Mac keys (every one is also a Segment menu item; ⌘ chords stay unique across t
 | Add to / remove from selection | ⇧-click, ⇧-drag |
 | Lasso | ⌥-drag on empty page |
 | Select all (level) / same kind | ⌘A / ⌘⇧A |
-| Merge (Join) | ⌘J |
+| Merge (Join) | ⌥⌘J |
 | Split under pointer | ⌘⇧K |
 | Redraw Outline from Baseline | ⌘⇧R |
 | Simplify outline | ⌘⌥S |
@@ -1228,7 +1235,7 @@ hand, so the cut marks on such a line are the fallback's and say so.
 | Control (a11y id) | Label | Tooltip/help text | Localized key | Verified by |
 |---|---|---|---|---|
 | `segment-editor.tool.knife` | Knife | Cut every line the stroke crosses (K; hold for one stroke) | `segmentEditor.tool.knife` | [MISSING] |
-| `segment-editor.verb.merge` | Join | Join the selected lines into one (⌘J) | `segmentEditor.verb.merge` | [MISSING] |
+| `segment-editor.verb.merge` | Join | Join the selected lines into one (⌥⌘J) | `segmentEditor.verb.merge` | [MISSING] |
 | `segment-editor.verb.redraw` | Redraw Outline | Draw the outline again from the baseline (⌘⇧R) | `segmentEditor.verb.redraw` | [MISSING] |
 | `segment-editor.verb.cut-words` | Cut Words | Make word boxes from the reading's character positions (⌘⇧W) | `segmentEditor.verb.cutWords` | [MISSING] |
 | (every other control above) | its name | its one-line rule above with its key | `segmentEditor.*` | [MISSING] |
