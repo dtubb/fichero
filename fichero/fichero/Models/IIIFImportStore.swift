@@ -63,10 +63,18 @@ final class IIIFImportStore {
 
     /// The folder shows a spinner from the engine's start answer until the job ends; a failed job keeps the row, marked,
     /// with the job's reason (#7066). The job's state is read from the same Activity route the Activity window uses.
+    private static let unreadableLimit = 5
+
     private func watch(jobId: String, folderId: String) {
         folderImports.begin(folderId: folderId)
         Task { [client, folderImports] in
+            var unreadable = 0
             while !Task.isCancelled {
+                // The job route failing again and again (job pruned, engine restarted, library closed): stop, say so.
+                if unreadable >= Self.unreadableLimit {
+                    folderImports.fail(folderId: folderId, reason: "Fichero lost track of this import.")
+                    return
+                }
                 if let tree = try? await client.api.getJobTreeApiActivityJobsJobIdGet(path: .init(jobId: jobId)),
                    case .ok(let read) = tree, let job = try? read.body.json {
                     switch job.state {
@@ -76,8 +84,10 @@ final class IIIFImportStore {
                     case "failed":
                         folderImports.fail(folderId: folderId, reason: job.reason ?? "The import failed.")
                         return
-                    default: break
+                    default: unreadable = 0
                     }
+                } else {
+                    unreadable += 1
                 }
                 try? await Task.sleep(for: .seconds(2))
             }

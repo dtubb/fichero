@@ -13,36 +13,50 @@ final class FolderImportTracker {
         case failed(String)
     }
 
-    private(set) var states: [String: State] = [:]
+    /// One observable entry per folder, so a row that reads its own entry redraws only when its own import changes,
+    /// not when any other folder's import begins or ends (#6547). The dictionary is not itself observed.
+    @Observable
+    final class Entry {
+        fileprivate(set) var state: State?
+    }
+
+    @ObservationIgnored private var entries: [String: Entry] = [:]
     /// Folders whose row is to be revealed (their ancestors opened) once the row is known.
     private(set) var pendingReveal: Set<String> = []
 
+    private func entry(_ folderId: String) -> Entry {
+        if let existing = entries[folderId] { return existing }
+        let made = Entry()
+        entries[folderId] = made
+        return made
+    }
+
     /// The engine accepted the import: the folder row shows a spinner and is to be revealed.
     func begin(folderId: String) {
-        states[folderId] = .importing
+        entry(folderId).state = .importing
         pendingReveal.insert(folderId)
     }
 
     /// The import finished (or was cancelled, keeping what landed): the spinner goes.
     func finish(folderId: String) {
-        states[folderId] = nil
+        entry(folderId).state = nil
         pendingReveal.remove(folderId)
     }
 
     /// The import failed: the row stays, marked, with the reason.
     func fail(folderId: String, reason: String) {
-        states[folderId] = .failed(reason)
+        entry(folderId).state = .failed(reason)
     }
 
     /// The person has seen the error: the mark goes.
     func dismissError(folderId: String) {
-        if case .failed = states[folderId] { states[folderId] = nil }
+        if case .failed = entry(folderId).state { entry(folderId).state = nil }
     }
 
-    func isImporting(_ folderId: String) -> Bool { states[folderId] == .importing }
+    func isImporting(_ folderId: String) -> Bool { entry(folderId).state == .importing }
 
     func error(for folderId: String) -> String? {
-        if case .failed(let reason) = states[folderId] { return reason }
+        if case .failed(let reason) = entry(folderId).state { return reason }
         return nil
     }
 
