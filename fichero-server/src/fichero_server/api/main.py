@@ -1218,8 +1218,7 @@ QUIT_DEADLINE_SECONDS = 10.0
 
 def _arm_quit_deadline(seconds: float = QUIT_DEADLINE_SECONDS, *, exit=os._exit) -> threading.Timer:
     """The engine ends within `seconds` of its shutdown starting whatever it still holds (#6813): a timer on its own thread kills
-    the processes the engine started (a forked embedder child, a model server) and exits with 70. A shutdown that finishes
-    first ends the process before the timer fires."""
+    the processes the engine started (a forked embedder child, a model server) and exits with 70. `_teardown` cancels the timer when its last step ends."""
     def hard_exit() -> None:
         import signal
         import subprocess
@@ -1243,7 +1242,7 @@ async def _teardown(app: FastAPI, *, parent_watcher, periodic_snapshot_task, bon
     checkpointed and closed (first, straight after the last thing that writes to them), then the network and local-model steps."""
     from fichero_server.api.change_stream import signal_sse_shutdown
 
-    _arm_quit_deadline()
+    deadline = _arm_quit_deadline()
     await _step("signal the SSE streams", signal_sse_shutdown)
     # #4553 follow-up: the WORKFLOW SSE stream never participated in shutdown.
     # Its generator loops forever emitting keepalives, so uvicorn's "Waiting for
@@ -1314,6 +1313,7 @@ async def _teardown(app: FastAPI, *, parent_watcher, periodic_snapshot_task, bon
     await _step("unload local models", shutdown_managed_local_inference_services)
     # Anything that opened a project during the steps above is closed too (close_all is idempotent).
     await _step("close the projects again", db_manager.close_all)
+    deadline.cancel()  # every step ended: a process that goes on running (a test client, a second lifespan) is not killed 10 s later
 
 app = FastAPI(
     title="Fichero API",

@@ -32,7 +32,7 @@ def test_a_shutdown_that_ends_in_time_leaves_the_timer_idle(monkeypatch):
 
 def test_the_teardown_arms_the_deadline_before_any_step(monkeypatch):
     seen = []
-    monkeypatch.setattr(main, "_arm_quit_deadline", lambda *a, **k: seen.append("armed"))
+    monkeypatch.setattr(main, "_arm_quit_deadline", lambda *a, **k: seen.append("armed") or MagicMock())
 
     async def step(what, fn):
         seen.append(what)
@@ -41,3 +41,17 @@ def test_the_teardown_arms_the_deadline_before_any_step(monkeypatch):
     asyncio.run(main._teardown(None, parent_watcher=MagicMock(), periodic_snapshot_task=None, bonjour_started=None,
                                tailnet_forward=None, mcp_tools_started=None, warm_started=None))
     assert seen[0] == "armed" and len(seen) > 1
+
+
+def test_a_teardown_that_finishes_leaves_no_timer_to_kill_the_process(monkeypatch):
+    async def step(what, fn):
+        pass
+
+    monkeypatch.setattr(main, "_step", step)
+    timers = []
+    real = main._arm_quit_deadline
+    monkeypatch.setattr(main, "_arm_quit_deadline", lambda: timers.append(real(30, exit=lambda code: None)) or timers[-1])
+    asyncio.run(main._teardown(None, parent_watcher=MagicMock(), periodic_snapshot_task=None, bonjour_started=None,
+                               tailnet_forward=None, mcp_tools_started=None, warm_started=None))
+    timers[0].join(1)
+    assert not timers[0].is_alive(), "the deadline timer outlived the teardown and would exit the process"
