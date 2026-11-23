@@ -77,7 +77,7 @@ def _comment(db, kind, anchor_id, body="private"):
     db.save(KgComment(anchor_kind=kind, anchor_id=anchor_id, body=body, created_by="owner"))
 
 
-def test_a_denied_page_hides_the_comments_on_its_source_segment_and_entity(multiuser_client, app_db, users, db):
+def test_a_denied_page_hides_the_comments_on_its_source_segment_and_entity(multiuser_client, app_db, users, db):  # noqa: F811  (fixtures imported above)
     client, login, library_path = multiuser_client
     _grant_role(app_db, users.editor, library_path, "editor")
     denied, allowed = _make_doc(db, "denied.jpg"), _make_doc(db, "allowed.jpg")
@@ -98,7 +98,7 @@ def test_a_denied_page_hides_the_comments_on_its_source_segment_and_entity(multi
     assert [c["body"] for c in read(open_seg.id)] == ["private"]  # a page the editor may read stays readable
 
 
-def test_a_denied_page_refuses_a_comment_on_it(multiuser_client, app_db, users, db):
+def test_a_denied_page_refuses_a_comment_on_it(multiuser_client, app_db, users, db):  # noqa: F811  (fixtures imported above)
     client, login, library_path = multiuser_client
     _grant_role(app_db, users.editor, library_path, "editor")
     denied = _make_doc(db, "denied.jpg")
