@@ -15,6 +15,16 @@ from fichero_server.models import ActionAudit, DocType, Document
 from fichero_server.api.routes import ingest
 from fichero_server.importers.sources_folder import ensure_sources_folder
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _no_embedding_model(monkeypatch):
+    """An ingest queues an embed job; a unit test must never load or download the embedding model."""
+    from fichero_server.importers import derivatives
+
+    monkeypatch.setattr(derivatives, "_embed_stage", lambda doc_id, library: None)
+
 
 # ---------------------------------------------------------------------------
 # Helpers
