@@ -3868,10 +3868,16 @@ scratch dirs in one morning. The journal is 46.6 MB and 83% of it is loop tick r
   Today `queue.tick_lane` returns without a row in two of those cases. Test: an owed test in
   fichero-builder/tests/test_step_state.py. (#6589) → #6879
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
-- `local.perf.disk-floor-one-alert-sweeps-first` [BROKEN] — under the disk floor the loop sweeps first, then raises one
-  alert naming the free space and the lanes held, and writes one row an hour. Today it writes a row per lane each time
-  the figure changes and raises no alert (699 rows in one night). Test: an owed test in
-  fichero-builder/tests/test_loop.py. → #6852
+- `local.perf.disk-floor-one-alert-sweeps-first` [OK] — the floor is `[loop].disk_floor_gb` in `harness.toml`, re-read
+  every tick. Under it no new lane starts: each held lane gets one `disk-hold` row, not one a time the free figure
+  changes, and the loop raises one alert naming the free space and every lane held; when the disk is back over the floor
+  it raises one more. The last `disk-floor` row in the journal says which of the two the loop is in, so a restart repeats
+  neither. **Built** 2026-11-23, Spec-change: manager 2026-11-21 one alert in, one out. Test:
+  `fichero-builder/tests/test_loop.py::test_a_falling_disk_holds_every_lane_with_one_alert_and_clearing_raises_one_more`. → #6852
+- `local.perf.cap-park-is-one-alert` [OK] — when a cap or a provider refusal parks the workers of several lanes in one
+  tick, the loop raises one alert listing the lanes, not one a lane; a park stops only the worker's own tmux window, never
+  the tmux server. **Built** 2026-11-23, Spec-change: manager 2026-11-21 one alert for a cap park. Test:
+  `fichero-builder/tests/test_loop.py::test_a_cap_that_parks_two_workers_is_one_alert_listing_both_lanes`. → #6851
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.perf.remote-run-leaves-no-scratch` [BROKEN] — a test run sent to a runner makes no scratch dir on the builder's
   machine. Today `check_tool._remote_run` builds a local env, which makes a home dir and a base dir, drops both keys and
