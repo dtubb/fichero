@@ -17,6 +17,17 @@ struct ModelCandidateRulesTests {
         #expect(ModelCandidateRules.rows(.usableNow, in: all).count == 2)
     }
 
+    @Test("with Kraken installed, a bookmarked reader not downloaded and a provider without credit, Usable now lists only Kraken")
+    func acceptanceLists() {
+        let kraken = facts(.installed, key: nil)
+        let reader = facts(.download, bookmarked: true)
+        let noCredit = facts(.elsewhere, refused: "Needs credit at OpenRouter")
+        let all = [kraken, reader, noCredit]
+        #expect(ModelCandidateRules.rows(.usableNow, in: all) == [kraken])
+        #expect(ModelCandidateRules.rows(.bookmarked, in: all) == [reader])
+        #expect(ModelCandidateRules.usableWords(reader) == "After download (2.1 GB)")
+    }
+
     @Test("the bookmarked list holds the kept cards; found holds the cards a search found")
     func lists() {
         let all = [facts(.download, bookmarked: true), facts(.download), facts(.ships, key: nil)]
