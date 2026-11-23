@@ -24,4 +24,9 @@ enum SidebarPhone {
     nonisolated static func rowExpandsInPlace(isPhone: Bool) -> Bool {
         !isPhone
     }
+
+    /// A row with children draws as a disclosure tree on the Mac and iPad; on the phone it is a flat row that pushes (#6946).
+    nonisolated static func showsDisclosure(isExpandable: Bool, isPhone: Bool) -> Bool {
+        isExpandable && rowExpandsInPlace(isPhone: isPhone)
+    }
 }
