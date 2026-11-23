@@ -339,7 +339,7 @@ A run paused by a person, or by the engine's own stop, has no kind and no alert 
 - `runner.security.yolo-weights-pinned` — **[OK]** (#6697; `fichero-server/tests/unit/llm/test_yolo_pinned_and_hashed_6697.py::test_a_file_whose_hash_differs_is_refused_and_never_reaches_yolo`, `::test_the_download_names_a_commit_revision`) the YOLO
   layout weights are a pickle: the download names a commit revision, and a file whose sha256 differs from the pinned one is
   refused as `model-broken` and never reaches `YOLO()`.
-- `runner.security.socket-and-keychain` — **[OK]** (#6704, #4818; `tests/unit/security/test_keychain_write_and_socket_mode_6704.py`)
+- `runner.security.socket-and-keychain` — **[OK]** (#6704, #4818; `fichero-server/tests/unit/security/test_keychain_write_and_socket_mode_6704.py::test_the_uds_socket_is_0600_after_bind`, `::test_the_secret_goes_on_stdin_never_argv`, `::test_security_is_called_by_absolute_path`, `::test_httpx_and_httpcore_do_not_log_request_urls_at_info`)
   the engine's Unix socket is mode 0600 right after bind; the keychain write passes the key on stdin (`security -i`), never
   argv, and `security` is run as `/usr/bin/security`; the engine's `httpx` and `httpcore` loggers sit at WARNING so no request
   URL is logged at INFO.
