@@ -2533,7 +2533,7 @@ and node, not by job); a retry action for failed pages.
   step can run at the same time when memory allows; two steps on the same processor do not. A GPU step (MLX)
   has its own pages-at-once budget from GPU memory and a CPU step (Kraken) its own from the performance cores
   and free memory (`activity.lane.pages-at-once-sized-from-the-machine`), so the two run side by side; neither
-  budget borrows from the other. The sum is bounded by one memory rule (#6000): free memory less Kraken's need, the served weights, the CPU pages at their measured peak and the GPU reads at their margin stays above the reserve; on a 16 GB Mac or less one heavy model at a time, so side by side is only above 16 GB, and only once measured: the M4's line-finder knee at two is a shared-hardware limit, and a GPU model beside it draws on the same unified memory, so each may slow the other (unmeasured; `agent-work/status/briefs/compute-per-engine-2026-10-27.md` M4; proposed 2026-10-27, awaiting the maintainer).
+  budget borrows from the other. The sum is bounded by one memory rule (#6000): free memory less Kraken's need, the served weights, the CPU pages at their measured peak and the GPU reads at their margin stays above the reserve; on a 16 GB Mac or less one heavy model at a time, so side by side is only above 16 GB, and only once measured: the M4's line-finder knee at two is a shared-hardware limit, and a GPU model beside it draws on the same unified memory, so each may slow the other (unmeasured; `agent-work/status/briefs/compute-per-engine-2026-10-27.md` M4; proposed 2026-10-27, awaiting the maintainer). Not built: needs Step 6.10's fit record (manager 2026-11-23).
 - `activity.lane.cores-are-used` — **[PARTIAL]** (#6229; run-system review 2026-10-27, read from the code) a
   Kraken page uses the Mac's performance cores: the threads a page gets are the performance cores divided by the
   pages at once, whatever its priority, and the run's grey line says it ("2 pages at once, 2 threads each").
@@ -2571,7 +2571,8 @@ and node, not by job); a retry action for failed pages.
   `test_pages_at_once_sized_from_the_machine_5931.py` (to write, under `fichero-server/tests/unit/jobs/`) (a faked 12-core, 32 GB Mac with a
   stored fit of 4 × 2 reads four at once; with no fit it reads the engine's prior; a faked 4-core, 8 GB Mac reads one;
   in use halves the cores first; a GPU step's budget is untouched by the CPU step's).
-- `activity.lane.kraken-threads-exit-clean` — **[BROKEN]** (#5929; run-system review 2026-10-27; the cause read
+  Not built: needs Step 6.10's fit record (manager 2026-11-23).
+- `activity.lane.kraken-threads-exit-clean` — **[PARTIAL]** (#5929; run-system review 2026-10-27; the cause read
   2026-10-27 from `ai/local-runtimes.md` `runtime.torch.exits-cleanly` and the M4 crash reports; wording awaiting the
   maintainer) the engine, and every process it starts that loads Kraken, exits clean (rc 0) after reading pages on
   threads. The rc=139 and rc=134 exits are NOT a thread fault: all 25 M4 crash reports fault on the main thread in
@@ -2590,7 +2591,7 @@ and node, not by job); a retry action for failed pages.
   `fichero-server/tests/unit/core/test_fast_exit_5929.py`, and
   `fichero-server/tests/unit/jobs/test_kraken_threads_exit_clean_5929.py` (a subprocess that loads the segmenter, reads
   two faked pages on threads and leaves by `fast_exit` exits 0; on the Pro the bare exit is 0 too, so it pins the way
-  out, not the abort).
+  out, not the abort). Run 2026-11-23 on the builder's worker Mac without Kraken: the fast-exit tests pass; the Kraken-loading cases skip because Kraken is not installed here, so the exit-clean claim for Kraken's load is unproven off the M4. Not built: the one engine run at N=4.
 - `activity.throttle.in-use-slows-to-half` — **[OK]** (#6230; ruled 2026-10-27: half the performance cores, not a
   quarter; the holds stay; Pause All gives the whole Mac) while the Mac is
   in use (any input in the last 30 s, `throttle.IDLE_BEFORE_HEAVY_SECONDS`) or a build runs, automatic work
