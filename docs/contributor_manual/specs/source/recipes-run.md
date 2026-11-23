@@ -559,7 +559,7 @@ replaces the Kraken figure before #6212 is coded.
   account serves `pages_done_in_order` (`workflows/run_account.py`, in the contract); a stage's counts say
   "first N in order" while a page finished ahead of a gap (`ActivityDetails.countsWords`, Swift compile owed); the page
   grid's read (`GET /api/activity/jobs/{id}/pages`) serves the pages in sidebar order (`Database.unit_of_work_ids`), so
-  the dots read in that order (fichero-server/tests/unit/api/test_run_page_states_5960.py). Test: fichero-server/tests/unit/recipes/test_pages_done_in_order_6186.py.
+  the dots read in that order (fichero-server/tests/unit/api/test_run_page_states_5960.py). Test: fichero-server/tests/unit/recipes/test_pages_done_in_order_6186.py (`test_a_page_finished_ahead_waits_for_the_gap_before_it`).
 - `recipes-run.order.search-entities-once-at-the-end` — **[OK]** (#6186; `activity.run.stages-before-search-do-not-embed`
   and `activity.lane.embed-after-reading` are its halves) for a recipe run, the search embedding and
   the names draft run ONCE after the last reading step of the batch, in batches of 64, and Activity says
@@ -633,7 +633,7 @@ replaces the Kraken figure before #6212 is coded.
   `_generate_image`), so the EXIF turn never copies the full-resolution image and a JPEG decodes reduced;
   thumbnails run on the images lane (`test_lanes_released_per_project.py`). Left: a reduced-size TIFF decode
   (Pillow decodes a TIFF whole) and the time beside a Kraken fan-out measured on the M4.
-  Test: fichero-server/tests/unit/importers/test_thumbnail_cost_bounded_6193.py.
+  Test: fichero-server/tests/unit/importers/test_thumbnail_cost_bounded_6193.py (`test_the_page_is_shrunk_before_it_is_turned`, `test_a_ten_megapixel_tiff_thumbnails_in_under_two_seconds`).
 
 ### 13. A step runs on a page only when what it needs is there (owner 2026-11-17, #6673)
 
