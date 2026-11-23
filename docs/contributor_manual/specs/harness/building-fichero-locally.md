@@ -580,6 +580,12 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   stop marker, ends the lane's windows and queues the step again ("stopping the session this loop lost track of"). On
   2026-11-21 that row was written fourteen times, five of them within two minutes of one re-exec while the sessions were
   at work, and no `adopted` row was written all day. The lane does not record its window id or its process id at start.
+  **Built** 2026-11-23, the half that ends no session: a window that runs more than a shell is never ended by the
+  lost-track branch (`procs.live_windows`); one alert names the window id, the lane and the step, and the step keeps its
+  state. A step that was `checking` before a restart still gets the file-bound split. Tests
+  `fichero-builder/tests/test_builder_restart.py::test_a_live_window_the_loop_cannot_adopt_is_one_alert_with_its_id_and_is_never_stopped`,
+  `fichero-builder/tests/test_builder_restart.py::test_a_step_that_was_checking_before_a_restart_still_gets_the_automatic_split`.
+  Left: the window id and process id recorded at start, and a watcher started again on the same feed.
   Test (owed): `test_builder_restart.py`, a re-exec with five live windows and no watcher adopts five and stops none; a
   live process id with a renamed window is adopted; a lane with neither is queued once. Serves: reliable.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
