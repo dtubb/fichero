@@ -41,6 +41,8 @@ ROUNDS, RESTARTS = 2, 2
 DISPATCH: list = [()]  # [loop].dispatch: external lanes the loop runs itself, as managed worker lanes (#6466); the verb sets it
 APPROVED_PINNED: list = [{}]  # [loop.approved_pinned] {path: blob sha}: a maintainer lane's pinned diff of exactly these blobs is approved by itself (#6466)
 DISK_FLOOR_GB: list = [0.0]  # [loop].disk_floor_gb: under this many free GB no new lane starts; 0 = off
+PARKED: list = []  # the lanes whose worker a cap or a provider refusal parked in this tick: one alert for them all
+DISK_HELD: list = []  # the lanes the floor held in this tick; `tick` turns them into one alert, and one more when the floor clears
 BLOCKED_H: list = [4.0]  # [loop].blocked_hours: a blocked step this old is retried once in a fresh session, then parked (#6466)
 _now = time.time  # the tests set the clock
 AUTO_SEND_BACKS = 3  # an external lane's red check is sent back by the loop this many times a batch, then it is an alert
@@ -302,7 +304,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                                f"Fix on your branch (a conflict: rebase onto origin/integration), then run: {done_cmd(lane['id'])}")
         journal.append("queue", lane=lane["id"], step=s["step"], state=state if not err else "tell-refused", detail=err or note + str(f))
 
-    def block(s, why, actions=ACTIONS, evidence="", auto_send_back=False, red=False):
+    def block(s, why, actions=ACTIONS, evidence="", auto_send_back=False, red=False, quiet=False):
         q = journal.STATE / f"question-{lane['id']}-{s['step']}.txt"
         q.write_text(f"QUESTION: {why}\n")
         if red:  # a failed check only (#6506: a retry of the same head says so); a question block is not shown as red
@@ -318,7 +320,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                              note=f"sent back automatically ({s['auto_sb']} of {AUTO_SEND_BACKS}): {why.splitlines()[0][:200]}; findings in ")
             alert(lane["id"], s["step"], why, evidence or str(q), ["send-back", "retry", "park"])
             return False
-        alert(lane["id"], s["step"], why, evidence or str(q), list(actions))
+        if not quiet:  # a cap park is the tick's one alert (`park_alert`), not one a lane
+            alert(lane["id"], s["step"], why, evidence or str(q), list(actions))
         if lane.get("kind") == "external" and s.get("land_tree"):  # the lane fixes it on its branch: tell it where the findings are
             findings_to_lane(s, why, evidence, q)
         return False
@@ -392,7 +395,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         del handles[lane["id"]]
         h, lane["feed"], end = None, "", procs.end_of(lane)
         if end == "parked":
-            return block(s, "the worker was parked (a cap or a provider refusal); read the journal, then `builder queue resume`")
+            PARKED.append(lane["id"])
+            return block(s, "the worker was parked (a cap or a provider refusal); read the journal, then `builder queue resume`", quiet=True)
         if s["state"] == "sent":
             s["restarts"] += 1
             if s["restarts"] > RESTARTS:
@@ -437,7 +441,8 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
                     return True
                 if procs.free_gb is not None and DISK_FLOOR_GB[0] and (free := procs.free_gb()) < DISK_FLOOR_GB[0]:
                     why = f"{free:.0f} GB free, under the floor of {DISK_FLOOR_GB[0]:g} GB: no new lane starts"
-                    if s.get("disk_held") != why:
+                    DISK_HELD.append(lane["id"])
+                    if not s.get("disk_held"):  # a row when the lane is first held, not at every figure the disk reads
                         s["disk_held"] = why
                         store(lane)
                         journal.append("queue", lane=lane["id"], step=s["step"], state="disk-hold", detail=why)
@@ -1435,8 +1440,34 @@ def clean_up(lane: dict, ref: str, on_removed: Callable[[str], None] = lambda tr
         _cleanup_row(lane, "", wt, "removed" if r.returncode == 0 else "kept", f"branch {branch} " + ("removed" if r.returncode == 0 else f"kept: {r.stderr.strip()[-200:]}"))
 
 
+def park_alert() -> None:
+    """#6851: a cap parks every running worker in the same tick; the alert is one row listing the lanes. Only `kill-window` ever
+    stops a worker here, so a park leaves the tmux server and the other sessions alone."""
+    lanes, PARKED[:] = sorted(set(PARKED)), []
+    if lanes:
+        alert("-", "cap-park", f"workers parked by a cap or a provider refusal: {', '.join(lanes)}; read the journal, then `builder queue resume`",
+              str(journal.STATE / "journal.jsonl"), [])
+
+
+def disk_floor_alerts(procs: Procs) -> None:
+    """#6852: every lane held by the disk floor is one alert naming them, and the floor clearing is one more; the last
+    `disk-floor` row in the journal says which of the two the loop is in, so a restart does not repeat either."""
+    held, DISK_HELD[:] = sorted(set(DISK_HELD)), []
+    last = next((r["state"] for r in reversed(journal.read()) if r.get("event") == "loop" and r.get("state") in ("disk-floor", "disk-floor-clear")), "")
+    if held and last != "disk-floor":
+        why = f"{procs.free_gb():.0f} GB free, under the floor of {DISK_FLOOR_GB[0]:g} GB: no new lane starts ({', '.join(held)} held)"
+        journal.append("loop", state="disk-floor", detail=why)
+        alert("-", "disk-floor", why, str(journal.STATE / "journal.jsonl"), [])
+    elif not held and last == "disk-floor" and DISK_FLOOR_GB[0] and procs.free_gb is not None and (free := procs.free_gb()) >= DISK_FLOOR_GB[0]:
+        why = f"{free:.0f} GB free, over the floor of {DISK_FLOOR_GB[0]:g} GB: lanes start again"
+        journal.append("loop", state="disk-floor-clear", detail=why)
+        alert("-", "disk-floor", why, str(journal.STATE / "journal.jsonl"), [])
+
+
 def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, chains: dict | None = None) -> bool:
     busy = False
+    DISK_HELD.clear()
+    PARKED.clear()
     for lane in sorted(filter(_ours, load()), key=_green_first):
         try:
             if manage(lane, procs):
@@ -1450,6 +1481,8 @@ def tick(procs: Procs, handles: dict, *, workers_n: int, push: bool, out=print, 
         except Exception:  # noqa: BLE001 - the same for the tick's own work on a lane: a row, and the other lanes still tick
             journal.append("loop", state="lane-error", lane=lane["id"], detail=traceback.format_exc()[-1500:])
             out(f"{lane['id']}: lane error (journal row lane-error); the loop goes on")
+    park_alert()
+    disk_floor_alerts(procs)
     daily_when_due(procs, chains)
     nightly_when_due(procs, chains)
     reconcile_when_due(procs, chains)

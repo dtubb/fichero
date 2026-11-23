@@ -1725,6 +1725,45 @@ def test_a_new_lane_does_not_start_under_the_disk_floor_and_the_row_says_why(sta
     assert fake.starts, "above the floor it starts"
 
 
+def test_a_falling_disk_holds_every_lane_with_one_alert_and_clearing_raises_one_more(state, monkeypatch):
+    """#6852: the figure moving under the floor is no new reason: one hold row a lane, one alert for the loop, one when it clears."""
+    lane(state)
+    queue.add("m2", "/w/m2", "2.1", str(state / "b1.1"), [9])
+    fake = Fake()
+    free = [12.0]
+    fake.procs.free_gb = lambda: free[0]
+    monkeypatch.setattr(queue, "DISK_FLOOR_GB", [30.0])
+    tick = lambda: queue.tick(fake.procs, {}, workers_n=2, push=False, out=lambda s: None)  # noqa: E731
+    for gb in (12.0, 11.0, 10.0):  # three ticks, the figure falling each time
+        free[0] = gb
+        tick()
+    holds = [r for r in journal.read() if r.get("state") == "disk-hold"]
+    assert fake.starts == [] and sorted(r["lane"] for r in holds) == ["m1", "m2"], "one row a lane, not a row a figure"
+    (a,) = _alerts()
+    assert "m1" in a["what"] and "m2" in a["what"] and "30" in a["what"]
+    free[0] = 80.0
+    tick()
+    tick()
+    assert fake.starts, "over the floor the lanes start"
+    cleared = _alerts()[1:]
+    assert len(cleared) == 1 and "over the floor" in cleared[0]["what"]
+
+
+def test_a_cap_that_parks_two_workers_is_one_alert_listing_both_lanes(state):
+    """#6851: the day cap parks every live worker in one tick; the manager reads one alert, not one a lane."""
+    lane(state)
+    queue.add("m2", "/w/m2", "2.1", str(state / "b1.1"), [9])
+    fake = Fake()
+    fake.end = "parked"
+    queue.tick(fake.procs, {}, workers_n=2, push=False, out=lambda s: None)
+    handles = {"m1": "p1", "m2": "p2"}
+    fake.alive_now = False
+    queue.tick(fake.procs, handles, workers_n=2, push=False, out=lambda s: None)
+    (a,) = [r for r in _alerts() if r["step"] == "cap-park"]
+    assert "m1" in a["what"] and "m2" in a["what"]
+    assert not [r for r in _alerts() if r["step"] != "cap-park"], "no alert a lane"
+
+
 def test_removing_a_lanes_tree_drops_its_jcodemunch_index(state, tmp_path):
     fake, wt, land, repo, g = _cleanup_world(state, tmp_path)
     dropped = []
