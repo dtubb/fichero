@@ -416,9 +416,6 @@ every kept export. The Word transcript streams one folder at a time into the zip
   point goes to Problemas and is proposed into the graph as a mention on the folder description;
   `catalogue_access_points` is unchanged; a list a person set is never overwritten; the undo puts the
   lists back. Test: fichero-server/tests/unit/recipes/test_catalogue_access_points_typed.py.
-  Left open 2026-11-23 (Spec-change: manager): the test file does not exist; `promote_folder` (recipes/catalogue_step.py) writes no
-  `catalogue_people`/`catalogue_places`/`catalogue_institutions` and nothing there matches access points to the project's entities, proposes mentions or
-  reaches Problemas; it needs the entity lookup, the proposal write and the undo keys designed first, a step of its own (size L).
 - `catalogue.export.people-places-institutions-columns` — **[OK]** (#6282) Lugares and Nombres read
   `catalogue_places` and `catalogue_people` joined by the declaration's `join` ("|" in the EAP preset) in the
   attribute's order; institutions never appear in either and go to the Entidades sheet. Test:
@@ -455,9 +452,6 @@ every kept export. The Word transcript streams one folder at a time into the zip
   model never fills) and Related Subjects (`catalogue_subjects`, a `multi_select` over the prototype's
   Tema vocabulary only; a term outside it is refused in words); a model fills a field only from
   evidence in the records. Test: fichero-server/tests/unit/recipes/test_catalogue_stage_optional_fields.py.
-  Left open 2026-11-23 (Spec-change: manager): the three fields are declared in the EAP prototypes, but `ATTRIBUTE_FIELDS` (recipes/catalogue_step.py) and the
-  prompt (`folder_description_v4.md`, shipped versions are not edited) do not carry them, and no code refuses a `multi_select` term outside its options;
-  it needs a prompt v5, the parser labels and the refusal, and a decision on `catalogue_problems` (a person's field, so not in the model's list); a step of its own.
 - `catalogue.export.template-is-the-prototype` — **[OK]** (#6282) the export's columns are the
   effective prototype of the rows in the scope (`attributes-and-prototypes.md`): one kind, its columns
   in declared order with its header rows; mixed kinds, the union in first-seen order; no kind, every
@@ -537,15 +531,11 @@ every kept export. The Word transcript streams one folder at a time into the zip
   in the endpoint matrix's known gaps, and `POST /api/export/word` with `per: folder` still takes `output_path` from the caller
   and has no Swift (it needs a path-free, base64 sibling like the workbook's). Test:
   fichero/Tests/Unit/general/Views/Library/CatalogueExportCommandTests.swift.
-  Left open 2026-11-23 (Spec-change: manager): the named Swift test file does not exist and no menu door is built; Swift tests are not run by workers,
-  so this needs a Swift step with the manager's build.
 - `catalogue.export.streams-at-scale` — **[GAP]** (#6282) folders are read and written in batches of
   500 with five queries per batch and no per-folder query; a 5,000-folder workbook holds no more than
   one batch of rows in memory at a time; the transcript zip holds one folder at a time. Test:
   fichero-server/tests/unit/export/test_catalogue_sheet_streaming.py (counts queries on a fake
   database of 2,000 folders).
-  Left open 2026-11-23 (Spec-change: manager): the test file does not exist; `_workbook` (catalogue_sheet.py) builds every sheet whole as a list of rows
-  and reads children one query per folder (`_children`), so batches of 500 need the sheet builders reworked into row streams; a step of its own (size L).
 
 ## Build order
 
