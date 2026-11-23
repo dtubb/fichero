@@ -634,10 +634,10 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   Serves: reliable, with little supervision.
   Superseded: owned by the builder specs in docs/contributor_manual/specs/harness/ (Spec-change: manager 2026-11-23)
 - `local.run.waiting-is-one-ask-alert` [OK] (#6855) — a worker whose last line is `WAITING: <question>` is one ask alert
-  for the manager. The step row records `waiting=<question>`, the step stays `sent` and blocks with that one alert, and
+  for the manager. The step row records `waiting=<question>`, the step is `blocked` with that one alert, and
   `console.status()["open_questions"]` lists each open question with its lane and step (a Questions section in the
-  console page). A send-back of a waiting step with no `--text` is refused; with text, the answer reaches the same
-  session. Tests
+  console page). A send-back of a waiting step with no `--text` is refused; with text, the answer goes into a
+  `sendback-<id>.txt` resume brief and the step is `queued` again, so a new session reads it. Tests
   `fichero-builder/tests/test_loop.py::test_a_worker_that_ends_with_waiting_is_one_ask_alert_with_the_question_and_the_step_waits`,
   `fichero-builder/tests/test_loop.py::test_a_send_back_of_a_question_with_no_answer_is_refused_and_with_one_the_answer_reaches_the_session`,
   `fichero-builder/tests/test_loop.py::test_the_console_lists_each_open_question_with_its_lane_and_step`,
