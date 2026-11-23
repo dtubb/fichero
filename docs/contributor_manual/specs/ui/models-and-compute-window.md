@@ -186,7 +186,7 @@ filters Activity by `model:`.
 - `models.window.is-activitys-shape` — **[PARTIAL]** (#6588, #4307) the window is a `NavigationSplitView` with a source
   list (This Mac, Places, Work), the one table and the Inspector, laid out by a pane kind (`PaneKind.models`) so a main
   window can show it as a pane; the toolbar leads with Activity's run controls; the bottom bar is the filter.
-  *Test:* `ModelsWindowLayoutTests.swift` (the three sections, the pane kind, the Inspector follows the selection). **Built:** the sidebar's three sections and the rule that groups the one list under each item (`ModelsWindowModel`), tested in `fichero/Tests/Unit/general/Views/Activity/Pane/ModelsWindowLayoutTests.swift`. **Not built:** `PaneKind.models`, the `NavigationSplitView`, the table and Inspector views, the run controls and the filter.
+  *Test:* `ModelsWindowLayoutTests.swift` (the three sections, the pane kind, the Inspector follows the selection). **Built:** the sidebar's three sections and the rule that groups the one list under each item (`ModelsWindowModel`), tested in `fichero/Tests/Unit/general/Views/Activity/Pane/ModelsWindowLayoutTests.swift`. **Also built:** the `Window` scene "Models & Cluster" (Window menu, id `models-cluster`), `PaneKind.models`, `ModelsPaneView` (the `NavigationSplitView`, the one table of size, memory, fits here, account, using now and last failed, and the Inspector), tested in `fichero/Tests/Unit/general/Views/Activity/Pane/ModelsWindowSceneTests.swift`. **Not built:** the This Mac row's pressure, the run controls, the filter, the Search field, the column menu and Usable now / Bookmarked / Found.
 - `models.window.one-list` — **[PARTIAL]** (#6588; built: `GET /api/activity/models` with place › provider › model,
   `loaded`, `active`, memory, today's pages and calls, `this_mac`; not built: size on disk, `fits_here`, `account`, the
   card's licence, failures today, the Mac's GPU) the window reads ONE engine list, the models answer grown by the columns
@@ -197,7 +197,7 @@ filters Activity by `model:`.
   (one row button = the fix or the state verb; the rest in the context menu) and the Mail rule for several rows are
   Activity's (`activity.pane.columns-from-the-header`, `activity.pane.fix-button-has-words`). *Test:* `ModelsWindowVerbsTests.swift`. **Built:** the row's one button as a rule (`ModelsWindowModel.button`), tested in `ModelsWindowLayoutTests.swift`. **Not built:** the column menu, kept widths, the context menu and the Mail rule for several rows.
 - `models.window.needs-you-badge` — **[PARTIAL]** (#6588) each sidebar item is badged with its rows needing you (broken,
-  no credit, needs key, not reachable), and those rows sort first. *Test:* `ModelsWindowNeedsYouTests.swift`. **Built:** the count and the sort (`ModelsWindowModel.badge`, `needsYouFirst`), tested in `ModelsWindowLayoutTests.swift`. **Not built:** the badge drawn, and a "no credit" row, which the engine does not yet report.
+  no credit, needs key, not reachable), and those rows sort first. *Test:* `ModelsWindowNeedsYouTests.swift`. **Built:** the count and the sort (`ModelsWindowModel.badge`, `needsYouFirst`), tested in `ModelsWindowLayoutTests.swift`. **Also built:** the badge drawn on each sidebar item (`ModelsWindowModel.sidebar`), tested in `ModelsWindowSceneTests.swift`. **Not built:** a "no credit" row, which the engine does not yet report.
 
 ### A2. Search, bookmark, and what a recipe can reach (owner 2026-11-18)
 
