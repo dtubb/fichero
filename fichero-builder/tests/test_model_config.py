@@ -48,12 +48,13 @@ def test_a_pi_model_without_a_price_in_models_json_is_not_priced(tmp_path):
 def test_a_window_past_the_standard_one_has_a_builder_model_that_gets_it():
     """A queue lane takes its model from this role, so the window in [spend] must be that model's: plain `sonnet`, 200k, handing
     off at 175000 tokens (owner 2026-11-02; the name is from the 1M era, kept for the weakened-tests count). The owner moved the
-    role to plain `opus` on 2026-11-20 (same 200k window): either plain model passes, a 1M variant does not."""
+    role to `opus` on 2026-11-20 and back to plain `sonnet` on 2026-11-21 11:20: the test pins the owner's current `[models].builder`
+    (a change of it is a change of this line), and a 1M variant fails it."""
     import tomllib
     from pathlib import Path
 
     rules = tomllib.loads((Path(models.__file__).resolve().parents[2] / "harness.toml").read_text())
-    assert rules["spend"]["window"] == 200000 and rules["models"]["builder"]["model"] in ("sonnet", "opus") and rules["spend"]["handoff_tokens"] == 175000
+    assert rules["spend"]["window"] == 200000 and rules["models"]["builder"]["model"] == "sonnet" and rules["spend"]["handoff_tokens"] == 175000
 
 
 def test_the_loop_has_a_manager_role_and_no_verb_names_a_model_of_its_own(tmp_path, monkeypatch):
