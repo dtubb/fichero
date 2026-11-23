@@ -8,20 +8,18 @@ final class ShellCollapseSettleTests: XCTestCase {
             for inspector in stride(from: 260.0, through: 800.0, by: 20.0) {
                 for sidebar in [true, false] {
                     for detailMin in [220.0, 330.0, 550.0] {
-                        // The measured width excludes the Inspector column while it is shown.
-                        func apply(shown: Bool) -> Bool {
-                            let width = ContentView.shellCollapseWidth(
-                                measured: shown ? window - inspector : window,
-                                inspectorFrameWidth: shown ? inspector : nil)
-                            let policy = ContentView.shellCollapsePolicy(
-                                windowWidth: width, horizontalSizeClass: .regular, sidebarVisible: sidebar,
-                                inspectorVisible: shown, detailMinWidth: detailMin)
-                            return shown && !policy.collapseInspector
+                        // The person's choice stays "Inspector on"; only the measured width moves with the column.
+                        func collapses(measured: Double, frame: Double?) -> Bool {
+                            ContentView.shellCollapsePolicy(
+                                windowWidth: ContentView.shellCollapseWidth(measured: measured, inspectorFrameWidth: frame),
+                                horizontalSizeClass: .regular, sidebarVisible: sidebar,
+                                inspectorVisible: true, detailMinWidth: detailMin
+                            ).collapseInspector
                         }
-                        let first = apply(shown: true)
-                        let second = apply(shown: first)
+                        // The window reader sits outside the Inspector: window - inspector while shown, window while hidden.
                         XCTAssertEqual(
-                            first, second,
+                            collapses(measured: window - inspector, frame: inspector),
+                            collapses(measured: window, frame: nil),
                             "window \(window) inspector \(inspector) sidebar \(sidebar) detailMin \(detailMin) did not settle")
                     }
                 }
