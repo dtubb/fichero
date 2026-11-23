@@ -1406,6 +1406,28 @@ def problem_lines(lines: list["JobLogLine"]) -> list["JobLogLine"]:
     return [line for line in lines if line.level in _PROBLEM_LEVELS]
 
 
+def event_page(metadata: Optional[dict[str, Any]]) -> Optional[str]:
+    """The page an activity event is about (`document_id`, else `file_path`), None for an event about no page."""
+    meta = metadata or {}
+    return meta.get("document_id") or meta.get("file_path") or None
+
+
+def one_event_per_page(events: list[Any]) -> list[Any]:
+    """The events a person's log keeps (`activity.log.one-line-per-page`, #5960): an event about a page is one line for a (node, page,
+    level), however many times the lanes wrote it; an event about no page is kept as it is. Order is kept."""
+    seen: set[tuple[Optional[str], str, str]] = set()
+    kept = []
+    for event in events:
+        page = event_page(event.metadata)
+        if page is not None:
+            key = (event.node_id, str(page), str(getattr(event.level, "value", event.level)))
+            if key in seen:
+                continue
+            seen.add(key)
+        kept.append(event)
+    return kept
+
+
 def person_lines(lines: list["JobLogLine"]) -> list["JobLogLine"]:
     """The person's log (`activity.log.persons-log`): only person lines, and no sentence twice for the same row."""
     seen: set[tuple[str, str]] = set()
@@ -1574,7 +1596,7 @@ async def get_job_log(
     rows = {node["id"] for node in _walk(found)}
     tracker = get_activity_tracker(str(db.path))
     for thread, steps in wanted.items():
-        for event in await tracker.query(ActivityFilter(thread_id=thread, limit=_JOB_LOG_LIMIT)):
+        for event in one_event_per_page(await tracker.query(ActivityFilter(thread_id=thread, limit=_JOB_LOG_LIMIT))):
             if steps is not None and event.node_id not in steps:
                 continue
             when = event.timestamp
