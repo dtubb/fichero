@@ -261,6 +261,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     from fichero_server.training.hf_jobs import (
         LORA_TRAINER, TRAINER, cannot_reach, kraken_args, kraken_batch, lora_args, ran_out_of_gpu_memory,
     )
+    from fichero_server.training import lora_recipe
     from fichero_server.training.kraken_set import EmptyTrainingSet, export_training_set
     from fichero_server.training.line_pairs import write_line_pairs
 
@@ -269,6 +270,9 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     card_name = detail.get("card", "kraken")
     request = CARDS[card_name](**detail["request"])
     vision = isinstance(request, TrainVisionLoraRequest)
+    if vision and request.recipe_file:  # the recipe file names rank, epochs and the prompt form (`compute.tune.lora`)
+        recipe = lora_recipe.load(request.recipe_file)
+        request = request.model_copy(update={"rank": recipe.rank, "epochs": recipe.epochs, "arm": recipe.prompt_form})
     flavor = detail.get("flavor", request.flavor)
     place = _place_of(request)
     if target is None:
@@ -307,8 +311,12 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
             if not arms["arms"].get(request.arm):
                 raise EmptyTrainingSet(f"no line in scope has the {request.arm} arm: gather the palaeographer's "
                                        "reasons for the checked lines first (or check its readings, for review)")
-            script, args = LORA_TRAINER, lora_args(job_id, base_repo=request.base_repo, epochs=request.epochs,
-                                                   rank=request.rank, arm=request.arm, all_lines=request.all_lines)
+            options = {"rank": request.rank, "epochs": request.epochs, "arm": request.arm}
+            if request.recipe_file:
+                options["lr"] = lora_recipe.load(request.recipe_file).learning_rate
+            # the MLX conversion on this Mac needs the merged model, so this card asks for it
+            script, args = LORA_TRAINER, lora_args(job_id, base_repo=request.base_repo, all_lines=request.all_lines,
+                                                   merged=True, **options)
         else:
             base_file = None
             if request.base:
