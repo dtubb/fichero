@@ -24,3 +24,17 @@ struct ActivityMadeList: View {
         .accessibilityIdentifier("activity.details.made")
     }
 }
+
+#Preview("What a run made") {
+    ActivityMadeList(
+        made: ActivityDetails.Made(
+            items: [
+                ActivityDetails.MadeItem(id: "a1", name: "transcribe", type: "transcription", documentId: "doc-1"),
+                ActivityDetails.MadeItem(id: "a2", name: "names", type: "names", documentId: "doc-2")
+            ],
+            more: 3),
+        open: { _ in }
+    )
+    .padding()
+    .frame(width: 320)
+}
