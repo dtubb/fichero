@@ -168,6 +168,7 @@ final class ActivityStore: ChangeEventConsumer {
     /// The log of a row and the rows under it (#5561), newest last, keyed by
     /// the row's job id: one key patched, and only when it changed.
     var jobLogs: [String: [ActivityJobLogLine]] = [:]
+    var runMade: [String: ArtifactService.ArtifactPage] = [:]  // a finished workflow run's artifacts by thread id
     /// Whether a row's log has a warning or an error (the filter row's default); read with the log.
     var jobLogHasProblems: [String: Bool] = [:]
     /// How many problems a row's log has (a Problems read counts its lines), for the closed Log disclosure.

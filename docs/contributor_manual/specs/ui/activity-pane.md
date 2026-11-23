@@ -1821,8 +1821,8 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   `fichero/Tests/Unit/general/Models/ActivityStoreRunsTests.swift`
   (`testRunListRootsRefusalSaysTheProjectsLocation`, `testRunListCredentialsRefusalSaysCredentials`,
   `testJobsPollRefusalReachesTheFooterAndClearsOnTheNextGoodPoll`).
-- `activity.window.what-it-made` — **[GAP]** (→ #5245) a finished job opens the list of what it made
-  and can be taken back (`safety/run-take-back.md`). Stage 8 note 2026-11-23: Not built: needs `safety/run-take-back.md` (#5245) to say what a run made and how it is listed; the engine has no such list to read.
+- `activity.window.what-it-made` — **[PARTIAL]** (→ #5245) a finished job opens the list of what it made
+  and can be taken back (`safety/run-take-back.md`). Manager's ruling 2026-11-23 (manager): the list only; Take Back is not offered and `entity.take_back_run` is not called. Built (Swift, not compiled): the list is built: a recipe run lists from its summary (`ActivityDetailsSummary`), a workflow run from its artifacts (`GET /api/artifacts/?run_id=`, one read through `ActivityStore.loadRunMade`, read again when its row changes): each artifact's name and type, opening its document, then "and N more" from the engine's count, nothing at 0. Test: `fichero/Tests/Unit/general/Models/ActivityWhatItMadeTests.swift`. Not built: taking a run back waits for `safety/run-take-back.md` (#5245).
 - `activity.document.what-has-been-run` — **[PARTIAL]** (#5434) the reverse of
   `activity.window.what-it-made`: each document has a history of every step that has touched it
   (split, lines, read, names, statements, check). Each entry gives the model, the provider, the
@@ -3212,7 +3212,7 @@ How the list is laid out (a live block per project, a background group, finished
   library. What it shows is `activity.window.table` and the behaviours under it (#5415).
 - `activity.delete-by-workflow-run` — **[GAP]** (#1830) a run's outputs can be taken back without
   touching sources or other runs. Owned by `safety/run-take-back.md`, reached from the window as
-  `activity.window.what-it-made`. Stage 8 note 2026-11-23: Not built: needs `safety/run-take-back.md` (#1830) to define the take-back; nothing to call from the window yet.
+  `activity.window.what-it-made`. Manager's ruling 2026-11-23 (manager): stays [GAP]; the window offers no take-back and calls no `entity.take_back_run` until `safety/run-take-back.md` (#1830) defines it.
 - `activity.columns-move-into-activity-view` — **[GAP]** (#2277) a run's progress and state
   columns live in the Activity window, not in the workflow node editor. Answered by
   `activity.window.measures` and `activity.window.table` (#5415).

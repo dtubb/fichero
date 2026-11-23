@@ -104,6 +104,10 @@ struct ActivityDetailsView: View {
         .task(id: details.logKey) {
             if !logOpen { await store.loadJobLog(jobId: details.jobId, problemsOnly: true) }
         }
+        // What a finished workflow run made: one read, again when the row's state changes.
+        .task(id: details.logKey) {
+            if details.madeIsRead, let threadId = details.row.runThreadId { await store.loadRunMade(threadId: threadId) }
+        }
         }
     }
 
@@ -125,6 +129,9 @@ struct ActivityDetailsView: View {
             }
             if !details.stages.isEmpty {
                 ActivityDetailsStages(stages: details.stages)
+            }
+            if let made = details.made {
+                ActivityDetailsMade(made: made, open: { documentId in Task { await perform(.openPage(documentId: documentId), details) } })
             }
         }
     }

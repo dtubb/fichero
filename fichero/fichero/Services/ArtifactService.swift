@@ -146,17 +146,23 @@ class ArtifactService {
         }
     }
 
-    /// Get all artifacts in the library.
-    func getAllArtifacts(type: String? = nil, limit: Int = 100, offset: Int = 0) async throws -> [Artifact] {
+    /// One page of the library's artifacts and how many match in all (the engine's count, not the page's size).
+    struct ArtifactPage: Equatable {
+        let items: [Artifact]
+        let count: Int
+    }
+
+    /// Get the library's artifacts, all or the ones one run made (`run_id`): a page and the engine's count of them.
+    func getAllArtifacts(type: String? = nil, runId: String? = nil, limit: Int = 100, offset: Int = 0) async throws -> ArtifactPage {
         let response = try await client.api.listAllArtifactsApiArtifactsGet(
-            query: .init(artifactType: type, limit: limit, offset: offset),
+            query: .init(artifactType: type, runId: runId, limit: limit, offset: offset),
         )
 
         switch response {
         case .ok(let okResponse):
             let artifactList = try okResponse.body.json
-            logger.info("Fetched \(artifactList.items.count) total artifacts")
-            return artifactList.items.map { convertToArtifact($0) }
+            logger.info("Fetched \(artifactList.items.count) of \(artifactList.count) artifacts")
+            return ArtifactPage(items: artifactList.items.map { convertToArtifact($0) }, count: artifactList.count)
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ArtifactServiceError.serverError(detail?.detail?.description ?? "Validation error")

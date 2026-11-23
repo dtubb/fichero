@@ -86,6 +86,8 @@ struct ActivityDetails: Equatable {
     let stages: [Stage]
     /// What a recipe run made, once it has ended (#5577); nil otherwise.
     let summary: Summary?
+    /// What a finished workflow run made, from its artifacts (`ActivityDetails+Made.swift`); nil otherwise.
+    let made: Made?
     /// A recipe run by Set Up's stages (#5670): one card per stage it ran or skipped; empty for any other row.
     let stageCards: [StageCard]
 
@@ -144,7 +146,7 @@ extension ActivityDetails {
         // A recipe run's own row says how many pages it reads at once, from its status (#6217).
         let atOnce = jobId == treeKey ? store.recipeRunPagesAtOnce[jobId] : nil
         self.init(row: row, node: node, runRow: runRow, projectName: projectName, startedBy: startedBy,
-                  machine: store.machine, pagesAtOnce: atOnce)
+                  machine: store.machine, pagesAtOnce: atOnce, made: row.runThreadId.flatMap { store.runMade[$0] })
     }
 
     /// The details from the table's row and its node: pure, so a test can build them.
@@ -155,7 +157,8 @@ extension ActivityDetails {
         projectName: String?,
         startedBy: String?,
         machine: MachineReading?,
-        pagesAtOnce: RecipeRunPagesAtOnce? = nil
+        pagesAtOnce: RecipeRunPagesAtOnce? = nil,
+        made madePage: ArtifactService.ArtifactPage? = nil
     ) {
         self.row = row
         self.node = node
@@ -195,6 +198,7 @@ extension ActivityDetails {
         let recipeStages = Self.stages(of: node)
         stages = recipeStages.isEmpty ? Self.queueStages(of: node) : recipeStages
         summary = Self.summary(of: node)
+        made = Self.made(row: row, node: node, page: madePage)
         stageCards = node?.kind == ActivityStore.recipeRunKind ? Self.stageCards(of: node) : []
     }
 

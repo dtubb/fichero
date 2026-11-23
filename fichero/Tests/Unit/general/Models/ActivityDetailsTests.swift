@@ -34,8 +34,8 @@ final class ActivityDetailsTests: XCTestCase {
 
     // MARK: - Mock transport (copied, not shared: ActivityTableTests' pattern)
 
-    private typealias Stub = ActivityStubbedResponse
-    private typealias MockTransportURLProtocol = ActivityMockTransport
+    typealias Stub = ActivityStubbedResponse
+    typealias MockTransportURLProtocol = ActivityMockTransport
 
     override func setUp() {
         super.setUp()
@@ -43,7 +43,7 @@ final class ActivityDetailsTests: XCTestCase {
         MockTransportURLProtocol.reset([])
     }
 
-    private static func storeWithMockTransport() -> ActivityStore {
+    static func storeWithMockTransport() -> ActivityStore {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockTransportURLProtocol.self]
         let client = FicheroClient(
@@ -56,10 +56,10 @@ final class ActivityDetailsTests: XCTestCase {
 
     // MARK: - Fixtures
 
-    private static let runId = "thread-5561aa"
+    static let runId = "thread-5561aa"
     private static let stepId = "thread-5561aa:transcribe"
     private static let libraryId = UUID(uuidString: "55615561-5561-5561-5561-556155615561")!
-    private static let selection = ActivitySelection(jobId: runId, libraryId: libraryId)
+    static let selection = ActivitySelection(jobId: runId, libraryId: libraryId)
 
     private static func pageJSON(_ index: Int, state: String, reason: String? = nil) -> String {
         let finished = state == "running" ? "null" : "\"2026-10-06T12:0\(index + 1):00+00:00\""
@@ -134,18 +134,18 @@ final class ActivityDetailsTests: XCTestCase {
     }
     """
 
-    private static let runningStub = Stub(
+    static let runningStub = Stub(
         pathSuffix: "/api/activity/jobs/\(runId)", method: "GET", status: 200,
         body: treeJSON(runState: "running", pageStates: ["done", "running", "waiting"],
                        workingOn: "Transcribe, p1.png")
     )
 
-    private static let failedStub = Stub(
+    static let failedStub = Stub(
         pathSuffix: "/api/activity/jobs/\(runId)", method: "GET", status: 200,
         body: treeJSON(runState: "done", pageStates: ["done", "failed", "done"], account: failedAccount)
     )
 
-    private func details(
+    func details(
         _ store: ActivityStore,
         _ selection: ActivitySelection = ActivityDetailsTests.selection
     ) throws -> ActivityDetails {
