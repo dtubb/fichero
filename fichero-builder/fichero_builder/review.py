@@ -247,10 +247,34 @@ def _issue_body(area: str, spec_rel: str, issue: dict, steps: list[str]) -> str:
             + (f"\n\nStep: {steps[0]}" if steps else ""))
 
 
+def enqueue(a) -> tuple[int, str]:
+    """`approve --enqueue`: once the approve's commit is an ancestor of origin/<[land].branch>, `builder milestone M --spec FILE --enqueue`."""
+    import tomllib
+
+    from fichero_builder import __main__ as cli
+    from fichero_builder import journal
+
+    state = Path(journal.STATE)
+    try:
+        done = json.loads((state / f"review-{a.area}-issues.json").read_text())
+        land = tomllib.loads((Path(a.repo_dir) / "harness.toml").read_text())["land"]["branch"]
+    except (OSError, KeyError, ValueError):
+        return 1, "REFUSED: no approved review of this area (run `review approve` first)"
+    if not done.get("commit"):
+        return 1, "REFUSED: the approve did not finish: run `review approve` again"
+    if _git(a.repo_dir, "merge-base", "--is-ancestor", done["commit"], f"origin/{land}").returncode:
+        return 1, f"REFUSED: the spec commit {done['commit'][:10]} has not landed on origin/{land}: land it, refresh the checkout, then --enqueue"
+    rc = cli.main(["milestone", done["milestone"], "--spec", str(Path(a.repo_dir) / done["spec"]), "--repo-dir", str(a.repo_dir),
+                   "--out", str(state / f"review-{a.area}-briefs"), "--enqueue", "--gh", a.gh, "--state", str(state)])
+    return rc, f"milestone {done['milestone']}: steps queued (exit {rc}; 2 = questions for a person, printed above)"
+
+
 def approve(a) -> tuple[int, str]:
     """local.review.approve-files-and-maps, .every-fix-has-an-issue, .evidence-and-questions, .approve-lands-then-enqueues."""
     from fichero_builder import journal
 
+    if a.enqueue:
+        return enqueue(a)
     if not a.milestone or not a.spec:
         return 1, "REFUSED: approve needs --milestone and --spec"
     wt, area = worktree_of(a.repo_dir, a.area), a.area

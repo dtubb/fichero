@@ -205,10 +205,25 @@ def _fake_gh(tmp_path):
 import json, sys
 a = sys.argv[1:]
 open({str(log)!r}, "a").write(json.dumps(a) + "\\n")
+issues = {str(tmp_path / "gh-issues.json")!r}
+try:
+    have = json.load(open(issues))
+except OSError:
+    have = []
 if a[:2] == ["issue", "create"]:
     n = int(open({str(counter)!r}).read())
     open({str(counter)!r}, "w").write(str(n + 1))
+    have.append({{"number": n, "title": a[a.index("--title") + 1], "body": a[a.index("--body") + 1], "labels": []}})
+    json.dump(have, open(issues, "w"))
     print(f"https://example.invalid/o/r/issues/{{n}}")
+elif a[:2] == ["issue", "list"]:
+    print(json.dumps(have))
+elif a[:2] == ["repo", "view"]:
+    print("o/r")
+elif a[0] == "api" and a[-1].endswith("/comments"):
+    print("[]")
+elif a[0] == "api":
+    print(json.dumps(next(i for i in have if i["number"] == int(a[-1].rsplit("/", 1)[1]))))
 """)
     gh.chmod(0o755)
     return str(gh), log
@@ -303,3 +318,28 @@ def test_each_owner_question_is_one_alert_once_and_ask_owner_comments_on_the_fir
     asked = [c for c in _calls(log) if c[:3] == ["issue", "edit", "7000"] or c[:3] == ["issue", "comment", "7000"]]
     assert [c[1] for c in asked] == ["edit", "comment"] and "needs-your-decision" in asked[0] and "Is a day too old?" in asked[1][-1]
     assert queue.answer(alerts[1]["id"], "park", gh=gh)[0] == 0
+
+
+def test_enqueue_is_refused_until_the_spec_commit_has_landed_then_queues_the_milestones_steps(tmp_path, monkeypatch, capsys):
+    from fichero_builder import queue
+
+    repo, wt = _started(tmp_path, monkeypatch)
+    gh, log = _fake_gh(tmp_path)
+    assert _approve(repo, tmp_path, gh) == 0
+    assert _approve(repo, tmp_path, gh, "--enqueue") == 1 and "has not landed" in capsys.readouterr().out
+    assert not [x for x in queue.load() if x["id"] == "widgets"]
+    sha = _git(wt, "rev-parse", "HEAD")
+    _git(repo, "merge", "-q", "--ff-only", sha)  # the land: the checkout and origin/integration reach the commit
+    _git(repo, "update-ref", "refs/remotes/origin/integration", sha)
+    assert _approve(repo, tmp_path, gh, "--enqueue") in (0, 2), capsys.readouterr().out
+    lane = next(x for x in queue.load() if x["id"] == "widgets")
+    assert [s["step"] for s in lane["steps"]] == ["1.1", "1.2", "2.1"] and [s["issues"] for s in lane["steps"]][0] == [7000]
+
+
+def test_the_tests_touch_no_real_git_config_home_or_issue_client(tmp_path, monkeypatch):
+    repo = _scratch_repo(tmp_path, monkeypatch)
+    assert os.environ["HOME"] == str(tmp_path / "home") and os.environ["GIT_CONFIG_GLOBAL"] == str(tmp_path / "gitconfig")
+    _git(repo, "init", "-q")
+    assert not (tmp_path / "gitconfig").exists() or (tmp_path / "gitconfig").read_text() == "", "no test wrote the git config"
+    gh, log = _fake_gh(tmp_path)
+    assert gh.startswith(str(tmp_path)) and not log.exists(), "the issue client is the scratch fake, unused until called"
