@@ -996,7 +996,10 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
   bullets and the tests; KEEP gets one comment saying what is left (the bullets that are not done; the same list is not commented twice) and the
   issue stays open and is updated, never closed, for residue. The reconcile result is one `issue-reconcile` queue row (each issue, its class,
   whether it closed) replacing the plain `issue-open` row; it runs on a thread, reads only the tests the cited issues' own bullets name (one `git grep` for all, the specs in one `git cat-file --batch`), and is run as `python -m fichero_builder.issue_reconcile`; `gh` failing counts as unread and the lane
-  goes on. (b) Nightly, over every open issue: the dry-run TSV (issue-reconcile.tsv in the state dir) and ONE summary `issue-reconcile` row (counts per
+  goes on. The landed sha is fetched from origin first when this clone lacks it (#6848: `git ls-tree <sha>` exited 128 on every landing), and an issue left unread
+  (the fetch failed, or `gh` could not read it) or a reconcile that raises is an `alert` naming that issue. Tests `fichero-builder/tests/test_issue_reconcile.py::test_a_landing_whose_sha_is_only_on_the_remote_is_fetched_and_read`,
+  `::test_after_landing_fetches_the_sha_before_it_reads_and_a_sha_nobody_has_is_said_per_issue`, `fichero-builder/tests/test_queue_verb.py::test_a_reconcile_that_leaves_an_issue_unread_or_crashes_is_an_alert_naming_the_issue`.
+  (b) Nightly, over every open issue: the dry-run TSV (issue-reconcile.tsv in the state dir) and ONE summary `issue-reconcile` row (counts per
   class and how many closed), closing only CLOSE-A/B. (c) Never an issue whose owning bullet is not done is closed; never a `type:bug` without a
   test (a fix commit alone, CLOSE-B, leaves a bug open). **Built** 2026-11-14 against a fake gh. Not yet: a run on the real jail user. Tests
   `fichero-builder/tests/test_issue_reconcile.py::test_self_test_passes`,
