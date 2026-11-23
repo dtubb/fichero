@@ -14,7 +14,7 @@ struct ModelCandidatesListView: View {
         List(cards, id: \.id) { card in
             HStack {
                 Text(card.name).frame(maxWidth: .infinity, alignment: .leading)
-                Text(ModelFinderStore.sourceWords(card.source)).foregroundStyle(.secondary).frame(width: 160, alignment: .leading)
+                Text(ModelFinderStore.sourceWords(card.source.rawValue)).foregroundStyle(.secondary).frame(width: 160, alignment: .leading)
                 Text(card.size).frame(width: 90, alignment: .leading)
                 Text(ModelCandidateRules.usableWords(store.facts(card))).frame(width: 190, alignment: .leading)
                 if let verb = ModelCandidateRules.verb(store.facts(card)) {
