@@ -60,4 +60,26 @@ struct ModelsWindowLayoutTests {
         #expect(sized.fitsWords == "No (unload nomic)")
         #expect(sized.accountWords == "Ready")
     }
+
+    @Test("a place's dot is its probe's answer, never the key alone; a place nobody probed is unknown, not green")
+    func placeStatusIsProbed() {
+        let down = ActivityModelEntry(id: "remote|studio|llama", name: "llama", place: .remote, provider: "studio",
+                                      account: .notReachable)
+        let up = ActivityModelEntry(id: "cloud|OpenAI|gpt", name: "gpt", place: .cloud, provider: "OpenAI", account: .ready)
+        let all = [down, up, keyless, idle]
+        #expect(ModelsWindowModel.placeStatus(provider: "studio", in: all) == .notReachable)
+        #expect(ModelsWindowModel.placeStatus(provider: "OpenAI", in: all) == .ready)
+        #expect(ModelsWindowModel.placeStatus(provider: "Anthropic", in: all) == .needsKey)
+        #expect(ModelsWindowModel.placeStatus(provider: "MLX", in: all) == .unknown)
+        #expect(ModelsWindowModel.placeStatus(provider: "nowhere", in: all) == .unknown)
+    }
+
+    @Test("the Inspector says a model's size, fits-here, account, what is using it and its newest failure; '—' where nothing measures")
+    func inspectorLines() {
+        let lines = ModelsWindowModel.inspectorLines(for: broken)
+        #expect(lines.map(\.label) == ["Name", "Where", "Size", "Fits here", "Account", "Using now", "Last failed"])
+        #expect(lines.first { $0.label == "Size" }?.value == "—")
+        #expect(lines.first { $0.label == "Last failed" }?.value == "Model failed to load")
+        #expect(ModelsWindowModel.inspectorLines(for: kraken).first { $0.label == "Using now" }?.value == "kraken-lines")
+    }
 }

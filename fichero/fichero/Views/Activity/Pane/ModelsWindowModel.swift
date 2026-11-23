@@ -92,4 +92,38 @@ enum ModelsWindowModel {
         default: nil
         }
     }
+
+    /// A place's state: the probe's answer for the provider, `unknown` when no row of it carries one
+    /// (`ai.where.place-status-is-probed`); never worked out from a key alone.
+    enum PlaceStatus: Equatable, Sendable {
+        case ready, needsKey, notReachable, unknown
+    }
+
+    /// The probed state of a provider or place: its worst account among the rows listed under it.
+    static func placeStatus(provider: String, in models: [ActivityModelEntry]) -> PlaceStatus {
+        let accounts = models.filter { $0.provider == provider }.compactMap(\.account)
+        if accounts.contains(.notReachable) { return .notReachable }
+        if accounts.contains(.needsKey) { return .needsKey }
+        return accounts.isEmpty ? .unknown : .ready
+    }
+
+    /// One labelled line of the Inspector.
+    struct InspectorLine: Equatable, Sendable {
+        let label: String
+        let value: String
+    }
+
+    /// The Inspector's lines for a selected row (`models.window.is-activitys-shape`): what the one list says of it, "—" where
+    /// nothing measures it.
+    static func inspectorLines(for row: ActivityModelEntry) -> [InspectorLine] {
+        [
+            InspectorLine(label: "Name", value: row.name),
+            InspectorLine(label: "Where", value: row.provider),
+            InspectorLine(label: "Size", value: row.sizeWords),
+            InspectorLine(label: "Fits here", value: row.fitsWords),
+            InspectorLine(label: "Account", value: row.accountWords),
+            InspectorLine(label: "Using now", value: row.usingNow.isEmpty ? "—" : row.usingNow.joined(separator: ", ")),
+            InspectorLine(label: "Last failed", value: row.lastFailed?.words ?? "—")
+        ]
+    }
 }
