@@ -4328,16 +4328,18 @@ class SegmentCutWordsParams(BaseModel):
 MACHINE_CUT_SOURCES = ("ctc", "ink-gap")
 
 
-def _words_in_reading_sequence(db: Database, word_ids: list[str]) -> None:
+def _words_in_reading_sequence(db: Database, pass_id: str, word_ids: list[str]) -> None:
     """`segment-editor.edge.rtl-vertical`: one line's new words, given in the order they are read, take the places
     page order gave them in each order, in that sequence. Page order runs left to right, so a right-to-left line's
     first word was placed last."""
-    from fichero_server.models.reading_orders import ReadingOrderEntry
+    from fichero_server.models.reading_orders import ReadingOrder, ReadingOrderEntry
 
+    wanted = set(word_ids)
     by_order: dict[str, list[ReadingOrderEntry]] = {}
-    for word_id in word_ids:
-        for entry in db.query(ReadingOrderEntry, segment_id=word_id):
-            by_order.setdefault(entry.order_id, []).append(entry)
+    for order in db.query(ReadingOrder, pass_id=pass_id):
+        entries = [e for e in db.query(ReadingOrderEntry, order_id=order.id) if e.segment_id in wanted]
+        if entries:
+            by_order[order.id] = entries
     for entries in by_order.values():
         for entry, position in zip(entries, sorted(entry.position for entry in entries)):
             if entry.position != position:
@@ -4487,7 +4489,7 @@ def _action_cut_words(db: Database, params: SegmentCutWordsParams, ctx: ActionCo
             db.save(word)
             made[word.id] = word.version
             cut_here.append(word.id)
-        _words_in_reading_sequence(db, cut_here)
+        _words_in_reading_sequence(db, row.pass_id, cut_here)
 
     touched = [*made, *replaced]
     spec = ChangeSpec(

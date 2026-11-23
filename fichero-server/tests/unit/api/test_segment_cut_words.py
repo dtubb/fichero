@@ -314,3 +314,23 @@ class TestDirections:
         top_down = sorted(words, key=lambda row: line_join.bounds(line_join.outline_of(row.anchor))[1])
         assert [w.metadata["reading_span"] for w in top_down] == [[0, 2], [3, 6], [7, 12]]
         assert _order_under(db, line) == [w.id for w in top_down]
+
+
+def test_cutting_a_page_reads_each_reading_order_once_not_once_per_word(db, client, monkeypatch):
+    from fichero_server.models.reading_orders import ReadingOrderEntry
+
+    doc, pass_id = _page(db, client, words_px=[(100, 200), (300, 400), (500, 600), (700, 800)])
+    line = _line(client, doc, pass_id)
+    _read(db, line, "aa bb cc dd")
+    asked = []
+    original = type(db).query
+
+    def counting(self, model, *args, **kwargs):
+        if model is ReadingOrderEntry:
+            asked.append(kwargs)
+        return original(self, model, *args, **kwargs)
+
+    monkeypatch.setattr(type(db), "query", counting)
+    _cut(db, [line])
+    assert len(_words(db, line)) == 4
+    assert not [kwargs for kwargs in asked if "segment_id" in kwargs], asked
