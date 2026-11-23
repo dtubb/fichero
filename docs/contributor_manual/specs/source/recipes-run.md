@@ -783,7 +783,7 @@ The behaviours this adds:
   jobs (`embed_jobs` on the step) and `recipes/runner.py` `_run_embed` says "Making vectors for search: 2 of 3
   pages" on the run's row; Leave Out, which makes no job, keeps each run on the step (`spans`, from
   `recipes/leave_out.py` `run_step`) and `recipes/run_view.py` `_timings` times it from them.
-- `recipes-run.timing.plan-says-time-from-measured-pages` — **[GAP]** (#4951, #6052, → #6810) Start's plan says
+- `recipes-run.timing.plan-says-time-from-measured-pages` — **[PARTIAL]** (#4951, #6052, → #6810) Start's plan says
   how long each step will take on these pages once this Mac has finished pages of that step's model
   (`estimate.runs[].seconds`, with its basis), and the run keeps that figure beside what it measured
   (`designer.run.predicted-then-measured`). Today the plan carries cost alone (`recipes/start.py`); the run says
@@ -791,6 +791,9 @@ The behaviours this adds:
   pages read by the step's reader, `GET /api/recipes/routes` still said the time on this Mac was unknown:
   `recipes/routes.py` `default_models` passes the reader as the plan names it (`kraken-…`) and the job rows
   store it with its runtime (`kraken:kraken-…`), so `measured_seconds_per_page` finds no row.
+  *Built:* the routes read a reader named without its runtime (`execution/jobs.py` `finished_seconds` matches `model` or
+  `…:model`; `fichero-server/tests/unit/recipes/test_routes_for_the_volume.py`, `test_a_reader_named_without_its_runtime_finds_this_macs_measured_pages`).
+  *Left:* Start's plan carries no time per step yet.
 - `recipes-run.journey.run-one-step-on-a-folder-or-file` — **[PARTIAL]** (#7036) the historian picks one step of the
   recipe and runs only that step on the selected folder or on one file; the steps before it are not run again (what they
   wrote is what the step reads) and Activity shows the run as that one step. *Built (engine):* Start with `steps` and
