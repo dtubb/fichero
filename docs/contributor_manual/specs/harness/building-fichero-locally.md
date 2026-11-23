@@ -761,8 +761,8 @@ and optionally **Existing issues that gained evidence** (a list: `#N text`). Spe
 - `local.review.evidence-and-questions` [OK] (#6847) — each "existing issues that gained evidence" item becomes a
   comment on that issue, once. Each owner question becomes an `alert` row on lane `review-<area>`, step `question-n`,
   answered by `ask-owner` (the question goes as a `needs-your-decision` comment on the first filed issue) or `park`;
-  a question already alerted is not alerted twice. Test: `fichero-builder/tests/test_review_verb.py`: the
-  comments on the fake `gh`, the alert rows, `ask-owner` on a lane-less alert (`queue.alert` takes `issues`; `queue.answer` uses them). Serves: reliable.
+  a question already alerted is not alerted twice. Test: `fichero-builder/tests/test_review_verb.py` and `fichero-builder/tests/test_alerts_clear.py`: the
+  comments on the fake `gh`, the alert rows, `ask-owner` on a lane-less alert. Serves: reliable.
 - `local.review.approve-lands-then-enqueues` [OK] (#6847) — the approve commits the spec and `build-order.md` in the
   review worktree (message from a file; the trailers `Written-By` and `Spec-change`), writes
   `<state>/review-<area>-issue-list.txt` (number, milestone, title of each filed issue) for the landing step to be

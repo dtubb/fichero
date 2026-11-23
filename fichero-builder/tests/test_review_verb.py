@@ -29,12 +29,14 @@ Slow.
 1. **Fast lookup** [1.1]. Index the key. NEW-1. Tests: `test_a.py`.
 2. **Honest age** [1.2]. NEW-2 and the existing #42.
 3. **Search folds accents** [2.1]. NEW-S1.
+4. **Search ranks by age** [2.2]. NEW-S2.
 
 ## 5. Issues to file
 
 - NEW-1 Lookups scan every row: index the key (`widgets.lookup.indexed`, `widgets.lookup.cheap`).
 - NEW-2 A figure says its age (`widgets.age.said`).
 - NEW-S1 Search folds accents (`widgets.search.folds`).
+- NEW-S2 Search ranks by age (`widgets.search.ranks`).
 
 ## 6. Open questions for the owner
 
@@ -50,9 +52,9 @@ Slow.
 def test_a_whole_report_passes_and_reads_back():
     assert review.check(REPORT) == []
     p = review.parse(REPORT)
-    assert [i["key"] for i in p["issues"]] == ["1", "2", "S1"]
+    assert [i["key"] for i in p["issues"]] == ["1", "2", "S1", "S2"]
     assert p["issues"][0]["behaviours"] == ["widgets.lookup.indexed", "widgets.lookup.cheap"]
-    assert [(f["step"], f["new"], f["old"]) for f in p["fixes"]] == [("1.1", ["1"], []), ("1.2", ["2"], [42]), ("2.1", ["S1"], [])]
+    assert [(f["step"], f["new"], f["old"]) for f in p["fixes"]] == [("1.1", ["1"], []), ("1.2", ["2"], [42]), ("2.1", ["S1"], []), ("2.2", ["S2"], [])]
     assert len(p["questions"]) == 2 and p["evidence"][0][0] == 42
 
 
@@ -68,7 +70,7 @@ def test_a_report_missing_a_section_is_refused_by_its_name(cut, needle):
 
 
 def test_an_empty_issue_list_a_gap_and_a_fix_with_no_issue_are_refused():
-    empty = REPORT.replace("- NEW-1 Lookups", "Lookups").replace("- NEW-2", "A").replace("- NEW-S1", "S")
+    empty = REPORT.replace("- NEW-1 Lookups", "Lookups").replace("- NEW-2", "A").replace("- NEW-S1", "S").replace("- NEW-S2", "S")
     assert any("Issues to file list has no" in b for b in review.check(empty))
     gap = REPORT.replace("- NEW-2 A figure", "- NEW-3 A figure").replace("NEW-2 and", "NEW-3 and")
     assert any("1..2" in b or "[1, 3]" in b for b in review.check(gap))
@@ -130,7 +132,7 @@ def test_start_makes_the_worktree_and_branch_excludes_the_report_and_queues_one_
 
     repo = _git_repo(tmp_path, monkeypatch)
     monkeypatch.setattr(journal, "STATE", tmp_path / "state")
-    assert cli.main(["review", "start", "widgets", "--repo-dir", str(repo), "--scope", "the widget store", "--state", str(tmp_path / "state")]) == 0
+    assert cli.main(["review", "start", "widgets", "--repo-dir", str(repo), "--scope", "the widget store", "--state", str(tmp_path / "state"), "--written-by", WRITTEN_BY]) == 0
     wt = tmp_path / "work" / "wt-review-widgets"
     assert _git(wt, "rev-parse", "--abbrev-ref", "HEAD") == "review-widgets"
     assert _git(wt, "rev-parse", "HEAD") == _git(repo, "rev-parse", "origin/integration")
@@ -141,11 +143,14 @@ def test_start_makes_the_worktree_and_branch_excludes_the_report_and_queues_one_
     brief = Path(lane["steps"][0]["brief"]).read_text()
     assert "Scope: the widget store" in brief and "review-widgets.md" in brief and "Ranked fixes" in brief
     assert "/Users/" not in brief.split("# Review", 1)[1].split("COMMON RULES")[1], "the rules text names no home path"
-    assert cli.main(["review", "start", "widgets", "--repo-dir", str(repo), "--state", str(tmp_path / "state")]) == 1
+    assert cli.main(["review", "start", "widgets", "--repo-dir", str(repo), "--state", str(tmp_path / "state"), "--written-by", WRITTEN_BY]) == 1
     assert "was started" in capsys.readouterr().out
-    assert cli.main(["review", "start", "Bad Area", "--repo-dir", str(repo), "--state", str(tmp_path / "state")]) == 1
-    assert cli.main(["review", "start", "other", "--repo-dir", str(repo), "--base", "nope", "--state", str(tmp_path / "state")]) == 1
+    assert cli.main(["review", "start", "Bad Area", "--repo-dir", str(repo), "--state", str(tmp_path / "state"), "--written-by", WRITTEN_BY]) == 1
+    assert cli.main(["review", "start", "other", "--repo-dir", str(repo), "--base", "nope", "--state", str(tmp_path / "state"), "--written-by", WRITTEN_BY]) == 1
     assert "not a commit" in capsys.readouterr().out
+    assert cli.main(["review", "start", "other", "--repo-dir", str(repo), "--state", str(tmp_path / "state")]) == 1
+    assert "--written-by is needed" in capsys.readouterr().out
+    assert cli.main(["review", "check", "../x", "--repo-dir", str(repo)]) == 1, "check checks the area too"
 
 
 SPEC = """# Widgets
@@ -159,6 +164,7 @@ SPEC = """# Widgets
 - `widgets.age.said` [GAP] → #NEW
   a figure says its age.
 - `widgets.search.folds` [GAP] (→ #NEW-S1) — fold accents.
+- `widgets.search.ranks` [GAP] (→ #NEW-S2) — rank by age.
 
 Legend: a bare `#NEW` in prose is legend text, and `→ #NEW-S` too.
 
@@ -180,6 +186,11 @@ Legend: a bare `#NEW` in prose is legend text, and `→ #NEW-S` too.
 - Behaviours: `widgets.search.folds`
 - Tests: tests/test_c.py
 - Size: S
+
+#### Step 2.2 — Ranks
+- Behaviours: `widgets.search.ranks`
+- Tests: tests/test_d.py
+- Size: S
 """
 ORDER = """# Build order
 
@@ -192,6 +203,7 @@ ORDER = """# Build order
 
 - `old` — parked.
 """
+WRITTEN_BY = "Claude Test 1 using Claude Code using Fichero Builder"
 SPEC_REL = "docs/contributor_manual/specs/harness/widgets.md"
 
 
@@ -246,7 +258,7 @@ def _started(tmp_path, monkeypatch, spec=SPEC, report=REPORT):
     _git(repo, "commit", "-q", "-m", "first")
     _git(repo, "update-ref", "refs/remotes/origin/integration", "HEAD")
     monkeypatch.setattr(journal, "STATE", tmp_path / "state")
-    assert cli.main(["review", "start", "widgets", "--repo-dir", str(repo), "--state", str(tmp_path / "state")]) == 0
+    assert cli.main(["review", "start", "widgets", "--repo-dir", str(repo), "--state", str(tmp_path / "state"), "--written-by", WRITTEN_BY]) == 0
     wt = tmp_path / "work" / "wt-review-widgets"
     (wt / "review-widgets.md").write_text(report)
     return repo, wt
@@ -256,7 +268,7 @@ def _approve(repo, tmp_path, gh, *extra):
     from fichero_builder import __main__ as cli
 
     return cli.main(["review", "approve", "widgets", "--repo-dir", str(repo), "--state", str(tmp_path / "state"), "--gh", gh,
-                     "--milestone", "widgets", "--spec", SPEC_REL, "--desc", "the widget store", *extra])
+                     "--milestone", "widgets", "--spec", SPEC_REL, "--written-by", WRITTEN_BY, "--desc", "the widget store", *extra])
 
 
 def test_approve_files_the_issues_maps_every_tag_numbers_the_steps_and_commits_two_files(tmp_path, monkeypatch, capsys):
@@ -265,19 +277,19 @@ def test_approve_files_the_issues_maps_every_tag_numbers_the_steps_and_commits_t
     base = _git(wt, "rev-parse", "HEAD")
     assert _approve(repo, tmp_path, gh, "--after", "Builder") == 0, capsys.readouterr().out
     created = [c for c in _calls(log) if c[:2] == ["issue", "create"]]
-    assert len(created) == 3 and created[0][created[0].index("--title") + 1] == "[widgets] Lookups scan every row: index the key"
+    assert len(created) == 4 and created[0][created[0].index("--title") + 1] == "[widgets] Lookups scan every row: index the key"
     assert created[0][created[0].index("--milestone") + 1] == "widgets"
-    assert json.loads((tmp_path / "state" / "review-widgets-issues.json").read_text())["issues"] == {"1": 7000, "2": 7001, "S1": 7002}
+    assert json.loads((tmp_path / "state" / "review-widgets-issues.json").read_text())["issues"] == {"1": 7000, "2": 7001, "S1": 7002, "S2": 7003}
     spec = (wt / SPEC_REL).read_text()
     assert "(→ #7000) — index" in spec and "`widgets.lookup.cheap` [GAP] → #7000" in spec and "[GAP] → #7001\n" in spec, "a bare tag is mapped by behaviour id"
-    assert "(→ #7002)" in spec and "`#NEW`" in spec and "`→ #NEW-S`" in spec, "the legend lines stay"
-    assert "#### Step 1.1 — Fast lookup (#7000)" in spec and "#### Step 1.2 — Honest age (#9, #7001, #42)" in spec and "#### Step 2.1 — Folds (#7002)" in spec
+    assert "(→ #7002)" in spec and "(→ #7003)" in spec and "`#NEW`" in spec and "`→ #NEW-S`" in spec, "the legend lines stay"
+    assert "#### Step 1.1 — Fast lookup (#7000)" in spec and "#### Step 1.2 — Honest age (#9, #7001, #42)" in spec and "#### Step 2.1 — Folds (#7002)" in spec and "#### Step 2.2 — Ranks (#7003)" in spec
     order = (wt / "docs/contributor_manual/specs/build-order.md").read_text()
     assert order.index("`Builder`") < order.index("2. `widgets` — the widget store. Spec: harness/widgets.md") < order.index("3. `other`") and "## Parked\n\n- `old`" in order
     assert [c for c in _calls(log) if c[:2] == ["issue", "comment"]][0][2] == "42", "an existing issue that gained evidence is commented"
     assert _git(wt, "diff", "--name-only", base, "HEAD").split() == ["docs/contributor_manual/specs/build-order.md", SPEC_REL]
     body = _git(wt, "log", "-1", "--format=%B")
-    assert body.rstrip().endswith("Written-By: Claude Opus 5.5 using Claude Code using Fichero Builder") and "Spec-change: owner 2026-11-21 a review incorporates itself" in body
+    assert body.rstrip().endswith("Written-By: " + WRITTEN_BY) and "Spec-change: owner 2026-11-21 a review incorporates itself" in body
     assert (tmp_path / "state" / "review-widgets-issue-list.txt").read_text().splitlines()[0] == "#7000 [widgets] Lookups scan every row: index the key"
 
 
@@ -333,7 +345,7 @@ def test_enqueue_is_refused_until_the_spec_commit_has_landed_then_queues_the_mil
     _git(repo, "update-ref", "refs/remotes/origin/integration", sha)
     assert _approve(repo, tmp_path, gh, "--enqueue") in (0, 2), capsys.readouterr().out
     lane = next(x for x in queue.load() if x["id"] == "widgets")
-    assert [s["step"] for s in lane["steps"]] == ["1.1", "1.2", "2.1"] and [s["issues"] for s in lane["steps"]][0] == [7000]
+    assert [s["step"] for s in lane["steps"]] == ["1.1", "1.2", "2.1", "2.2"] and [s["issues"] for s in lane["steps"]][0] == [7000]
 
 
 def test_the_tests_touch_no_real_git_config_home_or_issue_client(tmp_path, monkeypatch):

@@ -102,6 +102,7 @@ def main(argv=None) -> int:
     rv.add_argument("--base", help="start: the commit the review worktree is made from (default origin/<[land].branch>)"), rv.add_argument("--scope", default="", help="start: what the review covers, in the brief")
     rv.add_argument("--milestone", help="approve: the milestone the issues are filed in"), rv.add_argument("--spec", help="approve: the review's spec, relative to the worktree")
     rv.add_argument("--after", default="", help="approve: the build-order line the milestone goes after (default last)"), rv.add_argument("--desc", default="", help="approve: the build-order line's text")
+    rv.add_argument("--written-by", default="", help="start, approve: the Written-By trailer's text (the model and harness, from the brief)")
     rv.add_argument("--gh", default="gh"), rv.add_argument("--enqueue", action="store_true", help="approve: after the spec commit has landed, queue the milestone's steps (builder milestone M --enqueue)")
     rv.add_argument("--state", help="where the journal, the queue and the approve's map live (default: the owner's journal dir)")
     land = sub.add_parser("land", help="the land gate after a green check row: a READY verdict for the exact range and the boundary, no second ladder; prints the push, never pushes")

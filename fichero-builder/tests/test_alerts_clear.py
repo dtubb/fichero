@@ -134,3 +134,16 @@ def test_a_rung_alert_has_an_id_says_itself_once_and_dismisses(state):
     assert [a["step"] for a in open_] == ["rung-security"], "one open alert, the id-less row not listed"
     assert queue.answer(open_[0]["id"], "dismiss")[0] == 0
     assert console.status(journal.read(), [])["open_alerts"] == []
+
+
+def test_ask_owner_on_an_alert_with_issues_and_no_queue_step_comments_on_those_issues(state, tmp_path):
+    """A review's owner question has a lane id but no queue step: `ask-owner` goes to the issues the alert carries."""
+    calls = tmp_path / "calls"
+    gh = tmp_path / "gh"
+    gh.write_text(f"#!/bin/sh\necho \"$*\" >> {calls}\n")
+    gh.chmod(0o755)
+    aid = queue.alert("review-x", "question-1", "Which unit?", "/r", ["ask-owner", "park"], issues=[5])
+    assert queue.answer(aid, "ask-owner", gh=str(gh), cwd=str(tmp_path)) == (0, f"{aid}: ask-owner")
+    assert "issue edit 5 --add-label needs-your-decision" in calls.read_text() and "Which unit?" in calls.read_text()
+    bare = queue.alert("review-x", "question-2", "q", "/r", ["ask-owner"])
+    assert queue.answer(bare, "ask-owner", gh=str(gh))[0] == 1, "no issues and no step: still refused"

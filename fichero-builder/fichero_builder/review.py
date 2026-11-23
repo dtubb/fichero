@@ -127,7 +127,7 @@ STEP_HEAD = re.compile(r"^(####\s+Step\s+(\d+\.\d+)\s*[—–-]\s*)(.*?)\s*$")
 TAIL = re.compile(r"\s*\((#\d+(?:,\s*#\d+)*)\)\s*$")
 ORDER_FILE = "docs/contributor_manual/specs/build-order.md"
 SPECS = "docs/contributor_manual/specs/"
-TRAILERS = "Spec-change: owner 2026-11-21 a review incorporates itself\nWritten-By: Claude Opus 5.5 using Claude Code using Fichero Builder"
+SPEC_CHANGE = "Spec-change: owner 2026-11-21 a review incorporates itself"
 
 
 def owners_of(issues: list[dict]) -> dict[str, list[str]]:
@@ -275,8 +275,10 @@ def approve(a) -> tuple[int, str]:
 
     if a.enqueue:
         return enqueue(a)
-    if not a.milestone or not a.spec:
-        return 1, "REFUSED: approve needs --milestone and --spec"
+    if not a.milestone or not a.spec or not a.written_by:
+        return 1, "REFUSED: approve needs --milestone, --spec and --written-by (the Written-By trailer's text)"
+    if Path(a.spec).is_absolute() or ".." in Path(a.spec).parts:
+        return 1, "REFUSED: --spec is a path inside the review worktree"
     wt, area = worktree_of(a.repo_dir, a.area), a.area
     try:
         text = report_of(a.repo_dir, area, a.report).read_text()
@@ -344,7 +346,7 @@ def approve(a) -> tuple[int, str]:
         msg = state / f"review-{area}-commit.txt"
         msg.write_text(f"docs(spec): the {area} review lands with its issues and its build order "
                        f"({', '.join('#%d' % n for n in nums.values())})\n\nIssues filed in milestone {a.milestone}; the spec's NEW tags are "
-                       f"their numbers, its Build order steps name them, build-order.md lists the milestone.\n\nPart of #6847\n\n{TRAILERS}\n")
+                       f"their numbers, its Build order steps name them, build-order.md lists the milestone.\n\nPart of #6847\n\n{SPEC_CHANGE}\nWritten-By: {a.written_by}\n")
         r = _git(wt, "-c", "user.name=Claude", "-c", "user.email=noreply@anthropic.com", "commit", "-q", "-F", str(msg))
         if r.returncode:
             return 1, f"REFUSED: commit failed: {r.stderr.strip()[-300:]}"
@@ -362,7 +364,7 @@ def _git(cwd, *args) -> subprocess.CompletedProcess:
     return subprocess.run(["git", "-c", "safe.directory=*", "-C", str(cwd), *args], capture_output=True, text=True)
 
 
-def start(repo_dir, area: str, base: str = "", scope: str = "") -> tuple[int, str]:
+def start(repo_dir, area: str, base: str = "", scope: str = "", written_by: str = "") -> tuple[int, str]:
     """local.review.start-queues-a-session: the review worktree and branch from the base, the brief, one queued step."""
     import tomllib
 
@@ -370,6 +372,8 @@ def start(repo_dir, area: str, base: str = "", scope: str = "") -> tuple[int, st
 
     if not AREA.fullmatch(area):
         return 1, f"REFUSED: area {area!r} is not a word of lowercase letters, digits and dashes"
+    if not written_by:
+        return 1, "REFUSED: --written-by is needed: the model and harness line the commits' Written-By trailer names"
     wt, branch = worktree_of(repo_dir, area), f"review-{area}"
     if wt.exists() or _git(repo_dir, "rev-parse", "--verify", "-q", f"refs/heads/{branch}").returncode == 0:
         return 1, f"REFUSED: the review of {area} was started: worktree {wt} or branch {branch} exists"
@@ -389,16 +393,19 @@ def start(repo_dir, area: str, base: str = "", scope: str = "") -> tuple[int, st
     brief.parent.mkdir(parents=True, exist_ok=True)
     brief.write_text(f"# Review: {area}\n\nArea: {area}\nScope: {scope or 'the area named, its code, its specs and its issues'}\n"
                      f"Worktree: {wt} (branch {branch}, base {sha[:10]})\nReport: review-{area}.md in the worktree root (not committed)\n"
-                     f"Trailers: `Written-By: Claude Opus 5.5 using Claude Code using Fichero Builder` and `Spec-change: owner 2026-11-21 a review incorporates itself`\n\n"
+                     f"Trailers: `Written-By: {written_by}` and `{SPEC_CHANGE}`\n\n"
                      + COMMON.read_text())
     queue.add(f"review-{area}", str(wt), "review", str(brief), [])
     return 0, f"review {area}: worktree {wt}, branch {branch} at {sha[:10]}, step `review` queued on lane review-{area} (brief {brief})"
 
 
 def main(a) -> int:
+    if not AREA.fullmatch(a.area):  # the area builds paths: every action checks it, not only start
+        print(f"REFUSED: area {a.area!r} is not a word of lowercase letters, digits and dashes")
+        return 1
     if a.action == "start":
         try:
-            rc, msg = start(a.repo_dir, a.area, a.base, a.scope)
+            rc, msg = start(a.repo_dir, a.area, a.base, a.scope, a.written_by)
         except (OSError, ValueError) as e:
             rc, msg = 1, f"REFUSED: {e}"
         print(msg)
