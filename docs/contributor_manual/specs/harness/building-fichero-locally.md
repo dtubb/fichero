@@ -643,6 +643,11 @@ the same day (#6851, #6852) and are not repeated here. Spec-change: manager 2026
   `fichero-builder/tests/test_loop.py::test_the_console_lists_each_open_question_with_its_lane_and_step`,
   `fichero-builder/tests/test_dry_run.py::test_a_waiting_end_message_is_one_step_row_with_the_question_and_the_session_stays`.
   Serves: reliable, with little supervision.
+- `local.run.worker-starts-in-its-own-directory` [OK] (#6869) — a queued lane's worker command starts in
+  `<workroot>/work-<lane>`, which the worker makes itself and whose owner it checks (the workroot is world-writable), and
+  `TMPDIR` and pytest's `--basetemp` (through `PYTEST_ADDOPTS`) point inside it at `tmp/`. Test
+  `fichero-builder/tests/test_lane_role.py::test_a_workers_command_starts_in_a_directory_it_made_with_tmpdir_and_pytest_basetemp_inside_it`.
+  Serves: reliable.
 - `local.queue.add-refuses-a-repeated-brief` [GAP] (#6589) — two steps of one lane never share one brief. `queue add`
   compares the brief's content with the kept brief of every step the lane has, landed or not, and refuses a repeat,
   naming the step that has it. With `--continues <step>` it takes the repeat and appends to the kept copy what a
