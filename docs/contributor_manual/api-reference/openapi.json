@@ -26040,7 +26040,7 @@
           "knowledge-graph"
         ],
         "summary": "List Comments",
-        "description": "The live comments on one node, oldest first; a reply carries its `parent_id`.",
+        "description": "The live comments on one node, oldest first; a reply carries its `parent_id`. Nothing is listed on a node the\ncaller may not read (a page the caller is denied, a claim or entity resting only on such pages).",
         "operationId": "list_comments_api_kg_comments_get",
         "parameters": [
           {

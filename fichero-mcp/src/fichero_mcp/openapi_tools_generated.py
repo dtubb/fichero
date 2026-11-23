@@ -4616,7 +4616,7 @@ def fichero_knowledge_graph_list_comments(
     *,
     anchor_id: Annotated[str, Field(description='Anchor Id')],
 ) -> Any:
-    'List Comments\n\nThe live comments on one node, oldest first; a reply carries its `parent_id`.\n\nRoute: GET /api/kg/comments (toolset `knowledge-graph`; reads).'
+    'List Comments\n\nThe live comments on one node, oldest first; a reply carries its `parent_id`. Nothing is listed on a node the\ncaller may not read (a page the caller is denied, a claim or entity resting only on such pages).\n\nRoute: GET /api/kg/comments (toolset `knowledge-graph`; reads).'
     return _rt.call("GET", "/api/kg/comments", params={"anchor_id": anchor_id})
 
 
