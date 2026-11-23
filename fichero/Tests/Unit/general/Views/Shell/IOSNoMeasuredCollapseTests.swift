@@ -12,7 +12,7 @@ final class IOSNoMeasuredCollapseTests: XCTestCase {
                 "Views/Shell/ContentView/ContentView+StateLayout.swift"),
             encoding: .utf8)
         XCTAssertTrue(
-            source.contains("var shellCollapseWidth: Double {\n        #if os(macOS)\n        measuredWindowWidth\n        #else\n        0\n        #endif"),
+            source.contains("var shellCollapseWidth: Double {\n        #if os(macOS)\n        Self.shellCollapseWidth(\n            measured: measuredWindowWidth,\n            inspectorFrameWidth: windowState.paneFrames[UIPane.inspector.frameKey].map { Double($0.width) }\n        )\n        #else\n        0\n        #endif"),
             "shellCollapseWidth must be the measured width on macOS and 0 elsewhere (iOS I1).")
         XCTAssertTrue(
             source.contains("windowWidth: shellCollapseWidth,"),
