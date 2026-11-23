@@ -74,7 +74,7 @@ AUTHOR = {f"GIT_{r}_{f}": v for r in ("AUTHOR", "COMMITTER") for f, v in (("NAME
 
 # Reads the prompt file in the pane's own shell: the text is never on tmux's line (claude's own argv still holds it). Every value reaches the shell as a
 # positional argument (harness_start shell-quotes each argv word), so a brief or model string is never parsed as shell.
-_READ_PROMPT = 'f=$1; b=$2; shift 2; exec "$@" --append-system-prompt "$(cat "$f")" "$b"'
+_READ_PROMPT = 'export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0="*"; f=$1; b=$2; shift 2; exec "$@" --append-system-prompt "$(cat "$f")" "$b"'
 
 
 def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_bin: str = "claude", *, role: str | None = None,
@@ -89,13 +89,14 @@ def prepare(root, worktree, brief: str, scratch, model: str = "sonnet", claude_b
         "PreToolUse": [{"matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit", "hooks": [hook]}],
         "PostToolUse": [handoff], "Stop": [handoff]}}
     (scratch / "settings.json").write_text(json.dumps(settings, indent=1))
-    # the worker's git must open owner-made trees (the engine repo, the ladder's scratch worktrees) or every call there dies
-    # with "dubious ownership" (first real check, 2026-11-01); the worker user is the jail, so the wide allow is its own risk only
-    if "*" not in subprocess.run(["git", "config", "--global", "--get-all", "safe.directory"], capture_output=True, text=True).stdout.split():
-        subprocess.run(["git", "config", "--global", "--add", "safe.directory", "*"], check=True)
-    # the worker commits as Claude, never as the jail user (a host name leaked, check_agent_commits_authored_as_claude, 2026-11-02)
-    for k, v in (("user.name", AUTHOR["GIT_AUTHOR_NAME"]), ("user.email", AUTHOR["GIT_AUTHOR_EMAIL"])):
-        subprocess.run(["git", "config", "--global", k, v], check=True)
+    # the worker's git must open owner-made trees (the engine repo, the ladder's scratch worktrees) or every call there dies with
+    # "dubious ownership" (first real check, 2026-11-01): _READ_PROMPT exports safe.directory=* into the worker's own environment.
+    # The worker commits as Claude, never as the jail user (a host name leaked, 2026-11-02): the name and email go in THIS
+    # worktree's config, never --global (#6854: a global write made two starts at once race on one file and rewrote every user's identity).
+    with journal.Lock("git-config", what=f"identity of {worktree.name}"):  # a linked worktree shares the repo's config file: one writer at a time
+        subprocess.run(["git", "-C", str(worktree), "config", "extensions.worktreeConfig", "true"], check=True)
+        for k, v in (("user.name", AUTHOR["GIT_AUTHOR_NAME"]), ("user.email", AUTHOR["GIT_AUTHOR_EMAIL"])):
+            subprocess.run(["git", "-C", str(worktree), "config", "--worktree", k, v], check=True)
     adapters.require_lane_capable(adapters.ClaudeCode())
     servers, missing = mcp_servers.delivered(root, role=role, stack=stack, project=project)
     for name in missing:

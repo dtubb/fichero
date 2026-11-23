@@ -136,3 +136,32 @@ def test_a_folder_planted_between_the_check_and_the_mkdir_is_refused(world, tmp_
     monkeypatch.setattr(codemap.os, "mkdir", racing_mkdir)
     assert codemap.provide(world.root) == ""
     assert list(private.iterdir()) == [] and "not provided" in capsys.readouterr().out
+
+
+def test_two_starts_at_once_set_each_worktrees_identity_and_leave_the_global_config_alone(tmp_path, monkeypatch):
+    import threading
+
+    monkeypatch.setenv("HOME", str(tmp_path / "h"))
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "gc"))
+    write_rules(tmp_path)
+    wts = []
+    for n in ("a", "b"):
+        wt = tmp_path / n
+        wt.mkdir()
+        subprocess.run(["git", "-C", str(wt), "init", "-q"], check=True)
+        wts.append(wt)
+    errors = []
+
+    def go(wt):
+        try:
+            start_tool.prepare(tmp_path, wt, "do it", tmp_path / f"scratch-{wt.name}")
+        except Exception as e:  # noqa: BLE001 - the test reports whatever went wrong in a thread
+            errors.append(e)
+    threads = [threading.Thread(target=go, args=(w,)) for w in wts]
+    [t.start() for t in threads], [t.join() for t in threads]
+    assert not errors
+    assert not (tmp_path / "gc").exists(), "prepare wrote the global git config"
+    for wt in wts:
+        got = subprocess.run(["git", "-C", str(wt), "config", "user.name"], capture_output=True, text=True).stdout.strip()
+        assert got == "Claude"
+    assert 'GIT_CONFIG_KEY_0=safe.directory' in start_tool._READ_PROMPT
