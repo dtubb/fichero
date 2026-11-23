@@ -159,6 +159,9 @@ class IngestTaskResponse(BaseModel):
     task_id: str
     status: str
     path: str
+    folder_id: Optional[str] = Field(default=None, description=(
+        "The folder the import fills, made before any file is copied (#7066), so the app shows its row at once. "
+        "Absent for a corpus or a 1.0 archive, which build their own folders."))
 
 
 class IngestTaskStatus(BaseModel):
@@ -986,6 +989,8 @@ async def ingest_folder(
     if not path.is_dir():
         raise HTTPException(status_code=400, detail=f"Not a directory: {request.path}")
 
+    folder_id = _make_destination_folder(db, request, path, http_request, x_fichero_library_path)
+
     # Create task
     task_id = uuid4().hex[:12]
     _tasks[task_id] = {
@@ -1002,7 +1007,7 @@ async def ingest_folder(
         "imported_as_passes": [],
         "not_imported": {},
         "unpaired": {},
-        "folder_id": None,
+        "folder_id": folder_id,
         "cancel_requested": False,
         "library_path": x_fichero_library_path,
     }
@@ -1099,7 +1104,7 @@ async def ingest_folder(
                 ),
             )
             doc_ids = result.result["document_ids"]
-            _tasks[task_id]["folder_id"] = result.result.get("folder_id")
+            _tasks[task_id]["folder_id"] = result.result.get("folder_id") or _tasks[task_id]["folder_id"]
             interchange = result.result.get("interchange") or {}
             for key in ("imported_as_passes", "not_imported", "unpaired"):
                 if interchange.get(key):
@@ -1149,7 +1154,35 @@ async def ingest_folder(
         task_id=task_id,
         status="pending",
         path=str(path),
+        folder_id=folder_id,
     )
+
+
+def _make_destination_folder(
+    db: Database, request: IngestFolderRequest, path: Path, http_request: Request, library_path: str
+) -> str | None:
+    """Create the folder a plain folder import fills, and announce it, before the route answers (#7066): the app shows
+    its row at once and the import then fills it. The import finds this same row (``ensure_folder_document``). A
+    corpus (manifest.jsonl) or a 1.0 archive builds its own folders, so it gets none here."""
+    from fichero_server.importers import legacy_10_archive
+    from fichero_server.importers.ingest import ensure_folder_document
+
+    if (path / "manifest.jsonl").is_file() or legacy_10_archive.looks_like_legacy_archive(path):
+        return None
+    folder_doc, made = ensure_folder_document(db, path.resolve(), import_parent_id(db, request.parent_id))
+    if made:
+        from fichero_server.api.change_stream import emit_change
+
+        emit_change(
+            library_path,
+            type="document.created",
+            document_ids=[folder_doc.id],
+            document_parents={folder_doc.id: folder_doc.parent_id} if folder_doc.parent_id else {},
+            actor=actor_from_request(http_request),
+            origin_window=getattr(http_request.state, "origin_window", None),
+            origin_user=actor_from_request(http_request),
+        )
+    return folder_doc.id
 
 
 class XlsxIngestRequest(BaseModel):

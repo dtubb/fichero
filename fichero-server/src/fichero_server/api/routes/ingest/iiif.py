@@ -824,16 +824,18 @@ class IIIFImportRequest(BaseModel):
 class IIIFImportStarted(BaseModel):
     job_id: str = Field(description="the import-iiif job in Activity")
     url: str
+    folder_id: str = Field(description="the folder the import fills, made before any canvas is read (#7066)")
 
 
 @action("iiif.import", IIIFImportRequest, domains=["document"], undoable=False)
 def _action_import(db: Database, params: IIIFImportRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     from fichero_server.importers.iiif_source import start
 
-    job_id = start(db, params.url, folder_id=params.folder_id, started_by=started_by_for(ctx),
-                   max_manifests=params.max_manifests)
-    return {"job_id": job_id, "url": params.url}, ChangeSpec(domains=["document"], target_ids=[job_id],
-                                                              after={"job_id": job_id, "url": params.url})
+    job_id, folder_id = start(db, params.url, folder_id=params.folder_id, started_by=started_by_for(ctx),
+                              max_manifests=params.max_manifests)
+    return {"job_id": job_id, "url": params.url, "folder_id": folder_id}, ChangeSpec(
+        domains=["document"], target_ids=[job_id, folder_id], emit_type="document.created", document_ids=[folder_id],
+        after={"job_id": job_id, "url": params.url, "folder_id": folder_id})
 
 
 @source_router.post("/import", response_model=IIIFImportStarted, summary="Import a IIIF manifest or collection by reference")
