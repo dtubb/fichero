@@ -113,10 +113,10 @@ resolves. No rule lives in Swift.
   accept and reject are audited actions. **[OK]** (#1377, #5600)
 - `GET /api/documents/{id}/effective-attributes` returns the prototype's declarations and the
   defaults overlaid with the node's OWN attributes. It does not walk the ancestors and does not say
-  where a value came from. **[PARTIAL]**
+  where a value came from. **[OBSOLETE]** superseded by `proto.value.set-inherited-default-empty` (#5365), which walks ancestors and returns each value's origin.
 - Declarations have no order (a dict), one label, no language, no computed source and nothing about
   the nodes beneath. The dataset sheet shows a folder's children by the children's prototype
-  (`defaults_by_prototype`), columns per window. **[PARTIAL]**
+  (`defaults_by_prototype`), columns per window. **[OBSOLETE]** superseded by `proto.template.labels-per-language-and-order` and `proto.kind.declared-defaults-for-beneath` (Step 1.1), which give declarations order, labels per language and the nodes beneath.
 - `attribute_sources` records who set each value and holds proposals; a run never writes over a
   person's value or an unclaimed one (`machine_may_set`). **[OK]**
 
