@@ -253,3 +253,84 @@ def test_words_a_second_cut_replaces_leave_forwarding_notes_and_its_undo_brings_
     assert undone.status_code == 200, undone.text
     notes = {(note.old_segment_id, note.kind) for note in db.all(SegmentForwarding)}
     assert all((wid, "restored") in notes for wid in first)
+
+
+def _order_under(db, line):
+    """The word ids in the page's reading order under the line, in sequence."""
+    from fichero_server.api.routes.document.reading_orders import entries_in_sequence
+    from fichero_server.models.reading_orders import ReadingOrder, ReadingOrderEntry
+
+    row = db.get(Segment, line)
+    for order in db.query(ReadingOrder, pass_id=row.pass_id):
+        (entry,) = [e for e in db.query(ReadingOrderEntry, order_id=order.id) if e.segment_id == line] or [None]
+        if entry is not None:
+            return [e.segment_id for e in entries_in_sequence(db, order.id, parent_entry_id=entry.id)]
+    return []
+
+
+class TestDirections:
+    """`segment-editor.edge.rtl-vertical`: a word cut and the order of its words follow the line's resolved direction;
+    the first word of a right-to-left line is its right-hand piece, of a vertical line its top piece."""
+
+    #: Three Hebrew words of 2, 3 and 5 letters: spans [0, 2], [3, 6], [7, 12].
+    HEBREW = "אב גדה וזחטי"
+
+    def test_a_right_to_left_line_is_cut_from_the_right_and_its_words_are_ordered_from_the_right(self, db, client):
+        # Read from the right: the 2-letter word at 760-899 px, the 3-letter at 450-650, the 5-letter at 100-350.
+        doc, pass_id = _page(db, client, words_px=[(760, 899), (450, 650), (100, 350)])
+        line = _line(client, doc, pass_id)
+        _read(db, line, self.HEBREW)
+
+        _cut(db, [line])
+
+        left_to_right = _words(db, line)
+        assert [w.metadata["reading_span"] for w in left_to_right] == [[7, 12], [3, 6], [0, 2]]
+        assert _xs(left_to_right[2])[0] == pytest.approx(705 / W, abs=0.01)
+        assert _order_under(db, line) == [w.id for w in reversed(left_to_right)], "the first word read comes first"
+
+    def test_a_vertical_line_is_cut_from_the_top_and_its_words_are_ordered_from_the_top(self, db, client):
+        from PIL import Image, ImageDraw
+
+        doc, pass_id = _page(db, client)
+        image = Image.new("L", (W, H), 255)
+        draw = ImageDraw.Draw(image)
+        for y0, y1 in [(40, 90), (150, 230), (290, 360)]:  # down the column x 500..530
+            draw.rectangle([500, y0, 530, y1], fill=0)
+        image.save(doc.path)
+        response = client.post("/api/segments", json={
+            "document_id": doc.id, "pass_id": pass_id, "kind": "line",
+            "anchor": {"document_id": doc.id, "polygon": [[0.49, 0.05], [0.54, 0.05], [0.54, 0.95], [0.49, 0.95]]},
+            "baseline": [[0.52, 0.05], [0.52, 0.95]],
+        })
+        assert response.status_code == 200, response.text
+        line = response.json()["id"]
+        registry.invoke(db, "segment.update_many", {"updates": [
+            {"segment_id": line, "expected_version": db.get(Segment, line).version, "direction": "ttb"}]}, _person())
+        _read(db, line, "一二 三四五 六七八九十")
+
+        _cut(db, [line])
+
+        words = [row for row in db.all(Segment) if row.parent_segment_id == line and row.deleted_at is None]
+        top_down = sorted(words, key=lambda row: line_join.bounds(line_join.outline_of(row.anchor))[1])
+        assert [w.metadata["reading_span"] for w in top_down] == [[0, 2], [3, 6], [7, 12]]
+        assert _order_under(db, line) == [w.id for w in top_down]
+
+
+def test_cutting_a_page_reads_each_reading_order_once_not_once_per_word(db, client, monkeypatch):
+    from fichero_server.models.reading_orders import ReadingOrderEntry
+
+    doc, pass_id = _page(db, client, words_px=[(100, 200), (300, 400), (500, 600), (700, 800)])
+    line = _line(client, doc, pass_id)
+    _read(db, line, "aa bb cc dd")
+    asked = []
+    original = type(db).query
+
+    def counting(self, model, *args, **kwargs):
+        if model is ReadingOrderEntry:
+            asked.append(kwargs)
+        return original(self, model, *args, **kwargs)
+
+    monkeypatch.setattr(type(db), "query", counting)
+    _cut(db, [line])
+    assert len(_words(db, line)) == 4
+    assert not [kwargs for kwargs in asked if "segment_id" in kwargs], asked

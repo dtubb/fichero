@@ -48,9 +48,8 @@ class WindowState {
     /// Inspector's Activity section shows while the Activity pane holds the focus.
     var activityPick: ActivityPaneSelection?
 
-    /// The Reader / Info screens pushed on top of the file on the iPhone (#6566).
-    var compactReaderPushed = false
-    var compactInfoPushed = false
+    /// The iPhone's ONE navigation path: folders, then an item, then Reader and Info (`ios.nav.one-path`, #6944).
+    var compactPath = CompactPath()
 
     /// Why the last drop onto a library folder cell failed, or nil (#4474).
     /// Rendered by `LibraryView`'s drop alert. The sidebar has the same surface

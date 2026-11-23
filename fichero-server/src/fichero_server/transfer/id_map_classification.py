@@ -321,6 +321,7 @@ CLASSIFICATION: dict[str, tuple[str, str]] = {
     "WorkflowRunLogLine.run_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "ProviderRef.provider_id": (NOT_DOCUMENT_SCOPED, _ENGINE),
     # --- hand-written SQL tables --------------------------------------------------------------
+    "table:kg_mentions.claim_id": (RECOMPUTED, "a derived link table: remade from the target's statements by the knowledge rebuild"),
     "table:sync_files.document_id": (CUT, "a moved document's tie to a synced folder is severed and listed (finding 9)"),
     "table:sync_files.folder_id": (NOT_DOCUMENT_SCOPED, "the synced folder stays with the source"),
     "table:canvas_layout.folder_id": (MAPPED, "the same table as CanvasLayout"),

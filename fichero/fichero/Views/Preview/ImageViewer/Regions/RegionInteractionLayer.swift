@@ -83,6 +83,9 @@ struct RegionInteractionLayer: View {
     /// Commit a drawn polygon or baseline: (its kind, its points). Nil: the Shape tool drags boxes only.
     var onDrawShapeCommit: ((SegmentShapes.DrawKind, [[Double]]) -> Void)?
     var onDrawBox: (([Double]) -> Void)?
+    /// The Region tool's dragged box while editing segments: the host saves it as a region on the shown pass (`segment.create`).
+    /// Nil: the box stays a marquee.
+    var onDrawRegionBox: (([Double]) -> Void)?
     /// Commit a Knife stroke (K held): its points, in the page's fractions. Nil: no Knife here.
     var onKnifeCommit: (([[Double]]) -> Void)?
     /// Commit a Marker stroke (M held or the Marker chosen): its points in the page's fractions, and whether it closed.
@@ -419,7 +422,7 @@ extension RegionInteractionLayer {
         // Select tool on empty ground: a DRAG band-selects the boxes it
         // sweeps (2026-09-02, select-by-default); a plain click still
         // resolves as a tap when the band comes back degenerate.
-        if isBandSelecting, !hitsAnything(at: point, in: size) {
+        if isBandSelecting {
             bandStart = point
             bandCurrent = point
             bandCommand = commandHeld
@@ -449,7 +452,7 @@ extension RegionInteractionLayer {
     /// Click = select; ⇧-click = add/toggle; click-away = deselect (regions
     /// AND marquees — the honest reading of "click-away clears").
     func handleTap(at location: CGPoint, in size: CGSize) {
-        let additive = shiftHeld
+        let additive = shiftHeld || commandHeld
         // Marquees first: they are drawn on top and are what the user
         // most recently made.
         if let marquees, marquees.documentId == documentId,
@@ -528,6 +531,8 @@ extension RegionInteractionLayer {
             onAnnotate?(box)
         } else if isWordSelecting {
             selectWords(inBand: box)
+        } else if isAddingRegion, drawsSegments, let onDrawRegionBox {
+            onDrawRegionBox(box)
         } else if isAddingRegion {
             marquees?.add(
                 box, documentId: documentId, imagePixelSize: imagePixelSize
@@ -541,19 +546,29 @@ extension RegionInteractionLayer {
         }
     }
 
-    /// Select (⇧ = extend) every DISPLAYED box the band holds mostly (over half), at the level being edited —
+    /// Select (⇧ = extend) every DISPLAYED box the band touches or encloses, at the level being edited —
     /// lines, or regions with ⌘ (`segment-editor.select-marquee-lasso`) — addressed the way a click-select is.
     private func selectRegions(inBand band: [Double]) {
-        selectRegions(inLoop: SegmentSelectionGestures.loop(ofBand: band))
+        let shown = shownSelectionBoxes
+        select(hits: SegmentSelectionGestures.touching(
+            band: band, boxes: shown, level: SegmentSelectionGestures.level(of: shown, commandHeld: bandCommand)
+        ))
+    }
+
+    private var shownSelectionBoxes: [SegmentSelectionGestures.Box] {
+        boxes.map { SegmentSelectionGestures.Box(index: $0.index, bbox: $0.box.bbox, level: $0.box.level) }
     }
 
     /// Select (⇧ = extend) every DISPLAYED box the loop holds mostly, at the level being edited.
     func selectRegions(inLoop loop: [[Double]]) {
-        guard let artifactId else { return }
-        let shown = boxes.map { SegmentSelectionGestures.Box(index: $0.index, bbox: $0.box.bbox, level: $0.box.level) }
-        let hits = SegmentSelectionGestures.inside(
+        let shown = shownSelectionBoxes
+        select(hits: SegmentSelectionGestures.inside(
             loop, boxes: shown, level: SegmentSelectionGestures.level(of: shown, commandHeld: bandCommand)
-        )
+        ))
+    }
+
+    private func select(hits: [Int]) {
+        guard let artifactId else { return }
         guard !hits.isEmpty else {
             if !shiftHeld { selection.clear() }
             return

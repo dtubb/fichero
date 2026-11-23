@@ -136,10 +136,10 @@ def test_a_fault_inside_a_pages_transaction_leaves_that_page_untouched(library, 
     doomed = doc_ids[1]
     original = segment_conversion._readings_from_conversion
 
-    def fault(db, artifact, rows, reads):
+    def fault(db, artifact, rows, reads, boxes):
         if artifact.document_id == doomed:
             raise RuntimeError("disk vanished mid-page")
-        return original(db, artifact, rows, reads)
+        return original(db, artifact, rows, reads, boxes)
 
     monkeypatch.setattr(segment_conversion, "_readings_from_conversion", fault)
     db = _open_and_wait(manager, package)

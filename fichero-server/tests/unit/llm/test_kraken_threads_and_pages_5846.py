@@ -43,6 +43,7 @@ def test_a_kraken_call_bounds_torch_threads_and_interop(monkeypatch):
     monkeypatch.setattr(kraken_runtime, "require_installed", lambda: None)
     monkeypatch.setattr(kraken_runtime, "assert_memory_available_for_kraken", lambda: None)
     monkeypatch.setattr(kraken_runtime, "_release_when_idle", lambda: None)
+    monkeypatch.setattr(kraken_runtime, "_shim_cross_for_2d", lambda: None)  # counting threads needs no kraken package
     monkeypatch.setattr("fichero_server.core.compute_preferences.apply_to_this_thread",
                         lambda priority, lift_to_utility=False: 2)
     assert kraken_runtime._kraken_call(lambda: "read") == "read"

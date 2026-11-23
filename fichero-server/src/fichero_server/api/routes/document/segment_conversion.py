@@ -663,7 +663,8 @@ def _convert_one(db: Any, artifact: Artifact) -> tuple[SegmentPass, list[Segment
     # of a state nothing ever superseded, and hand the app a stale
     # `expected_version` for a page nobody has edited.
 
-    _readings_from_conversion(db, artifact, rows, segment_reads)
+    # raw-geometry-ok: the conversion IS the reader of the machine's original (each box's character positions)
+    _readings_from_conversion(db, artifact, rows, segment_reads, artifact.ocr_geometry.boxes)
     record_box_origins(db, artifact, rows)
 
     artifact.geometry_superseded_by_pass_id = pass_row.id
@@ -727,7 +728,7 @@ def record_missing_box_origins(db: Any, *, should_stop: Any = None) -> int:
 
 
 def _readings_from_conversion(
-    db: Any, artifact: Artifact, rows: list[Segment], segment_reads: list[Any]
+    db: Any, artifact: Artifact, rows: list[Segment], segment_reads: list[Any], boxes: list[Any]
 ) -> list[str]:
     """Each converted segment's words become a READING on that segment
     (slice 8b, #4924). Returns the reading ids written.
@@ -746,6 +747,10 @@ def _readings_from_conversion(
     A reading is written only for a segment that HAS words. An empty box gets
     none — an empty reading would assert that a machine read this line and found
     nothing, which is different from it not having been read.
+
+    A box's `char_positions` (where each character starts along the baseline, from a
+    full-page Kraken read) go on its reading when there is one per character
+    (`segment-editor.char-positions-kept`).
     """
     from fichero_server.models import ContentRepresentation
     from fichero_server.models.readings import reading_kinds
@@ -763,6 +768,7 @@ def _readings_from_conversion(
         text = read.text
         if not text:
             continue
+        positions = boxes[read.box_index].metadata.get("char_positions")
         readings.append(
             ContentRepresentation(
                 document_id=row.document_id,
@@ -782,6 +788,7 @@ def _readings_from_conversion(
                 producer_model=artifact.model,
                 derived_from_artifact_id=artifact.id,
                 read_from_rendition_id=row.anchor.rendition_id,
+                char_positions=positions if positions and len(positions) == len(text) else None,
             )
         )
     if readings:

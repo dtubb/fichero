@@ -4,6 +4,7 @@ decide handoff, park, alert or nothing. Plain functions, no process control here
 Caps come from `harness.toml [spend]`; a missing cap or an unknown price REFUSES to start (audit 2026-11-01 H6)."""
 from __future__ import annotations
 
+import json
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -17,8 +18,8 @@ class Spend:
     window: int = 200_000          # the model's context window, tokens
     handoff_at: float = 0.85       # hand off when the latest prompt reaches this share of the window
     handoff_tokens: int = 0        # or at this many tokens, when set (dev-workflows.run.loop-handoff-tokens: a 1M window cost 17M tokens a lane)
-    session_usd: float = 0.0       # 0 = no cap declared = refuse to start
-    day_usd: float = 0.0
+    session_usd: float = 0.0       # read and ignored: owner ruling B2 (2026-11-21) dropped the dollar session cap
+    day_usd: float = 0.0           # 0 = no cap declared = refuse to start
     silent_s: int = 1800           # a session file unchanged this long while not idle = alert
     prices: dict = field(default_factory=dict)  # model name or prefix -> [usd per M input tokens, usd per M output tokens]
 
@@ -40,10 +41,20 @@ def local_file(root) -> Path | None:
 
 def load(root) -> Spend:
     """`<root>/harness.toml` [spend]; no table = the zero caps, which refuse. Unknown keys and bad prices refuse."""
+    return parse(table(root))
+
+
+def table(root) -> dict:
+    """The raw [spend] table of `<root>/harness.toml` with this machine's own override merged over it."""
     f = Path(root) / "harness.toml"
     t = tomllib.loads(f.read_text()).get("spend", {}) if f.is_file() else {}
     if (local := local_file(root)) is not None:  # this machine's own caps (manager 2026-11-02)
         t = {**t, **tomllib.loads(local.read_text()).get("spend", {})}
+    return t
+
+
+def parse(t: dict) -> Spend:
+    """A raw [spend] table as a Spend; unknown keys and bad prices raise ValueError."""
     if unknown := sorted(set(t) - KEYS):
         raise ValueError(f"harness.toml [spend]: unknown keys {unknown}")
     prices = t.get("prices", {})
@@ -72,8 +83,8 @@ def price_for(model: str, spend: Spend):
 def refusals(spend: Spend, kind: str, model: str) -> list[str]:
     """Every reason not to start a worker of this kind and model; empty = go."""
     out = []
-    if spend.session_usd <= 0 or spend.day_usd <= 0:
-        out.append("harness.toml [spend] must set session_usd and day_usd above 0: no cap, no start")
+    if spend.day_usd <= 0:
+        out.append("harness.toml [spend] must set day_usd above 0: no cap, no start")
     if kind != "pi" and price_for(model, spend) is None:  # a Pi session file carries its own price per turn
         out.append(f"harness.toml [spend].prices has no price for {model!r}: unknown price, no start")
     return out
@@ -98,6 +109,25 @@ def spent_today(rows: list[dict], today: str) -> float:
     return sum(float(r.get("usd", 0)) for r in rows if r.get("event") == "cost" and str(r.get("ts", "")).startswith(today))
 
 
+LIVE_STALE_S = 300  # ponytail: a crashed run's live file stops counting after this; a pid check is the upgrade
+
+
+def live_spend(d, today: str, exclude: str, now: float) -> float:
+    """local.perf.day-cap-counts-live-sessions (#6871): the running cost of every other live session, from the files
+    `<d>/<name>.json` = {"usd", "day"} each run rewrites every tick; only today's, changed within LIVE_STALE_S, not `exclude`'s."""
+    total = 0.0
+    for f in Path(d).glob("*.json") if Path(d).is_dir() else ():
+        try:  # another run deletes its file when it ends: a vanished or unreadable file is not a spend
+            if f.stem == exclude or now - f.stat().st_mtime > LIVE_STALE_S:
+                continue
+            doc = json.loads(f.read_text())
+        except (OSError, ValueError):
+            continue
+        if doc.get("day") == today:
+            total += float(doc.get("usd", 0))
+    return total
+
+
 def assess(state: dict, spend: Spend, model: str, *, spent_today: float, silent_for_s: float) -> list[str]:
     """Decisions in the order the watcher acts on them; [] = leave the worker alone."""
     out = []
@@ -106,10 +136,8 @@ def assess(state: dict, spend: Spend, model: str, *, spent_today: float, silent_
     elif state.get("error") and not state.get("transient"):
         out.append(f"park: provider error: {state['error'][:120]}")
     cost = cost_of(state, spend, model)
-    if spent_today + cost >= spend.day_usd:  # only the day cap parks (dev-workflows.run.loop-session-cap-hands-off)
+    if spent_today + cost >= spend.day_usd:  # the only dollar cap: owner ruling B2 (2026-11-21) dropped the session cap
         out.append(f"park: today's spend {spent_today + cost:.2f} USD reached the cap {spend.day_usd:.2f}")
-    elif cost >= spend.session_usd:  # a fresh session continues from the tree, as at the context handoff
-        out.append(f"handoff: session spend {cost:.2f} USD reached the cap {spend.session_usd:.2f}")
     elif state.get("context", 0) >= threshold(spend):
         out.append(f"handoff: context {state['context']} of {threshold(spend) if spend.handoff_tokens else spend.window}")
     if not state.get("idle") and state.get("started") and silent_for_s >= spend.silent_s:

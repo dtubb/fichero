@@ -35,7 +35,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
-from fichero_builder import brief_tool, check_tool, codemap, jail, journal, land_tool, models, nightly, work
+from fichero_builder import brief_tool, check_tool, codemap, jail, journal, land_tool, models, nightly, watcher, work
 
 ROUNDS, RESTARTS = 2, 2
 DISPATCH: list = [()]  # [loop].dispatch: external lanes the loop runs itself, as managed worker lanes (#6466); the verb sets it
@@ -81,8 +81,10 @@ SPLIT = ("Step {step}: the diff is {files} files, over the bound of {bound}. Spl
          "the ones the step cannot do without) and commit them as before, one commit per behaviour.\n"
          "3. Leave the other files to {part2}: `git checkout -- .` and `git clean -fd` remove them from this tree (they are kept on {part2}).\n"
          "The next step brings {part2} back. When the core is committed, end your turn with the exact line DONE <short sha of the branch head>.\n")
-PART2_NOTE = ("\n\nPart 2 of the step before this one is on the branch {part2} (it was over the diff bound, so it was split). Bring it back first: "
-              "`git checkout {part2} -- .` for the files it holds, commit them, then do this step. Keep each push under the bound.\n")
+PART2_BRIEF = ("Step {step}-part2: the rest of step {step}, which was over the diff bound and was split. It is on the branch {part2} (pushed to origin), "
+               "with these commits:\n{commits}\n"
+               "Bring it back: `git checkout {part2} -- .` for the files it holds, commit them one commit per behaviour with their tests, "
+               "keep the diff at most the bound, then end your turn with the exact line DONE <short sha of the branch head>.\n")
 
 
 def split_text(lane_id: str, step: str, findings: str) -> str:
@@ -197,6 +199,8 @@ class Procs:
     verify_all: Callable[[], tuple] = lambda: (0, "")  # () -> (rc, output) of `builder verify-all` over the loop's checkout
     touches_product: Callable[[dict, str], bool] = lambda lane, head: True  # (lane, head) -> does the batch about to land change app/engine product paths
     tell: Callable[[dict, str], str] = lambda lane, text: ""  # (lane, text) -> '' or why: into an external lane's registered pane
+    # (lane, branch) -> (rc, commits | error): the branch a split left behind, pushed to origin, and the subjects of its commits over the base (#6849)
+    push_part2: Callable[[dict, str], tuple] = lambda lane, branch: (0, "")
     after_land: Callable[[dict, dict, str], None] = lambda lane, step, head: None  # an external lane's batch landed: sweep its land tree
     intake: Callable[[dict], str] = lambda lane: ""  # an external lane -> the sha to take now by itself (thresholds), or ''
     cleanup_ref: str = ""  # origin/<land branch>: what a landing leaves behind is removed once its head is on it; "" = off (#6589 item 16)
@@ -528,6 +532,11 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         journal.append("queue", lane=lane["id"], step=s["step"], state="stale-result", detail=f"the check of {h0[:9]} ended after a newer head took the step: dropped")
         return True
     if r["ok"]:
+        part2_commits = ""
+        if s.get("part2"):  # #6849: the rest of a split goes to origin BEFORE the core lands, so it can never be lost with the worktree
+            rc, part2_commits = procs.push_part2(lane, s["part2"])
+            if rc:
+                return block(s, f"the split branch {s['part2']} was not pushed: {part2_commits}")
         s["product"] = bool(procs.touches_product(lane, r["head"]))  # BEFORE landing: origin/integration is still the base; kept by the landing's one store
         rc, output = procs.landed(lane, r["head"], push)
         if rc:
@@ -540,9 +549,12 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         close_alerts(lane["id"], s["step"], f"the step landed at {r['head'][:9]}")
         fresh_stop()
         lane["cursor"] += 1  # ONE write ends the landing: the step is landed and the cursor is past it in the same store, so no `builder done` can run between the two
-        if s.get("part2") and lane["cursor"] < len(lane["steps"]):  # a split step: the next step's brief says where the rest is
-            nb = Path(lane["steps"][lane["cursor"]]["brief"])
-            nb.write_text(nb.read_text().rstrip("\n") + PART2_NOTE.format(part2=s["part2"]))
+        if s.get("part2"):  # a split step: its rest is the next step of this lane, so the lane is not landed until it is
+            brief = Path(s["brief"]).with_name(f"brief-{lane['id']}-{s['step']}-part2.txt")
+            brief.write_text(PART2_BRIEF.format(step=s["step"], part2=s["part2"], commits=part2_commits or "(none listed)"))
+            lane["steps"].insert(lane["cursor"], {"step": f"{s['step']}-part2", "brief": str(brief), "issues": [], "waits": [], "state": "queued",
+                                                  "head": "", "why": "", "rounds": 0, "restarts": 0, "entered_at": _now()})
+            journal.append("queue", lane=lane["id"], step=f"{s['step']}-part2", state="queued", detail=f"the rest of {s['step']}, on the pushed branch {s['part2']}")
         move(s, "landed", f"landed {r['head'][:9]}" + (" (pushed)" if push else " (not pushed)") + (f"; still open: {', '.join(left)}" if left else ""))
         if push and lane.get("kind") != "external" and lane["cursor"] >= len(lane["steps"]) and any(x.get("product") for x in lane["steps"]):
             # dev-workflows.run.verify-all (owner 2026-11-03): a MILESTONE's last step landed (a worker lane has no step left) and some step touched the product: ONE verify-all once every lane is idle
@@ -583,6 +595,7 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
             # the same reason go on once by themselves, then it blocks as before (an approve that did not take effect must not loop)
             once.append(f"{judged}:{r['kind']}")
             _set_approval(s, r["kind"], r.get("approvals"))
+            s["approved_head"] = s.get("head", "")  # the flag counts only at its approved head (_approved): a head set since the approve must not void it
             journal.append("queue", lane=lane["id"], step=s["step"], state="auto-approve", detail=f"{r['kind']} at {judged[:9]} was approved: the same head goes on by itself")
             move(s, "done", f"{r['kind']} at {judged[:9]} was approved already: the check runs again with that approval")
             return True
@@ -1197,7 +1210,12 @@ def reconcile_landed(procs: Procs, lane: dict, step: dict, head: str, chains: di
             results = procs.reconcile({"id": lane_id}, {"step": step_id, "issues": issues}, head)
         except Exception as e:  # noqa: BLE001 - the step has landed; a broken reconcile is a row, never a crash
             journal.append("queue", lane=lane_id, step=step_id, state="issue-reconcile", detail=f"failed: {e}"[:300])
+            for n in issues:  # #6848: an issue left unread is an alert naming it, never only a row
+                alert(lane_id, step_id, f"the reconcile of #{n} failed: {e}", str(journal.path()), [])
             return
+        for x in results or []:
+            if x["cls"] == "UNREAD":
+                alert(lane_id, step_id, f"the reconcile left #{x['issue']} unread: {x['note']}", str(journal.path()), [])
         if results:
             journal.append("queue", lane=lane_id, step=step_id, state="issue-reconcile",
                            detail="; ".join(f"#{x['issue']} {x['cls']}{' closed' if x['closed'] else ''}" + (f": {x['note']}" if x["note"] and not x["closed"] else "") for x in results))
@@ -1474,6 +1492,37 @@ def reload_rules(root) -> None:
     apply_loop_cfg(cfg)
 
 
+def publish_rules(root, feed) -> None:
+    """local.perf.caps-reread-each-tick (#6851): a lane's run reads its caps from `<feed>/rules.json` every tick, because its --root is
+    a pinned copy and the owner's own override is unreadable to the jail user. Written from the live rules file, checked first (a bad
+    table raises and leaves the last good copy), then renamed into place, readable by all."""
+    doc = {"spend": watcher.table(root), "models": models.load(root)}
+    watcher.parse(doc["spend"])
+    tmp = Path(feed) / ".rules.json.tmp"  # the feed is the owner's 0755 folder: no worker can plant this name
+    tmp.write_text(json.dumps(doc))
+    tmp.chmod(0o644)
+    tmp.replace(Path(feed) / "rules.json")
+
+
+PUBLISH_ERR = [""]  # the last publish failure told, so a bad rules file gives one row, not one a tick
+
+
+def publish_all(root, out=print) -> None:
+    """Every lane with a live feed gets the current rules; a failure is told once and the lanes keep their last copy."""
+    for lane in load():
+        if not lane.get("feed") or not Path(lane["feed"]).is_dir():
+            continue
+        try:
+            publish_rules(root, lane["feed"])
+        except (OSError, ValueError) as e:
+            if str(e) != PUBLISH_ERR[0]:
+                journal.append("rules", state="warning", detail=f"rules.json not published, the lanes keep their last caps: {e}"[:300])
+                out(f"rules.json not published: {e}")
+            PUBLISH_ERR[0] = str(e)
+            return
+    PUBLISH_ERR[0] = ""
+
+
 def apply_loop_cfg(cfg: dict) -> None:
     global ROUNDS
     ROUNDS = int(cfg.get("rounds", ROUNDS))
@@ -1519,6 +1568,7 @@ def run(procs: Procs, *, workers_n: int, push: bool, lanes_n: int = 1, tick_s: f
     while True:
         if root:
             reload_rules(root)  # #6589
+            publish_all(root, out)  # #6851
         if heartbeat:  # after a reboot the lanes' sessions come back in new panes (run.loop-launchd)
             for m in repane():
                 out(m)
@@ -1678,6 +1728,9 @@ def carry_approvals(step: dict, repo: str, base_ref: str, auto) -> bool:
     those files is empty. A named file whose diff changed, an approval kind not bound to files, or no named file: no carry.
     True when it carried (one `auto` row; the step's approved_head moves)."""
     old, new, named = step.get("approved_head", ""), step.get("head", ""), list(step.get("approved_tests") or [])
+    if not old:  # approved while a worker lane's step had no head (#6589 2026-11-21): the head its alert judged stands in for it
+        old = next((h for j in (step.get("approved_for") or {}) if (h := subprocess.run(["git", "-c", "safe.directory=*", "-C", repo, "rev-parse", "--verify", "-q", f"{j}^{{commit}}"],
+                                                                                   capture_output=True, text=True).stdout.strip())), "")
     flags = {k for k in (*CARRYABLE, "approve_pinned_new", "maintainer") if step.get(k)}
     if not old or not new or old == new or not flags:
         return False  # nothing to carry
@@ -1891,9 +1944,11 @@ def real_procs(root) -> Procs:
         (feed / "brief.txt").write_text(Path(a.brief).read_text())  # #6466: the brief lives under the owner's state dir, which the worker cannot read
         (feed / "brief.txt").chmod(0o644)
         a.brief = str(feed / "brief.txt")
+        publish_rules(root, feed)  # #6851: the run's caps, from the live rules, re-read by it every tick
         codemap.provide_all(root)
         role = lane.get("role", "")  # a lane's [models] role: its model and window; no role = [models].builder
-        cmd = work.run_cmd(a, models.for_role(mdl, role).model if role else builder, "--feed", feed, "--seq", lane["seq"], *(("--role", role) if role else ()))
+        cmd = work.run_cmd(a, models.for_role(mdl, role).model if role else builder, "--feed", feed, "--seq", lane["seq"], "--rules", feed / "rules.json",
+                           *(("--role", role) if role else ()))
         log = open(Path(j.workroot) / f"run-{lane['id']}.log", "ab")  # #6466: a start that fails is read here, not lost to /dev/null (the workroot is where the owner may write)
         # #6589: its own session, so launchd's kill of the loop job (kickstart -k) never reaches the worker's tmux server
         return subprocess.Popen([j.sudo, "-n", "-H", "-u", j.user, "sh", "-c", f"cd {q(j.workroot)} && {cmd}"],
@@ -1918,6 +1973,16 @@ def real_procs(root) -> Procs:
     def landed(lane, head, push):
         r = subprocess.run(landed_argv(root, lane["id"], head, push), cwd=str(pkg), capture_output=True, text=True, env={**os.environ, "PYTHONPATH": str(pkg)})
         return r.returncode, (r.stdout + r.stderr)[-2000:]
+
+    def push_part2(lane, part2):
+        g = ["git", "-c", "safe.directory=*", "-C", lane["worktree"]]
+        if subprocess.run([*g, "rev-parse", "--verify", "--quiet", f"refs/heads/{part2}"], capture_output=True).returncode:
+            return 1, f"the branch {part2} does not exist in {lane['worktree']}: the worker did not make it"
+        r = subprocess.run([*g, "push", "--force", "origin", f"refs/heads/{part2}:refs/heads/{part2}"], capture_output=True, text=True)
+        if r.returncode:
+            return r.returncode, (r.stdout + r.stderr)[-500:]
+        log = subprocess.run([*g, "log", "--format=%h %s", f"origin/{branch}..refs/heads/{part2}"], capture_output=True, text=True)
+        return 0, log.stdout.strip()
 
     def end_of(lane):
         return next((r["end"] for r in reversed(work._shared_rows(ns(lane))) if r.get("event") == "cost" and r.get("task") == lane["id"]
@@ -2014,7 +2079,7 @@ def real_procs(root) -> Procs:
     return Procs(start=start, alive=lambda h: h.poll() is None, send=send, free_gb=lambda: shutil.disk_usage(rules.get("jail", {}).get("workroot") or str(root)).free / 1e9,
                  drop_index=drop_index, uv_prune=(lambda: as_worker("uv cache prune")) if rules.get("jail", {}).get("user") else None, rebase=lambda lane: work.do_rebase(ns(lane), branch), row=row, chain=chain,
                  ahead_of_origin=lambda lane: Path(lane["worktree"]).is_dir() and missing(lane["worktree"], branch) > 0, adopt=lambda lane: adopt_session(jail.load(root), lane),
-                 landed=landed, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
+                 landed=landed, push_part2=push_part2, end_of=end_of, stop=stop, still_open=lambda lane, step: open_of(step["issues"], cwd=str(root)),
                  next_milestone=lambda taken: next_in_order(root, taken), verify_all=verify_all, daily_builds=daily_builds if rules.get("check", {}).get("daily_builds") else None, nightly=ncfg, nightly_runners=nightly.real_runners(root, ncfg, branch, journal.STATE) if ncfg else None, reconcile=reconcile, reconcile_nightly=reconcile_nightly, touches_product=touches_product, trees=trees, tell=tell, after_land=after_land, intake=intake, cleanup_ref=f"origin/{branch}",
                  jail_root=str(Path(rules["jail"]["workroot"]) / "root") if rules.get("jail", {}).get("workroot") else "",
                  workroot=str(rules.get("jail", {}).get("workroot", "")), blob=blob, root=str(root), jail_gh=bool(rules.get("jail", {}).get("gh")),

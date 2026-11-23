@@ -39,9 +39,10 @@ _COMPILER_SYSTEM_PROMPT = (
     "You compile a researcher's natural-language request into a structured "
     "archive search. Extract ONLY what the request states — never invent "
     "entities, dates, or types that are not implied by the wording. Put every "
-    "date the request implies in the date_from and date_to FIELDS, in ISO "
-    "format (YYYY-MM-DD), using the span boundaries for a partial date: "
-    "'March 1948' sets date_from=1948-03-01 and date_to=1948-03-31. "
+    "date the request states in the date_from and date_to FIELDS, in ISO "
+    "format (YYYY-MM-DD), using the first and last day of the span for a "
+    "partial date (a month or a year). A request that states no date leaves "
+    "both fields empty. "
     "semantic_query is the request rephrased as a dense retrieval query in "
     "the request's own language, stripped of every filter already captured in "
     "another field. semantic_query must contain NO dates and NO date range — "
@@ -129,48 +130,37 @@ def looks_like_natural_language(query: str) -> bool:
 
 
 def _resolve_compiler_config(db: "Database"):
-    """First enabled provider/model from the library's Providers config —
-    the same resolution chat uses. A library with NO configured providers
-    falls back to the settings default (on-device Apple Intelligence), the
-    same resolution bibliography extraction uses — Ask mode refusing with
-    "no enabled LLM provider configured" on a fresh library was Daniel's
-    2026-08-11 "that's terrible": the machine has an LLM, use it. If Apple
-    FM is genuinely unavailable at runtime, chat_structured raises and
-    enhanced_search reports it while searching the raw words — unchanged."""
+    """The model that compiles a question: the app's text default (Settings > AI Defaults), the one chat uses;
+    on-device when it names none. Providers are not looked up in the library database, where they are never kept
+    (#5368, #6791); `db` is kept for the caller's signature."""
+    from fichero_server.db.app import get_app_db
     from fichero_server.llm import LLMConfig
-    from fichero_server.llm.providers import get_provider_info
-    # NOT `ModelModel`/`ProviderModel` — those are chat.py's local import
-    # aliases, not names in fichero_server.models. Importing them here raised
-    # ImportError on every live compile (tests mocked this resolver).
-    from fichero_server.models import Model as ModelModel
-    from fichero_server.models import Provider as ProviderModel
+    from fichero_server.llm.places import with_row_address
 
-    configured = db.query(ProviderModel, enabled=True)
-    if not configured:
-        return LLMConfig(
-            provider="apple",
-            model="apple-intelligence",
+    defaults = get_app_db().get_ai_defaults()
+    return with_row_address(
+        LLMConfig(
+            provider=defaults.get("default_text_provider") or "apple",
+            model=defaults.get("default_text_model") or "apple-intelligence",
+            # Deterministic extraction, tiny output.
             temperature=0.0,
             max_tokens=400,
         )
-    provider_row = configured[0]
-    provider = provider_row.provider_type.value
-    models = db.query(ModelModel, provider_id=provider_row.id, enabled=True)
-    if models:
-        model = models[0].model_id
-    else:
-        info = get_provider_info(provider)
-        model = info.default_model if info else None
-    if not model:
-        return None
-    return LLMConfig(
-        provider=provider,
-        model=model,
-        # Deterministic extraction, tiny output.
-        temperature=0.0,
-        max_tokens=400,
-        api_base=provider_row.api_base,
     )
+
+
+def _keep_only_what_the_question_says(compiled: CompiledQuery, question: str) -> None:
+    """Drop a filter whose words are not in the question: a date whose year is not written in it, a document type it does
+    not name, an entity whose name is not in it (#6785). Checked here, not asked of the model."""
+    folded = question.casefold()
+    years = set(re.findall(r"(?<!\d)\d{4}(?!\d)", folded))
+    if compiled.date_from and compiled.date_from[:4] not in years:
+        compiled.date_from = None
+    if compiled.date_to and compiled.date_to[:4] not in years:
+        compiled.date_to = None
+    if compiled.doc_type and not re.search(rf"\b{re.escape(compiled.doc_type.casefold())}s?\b", folded):
+        compiled.doc_type = None
+    compiled.entities = [e for e in compiled.entities if e.casefold() in folded]
 
 
 async def compile_query(db: "Database", query: str) -> CompiledQuery:
@@ -195,6 +185,7 @@ async def compile_query(db: "Database", query: str) -> CompiledQuery:
     # The retrieval text never carries the dates it already put in the
     # filter fields — see `strip_dates_from_semantic_query`.
     compiled.semantic_query = strip_dates_from_semantic_query(compiled.semantic_query)
+    _keep_only_what_the_question_says(compiled, query)
     if not compiled.semantic_query.strip():
         # Scrubbed to nothing (or never produced): search the user's own
         # words rather than a blank. The date FILTERS still apply.

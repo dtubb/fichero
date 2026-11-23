@@ -6754,6 +6754,22 @@ def fichero_recipes_model_candidates(
     return _rt.call("GET", "/api/recipes/candidates", params={"cloud_allowed": cloud_allowed, "job": job, "languages": languages, "mac_memory_gb": mac_memory_gb, "material": material, "online": online, "period": period, "scripts": scripts, "step": step, "worth_only": worth_only})
 
 
+def fichero_recipes_remove_candidate_bookmark(
+    *,
+    key: Annotated[str, Field(description="the found card's key in the kept list (its repository)")],
+) -> Any:
+    "Remove Candidate Bookmark\n\nLet a bookmark go. Refused (409), naming the step, while a step of the open project's recipe uses the card; refused\n(404) for a card no search found.\n\nRoute: DELETE /api/recipes/candidates/bookmark (toolset `recipes`; changes data, as the agent account when one exists)."
+    return _rt.call("DELETE", "/api/recipes/candidates/bookmark", json=_rt.body({"key": key}))
+
+
+def fichero_recipes_bookmark_candidate(
+    *,
+    key: Annotated[str, Field(description="the found card's key in the kept list (its repository)")],
+) -> Any:
+    'Bookmark Candidate\n\nKeep a found card without downloading it (`models.bookmark.kept-not-added`, #5460): a later search that does not\nfind it leaves it. Refused (404) for a card no search found.\n\nRoute: POST /api/recipes/candidates/bookmark (toolset `recipes`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/recipes/candidates/bookmark", json=_rt.body({"key": key}))
+
+
 def fichero_recipes_chain_risk(
     *,
     jobs: Annotated[str, Field(description='Jobs')],
@@ -8157,6 +8173,14 @@ def fichero_segments_preview_simplify(
 ) -> Any:
     "Preview Simplify Segments\n\nWhat `segment.simplify` would write at this tolerance, written nowhere (`segment-editor.vertices`): the Shape\npopover's slider draws it live and sends the action once on release. A shape it would not change is left out.\n\nRoute: GET /api/segments/document/{doc_id}/simplify-preview (toolset `segments`; reads)."
     return _rt.call("GET", f"/api/segments/document/{doc_id}/simplify-preview", params={"segment_ids": segment_ids, "tolerance": tolerance})
+
+
+def fichero_segments_text_layer(
+    *,
+    doc_id: Annotated[str, Field(description='Doc Id')],
+) -> Any:
+    "Text Layer Segments\n\nA PDF page's regions, lines and words as segments from its own text layer, with no model run\n(`segment-editor.pdf.segments-from-the-text-layer`). The geometry the import saved is used; where it is missing the\nPDF is read again and saved. The segments are the page's text-layer pass, made by the same conversion as an import's.\nA page whose pass exists keeps it and gets nothing added; a page with no text layer gets no segments and the answer\nsays so. 404 for an unknown page, 422 for a provisional id or a page not split from a PDF, 409 when the PDF is not on this Mac.\n\nRoute: POST /api/segments/document/{doc_id}/text-layer (toolset `segments`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", f"/api/segments/document/{doc_id}/text-layer")
 
 
 def fichero_segments_validate_document(
@@ -10431,6 +10455,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_reading_orders_place_in", "reading-orders", "POST", "/api/reading-orders/{order_id}/place", fichero_reading_orders_place_in),
     GeneratedTool("fichero_recipes_assemble", "recipes", "POST", "/api/recipes/assemble", fichero_recipes_assemble),
     GeneratedTool("fichero_recipes_model_candidates", "recipes", "GET", "/api/recipes/candidates", fichero_recipes_model_candidates),
+    GeneratedTool("fichero_recipes_remove_candidate_bookmark", "recipes", "DELETE", "/api/recipes/candidates/bookmark", fichero_recipes_remove_candidate_bookmark),
+    GeneratedTool("fichero_recipes_bookmark_candidate", "recipes", "POST", "/api/recipes/candidates/bookmark", fichero_recipes_bookmark_candidate),
     GeneratedTool("fichero_recipes_chain_risk", "recipes", "GET", "/api/recipes/chain-risk", fichero_recipes_chain_risk),
     GeneratedTool("fichero_recipes_check", "recipes", "POST", "/api/recipes/check", fichero_recipes_check),
     GeneratedTool("fichero_recipes_accept_unpriced_cloud_model", "recipes", "POST", "/api/recipes/cloud/accept-unpriced", fichero_recipes_accept_unpriced_cloud_model),
@@ -10575,6 +10601,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_segments_list_document_matches", "segments", "GET", "/api/segments/document/{doc_id}/matches", fichero_segments_list_document_matches),
     GeneratedTool("fichero_segments_on_a_rendition", "segments", "GET", "/api/segments/document/{doc_id}/on-rendition/{rendition_id}", fichero_segments_on_a_rendition),
     GeneratedTool("fichero_segments_preview_simplify", "segments", "GET", "/api/segments/document/{doc_id}/simplify-preview", fichero_segments_preview_simplify),
+    GeneratedTool("fichero_segments_text_layer", "segments", "POST", "/api/segments/document/{doc_id}/text-layer", fichero_segments_text_layer),
     GeneratedTool("fichero_segments_validate_document", "segments", "GET", "/api/segments/document/{doc_id}/validate", fichero_segments_validate_document),
     GeneratedTool("fichero_segments_get_document_text", "segments", "GET", "/api/segments/document/{document_id}/text", fichero_segments_get_document_text),
     GeneratedTool("fichero_segments_propose_match", "segments", "POST", "/api/segments/matches", fichero_segments_propose_match),

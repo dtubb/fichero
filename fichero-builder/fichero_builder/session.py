@@ -33,7 +33,8 @@ def parse_session(path: Path) -> dict:
     model — from a Pi JSONL, or a Claude Code JSONL (no price; usage limit => rate_limited). A session with no
     assistant turn is not idle: it has not answered anything yet."""
     out = dict(EMPTY, tool_calls=Counter(), started=True)
-    for line in path.read_text().splitlines():
+    usage: dict = {}  # message id (or line number) -> that message's usage
+    for n, line in enumerate(path.read_text().splitlines()):
         try:
             o = json.loads(line)
         except ValueError:
@@ -46,15 +47,18 @@ def parse_session(path: Path) -> dict:
         if role == "assistant":
             out["turns"] += 1
             u = m.get("usage") or {}
-            out["cost_usd"] += ((u.get("cost") or {}).get("total") or 0.0)
-            out["tokens"] += u.get("totalTokens") or sum(u.get(k, 0) or 0 for k in (
-                "input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"))
             # cached tokens, provider-neutral (pipeline.prompt-cache): Pi's cacheRead/cacheWrite, Anthropic's
             # cache_read/cache_creation, OpenRouter's prompt_tokens_details.cached_tokens; a provider that reports none => 0
             details = u.get("prompt_tokens_details") or {}
-            out["cache_read"] += u.get("cacheRead") or u.get("cache_read_input_tokens") or details.get("cached_tokens") or 0
-            out["cache_write"] += u.get("cacheWrite") or u.get("cache_creation_input_tokens") or 0
-            out["fresh"] += u.get("input") or u.get("input_tokens") or u.get("prompt_tokens") or 0
+            # local.perf.spend-counts-a-message-once (#6870): Claude Code writes one line per content block with the message's
+            # usage on each, so usage is keyed by message.id and the last line wins; a line with no id (Pi) is its own message
+            usage[m.get("id") or n] = {
+                "cost_usd": (u.get("cost") or {}).get("total") or 0.0,
+                "tokens": u.get("totalTokens") or sum(u.get(k, 0) or 0 for k in (
+                    "input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")),
+                "cache_read": u.get("cacheRead") or u.get("cache_read_input_tokens") or details.get("cached_tokens") or 0,
+                "cache_write": u.get("cacheWrite") or u.get("cache_creation_input_tokens") or 0,
+                "fresh": u.get("input") or u.get("input_tokens") or u.get("prompt_tokens") or 0}
             out["context"] = (u.get("input") or u.get("input_tokens") or 0) + (u.get("cacheRead") or u.get("cache_read_input_tokens") or 0) + (
                 u.get("cacheWrite") or u.get("cache_creation_input_tokens") or 0)  # the latest turn's prompt: what the window holds now
             out["model"] = m.get("model") or out["model"]
@@ -85,6 +89,8 @@ def parse_session(path: Path) -> dict:
             if isinstance(m["content"], str) or any(c.get("type") == "text" for c in content) and not any(
                     c.get("type") == "tool_result" for c in content):
                 out["prompts"] += 1
+    for k in ("cost_usd", "tokens", "cache_read", "cache_write", "fresh"):
+        out[k] = sum(x[k] for x in usage.values())
     out["cache_hit"] = cache_hit(out)
     return out
 

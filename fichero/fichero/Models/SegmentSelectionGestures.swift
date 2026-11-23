@@ -26,6 +26,16 @@ enum SegmentSelectionGestures {
         }.map(\.index)
     }
 
+    /// The boxes at `level` (nil: any) a rubber band `[x, y, w, h]` touches or encloses: any overlap selects.
+    static func touching(band: [Double], boxes: [Box], level: String?) -> [Int] {
+        guard band.count >= 4 else { return [] }
+        return boxes.filter { box in
+            guard level == nil || box.level == level, box.bbox.count >= 4 else { return false }
+            return box.bbox[0] <= band[0] + band[2] && band[0] <= box.bbox[0] + box.bbox[2]
+                && box.bbox[1] <= band[1] + band[3] && band[1] <= box.bbox[1] + box.bbox[3]
+        }.map(\.index)
+    }
+
     /// A band `[x, y, w, h]` as the loop of its corners.
     static func loop(ofBand band: [Double]) -> [[Double]] {
         guard band.count >= 4 else { return [] }

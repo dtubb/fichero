@@ -34,6 +34,18 @@ struct SegmentSimplifyTests {
         #expect(SegmentEdit.simplifyTolerance >= 1, "pixels, not a fraction of the page")
     }
 
+    @Test("the points held are counted over outlines and baselines, and the notice says how many went (#7035)")
+    func pointsRemoved() {
+        var shaped = line("a", version: 1)
+        shaped.anchor.polygon = [[0, 0], [1, 0], [1, 1], [0, 1]]
+        shaped.baseline = [[0, 0.5], [0.5, 0.5], [1, 0.5]]
+        #expect(SegmentEdit.pointCount([shaped, line("b", version: 1)]) == 7)
+        #expect(SegmentEdit.pointCount([]) == 0)
+        #expect(SegmentEdit.simplifyNotice(removed: 5) == "Simplify removed 5 points")
+        #expect(SegmentEdit.simplifyNotice(removed: 1) == "Simplify removed 1 point")
+        #expect(SegmentEdit.simplifyNotice(removed: 0) == "Simplify removed no points")
+    }
+
     @Test("nothing selected, or a segment not saved yet, sends nothing")
     func refusals() {
         #expect(SegmentEdit.simplify([]) == .failure(.tooFew))

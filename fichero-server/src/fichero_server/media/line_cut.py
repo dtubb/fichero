@@ -233,6 +233,46 @@ def part_holding(point: Point, polygons: list[list[Point]]) -> int:
     return int(np.argmax(distances))
 
 
+def pieces_in_parts(outline: list[Point], polygons: list[list[Point]]) -> list[tuple[int, list[Point]]]:
+    """`segment-editor.edge.knife-through-words`: a word's outline divided among the parts of the line the knife
+    cut, as (part index, polygon) in part order. Each cell goes to the part it lies in, or the nearest; a part
+    left with under a twentieth of the outline gives its cells to the others. One entry: the stroke missed the word."""
+    cells = _cells(outline)
+    part_cells = [_cells(polygon) for polygon in polygons]
+    every = np.vstack([cells, *part_cells])
+    origin = every.min(axis=0) - 2
+    size = every.max(axis=0) - origin + 3
+    shape = (int(size[1]), int(size[0]))
+    mask = np.zeros(shape, dtype=np.uint8)
+    cv2.fillPoly(mask, [cells - origin], 255)
+    inside = mask > 0
+    distances = []
+    for part in part_cells:
+        outside = np.full(shape, 255, dtype=np.uint8)
+        cv2.fillPoly(outside, [part - origin], 0)
+        distances.append(cv2.distanceTransform(outside, cv2.DIST_L2, 3))
+    stack = np.stack(distances)
+    total = int(inside.sum())
+    keep = list(range(len(polygons)))
+    while True:
+        nearest = np.array(keep)[np.argmin(stack[keep], axis=0)]
+        shares = {index: int((inside & (nearest == index)).sum()) for index in keep}
+        small = [index for index in keep if shares[index] * 20 < total]
+        if not small or len(keep) == 1:
+            break
+        keep.remove(min(small, key=shares.get))
+    pieces: list[tuple[int, list[Point]]] = []
+    for index in keep:
+        part = np.where(inside & (nearest == index), 255, 0).astype(np.uint8)
+        contours, _ = cv2.findContours(part, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            continue
+        traced = cv2.approxPolyDP(max(contours, key=cv2.contourArea), _TRACE_TOLERANCE, True).reshape(-1, 2) + origin
+        if len(traced) >= 3:
+            pieces.append((index, [[round(float(x) / _GRID, 6), round(float(y) / _GRID, 6)] for x, y in traced]))
+    return pieces
+
+
 
 def point_along(baseline: list[Point], at: float) -> tuple[Point, Point]:
     """The point `at` (0 to 1) of the way along the baseline, and the unit normal of the stretch it lies on."""

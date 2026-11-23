@@ -12,7 +12,7 @@ max_commits = 100  # the most commits a lane may be ahead of origin/integration 
 guard_glob = "scripts/check_*.py"
 guard_timeout_s = 60
 min_guards = 20
-parallel = 2   # speed 3 (manager 2026-11-02): two ladders at once when their batches share no file; 1 = one at a time
+parallel = 3   # manager 2026-11-22: one ladder per check runner (m4, imac, air), disjoint batches only; was 2 from 2026-11-02 with one runner
 # Guards the nightly gate runs instead (reasons: pipeline/projects/fichero.toml [ladder.skip]).
 guard_skip = [
   "check_closed_issues_landed", "check_unmerged_work", "check_merged_worktrees", "check_no_orphan_stashes",
@@ -65,7 +65,7 @@ remote_guards = "auto"
 # manager 2026-11-06 t88: the build rung on the M1 Air (its own derived data under ~/fichero-gate), so the Pro stays the owner's; the Air
 # unreachable, or a red there that names no Swift source error, builds here as before
 build_remote = "m4:~/fichero-gate"  # 2026-11-09: the M4 (Xcode 27, derived data on its Dev Disk); the Air stays in remote above
-remote_min_free_gb = 6  # manager 2026-11-06: a runner under 6 GiB free is skipped
+remote_min_free_gb = 4  # manager 2026-11-22: checks need about 1-2 GB of /tmp; the M4 internal disk sits near 5 GB with the work on its external disk
 pytest_plugins = ["anyio.pytest_plugin", "_hypothesis_pytestplugin", "langsmith.pytest_plugin", "pytest_timeout", "pytest_asyncio.plugin"]
 
 # A diff under build_paths compiles the app (build only, never a test run: a test run quits the owner's app) in the
@@ -558,7 +558,7 @@ w2 = { side = "engine", corpus = "perf-trial-page", budget_s = 1800, outputs = [
 w3 = { side = "engine", corpus = "perf-trial-samples", budget_s = 300, outputs = ["library", "log"], driver = [
   "pytest fichero-server/tests/perf/test_search_workload_perf.py"] }
 w4 = { side = "engine", corpus = "perf-trial-samples", budget_s = 3600, outputs = ["library", "log"], driver = [
-  "pytest fichero-server/tests/perf/test_entity_list_perf.py fichero-server/tests/perf/test_entity_detail_perf.py"] }
+  "pytest fichero-server/tests/perf/test_entity_list_perf.py fichero-server/tests/perf/test_entity_detail_perf.py fichero-server/tests/perf/test_kg_claims_list_perf.py fichero-server/tests/perf/test_kg_graph_build_perf.py fichero-server/tests/perf/test_kg_neighbourhood_perf.py"] }
 w5 = { side = "engine", corpus = "perf-trial-samples", budget_s = 300, outputs = ["library", "log"], driver = [
   "python scripts/perf_activity_store_5645.py"] }
 w6 = { side = "app", corpus = "perf-trial-samples", budget_s = 120, outputs = ["library", "log", "trace"], driver = "FICHERO_PERF_WORKLOAD=w6" }

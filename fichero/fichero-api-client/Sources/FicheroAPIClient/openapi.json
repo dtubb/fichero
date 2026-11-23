@@ -5779,6 +5779,49 @@
         }
       }
     },
+    "/api/segments/document/{doc_id}/text-layer": {
+      "post": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Text Layer Segments",
+        "description": "A PDF page's regions, lines and words as segments from its own text layer, with no model run\n(`segment-editor.pdf.segments-from-the-text-layer`). The geometry the import saved is used; where it is missing the\nPDF is read again and saved. The segments are the page's text-layer pass, made by the same conversion as an import's.\nA page whose pass exists keeps it and gets nothing added; a page with no text layer gets no segments and the answer\nsays so. 404 for an unknown page, 422 for a provisional id or a page not split from a PDF, 409 when the PDF is not on this Mac.",
+        "operationId": "text_layer_segments_api_segments_document__doc_id__text_layer_post",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TextLayerSegments"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/segments/document/{doc_id}/doubtful": {
       "get": {
         "tags": [
@@ -17916,6 +17959,96 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HtrUnitedDatasets"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/candidates/bookmark": {
+      "post": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Bookmark Candidate",
+        "description": "Keep a found card without downloading it (`models.bookmark.kept-not-added`, #5460): a later search that does not\nfind it leaves it. Refused (404) for a card no search found.",
+        "operationId": "bookmark_candidate_api_recipes_candidates_bookmark_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookmarkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Bookmark Candidate Api Recipes Candidates Bookmark Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Remove Candidate Bookmark",
+        "description": "Let a bookmark go. Refused (409), naming the step, while a step of the open project's recipe uses the card; refused\n(404) for a card no search found.",
+        "operationId": "remove_candidate_bookmark_api_recipes_candidates_bookmark_delete",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookmarkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Remove Candidate Bookmark Api Recipes Candidates Bookmark Delete"
                 }
               }
             }
@@ -53019,6 +53152,72 @@
             "type": "number",
             "title": "Seconds Today",
             "default": 0.0
+          },
+          "size_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Size Bytes",
+            "description": "on disk, an installed model; null when nothing measures it"
+          },
+          "licence": {
+            "type": "string",
+            "nullable": true,
+            "title": "Licence",
+            "description": "the catalogue card's licence, as it names it"
+          },
+          "fits_here": {
+            "type": "string",
+            "enum": [
+              "yes",
+              "tight",
+              "no"
+            ],
+            "nullable": true,
+            "title": "Fits Here",
+            "description": "from the one memory rule against this Mac's memory; null when nothing sizes the model"
+          },
+          "needs_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Needs Bytes",
+            "description": "what loading it asks of this Mac"
+          },
+          "fits_note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Fits Note",
+            "description": "the engine's words for the fit"
+          },
+          "unload_to_fit": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unload To Fit",
+            "description": "loaded idle models whose unloading frees memory, when it does not fit"
+          },
+          "account": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "needs-key",
+              "not-reachable"
+            ],
+            "nullable": true,
+            "title": "Account",
+            "description": "its place's account, from a probe or the key a call uses; null on this Mac and where nothing probes"
+          },
+          "using_now": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Using Now",
+            "description": "the kinds of job running on it now"
+          },
+          "last_failed": {
+            "$ref": "#/components/schemas/ModelFailure",
+            "nullable": true
           }
         },
         "type": "object",
@@ -58436,6 +58635,22 @@
           "target_id"
         ],
         "title": "BookmarkCreate"
+      },
+      "BookmarkRequest": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "the found card's key in the kept list (its repository)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key"
+        ],
+        "title": "BookmarkRequest",
+        "description": "A found card, by the key the kept list files it under."
       },
       "BoundaryExample": {
         "properties": {
@@ -83366,6 +83581,38 @@
         "title": "ModelCreate",
         "description": "Add a model to a provider."
       },
+      "ModelFailure": {
+        "properties": {
+          "words": {
+            "type": "string",
+            "title": "Words"
+          },
+          "kind": {
+            "type": "string",
+            "nullable": true,
+            "title": "Kind",
+            "description": "the failure kind; null when the reason keeps its own words"
+          },
+          "button": {
+            "type": "string",
+            "nullable": true,
+            "title": "Button",
+            "description": "the first action of the failure's fix, e.g. retry, open-settings"
+          },
+          "at": {
+            "type": "string",
+            "nullable": true,
+            "title": "At",
+            "description": "when the job ended, ISO 8601 UTC"
+          }
+        },
+        "type": "object",
+        "required": [
+          "words"
+        ],
+        "title": "ModelFailure",
+        "description": "The newest failure on a model today (`models.row.using-now-and-last-failed`): the row's words and the button of its fix."
+      },
       "ModelFit": {
         "properties": {
           "word": {
@@ -84833,6 +85080,31 @@
             "type": "number",
             "nullable": true,
             "title": "Confidence"
+          },
+          "time_start": {
+            "type": "string",
+            "nullable": true,
+            "title": "Time Start"
+          },
+          "time_end": {
+            "type": "string",
+            "nullable": true,
+            "title": "Time End"
+          },
+          "time_precision": {
+            "type": "string",
+            "nullable": true,
+            "title": "Time Precision"
+          },
+          "place": {
+            "type": "string",
+            "nullable": true,
+            "title": "Place"
+          },
+          "place_entity_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Place Entity Id"
           }
         },
         "type": "object",
@@ -90263,6 +90535,100 @@
         "title": "ReadFlagInfo",
         "description": "A read that is not trusted: `kind` in a word, `reason` in a sentence (the wire shape of `read_guard.ReadFlag`)."
       },
+      "ReadableClause": {
+        "properties": {
+          "start": {
+            "type": "integer",
+            "title": "Start"
+          },
+          "end": {
+            "type": "integer",
+            "title": "End"
+          },
+          "claim_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Claim Ids"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "revoiced": {
+            "type": "boolean",
+            "title": "Revoiced"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "doubt": {
+            "type": "string",
+            "title": "Doubt"
+          },
+          "sources": {
+            "type": "integer",
+            "title": "Sources"
+          },
+          "date": {
+            "type": "string",
+            "nullable": true,
+            "title": "Date"
+          },
+          "place": {
+            "type": "string",
+            "nullable": true,
+            "title": "Place"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "claim_ids",
+          "role",
+          "revoiced",
+          "state",
+          "doubt",
+          "sources"
+        ],
+        "title": "ReadableClause",
+        "description": "One unit of a sentence: the statements it says and where its text sits in the paragraph."
+      },
+      "ReadableSegment": {
+        "properties": {
+          "start": {
+            "type": "integer",
+            "title": "Start"
+          },
+          "end": {
+            "type": "integer",
+            "title": "End"
+          },
+          "origin": {
+            "type": "string",
+            "title": "Origin"
+          },
+          "claim_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Claim Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "origin",
+          "claim_ids"
+        ],
+        "title": "ReadableSegment",
+        "description": "A span of the paragraph and where its characters come from: `claim:<id>:<field>`,\n`table:<language>:<word>` or `punctuation`."
+      },
       "ReadableSentence": {
         "properties": {
           "text": {
@@ -90296,6 +90662,22 @@
           "revoiced": {
             "type": "boolean",
             "title": "Revoiced"
+          },
+          "clauses": {
+            "items": {
+              "$ref": "#/components/schemas/ReadableClause"
+            },
+            "type": "array",
+            "title": "Clauses",
+            "default": []
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/ReadableSegment"
+            },
+            "type": "array",
+            "title": "Segments",
+            "default": []
           }
         },
         "type": "object",
@@ -98179,6 +98561,14 @@
             "type": "array",
             "title": "Trail",
             "default": []
+          },
+          "merged_from": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Merged From",
+            "default": []
           }
         },
         "type": "object",
@@ -104614,6 +105004,35 @@
         ],
         "title": "TextDifferenceResponse"
       },
+      "TextLayerSegments": {
+        "properties": {
+          "pass_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Pass Id",
+            "description": "The page's text-layer pass; null when the page has no text layer."
+          },
+          "made": {
+            "type": "boolean",
+            "title": "Made",
+            "description": "True when this call made the pass; false when it was already there or there is no text layer."
+          },
+          "said": {
+            "type": "string",
+            "nullable": true,
+            "title": "Said",
+            "description": "The one line a page with no text layer says; null otherwise."
+          }
+        },
+        "type": "object",
+        "required": [
+          "pass_id",
+          "made",
+          "said"
+        ],
+        "title": "TextLayerSegments",
+        "description": "What `POST /api/segments/document/{doc_id}/text-layer` did."
+      },
       "TextRegionSpan": {
         "properties": {
           "char_start": {
@@ -104659,6 +105078,12 @@
             "nullable": true,
             "title": "Processor Percent",
             "description": "the last minute's load over its cores, %"
+          },
+          "gpu": {
+            "type": "string",
+            "nullable": true,
+            "title": "Gpu",
+            "description": "the GPU as the chip names it; null when nothing names it"
           },
           "lanes": {
             "items": {

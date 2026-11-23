@@ -100,3 +100,28 @@ def test_the_chain_carries_in_the_lanes_land_tree_not_a_repo_that_lacks_the_new_
     step = {**_step(h2, h1, approve_red=True), "land_tree": str(repo)}
     assert queue.carry_in_lane(step, {"worktree": "/nonexistent"}, "integration", AUTO), "the land tree wins over the lane's worktree"
     assert step["approved_head"] == h2
+
+
+def test_a_rebase_carries_an_approve_for_a_file_the_lane_added_when_the_base_moved_and_the_old_head_is_a_stale_branch(repo):
+    """#6589 2026-11-21 (perf-1): new test files, 7 patches re-applied onto a moved origin/integration, the named files' diffs identical."""
+    _g(repo, "checkout", "-q", "-b", "perf", "integration")
+    for i in range(3):
+        (repo / f"test_scale_{i}_perf.py").write_text(f"def test_budget_{i}():\n    assert 1\n")
+        _g(repo, "add", "."), _g(repo, "commit", "-qm", f"perf {i}")
+    h1 = _g(repo, "rev-parse", "HEAD")
+    _g(repo, "checkout", "-q", "integration")
+    (repo / "src.py").write_text("x = 5\n")
+    _g(repo, "commit", "-qam", "the base moved"), _g(repo, "update-ref", "refs/remotes/origin/integration", "integration")
+    _g(repo, "checkout", "-q", "perf"), _g(repo, "rebase", "-q", "integration")
+    h2 = _g(repo, "rev-parse", "HEAD")
+    assert h1 != h2
+    named = [f"test_scale_{i}_perf.py" for i in range(3)]
+    s = {"head": h2, "approved_head": h1, "approve_red": True, "approved_tests": named}
+    assert queue.carry_approvals(s, str(repo), "origin/integration", AUTO) and queue._approved(s, "approve_red")
+    # the approve was given while the worker lane's step had no head: it is remembered only for the head the alert judged
+    s = {"head": h2, "approved_head": "", "approve_red": True, "approved_tests": named, "approved_for": {h1[:9]: ["red-on-base"]}}
+    assert queue.carry_approvals(s, str(repo), "origin/integration", AUTO) and queue._approved(s, "approve_red")
+    (repo / "test_scale_0_perf.py").write_text("def test_budget_0():\n    assert 2\n")
+    _g(repo, "commit", "-qam", "a named file changed")
+    s = {"head": _g(repo, "rev-parse", "HEAD"), "approved_head": "", "approve_red": True, "approved_tests": named, "approved_for": {h1[:9]: ["red-on-base"]}}
+    assert not queue.carry_approvals(s, str(repo), "origin/integration", AUTO), "a changed named file never carries"

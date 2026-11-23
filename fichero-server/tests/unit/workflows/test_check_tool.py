@@ -1488,6 +1488,23 @@ def test_auto_remote_guards_go_in_one_batch_a_git_guard_stays_here_and_a_remote_
     assert len(r["results"]) == 22 and not any(x.get("remote") for x in r["results"]), "no runner: every guard runs here"
 
 
+def test_the_remote_free_space_probe_takes_the_smaller_of_the_base_dir_and_tmp(tmp_path, monkeypatch):
+    """#6589 2026-11-20: only the runner's base dir (52 GiB) was measured while pytest wrote to its /tmp (0.2 GiB): a check died
+    'No space left on device'. The probe asks `df -g` for both and takes the smallest."""
+    monkeypatch.setattr(ct, "_SHIPPED", {})
+    scripts = []
+
+    def ssh(host, script, timeout_s, stdin=None):
+        scripts.append(script)
+        return subprocess.CompletedProcess([], 0, b"0\n", b"")
+    monkeypatch.setattr(ct, "_ssh", ssh)
+    with pytest.raises(OSError, match="0 GiB free"):
+        ct._ship(tmp_path, ct.Config(remote="imac:/Volumes/Dev"))
+    assert "df -g /Volumes/Dev /tmp" in scripts[0] and "sort -n | head -1" in scripts[0]
+    out = subprocess.run(["/bin/sh", "-c", scripts[0].replace("/Volumes/Dev", "/")], capture_output=True, text=True).stdout.strip()
+    assert out.isdigit(), "the probe's own pipeline prints one number on this machine"
+
+
 def test_the_remote_guard_batch_runs_every_guard_with_its_own_timeout_in_one_call_and_reports_each(tmp_path, monkeypatch):
     """The batch driver itself, its ssh replaced by a local shell: one call, a result per guard, a hang cut at the guard timeout."""
     root = _repo(tmp_path, 3, {1: "raise SystemExit(3)\n", 2: "import time\ntime.sleep(5)\n"})

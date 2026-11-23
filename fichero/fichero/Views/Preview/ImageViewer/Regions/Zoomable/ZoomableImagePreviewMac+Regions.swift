@@ -184,6 +184,9 @@ extension ZoomableImagePreview {
                 drawKind: windowState?.shapeKind ?? .box,
                 onDrawShapeCommit: { kind, points in drawSegmentShape(kind, points: points) },
                 onDrawBox: { box in drawBoxOfLastKind(box) },
+                onDrawRegionBox: { box in
+                    drawSegmentShape(.polygon, points: SegmentShapes.corners(ofRect: box), selectingResult: true)
+                },
                 onKnifeCommit: { stroke in knifeCut(stroke) },
                 onMarkerCommit: { stroke, closed in drawMarkerStroke(stroke, closed: closed) },
                 onPaintCommit: { stroke, width in drawPaintStroke(stroke, widthPixels: width) },

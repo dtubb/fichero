@@ -1423,12 +1423,12 @@ def _has_deleted_at(db: "Database") -> bool:
 
 
 def usage_rows_since(db: "Database", since) -> list[tuple]:
-    """(kind, model, state, target, detail, started_at, finished_at) of every job running, or started or finished since
-    `since`, deleted ones left out: the Activity window's Models figures read these."""
+    """(kind, model, state, target, detail, started_at, finished_at, reason) of every job running, or started or finished
+    since `since`, deleted ones left out: the Activity window's Models figures read these."""
     _ensure(db)
     hidden = " AND deleted_at IS NULL" if _has_deleted_at(db) else ""
     return db.execute_fetchall(
-        "SELECT kind, model, state, target, detail, started_at, finished_at FROM jobs "
+        "SELECT kind, model, state, target, detail, started_at, finished_at, reason FROM jobs "
         f"WHERE (state = 'running' OR finished_at >= ? OR started_at >= ?){hidden}",
         [since, since],
     )

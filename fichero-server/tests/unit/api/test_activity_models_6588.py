@@ -252,3 +252,81 @@ def test_a_poll_checks_each_remote_mac_at_once_and_keeps_the_answer_for_a_while(
     activity_models.places()
     assert len(calls) == 3, "the second poll reads the cached answers"
     activity_models._reach_cache.clear()
+
+
+def _entry(model_id, *, disk=None, weights=0, licence=None):
+    from fichero_server.llm.local_model_facts import LocalModelCatalogEntry
+
+    return LocalModelCatalogEntry(provider_type="omlx", model_id=model_id, display_name=model_id, installed=True,
+                                  disk_usage_bytes=disk, download_size_bytes=weights, license_label=licence)
+
+
+def test_an_installed_model_says_its_size_licence_and_whether_it_fits_with_memory_injected(db):
+    """`models.window.one-list`, `models.row.fits-here` (#6588, #5221, #4987): size on disk and licence from the catalogue
+    entry; "yes" under the comfortable share of the injected memory, "no" over its ceiling naming the loaded model whose
+    unloading frees memory; "—" (None) for what nothing measures."""
+    jobs._ensure(db)
+    gib = 2**30
+    installed = [("MLX", "small", _entry("small", disk=gib, weights=gib, licence="Apache-2.0")),
+                 ("MLX", "huge", _entry("huge", disk=40 * gib, weights=40 * gib)),
+                 ("MLX", "unsized", _entry("unsized"))]
+    held = [{"name": "nomic-embed", "kind": "search embedder", "memory_bytes": 3 * gib}]
+
+    found = {m["name"]: m for m in activity_models.models(db, held=held, installed=installed, physical_memory=16 * gib)}
+
+    assert found["small"]["size_bytes"] == gib and found["small"]["licence"] == "Apache-2.0"
+    assert found["small"]["fits_here"] == "yes" and found["small"]["needs_bytes"] > gib
+    assert found["huge"]["fits_here"] == "no" and found["huge"]["fits_note"]
+    assert found["huge"]["unload_to_fit"] == ["nomic-embed"]
+    assert found["unsized"]["fits_here"] is None and found["unsized"]["size_bytes"] is None
+    assert found["nomic-embed"]["fits_here"] is None, "a model nothing sizes is not guessed"
+
+
+def test_a_failure_today_and_the_work_in_flight_ride_on_the_model(db):
+    """`models.row.using-now-and-last-failed` (#6588, #6354): the newest failed job's row words and its fix button sit on
+    its model; the kinds of the jobs running on it are `using_now`; a model with neither says so with null and []."""
+    jobs._ensure(db)
+    _job(db, "f0", kind="kraken-lines", model="kraken:blla", state="failed", minutes_ago=30)
+    _job(db, "f1", kind="kraken-lines", model="kraken:blla", state="failed", minutes_ago=10)
+    db.execute("UPDATE jobs SET reason = 'No credit at the provider' WHERE id = 'f0'")
+    db.execute("UPDATE jobs SET reason = ? WHERE id = 'f1'", ["Model failed to load"])
+    _job(db, "r1", kind="describe", model="anthropic:claude-sonnet", state="running")
+
+    found = {m["name"]: m for m in activity_models.models(db, held=[], installed=[])}
+
+    failed = found["blla"]["last_failed"]
+    assert failed["words"] == "Model failed to load", "the newest failure, not the first"
+    assert set(failed) == {"words", "kind", "button", "at"}
+    assert found["blla"]["using_now"] == []
+    assert found["claude-sonnet"]["using_now"] == ["describe"] and found["claude-sonnet"]["last_failed"] is None
+
+
+def test_a_cloud_model_carries_its_places_account(db):
+    """`models.row.account-from-a-probe` (#6588): a cloud model's Account is its provider row's, from the one probe."""
+    jobs._ensure(db)
+    call = {"provider": "anthropic", "model": "claude-sonnet", "place": "provider", "input_tokens": 1, "output_tokens": 1}
+    _job(db, "c1", kind="describe", model="anthropic:claude-sonnet", state="done", detail=json.dumps({"usage": [call]}))
+    accounts = {("cloud", "Anthropic"): "needs-key"}
+
+    found = {m["name"]: m for m in activity_models.models(db, held=[], installed=[], accounts=accounts)}
+    assert found["claude-sonnet"]["account"] == "needs-key"
+    plain = {m["name"]: m for m in activity_models.models(db, held=[], installed=[])}
+    assert plain["claude-sonnet"]["account"] is None
+
+
+def test_this_mac_names_its_gpu_or_says_it_is_not_measured(db):
+    """`models.window.one-list`: This Mac's GPU, read once; None when nothing names it."""
+    assert activity_models.this_mac(db, memory=(None, None), gpu="Apple M1 GPU")["gpu"] == "Apple M1 GPU"
+    assert activity_models.this_mac(db, memory=(None, None), gpu="")["gpu"] is None
+
+
+def test_the_route_answers_the_new_columns(client, db, monkeypatch):
+    """The route's answer carries each new field (the schema keeps them), places' account reaching the model rows."""
+    jobs._ensure(db)
+    monkeypatch.setattr(activity_models, "installed_on_this_mac",
+                        lambda: [("MLX", "small", _entry("small", disk=2**30, weights=2**30))])
+    row = next(m for m in client.get("/api/activity/models").json()["models"] if m["name"] == "small")
+    assert row["size_bytes"] == 2**30
+    assert {"fits_here", "needs_bytes", "fits_note", "unload_to_fit", "account", "licence", "using_now",
+            "last_failed"} <= set(row)
+    assert "gpu" in client.get("/api/activity/models").json()["this_mac"]

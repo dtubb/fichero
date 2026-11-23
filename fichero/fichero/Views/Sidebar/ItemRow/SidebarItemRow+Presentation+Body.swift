@@ -156,7 +156,7 @@ extension SidebarItemRow {
     // beside it, matching Finder's sibling-drop behavior.
     @ViewBuilder
     private var bodyContent: some View {
-        if isExpandable {
+        if isExpandable && !SidebarPhone.rowExpandsInPlace(isPhone: SidebarPhone.isPhone) {
             // #571 (restored): drop target and context menu sit on the OUTER
             // DisclosureGroup so the chevron/indent strip is part of the row's
             // drop and right-click surface — a refactor before the #1703 file
@@ -196,7 +196,8 @@ extension SidebarItemRow {
             // 2026-08-10: a white chevron is invisible); it is no longer tinted accent, since the selected
             // row's name and icon no longer are (2026-10-11).
             .environment(\.backgroundProminence, .standard)
-        } else if isFolder {
+        } else if isFolder || isExpandable {
+            // On the phone a folder with children is this flat row: a tap pushes its screen (#6946).
             folderLabel
         } else {
             leafLabel

@@ -169,6 +169,18 @@ def test_the_landing_reconcile_runs_on_a_thread_when_the_loop_has_chains_and_a_c
     assert [r["detail"] for r in journal.read() if r.get("state") == "issue-reconcile"][-1].startswith("failed: ")
 
 
+def test_a_reconcile_that_leaves_an_issue_unread_or_crashes_is_an_alert_naming_the_issue(state):
+    """#6848: the landing reconcile failed on every landing and left the issues unread without a word."""
+    fake = Fake()
+    fake.procs.reconcile = lambda *a: [{"issue": 7, "cls": "UNREAD", "closed": False, "note": "reconcile failed: exit 128"},
+                                       {"issue": 8, "cls": "CLOSE-A", "closed": True, "note": ""}]
+    queue.reconcile_landed(fake.procs, {"id": "m1"}, {"step": "1.1", "issues": [7, 8]}, "h", None)
+    fake.procs.reconcile = lambda *a: 1 / 0
+    queue.reconcile_landed(fake.procs, {"id": "m1"}, {"step": "1.2", "issues": [9]}, "h", None)
+    whats = [r["what"] for r in journal.read() if r["event"] == "alert"]
+    assert len(whats) == 2 and "#7" in whats[0] and "#8" not in whats[0] and "#9" in whats[1]
+
+
 def test_the_nightly_reconcile_runs_once_a_day_as_one_summary_row_and_a_failure_is_a_row(state):
     fake = Fake()
     queue.add("busy", "/w/y", "1.1", str(state / "b1.1"), [])

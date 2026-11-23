@@ -49,7 +49,7 @@ calls this "0.0.2 Layer 5." The three-layer READ→THINK→WRITE framing used el
 (`ui/write-layer.md`, EPIC #2108) uses "Hermeneutic (READ)" for claim/entity/citation
 extraction and "Interpretative (THINK)" for notes/annotations on a reading — a DIFFERENT use
 of "hermeneutic" than the code's own naming. This spec is about the CODE's `Interpretation` /
-`InterpretiveFramework` / `PatternInstance` / `HermeneuticCircleState` objects — the reasoning
+`InterpretiveFramework` / `PatternInstance` objects (and the retired `HermeneuticCircleState`) — the reasoning
 a researcher (or, per one doc comment, "what *I* think" as against "what the source says") adds
 between a source's claims and a piece of writing — which functionally sits at the THINK
 position in that other framing, not a fourth layer. Not resolving the naming collision here;
@@ -140,7 +140,7 @@ the record a historian's concept is kept in, and a pattern is that concept's pas
   researcher cannot see or use pattern recognition or hermeneutic-circle navigation at all
   today, on any surface. *Superseded 2026-11-21 in part:* a pattern gets its surface as the historian's
   concept and its passages (the concept sheet, `explore/concepts-and-terms.md` section C); nothing "recognises" a
-  pattern for the person. Circle-state stays without a surface; see the open question on retiring it.
+  pattern for the person. Circle-state stays without a surface; see the open question on retiring it. **Not built:** the owner's answer (2026-11-22), the circle-state model retires and the attestation sheet replaces it (open question 3); removing its code.
 - `hermeneutic.reachable-by-agent-or-mcp` — **[GAP]** (#4692) `interpretation.create`/
   `.update` are registered, audited actions, but neither is in `chat_tools.py`'s
   `CHAT_WRITE_ALLOWLIST` (`:70-77`, four entries: `workflow.run`, `entity.create`,
@@ -271,6 +271,14 @@ the record a historian's concept is kept in, and a pattern is that concept's pas
   name and the date, and is never counted as an attestation or mixed into a count of what the sources say.
   *Test (to write):* HermeneuticMarksAreLabelledTests.swift.
 
+- `hermeneutic.agency.reading-is-the-historians` — **[GAP]** (#4692 → #NEW-P9) when a source's statement gives an
+  image, a river, a spirit, a document or any non-person an act ("the river took the mill"), the historian's reading
+  of it (literal, figurative, belief, an account of responsibility) and any use of translation, mediation or an
+  obligatory point of passage are interpretations of this layer: stored as theirs, linked to the statement and its
+  stretch, drawn beside it with their name and the date. Fichero never labels an entity a mediator or an obligatory
+  point and never ranks entities by centrality or importance. *Test (to write):* test_agency_reading_is_a_persons.py
+  (a model's account cannot write one; the reading links to a statement).
+
 ## Test matrix
 
 | Leg | This surface? | Pins | File |
@@ -322,14 +330,8 @@ readings.
    create form to send them is a small, standalone fix; a full char-span/rect anchor
    (`hermeneutic.interpretation-has-source-anchor`) is a bigger, separate piece of work. They
    can ship in either order.
-3. **Half answered** (owner 2026-11-21): patterns get their surface as the concept's passages. Still open:
-   does circle-state retire? Recommended: yes; nothing in the rulings uses it and it has no caller. **Do patterns and circle-state get a Swift surface at all, or do they retire?** Both are
-   fully built and tested engine-side with zero app presence. The code makes cheap: (a) build a
-   real Swift surface for both (a pattern list, a circle-navigation UI); (b) retire the
-   circle-state model specifically if hermeneutic-circle navigation isn't a feature anyone
-   wants surfaced (patterns still feed potential future cross-document analysis, so retiring
-   patterns too is a bigger claim); (c) leave both as engine-only substrate for now, undecided,
-   revisited when a concrete UI need names them.
+3. **Answered** (owner 2026-11-21: patterns get their surface as the concept's passages; owner 2026-11-22): circle-state retires; the attestation sheet (`explore/concepts-and-terms.md`)
+   replaces it, and no surface is built for it. Removing its code is not yet built.
 4. **Answered** (owner 2026-11-21): no. The model never writes in this layer
    (`hermeneutic.layer.only-a-person-writes`). **Should interpretation actions join `CHAT_WRITE_ALLOWLIST`?** The mechanism is trivial (the
    actions are already registered and audited) — the only question is whether letting an agent

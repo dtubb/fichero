@@ -116,20 +116,26 @@ makes extraction slow. The 744 tests of `tests/unit/kg`, `tests/unit/knowledge` 
   writes them through `Database.save_many`, new rows as a plain multi-row INSERT, so a
   transaction's memory stays small (`db/__init__.py::save_many`). Pinned:
   `tests/unit/db/test_new_rows_in_a_transaction_stay_small.py`.
-- `kg.store.link-table-is-derived` — **[GAP]** (#4975, #6755) one derived table, `kg_mentions`, holds
+- `kg.store.link-table-is-derived` — **[PARTIAL]** (#4975, #6755) one derived table, `kg_mentions`, holds
   one row per name on a statement: the name's id, the statement's id, the statement's page, and
   the role (subject, object, named). It has no index and no column a person edits. It is written
   in the same transaction as the statement it describes (the statement's old rows deleted, its new
-  rows inserted) and by nothing else. Code today: no such table; the link is the JSON list
-  `entity_ids`, searched with `LIKE '%"id"%'` (`db/__init__.py::knowledge_claim_entity_id_values`,
-  `knowledge_claims_for_entity_frontier`, `entity_document_link_rows`) or in Python.
-  *Test:* `test_kg_mentions_follow_the_statement.py` (not yet written).
-- `kg.store.link-table-rebuilds` — **[GAP]** (#6755, #5361) the link table can be thrown away:
+  rows inserted) and by nothing else. Built: `Database.save`, `save_many` and `delete` write it for a
+  statement, with the roles `subject` (the statement's `subject_entity_id`) and `named` (every other
+  id in `entity_ids`). Not built: the `object` role, which waits for the object's id on the statement
+  (`kg.store.edge-ends-are-ids`, #6756). The readers still use the JSON list `entity_ids`, searched
+  with `LIKE '%"id"%'` (`db/__init__.py::knowledge_claim_entity_id_values`,
+  `knowledge_claims_for_entity_frontier`, `entity_document_link_rows`) or in Python; moving them
+  is Step 2.2 and 2.3. Was: no such table; the link was the JSON list `entity_ids` alone.
+  *Test:* `tests/unit/db/test_kg_mentions_follow_the_statement.py`.
+- `kg.store.link-table-rebuilds` — **[PARTIAL]** (#6755, #5361) the link table can be thrown away:
   the knowledge rebuild (`/api/kg/rebuild`, `knowledge/rebuild.py`) remakes it in one statement
   from the statements table, and a project whose link table is missing or whose statement count
   disagrees with it is rebuilt when it opens, as a background job that the Activity pane shows.
-  Code today: the rebuild remakes vectors, triples and predictions only.
-  *Test:* `test_rebuild_remakes_the_link_table.py` (not yet written).
+  Built: `rebuild_kg` remakes the table (`Database.rebuild_kg_mentions`) and reports its row count.
+  Not built: the rebuild at open and its Activity-pane job; the `/api/kg/rebuild` response does not
+  carry the row count. Was: the rebuild remade vectors, triples and predictions only.
+  *Test:* `tests/unit/db/test_rebuild_remakes_the_link_table.py`.
 - `kg.store.edge-ends-are-ids` — **[GAP]** (#6756, #5032) a statement that joins two names
   stores both ends as ids when it is written: `subject_entity_id` and the object's id among its
   roles. Code today: the graph ignores `subject_entity_id`; it reads the verb and the object's
@@ -170,7 +176,12 @@ makes extraction slow. The 744 tests of `tests/unit/kg`, `tests/unit/knowledge` 
   link table. Code today: `/api/entities/top` and `/api/entities/claim-counts` fetch every
   statement's id list and count with `json.loads` in Python (64 ms at 50,000 statements, and the
   whole dictionary of counts sent to the app); `top_entities` then reads names one `get` at a time.
-  *Test:* `test_entity_counts_from_the_link_table.py` (not yet written).
+  Built: both routes count in `Database.entity_claim_counts` (GROUP BY over `kg_mentions`); `/top` passes its
+  limit and type filter into the query. Not built: `top_entities` still reads each listed name with one `get`;
+  pages per name and names per page have no reader.
+  A library with statements and no `kg_mentions` table is backfilled when the table is first made
+  (`Database._ensure_kg_mentions`); a table that exists but disagrees with the statements is not detected.
+  *Test:* `tests/unit/api/test_entity_counts_from_the_link_table.py`.
 - `kg.query.one-name-costs-what-it-returns` — **[PARTIAL]** (#4975) opening one name costs in
   proportion to that name's statements, not the project's. Built: the drill-down, documents and
   excerpt readers are single SQL scans (`entity_document_link_rows`,

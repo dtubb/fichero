@@ -406,6 +406,7 @@ nav:
               - What Leaves, Transfer & Results: contributor_manual/specs/compute/transfer-and-results.md
               - Jobs, Engines, Fine-tuning & Publishing: contributor_manual/specs/compute/jobs-and-fine-tuning.md
               - Teaching Small Models from Big Ones: contributor_manual/specs/compute/distillation.md
+              - Correct, Measure, Distil (the step contract): contributor_manual/specs/compute/correct-measure-distil.md
               - Running on a University Cluster (ACENET): contributor_manual/specs/compute/hpc-runner-acenet.md
               - A Recipe's Steps at Scale (PROPOSED): contributor_manual/specs/compute/recipe-steps-at-scale.md
               - Training, Scoring & Choosing Models: contributor_manual/specs/compute/training-and-evaluation.md

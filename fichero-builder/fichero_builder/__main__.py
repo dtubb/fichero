@@ -75,6 +75,7 @@ def main(argv=None) -> int:
     r.add_argument("--feed", help="the queue's lane: a folder only the owner writes; DONE ends the step, not the session; msg-<seq+1>.txt is typed into the same pane; `stop` ends it")
     r.add_argument("--role", default="", help="the lane's model role in [models] (queue add --role): its context is the window the handoff mark is taken from")
     r.add_argument("--seq", type=int, default=0, help="with --feed: the first brief's message number")
+    r.add_argument("--rules", help="the queue's <feed>/rules.json: the caps and [models], re-read every tick in place of --root's (#6851)")
     r.add_argument("--state", help="where the journal lives (default $FICHERO_BUILDER_STATE, else <[jail].workroot>/state, else the XDG state home)")
     c = sub.add_parser("check", help="run the ladder over SINCE..HEAD from the pinned copy; exit 1 if red")
     c.add_argument("--repo", help="the engine-owned repo to judge from (default [check].engine_repo of the pinned rules)")
@@ -671,7 +672,7 @@ def main(argv=None) -> int:
     else:
         procs = run_mod.real_procs(Path.home(), a.worktree)
     end = run_mod.run(a.root, a.worktree, a.brief, name=a.name, model=a.model, kind=a.kind, tmux_session=a.session,
-                      tick_s=a.tick, procs=procs, handoff=a.handoff, feed=a.feed, seq=a.seq, role=a.role)
+                      tick_s=a.tick, procs=procs, handoff=a.handoff, feed=a.feed, seq=a.seq, role=a.role, rules=a.rules)
     return 0 if end in ("done", "done-unsaid", "lane-done", "gone", "parked") else 1  # a clean end is 0; "refused" is the 1
 
 

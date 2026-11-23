@@ -473,9 +473,12 @@ Spec-change: owner 2026-11-20.
   the same lane, each with its own tests. Today `check_tool.diff_bound` only refuses with the count. Acceptance: a
   batch of two commits whose sum is over the bound becomes two steps that each pass the bound; one commit over the
   bound alone is a question for the manager, never a silent pass. Serves: reliable, with little supervision.
-- `local.removed-tree-is-not-a-moved-tree` [GAP] (#6589) — the check that no tree outside a step's own moved reads a tree
-  that was removed since the step started (a landed lane's cleanup) as removed, and says nothing. Today `queue.trees`
-  reads a missing path as `unreadable` and `queue.tree_check` raises the alert for any difference. Acceptance: a tree
+- `local.removed-tree-is-not-a-moved-tree` [OK] (#6589) — the check that no tree outside a step's own moved reads a tree
+  that was removed since the step started (a landed lane's cleanup) as removed, and says nothing: `queue.tree_check` skips
+  a path that no longer exists, and a landed lane's tree is not snapshotted (tests
+  `fichero-builder/tests/test_loop.py::test_a_tree_removed_during_the_step_did_not_move_by_a_stray_write` and
+  `fichero-builder/tests/test_loop.py::test_a_landed_lanes_worktree_is_not_in_the_snapshot_list`; a tree that changed
+  still alerts in `fichero-builder/tests/test_loop.py::test_a_step_that_moves_another_lanes_tree_or_the_jail_root_alerts`). Acceptance: a tree
   snapped at the start and removed by `dev-workflows.run.loop-cleanup` raises no alert; a tree whose head or status
   changed still does. Serves: reliable.
 - `local.dismiss-never-parks-in-flight` [PARTIAL] (#6589) — dismissing an alert never parks a step that is being worked
@@ -976,7 +979,7 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
   `::test_without_dev_it_refuses_a_full_release_needs_the_owner`. **Lock scope and when** (owner 2026-11-03: a post-landing dev build held the heavy lock 54 min through codesign and the DMG while checks waited): the heavy lock is held only for the script's app build (`FICHERO_DMG_STOP_AFTER_APP_BUILD=1` ends the script after its version check), and the packaging (staging, codesign, the DMG) runs after it with `--skip-app-build`, outside the lock; the loop builds nothing at a lane's end or a landing: only the nightly dev release builds, and `builder build --dev` by hand stays (tests assert no `built`/`build-failed`/`build-skipped` rows: `fichero-builder/tests/test_loop.py::test_an_external_lanes_landing_records_product_and_builds_nothing`). Test `fichero-builder/tests/test_build_verb.py::test_the_heavy_lock_is_held_only_for_the_app_build_and_packaging_runs_outside_it`.
 - `dev-workflows.run.done-after-delivery` [PARTIAL] (#6589) — a run's DONE counts only after the step's message was delivered (a turn started, or the screen text changed since the send); a message that started no turn within `REDELIVER_S` (60 s) is delivered again, up to 3 tries (`redeliver` watch row). Tests `fichero-builder/tests/test_dry_run.py::test_an_old_done_on_screen_never_marks_a_new_step_done_before_its_message_is_delivered`, `::test_a_message_that_started_no_turn_within_sixty_seconds_is_delivered_again`, `::test_a_delivered_message_is_not_delivered_again`, `::test_the_real_redeliver_presses_enter_when_the_words_sit_in_the_box_and_types_them_again_when_a_turn_never_started`.
 - `dev-workflows.queue.disk-floor` [PARTIAL] (#6589) — no new lane starts under `[loop].disk_floor_gb` free (`disk-hold` row); removing a lane's tree drops its jcodemunch index; the worker's uv cache is pruned once a week (`uv-prune` row). Tests `fichero-builder/tests/test_loop.py::test_a_new_lane_does_not_start_under_the_disk_floor_and_the_row_says_why`, `::test_removing_a_lanes_tree_drops_its_jcodemunch_index`, `::test_the_workers_uv_cache_is_pruned_once_a_week`.
-- `dev-workflows.queue.split-brief` [PARTIAL] (#6589) — a step red only on the file-size bound gets a split brief (`split` row) and the next step's brief carries the part-2 note; any other red gets the plain fix brief. Tests `fichero-builder/tests/test_loop.py::test_a_step_red_only_on_the_file_bound_gets_a_split_brief_and_the_next_step_brings_part2_back`, `::test_any_other_red_still_gets_the_plain_fix_brief`.
+- `dev-workflows.queue.split-brief` [PARTIAL] (#6589) — a step red only on the file-size bound gets a split brief (`split` row); any other red gets the plain fix brief. (#6849) The rest of a split is pushed to origin as `<lane>-part2` before the core lands (a failed push blocks the step) and queued as the next step `<step>-part2` of the same lane, with a brief naming the branch and its commits, so the lane is not landed while it is unlanded. Tests `fichero-builder/tests/test_loop.py::test_a_step_red_only_on_the_file_bound_gets_a_split_brief_and_its_rest_is_a_queued_step_on_a_pushed_branch`, `::test_a_split_whose_part2_cannot_be_pushed_blocks_the_step_before_it_lands`, `::test_any_other_red_still_gets_the_plain_fix_brief`.
 - `dev-workflows.nightly.cleanup` [PARTIAL] (#6589) — after a published release the tree's releases and the loop's old DMGs, archives and staging are deleted, nothing before the publish; a failed clear is a row and never unpublishes the night; the report lists build-folder sizes (`du`). Tests `fichero-builder/tests/test_nightly.py::test_after_the_publish_the_releases_are_cleared_and_the_text_lists_the_build_folder_sizes`, `::test_nothing_is_cleared_while_the_release_is_not_published`, `::test_a_failed_clear_is_a_row_and_never_unpublishes_the_night`, `::test_the_real_clear_removes_the_trees_releases_and_the_loops_old_dmgs_and_the_sizes_are_du`.
 - `dev-workflows.ux.lane-usage` [PARTIAL] (#6116; owner 2026-11-02, "I want to see progress") — the console's "Lane usage today" card: for each
   external lane (not held), today's tokens in (input, cache write, cache read) and out and its turns, summed from its Claude Code session
@@ -993,7 +996,10 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
   bullets and the tests; KEEP gets one comment saying what is left (the bullets that are not done; the same list is not commented twice) and the
   issue stays open and is updated, never closed, for residue. The reconcile result is one `issue-reconcile` queue row (each issue, its class,
   whether it closed) replacing the plain `issue-open` row; it runs on a thread, reads only the tests the cited issues' own bullets name (one `git grep` for all, the specs in one `git cat-file --batch`), and is run as `python -m fichero_builder.issue_reconcile`; `gh` failing counts as unread and the lane
-  goes on. (b) Nightly, over every open issue: the dry-run TSV (issue-reconcile.tsv in the state dir) and ONE summary `issue-reconcile` row (counts per
+  goes on. The landed sha is fetched from origin first when this clone lacks it (#6848: `git ls-tree <sha>` exited 128 on every landing), and an issue left unread
+  (the fetch failed, or `gh` could not read it) or a reconcile that raises is an `alert` naming that issue. Tests `fichero-builder/tests/test_issue_reconcile.py::test_a_landing_whose_sha_is_only_on_the_remote_is_fetched_and_read`,
+  `::test_after_landing_fetches_the_sha_before_it_reads_and_a_sha_nobody_has_is_said_per_issue`, `fichero-builder/tests/test_queue_verb.py::test_a_reconcile_that_leaves_an_issue_unread_or_crashes_is_an_alert_naming_the_issue`.
+  (b) Nightly, over every open issue: the dry-run TSV (issue-reconcile.tsv in the state dir) and ONE summary `issue-reconcile` row (counts per
   class and how many closed), closing only CLOSE-A/B. (c) Never an issue whose owning bullet is not done is closed; never a `type:bug` without a
   test (a fix commit alone, CLOSE-B, leaves a bug open). **Built** 2026-11-14 against a fake gh. Not yet: a run on the real jail user. Tests
   `fichero-builder/tests/test_issue_reconcile.py::test_self_test_passes`,
@@ -1347,7 +1353,7 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
   milestones are read from GitHub again after each landing and every 15 minutes (test
   `fichero-builder/tests/test_status_page.py::test_console_tiles_come_from_origin_an_owned_milestone_has_no_start_and_the_spec_twin_is_one_row`).
   Remote checks (manager 2026-11-02, the Pro CPU-bound): `[check].remote` refuses a host under `[check].remote_min_free_gb`
-  (default 5) free as unreachable (an alert, the run here); `[check].remote_guards` (off by default: the guards call git and the
+  (default 5) free, the smaller of its base dir and its `/tmp` (pytest writes there; #6589, test `fichero-server/tests/unit/workflows/test_check_tool.py::test_the_remote_free_space_probe_takes_the_smaller_of_the_base_dir_and_tmp`), as unreachable (an alert, the run here); `[check].remote_guards` (off by default: the guards call git and the
   shipped tree has none) sends the guards too; the build rung stays on the Pro. A registered maintainer lane (`queue add
   --maintainer`, the harness builder's) runs its checks `--maintainer`. An import-only change to a test file owes no red, like a
   data-only one (test `fichero-server/tests/unit/workflows/test_check_tool.py::test_an_import_only_change_to_a_test_file_owes_no_red`).
@@ -1391,12 +1397,13 @@ performance review of 2026-11-21). The rebase already runs before the check. Spe
   hours with no hand step; every step either lands or ends as an alert row with evidence, never as silence; the heartbeat has no
   gap longer than three ticks. Manual: the maintainer reads only `builder status` and the alerts for the six hours, and the
   journal is attached to the issue.
-- `dev-workflows.run.loop-session-cap-hands-off` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated; ie-lane2 was
-  parked mid-step with uncommitted work at the session cap) — reaching `[spend].session_usd` does what the context handoff does:
-  the session ends and a fresh one starts on the same step with "continue from the tree: the step, its brief and the commits so
-  far"; uncommitted work stays in the worktree. Only `[spend].day_usd` parks. Test (a file of that name exists; whether it covers this behaviour is owed a check, Phase 0): `fichero-builder/tests/test_loop.py`
-  (a session over its cap gets a successor on the same step; over the day cap the lane parks with an alert).
-  **Built** 2026-11-02: `watcher.assess` gives `handoff: session spend` at the session cap and parks only at the day cap; `builder run` tells the worker why and to hand off, and the successor starts as at the context mark. Tests `fichero-builder/tests/test_watcher.py::test_the_session_cap_then_the_day_cap_park`, `fichero-builder/tests/test_dry_run.py::test_the_session_cap_parks_and_stops_the_worker` (names kept from before). Not yet: a real lane at its cap.
+- `dev-workflows.run.loop-session-cap-hands-off` [OK] (#6116; owner ruling B2 2026-11-21, which retires the session cap the manager
+  approved on 2026-11-02) — there is no dollar session cap: session spend alone never ends or hands off a session. A session
+  ends at the context limit (a handoff) or at `[spend].day_usd` (a park); `[spend].session_usd` is read and ignored.
+  **Built** 2026-11-21: `watcher.assess` gives no session-spend handoff and `watcher.refusals` needs only `day_usd`. Tests
+  `fichero-builder/tests/test_watcher.py::test_only_the_day_cap_parks_and_session_spend_alone_never_ends_a_session`,
+  `fichero-builder/tests/test_watcher.py::test_a_day_cap_alone_lets_a_worker_start`,
+  `fichero-builder/tests/test_dry_run.py::test_session_spend_alone_neither_hands_off_nor_stops_the_worker`. (#6871)
 - `dev-workflows.run.loop-handoff-tokens` [PARTIAL] (#6116; APPROVED by the manager 2026-11-02, owner-delegated; ie-lane2 used 17M tokens for
   three steps on a 1M window) — the handoff threshold is an absolute token count, `[spend].handoff_tokens` (175000, owner 2026-11-02), not a share
   of the window; a session whose context passes it hands off. Test (a file of that name exists; whether it covers this behaviour is owed a check, Phase 0): `fichero-builder/tests/test_watcher.py` (a session
@@ -3596,6 +3603,392 @@ OVERRULED 2026-11-15: all eight build-order steps are v1 and none is deferred (s
 
 
 
+## Performance and waste (measured 2026-11-14 to 2026-11-21)
+
+A review of the builder's own records over 7.4 days (the owner-side journal, the worker-side journal, 289 worker session
+files, the queue and the rules file), asked for by the owner. The numbers below are what the records say; the behaviours
+after them are what the fixes need. "Metered" is what the builder's `cost` rows say. "Real" is the same sessions priced
+with each API message counted once. Both are USD-equivalent under a subscription login, not a bill. Reviewer calls are in
+neither: nothing records them.
+
+### What was measured
+
+| Measure | Value |
+|---|---|
+| Steps landed | 128, or 17.3 a day |
+| Spend, metered | 1,483 USD over 254 sessions |
+| Spend, real | 875 USD (the meter reads 1.89 times high) |
+| Per landing | 11.58 USD metered, 6.84 USD real |
+| Best days (Sonnet, two or three workers) | 20 to 28 landings at about 1.5 USD real each |
+| One night on Opus under an old session cap | 9 landings, 1,059 USD metered, 118 USD a landing |
+| Steps green on their first check | 14 of 128 (11%) |
+| Checks per landed step | 6.2 (4.6 messages, 3.0 reviews, 2.9 blocks, 3.0 alerts) |
+| Checks run | 881, 148.1 h of ladder; 43% green; 55.6 h on red checks |
+| Queued to landed, median | 330 min (p90 914) |
+| Queued to first message, median | 123 min (p90 409); no row says why |
+| First DONE to landed, median | 113 min; 33 min for steps that needed two checks or fewer |
+| Handoffs | 66: 55 on the session spend cap, 12 on the context mark |
+| Spend before a session's first commit | 539 USD metered (36%) |
+| Context at a session's first turn | 38,263 tokens, median |
+| Alerts | 591; the manager's median answer took 11 to 20 min |
+
+Lane-hours of steps in flight (1,150 h): a session holds the step 23%, queued 21%, blocked on the manager 17%, checking
+14%, waiting for a ladder slot 8%, held by the disk floor 6%. On the night of 2026-11-20 the disk floor held 32% of all
+lane time.
+
+The ladder's rungs by wall time: red-on-base 78.9 h in 692 runs (58% of rung time; median 386 s), guards 40.3 h in 581
+runs (median 205 s), build 11.0 h, security 3.8 h, ready 1.3 h, the rest under an hour together. The ladder lock was
+waited on 282 times for 46.5 h (median 7.6 min, longest 104 min). 180 red pytest runs were run again on a second runner
+and 169 stayed red. Runners were unreachable for 45 h in 42 outages.
+
+Red checks by rung: guards 157, red-on-base 140, pinned-checks 84, ready 49, build 34, diff-bound 31. 164 of them (32%)
+came from rungs that take under 20 seconds, and each still cost a full round. 120 ranges were checked more than once at
+an unchanged base and head (155 extra runs). 28 pinned-checks reds named the rules file in lanes that never changed it.
+
+What the worker is sent is small: a 3.5 KB brief, a 5.7 KB prompt, a 456-byte successor brief, typed messages of a
+median 140 characters. The tokens go to the start of every session and to searching: 13,300 grep and `sed -n` calls in
+the week against one call of the code index the prompt requires.
+
+Disk: the worker root holds 22 to 24 GB, of which about 12 GB is never removed (scratch of landed lanes, derived data,
+pytest base temp dirs three weeks old, lane trees the owner's user cannot read). The remote test path made 509 small
+scratch dirs in one morning. The journal is 46.6 MB and 83% of it is loop tick rows.
+
+### Owner rulings on spend (2026-11-21)
+
+- B1: once the spend meter counts a message once (#6870), the caps are real dollars. Its 25 USD a session is retired by B2.
+- B2: there is no dollar session cap. A session ends on the day cap and the context limit only; `[spend].session_usd` is
+  read and ignored.
+- B3: reviewer spend counts against the day cap, once `local.perf.reviewer-spend-recorded` (#6882) writes its rows.
+- B5: the day cap is 300 USD.
+
+### The ten largest wastes, in order
+
+1. The spend meter counts an API message once per content block, so every cap fires at about half its figure.
+2. Caps are read once per worker run, from a second copy of the rules: 48 Opus sessions, 413 USD and 29 handoffs in six
+   hours under a cap the owner had already raised.
+3. Nine in ten steps fail their first check, and a failure a 20-second rung could report costs a whole round.
+4. red-on-base is 58% of ladder time: one pytest per file per ssh, expected reds run twice, guards wait behind it.
+5. A queued step waits a median two hours to start, and nothing records why.
+6. 200 lane-hours blocked on the manager for reds a rule could answer (a stale base, an approve that does not stick).
+7. 46.5 hours waiting for one of two ladder slots.
+8. The disk floor held every lane for a third of a night with no alert.
+9. 155 ladders re-run on a range that had not changed.
+10. A third of the spend is reading before the first commit; successors find their place again by search.
+
+### Behaviours
+
+- `local.perf.spend-counts-a-message-once` [OK] — a session's tokens and cost count each API message once, whatever
+  number of lines the session file gives it; the last line of a message wins. **Built** 2026-11-21: `session.parse_session`
+  keeps one usage per `message.id`, the last line's (before, it added every assistant line, and a Claude Code file writes one
+  line per content block: 25,962 lines for 17,530 messages, cost 1.89 times high). Tests
+  `fichero-builder/tests/test_session.py::test_a_claude_code_message_written_as_one_line_per_block_costs_once`; a Pi file is unchanged:
+  `fichero-builder/tests/test_session.py::test_cost_parser_on_a_redacted_real_pi_session`. (#6589) → #6870
+- `local.perf.caps-reread-each-tick` [OK] — the watcher reads `[spend]` at every tick from the one rules file the
+  loop reads, and a park checks the current figure first. **Built** 2026-11-21: the loop publishes the owner's `[spend]` and
+  `[models]` as `<feed>/rules.json` every tick and starts a run with `--rules` naming it; `run.run` reads it (or the root's
+  rules file when none is named) at the start and at every tick, and an unreadable read keeps the last figures with one
+  alert. Tests `fichero-builder/tests/test_dry_run.py::test_a_raised_cap_in_the_published_rules_reaches_a_running_session_on_the_next_tick`,
+  `fichero-builder/tests/test_dry_run.py::test_a_lowered_cap_in_the_root_rules_parks_on_the_next_tick`,
+  `fichero-builder/tests/test_dry_run.py::test_unreadable_rules_mid_run_alert_once_and_keep_the_last_figures`,
+  `fichero-builder/tests/test_watcher.py::test_the_loop_publishes_the_owners_spend_and_models_for_the_jailed_run`. → #6851
+- `local.perf.day-cap-counts-live-sessions` [OK] — the day's spend is the finished sessions' rows plus the running
+  cost of every live session, so the cap holds with any number of workers. **Built** 2026-11-21: each run rewrites
+  `<state>/live/<name>.json` with its running cost every tick, zeroes it at a handoff and removes it at its end; the spend a
+  run checks, before its start and at every tick, is today's cost rows plus every other run's live file of today changed in
+  the last 300 s (before, finished rows only: measured overshoot 30 to 115 USD, three times). Tests
+  `fichero-builder/tests/test_watcher.py::test_live_spend_sums_other_sessions_fresh_files_of_today_only`,
+  `fichero-builder/tests/test_dry_run.py::test_three_live_sessions_near_the_cap_keep_a_fourth_from_starting`,
+  `fichero-builder/tests/test_dry_run.py::test_a_tick_parks_when_the_others_live_cost_and_its_own_reach_the_cap_and_the_own_file_goes_at_the_end`,
+  `fichero-builder/tests/test_dry_run.py::test_a_stale_live_file_does_not_hold_back_a_start`. (#6589) → #6871
+- `local.perf.expected-red-runs-once` [BROKEN] — a red is run again on another runner only where the rung expects
+  green; the base run of red-on-base is never retried, and the first reachable runner counts as the first. Today
+  `check_tool._run` retries any red whenever the first-listed runner did not run it. Test: an owed test in
+  fichero-builder/tests/test_remote_list.py. (#6589) → #6872
+- `local.perf.red-on-base-one-base-run` [GAP] — the base tree runs every changed test file in one pytest command per
+  runner and the result is read per file. Today `check_tool.red_on_base` runs one command per file. Test: an owed test
+  in fichero-builder/tests/test_build_check.py (three files, one command, a per-file verdict). (#6589) → #6873
+- `local.perf.guards-alongside-red-on-base` [GAP] — the guards rung runs at the same time as red-on-base (they read
+  different scratch trees); the first red still ends the ladder. Test: an owed test in
+  fichero-builder/tests/test_build_check.py. (#6589) → #6873
+- `local.perf.cheap-rungs-at-done` [GAP] — at a worker's DONE the loop runs pinned-checks, ready and diff-bound before
+  any chain starts; a red is told to the live session in the same tick, with no alert and no ladder slot. Test: an owed
+  test in fichero-builder/tests/test_loop.py (a DONE with a bad trailer gets its finding in the same tick). (#6589)
+  → #6874
+- `local.perf.verdict-remembered` [GAP] — a ladder verdict is kept for its base, head, pinned copy and approvals; the
+  same four start no second ladder, and a DONE at an unchanged red head gets the old finding. Today
+  `check_tool.ladder_over` refuses only an empty range. Test: an owed test in fichero-builder/tests/test_loop.py.
+  (#6589) → #6875
+- `local.perf.rungs-keyed-by-tree` [GAP] — a rung that reads only the tree keeps its result by the tree's hash, so an
+  amend that changes only commit messages re-runs `ready` alone. Test: an owed test in
+  fichero-builder/tests/test_build_check.py (same tree, new sha, one rung runs). (#6589) → #6876
+- `local.perf.pinned-checks-own-commits` [BROKEN] — pinned-checks judges the lane's own commits (from its merge base
+  with the land branch), and a commit pushed by hand moves the pinned copy like a landing does. Today a base commit
+  that changed the rules file reds every lane behind it. Test: an owed test in fichero-builder/tests/test_presubmit.py.
+  → #6853
+- `local.perf.approve-survives-rebase` [BROKEN] — an approve is bound to the test file and its change, and holds at the
+  next head and after a rebase while that change is the same. Today it is bound to one head. Test: an owed test in
+  fichero-builder/tests/test_approve_resume.py. (#6589) → #6877
+- `local.perf.ladder-slots-follow-runners` [GAP] — ladders run as many at once as there are reachable runners, and two
+  batches that share a file take turns only on the build rung. Today the count is a fixed setting and sharing a file
+  serialises the whole ladder. Test: an owed test in fichero-builder/tests/test_heavy_lock.py. (#6589) → #6878
+- `local.perf.every-wait-is-a-row` [GAP] — a queued step that does not start writes one row saying why (no worker slot
+  and who holds them, paused, no chain slot), and a session whose step is blocked or checking holds no start slot.
+  Today `queue.tick_lane` returns without a row in two of those cases. Test: an owed test in
+  fichero-builder/tests/test_step_state.py. (#6589) → #6879
+- `local.perf.disk-floor-one-alert-sweeps-first` [BROKEN] — under the disk floor the loop sweeps first, then raises one
+  alert naming the free space and the lanes held, and writes one row an hour. Today it writes a row per lane each time
+  the figure changes and raises no alert (699 rows in one night). Test: an owed test in
+  fichero-builder/tests/test_loop.py. → #6852
+- `local.perf.remote-run-leaves-no-scratch` [BROKEN] — a test run sent to a runner makes no scratch dir on the builder's
+  machine. Today `check_tool._remote_run` builds a local env, which makes a home dir and a base dir, drops both keys and
+  removes neither. Test: an owed test in fichero-builder/tests/test_no_home_litter.py. (#6589) → #6880
+- `local.perf.landed-lane-litter-removed` [GAP] — when a lane's last step has landed and its patches are kept, its
+  scratch dir, its derived data and any pytest base temp dir older than the retain time are listed, then removed. Test:
+  an owed test in fichero-builder/tests/test_scratch_sweep.py. (#6589) → #6881
+- `local.perf.reviewer-spend-recorded` [GAP] — each review writes one cost row (model, tokens, cost, seconds, head).
+  Today the reviewer runs with no session file and no row. Test: an owed test in
+  fichero-builder/tests/test_status_page.py. (#6379) → #6882
+- `local.perf.successor-brief-names-its-place` [GAP] — a successor's brief carries the last commit, the files in flight
+  with line numbers and the open findings, and a started session lists the code-index tool or the prompt does not name
+  it. Today `run.successor_brief` points at the handoff file only. Test: an owed test in
+  fichero-builder/tests/test_codemap.py. (#6589) → #6883
+- `local.perf.tick-rows-out-of-journal` [BROKEN] — the loop's heartbeat is one small file rewritten each tick, not a
+  journal row listing every lane, and a reader that needs one kind of event does not parse the whole journal. Test: an
+  owed test in fichero-builder/tests/test_journal.py. (#6589) → #6884
+- `local.perf.start-sets-no-global-git-config` [BROKEN] — a worker start sets its git identity and its trust of the
+  worktree for that worktree only, so two starts in one tick cannot meet on one lock. Today `start_tool.prepare` writes
+  the worker user's global config. Test: an owed test in fichero-builder/tests/test_jail_git.py. → #6854
+
+### Targets for a good week
+
+| Measure | Measured | Target |
+|---|---|---|
+| Steps landed a day | 17.3 | 30 |
+| First check green | 11% | 50% |
+| Checks per landed step | 6.2 | 2.5 or fewer |
+| Queued to landed, median | 330 min | 120 min |
+| Ladder, median green run | 13.4 min | 8 min |
+| Lane time blocked on the manager | 17% | 5% |
+| Real spend per landing, Sonnet | 1.4 to 4.4 USD | 3 USD |
+| Spend before a session's first commit | 36% | 20% |
+| Handoffs on the spend cap | 55 a week | none: the context mark only |
+
+## Scale-out: thirty cheap workers (review of 2026-11-21)
+
+The owner asked how the builder could run thirty cheap workers with the checking and the landing keeping up, and whether
+the test machines could be used more efficiently or less often. This section builds on "Performance and waste" above: it
+uses that week's records (2026-11-14 to 2026-11-21) and adds what was measured for this question. The throughput figures
+are a model made from the week's ratios, not a measurement of thirty workers.
+
+### What was measured for this question
+
+| Measure | Value |
+|---|---|
+| One worker session, idle, on the loop's Mac | about 330 MB: the session 211 to 245 MB (peak 300 to 320), its code-index server 66 to 77 MB, its watcher 26 to 40 MB |
+| Nine idle sessions | 3.0 GB, 0.1% of one core |
+| The loop's Mac with nine sessions (16 GB, 8 cores) | 15 GB in use, 4.6 of 6.1 GB of swap in use, load 28 to 32, 5 GB of disk free |
+| A desktop runner (24 GB, 10 cores) | load 2.7, 84% of memory free, 39 GB and 191 GB free on two volumes |
+| A laptop runner on an external disk (16 GB, 10 cores) | load 1.5, 80% of memory free, 4 GB free inside, 47 GB on the external disk |
+| An older laptop runner (8 GB, 8 cores) | load 6 to 8, 17 GB of swap in use |
+| A jail user on any runner | none: tests sent to a runner run as that Mac's own user |
+| Ladder wall time | 148.8 h in 884 checks, 20.0 h a day, 70 min per landed step |
+| Ladders running at once (178 h) | none 72.2 h, one 62.5 h, two 43.1 h |
+| Checks per slot-hour | 5.9 (4.5 when green: a green ladder is 13.4 min, 17.7 min with a build, 12.2 without) |
+| red-on-base | 79.3 h of wall for 23.0 h of running: every pytest goes to the first reachable runner, one at a time |
+| The base moved under a checked head | 96 times for 125 landings; 9 checks were kept across the move; 26 rebases failed |
+| Landings | 17 a day; the busiest hour landed 3 |
+| Alerts and answers | 591 alerts, 4.6 per landing; the manager gave 633 answers, 85 a day |
+| Reviews | 419 in 5.6 h, median 45 s; 0.4% of lane time |
+| Mac build rung | 227 builds, 11.1 h, median 229 s in a green check (p90 698 s); 1.8 builds per landing |
+| iOS simulator build, and the test target's build | 566 s and 572 s, median, once a day |
+| verify-all after a milestone | 8 runs of 5 to 15 min, none green |
+| Files most often changed by landings | one UI spec 83 commits, the rules file 34, the six generated contract files 23 each, the docs nav 19 |
+| Worker sessions on the cheapest model | none in the week: 180 on the middle model, 76 on the largest |
+
+### What limits landings, in order
+
+1. **The manager.** 4.6 alerts per landing against 85 answers a day is 18 landings a day. The week landed 17.
+2. **Checks per landing.** 6.2 checks and 70 min of ladder per landing; two slots give at most 29 landings a day at 70% use.
+3. **One landing at a time.** Each landing moves the base under every other checked head. The model below puts the limit
+   near 35 landings a day at today's ladder time and near 60 at half of it.
+4. **Placement.** Every pytest goes to the first runner in the list under that machine's one heavy lock, while the
+   largest runner idles.
+5. **Where sessions run.** The loop's Mac is in swap with nine sessions and has 5 GB of disk.
+6. Review and the Mac build are not limits yet.
+
+More sessions raise none of the first four. Thirty workers on today's builder would land what ten do.
+
+### The target shape
+
+```
+ work (milestones, steps) --> dispatcher: an area per lane, a model per step kind
+                                   |
+     +-----------------------------+------------------------------+
+     | session host A              | session host B               | the loop's Mac
+     | jail user, N sessions       | jail user, N sessions        | loop, manager, console
+     +--------------+--------------+---------------+--------------+
+                    | DONE: the cheap rungs, in the worker's turn |
+                    v                                             v
+            lane check on the lane's own base, once per tree (runner pool: slots per machine)
+                    |            review beside it, by path and by worker model
+                    v
+            ready-to-land queue
+                    |
+            the train: up to 8 ready steps rebased in order, generated files made once,
+            one ladder on the combined head (full guards, package suites, one Mac build)
+                    |                         |
+                  green: one push           red: halve, find the member, send it back
+                    |
+            daily: iOS and test-target builds     nightly: everything, uncached
+            a later red is bisected by train, then by member
+```
+
+### Throughput model
+
+Per landing the week used 2.05 h of session time, 70 min of ladder and 4.6 alerts. Landings a day are the least of four
+limits: sessions (count x 24 h x the share of time a session works / session hours per landing), ladder (slots x 24 h x
+0.7 / ladder hours per landing), the manager (answers a day / alerts per landing) and the landing itself. For one landing
+at a time, ladders per landing grow as e^(rate x window), with the window fitted to the week's 96 moves in 125 landings.
+
+| Changes in place | 10 workers | 20 workers | 30 workers | The limit that binds |
+|---|---|---|---|---|
+| Today | 17 to 20 | 20 | 20 | the manager |
+| + the filed performance steps (Stage 10) | 30 | 30 | 30 | the manager, at 3.3 alerts per landing |
+| + the builder answers what a rule can (Step 11.1) | 45 | 55 | 55 | one landing at a time; two ladder slots |
+| + the runner pool (Step 11.2) | 50 | 60 | 60 | one landing at a time |
+| + the train (Steps 11.3 to 11.5) | 65 | 110 | 150 | sessions, then spend and the manager |
+
+The 20 and 30 columns need session hosts (Steps 11.7 and 11.8): the loop's Mac holds about eight sessions. At 3 USD a
+landing a 250 USD day cap is 83 landings, so past that the cheapest model or a higher cap is needed.
+
+### How often each check runs
+
+| Check | Today | Proposed | What the proposed cadence risks | How a later red finds its landing |
+|---|---|---|---|---|
+| pinned-checks, ready, diff-bound | every check, on a ladder slot | at the worker's DONE, in its turn | nothing: the same rules, sooner | not needed |
+| red-on-base, guards, security, contract | every check: 6.2 per landing | once per tree, on the lane's own base | a clash with what landed since; the train catches it | not needed |
+| Mac build | every check that touches the app | a lane that touches the app: once per tree; then once per train | none for other lanes | the train's halving |
+| package suites and every guard | after a milestone; 8 runs, none green | every train, on the combined head | a red train costs up to 2 x log2(members) more ladders | the train's halving |
+| perf (report-only) | every check: 167 runs, 5.5 h | every train | a slowdown is known per train, not per step | by member, on request |
+| iOS simulator and test-target builds | daily | daily, and before the nightly freeze if the app changed | up to a day of app landings on a broken target | by train, then by member: about 5 builds |
+| nightly guards, the full suite, the DMG and smoke | nightly | nightly | a day of landings | by train, running only the red test or guard |
+
+Runner hours a day, from the ladder records: today's cadence used 20.4 h (20.0 h of ladders, 0.4 h of verify and daily
+builds) for 17 landings, and a further 5 h a day of dev builds until they were ruled off. The proposed cadence at the
+same 17 landings is about 6.5 h (3.9 h of lane checks, 2.2 h of trains, 0.4 h of daily builds). At 100 landings a day
+the proposed cadence is about 31 h spread over six slots; today's cadence would need 117 h.
+
+### Behaviours
+
+Sessions and the wall:
+
+- `local.scale.sessions-run-on-hosts` [GAP] — a worker session starts on a declared session host over ssh, as that
+  host's jail user, in a worktree under that host's workroot; the brief and each message are written there, the session's
+  rows are read back each tick, and the lane's commits are fetched from the host. Today `queue.real_procs.start` runs
+  `sudo -u` on the loop's own Mac and every path is local. Test: an owed test in
+  fichero-builder/tests/test_jail_home.py (a fake ssh: a start on a second host, a message delivered, a DONE row
+  read back, the head fetched). (#6589) → #6885
+- `local.scale.every-host-has-the-wall` [GAP] — a session host or a check runner with no jail user, a failed read
+  probe or no worker login is refused with a row, and nothing falls back to that Mac's own user; a test run sent to a
+  runner runs as the jail user there. Today `check_tool._remote_run` runs worker-written tests as the ssh user, on Macs
+  that hold that user's own account. Test: an owed test in fichero-builder/tests/test_jail_home.py (a host with no
+  jail user refuses; the remote command line starts as the jail user). (#6589) → #6886
+- `local.scale.host-capacity-is-declared` [GAP] — each machine declares how many sessions, how many check slots and
+  whether it builds; a start past the count, or on a host whose free memory is under its floor, waits with a row naming
+  the host. Today `[machines]` holds an ssh name, a dir and a disk floor, and the counts are `[queue] workers`,
+  `[loop] lanes` and `[check] parallel` for the whole pool. Test: an owed test in
+  fichero-builder/tests/test_heavy_lock.py (a third session on a host of two waits with a row; a host under its
+  memory floor starts none). (#6356) → #6887
+- `local.scale.checks-go-to-the-least-busy-runner` [GAP] — a rung sent away goes to the runner with a free check slot
+  and the fewest running, and a machine runs as many heavy jobs at once as it declares. Today `check_tool._run` takes
+  the first reachable runner in the list and `_remote_heavy` holds one lock per machine, so red-on-base ran for 23 h
+  of its 79 h of wall. A second machine may be a build runner, each with its own derived data. Test: an owed test in
+  fichero-builder/tests/test_remote_list.py (two runs at once land on two runners; a runner of two slots runs two). This
+  extends `local.perf.ladder-slots-follow-runners`. (#6356) → #6887
+
+Landing:
+
+- `local.scale.green-steps-land-as-a-train` [GAP] — a step that is green and READY waits in a ready-to-land queue; the
+  train takes up to `[land] train_max` of them in order, rebases each onto the one before, runs one ladder on the
+  combined head and pushes once; every member's landing steps (issues, pinned copy, jail root) then run for it. Today
+  `work.after_run` lands each lane by itself and `landed.fast_forward` refuses any head the base moved under. Test: an
+  owed test in fichero-builder/tests/test_landed_verb.py (three green lanes, one ladder, one push, three landed rows).
+  (#6589) → #6888
+- `local.scale.train-ladder-judges-the-difference` [GAP] — the train's ladder runs every guard and every package suite
+  on the combined head, and a test or guard that is red on the train's base too is inherited: one row and one issue,
+  never a red train. Today the suites and the skipped guards run only after a milestone, and that run was red all eight
+  times in the week. Test: an owed test in fichero-builder/tests/test_landed_verb.py (a test red on base and head does not
+  red the train and is named once). (#6589) → #6888
+- `local.scale.red-train-halves` [GAP] — a red train is split in two and each half runs as its own train until the
+  member that reds it is alone; that member goes back to its worker with the finding and the others land. Test: an owed
+  test in fichero-builder/tests/test_landed_verb.py (four members, the third red: three land, one fix brief).
+  (#6589) → #6889
+- `local.scale.lane-check-keeps-its-base` [GAP] — a lane's own check runs on the base the lane was built on and is not
+  run again because the land branch moved; only the train rebases. A READY verdict carries onto the train when the
+  member's commits have the same diff and message hashes and nothing landed since touches its files; otherwise the train
+  reviews the rebased range. Today `land_tool.range_key` holds the base, so every move is a new check and a new review
+  (96 in the week). Test: an owed test in fichero-builder/tests/test_landed_verb.py (a disjoint base move keeps the verdict;
+  an overlapping one asks for a review). (#6589) → #6889
+- `local.scale.generated-files-are-made-at-compose` [PARTIAL] — a conflict that lies only in generated files is never
+  a person's: the train takes the base's copy, and regenerates every generated file once on the combined head. Built:
+  `work.do_rebase` re-bakes the two contract identity files named in `[check] generated`, and `work.regen` runs
+  `[check] regen` after a clean rebase. Left: the other generated files (the three contract copies, the MCP tools, the
+  engine embed list) still abort a rebase, and regeneration runs once per lane, not once per train. Test: an owed test
+  in fichero-builder/tests/test_landed_verb.py (two members that each add a route compose without a conflict).
+  (#4705) → #6891
+- `local.scale.exclusive-areas` [GAP] — the rules file names areas by path, and marks some exclusive (the rules file,
+  the docs nav, a spec that many lanes edit); a lane names its areas when it is queued, and two lanes that share an
+  exclusive area do not run at once: the second waits with a row. Test: an owed test in
+  fichero-builder/tests/test_loop.py (two lanes on one exclusive area: one starts, one row says why the other waits).
+  (#6589) → #6892
+
+Cadence:
+
+- `local.scale.rungs-have-a-cadence` [GAP] — the rules file gives each rung one cadence (done, step, train, daily,
+  nightly) and the table above is the default. Today `check_tool._run_ladder` runs every rung at every check. Test: an
+  owed test in fichero-builder/tests/test_build_check.py (a rung set to train does not run in a lane check and runs in
+  the train's). (#6589) → #6890
+- `local.scale.later-red-finds-its-landing` [GAP] — each train writes one row naming its members and their commit
+  ranges in order; a red at a daily or nightly cadence is bisected over the trains since the last green, then over that
+  train's members, running only the red rung or test, and the member's lane gets one fix step. Nothing is reverted
+  without the manager. Test: an owed test in fichero-builder/tests/test_landed_verb.py (a red planted in the fifth of eight
+  trains is found in at most six runs). (#6589) → #6890
+
+The manager:
+
+- `local.scale.builder-answers-what-a-rule-can` [GAP] — the loop answers by itself, each with a named `auto` row: a
+  runner that is down (a row; an alert only when none is left), a red from a runner's environment or the network (one
+  retry at once), a second red at an unchanged head (the finding goes back to the worker), a rebase conflict (the worker
+  resolves it in its own session), a tree outside the step that moved (a row), and a step out of fix rounds (the next
+  model tier takes it with the findings before a person does). Today each is an alert: 53 runner-down, 40 rebase, 18
+  outside-tree, and 236 answers of `retry`. Acceptance: alerts per landing is in the nightly report, with a target of
+  0.5. Test: an owed test in fichero-builder/tests/test_loop.py (each class leaves a row and no alert).
+  (#6589) → #6893
+- `local.scale.inherited-red-blocks-no-lane` [GAP] — a test the lane did not change that is red on its base and on its
+  head is not the lane's: the check goes on, the test is put on a known-reds list with one issue, and the entry ends
+  when the land branch is green for it. Today one red test on the land branch reds every lane's green run. Test: an
+  owed test in fichero-builder/tests/test_build_check.py (a base-red test in an unchanged file leaves the lane green
+  and one known-red row). (#6856) → #6894
+
+Cheap models:
+
+- `local.scale.model-by-step-kind` [GAP] — a step has a kind, and the rules file maps each kind to a model role and a
+  file bound; the cheapest model takes only the kinds listed for it (a lint or warning batch, a format fix, a tag flip
+  with its test, a test for behaviour that exists, a file move a guard checks), with a bound of 8 files, and a step that
+  is red twice is queued again one tier up with the findings. A review is never done by the cheapest model. A kind
+  joins the cheapest model's list after 20 measured steps cost less per landing than the tier above. Today one
+  `[models] builder` serves every step. Test: an owed test in fichero-builder/tests/test_model_config.py (a kind maps
+  to its role and bound; two reds move the step up a tier). This needs `agent-profiles.worker.small` and
+  `local.perf.cheap-rungs-at-done`. (#6625) → #6895
+
+### Judged not worth building
+
+- Sharding the pytest of a lane check: it runs only the changed test files, and placement removes the wait.
+- Starting the review earlier, or one review per train: reviews are 0.4% of lane time, and one per lane names its author.
+- Landing first and reverting on a later red: the land branch was red under verify-all all week with nobody waiting on
+  it, and thirty lanes would rebase onto each red.
+- One shared red-on-base run per base commit: the red half runs each lane's own new tests, so there is nothing to share.
+
 ## Build order
 
 Each step is one issue under the one milestone (`builder steps` files them from the headings below). Sonnet builds and Opus reviews
@@ -3893,6 +4286,112 @@ done by hand (this file, its review and report). The absorbed specs' own build o
 - Tests: the two quiet weeks are the acceptance; fichero-builder/tests/test_journal.py (the handover row)
 - Depends on: 6.4, 7.2
 - Size: S
+
+### Stage 10 — spend the time, tokens and disk on real work (review of 2026-11-21)
+
+The steps of "Performance and waste", cheapest and largest saving first. Each is one step of 25 files or fewer.
+
+#### Step 10.1 — the spend meter is right, live and whole
+- Behaviours: `local.perf.spend-counts-a-message-once`, `local.perf.caps-reread-each-tick`, `local.perf.day-cap-counts-live-sessions`
+- Tests: fichero-builder/tests/test_session.py, fichero-builder/tests/test_watcher.py, fichero-builder/tests/test_dry_run.py
+- Size: S
+
+#### Step 10.2 — red-on-base at half the time
+- Behaviours: `local.perf.expected-red-runs-once`, `local.perf.red-on-base-one-base-run`, `local.perf.guards-alongside-red-on-base`
+- Tests: fichero-builder/tests/test_remote_list.py, fichero-builder/tests/test_build_check.py
+- Size: M
+
+#### Step 10.3 — a cheap red costs seconds, and nothing is checked twice
+- Behaviours: `local.perf.cheap-rungs-at-done`, `local.perf.verdict-remembered`, `local.perf.rungs-keyed-by-tree`
+- Tests: fichero-builder/tests/test_loop.py, fichero-builder/tests/test_build_check.py
+- Depends on: 10.2
+- Size: M
+
+#### Step 10.4 — reds a rule can answer never reach the manager
+- Behaviours: `local.perf.pinned-checks-own-commits`, `local.perf.approve-survives-rebase`
+- Tests: fichero-builder/tests/test_presubmit.py, fichero-builder/tests/test_approve_resume.py
+- Size: M
+
+#### Step 10.5 — slots follow the runners, and every wait is a row
+- Behaviours: `local.perf.ladder-slots-follow-runners`, `local.perf.every-wait-is-a-row`
+- Tests: fichero-builder/tests/test_heavy_lock.py, fichero-builder/tests/test_step_state.py
+- Depends on: 10.3
+- Size: M
+
+#### Step 10.6 — the disk: sweep first, one alert, no litter
+- Behaviours: `local.perf.disk-floor-one-alert-sweeps-first`, `local.perf.remote-run-leaves-no-scratch`, `local.perf.landed-lane-litter-removed`
+- Tests: fichero-builder/tests/test_loop.py, fichero-builder/tests/test_no_home_litter.py, fichero-builder/tests/test_scratch_sweep.py
+- Size: M
+
+#### Step 10.7 — the records: reviewer cost, a small heartbeat, no shared git config
+- Behaviours: `local.perf.reviewer-spend-recorded`, `local.perf.tick-rows-out-of-journal`, `local.perf.start-sets-no-global-git-config`
+- Tests: fichero-builder/tests/test_status_page.py, fichero-builder/tests/test_journal.py, fichero-builder/tests/test_jail_git.py
+- Size: S
+
+#### Step 10.8 — a successor starts where the last session stopped
+- Behaviours: `local.perf.successor-brief-names-its-place`
+- Tests: fichero-builder/tests/test_codemap.py
+- Depends on: 10.1
+- Size: S
+
+### Stage 11 — scale-out: more workers only once landing keeps up (review of 2026-11-21)
+
+The steps of "Scale-out", the largest gain per file first. Stage 10 comes first: its steps are the cheapest landings
+there are. Session hosts come last because nothing before them needs more than eight sessions.
+
+#### Step 11.1 — the builder answers what a rule can
+- Behaviours: `local.scale.builder-answers-what-a-rule-can`, `local.scale.inherited-red-blocks-no-lane`
+- Tests: fichero-builder/tests/test_loop.py, fichero-builder/tests/test_build_check.py
+- Depends on: 10.4
+- Size: M
+
+#### Step 11.2 — the runner pool: counts per machine, the least-busy runner
+- Behaviours: `local.scale.host-capacity-is-declared`, `local.scale.checks-go-to-the-least-busy-runner`
+- Tests: fichero-builder/tests/test_heavy_lock.py, fichero-builder/tests/test_remote_list.py
+- Depends on: 10.5
+- Size: M
+
+#### Step 11.3 — generated files and exclusive areas
+- Behaviours: `local.scale.generated-files-are-made-at-compose`, `local.scale.exclusive-areas`
+- Tests: fichero-builder/tests/test_landed_verb.py, fichero-builder/tests/test_loop.py
+- Size: S
+
+#### Step 11.4 — the train
+- Behaviours: `local.scale.green-steps-land-as-a-train`, `local.scale.train-ladder-judges-the-difference`
+- Tests: fichero-builder/tests/test_landed_verb.py
+- Depends on: 10.3, 11.3
+- Size: L
+
+#### Step 11.5 — a red train halves; a lane's check keeps its base
+- Behaviours: `local.scale.red-train-halves`, `local.scale.lane-check-keeps-its-base`
+- Tests: fichero-builder/tests/test_landed_verb.py
+- Depends on: 11.4
+- Size: M
+
+#### Step 11.6 — a cadence per rung; a later red finds its landing
+- Behaviours: `local.scale.rungs-have-a-cadence`, `local.scale.later-red-finds-its-landing`
+- Tests: fichero-builder/tests/test_build_check.py, fichero-builder/tests/test_landed_verb.py
+- Depends on: 11.4
+- Size: M
+
+#### Step 11.7 — the wall on every host and runner
+- Behaviours: `local.scale.every-host-has-the-wall`
+- Tests: fichero-builder/tests/test_jail_home.py
+- Depends on: 11.2
+- Size: M
+
+#### Step 11.8 — sessions run on hosts
+- Behaviours: `local.scale.sessions-run-on-hosts`
+- Tests: fichero-builder/tests/test_jail_home.py
+- Depends on: 10.7, 11.7
+- Size: L
+
+#### Step 11.9 — a model per step kind
+- Behaviours: `local.scale.model-by-step-kind`
+- Tests: fichero-builder/tests/test_model_config.py
+- Depends on: 10.3, 11.1
+- Size: M
+
 ### From `dev-workflows.md` — Build order (history; Step headings demoted so `builder steps` files only this spec's steps)
 
 

@@ -109,6 +109,16 @@ def _readable_document_ids(
     }
 
 
+def _iso_to_jdn(iso: str) -> int:
+    """The day number of a `YYYY-MM-DD` date; raises ValueError for text that is not a date."""
+    from datetime import date
+
+    from fichero_server.histdate import gregorian_to_jdn
+
+    day = date.fromisoformat(iso)
+    return gregorian_to_jdn(day.year, day.month, day.day)
+
+
 def _filter_entity_hits_for_actor(
     entity_hits: list[dict[str, Any]],
     *,
@@ -1118,10 +1128,11 @@ async def enhanced_search(
             compiled_query = await compile_query(db, request.query)
             effective_query = compiled_query.semantic_query
             merged_filters = dict(request.filters or {})
+            # The dates of a question are the dates written on the pages (day numbers), not the day they were imported.
             if compiled_query.date_from:
-                merged_filters.setdefault("date_from", compiled_query.date_from)
+                merged_filters.setdefault("date_jdn_from", _iso_to_jdn(compiled_query.date_from))
             if compiled_query.date_to:
-                merged_filters.setdefault("date_to", compiled_query.date_to)
+                merged_filters.setdefault("date_jdn_to", _iso_to_jdn(compiled_query.date_to))
             if compiled_query.doc_type:
                 merged_filters.setdefault("doc_type", compiled_query.doc_type)
             if merged_filters:
@@ -1258,12 +1269,12 @@ async def enhanced_search(
                 break
             try:
                 source_doc_ids = db.knowledge_claim_source_document_ids_for_entity(
-                    entity_hit.id
+                    entity_hit["id"]
                 )
             except Exception as exc:  # noqa: BLE001
                 logger.warning("graph-leg claim lookup failed: %s", exc)
                 continue
-            base_score = max(0.0, float(getattr(entity_hit, "similarity_score", 0.0) or 0.0))
+            base_score = max(0.0, float(entity_hit.get("similarity_score") or 0.0))
             for doc_id in source_doc_ids:
                 if not doc_id or doc_id in graph_seen:
                     continue
@@ -1277,10 +1288,10 @@ async def enhanced_search(
                         # via the graph, through WHICH entity.
                         metadata={
                             "via": "graph",
-                            "entity_id": entity_hit.id,
-                            "entity_name": entity_hit.canonical_name,
+                            "entity_id": entity_hit["id"],
+                            "entity_name": entity_hit["canonical_name"],
                         },
-                        kg_entity_ids=[entity_hit.id],
+                        kg_entity_ids=[entity_hit["id"]],
                     )
                 )
                 if len(graph_hits) >= graph_slots:

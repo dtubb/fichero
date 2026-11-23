@@ -12,6 +12,8 @@ from fichero_server.export_service import (
 )
 from fichero_server.models.knowledge import ClaimType, EntityType
 from fichero_server.models import DocType, Document, FileType, KnowledgeClaim, KnowledgeEntity
+# The embedder is the test one: saving an entity or claim must not load the pinned model (#5188, #5530).
+pytestmark = pytest.mark.usefixtures("hashed_text_embedder")
 
 
 def _seed_export_library(db):
@@ -114,6 +116,9 @@ def test_iter_export_records_page_granularity_carries_document_provenance(db):
             "speaker_entity_id": None,
             "provider": None,
             "model": None,
+            "made_by": None,
+            "confidence": 0.5,
+            "curation_state": "unreviewed",
         }
     ]
 

@@ -29,6 +29,14 @@ from fichero_server.models import AccountUser, DocType, Document, FileType, KGGr
 from tests._real_state_guard import skip_without_embedding_model
 
 
+@pytest.fixture(autouse=True)
+def _models_dir_in_tmp(tmp_path, monkeypatch):
+    """Where the embedding model is absent, loading it makes its cache folder; keep that under tmp_path."""
+    from fichero_server.llm import local_models
+
+    monkeypatch.setattr(local_models, "MODELS_BASE", tmp_path / "models")
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -271,7 +279,6 @@ class TestEnhancedSearch:
             file_type=FileType.text,
         )
         db.save(doc)
-        db.embed(doc)
         doc.deleted_at = doc.updated_at
         doc.deleted_by = "tester"
         db.save(doc)
@@ -1516,7 +1523,7 @@ class TestQueryCompilation:
     LLM; the compiled query is always visible; failure is reported and the
     raw query still runs."""
 
-    def test_resolver_executes_unmocked(self, db):
+    def test_resolver_executes_unmocked(self, db, monkeypatch):
         # Regression (reported live): the resolver imported
         # `ModelModel`/`ProviderModel` — chat.py's local ALIASES, not real
         # names in fichero_server.models — so every live compile raised
@@ -1527,6 +1534,11 @@ class TestQueryCompilation:
         # now falls back to on-device Apple Intelligence instead of refusing.
         from fichero_server.retrieval.query_compiler import _resolve_compiler_config
 
+        class _AppDB:
+            def get_ai_defaults(self):
+                return {}
+
+        monkeypatch.setattr("fichero_server.db.app.get_app_db", lambda: _AppDB())
         config = _resolve_compiler_config(db)
         assert config is not None
         assert config.provider == "apple"
@@ -1583,8 +1595,11 @@ class TestQueryCompilation:
         # The compiled query is visible (AI = instrument)…
         assert payload["compiled_query"]["semantic_query"] == "condoto mining"
         assert payload["compilation_error"] is None
-        # …and its date filters were applied.
-        assert payload["filters_applied"]["date_from"] == "1948-03-01"
+        # …and its dates were applied as the written date (day numbers), not the import date.
+        from fichero_server.histdate import gregorian_to_jdn
+
+        assert payload["filters_applied"]["date_jdn_from"] == gregorian_to_jdn(1948, 3, 1)
+        assert payload["filters_applied"]["date_jdn_to"] == gregorian_to_jdn(1948, 3, 31)
 
     def test_compilation_failure_is_reported_and_raw_query_runs(self, client, db, monkeypatch):
         from fichero_server.api.routes.search import core as core_module

@@ -22,6 +22,10 @@
 > (`compute/training-and-evaluation.md`, `training.*`); what counts as ground truth (`source/ground-truth.md`); how each
 > runtime ships and runs (`ai/local-runtimes.md`); and the loop's UI, which is the Models and Cluster window
 > (`ui/models-and-compute-window.md`, `models.loop.*`, `models.run-settings.*`).
+>
+> **Added 2026-11-22.** What each step must declare to enter this loop (its unit, its correction gestures, its held-out
+> unit, its error measure), the rules of every correction surface and the loop's display in Activity are
+> `compute/correct-measure-distil.md`'s; this file cites it and repeats none of it.
 
 ## Intent
 

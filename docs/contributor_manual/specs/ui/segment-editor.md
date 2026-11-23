@@ -286,15 +286,21 @@ targets are at least 44 pt.
   the lasso (⌥-drag from empty page in Select, drawn dashed), the over-half rule and the level rule
   for the band and the lasso (`SegmentSelectionGestures.inside`, `level`: lines when the page shows
   any, regions with ⌘, else what is shown). *Not built:* touch. *Tests:*
-  `fichero/Tests/Unit/general/Views/Source/SegmentSelectionGesturesTests.swift`.
+  `fichero/Tests/Unit/general/Views/Segments/SegmentSelectionGesturesTests.swift`.
+  *Built note (#7033, found by reading, needs an on-screen check):* Select's press always starts the band, so a drag that
+  starts ON a box (every press on a page) draws it; a click that does not move still selects. The band selects every box it
+  touches or encloses (`SegmentSelectionGestures.touching`); the lasso keeps the over-half rule. The band runs in the Source
+  view as well as Edit Segments. *Tests:* `fichero/Tests/Unit/general/Views/Segments/SelectPointerTests.swift`.
 - `segment-editor.select-shift-toggles` — **[PARTIAL]** (→ #4941; app) ⇧-click and ⇧-band add to the selection;
   ⇧-click on a selected segment removes it; ⌘A selects every segment of the level shown; ⌘⇧A
-  selects the same kind as the selection ("select the same kind" from the umbrella). *Built:*
+  selects the same kind as the selection ("select the same kind" from the umbrella); ⌘-click toggles one box, in the Source view
+  too (#7033). *Built:*
   ⇧-click and band on the Mac, ⌘A (Edit › Segments ▸ Select All Segments: every box shown).
   *Built (2026-11-14):* ⇧-click on a selected segment in Edit Segments removes it (it no longer starts
   a move, `SegmentEditingMode.pressStartsMove`); Edit › Segments ▸ Select Same Kind (⌘⇧A,
-  `SegmentSelectionGestures.sameKind`). *Tests:*
-  `fichero/Tests/Unit/general/Views/Source/SegmentSelectionGesturesTests.swift`.
+  `SegmentSelectionGestures.sameKind`). *Built note (#7033, needs an on-screen check):* ⌘-click toggles a box as ⇧-click does.
+  Join keeps its one shortcut, ⌘⌥J (no new chord; `canJoin` is tested in `SegmentJoinTests.swift`). *Tests:* `fichero/Tests/Unit/general/Views/Segments/SelectPointerTests.swift`;
+  `fichero/Tests/Unit/general/Views/Segments/SegmentSelectionGesturesTests.swift`.
 - `segment-editor.select-brush` — **[PARTIAL]** (→ #4941; app) the Brush paints a mask on the page; every segment the
   mask touches is selected when the stroke ends; ⌥ while painting subtracts; `[` and `]` change
   the size, shown as a circle under the pointer; on the iPad the size follows the slider and,
@@ -330,7 +336,7 @@ targets are at least 44 pt.
   region's lines to its parent and deletes the region (`segment.ungroup_region`). Each is one audit row and one undo, and
   each is the other's undo: undoing a group deletes the region, undoing an ungroup brings the same region back with the
   same lines and their reading-order entries as they were. The region joins the pass's `as-written` order only.
-  *Tests:* `test_segment_group_lines.py`; `SegmentGroupLinesTests.swift`.
+  *Tests:* `test_segment_group_lines.py`; `test_segment_redo_of_drawn_and_converted.py` (redo of each puts back the same region); `SegmentGroupLinesTests.swift`.
   *Not built:* the new region selected afterwards and open for its type; the "replace the old region when every line of it
   is selected" question; the region in orders other than `as-written`; the existing marquee path "New Region from
   Selection…" stays as it was (it names a drawn selection, it does not group segments).
@@ -343,7 +349,9 @@ targets are at least 44 pt.
   *Built (2026-11-13):* `segment.simplify` (Douglas-Peucker in the page image's pixels, outline closed
   and baseline open, never below three and two points, re-checked for a self-crossing; a shape
   already that simple is left alone; one undo through `segment.restore_versions`) and
-  Edit › Segments ▸ Simplify Outline at 2 px. *Built (2026-11-14):* the slider (0.5 to 20 px) in
+  Edit › Segments ▸ Simplify Outline at 2 px. *Built note (#7035, needs an on-screen check):* Simplify says how many points it
+  removed in the page notice (`SegmentEdit.pointCount`, `simplifyNotice`; `SegmentSimplifyTests.swift`); it needs a
+  selection, which Select could not make until #7033 was fixed. *Built (2026-11-14):* the slider (0.5 to 20 px) in
   Simplify's popover in the segment tools row, beside the shape tools (there is no Shape popover yet);
   while it is held the page draws, dashed, what the engine would make of the selection
   (`GET /api/segments/document/{doc_id}/simplify-preview`, the same computation the action writes,
@@ -352,7 +360,7 @@ targets are at least 44 pt.
   `SegmentEditingMode.deleteKey`). *Not built:* the chord: ⌥⌘S is Star's in the markup row
   (`PreviewMarkupToolsRow`).
   *Tests:* `fichero-server/tests/unit/api/test_segment_simplify.py` (the preview);
-  `fichero/Tests/Unit/general/Views/Source/SegmentSimplifyTests.swift` (`theSlider`, `thePreviewPaths`);
+  `fichero/Tests/Unit/general/Views/Segments/SegmentSimplifyTests.swift` (`theSlider`, `thePreviewPaths`);
   `fichero/Tests/Unit/general/Views/Preview/SegmentEditingModeTests.swift` (⌫ on a pressed point).
   *Built note (2026-11-20):* a tolerance far above the outline's size still leaves three outline points and two baseline
   points; several segments simplify as one action and one undo restores all; one stale version refuses the whole simplify
@@ -490,8 +498,10 @@ See section 7.2 below for what exists. The design:
   `write_readings` passes them to `representation.create`, which keeps them on a machine's reading
   when there is one per character. `segment.split(at_offset)` cuts at the position and marks
   `cut: measured` (not for right-to-left lines yet: their positions run along the baseline as
-  drawn). *Not built:* the full-page read's writer, the app's `Reading` model. *Tests:*
-  `test_kraken_char_positions.py`.
+  drawn). *Built 2026-11-21:* the full-page read's writer: `recognize_to_geometry` keeps each line's positions on
+  its box (trimmed with the text), and converting the result into a pass puts them on the line's reading when there
+  is one per character (`fichero-server/tests/unit/llm/test_full_page_read_keeps_char_positions.py`).
+  *Not built:* the app's `Reading` model. *Tests:* `test_kraken_char_positions.py`.
 - `segment-editor.cut-words-from-positions` — **[PARTIAL]** (→ #5212; engine + app) **Cut Words** (⌘⇧W) on selected lines, or
   a page, derives word segments from the counting reading: each space in the text is a gap
   between two characters; the cut is the point on the baseline midway between the end of the
@@ -525,7 +535,7 @@ See section 7.2 below for what exists. The design:
   word left alone; a word with no positions, right-to-left or of one character left alone and named; one undo,
   `segment.uncut_words`) and Edit › Segments ▸ Cut Characters on the selected words. *Not built:* the zoom gate,
   an ink-gap fallback for characters. *Tests:* `fichero-server/tests/unit/api/test_segment_cut_characters.py`;
-  `fichero/Tests/Unit/general/Views/Source/SegmentSimplifyTests.swift::cutCharacters`.
+  `fichero/Tests/Unit/general/Views/Segments/SegmentSimplifyTests.swift::cutCharacters`.
 - `segment-editor.cut-fallback-ink-gaps` — **[OK]** (→ #5212; engine) a line with a reading and no positions is
   cut by the ink-gap projection profile along its baseline: the dark pixels of the current
   image inside the outline are summed across the baseline, gaps wider than a fraction of the
@@ -544,7 +554,11 @@ See section 7.2 below for what exists. The design:
   *Built (2026-11-13):* `cut_source` (`ctc`, `ink-gap`), `cut_confidence`, `cut_from_representation_id`
   and `reading_span` on every word `segment.cut_words` makes. *Built (2026-11-14):* the same on every character
   `segment.cut_characters` makes, and `person` with confidence 1 on both pieces of a cut moved by `segment.move_cut`.
-  *Not built:* a cut a person adds by a click. *Tests:* `fichero-server/tests/unit/api/test_segment_cut_characters.py`,
+  *Built 2026-11-21:* the engine for a cut a person adds: `segment.split` with a `cut_path` across a word marks both
+  pieces `cut_source: person` with confidence 1 and the reading they were cut from
+  (`test_segment_move_cut.py::test_a_cut_added_inside_a_word_splits_its_stretch_of_the_reading_at_the_nearest_character`).
+  *Not built:* the app's click that sends it. Needs an on-screen check.
+  *Tests:* `fichero-server/tests/unit/api/test_segment_cut_characters.py`,
   `fichero-server/tests/unit/api/test_segment_move_cut.py`.
 - `segment-editor.cut-marks-editable` — **[PARTIAL]** (→ #5212; app + engine) in the word layer each cut is a short mark
   across the baseline: drag it to move the cut (one `segment.update` of the two words' anchors
@@ -597,7 +611,7 @@ See section 7.2 below for what exists. The design:
   Edit › Segments ▸ Next Doubtful Line selects the next measured line in that order, from the top again after the last, and says when nothing is
   doubtful (`SegmentSelectionGestures.nextDoubtful`); the head's button is not built. *Tests:*
   `fichero-server/tests/unit/api/test_segments_doubtful.py`;
-  `fichero/Tests/Unit/general/Views/Source/SegmentSelectionGesturesTests.swift::NextDoubtfulTests`.
+  `fichero/Tests/Unit/general/Views/Segments/SegmentSelectionGesturesTests.swift::NextDoubtfulTests`.
 - `segment-editor.layers` — **[PARTIAL]** (→ #5114; app; applies Q2 of the umbrella's rulings and `layers.toggle.one-menu-per-surface`)
   the What-to-show menu's segment entries are layers: regions, lines, baselines, words,
   characters, reading order, each on or off with an opacity, remembered per pane
@@ -637,16 +651,34 @@ See section 7.2 below for what exists. The design:
   over audit ids (`undo.window`, `source.editor.system-undo`); a refused undo says why in words
   (`undo.refusal.in-words`). *Built:* for move, delete, draw, reshape. *Not built:* for every
   tool here; the coalescing rules above.
-- `segment-editor.every-tool-works` — **[GAP]** (#6734; app + engine; owner 2026-11-19) every tool in the segment toolbar
+  *Built 2026-11-21:* in the engine, redo (the undo of the undo) of a Marker segment, a Line Brush line, Convert to Box and
+  Convert Level makes the same edit again, and undo after it ends where the first undo did
+  (`fichero-server/tests/unit/api/test_segment_redo_of_drawn_and_converted.py`). Needs an on-screen check.
+- `segment-editor.every-tool-works` — **[PARTIAL]** (#6734; app + engine; owner 2026-11-19) every tool in the segment toolbar
   (select, box, lasso, knife, combine, order, select brush, line brush, and the rest) does its job on a real page, and its
   result is saved (survives a reload) and undoable. Walked once per tool, with a test per tool that drives its gesture and
   commit path and checks the stored segments; both brushes fail that test today.
-- `segment-editor.one-active-tool` — **[GAP]** (#6734; app; owner 2026-11-19) the toolbar is one choice: exactly one tool shows
+  *Built note (#7034, needs an on-screen check):* the Region tool in Edit Segments saves its dragged box as a polygon region on
+  the shown pass with `segment.create`, selects it, one undo (`onDrawRegionBox`;
+  `fichero/Tests/Unit/general/Views/Segments/DrawRegionPointerTests.swift` checks the hand-over, not the stored segment).
+  *Built 2026-11-21:* the engine half: the action each of Box, Marker, Line Brush, Knife, Combine, a drag's move and
+  delete sends through `POST /api/actions/invoke` is in the page read the app reloads with
+  (`GET /api/segments/document/{doc_id}`), and one undo takes it back there
+  (`fichero-server/tests/unit/api/test_segment_every_tool_saves_and_undoes.py`). *Not built:* a test per tool that drives
+  the app's gesture to its commit; the Order tool and the Select Brush are not in that file. Needs an on-screen check.
+- `segment-editor.one-active-tool` — **[PARTIAL]** (#6734; app; owner 2026-11-19) the toolbar is one choice: exactly one tool shows
   as active, and picking another, by click or key, moves the highlight. Today Select stays highlighted beside the tool just
   picked and still handles the drag, which may be why the brushes seem to do nothing. Test: choosing each tool leaves only
   that tool active, in the model and in the toolbar.
-- `segment-editor.expand-one-axis` — **[PROPOSED]** (#6735; open choice for the owner: tools plus keys as below, or only one
-  of them) a way to expand a segment only vertically or only horizontally. Proposed, A: two tools, Expand Vertically (V) and
+  *Built 2026-11-20:* the model half, as `segment-editor.one-tool`: `chooseSegmentTool` leaves exactly one flag tool chosen
+  and Select empty, another tool or its key moves the choice, putting it down returns to Select
+  (`fichero/Tests/Unit/general/Views/Preview/SegmentToolChoiceTests.swift`). *Not built:* a test that reads the highlight
+  from the toolbar itself. Needs an on-screen check.
+- `segment-editor.expand-one-axis` — **[PARTIAL]** (#6735; app) owner ruling 2026-11-21: dragging a handle with ⇧ held changes
+  one axis, chosen by the way the drag first moves; the other edges stay; without ⇧ the drag is as before; one undoable move; lines
+  and regions both. *Built note (needs an on-screen check):* `BoxResize.axis`, `resized(axis:)` and `handleResize`;
+  `fichero/Tests/Unit/general/Views/Segments/ShiftDragOneAxisTests.swift`. The tools and keys below stay **[PROPOSED]** (open choice
+  for the owner: tools plus keys, or only one of them): a way to expand a segment only vertically or only horizontally. Proposed, A: two tools, Expand Vertically (V) and
   Expand Horizontally (H); dragging over a segment changes only that axis with the other edges locked; a click grows that axis
   to fit the ink (snapping to the page's text); Shift applies it to every selected segment. Proposed, C: keys on a selection,
   ⌥↑ and ⌥↓ for height and ⌥← and ⌥→ for width, 1 px a press (10 px with Shift), working on many lines at once. Edge handles
@@ -729,9 +761,12 @@ See section 7.2 below for what exists. The design:
   `<MetadataItem>` per segment and the package sidecar; a merged or split segment's forwarding
   notes to the sidecar only. *Built:* ALTO and PAGE lines, words, order, loss report; and
   (2026-11-13) the cut's source and confidence: PAGE `custom` (`cut {source:ctc; confidence:0.82;}`),
-  ALTO `WC` with the source named in the loss report (`page_export.CUT_FACTS`). *Not built:*
-  glyphs, hOCR's cut, per-segment provenance. *Tests:* `test_cuts_in_page_and_alto.py`;
-  `test_segment_cut_words.py::TestExport`.
+  ALTO `WC` with the source named in the loss report (`page_export.CUT_FACTS`).
+  *Built 2026-11-21:* glyphs: a character segment goes into its word's ALTO `String` as a `Glyph` (one character as
+  `CONTENT`, `GC` from the cut's confidence, the cut's source reported lost; a character with no single-character
+  reading is reported), and the ALTO reader takes a `Glyph` back as a character; PAGE already wrote `Glyph`.
+  *Not built:* hOCR's cut, per-segment provenance. *Tests:* `test_cuts_in_page_and_alto.py`;
+  `test_segment_cut_words.py::TestExport`; `fichero-server/tests/unit/formats/test_glyphs_in_page_and_alto.py`.
 - `segment-editor.coordinates-one-frame` — **[PARTIAL]** (→ #5382; engine + app; ties to `../source/image-enhancement.md`)
   the page a person draws on may be an enhanced or deskewed image; what is **stored** is always
   fractions of the upright photograph (`prep.image.one-upright-frame`, `current_image.py`). The
@@ -753,19 +788,26 @@ See section 7.2 below for what exists. The design:
   or confirmed by a person are included as PAGE `Word` / `Glyph` so a recogniser trained on
   them learns the alignment; a corrected region set is a YOLO label
   (`prep.yolo.fine-tune-from-corrected-regions`); a machine's cut no person touched is left
-  out by default (`source.train.human-checked-by-default`). *Built:* the line set. *Not built:*
-  words, glyphs and regions in it.
+  out by default (`source.train.human-checked-by-default`). *Built:* the line set.
+  *Built 2026-11-21:* the set (a full PAGE export) carries regions, words and glyphs; a word or glyph whose `custom`
+  names a machine's cut (`cut {source:ctc|ink-gap}`) is left out (`kraken_set.drop_flagged_lines`), a person's cut
+  and a word no cut made stay (`fichero-server/tests/unit/training/test_training_set_keeps_a_persons_cuts.py`).
+  *Not built:* an option to include a machine's cuts, the manifest counting the cuts left out, the YOLO label from
+  corrected regions.
 - `segment-editor.provenance-on-every-segment` — **[PARTIAL]** (→ #4923; engine) every segment says who made it
   (`created_by`, `provenance_kind`: model and run, or person, set by the engine from the
   action's context, never from the client) and every change is a version with who and when
   (`source.segment.versioned-alone`); a merged line names the lines it came from; a cut names
   its source. The Inspector shows it; the Segments list can sort by it. *Built:* maker and
-  versions. *Not built:* the merged-from list on the row, the cut's source.
+  versions. *Built 2026-11-21:* `GET /api/segments/{segment_id}` answers `merged_from`, every id merged into the
+  segment directly or through a segment merged into it, an undone merge's id taken out
+  (`fichero-server/tests/unit/api/test_segment_merged_from.py`). *Not built:* the Inspector and the list row showing
+  the merged-from list, the cut's source on the row. Needs an on-screen check.
 
 
 #### PDF pages (owner 2026-11-16 evening; #6664; first when segment work resumes)
 
-- `segment-editor.pdf.segments-from-the-text-layer` — **[GAP]** (#6664) a PDF page with a text layer
+- `segment-editor.pdf.segments-from-the-text-layer` — **[PARTIAL]** (#6664) a PDF page with a text layer
   gets regions, lines and words as segments built from the geometry the import already saved
   (#4418), mapped from PDF page coordinates to the page's rendition, with no model run and no
   network. They are ordinary segments: they carry their text as a reading, take every verb, and
@@ -773,6 +815,10 @@ See section 7.2 below for what exists. The design:
   text layer (a scan) gets no segments and says so in one line ("No text layer on this page;
   find lines to make segments"). Re-running never duplicates: an existing text-layer segment set
   is kept, not added again.
+  *Built 2026-11-21:* the engine half: `POST /api/segments/document/{doc_id}/text-layer` (the import's geometry, or
+  the PDF read again where it is missing; the same conversion as an import's; an existing set kept with nothing added; a
+  scan answers the one line; `fichero-server/tests/unit/api/test_pdf_text_layer_segments.py`). *Not built:* the app
+  calling it when a PDF page opens and showing the line. Needs an on-screen check.
 - `segment-editor.pdf.selection-highlights-on-the-page` — **[GAP]** (#6664; owner: clicking a
   segment line does not highlight it on the PDF) selecting a segment anywhere, in the Segments
   pane, the Inspector or a reading, highlights its shape on the rendered PDF page in the region's
@@ -935,8 +981,11 @@ The umbrella's speed trial (slice 12) is the gate and is not restated. This file
   *Built (2026-11-13):* `segment.create` and `segment.update` store a self-crossing polygon as the
   outer boundary of the area it covers (`line_join.simple_outline`), mark the row
   `outline_simplified` and answer `simplified: true`; a merge's outline is traced from a raster and
-  is simple by construction. *Not built:* the validator's report on imported ones, `update_many`.
-  *Tests:* `test_segment_self_intersecting.py`.
+  is simple by construction. *Built 2026-11-21:* the validator names an imported crossing outline
+  (`self-crossing`; `test_segments_validate.py::test_a_self_crossing_outline_written_by_an_import_is_named`), and
+  `segment.update_many` takes no shape (its items are attributes only), so it cannot write one. *Not built:* the app
+  offering Redraw from Baseline beside the finding (the export sheet names it, `PageExportRunner.swift`). Needs an
+  on-screen check. *Tests:* `test_segment_self_intersecting.py`.
 - `segment-editor.edge.empty-region` — **[PARTIAL]** (→ #4941; engine + app) a region with no lines is kept (a person
   may draw into it), drawn with its label only, and listed by the validator as empty before export.
   *Built (2026-11-13):* the validator lists it (`empty-region`). *Not built:* the label-only drawing.
@@ -962,11 +1011,14 @@ The umbrella's speed trial (slice 12) is the gate and is not restated. This file
   gives the kept word every member's outline as a polygon shape, one undo. In the app, Cut Words says how many words
   go on onto the next line and Edit › Segments ▸ Join Broken Words joins each (one merge and one undo per word,
   `SegmentEdit.joinBrokenWord`). *Tests:* `fichero-server/tests/unit/api/test_segment_word_across_lines.py`;
-  `fichero/Tests/Unit/general/Views/Source/SegmentSimplifyTests.swift::brokenWords`.
-- `segment-editor.edge.knife-through-words` — **[PARTIAL]** (→ #4941; engine) a knife split of a line that already has
+  `fichero/Tests/Unit/general/Views/Segments/SegmentSimplifyTests.swift::brokenWords`.
+- `segment-editor.edge.knife-through-words` — **[OK]** (→ #4941; engine) a knife split of a line that already has
   words assigns each word to the part its centre falls in and splits a word the stroke crosses.
   *Built (2026-11-13):* words go with the part holding their centre, and undo puts them back
-  (`moved_children`; `test_segment_split_knife.py::TestWords`). *Not built:* splitting a word the stroke crosses.
+  (`moved_children`; `test_segment_split_knife.py::TestWords`). *Built 2026-11-21:* a word the stroke divides is split
+  between the parts, each piece under the part it lies in (`line_cut.pieces_in_parts`), and the answer names it in
+  `split_words`; a word the stroke names is split as a line is and each piece moves to the part holding its centre; one
+  undo makes every word whole again under the line (`fichero-server/tests/unit/api/test_segment_split_knife.py::TestWords`).
 - `segment-editor.edge.merge-across-passes` — **[OK]** (engine) refused in words by
   `SegmentPassMismatchError`; the app offers nothing across passes but a match. Pinned by
   `fichero-server/tests/unit/api/test_segments_matches_forwarding.py`.
@@ -977,7 +1029,10 @@ The umbrella's speed trial (slice 12) is the gate and is not restated. This file
   sequence follow the line's resolved direction: "before the cut" is the right part of a
   right-to-left line and the upper part of a vertical one (`estimated_cut` already does this
   for the proportional case). *Built (2026-11-13):* the knife (`test_segment_split_knife.py`, rtl and
-  vertical). *Not built:* the word cut and the order sequence.
+  vertical). *Built 2026-11-21:* the word cut from the ink (an rtl line's first word is its right-hand piece, a
+  vertical line's its top piece) and the order sequence (`segment.cut_words` puts a line's new words in the reading
+  order in the sequence they are read; `test_segment_cut_words.py::TestDirections`). *Not built:* the word cut from
+  positions on an rtl line (it takes the ink instead).
 
 ## 7.2 — Does Fichero keep Kraken's per-character positions today?
 
@@ -1149,7 +1204,7 @@ hand, so the cut marks on such a line are the fallback's and say so.
 
 | Leg | This surface? | Pins | File |
 |-----|---------------|------|------|
-| Pure rule (Swift) | y | tool decisions, plans, gesture-to-request | `fichero/Tests/Unit/general/Views/Source/*Tests.swift` |
+| Pure rule (Swift) | y | tool decisions, plans, gesture-to-request | `fichero/Tests/Unit/general/Views/Segments/*Tests.swift` |
 | Availability (Swift) | y | every verb reachable in Edit Segments | same |
 | Backend (pytest) | y | every new action and parameter, inverses, refusals | `fichero-server/tests/unit/api/test_segment_*.py` |
 | MCP | y | the new actions map | `fichero-mcp/tests/test_mcp_generated.py` |

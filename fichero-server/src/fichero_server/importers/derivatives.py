@@ -138,7 +138,8 @@ def queue_derivatives(
         doc.id for doc in docs if needs_derivative(doc) or needs_embedding(doc)
     ]
     # The run's Search embeds these pages once after reading (ruling 5, #6186): no per-page embed now.
-    embed_queued = [] if EMBED_KIND in taken else queued
+    # A page with no text has nothing to embed: its thumbnail landing is what ends `pending` and counts it.
+    embed_queued = [] if EMBED_KIND in taken else [doc.id for doc in docs if needs_embedding(doc)]
     # #4823: gated separately from thumbnails/embeds by the Settings ▸
     # General ▸ Ingestion toggle (default ON) -- OFF means not queued at
     # all, never a stage that runs and no-ops. The run's names stage takes it as Search takes the embed.
@@ -920,15 +921,20 @@ def _thumbnail_stage(doc_id: str, library: str) -> Path | None:
     learned about a finished image over a second late (user, live 2026-08-19).
     """
     _progress_touch(library)
+    ends_the_page: list[bool] = []
     try:
-        return _thumbnail_stage_body(doc_id, library)
+        return _thumbnail_stage_body(doc_id, library, ends_the_page)
     except SourceMissing:
         return None
     finally:
         _progress_touch(library)
+        if ends_the_page:
+            _progress_tick(library)
 
 
-def _thumbnail_stage_body(doc_id: str, library: str) -> Path | None:
+def _thumbnail_stage_body(doc_id: str, library: str, ends_the_page: list[bool]) -> Path | None:
+    """The thumbnail work. A page with no text has no embed job: appends True to ``ends_the_page`` (the caller
+    counts the page) and, when the thumbnail did not fail, flips it ``pending`` to ``completed`` here."""
     from fichero_server.api.change_stream import emit_change
     from fichero_server.db.storage import ensure_thumbnail
 
@@ -936,6 +942,8 @@ def _thumbnail_stage_body(doc_id: str, library: str) -> Path | None:
     if opened is None:
         return None
     db, doc = opened
+    if not needs_embedding(doc):
+        ends_the_page.append(True)
 
     thumb: Path | None = None
     error: str | None = None
@@ -965,15 +973,19 @@ def _thumbnail_stage_body(doc_id: str, library: str) -> Path | None:
         return thumb
 
     metadata = dict(doc.metadata or {})
+    completed = False
     if error:
         metadata["derivative_error"] = error
     else:
         metadata.pop("derivative_error", None)
+        if ends_the_page and doc.status == Status.pending:
+            doc.status = Status.completed
+            completed = True
     # Save ONLY on a real change: this stage can run concurrently with the
     # same document's embed stage (two pool workers), and an unconditional
     # save here overwrote the embed stage's pending → completed flip with
     # this stage's stale copy.
-    if metadata != (doc.metadata or {}):
+    if completed or metadata != (doc.metadata or {}):
         doc.metadata = metadata
         try:
             db.save(doc)

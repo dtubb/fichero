@@ -406,13 +406,19 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
   table above meets the import, memory and disk figures at 500 and 2,000 pages. *Not met:* the first thumbnail waits
   for the last file (`importer.resume.jobs-are-queued-with-each-batch`). *Not built:* a load leg that holds these
   numbers; the 100,000-file target of #4203 is not measured.
-- `importer.scale.a-linked-file-is-read-once` — **[GAP]** (→ #6832; nearest #4203) a link import reads each file's
+- `importer.scale.a-linked-file-is-read-once` — **[PARTIAL]** (→ #6832; nearest #4203) a link import reads each file's
   bytes once and asks the disk about it a handful of times. Today each file is read three times and asked about 32
   times (measured on 100 files, 390 MB: 2.99 times the bytes read, 25.8 `stat`, 6.3 `lstat`, 3 opens per file):
   `ingest_folder` hashes it for the skip test (`_file_checksum`), `ingest_file` hashes it again as the
   changed-while-read check (`_extract_file_metadata`, `known_checksum=None` for a link), and reading the image's
   size and EXIF reads it a third time (`_extract_image_metadata`; all in `importers/ingest.py`). On a network volume the read is the whole cost of an import. The
   changed-while-read check can be the size and date before and after one read.
+  *Built:* the skip test's hash is the one read: `ingest_file` takes it as `known_checksum`, the changed-while-read
+  check compares the file's size and date before and after (`_raise_if_changed_while_read`), and the image's size
+  and EXIF come from the header (`open_image_header_checked`, `loaders/image_loader.py`). Counted in the test, a
+  link import of six JPEGs reads 1.0 to 1.15 times the folder's bytes. *Not built:* the `stat`, `lstat` and open
+  counts per file are not reduced or measured; a copy import still reads each file for the copy as well.
+  Test: `fichero-server/tests/unit/importers/test_a_linked_file_is_read_once.py`.
 - `importer.resumable-redrop-skips-without-reading` — **[PARTIAL]** (#739) dropping a folder again onto the place it
   was imported to brings in only what is missing and makes no second copy of anything. *Built:* the skip by source
   path and checksum, scoped to the destination (`ingest_folder`, `Database.ingest_dedup_keys`;
@@ -420,16 +426,27 @@ network volume, 5,000 pages in one run (the 5,000 figures are the 2,000 figures 
   was completed by a second drop in 59.5 s with no page twice and its 1,602 folders made once. *Not built:* the
   skip reads every byte of every file already imported to hash it; a file whose path, size and date match what was
   recorded is skipped without a read (today only an online-only cloud file is skipped that way).
+  *Built:* (#6832) a file whose path, size and date match what its import recorded is skipped without being opened
+  (`ingest_folder`, `Database.ingest_dedup_source_stamps`, scoped to the destination); a re-drop of six linked JPEGs
+  reads no bytes, and a file whose size changed is read and imported again. *Not built:* a file whose date matches
+  but whose bytes changed is not noticed.
+  Test: `fichero-server/tests/unit/importers/test_a_linked_file_is_read_once.py`.
 - `importer.scale.no-embed-job-for-a-page-without-text` — **[GAP]** (→ #6833; nearest #5954) a page with no text gets
   no embed job: its thumbnail landing is what ends `pending`. Today every image gets one (`queue_derivatives`:
   `embed_queued = queued`), which embeds nothing, costs 48 ms a page on the embed lane (24 s per 500 pages, at over
   one core) and is the only thing that turns the page from `pending` to `completed` (`_embed_stage`,
   `importers/derivatives.py`).
+  *Built:* `queue_derivatives` queues an embed job only for a page with text, and the thumbnail stage ends a page
+  with no text (`pending` to `completed`, unless the thumbnail failed). Test:
+  `fichero-server/tests/unit/api/test_post_ingest_derivatives.py`.
 - `importer.scale.prepare-pages-counts-what-lands` — **[PARTIAL]** (→ #6833; nearest #5954) the "Prepare pages" row
   counts a page when its thumbnail lands, so the count moves through the whole wait. *Built:* the row's stages
   carry their own counts (`queue_stages`, `importers/derivatives.py`). *Not built:* the row's own count moves only
   when an embed job ends (`_progress_tick` is called from `_embed_stage` alone), so it reads 0 of N for the whole
   thumbnail stage (83 s at 500 pages, about 15 min at 5,000) and then runs to N in seconds.
+  *Built:* for a page with no text, its thumbnail stage ticks the count, so the count moves as those thumbnails land
+  (`_thumbnail_stage`). *Not built:* a page with text still counts when its embed job ends. Test:
+  `fichero-server/tests/unit/api/test_post_ingest_derivatives.py`.
 - `importer.scale.edited-image-cache-is-bounded` — **[GAP]** (→ #6834; nearest #1590) an edited page's picture is
   made once per saved edit, off the request, and the copy of an earlier edit is removed when a later one is saved.
   Today `resolve_edited_source` (`db/storage.py`) writes a full-size PNG of the edited page into the project, inside
@@ -603,7 +620,7 @@ second; the list answers one item.
 
 #### Step 1.6 — A linked file is read once; a re-drop skips by size and date (#6832, #739)
 - Behaviours: `importer.scale.a-linked-file-is-read-once`, `importer.resumable-redrop-skips-without-reading`, `importer.resumable-content-hash-skip`
-- Tests: test_a_linked_file_is_read_once.py (not yet written), fichero-server/tests/unit/importers/test_ingest_dedup_scope.py
+- Tests: fichero-server/tests/unit/importers/test_a_linked_file_is_read_once.py, fichero-server/tests/unit/importers/test_ingest_dedup_scope.py
 - Size: S
 
 `importers/ingest.py`. Test: counted reads equal the folder's bytes; a re-drop reads none.

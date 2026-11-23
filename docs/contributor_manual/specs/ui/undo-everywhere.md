@@ -458,7 +458,7 @@ route move first).
 - *Folders* (4): create, rename, delete and move an entity folder (`/api/folders/{entity_type}/…`). No `folder.*` action exists.
 - *Knowledge graph* (8): claim and entity batch curation (`*.batch_curation` exist, undoable=False), prune trivial claims, PyKEEN review create and verify, apply a prediction run, queue a review pair, link an external authority (#3740).
 - *Claims* (3): assign time period (two routes), batch transition.
-- *Hermeneutics* (7): framework, interpretation, pattern and circle-state create, add a claim to a pattern, circle navigate and backtrack.
+- *Hermeneutics* (7): framework, interpretation, pattern and circle-state create, add a claim to a pattern, circle navigate and backtrack. The circle-state model retires (`kg/hermeneutic-layer.md`), so its three actions need no inverse once its code is removed.
 - *Registries and kinds* (8): epistemic statuses and claim kinds create/patch/delete; entity types add/remove on a project.
 - *Projects and the project list* (8): create a project (`POST /api/library`), patch, include/remove an item, add/remove a known project, update access, merge Unicode collisions.
 - *Chains, schedules, triggers, orchestration policies, the action library* (18): their create/update/delete routes; use, from-node and composite actions.

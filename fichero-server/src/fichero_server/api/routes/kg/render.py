@@ -91,6 +91,31 @@ async def render_paragraph(
 # =============================================================================
 
 
+class ReadableClause(BaseModel):
+    """One unit of a sentence: the statements it says and where its text sits in the paragraph."""
+
+    start: int
+    end: int
+    claim_ids: list[str]
+    role: str
+    revoiced: bool
+    state: str
+    doubt: str
+    sources: int
+    date: str | None = None
+    place: str | None = None
+
+
+class ReadableSegment(BaseModel):
+    """A span of the paragraph and where its characters come from: `claim:<id>:<field>`,
+    `table:<language>:<word>` or `punctuation`."""
+
+    start: int
+    end: int
+    origin: str
+    claim_ids: list[str]
+
+
 class ReadableSentence(BaseModel):
     """One clickable sentence of an entity's readable entry."""
 
@@ -101,6 +126,8 @@ class ReadableSentence(BaseModel):
     claim_ids: list[str]
     role: str
     revoiced: bool
+    clauses: list[ReadableClause] = []
+    segments: list[ReadableSegment] = []
 
 
 class AlsoMentionedIn(BaseModel):

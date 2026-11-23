@@ -2042,6 +2042,29 @@ class Database(DatabaseEmbeddingMixin):
             )
         return {row[0]: int(row[1]) for row in rows if row[0] and row[1] is not None}
 
+    def ingest_dedup_source_stamps(self, root_id: str | None = None) -> set[tuple[str, int, str]]:
+        """(source_path, file_size, source_mtime) for every non-failed document that recorded all three: a file
+        whose path, size and date match one of these was imported already and is skipped without reading it.
+        ``root_id`` restricts the set to that document's subtree."""
+        body = """
+            SELECT COALESCE(
+                       json_extract_string(metadata, '$.source_path'), path),
+                   TRY_CAST(json_extract_string(metadata, '$.file_size') AS BIGINT),
+                   json_extract_string(metadata, '$.source_mtime')
+            FROM documents
+            WHERE status != 'failed'
+              AND json_extract_string(metadata, '$.file_size') IS NOT NULL
+              AND json_extract_string(metadata, '$.source_mtime') IS NOT NULL
+            """
+        if root_id is None:
+            rows = self.execute_fetchall(body)
+        else:
+            rows = self.execute_fetchall(
+                self._SUBTREE_CTE + body + " AND id IN (SELECT id FROM subtree)",
+                [root_id],
+            )
+        return {(row[0], int(row[1]), row[2]) for row in rows if row[0] and row[1] is not None and row[2]}
+
     def ingest_dedup_keys(self, root_id: str | None = None) -> set[tuple[str, str]]:
         """(source_path, checksum) pairs for every non-failed document.
 
@@ -2458,15 +2481,19 @@ class Database(DatabaseEmbeddingMixin):
         # hit the memory cap. Updating an existing row through ON CONFLICT costs nothing extra.
         # Upstream: duckdb/duckdb#26830. Gate then lock, as save_many takes them, so the lookup
         # and the write are one step.
-        self._ensure_transaction_started()
-        with self._transaction_gate, self._lock:
-            exists = self._execute(f"SELECT 1 FROM {sql_table} WHERE id = $id", {"id": data["id"]}, fetch="one")
-            sql = (
-                self._upsert_sql(sql_table, cols, placeholders)
-                if exists
-                else f"INSERT INTO {sql_table} ({', '.join(cols)}) VALUES ({placeholders})"
-            )
-            self._execute(sql, data)
+        is_claim = type(obj).__name__ == "KnowledgeClaim"
+        with self.transaction() if is_claim else nullcontext():
+            self._ensure_transaction_started()
+            with self._transaction_gate, self._lock:
+                exists = self._execute(f"SELECT 1 FROM {sql_table} WHERE id = $id", {"id": data["id"]}, fetch="one")
+                sql = (
+                    self._upsert_sql(sql_table, cols, placeholders)
+                    if exists
+                    else f"INSERT INTO {sql_table} ({', '.join(cols)}) VALUES ({placeholders})"
+                )
+                self._execute(sql, data)
+                if is_claim:
+                    self._write_kg_mentions([obj])
 
         if type(obj).__name__ == "SavedSearch":
             self._save_saved_search_document(obj)
@@ -2599,6 +2626,8 @@ class Database(DatabaseEmbeddingMixin):
                                 )
                                 with watch_statement(sql):
                                     self.conn.execute(sql, [value for row in batch for value in row])
+                            if first_type.__name__ == "KnowledgeClaim":
+                                self._write_kg_mentions(objs)
                 return len(param_rows)
             except duckdb.Error as exc:
                 if self._is_invalidated_error(exc):
@@ -2620,6 +2649,106 @@ class Database(DatabaseEmbeddingMixin):
                 delay = _DUCKDB_WRITE_CONFLICT_BACKOFF_SECONDS * (attempt + 1)
                 time.sleep(delay)
             raise RuntimeError("save_many retry loop exited unexpectedly")
+
+    # --- kg_mentions: one derived row per name on a statement; no index, no PK ---
+
+    def _ensure_kg_mentions(self) -> None:
+        with self._lock:
+            if "kg_mentions" in self._tables_created:
+                return
+            existed = self.conn.execute(
+                "SELECT count(*) FROM information_schema.tables WHERE table_name = 'kg_mentions'"
+            ).fetchone()[0]
+            self.conn.execute(
+                "CREATE TABLE IF NOT EXISTS kg_mentions ("
+                "entity_id VARCHAR, claim_id VARCHAR, page VARCHAR, role VARCHAR)"
+            )
+            self._tables_created.add("kg_mentions")
+            has_claims = self.conn.execute(
+                "SELECT count(*) FROM information_schema.tables WHERE table_name = 'knowledgeclaims'"
+            ).fetchone()[0]
+            if not existed and has_claims:
+                # a library whose statements were saved before the table existed
+                self.rebuild_kg_mentions()
+
+    @staticmethod
+    def _kg_mention_rows(claim: Any) -> list[tuple[str, str, str | None, str]]:
+        """The rows one statement owes: its subject id as `subject`, every other id in `entity_ids` as `named`.
+
+        ponytail: `object` rows wait for the object's id on the statement (#6756).
+        """
+        subject = getattr(claim, "subject_entity_id", None)
+        ids = dict.fromkeys(str(e) for e in (claim.entity_ids or []))
+        if subject:
+            ids.setdefault(str(subject))
+        page = getattr(claim, "source_page_label", None)
+        return [(e, claim.id, page, "subject" if e == subject else "named") for e in ids]
+
+    def _write_kg_mentions(self, claims: Sequence[Any]) -> None:
+        """Replace the rows of these statements; the caller holds the statements' transaction."""
+        self._ensure_kg_mentions()
+        self._delete_kg_mentions([c.id for c in claims])
+        rows = [r for c in claims for r in self._kg_mention_rows(c)]
+        for start in range(0, len(rows), 500):
+            batch = rows[start : start + 500]
+            placeholders = ", ".join("(?, ?, ?, ?)" for _ in batch)
+            self.conn.execute(
+                f"INSERT INTO kg_mentions VALUES {placeholders}",
+                [v for row in batch for v in row],
+            )
+
+    def _delete_kg_mentions(self, claim_ids: Sequence[str]) -> None:
+        self._ensure_kg_mentions()
+        for start in range(0, len(claim_ids), 500):
+            batch = list(claim_ids[start : start + 500])
+            self.conn.execute(
+                f"DELETE FROM kg_mentions WHERE claim_id IN ({', '.join('?' for _ in batch)})", batch
+            )
+
+    def entity_claim_counts(self, *, limit: int | None = None, entity_type: str | None = None) -> list[tuple[str, int]]:
+        """Statements per name from `kg_mentions`, most first (ties by id); with `limit` or `entity_type`, only names that have an entity row."""
+        self._ensure_kg_mentions()
+        sql = "SELECT m.entity_id, COUNT(DISTINCT m.claim_id) AS n FROM kg_mentions m"
+        params: list[Any] = []
+        if limit is not None or entity_type is not None:
+            sql += " JOIN knowledgeentitys e ON e.id = m.entity_id"
+            if entity_type is not None:
+                sql += " WHERE e.entity_type = ?"
+                params.append(entity_type)
+        sql += " GROUP BY m.entity_id ORDER BY n DESC, m.entity_id"
+        if limit is not None:
+            sql += " LIMIT ?"
+            params.append(limit)
+        with self._lock:
+            return [(str(r[0]), int(r[1])) for r in self.conn.execute(sql, params).fetchall()]
+
+    def rebuild_kg_mentions(self) -> int:
+        """Throw the link table away and remake it from the statements table in one statement; returns its row count."""
+        from fichero_server.models.knowledge import KnowledgeClaim
+
+        self._ensure_table(KnowledgeClaim)
+        self._ensure_kg_mentions()
+        with self.transaction():
+            self._ensure_transaction_started()
+            with self._transaction_gate, self._lock:
+                self.conn.execute("DELETE FROM kg_mentions")
+                self.conn.execute(
+                    """
+                    INSERT INTO kg_mentions
+                    SELECT e.entity_id, c.id, c.source_page_label,
+                           CASE WHEN e.entity_id = c.subject_entity_id THEN 'subject' ELSE 'named' END
+                    FROM (
+                        SELECT id, subject_entity_id,
+                               unnest(list_distinct(list_concat(
+                                   COALESCE(CAST(json(entity_ids) AS VARCHAR[]), []),
+                                   CASE WHEN subject_entity_id IS NULL THEN [] ELSE [subject_entity_id] END
+                               ))) AS entity_id
+                        FROM knowledgeclaims
+                    ) e
+                    JOIN knowledgeclaims c ON c.id = e.id
+                    """
+                )
+                return self.conn.execute("SELECT count(*) FROM kg_mentions").fetchone()[0]
 
     def _legacy_all_saved_search_rows(self) -> list[BaseModel]:
         """Read SavedSearch rows from the legacy table without node folding."""
@@ -4433,7 +4562,10 @@ class Database(DatabaseEmbeddingMixin):
         sql_table = self._sql_table_name(obj)
         self._ensure_table(type(obj))
 
-        self._execute(f"DELETE FROM {sql_table} WHERE id = $id", {"id": obj.id})
+        with self.transaction() if type(obj).__name__ == "KnowledgeClaim" else nullcontext():
+            self._execute(f"DELETE FROM {sql_table} WHERE id = $id", {"id": obj.id})
+            if type(obj).__name__ == "KnowledgeClaim":
+                self._delete_kg_mentions([obj.id])
         if type(obj).__name__ == "SavedSearch":
             self._delete_saved_search_document(obj.id)
         if type(obj).__name__ == "KnowledgeEntity":
@@ -7170,6 +7302,7 @@ class Database(DatabaseEmbeddingMixin):
             # Initialize results storage
             semantic_results = []
             fulltext_results = []
+            fulltext_candidates_capped = False
 
             # Check if embeddings table exists
             has_embeddings = EMBEDDINGS_TABLE in self._lance_tables()
@@ -7317,6 +7450,7 @@ class Database(DatabaseEmbeddingMixin):
                                 .to_list()
                             )
 
+                        fulltext_candidates_capped = len(raw_fulltext_hits) >= candidate_limit
                         if raw_fulltext_hits:
                             for row in raw_fulltext_hits:
                                 document_id = row.get("document_id") or row.get("id")
@@ -7700,7 +7834,16 @@ class Database(DatabaseEmbeddingMixin):
             elif search_type == "semantic":
                 combined_results = semantic_results
             elif search_type == "fulltext":
-                combined_results = fulltext_results
+                # One row a page: the best passage, and how many passages matched.
+                by_page: dict[str, dict] = {}
+                for item in sorted(fulltext_results, key=lambda r: r["score"], reverse=True):
+                    kept = by_page.get(item["document_id"])
+                    if kept is None:
+                        item["metadata"]["passages_matched"] = 1
+                        by_page[item["document_id"]] = item
+                    else:
+                        kept["metadata"]["passages_matched"] += 1
+                combined_results = list(by_page.values())
 
             # Entity-aware rank bonus for the SINGLE-leg search types only:
             # hybrid now fuses KG evidence as its own RRF leg above, and the
@@ -7926,7 +8069,14 @@ class Database(DatabaseEmbeddingMixin):
             search_stats["execution_time_ms"] = execution_time * 1000
             search_stats["total_results"] = total_count
             search_stats["returned_results"] = len(results)
-            search_stats["has_more"] = (offset + len(results)) < total_count
+            # A full-text total counts the pages among the candidates kept; when
+            # the candidate cut was reached it is a floor, not the count.
+            search_stats["total_is_lower_bound"] = (
+                search_type == "fulltext" and fulltext_candidates_capped
+            )
+            search_stats["has_more"] = (
+                offset + len(results)
+            ) < total_count or search_stats["total_is_lower_bound"]
             # LEG VISIBILITY (Daniel, 2026-09-02: "the human ought to know in
             # search options what's going on"): which retrievers ran and what
             # each contributed, so the UX can SAY "semantic only, no literal

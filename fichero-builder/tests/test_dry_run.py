@@ -75,16 +75,14 @@ def test_a_healthy_worker_that_ends_leaves_one_worker_row_and_one_cost_row(root)
     assert cost["usd"] == round(2000 * 3 / 1e6, 4) and cost["turns"] == 2 and cost["end"] == "gone"
 
 
-def test_the_session_cap_parks_and_stops_the_worker(root):
-    """Since 2026-11-02 the session cap hands off (ie-lane2 was parked mid-step with uncommitted work); the day cap parks."""
+def test_session_spend_alone_neither_hands_off_nor_stops_the_worker(root):
+    """Owner ruling B2 (2026-11-21): the dollar session cap is gone; only the day cap and the context limit end a session."""
     fake = Fake([HEALTHY, {**HEALTHY, "cost_usd": 1.0}, HEALTHY])
-    said, told = [], []
+    told = []
     fake.procs.tell = lambda pane, words: told.append(words)
-    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=said.append) == "gone"
-    assert fake.stopped == [], "not stopped: told to hand off"
-    watch = [e["what"] for e in journal.read() if e["event"] == "watch"]
-    assert watch == ["handoff: session spend 1.00 USD reached the cap 1.00"]
-    assert any("session spend" in t and "successor" in t for t in told), "the worker is told why and to hand off"
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None) == "gone"
+    assert fake.stopped == [] and told == []
+    assert [e["what"] for e in journal.read() if e["event"] == "watch"] == []
 
 
 def test_yesterdays_spend_does_not_count_but_todays_does(root):
@@ -412,3 +410,95 @@ def test_the_real_redeliver_presses_enter_when_the_words_sit_in_the_box_and_type
     calls.clear()
     p.redeliver("%3", words)
     assert [c[-1] for c in calls if c[1] == "send-keys"][0] == words
+
+
+def _rules(path, day_usd):
+    import json
+    path.write_text(json.dumps({"spend": {"day_usd": day_usd, "window": 1000, "prices": {"sonnet": [3, 15]}}, "models": {}}))
+
+
+def test_a_raised_cap_in_the_published_rules_reaches_a_running_session_on_the_next_tick(root):
+    """local.perf.caps-reread-each-tick (#6851): the run reads `--rules` every tick; a cap raised after the start counts."""
+    rules = root / "rules.json"
+    _rules(rules, 2)
+
+    class Raised(Fake):
+        def read(self):
+            if self.t == 30:
+                _rules(rules, 50)  # the owner raises the cap while the worker runs
+            return super().read()
+    fake = Raised([HEALTHY, {**HEALTHY, "cost_usd": 3.0}, {**HEALTHY, "cost_usd": 4.0}])
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None, rules=rules) == "gone"
+    assert fake.stopped == [] and not [e for e in journal.read() if e["event"] == "watch"]
+
+
+def test_a_lowered_cap_in_the_root_rules_parks_on_the_next_tick(root):
+    """Without `--rules` the run reads the root's rules file every tick."""
+    class Lowered(Fake):
+        def read(self):
+            if self.t == 30:
+                (root / "harness.toml").write_text(TOML.replace("day_usd = 5", "day_usd = 2"))
+            return super().read()
+    fake = Lowered([HEALTHY, {**HEALTHY, "cost_usd": 3.0}, HEALTHY])
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None) == "parked"
+    assert any("reached the cap 2.00" in e.get("what", "") for e in journal.read())
+
+
+def test_unreadable_rules_mid_run_alert_once_and_keep_the_last_figures(root):
+    rules = root / "rules.json"
+    _rules(rules, 2)
+
+    class Broken(Fake):
+        def read(self):
+            if self.t == 30:
+                rules.write_text("{not json")
+            return super().read()
+    fake = Broken([HEALTHY, HEALTHY, {**HEALTHY, "cost_usd": 3.0}])
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None, rules=rules) == "parked"
+    watch = [e["what"] for e in journal.read() if e["event"] == "watch"]
+    assert len([w for w in watch if w.startswith("alert: rules unreadable")]) == 1
+    assert watch[-1] == "park: today's spend 3.00 USD reached the cap 2.00", "the last figures still hold"
+
+
+def _live(name, usd):
+    import json
+    import time
+    d = journal.STATE / "live"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f"{name}.json").write_text(json.dumps({"usd": usd, "day": time.strftime("%Y-%m-%d")}))
+
+
+def test_three_live_sessions_near_the_cap_keep_a_fourth_from_starting(root):
+    """local.perf.day-cap-counts-live-sessions (#6871): the day cap counts the running cost of the sessions still going."""
+    for n in ("a", "b", "c"):
+        _live(n, 1.7)
+    fake = Fake([HEALTHY])
+    assert run.run(root, root / "wt", root / "b.txt", name="d", procs=fake.procs, out=lambda s: None) == "parked"
+    assert not hasattr(fake, "started")
+    assert [e["what"] for e in journal.read()] == ["park: today's spend 5.10 USD reached the cap 5.00 before the start"]
+
+
+def test_a_tick_parks_when_the_others_live_cost_and_its_own_reach_the_cap_and_the_own_file_goes_at_the_end(root):
+    import json
+    _live("a", 3.0)
+    seen = []
+
+    class Watch(Fake):
+        def read(self):
+            f = journal.STATE / "live" / "w.json"
+            seen.append(json.loads(f.read_text())["usd"] if f.exists() else None)
+            return super().read()
+    fake = Watch([HEALTHY, {**HEALTHY, "cost_usd": 1.0}, {**HEALTHY, "cost_usd": 2.5}])
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None) == "parked"
+    assert seen[1:3] == [0.015, 1.0], "each tick writes the run's running cost"
+    assert any(e.get("what") == "park: today's spend 5.50 USD reached the cap 5.00" for e in journal.read())
+    assert not (journal.STATE / "live" / "w.json").exists() and (journal.STATE / "live" / "a.json").exists()
+
+
+def test_a_stale_live_file_does_not_hold_back_a_start(root):
+    import os
+    _live("crashed", 9.0)
+    os.utime(journal.STATE / "live" / "crashed.json", (1000.0, 1000.0))
+    fake = Fake([HEALTHY])
+    assert run.run(root, root / "wt", root / "b.txt", name="d", procs=fake.procs, out=lambda s: None) == "gone"
+    assert hasattr(fake, "started")

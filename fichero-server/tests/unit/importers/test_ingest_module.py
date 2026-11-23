@@ -974,10 +974,15 @@ class TestIngestFolder:
         db = MagicMock()
         db.all.return_value = []
 
-        with patch(
-            "fichero_server.importers.ingest._file_checksum",
-            side_effect=["before", "after"],
-        ):
+        from fichero_server.importers import ingest as ingest_module
+
+        read_metadata = ingest_module._extract_file_metadata
+
+        def file_grows_while_read(doc, path, **kwargs):
+            read_metadata(doc, path, **kwargs)
+            source.write_text("changing, and longer than before", encoding="utf-8")
+
+        with patch("fichero_server.importers.ingest._extract_file_metadata", side_effect=file_grows_while_read):
             docs = ingest_folder(
                 tmp_path,
                 db=db,

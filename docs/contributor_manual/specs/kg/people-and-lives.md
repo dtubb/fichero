@@ -163,8 +163,41 @@ The Reader rendition of a selected person (`explore.panes.one-thing-is-a-renditi
 Every line carries a small mark for its reading (the four bands of `hands.calib.four-bands-in-the-reader`, or "reading
 not yet measured"), its source reference, and opens its page on one click. Where two or more sources speak to the
 same point and differ, the section shows each value on its own line, bracketed together, in the sources' words; the
-page never picks one. A person may write their own reading of the conflict; it is stored as theirs in the
-hermeneutic layer (`kg/hermeneutic-layer.md`) and drawn as theirs.
+page never picks one. The page is sources only: every line is one source's statement, and no sentence of the
+historian's is written on it. A person's own reading of a conflict is stored as theirs in the hermeneutic layer
+(`kg/hermeneutic-layer.md`) and linked from the page, beside the conflict it is about, marked as theirs.
+
+### Lives beyond people
+
+A life page is for any entity the sources speak of as having a history, not only a person: **things** (objects, land,
+buildings, documents, images), **nature** (rivers, animals, crops, weather events) and **the spiritual** (saints,
+spirits, demons, devotional images, the dead). The same rules hold as for a person: sources only, every line one
+source's statement, gaps shown, links proposed by a labelled method and accepted by a person. The life-event
+sections vary by the entity's kind (a building is built, altered, sold, ruined; a river floods, is crossed, is
+dammed; a saint is invoked, has a feast, has an image carried) and a recipe may add its own kinds. The living-people
+rule (`people.privacy.living-date-holds-back-proposals`) is a rule about persons and is not applied to other kinds.
+
+An entity may be several kinds at once (`ontology.kinds.an-entity-has-a-set-of-kinds`), and the page shows every kind
+the sources give it. Any kind may be the agent of a statement and is treated alike
+(`ontology.agency.any-kind-fills-the-agent-role`); the page shows the statement as its source states it and never as
+Fichero's, and the historian's reading of it sits beside it, linked, in the hermeneutic layer.
+
+**The network panel.** From any life page, a panel lists the associations the sources record: who and what acted
+with or on this entity, and through which statements. Each edge is one statement with its source, opening its page.
+Nothing is inferred, and no centrality score and no "most important" order is shown, because a view shows what is
+in the sources. Calling something a mediator or an obligatory point is the historian's reading and is kept in the
+hermeneutic layer (`hermeneutic.agency.reading-is-the-historians`).
+
+**Words and categories have lives too** (`explore/concepts-and-terms.md`, section E): a term or a concept uses this
+same layout, so a historian can move between a person, a thing and a word. A source's label applied to a person
+("bruja", "viuda", "mestiza") is that source's statement about that person and is shown on the person's page as such.
+Fichero never assigns a category to anyone.
+
+Worked example: a devotional image that heals, is owned, is moved and is sued over. Its page shows the kinds object
+and spiritual being; in the sections, the statement that it healed (the image as agent, the source's word for the
+healing beside it), the will that leaves it to a confraternity, the record of its carrying to another church, and the
+lawsuit; the network panel lists the confraternity, the church, the parties and the persons healed, each edge with
+its line; a gap shows the years with no attestation as unread pages.
 
 ### The stitch bench
 
@@ -184,8 +217,10 @@ that one join was holding together. A join nobody has reviewed is never drawn as
 
 ### Living people
 
-Joining scattered traces into one profile is the most privacy-sensitive thing this app does. A project carries a
-date (default: a hundred years before today). A person with any attestation after it is treated as possibly living:
+Joining scattered traces into one profile is the most privacy-sensitive thing this app does. A project carries one
+setting, a number of years (default 100), the same for every person in it. A person born, or first recorded, less
+than that many years before today is held back, and treated as possibly living, unless the historian says otherwise
+for that person (the behaviour in section G keeps its earlier wording, a date, with the owner's answer appended):
 no cross-archive link is proposed for them unless the person asks, nothing about them leaves the machine, and their
 page is not included in a publish or an export without a deliberate yes for that person. A restricted person is not
 drawn and cannot be inferred from the hole (`explore.care.restricted-people-are-not-drawn-around`).
@@ -213,7 +248,7 @@ archives. It is listed under Future and is not to be built before the flat band 
 
 A project can show its owner how the linking is doing on that project only: of the links accepted, how many were
 later undone; of the proposals offered, how many were accepted, rejected or left as cannot tell; how many held-out
-decisions the matcher agrees with (`record.check.one-in-ten-held-out`, no figure under 50). These are read on the
+decisions the matcher agrees with (`record.check.one-in-ten-held-out`, no figure under 100). These are read on the
 person's own machine, are never sent anywhere, and are never set beside another project's.
 
 ## Behaviours
@@ -241,7 +276,7 @@ person's own machine, are never sent anywhere, and are never set beside another 
   The one exception is the rule already specified for forms that are identical after normalisation inside one
   project (`kg.resolve.unmistakable-auto-merge`): such a join is made by the rule, labelled as the rule's, listed on
   the page among its joins, and undone like any other. *Test (to write):* test_only_a_person_accepts_a_link.py (a
-  model's account calling accept is refused; cannot tell is a stored state).
+  model's account calling accept is refused; cannot tell is a stored state). **Not built:** the owner's answer (2026-11-22), the rule join is made without asking, inside one project, labelled as a rule join and undoable.
 - `people.record.model-work-is-labelled` — **[GAP]** (#4868, #4869 → #7003) wherever a reading, a grouping of
   spellings, a link proposal or a ranking is on screen, it says it is model output or rule output, by which method
   and version, with its confidence as a band (`kg.confidence.shown-as-a-band-with-its-reason`), and is one click
@@ -261,7 +296,7 @@ person's own machine, are never sent anywhere, and are never set beside another 
 - `people.relation.typed-link-rests-on-statements` — **[GAP]** (#5340 → #7005) a relation between two persons has a
   type from the ontological layer's list (`ontology.relations.one-list-the-person-extends`), a direction, an optional
   span of time, and the statements it rests on. A relation with no statement under it cannot be saved, except one
-  the historian asserts, which is stored and drawn as their inference. *Test (to write):* test_relation_needs_a_statement.py.
+  the historian asserts, which is stored and drawn as their inference. *Test (to write):* test_relation_needs_a_statement.py. **Not built:** the ends of a relation may be an entity of any kind (`ontology.agency.any-kind-fills-the-agent-role`).
 - `people.relation.sources-word-is-shown` — **[GAP]** (#5340 → #7005) a relation row shows the sources' own word or
   formula for the tie, in the source language, beside the historian's type (`ontology.sources.categories-in-their-own-words`);
   where sources use different words for it, each is listed with its lines. *Test (to write):*
@@ -299,7 +334,7 @@ person's own machine, are never sent anywhere, and are never set beside another 
 - `people.bio.sections-by-life-event-and-relation` — **[GAP]** (#5340 → #7008) lines are grouped under the event
   kinds of the ontological layer in the order the sources date them, then relations, then undated and unplaced with
   their counts; an empty section is not shown, and a line whose kind nobody set sits under "other mentions". The
-  person can reorder sections for a project. *Test (to write):* PersonBiographySectionsTests.swift.
+  person can reorder sections for a project. *Test (to write):* PersonBiographySectionsTests.swift. **Not built:** the owner's answer (2026-11-22), the sections are the default life-event sections and the seeded relation types; a recipe may add its own event kinds.
 - `people.bio.names-as-written` — **[GAP]** (#5340 → #7008) the head of the page shows every written form of the
   name as a crop of the word with its count, grouped; a form joined by a proposal nobody accepted is marked and can
   be accepted or removed there. The page title is the form the historian chose, or the commonest written form, and
@@ -372,7 +407,7 @@ person's own machine, are never sent anywhere, and are never set beside another 
   that are never mixed: accepted relations by type, and people named in the same acts with the number of acts. The
   second group says its rule in words ("named in the same act") and is not called a relationship. Each row opens
   its lines. It is a list first; a small diagram of kin is offered only for accepted parent, spouse and child
-  links. *Test (to write):* test_relations_around_payload.py.
+  links. *Test (to write):* test_relations_around_payload.py. **Not built:** the owner's answer (2026-11-22), co-naming in one act is evidence for a same-person link only; it never proposes a relation by itself.
 - `people.view.who-names-whom` — **[GAP]** (#5032 → #7015) for a set, a counted table and its drawing: writers and
   offices on one side, the people they name on the other, grouped by the sources' own words for them, with the
   number of acts in each cell and, where the formula gives it, the position the person holds in the act (party,
@@ -392,7 +427,7 @@ person's own machine, are never sent anywhere, and are never set beside another 
 - `people.privacy.living-date-holds-back-proposals` — **[GAP]** (#4953 → #7006) a project has a date, by default a
   hundred years before today, that the person can move. For a person with any attestation after it, no link across
   archives is proposed unless the person asks for that person by name, and the bench says how many proposals were
-  held back for this. *Test (to write):* test_living_date_holds_back_candidates.py.
+  held back for this. *Test (to write):* test_living_date_holds_back_candidates.py. **Not built:** the owner's answer (2026-11-22), the setting is one number of years per project, default 100; a person born or first recorded less than that many years before today is held back unless the historian says otherwise.
 - `people.privacy.nothing-published-by-default` — **[GAP]** (#4953 → #7006) a biography page, a relations view or a
   set view that includes a possibly living person is left out of a publish and an export unless the person says
   yes for it, once, with the names listed (`explore.care.publishing-asks-about-people`); a restricted person is not
@@ -414,6 +449,37 @@ person's own machine, are never sent anywhere, and are never set beside another 
   person's machine, are in no export, publish, shared file or telemetry, and no surface ranks a project, a method
   or a person against another by them. There is no public score. *Test (to write):*
   test_people_quality_is_in_no_export.py.
+
+### I. Lives beyond people
+
+- `people.life.any-entity-with-a-history` — **[GAP]** (#5340 → #NEW-P8) the biography page of Section C is served for an entity of any kind of `ontology.kinds.beyond-people`, by the same route and under the same rules: sources only, every line one source's statement resting on a stretch, accepted or attested only, conflicts kept, gaps shown, links proposed by a labelled method and accepted by a person. *Test (to write):* test_life_page_for_any_kind.py (a river, an image and a saint each return a page whose every line resolves to a stretch).
+- `people.life.sections-vary-by-entity-kind` — **[GAP]** (#5340 → #NEW-P8) the sections of a page are the event kinds seeded for the entity's kind (and for each kind in its set), and a recipe may add its own kinds; a person's page keeps the person sections. *Test (to write):* test_sections_by_entity_kind.py.
+- `people.life.network-panel-of-recorded-ties` — **[GAP]** (#5032 → #NEW-P9) from any life page the panel lists who and what acted with or on the entity and through which statements; each edge is one statement with its source and opens its page; no edge is inferred, and no centrality score or importance order is in the payload. *Test (to write):* test_network_panel_edges_are_statements.py (every edge has a statement id; no score field; a model-proposed tie is absent until accepted), NetworkPanelTests.swift.
+- `people.life.moves-between-a-person-a-thing-and-a-word` — **[GAP]** (#5032 → #NEW-P9) a name, a thing or a term opened from a life page opens its own life page in the same layout (a person's, an entity's, a term's or a concept's), and the way back is one step. *Test (to write):* LifePageNavigationTests.swift.
+
+### J. Correct, measure, distil (the step contract)
+
+Linking mentions to one person is a machine step. The contract every step fills, the correction rules and the loop's
+display are `compute/correct-measure-distil.md`'s; these lines are this step's part of it.
+
+- `people.contract.linking-fills-it` — **[GAP]** (#5545, #5941) the linking step declares its contract
+  (`stepcontract.every-step-declares-six`): the unit is a link; the gestures are accept, reject, cannot tell, cut and
+  undo, on the bench, the biography page and the Inspector; ground truth is the link's state with who and when; the
+  held-out unit is the decision; the measure is pairwise precision and recall and B-cubed, with the accept rate and
+  the undo rate beside them as rates; and the matcher is trained from decisions, with no teacher that accepts.
+  *Test (to write):* test_step_contract.py.
+- `people.correct.link-where-it-is-drawn` — **[GAP]** (#5110, #5545) wherever a link is drawn (the bench, the joins
+  listed at the foot of a biography page, a stitch on the life band, the Inspector) it is accepted, cut or undone
+  there, in one key or one click on the link itself; each is the audited action of section A. The bench shows the
+  progress line (`correct.ui.progress-line`): "N links decided, error now X% (a to b)", with the accept rate and the
+  undo rate beside it, named as rates. *Test (to write):* LinkCorrectInPlaceTests.swift;
+  test_link_progress_line.py.
+- `people.loop.matcher-refit-behind-the-gate` — **[GAP]** (#6386, #5545) the matcher's weights and its line are
+  refitted on this machine from the person's decisions that are not held out (`kg.teach.linking-set-and-scorer`); the
+  refitted version's proposals replace the current version's by default only when it measures better on the report
+  half (`loopstate.switch-only-when-measured-better`, `record.measure.one-report-and-a-gate`). No version accepts its
+  own proposal. *Test (to write):* test_matcher_refit_gate.py (a refit that is not better is kept and not used; a
+  held-out decision is in no fit).
 
 ## Lines of other specs built here (cited, not copied)
 
@@ -538,6 +604,14 @@ Ships "reading not yet measured" until `source/read-any-hand.md` Step 1.2 has a 
 
 Waits for `kg/reconstruct-the-record.md` Step 2.2. → #7013
 
+#### Step 3.4 — A link accepted, cut or undone where it is drawn; the progress line
+- Behaviours: `people.contract.linking-fills-it`, `people.correct.link-where-it-is-drawn`
+- Tests: test_step_contract.py, LinkCorrectInPlaceTests.swift, test_link_progress_line.py
+- Depends on: 3.2
+- Size: M
+
+Needs `compute/correct-measure-distil.md` Steps 1.1 and 3.1.
+
 ### Stage 4 — Views of people and of the record
 
 #### Step 4.1 — The life band and the people around a person
@@ -566,6 +640,32 @@ The writer or office of a document, and the position of a person in an act, are 
 
 → #7016
 
+#### Step 5.2 — The matcher refitted from decisions, behind the gate
+- Behaviours: `people.loop.matcher-refit-behind-the-gate`
+- Tests: test_matcher_refit_gate.py
+- Depends on: 5.1
+- Size: M
+
+Needs `compute/correct-measure-distil.md` Step 4.1 (the switch rule).
+
+### Stage 6 — Lives beyond people
+
+#### Step 6.1 — Things, nature and the spiritual have life pages; kind is a set
+- Behaviours: `ontology.kinds.beyond-people`, `ontology.kinds.an-entity-has-a-set-of-kinds`, `people.life.any-entity-with-a-history`, `people.life.sections-vary-by-entity-kind`
+- Tests: test_ontology_kinds_beyond_people.py, test_entity_kind_is_a_set.py, test_life_page_for_any_kind.py, test_sections_by_entity_kind.py
+- Depends on: 2.1
+- Size: M
+
+→ #NEW-P8
+
+#### Step 6.2 — Agents of any kind, the network panel, and moving between a person, a thing and a word
+- Behaviours: `ontology.agency.any-kind-fills-the-agent-role`, `ontology.agency.recorded-as-stated-never-asserted`, `people.life.network-panel-of-recorded-ties`, `people.life.moves-between-a-person-a-thing-and-a-word`, `hermeneutic.agency.reading-is-the-historians`
+- Tests: test_agent_of_any_kind.py, test_agency_is_attributed_to_its_source.py, test_network_panel_edges_are_statements.py, test_agency_reading_is_a_persons.py, NetworkPanelTests.swift, LifePageNavigationTests.swift
+- Depends on: 6.1, 4.1
+- Size: M
+
+Worked example: a devotional image that heals, is owned, is moved and is sued over. → #NEW-P9
+
 ## Future (not scheduled, not to be cut into issues)
 
 - **The layered record.** The archives as stacked flat sheets with stitches as threads, tilting from and flattening
@@ -589,20 +689,20 @@ The writer or office of a document, and the position of a person in an act, are 
 Hard-gate once approved: no payload of this spec holds text a model composed; only a person's action accepts a
 link; every line resolves to a stretch.
 
-## Open questions for the owner
+## Rules set by the owner's answers
 
-1. **Identical forms joined by rule.** Inside one project, `kg.resolve.unmistakable-auto-merge` joins forms that are
-   identical after normalisation without asking. Under the ruling that the person accepts or rejects links, should
-   that stand (labelled, listed, undoable; recommended, or the queue is thousands of trivial pairs), or should even
-   those wait for a yes?
-2. **The living-people date.** Is a hundred years before today the right default, and is it one date per project or
-   per archive?
-3. **Sections.** Is the list of life-event sections above right as the default for the owner's own material, and
-   should a project be able to rename them as well as add and reorder?
-4. **The historian's own sentences on the page.** May a person write a connecting sentence on a biography page
-   (stored and drawn as theirs), or is the page only the sources, with the historian's writing kept in notes and
-   the hermeneutic layer? Recommended: only the sources; their reading of a conflict sits beside it, marked.
-5. **Co-naming.** "Named in the same act" is counted and shown apart from relations. Should it ever be offered as a
-   reason to propose a relation, or only as a reason for a same-person link? Recommended: only the second.
-6. **Its own milestone.** This spec declares the milestone `people-and-lives`, placed after `reconstruct-the-record`.
-   Should the two be one milestone?
+- Identical name forms inside one project join by rule without asking, labelled as a rule join and undoable
+  (`people.record.person-decides`).
+- Living people: one setting per project, default 100 years (`people.privacy.living-date-holds-back-proposals`).
+- Biography pages use the default life-event sections and the seeded relation types; a recipe may add its own event
+  kinds (`people.bio.sections-by-life-event-and-relation`).
+- A biography page is sources only; the historian's interpretation lives in the hermeneutic layer, linked from the
+  page.
+- Co-naming in one act is evidence for a same-person link only (`people.view.relations-around-a-person`).
+- This spec's milestone, `people-and-lives`, stays separate from `reconstruct-the-record` and from
+  `concepts-and-terms`.
+- A life page is for any entity the sources speak of as having a history: things, nature and the spiritual as well as
+  persons; the same rules hold, and the sections vary by entity kind (`people.life.any-entity-with-a-history`).
+- Any kind may be the agent of a statement; the page shows it as its source states it, and the network panel shows
+  only the ties the sources record, with no score and no importance order.
+- A source's label for a person is that source's statement about them; Fichero assigns no category to anyone.

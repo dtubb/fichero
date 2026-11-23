@@ -417,7 +417,7 @@ def _ship(root, cfg: Config, remote: str = "") -> str:
     if (root, remote) in _SHIPPED:
         return _SHIPPED[(root, remote)]
     host, _, base = remote.partition(":")
-    free = _ssh(host, f"df -g {base or '.'} | tail -1 | awk '{{print $4}}'", 30).stdout.decode().strip()
+    free = _ssh(host, f"df -g {base or '.'} /tmp | awk 'NR>1 {{print $4}}' | sort -n | head -1", 30).stdout.decode().strip()
     if free.isdigit() and int(free) < cfg.remote_min_free_gb:  # the iMac is 98% full: never fill it
         raise OSError(f"{host}: {free} GiB free, under {cfg.remote_min_free_gb:g}")
     mk = _ssh(host, f'mkdir -p {base or "."} && cd {base or "."} && d=$(mktemp -d "$PWD/run-XXXXXX") && echo "$d"', 30)
@@ -1432,7 +1432,10 @@ def red_on_base(root, since: str, head: str, files: list[str], cfg: Config = Con
 
     def red(msg: str) -> dict | None:  # the manager's approve (an alert) records the refusal and goes on to the green run
         # True: every refusal; a tuple: only one naming an approved test file (an approve binds to the tests its alert named)
-        if approve_red is True or (isinstance(approve_red, tuple) and any(t in msg for t in approve_red)):
+        # 2026-11-22: a refusal naming no test file ("no test file changed", a red run naming only a report) is excused by any
+        # approve at this head; a tuple of files only narrows refusals that name files (kg-conf conf-2 looped on the same sha)
+        names_a_test = bool(re.search(r"[\w./-]+\.py\b", msg))
+        if approve_red is True or (isinstance(approve_red, tuple) and (not names_a_test or any(t in msg for t in approve_red))):
             approved.append(msg)
             return None
         return {"name": "red-on-base", "argv": [], "exit_code": 1, "ok": False, "timed_out": False, "seconds": 0,

@@ -124,7 +124,7 @@ The Reader rendition of one selected term, or one name. Six parts, each opening 
 
 Wherever a count is shown, four things are shown together:
 
-    140 to 175 uses                     the range, at a stated level (90%)
+    140 to 175 uses                     the range, at a stated level (90%, the one level for every count in the app)
     126 on high-confidence readings, 31 checked by a person
     read: 2,140 of 2,600 pages in scope; 310 unread; 150 too unsure to count
     [strip: the pages in scope by time and writer: read, read unsurely, unread, not held]
@@ -169,6 +169,35 @@ off-diagonal cells are where the historian's concept and the sources' word come 
 | say two of the person's concepts match largely the same passages | say which is the better concept |
 | show the share of pages in scope that no concept of the person's touches | name what is in it, cluster it, or suggest a concept |
 | rank passages with a stated reason | summarise, explain, or compare with the literature |
+
+### Categories, and the life of a word or a concept
+
+**Two kinds of category, kept apart.** The sources' own labels ("bruja", "hechicera", "viuda", "mestiza", "doncella")
+are terms: the emic line. They are shown as written, counted as ranges, and opened to their pages like any term. When
+a source applies such a label to a person, that is a statement by that source about that person and is shown on their
+life page (`kg/people-and-lives.md`). The historian's analytic categories (gender as an analytic lens, witchcraft as a
+historian's concept) are concepts the historian defines under the rules of section C. Fichero never assigns a
+category to anyone. It may only find passages for a concept the historian defined, or group spellings of a term a
+source used.
+
+**Worked example, witchcraft.** As a term: the sheet for "bruja" lists its written forms (bruja, bruxa, with the
+spellings a person accepted as one), the count of uses as a range with its denominator, the offices and writers that
+used it, and about whom, each count opening its lines; "hechicera" has its own sheet and is not merged with it unless a
+person groups them. As a concept: the historian defines "witchcraft", its scope and what counts, marks seed
+passages, and Fichero ranks candidate passages with the reasons, labelled as ranking; the two-by-two of the term
+against the concept is the historian's evidence, linked by them (`concepts.term-as-evidence.two-by-two`).
+
+**Worked example, gender.** As terms: "viuda", "doncella", "casada" counted by period and record type, each shown as
+the source wrote it. As a concept: the historian defines "gender" as an analytic lens, with the passages they accept as
+examples and their definition shown as theirs; Fichero does not decide who in a source is a woman or a man, and a
+view groups no person under a label the app supplied.
+
+**The life of a term or a concept.** A word or a category has a life page in the layout of a person's: when it
+first and last appears; how its use changes over time; which offices and writers used it; about whom; and its
+spellings. Every point opens the page; counts are ranges; a gap is shown as unread pages, never as absence. For a
+source term the page is built from the sources' own uses. For a historian's concept it is built from the passages the
+historian accepted as examples, with their definition shown as theirs. The page links to the people and things it is
+about, and they link back (`people.life.moves-between-a-person-a-thing-and-a-word`).
 
 ### Views
 
@@ -322,7 +351,7 @@ that rests on a model's readings says so in the footnote itself and cannot be ex
   ranker is fitted on the person's machine on their yes and no marks, in seconds, with no cloud call; one in ten
   marks is held out by the existing rule (`record.check.one-in-ten-held-out`) and never fitted on; once there are 50
   held-out marks the sheet says how many of the passages the person would accept the search finds in its first
-  hundred, and before that says how many of the 50 there are. *Test (to write):* test_concept_ranker_local.py.
+  hundred, and before that says how many of the 50 there are. *Test (to write):* test_concept_ranker_local.py. **Not built:** the owner's answer (2026-11-22), candidate ranking runs on a local model by default; a cloud model ranks only when the historian asks, labelled on every result. **Not built:** the owner's answer (2026-11-22) replaces the threshold above: the sheet shows the figure only after 100 held-out marks, and before that says "not enough checked yet" with no number.
 - `concepts.heldout.test-only-when-asked` — **[GAP]** (#4692 → #7027) when the person asks, the sheet draws a
   shuffled sample from pages set aside, the search's picks mixed with random passages, with scores absent from the
   payload until marking is done; the result is two counts, how often the picks and how often the random ones were
@@ -359,6 +388,37 @@ that rests on a model's readings says so in the footnote itself and cannot be ex
   width of the ranges, and for each concept how many marks, how many in the near-the-line column and how many
   versions. It is computed on the person's machine, is in no export or publish, and is compared with nothing.
   *Test (to write):* test_range_coverage_panel.py.
+
+### E. Categories and the life of a word or a concept
+
+- `terms.life.first-last-change-offices-about-whom` — **[GAP]** (#6763 → #NEW-C1) a term's life page shows when it first and last appears, how its use changes over time, which offices and writers used it, about whom, and its spellings, built from the sources' own uses; every point opens its page; every count is a range with its four parts; a period with unread pages is shown as unread, not as zero. *Test (to write):* test_term_life_payload.py (a planted term with a gap in its years returns the gap as unread pages and each point with its lines), TermLifePageTests.swift.
+- `concepts.life.built-from-accepted-examples` — **[GAP]** (#4692 → #NEW-C1) a concept's life page is built from the passages the historian accepted as examples, in the same layout, with the historian's definition shown as theirs; a passage nobody accepted is not counted. *Test (to write):* test_concept_life_payload.py.
+- `terms.category.label-applied-to-a-person-is-a-source-statement` — **[GAP]** (#5340 → #NEW-C2) a source's label for a person ("bruja", "viuda") is stored as a statement by that source about that person, with its stretch, and shown on the person's life page as the source's word; no route or view assigns a category to a person, and no model proposes one. *Test (to write):* test_category_is_a_source_statement.py (a model's account is refused on writing a category to a person).
+- `concepts.category.emic-and-analytic-are-worked-examples` — **[GAP]** (#4692 → #NEW-C2) the sheet for a source term and the sheet for a historian's concept on the same subject (witchcraft, gender) are separate records that never merge; the link between them is the historian's, typed and versioned. *Test (to write):* test_term_and_concept_stay_apart.py.
+
+### F. Correct, measure, distil (the step contract)
+
+Finding passages for a concept and grouping spellings are machine steps. The contract every step fills, the correction
+rules and the loop's display are `compute/correct-measure-distil.md`'s; these lines are these steps' part of it.
+
+- `concepts.contract.passages-and-forms-fill-it` — **[GAP]** (#4692, #5032, #5941) the step that finds passages for a
+  concept and the step that groups spellings each declare their contract (`stepcontract.every-step-declares-six`). For
+  passages: the unit is a candidate passage; the gestures are yes, no and unsure on the concept sheet; ground truth is
+  the mark; the held-out unit is the mark; the measure is the share of held-out yes marks found in the first hundred;
+  it is trained as a local ranker and has no teacher. For spellings: the unit is a grouping of two forms; the gestures
+  are accept, cut and undo in the Forms part; ground truth is the grouping's state; the held-out unit is the decision;
+  the measure is pairwise precision and recall. *Test (to write):* test_step_contract.py.
+- `terms.forms.grouping-corrected-and-measured` — **[GAP]** (#5032) in the Forms part a proposed grouping is accepted,
+  one form is cut out of a group, and either is undone, each in one key or click on the form. One in ten of these
+  decisions is held out (`record.check.one-in-ten-held-out`); the grouping method is scored on the report half and its
+  line refitted from the rest on this machine; a refitted version's proposals are offered by default only when it
+  measures better (`loopstate.switch-only-when-measured-better`). The part shows the progress line
+  (`correct.ui.progress-line`). *Test (to write):* test_form_grouping_measured.py (a held-out decision is in no fit;
+  a version that is not better is not offered).
+- `concepts.sheet.progress-line` — **[GAP]** (#4692, #6283) the concept sheet shows one line for the concept's
+  version: "N marked, M yes of those offered", and, once there are 100 held-out marks, "finds X% of your held-out yes
+  passages in its first hundred (a to b)". The yes-rate is named as a rate and is never shown as an error
+  (`measure.rates-are-not-errors`). *Test (to write):* test_concept_progress_line.py.
 
 ## Lines of other specs built here (cited, not copied)
 
@@ -414,6 +474,14 @@ nothing from the knowledge graph.
 - Size: M
 
 Waits for the writer field and roles (`kg/people-and-lives.md` Step 4.2) and for formula alignment. → #7021
+
+#### Step 1.6 — The contract for passages and spellings; spelling groups corrected and measured
+- Behaviours: `concepts.contract.passages-and-forms-fill-it`, `terms.forms.grouping-corrected-and-measured`
+- Tests: test_step_contract.py, test_form_grouping_measured.py
+- Depends on: 1.2
+- Size: M
+
+Needs `compute/correct-measure-distil.md` Steps 1.1 and 2.1.
 
 ### Stage 2 — Counts as ranges
 
@@ -482,6 +550,14 @@ Engine only. → #7024
 
 → #7029
 
+#### Step 3.7 — The concept sheet's progress line
+- Behaviours: `concepts.sheet.progress-line`
+- Tests: test_concept_progress_line.py
+- Depends on: 3.4
+- Size: S
+
+Needs `compute/correct-measure-distil.md` Step 3.1.
+
 ### Stage 4 — Citing, and the private check
 
 #### Step 4.1 — The citation bundle, its footnote, and the identical re-run
@@ -500,6 +576,24 @@ Waits for the saved-view record (#5063). → #7030
 
 → #7031
 
+### Stage 5 — Lives of words and categories
+
+#### Step 5.1 — The life page of a term and of a concept
+- Behaviours: `terms.life.first-last-change-offices-about-whom`, `concepts.life.built-from-accepted-examples`
+- Tests: test_term_life_payload.py, test_concept_life_payload.py, TermLifePageTests.swift
+- Depends on: 1.3, 3.2
+- Size: M
+
+→ #NEW-C1
+
+#### Step 5.2 — Categories: the source's label about a person, and witchcraft and gender as worked examples
+- Behaviours: `terms.category.label-applied-to-a-person-is-a-source-statement`, `concepts.category.emic-and-analytic-are-worked-examples`
+- Tests: test_category_is_a_source_statement.py, test_term_and_concept_stay_apart.py
+- Depends on: 5.1
+- Size: S
+
+→ #NEW-C2
+
 ## Test matrix
 
 | Leg | This surface? | Pins | File |
@@ -514,16 +608,16 @@ Waits for the saved-view record (#5063). → #7030
 Hard-gate once approved: every count opens to its lines; no payload holds text a model composed; no write to a
 concept by a model's account.
 
-## Open questions for the owner
+## Rules set by the owner's answers
 
-1. **Is a concept its own sidebar node** (recommended) or a kind of saved search?
-2. **A cloud ranker.** May a cloud model rank candidates on a library that allows the cloud? Recommended: local by
-   default; a cloud ranker only when asked for, labelled, since it adds little over local vectors plus marks.
-3. **"What have I not covered?"** The review weighed listing groups of alike passages that no concept touches, and
-   dropped it, since a cluster is a model's claim. This spec shows only the share of pages no concept touches.
-   Is that the right place for the line?
-4. **Order within the milestone.** Stage 1 (terms from text) needs nothing unbuilt and Stage 3 (concepts) needs
-   nothing from Stage 2. Recommended: Stage 1, then Stage 3 beside Stage 2.
-5. **Lemmas.** Rates split across inflected forms until historical languages have word-level normalisation. Should
-   Stage 1 wait for that, or ship on written forms with groupings a person accepts (recommended)?
-6. **The level of a range.** 90% is proposed. Is one level for the whole app right?
+- A concept is its own sidebar node, not a kind of saved search.
+- Candidate ranking runs on a local model by default; a cloud model only when the historian asks, labelled on every
+  result.
+- Uncovered: only the share of pages no concept touches is shown; passages no concept touches are not grouped.
+- Order within the milestone: Stage 1 (terms from text), then Stage 3 (concepts) beside Stage 2.
+- The terms view ships on written forms before lemmas exist, with groupings a person accepts.
+- One 90% level for count ranges, app-wide.
+- This milestone, `concepts-and-terms`, stays separate from `people-and-lives`.
+- A source's own label for a person is a term and, applied to a person, that source's statement about them; a
+  historian's analytic category is a concept they define; Fichero assigns no category to anyone.
+- A word or a category has a life page in the layout of a person's, with counts as ranges and gaps as unread pages.

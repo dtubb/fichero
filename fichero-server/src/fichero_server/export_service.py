@@ -171,6 +171,7 @@ def record_mentions(db: Database, document_ids: Iterable[str]) -> list[dict[str,
         if entity.merged_into_id:
             continue
         made_by = _made_by(entity.attribution_chain)
+        curation_state = getattr(entity.curation_state, "value", entity.curation_state)
         for support in entity.source_supports:
             if support.source_document_id not in wanted:
                 continue
@@ -191,6 +192,8 @@ def record_mentions(db: Database, document_ids: Iterable[str]) -> list[dict[str,
                 "unanchored_reason": extra.get("mention_unanchored_reason"),
                 "support_basis": getattr(support.support_basis, "value", support.support_basis),
                 "made_by": made_by,
+                "confidence": support.support_confidence,
+                "curation_state": curation_state,
             })
     out.sort(key=lambda m: (m["document_id"], m["char_start"] is None, m["char_start"] or 0, m["entity_id"]))
     return out
@@ -213,6 +216,9 @@ def claim_record_columns(claim: KnowledgeClaim) -> dict[str, Any]:
         "speaker_entity_id": claim.speaker_entity_id,
         "provider": claim.provider,
         "model": claim.model,
+        "made_by": _made_by(claim.attribution_chain),
+        "confidence": claim.confidence,
+        "curation_state": getattr(claim.curation_state, "value", claim.curation_state),
     }
 
 
@@ -326,6 +332,8 @@ def iter_export_records(
                 "description": entity.description,
                 "metadata": entity.metadata,
                 "source_document_ids": entity.source_document_ids,
+                "curation_state": getattr(entity.curation_state, "value", entity.curation_state),
+                "made_by": _made_by(entity.attribution_chain),
             }
 
     for claim in claims:
@@ -1825,6 +1833,8 @@ def _write_parquet_records(
             "aliases": None,
             "description": None,
             "source_document_ids": None,
+            "curation_state": None,
+            "made_by": None,
         },
         "claim": {
             **common_fields,
@@ -1850,6 +1860,9 @@ def _write_parquet_records(
             "speaker_entity_id": None,
             "provider": None,
             "model": None,
+            "made_by": None,
+            "confidence": None,
+            "curation_state": None,
         },
         "mention": {
             **common_fields,
@@ -1867,6 +1880,8 @@ def _write_parquet_records(
             "unanchored_reason": None,
             "support_basis": None,
             "made_by": None,
+            "confidence": None,
+            "curation_state": None,
         },
     }
     with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", encoding="utf-8") as source:

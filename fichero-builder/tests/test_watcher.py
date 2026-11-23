@@ -68,12 +68,17 @@ def test_handoff_at_the_share_of_the_window():
     assert watcher.assess({**STATE, "context": 850}, SPEND, "sonnet", spent_today=0, silent_for_s=0) == ["handoff: context 850 of 1000"]
 
 
-def test_the_session_cap_then_the_day_cap_park():
-    """Since 2026-11-02 (dev-workflows.run.loop-session-cap-hands-off) the session cap hands off; only the day cap parks."""
-    out = watcher.assess({**STATE, "cost_usd": 5.0}, SPEND, "sonnet", spent_today=0, silent_for_s=0)
-    assert out == ["handoff: session spend 5.00 USD reached the cap 5.00"]
+def test_only_the_day_cap_parks_and_session_spend_alone_never_ends_a_session():
+    """Owner ruling B2 (2026-11-21): no dollar session cap; a session ends on the day cap and the context limit only."""
+    assert watcher.assess({**STATE, "cost_usd": 15.0}, SPEND, "sonnet", spent_today=0, silent_for_s=0) == []
     out = watcher.assess({**STATE, "cost_usd": 1.0}, SPEND, "sonnet", spent_today=19.5, silent_for_s=0)
     assert out == ["park: today's spend 20.50 USD reached the cap 20.00"]
+
+
+def test_a_day_cap_alone_lets_a_worker_start():
+    """Owner ruling B2: `session_usd` is no longer required (still accepted, so an older rules file loads)."""
+    assert watcher.refusals(watcher.Spend(day_usd=20.0, prices=PRICES), "claude", "sonnet") == []
+    assert any("no cap, no start" in r for r in watcher.refusals(watcher.Spend(session_usd=5.0, prices=PRICES), "claude", "sonnet"))
 
 
 def test_a_quota_refusal_or_a_lasting_error_parks_but_a_transient_one_does_not():
@@ -120,3 +125,53 @@ def test_a_machines_own_spend_caps_win_only_from_the_owners_private_file(tmp_pat
     local.write_text("[spend]\nday_cap = 1\n")
     with pytest.raises(ValueError, match="unknown keys"):
         watcher.load(tmp_path)
+
+
+def test_the_loop_publishes_the_owners_spend_and_models_for_the_jailed_run(tmp_path, monkeypatch):
+    """local.perf.caps-reread-each-tick (#6851): the run's --root is a pinned copy and the owner's own caps are unreadable to the
+    worker, so the loop writes `<feed>/rules.json` from the live rules file (with the owner's local override) for it to read."""
+    import json
+    import stat
+
+    from fichero_builder import queue
+    monkeypatch.setattr(watcher, "LOCAL", tmp_path / "none.toml")
+    rules_file = tmp_path / "harness.toml"
+    rules_file.write_text('[spend]\nday_usd = 30\nprices = { sonnet = [3, 15] }\n[models]\nproviders = ["anthropic"]\n')
+    feed = tmp_path / "feed"
+    feed.mkdir()
+    queue.publish_rules(tmp_path, feed)
+    doc = json.loads((feed / "rules.json").read_text())
+    assert doc == {"spend": {"day_usd": 30, "prices": {"sonnet": [3, 15]}}, "models": {"providers": ["anthropic"]}}
+    assert stat.S_IMODE((feed / "rules.json").stat().st_mode) == 0o644 and watcher.parse(doc["spend"]).day_usd == 30
+    rules_file.write_text("[spend]\nday_cap = 1\n")
+    with pytest.raises(ValueError, match="unknown keys"):
+        queue.publish_rules(tmp_path, feed)
+    assert json.loads((feed / "rules.json").read_text()) == doc, "a bad table never replaces the last good copy"
+
+
+def test_live_spend_sums_other_sessions_fresh_files_of_today_only(tmp_path):
+    """local.perf.day-cap-counts-live-sessions (#6871): every other live session's running cost counts, a stale or
+    yesterday's file does not, nor the run's own."""
+    import json
+    import os
+    d = tmp_path / "live"
+    d.mkdir()
+    for name, usd, day in (("a", 1.5, "2026-11-21"), ("b", 2.0, "2026-11-21"), ("me", 9.0, "2026-11-21"),
+                           ("old", 7.0, "2026-11-20"), ("dead", 5.0, "2026-11-21")):
+        (d / f"{name}.json").write_text(json.dumps({"usd": usd, "day": day}))
+    os.utime(d / "dead.json", (1000.0, 1000.0))
+    now = (d / "a.json").stat().st_mtime + 10
+    assert watcher.live_spend(d, "2026-11-21", "me", now) == 3.5
+    assert watcher.live_spend(tmp_path / "none", "2026-11-21", "me", now) == 0
+
+
+def test_live_spend_skips_a_file_that_is_malformed_or_cannot_be_read(tmp_path):
+    """#6871: a run's live file deleted between the listing and the read, or a stray non-JSON file, must not end the watcher."""
+    import json
+    d = tmp_path / "live"
+    d.mkdir()
+    (d / "ok.json").write_text(json.dumps({"usd": 1.0, "day": "2026-11-21"}))
+    (d / "junk.json").write_text("not json")
+    (d / "unreadable.json").mkdir()  # read_text raises OSError, as a vanished file does
+    now = (d / "ok.json").stat().st_mtime + 10
+    assert watcher.live_spend(d, "2026-11-21", "me", now) == 1.0

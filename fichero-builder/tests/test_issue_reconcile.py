@@ -56,6 +56,7 @@ def _fake(tmp_path, monkeypatch, issues):
     (tmp_path / "issues.json").write_text(json.dumps(issues))
     monkeypatch.setenv("FAKE_GH_DIR", str(tmp_path))
     monkeypatch.setattr(mod, "GH", str(gh))
+    monkeypatch.setattr(mod, "ensure_ref", lambda ref: None)  # the ref is a stand-in: no git repo is read
     monkeypatch.setattr(mod, "load_specs", lambda ref: [("docs/s.md", SPEC)])
     monkeypatch.setattr(mod, "load_fixes", lambda ref: {4: ["fff111222"]})
     monkeypatch.setattr(mod, "test_missing_on_ref", lambda ref, names: set())
@@ -100,7 +101,7 @@ def test_nightly_writes_the_tsv_and_one_summary_and_closes_only_the_done(tmp_pat
 
 
 def test_only_the_cited_issues_tests_are_looked_up_and_in_one_git_grep(tmp_path, monkeypatch):
-    mod, _ = _fake(tmp_path, monkeypatch, _issues((1, [])))
+    mod, _ = _fake(tmp_path, monkeypatch, _issues((1, []), (3, ["type:bug"])))
     seen = []
     monkeypatch.setattr(mod, "test_missing_on_ref", lambda ref, names: (seen.append(set(names)), set())[1])
     mod.reconcile({1: False}, "HEAD")
@@ -110,3 +111,45 @@ def test_only_the_cited_issues_tests_are_looked_up_and_in_one_git_grep(tmp_path,
     monkeypatch.setattr(mod.subprocess, "run", lambda argv, **k: (calls.append(argv), mod.subprocess.CompletedProcess(argv, 1, "def test_n3\n", ""))[1])
     missing = mod.test_missing_on_ref("HEAD", {f"test_n{i}" for i in range(450)})
     assert len(calls) == 1 and "test_n3" not in missing and len(missing) == 449, "450 names: one grep, not 450"
+
+
+def _git_in(cwd, *a):
+    import subprocess
+    return subprocess.run(["git", "-C", str(cwd), "-c", "user.name=t", "-c", "user.email=t@t", *a], capture_output=True, text=True, check=True).stdout.strip()
+
+
+def test_a_landing_whose_sha_is_only_on_the_remote_is_fetched_and_read(tmp_path, monkeypatch):
+    """#6848: the reconcile ran `git ls-tree <sha>` in a clone without the landed sha and exited 128; it fetches first."""
+    remote, other, clone = tmp_path / "remote.git", tmp_path / "other", tmp_path / "clone"
+    _git_in(tmp_path, "init", "--bare", "-b", "main", str(remote))
+    _git_in(tmp_path, "clone", "-q", str(remote), str(clone))
+    (clone / "a.txt").write_text("1")
+    _git_in(clone, "add", "."), _git_in(clone, "commit", "-qm", "one"), _git_in(clone, "push", "-q", "origin", "main")
+    _git_in(tmp_path, "clone", "-q", str(remote), str(other))
+    (other / "spec.md").write_text("2")
+    _git_in(other, "add", "."), _git_in(other, "commit", "-qm", "landed"), _git_in(other, "push", "-q", "origin", "main")
+    sha = _git_in(other, "rev-parse", "HEAD")
+    monkeypatch.chdir(clone)
+    mod = issue_reconcile
+    import subprocess
+
+    import pytest
+
+    with pytest.raises(subprocess.CalledProcessError):
+        mod._git("ls-tree", "-r", "--name-only", sha)  # the failure the audit saw
+    mod.ensure_ref(sha)
+    assert "spec.md" in mod._git("ls-tree", "-r", "--name-only", sha)
+
+
+def test_after_landing_fetches_the_sha_before_it_reads_and_a_sha_nobody_has_is_said_per_issue(tmp_path, monkeypatch):
+    mod, state = _fake(tmp_path, monkeypatch, _issues((1, []), (3, ["type:bug"])))
+    seen = []
+    monkeypatch.setattr(mod, "ensure_ref", lambda ref: seen.append(ref))
+    assert mod.after_landing([1], "abc123", "abc123")[0]["cls"] == "CLOSE-A" and seen == ["abc123"]
+    import subprocess
+
+    def boom(ref):
+        raise subprocess.CalledProcessError(128, ["git", "fetch"], "", "no such sha")
+    monkeypatch.setattr(mod, "ensure_ref", boom)
+    out = mod.after_landing([3], "abc123", "abc123")
+    assert out[0]["issue"] == 3 and out[0]["cls"] == "UNREAD" and "reconcile failed" in out[0]["note"]

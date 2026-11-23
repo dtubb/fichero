@@ -183,21 +183,21 @@ filters Activity by `model:`.
 
 ### A. The window and its bones
 
-- `models.window.is-activitys-shape` — **[GAP]** (#6588, #4307) the window is a `NavigationSplitView` with a source
+- `models.window.is-activitys-shape` — **[PARTIAL]** (#6588, #4307) the window is a `NavigationSplitView` with a source
   list (This Mac, Places, Work), the one table and the Inspector, laid out by a pane kind (`PaneKind.models`) so a main
   window can show it as a pane; the toolbar leads with Activity's run controls; the bottom bar is the filter.
-  *Test:* `ModelsWindowLayoutTests.swift` (the three sections, the pane kind, the Inspector follows the selection).
+  *Test:* `ModelsWindowLayoutTests.swift` (the three sections, the pane kind, the Inspector follows the selection). **Built:** the sidebar's three sections and the rule that groups the one list under each item (`ModelsWindowModel`), tested in `fichero/Tests/Unit/general/Views/Activity/Pane/ModelsWindowLayoutTests.swift`. **Not built:** `PaneKind.models`, the `NavigationSplitView`, the table and Inspector views, the run controls and the filter.
 - `models.window.one-list` — **[PARTIAL]** (#6588; built: `GET /api/activity/models` with place › provider › model,
   `loaded`, `active`, memory, today's pages and calls, `this_mac`; not built: size on disk, `fits_here`, `account`, the
   card's licence, failures today, the Mac's GPU) the window reads ONE engine list, the models answer grown by the columns
   above; the local-models list (`/api/local-models`), the runtimes list (`/api/providers/local-runtimes`), the providers list
   and the clusters list are read by the engine into it, never by the app in parallel. *Test:*
-  `fichero-server/tests/unit/api/test_activity_models_6588.py` (extend: each new field; "—" for what nothing measures).
-- `models.window.columns-and-verbs-are-activitys` — **[GAP]** (#6588) the column menu, the kept widths, the verb pattern
+  `fichero-server/tests/unit/api/test_activity_models_6588.py` (extend: each new field; "—" for what nothing measures). **Built:** `size_bytes`, `licence`, `fits_here` with `needs_bytes`, `fits_note` and `unload_to_fit`, `account`, `using_now`, `last_failed` on each model and `gpu` on `this_mac`, read by `ActivityModelEntry`; tested in `test_activity_models_6588.py`. **Not built:** the window that draws them.
+- `models.window.columns-and-verbs-are-activitys` — **[PARTIAL]** (#6588) the column menu, the kept widths, the verb pattern
   (one row button = the fix or the state verb; the rest in the context menu) and the Mail rule for several rows are
-  Activity's (`activity.pane.columns-from-the-header`, `activity.pane.fix-button-has-words`). *Test:* `ModelsWindowVerbsTests.swift`.
-- `models.window.needs-you-badge` — **[GAP]** (#6588) each sidebar item is badged with its rows needing you (broken,
-  no credit, needs key, not reachable), and those rows sort first. *Test:* `ModelsWindowNeedsYouTests.swift`.
+  Activity's (`activity.pane.columns-from-the-header`, `activity.pane.fix-button-has-words`). *Test:* `ModelsWindowVerbsTests.swift`. **Built:** the row's one button as a rule (`ModelsWindowModel.button`), tested in `ModelsWindowLayoutTests.swift`. **Not built:** the column menu, kept widths, the context menu and the Mail rule for several rows.
+- `models.window.needs-you-badge` — **[PARTIAL]** (#6588) each sidebar item is badged with its rows needing you (broken,
+  no credit, needs key, not reachable), and those rows sort first. *Test:* `ModelsWindowNeedsYouTests.swift`. **Built:** the count and the sort (`ModelsWindowModel.badge`, `needsYouFirst`), tested in `ModelsWindowLayoutTests.swift`. **Not built:** the badge drawn, and a "no credit" row, which the engine does not yet report.
 
 ### A2. Search, bookmark, and what a recipe can reach (owner 2026-11-18)
 
@@ -213,7 +213,7 @@ filters Activity by `model:`.
   survives the next search letting it go; Download fetches a bookmarked card; Remove Bookmark lets it go when it is not
   downloaded and not used by a step; a card a step uses cannot lose its bookmark. *Test (to write, in
   `fichero-server/tests/unit/recipes/`):* a bookmarked card outlives a search that no longer finds it; a card a step uses
-  refuses Remove Bookmark with the step named. **Built:** `discovery.bookmark` / `remove_bookmark` and `keep_hub` keeping a bookmarked card, tested in `fichero-server/tests/unit/recipes/test_bookmark_kept_not_added_5460.py`; **Not built:** the route, the bookmark glyph and the Download of a bookmarked card.
+  refuses Remove Bookmark with the step named. **Built:** `discovery.bookmark` / `remove_bookmark` and `keep_hub` keeping a bookmarked card, tested in `fichero-server/tests/unit/recipes/test_bookmark_kept_not_added_5460.py`; The routes `POST` and `DELETE /api/recipes/candidates/bookmark` (404 for a card no search found, 409 naming the step for a card a step uses), tested in `fichero-server/tests/unit/recipes/test_bookmark_route_5460.py`. **Not built:** the bookmark glyph and the Download of a bookmarked card.
 - `models.window.shows-what-a-recipe-can-reach` — **[GAP]** (#6588, #5976, #5974) the default item, Usable now, is
   exactly the set of cards Set Up could give a step this minute (`GET /api/recipes/candidates`, every step, filtered to
   `runs_here` true or a reachable `runs_on` with a key and credit); a card that cannot run says why in the finder's own
@@ -234,22 +234,22 @@ filters Activity by `model:`.
 - `models.row.loaded-and-active` — **[OK]** (#6588; `activity.window.models-tree` owns it) filled when resident,
   hollow when not, a green dot while a page or call is in flight; the memory beside it, estimated where it is. *Tests:*
   `fichero-server/tests/unit/api/test_activity_models_6588.py`, `fichero/Tests/Unit/general/Views/Activity/Pane/ActivityModelsTreeTests.swift`.
-- `models.row.fits-here` — **[GAP]** (#5221, #4987) a This Mac model says whether it fits now (the one memory number
+- `models.row.fits-here` — **[PARTIAL]** (#5221, #4987) a This Mac model says whether it fits now (the one memory number
   against free memory and pressure, the rule `settings.local-model-refused-before-it-loads` already applies at load), and
   what would have to be unloaded for it to fit. *Test (to write, in `fichero-server/tests/unit/api/`):* with memory injected,
-  never the machine's, a model under free memory reads "Yes", one over it "No" naming what to unload.
+  never the machine's, a model under free memory reads "Yes", one over it "No" naming what to unload. **Built:** `fits_here`, `needs_bytes`, `fits_note` and `unload_to_fit` on each sized installed model from `local_inference.fit_estimate` with memory injected, tested in `fichero-server/tests/unit/api/test_activity_models_6588.py::test_an_installed_model_says_its_size_licence_and_whether_it_fits_with_memory_injected`; `ActivityModelEntry.fitsWords` reads it. **Not built:** the column in a window, and "Tight (needs 6 GB, 4 GB free)" words.
 - `models.row.account-from-a-probe` — **[PARTIAL]** (#5369, #4303, #5367; `keys.status-sees-supplied-keys`,
   `runtime.status-from-the-endpoint`) a place's Account column comes from the same lookup a call uses (keys the app
   supplies included) and from a real probe; today key status ignores app-supplied keys and no Swift code reads the
   runtimes endpoint, so a row can read ready with nothing behind it. *Test (to write, in `fichero-server/tests/unit/api/`):* a
-  stub probe that refuses gives "Not reachable"; an app-supplied key reads Ready; no key reads Needs key. **Built:** `places()` in `GET /api/activity/models` carries `account` (another Mac from a probe of its address, a cloud provider from `llm.get_api_key`, a cluster null), tested in `fichero-server/tests/unit/api/test_activity_models_6588.py::test_a_places_account_comes_from_a_probe_and_the_key_a_call_uses`; **Not built:** no Swift code reads it, and the probe is a reachability check of the address, not a model-list request.
+  stub probe that refuses gives "Not reachable"; an app-supplied key reads Ready; no key reads Needs key. **Built:** a cloud or remote model row carries its place's `account` (`test_a_cloud_model_carries_its_places_account`); `places()` in `GET /api/activity/models` carries `account` (another Mac from a probe of its address, a cloud provider from `llm.get_api_key`, a cluster null), tested in `fichero-server/tests/unit/api/test_activity_models_6588.py::test_a_places_account_comes_from_a_probe_and_the_key_a_call_uses`; **Not built:** only `ActivityModelEntry.account` reads it (no view), and the probe is a reachability check of the address, not a model-list request.
 - `models.row.credit-and-limits` — **[GAP]** (#6675, #6354) a provider that answered no credit, a key limit or a rate
   limit shows it in Account in the provider's words (redacted), with the dead mark's seconds left and the calls in flight
   of its cap; the row's button is Open provider page; the paused runs are listed under Using now with Continue.
   *Test:* `ModelsRowAccountTests.swift` (a `no-credit` failure and a dead mark render those words and that button).
-- `models.row.using-now-and-last-failed` — **[GAP]** (#6588, #6354) Using now lists the Activity rows in flight on this
+- `models.row.using-now-and-last-failed` — **[PARTIAL]** (#6588, #6354) Using now lists the Activity rows in flight on this
   model or place; Last failed shows the newest `failure` on it today with its fix button; Show in Activity filters by it.
-  *Test:* `ModelsRowActivityTiesTests.swift`.
+  *Test:* `ModelsRowActivityTiesTests.swift`. **Built:** `using_now` (the kinds of job running on a model) and `last_failed` (the newest failed job's row words, kind and fix button) on each model row, tested in `test_activity_models_6588.py::test_a_failure_today_and_the_work_in_flight_ride_on_the_model`. **Not built:** the cells, Show in Activity, and `ModelsRowActivityTiesTests.swift`.
 - `models.row.what-unloading-gives-back` — **[PARTIAL]** (#4987, #4999) This Mac's Inspector lists each resident model with
   its memory and the one button Unload idle models, which calls `release_idle_models` and shows what was freed.
   *Test (to write, in `fichero-server/tests/unit/api/`):* the route frees the idle embedder and answers its name; a model with a
@@ -393,6 +393,7 @@ the surface those two lines describe, `models.row.account-from-a-probe` is their
 ### Stage 1 — The window over the one list
 
 #### Step 1.1 — The pane kind, the three sections, the Inspector (#6588)
+- Status: the sections, the needs-you count and sort, and the one button are built as `ModelsWindowModel`; the pane kind, the split view and the Inspector are not.
 - Behaviours: `models.window.is-activitys-shape`, `models.window.columns-and-verbs-are-activitys`, `models.window.needs-you-badge`
 - Tests: fichero/Tests/Unit/general/Views/Activity/Pane/ActivityModelsTreeTests.swift (the tree the window grows from; new Swift tests of the layout and verbs to write beside it)
 - Size: M
@@ -403,6 +404,7 @@ the surface those two lines describe, `models.row.account-from-a-probe` is their
 - Size: M
 
 #### Step 1.3 — The places listed with a probed state, in the window not Settings (#5454, #5367)
+- Status: the engine half is built (a place's Account from a probe, `test_a_places_account_comes_from_a_probe_and_the_key_a_call_uses`; a model row carries it); Settings' dot (`isLocalProvider || hasApiKey`) and the window's own rows are not changed.
 - Behaviours: `ai.where.settings-lists-places`, `ai.where.place-status-is-probed`
 - Tests: fichero-server/tests/unit/api/test_activity_models_6588.py (extended: a stub probe's answer is the row's Account)
 - Depends on: 1.2

@@ -202,36 +202,41 @@ They go in `test_paragraph_*.py` files beside
   (`claim_id`, `text`, `document_id`), in the paragraph's order. Test:
   `test_a_mention_is_listed_not_narrated` in
   `fichero-server/tests/unit/knowledge/test_paragraph_selection.py`.
-- `kg.para.proposed-is-marked` — **[GAP]** (#4750, → #6836) each clause says whether a person
+- `kg.para.proposed-is-marked` — **[OK]** (#4750, → #6836) each clause says whether a person
   has reviewed its statement: `state` is `reviewed` when every statement of the clause is
   curated or confirmed, else `proposed`. The app draws the one mark `kg-rendering.md` names;
-  the paragraph's words do not change. Test (to write): `test_a_clause_says_proposed_or_reviewed`.
-- `kg.para.every-statement-is-said-once` — **[PARTIAL]** (#4750, → #6836) every selected
+  the paragraph's words do not change. Test: `test_a_clause_says_proposed_or_reviewed` in
+  `fichero-server/tests/unit/knowledge/test_paragraph_trace.py`.
+- `kg.para.every-statement-is-said-once` — **[OK]** (#4750, → #6836) every selected
   statement's id is in exactly one clause, and no clause is without one. Built: every sentence
   carries its ids
   (`fichero-server/tests/unit/knowledge/test_readable_representation.py::test_render_entry_every_sentence_carries_its_claim_id`).
-  Not built: clauses. Test (to write): `test_every_selected_statement_is_in_exactly_one_clause`.
+  Built: clauses. Test: `test_every_selected_statement_is_in_exactly_one_clause` in
+  `fichero-server/tests/unit/knowledge/test_paragraph_trace.py`.
 
 ### B. Every clause keeps its statement
 
-- `kg.para.clause-carries-claim-ids` — **[GAP]** (#4841, → #6836) a sentence that states more
+- `kg.para.clause-carries-claim-ids` — **[OK]** (#4841, → #6836) a sentence that states more
   than one unit has one clause per unit, each with its own offsets and its own statement ids, so
   a click on "the sale of a farm" in a joined sentence opens that statement and no other. A
   word that joins clauses (a conjunction, a shared date) belongs to the sentence and names
-  every statement it joins. Test (to write): `test_a_joined_sentence_has_one_clause_per_unit`.
-- `kg.para.every-character-has-an-origin` — **[GAP]** (#4841, → #6836) every letter and digit
+  every statement it joins. Tests: `test_a_joined_sentence_has_one_clause_per_unit` in
+  `fichero-server/tests/unit/knowledge/test_paragraph_trace.py` and
+  `test_the_route_returns_clauses_and_segments_that_slice_the_paragraph` in `fichero-server/tests/unit/api/test_routes_kg_paragraph_clauses.py`.
+- `kg.para.every-character-has-an-origin` — **[PARTIAL]** (#4841, → #6836) every letter and digit
   of the paragraph lies in a segment whose origin is a field of one of the clause's own
   statements, a name of an entity one of them links, or an entry of the sentence language's
   table; `paragraph[start:end]` of a `claim:` segment is a substring of that field as stored,
   but for the first letter's case and a contraction the table lists. This is the exact form of
-  `kg.read.vocabulary-closure`. Test (to write): `test_every_character_traces_to_its_origin`.
-- `kg.para.deterministic` — **[PARTIAL]** (#4652, → #6836) the same statements give the same
+  `kg.read.vocabulary-closure`. Built: segments name a claim field, a table word or punctuation. Not built: an entity name as an
+  origin, the first-letter case and contraction exceptions. Test: `test_every_character_traces_to_its_origin` in
+  `fichero-server/tests/unit/knowledge/test_paragraph_trace.py`.
+- `kg.para.deterministic` — **[OK]** (#4652, → #6836) the same statements give the same
   bytes whatever order the store returns them in, and no model is called. Built: a full sort
   key and a pure function
   (`fichero-server/tests/unit/knowledge/test_readable_representation.py::test_render_entry_ordering_is_stable_across_repeated_calls`).
-  Not built: a test that shuffles the input and one that fails if any model client is called.
-  Tests (to write): `test_shuffled_input_gives_the_same_paragraph`,
-  `test_no_model_is_called`.
+  Built: a test that shuffles the input and one that fails if the network is opened. Tests:
+  `test_shuffled_input_gives_the_same_paragraph`, `test_no_model_is_called` in `fichero-server/tests/unit/knowledge/test_paragraph_trace.py`.
 - `kg.para.edit-re-renders-the-clause` — **[GAP]** (#4833, → #6836) correcting a statement
   changes the text of its clause and of no clause that does not share a sentence with it; the
   editor is given the statement, never the sentence's text, and nothing accepts edited prose.
@@ -507,7 +512,7 @@ the behaviour's words before the change. Stages 1 to 3 change the engine only.
 
 #### Step 1.3 — Clauses and segments on the route; the exact faithfulness test (#6836)
 - Behaviours: `kg.para.clause-carries-claim-ids`, `kg.para.every-character-has-an-origin`, `kg.para.every-statement-is-said-once`, `kg.para.deterministic`, `kg.para.proposed-is-marked`
-- Tests: to write: `test_paragraph_trace.py` in fichero-server/tests/unit/knowledge/, `test_routes_kg_paragraph_clauses.py` in fichero-server/tests/unit/api/
+- Tests: `test_paragraph_trace.py` in fichero-server/tests/unit/knowledge/, `test_routes_kg_paragraph_clauses.py` in fichero-server/tests/unit/api/
 - Depends on: 1.2
 - Size: M
 

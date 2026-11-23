@@ -204,7 +204,7 @@ After Stage 0 the lane stands: the benchmark reruns on every adopted reader and 
   person-checked mean; a half-corrected page is not person-checked).
 - `hands.truth.every-figure-says-its-reference` — **[GAP]** (#4947 → #6966) every figure this spec defines carries
   the count of person-checked and of model-checked lines behind it, and a figure resting on fewer than 100 lines or
-  two pages (the bake-off's own floor, `recipes/bakeoff.py` `MIN_LINES`, `MIN_PAGES`) is shown as "too few to say".
+  two pages (the bake-off's own floor, `recipes/bakeoff.py` `MIN_LINES`, `MIN_PAGES`) is shown as "too few to say". **Not built:** the owner's answer (2026-11-22) replaces the threshold above: a figure is shown only after 100 held-out decisions, or 5 held-out pages in each half; below that the line says "not enough checked yet" and shows no number.
 
 ### C. The held-out split in a working project
 
@@ -221,7 +221,7 @@ After Stage 0 the lane stands: the benchmark reruns on every adopted reader and 
   hash. Calibration, thresholds and the noise band are fitted on the fit half only; every figure shown or published
   comes from the report half only. With fewer than two pages in either half the figure is "too few to say".
   *Test (to write):* test_held_out_two_halves.py (a fit never reads a report-half page; a figure never reads a
-  fit-half page).
+  fit-half page). **Not built:** the owner's answer (2026-11-22) replaces the threshold above: with fewer than 5 pages in either half the figure is "not enough checked yet", with no number.
 - `hands.heldout.every-builder-refuses` — **[GAP]** (#5441 → #6969) every builder of something a model learns from
   refuses a held-out page: the Kraken and vision training sets (built, `training.set.held-out-never-trained`), the
   YOLO set, the rescoring tables of section F, prompt examples, and a set packed for another place. One function
@@ -338,7 +338,35 @@ The review queue ordered by what a correction would teach is `distill.queue.unce
   near hand starts further along its curve. Actual lines are shared only from openly licensed material; a corpus
   ruled local stays local.
 - `hands.share.open-benchmark-and-board` — **[GAP]** (#5343; owner 2026-11-21) the open part of the benchmark and
-  its board are published with the manifest version, the scorer and the blind stamps.
+  its board are published with the manifest version, the scorer and the blind stamps. **Not built:** superseded 2026-11-22, no board is published; see the next line.
+- `hands.share.open-manifest-is-a-fixture-no-board` — **[GAP]** (#5343) the open part of the benchmark stays as a test fixture with its manifest version, the scorer and the blind stamps; no score board is published and no route or view serves one, because scores are not made public. *Test (to write):* test_open_manifest_publishes_no_board.py.
+
+### J. Correct, measure, distil (the step contract)
+
+Reading a hand is one machine step among several. The contract every step fills, the correction rules and the loop's
+display are `compute/correct-measure-distil.md`'s; these lines are this step's part of it.
+
+- `hands.contract.reading-fills-it` — **[GAP]** (#5441, #5941) the read step declares its contract
+  (`stepcontract.every-step-declares-six`): the unit is a line's reading; the gestures are confirm, fix in place and
+  mark not readable, in the Reader and the segment editor; ground truth is a person's reading naming the one it
+  corrects; the held-out unit is the page; the measure is CER and WER per hand and per project; and it can be both
+  trained (a per-hand adapter) and distilled (a student of a hosted reader). *Test (to write):* test_step_contract.py.
+- `hands.correct.line-in-place` — **[GAP]** (#5499, #5338) in the Reader, with a line focused: Return confirms the line
+  as read, which marks its reading ground truth; typing replaces the text in place and Return saves it; one key marks
+  the line not readable. Each is one audited action with undo, and the focus then moves to the next line of the
+  queue. The queue is the least sure first (`correct.ui.least-sure-first`): by calibrated probability where the hand
+  has a fit, by the stored confidence, labelled, where it has none. *Test (to write):* ReaderCorrectInPlaceTests.swift
+  (confirm, fix and not-readable each call one action; the focus follows the queue's order).
+- `hands.correct.progress-per-hand` — **[GAP]** (#6283, #5441) the Reader shows, for the hand of the page in view,
+  "N lines corrected in this hand, error now X% (a to b)": N from the hand's ground truth, X the CER on the report half
+  of its held-out pages, with its range; with fewer than 5 held-out pages in either half it reads "N lines
+  corrected, not enough checked yet" (`correct.ui.progress-line`). *Test (to write):*
+  test_progress_line_per_hand.py.
+- `hands.loop.better-reader-takes-over` — **[GAP]** (#5337, #4951) a hand's adapter or student replaces that hand's
+  reader only by the switch rule (`loopstate.switch-only-when-measured-better`), for that hand as the scope; the
+  hand's row in Models says its lines so far, its last CER with the range, and whether a better reader is ready
+  (`loopstate.models-row-shows-four`). *Test (to write):* test_switch_rule_per_hand.py (a better adapter for one hand
+  switches that hand only).
 
 ## Lines this spec amends (cited, not copied)
 
@@ -421,6 +449,14 @@ report of Step 0.2. The tests run with a fake provider and spend nothing. About 
 - Depends on: 1.2
 - Size: M
 
+#### Step 1.5 — Correct a line in place; the unsure queue; the progress line per hand
+- Behaviours: `hands.contract.reading-fills-it`, `hands.correct.line-in-place`, `hands.correct.progress-per-hand`
+- Tests: test_step_contract.py, ReaderCorrectInPlaceTests.swift, test_progress_line_per_hand.py
+- Depends on: 1.3
+- Size: M
+
+Needs `compute/correct-measure-distil.md` Steps 1.1 and 3.1 (the contract, the queue and the line in the engine).
+
 ### Stage 2 — The reader that learns a hand (weeks 6 to 12; order set by Stage 0's report)
 
 #### Step 2.1 — Per-hand adapters on the measured base
@@ -453,11 +489,19 @@ report of Step 0.2. The tests run with a fake provider and spend nothing. About 
 - Depends on: 2.1
 - Size: M
 
+#### Step 2.6 — The better reader takes over a hand only when it measures better
+- Behaviours: `hands.loop.better-reader-takes-over`
+- Tests: test_switch_rule_per_hand.py
+- Depends on: 2.1
+- Size: S
+
+Needs `compute/correct-measure-distil.md` Step 4.1 (the switch rule).
+
 ### Stage 3 — The open release (the quarter after)
 
 #### Step 3.1 — Adapters are reused across projects; the open benchmark and board
-- Behaviours: `hands.share.adapters-by-consent`, `hands.share.open-benchmark-and-board`
-- Tests: test_adapter_sharing.py (to write), test_open_release_licence.py (to write)
+- Behaviours: `hands.share.adapters-by-consent`, `hands.share.open-benchmark-and-board`, `hands.share.open-manifest-is-a-fixture-no-board`
+- Tests: test_adapter_sharing.py (to write), test_open_release_licence.py (to write), test_open_manifest_publishes_no_board.py (to write)
 - Depends on: 2.5
 - Size: M
 

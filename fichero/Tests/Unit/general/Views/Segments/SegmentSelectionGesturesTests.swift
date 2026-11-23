@@ -25,6 +25,14 @@ struct SegmentSelectionGesturesTests {
         #expect(Gestures.inside(band, boxes: page, level: level) == [1, 2])
     }
 
+    @Test("a band selects every line it touches, a corner included, and none it misses")
+    func bandTouches() {
+        let corner = [0.45, 0.24, 0.2, 0.02]  // overlaps line 2's bottom-right corner and nothing else
+        #expect(Gestures.touching(band: corner, boxes: page, level: "line") == [2])
+        #expect(Gestures.touching(band: [0.05, 0.05, 0.5, 0.26], boxes: page, level: "line") == [1, 2, 3])
+        #expect(Gestures.touching(band: [0.7, 0.7, 0.1, 0.1], boxes: page, level: "line").isEmpty)
+    }
+
     @Test("with ⌘ held the band selects regions")
     func commandSelectsRegions() {
         let level = Gestures.level(of: page, commandHeld: true)

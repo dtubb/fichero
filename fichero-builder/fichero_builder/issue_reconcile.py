@@ -164,6 +164,15 @@ def _git(*args: str) -> str:
     return subprocess.run(["git", *args], capture_output=True, text=True, check=True).stdout
 
 
+def ensure_ref(ref: str) -> None:
+    """The commit `ref` is in this repo: fetched from origin when it is not (#6848: a landed sha lives on the remote, and
+    `git ls-tree <sha>` in a clone without it exits 128). Raises CalledProcessError when origin does not have it either."""
+    if subprocess.run(["git", "cat-file", "-e", f"{ref}^{{commit}}"], capture_output=True).returncode == 0:
+        return
+    _git("fetch", "--quiet", "origin")
+    _git("cat-file", "-e", f"{ref}^{{commit}}")
+
+
 def load_specs(ref: str) -> list[tuple[str, str]]:
     """Every spec file at `ref`, read with ONE `git cat-file --batch` call."""
     paths = [p for p in _git("ls-tree", "-r", "--name-only", ref, "--", SPEC_ROOT).split()
@@ -333,6 +342,7 @@ def after_landing(numbers: list[int], ref: str, landed: str) -> list[dict]:
             todo[n] = st[1]
     if todo:
         try:
+            ensure_ref(ref)
             rows = reconcile(todo, ref)
         except (subprocess.CalledProcessError, OSError) as e:
             return out + [{"issue": n, "cls": "UNREAD", "closed": False, "note": f"reconcile failed: {e}"[:200]} for n in todo]

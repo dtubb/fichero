@@ -195,6 +195,15 @@ def claim_to_triples(
         graph.add((c_uri, FICHERO.claimType, Literal(enum_value(claim.claim_type))))
     if claim.confidence is not None:
         graph.add((c_uri, FICHERO.confidence, Literal(float(claim.confidence), datatype=XSD.float)))
+    if claim.provider:
+        graph.add((c_uri, FICHERO.provider, Literal(claim.provider)))
+    if claim.model:
+        graph.add((c_uri, FICHERO.model, Literal(claim.model)))
+    editor = next((step.name for step in reversed(claim.attribution_chain or [])
+                   if enum_value(step.role) == "editor" and step.name), None)
+    if editor:
+        graph.add((c_uri, FICHERO.madeByPerson, Literal(editor)))
+    graph.add((c_uri, FICHERO.curationState, Literal(enum_value(claim.curation_state))))
 
     # The actual subject-predicate-object edges.
     for entity_id in (claim.entity_ids or []):

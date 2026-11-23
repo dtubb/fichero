@@ -791,6 +791,14 @@ The behaviours this adds:
   pages read by the step's reader, `GET /api/recipes/routes` still said the time on this Mac was unknown:
   `recipes/routes.py` `default_models` passes the reader as the plan names it (`kraken-…`) and the job rows
   store it with its runtime (`kraken:kraken-…`), so `measured_seconds_per_page` finds no row.
+- `recipes-run.journey.run-one-step-on-a-folder-or-file` — **[PARTIAL]** (#7036) the historian picks one step of the
+  recipe and runs only that step on the selected folder or on one file; the steps before it are not run again (what they
+  wrote is what the step reads) and Activity shows the run as that one step. *Built (engine):* Start with `steps` and
+  `folder_id` or `documents` runs only those steps on those pages
+  (`fichero-server/tests/unit/recipes/test_run_one_step_on_a_folder_or_a_file_7036.py`; a step the recipe lacks is refused
+  in words). *Built (app, compile owed):* "Run a Step Again on This Folder" and "Run a Step Again on the Selection" in the
+  folder and file context menus send that Start (`RunRecipeOnFolderMenuItem`, `RunStepAgainOnSelectionMenu`). *Not built:*
+  a control in the recipe's own step row in Set Up.
 - `recipes-run.journey.start-on-pages-answers-for-those-pages` — **[BROKEN]** (#6744, #6170, → #6811) a Start on
   chosen pages (`documents`) answers with those pages' counts and the run's steps carry those pages' notes.
   Measured: a Start on 4 pages answered `pages: 10` and "runs again on all 10 pages"; while it read 3 pages its

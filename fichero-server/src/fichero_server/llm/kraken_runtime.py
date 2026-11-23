@@ -2097,7 +2097,12 @@ def recognize_to_geometry(
         y0, y1 = max(0.0, min(ys)), min(height, max(ys))
         if x1 <= x0 or y1 <= y0:
             continue
-        text = str(line.get("text") or "").strip()
+        said = str(line.get("text") or "")
+        text = said.strip()
+        # The positions of the characters the strip kept (`segment-editor.char-positions-kept`).
+        lead = len(said) - len(said.lstrip())
+        positions = line.get("char_positions")
+        positions = positions[lead:lead + len(text)] if positions and len(positions) == len(said) and text else None
         # char_start/char_end index the line's slice of the joined transcript.
         # Assigned as we build (a running cursor + 1 per newline) so the mapping
         # is EXACT even when two lines read identically — a search would tie
@@ -2129,6 +2134,7 @@ def recognize_to_geometry(
                     ],
                     "pixel_frame": {"width": width, "height": height},
                     **({"boxed_from_baseline": True} if line.get("boxed") else {}),
+                    **({"char_positions": positions} if positions else {}),
                     **_parent(line, region_index),
                 },
             )

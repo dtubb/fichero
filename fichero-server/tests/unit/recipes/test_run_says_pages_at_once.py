@@ -64,3 +64,17 @@ def test_a_running_run_says_the_threads_each_page_reads_on(monkeypatch, inside, 
     status = RecipeRunStatus(**asyncio.run(with_accounts(None, _status())))
 
     assert status.threads_each == threads
+
+
+@pytest.mark.parametrize("priority, mac_host, why", [
+    ("background", True, "a run that started by itself reads in the background"),
+    ("fast", False, "this machine reads one page at a time"),
+])
+def test_each_other_hold_that_makes_the_gate_one_names_itself(monkeypatch, priority, mac_host, why):
+    monkeypatch.setattr("fichero_server.core.compute_preferences.priority_for", lambda person: priority)
+    monkeypatch.setattr("fichero_server.execution.throttle.memory_is_busy", lambda: False)
+    monkeypatch.setattr("fichero_server.execution.jobs.resuming_gently", lambda: False)
+    monkeypatch.setattr("fichero_server.core.cores.cores_available", lambda: (8, "test"))
+    monkeypatch.setattr("fichero_server.core.cores.is_a_mac_pipeline_host", lambda source: mac_host)
+
+    assert kraken_runtime.pages_at_once_and_why(True) == (1, why)

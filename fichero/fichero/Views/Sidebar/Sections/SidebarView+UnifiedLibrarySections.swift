@@ -84,33 +84,40 @@ extension SidebarView {
             // The always-there project is drawn headless above them instead
             // (`alwaysThereProjectItems`, ruled 2026-10-10), so its items read
             // as the sidebar's own top section, not as floating rows.
-            DisclosureGroup(
-                isExpanded: Binding(
-                    get: { sidebarState.isLibraryExpanded(library.id) },
-                    set: { sidebarState.libraryExpansionStates[library.id.uuidString] = $0 }
-                )
-            ) {
-                unifiedLibrarySections(
-                    libraryId: libraryId,
-                    buckets: buckets
-                )
-            } label: {
-                // The header paints the SAME grey platter as every other row
-                // (#110, 2026-08-09), on the LABEL, never the DisclosureGroup
-                // (#4229: the group's frame is the header plus its expanded
-                // subtree). The header's own `sidebarDropHighlight` is the one
-                // writer for both drop and selection (#5422).
+            if SidebarPhone.rowExpandsInPlace(isPhone: SidebarPhone.isPhone) {
+                DisclosureGroup(
+                    isExpanded: Binding(
+                        get: { sidebarState.isLibraryExpanded(library.id) },
+                        set: { sidebarState.libraryExpansionStates[library.id.uuidString] = $0 }
+                    )
+                ) {
+                    unifiedLibrarySections(
+                        libraryId: libraryId,
+                        buckets: buckets
+                    )
+                } label: {
+                    // The header paints the SAME grey platter as every other row
+                    // (#110, 2026-08-09), on the LABEL, never the DisclosureGroup
+                    // (#4229: the group's frame is the header plus its expanded
+                    // subtree). The header's own `sidebarDropHighlight` is the one
+                    // writer for both drop and selection (#5422).
+                    libraryDisclosureLabel(library: library)
+                }
+                // NO .tag — deliberately OUTSIDE List selection (#160, 2026-08-09:
+                // 'sidebar should not have green when global library is selected').
+                // The label-level platter cannot suppress the native emphasized
+                // fill on a top-level DisclosureGroup row, so the row opts out of
+                // native selection entirely: LibraryHeaderRow's own onTap routes
+                // the destination (below), and the grey platter on the label is
+                // the whole selection treatment. Ceiling: a ⇧-range cannot span a
+                // library header — Finder's sidebar headers behave the same.
+                .listRowInsets(SidebarRowMetrics.insets(.library))
+            } else {
+                // The phone's project is a flat header, its top-level folders under it, not collapsible (#6946).
                 libraryDisclosureLabel(library: library)
+                    .listRowInsets(SidebarRowMetrics.insets(.library))
+                unifiedLibrarySections(libraryId: libraryId, buckets: buckets)
             }
-            // NO .tag — deliberately OUTSIDE List selection (#160, 2026-08-09:
-            // 'sidebar should not have green when global library is selected').
-            // The label-level platter cannot suppress the native emphasized
-            // fill on a top-level DisclosureGroup row, so the row opts out of
-            // native selection entirely: LibraryHeaderRow's own onTap routes
-            // the destination (below), and the grey platter on the label is
-            // the whole selection treatment. Ceiling: a ⇧-range cannot span a
-            // library header — Finder's sidebar headers behave the same.
-            .listRowInsets(SidebarRowMetrics.insets(.library))
         }
     }
 

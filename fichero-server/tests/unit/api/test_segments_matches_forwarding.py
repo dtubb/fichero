@@ -1701,6 +1701,9 @@ _ROUTE_ID_CHECKS: dict[tuple[str, str], list[tuple[str, Any]]] = {
     ("GET", "/segments/document/{doc_id}/validate"): [],  # read-only: what is wrong before an export
     ("GET", "/segments/document/{doc_id}/simplify-preview"): [],  # read-only: what Simplify would write, written nowhere
     ("GET", "/segments/document/{doc_id}/doubtful"): [],  # read-only: the low-confidence lens
+    ("POST", "/segments/document/{doc_id}/text-layer"): [
+        ("doc_id (path)", lambda doc_id, pass_id: ("POST", "/api/segments/document/legacy:x/text-layer", None)),
+    ],
     ("GET", "/segments"): [],  # read-only scoped listing: real rows only, no provisional id to refuse
     ("PATCH", "/segments"): [
         ("updates[].segment_id", lambda doc_id, pass_id: (

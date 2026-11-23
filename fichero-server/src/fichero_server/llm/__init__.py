@@ -4028,7 +4028,7 @@ def _fm_bridge_candidates() -> list[Path]:
     return [
         here.parent.parent / "resources" / "bin" / "fm-bridge",
         here.parent.parent / "bin" / "fm-bridge" / "fm-bridge",
-        here.parents[4] / "bin" / "fm-bridge" / "fm-bridge",
+        here.parents[3] / "bin" / "fm-bridge" / "fm-bridge",  # a source run: fichero-server/bin, built by bin/fm-bridge/build.sh
         Path("fichero-server/bin/fm-bridge/fm-bridge").resolve(),
     ]
 

@@ -14259,6 +14259,43 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("remove-candidate-bookmark")
+    def recipes_remove_candidate_bookmark_delete(
+        ctx: typer.Context,
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+        key: str = typer.Option(..., '--key', help="the found card's key in the kept list (its repository)"),
+    ) -> None:
+        """Remove Candidate Bookmark (DELETE /api/recipes/candidates/bookmark)."""
+        if not yes:
+            typer.confirm("Delete recipes?", abort=True)
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/candidates/bookmark"
+            params = None
+            payload = _build_json_payload({
+                "key": key,
+            }, {
+                "key": {'type': 'string', 'title': 'Key', 'description': "the found card's key in the kept list (its repository)", 'x-cli-required': True},
+            }, required=True)
+            return client.request("DELETE", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("bookmark-candidate")
+    def recipes_bookmark_candidate_post(
+        ctx: typer.Context,
+        key: str = typer.Option(..., '--key', help="the found card's key in the kept list (its repository)"),
+    ) -> None:
+        """Bookmark Candidate (POST /api/recipes/candidates/bookmark)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/candidates/bookmark"
+            params = None
+            payload = _build_json_payload({
+                "key": key,
+            }, {
+                "key": {'type': 'string', 'title': 'Key', 'description': "the found card's key in the kept list (its repository)", 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("chain-risk")
     def recipes_chain_risk_get(
         ctx: typer.Context,
@@ -17211,6 +17248,18 @@ def register_generated_openapi_commands(
                 "tolerance": tolerance,
             }
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("text-layer")
+    def segments_text_layer_post(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help='Doc Id'),
+    ) -> None:
+        """Text Layer Segments (POST /api/segments/document/{doc_id}/text-layer)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/segments/document/{doc_id}/text-layer"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("validate-document")

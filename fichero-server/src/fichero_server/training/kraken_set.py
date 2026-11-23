@@ -25,6 +25,7 @@ are not built yet; `flags_checked` names the flags this set was checked for.
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 from pathlib import Path, PurePosixPath
@@ -43,6 +44,8 @@ PERSON_FLAGS = (*FLAGS, "not_by_a_person")
 #: `source.reading.correct-a-line`) or chose among machine readings (`reading.choose`,
 #: `source.compare.pick-is-a-training-line`), not a model's readings (#5700). Any other value is a model id.
 PERSON = "person"
+#: The cut source PAGE's `custom` carries on a Word or Glyph (`page_export.CUT_FACTS`, `cut {source:ctc; ...}`).
+CUT_SOURCE = re.compile(r"\bcut \{source:([^;}]+);")
 
 
 @dataclass
@@ -288,7 +291,11 @@ def drop_flagged_lines(page_xml: str, rejected: set[str], not_by_a_person: set[s
 
     And with every text AS WRITTEN (#5651, `source.reading.abbreviation-markup-parsed`): a corpus's
     abbreviation markup (`dha$.dicha`, `$ant:`, `$-`) is not ink, so a reader trained on it would learn
-    `$` as a letter of the hand. The abbreviation stays as the scribe wrote it (`dha`)."""
+    `$` as a letter of the hand. The abbreviation stays as the scribe wrote it (`dha`).
+
+    And without a machine's word and character cuts (`segment-editor.corrections-train`): a Word or Glyph whose
+    `custom` names a cut source other than `person` is taken out, so a reader learns only the alignment a person
+    made; a word no cut made (drawn, imported) stays. They are not lines, so they are not in the returned list."""
     from fichero_server.formats.abbreviation_markup import as_written, has_markup
     from fichero_server.formats.pagexml import PAGE_NS_2019
     from fichero_server.formats.validation import parse
@@ -299,6 +306,11 @@ def drop_flagged_lines(page_xml: str, rejected: set[str], not_by_a_person: set[s
     for unicode in root.iter(f"{ns}Unicode"):
         if unicode.text and has_markup(unicode.text):
             unicode.text = as_written(unicode.text)
+            rewritten = True
+    for piece in [*root.iter(f"{ns}Word"), *root.iter(f"{ns}Glyph")]:
+        source = CUT_SOURCE.search(piece.get("custom") or "")
+        if source and source.group(1) != "person" and piece.getparent() is not None:
+            piece.getparent().remove(piece)
             rewritten = True
     dropped: list[tuple[str, str]] = []
     for line in list(root.iter(f"{ns}TextLine")):
