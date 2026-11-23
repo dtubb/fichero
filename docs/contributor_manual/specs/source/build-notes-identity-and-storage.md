@@ -1280,5 +1280,5 @@ has the same fault with zero-width boxes (noted on → #4955).
   fault.
 
 ## Triaged from the backlog (2026-10-04)
-- `storage.library-name-nfc` — **[GAP]** (#2385) Library names are NFC-normalized so accented names never create mojibake duplicate packages.
-- `storage.mojibake-surface-only` — **[GAP]** (#3077) Mojibake-variant library names are detected and surfaced for the user, never auto-merged.
+- `storage.library-name-nfc` — **[OK]** (#2385; `nfc_path` in `fichero-server/src/fichero_server/db/library_paths.py:9`, applied at `api/routes/library/core.py:63,93,112` and `api/library_header.py:19`; tests `fichero-server/tests/unit/api/test_nfc_path_boundaries.py`, `test_unicode_library_collision_detector.py`; read, not run in this worktree: no Python test environment) Library names are NFC-normalized so accented names never create mojibake duplicate packages.
+- `storage.mojibake-surface-only` — **[GAP]** (#3077) Mojibake-variant library names are detected and surfaced for the user, never auto-merged. Note: the built detector (`_detect_unicode_library_collisions`, `api/routes/library/registry.py`) finds NFC/NFD spelling collisions, not mojibake (mis-decoded bytes), so this line stays open.
