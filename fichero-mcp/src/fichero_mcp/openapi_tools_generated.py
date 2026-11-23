@@ -9159,7 +9159,7 @@ def fichero_training_start_vision_lora(
     not_for_release: Annotated[Optional[bool], Field(description='The trained model may not be released. Default: true.')] = None,
     pages_may_leave: Annotated[Optional[bool], Field(description="The person's yes for these pages to go to Hugging Face. Default: false.")] = None,
     rank: Annotated[Optional[int], Field(description='Rank. Default: 16.')] = None,
-    recipe_file: Annotated[Optional[str], Field(description='A LoRA recipe file (`training.lora_recipe`) naming rank, learning rate, epochs and prompt form; it replaces `rank`, `epochs` and `arm` above.')] = None,
+    recipe_file: Annotated[Optional[str], Field(description="The name of a LoRA recipe file in the project's `lora-recipes` folder (`training.lora_recipe`) naming rank, learning rate, epochs and prompt form; it replaces `rank`, `epochs` and `arm` above.")] = None,
     release_note: Annotated[Optional[str], Field(description='Release Note.')] = None,
     scope_ids: Annotated[list[Any], Field(description='Folders or pages whose teacher-read lines are the lessons.')],
     teacher: Annotated[str, Field(description='The model whose line readings are the lessons, e.g. google/gemini-3-flash-preview.')],
