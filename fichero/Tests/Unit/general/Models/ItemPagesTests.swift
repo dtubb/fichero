@@ -3,7 +3,7 @@ import XCTest
 
 /// `ios.item.pages`, `ios.item.header-says-where`, `ios.item.swipe-changes-page`, `ios.item.zoom-wins-over-paging`,
 /// `ios.item.segments-own-their-gestures`, `ios.item.voiceover-reaches-every-page` (#6947): the page list with no view.
-final class ItemPageTests: XCTestCase {
+final class ItemPagesTests: XCTestCase {
     func testThePagesAndTheirOrder() {
         XCTAssertEqual(ItemPage.allCases.map(\.title), ["Source", "Reader", "Segments", "Info"])
     }

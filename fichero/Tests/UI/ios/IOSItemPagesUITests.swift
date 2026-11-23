@@ -36,14 +36,17 @@ final class IOSItemPagesUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Info"].isSelected, "tapping Info did not select it")
     }
 
-    func testSwipingLeftWalksThePagesAndStopsAtTheLast() throws {
+    /// The walk stops at Segments, which owns its drags (`ios.item.segments-own-their-gestures`); Info is reached by
+    /// the header. The spec's three-swipes-to-Info acceptance line conflicts with that rule: raised with the owner.
+    func testSwipingLeftWalksToSegmentsAndTheHeaderReachesInfo() throws {
         let app = try openSeededImage()
-        let order = ["Reader", "Segments", "Info", "Info"]
-        for name in order {
+        for name in ["Reader", "Segments"] {
             app.swipeLeft()
             XCTAssertTrue(app.buttons[name].waitForExistence(timeout: 10))
             XCTAssertTrue(app.buttons[name].isSelected, "a swipe left did not show \(name)")
         }
+        app.buttons["Info"].tap()
+        XCTAssertTrue(app.buttons["Info"].isSelected, "tapping Info did not select it")
     }
 
     func testAHorizontalDragOnSegmentsLeavesSegmentsShowing() throws {

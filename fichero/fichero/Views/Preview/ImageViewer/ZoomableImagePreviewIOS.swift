@@ -121,9 +121,9 @@ struct ZoomableImagePreview: View {
         body0
             // The iPhone's item pages stop paging while the picture is zoomed (`ios.item.zoom-wins-over-paging`).
             .onChange(of: scale) {
-                windowState?.compactImageZoomed = PageSwipe.isZoomedIn(
-                    scale: scale, fitScale: imageCoordinator?.calculateFitScale()
-                )
+                // Written only when it changes: a pinch changes `scale` every frame.
+                let zoomed = PageSwipe.isZoomedIn(scale: scale, fitScale: imageCoordinator?.calculateFitScale())
+                if windowState?.compactImageZoomed != zoomed { windowState?.compactImageZoomed = zoomed }
             }
             .onDisappear { windowState?.compactImageZoomed = false }
     }
