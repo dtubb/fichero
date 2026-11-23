@@ -1588,7 +1588,7 @@ def _not_run(name: str, cfg_table: dict, reason: str, detail: str = "", extra: d
     return {**_report_only(name, cfg_table, False, [f"not-run: {reason}", *([detail] if detail else []), *also], extra), "not_run": True, "not_run_id": rid}
 
 
-def perf(root, since: str, changed: list[str], cfg: Config) -> dict:
+def _perf_engine(root, since: str, changed: list[str], cfg: Config) -> dict:
     """The engine half of the perf rung: `scripts/perf_engine_run.py` (pytest-benchmark under pyinstrument and /usr/bin/time -l, du before
     and after) on `[check].build_remote`, NEVER on this Mac, then its figures judged against scripts/perf_baseline.json by perf_trial.
     Skipped as "not required" for a batch with no engine path; skipped as not configured with no `[check.perf]` or no build_remote."""
@@ -1623,6 +1623,51 @@ def perf(root, since: str, changed: list[str], cfg: Config) -> dict:
              *[f"falls: {f}" for f in res.get("falls", [])], *[f"change: {c}" for c in res.get("changes", [])],
              *[f"recorded (report-only, commit to scripts/perf_baseline.json): {k} = {v['median']:g}" for k, v in (res.get("recorded") or {}).items()], *([res["void"]] if res.get("void") else [])]
     return _report_only("perf", cfg.perf, bool(res.get("ok")), lines or ["engine perf: every figure within its tolerance"], {"results": [row]})
+
+
+def _perf_swift(root, cfg: Config) -> dict:
+    """The Swift half of the perf rung (#6600): `[check.perf].swift_test` run under `/usr/bin/time -l` on `[check].build_remote` (never here),
+    recording wall seconds and the largest process's peak RSS. No `swift_test` is a "no workload yet" row and one alert a day; a run that
+    exits non-zero or prints no readable figure is REFUSED."""
+    from . import perf_rung
+    test = cfg.perf.get("swift_test")
+    if not test:
+        msg = "Swift perf: no workload yet (#6600)"
+        _rung_alert("perf", f"{msg} {time.strftime('%Y-%m-%d')}")
+        return {"ok": True, "skipped": False, "not_run": True, "stdout_tail": msg, "stderr_tail": "", "results": []}
+    if not cfg.build_remote:
+        return _not_run("perf", cfg.perf, "no build_remote", "Swift perf never runs on the manager's Mac")
+    argv = ("/usr/bin/time", "-l", *cfg.build[:-1], f"-only-testing:{test}", "test")
+    r = _remote_build(root, cfg, argv, "perf", reuse=False)
+    if r is None:
+        return _not_run("perf", cfg.perf, "runner down", "the build runner is unreachable: the Swift perf rung did not run (never run here)")
+    row = r["results"][0]
+    if (t := _timed_out_row("perf", row)) is not None:
+        return t
+    text = row.get("stderr_tail") or ""
+    real = re.search(r"^\s*([\d.]+)\s+real\b", text, re.M)
+    try:
+        if row.get("exit_code") != 0 or not real:
+            raise ValueError(f"exit {row.get('exit_code')}, " + ("no `real` line" if not real else "the test failed"))
+        mb = perf_rung.read_peak_rss_mb(text)
+    except ValueError as e:
+        return _report_only("perf", cfg.perf, False, [f"REFUSED: the Swift perf run for {test} measured nothing ({e})", text[-300:]], {"results": [row]})
+    line = f"Swift perf: {test} {float(real.group(1)):g} s, peak {mb:.0f} MB (the largest process /usr/bin/time saw)"
+    return _report_only("perf", cfg.perf, True, [line], {"results": [row]})
+
+
+def perf(root, since: str, changed: list[str], cfg: Config) -> dict:
+    """The perf rung: the engine half, and, when a changed path is under `fichero/`, the Swift half. ok = both ok; a Swift-only batch is
+    never "not required"."""
+    from . import perf_rung
+    eng = _perf_engine(root, since, changed, cfg)
+    if not cfg.perf or not any(f.startswith(perf_rung.APP_PATHS) for f in changed):
+        return eng
+    sw = _perf_swift(root, cfg)
+    if eng.get("skipped") and "not required" in eng.get("stdout_tail", ""):
+        return sw
+    return {**eng, "ok": eng["ok"] and sw["ok"], "skipped": False, "stdout_tail": (eng["stdout_tail"] + "\n" + sw["stdout_tail"])[-3500:],
+            "results": [*eng.get("results", []), *sw.get("results", [])], **({"not_run": True} if eng.get("not_run") or sw.get("not_run") else {})}
 
 
 def _grep_waivers(root, rev: str, dirs: tuple[str, ...]) -> tuple[dict[str, int], list[str]]:
