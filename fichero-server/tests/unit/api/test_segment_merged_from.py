@@ -57,3 +57,24 @@ def test_an_undone_merge_names_nothing(db, client):
     assert undone.status_code == 200, undone.text
     assert db.get(Segment, second).deleted_at is None
     assert _merged_from(client, first) == []
+
+
+def test_the_read_asks_for_the_forwarding_notes_once_however_many_merges_the_document_has(db, client, monkeypatch):
+    from fichero_server.models.segments import SegmentForwarding
+
+    doc, pass_id = _page(db, client)
+    lines = _lines(client, doc, pass_id, 6)
+    _merge(db, lines[0:2], lines[0])
+    _merge(db, lines[2:4], lines[2])
+    _merge(db, lines[4:6], lines[4])
+    asked = []
+    original = type(db).query
+
+    def counting(self, model, *args, **kwargs):
+        if model is SegmentForwarding:
+            asked.append(kwargs)
+        return original(self, model, *args, **kwargs)
+
+    monkeypatch.setattr(type(db), "query", counting)
+    assert _merged_from(client, lines[0]) == [lines[1]]
+    assert len(asked) == 1
