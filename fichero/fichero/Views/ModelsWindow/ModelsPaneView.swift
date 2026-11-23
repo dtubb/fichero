@@ -26,6 +26,12 @@ struct ModelsPaneView: View {
     var body: some View {
         NavigationSplitView {
             sidebarList
+                .alert("Delete this model?", isPresented: deleting, presenting: store?.pendingDelete) { _ in
+                    Button("Delete", role: .destructive) { Task { await store?.confirmDelete() } }
+                    Button("Cancel", role: .cancel) { store?.pendingDelete = nil }
+                } message: { row in
+                    Text("\(row.name) is removed from this Mac. A step that uses it keeps it.")
+                }
         } detail: {
             content
                 .inspector(isPresented: $showsInspector) { inspector.inspectorColumnWidth(min: 240, ideal: 300, max: 420) }
@@ -44,12 +50,6 @@ struct ModelsPaneView: View {
         .searchable(text: $search, prompt: "Search models")
         .task { await ModelsAnswerStore.shared.watch(libraryManager) }
         .task { await openStore() }
-        .alert("Delete this model?", isPresented: deleting, presenting: store?.pendingDelete) { _ in
-            Button("Delete", role: .destructive) { Task { await store?.confirmDelete() } }
-            Button("Cancel", role: .cancel) { store?.pendingDelete = nil }
-        } message: { row in
-            Text("\(row.name) is removed from this Mac. A step that uses it keeps it.")
-        }
         .onChange(of: ModelsAnswerStore.shared.answers, initial: true) { refresh() }
         .onChange(of: item) { refresh() }
         .accessibilityIdentifier("models.pane")
@@ -92,7 +92,7 @@ struct ModelsPaneView: View {
             if let store {
                 VStack(spacing: 0) {
                     if let message = store.errorMessage { Text(message).foregroundStyle(.red).padding(6) }
-                    ModelCandidatesTable(store: store, list: list, search: search)
+                    ModelCandidatesListView(store: store, list: list, search: search)
                 }
             } else {
                 ContentUnavailableView("Open a project to find models for its steps.", systemImage: "magnifyingglass")

@@ -4,7 +4,7 @@ import SwiftUI
 /// The cards of one candidates list in the Models window (`models.search.is-the-finder`,
 /// `models.bookmark.kept-not-added`, #6588): one row per card with its name, where it was found, its size, the Usable
 /// words and the card's one verb. Every word is `ModelCandidateRules`'s or the engine's; the verbs are the store's.
-struct ModelCandidatesTable: View {
+struct ModelCandidatesListView: View {
     let store: ModelsWindowStore
     let list: ModelCandidateRules.List
     let search: String
