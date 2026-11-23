@@ -58,7 +58,7 @@ def test_each_known_gap_lands_in_one_bucket_no_spec_no_app_behaviour_or_app_beha
 
 def test_a_path_is_not_named_by_a_longer_sibling_path(tmp_path):
     root = _root(tmp_path)
-    (root / S + "/models.md").write_text("- `m.x` — **[GAP]** (#1) the app uses `/api/models/{model_id}`.\n", encoding="utf-8")
+    (root / (S + "/models.md")).write_text("- `m.x` — **[GAP]** (#1) the app uses `/api/models/{model_id}`.\n", encoding="utf-8")
     assert "GET /api/models" in report.classify(root, GAPS, OPENAPI)["no_spec"]
 
 

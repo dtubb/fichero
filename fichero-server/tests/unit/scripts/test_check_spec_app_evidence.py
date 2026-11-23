@@ -84,7 +84,7 @@ def test_a_new_offender_fails_a_baselined_one_passes_and_a_listed_line_that_now_
     assert new == [f"engine_only: {key}"] and stale == []
     new, stale = guard.judge(root, _write_baseline(root, [key], [ux]))
     assert new == [] and stale == []
-    (root / S + "/a.md").write_text(
+    (root / (S + "/a.md")).write_text(
         "- `m.one` — **[OK]** the app shows it. *Test:* `fichero/Tests/Unit/general/Models/ATests.swift`\n" + UX_OK, encoding="utf-8")
     new, stale = guard.judge(root, _write_baseline(root, [key], [ux]))
     assert new == [] and stale == [f"engine_only: {key}", f"no_ux_section: {ux}"]
