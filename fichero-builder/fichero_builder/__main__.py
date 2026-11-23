@@ -187,7 +187,7 @@ def main(argv=None) -> int:
     rl.add_argument("--mac", default="local", help="candidate machines for the Mac chain, comma-separated, first usable wins"), rl.add_argument("--ios", default="local"), rl.add_argument("--check-runner", default="local")
     rl.add_argument("--floor-gb", type=int, default=60, help="the free disk a runner needs")
     al = sub.add_parser("alert", help="answer one alert row (dev-workflows.run.loop-alerts): retry | park | ask-owner, or approve | send-back for needs-maintainer")
-    al.add_argument("id"), al.add_argument("action")
+    al.add_argument("id"), al.add_argument("action"), al.add_argument("--text", default="", help="send-back of a worker's question: the answer")
     al.add_argument("--state", help="where the queue and the journal live (default: the owner's journal dir)")
     al.add_argument("--gh", default="gh"), al.add_argument("--root", default=str(Path.cwd()), help="the checkout gh runs from (ask-owner)")
     bd = sub.add_parser("build", help="the dev DMG through the project's own script, as the owner: one journal row, the DMG's path and pass or fail; a full release is refused")
@@ -316,7 +316,7 @@ def main(argv=None) -> int:
         from fichero_builder import queue
 
         journal.STATE = Path(a.state) if a.state else journal.STATE
-        rc, msg = queue.answer(a.id, a.action, gh=a.gh, cwd=a.root)
+        rc, msg = queue.answer(a.id, a.action, gh=a.gh, cwd=a.root, text=a.text)
         print(msg)
         return rc
     if a.cmd == "heavy":

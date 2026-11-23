@@ -1780,6 +1780,44 @@ def test_a_cap_that_parks_two_workers_is_one_alert_listing_both_lanes(state):
     assert not [r for r in _alerts() if r["step"] != "cap-park"], "no alert a lane"
 
 
+def _waiting(state):
+    """A worker whose end message is `WAITING: <question>`: the step row the run writes carries it."""
+    lane(state)
+    fake = Fake()
+    fake.procs.row = lambda ln: {"moved": False, "waiting": "which cap does the day cap replace?"} if ln["seq"] in fake.seqs else None
+    queue.run(fake.procs, workers_n=1, push=False, out=lambda s: None)
+    return fake
+
+
+def test_a_worker_that_ends_with_waiting_is_one_ask_alert_with_the_question_and_the_step_waits(state):
+    """#6855: no DONE, no unsaid commit: the question, the lane and the step in one alert, and the step is blocked behind it."""
+    fake = _waiting(state)
+    (a,) = _alerts()
+    assert "which cap does the day cap replace?" in a["what"] and a["lane"] == "m1" and a["step"] == "1.1" and "send-back" in a["actions"]
+    assert steps()["1.1"]["state"] == "blocked" and steps()["1.2"]["state"] == "queued" and fake.landed_calls == []
+    queue.run(fake.procs, workers_n=1, push=False, out=lambda s: None)
+    assert len(_alerts()) == 1, "the waiting step raises no second alert"
+
+
+def test_a_send_back_of_a_question_with_no_answer_is_refused_and_with_one_the_answer_reaches_the_session(state):
+    _waiting(state)
+    (a,) = _alerts()
+    rc, msg = queue.answer(a["id"], "send-back")
+    assert rc == 1 and "answer" in msg and steps()["1.1"]["state"] == "blocked"
+    rc, _ = queue.answer(a["id"], "send-back", text="the session cap goes; the day cap stays")
+    assert rc == 0 and steps()["1.1"]["state"] == "queued"
+    assert "the day cap stays" in open(steps()["1.1"]["resume_brief"]).read()
+
+
+def test_the_console_lists_each_open_question_with_its_lane_and_step(state):
+    _waiting(state)
+    st = console.status(journal.read(), queue.load(), today=time.strftime("%Y-%m-%d"))
+    assert st["open_questions"] == [{"lane": "m1", "step": "1.1", "question": "which cap does the day cap replace?"}]
+    (a,) = _alerts()
+    queue.answer(a["id"], "send-back", text="the session cap goes")
+    assert console.status(journal.read(), queue.load(), today=time.strftime("%Y-%m-%d"))["open_questions"] == [], "answered: not open"
+
+
 def test_removing_a_lanes_tree_drops_its_jcodemunch_index(state, tmp_path):
     fake, wt, land, repo, g = _cleanup_world(state, tmp_path)
     dropped = []

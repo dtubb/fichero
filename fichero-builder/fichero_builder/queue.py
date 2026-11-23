@@ -471,6 +471,9 @@ def tick_lane(lane: dict, procs: Procs, handles: dict, workers_n: int, push: boo
         row = procs.row(lane)
         if row is None:
             return True
+        if row.get("waiting"):  # #6855: the worker ended its turn with `WAITING: <question>`: one ask alert, and the step waits for an answer
+            s["waiting"] = row["waiting"]
+            return block(s, f"WAITING: {row['waiting']}", ("send-back", "retry", "park"))
         if not row.get("moved") and not procs.ahead_of_origin(lane):  # #6507: a retried batch's commits predate this session; the tree past origin counts
             return block(s, "the worker said DONE with no commit on this step")
         move(s, "done", "")
@@ -912,7 +915,7 @@ def _set_approval(s: dict, kind: str | None, approvals) -> None:
         s["maintainer"] = True  # the chain runs the check with --maintainer
 
 
-def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, str]:
+def answer(alert_id: str, action: str, gh: str = "gh", cwd=None, text: str = "") -> tuple[int, str]:
     """The manager's one verb: retry or approve re-run the step, send-back gives it to a new session with the finding,
     park leaves it, ask-owner puts it on GitHub for the owner. An action the alert does not offer is refused, with a row."""
     rows = journal.read()
@@ -957,6 +960,10 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
         if s is None:
             journal.append("alert-answer", id=alert_id, action=action, ok=False, detail="the lane or step is gone")
             return 1, "REFUSED: the lane or step is gone"
+        if action == "send-back" and s.get("waiting") and not text.strip():  # #6855: a question's send-back is its answer; with none the session is asked the same thing
+            why = f"{a['lane']} {a['step']} asked: {s['waiting'][:200]}: send-back needs the answer (--text)"
+            journal.append("alert-answer", id=alert_id, action=action, ok=False, detail=why)
+            return 1, f"REFUSED: {why}"
         if action == "dispatch":  # #6500: the loop runs this lane from now on, as [loop].dispatch would
             lane["dispatch"] = True
             save(lanes)
@@ -1004,7 +1011,8 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
                         kinds.append(s["approve_kind"])
             if action == "send-back":
                 fix = journal.STATE / f"sendback-{alert_id}.txt"
-                fix.write_text(Path(s["brief"]).read_text().rstrip("\n") + OWNER_PATH.sub("<a path outside the jail>", f"\n\nSent back by the manager: {a['what']}\nEvidence: {a['evidence']}\n"))
+                fix.write_text(Path(s["brief"]).read_text().rstrip("\n") + OWNER_PATH.sub("<a path outside the jail>", f"\n\nSent back by the manager: {a['what']}\nEvidence: {a['evidence']}\n" + (f"Answer: {text.strip()}\n" if text.strip() else "")))
+                s.pop("waiting", None)
                 s["resume_brief"] = str(fix)
             lane["paused"] = False
             save(lanes)

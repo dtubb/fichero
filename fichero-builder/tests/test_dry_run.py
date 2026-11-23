@@ -502,3 +502,23 @@ def test_a_stale_live_file_does_not_hold_back_a_start(root):
     fake = Fake([HEALTHY])
     assert run.run(root, root / "wt", root / "b.txt", name="d", procs=fake.procs, out=lambda s: None) == "gone"
     assert hasattr(fake, "started")
+
+
+def test_a_waiting_end_message_is_one_step_row_with_the_question_and_the_session_stays(root):
+    """#6855: a turn that ends with a `WAITING:` line is not a DONE and not an unsaid commit: the step row carries the question."""
+    feed = root / "inbox"
+    feed.mkdir()
+    ask = {**HEALTHY, "idle": True, "moved": False, "turns": 2, "last_text": "I need a ruling.\nWAITING: which of the two caps does the day cap replace?"}
+    fake = Fake([HEALTHY, ask, ask, ask], heads=("aaaa111",))
+    reads = []
+    real_read = fake.read
+
+    def read():
+        reads.append(1)
+        if len(reads) == 4:
+            (feed / "stop").write_text("")
+        return real_read()
+    fake.procs.read = read
+    assert run.run(root, root / "wt", root / "b.txt", name="w", procs=fake.procs, out=lambda s: None, feed=feed) == "lane-done"
+    rows = [r for r in journal.read() if r["event"] == "step"]
+    assert len(rows) == 1 and rows[0]["waiting"] == "which of the two caps does the day cap replace?" and rows[0]["moved"] is False

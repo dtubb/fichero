@@ -84,6 +84,8 @@ def status(rows: list[dict], lanes: list[dict], today: str | None = None) -> dic
                         # #6589: a row with no id (the rung alerts before 2026-11-15) can take no answer, so it is never open
                         for r in rows if r.get("event") == "alert" and r.get("id") and r.get("id") not in answered],
         "resolved_alerts": _resolved(rows, today),
+        "open_questions": [{"lane": x["id"], "step": st["step"], "question": st["waiting"]}  # #6855: a worker asked and its step waits
+                           for x in lanes for st in x["steps"] if st.get("waiting") and st["state"] == "blocked"],
     }
 
 
