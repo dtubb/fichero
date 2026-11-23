@@ -251,7 +251,7 @@ paging. The screens, in order:
 
 #### The item view: pages you swipe between
 
-- `ios.item.pages` — **[PARTIAL]** (built: `ItemPage` and `ContentView.compactItemPages`: a lazy horizontal pager of Source, Reader, Segments, Info built from the Mac's panes. Not built: the per-kind empty sentence. `ItemPageTests.swift` tests the order; `IOSItemPagesUITests.swift` is written and has not run.) (#6566; → #6947; owner 2026-11-21) the item view is a horizontal paged container with four
+- `ios.item.pages` — **[PARTIAL]** (built: `ItemPage` and `ContentView.compactItemPages`: a lazy horizontal pager of Source, Reader, Segments, Info built from the Mac's panes. Not built: the per-kind empty sentence. `ItemPagesTests.swift` tests the order; `IOSItemPagesUITests.swift` is written and has not run.) (#6566; → #6947; owner 2026-11-21) the item view is a horizontal paged container with four
   pages, in this order: **Source** (the image or the PDF page), **Reader** (its text), **Segments** (the page with its
   segments and the selected segment's text), **Info** (the Inspector's sections for the item). The order is the order of
   the work: look, read, check the pieces, then the facts; it is also the Mac's pane order. More pages are added at the
@@ -263,7 +263,7 @@ paging. The screens, in order:
   seeded letter, or the empty sentence for the photograph; Segments lists the seeded letter's three lines; Info shows
   the item's name and kind. Tests: `ItemPagesTests.swift` (the page list and order; the empty sentence per kind),
   `IOSItemPagesUITests.swift`.
-- `ios.item.swipe-changes-page` — **[PARTIAL]** (built: the pager's first and last pages stop (`ItemPage.next/previous`, `ItemPageTests.swift`); `IOSItemPagesUITests.swift` is written and has not run.) (#6566; → #6947) a horizontal swipe moves one page; at the first page a swipe from
+- `ios.item.swipe-changes-page` — **[PARTIAL]** (built: the pager's first and last pages stop (`ItemPage.next/previous`, `ItemPagesTests.swift`). A walk by swipes stops at Segments (`ios.item.segments-own-their-gestures`), so the acceptance line's third swipe to Info is blocked by that rule: the two lines conflict and the owner is asked; `IOSItemPagesUITests.swift` is written and has not run.) (#6566; → #6947) a horizontal swipe moves one page; at the first page a swipe from
   the screen's left edge is Back, anywhere else it does nothing; at the last page a swipe left does nothing. Acceptance:
   from Source, three swipes left show Reader, Segments, Info in turn and a fourth changes nothing; three swipes right
   return to Source; an edge swipe on Source pops to the folder. Tests: `IOSItemPagesUITests.swift`.
@@ -279,7 +279,7 @@ paging. The screens, in order:
   next item in the Reader. It lasts while the app runs; a fresh launch starts on Source. Per-item memory was considered
   and not chosen: it makes the page the person lands on depend on what they did to that item last week. Tests:
   `ItemPagesTests.swift`.
-- `ios.item.zoom-wins-over-paging` — **[PARTIAL]** (built: `ZoomableImagePreview` (iOS) sets `WindowState.compactImageZoomed` from `PageSwipe.isZoomedIn`, and the pager's scrolling is off while it is set (`ItemPage.swipePages`, `ItemPageTests.swift`); `IOSItemPagesUITests.swift` is written and has not run.) (#6566; → #6947) on the Source page a picture at fit pages with a horizontal
+- `ios.item.zoom-wins-over-paging` — **[PARTIAL]** (built: `ZoomableImagePreview` (iOS) sets `WindowState.compactImageZoomed` from `PageSwipe.isZoomedIn`, and the pager's scrolling is off while it is set (`ItemPage.swipePages`, `ItemPagesTests.swift`); `IOSItemPagesUITests.swift` is written and has not run.) (#6566; → #6947) on the Source page a picture at fit pages with a horizontal
   swipe; a zoomed picture pans, and a horizontal drag NEVER changes page while it is zoomed, even at the picture's edge
   (the paged container's scrolling is off while the zoom is above fit). Pinch and double-tap zoom as they do now
   (`Views/Preview/ImageViewer/ZoomableImagePreviewIOS.swift`); double-tap again returns to fit, where swiping pages
