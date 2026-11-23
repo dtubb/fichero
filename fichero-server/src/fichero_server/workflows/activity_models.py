@@ -10,6 +10,7 @@ Nothing guessed: a size nothing measures is None, a count not recorded is not ma
 
 from __future__ import annotations
 
+import functools
 import json
 import threading
 import time
@@ -278,8 +279,9 @@ def _failure_of(reason: str | None, finished: datetime | None) -> dict[str, Any]
             "at": ensure_utc(finished).isoformat() if finished else None}
 
 
+@functools.cache
 def _gpu_name() -> str | None:
-    """This Mac's GPU as its chip names it ("Apple M1 GPU"); None off Apple silicon or when the chip cannot be read."""
+    """This Mac's GPU as its chip names it ("Apple M1 GPU"); None off Apple silicon or when the chip cannot be read. Read once: the chip does not change while the engine runs."""
     import subprocess
     import sys
 
