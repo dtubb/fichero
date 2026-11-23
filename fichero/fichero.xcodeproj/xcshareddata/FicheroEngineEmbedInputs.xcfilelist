@@ -760,13 +760,16 @@ $(SRCROOT)/../fichero-server/src/fichero_server/training/landing.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/line_key.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/line_pairs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/local.py
+$(SRCROOT)/../fichero-server/src/fichero_server/training/lora_recipe.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/mlx_landing.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/model_nodes.py
+$(SRCROOT)/../fichero-server/src/fichero_server/training/one_trainer.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/project_models.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/reasons.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/reasons_ab.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/reasons_job.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/resumable.py
+$(SRCROOT)/../fichero-server/src/fichero_server/training/tune_places.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/vision_bases.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/yolo_local.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/yolo_set.py
