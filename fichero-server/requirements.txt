@@ -105,6 +105,7 @@ fastembed
 PyMuPDF>=1.28,<2
 Pillow>=13.0.0
 pillow-heif>=1.1.0
+ultralytics>=8.4.175
 # OpenCV for the image-enhance / background-removal / deskew step (bundled
 # 2026-09-06 so the demo feature works on-device).
 opencv-python-headless
