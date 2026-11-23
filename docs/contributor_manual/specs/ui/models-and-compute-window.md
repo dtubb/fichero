@@ -213,7 +213,7 @@ filters Activity by `model:`.
   survives the next search letting it go; Download fetches a bookmarked card; Remove Bookmark lets it go when it is not
   downloaded and not used by a step; a card a step uses cannot lose its bookmark. *Test (to write, in
   `fichero-server/tests/unit/recipes/`):* a bookmarked card outlives a search that no longer finds it; a card a step uses
-  refuses Remove Bookmark with the step named. **Built:** `discovery.bookmark` / `remove_bookmark` and `keep_hub` keeping a bookmarked card, tested in `fichero-server/tests/unit/recipes/test_bookmark_kept_not_added_5460.py`; **Not built:** the route, the bookmark glyph and the Download of a bookmarked card.
+  refuses Remove Bookmark with the step named. **Built:** `discovery.bookmark` / `remove_bookmark` and `keep_hub` keeping a bookmarked card, tested in `fichero-server/tests/unit/recipes/test_bookmark_kept_not_added_5460.py`; The routes `POST` and `DELETE /api/recipes/candidates/bookmark` (404 for a card no search found, 409 naming the step for a card a step uses), tested in `fichero-server/tests/unit/recipes/test_bookmark_route_5460.py`. **Not built:** the bookmark glyph and the Download of a bookmarked card.
 - `models.window.shows-what-a-recipe-can-reach` — **[GAP]** (#6588, #5976, #5974) the default item, Usable now, is
   exactly the set of cards Set Up could give a step this minute (`GET /api/recipes/candidates`, every step, filtered to
   `runs_here` true or a reachable `runs_on` with a key and credit); a card that cannot run says why in the finder's own

@@ -9801,6 +9801,26 @@
         "response_model": "ModelCandidateList"
       },
       {
+        "method": "DELETE",
+        "path": "/recipes/candidates/bookmark",
+        "operation_id": "remove_candidate_bookmark_api_recipes_candidates_bookmark_delete",
+        "summary": "Remove Candidate Bookmark",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "BookmarkRequest",
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/recipes/candidates/bookmark",
+        "operation_id": "bookmark_candidate_api_recipes_candidates_bookmark_post",
+        "summary": "Bookmark Candidate",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "BookmarkRequest",
+        "response_model": null
+      },
+      {
         "method": "GET",
         "path": "/recipes/chain-risk",
         "operation_id": "chain_risk_api_recipes_chain_risk_get",

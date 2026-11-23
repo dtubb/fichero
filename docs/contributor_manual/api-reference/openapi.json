@@ -17976,6 +17976,96 @@
         }
       }
     },
+    "/api/recipes/candidates/bookmark": {
+      "post": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Bookmark Candidate",
+        "description": "Keep a found card without downloading it (`models.bookmark.kept-not-added`, #5460): a later search that does not\nfind it leaves it. Refused (404) for a card no search found.",
+        "operationId": "bookmark_candidate_api_recipes_candidates_bookmark_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookmarkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Bookmark Candidate Api Recipes Candidates Bookmark Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Remove Candidate Bookmark",
+        "description": "Let a bookmark go. Refused (409), naming the step, while a step of the open project's recipe uses the card; refused\n(404) for a card no search found.",
+        "operationId": "remove_candidate_bookmark_api_recipes_candidates_bookmark_delete",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookmarkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Remove Candidate Bookmark Api Recipes Candidates Bookmark Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/candidates": {
       "get": {
         "tags": [
@@ -58545,6 +58635,22 @@
           "target_id"
         ],
         "title": "BookmarkCreate"
+      },
+      "BookmarkRequest": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "the found card's key in the kept list (its repository)"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key"
+        ],
+        "title": "BookmarkRequest",
+        "description": "A found card, by the key the kept list files it under."
       },
       "BoundaryExample": {
         "properties": {

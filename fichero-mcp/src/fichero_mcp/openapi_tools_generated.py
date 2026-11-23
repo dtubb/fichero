@@ -6754,6 +6754,22 @@ def fichero_recipes_model_candidates(
     return _rt.call("GET", "/api/recipes/candidates", params={"cloud_allowed": cloud_allowed, "job": job, "languages": languages, "mac_memory_gb": mac_memory_gb, "material": material, "online": online, "period": period, "scripts": scripts, "step": step, "worth_only": worth_only})
 
 
+def fichero_recipes_remove_candidate_bookmark(
+    *,
+    key: Annotated[str, Field(description="the found card's key in the kept list (its repository)")],
+) -> Any:
+    "Remove Candidate Bookmark\n\nLet a bookmark go. Refused (409), naming the step, while a step of the open project's recipe uses the card; refused\n(404) for a card no search found.\n\nRoute: DELETE /api/recipes/candidates/bookmark (toolset `recipes`; changes data, as the agent account when one exists)."
+    return _rt.call("DELETE", "/api/recipes/candidates/bookmark", json=_rt.body({"key": key}))
+
+
+def fichero_recipes_bookmark_candidate(
+    *,
+    key: Annotated[str, Field(description="the found card's key in the kept list (its repository)")],
+) -> Any:
+    'Bookmark Candidate\n\nKeep a found card without downloading it (`models.bookmark.kept-not-added`, #5460): a later search that does not\nfind it leaves it. Refused (404) for a card no search found.\n\nRoute: POST /api/recipes/candidates/bookmark (toolset `recipes`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/recipes/candidates/bookmark", json=_rt.body({"key": key}))
+
+
 def fichero_recipes_chain_risk(
     *,
     jobs: Annotated[str, Field(description='Jobs')],
@@ -10439,6 +10455,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_reading_orders_place_in", "reading-orders", "POST", "/api/reading-orders/{order_id}/place", fichero_reading_orders_place_in),
     GeneratedTool("fichero_recipes_assemble", "recipes", "POST", "/api/recipes/assemble", fichero_recipes_assemble),
     GeneratedTool("fichero_recipes_model_candidates", "recipes", "GET", "/api/recipes/candidates", fichero_recipes_model_candidates),
+    GeneratedTool("fichero_recipes_remove_candidate_bookmark", "recipes", "DELETE", "/api/recipes/candidates/bookmark", fichero_recipes_remove_candidate_bookmark),
+    GeneratedTool("fichero_recipes_bookmark_candidate", "recipes", "POST", "/api/recipes/candidates/bookmark", fichero_recipes_bookmark_candidate),
     GeneratedTool("fichero_recipes_chain_risk", "recipes", "GET", "/api/recipes/chain-risk", fichero_recipes_chain_risk),
     GeneratedTool("fichero_recipes_check", "recipes", "POST", "/api/recipes/check", fichero_recipes_check),
     GeneratedTool("fichero_recipes_accept_unpriced_cloud_model", "recipes", "POST", "/api/recipes/cloud/accept-unpriced", fichero_recipes_accept_unpriced_cloud_model),

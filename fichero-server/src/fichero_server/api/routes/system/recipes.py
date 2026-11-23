@@ -1631,6 +1631,44 @@ def _compared_by_default(library_path: str, step_id: str) -> set[str]:
         return set()
 
 
+class BookmarkRequest(BaseModel):
+    """A found card, by the key the kept list files it under."""
+
+    model_config = ConfigDict(extra="forbid")
+    key: str = Field(description="the found card's key in the kept list (its repository)")
+
+
+@router.post("/candidates/bookmark")
+async def bookmark_candidate(request: BookmarkRequest) -> dict[str, str]:
+    """Keep a found card without downloading it (`models.bookmark.kept-not-added`, #5460): a later search that does not
+    find it leaves it. Refused (404) for a card no search found."""
+    from fichero_server.recipes import discovery
+
+    try:
+        discovery.bookmark(request.key)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"{request.key} is not a card a search found") from exc
+    return {"key": request.key}
+
+
+@router.delete("/candidates/bookmark")
+async def remove_candidate_bookmark(
+    request: BookmarkRequest, library_path: Optional[str] = Depends(optional_library_path),
+) -> dict[str, str]:
+    """Let a bookmark go. Refused (409), naming the step, while a step of the open project's recipe uses the card; refused
+    (404) for a card no search found."""
+    from fichero_server.recipes import discovery
+
+    recipe = (read_project_setup(Path(library_path)).get("recipe") or {}) if library_path else None
+    try:
+        discovery.remove_bookmark(request.key, recipe)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"{request.key} is not a card a search found") from exc
+    except discovery.BookmarkInUse as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"key": request.key}
+
+
 @router.get("/candidates", response_model=ModelCandidateList)
 async def model_candidates(
     request: Request,
