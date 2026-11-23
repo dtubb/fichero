@@ -118,8 +118,9 @@ def pages(db, tmp_path):
                        path=str(_png(tmp_path / f"p{i}.png")))
         db.save(doc)
         docs.append(doc)
-    db.save(KnowledgeClaim(text="Juan sold a house.", svo_subject="Juan", svo_verb="sold", svo_object="a house",
-                           source_document_id=docs[0].id, source_excerpt="vendió Juan una casa"))
+    with db.defer_embeddings():  # collected, never flushed: the fixture needs the claim, not its vector (a Mac without the model errors)
+        db.save(KnowledgeClaim(text="Juan sold a house.", svo_subject="Juan", svo_verb="sold", svo_object="a house",
+                               source_document_id=docs[0].id, source_excerpt="vendió Juan una casa"))
     return docs
 
 
