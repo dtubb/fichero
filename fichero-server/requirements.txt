@@ -153,3 +153,6 @@ jinja2
 pyobjc-framework-Vision
 pyobjc-framework-Quartz
 pyobjc-framework-Cocoa
+
+# YOLO region finding (#6675, #5525): declared in pyproject so the lock imports it.
+ultralytics>=8.4.175
