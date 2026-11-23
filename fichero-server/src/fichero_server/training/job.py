@@ -181,6 +181,10 @@ def start(db: Any, request: _TrainRequest, *, started_by: str,
         raise ValueError("name the folders or pages to train on")
     if isinstance(request, TrainKrakenRequest) and request.base:
         resolve_recognition_model(request.base)  # not installed: refused here, by name
+    if isinstance(request, TrainVisionLoraRequest) and request.recipe_file:
+        from fichero_server.training import lora_recipe
+
+        lora_recipe.load(lora_recipe.resolve(Path(db.path).parent, request.recipe_file))  # a bad recipe: refused here
     target = (target_factory or _target_for(place))()  # no token (or key): refused here, by name
     target.check_token()  # a token that can't run Jobs: refused here, in words (#5526)
     from fichero_server.training.kraken_set import refuse_an_empty_set
@@ -271,7 +275,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     request = CARDS[card_name](**detail["request"])
     vision = isinstance(request, TrainVisionLoraRequest)
     if vision and request.recipe_file:  # the recipe file names rank, epochs and the prompt form (`compute.tune.lora`)
-        recipe = lora_recipe.load(request.recipe_file)
+        recipe = lora_recipe.load(lora_recipe.resolve(Path(db.path).parent, request.recipe_file))
         request = request.model_copy(update={"rank": recipe.rank, "epochs": recipe.epochs, "arm": recipe.prompt_form})
     flavor = detail.get("flavor", request.flavor)
     place = _place_of(request)
@@ -313,7 +317,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
                                        "reasons for the checked lines first (or check its readings, for review)")
             options = {"rank": request.rank, "epochs": request.epochs, "arm": request.arm}
             if request.recipe_file:
-                options["lr"] = lora_recipe.load(request.recipe_file).learning_rate
+                options["lr"] = recipe.learning_rate
             # the MLX conversion on this Mac needs the merged model, so this card asks for it
             script, args = LORA_TRAINER, lora_args(job_id, base_repo=request.base_repo, all_lines=request.all_lines,
                                                    merged=True, **options)

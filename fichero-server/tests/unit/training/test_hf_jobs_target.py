@@ -5,6 +5,7 @@ answers, which is all Fichero owns.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -200,13 +201,15 @@ def test_the_recipe_file_reaches_the_submitted_job(db, full_size_notebook, tmp_p
     from fichero_server.training import mlx_landing
     from fichero_server.training.job import TrainVisionLoraRequest
 
-    recipe = tmp_path / "r.lora.json"
+    folder = Path(db.path).parent / "lora-recipes"
+    folder.mkdir()
+    recipe = folder / "r.lora.json"
     recipe.write_text('{"rank": 8, "learning_rate": 3e-05, "epochs": 3, "prompt_form": "answer"}', encoding="utf-8")
     monkeypatch.setattr(mlx_landing, "land_vision_student", lambda *a, **k: "fichero-trained/x")
     monkeypatch.setattr(training_job.jobs, "run_on_lane_blocking", lambda lib, kind, subject, *, model, fn: fn())
     hub = FakeHub()
     request = TrainVisionLoraRequest(scope_ids=[full_size_notebook.folder.id], teacher=TEACHERS, name="x", pages_may_leave=True,
-                                     held_out_ids=[full_size_notebook.test_page.id], recipe_file=str(recipe))
+                                     held_out_ids=[full_size_notebook.test_page.id], recipe_file=recipe.name)
     started = training_job.start(db, request, started_by="historian", target_factory=lambda: hub)
     training_job.run(db, _subject(db, started["job_id"]), target=hub, sleep=lambda s: None)
     args = hub.submitted[0]["script_args"]
@@ -231,3 +234,19 @@ def test_the_result_package_holds_the_adapter_and_the_merged_model_only_when_ask
         shutil.rmtree(out / gone)
     with pytest.raises(FileNotFoundError, match="adapter"):
         lora_recipe.result_package(out, merged=False)
+
+
+def test_a_recipe_is_a_name_in_the_projects_folder_and_a_path_is_refused_when_queued(db, full_size_notebook, tmp_path):  # noqa: F811
+    from fichero_server.training.job import TrainVisionLoraRequest
+
+    outside = tmp_path / "secret.json"
+    outside.write_text('{"rank": 8}', encoding="utf-8")
+    folder = Path(db.path).parent / "lora-recipes"
+    folder.mkdir()
+    (folder / "link.json").symlink_to(outside)
+    for bad in (str(outside), "../secret.json", "link.json", "absent.json"):
+        request = TrainVisionLoraRequest(scope_ids=[full_size_notebook.folder.id], teacher=TEACHERS, name="x",
+                                         pages_may_leave=True, recipe_file=bad)
+        with pytest.raises(ValueError, match="LoRA recipe") as refused:
+            training_job.start(db, request, started_by="historian", target_factory=FakeHub)
+        assert str(tmp_path) not in str(refused.value) and "secret" not in str(refused.value)

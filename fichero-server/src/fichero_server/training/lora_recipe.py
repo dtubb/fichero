@@ -25,11 +25,21 @@ class LoraRecipe:
         return {"rank": self.rank, "lr": self.learning_rate, "epochs": self.epochs, "arm": self.prompt_form}
 
 
+def resolve(project: str | Path, name: str) -> Path:
+    """A recipe is a file NAME in the project's `lora-recipes` folder. A path, `..` or a link out of the folder is
+    refused, and the refusal never says what the path pointed at."""
+    root = (Path(project) / "lora-recipes").resolve()
+    found = (root / name).resolve()
+    if Path(name).name != name or not found.is_relative_to(root) or not found.is_file():
+        raise ValueError("the LoRA recipe must be the name of a file in this project's lora-recipes folder")
+    return found
+
+
 def load(path: str | Path) -> LoraRecipe:
     body = json.loads(Path(path).read_text(encoding="utf-8"))
     for key in ("rank", "learning_rate", "epochs", "prompt_form"):
         if key not in body:
-            raise ValueError(f"the LoRA recipe {path} does not name {key}")
+            raise ValueError(f"the LoRA recipe {Path(path).name} does not name {key}")
     if not (isinstance(body["rank"], int) and body["rank"] >= 2):
         raise ValueError("rank in the LoRA recipe must be a whole number of at least 2")
     if not (isinstance(body["learning_rate"], (int, float)) and 0 < body["learning_rate"] < 1):
