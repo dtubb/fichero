@@ -808,26 +808,30 @@ The behaviours this adds:
   in words). *Built (app, compile owed):* "Run a Step Again on This Folder" and "Run a Step Again on the Selection" in the
   folder and file context menus send that Start (`RunRecipeOnFolderMenuItem`, `RunStepAgainOnSelectionMenu`). *Not built:*
   a control in the recipe's own step row in Set Up.
-- `recipes-run.journey.start-on-pages-answers-for-those-pages` — **[BROKEN]** (#6744, #6170, → #6811) a Start on
+- `recipes-run.journey.start-on-pages-answers-for-those-pages` — **[BUILT]** (#6744, #6170, → #6811) a Start on
   chosen pages (`documents`) answers with those pages' counts and the run's steps carry those pages' notes.
   Measured: a Start on 4 pages answered `pages: 10` and "runs again on all 10 pages"; while it read 3 pages its
   step's note said "already done on all 10 pages; nothing to run". `api/routes/system/recipes.py`
   `_action_start` plans the whole project (`_start_plan(db, params.folder_id, …)`) and hands the pages to
   `runner.enqueue` alone.
-- `recipes-run.journey.stopped-redo-says-what-it-left` — **[BROKEN]** (#6170, → #6811) a run that ran a step
+  *Built:* Start on `documents` plans over those pages (`fichero-server/tests/unit/recipes/test_start_on_chosen_pages.py`).
+- `recipes-run.journey.stopped-redo-says-what-it-left` — **[BUILT]** (#6170, → #6811) a run that ran a step
   AGAIN and was stopped counts its own work: the summary says how many pages this run read again, and `missed`
   names the pages it did not reach, with an offer that reads them again. Measured: stopped after 2 of 4 pages,
   the summary said "Read 4 of 4 pages" (the older readings counted), `missed.words` "1 page not done" (2 were
   not), `missed.documents` all 4 pages, and the offer is a plain Start, which finds every page done and reads
   nothing.
-- `recipes-run.journey.start-with-nothing-to-run-is-refused` — **[BROKEN]** (#6744, → #6811) a Start whose plan
+  *Built:* a redo's summary counts its own pages and `missed` carries `documents` and `redo` (`fichero-server/tests/unit/recipes/test_start_on_chosen_pages.py`).
+- `recipes-run.journey.start-with-nothing-to-run-is-refused` — **[BUILT]** (#6744, → #6811) a Start whose plan
   has nothing to run is refused in one sentence (the plan's own "already done on all N pages; nothing to run"),
   as the route's contract says; it queues no run. Measured: a Start on the Read step alone, all pages read,
   answered 200 and listed a run that ended `done` in 0.1 s.
-- `recipes-run.control.waiting-names-the-run-in-words` — **[BROKEN]** (#6091, → #6811) a run that waits for
+  *Built:* a Start with nothing to run answers 422 and queues no run; a redo is not refused (`fichero-server/tests/unit/recipes/test_start_on_chosen_pages.py`).
+- `recipes-run.control.waiting-names-the-run-in-words` — **[BUILT]** (#6091, → #6811) a run that waits for
   another says which in a person's words (its folder or its start time). Measured: "Waiting for the recipe
   run <the run's id> to finish: recipe runs go one at a time".
-- `recipes-run.engine.runs-list-answers-while-a-run-goes` — **[BROKEN]** (#6178, → #6812) the list of runs and one
+  *Built:* the waiting words name the run by folder or start time (`fichero-server/tests/unit/recipes/test_start_on_chosen_pages.py`).
+- `recipes-run.engine.runs-list-answers-while-a-run-goes` — **[BUILT]** (#6178, → #6812) the list of runs and one
   run's status answer inside a second while a run reads. Measured over 20 polls during a 5-page reading, 7 runs
   in the project: `GET /api/recipes/project/runs` median 1.3 s, a tenth of them 14 s or more, the worst 20.2 s;
   `GET /api/activity/jobs` 0.13 s, 0.39 s at worst; the engine logged "slow poll recipes.recipe_runs" up to
@@ -835,15 +839,18 @@ The behaviours this adds:
   once: the loop held 14.1 s by `get_document` waiting for the transaction gate on the loop
   (`api/routes/document/documents.py`), and once 30 s or more while Kraken's models were let go for the embedder
   (`release_resident_models`, the collection).
-- `recipes-run.engine.quits-when-asked` — **[BROKEN]** (#5357, → #6813) the engine ends within 10 s of a
+  *Built:* an ended run's timeline is read once and cached (`recipes/run_view.py` `_ENDED_TIMINGS`; `fichero-server/tests/unit/recipes/test_runs_list_stays_fast.py`). *Not built:* `get_document` off the loop.
+- `recipes-run.engine.quits-when-asked` — **[BUILT]** (#5357, → #6813) the engine ends within 10 s of a
   terminate signal whatever it holds. Measured: once in 6 s mid-step ("2 job thread(s) still finishing"), and once
   not at all after 45 s, idle after a run, with a forked child of 1.6 GB still there; both had to be killed.
-- `recipes-run.engine.not-sure-does-not-starve-the-import` — **[BROKEN]** (#6078, #6193, → #6814) Set Up's "Not
+  *Built:* teardown arms a 10 s deadline that kills children and exits 70 (`api/main.py` `_arm_quit_deadline`; `fichero-server/tests/unit/api/test_engine_quits_when_asked_6813.py`).
+- `recipes-run.engine.not-sure-does-not-starve-the-import` — **[PARTIAL]** (#6078, #6193, → #6814) Set Up's "Not
   sure" (the language worked out from three pages by a quick read, `recipes/language_guess.py`) answers in
   seconds, or is a job with a row and words, and the import's thumbnails go on beside it. Measured: the assemble
   call took 169 s with nothing shown; the 10 thumbnails queued at the same moment took 107 s each for the first
   two and 3 min 13 s in all (1.2 to 5 s each later), and Activity warned "Processing imported pages stalled at 0
   of 10" (`importers/derivatives.py`, no completion in 60 s). The guess itself was right.
+  *Built:* the quick read works on a 1600 px picture and gives up after 20 s a page (`recipes/language_guess.py` `_quick_read`; `fichero-server/tests/unit/recipes/test_not_sure_guess_is_bounded.py`). *Not built:* the guess as a job row with words.
 
 Left by the review and the 2026-11-19 runner measure, filed by the audit of 2026-11-21:
 
