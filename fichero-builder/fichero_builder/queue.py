@@ -2025,7 +2025,7 @@ def real_procs(root) -> Procs:
         # #6869: the worker starts in a directory it made (the workroot is world-writable), and its TMPDIR and pytest's basetemp are inside it
         own = q(str(Path(j.workroot) / f"work-{lane['id']}"))
         env = f"export TMPDIR={own}/tmp PYTEST_ADDOPTS=--basetemp={own}/tmp/pytest"
-        return subprocess.Popen([j.sudo, "-n", "-H", "-u", j.user, "sh", "-c", f"mkdir -p {own}/tmp && [ -O {own} ] && cd {own} && {env} && {cmd}"],
+        return subprocess.Popen([j.sudo, "-n", "-H", "-u", j.user, "sh", "-c", f"mkdir -p {own}/tmp && [ -d {own} ] && [ ! -L {own} ] && [ -O {own} ] && cd {own} && {env} && {cmd}"],
                                 stdout=log, stderr=log, stdin=subprocess.DEVNULL, start_new_session=True)
 
     def send(lane, text):
