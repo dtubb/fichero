@@ -198,6 +198,11 @@ extension ActivityPane {
         return row.costUsd == nil && row.tokens > 0 ? "Not priced" : ""
     }
 
+    /// The Started By cell (`activity.window.started-by`, #5354): who or what started the row, in words; nothing for a run's own rows.
+    static func startedByLine(_ row: ActivityMonitorRow) -> String {
+        ActivityDetails.startedByWords(row.startedBy) ?? ""
+    }
+
     /// Every cell's words a row draws, the name aside (exempt: a name is cut with a middle ellipsis).
     static func cellWords(_ row: ActivityMonitorRow) -> [String] {
         [stateLine(row), timeLine(row), costLine(row)].filter { !$0.isEmpty }

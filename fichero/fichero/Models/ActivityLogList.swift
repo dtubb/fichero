@@ -50,6 +50,15 @@ enum ActivityLogList {
         return chosen.map(\.plainText).joined(separator: "\n")
     }
 
+    /// A line's time as the person's log reads it (`activity.log.person-reads-like-a-copy-history`): local time with no date, and the
+    /// date only on the first line of a new day; "now" for a line with no time.
+    static func timeWords(_ date: Date?, after previous: Date?, calendar: Calendar = .current) -> String {
+        guard let date else { return "now" }
+        let time = date.formatted(date: .omitted, time: .standard)
+        guard let previous, !calendar.isDate(date, inSameDayAs: previous) else { return time }
+        return "\(date.formatted(.dateTime.day().month(.abbreviated))), \(time)"
+    }
+
     /// The lines whose text holds the query, whatever its case; none for a blank query.
     static func matches(_ lines: [ActivityJobLogLine], query: String) -> [Int] {
         let wanted = query.trimmingCharacters(in: .whitespaces)

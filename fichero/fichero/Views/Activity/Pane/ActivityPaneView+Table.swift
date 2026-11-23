@@ -137,7 +137,7 @@ extension ActivityPaneView {
     var otherColumns: some TableColumnContent<ActivityMonitorRow, KeyPathComparator<ActivityMonitorRow>> {
             TableColumn(ActivityPane.Column.model.title(in: prefs.tab), value: \.modelKey) { row in textCell(row.model ?? "") }
                 .customizationID(ActivityPane.Column.model.rawValue).defaultVisibility(.hidden)
-            TableColumn(ActivityPane.Column.startedBy.title(in: prefs.tab)) { row in textCell(row.startedBy ?? "") }
+            TableColumn(ActivityPane.Column.startedBy.title(in: prefs.tab)) { row in textCell(ActivityPane.startedByLine(row)) }
                 .customizationID(ActivityPane.Column.startedBy.rawValue).defaultVisibility(.hidden)
             TableColumn(ActivityPane.Column.started.title(in: prefs.tab), value: \.startedKey) { row in
                 textCell(row.started.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "")

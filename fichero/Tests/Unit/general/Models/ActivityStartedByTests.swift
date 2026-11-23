@@ -20,3 +20,19 @@ struct ActivityStartedByTests {
         #expect(ActivityDetails.startedByWords(nil) == nil)
     }
 }
+
+/// `activity.window.started-by` (#5354), the window's table row: its Started By cell says it in the same words as the opened run.
+struct ActivityStartedByRowTests {
+    @Test("the table row's cell words who or what started it, and says nothing for a run's own row")
+    func cell() {
+        var row = ActivityPaneFixture.row("r", .running)
+        row.startedBy = "schedule:nightly"
+        #expect(ActivityPane.startedByLine(row) == "Started by a schedule")
+        row.startedBy = "automatic"
+        #expect(ActivityPane.startedByLine(row) == "Started automatically")
+        row.startedBy = "workflow"
+        #expect(ActivityPane.startedByLine(row) == "")
+        row.startedBy = nil
+        #expect(ActivityPane.startedByLine(row) == "")
+    }
+}
