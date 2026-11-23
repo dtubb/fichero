@@ -298,6 +298,16 @@ def approve(a) -> tuple[int, str]:
             _gh(a.gh, ["issue", "comment", str(num), "--body", f"Evidence from the review of `{area}`: {ev}"], a.repo_dir)
             done["comments"].append(f"{num}:{n}")
             save()
+    from fichero_builder import queue
+
+    done.setdefault("alerts", [])
+    first = [min(int(v) for v in done["issues"].values())]
+    for n, q in enumerate(p["questions"], 1):  # one alert per owner question, once
+        if n not in done["alerts"]:
+            queue.alert(f"review-{area}", f"question-{n}", f"Owner question {n} of the {area} review: {q}", str(report_of(a.repo_dir, area, a.report)),
+                        ["ask-owner", "park"], issues=first)
+            done["alerts"].append(n)
+            save()
     nums = {k: int(v) for k, v in done["issues"].items()}
     spec2, _ = map_tags(spec, nums, owners_of(p["issues"]))
     spec2, _ = number_steps(spec2, p["fixes"], nums)

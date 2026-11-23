@@ -856,11 +856,13 @@ def close_alerts(lane_id: str, step: str, why: str) -> list[str]:
     return ids
 
 
-def alert(lane_id: str, step: str, why: str, evidence: str, actions: list[str]) -> str:
-    """One `alert` row: what failed in a line, where its evidence is, what the manager may answer (dev-workflows.run.loop-alerts)."""
+def alert(lane_id: str, step: str, why: str, evidence: str, actions: list[str], issues: list[int] | None = None) -> str:
+    """One `alert` row: what failed in a line, where its evidence is, what the manager may answer (dev-workflows.run.loop-alerts).
+    `issues` is for an alert with no queue step behind it (a review's owner question): `ask-owner` puts it on those issues."""
     n = sum(1 for r in journal.read() if r.get("event") == "alert") + 1
     aid = f"{lane_id.lstrip('-') or 'harness'}-{step}-{n}"  # the console refuses an id that starts with "-": a lane named "-" made Dismiss do nothing
-    journal.append("alert", id=aid, lane=lane_id, step=step, what=(why.strip().splitlines() or [""])[0][:300], evidence=evidence, actions=actions)
+    extra = {"issues": issues} if issues else {}
+    journal.append("alert", id=aid, lane=lane_id, step=step, what=(why.strip().splitlines() or [""])[0][:300], evidence=evidence, actions=actions, **extra)
     return aid
 
 
@@ -928,6 +930,10 @@ def answer(alert_id: str, action: str, gh: str = "gh", cwd=None) -> tuple[int, s
         (journal.STATE / DAILY).unlink(missing_ok=True)
         journal.append("alert-answer", id=alert_id, action=action, ok=True, detail="the daily builds run at the next tick")
         return 0, f"{alert_id}: retry (the daily builds run at the next tick)"
+    if action == "ask-owner" and a.get("issues") and not any(x["id"] == a["lane"] and any(s["step"] == a["step"] for s in x["steps"]) for x in load()):
+        ask(a["issues"], f"{a['lane']} {a['step']}", f"{a['what']} (evidence: {a['evidence']})", gh=gh, cwd=cwd)  # a review's question: no step behind it
+        journal.append("alert-answer", id=alert_id, action=action, ok=True, detail="")
+        return 0, f"{alert_id}: {action}"
     with journal.Lock("queue"):
         lanes = load()
         lane = next((x for x in lanes if x["id"] == a["lane"]), None)

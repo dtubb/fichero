@@ -286,3 +286,20 @@ def test_an_unmappable_bare_tag_or_a_fix_with_no_step_refuses_before_anything_is
     out = capsys.readouterr().out
     assert "ranked fix 2 cites no spec step" in out and "Step 3.1, which the spec's Build order lacks" in out and "Step 2.1 has no ranked fix" in out
     assert _calls(log) == []
+
+
+def test_each_owner_question_is_one_alert_once_and_ask_owner_comments_on_the_first_issue(tmp_path, monkeypatch):
+    from fichero_builder import journal, queue
+
+    repo, wt = _started(tmp_path, monkeypatch)
+    gh, log = _fake_gh(tmp_path)
+    assert _approve(repo, tmp_path, gh) == 0 and _approve(repo, tmp_path, gh) == 0
+    alerts = [r for r in journal.read() if r.get("event") == "alert"]
+    assert [(r["lane"], r["step"], r["actions"], r["issues"]) for r in alerts] == [
+        ("review-widgets", "question-1", ["ask-owner", "park"], [7000]), ("review-widgets", "question-2", ["ask-owner", "park"], [7000])], "once each, not twice"
+    assert "Is a day too old?" in alerts[0]["what"]
+    rc, msg = queue.answer(alerts[0]["id"], "ask-owner", gh=gh, cwd=str(repo))
+    assert rc == 0, msg
+    asked = [c for c in _calls(log) if c[:3] == ["issue", "edit", "7000"] or c[:3] == ["issue", "comment", "7000"]]
+    assert [c[1] for c in asked] == ["edit", "comment"] and "needs-your-decision" in asked[0] and "Is a day too old?" in asked[1][-1]
+    assert queue.answer(alerts[1]["id"], "park", gh=gh)[0] == 0
