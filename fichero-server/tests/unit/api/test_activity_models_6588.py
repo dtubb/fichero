@@ -409,3 +409,21 @@ def test_a_trained_model_is_a_row_under_this_mac_with_its_ground_truth_counts(cl
     assert row["scores"]["cer"] == {"strict": 0.04} and row["not_for_release"] is True
     assert row["ground_truth"] == {"pages": 40, "lines": 900, "lines_checked_by_a_person": 300, "held_out_pages": 8}
     assert trained["fichero-trained/b"]["ground_truth"] is None and trained["fichero-trained/b"]["scores"] is None
+
+
+def test_the_trained_models_are_read_once_a_minute_not_on_every_poll(db, monkeypatch):
+    """A poll every ten seconds must not read every trained card and walk every build each time: one library's trained
+    rows are kept for a minute, and read again after it."""
+    reads = []
+    monkeypatch.setattr("fichero_server.training.model_nodes.model_nodes", lambda database: reads.append(1) or [])
+    clock = [1000.0]
+    monkeypatch.setattr(activity_models.time, "monotonic", lambda: clock[0])
+    activity_models._trained_cache.clear()
+
+    activity_models.trained_rows(db)
+    clock[0] += 10
+    activity_models.trained_rows(db)
+    assert len(reads) == 1
+    clock[0] += 61
+    activity_models.trained_rows(db)
+    assert len(reads) == 2

@@ -452,13 +452,24 @@ def models(db: "Database", *, held: list[dict[str, Any]] | None = None,
     return sorted(rows.values(), key=lambda r: (order[r["place"]], r["provider"].lower(), r["name"].lower()))
 
 
+#: How long a library's trained rows are kept: reading them walks every trained card and build on this Mac, and the
+#: window asks every ten seconds; they change only when a training run finishes.
+#: ponytail: key by the cards' modification times so a finished training shows at once.
+_TRAINED_TTL_SECONDS = 60.0
+_trained_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+
+
 def trained_rows(db: "Database") -> list[dict[str, Any]]:
-    """The models Fichero trained in this project as rows under This Mac › Trained here (`models.trained.are-rows`), each
+    """Kept for `_TRAINED_TTL_SECONDS` per library. The models Fichero trained in this project as rows under This Mac › Trained here (`models.trained.are-rows`), each
     with its newest held-out scores, where it can run, and the ground truth it was trained on
     (`models.ground-truth.counts`): the card's own counts, None where the card has none. `not_for_release` is the
     card's rule inverted: a card that does not say it may be published is not released."""
     from fichero_server.training.model_nodes import model_nodes
 
+    key = str(db.path)
+    kept = _trained_cache.get(key)
+    if kept is not None and time.monotonic() - kept[0] < _TRAINED_TTL_SECONDS:
+        return kept[1]
     out = []
     for node in model_nodes(db):
         truth = node.get("training_set")
@@ -470,4 +481,5 @@ def trained_rows(db: "Database") -> list[dict[str, Any]]:
                              if truth else None),
             "not_for_release": not node.get("may_publish"),
         })
+    _trained_cache[key] = (time.monotonic(), out)
     return out
