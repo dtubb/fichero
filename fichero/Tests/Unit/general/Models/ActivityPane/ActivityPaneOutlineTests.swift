@@ -70,4 +70,23 @@ struct ActivityPaneOutlineTests {
         #expect(byName.first?.children?.map(\.id) == outline.first { $0.id == "letters" }?.children?.map(\.id))
         #expect(ActivityPane.sorted(outline, by: [KeyPathComparator(\.stateRankKey)]).first?.id == "names", "running sorts first")
     }
+
+    /// `activity.window.acts-on` (#5839, ruled 2026-11-23): the pane's file rows under a run row ARE the list; the counts are the Trail.
+    @Test("a running recipe run says its stage and count in the trail and opens to its files, each with its state and a failed page's reason")
+    func runRowOpensToItsFilesWithStateAndReason() throws {
+        var failed = Fix.page("r-p2", .failed, doc: "p2", model: "Kraken")
+        failed.reason = "no lines found"
+        var run = Fix.row("recipe", .running, kind: .run, name: "Letters", children: [
+            Fix.row("read", .running, kind: .step, name: "Read", model: "Kraken",
+                    children: [Fix.page("r-p1", .done, doc: "p1", model: "Kraken"), failed,
+                               Fix.page("r-p3", .running, doc: "p3", model: "Kraken")])
+        ])
+        run.trail = "Segment ✓ → Read ▶ 1/3"
+        let row = try #require(ActivityPane.outline([run]).first)
+        #expect(ActivityPane.progressLine(row) == "Segment ✓ → Read ▶ 1/3", "the Trail is the count")
+        let files = try #require(row.children)
+        #expect(files.map(\.documentId) == ["p1", "p2", "p3"])
+        #expect(files.map(\.phase) == [.done, .failed, .running])
+        #expect(files[1].reason == "no lines found", "the failed page's reason is on its row")
+    }
 }
