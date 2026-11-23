@@ -46,7 +46,7 @@ struct ActivityModelEntry: Equatable, Identifiable, Sendable {
 
     /// Whether a model fits this Mac now (`models.row.fits-here`), from the engine's one memory rule.
     enum FitsHere: String, Sendable {
-        case yes, tight, no
+        case yes, tight, wontFit = "no"
     }
 
     /// A place's account, from a probe or the key a call uses (`models.row.account-from-a-probe`).
@@ -102,7 +102,7 @@ struct ActivityModelEntry: Equatable, Identifiable, Sendable {
         switch fitsHere {
         case .yes: "Yes"
         case .tight: "Tight"
-        case .no: unloadToFit.isEmpty ? "No" : "No (unload \(unloadToFit.joined(separator: ", ")))"
+        case .wontFit: unloadToFit.isEmpty ? "No" : "No (unload \(unloadToFit.joined(separator: ", ")))"
         case nil: "—"
         }
     }

@@ -55,7 +55,7 @@ struct ModelsWindowLayoutTests {
     func columns() {
         #expect(idle.sizeWords == "—" && idle.fitsWords == "—" && idle.accountWords == "—")
         let sized = ActivityModelEntry(id: "x", name: "x", place: .thisMac, provider: "MLX", sizeBytes: 2_000_000_000,
-                                       fitsHere: .no, unloadToFit: ["nomic"], account: .ready)
+                                       fitsHere: .wontFit, unloadToFit: ["nomic"], account: .ready)
         #expect(sized.sizeWords == "2 GB")
         #expect(sized.fitsWords == "No (unload nomic)")
         #expect(sized.accountWords == "Ready")
