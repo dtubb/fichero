@@ -1745,17 +1745,33 @@ def test_the_workers_uv_cache_is_pruned_once_a_week(state):
     assert len(calls) == 2
 
 
-def test_a_step_red_only_on_the_file_bound_gets_a_split_brief_and_the_next_step_brings_part2_back(state):
-    """#6589 2026-11-20 item 6: a batch over the file bound is not blocked: the worker keeps the core (<= the bound) on the lane
-    branch and the rest on <lane>-part2; the next step's brief tells it to bring part2 back."""
+def test_a_step_red_only_on_the_file_bound_gets_a_split_brief_and_its_rest_is_a_queued_step_on_a_pushed_branch(state):
+    """#6589 2026-11-20 item 6, #6849: a batch over the file bound is not blocked: the worker keeps the core (<= the bound) on the lane
+    branch and the rest on <lane>-part2; the loop pushes part2 and queues it as the next step of the lane, with a brief naming it."""
     lane(state)
     over = {"ok": False, "kind": "red", "why": "the check is red at h1 (failed: diff-bound)", "findings": "failed rung: diff-bound\ndiff bound: 40 files, over 25"}
     fake = Fake(chains={"1.1": [over]})
+    pushed = []
+    fake.procs.push_part2 = lambda the_lane, branch: (pushed.append(branch), (0, "abc1234 the rest of the files"))[1]
     queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
     split = fake.sent[0]
     assert "40 files" in split and "at most 25 files" in split and "m1-part2" in split and "git branch -f m1-part2 HEAD" in split
-    assert steps()["1.1"]["state"] == "landed" and steps()["1.2"]["state"] == "landed" and _alerts() == []
-    assert "m1-part2" in fake.sent[1] and "brief 1.2" in fake.sent[1], "the next step is told to bring part2 back"
+    assert pushed == ["m1-part2"], "part2 is pushed to origin before the core lands"
+    assert list(steps()) == ["1.1", "1.1-part2", "1.2"] and _alerts() == []
+    part2 = steps()["1.1-part2"]
+    assert part2["state"] == "landed", "the queued rest runs and lands as a step of the same lane"
+    brief = open(part2["brief"]).read()
+    assert "m1-part2" in brief and "abc1234 the rest of the files" in brief and "pushed to origin" in brief
+    assert "Step 1.1-part2" in fake.sent[1] and "brief 1.2" in fake.sent[2], "the rest is the next step of the lane, before 1.2"
+
+
+def test_a_split_whose_part2_cannot_be_pushed_blocks_the_step_before_it_lands(state):
+    lane(state)
+    over = {"ok": False, "kind": "red", "why": "red", "findings": "failed rung: diff-bound\ndiff bound: 40 files, over 25"}
+    fake = Fake(chains={"1.1": [over]})
+    fake.procs.push_part2 = lambda the_lane, branch: (1, "the branch m1-part2 does not exist")
+    queue.run(fake.procs, workers_n=1, push=True, out=lambda s: None)
+    assert steps()["1.1"]["state"] == "blocked" and "m1-part2 was not pushed" in steps()["1.1"]["why"] and fake.landed_calls == []
 
 
 def test_any_other_red_still_gets_the_plain_fix_brief(state):
