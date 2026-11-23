@@ -730,19 +730,20 @@ the issue it belongs to as `NEW-n` or `#N`, and its spec step as `[1.2]` when th
 **Issues to file** (a list: `NEW-n title (behaviour ids)`), **Open questions** (a numbered list, or the word "none"),
 and optionally **Existing issues that gained evidence** (a list: `#N text`). Spec-change: owner 2026-11-21 a review incorporates itself.
 
-- `local.review.start-queues-a-session` [OK] (#6847) — `builder review start <area> --repo-dir R [--base REF]
-  [--scope TEXT]` makes the review worktree `<[jail].workroot>/wt-review-<area>` on branch `review-<area>` from the base
+- `local.review.start-queues-a-session` [OK] (#6847) — `builder review start <area> --repo-dir R --written-by TEXT
+  [--base REF] [--scope TEXT]` makes the review worktree `<[jail].workroot>/wt-review-<area>` on branch `review-<area>` from the base
   (default `origin/<[land].branch>`), writes the brief (the review rules, the area, the report path
   `review-<area>.md` in the worktree, kept out of the commits by `.git/info/exclude`) and queues it as the one step
   `review` of lane `review-<area>`, so the loop runs it like any step. An area that is not a word of letters, digits and
-  dashes, or whose worktree or branch exists, is refused. Test: `fichero-builder/tests/test_review_verb.py`, on a scratch repo: the
+  dashes, whose worktree or branch exists, or with no `--written-by`, is refused. Test: `fichero-builder/tests/test_review_verb.py`, on a scratch repo: the
   worktree, the branch, the exclude line, the queued step and the brief text; a second start is refused.
   Serves: local, builds Fichero.
 - `local.review.report-is-checked` [OK] (#6847) — `builder review check <area>` reads the report and refuses one that
   lacks a heading above, whose Issues list is empty, whose `NEW-n` run has a gap or a repeat, or in which a ranked fix
   cites neither a listed `NEW-n` nor a `#N`. It names each fault with its heading or fix number and exits 1. Test:
   `fichero-builder/tests/test_review_verb.py`, one report per fault, and one whole report passes. Serves: reliable.
-- `local.review.approve-files-and-maps` [OK] (#6847) — `builder review approve <area> --milestone M --spec FILE`
+- `local.review.approve-files-and-maps` [OK] (#6847) — `builder review approve <area> --milestone M --spec FILE
+  --written-by TEXT`
   runs the check first, then files one issue per `NEW-n` in milestone M through `gh` (title `[M] title`, the behaviour
   ids and the report's text in the body) and writes the map `NEW-n -> #N` to `<state>/review-<area>-issues.json` after
   each issue, so a second run files only what the map lacks. It rewrites the spec's tags: `#NEW-n` and `#NEW-Sn` become
