@@ -38,7 +38,23 @@ def test_a_run_still_waiting_says_what_it_waits_for(db):
     waiting = jobs._insert(db, runner.KIND, "second", None, "owner")
     db.execute("UPDATE jobs SET state = 'waiting' WHERE id = ?", [waiting])
     reason = runner.status(db, waiting)["reason"]
-    assert ahead in reason and "recipe runs go one at a time" in reason
+    assert ahead not in reason, "the words name the run by its start time, never its id (#6811)"
+    assert reason.startswith("Waiting for the recipe run started at ") and "recipe runs go one at a time" in reason
+
+
+def test_a_run_waiting_for_a_folders_run_names_the_folder(db):
+    from fichero_server.models import DocType, Document
+
+    box = Document(name="Box 7", doc_type=DocType.folder)
+    db.save(box)
+    jobs._ensure(db)
+    ahead = jobs._insert(db, runner.KIND, "first", None, "owner")
+    db.execute("UPDATE jobs SET state = 'running', detail = ? WHERE id = ?", [json.dumps({"folder_id": box.id}), ahead])
+    waiting = jobs._insert(db, runner.KIND, "second", None, "owner")
+    db.execute("UPDATE jobs SET state = 'waiting' WHERE id = ?", [waiting])
+    reason = runner.status(db, waiting)["reason"]
+    assert ahead not in reason
+    assert reason == "Waiting for the recipe run on Box 7 to finish: recipe runs go one at a time"
 
 
 def test_a_workflow_step_still_points_at_its_running_job(db):

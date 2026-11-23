@@ -2243,7 +2243,7 @@ def _status(db: Any, job_id: str) -> dict[str, Any]:
     elif row["state"] == "waiting":
         ahead = [r["id"] for r in jobs.find_jobs(db, kinds=[KIND], states=["running"]) if r["id"] != job_id]
         if ahead:
-            reason = f"Waiting for the recipe run {ahead[0]} to finish: recipe runs go one at a time"
+            reason = f"Waiting for the recipe run {_run_in_words(db, ahead[0])} to finish: recipe runs go one at a time"
     return {"job_id": job_id, "state": row["state"], "reason": reason, "documents": detail.get("documents"),
             "steps": steps, "awaited": detail.get("awaited") or [], "skipped": detail.get("skipped", []), "refusals": detail.get("refusals", []),
             "started_by": row["started_by"], "folder_id": detail.get("folder_id"),
@@ -2253,6 +2253,16 @@ def _status(db: Any, job_id: str) -> dict[str, Any]:
             "stopped_needs_cap_usd": (capped or {}).get("needed_cap_usd"),
             "stopped_needs_project_cap_usd": (capped or {}).get("needed_project_cap_usd"),
             "stopped_refusal": (capped or {}).get("refusal"), "once_words": once_words(detail)}
+
+
+def _run_in_words(db: Any, job_id: str) -> str:
+    """A run a person can place: the one on its folder, else the one started at its time (never its id, #6811)."""
+    from fichero_server.models import Document
+
+    row = jobs.read_job(db, job_id) or {}
+    folder = json.loads(row.get("detail") or "{}").get("folder_id")
+    document = db.get(Document, folder) if folder else None
+    return f"on {document.name}" if document else f"started at {row.get('created_at')}"
 
 
 def once_words(detail: dict[str, Any]) -> str | None:

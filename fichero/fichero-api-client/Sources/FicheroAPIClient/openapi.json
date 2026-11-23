@@ -83374,6 +83374,14 @@
             "nullable": true,
             "title": "Documents",
             "description": "the run's pages when it covered some alone (a run an import started), as Start takes them back in `documents`; null: the scope is `folder_id`"
+          },
+          "redo": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Redo",
+            "description": "the steps the run read again; Start takes them back in `redo` with `documents`, so the offer reads the pages this run did not reach again, not the plain Start that finds every page done (#6811)"
           }
         },
         "type": "object",

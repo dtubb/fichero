@@ -452,6 +452,9 @@ class Missed(BaseModel):
     documents: Optional[list[str]] = Field(default=None, description=(
         "the run's pages when it covered some alone (a run an import started), as Start takes them back in `documents`; "
         "null: the scope is `folder_id`"))
+    redo: list[str] = Field(default_factory=list, description=(
+        "the steps the run read again; Start takes them back in `redo` with `documents`, so the offer reads the pages "
+        "this run did not reach again, not the plain Start that finds every page done (#6811)"))
 
 
 _UNFINISHED = ("failed", "not run", "cancelled", "partial")
@@ -972,11 +975,17 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
             if entry["page_id"] not in seen:
                 seen.add(entry["page_id"])
                 made.left_out.append(LeftOutPage(**entry))
+    redo = await asyncio.to_thread(lambda: runner.started_plan(db, job_id)["redo"]) if made.finished else []
+    not_done = sorted({i for step in status["steps"] if step.get("account") for i in step["account"].not_done_ids}) if redo else []
+    if redo:  # a run that read again counts its own pages: the older readings are not this run's (#6811)
+        made.pages_read = max(0, min(made.pages_read, len(pages) - len(not_done)))
     ran = await asyncio.to_thread(_tail, db, made, status, pages, counts)
     made.lines = _lines(made, pages_split, ran)
     if made.finished:
         made.missed = missed([RecipeRunStep(**s) for s in status["steps"]], len(pages), status.get("folder_id"),
                              status.get("documents"))
+        if redo and made.missed and not_done:
+            made.missed = made.missed.model_copy(update={"documents": not_done, "redo": redo})
     steps = [RecipeRunStep(**s) for s in status["steps"]]
     made.lines.extend(line for line in (slowest_words(steps), dearest_words(steps)) if line)
     return made

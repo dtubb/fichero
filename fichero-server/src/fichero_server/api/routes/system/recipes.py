@@ -2744,12 +2744,13 @@ _PLAN_READS: ContextVar[dict | None] = ContextVar("start_plan_reads", default=No
 
 def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list[str] | tuple[str, ...] = (),
                 first_pages: Optional[int] = None, memo: Optional[dict] = None,
-                steps: Optional[list[str] | tuple[str, ...]] = None) -> dict[str, Any]:
-    """The Start plan, over the whole project or one folder's live pages (`source.recipe.folder-scoped-start`).
+                steps: Optional[list[str] | tuple[str, ...]] = None,
+                documents: Optional[list[str]] = None) -> dict[str, Any]:
+    """The Start plan, over the whole project, one folder's live pages or the chosen `documents` (#6811) (`source.recipe.folder-scoped-start`).
     LookupError for a folder not in the project. `memo`: another plan's reads of the library in this same request, kept: the
     setup, the jobs, the caps and the spending are read fresh every time."""
     from fichero_server.recipes import runner
-    from fichero_server.recipes.done import annotate, material
+    from fichero_server.recipes.done import annotate, material, pages_for
     from fichero_server.recipes.layers import addable_now, explain
     from fichero_server.recipes.project import read_proposed, read_start
     from fichero_server.recipes.answers import spend_cap
@@ -2778,8 +2779,10 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
                       **{k: (setup["answers"] or {}).get(k) for k in ("job_answers", "job_answers_by_folder")})
     if first_pages is not None and folder_id:
         raise LookupError("Start takes a folder or the first pages, not both")
+    chosen = set(pages_for(db, {}, documents, memo=memo)) if documents is not None else None
     memo = {} if memo is None else memo  # what each step has done on each page, asked once for the estimate and the notes
-    within = runner.folder_scope(db, folder_id) if folder_id else set(first_pages_of(db, first_pages, memo)) if first_pages else None
+    within = (runner.folder_scope(db, folder_id) if folder_id else set(first_pages_of(db, first_pages, memo)) if first_pages
+              else chosen)
     pages = material(db, within, memo)
     plan["estimate"] = estimate_on(db, plan, pages, within, memo)
     plan["estimate"]["counted"] = pages["sentence"]
@@ -3045,13 +3048,14 @@ NO_MATERIAL = "This project has no material yet: add your pages in Set Up › Yo
 
 def _accept_asked(db: Database, accepted: list[str], folder_id: Optional[str], clusters: list[str], ctx: ActionContext,
                   memo: Optional[dict] = None, first_pages: Optional[int] = None,
-                  steps: Optional[list[str]] = None) -> None:
+                  steps: Optional[list[str]] = None, documents: Optional[list[str]] = None) -> None:
     """Start's yes to the cloud models with no listed price it names: the ones sent (`StartRequest.accept_unpriced`), else
     every one the plan lists, since pressing Start is the yes (#6259), taken before Start's own action so it outlives a refused Start
     (`ai.where.accept-unpriced-cloud-model`). Each by `cloud.accept_unpriced`, the one accept action.
     Only a model the plan names can be accepted here."""
     try:
-        plan = _start_plan(db, folder_id, clusters=clusters, memo=memo, **only_if_set(first_pages=first_pages, steps=steps or None))
+        plan = _start_plan(db, folder_id, clusters=clusters, memo=memo,
+                           **only_if_set(first_pages=first_pages, steps=steps or None, documents=documents))
     except LookupError as exc:  # a folder not in the project
         raise ValueError(str(exc)) from exc
     asked = set(plan["cloud_cap"]["unpriced_models"]) if plan.get("cloud_cap") else set()
@@ -3106,7 +3110,7 @@ async def start_project(
             # caps again, so the spending check still runs under the gate, just before the run is queued.
             _accept_asked(db, request.accept_unpriced if request else [], folder_id, clusters, ctx, memo=reads,
                           first_pages=first if not request or request.documents is None else None,
-                          steps=request.steps if request else None)
+                          steps=request.steps if request else None, documents=request.documents if request else None)
             token = _PLAN_READS.set(reads)
             try:
                 registry.invoke(db, "project.start", {"redo": request.redo if request else [], "folder_id": folder_id,
@@ -3126,7 +3130,8 @@ async def start_project(
     clusters = _cluster_names(http)
     return StartPlan(**await asyncio.to_thread(lambda: _as_started(
         db, _start_plan(db, folder_id, clusters=clusters, memo=reads,
-                        **only_if_set(first_pages=first, steps=(request.steps if request else None) or None)), reads)),
+                        **only_if_set(first_pages=first, steps=(request.steps if request else None) or None,
+                                      documents=request.documents if request else None)), reads)),
                      from_tries=from_tries[0])
 
 
@@ -3420,13 +3425,17 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
                 raise ValueError(f"{len(stray)} of those pages are not in the project")
         try:
             plan = _start_plan(db, params.folder_id, clusters=params.clusters, memo=_PLAN_READS.get(),
-                               **only_if_set(first_pages=params.first_pages, steps=params.steps or None))
+                               **only_if_set(first_pages=params.first_pages, steps=params.steps or None,
+                                             documents=params.documents))
         except LookupError as exc:  # a folder not in the project
             raise ValueError(str(exc)) from exc
         if NO_MATERIAL in plan["refusals"]:  # said alone: nothing else matters until there is material (#5813)
             raise ValueError(NO_MATERIAL)
         if plan["refusals"]:
             raise ValueError("Start is refused: " + "; ".join(plan["refusals"]))
+        if plan["runs"] and not params.redo and all(r.get("of") and r.get("done") is not None and r["done"] >= r["of"]
+                                                    for r in plan["runs"]):  # a redo runs what is done on purpose (#6811)
+            raise ValueError("Start is refused: " + plan["runs"][0]["note"])
         from fichero_server.recipes import runner
         from fichero_server.recipes.start import queue_downloads
 
