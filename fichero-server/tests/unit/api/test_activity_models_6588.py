@@ -94,7 +94,7 @@ def test_the_route_answers_the_list(client, db, monkeypatch):
     answer = client.get("/api/activity/models")
     assert answer.status_code == 200, answer.text
     assert any(m["provider"] == "Kraken" for m in answer.json()["models"])
-    assert answer.json()["places"][0] == {"place": "this-mac", "provider": "This Mac", "account": "ready"}
+    assert answer.json()["places"][0] == {"place": "this-mac", "provider": "This Mac", "account": "ready", "egress": "this-mac"}
 
 
 def test_this_mac_is_measured_or_says_it_is_not(client, db, monkeypatch):
@@ -330,3 +330,23 @@ def test_the_route_answers_the_new_columns(client, db, monkeypatch):
     assert {"fits_here", "needs_bytes", "fits_note", "unload_to_fit", "account", "licence", "using_now",
             "last_failed"} <= set(row)
     assert "gpu" in client.get("/api/activity/models").json()["this_mac"]
+
+
+def test_a_places_egress_comes_from_its_address_not_its_provider_type(app_db, monkeypatch):
+    """`models.place.egress-from-the-address` (#5582): a server off this Mac is "your machine" whatever the runtime it
+    speaks, a cloud provider is the provider's, a cluster the institution's, this Mac stays."""
+    from fichero_server.models import Provider, ProviderType
+
+    app_db.save_provider(Provider(id="p-remote", name="Studio", provider_type=ProviderType("ollama"),
+                                  api_base="http://studio.example:11434"))
+    app_db.save_provider(Provider(id="p-here", name="Local", provider_type=ProviderType("ollama"),
+                                  api_base="http://localhost:11434"))
+    app_db.save_provider(Provider(id="p-cloud", name="Claude", provider_type=ProviderType("anthropic")))
+    app_db.set_setting("hpc.clusters", json.dumps({"acenet": {"cluster_id": "acenet", "name": "ACENET"}}))
+    listed = activity_models.places(probe=lambda url: True)
+    egress = {p["provider"]: p["egress"] for p in listed}
+    assert egress["studio.example"] == "own-machine"
+    assert egress["Anthropic"] == "provider"
+    assert egress["ACENET"] == "institution"
+    assert egress["This Mac"] == "this-mac"
+    assert "Local" not in egress and "localhost" not in egress, "a server on this Mac is This Mac, not a place of its own"

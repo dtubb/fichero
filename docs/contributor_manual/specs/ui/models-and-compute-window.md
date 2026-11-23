@@ -308,8 +308,8 @@ engine's rule; a value out of range is refused with the range, never clamped.
   the rows here and Settings' view retired.
 - `models.place.hf-jobs` — **[GAP]** (#5398, #5740) Hugging Face Jobs is a place row with its token's state, the image,
   the monthly cap (read-only, Settings'), its jobs running and queued with far-side state and cost.
-- `models.place.egress-from-the-address` — **[GAP]** (#5582; `ai.where.*` A own the rule) the Egress column is worked
-  out from the address, never the provider type.
+- `models.place.egress-from-the-address` — **[PARTIAL]** (#5582; `ai.where.*` A own the rule) the Egress column is worked
+  out from the address, never the provider type. **Built:** each place in `GET /api/activity/models` carries `egress` (this-mac, own-machine for an address off this Mac, provider, institution for a cluster), tested in `fichero-server/tests/unit/api/test_activity_models_6588.py::test_a_places_egress_comes_from_its_address_not_its_provider_type`. **Not built:** the column in the window, and the provider's company and country.
 
 Carried from `ai/where-models-run.md` §A and §G on 2026-11-18 (ids, tags, citations and issue numbers unchanged); the window is
 the surface those two lines describe, `models.row.account-from-a-probe` is their engine rule.

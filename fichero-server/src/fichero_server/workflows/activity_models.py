@@ -153,8 +153,9 @@ def places(probe: Any = reachable) -> list[dict[str, Any]]:
     Mac, by its host), each cluster set up (by its name) and each cloud provider set up. (place, provider) pairs in the
     tree's order; the provider is the node under the place, as a model's provider is. Each carries its `account`
     (`models.row.account-from-a-probe`): another Mac's from `probe(its address)` ("ready" / "not-reachable"), a cloud provider's
-    from the key a call uses, app-supplied keys included ("ready" / "needs-key"); None where nothing probes (a cluster)."""
-    found: list[tuple[str, str, str | None]] = [(THIS_MAC, "This Mac", "ready")]
+    from the key a call uses, app-supplied keys included ("ready" / "needs-key"); None where nothing probes (a cluster). Each carries its `egress`, worked out from where it is
+    (`models.place.egress-from-the-address`): this-mac, own-machine (an address off this Mac), provider (a cloud provider), institution (a cluster)."""
+    found: list[tuple[str, str, str | None, str]] = [(THIS_MAC, "This Mac", "ready", "this-mac")]
     to_probe: dict[int, str] = {}  # index in `found` -> address, probed together after the loop
     try:
         from fichero_server.db.app import get_app_db
@@ -172,27 +173,27 @@ def places(probe: Any = reachable) -> list[dict[str, Any]]:
             if info.is_local:
                 if row.api_base and not call_places.address_is_on_this_mac(row.api_base):
                     to_probe[len(found)] = row.api_base
-                    found.append((REMOTE, _host(row.api_base) or _provider_word(kind), None))
+                    found.append((REMOTE, _host(row.api_base) or _provider_word(kind), None, "own-machine"))
             else:
                 from fichero_server.llm import get_api_key
 
-                found.append((CLOUD, _provider_word(kind), "ready" if get_api_key(kind) else "needs-key"))
-        found.extend((REMOTE, name, None) for name in _cluster_names(app_db).values())
+                found.append((CLOUD, _provider_word(kind), "ready" if get_api_key(kind) else "needs-key", "provider"))
+        found.extend((REMOTE, name, None, "institution") for name in _cluster_names(app_db).values())
         if to_probe:  # all at once: a poll waits one timeout, not one per Mac
             from concurrent.futures import ThreadPoolExecutor
 
             with ThreadPoolExecutor(max_workers=len(to_probe)) as pool:
                 answers = dict(zip(to_probe, pool.map(probe, to_probe.values())))
             for index, answer in answers.items():
-                place, provider, _ = found[index]
-                found[index] = (place, provider, "ready" if answer else "not-reachable")
+                place, provider, _, egress = found[index]
+                found[index] = (place, provider, "ready" if answer else "not-reachable", egress)
     except Exception:  # noqa: BLE001 -- the tree still shows what ran; the places set up are an addition
         import logging
 
         logging.getLogger(__name__).warning("Activity models: could not read the places set up", exc_info=True)
     order = {place: index for index, place in enumerate(PLACES)}
-    unique = {(p, v): a for p, v, a in found}
-    return [{"place": p, "provider": v, "account": unique[(p, v)]}
+    unique = {(p, v): (a, e) for p, v, a, e in found}
+    return [{"place": p, "provider": v, "account": unique[(p, v)][0], "egress": unique[(p, v)][1]}
             for p, v in sorted(unique, key=lambda pv: (order[pv[0]], pv[1].lower()))]
 
 

@@ -53282,6 +53282,18 @@
             "nullable": true,
             "title": "Account",
             "description": "from a probe or the key a call uses; null where nothing probes"
+          },
+          "egress": {
+            "type": "string",
+            "enum": [
+              "this-mac",
+              "own-machine",
+              "provider",
+              "institution"
+            ],
+            "title": "Egress",
+            "description": "where its data goes, from the address: this Mac, a machine of the person's own, the provider, the institution",
+            "default": "this-mac"
           }
         },
         "type": "object",

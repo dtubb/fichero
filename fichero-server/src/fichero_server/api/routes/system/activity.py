@@ -1738,6 +1738,8 @@ class ActivityPlace(BaseModel):
     provider: str
     account: Optional[Literal["ready", "needs-key", "not-reachable"]] = Field(
         default=None, description="from a probe or the key a call uses; null where nothing probes")
+    egress: Literal["this-mac", "own-machine", "provider", "institution"] = Field(
+        default="this-mac", description="where its data goes, from the address: this Mac, a machine of the person's own, the provider, the institution")
 
 
 class LaneLoad(BaseModel):
