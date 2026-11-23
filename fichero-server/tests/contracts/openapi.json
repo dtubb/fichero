@@ -53261,6 +53261,18 @@
           "last_failed": {
             "$ref": "#/components/schemas/ModelFailure",
             "nullable": true
+          },
+          "model_type": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model Type",
+            "description": "an installed model's runtime in the local-models routes; null otherwise"
+          },
+          "model_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model Id",
+            "description": "an installed model's id in the local-models routes; null otherwise"
           }
         },
         "type": "object",
