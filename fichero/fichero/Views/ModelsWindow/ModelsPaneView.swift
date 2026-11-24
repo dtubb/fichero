@@ -89,7 +89,9 @@ struct ModelsPaneView: View {
 
     /// The cards for a Models item, else the one table over the models answer.
     @ViewBuilder private var content: some View {
-        if let list = item?.candidateList {
+        if item == .aiSettings {
+            AISettingsView(placement: .window)
+        } else if let list = item?.candidateList {
             if let store {
                 VStack(spacing: 0) {
                     if let message = store.errorMessage { Text(message).foregroundStyle(.red).padding(6) }

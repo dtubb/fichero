@@ -105,10 +105,10 @@ struct ModelsWindowLayoutTests {
         let sidebar = ModelsWindowModel.sidebar(all)
         #expect(sidebar.map(\.section) == [.models, .providers, .thisMac, .places, .work])
         let providers = sidebar[1].entries
-        #expect(providers.map(\.title) == ["Apple Intelligence", "Kraken", "MLX", "Anthropic"])
+        #expect(providers.map(\.title) == ["Keys, Defaults & Downloads"] + ["Apple Intelligence", "Kraken", "MLX", "Anthropic"])
         #expect(providers.first { $0.title == "MLX" }?.badge == 1)
         #expect(providers.first { $0.title == "Anthropic" }?.badge == 1)
-        #expect(ModelsWindowModel.sidebar([]).map(\.entries.count) == [4, 0, 1, 2, 2])
+        #expect(ModelsWindowModel.sidebar([]).map(\.entries.count) == [4, 1, 1, 2, 2])
     }
 
     @Test("All Models lists every model, local and cloud; a provider item lists its own, needing-you first")

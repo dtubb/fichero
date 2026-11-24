@@ -29,6 +29,8 @@ enum ModelsWindowModel {
     enum Item: Hashable, Sendable {
         case allModels, usableNow, bookmarked, found
         case provider(String)
+        /// Settings' AI panes, moved here: every provider's key and switch, the defaults per kind of work, the downloads.
+        case aiSettings
         case thisMac
         case place(ActivityModelEntry.Place)
         case runningNow
@@ -47,7 +49,7 @@ enum ModelsWindowModel {
         var section: Section {
             switch self {
             case .allModels, .usableNow, .bookmarked, .found: .models
-            case .provider: .providers
+            case .provider, .aiSettings: .providers
             case .thisMac: .thisMac
             case .place: .places
             case .runningNow, .failedToday: .work
@@ -58,6 +60,7 @@ enum ModelsWindowModel {
             switch self {
             case .allModels: "All Models"
             case .provider(let name): name
+            case .aiSettings: "Keys, Defaults & Downloads"
             case .usableNow: "Usable now"
             case .bookmarked: "Bookmarked"
             case .found: "Found"
@@ -72,6 +75,7 @@ enum ModelsWindowModel {
             switch self {
             case .allModels: "cpu"
             case .provider: "shippingbox"
+            case .aiSettings: "gearshape"
             case .usableNow: "checkmark.circle"
             case .bookmarked: "bookmark"
             case .found: "magnifyingglass"
@@ -87,6 +91,7 @@ enum ModelsWindowModel {
             switch self {
             case .allModels: "allModels"
             case .provider(let name): "provider.\(name)"
+            case .aiSettings: "aiSettings"
             case .usableNow: "usableNow"
             case .bookmarked: "bookmarked"
             case .found: "found"
@@ -126,7 +131,8 @@ enum ModelsWindowModel {
                 let entries = providers(in: models).map {
                     SidebarEntry(item: .provider($0), title: $0, icon: Item.provider($0).icon, badge: badge(.provider($0), in: models))
                 }
-                result.append((section: .providers, entries: entries))
+                let settings = SidebarEntry(item: .aiSettings, title: Item.aiSettings.title, icon: Item.aiSettings.icon, badge: 0)
+                result.append((section: .providers, entries: [settings] + entries))
             }
         }
         return result
@@ -158,6 +164,7 @@ enum ModelsWindowModel {
         case .usableNow, .bookmarked, .found: rows = []  // drawn from the candidates, not the models answer
         case .allModels: rows = models
         case .provider(let name): rows = models.filter { $0.provider == name }
+        case .aiSettings: rows = []  // drawn by `AISettingsView`, not from the models answer
         case .thisMac: rows = models.filter { $0.place == .thisMac }
         case .place(let place): rows = models.filter { $0.place == place }
         case .runningNow: rows = models.filter { $0.active || !$0.usingNow.isEmpty }

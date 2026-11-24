@@ -20,8 +20,17 @@ struct AISettingsView: View {
     @Environment(\.openWindow) var openWindow
     let featureManager = FeatureManager.shared
 
+    /// Where this view is drawn: Settings keeps Advanced and a link; the Models & Cluster window holds the rest
+    /// (`models.settings.window-replaces-ai-panes`).
+    let placement: AISettingsPlacement
+
     @State var store = AISettingsStore()
-    @State private var selectedTab = AISettingsTab.defaults
+    @State private var selectedTab: AISettingsTab
+
+    init(placement: AISettingsPlacement = .settings) {
+        self.placement = placement
+        _selectedTab = State(initialValue: placement.tabs[0])
+    }
 
     // Model lists per category
     @State var textModels: [ModelInfo] = []
@@ -37,20 +46,9 @@ struct AISettingsView: View {
     @State var visionMediumModels: [ModelInfo] = []
     @State var visionLargeModels: [ModelInfo] = []
 
-    private var showsModelManagementTabs: Bool {
-        featureManager.isSettingsModelsTabEnabled
-    }
-
     private var effectiveSelectedTab: AISettingsTab {
-        guard showsModelManagementTabs else {
-            switch selectedTab {
-            case .defaults, .advanced:
-                return selectedTab
-            case .providers, .downloads, .localLLM:
-                return .defaults
-            }
-        }
-        return selectedTab
+        let resolved = selectedTab.resolved
+        return placement.tabs.contains(resolved) ? resolved : placement.tabs[0]
     }
 
     var body: some View {
@@ -71,30 +69,15 @@ struct AISettingsView: View {
                 }
                 .formStyle(.grouped)
             } else {
-                Picker("", selection: $selectedTab) {
-                    Text("Defaults").tag(AISettingsTab.defaults)
-                    if showsModelManagementTabs {
-                        Text("Models & Providers").tag(AISettingsTab.providers)
-                        Text("Downloads").tag(AISettingsTab.downloads)
-                        // "Local LLM" is GONE (#4503) — MLX is a provider, and
-                        // its runtime and model controls now live beside it on
-                        // Models & Providers.
+                if placement == .settings { modelsMovedLink }
+                if placement.tabs.count > 1 {
+                    Picker("", selection: $selectedTab) {
+                        ForEach(placement.tabs, id: \.self) { Text($0.title).tag($0) }
                     }
-                    Text("Advanced").tag(AISettingsTab.advanced)
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal)
+                    .padding(.top, 8)
                 }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
-                .padding(.top, 8)
-                // Returning to Defaults refreshes the provider/model lists
-                // (Daniel, 2026-08-25: "I added a model, then it should be
-                // here, so we can see it instantly — it's not always").
-                // The store loaded ONCE in .task; a model added on the
-                // Models & Providers tab was invisible here until Settings
-                // reopened.
-                .onChange(of: selectedTab) { _, tab in
-                    if tab == .defaults { Task { await store.load() } }
-                }
-
                 switch effectiveSelectedTab {
                 case .defaults:
                     defaultsTab
@@ -124,10 +107,9 @@ struct AISettingsView: View {
             await store.load()
             await loadModelLists()
         }
-        .onChange(of: showsModelManagementTabs, initial: true) { _, isVisible in
-            if !isVisible {
-                selectedTab = effectiveSelectedTab
-            }
+        // Returning to Defaults refreshes the provider/model lists: a model added on the Providers tab shows at once.
+        .onChange(of: selectedTab) { _, tab in
+            if tab == .defaults { Task { await store.load() } }
         }
         .onChange(of: store.defaults) {
             Task {
@@ -137,12 +119,37 @@ struct AISettingsView: View {
     }
 }
 
-enum AISettingsTab: Hashable {
+enum AISettingsTab: Hashable, CaseIterable {
     case defaults
     case providers
     case downloads
     case localLLM
     case advanced
+
+    var title: String {
+        switch self {
+        case .defaults: "Defaults"
+        case .providers, .localLLM: "Models & Providers"
+        case .downloads: "Downloads"
+        case .advanced: "Advanced"
+        }
+    }
+
+    /// `.localLLM` is gone (#4503): a persisted selection or an old deep link resolves to the providers tab.
+    var resolved: AISettingsTab { self == .localLLM ? .providers : self }
+}
+
+/// Where each AI tab is drawn (`models.settings.window-replaces-ai-panes`, #6588): the Models & Cluster window holds the
+/// providers, the defaults and the downloads; Settings keeps Advanced and a link to the window. Every tab is in exactly one.
+enum AISettingsPlacement: Equatable {
+    case settings, window
+
+    var tabs: [AISettingsTab] {
+        switch self {
+        case .settings: [.advanced]
+        case .window: [.defaults, .providers, .downloads]
+        }
+    }
 }
 
 // MARK: - AI Settings Store (#3222)

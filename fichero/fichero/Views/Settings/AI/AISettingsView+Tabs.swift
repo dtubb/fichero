@@ -277,6 +277,21 @@ extension AISettingsView {
     /// filling the tab. (Kept out of a `ScrollView` for the #4531 reason: the
     /// `PlatformHSplitView` needs a bounded height, not an unbounded scroll axis,
     /// or its list collapses.)
+    /// Settings' link to the window that now holds the providers, defaults and downloads.
+    @ViewBuilder
+    var modelsMovedLink: some View {
+        HStack {
+            Text("Providers, keys, defaults and downloads are in Models & Cluster.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Button("Open Models & Cluster…") { openWindow(id: ModelsWindowModel.windowID) }
+                .accessibilityIdentifier("settings.ai.openModelsWindow")
+        }
+        .padding(.horizontal)
+        .padding(.top, 8)
+    }
+
     @ViewBuilder
     var providersTab: some View {
         ProvidersView()
