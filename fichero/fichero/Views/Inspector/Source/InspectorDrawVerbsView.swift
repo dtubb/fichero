@@ -3,7 +3,7 @@ import SwiftUI
 /// The Inspector's drawing verbs on the selected segment (#7083): Add Line on a region, Add Word on a line (the polygon tool
 /// armed at that level, the shape going into the segment it is drawn in), and Change Kind (region ↔ line, one
 /// `segment.convert_level`, one ⌘Z).
-struct InspectorDrawVerbs: View {
+struct InspectorDrawVerbsView: View {
     let selected: [Segment]
     let documentId: String
     /// Why Change Kind did not happen, said by the host under its head; nil after one did.
@@ -51,4 +51,17 @@ struct InspectorDrawVerbs: View {
             }
         }
     }
+}
+
+#Preview("Draw verbs: a region selected") {
+    InspectorDrawVerbsView(
+        selected: [Segment(
+            id: "r1", provisional: false, documentId: "page-1", passId: "p", kind: "region", kindRaw: nil,
+            provenanceKind: .workflow, anchor: SourceAnchorValue(generated: .init(documentId: "page-1")),
+            baseline: nil, text: nil, confidence: nil, language: nil, script: nil, direction: nil,
+            sourceArtifactId: nil, boxIndex: nil, pageIndex: nil, metadata: nil
+        )],
+        documentId: "page-1"
+    )
+    .padding()
 }

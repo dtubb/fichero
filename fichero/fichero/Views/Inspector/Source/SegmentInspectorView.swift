@@ -371,7 +371,7 @@ extension SegmentInspectorView {
             }
             Spacer(minLength: 0)
             addMenu
-            InspectorDrawVerbs(
+            InspectorDrawVerbsView(
                 selected: segments.filter { selectedIds.contains($0.id) }, documentId: documentId,
                 onNote: { deleteNote = $0 }
             )
