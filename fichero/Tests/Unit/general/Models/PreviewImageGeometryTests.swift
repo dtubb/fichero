@@ -162,4 +162,40 @@ final class PreviewImageGeometryTests: XCTestCase {
             DrawnImageFrame.aspectFitRect(of: image, in: bounds)
         )
     }
+
+    // MARK: - settles (#7081)
+
+    /// Layout re-measures on every pass; a sub-pixel wobble between passes must not count as a change,
+    /// or each publish re-runs the body, re-lays-out, and wobbles again (the hang in #7081).
+    func testWobbleBelowTolerancePublishesNothing() {
+        let a = PreviewImageGeometry(visible: visible, drawnFrame: drawn)
+        var b = a
+        b.visible.origin.x += 1e-9
+        b.drawnFrame.size.width += 0.001
+        XCTAssertNotEqual(a, b)
+        XCTAssertTrue(a.settles(with: b))
+    }
+
+    /// A real move (a resize of a pixel, a scroll) still publishes.
+    func testRealChangePublishes() {
+        let a = PreviewImageGeometry(visible: visible, drawnFrame: drawn)
+        var wider = a
+        wider.drawnFrame.size.width += 1
+        XCTAssertFalse(a.settles(with: wider))
+        var scrolled = a
+        scrolled.visible.origin.y += 0.001
+        XCTAssertFalse(a.settles(with: scrolled))
+    }
+
+    /// A feed of measurements that wobble forever writes once, not once per pass.
+    func testEndlessWobbleWritesOnce() {
+        var published = PreviewImageGeometry.unmeasured
+        var writes = 0
+        for pass in 0..<1000 {
+            var m = PreviewImageGeometry(visible: visible, drawnFrame: drawn)
+            m.drawnFrame.origin.y += pass.isMultiple(of: 2) ? 0 : 1e-7
+            if !published.settles(with: m) { published = m; writes += 1 }
+        }
+        XCTAssertEqual(writes, 1)
+    }
 }

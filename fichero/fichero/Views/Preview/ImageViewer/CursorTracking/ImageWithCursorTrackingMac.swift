@@ -181,7 +181,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         // the overlay never maps a fresh crop through a stale frame (D3).
         context.coordinator.onGeometryChanged = { measured in
             Task { @MainActor in
-                if self.geometry != measured {
+                if !self.geometry.settles(with: measured) {
                     self.geometry = measured
                 }
             }
