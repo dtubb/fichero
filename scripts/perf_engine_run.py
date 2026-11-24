@@ -26,7 +26,7 @@ def sh(argv, **kw) -> str:
 
 def thermal() -> str | None:
     """`pmset -g therm` on the runner: 'nominal' when it reports no CPU limit, else 'fair' or worse by its speed-limit figure."""
-    out = sh(["pmset", "-g", "therm"])
+    out = sh(["/usr/bin/pmset", "-g", "therm"])
     if not out:
         return None
     if "CPU_Speed_Limit" not in out and "No thermal warning level" in out or "No CPU power status" in out:
@@ -48,7 +48,7 @@ def main() -> int:
     baseline = json.loads((ROOT / a.baseline).read_text())
     out = Path(tempfile.mkdtemp(prefix="perf-"))
     dirs = [d for d in a.dir if os.path.isdir(d)]
-    du = lambda: perf_rung.read_du(sh(["du", "-sk", *dirs])) if dirs else {}  # noqa: E731
+    du = lambda: perf_rung.read_du(sh(["/usr/bin/du", "-sk", *dirs])) if dirs else {}  # noqa: E731
     before = du()
     pytest = [sys.executable, "-m", "pytest", a.tests, "-p", "pytest_benchmark", f"--benchmark-json={out / 'bench.json'}", "--benchmark-warmup=on",
               "--benchmark-min-rounds=3", "-q"]
@@ -71,7 +71,7 @@ def main() -> int:
         notes.append("REFUSED: no pyinstrument profile (pyinstrument missing)")
     figs["disk_kib"] = perf_rung.disk_delta(before, after, json.loads(a.declared)) if dirs else {}
     figs["written_kib"] = float(sum(max(0, after[d] - before[d]) for d in before)) if dirs else None  # net growth of the watched dirs: what the workload added, declared output included
-    model = sh(["sysctl", "-n", "hw.model"]).strip()
+    model = sh(["/usr/sbin/sysctl", "-n", "hw.model"]).strip()
     verdict = perf_rung.judge(figs, baseline, model, thermal(), idle=os.getloadavg()[0] < 2.0, root=ROOT)
     if notes:
         verdict = {**verdict, "ok": False, "reds": [*notes, *verdict["reds"]]}
