@@ -1,6 +1,7 @@
 # Per-project rules for the dev harness (fichero-builder/fichero_builder/check_tool.py `load`).
 # Fichero is the first project; another project carries its own harness.toml with the same keys.
 [check]
+max_files = 40  # owner 2026-11-24: steps carry 3-5 related bugs, so a batch passes the 25 files one bug needed
 # The jail user's own tools, copied into the workroot by the owner-side set-up (nothing is read from the owner's home).
 python = "/Users/Shared/fichero-worker/venv/bin/python"
 path = "/Users/Shared/fichero-worker/bin:/Users/Shared/fichero-worker/venv/bin:/usr/bin:/bin:/usr/sbin:/sbin"
