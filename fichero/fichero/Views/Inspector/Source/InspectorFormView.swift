@@ -75,7 +75,7 @@ private struct FormRow: View {
                 .init(
                     key: "furniture", label: "Furniture", isToggle: true, state: .set, value: "false", values: [],
                     inheritedFrom: nil, choices: [], freeText: false
-                ),
+                )
             ]
         ),
         onChange: { _, _ in }
